@@ -1,0 +1,82 @@
+class OciError(Exception):
+    def __init__(
+        self,
+        message: str,
+        command: list[str] | None = None,
+        exit_code: int | None = None,
+        stderr: str | None = None,
+    ):
+        self.message = message
+        self.command = command
+        self.exit_code = exit_code
+        self.stderr = stderr
+        super().__init__(self._format_message())
+
+    def _format_message(self) -> str:
+        parts = [self.message]
+        if self.command:
+            parts.append(f"Command: {' '.join(self.command)}")
+        if self.exit_code is not None:
+            parts.append(f"Exit code: {self.exit_code}")
+        if self.stderr:
+            parts.append(f"Error output: {self.stderr}")
+        return "\n".join(parts)
+
+
+class ContainerError(OciError):
+    pass
+
+
+class ImageError(ContainerError):
+    pass
+
+
+class VolumeError(ContainerError):
+    pass
+
+
+class NetworkError(ContainerError):
+    pass
+
+
+class ImageNotFoundError(ImageError):
+    def __init__(self, image_name: str):
+        self.image_name = image_name
+        super().__init__(f"Image not found: {image_name}")
+
+
+class ContainerNotFoundError(ContainerError):
+    def __init__(self, container_id: str):
+        self.container_id = container_id
+        super().__init__(f"Container not found: {container_id}")
+
+
+class VolumeNotFoundError(VolumeError):
+    def __init__(self, volume_name: str):
+        self.volume_name = volume_name
+        super().__init__(f"Volume not found: {volume_name}")
+
+
+class NetworkNotFoundError(NetworkError):
+    def __init__(self, network_name: str):
+        self.network_name = network_name
+        super().__init__(f"Network not found: {network_name}")
+
+
+class ContainerRuntimeError(ContainerError):
+    pass
+
+
+class RuntimeNotAvailableError(ContainerError):
+    def __init__(self, runtime: str):
+        self.runtime = runtime
+        super().__init__(
+            f"Container runtime '{runtime}' is not available. "
+            f"Please ensure it is installed and running."
+        )
+
+
+class ParsingError(OciError):
+    def __init__(self, raw: str, message: str = "Failed to parse output"):
+        self.raw = raw
+        super().__init__(message)

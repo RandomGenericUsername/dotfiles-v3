@@ -1,0 +1,37 @@
+from dataclasses import dataclass
+from typing import Callable
+
+from oci_runtime.domain.enums import RuntimeKind
+from oci_runtime.ports.discovery import RuntimeDiscovery
+from oci_runtime.ports.engine import ContainerEngine
+from oci_runtime.ports.parsers import (
+    ContainerParser,
+    ImageParser,
+    NetworkParser,
+    VolumeParser,
+)
+from oci_runtime.ports.transport import Transport
+
+
+@dataclass(frozen=True)
+class Parsers:
+    """Typed container for parser instances (replaces bare tuple)."""
+    container_parser: ContainerParser
+    image_parser: ImageParser
+    volume_parser: VolumeParser
+    network_parser: NetworkParser
+
+
+@dataclass(frozen=True)
+class RuntimeFactoryConfig:
+    """Composition root configuration.
+
+    This is the ONLY place where adapter implementations are wired.
+    Allows injection of mock implementations for testing.
+    All fields default to None — the factory resolves them to production
+    implementations on first use (lazy loading).
+    """
+    transport_factory: Callable[[str], Transport] | None = None
+    runtime_cls: type[ContainerEngine] | None = None
+    parser_provider: Callable[[RuntimeKind], Parsers] | None = None
+    discovery_factory: Callable[[Callable[[str], Transport]], "RuntimeDiscovery"] | None = None
