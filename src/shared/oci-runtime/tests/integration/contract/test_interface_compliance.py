@@ -11,6 +11,7 @@ from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.adapters.transport.cli import CliTransport
 from oci_runtime.domain.enums import RuntimeKind
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerError,
     ContainerNotFoundError,
@@ -20,12 +21,11 @@ from oci_runtime.domain.exceptions import (
     NetworkError,
     NetworkNotFoundError,
     OciError,
-    ParsingError,
     RuntimeNotAvailableError,
     VolumeError,
     VolumeNotFoundError,
 )
-from oci_runtime.ports.capabilities import EngineProfile, RuntimeCapabilities, RuntimePreference
+from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.ports.factory import Parsers, RuntimeFactoryConfig
 from oci_runtime.ports.managers import (
@@ -50,7 +50,7 @@ class TestTransportContract:
         assert issubclass(Transport, ABC)
 
     def test_has_all_abstract_methods(self):
-        expected = {"execute", "get_runtime_binary", "probe"}
+        expected = {"execute", "get_runtime_binary", "probe", "execute_pty"}
         actual = set(Transport.__abstractmethods__)
         assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
 
@@ -348,7 +348,7 @@ class TestExceptionHierarchyContract:
         assert issubclass(ContainerRuntimeError, ContainerError)
 
     def test_parsing_error_chain(self):
-        assert issubclass(ParsingError, OciError)
+        assert not issubclass(ParsingError, OciError)
         assert not issubclass(ParsingError, ContainerError)
 
     def test_not_found_includes_entity_name(self):
@@ -413,11 +413,6 @@ class TestCapabilitiesContract:
     def test_runtime_preference_binary_override_podman(self):
         pref = RuntimePreference(kind=RuntimeKind.PODMAN, binary="/custom/path/podman")
         assert pref.binary == "/custom/path/podman"
-
-    def test_engine_profile_is_frozen(self):
-        ep = EngineProfile(binary="docker", kind=RuntimeKind.DOCKER)
-        with pytest.raises(FrozenInstanceError):
-            ep.binary = "podman"
 
     def test_runtime_capabilities_default_output_format(self):
         caps = RuntimeCapabilities()

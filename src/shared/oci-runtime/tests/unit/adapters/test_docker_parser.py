@@ -1,9 +1,12 @@
+import pytest
+
 from oci_runtime.adapters.parser.docker import (
     DockerContainerParser,
     DockerImageParser,
     DockerNetworkParser,
     DockerVolumeParser,
 )
+from oci_runtime.adapters.parser.exceptions import ParsingError
 
 DOCKER_CONTAINER_INSPECT = """[
   {
@@ -95,6 +98,49 @@ DOCKER_NETWORK_LIST = """[
 ]"""
 
 
+class TestDockerPortParsing:
+    def test_parse_docker_ports_non_numeric_key(self):
+        from oci_runtime.adapters.parser.docker import _parse_docker_ports
+        item = {
+            "NetworkSettings": {
+                "Ports": {
+                    "abc/tcp": [{"HostPort": "8080", "HostIp": "0.0.0.0"}],
+                }
+            }
+        }
+        ports = _parse_docker_ports(item)
+        assert ports == []
+
+    def test_parse_docker_ports_missing_slash(self):
+        from oci_runtime.adapters.parser.docker import _parse_docker_ports
+        item = {
+            "NetworkSettings": {
+                "Ports": {
+                    "abc": [{"HostPort": "8080", "HostIp": "0.0.0.0"}],
+                }
+            }
+        }
+        ports = _parse_docker_ports(item)
+        assert ports == []
+
+    def test_parse_docker_ports_valid_ports_still_work(self):
+        from oci_runtime.adapters.parser.docker import _parse_docker_ports
+        item = {
+            "NetworkSettings": {
+                "Ports": {
+                    "80/tcp": [{"HostPort": "8080", "HostIp": "0.0.0.0"}],
+                    "443/udp": [{"HostPort": "8443", "HostIp": "127.0.0.1"}],
+                }
+            }
+        }
+        ports = _parse_docker_ports(item)
+        assert len(ports) == 2
+        assert ports[0].container_port == 80
+        assert ports[0].host_port == 8080
+        assert ports[1].container_port == 443
+        assert ports[1].protocol == "udp"
+
+
 class TestDockerContainerParser:
     def setup_method(self):
         self.parser = DockerContainerParser()
@@ -123,13 +169,13 @@ class TestDockerContainerParser:
         assert self.parser.is_not_found_error("No such container: abc")
         assert not self.parser.is_not_found_error("something else")
 
-    def test_parse_empty_inspect(self):
-        info = self.parser.parse_inspect("[]")
-        assert info is None or info.id == ""
+    def test_parse_empty_inspect_raises(self):
+        with pytest.raises(ParsingError):
+            self.parser.parse_inspect("[]")
 
-    def test_parse_malformed(self):
-        info = self.parser.parse_inspect("not json")
-        assert info is None
+    def test_parse_malformed_raises(self):
+        with pytest.raises(ParsingError):
+            self.parser.parse_inspect("not json")
 
 
 class TestDockerImageParser:
@@ -154,13 +200,17 @@ class TestDockerImageParser:
         assert self.parser.is_not_found_error("pull access denied")
         assert not self.parser.is_not_found_error("something else")
 
-    def test_parse_build_output(self):
+    def test_parse_build_output_with_prefix(self):
         image_id = self.parser.parse_build_output("sha256:abc123def456\n")
-        assert image_id == "abc123def456"
+        assert image_id == "sha256:abc123def456"
 
-    def test_parse_empty_inspect(self):
-        info = self.parser.parse_inspect("[]")
-        assert info is None or info.id == ""
+    def test_parse_build_output_without_prefix(self):
+        image_id = self.parser.parse_build_output("abc123def456\n")
+        assert image_id == "sha256:abc123def456"
+
+    def test_parse_empty_inspect_raises(self):
+        with pytest.raises(ParsingError):
+            self.parser.parse_inspect("[]")
 
 
 class TestDockerVolumeParser:

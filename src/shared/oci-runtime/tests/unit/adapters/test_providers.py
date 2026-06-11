@@ -3,15 +3,16 @@ import pytest
 from oci_runtime.adapters.provider.docker import DockerRuntimeProvider
 from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.factory import Parsers
+from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
+from oci_runtime.ports.factory import Managers, Parsers
 from oci_runtime.ports.parsers import (
     ContainerParser,
     ImageParser,
     NetworkParser,
     VolumeParser,
 )
-from oci_runtime.factory import get_provider, register_provider
+
+from oci_runtime.factory import RuntimeFactory
 from oci_runtime.ports.provider import RuntimeProvider
 
 
@@ -59,6 +60,13 @@ class TestDockerRuntimeProvider:
         p2 = self.provider.create_parsers()
         assert p1 is not p2
 
+    def test_create_managers_returns_managers(self):
+        from oci_runtime.ports.transport import Transport
+        from unittest.mock import MagicMock
+        transport = MagicMock(spec=Transport)
+        managers = self.provider.create_managers(transport, RuntimeCapabilities())
+        assert isinstance(managers, Managers)
+
 
 class TestPodmanRuntimeProvider:
     def setup_method(self):
@@ -103,6 +111,13 @@ class TestPodmanRuntimeProvider:
         p1 = self.provider.create_parsers()
         p2 = self.provider.create_parsers()
         assert p1 is not p2
+
+    def test_create_managers_returns_managers(self):
+        from oci_runtime.ports.transport import Transport
+        from unittest.mock import MagicMock
+        transport = MagicMock(spec=Transport)
+        managers = self.provider.create_managers(transport, RuntimeCapabilities())
+        assert isinstance(managers, Managers)
 
 
 class TestDockerProviderParserTypes:
@@ -165,53 +180,30 @@ class TestPodmanProviderParserTypes:
         )
 
 
-class TestProviderRegistry:
-    def setup_method(self):
-        from oci_runtime.factory import _PROVIDER_REGISTRY
-        _PROVIDER_REGISTRY.clear()
-        register_provider(DockerRuntimeProvider())
-        register_provider(PodmanRuntimeProvider())
+class TestDefaultProviders:
+    def test_default_providers_contains_docker(self):
+        from oci_runtime.factory import _default_providers
+        providers = _default_providers()
+        assert RuntimeKind.DOCKER in providers
+        assert isinstance(providers[RuntimeKind.DOCKER], DockerRuntimeProvider)
+        assert providers[RuntimeKind.DOCKER].kind == RuntimeKind.DOCKER
 
-    def teardown_method(self):
-        from oci_runtime.factory import _PROVIDER_REGISTRY
-        _PROVIDER_REGISTRY.clear()
+    def test_default_providers_contains_podman(self):
+        from oci_runtime.factory import _default_providers
+        providers = _default_providers()
+        assert RuntimeKind.PODMAN in providers
+        assert isinstance(providers[RuntimeKind.PODMAN], PodmanRuntimeProvider)
+        assert providers[RuntimeKind.PODMAN].kind == RuntimeKind.PODMAN
 
-    def test_get_provider_docker(self):
-        provider = get_provider(RuntimeKind.DOCKER)
-        assert isinstance(provider, DockerRuntimeProvider)
-        assert provider.kind == RuntimeKind.DOCKER
+    def test_runtime_factory_uses_default_providers(self):
+        factory = RuntimeFactory()
+        pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker")
+        # Should not raise — default providers are used
+        providers = factory._providers
+        assert RuntimeKind.DOCKER in providers
+        assert RuntimeKind.PODMAN in providers
 
-    def test_get_provider_podman(self):
-        provider = get_provider(RuntimeKind.PODMAN)
-        assert isinstance(provider, PodmanRuntimeProvider)
-        assert provider.kind == RuntimeKind.PODMAN
-
-    def test_get_provider_unknown_kind_raises(self):
-        class FakeKind:
-            value = "fake"
-            def __hash__(self): return hash("fake")
-            def __eq__(self, other): return False
-            def __repr__(self): return "RuntimeKind.FAKE"
-        with pytest.raises(NotImplementedError, match="No RuntimeProvider registered"):
-            get_provider(FakeKind())
-
-    def test_register_provider_duplicate_raises(self):
-        class DuplicateProvider(RuntimeProvider):
-            @property
-            def kind(self): return RuntimeKind.DOCKER
-            def capabilities(self): return RuntimeCapabilities()
-            def create_parsers(self):
-                from oci_runtime.ports.parsers import ContainerParser, ImageParser, NetworkParser, VolumeParser
-                class _Fake:
-                    def parse_inspect(self, raw): return None
-                    def parse_list(self, raw): return []
-                    def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
-                    def is_not_found_error(self, stderr): return False
-                return Parsers(container_parser=_Fake(), image_parser=_Fake(), volume_parser=_Fake(), network_parser=_Fake())
-        with pytest.raises(ValueError, match="already registered"):
-            register_provider(DuplicateProvider())
-
-    def test_get_provider_returns_provider_with_correct_kind(self):
-        for kind in [RuntimeKind.DOCKER, RuntimeKind.PODMAN]:
-            provider = get_provider(kind)
-            assert provider.kind == kind
+    def test_runtime_factory_empty_providers_raises(self):
+        factory = RuntimeFactory(providers={})
+        with pytest.raises(NotImplementedError):
+            factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))

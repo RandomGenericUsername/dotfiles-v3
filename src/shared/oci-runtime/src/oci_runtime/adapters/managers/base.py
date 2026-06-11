@@ -1,4 +1,4 @@
-from typing import Any, Generic, Type, TypeVar
+from typing import Generic, Type, TypeVar
 
 from oci_runtime.domain.exceptions import ContainerError, ContainerRuntimeError
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -21,14 +21,6 @@ class CliBaseManager(Generic[P]):
 
     def _decode_stdout(self, data: bytes) -> str:
         return data.decode("utf-8", errors="replace")
-
-    def _resolve_val(self, val: Any) -> str:
-        """Safely extract string from Enum or raw string."""
-        if val is None:
-            return ""
-        if hasattr(val, "value"):
-            return str(val.value)
-        return str(val)
 
     def _check_result(
         self,

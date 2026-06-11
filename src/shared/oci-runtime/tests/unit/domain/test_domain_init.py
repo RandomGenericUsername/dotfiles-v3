@@ -3,7 +3,7 @@ def test_domain_exports_enums():
 
 
 def test_domain_exports_exceptions():
-    from oci_runtime.domain import OciError, ContainerError, ParsingError
+    from oci_runtime.domain import OciError, ContainerError
 
 
 def test_domain_exports_types():

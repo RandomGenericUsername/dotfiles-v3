@@ -53,13 +53,13 @@ class NetworkManagerContractTest(ABC):
 
     def test_exists_returns_bool(self):
         mgr, t = self._defaults()
-        t._responses["docker network inspect mynet"] = ExecResult(0, b'dummy', b"")
+        t._responses["docker network inspect --format json mynet"] = ExecResult(0, b'dummy', b"")
         result = mgr.exists("mynet")
         assert isinstance(result, bool)
 
     def test_inspect_returns_network_info(self):
         mgr, t = self._defaults()
-        t._responses["docker network inspect mynet"] = ExecResult(0, b"dummy", b"")
+        t._responses["docker network inspect --format json mynet"] = ExecResult(0, b"dummy", b"")
         result = mgr.inspect("mynet")
         assert isinstance(result, NetworkInfo)
 

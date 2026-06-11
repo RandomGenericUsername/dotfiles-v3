@@ -1,6 +1,7 @@
 import io
 import tarfile
 
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import (
     ImageNotFoundError,
 )
@@ -68,17 +69,14 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
         try:
             self.inspect(image)
             return True
-        except ImageNotFoundError:
+        except (ImageNotFoundError, ParsingError):
             return False
 
     def inspect(self, image: str) -> ImageInfo:
-        cmd = [self._transport.get_runtime_binary(), "image", "inspect", image]
+        cmd = [self._transport.get_runtime_binary(), "image", "inspect", "--format", "json", image]
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="inspect image", entity=image, not_found=ImageNotFoundError)
-        info = self._parser.parse_inspect(self._decode_stdout(result.stdout))
-        if info is None:
-            raise ImageNotFoundError(image)
-        return info
+        return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[ImageInfo]:
         cmd = [self._transport.get_runtime_binary(), "image", "list"]

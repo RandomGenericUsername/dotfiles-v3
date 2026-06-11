@@ -237,9 +237,13 @@ class TestPodmanImageParser:
         assert self.parser.is_not_found_error("image not found")
         assert not self.parser.is_not_found_error("something else")
 
-    def test_parse_build_output(self):
+    def test_parse_build_output_without_prefix(self):
         image_id = self.parser.parse_build_output("abc123def456\n")
-        assert image_id == "abc123def456"
+        assert image_id == "sha256:abc123def456"
+
+    def test_parse_build_output_with_prefix(self):
+        image_id = self.parser.parse_build_output("sha256:abc123def456\n")
+        assert image_id == "sha256:abc123def456"
 
 
 class TestPodmanVolumeParser:

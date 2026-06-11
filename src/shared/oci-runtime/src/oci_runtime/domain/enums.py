@@ -16,14 +16,14 @@ class ContainerState(StrEnum):
     DEAD = "dead"
 
 
-class RestartPolicy(Enum):
+class RestartPolicy(StrEnum):
     NO = "no"
     ON_FAILURE = "on-failure"
     ALWAYS = "always"
     UNLESS_STOPPED = "unless-stopped"
 
 
-class NetworkMode(Enum):
+class NetworkMode(StrEnum):
     BRIDGE = "bridge"
     HOST = "host"
     NONE = "none"

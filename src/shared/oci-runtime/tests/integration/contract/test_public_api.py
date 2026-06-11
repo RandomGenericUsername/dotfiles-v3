@@ -11,7 +11,6 @@ from oci_runtime import (
     RuntimePreference,
     VolumeInfo,
     VolumeMount,
-    engines,
 )
 
 
@@ -21,9 +20,6 @@ class TestPublicAPI:
 
     def test_runtime_preference_exported(self):
         assert RuntimePreference is not None
-
-    def test_engines_exported(self):
-        assert engines is not None
 
     def test_run_config_exported(self):
         assert RunConfig is not None

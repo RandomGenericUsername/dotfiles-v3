@@ -2,7 +2,6 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from oci_runtime import engines
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.managers.image import CliImageManager
@@ -21,6 +20,7 @@ from oci_runtime.adapters.parser.podman import (
     PodmanVolumeParser,
 )
 from oci_runtime.domain.enums import RuntimeKind
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
@@ -41,7 +41,7 @@ class TestFactoryCreateEngine:
     @patch("subprocess.run")
     def test_create_docker_returns_cli_runtime(self, mock_run, mock_which):
         mock_run.return_value = MagicMock(returncode=0, stdout=b"Docker version 24.0.0", stderr=b"")
-        runtime = RuntimeFactory().create(engines.docker_pref)
+        runtime = RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
         assert isinstance(runtime, CliRuntime)
         assert isinstance(runtime, ContainerEngine)
 
@@ -49,14 +49,14 @@ class TestFactoryCreateEngine:
     @patch("subprocess.run")
     def test_create_podman_returns_cli_runtime(self, mock_run, mock_which):
         mock_run.return_value = MagicMock(returncode=0, stdout=b"podman version 4.0.0", stderr=b"")
-        runtime = RuntimeFactory().create(engines.podman_pref)
+        runtime = RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman"))
         assert isinstance(runtime, CliRuntime)
 
     @patch("shutil.which", return_value="/usr/bin/docker")
     @patch("subprocess.run")
     def test_create_docker_wires_docker_managers(self, mock_run, mock_which):
         mock_run.return_value = MagicMock(returncode=0, stdout=b"Docker version 24.0.0", stderr=b"")
-        runtime = RuntimeFactory().create(engines.docker_pref)
+        runtime = RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
         assert isinstance(runtime.images, CliImageManager)
         assert isinstance(runtime.containers, CliContainerManager)
         assert isinstance(runtime.volumes, CliVolumeManager)
@@ -66,7 +66,7 @@ class TestFactoryCreateEngine:
     @patch("subprocess.run")
     def test_create_podman_wires_podman_managers(self, mock_run, mock_which):
         mock_run.return_value = MagicMock(returncode=0, stdout=b"podman version 4.0.0", stderr=b"")
-        runtime = RuntimeFactory().create(engines.podman_pref)
+        runtime = RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman"))
         assert isinstance(runtime.images, CliImageManager)
         assert isinstance(runtime.containers, CliContainerManager)
         assert isinstance(runtime.volumes, CliVolumeManager)
@@ -125,13 +125,13 @@ class TestFactoryConfigInjection:
 
     def test_custom_parsers_are_used(self):
         class FakeContainerParser(ContainerParser):
-            def parse_inspect(self, raw): return None
+            def parse_inspect(self, raw): raise ParsingError(raw)
             def parse_list(self, raw): return []
             def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
             def is_not_found_error(self, stderr): return False
 
         class FakeImageParser(ImageParser):
-            def parse_inspect(self, raw): return None
+            def parse_inspect(self, raw): raise ParsingError(raw)
             def parse_list(self, raw): return []
             def parse_build_output(self, raw): return ""
             def parse_id_from_pull(self, raw): return ""

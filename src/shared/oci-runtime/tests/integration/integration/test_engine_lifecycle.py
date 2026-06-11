@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from oci_runtime.adapters.engine.cli import CliRuntime
+from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import (
     ContainerManager,
@@ -29,7 +30,7 @@ def mock_managers():
     }
 
 
-def make_runtime(transport, caps, managers, binary="docker"):
+def make_runtime(transport, caps, managers):
     return CliRuntime(
         transport=transport,
         image_manager=managers["images"],
@@ -37,7 +38,6 @@ def make_runtime(transport, caps, managers, binary="docker"):
         volume_manager=managers["volumes"],
         network_manager=managers["networks"],
         caps=caps,
-        binary=binary,
     )
 
 
@@ -72,18 +72,20 @@ class TestEngineVersion:
         runtime = make_runtime(transport, caps, mock_managers)
         assert runtime.version() == "Docker version 24.0.0"
 
-    def test_version_returns_empty_on_nonzero(self, caps, mock_managers):
+    def test_version_raises_on_nonzero(self, caps, mock_managers):
         transport = RecordingTransport("docker", {
             "docker --version": ExecResult(returncode=1, stdout=b"", stderr=b""),
         })
         runtime = make_runtime(transport, caps, mock_managers)
-        assert runtime.version() == ""
+        with pytest.raises(RuntimeNotAvailableError):
+            runtime.version()
 
-    def test_version_returns_empty_on_exception(self, caps, mock_managers):
+    def test_version_propagates_exception(self, caps, mock_managers):
         transport = RecordingTransport("docker")
         transport.execute = MagicMock(side_effect=OSError("error"))
         runtime = make_runtime(transport, caps, mock_managers)
-        assert runtime.version() == ""
+        with pytest.raises(OSError, match="error"):
+            runtime.version()
 
 
 class TestEngineWiring:
@@ -100,15 +102,7 @@ class TestEngineWiring:
         runtime = make_runtime(transport, caps, mock_managers)
         assert runtime.capabilities is caps
 
-    def test_binary_stored(self, caps, mock_managers):
+    def test_runtime_uses_transport_for_binary(self, caps, mock_managers):
         transport = RecordingTransport("/usr/bin/docker")
-        runtime = CliRuntime(
-            transport=transport,
-            image_manager=mock_managers["images"],
-            container_manager=mock_managers["containers"],
-            volume_manager=mock_managers["volumes"],
-            network_manager=mock_managers["networks"],
-            caps=caps,
-            binary="/usr/bin/docker",
-        )
-        assert runtime._binary == "/usr/bin/docker"
+        runtime = make_runtime(transport, caps, mock_managers)
+        assert transport.get_runtime_binary() == "/usr/bin/docker"

@@ -79,10 +79,10 @@ class TestImageManagerCommands:
         assert t.calls[0].command == ["docker", "rmi", "alpine", "--force"]
 
     def test_inspect_command_and_parsed_info(self, t, caps):
-        t._responses = {"docker image inspect alpine": ExecResult(0, INSPECT_IMAGE_JSON, b"")}
+        t._responses = {"docker image inspect --format json alpine": ExecResult(0, INSPECT_IMAGE_JSON, b"")}
         mgr = CliImageManager(t, MockImageParser(), caps)
         info = mgr.inspect("alpine")
-        assert t.calls[0].command == ["docker", "image", "inspect", "alpine"]
+        assert t.calls[0].command == ["docker", "image", "inspect", "--format", "json", "alpine"]
         assert isinstance(info.id, str) and info.id.startswith("sha256:")
 
     def test_list_command_and_parsed(self, t, caps):
@@ -113,12 +113,12 @@ class TestImageManagerCommands:
         assert t.calls[0].command == ["docker", "image", "prune", "--force", "--all"]
 
     def test_exists_true_delegates_to_inspect(self, t, caps):
-        t._responses = {"docker image inspect alpine": ExecResult(0, INSPECT_IMAGE_JSON, b"")}
+        t._responses = {"docker image inspect --format json alpine": ExecResult(0, INSPECT_IMAGE_JSON, b"")}
         mgr = CliImageManager(t, MockImageParser(), caps)
         assert mgr.exists("alpine") is True
 
     def test_exists_false_delegates_to_inspect(self, t, caps):
-        t._responses = {"docker image inspect nonexistent": ExecResult(1, b"", b"No such image: nonexistent")}
+        t._responses = {"docker image inspect --format json nonexistent": ExecResult(1, b"", b"No such image: nonexistent")}
         mgr = CliImageManager(t, MockImageParser(), caps)
         assert mgr.exists("nonexistent") is False
 
@@ -317,10 +317,10 @@ class TestVolumeManagerCommands:
         assert t.calls[0].command == ["docker", "volume", "rm", "myvol", "-f"]
 
     def test_inspect(self, t, caps):
-        t._responses = {"docker volume inspect myvol": ExecResult(0, INSPECT_VOLUME_JSON, b"")}
+        t._responses = {"docker volume inspect --format json myvol": ExecResult(0, INSPECT_VOLUME_JSON, b"")}
         mgr = CliVolumeManager(t, MockVolumeParser(), caps)
         info = mgr.inspect("myvol")
-        assert t.calls[0].command == ["docker", "volume", "inspect", "myvol"]
+        assert t.calls[0].command == ["docker", "volume", "inspect", "--format", "json", "myvol"]
         assert info.name == "my-vol"
 
     def test_list(self, t, caps):
@@ -389,10 +389,10 @@ class TestNetworkManagerCommands:
         assert t.calls[0].command == ["docker", "network", "disconnect", "mynet", "ctr1", "-f"]
 
     def test_inspect(self, t, caps):
-        t._responses = {"docker network inspect mynet": ExecResult(0, INSPECT_NETWORK_JSON, b"")}
+        t._responses = {"docker network inspect --format json mynet": ExecResult(0, INSPECT_NETWORK_JSON, b"")}
         mgr = CliNetworkManager(t, MockNetworkParser(), caps)
         info = mgr.inspect("mynet")
-        assert t.calls[0].command == ["docker", "network", "inspect", "mynet"]
+        assert t.calls[0].command == ["docker", "network", "inspect", "--format", "json", "mynet"]
         assert info.id == "n1"
 
     def test_list(self, t, caps):

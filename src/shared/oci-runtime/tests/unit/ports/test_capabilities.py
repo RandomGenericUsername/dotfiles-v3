@@ -4,22 +4,13 @@ import pytest
 from dataclasses import FrozenInstanceError
 
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.ports.capabilities import EngineProfile, RuntimeCapabilities, RuntimePreference
+from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
 
 
-class TestEngineProfile:
-    def test_is_dataclass(self):
-        assert is_dataclass(EngineProfile)
-
-    def test_stores_binary_and_kind(self):
-        p = EngineProfile(binary="docker", kind=RuntimeKind.DOCKER)
-        assert p.binary == "docker"
-        assert p.kind == RuntimeKind.DOCKER
-
-    def test_podman_profile(self):
-        p = EngineProfile(binary="podman", kind=RuntimeKind.PODMAN)
-        assert p.binary == "podman"
-        assert p.kind is RuntimeKind.PODMAN
+class TestEngineProfileRemoved:
+    def test_engine_profile_no_longer_exists(self):
+        import oci_runtime.ports.capabilities as mod
+        assert not hasattr(mod, "EngineProfile")
 
 
 class TestRuntimeCapabilities:

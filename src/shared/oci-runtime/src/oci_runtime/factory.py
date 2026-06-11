@@ -9,38 +9,21 @@ from oci_runtime.ports.capabilities import (
 )
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
-from oci_runtime.ports.factory import Parsers, RuntimeFactoryConfig
-from oci_runtime.ports.parsers import (
-    ContainerParser,
-    ImageParser,
-    NetworkParser,
-    VolumeParser,
-)
+from oci_runtime.ports.factory import RuntimeFactoryConfig
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.transport import Transport
 
 
-_PROVIDER_REGISTRY: dict[RuntimeKind, RuntimeProvider] = {}
-
-
-def register_provider(provider: RuntimeProvider) -> None:
-    kind = provider.kind
-    if kind in _PROVIDER_REGISTRY:
-        raise ValueError(f"Provider for '{kind.value}' is already registered")
-    _PROVIDER_REGISTRY[kind] = provider
-
-
-def get_provider(kind: RuntimeKind) -> RuntimeProvider:
-    try:
-        return _PROVIDER_REGISTRY[kind]
-    except KeyError:
-        raise NotImplementedError(
-            f"No RuntimeProvider registered for RuntimeKind: {kind}. "
-            f"Registered: {list(_PROVIDER_REGISTRY.keys())}"
-        )
-
-
 # ─── Lazy-loaded default implementations (adapter imports inside functions) ───
+
+
+def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
+    from oci_runtime.adapters.provider.docker import DockerRuntimeProvider
+    from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
+    return {
+        RuntimeKind.DOCKER: DockerRuntimeProvider(),
+        RuntimeKind.PODMAN: PodmanRuntimeProvider(),
+    }
 
 def _default_transport_factory(binary: str) -> Transport:
     from oci_runtime.adapters.transport.cli import CliTransport
@@ -53,7 +36,7 @@ def _default_runtime_cls() -> type[ContainerEngine]:
 
 
 def _default_parser_provider(kind: RuntimeKind) -> Parsers:
-    return get_provider(kind).create_parsers()
+    return _default_providers()[kind].create_parsers()
 
 
 def _default_discovery_factory(
@@ -61,15 +44,6 @@ def _default_discovery_factory(
 ) -> RuntimeDiscovery:
     from oci_runtime.adapters.discovery.cli import CliRuntimeDiscovery
     return CliRuntimeDiscovery(transport_factory)
-
-
-def _ensure_default_providers() -> None:
-    if not _PROVIDER_REGISTRY:
-        from oci_runtime.adapters.provider.docker import DockerRuntimeProvider
-        from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
-
-        register_provider(DockerRuntimeProvider())
-        register_provider(PodmanRuntimeProvider())
 
 
 def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
@@ -89,28 +63,6 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
     return replace(cfg, **replacements) if replacements else cfg
 
 
-# ─── Manager builders ───
-
-def _make_image_manager(t: Transport, p: ImageParser, c: RuntimeCapabilities):
-    from oci_runtime.adapters.managers.image import CliImageManager
-    return CliImageManager(t, p, c)
-
-
-def _make_container_manager(t: Transport, p: ContainerParser, c: RuntimeCapabilities):
-    from oci_runtime.adapters.managers.container import CliContainerManager
-    return CliContainerManager(t, p, c)
-
-
-def _make_volume_manager(t: Transport, p: VolumeParser, c: RuntimeCapabilities):
-    from oci_runtime.adapters.managers.volume import CliVolumeManager
-    return CliVolumeManager(t, p, c)
-
-
-def _make_network_manager(t: Transport, p: NetworkParser, c: RuntimeCapabilities):
-    from oci_runtime.adapters.managers.network import CliNetworkManager
-    return CliNetworkManager(t, p, c)
-
-
 class RuntimeFactory:
     """Instance factory with dependency injection.
 
@@ -123,9 +75,8 @@ class RuntimeFactory:
         config: RuntimeFactoryConfig | None = None,
         providers: dict[RuntimeKind, RuntimeProvider] | None = None,
     ):
-        _ensure_default_providers()
         self._cfg = _resolve_config(config)
-        self._providers = providers if providers is not None else _PROVIDER_REGISTRY
+        self._providers = providers if providers is not None else _default_providers()
 
     def create(self, preference: RuntimePreference) -> ContainerEngine:
         """Create the explicitly requested engine or raise immediately.
@@ -142,16 +93,15 @@ class RuntimeFactory:
                 f"Registered: {list(self._providers.keys())}"
             )
         caps = provider.capabilities()
-        parsers = self._cfg.parser_provider(preference.kind)
+        managers = provider.create_managers(transport, caps)
 
         runtime = self._cfg.runtime_cls(
             transport=transport,
-            image_manager=_make_image_manager(transport, parsers.image_parser, caps),
-            container_manager=_make_container_manager(transport, parsers.container_parser, caps),
-            volume_manager=_make_volume_manager(transport, parsers.volume_parser, caps),
-            network_manager=_make_network_manager(transport, parsers.network_parser, caps),
+            image_manager=managers.image_manager,
+            container_manager=managers.container_manager,
+            volume_manager=managers.volume_manager,
+            network_manager=managers.network_manager,
             caps=caps,
-            binary=binary,
         )
 
         if not runtime.is_available():

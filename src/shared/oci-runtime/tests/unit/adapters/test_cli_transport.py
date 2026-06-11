@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from oci_runtime.adapters.transport.cli import CliTransport
-from oci_runtime.domain.exceptions import RuntimeNotAvailableError
+from oci_runtime.domain.exceptions import ContainerRuntimeError, RuntimeNotAvailableError
 from oci_runtime.ports.transport import ExecResult
 
 
@@ -46,6 +46,34 @@ class _MockSelector:
 
     def close(self):
         pass
+
+
+class TestCliTransportExecutePty:
+    def test_execute_pty_raises_when_binary_missing(self):
+        t = CliTransport("nonexistent")
+        with patch("shutil.which", return_value=None):
+            with pytest.raises(RuntimeNotAvailableError, match="nonexistent"):
+                t.execute_pty(["nonexistent", "run"])
+
+    def test_execute_pty_returns_completed_process(self):
+        t = CliTransport("docker")
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            with patch("oci_runtime.adapters.managers.pty.run_pty") as mock_run_pty:
+                import subprocess
+                mock_run_pty.return_value = subprocess.CompletedProcess(args=["docker", "run"], returncode=0)
+                result = t.execute_pty(["docker", "run"])
+        assert isinstance(result, subprocess.CompletedProcess)
+        assert result.returncode == 0
+
+    def test_execute_pty_forwards_on_output(self):
+        t = CliTransport("docker")
+        collected = []
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            with patch("oci_runtime.adapters.managers.pty.run_pty") as mock_run_pty:
+                import subprocess
+                mock_run_pty.return_value = subprocess.CompletedProcess(args=["docker", "run"], returncode=0)
+                t.execute_pty(["docker", "run"], on_output=collected.append)
+        mock_run_pty.assert_called_once_with(["docker", "run"], on_output=collected.append)
 
 
 class TestCliTransport:

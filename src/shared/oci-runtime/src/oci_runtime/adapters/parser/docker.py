@@ -1,4 +1,3 @@
-import json
 import re
 
 from oci_runtime.adapters.parser.base import BaseCliParser
@@ -19,15 +18,10 @@ from oci_runtime.ports.parsers import (
 
 
 class DockerContainerParser(BaseCliParser, ContainerParser):
-    def parse_inspect(self, raw: str) -> ContainerInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
+    _not_found_patterns = ("no such container", "no such object")
 
+    def parse_inspect(self, raw: str) -> ContainerInfo:
+        item = self._parse_json_item(raw)
         return ContainerInfo(
             id=item.get("Id", ""),
             name=item.get("Name", "").lstrip("/"),
@@ -41,12 +35,7 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
         )
 
     def parse_list(self, raw: str) -> list[ContainerInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(ContainerInfo(
@@ -61,21 +50,12 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
             ))
         return result
 
-    def is_not_found_error(self, stderr: str) -> bool:
-        lower = stderr.lower()
-        return "no such container" in lower or "no such object" in lower
-
 
 class DockerImageParser(BaseCliParser, ImageParser):
-    def parse_inspect(self, raw: str) -> ImageInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
+    _not_found_patterns = ("no such image", "pull access denied")
 
+    def parse_inspect(self, raw: str) -> ImageInfo:
+        item = self._parse_json_item(raw)
         return ImageInfo(
             id=item.get("Id", ""),
             tags=item.get("RepoTags", []),
@@ -85,12 +65,7 @@ class DockerImageParser(BaseCliParser, ImageParser):
         )
 
     def parse_list(self, raw: str) -> list[ImageInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(ImageInfo(
@@ -103,42 +78,31 @@ class DockerImageParser(BaseCliParser, ImageParser):
         return result
 
     def parse_build_output(self, raw: str) -> str:
-        return raw.strip().removeprefix("sha256:")
+        output = raw.strip()
+        if output.startswith("sha256:"):
+            return output
+        return f"sha256:{output}"
 
     def parse_id_from_pull(self, raw: str) -> str:
         """Extract image ID or name from pull output."""
-        # Docker pull output ends with "Digest: sha256:..." or "Status: Downloaded newer image"
-        # Look for the digest line which contains the image ID
         match = re.search(r"Digest: sha256:([a-f0-9]+)", raw)
         if match:
             return f"sha256:{match.group(1)}"
-        # If no digest found, try to extract from status messages
-        # Sometimes the output ends with the image name
         lines = raw.strip().split('\n')
         if lines:
             for line in reversed(lines):
-                # Look for lines that might contain image info
                 if 'sha256' in line:
                     match = re.search(r"sha256:([a-f0-9]+)", line)
                     if match:
                         return f"sha256:{match.group(1)}"
         return ""
 
-    def is_not_found_error(self, stderr: str) -> bool:
-        lower = stderr.lower()
-        return "no such image" in lower or "pull access denied" in lower
-
 
 class DockerVolumeParser(BaseCliParser, VolumeParser):
-    def parse_inspect(self, raw: str) -> VolumeInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
+    _not_found_patterns = ("no such volume",)
 
+    def parse_inspect(self, raw: str) -> VolumeInfo:
+        item = self._parse_json_item(raw)
         return VolumeInfo(
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
@@ -147,12 +111,7 @@ class DockerVolumeParser(BaseCliParser, VolumeParser):
         )
 
     def parse_list(self, raw: str) -> list[VolumeInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(VolumeInfo(
@@ -163,20 +122,12 @@ class DockerVolumeParser(BaseCliParser, VolumeParser):
             ))
         return result
 
-    def is_not_found_error(self, stderr: str) -> bool:
-        return "no such volume" in stderr.lower()
-
 
 class DockerNetworkParser(BaseCliParser, NetworkParser):
-    def parse_inspect(self, raw: str) -> NetworkInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
+    _not_found_patterns = ("no such network",)
 
+    def parse_inspect(self, raw: str) -> NetworkInfo:
+        item = self._parse_json_item(raw)
         return NetworkInfo(
             id=item.get("Id", ""),
             name=item.get("Name", ""),
@@ -186,12 +137,7 @@ class DockerNetworkParser(BaseCliParser, NetworkParser):
         )
 
     def parse_list(self, raw: str) -> list[NetworkInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(NetworkInfo(
@@ -203,17 +149,17 @@ class DockerNetworkParser(BaseCliParser, NetworkParser):
             ))
         return result
 
-    def is_not_found_error(self, stderr: str) -> bool:
-        return "no such network" in stderr.lower()
-
 
 def _parse_docker_ports(item: dict) -> list[PortMapping]:
     ports = []
     net_settings = item.get("NetworkSettings", {})
     port_map = net_settings.get("Ports", {}) or {}
     for key, bindings in port_map.items():
-        container_port_str, protocol = key.split("/")
-        container_port = int(container_port_str)
+        try:
+            container_port_str, protocol = key.split("/")
+            container_port = int(container_port_str)
+        except (ValueError, AttributeError):
+            continue
         if bindings:
             for binding in bindings:
                 host_port = int(binding["HostPort"]) if binding.get("HostPort") else None

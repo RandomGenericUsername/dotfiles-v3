@@ -120,9 +120,10 @@ class TestCliRuntime:
         )
         assert runtime.is_available() is False
 
-    def test_version_still_catches_runtime_not_available(self):
+    def test_version_raises_on_non_zero_exit(self):
         transport = MagicMock(spec=Transport)
-        transport.execute.side_effect = RuntimeNotAvailableError("docker")
+        transport.get_runtime_binary.return_value = "docker"
+        transport.execute.return_value = ExecResult(returncode=1, stdout=b"", stderr=b"error")
         runtime = CliRuntime(
             transport=transport,
             image_manager=MagicMock(spec=ImageManager),
@@ -131,7 +132,22 @@ class TestCliRuntime:
             network_manager=MagicMock(spec=NetworkManager),
             caps=RuntimeCapabilities(),
         )
-        assert runtime.version() == ""
+        with pytest.raises(RuntimeNotAvailableError, match="docker"):
+            runtime.version()
+
+    def test_version_returns_string_on_success(self):
+        transport = MagicMock(spec=Transport)
+        transport.get_runtime_binary.return_value = "docker"
+        transport.execute.return_value = ExecResult(returncode=0, stdout=b"Docker version 24.0.0\n", stderr=b"")
+        runtime = CliRuntime(
+            transport=transport,
+            image_manager=MagicMock(spec=ImageManager),
+            container_manager=MagicMock(spec=ContainerManager),
+            volume_manager=MagicMock(spec=VolumeManager),
+            network_manager=MagicMock(spec=NetworkManager),
+            caps=RuntimeCapabilities(),
+        )
+        assert runtime.version() == "Docker version 24.0.0"
 
 def _mock_transport(result: ExecResult | None = None) -> MagicMock:
     transport = MagicMock(spec=Transport)

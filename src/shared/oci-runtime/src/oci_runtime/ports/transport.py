@@ -1,3 +1,4 @@
+import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable
@@ -27,3 +28,12 @@ class Transport(ABC):
 
     @abstractmethod
     def probe(self) -> bool: ...
+
+    @abstractmethod
+    def execute_pty(
+        self,
+        command: list[str],
+        on_output: Callable[[bytes], None] | None = None,
+    ) -> "subprocess.CompletedProcess":
+        """Run a command in a PTY. Raises ContainerRuntimeError on non-zero exit."""
+        ...

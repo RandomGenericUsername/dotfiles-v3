@@ -1,5 +1,6 @@
 import pytest
 
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerError,
     ContainerNotFoundError,
@@ -8,7 +9,6 @@ from oci_runtime.domain.exceptions import (
     NetworkError,
     NetworkNotFoundError,
     OciError,
-    ParsingError,
     RuntimeNotAvailableError,
     VolumeError,
     VolumeNotFoundError,
@@ -153,8 +153,11 @@ class TestParsingError:
         msg = str(err)
         assert "some bad output" in msg or "parse failure" in msg
 
-    def test_is_oci_error(self):
-        assert issubclass(ParsingError, OciError)
+    def test_is_not_oci_error(self):
+        assert not issubclass(ParsingError, OciError)
 
     def test_is_not_container_error(self):
         assert not issubclass(ParsingError, ContainerError)
+
+    def test_is_exception(self):
+        assert issubclass(ParsingError, Exception)

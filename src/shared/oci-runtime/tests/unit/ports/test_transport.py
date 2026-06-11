@@ -16,6 +16,9 @@ class TestTransport:
     def test_get_runtime_binary_is_abstract(self):
         assert Transport.get_runtime_binary.__isabstractmethod__
 
+    def test_execute_pty_is_abstract(self):
+        assert Transport.execute_pty.__isabstractmethod__
+
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
             Transport()
@@ -32,6 +35,9 @@ class TestTransport:
                 return "docker"
             def probe(self) -> bool:
                 return True
+            def execute_pty(self, command, on_output=None):
+                import subprocess
+                return subprocess.CompletedProcess(args=command, returncode=0)
         t = GoodTransport()
         assert isinstance(t, Transport)
         assert t.get_runtime_binary() == "docker"

@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oci_runtime.adapters.managers.container import CliContainerManager
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import ContainerRuntimeError
 from oci_runtime.domain.types import RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -12,7 +13,7 @@ from oci_runtime.ports.transport import ExecResult, Transport
 
 class _MockParser(ContainerParser):
     def parse_inspect(self, raw: str):
-        return None
+        raise ParsingError(raw=raw)
     def parse_list(self, raw: str):
         return []
     def parse_prune(self, raw: str):
@@ -37,12 +38,13 @@ def manager(transport):
 
 
 class TestTtyDispatch:
-    def test_tty_true_calls_run_pty(self, manager, transport):
-        with patch("oci_runtime.adapters.managers.container.run_pty") as mock_run_pty:
-            mock_run_pty.return_value.returncode = 0
-            config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
-            result = manager.run(config)
-        mock_run_pty.assert_called_once_with(["docker", "run", "-t", "alpine", "bash"])
+    def test_tty_true_calls_execute_pty(self, manager, transport):
+        transport.execute_pty.return_value.returncode = 0
+        config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
+        result = manager.run(config)
+        transport.execute_pty.assert_called_once_with(
+            ["docker", "run", "-t", "alpine", "bash"]
+        )
         transport.execute.assert_not_called()
         assert result == ""
 
@@ -57,13 +59,12 @@ class TestTtyDispatch:
         with pytest.raises(ContainerRuntimeError, match="mutually exclusive"):
             manager.run(config)
 
-    def test_auto_tty_true_with_isatty_calls_run_pty(self, manager, transport):
+    def test_auto_tty_true_with_isatty_calls_execute_pty(self, manager, transport):
+        transport.execute_pty.return_value.returncode = 0
         with patch("sys.stdout.isatty", return_value=True):
-            with patch("oci_runtime.adapters.managers.container.run_pty") as mock_run_pty:
-                mock_run_pty.return_value.returncode = 0
-                config = RunConfig(image="alpine", command=["bash"], auto_tty=True, detach=False)
-                result = manager.run(config)
-        mock_run_pty.assert_called_once()
+            config = RunConfig(image="alpine", command=["bash"], auto_tty=True, detach=False)
+            result = manager.run(config)
+        transport.execute_pty.assert_called_once()
         transport.execute.assert_not_called()
         assert result == ""
 
@@ -77,10 +78,9 @@ class TestTtyDispatch:
 
 class TestTtyReturnContract:
     def test_tty_path_returns_empty_string(self, manager, transport):
-        with patch("oci_runtime.adapters.managers.container.run_pty") as mock_run_pty:
-            mock_run_pty.return_value.returncode = 0
-            config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
-            result = manager.run(config)
+        transport.execute_pty.return_value.returncode = 0
+        config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
+        result = manager.run(config)
         assert result == ""
 
     def test_non_tty_path_returns_container_id(self, manager, transport):
@@ -95,21 +95,19 @@ class TestTtyReturnContract:
 
 
 class TestTtyEdgeCases:
-    def test_run_pty_failure_propagates(self, manager, transport):
-        with patch("oci_runtime.adapters.managers.container.run_pty") as mock_run_pty:
-            mock_run_pty.side_effect = ContainerRuntimeError("PTY failed", command=["docker"])
-            config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
-            with pytest.raises(ContainerRuntimeError, match="PTY failed"):
-                manager.run(config)
+    def test_execute_pty_failure_propagates(self, manager, transport):
+        transport.execute_pty.side_effect = ContainerRuntimeError("PTY failed", command=["docker"])
+        config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
+        with pytest.raises(ContainerRuntimeError, match="PTY failed"):
+            manager.run(config)
 
     def test_effective_tty_with_default_flags(self, manager, transport):
         caps = RuntimeCapabilities(default_run_flags=["--userns=keep-id"])
         parser = _MockParser()
         m = CliContainerManager(transport, parser, caps)
-        with patch("oci_runtime.adapters.managers.container.run_pty") as mock_run_pty:
-            mock_run_pty.return_value.returncode = 0
-            config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
-            m.run(config)
-        mock_run_pty.assert_called_once_with(
+        transport.execute_pty.return_value.returncode = 0
+        config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
+        m.run(config)
+        transport.execute_pty.assert_called_once_with(
             ["docker", "run", "--userns=keep-id", "-t", "alpine", "bash"]
         )

@@ -1,4 +1,7 @@
+import json
 import re
+
+from oci_runtime.adapters.parser.exceptions import ParsingError
 
 
 def parse_size_to_bytes(size_str: str) -> int:
@@ -22,6 +25,33 @@ def parse_size_to_bytes(size_str: str) -> int:
 
 class BaseCliParser:
     """Shared logic for CLI parsers."""
+
+    _not_found_patterns: tuple[str, ...] = ()
+
+    def _parse_json_item(self, raw: str) -> dict:
+        """Parse JSON that may be a list with a single item or a dict."""
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ParsingError(raw=raw, message=f"Invalid JSON: {e}") from e
+        if not data:
+            raise ParsingError(raw=raw, message="Empty response")
+        return data[0] if isinstance(data, list) else data
+
+    def _parse_json_list(self, raw: str) -> list[dict]:
+        """Parse JSON that contains a list."""
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise ParsingError(raw=raw, message=f"Invalid JSON in list response: {e}") from e
+        if not isinstance(data, list):
+            data = [data]
+        return data
+
+    def is_not_found_error(self, stderr: str) -> bool:
+        lower = stderr.lower()
+        return any(p in lower for p in self._not_found_patterns)
+
     def parse_prune(self, raw: str) -> dict[str, int]:
         deleted_count = 0
         reclaimed_bytes = 0

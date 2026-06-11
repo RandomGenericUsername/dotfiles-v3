@@ -1,4 +1,7 @@
+import pytest
+
 from oci_runtime.adapters.parser.base import BaseCliParser, parse_size_to_bytes
+from oci_runtime.adapters.parser.exceptions import ParsingError
 
 
 DOCKER_PRUNE_OUTPUT = """abc123def4567890abc123def4567890
@@ -30,6 +33,45 @@ class TestParseSizeToBytes:
 class TestBaseCliParser:
     def setup_method(self):
         self.parser = BaseCliParser()
+
+    def test_parse_json_item_dict(self):
+        result = self.parser._parse_json_item('{"key": "val"}')
+        assert result == {"key": "val"}
+
+    def test_parse_json_item_list(self):
+        result = self.parser._parse_json_item('[{"key": "val"}]')
+        assert result == {"key": "val"}
+
+    def test_parse_json_item_empty_raises(self):
+        with pytest.raises(ParsingError, match="Empty response"):
+            self.parser._parse_json_item("[]")
+
+    def test_parse_json_item_malformed_raises(self):
+        with pytest.raises(ParsingError, match="Invalid JSON"):
+            self.parser._parse_json_item("not json")
+
+    def test_parse_json_list_list(self):
+        result = self.parser._parse_json_list('[{"a": 1}, {"b": 2}]')
+        assert result == [{"a": 1}, {"b": 2}]
+
+    def test_parse_json_list_dict(self):
+        result = self.parser._parse_json_list('{"a": 1}')
+        assert result == [{"a": 1}]
+
+    def test_parse_json_list_malformed_raises(self):
+        with pytest.raises(ParsingError, match="Invalid JSON in list"):
+            self.parser._parse_json_list("not json")
+
+    def test_is_not_found_error_default_false(self):
+        assert self.parser.is_not_found_error("anything") is False
+
+    def test_is_not_found_error_with_patterns(self):
+        class ParserWithPatterns(BaseCliParser):
+            _not_found_patterns = ("not found", "no such")
+        p = ParserWithPatterns()
+        assert p.is_not_found_error("Not Found") is True
+        assert p.is_not_found_error("no such thing") is True
+        assert p.is_not_found_error("something else") is False
 
     def test_parse_prune_counts_deleted(self):
         result = self.parser.parse_prune(DOCKER_PRUNE_OUTPUT)

@@ -61,8 +61,8 @@ class RunConfig:
     environment: dict[str, str] = field(default_factory=dict)
     volumes: list[VolumeMount] = field(default_factory=list)
     ports: list[PortMapping] = field(default_factory=list)
-    network: str | NetworkMode = NetworkMode.BRIDGE
-    restart_policy: str | RestartPolicy = RestartPolicy.NO
+    network: NetworkMode = NetworkMode.BRIDGE
+    restart_policy: RestartPolicy = RestartPolicy.NO
     detach: bool = True
     remove: bool = False
     stream_output: bool = False

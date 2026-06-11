@@ -63,13 +63,13 @@ class ImageManagerContractTest(ABC):
 
     def test_exists_returns_bool(self):
         mgr, t = self._defaults()
-        t._responses["docker image inspect alpine"] = ExecResult(0, b"dummy", b"")
+        t._responses["docker image inspect --format json alpine"] = ExecResult(0, b"dummy", b"")
         result = mgr.exists("alpine")
         assert isinstance(result, bool)
 
     def test_inspect_returns_image_info(self):
         mgr, t = self._defaults()
-        t._responses["docker image inspect alpine"] = ExecResult(0, b"dummy", b"")
+        t._responses["docker image inspect --format json alpine"] = ExecResult(0, b"dummy", b"")
         result = mgr.inspect("alpine")
         assert isinstance(result, ImageInfo)
 

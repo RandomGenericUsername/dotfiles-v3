@@ -1,4 +1,3 @@
-import json
 import re
 
 from oci_runtime.adapters.parser.base import BaseCliParser
@@ -19,8 +18,9 @@ from oci_runtime.ports.parsers import (
 
 
 class PodmanContainerParser(BaseCliParser, ContainerParser):
+    _not_found_patterns = ("no such container",)
+
     def _parse_ports(self, network_settings: dict) -> list[PortMapping]:
-        """Parse Podman port mappings from NetworkSettings.Ports structure."""
         ports = []
         ports_dict = network_settings.get("Ports", {})
         
@@ -29,7 +29,6 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
         
         for port_spec, mappings in ports_dict.items():
             try:
-                # port_spec is like "80/tcp" or "80/udp"
                 container_port, protocol = port_spec.split("/")
                 container_port = int(container_port)
                 
@@ -51,18 +50,10 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
         
         return ports
     
-    def parse_inspect(self, raw: str) -> ContainerInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
-
+    def parse_inspect(self, raw: str) -> ContainerInfo:
+        item = self._parse_json_item(raw)
         network_settings = item.get("NetworkSettings", {})
         ports = self._parse_ports(network_settings)
-
         return ContainerInfo(
             id=item.get("Id", ""),
             name=item.get("Name", "").lstrip("/"),
@@ -76,12 +67,7 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
         )
 
     def parse_list(self, raw: str) -> list[ContainerInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(ContainerInfo(
@@ -96,20 +82,12 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
             ))
         return result
 
-    def is_not_found_error(self, stderr: str) -> bool:
-        return "no such container" in stderr.lower()
-
 
 class PodmanImageParser(BaseCliParser, ImageParser):
-    def parse_inspect(self, raw: str) -> ImageInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
+    _not_found_patterns = ("image not found",)
 
+    def parse_inspect(self, raw: str) -> ImageInfo:
+        item = self._parse_json_item(raw)
         return ImageInfo(
             id=item.get("Id", ""),
             tags=item.get("RepoTags", []),
@@ -119,12 +97,7 @@ class PodmanImageParser(BaseCliParser, ImageParser):
         )
 
     def parse_list(self, raw: str) -> list[ImageInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(ImageInfo(
@@ -137,42 +110,31 @@ class PodmanImageParser(BaseCliParser, ImageParser):
         return result
 
     def parse_build_output(self, raw: str) -> str:
-        return raw.strip().removeprefix("sha256:")
+        output = raw.strip()
+        if output.startswith("sha256:"):
+            return output
+        return f"sha256:{output}"
 
     def parse_id_from_pull(self, raw: str) -> str:
-        """Extract image ID or name from pull output."""
-        # Podman pull output typically ends with the image name/ID
-        # Look for lines with image digest or ID
         lines = raw.strip().split('\n')
         if lines:
-            # Last non-empty line often contains the result
             for line in reversed(lines):
                 line = line.strip()
                 if line and not line.startswith('Trying') and not line.startswith('Getting'):
-                    # Could be image digest, ID, or full image name
                     if 'sha256:' in line:
                         match = re.search(r"sha256:([a-f0-9]+)", line)
                         if match:
                             return f"sha256:{match.group(1)}"
-                    # Return the last meaningful line if it contains image info
                     if line and not line.startswith('Error') and not line.startswith('Warning'):
                         return line
         return ""
 
-    def is_not_found_error(self, stderr: str) -> bool:
-        return "image not found" in stderr.lower()
-
 
 class PodmanVolumeParser(BaseCliParser, VolumeParser):
-    def parse_inspect(self, raw: str) -> VolumeInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
+    _not_found_patterns = ("no such volume",)
 
+    def parse_inspect(self, raw: str) -> VolumeInfo:
+        item = self._parse_json_item(raw)
         return VolumeInfo(
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
@@ -181,12 +143,7 @@ class PodmanVolumeParser(BaseCliParser, VolumeParser):
         )
 
     def parse_list(self, raw: str) -> list[VolumeInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(VolumeInfo(
@@ -197,20 +154,12 @@ class PodmanVolumeParser(BaseCliParser, VolumeParser):
             ))
         return result
 
-    def is_not_found_error(self, stderr: str) -> bool:
-        return "no such volume" in stderr.lower()
-
 
 class PodmanNetworkParser(BaseCliParser, NetworkParser):
-    def parse_inspect(self, raw: str) -> NetworkInfo | None:
-        try:
-            data = json.loads(raw)
-            if not data:
-                return None
-            item = data[0] if isinstance(data, list) else data
-        except (json.JSONDecodeError, IndexError, KeyError):
-            return None
+    _not_found_patterns = ("no such network",)
 
+    def parse_inspect(self, raw: str) -> NetworkInfo:
+        item = self._parse_json_item(raw)
         return NetworkInfo(
             id=item.get("Id", ""),
             name=item.get("Name", ""),
@@ -220,12 +169,7 @@ class PodmanNetworkParser(BaseCliParser, NetworkParser):
         )
 
     def parse_list(self, raw: str) -> list[NetworkInfo]:
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            data = [data]
+        data = self._parse_json_list(raw)
         result = []
         for item in data:
             result.append(NetworkInfo(
@@ -236,6 +180,3 @@ class PodmanNetworkParser(BaseCliParser, NetworkParser):
                 labels=item.get("Labels", {}),
             ))
         return result
-
-    def is_not_found_error(self, stderr: str) -> bool:
-        return "no such network" in stderr.lower()

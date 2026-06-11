@@ -29,15 +29,17 @@ def podman_available():
 def live_docker_engine(docker_available):
     if not docker_available:
         pytest.skip("Docker not available")
-    from oci_runtime import engines
+    from oci_runtime.domain.enums import RuntimeKind
     from oci_runtime.factory import RuntimeFactory
-    return RuntimeFactory().create(engines.docker_pref)
+    from oci_runtime.ports.capabilities import RuntimePreference
+    return RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
 
 
 @pytest.fixture(scope="session")
 def live_podman_engine(podman_available):
     if not podman_available:
         pytest.skip("Podman not available")
-    from oci_runtime import engines
+    from oci_runtime.domain.enums import RuntimeKind
     from oci_runtime.factory import RuntimeFactory
-    return RuntimeFactory().create(engines.podman_pref)
+    from oci_runtime.ports.capabilities import RuntimePreference
+    return RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman"))

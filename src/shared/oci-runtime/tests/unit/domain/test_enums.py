@@ -79,6 +79,9 @@ class TestContainerState:
 
 
 class TestRestartPolicy:
+    def test_is_strenum(self):
+        assert issubclass(RestartPolicy, StrEnum)
+
     def test_is_enum(self):
         assert issubclass(RestartPolicy, Enum)
 
@@ -98,8 +101,20 @@ class TestRestartPolicy:
         members = set(RestartPolicy.__members__)
         assert members == {"NO", "ON_FAILURE", "ALWAYS", "UNLESS_STOPPED"}
 
+    def test_str_equality(self):
+        assert RestartPolicy.NO == "no"
+
+    def test_str_fstring(self):
+        assert f"{RestartPolicy.ALWAYS}" == "always"
+
+    def test_strenum_is_str(self):
+        assert isinstance(RestartPolicy.ON_FAILURE, str)
+
 
 class TestNetworkMode:
+    def test_is_strenum(self):
+        assert issubclass(NetworkMode, StrEnum)
+
     def test_is_enum(self):
         assert issubclass(NetworkMode, Enum)
 
@@ -118,3 +133,12 @@ class TestNetworkMode:
     def test_closed_set(self):
         members = set(NetworkMode.__members__)
         assert members == {"BRIDGE", "HOST", "NONE", "CONTAINER"}
+
+    def test_str_equality(self):
+        assert NetworkMode.BRIDGE == "bridge"
+
+    def test_str_fstring(self):
+        assert f"{NetworkMode.HOST}" == "host"
+
+    def test_strenum_is_str(self):
+        assert isinstance(NetworkMode.NONE, str)

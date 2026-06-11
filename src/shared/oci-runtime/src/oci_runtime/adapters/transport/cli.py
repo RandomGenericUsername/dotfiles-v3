@@ -150,3 +150,12 @@ class CliTransport(Transport):
         """Get the runtime binary path/name."""
         self._ensure_binary()
         return self.binary
+
+    def execute_pty(
+        self,
+        command: list[str],
+        on_output: Callable[[bytes], None] | None = None,
+    ) -> subprocess.CompletedProcess:
+        self._ensure_binary()
+        from oci_runtime.adapters.managers.pty import run_pty
+        return run_pty(command, on_output=on_output)

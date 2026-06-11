@@ -10,6 +10,7 @@ from oci_runtime.adapters.parser.docker import (
     DockerNetworkParser,
     DockerVolumeParser,
 )
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ImageNotFoundError,
@@ -33,28 +34,28 @@ def transport():
 
 
 class TestEmptyInspect:
-    def test_container_inspect_empty_json_raises_not_found(self, transport, caps):
+    def test_container_inspect_empty_json_raises_parsing_error(self, transport, caps):
         transport._responses = {"docker container inspect --format json ctr1": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps)
-        with pytest.raises(ContainerNotFoundError, match="ctr1"):
+        with pytest.raises(ParsingError):
             mgr.inspect("ctr1")
 
-    def test_image_inspect_empty_json_raises_not_found(self, transport, caps):
-        transport._responses = {"docker image inspect alpine": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
+    def test_image_inspect_empty_json_raises_parsing_error(self, transport, caps):
+        transport._responses = {"docker image inspect --format json alpine": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
-        with pytest.raises(ImageNotFoundError, match="alpine"):
+        with pytest.raises(ParsingError):
             mgr.inspect("alpine")
 
-    def test_volume_inspect_empty_json_raises_not_found(self, transport, caps):
-        transport._responses = {"docker volume inspect myvol": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
+    def test_volume_inspect_empty_json_raises_parsing_error(self, transport, caps):
+        transport._responses = {"docker volume inspect --format json myvol": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
-        with pytest.raises(VolumeNotFoundError, match="myvol"):
+        with pytest.raises(ParsingError):
             mgr.inspect("myvol")
 
-    def test_network_inspect_empty_json_raises_not_found(self, transport, caps):
-        transport._responses = {"docker network inspect mynet": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
+    def test_network_inspect_empty_json_raises_parsing_error(self, transport, caps):
+        transport._responses = {"docker network inspect --format json mynet": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
-        with pytest.raises(NetworkNotFoundError, match="mynet"):
+        with pytest.raises(ParsingError):
             mgr.inspect("mynet")
 
 
@@ -105,7 +106,7 @@ class TestEmptyOutput:
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
         result = mgr.build(ctx, "myimg", timeout=30)
-        assert result == ""
+        assert result == "sha256:"
 
     def test_pull_empty_stdout(self, transport, caps):
         transport._responses = {"docker pull alpine": ExecResult(returncode=0, stdout=b"", stderr=b"")}
@@ -121,6 +122,6 @@ class TestEmptyExists:
         assert mgr.exists("nonexistent") is False
 
     def test_image_exists_false_on_empty_inspect(self, transport, caps):
-        transport._responses = {"docker image inspect nonexistent": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
+        transport._responses = {"docker image inspect --format json nonexistent": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         assert mgr.exists("nonexistent") is False

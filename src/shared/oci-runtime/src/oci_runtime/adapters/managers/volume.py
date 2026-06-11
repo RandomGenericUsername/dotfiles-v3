@@ -1,3 +1,4 @@
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import VolumeNotFoundError
 from oci_runtime.domain.types import VolumeInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -17,6 +18,7 @@ class CliVolumeManager(CliBaseManager[VolumeParser], VolumeManager):
             for k, v in labels.items():
                 cmd.extend(["--label", f"{k}={v}"])
         result = self._transport.execute(cmd)
+        self._check_result(result, cmd, operation="create volume", entity=name, not_found=VolumeNotFoundError)
         return self._decode_stdout(result.stdout).strip()
 
     def remove(self, name: str, force: bool = False) -> None:
@@ -30,17 +32,14 @@ class CliVolumeManager(CliBaseManager[VolumeParser], VolumeManager):
         try:
             self.inspect(name)
             return True
-        except VolumeNotFoundError:
+        except (VolumeNotFoundError, ParsingError):
             return False
 
     def inspect(self, name: str) -> VolumeInfo:
-        cmd = [self._transport.get_runtime_binary(), "volume", "inspect", name]
+        cmd = [self._transport.get_runtime_binary(), "volume", "inspect", "--format", "json", name]
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, entity=name, not_found=VolumeNotFoundError)
-        info = self._parser.parse_inspect(self._decode_stdout(result.stdout))
-        if info is None:
-            raise VolumeNotFoundError(name)
-        return info
+        return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[VolumeInfo]:
         cmd = [self._transport.get_runtime_binary(), "volume", "list"]

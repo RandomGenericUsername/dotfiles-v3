@@ -1,13 +1,5 @@
 from dataclasses import dataclass, field
 
-from oci_runtime.domain.enums import RuntimeKind
-
-
-@dataclass(frozen=True)
-class EngineProfile:
-    binary: str
-    kind: RuntimeKind
-
 
 @dataclass(frozen=True)
 class RuntimePreference:

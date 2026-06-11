@@ -32,7 +32,7 @@ class TestImageLifecycle:
         _inject_responses(t, {
             "docker pull alpine": ExecResult(0, b"Status: Downloaded newer image for alpine:latest\n", b""),
             "docker image list": ExecResult(0, b'[{"Id":"sha256:abc","RepoTags":["alpine:latest"],"Size":5000000,"Created":1704067200,"Labels":{}}]', b""),
-            "docker image inspect alpine": ExecResult(0, b'[{"Id":"sha256:abc","RepoTags":["alpine:latest"],"Size":5000000,"Created":"2024-01-01T00:00:00Z","Labels":{}}]', b""),
+            "docker image inspect --format json alpine": ExecResult(0, b'[{"Id":"sha256:abc","RepoTags":["alpine:latest"],"Size":5000000,"Created":"2024-01-01T00:00:00Z","Labels":{}}]', b""),
             "docker tag alpine myalpine:v1": ExecResult(0, b"", b""),
             "docker rmi myalpine:v1": ExecResult(0, b"", b""),
         })
@@ -52,7 +52,7 @@ class TestImageLifecycle:
         t = docker_engine._transport
         _inject_responses(t, {
             "docker pull alpine": ExecResult(0, b"abc\n", b""),
-            "docker image inspect alpine": ExecResult(0, b'[{"Id":"sha256:abc","RepoTags":["alpine:latest"]}]', b""),
+            "docker image inspect --format json alpine": ExecResult(0, b'[{"Id":"sha256:abc","RepoTags":["alpine:latest"]}]', b""),
         })
         docker_engine.images.pull("alpine")
         assert docker_engine.images.exists("alpine") is True
@@ -60,7 +60,7 @@ class TestImageLifecycle:
     def test_image_exists_false(self, docker_engine: CliRuntime):
         t = docker_engine._transport
         _inject_responses(t, {
-            "docker image inspect nonexistent": ExecResult(1, b"", b"Error: No such image"),
+            "docker image inspect --format json nonexistent": ExecResult(1, b"", b"Error: No such image"),
         })
         assert docker_engine.images.exists("nonexistent") is False
 
@@ -198,7 +198,7 @@ class TestVolumeLifecycle:
         t = docker_engine._transport
         _inject_responses(t, {
             "docker volume create --driver local myvol": ExecResult(0, b"myvol\n", b""),
-            "docker volume inspect myvol": ExecResult(0, b'[{"Name":"myvol","Driver":"local","Mountpoint":"/data","Labels":{}}]', b""),
+            "docker volume inspect --format json myvol": ExecResult(0, b'[{"Name":"myvol","Driver":"local","Mountpoint":"/data","Labels":{}}]', b""),
             "docker volume list": ExecResult(0, b'[{"Name":"myvol","Driver":"local","Mountpoint":"/data","Labels":{}}]', b""),
             "docker volume rm myvol": ExecResult(0, b"", b""),
         })
@@ -211,7 +211,7 @@ class TestVolumeLifecycle:
         assert len(volumes) == 1
         mgr.remove("myvol")
         _inject_responses(t, {
-            "docker volume inspect myvol": ExecResult(1, b"", b"Error: No such volume"),
+            "docker volume inspect --format json myvol": ExecResult(1, b"", b"Error: No such volume"),
         })
         with pytest.raises(VolumeNotFoundError):
             mgr.inspect("myvol")
@@ -220,7 +220,7 @@ class TestVolumeLifecycle:
         t = docker_engine._transport
         _inject_responses(t, {
             "docker volume create --driver local myvol --label app=web": ExecResult(0, b"myvol", b""),
-            "docker volume inspect myvol": ExecResult(0, b'[{"Name":"myvol","Driver":"local","Mountpoint":"/data","Labels":{"app":"web"}}]', b""),
+            "docker volume inspect --format json myvol": ExecResult(0, b'[{"Name":"myvol","Driver":"local","Mountpoint":"/data","Labels":{"app":"web"}}]', b""),
             "docker volume rm myvol": ExecResult(0, b"", b""),
         })
         docker_engine.volumes.create("myvol", labels={"app": "web"})
@@ -243,7 +243,7 @@ class TestNetworkLifecycle:
         _inject_responses(t, {
             "docker network create --driver bridge mynet": ExecResult(0, b"mynet\n", b""),
             "docker network list": ExecResult(0, b'[{"Id":"net1","Name":"mynet","Driver":"bridge","Scope":"local","Labels":{}}]', b""),
-            "docker network inspect mynet": ExecResult(0, b'[{"Id":"net1","Name":"mynet","Driver":"bridge","Scope":"local","Labels":{}}]', b""),
+            "docker network inspect --format json mynet": ExecResult(0, b'[{"Id":"net1","Name":"mynet","Driver":"bridge","Scope":"local","Labels":{}}]', b""),
             "docker network connect mynet ctr1": ExecResult(0, b"", b""),
             "docker network disconnect mynet ctr1": ExecResult(0, b"", b""),
             "docker network rm mynet": ExecResult(0, b"", b""),
@@ -263,7 +263,7 @@ class TestNetworkLifecycle:
         t = docker_engine._transport
         _inject_responses(t, {
             "docker network create --driver macvlan mynet --label env=prod": ExecResult(0, b"mynet", b""),
-            "docker network inspect mynet": ExecResult(0, b'[{"Id":"net1","Name":"mynet","Driver":"macvlan","Scope":"local","Labels":{"env":"prod"}}]', b""),
+            "docker network inspect --format json mynet": ExecResult(0, b'[{"Id":"net1","Name":"mynet","Driver":"macvlan","Scope":"local","Labels":{"env":"prod"}}]', b""),
             "docker network rm mynet": ExecResult(0, b"", b""),
         })
         docker_engine.networks.create("mynet", driver="macvlan", labels={"env": "prod"})

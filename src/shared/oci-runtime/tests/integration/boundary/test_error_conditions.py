@@ -68,7 +68,7 @@ class TestTransportErrors:
 
 class TestManagerErrorPropagation:
     def test_image_not_found_from_stderr(self, transport, caps):
-        transport._responses = {"docker image inspect alpine": ExecResult(returncode=1, stdout=b"", stderr=b"No such image: alpine")}
+        transport._responses = {"docker image inspect --format json alpine": ExecResult(returncode=1, stdout=b"", stderr=b"No such image: alpine")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         with pytest.raises(ImageNotFoundError, match="alpine"):
             mgr.inspect("alpine")
@@ -80,13 +80,13 @@ class TestManagerErrorPropagation:
             mgr.inspect("ctr1")
 
     def test_volume_not_found_from_stderr(self, transport, caps):
-        transport._responses = {"docker volume inspect myvol": ExecResult(returncode=1, stdout=b"", stderr=b"No such volume: myvol")}
+        transport._responses = {"docker volume inspect --format json myvol": ExecResult(returncode=1, stdout=b"", stderr=b"No such volume: myvol")}
         mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
         with pytest.raises(VolumeNotFoundError, match="myvol"):
             mgr.inspect("myvol")
 
     def test_network_not_found_from_stderr(self, transport, caps):
-        transport._responses = {"docker network inspect mynet": ExecResult(returncode=1, stdout=b"", stderr=b"No such network: mynet")}
+        transport._responses = {"docker network inspect --format json mynet": ExecResult(returncode=1, stdout=b"", stderr=b"No such network: mynet")}
         mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
         with pytest.raises(NetworkNotFoundError, match="mynet"):
             mgr.inspect("mynet")

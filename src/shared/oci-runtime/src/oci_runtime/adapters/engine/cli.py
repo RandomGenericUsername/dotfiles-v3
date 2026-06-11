@@ -1,5 +1,3 @@
-import subprocess
-
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
@@ -21,10 +19,8 @@ class CliRuntime(ContainerEngine):
         volume_manager: VolumeManager,
         network_manager: NetworkManager,
         caps: RuntimeCapabilities,
-        binary: str = "",
     ):
         self._transport = transport
-        self._binary = binary
         self._images = image_manager
         self._containers = container_manager
         self._volumes = volume_manager
@@ -56,13 +52,10 @@ class CliRuntime(ContainerEngine):
 
     def version(self) -> str:
         """Get the version of the container engine."""
-        try:
-            result = self._transport.execute([self._binary, "--version"])
-            if result.returncode == 0:
-                return result.stdout.decode("utf-8", errors="replace").strip()
-            return ""
-        except (RuntimeNotAvailableError, subprocess.TimeoutExpired, OSError):
-            return ""
+        result = self._transport.execute([self._transport.get_runtime_binary(), "--version"])
+        if result.returncode == 0:
+            return result.stdout.decode("utf-8", errors="replace").strip()
+        raise RuntimeNotAvailableError(self._transport.get_runtime_binary())
 
 
 

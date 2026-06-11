@@ -1,6 +1,5 @@
 import pytest
 
-from oci_runtime import engines
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference

@@ -2,6 +2,8 @@ from queue import Queue
 from threading import Thread
 from typing import Iterator
 
+from oci_runtime.domain.enums import NetworkMode, RestartPolicy
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ContainerRuntimeError,
@@ -13,7 +15,6 @@ from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.ports.transport import Transport
 from oci_runtime.adapters.managers.base import CliBaseManager
-from oci_runtime.adapters.managers.pty import run_pty
 
 
 class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
@@ -50,14 +51,12 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(["--entrypoint", config.entrypoint[0]])
         
         if config.network:
-            network_val = self._resolve_val(config.network)
-            if network_val != "bridge":
-                cmd.extend(["--network", network_val])
+            if config.network != NetworkMode.BRIDGE:
+                cmd.extend(["--network", str(config.network)])
         
         if config.restart_policy:
-            restart_val = self._resolve_val(config.restart_policy)
-            if restart_val != "no":
-                cmd.extend(["--restart", restart_val])
+            if config.restart_policy != RestartPolicy.NO:
+                cmd.extend(["--restart", str(config.restart_policy)])
         
         if config.log_driver and self._caps.supports_log_drivers:
             cmd.extend(["--log-driver", config.log_driver])
@@ -101,7 +100,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(config.command)
 
         if config.effective_tty:
-            run_pty(cmd)
+            self._transport.execute_pty(cmd)
             return ""
 
         result = self._transport.execute(cmd, stream=config.stream_output)
@@ -138,17 +137,14 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         try:
             self.inspect(container)
             return True
-        except ContainerNotFoundError:
+        except (ContainerNotFoundError, ParsingError):
             return False
 
     def inspect(self, container: str) -> ContainerInfo:
         cmd = [self._transport.get_runtime_binary(), "container", "inspect", "--format", "json", container]
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="inspect container", entity=container, not_found=ContainerNotFoundError)
-        info = self._parser.parse_inspect(self._decode_stdout(result.stdout))
-        if info is None:
-            raise ContainerNotFoundError(container)
-        return info
+        return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, show_all: bool = False, filters: dict[str, str] | None = None) -> list[ContainerInfo]:
         cmd = [self._transport.get_runtime_binary(), "container", "list", "--format", "json"]
@@ -187,7 +183,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             finally:
                 queue.put(None)
 
-        Thread(target=_run, daemon=True).start()
+        Thread(target=_run, daemon=True, name="oci-logs").start()
 
         while True:
             chunk = queue.get()

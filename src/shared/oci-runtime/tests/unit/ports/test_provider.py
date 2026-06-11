@@ -2,8 +2,9 @@ import pytest
 
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.factory import Parsers
+from oci_runtime.ports.factory import Managers, Parsers
 from oci_runtime.ports.provider import RuntimeProvider
+from oci_runtime.ports.transport import Transport
 
 
 class TestRuntimeProviderIsABC:
@@ -20,8 +21,11 @@ class TestRuntimeProviderIsABC:
     def test_has_create_parsers_abstract_method(self):
         assert "create_parsers" in RuntimeProvider.__abstractmethods__
 
-    def test_has_exactly_three_abstract_methods(self):
-        assert len(RuntimeProvider.__abstractmethods__) == 3
+    def test_has_create_managers_abstract_method(self):
+        assert "create_managers" in RuntimeProvider.__abstractmethods__
+
+    def test_has_exactly_four_abstract_methods(self):
+        assert len(RuntimeProvider.__abstractmethods__) == 4
 
 
 class TestProviderImportable:
@@ -54,32 +58,47 @@ class TestConcreteProviderContract:
                 return RuntimeCapabilities()
 
             def create_parsers(self) -> Parsers:
+                from oci_runtime.adapters.parser.exceptions import ParsingError
                 from oci_runtime.ports.parsers import ContainerParser, ImageParser, NetworkParser, VolumeParser
                 class FakeCP(ContainerParser):
-                    def parse_inspect(self, raw): return None
+                    def parse_inspect(self, raw): raise ParsingError(raw)
                     def parse_list(self, raw): return []
                     def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
                     def is_not_found_error(self, stderr): return False
                 class FakeIP(ImageParser):
-                    def parse_inspect(self, raw): return None
+                    def parse_inspect(self, raw): raise ParsingError(raw)
                     def parse_list(self, raw): return []
                     def parse_build_output(self, raw): return ""
                     def parse_id_from_pull(self, raw): return ""
                     def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
                     def is_not_found_error(self, stderr): return False
                 class FakeVP(VolumeParser):
-                    def parse_inspect(self, raw): return None
+                    def parse_inspect(self, raw): raise ParsingError(raw)
                     def parse_list(self, raw): return []
                     def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
                     def is_not_found_error(self, stderr): return False
                 class FakeNP(NetworkParser):
-                    def parse_inspect(self, raw): return None
+                    def parse_inspect(self, raw): raise ParsingError(raw)
                     def parse_list(self, raw): return []
                     def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
                     def is_not_found_error(self, stderr): return False
                 return Parsers(container_parser=FakeCP(), image_parser=FakeIP(), volume_parser=FakeVP(), network_parser=FakeNP())
 
+            def create_managers(self, transport, caps):
+                from unittest.mock import MagicMock
+                from oci_runtime.ports.managers import ContainerManager, ImageManager, NetworkManager, VolumeManager
+                return Managers(
+                    image_manager=MagicMock(spec=ImageManager),
+                    container_manager=MagicMock(spec=ContainerManager),
+                    volume_manager=MagicMock(spec=VolumeManager),
+                    network_manager=MagicMock(spec=NetworkManager),
+                )
+
         provider = CompleteProvider()
         assert provider.kind == RuntimeKind.DOCKER
         assert isinstance(provider.capabilities(), RuntimeCapabilities)
         assert isinstance(provider.create_parsers(), Parsers)
+        from oci_runtime.ports.transport import Transport
+        from unittest.mock import MagicMock
+        managers = provider.create_managers(MagicMock(spec=Transport), RuntimeCapabilities())
+        assert isinstance(managers, Managers)
