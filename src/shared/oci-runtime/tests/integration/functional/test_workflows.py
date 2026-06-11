@@ -43,7 +43,7 @@ class TestImageLifecycle:
         img.tag("alpine", "myalpine:v1")
         img.remove("myalpine:v1")
         _inject_responses(t, {
-            "docker image inspect myalpine:v1": ExecResult(1, b"", b"Error: No such image: myalpine:v1"),
+            "docker image inspect --format json myalpine:v1": ExecResult(1, b"", b"Error: No such image: myalpine:v1"),
         })
         with pytest.raises(ImageNotFoundError):
             img.inspect("myalpine:v1")

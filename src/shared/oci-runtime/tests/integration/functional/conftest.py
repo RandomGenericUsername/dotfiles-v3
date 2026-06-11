@@ -51,5 +51,4 @@ def docker_engine(empty_transport, docker_caps, docker_parsers):
         volume_manager=CliVolumeManager(empty_transport, vp, docker_caps),
         network_manager=CliNetworkManager(empty_transport, np, docker_caps),
         caps=docker_caps,
-        binary="docker",
     )
