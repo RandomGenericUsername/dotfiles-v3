@@ -1,0 +1,5 @@
+{
+  "engine": "docker",
+  "timeout": 30,
+  "mounts": ["/data", "/config"]
+}
