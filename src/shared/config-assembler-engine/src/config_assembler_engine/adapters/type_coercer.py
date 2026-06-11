@@ -26,14 +26,18 @@ class PydanticTypeCoercer(TypeCoercerPort):
         if field_type is int or (isinstance(field_type, type) and issubclass(field_type, int)):
             try:
                 return int(raw)
-            except ValueError:
-                raise OverrideCoercionError(override.field_path, raw, "int", "not a valid integer")
+            except ValueError as e:
+                raise OverrideCoercionError(
+                    override.field_path, raw, "int", "not a valid integer"
+                ) from e
 
         if field_type is float or (isinstance(field_type, type) and issubclass(field_type, float)):
             try:
                 return float(raw)
-            except ValueError:
-                raise OverrideCoercionError(override.field_path, raw, "float", "not a valid float")
+            except ValueError as e:
+                raise OverrideCoercionError(
+                    override.field_path, raw, "float", "not a valid float"
+                ) from e
 
         if isinstance(field_type, type) and issubclass(field_type, Path):
             return Path(raw)
@@ -55,11 +59,15 @@ class PydanticTypeCoercer(TypeCoercerPort):
             for entry in entries:
                 if ":" not in entry:
                     raise OverrideCoercionError(
-                        override.field_path, raw, "dict",
-                        f"malformed entry '{entry}' — expected 'key:value'"
+                        override.field_path,
+                        raw,
+                        "dict",
+                        f"malformed entry '{entry}' — expected 'key:value'",
                     )
                 k, v = entry.split(":", 1)
-                result[self._coerce_item(k.strip(), key_type)] = self._coerce_item(v.strip(), val_type)
+                result[self._coerce_item(k.strip(), key_type)] = self._coerce_item(
+                    v.strip(), val_type
+                )
             return result
 
         if hasattr(field_type, "__members__"):
@@ -69,7 +77,9 @@ class PydanticTypeCoercer(TypeCoercerPort):
                 for member in field_type:
                     if member.name.lower() == raw.lower():
                         return member
-                raise OverrideCoercionError(override.field_path, raw, "enum", "not a valid member")
+                raise OverrideCoercionError(
+                    override.field_path, raw, "enum", "not a valid member"
+                ) from None
 
         try:
             return json.loads(raw)

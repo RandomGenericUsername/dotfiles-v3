@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResolvedPath
-from config_assembler_engine.ports.path_resolver import ResolutionStrategy
 
 
 class EnvPathStrategy:

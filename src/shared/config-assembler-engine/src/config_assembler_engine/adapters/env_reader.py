@@ -12,6 +12,6 @@ class OsEnvironmentReader(EnvironmentReaderPort):
         for key, value in os.environ.items():
             if not key.startswith(prefix + self.SEPARATOR):
                 continue
-            config_key = key[len(prefix) + len(self.SEPARATOR):].lower()
+            config_key = key[len(prefix) + len(self.SEPARATOR) :].lower()
             result[config_key] = value
         return result

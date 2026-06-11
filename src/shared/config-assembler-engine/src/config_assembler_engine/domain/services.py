@@ -50,9 +50,7 @@ class OverrideMatchingService:
 
 class ConfigMergeService:
     @staticmethod
-    def apply(
-        base: dict[str, Any], override: OverrideValue, coerced_value: Any
-    ) -> dict[str, Any]:
+    def apply(base: dict[str, Any], override: OverrideValue, coerced_value: Any) -> dict[str, Any]:
         result = deepcopy(base)
         parts = override.field_path.split(".")
         current = result

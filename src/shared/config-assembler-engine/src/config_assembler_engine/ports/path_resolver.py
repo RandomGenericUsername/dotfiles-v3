@@ -1,4 +1,4 @@
-from typing import Optional, Protocol
+from typing import Protocol
 
 from config_assembler_engine.domain.models import ResolutionPolicy, ResolvedPath
 
@@ -8,8 +8,7 @@ class ResolutionStrategy(Protocol):
         self,
         policy: ResolutionPolicy,
         explicit_path: str | None = None,
-    ) -> ResolvedPath | None:
-        ...
+    ) -> ResolvedPath | None: ...
 
 
 class PathResolverPort(Protocol):
@@ -17,5 +16,4 @@ class PathResolverPort(Protocol):
         self,
         policy: ResolutionPolicy,
         explicit_path: str | None = None,
-    ) -> ResolvedPath:
-        ...
+    ) -> ResolvedPath: ...

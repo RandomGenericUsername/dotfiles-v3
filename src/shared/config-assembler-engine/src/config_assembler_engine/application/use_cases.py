@@ -1,4 +1,3 @@
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -53,9 +52,7 @@ class AssembleConfiguration:
 
         env_vars = self._env_reader.read(policy.env_prefix)
 
-        overrides = OverrideMatchingService.match(
-            env_vars, cli_overrides or {}, rules
-        )
+        overrides = OverrideMatchingService.match(env_vars, cli_overrides or {}, rules)
 
         merged_dict = baseline.model_dump()
         applied: list[AppliedOverride] = []
