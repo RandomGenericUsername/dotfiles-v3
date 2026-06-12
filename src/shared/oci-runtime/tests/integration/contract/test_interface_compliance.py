@@ -414,14 +414,14 @@ class TestCapabilitiesContract:
         pref = RuntimePreference(kind=RuntimeKind.PODMAN, binary="/custom/path/podman")
         assert pref.binary == "/custom/path/podman"
 
-    def test_runtime_capabilities_default_output_format(self):
+    def test_runtime_capabilities_default_list_format_flags(self):
         caps = RuntimeCapabilities()
-        assert "json" in caps.supported_output_formats
+        assert caps.list_format_flags == []
 
-    def test_runtime_capabilities_is_not_frozen(self):
+    def test_runtime_capabilities_is_frozen(self):
         caps = RuntimeCapabilities()
-        caps.supports_log_drivers = False
-        assert caps.supports_log_drivers is False
+        with pytest.raises(FrozenInstanceError):
+            caps.supports_log_drivers = False
 
 
 class TestFactoryContract:

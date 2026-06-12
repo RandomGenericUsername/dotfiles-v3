@@ -36,8 +36,8 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
                     for mapping in mappings:
                         if isinstance(mapping, dict):
                             host_port = mapping.get("HostPort")
-                            host_ip = mapping.get("HostIp", "127.0.0.1")
-                            
+                            host_ip = mapping.get("HostIp", "") or "0.0.0.0"
+
                             if host_port:
                                 ports.append(PortMapping(
                                     container_port=container_port,
@@ -100,12 +100,20 @@ class PodmanImageParser(BaseCliParser, ImageParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            tags = item.get("RepoTags", [])
+            if not tags:
+                names = item.get("Names", [])
+                if names:
+                    tags = names
+            labels = item.get("Labels", {})
+            if isinstance(labels, str):
+                labels = {}
             result.append(ImageInfo(
                 id=item.get("Id", ""),
-                tags=item.get("RepoTags", []),
+                tags=tags if tags else [],
                 size=item.get("Size", 0),
                 created=str(item.get("Created", "")),
-                labels=item.get("Labels", {}),
+                labels=labels,
             ))
         return result
 
@@ -146,11 +154,14 @@ class PodmanVolumeParser(BaseCliParser, VolumeParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            labels = item.get("Labels", {})
+            if isinstance(labels, str):
+                labels = {}
             result.append(VolumeInfo(
                 name=item.get("Name", ""),
                 driver=item.get("Driver", ""),
                 mountpoint=item.get("Mountpoint"),
-                labels=item.get("Labels", {}),
+                labels=labels,
             ))
         return result
 
@@ -172,11 +183,18 @@ class PodmanNetworkParser(BaseCliParser, NetworkParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            net_id = item.get("Id") or item.get("id", "")
+            name = item.get("Name") or item.get("name", "")
+            driver = item.get("Driver") or item.get("driver", "")
+            scope = item.get("Scope") or item.get("scope", "")
+            labels = item.get("Labels", {})
+            if isinstance(labels, str):
+                labels = {}
             result.append(NetworkInfo(
-                id=item.get("Id", ""),
-                name=item.get("Name", ""),
-                driver=item.get("Driver", ""),
-                scope=item.get("Scope", ""),
-                labels=item.get("Labels", {}),
+                id=net_id,
+                name=name,
+                driver=driver,
+                scope=scope,
+                labels=labels,
             ))
         return result

@@ -22,7 +22,7 @@ class PodmanRuntimeProvider(RuntimeProvider):
 
     def capabilities(self) -> RuntimeCapabilities:
         return RuntimeCapabilities(
-            supported_output_formats=["json"],
+            list_format_flags=["--format", "json"],
             needs_userns_keep_id=True,
             supports_log_drivers=False,
             tar_entry_name="Containerfile",

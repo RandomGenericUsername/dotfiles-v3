@@ -282,3 +282,45 @@ class TestPodmanNetworkParser:
     def test_is_not_found_error(self):
         assert self.parser.is_not_found_error("no such network")
         assert not self.parser.is_not_found_error("something else")
+
+
+class TestPodmanImageParserNormalization:
+    def setup_method(self):
+        self.parser = PodmanImageParser()
+
+    def test_parse_list_null_repo_tags(self):
+        data = '[{"Id":"sha256:abc","RepoTags":null,"Size":5000000,"Labels":{}}]'
+        result = self.parser.parse_list(data)
+        assert len(result) == 1
+        assert result[0].tags == []
+
+    def test_parse_list_names_fallback(self):
+        data = '[{"Id":"sha256:abc","Names":["alpine:latest"],"Size":5000000,"Labels":{}}]'
+        result = self.parser.parse_list(data)
+        assert len(result) == 1
+        assert result[0].tags == ["alpine:latest"]
+
+
+class TestPodmanNetworkParserNormalization:
+    def setup_method(self):
+        self.parser = PodmanNetworkParser()
+
+    def test_parse_list_lowercase_network_keys(self):
+        data = '[{"id":"2f259bab93aa","name":"podman","driver":"bridge","labels":{}}]'
+        result = self.parser.parse_list(data)
+        assert len(result) == 1
+        assert result[0].id == "2f259bab93aa"
+        assert result[0].name == "podman"
+        assert result[0].driver == "bridge"
+
+
+class TestPodmanVolumeParserNormalization:
+    def setup_method(self):
+        self.parser = PodmanVolumeParser()
+
+    def test_parse_list_labels_string_to_dict(self):
+        data = '[{"Name":"my-vol","Driver":"local","Mountpoint":"/data","Labels":""}]'
+        result = self.parser.parse_list(data)
+        assert len(result) == 1
+        assert result[0].name == "my-vol"
+        assert result[0].labels == {}

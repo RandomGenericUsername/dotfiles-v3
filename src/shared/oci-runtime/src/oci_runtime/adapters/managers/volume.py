@@ -38,11 +38,12 @@ class CliVolumeManager(CliBaseManager[VolumeParser], VolumeManager):
     def inspect(self, name: str) -> VolumeInfo:
         cmd = [self._transport.get_runtime_binary(), "volume", "inspect", "--format", "json", name]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, entity=name, not_found=VolumeNotFoundError)
+        self._check_result(result, cmd, operation="inspect volume", entity=name, not_found=VolumeNotFoundError)
         return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[VolumeInfo]:
         cmd = [self._transport.get_runtime_binary(), "volume", "list"]
+        cmd.extend(self._caps.list_format_flags)
         if filters:
             for key, val in filters.items():
                 cmd.extend(["--filter", f"{key}={val}"])

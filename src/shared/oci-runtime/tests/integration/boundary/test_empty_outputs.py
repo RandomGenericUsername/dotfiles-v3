@@ -61,24 +61,28 @@ class TestEmptyInspect:
 
 class TestEmptyList:
     def test_list_containers_empty(self, transport, caps):
-        transport._responses = {"docker container list --format json": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
+        transport._responses = {"docker container list": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps)
-        assert mgr.list() == []
+        with pytest.raises(ParsingError, match="Empty response"):
+            mgr.list()
 
     def test_list_images_empty(self, transport, caps):
         transport._responses = {"docker image list": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
-        assert mgr.list() == []
+        with pytest.raises(ParsingError, match="Empty response"):
+            mgr.list()
 
     def test_list_volumes_empty(self, transport, caps):
         transport._responses = {"docker volume list": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
-        assert mgr.list() == []
+        with pytest.raises(ParsingError, match="Empty response"):
+            mgr.list()
 
     def test_list_networks_empty(self, transport, caps):
         transport._responses = {"docker network list": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
-        assert mgr.list() == []
+        with pytest.raises(ParsingError, match="Empty response"):
+            mgr.list()
 
 
 class TestEmptyOutput:

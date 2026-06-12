@@ -14,6 +14,11 @@ class ContainerState(StrEnum):
     REMOVING = "removing"
     EXITED = "exited"
     DEAD = "dead"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "ContainerState":
+        return cls.UNKNOWN
 
 
 class RestartPolicy(StrEnum):

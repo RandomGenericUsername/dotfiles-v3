@@ -231,23 +231,23 @@ class TestContainerManagerCommands:
         assert info.id == "abc"
 
     def test_list(self, t, caps):
-        t._responses = {"docker container list --format json": ExecResult(0, LIST_CONTAINER_JSON, b"")}
+        t._responses = {"docker container list": ExecResult(0, LIST_CONTAINER_JSON, b"")}
         mgr = CliContainerManager(t, MockContainerParser(), caps)
         result = mgr.list()
-        assert t.calls[0].command == ["docker", "container", "list", "--format", "json"]
+        assert t.calls[0].command == ["docker", "container", "list"]
         assert len(result) == 1
 
     def test_list_all(self, t, caps):
-        t._responses = {"docker container list --format json -a": ExecResult(0, b"[]", b"")}
+        t._responses = {"docker container list -a": ExecResult(0, b"[]", b"")}
         mgr = CliContainerManager(t, MockContainerParser(), caps)
         mgr.list(show_all=True)
-        assert t.calls[0].command == ["docker", "container", "list", "--format", "json", "-a"]
+        assert t.calls[0].command == ["docker", "container", "list", "-a"]
 
     def test_list_with_filter(self, t, caps):
-        t._responses = {"docker container list --format json --filter name=web": ExecResult(0, b"[]", b"")}
+        t._responses = {"docker container list --filter name=web": ExecResult(0, b"[]", b"")}
         mgr = CliContainerManager(t, MockContainerParser(), caps)
         mgr.list(filters={"name": "web"})
-        assert t.calls[0].command == ["docker", "container", "list", "--format", "json", "--filter", "name=web"]
+        assert t.calls[0].command == ["docker", "container", "list", "--filter", "name=web"]
 
     def test_logs(self, t, caps):
         t._responses = {"docker logs ctr1": ExecResult(0, b"log output\n", b"")}

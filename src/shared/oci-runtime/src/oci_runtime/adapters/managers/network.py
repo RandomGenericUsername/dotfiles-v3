@@ -48,11 +48,12 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
     def inspect(self, name: str) -> NetworkInfo:
         cmd = [self._transport.get_runtime_binary(), "network", "inspect", "--format", "json", name]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, entity=name, not_found=NetworkNotFoundError)
+        self._check_result(result, cmd, operation="inspect network", entity=name, not_found=NetworkNotFoundError)
         return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[NetworkInfo]:
         cmd = [self._transport.get_runtime_binary(), "network", "list"]
+        cmd.extend(self._caps.list_format_flags)
         if filters:
             for key, val in filters.items():
                 cmd.extend(["--filter", f"{key}={val}"])

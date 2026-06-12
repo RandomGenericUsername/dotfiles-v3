@@ -51,7 +51,13 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(["--entrypoint", config.entrypoint[0]])
         
         if config.network:
-            if config.network != NetworkMode.BRIDGE:
+            if config.network == NetworkMode.CONTAINER:
+                if not config.network_container:
+                    raise ContainerRuntimeError(
+                        "network=CONTAINER requires network_container to be set",
+                    )
+                cmd.extend(["--network", f"container:{config.network_container}"])
+            elif config.network != NetworkMode.BRIDGE:
                 cmd.extend(["--network", str(config.network)])
         
         if config.restart_policy:
@@ -147,7 +153,8 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, show_all: bool = False, filters: dict[str, str] | None = None) -> list[ContainerInfo]:
-        cmd = [self._transport.get_runtime_binary(), "container", "list", "--format", "json"]
+        cmd = [self._transport.get_runtime_binary(), "container", "list"]
+        cmd.extend(self._caps.list_format_flags)
         if show_all:
             cmd.append("-a")
         if filters:

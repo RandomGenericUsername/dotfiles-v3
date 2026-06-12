@@ -7,15 +7,18 @@ from oci_runtime.ports.transport import ExecResult
 from tests.helpers.mock_transport import RecordingTransport
 
 
-class TestCapabilityEdgeCases:
-    def test_runtime_capabilities_mutable(self):
-        caps = RuntimeCapabilities()
-        caps.supports_log_drivers = False
-        assert caps.supports_log_drivers is False
+from dataclasses import FrozenInstanceError
 
-    def test_runtime_capabilities_default_output_format(self):
+
+class TestCapabilityEdgeCases:
+    def test_runtime_capabilities_is_frozen(self):
         caps = RuntimeCapabilities()
-        assert "json" in caps.supported_output_formats
+        with pytest.raises(FrozenInstanceError):
+            caps.supports_log_drivers = False
+
+    def test_runtime_capabilities_default_list_format_flags(self):
+        caps = RuntimeCapabilities()
+        assert caps.list_format_flags == []
 
     def test_runtime_preference_is_frozen(self):
         pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker")

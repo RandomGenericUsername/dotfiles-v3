@@ -79,7 +79,7 @@ class ContainerManagerContractTest(ABC):
 
     def test_list_returns_list(self):
         mgr, t = self._defaults()
-        t._responses["docker container list --format json"] = ExecResult(0, b"dummy", b"")
+        t._responses["docker container list"] = ExecResult(0, b"dummy", b"")
         result = mgr.list()
         assert isinstance(result, list)
 

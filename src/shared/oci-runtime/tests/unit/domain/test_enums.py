@@ -55,15 +55,19 @@ class TestContainerState:
 
     def test_closed_set_engine_states(self):
         members = set(ContainerState.__members__)
-        assert members == {"CREATED", "RUNNING", "PAUSED", "RESTARTING", "REMOVING", "EXITED", "DEAD"}
+        assert members == {"CREATED", "RUNNING", "PAUSED", "RESTARTING", "REMOVING", "EXITED", "DEAD", "UNKNOWN"}
 
-    def test_unknown_state_raises_value_error(self):
-        with pytest.raises(ValueError):
-            ContainerState("unknown")
+    def test_unknown_state_falls_back_to_unknown(self):
+        result = ContainerState("unknown")
+        assert result is ContainerState.UNKNOWN
 
-    def test_empty_string_raises_value_error(self):
-        with pytest.raises(ValueError):
-            ContainerState("")
+    def test_empty_string_falls_back_to_unknown(self):
+        result = ContainerState("")
+        assert result is ContainerState.UNKNOWN
+
+    def test_unrecognized_state_falls_back_to_unknown(self):
+        result = ContainerState("deleting")
+        assert result is ContainerState.UNKNOWN
 
     def test_strenum_is_str(self):
         assert isinstance(ContainerState.RUNNING, str)

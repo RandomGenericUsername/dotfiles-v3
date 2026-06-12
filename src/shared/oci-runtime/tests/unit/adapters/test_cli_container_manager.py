@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.domain.exceptions import ImageNotFoundError
+from oci_runtime.domain.enums import NetworkMode
+from oci_runtime.domain.exceptions import ContainerRuntimeError, ImageNotFoundError
 from oci_runtime.domain.types import ContainerInfo, PortMapping, RunConfig, VolumeMount
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
@@ -73,3 +74,37 @@ class TestCliContainerManager:
     def test_list_calls_transport(self):
         self.manager.list()
         self.transport.execute.assert_called_once()
+
+    def test_run_network_bridge_ignores_container_arg(self):
+        config = RunConfig(image="alpine", network=NetworkMode.BRIDGE, network_container="nginx")
+        self.manager.run(config)
+        args = self.transport.execute.call_args[0][0]
+        assert "--network" not in args
+
+    def test_run_network_host_adds_flag(self):
+        config = RunConfig(image="alpine", network=NetworkMode.HOST)
+        self.manager.run(config)
+        args = self.transport.execute.call_args[0][0]
+        idx = args.index("--network")
+        assert args[idx + 1] == "host"
+
+    def test_run_network_container_requires_arg(self):
+        config = RunConfig(image="alpine", network=NetworkMode.CONTAINER)
+        with pytest.raises(ContainerRuntimeError, match="network_container"):
+            self.manager.run(config)
+
+    def test_run_network_container_adds_flag(self):
+        config = RunConfig(
+            image="alpine", network=NetworkMode.CONTAINER, network_container="nginx"
+        )
+        self.manager.run(config)
+        args = self.transport.execute.call_args[0][0]
+        idx = args.index("--network")
+        assert args[idx + 1] == "container:nginx"
+
+    def test_run_network_none_adds_flag(self):
+        config = RunConfig(image="alpine", network=NetworkMode.NONE)
+        self.manager.run(config)
+        args = self.transport.execute.call_args[0][0]
+        idx = args.index("--network")
+        assert args[idx + 1] == "none"

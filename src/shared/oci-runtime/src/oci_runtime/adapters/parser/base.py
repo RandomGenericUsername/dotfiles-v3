@@ -18,7 +18,7 @@ def parse_size_to_bytes(size_str: str) -> int:
     }
     match = re.search(r"(\d+\.?\d*)\s*([a-zA-Z]+)", size_str.upper())
     if not match:
-        return 0
+        raise ValueError(f"Cannot parse size string: {size_str!r}")
     number, unit = match.groups()
     return int(float(number) * units.get(unit, 0))
 
@@ -39,14 +39,30 @@ class BaseCliParser:
         return data[0] if isinstance(data, list) else data
 
     def _parse_json_list(self, raw: str) -> list[dict]:
-        """Parse JSON that contains a list."""
+        """Parse JSON that contains a list, a single object, or NDJSON."""
         try:
             data = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise ParsingError(raw=raw, message=f"Invalid JSON in list response: {e}") from e
-        if not isinstance(data, list):
-            data = [data]
-        return data
+            if not data:
+                raise ParsingError(raw=raw, message="Empty response")
+            if isinstance(data, list):
+                return data
+            return [data]
+        except json.JSONDecodeError:
+            pass
+
+        lines = raw.strip().split("\n")
+        items: list[dict] = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        if items:
+            return items
+        raise ParsingError(raw=raw, message="Invalid JSON in list response")
 
     def is_not_found_error(self, stderr: str) -> bool:
         lower = stderr.lower()

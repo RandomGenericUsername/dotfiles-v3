@@ -99,7 +99,7 @@ class TestContainerLifecycle:
         t = docker_engine._transport
         _inject_responses(t, {
             "docker run -d alpine": ExecResult(0, b"ctr1\n", b""),
-            "docker container list --format json": ExecResult(0, b'[{"Id":"ctr1","Names":["/ctr1"],"Image":"alpine","State":"running","Created":1704067200,"Ports":[],"Labels":{}}]', b""),
+            "docker container list": ExecResult(0, b'[{"Id":"ctr1","Names":["/ctr1"],"Image":"alpine","State":"running","Created":1704067200,"Ports":[],"Labels":{}}]', b""),
             "docker container inspect --format json ctr1": ExecResult(0, b'[{"Id":"ctr1","Name":"/ctr1","Config":{"Image":"alpine"},"State":{"Status":"running","ExitCode":0,"Running":true},"Created":"2024-01-01T00:00:00Z","HostConfig":{},"NetworkSettings":{"Ports":{}}}]', b""),
             "docker stop -t 10 ctr1": ExecResult(0, b"ctr1\n", b""),
             "docker start ctr1": ExecResult(0, b"ctr1\n", b""),

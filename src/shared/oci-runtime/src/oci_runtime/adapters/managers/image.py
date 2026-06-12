@@ -80,6 +80,7 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
 
     def list(self, filters: dict[str, str] | None = None) -> list[ImageInfo]:
         cmd = [self._transport.get_runtime_binary(), "image", "list"]
+        cmd.extend(self._caps.list_format_flags)
         if filters:
             for key, val in filters.items():
                 cmd.extend(["--filter", f"{key}={val}"])

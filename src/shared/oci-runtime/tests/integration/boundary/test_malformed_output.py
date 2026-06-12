@@ -73,7 +73,7 @@ class TestMalformedInspect:
 
 class TestMalformedList:
     def test_list_malformed_json_containers(self, transport, caps):
-        transport._responses = {"docker container list --format json": ExecResult(returncode=0, stdout=b"not json", stderr=b"")}
+        transport._responses = {"docker container list": ExecResult(returncode=0, stdout=b"not json", stderr=b"")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps)
         with pytest.raises(ParsingError, match="Invalid JSON in list"):
             mgr.list()

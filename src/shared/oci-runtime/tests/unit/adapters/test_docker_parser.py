@@ -254,3 +254,63 @@ class TestDockerNetworkParser:
     def test_is_not_found_error(self):
         assert self.parser.is_not_found_error("No such network: net1")
         assert not self.parser.is_not_found_error("something else")
+
+
+class TestDockerImageParserNDJSON:
+    def setup_method(self):
+        self.parser = DockerImageParser()
+
+    def test_parse_list_ndjson_image(self):
+        ndjson = '{"ID":"sha256:abc","Repository":"alpine","Tag":"latest","VirtualSize":"8.454MB","Created":1704067200,"Labels":""}\n{"ID":"sha256:def","Repository":"ubuntu","Tag":"22.04","VirtualSize":"1.5GB","Created":1704067201,"Labels":{"os":"linux"}}'
+        result = self.parser.parse_list(ndjson)
+        assert len(result) == 2
+        assert "sha256:abc" in result[0].id
+        assert result[0].tags == ["alpine:latest"]
+        assert isinstance(result[0].size, int)
+        assert result[0].size > 0
+        assert result[0].labels == {}
+        assert "sha256:def" in result[1].id
+        assert result[1].tags == ["ubuntu:22.04"]
+        assert result[1].labels == {"os": "linux"}
+
+    def test_parse_list_docker_ls_keys(self):
+        ndjson = '{"ID":"sha256:abc","Repository":"alpine","Tag":"latest","VirtualSize":"8847360","Labels":""}'
+        result = self.parser.parse_list(ndjson)
+        assert len(result) == 1
+        assert result[0].tags == ["alpine:latest"]
+
+    def test_parse_list_labels_string_to_dict(self):
+        ndjson = '{"ID":"sha256:abc","Labels":""}'
+        result = self.parser.parse_list(ndjson)
+        assert result[0].labels == {}
+
+    def test_parse_list_size_as_string(self):
+        ndjson = '{"ID":"sha256:abc","VirtualSize":"8847360","Labels":{}}'
+        result = self.parser.parse_list(ndjson)
+        assert isinstance(result[0].size, int)
+
+
+class TestDockerNetworkParserNDJSON:
+    def setup_method(self):
+        self.parser = DockerNetworkParser()
+
+    def test_parse_list_ndjson_network(self):
+        ndjson = '{"ID":"11de959545c4","Name":"bridge","Driver":"bridge","Scope":"local","Labels":""}\n{"ID":"8d7e2f0997be","Name":"host","Driver":"host","Scope":"local","Labels":""}'
+        result = self.parser.parse_list(ndjson)
+        assert len(result) == 2
+        assert "11de959545c4" in result[0].id
+        assert result[0].name == "bridge"
+        assert result[0].driver == "bridge"
+        assert result[1].name == "host"
+
+
+class TestDockerVolumeParserNDJSON:
+    def setup_method(self):
+        self.parser = DockerVolumeParser()
+
+    def test_parse_list_labels_string_to_dict(self):
+        ndjson = '{"Name":"my-vol","Driver":"local","Mountpoint":"/data","Labels":""}'
+        result = self.parser.parse_list(ndjson)
+        assert len(result) == 1
+        assert result[0].name == "my-vol"
+        assert result[0].labels == {}

@@ -57,7 +57,7 @@ class TestPortMapping:
         pm = PortMapping(container_port=80)
         assert pm.host_port is None
         assert pm.protocol == "tcp"
-        assert pm.host_ip == "127.0.0.1"
+        assert pm.host_ip == "0.0.0.0"
 
     def test_all_fields(self):
         pm = PortMapping(container_port=443, host_port=8443, protocol="udp", host_ip="0.0.0.0")
@@ -180,6 +180,7 @@ class TestRunConfig:
         assert config.volumes == []
         assert config.ports == []
         assert config.network is NetworkMode.BRIDGE
+        assert config.network_container is None
         assert config.restart_policy is RestartPolicy.NO
         assert config.detach is True
         assert config.remove is False
@@ -230,6 +231,14 @@ class TestRunConfig:
         config = RunConfig(image="alpine", network=NetworkMode.HOST)
         assert config.network is NetworkMode.HOST
 
+    def test_network_container_default_none(self):
+        config = RunConfig(image="alpine")
+        assert config.network_container is None
+
+    def test_network_container_accepts_string(self):
+        config = RunConfig(image="alpine", network_container="nginx")
+        assert config.network_container == "nginx"
+
     def test_restart_policy_accepts_str(self):
         config = RunConfig(image="alpine", restart_policy="always")
         assert config.restart_policy == "always"
@@ -248,6 +257,7 @@ class TestRunConfig:
             volumes=[VolumeMount(source="/src", target="/dst", type="bind")],
             ports=[PortMapping(container_port=80)],
             network=NetworkMode.HOST,
+            network_container="nginx",
             restart_policy=RestartPolicy.ALWAYS,
             detach=False,
             remove=True,
@@ -274,6 +284,7 @@ class TestRunConfig:
         assert len(config.volumes) == 1
         assert len(config.ports) == 1
         assert config.network is NetworkMode.HOST
+        assert config.network_container == "nginx"
         assert config.restart_policy is RestartPolicy.ALWAYS
         assert config.detach is False
         assert config.remove is True

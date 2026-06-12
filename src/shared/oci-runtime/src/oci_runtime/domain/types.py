@@ -18,7 +18,7 @@ class PortMapping:
     container_port: int
     host_port: int | None = None
     protocol: str = "tcp"
-    host_ip: str = "127.0.0.1"
+    host_ip: str = "0.0.0.0"
 
 
 @dataclass
@@ -62,6 +62,7 @@ class RunConfig:
     volumes: list[VolumeMount] = field(default_factory=list)
     ports: list[PortMapping] = field(default_factory=list)
     network: NetworkMode = NetworkMode.BRIDGE
+    network_container: str | None = None
     restart_policy: RestartPolicy = RestartPolicy.NO
     detach: bool = True
     remove: bool = False

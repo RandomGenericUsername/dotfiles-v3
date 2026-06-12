@@ -1,6 +1,6 @@
 import re
 
-from oci_runtime.adapters.parser.base import BaseCliParser
+from oci_runtime.adapters.parser.base import BaseCliParser, parse_size_to_bytes
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
     ContainerInfo,
@@ -68,12 +68,37 @@ class DockerImageParser(BaseCliParser, ImageParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            image_id = item.get("Id") or item.get("ID") or item.get("id", "")
+            tags = item.get("RepoTags", [])
+            if not tags:
+                repo = item.get("Repository", "")
+                tag = item.get("Tag", "")
+                if repo and repo != "<none>":
+                    tags = [f"{repo}:{tag}"] if tag and tag != "<none>" else [f"{repo}:latest"]
+            size = item.get("Size", 0)
+            if isinstance(size, str):
+                try:
+                    size = parse_size_to_bytes(size)
+                except ValueError:
+                    size = 0
+            if not size:
+                virtual = item.get("VirtualSize", 0)
+                if isinstance(virtual, str):
+                    try:
+                        size = parse_size_to_bytes(virtual)
+                    except ValueError:
+                        size = 0
+                else:
+                    size = virtual
+            labels = item.get("Labels", {})
+            if isinstance(labels, str):
+                labels = {}
             result.append(ImageInfo(
-                id=item.get("Id", ""),
-                tags=item.get("RepoTags", []),
-                size=item.get("Size", 0),
+                id=image_id,
+                tags=tags if tags else [],
+                size=size if isinstance(size, int) else 0,
                 created=str(item.get("Created", "")),
-                labels=item.get("Labels", {}),
+                labels=labels,
             ))
         return result
 
@@ -114,11 +139,14 @@ class DockerVolumeParser(BaseCliParser, VolumeParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            labels = item.get("Labels", {})
+            if isinstance(labels, str):
+                labels = {}
             result.append(VolumeInfo(
                 name=item.get("Name", ""),
                 driver=item.get("Driver", ""),
                 mountpoint=item.get("Mountpoint"),
-                labels=item.get("Labels", {}),
+                labels=labels,
             ))
         return result
 
@@ -140,12 +168,16 @@ class DockerNetworkParser(BaseCliParser, NetworkParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            net_id = item.get("Id") or item.get("ID") or item.get("id", "")
+            labels = item.get("Labels", {})
+            if isinstance(labels, str):
+                labels = {}
             result.append(NetworkInfo(
-                id=item.get("Id", ""),
+                id=net_id,
                 name=item.get("Name", ""),
                 driver=item.get("Driver", ""),
                 scope=item.get("Scope", ""),
-                labels=item.get("Labels", {}),
+                labels=labels,
             ))
         return result
 
@@ -163,11 +195,12 @@ def _parse_docker_ports(item: dict) -> list[PortMapping]:
         if bindings:
             for binding in bindings:
                 host_port = int(binding["HostPort"]) if binding.get("HostPort") else None
+                host_ip = binding.get("HostIp", "") or "0.0.0.0"
                 ports.append(PortMapping(
                     container_port=container_port,
                     host_port=host_port,
                     protocol=protocol,
-                    host_ip=binding.get("HostIp", "127.0.0.1"),
+                    host_ip=host_ip,
                 ))
         else:
             ports.append(PortMapping(
@@ -180,10 +213,11 @@ def _parse_docker_ports(item: dict) -> list[PortMapping]:
 def _parse_docker_ports_from_list(item: dict) -> list[PortMapping]:
     ports = []
     for p in item.get("Ports", []):
+        host_ip = p.get("HostIp", "") or "0.0.0.0"
         ports.append(PortMapping(
             container_port=p.get("PrivatePort", 0),
             host_port=p.get("PublicPort"),
             protocol=p.get("Type", "tcp"),
-            host_ip=p.get("HostIp", "127.0.0.1"),
+            host_ip=host_ip,
         ))
     return ports

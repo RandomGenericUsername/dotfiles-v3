@@ -22,7 +22,7 @@ class DockerRuntimeProvider(RuntimeProvider):
 
     def capabilities(self) -> RuntimeCapabilities:
         return RuntimeCapabilities(
-            supported_output_formats=["json", "yaml"],
+            list_format_flags=["--format", "{{json .}}"],
             needs_userns_keep_id=False,
             supports_log_drivers=True,
             tar_entry_name="Dockerfile",

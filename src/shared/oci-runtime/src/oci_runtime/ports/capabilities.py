@@ -12,10 +12,9 @@ class RuntimePreference:
     binary: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class RuntimeCapabilities:
-    # Array-based format support for extensibility (replaces supports_json_output)
-    supported_output_formats: list[str] = field(default_factory=lambda: ["json"])
+    list_format_flags: list[str] = field(default_factory=list)
     needs_userns_keep_id: bool = False
     supports_log_drivers: bool = True
     tar_entry_name: str = "Dockerfile"

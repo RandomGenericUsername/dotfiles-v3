@@ -36,8 +36,7 @@ class TestDockerRuntimeProvider:
         assert caps.tar_entry_name == "Dockerfile"
         assert caps.default_run_flags == []
         assert caps.default_build_flags == ["--quiet"]
-        assert "yaml" in caps.supported_output_formats
-        assert "json" in caps.supported_output_formats
+        assert caps.list_format_flags == ["--format", "{{json .}}"]
 
     def test_create_parsers_returns_parsers(self):
         parsers = self.provider.create_parsers()
@@ -88,8 +87,7 @@ class TestPodmanRuntimeProvider:
         assert caps.tar_entry_name == "Containerfile"
         assert caps.default_run_flags == ["--userns=keep-id"]
         assert caps.default_build_flags == ["--quiet"]
-        assert "json" in caps.supported_output_formats
-        assert "yaml" not in caps.supported_output_formats
+        assert caps.list_format_flags == ["--format", "json"]
 
     def test_create_parsers_returns_parsers(self):
         parsers = self.provider.create_parsers()

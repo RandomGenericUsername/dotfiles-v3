@@ -24,8 +24,20 @@ def run_pty(
     if not shutil.which(runtime):
         raise RuntimeNotAvailableError(runtime)
 
+    output_buffer = bytearray()
+
     if on_output is None:
-        on_output = _default_pty_output
+        def _default_handler(data: bytes) -> None:
+            sys.stdout.buffer.write(data)
+            sys.stdout.buffer.flush()
+            output_buffer.extend(data)
+        on_output = _default_handler
+    else:
+        _orig = on_output
+        def _wrapped(data: bytes) -> None:
+            _orig(data)
+            output_buffer.extend(data)
+        on_output = _wrapped
 
     master_fd, slave_fd = pty.openpty()
     proc = None
@@ -91,5 +103,5 @@ def run_pty(
             command=command,
         )
     return subprocess.CompletedProcess(
-        args=command, returncode=proc.returncode, stdout=b"", stderr=b"",
+        args=command, returncode=proc.returncode, stdout=bytes(output_buffer), stderr=b"",
     )

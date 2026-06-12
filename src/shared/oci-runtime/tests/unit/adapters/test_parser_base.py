@@ -20,11 +20,17 @@ class TestParseSizeToBytes:
     def test_parses_kb(self):
         assert parse_size_to_bytes("2KB") == 2 * 1024
 
-    def test_returns_zero_for_empty_string(self):
-        assert parse_size_to_bytes("") == 0
+    def test_raises_for_empty_string(self):
+        with pytest.raises(ValueError, match="Cannot parse size"):
+            parse_size_to_bytes("")
 
-    def test_returns_zero_for_no_unit(self):
-        assert parse_size_to_bytes("9999") == 0
+    def test_raises_for_no_unit(self):
+        with pytest.raises(ValueError, match="Cannot parse size"):
+            parse_size_to_bytes("9999")
+
+    def test_raises_for_gibberish(self):
+        with pytest.raises(ValueError, match="Cannot parse size"):
+            parse_size_to_bytes("abcxyz")
 
     def test_parses_with_spaces(self):
         assert parse_size_to_bytes("2 KB") == 2048
@@ -85,3 +91,54 @@ class TestBaseCliParser:
         result = self.parser.parse_prune("")
         assert result["deleted"] == 0
         assert result["reclaimed_bytes"] == 0
+
+
+class TestParseJsonListNDJSON:
+    def setup_method(self):
+        self.parser = BaseCliParser()
+
+    def test_json_array(self):
+        result = self.parser._parse_json_list('[{"id": "abc"}]')
+        assert len(result) == 1
+        assert result[0]["id"] == "abc"
+
+    def test_single_object(self):
+        result = self.parser._parse_json_list('{"id": "abc"}')
+        assert len(result) == 1
+        assert result[0]["id"] == "abc"
+
+    def test_ndjson_two_objects(self):
+        ndjson = '{"id": "abc"}\n{"id": "def"}'
+        result = self.parser._parse_json_list(ndjson)
+        assert len(result) == 2
+        assert result[0]["id"] == "abc"
+        assert result[1]["id"] == "def"
+
+    def test_ndjson_with_blank_lines(self):
+        ndjson = '{"id": "abc"}\n\n{"id": "def"}\n'
+        result = self.parser._parse_json_list(ndjson)
+        assert len(result) == 2
+
+    def test_empty_string_raises(self):
+        with pytest.raises(ParsingError):
+            self.parser._parse_json_list("")
+
+    def test_empty_list_raises(self):
+        with pytest.raises(ParsingError, match="Empty response"):
+            self.parser._parse_json_list("[]")
+
+    def test_garbage_raises(self):
+        with pytest.raises(ParsingError):
+            self.parser._parse_json_list("not json at all")
+
+    def test_partial_ndjson_skips_bad_lines(self):
+        ndjson = '{"id": "abc"}\nnot json\n{"id": "def"}'
+        result = self.parser._parse_json_list(ndjson)
+        assert len(result) == 2
+        assert result[0]["id"] == "abc"
+        assert result[1]["id"] == "def"
+
+    def test_table_format_raises(self):
+        table = "REPOSITORY    TAG       IMAGE ID\nalpine         latest    abc123"
+        with pytest.raises(ParsingError):
+            self.parser._parse_json_list(table)
