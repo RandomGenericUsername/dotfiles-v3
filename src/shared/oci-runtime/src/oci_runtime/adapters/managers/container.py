@@ -2,6 +2,7 @@ from queue import Queue
 from threading import Thread
 from typing import Iterator
 
+from oci_runtime.adapters.managers.pty import run_pty
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy
 from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.exceptions import (
@@ -106,7 +107,13 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(config.command)
 
         if config.effective_tty:
-            self._transport.execute_pty(cmd)
+            result = run_pty(cmd)
+            if result.returncode != 0:
+                raise ContainerRuntimeError(
+                    f"Container exited with code {result.returncode}",
+                    command=cmd,
+                    exit_code=result.returncode,
+                )
             return ""
 
         result = self._transport.execute(cmd, stream=config.stream_output)

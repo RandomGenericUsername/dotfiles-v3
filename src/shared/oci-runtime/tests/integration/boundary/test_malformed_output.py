@@ -19,7 +19,7 @@ from oci_runtime.domain.exceptions import (
 )
 from oci_runtime.domain.types import BuildContext
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.transport import ExecResult
+from oci_runtime.domain.types import ExecResult
 from tests.helpers.mock_transport import RecordingTransport
 
 

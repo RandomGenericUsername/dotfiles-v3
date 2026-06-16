@@ -18,7 +18,7 @@ from oci_runtime.domain.types import (
     VolumeMount,
 )
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy
-from oci_runtime.ports.transport import ExecResult
+from oci_runtime.domain.types import ExecResult
 from tests.helpers.mock_transport import RecordingTransport
 
 

@@ -4,7 +4,7 @@ import pytest
 
 from oci_runtime.adapters.transport.cli import CliTransport
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.ports.transport import ExecResult
+from oci_runtime.domain.types import ExecResult
 
 
 class TestCliTransportExecute:

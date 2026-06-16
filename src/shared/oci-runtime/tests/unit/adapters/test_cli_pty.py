@@ -35,7 +35,7 @@ class TestRunPty:
         assert isinstance(result, subprocess.CompletedProcess)
         assert result.returncode == 0
 
-    def test_non_zero_exit_raises(self):
+    def test_non_zero_exit_returns_completed_process(self):
         from oci_runtime.adapters.managers.pty import run_pty
         with patch("shutil.which", return_value="/usr/bin/false"):
             with patch("pty.openpty", return_value=(3, 4)):
@@ -47,8 +47,9 @@ class TestRunPty:
                             proc.returncode = 1
                             mock_popen.return_value = proc
                             with patch("select.select", return_value=([], [], [])):
-                                with pytest.raises(ContainerRuntimeError, match="exit code 1"):
-                                    run_pty(["/usr/bin/false"])
+                                result = run_pty(["/usr/bin/false"])
+        assert isinstance(result, subprocess.CompletedProcess)
+        assert result.returncode == 1
 
 
 class TestRunPtyEdgeCases:

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Callable
 
-from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.ports.managers import (
@@ -45,8 +44,10 @@ class RuntimeFactoryConfig:
     Allows injection of mock implementations for testing.
     All fields default to None — the factory resolves them to production
     implementations on first use (lazy loading).
+
+    Parsers are owned by RuntimeProvider — the factory delegates to
+    providers for parser resolution, not to a separate callback.
     """
     transport_factory: Callable[[str], Transport] | None = None
     runtime_cls: type[ContainerEngine] | None = None
-    parser_provider: Callable[[RuntimeKind], Parsers] | None = None
     discovery_factory: Callable[[Callable[[str], Transport]], "RuntimeDiscovery"] | None = None

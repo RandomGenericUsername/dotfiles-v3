@@ -97,11 +97,6 @@ def run_pty(
         raise ContainerRuntimeError(
             "PTY process never started", command=command,
         )
-    if proc.returncode != 0:
-        raise ContainerRuntimeError(
-            f"PTY command failed with exit code {proc.returncode}",
-            command=command,
-        )
     return subprocess.CompletedProcess(
         args=command, returncode=proc.returncode, stdout=bytes(output_buffer), stderr=b"",
     )

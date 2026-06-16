@@ -3,8 +3,10 @@ import subprocess
 import threading
 from typing import Callable
 
+from oci_runtime.adapters._process_reader import ProcessPipeReader
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 
 
 class CliTransport(Transport):
@@ -14,43 +16,6 @@ class CliTransport(Transport):
     def _ensure_binary(self) -> None:
         if shutil.which(self.binary) is None:
             raise RuntimeNotAvailableError(self.binary)
-
-    def _read_stream(
-        self,
-        process: subprocess.Popen,
-        on_output: Callable[[bytes, str], None] | None = None,
-    ) -> tuple[list[bytes], list[bytes]]:
-        """Read stdout/stderr via selector until both pipes EOF."""
-        stdout_acc: list[bytes] = []
-        stderr_acc: list[bytes] = []
-        import selectors
-        selector = selectors.DefaultSelector()
-        try:
-            selector.register(process.stdout, selectors.EVENT_READ)
-            selector.register(process.stderr, selectors.EVENT_READ)
-            while True:
-                if process.poll() is not None and not selector.get_map():
-                    break
-                if not selector.get_map():
-                    process.wait(timeout=0.1)
-                    continue
-                events = selector.select(timeout=0.1)
-                for key, _ in events:
-                    data = key.fileobj.read(1024)
-                    if not data:
-                        selector.unregister(key.fileobj)
-                        continue
-                    if key.fileobj is process.stdout:
-                        stdout_acc.append(data)
-                        if on_output:
-                            on_output(data, "stdout")
-                    else:
-                        stderr_acc.append(data)
-                        if on_output:
-                            on_output(data, "stderr")
-        finally:
-            selector.close()
-        return stdout_acc, stderr_acc
 
     def execute(
         self,
@@ -62,7 +27,7 @@ class CliTransport(Transport):
         on_output: Callable[[bytes, str], None] | None = None,
     ) -> ExecResult:
         self._ensure_binary()
-        
+
         # If no streaming is requested, use the simpler subprocess.run
         if not on_output and not stream:
             try:
@@ -104,7 +69,8 @@ class CliTransport(Transport):
                 _stdin_thread = threading.Thread(target=_write_stdin, daemon=True)
                 _stdin_thread.start()
 
-            stdout_acc, stderr_acc = self._read_stream(process, on_output)
+            reader = ProcessPipeReader(process)
+            stdout_acc, stderr_acc = reader.read(on_output)
 
             if _stdin_thread:
                 _stdin_thread.join(timeout=5)
@@ -150,12 +116,3 @@ class CliTransport(Transport):
         """Get the runtime binary path/name."""
         self._ensure_binary()
         return self.binary
-
-    def execute_pty(
-        self,
-        command: list[str],
-        on_output: Callable[[bytes], None] | None = None,
-    ) -> subprocess.CompletedProcess:
-        self._ensure_binary()
-        from oci_runtime.adapters.managers.pty import run_pty
-        return run_pty(command, on_output=on_output)

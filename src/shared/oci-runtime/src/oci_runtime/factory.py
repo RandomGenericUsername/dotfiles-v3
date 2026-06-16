@@ -3,18 +3,12 @@ from typing import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.ports.capabilities import (
-    RuntimeCapabilities,
-    RuntimePreference,
-)
+from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.ports.factory import RuntimeFactoryConfig
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.transport import Transport
-
-
-# ─── Lazy-loaded default implementations (adapter imports inside functions) ───
 
 
 def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
@@ -25,6 +19,7 @@ def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
         RuntimeKind.PODMAN: PodmanRuntimeProvider(),
     }
 
+
 def _default_transport_factory(binary: str) -> Transport:
     from oci_runtime.adapters.transport.cli import CliTransport
     return CliTransport(binary)
@@ -33,10 +28,6 @@ def _default_transport_factory(binary: str) -> Transport:
 def _default_runtime_cls() -> type[ContainerEngine]:
     from oci_runtime.adapters.engine.cli import CliRuntime
     return CliRuntime
-
-
-def _default_parser_provider(kind: RuntimeKind) -> Parsers:
-    return _default_providers()[kind].create_parsers()
 
 
 def _default_discovery_factory(
@@ -55,8 +46,6 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
         replacements["transport_factory"] = _default_transport_factory
     if cfg.runtime_cls is None:
         replacements["runtime_cls"] = _default_runtime_cls()
-    if cfg.parser_provider is None:
-        replacements["parser_provider"] = _default_parser_provider
     if cfg.discovery_factory is None:
         replacements["discovery_factory"] = _default_discovery_factory
 
@@ -76,7 +65,7 @@ class RuntimeFactory:
         providers: dict[RuntimeKind, RuntimeProvider] | None = None,
     ):
         self._cfg = _resolve_config(config)
-        self._providers = providers if providers is not None else _default_providers()
+        self._providers = dict(providers) if providers is not None else _default_providers()
 
     def create(self, preference: RuntimePreference) -> ContainerEngine:
         """Create the explicitly requested engine or raise immediately.

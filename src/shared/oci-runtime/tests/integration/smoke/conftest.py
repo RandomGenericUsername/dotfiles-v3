@@ -31,7 +31,7 @@ def live_docker_engine(docker_available):
         pytest.skip("Docker not available")
     from oci_runtime.domain.enums import RuntimeKind
     from oci_runtime.factory import RuntimeFactory
-    from oci_runtime.ports.capabilities import RuntimePreference
+    from oci_runtime.domain.types import RuntimePreference
     return RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
 
 
@@ -41,5 +41,5 @@ def live_podman_engine(podman_available):
         pytest.skip("Podman not available")
     from oci_runtime.domain.enums import RuntimeKind
     from oci_runtime.factory import RuntimeFactory
-    from oci_runtime.ports.capabilities import RuntimePreference
+    from oci_runtime.domain.types import RuntimePreference
     return RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman"))

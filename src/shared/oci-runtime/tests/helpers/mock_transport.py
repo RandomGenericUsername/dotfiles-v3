@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 
 
 @dataclass
@@ -37,10 +38,6 @@ class RecordingTransport(Transport):
     def get_runtime_binary(self) -> str:
         return self._binary
 
-    def execute_pty(self, command, on_output=None):
-        import subprocess
-        return subprocess.CompletedProcess(args=command, returncode=0)
-
 
 class FailingTransport(Transport):
     def __init__(self, binary: str = "docker", stderr: str = "not found"):
@@ -57,7 +54,3 @@ class FailingTransport(Transport):
 
     def get_runtime_binary(self) -> str:
         return self._binary
-
-    def execute_pty(self, command, on_output=None):
-        import subprocess
-        return subprocess.CompletedProcess(args=command, returncode=1)

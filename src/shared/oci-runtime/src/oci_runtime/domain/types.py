@@ -2,7 +2,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy
+from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, RuntimeKind
 
 
 @dataclass
@@ -124,9 +124,27 @@ class ExecOutput:
 
 
 @dataclass
+class ExecResult:
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+
+
+@dataclass
 class NetworkInfo:
     id: str
     name: str
     driver: str
     scope: str
     labels: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RuntimePreference:
+    """Explicit user declaration of what engine to use.
+
+    No guessing, no fallback. The binary must be explicitly declared.
+    If the requested engine is not available, creation fails immediately.
+    """
+    kind: RuntimeKind
+    binary: str

@@ -20,7 +20,8 @@ from oci_runtime.ports.managers import (
     VolumeManager,
 )
 from oci_runtime.ports.parsers import ImageParser
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 
 
 class _Parser(ImageParser):

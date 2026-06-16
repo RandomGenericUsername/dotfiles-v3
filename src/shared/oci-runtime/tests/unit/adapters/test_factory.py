@@ -6,7 +6,8 @@ from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.factory import RuntimeFactory
-from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
+from oci_runtime.domain.types import RuntimePreference
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 
 
 def test_global_registry_no_longer_exists():

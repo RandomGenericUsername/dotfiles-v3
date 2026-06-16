@@ -6,7 +6,7 @@ from oci_runtime.adapters.discovery.cli import CliRuntimeDiscovery
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.factory import RuntimeFactory
-from oci_runtime.ports.capabilities import RuntimePreference
+from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.factory import RuntimeFactoryConfig
 from oci_runtime.ports.transport import Transport

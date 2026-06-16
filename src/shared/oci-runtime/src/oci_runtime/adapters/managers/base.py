@@ -1,8 +1,9 @@
 from typing import Generic, Type, TypeVar
 
 from oci_runtime.domain.exceptions import ContainerError, ContainerRuntimeError
+from oci_runtime.domain.types import ExecResult
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.ports.transport import Transport
 
 P = TypeVar("P")
 

@@ -7,32 +7,17 @@ from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
-from oci_runtime.adapters.parser.docker import (
-    DockerContainerParser,
-    DockerImageParser,
-    DockerNetworkParser,
-    DockerVolumeParser,
-)
-from oci_runtime.adapters.parser.podman import (
-    PodmanContainerParser,
-    PodmanImageParser,
-    PodmanNetworkParser,
-    PodmanVolumeParser,
-)
-from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.factory import RuntimeFactory
-from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
+from oci_runtime.domain.types import RuntimePreference
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
-from oci_runtime.ports.factory import Parsers, RuntimeFactoryConfig
-from oci_runtime.ports.parsers import (
-    ContainerParser,
-    ImageParser,
-    NetworkParser,
-    VolumeParser,
-)
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.ports.factory import Managers, Parsers, RuntimeFactoryConfig
+from oci_runtime.ports.parsers import ContainerParser, ImageParser
+from oci_runtime.ports.provider import RuntimeProvider
+from oci_runtime.domain.types import ExecResult
 from tests.helpers.mock_transport import RecordingTransport
 
 
@@ -123,7 +108,7 @@ class TestFactoryConfigInjection:
         engine = factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
         assert isinstance(engine, MockEngine)
 
-    def test_custom_parsers_are_used(self):
+    def test_custom_provider_is_used(self):
         class FakeContainerParser(ContainerParser):
             def parse_inspect(self, raw): raise ParsingError(raw)
             def parse_list(self, raw): return []
@@ -137,21 +122,38 @@ class TestFactoryConfigInjection:
             def parse_id_from_pull(self, raw): return ""
             def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
             def is_not_found_error(self, stderr): return False
+
+        class FakeProvider(RuntimeProvider):
+            @property
+            def kind(self): return RuntimeKind.DOCKER
+            def capabilities(self): return RuntimeCapabilities()
+            def create_parsers(self):
+                return Parsers(
+                    container_parser=FakeContainerParser(),
+                    image_parser=FakeImageParser(),
+                    volume_parser=FakeContainerParser(),
+                    network_parser=FakeContainerParser(),
+                )
+            def create_managers(self, transport, caps):
+                parsers = self.create_parsers()
+                return Managers(
+                    image_manager=CliImageManager(transport, parsers.image_parser, caps),
+                    container_manager=CliContainerManager(transport, parsers.container_parser, caps),
+                    volume_manager=CliVolumeManager(transport, parsers.volume_parser, caps),
+                    network_manager=CliNetworkManager(transport, parsers.network_parser, caps),
+                )
+
         transport = RecordingTransport("docker", {
             "docker --version": ExecResult(returncode=0, stdout=b"Docker", stderr=b""),
         })
         config = RuntimeFactoryConfig(
             transport_factory=lambda _: transport,
-            parser_provider=lambda kind: Parsers(
-                container_parser=FakeContainerParser(),
-                image_parser=FakeImageParser(),
-                volume_parser=FakeContainerParser(),
-                network_parser=FakeContainerParser(),
-            ),
         )
-        factory = RuntimeFactory(config)
+        factory = RuntimeFactory(config, providers={RuntimeKind.DOCKER: FakeProvider()})
         engine = factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
         assert engine.is_available() is True
+        parsers = engine.containers._parser
+        assert isinstance(parsers, FakeContainerParser)
 
 
 class TestFactoryAvailable:

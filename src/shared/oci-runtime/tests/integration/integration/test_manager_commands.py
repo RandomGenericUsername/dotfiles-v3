@@ -6,7 +6,7 @@ from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.types import BuildContext, ImageInfo, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.transport import ExecResult
+from oci_runtime.domain.types import ExecResult
 from tests.helpers.mock_parsers import (
     MockContainerParser,
     MockImageParser,

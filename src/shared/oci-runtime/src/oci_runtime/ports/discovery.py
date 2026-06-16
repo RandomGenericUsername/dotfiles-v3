@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from oci_runtime.ports.capabilities import RuntimePreference
+from oci_runtime.domain.types import RuntimePreference
 
 
 class RuntimeDiscovery(ABC):

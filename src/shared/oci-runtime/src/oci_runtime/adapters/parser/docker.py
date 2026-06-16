@@ -1,6 +1,7 @@
 import re
 
 from oci_runtime.adapters.parser.base import BaseCliParser, parse_size_to_bytes
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
     ContainerInfo,
@@ -38,9 +39,12 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            names = item.get("Names")
+            if not names or not isinstance(names, list):
+                raise ParsingError(raw=raw, message="Container list entry missing 'Names' field")
             result.append(ContainerInfo(
                 id=item.get("Id", ""),
-                name=(item.get("Names") or ["/"])[0].lstrip("/"),
+                name=names[0].lstrip("/"),
                 image=item.get("Image", ""),
                 state=ContainerState(item.get("State", ContainerState.CREATED)),
                 status=item.get("Status", ""),

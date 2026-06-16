@@ -7,7 +7,8 @@ from oci_runtime.domain.types import ContainerInfo, ExecOutput, PortMapping, Run
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockContainerParser
 from tests.helpers.mock_transport import FailingTransport, RecordingTransport
 

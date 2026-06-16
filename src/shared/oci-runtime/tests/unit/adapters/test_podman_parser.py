@@ -1,3 +1,6 @@
+import pytest
+
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.adapters.parser.podman import (
     PodmanContainerParser,
     PodmanImageParser,
@@ -91,6 +94,23 @@ PODMAN_CONTAINER_LIST = """[
   }
 ]"""
 
+PODMAN_CONTAINER_LIST_WITH_PORTS = """[
+  {
+    "Id": "port789abc",
+    "Names": ["/web-server"],
+    "Image": "nginx",
+    "ImageID": "sha256:xxx",
+    "State": "running",
+    "Status": "Up 2h",
+    "Created": 1718496000,
+    "Ports": [
+      {"HostPort": 8080, "ContainerPort": 80, "Protocol": "tcp", "HostIp": "0.0.0.0", "Range": 1},
+      {"HostPort": 8443, "ContainerPort": 443, "Protocol": "tcp", "HostIp": "127.0.0.1", "Range": 1}
+    ],
+    "Labels": {}
+  }
+]"""
+
 PODMAN_IMAGE_INSPECT = """[
   {
     "Id": "sha256:xyz789ghi012",
@@ -169,9 +189,31 @@ class TestPodmanContainerParser:
         assert infos[0].id == "xyz789"
         assert infos[0].state == "running"
 
+    def test_parse_list_with_ports(self):
+        infos = self.parser.parse_list(PODMAN_CONTAINER_LIST_WITH_PORTS)
+        assert len(infos) == 1
+        assert infos[0].id == "port789abc"
+        assert len(infos[0].ports) == 2
+        assert infos[0].ports[0].container_port == 80
+        assert infos[0].ports[0].host_port == 8080
+        assert infos[0].ports[0].protocol == "tcp"
+        assert infos[0].ports[0].host_ip == "0.0.0.0"
+        assert infos[0].ports[1].container_port == 443
+        assert infos[0].ports[1].host_port == 8443
+        assert infos[0].ports[1].protocol == "tcp"
+        assert infos[0].ports[1].host_ip == "127.0.0.1"
+
     def test_is_not_found_error(self):
         assert self.parser.is_not_found_error("no such container")
         assert not self.parser.is_not_found_error("something else")
+
+    def test_parse_list_missing_names_raises(self):
+        with pytest.raises(ParsingError, match="Names"):
+            self.parser.parse_list('[{"Id": "abc", "Names": null}]')
+
+    def test_parse_list_names_empty_raises(self):
+        with pytest.raises(ParsingError, match="Names"):
+            self.parser.parse_list('[{"Id": "abc", "Names": []}]')
 
     def test_parse_inspect_with_single_port(self):
        """Unit test for Podman port parsing with single mapped port."""

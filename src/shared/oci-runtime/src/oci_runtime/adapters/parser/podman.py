@@ -1,6 +1,7 @@
 import re
 
 from oci_runtime.adapters.parser.base import BaseCliParser
+from oci_runtime.adapters.parser.exceptions import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
     ContainerInfo,
@@ -23,15 +24,15 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
     def _parse_ports(self, network_settings: dict) -> list[PortMapping]:
         ports = []
         ports_dict = network_settings.get("Ports", {})
-        
+
         if not isinstance(ports_dict, dict):
             return ports
-        
+
         for port_spec, mappings in ports_dict.items():
             try:
                 container_port, protocol = port_spec.split("/")
                 container_port = int(container_port)
-                
+
                 if isinstance(mappings, list):
                     for mapping in mappings:
                         if isinstance(mapping, dict):
@@ -47,9 +48,32 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
                                 ))
             except (ValueError, AttributeError):
                 continue
-        
+
         return ports
-    
+
+    @staticmethod
+    def _parse_ports_from_list(item: dict) -> list[PortMapping]:
+        """Parse the Ports array from `podman ps --format json` output.
+
+        The list format has a different structure than inspect:
+          [{"HostPort": 8080, "ContainerPort": 80, "Protocol": "tcp", "HostIp": "0.0.0.0"}, ...]
+        """
+        ports = []
+        for p in item.get("Ports", []):
+            if not isinstance(p, dict):
+                continue
+            host_port = p.get("HostPort")
+            container_port = p.get("ContainerPort")
+            protocol = p.get("Protocol", "tcp")
+            host_ip = p.get("HostIp", "") or "0.0.0.0"
+            ports.append(PortMapping(
+                container_port=int(container_port) if container_port is not None else 0,
+                host_port=int(host_port) if host_port is not None else None,
+                protocol=protocol,
+                host_ip=host_ip,
+            ))
+        return ports
+
     def parse_inspect(self, raw: str) -> ContainerInfo:
         item = self._parse_json_item(raw)
         network_settings = item.get("NetworkSettings", {})
@@ -70,14 +94,17 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
         data = self._parse_json_list(raw)
         result = []
         for item in data:
+            names = item.get("Names")
+            if not names or not isinstance(names, list):
+                raise ParsingError(raw=raw, message="Container list entry missing 'Names' field")
             result.append(ContainerInfo(
                 id=item.get("Id", ""),
-                name=(item.get("Names") or ["/"])[0].lstrip("/"),
+                name=names[0].lstrip("/"),
                 image=item.get("Image", ""),
                 state=ContainerState(item.get("State", ContainerState.CREATED)),
                 status=item.get("Status", ""),
                 created=str(item.get("Created", "")),
-                ports=[],
+                ports=self._parse_ports_from_list(item),
                 labels=item.get("Labels", {}),
             ))
         return result

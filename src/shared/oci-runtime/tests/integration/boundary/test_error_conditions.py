@@ -30,7 +30,8 @@ from oci_runtime.domain.exceptions import (
     VolumeNotFoundError,
 )
 from oci_runtime.domain.types import RunConfig
-from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
+from oci_runtime.domain.types import RuntimePreference
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.ports.managers import (
     ContainerManager,
@@ -38,7 +39,7 @@ from oci_runtime.ports.managers import (
     NetworkManager,
     VolumeManager,
 )
-from oci_runtime.ports.transport import ExecResult
+from oci_runtime.domain.types import ExecResult
 from tests.helpers.mock_transport import RecordingTransport
 
 

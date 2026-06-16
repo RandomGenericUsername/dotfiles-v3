@@ -8,7 +8,8 @@ from oci_runtime.domain.exceptions import ContainerRuntimeError
 from oci_runtime.domain.types import RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 
 
 class _MockParser(ContainerParser):
@@ -38,11 +39,12 @@ def manager(transport):
 
 
 class TestTtyDispatch:
-    def test_tty_true_calls_execute_pty(self, manager, transport):
-        transport.execute_pty.return_value.returncode = 0
+    @patch("oci_runtime.adapters.managers.container.run_pty")
+    def test_tty_true_calls_execute_pty(self, mock_run_pty, manager, transport):
+        mock_run_pty.return_value.returncode = 0
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         result = manager.run(config)
-        transport.execute_pty.assert_called_once_with(
+        mock_run_pty.assert_called_once_with(
             ["docker", "run", "-t", "alpine", "bash"]
         )
         transport.execute.assert_not_called()
@@ -59,12 +61,13 @@ class TestTtyDispatch:
         with pytest.raises(ContainerRuntimeError, match="mutually exclusive"):
             manager.run(config)
 
-    def test_auto_tty_true_with_isatty_calls_execute_pty(self, manager, transport):
-        transport.execute_pty.return_value.returncode = 0
+    @patch("oci_runtime.adapters.managers.container.run_pty")
+    def test_auto_tty_true_with_isatty_calls_execute_pty(self, mock_run_pty, manager, transport):
+        mock_run_pty.return_value.returncode = 0
         with patch("sys.stdout.isatty", return_value=True):
             config = RunConfig(image="alpine", command=["bash"], auto_tty=True, detach=False)
             result = manager.run(config)
-        transport.execute_pty.assert_called_once()
+        mock_run_pty.assert_called_once()
         transport.execute.assert_not_called()
         assert result == ""
 
@@ -77,8 +80,9 @@ class TestTtyDispatch:
 
 
 class TestTtyReturnContract:
-    def test_tty_path_returns_empty_string(self, manager, transport):
-        transport.execute_pty.return_value.returncode = 0
+    @patch("oci_runtime.adapters.managers.container.run_pty")
+    def test_tty_path_returns_empty_string(self, mock_run_pty, manager, transport):
+        mock_run_pty.return_value.returncode = 0
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         result = manager.run(config)
         assert result == ""
@@ -95,19 +99,21 @@ class TestTtyReturnContract:
 
 
 class TestTtyEdgeCases:
-    def test_execute_pty_failure_propagates(self, manager, transport):
-        transport.execute_pty.side_effect = ContainerRuntimeError("PTY failed", command=["docker"])
+    @patch("oci_runtime.adapters.managers.container.run_pty")
+    def test_execute_pty_failure_propagates(self, mock_run_pty, manager, transport):
+        mock_run_pty.side_effect = ContainerRuntimeError("PTY failed", command=["docker"])
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         with pytest.raises(ContainerRuntimeError, match="PTY failed"):
             manager.run(config)
 
-    def test_effective_tty_with_default_flags(self, manager, transport):
+    @patch("oci_runtime.adapters.managers.container.run_pty")
+    def test_effective_tty_with_default_flags(self, mock_run_pty, manager, transport):
         caps = RuntimeCapabilities(default_run_flags=["--userns=keep-id"])
         parser = _MockParser()
         m = CliContainerManager(transport, parser, caps)
-        transport.execute_pty.return_value.returncode = 0
+        mock_run_pty.return_value.returncode = 0
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         m.run(config)
-        transport.execute_pty.assert_called_once_with(
+        mock_run_pty.assert_called_once_with(
             ["docker", "run", "--userns=keep-id", "-t", "alpine", "bash"]
         )

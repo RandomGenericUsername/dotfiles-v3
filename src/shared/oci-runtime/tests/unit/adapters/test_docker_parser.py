@@ -177,6 +177,14 @@ class TestDockerContainerParser:
         with pytest.raises(ParsingError):
             self.parser.parse_inspect("not json")
 
+    def test_parse_list_missing_names_raises(self):
+        with pytest.raises(ParsingError, match="Names"):
+            self.parser.parse_list('[{"Id": "abc", "Names": null}]')
+
+    def test_parse_list_names_empty_raises(self):
+        with pytest.raises(ParsingError, match="Names"):
+            self.parser.parse_list('[{"Id": "abc", "Names": []}]')
+
 
 class TestDockerImageParser:
     def setup_method(self):

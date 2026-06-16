@@ -4,9 +4,10 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from oci_runtime.adapters._process_reader import ProcessPipeReader
 from oci_runtime.adapters.transport.cli import CliTransport
-from oci_runtime.domain.exceptions import ContainerRuntimeError, RuntimeNotAvailableError
-from oci_runtime.ports.transport import ExecResult
+from oci_runtime.domain.exceptions import RuntimeNotAvailableError
+from oci_runtime.domain.types import ExecResult
 
 
 class _MockSelectorKey:
@@ -46,34 +47,6 @@ class _MockSelector:
 
     def close(self):
         pass
-
-
-class TestCliTransportExecutePty:
-    def test_execute_pty_raises_when_binary_missing(self):
-        t = CliTransport("nonexistent")
-        with patch("shutil.which", return_value=None):
-            with pytest.raises(RuntimeNotAvailableError, match="nonexistent"):
-                t.execute_pty(["nonexistent", "run"])
-
-    def test_execute_pty_returns_completed_process(self):
-        t = CliTransport("docker")
-        with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("oci_runtime.adapters.managers.pty.run_pty") as mock_run_pty:
-                import subprocess
-                mock_run_pty.return_value = subprocess.CompletedProcess(args=["docker", "run"], returncode=0)
-                result = t.execute_pty(["docker", "run"])
-        assert isinstance(result, subprocess.CompletedProcess)
-        assert result.returncode == 0
-
-    def test_execute_pty_forwards_on_output(self):
-        t = CliTransport("docker")
-        collected = []
-        with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("oci_runtime.adapters.managers.pty.run_pty") as mock_run_pty:
-                import subprocess
-                mock_run_pty.return_value = subprocess.CompletedProcess(args=["docker", "run"], returncode=0)
-                t.execute_pty(["docker", "run"], on_output=collected.append)
-        mock_run_pty.assert_called_once_with(["docker", "run"], on_output=collected.append)
 
 
 class TestCliTransport:
@@ -181,8 +154,9 @@ class TestCliTransport:
         """Bug 16a: When pipes close before process exits, don't spin on empty selector.
 
         Both pipes return EOF (b'') on first read → selector.get_map() becomes
-        empty. With the buggy code the loop spins on select() with an empty map
-        (100% CPU). With the fix, process.wait(timeout=0.1) is called instead.
+        empty. With the old code the loop spun on select() with an empty map
+        (100% CPU). The redesigned loop exits when selector.get_map() is empty,
+        so no spin occurs and no process.wait(timeout=0.1) fallback is needed.
         """
         t = CliTransport("docker")
 
@@ -192,7 +166,6 @@ class TestCliTransport:
         mock_stderr.read.return_value = b""
 
         process = MagicMock()
-        process.poll.side_effect = [None] * 5 + [0]
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)
@@ -204,8 +177,10 @@ class TestCliTransport:
               patch("selectors.DefaultSelector", return_value=selector)):
             t.execute(["docker", "ps"], stream=True)
 
-        # Fix calls process.wait(timeout=0.1) not select() on empty map
-        process.wait.assert_any_call(timeout=0.1)
+        # With the redesigned loop, select() is never called on an empty map.
+        # Once both pipes return EOF and are unregistered, the loop exits
+        # because selector.get_map() is empty.
+        assert selector.select_on_empty_count == 0
 
     # ── Finding #16b: stdin deadlock with large input ──
 
@@ -223,7 +198,6 @@ class TestCliTransport:
         mock_stderr.read.return_value = b""
 
         process = MagicMock()
-        process.poll.side_effect = [None] * 5 + [0]
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)
@@ -262,7 +236,6 @@ class TestCliTransport:
         mock_stderr.read.return_value = b""
 
         process = MagicMock()
-        process.poll.side_effect = [None] * 5 + [0]
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)
@@ -283,31 +256,29 @@ class TestCliTransport:
     # ── Finding #14: _read_stream() extraction + guaranteed reaping ──
 
 
-class TestReadStream:
-    """Direct tests for the extracted _read_stream() helper.
+class TestProcessPipeReader:
+    """Direct tests for the ProcessPipeReader helper.
 
-    _read_stream() owns only the selector lifecycle — reading bytes
+    ProcessPipeReader owns only the selector lifecycle — reading bytes
     from stdout/stderr and accumulating them. The caller (execute())
     owns acquire/release of the Popen process.
     """
-    def test_read_stream_normal_case(self):
-        """_read_stream() returns correct accumulated bytes from both pipes."""
-        t = CliTransport("docker")
-
+    def test_read_normal_case(self):
+        """ProcessPipeReader returns correct accumulated bytes from both pipes."""
         mock_stdout = MagicMock()
         mock_stdout.read.side_effect = [b"line1\n", b"line2\n", b""]
         mock_stderr = MagicMock()
         mock_stderr.read.return_value = b""
 
         process = MagicMock()
-        process.poll.side_effect = [None, None, None, None, 0]
         process.stdout = mock_stdout
         process.stderr = mock_stderr
 
         selector = _MockSelector()
 
         with patch("selectors.DefaultSelector", return_value=selector):
-            stdout_acc, stderr_acc = t._read_stream(process)
+            reader = ProcessPipeReader(process)
+            stdout_acc, stderr_acc = reader.read()
 
         assert b"".join(stdout_acc) == b"line1\nline2\n"
         assert b"".join(stderr_acc) == b""
@@ -330,7 +301,6 @@ class TestExecuteStreaming:
         mock_stderr.read.return_value = b""
 
         process = MagicMock()
-        process.poll.side_effect = [None, None, None, None, 0]
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)
@@ -351,10 +321,10 @@ class TestExecuteStreaming:
         t = CliTransport("docker")
 
         mock_stdout = MagicMock()
+        mock_stdout.read.side_effect = ValueError("read stream error")
         mock_stderr = MagicMock()
 
         process = MagicMock()
-        process.poll.side_effect = ValueError("read stream error")
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)
@@ -381,15 +351,14 @@ class TestExecuteStreaming:
         mock_stderr.read.return_value = b""
 
         # process.wait call order:
-        #   1-2. _read_stream guard: wait(timeout=0.1) → 0
-        #   3.   execute:             wait(timeout=10) → TimeoutExpired
-        #   4.   except handler:      wait()            → 0 (after kill)
+        #   1. execute:             wait(timeout=10) → TimeoutExpired
+        #   2. except handler:      wait()            → 0 (after kill)
         process = MagicMock()
-        process.poll.side_effect = [None] * 10 + [0]
+        process.poll.return_value = None
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(
-            side_effect=[0, 0, subprocess.TimeoutExpired("cmd", 10), 0],
+            side_effect=[subprocess.TimeoutExpired("cmd", 10), 0],
         )
         process.kill = MagicMock()
 
@@ -413,7 +382,6 @@ class TestExecuteStreaming:
         mock_stderr.read.return_value = b""
 
         process = MagicMock()
-        process.poll.side_effect = [None] * 5 + [0]
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)
@@ -436,10 +404,10 @@ class TestExecuteStreaming:
         t = CliTransport("docker")
 
         mock_stdout = MagicMock()
+        mock_stdout.read.side_effect = ValueError("read stream error")
         mock_stderr = MagicMock()
 
         process = MagicMock()
-        process.poll.side_effect = ValueError("read stream error")
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)
@@ -466,7 +434,6 @@ class TestExecuteStreaming:
         mock_stderr.read.return_value = b""
 
         process = MagicMock()
-        process.poll.side_effect = [None, None, None, 0]
         process.stdout = mock_stdout
         process.stderr = mock_stderr
         process.wait = MagicMock(return_value=0)

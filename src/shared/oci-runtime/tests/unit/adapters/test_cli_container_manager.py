@@ -8,7 +8,8 @@ from oci_runtime.domain.exceptions import ContainerRuntimeError, ImageNotFoundEr
 from oci_runtime.domain.types import ContainerInfo, PortMapping, RunConfig, VolumeMount
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 
 
 class _MockParser(ContainerParser):

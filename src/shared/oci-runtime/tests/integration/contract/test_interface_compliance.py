@@ -25,7 +25,8 @@ from oci_runtime.domain.exceptions import (
     VolumeError,
     VolumeNotFoundError,
 )
-from oci_runtime.ports.capabilities import RuntimeCapabilities, RuntimePreference
+from oci_runtime.domain.types import RuntimePreference
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.ports.factory import Parsers, RuntimeFactoryConfig
 from oci_runtime.ports.managers import (
@@ -40,7 +41,8 @@ from oci_runtime.ports.parsers import (
     NetworkParser,
     VolumeParser,
 )
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 from oci_runtime.factory import RuntimeFactory
 from tests.helpers.mock_transport import RecordingTransport
 
@@ -50,7 +52,7 @@ class TestTransportContract:
         assert issubclass(Transport, ABC)
 
     def test_has_all_abstract_methods(self):
-        expected = {"execute", "get_runtime_binary", "probe", "execute_pty"}
+        expected = {"execute", "get_runtime_binary", "probe"}
         actual = set(Transport.__abstractmethods__)
         assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
 
@@ -453,7 +455,7 @@ class TestFactoryContract:
         cfg = RuntimeFactoryConfig()
         assert cfg.transport_factory is None
         assert cfg.runtime_cls is None
-        assert cfg.parser_provider is None
+        assert cfg.discovery_factory is None
 
     def test_parsers_is_frozen_dataclass(self):
         assert is_dataclass(Parsers)

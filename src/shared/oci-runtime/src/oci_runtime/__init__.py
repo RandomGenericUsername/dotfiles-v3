@@ -7,11 +7,11 @@ from oci_runtime.domain.types import (
     NetworkInfo,
     PortMapping,
     RunConfig,
+    RuntimePreference,
     VolumeInfo,
     VolumeMount,
 )
 from oci_runtime.factory import RuntimeFactory
-from oci_runtime.ports.capabilities import RuntimePreference
 
 __all__ = [
     "BuildContext",

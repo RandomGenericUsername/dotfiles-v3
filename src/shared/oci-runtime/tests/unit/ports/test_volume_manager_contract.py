@@ -5,7 +5,8 @@ from oci_runtime.domain.types import VolumeInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import VolumeManager
 from oci_runtime.ports.parsers import VolumeParser
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockVolumeParser
 from tests.helpers.mock_transport import FailingTransport, RecordingTransport
 

@@ -6,7 +6,8 @@ from oci_runtime.domain.exceptions import ImageNotFoundError
 from oci_runtime.domain.types import BuildContext, ImageInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ImageParser
-from oci_runtime.ports.transport import ExecResult, Transport
+from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.transport import Transport
 
 
 class _MockParser(ImageParser):

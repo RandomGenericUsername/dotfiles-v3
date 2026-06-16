@@ -2,7 +2,7 @@ from typing import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.ports.capabilities import RuntimePreference
+from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.transport import Transport
 
