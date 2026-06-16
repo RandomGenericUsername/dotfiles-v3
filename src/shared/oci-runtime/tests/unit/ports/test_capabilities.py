@@ -21,8 +21,8 @@ class TestRuntimeCapabilities:
     def test_defaults(self):
         caps = RuntimeCapabilities()
         assert caps.needs_userns_keep_id is False
-        assert caps.supports_log_drivers is True
-        assert caps.tar_entry_name == "Dockerfile"
+        assert caps.supports_log_drivers is False
+        assert caps.tar_entry_name == ""
         assert caps.default_run_flags == []
         assert caps.default_build_flags == []
 

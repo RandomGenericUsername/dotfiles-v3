@@ -18,7 +18,11 @@ from tests.helpers.mock_transport import RecordingTransport
 
 @pytest.fixture
 def caps():
-    return RuntimeCapabilities(default_build_flags=["--quiet"])
+    return RuntimeCapabilities(
+        supports_log_drivers=True,
+        tar_entry_name="Dockerfile",
+        default_build_flags=["--quiet"],
+    )
 
 
 @pytest.fixture

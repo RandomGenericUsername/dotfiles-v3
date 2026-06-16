@@ -24,7 +24,11 @@ def docker_pref():
 
 @pytest.fixture
 def docker_caps(docker_pref):
-    return RuntimeCapabilities(default_build_flags=["--quiet"])
+    return RuntimeCapabilities(
+        supports_log_drivers=True,
+        tar_entry_name="Dockerfile",
+        default_build_flags=["--quiet"],
+    )
 
 
 @pytest.fixture
