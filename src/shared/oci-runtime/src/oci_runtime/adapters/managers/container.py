@@ -4,7 +4,7 @@ from typing import Iterator
 
 from oci_runtime.adapters.managers.pty import run_pty
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ContainerRuntimeError,

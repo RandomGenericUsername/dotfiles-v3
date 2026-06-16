@@ -1,4 +1,4 @@
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import VolumeNotFoundError
 from oci_runtime.domain.types import VolumeInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
