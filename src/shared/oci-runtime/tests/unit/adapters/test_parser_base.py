@@ -1,7 +1,7 @@
 import pytest
 
 from oci_runtime.adapters.parser.base import BaseCliParser, parse_size_to_bytes
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 
 
 DOCKER_PRUNE_OUTPUT = """abc123def4567890abc123def4567890

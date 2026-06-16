@@ -10,7 +10,7 @@ from oci_runtime.adapters.parser.docker import (
     DockerNetworkParser,
     DockerVolumeParser,
 )
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ImageNotFoundError,

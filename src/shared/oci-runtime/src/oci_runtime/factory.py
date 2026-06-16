@@ -1,4 +1,4 @@
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
@@ -6,9 +6,25 @@ from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
-from oci_runtime.ports.factory import RuntimeFactoryConfig
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.transport import Transport
+
+
+@dataclass(frozen=True)
+class RuntimeFactoryConfig:
+    """Composition root configuration.
+
+    This is the ONLY place where adapter implementations are wired.
+    Allows injection of mock implementations for testing.
+    All fields default to None — the factory resolves them to production
+    implementations on first use (lazy loading).
+
+    Parsers are owned by RuntimeProvider — the factory delegates to
+    providers for parser resolution, not to a separate callback.
+    """
+    transport_factory: Callable[[str], Transport] | None = None
+    runtime_cls: type[ContainerEngine] | None = None
+    discovery_factory: Callable[[Callable[[str], Transport]], "RuntimeDiscovery"] | None = None
 
 
 def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:

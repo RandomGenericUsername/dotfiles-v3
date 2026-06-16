@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import ContainerRuntimeError
 from oci_runtime.domain.types import RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities

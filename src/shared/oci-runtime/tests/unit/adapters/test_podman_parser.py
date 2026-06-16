@@ -1,6 +1,6 @@
 import pytest
 
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.adapters.parser.podman import (
     PodmanContainerParser,
     PodmanImageParser,

@@ -5,7 +5,7 @@ from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.factory import Managers, Parsers
+from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.parsers import (
     ContainerParser,
     ImageParser,

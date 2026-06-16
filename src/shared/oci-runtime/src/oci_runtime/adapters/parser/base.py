@@ -1,7 +1,7 @@
 import json
 import re
 
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 
 
 def parse_size_to_bytes(size_str: str) -> int:

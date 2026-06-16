@@ -1,7 +1,7 @@
 import re
 
 from oci_runtime.adapters.parser.base import BaseCliParser
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
     ContainerInfo,

@@ -2,7 +2,7 @@ import pytest
 
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.factory import Managers, Parsers
+from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.transport import Transport
 
@@ -58,7 +58,7 @@ class TestConcreteProviderContract:
                 return RuntimeCapabilities()
 
             def create_parsers(self) -> Parsers:
-                from oci_runtime.adapters.parser.exceptions import ParsingError
+                from oci_runtime.ports.parsers import ParsingError
                 from oci_runtime.ports.parsers import ContainerParser, ImageParser, NetworkParser, VolumeParser
                 class FakeCP(ContainerParser):
                     def parse_inspect(self, raw): raise ParsingError(raw)

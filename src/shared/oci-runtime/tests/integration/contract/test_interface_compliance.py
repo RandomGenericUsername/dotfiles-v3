@@ -11,7 +11,7 @@ from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.adapters.transport.cli import CliTransport
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerError,
     ContainerNotFoundError,
@@ -28,7 +28,8 @@ from oci_runtime.domain.exceptions import (
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
-from oci_runtime.ports.factory import Parsers, RuntimeFactoryConfig
+from oci_runtime.factory import RuntimeFactoryConfig
+from oci_runtime.ports.aggregates import Parsers
 from oci_runtime.ports.managers import (
     ContainerManager,
     ImageManager,

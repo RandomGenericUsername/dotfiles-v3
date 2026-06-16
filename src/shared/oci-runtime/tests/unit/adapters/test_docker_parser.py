@@ -6,7 +6,7 @@ from oci_runtime.adapters.parser.docker import (
     DockerNetworkParser,
     DockerVolumeParser,
 )
-from oci_runtime.adapters.parser.exceptions import ParsingError
+from oci_runtime.ports.parsers import ParsingError
 
 DOCKER_CONTAINER_INSPECT = """[
   {

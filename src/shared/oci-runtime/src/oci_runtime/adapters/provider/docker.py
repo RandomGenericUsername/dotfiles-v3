@@ -10,7 +10,7 @@ from oci_runtime.adapters.parser.docker import (
 )
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.factory import Managers, Parsers
+from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.transport import Transport
 
