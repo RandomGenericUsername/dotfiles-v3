@@ -27,15 +27,15 @@ class ContainerError(OciError):
     pass
 
 
-class ImageError(ContainerError):
+class ImageError(OciError):
     pass
 
 
-class VolumeError(ContainerError):
+class VolumeError(OciError):
     pass
 
 
-class NetworkError(ContainerError):
+class NetworkError(OciError):
     pass
 
 
@@ -67,7 +67,7 @@ class ContainerRuntimeError(ContainerError):
     pass
 
 
-class RuntimeNotAvailableError(ContainerError):
+class RuntimeNotAvailableError(OciError):
     def __init__(self, runtime: str):
         self.runtime = runtime
         super().__init__(

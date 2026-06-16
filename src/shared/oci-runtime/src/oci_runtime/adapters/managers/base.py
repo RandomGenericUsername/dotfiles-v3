@@ -1,6 +1,6 @@
 from typing import Generic, Type, TypeVar
 
-from oci_runtime.domain.exceptions import ContainerError, ContainerRuntimeError
+from oci_runtime.domain.exceptions import ContainerRuntimeError, OciError
 from oci_runtime.domain.types import ExecResult
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.transport import Transport
@@ -30,7 +30,7 @@ class CliBaseManager(Generic[P]):
         *,
         operation: str = "execute command",
         entity: str = "",
-        not_found: Type[ContainerError],
+        not_found: Type[OciError],
     ) -> None:
         if result.returncode == 0:
             return

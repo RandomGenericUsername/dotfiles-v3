@@ -329,22 +329,26 @@ class TestExceptionHierarchyContract:
         assert issubclass(ContainerError, Exception)
 
     def test_image_error_chain(self):
-        assert issubclass(ImageError, ContainerError)
+        assert issubclass(ImageError, OciError)
+        assert not issubclass(ImageError, ContainerError)
         assert issubclass(ImageNotFoundError, ImageError)
 
     def test_container_not_found_chain(self):
         assert issubclass(ContainerNotFoundError, ContainerError)
 
     def test_volume_error_chain(self):
-        assert issubclass(VolumeError, ContainerError)
+        assert issubclass(VolumeError, OciError)
+        assert not issubclass(VolumeError, ContainerError)
         assert issubclass(VolumeNotFoundError, VolumeError)
 
     def test_network_error_chain(self):
-        assert issubclass(NetworkError, ContainerError)
+        assert issubclass(NetworkError, OciError)
+        assert not issubclass(NetworkError, ContainerError)
         assert issubclass(NetworkNotFoundError, NetworkError)
 
     def test_runtime_not_available_chain(self):
-        assert issubclass(RuntimeNotAvailableError, ContainerError)
+        assert issubclass(RuntimeNotAvailableError, OciError)
+        assert not issubclass(RuntimeNotAvailableError, ContainerError)
 
     def test_container_runtime_error_chain(self):
         assert issubclass(ContainerRuntimeError, ContainerError)

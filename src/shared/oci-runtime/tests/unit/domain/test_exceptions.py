@@ -46,8 +46,11 @@ class TestContainerError:
 
 
 class TestImageError:
-    def test_is_container_error(self):
-        assert issubclass(ImageError, ContainerError)
+    def test_is_oci_error(self):
+        assert issubclass(ImageError, OciError)
+
+    def test_is_not_container_error(self):
+        assert not issubclass(ImageError, ContainerError)
 
     def test_raise(self):
         with pytest.raises(ImageError):
@@ -55,8 +58,11 @@ class TestImageError:
 
 
 class TestVolumeError:
-    def test_is_container_error(self):
-        assert issubclass(VolumeError, ContainerError)
+    def test_is_oci_error(self):
+        assert issubclass(VolumeError, OciError)
+
+    def test_is_not_container_error(self):
+        assert not issubclass(VolumeError, ContainerError)
 
     def test_raise(self):
         with pytest.raises(VolumeError):
@@ -64,8 +70,11 @@ class TestVolumeError:
 
 
 class TestNetworkError:
-    def test_is_container_error(self):
-        assert issubclass(NetworkError, ContainerError)
+    def test_is_oci_error(self):
+        assert issubclass(NetworkError, OciError)
+
+    def test_is_not_container_error(self):
+        assert not issubclass(NetworkError, ContainerError)
 
     def test_raise(self):
         with pytest.raises(NetworkError):
@@ -138,8 +147,11 @@ class TestRuntimeNotAvailableError:
         err = RuntimeNotAvailableError(runtime="podman")
         assert err.runtime == "podman"
 
-    def test_is_container_error(self):
-        assert issubclass(RuntimeNotAvailableError, ContainerError)
+    def test_is_oci_error(self):
+        assert issubclass(RuntimeNotAvailableError, OciError)
+
+    def test_is_not_container_error(self):
+        assert not issubclass(RuntimeNotAvailableError, ContainerError)
 
 
 class TestParsingError:
