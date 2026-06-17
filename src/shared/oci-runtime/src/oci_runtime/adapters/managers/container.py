@@ -50,7 +50,8 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(["--hostname", config.hostname])
         if config.entrypoint:
             cmd.extend(["--entrypoint", config.entrypoint[0]])
-        
+
+
         if config.network:
             if config.network == NetworkMode.CONTAINER:
                 if not config.network_container:
