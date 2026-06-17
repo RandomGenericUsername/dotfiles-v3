@@ -1,6 +1,7 @@
 import re
 
-from oci_runtime.adapters.parser.base import BaseCliParser, parse_size_to_bytes
+from oci_runtime.adapters._utils import parse_size_to_bytes
+from oci_runtime.adapters.parser.base import BaseCliParser
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (

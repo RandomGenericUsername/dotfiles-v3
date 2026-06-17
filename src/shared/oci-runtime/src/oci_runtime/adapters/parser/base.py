@@ -1,26 +1,8 @@
 import json
 import re
 
+from oci_runtime.adapters._utils import parse_size_to_bytes
 from oci_runtime.ports.parsers import ParsingError
-
-
-def parse_size_to_bytes(size_str: str) -> int:
-    """Helper to convert strings like '1.24GB' or '512MB' to bytes."""
-    units = {
-        'B': 1,
-        'KB': 1024,
-        'MB': 1024**2,
-        'GB': 1024**3,
-        'TB': 1024**4,
-        'KIB': 1024,
-        'MIB': 1024**2,
-        'GIB': 1024**3,
-    }
-    match = re.search(r"(\d+\.?\d*)\s*([a-zA-Z]+)", size_str.upper())
-    if not match:
-        raise ValueError(f"Cannot parse size string: {size_str!r}")
-    number, unit = match.groups()
-    return int(float(number) * units.get(unit, 0))
 
 
 class BaseCliParser:
