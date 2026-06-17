@@ -1,3 +1,4 @@
+import io
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -53,9 +54,9 @@ class TestRunPty:
 
 
 class TestRunPtyEdgeCases:
-    def test_output_streamed_to_stdout(self):
+    def test_output_streamed_to_bytesio(self):
         from oci_runtime.adapters.managers.pty import run_pty
-        collected = []
+        buf = io.BytesIO()
         with patch("shutil.which", return_value="/usr/bin/echo"):
             with patch("pty.openpty", return_value=(3, 4)):
                 with patch("os.read", side_effect=[b"hello", b""]):
@@ -66,13 +67,14 @@ class TestRunPtyEdgeCases:
                             proc.returncode = 0
                             mock_popen.return_value = proc
                             with patch("select.select", return_value=([3], [], [])):
-                                result = run_pty(["/usr/bin/echo", "hello"], on_output=collected.append)
-        assert collected == [b"hello"]
+                                result = run_pty(["/usr/bin/echo", "hello"], output_stream=buf)
+        assert buf.getvalue() == b"hello"
+        assert result.stdout == b"hello"
         assert result.returncode == 0
 
-    def test_run_pty_calls_on_output_callback(self):
+    def test_run_pty_custom_output_stream(self):
         from oci_runtime.adapters.managers.pty import run_pty
-        collected = []
+        buf = io.BytesIO()
         with patch("shutil.which", return_value="/usr/bin/echo"):
             with patch("pty.openpty", return_value=(3, 4)):
                 with patch("os.read", side_effect=[b"output data", b""]):
@@ -83,8 +85,9 @@ class TestRunPtyEdgeCases:
                             proc.returncode = 0
                             mock_popen.return_value = proc
                             with patch("select.select", return_value=([3], [], [])):
-                                result = run_pty(["/usr/bin/echo", "test"], on_output=collected.append)
-        assert collected == [b"output data"]
+                                result = run_pty(["/usr/bin/echo", "test"], output_stream=buf)
+        assert buf.getvalue() == b"output data"
+        assert result.stdout == b"output data"
         assert result.returncode == 0
 
     def test_run_pty_default_writes_to_stdout(self):

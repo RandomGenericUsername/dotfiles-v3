@@ -1,43 +1,38 @@
+import io
 import os
 import pty
 import select
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable
 
 from oci_runtime.domain.exceptions import ContainerRuntimeError, RuntimeNotAvailableError
 
 
-def _default_pty_output(data: bytes) -> None:
-    sys.stdout.buffer.write(data)
-    sys.stdout.buffer.flush()
-
-
 def run_pty(
     command: list[str],
-    on_output: Callable[[bytes], None] | None = None,
+    output_stream: io.IOBase | None = None,
 ) -> subprocess.CompletedProcess:
+    """Run a command in a PTY, writing output to output_stream as it arrives.
+
+    When output_stream is None, defaults to sys.stdout.buffer.
+    The buffered output is also returned in the CompletedProcess.stdout.
+    """
     if not command:
         raise ContainerRuntimeError("Empty command list", command=command)
     runtime = command[0]
     if not shutil.which(runtime):
         raise RuntimeNotAvailableError(runtime)
 
+    if output_stream is None:
+        output_stream = sys.stdout.buffer
+
     output_buffer = bytearray()
 
-    if on_output is None:
-        def _default_handler(data: bytes) -> None:
-            sys.stdout.buffer.write(data)
-            sys.stdout.buffer.flush()
-            output_buffer.extend(data)
-        on_output = _default_handler
-    else:
-        _orig = on_output
-        def _wrapped(data: bytes) -> None:
-            _orig(data)
-            output_buffer.extend(data)
-        on_output = _wrapped
+    def _on_output(data: bytes) -> None:
+        output_stream.write(data)
+        output_stream.flush()
+        output_buffer.extend(data)
 
     master_fd, slave_fd = pty.openpty()
     proc = None
@@ -69,7 +64,7 @@ def run_pty(
                     break
                 if not chunk:
                     break
-                on_output(chunk)
+                _on_output(chunk)
                 drain_after_exit = False
             elif proc.poll() is not None:
                 drain_after_exit = True
@@ -81,7 +76,7 @@ def run_pty(
                     chunk = os.read(master_fd, 4096)
                     if not chunk:
                         break
-                    on_output(chunk)
+                    _on_output(chunk)
                 except OSError:
                     break
         proc.wait()
