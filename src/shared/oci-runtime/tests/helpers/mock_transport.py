@@ -19,7 +19,7 @@ class RecordingTransport(Transport):
         self.calls: list[RecordedCall] = []
         self._probe_result: bool = True
 
-    def execute(self, command, *, timeout=None, input_data=None, stream=False, on_output=None):
+    def execute(self, command, *, timeout=None, input_data=None, stream=False, on_output=None, cancel_token=None):
         self.calls.append(RecordedCall(command, {
             "timeout": timeout, "input_data": input_data, "stream": stream,
         }))
@@ -45,7 +45,7 @@ class FailingTransport(Transport):
         self._stderr = stderr
         self.calls: list[RecordedCall] = []
 
-    def execute(self, command, *, timeout=None, input_data=None, stream=False, on_output=None):
+    def execute(self, command, *, timeout=None, input_data=None, stream=False, on_output=None, cancel_token=None):
         self.calls.append(RecordedCall(command, {"timeout": timeout, "input_data": input_data, "stream": stream}))
         return ExecResult(returncode=1, stdout=b"", stderr=self._stderr.encode())
 

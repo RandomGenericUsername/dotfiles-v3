@@ -2,6 +2,8 @@ import selectors
 import subprocess
 from typing import Callable
 
+from oci_runtime.domain.types import CancellationToken
+
 
 class ProcessPipeReader:
     """Read stdout/stderr from a subprocess until both pipes deliver EOF.
@@ -22,10 +24,11 @@ class ProcessPipeReader:
     def read(
         self,
         on_output: Callable[[bytes, str], None] | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> tuple[list[bytes], list[bytes]]:
-        """Read all output until both pipes reach EOF.
+        """Read all output until both pipes reach EOF or cancellation.
 
-        Returns (stdout_chunks, stderr_chunks).
+        When cancelled, returns partial data accumulated so far.
         """
         stdout_acc: list[bytes] = []
         stderr_acc: list[bytes] = []
@@ -34,6 +37,8 @@ class ProcessPipeReader:
             selector.register(self._process.stdout, selectors.EVENT_READ)
             selector.register(self._process.stderr, selectors.EVENT_READ)
             while selector.get_map():
+                if cancel_token and cancel_token.is_cancelled:
+                    break
                 events = selector.select(timeout=0.1)
                 if not events:
                     continue

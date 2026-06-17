@@ -5,7 +5,7 @@ from typing import Callable
 
 from oci_runtime.adapters._process_reader import ProcessPipeReader
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import CancellationToken, ExecResult
 from oci_runtime.ports.transport import Transport
 
 
@@ -25,6 +25,7 @@ class CliTransport(Transport):
         input_data: bytes | None = None,
         stream: bool = False,
         on_output: Callable[[bytes, str], None] | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> ExecResult:
         self._ensure_binary()
 
@@ -70,10 +71,20 @@ class CliTransport(Transport):
                 _stdin_thread.start()
 
             reader = ProcessPipeReader(process)
-            stdout_acc, stderr_acc = reader.read(on_output)
+            stdout_acc, stderr_acc = reader.read(on_output, cancel_token)
 
             if _stdin_thread:
                 _stdin_thread.join(timeout=5)
+
+            if cancel_token and cancel_token.is_cancelled:
+                process.kill()
+                process.wait()
+                _process_reaped = True
+                return ExecResult(
+                    returncode=-1,
+                    stdout=b"".join(stdout_acc),
+                    stderr=b"".join(stderr_acc),
+                )
 
             returncode = process.wait(timeout=timeout)
             _process_reaped = True

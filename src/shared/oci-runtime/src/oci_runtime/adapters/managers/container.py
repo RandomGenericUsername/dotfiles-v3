@@ -10,7 +10,7 @@ from oci_runtime.domain.exceptions import (
     ContainerRuntimeError,
     ImageNotFoundError,
 )
-from oci_runtime.domain.types import ContainerInfo, ExecOutput, RunConfig
+from oci_runtime.domain.types import CancellationToken, ContainerInfo, ExecOutput, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
@@ -183,6 +183,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             yield self._decode_stdout(result.stdout)
             return
 
+        cancel_token = CancellationToken()
         queue: Queue[str | None] = Queue()
         errors: list[BaseException] = []
 
@@ -191,19 +192,24 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         def _run() -> None:
             try:
-                self._transport.execute(cmd, stream=True, on_output=_on_output)
+                self._transport.execute(cmd, stream=True, on_output=_on_output, cancel_token=cancel_token)
             except BaseException as e:
                 errors.append(e)
             finally:
                 queue.put(None)
 
-        Thread(target=_run, daemon=True, name="oci-logs").start()
+        thread = Thread(target=_run, daemon=True, name="oci-logs")
+        thread.start()
 
-        while True:
-            chunk = queue.get()
-            if chunk is None:
-                break
-            yield chunk
+        try:
+            while True:
+                chunk = queue.get()
+                if chunk is None:
+                    break
+                yield chunk
+        finally:
+            cancel_token.cancel()
+            thread.join(timeout=5)
 
         if errors:
             raise errors[0]

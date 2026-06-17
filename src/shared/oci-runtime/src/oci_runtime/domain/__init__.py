@@ -14,6 +14,7 @@ from oci_runtime.domain.exceptions import (
 )
 from oci_runtime.domain.types import (
     BuildContext,
+    CancellationToken,
     ContainerInfo,
     ExecOutput,
     ExecResult,
@@ -28,6 +29,7 @@ from oci_runtime.domain.types import (
 
 __all__ = [
     "BuildContext",
+    "CancellationToken",
     "ContainerError",
     "ContainerInfo",
     "ContainerRuntimeError",

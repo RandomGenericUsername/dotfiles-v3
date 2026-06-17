@@ -148,3 +148,21 @@ class RuntimePreference:
     """
     kind: RuntimeKind
     binary: str
+
+
+class CancellationToken:
+    """Signals cancellation across threads.
+
+    Pure domain value — no I/O, no threading primitives.
+    The flag is set by one thread and observed by another;
+    adapters are responsible for the actual thread-safe wiring.
+    """
+    def __init__(self):
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    @property
+    def is_cancelled(self) -> bool:
+        return self._cancelled
