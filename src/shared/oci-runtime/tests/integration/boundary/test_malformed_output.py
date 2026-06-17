@@ -75,25 +75,25 @@ class TestMalformedList:
     def test_list_malformed_json_containers(self, transport, caps):
         transport._responses = {"docker container list": ExecResult(returncode=0, stdout=b"not json", stderr=b"")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps)
-        with pytest.raises(ParsingError, match="Invalid JSON in list"):
+        with pytest.raises(ParsingError, match="Invalid JSON on line"):
             mgr.list()
 
     def test_list_malformed_json_images(self, transport, caps):
         transport._responses = {"docker image list": ExecResult(returncode=0, stdout=b"not json", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
-        with pytest.raises(ParsingError, match="Invalid JSON in list"):
+        with pytest.raises(ParsingError, match="Invalid JSON on line"):
             mgr.list()
 
     def test_list_malformed_json_volumes(self, transport, caps):
         transport._responses = {"docker volume list": ExecResult(returncode=0, stdout=b"not json", stderr=b"")}
         mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
-        with pytest.raises(ParsingError, match="Invalid JSON in list"):
+        with pytest.raises(ParsingError, match="Invalid JSON on line"):
             mgr.list()
 
     def test_list_malformed_json_networks(self, transport, caps):
         transport._responses = {"docker network list": ExecResult(returncode=0, stdout=b"not json", stderr=b"")}
         mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
-        with pytest.raises(ParsingError, match="Invalid JSON in list"):
+        with pytest.raises(ParsingError, match="Invalid JSON on line"):
             mgr.list()
 
 

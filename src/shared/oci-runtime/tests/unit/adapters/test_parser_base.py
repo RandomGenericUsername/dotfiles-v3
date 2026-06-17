@@ -66,7 +66,7 @@ class TestBaseCliParser:
         assert result == [{"a": 1}]
 
     def test_parse_json_list_malformed_raises(self):
-        with pytest.raises(ParsingError, match="Invalid JSON in list"):
+        with pytest.raises(ParsingError, match="Invalid JSON on line"):
             self.parser._parse_json_list("not json")
 
     def test_is_not_found_error_default_false(self):
@@ -132,12 +132,10 @@ class TestParseJsonListNDJSON:
         with pytest.raises(ParsingError):
             self.parser._parse_json_list("not json at all")
 
-    def test_partial_ndjson_skips_bad_lines(self):
+    def test_partial_ndjson_raises_on_bad_line(self):
         ndjson = '{"id": "abc"}\nnot json\n{"id": "def"}'
-        result = self.parser._parse_json_list(ndjson)
-        assert len(result) == 2
-        assert result[0]["id"] == "abc"
-        assert result[1]["id"] == "def"
+        with pytest.raises(ParsingError, match="Invalid JSON on line 2"):
+            self.parser._parse_json_list(ndjson)
 
     def test_table_format_raises(self):
         table = "REPOSITORY    TAG       IMAGE ID\nalpine         latest    abc123"

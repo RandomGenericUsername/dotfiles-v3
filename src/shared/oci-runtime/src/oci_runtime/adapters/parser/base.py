@@ -34,14 +34,17 @@ class BaseCliParser:
 
         lines = raw.strip().split("\n")
         items: list[dict] = []
-        for line in lines:
+        for i, line in enumerate(lines, 1):
             line = line.strip()
             if not line:
                 continue
             try:
                 items.append(json.loads(line))
             except json.JSONDecodeError:
-                continue
+                raise ParsingError(
+                    raw=raw,
+                    message=f"Invalid JSON on line {i}: {line[:200]}",
+                )
         if items:
             return items
         raise ParsingError(raw=raw, message="Invalid JSON in list response")
