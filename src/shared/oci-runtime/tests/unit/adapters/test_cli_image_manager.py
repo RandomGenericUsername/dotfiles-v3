@@ -87,7 +87,7 @@ class TestCliImageManager:
         assert self.manager.exists("nonexistent") is False
 
     def test_create_tar_is_deterministic(self):
-        from oci_runtime.adapters.managers.image import _create_tar
-        tar1 = _create_tar("FROM alpine", {"app.py": b"print('hi')"})
-        tar2 = _create_tar("FROM alpine", {"app.py": b"print('hi')"})
+        from oci_runtime.adapters._tar import create_build_tar
+        tar1 = create_build_tar("FROM alpine", {"app.py": b"print('hi')"})
+        tar2 = create_build_tar("FROM alpine", {"app.py": b"print('hi')"})
         assert tar1 == tar2

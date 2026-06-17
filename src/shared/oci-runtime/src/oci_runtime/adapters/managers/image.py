@@ -1,6 +1,4 @@
-import io
-import tarfile
-
+from oci_runtime.adapters._tar import create_build_tar
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import (
     ImageNotFoundError,
@@ -29,7 +27,7 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
             cmd.append(str(context.context_path))
             input_data = context.build_file_content.encode("utf-8")
         else:
-            input_data = _create_tar(context.build_file_content, context.files, self._caps.tar_entry_name)
+            input_data = create_build_tar(context.build_file_content, context.files, self._caps.tar_entry_name)
             cmd.append("-")
 
         cmd.extend(self._caps.default_build_flags)
@@ -93,27 +91,3 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
             cmd.append("--all")
         result = self._transport.execute(cmd)
         return self._parser.parse_prune(self._decode_stdout(result.stdout))
-
-
-def _create_tar(
-    build_file_content: str,
-    files: dict[str, bytes],
-    tar_entry_name: str = "Dockerfile",
-) -> bytes:
-    tar_buffer = io.BytesIO()
-    with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
-        info = tarfile.TarInfo(name=tar_entry_name)
-        content = build_file_content.encode("utf-8")
-        info.size = len(content)
-        info.uid = 0
-        info.gid = 0
-        info.mtime = 0
-        tar.addfile(info, io.BytesIO(content))
-        for path, data in files.items():
-            info = tarfile.TarInfo(name=path)
-            info.size = len(data)
-            info.uid = 0
-            info.gid = 0
-            info.mtime = 0
-            tar.addfile(info, io.BytesIO(data))
-    return tar_buffer.getvalue()
