@@ -1,6 +1,7 @@
 from queue import Queue
 from threading import Thread
 from typing import Iterator
+import sys
 
 from oci_runtime.adapters.managers.pty import run_pty
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy
@@ -22,8 +23,12 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
     def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities):
         super().__init__(transport, parser, caps)
 
+    @staticmethod
+    def _resolve_tty(config: RunConfig) -> bool:
+        return config.tty or (config.auto_tty and sys.stdout.isatty())
+
     def run(self, config: RunConfig) -> str:
-        if config.detach and config.effective_tty:
+        if config.detach and self._resolve_tty(config):
             raise ContainerRuntimeError(
                 "detach=True and tty/auto_tty are mutually exclusive: "
                 "a detached container has no terminal to attach a PTY to",
@@ -38,7 +43,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.append("--rm")
         if config.name:
             cmd.extend(["--name", config.name])
-        if config.effective_tty:
+        if self._resolve_tty(config):
             cmd.append("-t")
         if config.stdin_open:
             cmd.append("-i")
@@ -103,7 +108,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         if config.command:
             cmd.extend(config.command)
 
-        if config.effective_tty:
+        if self._resolve_tty(config):
             result = run_pty(cmd)
             if result.returncode != 0:
                 raise ContainerRuntimeError(

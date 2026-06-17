@@ -1,4 +1,3 @@
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -80,10 +79,6 @@ class RunConfig:
     stdin_open: bool = False
     auto_tty: bool = False
     runtime_flags: list[str] = field(default_factory=list)
-
-    @property
-    def effective_tty(self) -> bool:
-        return self.tty or (self.auto_tty and sys.stdout.isatty())
 
 
 @dataclass

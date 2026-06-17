@@ -198,21 +198,6 @@ class TestRunConfig:
         assert config.auto_tty is False
         assert config.runtime_flags == []
 
-    def test_effective_tty_property(self, monkeypatch):
-        config = RunConfig(image="alpine")
-        assert config.effective_tty is False
-
-        config = RunConfig(image="alpine", tty=True)
-        assert config.effective_tty is True
-
-        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
-        config = RunConfig(image="alpine", auto_tty=True)
-        assert config.effective_tty is True
-
-        monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-        config = RunConfig(image="alpine", auto_tty=True)
-        assert config.effective_tty is False
-
     def test_volumes_list_of_volumemount(self):
         vm = VolumeMount(source="/s", target="/t", type="bind")
         config = RunConfig(image="alpine", volumes=[vm])
