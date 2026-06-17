@@ -57,7 +57,7 @@ class RunConfig:
     image: str
     name: str | None = None
     command: list[str] | None = None
-    entrypoint: list[str] | None = None
+    entrypoint: str | None = None
     environment: dict[str, str] = field(default_factory=dict)
     volumes: list[VolumeMount] = field(default_factory=list)
     ports: list[PortMapping] = field(default_factory=list)

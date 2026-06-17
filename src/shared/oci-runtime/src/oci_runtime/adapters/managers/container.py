@@ -49,7 +49,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         if config.hostname:
             cmd.extend(["--hostname", config.hostname])
         if config.entrypoint:
-            cmd.extend(["--entrypoint", config.entrypoint[0]])
+            cmd.extend(["--entrypoint", config.entrypoint])
 
 
         if config.network:
@@ -99,10 +99,6 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         cmd.extend(config.runtime_flags)
         cmd.append(config.image)
-        
-        # Extra entrypoint arguments must follow the image name
-        if config.entrypoint and len(config.entrypoint) > 1:
-            cmd.extend(config.entrypoint[1:])
 
         if config.command:
             cmd.extend(config.command)

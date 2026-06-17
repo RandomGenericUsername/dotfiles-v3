@@ -252,7 +252,7 @@ class TestRunConfig:
             image="my-image",
             name="my-container",
             command=["echo", "hello"],
-            entrypoint=["/bin/sh"],
+            entrypoint="/bin/sh",
             environment={"ENV": "prod"},
             volumes=[VolumeMount(source="/src", target="/dst", type="bind")],
             ports=[PortMapping(container_port=80)],
@@ -279,7 +279,7 @@ class TestRunConfig:
         assert config.image == "my-image"
         assert config.name == "my-container"
         assert config.command == ["echo", "hello"]
-        assert config.entrypoint == ["/bin/sh"]
+        assert config.entrypoint == "/bin/sh"
         assert config.environment == {"ENV": "prod"}
         assert len(config.volumes) == 1
         assert len(config.ports) == 1

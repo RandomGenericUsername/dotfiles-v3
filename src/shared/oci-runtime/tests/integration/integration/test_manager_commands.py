@@ -150,7 +150,7 @@ class TestContainerManagerCommands:
             image="alpine",
             name="myapp",
             command=["echo", "hi"],
-            entrypoint=["/bin/sh"],
+            entrypoint="/bin/sh",
             environment={"FOO": "bar"},
             volumes=[VolumeMount(source="/host", target="/container", type="bind")],
             ports=[PortMapping(container_port=80, host_port=8080)],

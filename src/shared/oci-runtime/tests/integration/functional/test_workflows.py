@@ -134,7 +134,7 @@ class TestContainerLifecycle:
             "docker run -d --rm --name myapp -i -u root -w /app --hostname myhost --entrypoint /bin/sh --network host --restart always --log-driver json-file --privileged --read-only -m 512m --cpus 2 -e FOO=bar -v /host:/container -p 8080:80/tcp -l app=web alpine echo hi": ExecResult(0, b"ctr1\n", b""),
         })
         cid = docker_engine.containers.run(RunConfig(
-            image="alpine", name="myapp", command=["echo", "hi"], entrypoint=["/bin/sh"],
+            image="alpine", name="myapp", command=["echo", "hi"], entrypoint="/bin/sh",
             environment={"FOO": "bar"}, volumes=[VolumeMount(source="/host", target="/container", type="bind")],
             ports=[PortMapping(container_port=80, host_port=8080)],
             network=NetworkMode.HOST, restart_policy=RestartPolicy.ALWAYS,
