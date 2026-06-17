@@ -62,9 +62,11 @@ class TestDockerRuntimeProvider:
 
     def test_create_managers_returns_managers(self):
         from oci_runtime.ports.transport import Transport
+        from oci_runtime.ports.streaming import StreamingTransport
         from unittest.mock import MagicMock
         transport = MagicMock(spec=Transport)
-        managers = self.provider.create_managers(transport, RuntimeCapabilities())
+        streaming = MagicMock(spec=StreamingTransport)
+        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities())
         assert isinstance(managers, Managers)
 
 
@@ -113,9 +115,11 @@ class TestPodmanRuntimeProvider:
 
     def test_create_managers_returns_managers(self):
         from oci_runtime.ports.transport import Transport
+        from oci_runtime.ports.streaming import StreamingTransport
         from unittest.mock import MagicMock
         transport = MagicMock(spec=Transport)
-        managers = self.provider.create_managers(transport, RuntimeCapabilities())
+        streaming = MagicMock(spec=StreamingTransport)
+        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities())
         assert isinstance(managers, Managers)
 
 

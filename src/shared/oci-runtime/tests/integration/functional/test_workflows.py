@@ -19,11 +19,19 @@ from oci_runtime.domain.types import (
 )
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy
 from oci_runtime.domain.types import ExecResult
-from tests.helpers.mock_transport import RecordingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
 
 
 def _inject_responses(transport, responses: dict[str, ExecResult]):
     transport._responses.update(responses)
+
+
+def _inject_stream_responses(streaming, responses: dict[str, ExecResult]):
+    streaming._responses.update(responses)
+
+
+def _inject_stream_chunks(streaming, responses: dict[str, list[bytes]]):
+    streaming._stream_responses.update(responses)
 
 
 class TestImageLifecycle:
@@ -97,8 +105,8 @@ class TestImageLifecycle:
 class TestContainerLifecycle:
     def test_container_lifecycle(self, docker_engine: CliRuntime):
         t = docker_engine._transport
+        st = docker_engine.containers._streaming
         _inject_responses(t, {
-            "docker run -d alpine": ExecResult(0, b"ctr1\n", b""),
             "docker container list": ExecResult(0, b'[{"Id":"ctr1","Names":["/ctr1"],"Image":"alpine","State":"running","Created":1704067200,"Ports":[],"Labels":{}}]', b""),
             "docker container inspect --format json ctr1": ExecResult(0, b'[{"Id":"ctr1","Name":"/ctr1","Config":{"Image":"alpine"},"State":{"Status":"running","ExitCode":0,"Running":true},"Created":"2024-01-01T00:00:00Z","HostConfig":{},"NetworkSettings":{"Ports":{}}}]', b""),
             "docker stop -t 10 ctr1": ExecResult(0, b"ctr1\n", b""),
@@ -106,6 +114,9 @@ class TestContainerLifecycle:
             "docker logs ctr1": ExecResult(0, b"hello from container\n", b""),
             "docker exec ctr1 echo ok": ExecResult(0, b"ok\n", b""),
             "docker rm ctr1": ExecResult(0, b"ctr1\n", b""),
+        })
+        _inject_stream_responses(st, {
+            "docker run -d alpine": ExecResult(0, b"ctr1\n", b""),
         })
         mgr = docker_engine.containers
         cid = mgr.run(RunConfig(image="alpine"))
@@ -130,7 +141,8 @@ class TestContainerLifecycle:
 
     def test_container_run_with_all_options(self, docker_engine: CliRuntime):
         t = docker_engine._transport
-        _inject_responses(t, {
+        st = docker_engine.containers._streaming
+        _inject_stream_responses(st, {
             "docker run -d --rm --name myapp -i -u root -w /app --hostname myhost --entrypoint /bin/sh --network host --restart always --log-driver json-file --privileged --read-only -m 512m --cpus 2 -e FOO=bar -v /host:/container -p 8080:80/tcp -l app=web alpine echo hi": ExecResult(0, b"ctr1\n", b""),
         })
         cid = docker_engine.containers.run(RunConfig(
@@ -147,28 +159,37 @@ class TestContainerLifecycle:
 
     def test_container_logs_with_options(self, docker_engine: CliRuntime):
         t = docker_engine._transport
-        _inject_responses(t, {
+        st = docker_engine.containers._streaming
+        _inject_stream_responses(st, {
             "docker run -d alpine": ExecResult(0, b"ctr1", b""),
         })
-        t._stream_responses["docker logs ctr1 --follow --tail 50"] = [b"log output\n"]
+        _inject_stream_chunks(st, {
+            "docker logs ctr1 --follow --tail 50": [b"log output\n"],
+        })
         docker_engine.containers.run(RunConfig(image="alpine"))
         logs = "".join(docker_engine.containers.logs("ctr1", follow=True, tail=50))
         assert logs == "log output\n"
 
     def test_container_exec_with_options(self, docker_engine: CliRuntime):
         t = docker_engine._transport
+        st = docker_engine.containers._streaming
         _inject_responses(t, {
-            "docker run -d alpine": ExecResult(0, b"ctr1", b""),
             "docker exec -d -u root ctr1 ls": ExecResult(0, b"", b""),
+        })
+        _inject_stream_responses(st, {
+            "docker run -d alpine": ExecResult(0, b"ctr1", b""),
         })
         docker_engine.containers.run(RunConfig(image="alpine"))
         docker_engine.containers.exec_container("ctr1", ["ls"], detach=True, user="root")
 
     def test_container_exists_true(self, docker_engine: CliRuntime):
         t = docker_engine._transport
+        st = docker_engine.containers._streaming
         _inject_responses(t, {
-            "docker run -d alpine": ExecResult(0, b"ctr1", b""),
             "docker container inspect --format json ctr1": ExecResult(0, b'[{"Id":"ctr1","Name":"/ctr1","Config":{"Image":"alpine"},"State":{"Status":"running","ExitCode":0,"Running":true},"Created":"2024-01-01T00:00:00Z","HostConfig":{},"NetworkSettings":{"Ports":{}}}]', b""),
+        })
+        _inject_stream_responses(st, {
+            "docker run -d alpine": ExecResult(0, b"ctr1", b""),
         })
         docker_engine.containers.run(RunConfig(image="alpine"))
         assert docker_engine.containers.exists("ctr1") is True

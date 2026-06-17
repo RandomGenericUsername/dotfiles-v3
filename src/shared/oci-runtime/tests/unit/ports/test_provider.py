@@ -84,7 +84,7 @@ class TestConcreteProviderContract:
                     def is_not_found_error(self, stderr): return False
                 return Parsers(container_parser=FakeCP(), image_parser=FakeIP(), volume_parser=FakeVP(), network_parser=FakeNP())
 
-            def create_managers(self, transport, caps):
+            def create_managers(self, transport, streaming_transport, caps):
                 from unittest.mock import MagicMock
                 from oci_runtime.ports.managers import ContainerManager, ImageManager, NetworkManager, VolumeManager
                 return Managers(
@@ -98,7 +98,8 @@ class TestConcreteProviderContract:
         assert provider.kind == RuntimeKind.DOCKER
         assert isinstance(provider.capabilities(), RuntimeCapabilities)
         assert isinstance(provider.create_parsers(), Parsers)
+        from oci_runtime.ports.streaming import StreamingTransport
         from oci_runtime.ports.transport import Transport
         from unittest.mock import MagicMock
-        managers = provider.create_managers(MagicMock(spec=Transport), RuntimeCapabilities())
+        managers = provider.create_managers(MagicMock(spec=Transport), MagicMock(spec=StreamingTransport), RuntimeCapabilities())
         assert isinstance(managers, Managers)

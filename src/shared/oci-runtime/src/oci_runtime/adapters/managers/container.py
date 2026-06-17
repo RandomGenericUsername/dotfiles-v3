@@ -15,13 +15,15 @@ from oci_runtime.domain.types import CancellationToken, ContainerInfo, ExecOutpu
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
+from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.adapters.managers.base import CliBaseManager
 
 
 class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
-    def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities):
+    def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, streaming: StreamingTransport):
         super().__init__(transport, parser, caps)
+        self._streaming = streaming
 
     @staticmethod
     def _resolve_tty(config: RunConfig) -> bool:
@@ -118,7 +120,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
                 )
             return ""
 
-        result = self._transport.execute(cmd, stream=config.stream_output)
+        result = self._streaming.stream(cmd)
         self._check_result(result, cmd, operation="run container", entity=config.image, not_found=ImageNotFoundError)
         if config.stream_output:
             return ""
@@ -189,12 +191,12 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         queue: Queue[str | None] = Queue()
         errors: list[BaseException] = []
 
-        def _on_output(data: bytes, stream: str) -> None:
+        def _on_stdout(data: bytes) -> None:
             queue.put(self._decode_stdout(data))
 
         def _run() -> None:
             try:
-                self._transport.execute(cmd, stream=True, on_output=_on_output, cancel_token=cancel_token)
+                self._streaming.stream(cmd, on_stdout=_on_stdout, cancel_token=cancel_token)
             except BaseException as e:
                 errors.append(e)
             finally:

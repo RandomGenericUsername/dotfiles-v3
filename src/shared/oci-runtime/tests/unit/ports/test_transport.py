@@ -27,7 +27,7 @@ class TestTransport:
 
     def test_concrete_subclass_works(self):
         class GoodTransport(Transport):
-            def execute(self, command, *, timeout=None, input_data=None, stream=False):
+            def execute(self, command, *, timeout=None, input_data=None):
                 return ExecResult(returncode=0, stdout=b"", stderr=b"")
             def get_runtime_binary(self) -> str:
                 return "docker"

@@ -10,6 +10,7 @@ from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import ExecResult
 from oci_runtime.ports.transport import Transport
+from oci_runtime.ports.streaming import StreamingTransport
 
 
 class _MockParser(ContainerParser):
@@ -35,7 +36,9 @@ def transport():
 def manager(transport):
     caps = RuntimeCapabilities()
     parser = _MockParser()
-    return CliContainerManager(transport, parser, caps)
+    streaming = MagicMock(spec=StreamingTransport)
+    streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+    return CliContainerManager(transport, parser, caps, streaming=streaming)
 
 
 class TestTtyDispatch:
@@ -47,13 +50,12 @@ class TestTtyDispatch:
         mock_run_pty.assert_called_once_with(
             ["docker", "run", "-t", "alpine", "bash"]
         )
-        transport.execute.assert_not_called()
         assert result == ""
 
-    def test_tty_false_calls_transport_execute(self, manager, transport):
+    def test_tty_false_calls_streaming_stream(self, manager, transport):
         config = RunConfig(image="alpine", command=["echo", "hi"], tty=False, detach=True)
         result = manager.run(config)
-        transport.execute.assert_called_once()
+        manager._streaming.stream.assert_called_once()
         assert result == "abc123"
 
     def test_detach_and_tty_mutually_exclusive(self, manager, transport):
@@ -68,14 +70,13 @@ class TestTtyDispatch:
             config = RunConfig(image="alpine", command=["bash"], auto_tty=True, detach=False)
             result = manager.run(config)
         mock_run_pty.assert_called_once()
-        transport.execute.assert_not_called()
         assert result == ""
 
-    def test_auto_tty_true_without_isatty_calls_transport(self, manager, transport):
+    def test_auto_tty_true_without_isatty_calls_streaming(self, manager, transport):
         with patch("sys.stdout.isatty", return_value=False):
             config = RunConfig(image="alpine", command=["echo", "hi"], auto_tty=True, detach=True)
             result = manager.run(config)
-        transport.execute.assert_called_once()
+        manager._streaming.stream.assert_called_once()
         assert result == "abc123"
 
 
@@ -93,8 +94,13 @@ class TestTtyReturnContract:
         assert result == "abc123"
 
     def test_stream_output_returns_empty(self, manager, transport):
+        streaming = MagicMock(spec=StreamingTransport)
+        streaming.stream.return_value = ExecResult(returncode=0, stdout=b"", stderr=b"")
+        caps = RuntimeCapabilities()
+        parser = _MockParser()
+        mgr = CliContainerManager(transport, parser, caps, streaming=streaming)
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
-        result = manager.run(config)
+        result = mgr.run(config)
         assert result == ""
 
 
@@ -110,7 +116,9 @@ class TestTtyEdgeCases:
     def test_effective_tty_with_default_flags(self, mock_run_pty, manager, transport):
         caps = RuntimeCapabilities(default_run_flags=["--userns=keep-id"])
         parser = _MockParser()
-        m = CliContainerManager(transport, parser, caps)
+        streaming = MagicMock(spec=StreamingTransport)
+        streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+        m = CliContainerManager(transport, parser, caps, streaming=streaming)
         mock_run_pty.return_value.returncode = 0
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         m.run(config)

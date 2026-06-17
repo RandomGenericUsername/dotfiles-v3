@@ -17,7 +17,8 @@ oci-runtime/                    # Runtime-agnostic OCI container management
 │   ├── ports/                  # Port interfaces + contract exceptions + aggregate types
 │   │   ├── __init__.py         # Re-exports all public port types
 │   │   ├── engine.py           # ContainerEngine ABC
-│   │   ├── transport.py        # Transport ABC
+│   │   ├── transport.py        # Transport ABC (batch execution only)
+│   │   ├── streaming.py        # StreamingTransport ABC (real-time output streaming)
 │   │   ├── capabilities.py     # RuntimeCapabilities
 │   │   ├── discovery.py        # RuntimeDiscovery ABC
 │   │   ├── provider.py         # RuntimeProvider ABC
@@ -29,7 +30,9 @@ oci-runtime/                    # Runtime-agnostic OCI container management
 │       ├── _tar.py             # create_build_tar (tar archive builder)
 │       ├── _utils.py           # parse_size_to_bytes (size string parser)
 │       ├── engine/cli.py       # CliRuntime
-│       ├── transport/cli.py    # CliTransport
+│       ├── transport/
+│       │   ├── cli.py          # CliTransport (batch subprocess.run)
+│       │   └── streaming.py    # CliStreamingTransport (Popen + ProcessPipeReader)
 │       ├── discovery/cli.py    # CliRuntimeDiscovery
 │       ├── provider/
 │       │   ├── _base.py        # BaseCliRuntimeProvider
@@ -79,7 +82,13 @@ OciError (base)
 
 ### Port Layer
 
-**Transport port simplified:** `execute_pty()` removed. PTY execution is now a concern of the container manager, not the transport. (#8)
+**Transport port simplified to batch-only:** `execute()` no longer has `stream`, `on_output`, or `cancel_token` parameters. Streaming is now a separate `StreamingTransport` port. (#8, #27)
+
+**StreamingTransport port extracted:** real-time output streaming (Popen + selector loop) moved from `Transport.execute()` to `StreamingTransport.stream()`. Callbacks use `on_stdout`/`on_stderr` instead of `on_output(data, stream_name)`. (#27)
+
+**`ProcessPipeReader` callback signature updated:** `on_output(data, stream_name)` replaced with separate `on_stdout` and `on_stderr` callbacks. (#27)
+
+**`execute_pty()` removed (earlier):** PTY execution is a concern of the container manager, not the transport. (#8)
 
 **Transport accepts optional `CancellationToken`:** allows callers to cancel long-running streaming operations (e.g. `logs --follow`). (#21)
 
@@ -134,7 +143,15 @@ class CancellationToken:
 def execute(
     self, command, *,
     timeout=None, input_data=None,
-    stream=False, on_output=None,
+) -> ExecResult: ...
+```
+
+### `StreamingTransport.stream()` (ports/streaming.py)
+```python
+def stream(
+    self, command, *,
+    timeout=None, input_data=None,
+    on_stdout=None, on_stderr=None,
     cancel_token: CancellationToken | None = None,
 ) -> ExecResult: ...
 ```
@@ -142,7 +159,7 @@ def execute(
 ### `ProcessPipeReader.read()` (adapters/_process_reader.py)
 ```python
 def read(
-    self, on_output=None,
+    self, on_stdout=None, on_stderr=None,
     cancel_token: CancellationToken | None = None,
 ) -> tuple[list[bytes], list[bytes]]: ...
 ```
@@ -156,12 +173,6 @@ def run_pty(
 ```
 
 ## Future Consideration
-
-### Option D: Split Streaming Into a Separate Port (TODO)
-
-Currently `Transport.execute()` handles both batch execution (`subprocess.run`) and streaming execution (Popen + selector loop) via the `stream` and `on_output` flags. A cleaner separation would extract streaming into its own `StreamingTransport` port.
-
-See `docs/TODO-option-d-streaming-port.md` for a detailed proposal with risks, implementation phases, and a decision gate.
 
 ### Add a new runtime (e.g. nerdctl)
 

@@ -7,6 +7,7 @@ from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.ports.provider import RuntimeProvider
+from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 
 
@@ -23,6 +24,7 @@ class RuntimeFactoryConfig:
     providers for parser resolution, not to a separate callback.
     """
     transport_factory: Callable[[str], Transport] | None = None
+    streaming_transport_factory: Callable[[str], StreamingTransport] | None = None
     runtime_cls: type[ContainerEngine] | None = None
     discovery_factory: Callable[[Callable[[str], Transport]], "RuntimeDiscovery"] | None = None
 
@@ -39,6 +41,11 @@ def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
 def _default_transport_factory(binary: str) -> Transport:
     from oci_runtime.adapters.transport.cli import CliTransport
     return CliTransport(binary)
+
+
+def _default_streaming_transport_factory(binary: str) -> StreamingTransport:
+    from oci_runtime.adapters.transport.streaming import CliStreamingTransport
+    return CliStreamingTransport(binary)
 
 
 def _default_runtime_cls() -> type[ContainerEngine]:
@@ -60,6 +67,8 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
     replacements = {}
     if cfg.transport_factory is None:
         replacements["transport_factory"] = _default_transport_factory
+    if cfg.streaming_transport_factory is None:
+        replacements["streaming_transport_factory"] = _default_streaming_transport_factory
     if cfg.runtime_cls is None:
         replacements["runtime_cls"] = _default_runtime_cls()
     if cfg.discovery_factory is None:
@@ -90,6 +99,7 @@ class RuntimeFactory:
         """
         binary = preference.binary
         transport = self._cfg.transport_factory(binary)
+        streaming_transport = self._cfg.streaming_transport_factory(binary)
         try:
             provider = self._providers[preference.kind]
         except KeyError:
@@ -98,7 +108,7 @@ class RuntimeFactory:
                 f"Registered: {list(self._providers.keys())}"
             )
         caps = provider.capabilities()
-        managers = provider.create_managers(transport, caps)
+        managers = provider.create_managers(transport, streaming_transport, caps)
 
         runtime = self._cfg.runtime_cls(
             transport=transport,

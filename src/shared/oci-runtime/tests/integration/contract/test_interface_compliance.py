@@ -43,9 +43,10 @@ from oci_runtime.ports.parsers import (
     VolumeParser,
 )
 from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.factory import RuntimeFactory
-from tests.helpers.mock_transport import RecordingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
 
 
 class TestTransportContract:
@@ -107,6 +108,36 @@ class TestTransportContract:
         assert r.returncode == 0
         assert r.stdout == b"out"
         assert r.stderr == b"err"
+
+
+class TestStreamingTransportContract:
+    def test_is_abc(self):
+        assert issubclass(StreamingTransport, ABC)
+
+    def test_has_all_abstract_methods(self):
+        expected = {"stream"}
+        actual = set(StreamingTransport.__abstractmethods__)
+        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+
+    def test_cannot_instantiate(self):
+        with pytest.raises(TypeError):
+            StreamingTransport()
+
+    def test_concrete_subclass_must_implement_all(self):
+        with pytest.raises(TypeError):
+            type("BadStreamingTransport", (StreamingTransport,), {})()
+
+    def test_recording_streaming_transport_implements_all(self):
+        s = RecordingStreamingTransport("docker")
+        assert isinstance(s, StreamingTransport)
+        assert callable(s.stream)
+
+    def test_recording_streaming_transport_records_calls(self):
+        s = RecordingStreamingTransport("docker")
+        result = s.stream(["docker", "ps"])
+        assert len(s.calls) == 1
+        assert s.calls[0].command == ["docker", "ps"]
+        assert isinstance(result, ExecResult)
 
 
 class TestEngineContract:
@@ -194,9 +225,10 @@ class TestContainerManagerContract:
 
     def test_cli_container_manager_implements_all(self):
         transport = RecordingTransport("docker")
+        streaming = RecordingStreamingTransport("docker")
         caps = RuntimeCapabilities()
         from oci_runtime.adapters.parser.docker import DockerContainerParser
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
         assert isinstance(mgr, ContainerManager)
         assert callable(mgr.run)
         assert callable(mgr.start)
@@ -459,6 +491,7 @@ class TestFactoryContract:
     def test_factory_config_defaults_are_none(self):
         cfg = RuntimeFactoryConfig()
         assert cfg.transport_factory is None
+        assert cfg.streaming_transport_factory is None
         assert cfg.runtime_cls is None
         assert cfg.discovery_factory is None
 

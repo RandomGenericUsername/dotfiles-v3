@@ -13,7 +13,7 @@ from tests.helpers.mock_parsers import (
     MockNetworkParser,
     MockVolumeParser,
 )
-from tests.helpers.mock_transport import RecordingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
 
 
 @pytest.fixture
@@ -28,6 +28,11 @@ def caps():
 @pytest.fixture
 def t():
     return RecordingTransport("docker")
+
+
+@pytest.fixture
+def st():
+    return RecordingStreamingTransport("docker")
 
 
 # ─── Helpers ───
@@ -128,22 +133,22 @@ class TestImageManagerCommands:
 
 
 class TestContainerManagerCommands:
-    def test_run_minimal(self, t, caps):
-        t._responses = {"docker run -d alpine": ExecResult(0, b"abc123\n", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+    def test_run_minimal(self, t, st, caps):
+        st._responses = {"docker run -d alpine": ExecResult(0, b"abc123\n", b"")}
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         result = mgr.run(RunConfig(image="alpine"))
-        assert t.calls[0].command == ["docker", "run", "-d", "alpine"]
+        assert st.calls[0].command == ["docker", "run", "-d", "alpine"]
         assert result == "abc123"
 
-    def test_run_with_name(self, t, caps):
-        t._responses = {"docker run -d --name myapp alpine": ExecResult(0, b"abc123", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+    def test_run_with_name(self, t, st, caps):
+        st._responses = {"docker run -d --name myapp alpine": ExecResult(0, b"abc123", b"")}
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.run(RunConfig(image="alpine", name="myapp"))
-        assert t.calls[0].command == ["docker", "run", "-d", "--name", "myapp", "alpine"]
+        assert st.calls[0].command == ["docker", "run", "-d", "--name", "myapp", "alpine"]
 
-    def test_run_with_all_options(self, t, caps):
-        t._responses = {"docker run -d --rm --name myapp -t -i -u root -w /app --hostname myhost --entrypoint /bin/sh --network host --restart always --log-driver json-file --privileged --read-only -m 512m --cpus 2 -e FOO=bar -v /host:/container -p 8080:80/tcp -l app=web alpine echo hi": ExecResult(0, b"abc123", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+    def test_run_with_all_options(self, t, st, caps):
+        st._responses = {"docker run -d --rm --name myapp -t -i -u root -w /app --hostname myhost --entrypoint /bin/sh --network host --restart always --log-driver json-file --privileged --read-only -m 512m --cpus 2 -e FOO=bar -v /host:/container -p 8080:80/tcp -l app=web alpine echo hi": ExecResult(0, b"abc123", b"")}
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         from oci_runtime.domain.enums import NetworkMode, RestartPolicy
         from oci_runtime.domain.types import PortMapping, VolumeMount
         config = RunConfig(
@@ -171,20 +176,19 @@ class TestContainerManagerCommands:
             labels={"app": "web"},
         )
         mgr.run(config)
-        assert t.calls[0].command == ["docker", "run", "-d", "--rm", "--name", "myapp", "-i", "-u", "root", "-w", "/app", "--hostname", "myhost", "--entrypoint", "/bin/sh", "--network", "host", "--restart", "always", "--log-driver", "json-file", "--privileged", "--read-only", "-m", "512m", "--cpus", "2", "-e", "FOO=bar", "-v", "/host:/container", "-p", "8080:80/tcp", "-l", "app=web", "alpine", "echo", "hi"]
+        assert st.calls[0].command == ["docker", "run", "-d", "--rm", "--name", "myapp", "-i", "-u", "root", "-w", "/app", "--hostname", "myhost", "--entrypoint", "/bin/sh", "--network", "host", "--restart", "always", "--log-driver", "json-file", "--privileged", "--read-only", "-m", "512m", "--cpus", "2", "-e", "FOO=bar", "-v", "/host:/container", "-p", "8080:80/tcp", "-l", "app=web", "alpine", "echo", "hi"]
 
-    def test_run_detach_false(self, t, caps):
-        t._responses = {"docker run alpine": ExecResult(0, b"abc123", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+    def test_run_detach_false(self, t, st, caps):
+        st._responses = {"docker run alpine": ExecResult(0, b"abc123", b"")}
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.run(RunConfig(image="alpine", detach=False))
-        assert t.calls[0].command == ["docker", "run", "alpine"]
+        assert st.calls[0].command == ["docker", "run", "alpine"]
 
-    def test_run_stream(self, t, caps):
-        t._responses = {"docker run -d alpine": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+    def test_run_stream(self, t, st, caps):
+        st._responses = {"docker run -d alpine": ExecResult(0, b"", b"")}
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         result = mgr.run(RunConfig(image="alpine", stream_output=True))
         assert result == ""
-        assert t.calls[0].kwargs["stream"] is True
 
     def test_run_podman_flags(self):
         pcaps = RuntimeCapabilities(
@@ -193,102 +197,103 @@ class TestContainerManagerCommands:
             default_run_flags=["--userns=keep-id"],
         )
         podman_t = RecordingTransport("podman", {"podman run --userns=keep-id -d alpine": ExecResult(0, b"abc123", b"")})
-        mgr = CliContainerManager(podman_t, MockContainerParser(), pcaps)
+        podman_st = RecordingStreamingTransport("podman", {"podman run --userns=keep-id -d alpine": ExecResult(0, b"abc123", b"")})
+        mgr = CliContainerManager(podman_t, MockContainerParser(), pcaps, streaming=podman_st)
         mgr.run(RunConfig(image="alpine"))
-        assert podman_t.calls[0].command == ["podman", "run", "--userns=keep-id", "-d", "alpine"]
+        assert podman_st.calls[0].command == ["podman", "run", "--userns=keep-id", "-d", "alpine"]
 
-    def test_start(self, t, caps):
+    def test_start(self, t, st, caps):
         t._responses = {"docker start ctr1": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.start("ctr1")
         assert t.calls[0].command == ["docker", "start", "ctr1"]
 
-    def test_stop(self, t, caps):
+    def test_stop(self, t, st, caps):
         t._responses = {"docker stop -t 10 ctr1": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.stop("ctr1")
         assert t.calls[0].command == ["docker", "stop", "-t", "10", "ctr1"]
 
-    def test_restart(self, t, caps):
+    def test_restart(self, t, st, caps):
         t._responses = {"docker restart -t 10 ctr1": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.restart("ctr1")
         assert t.calls[0].command == ["docker", "restart", "-t", "10", "ctr1"]
 
-    def test_remove(self, t, caps):
+    def test_remove(self, t, st, caps):
         t._responses = {"docker rm ctr1": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.remove("ctr1")
         assert t.calls[0].command == ["docker", "rm", "ctr1"]
 
-    def test_remove_force_volumes(self, t, caps):
+    def test_remove_force_volumes(self, t, st, caps):
         t._responses = {"docker rm ctr1 -f -v": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.remove("ctr1", force=True, volumes=True)
         assert t.calls[0].command == ["docker", "rm", "ctr1", "-f", "-v"]
 
-    def test_inspect_command_and_parsed(self, t, caps):
+    def test_inspect_command_and_parsed(self, t, st, caps):
         t._responses = {"docker container inspect --format json ctr1": ExecResult(0, INSPECT_CONTAINER_JSON, b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         info = mgr.inspect("ctr1")
         assert t.calls[0].command == ["docker", "container", "inspect", "--format", "json", "ctr1"]
         assert info.id == "abc"
 
-    def test_list(self, t, caps):
+    def test_list(self, t, st, caps):
         t._responses = {"docker container list": ExecResult(0, LIST_CONTAINER_JSON, b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         result = mgr.list()
         assert t.calls[0].command == ["docker", "container", "list"]
         assert len(result) == 1
 
-    def test_list_all(self, t, caps):
+    def test_list_all(self, t, st, caps):
         t._responses = {"docker container list -a": ExecResult(0, b"[]", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.list(show_all=True)
         assert t.calls[0].command == ["docker", "container", "list", "-a"]
 
-    def test_list_with_filter(self, t, caps):
+    def test_list_with_filter(self, t, st, caps):
         t._responses = {"docker container list --filter name=web": ExecResult(0, b"[]", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.list(filters={"name": "web"})
         assert t.calls[0].command == ["docker", "container", "list", "--filter", "name=web"]
 
-    def test_logs(self, t, caps):
+    def test_logs(self, t, st, caps):
         t._responses = {"docker logs ctr1": ExecResult(0, b"log output\n", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         result = "".join(mgr.logs("ctr1"))
         assert t.calls[0].command == ["docker", "logs", "ctr1"]
         assert result == "log output\n"
 
-    def test_logs_follow_tail(self, t, caps):
-        t._stream_responses = {"docker logs ctr1 --follow --tail 50": [b"", b""]}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+    def test_logs_follow_tail(self, t, st, caps):
+        st._stream_responses = {"docker logs ctr1 --follow --tail 50": [b"", b""]}
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         list(mgr.logs("ctr1", follow=True, tail=50))
-        assert t.calls[0].command == ["docker", "logs", "ctr1", "--follow", "--tail", "50"]
+        assert st.calls[0].command == ["docker", "logs", "ctr1", "--follow", "--tail", "50"]
 
-    def test_logs_follow_streams_chunks(self, t, caps):
-        t._stream_responses["docker logs ctr1 --follow"] = [b"chunk1\n", b"chunk2\n"]
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+    def test_logs_follow_streams_chunks(self, t, st, caps):
+        st._stream_responses["docker logs ctr1 --follow"] = [b"chunk1\n", b"chunk2\n"]
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         chunks = list(mgr.logs("ctr1", follow=True))
         assert chunks == ["chunk1\n", "chunk2\n"]
 
-    def test_exec(self, t, caps):
+    def test_exec(self, t, st, caps):
         t._responses = {"docker exec ctr1 ls -la": ExecResult(0, b"file1\nfile2\n", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         result = mgr.exec_container("ctr1", ["ls", "-la"])
         assert t.calls[0].command == ["docker", "exec", "ctr1", "ls", "-la"]
         assert result.returncode == 0
         assert result.stdout == "file1\nfile2\n"
 
-    def test_exec_detach_user(self, t, caps):
+    def test_exec_detach_user(self, t, st, caps):
         t._responses = {"docker exec -d -u root ctr1 ls": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         mgr.exec_container("ctr1", ["ls"], detach=True, user="root")
         assert t.calls[0].command == ["docker", "exec", "-d", "-u", "root", "ctr1", "ls"]
 
-    def test_prune(self, t, caps):
+    def test_prune(self, t, st, caps):
         t._responses = {"docker container prune --force": ExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps)
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "container", "prune", "--force"]
         assert result == {"deleted": 0, "reclaimed_bytes": 0}

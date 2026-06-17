@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import CancellationToken, ExecResult
+from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 
 
@@ -11,23 +12,17 @@ class RecordedCall:
 
 
 class RecordingTransport(Transport):
-    def __init__(self, binary: str = "docker", responses: dict[str, ExecResult] | None = None,
-                 stream_responses: dict[str, list[bytes]] | None = None):
+    def __init__(self, binary: str = "docker", responses: dict[str, ExecResult] | None = None):
         self._binary = binary
         self._responses = responses or {}
-        self._stream_responses = stream_responses or {}
         self.calls: list[RecordedCall] = []
         self._probe_result: bool = True
 
-    def execute(self, command, *, timeout=None, input_data=None, stream=False, on_output=None, cancel_token=None):
+    def execute(self, command, *, timeout=None, input_data=None):
         self.calls.append(RecordedCall(command, {
-            "timeout": timeout, "input_data": input_data, "stream": stream,
+            "timeout": timeout, "input_data": input_data,
         }))
         key = " ".join(command)
-        if stream and on_output and key in self._stream_responses:
-            for chunk in self._stream_responses[key]:
-                on_output(chunk, "stdout")
-            return ExecResult(returncode=0, stdout=b"", stderr=b"")
         if key in self._responses:
             return self._responses[key]
         return ExecResult(returncode=0, stdout=b"", stderr=b"")
@@ -39,14 +34,36 @@ class RecordingTransport(Transport):
         return self._binary
 
 
+class RecordingStreamingTransport(StreamingTransport):
+    def __init__(self, binary: str = "docker", responses: dict[str, ExecResult] | None = None,
+                 stream_responses: dict[str, list[bytes]] | None = None):
+        self._binary = binary
+        self._responses = responses or {}
+        self._stream_responses = stream_responses or {}
+        self.calls: list[RecordedCall] = []
+
+    def stream(self, command, *, timeout=None, input_data=None, on_stdout=None, on_stderr=None, cancel_token=None):
+        self.calls.append(RecordedCall(command, {
+            "timeout": timeout, "input_data": input_data,
+        }))
+        key = " ".join(command)
+        if on_stdout and key in self._stream_responses:
+            for chunk in self._stream_responses[key]:
+                on_stdout(chunk)
+            return ExecResult(returncode=0, stdout=b"", stderr=b"")
+        if key in self._responses:
+            return self._responses[key]
+        return ExecResult(returncode=0, stdout=b"", stderr=b"")
+
+
 class FailingTransport(Transport):
     def __init__(self, binary: str = "docker", stderr: str = "not found"):
         self._binary = binary
         self._stderr = stderr
         self.calls: list[RecordedCall] = []
 
-    def execute(self, command, *, timeout=None, input_data=None, stream=False, on_output=None, cancel_token=None):
-        self.calls.append(RecordedCall(command, {"timeout": timeout, "input_data": input_data, "stream": stream}))
+    def execute(self, command, *, timeout=None, input_data=None):
+        self.calls.append(RecordedCall(command, {"timeout": timeout, "input_data": input_data}))
         return ExecResult(returncode=1, stdout=b"", stderr=self._stderr.encode())
 
     def probe(self) -> bool:

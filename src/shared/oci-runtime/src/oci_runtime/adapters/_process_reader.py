@@ -23,7 +23,8 @@ class ProcessPipeReader:
 
     def read(
         self,
-        on_output: Callable[[bytes, str], None] | None = None,
+        on_stdout: Callable[[bytes], None] | None = None,
+        on_stderr: Callable[[bytes], None] | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> tuple[list[bytes], list[bytes]]:
         """Read all output until both pipes reach EOF or cancellation.
@@ -49,12 +50,12 @@ class ProcessPipeReader:
                         continue
                     if key.fileobj is self._process.stdout:
                         stdout_acc.append(data)
-                        if on_output:
-                            on_output(data, "stdout")
+                        if on_stdout:
+                            on_stdout(data)
                     else:
                         stderr_acc.append(data)
-                        if on_output:
-                            on_output(data, "stderr")
+                        if on_stderr:
+                            on_stderr(data)
         finally:
             selector.close()
         return stdout_acc, stderr_acc

@@ -9,6 +9,7 @@ from oci_runtime.domain.types import ContainerInfo, PortMapping, RunConfig, Volu
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import ExecResult
+from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 
 
@@ -28,29 +29,31 @@ class TestCliContainerManager:
         self.transport = MagicMock(spec=Transport)
         self.transport.binary = "docker"
         self.transport.execute.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+        self.streaming = MagicMock(spec=StreamingTransport)
+        self.streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
         self.parser = _MockParser()
         self.caps = RuntimeCapabilities()
-        self.manager = CliContainerManager(self.transport, self.parser, self.caps)
+        self.manager = CliContainerManager(self.transport, self.parser, self.caps, streaming=self.streaming)
 
-    def test_run_calls_transport_execute(self):
+    def test_run_calls_streaming_stream(self):
         config = RunConfig(image="alpine", command=["echo", "hi"])
         self.manager.run(config)
-        self.transport.execute.assert_called_once()
+        self.streaming.stream.assert_called_once()
 
     def test_run_includes_image_and_command(self):
         config = RunConfig(image="alpine", command=["echo", "hi"])
         self.manager.run(config)
-        args = self.transport.execute.call_args[0][0]
+        args = self.streaming.stream.call_args[0][0]
         assert "alpine" in args
         assert "echo" in args
         assert "hi" in args
 
     def test_run_adds_default_run_flags_from_caps(self):
         caps = RuntimeCapabilities(default_run_flags=["--userns=keep-id"])
-        manager = CliContainerManager(self.transport, self.parser, caps)
+        manager = CliContainerManager(self.transport, self.parser, caps, streaming=self.streaming)
         config = RunConfig(image="alpine")
         manager.run(config)
-        args = self.transport.execute.call_args[0][0]
+        args = self.streaming.stream.call_args[0][0]
         assert "--userns=keep-id" in args
 
     def test_check_result_raises_not_found(self):
@@ -64,7 +67,7 @@ class TestCliContainerManager:
 
     def test_check_result_lacks_is_not_found_error_raises_attribute_error(self):
         with pytest.raises(AttributeError, match="is_not_found_error"):
-            manager = CliContainerManager(self.transport, object(), self.caps)
+            manager = CliContainerManager(self.transport, object(), self.caps, streaming=self.streaming)
             manager._check_result(
                 ExecResult(returncode=1, stdout=b"", stderr=b"any error"),
                 cmd=["docker", "run", "x"],
@@ -79,13 +82,13 @@ class TestCliContainerManager:
     def test_run_network_bridge_ignores_container_arg(self):
         config = RunConfig(image="alpine", network=NetworkMode.BRIDGE, network_container="nginx")
         self.manager.run(config)
-        args = self.transport.execute.call_args[0][0]
+        args = self.streaming.stream.call_args[0][0]
         assert "--network" not in args
 
     def test_run_network_host_adds_flag(self):
         config = RunConfig(image="alpine", network=NetworkMode.HOST)
         self.manager.run(config)
-        args = self.transport.execute.call_args[0][0]
+        args = self.streaming.stream.call_args[0][0]
         idx = args.index("--network")
         assert args[idx + 1] == "host"
 
@@ -99,13 +102,13 @@ class TestCliContainerManager:
             image="alpine", network=NetworkMode.CONTAINER, network_container="nginx"
         )
         self.manager.run(config)
-        args = self.transport.execute.call_args[0][0]
+        args = self.streaming.stream.call_args[0][0]
         idx = args.index("--network")
         assert args[idx + 1] == "container:nginx"
 
     def test_run_network_none_adds_flag(self):
         config = RunConfig(image="alpine", network=NetworkMode.NONE)
         self.manager.run(config)
-        args = self.transport.execute.call_args[0][0]
+        args = self.streaming.stream.call_args[0][0]
         idx = args.index("--network")
         assert args[idx + 1] == "none"

@@ -16,6 +16,7 @@ from oci_runtime.ports.parsers import (
     VolumeParser,
 )
 from oci_runtime.ports.provider import RuntimeProvider
+from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "RuntimeCapabilities",
     "RuntimeDiscovery",
     "RuntimeProvider",
+    "StreamingTransport",
     "Transport",
     "VolumeManager",
     "VolumeParser",
