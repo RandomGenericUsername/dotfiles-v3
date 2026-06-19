@@ -10,24 +10,24 @@ from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import ExecResult
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockContainerParser
-from tests.helpers.mock_transport import FailingTransport, RecordingTransport, RecordingStreamingTransport
+from tests.helpers.mock_transport import FailingTransport, RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 class ContainerManagerContractTest(ABC):
     @abstractmethod
-    def make_manager(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, *, streaming) -> ContainerManager:
+    def make_manager(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, *, streaming, tty_detector) -> ContainerManager:
         ...
 
     def _defaults(self):
         t = RecordingTransport("docker")
         st = RecordingStreamingTransport("docker")
         caps = RuntimeCapabilities()
-        return self.make_manager(t, MockContainerParser(), caps, streaming=st), t, st
+        return self.make_manager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector()), t, st
 
     def _failing(self, stderr="No such container: nonexistent"):
         t = FailingTransport("docker", stderr=stderr)
         st = RecordingStreamingTransport("docker")
-        return self.make_manager(t, MockContainerParser(), RuntimeCapabilities(), streaming=st), t
+        return self.make_manager(t, MockContainerParser(), RuntimeCapabilities(), streaming=st, tty_detector=FakeTtyDetector()), t
 
     def test_base_is_abstract(self):
         with_impl = [m for m in dir(ContainerManagerContractTest) if not m.startswith("_")]
@@ -123,6 +123,6 @@ class ContainerManagerContractTest(ABC):
 
 
 class TestCliContainerManagerContract(ContainerManagerContractTest):
-    def make_manager(self, transport, parser, caps, *, streaming) -> ContainerManager:
+    def make_manager(self, transport, parser, caps, *, streaming, tty_detector) -> ContainerManager:
         from oci_runtime.adapters.managers.container import CliContainerManager
-        return CliContainerManager(transport, parser, caps, streaming=streaming)
+        return CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=tty_detector)

@@ -83,6 +83,7 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
             for key, val in filters.items():
                 cmd.extend(["--filter", f"{key}={val}"])
         result = self._transport.execute(cmd)
+        self._check_result(result, cmd, operation="list images", entity="", not_found=ImageNotFoundError)
         return self._parser.parse_list(self._decode_stdout(result.stdout))
 
     def prune(self, show_all: bool = False) -> dict[str, int]:

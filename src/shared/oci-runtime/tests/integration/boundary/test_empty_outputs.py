@@ -20,7 +20,7 @@ from oci_runtime.domain.exceptions import (
 from oci_runtime.domain.types import BuildContext, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import ExecResult
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def streaming():
 class TestEmptyInspect:
     def test_container_inspect_empty_json_raises_parsing_error(self, transport, streaming, caps):
         transport._responses = {"docker container inspect --format json ctr1": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         with pytest.raises(ParsingError):
             mgr.inspect("ctr1")
 
@@ -67,7 +67,7 @@ class TestEmptyInspect:
 class TestEmptyList:
     def test_list_containers_empty(self, transport, streaming, caps):
         transport._responses = {"docker container list": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         with pytest.raises(ParsingError, match="Empty response"):
             mgr.list()
 
@@ -93,19 +93,19 @@ class TestEmptyList:
 class TestEmptyOutput:
     def test_logs_empty(self, transport, streaming, caps):
         transport._responses = {"docker logs ctr1": ExecResult(returncode=0, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         assert "".join(mgr.logs("ctr1")) == ""
 
     def test_exec_empty_output(self, transport, streaming, caps):
         transport._responses = {"docker exec ctr1 ls": ExecResult(returncode=0, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         result = mgr.exec_container("ctr1", ["ls"])
         assert result.returncode == 0
         assert result.stdout == ""
 
     def test_run_empty_stdout(self, transport, streaming, caps):
         streaming._responses = {"docker run -d alpine": ExecResult(returncode=0, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         config = RunConfig(image="alpine")
         result = mgr.run(config)
         assert result == ""
@@ -127,7 +127,7 @@ class TestEmptyOutput:
 class TestEmptyExists:
     def test_container_exists_false_on_empty_inspect(self, transport, streaming, caps):
         transport._responses = {"docker container inspect --format json nonexistent": ExecResult(returncode=0, stdout=b"[]", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         assert mgr.exists("nonexistent") is False
 
     def test_image_exists_false_on_empty_inspect(self, transport, caps):

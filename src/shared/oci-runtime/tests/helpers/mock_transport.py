@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from oci_runtime.domain.types import CancellationToken, ExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
+from oci_runtime.ports.tty import TtyDetector
 
 
 @dataclass
@@ -54,6 +55,14 @@ class RecordingStreamingTransport(StreamingTransport):
         if key in self._responses:
             return self._responses[key]
         return ExecResult(returncode=0, stdout=b"", stderr=b"")
+
+
+class FakeTtyDetector(TtyDetector):
+    def __init__(self, is_tty: bool = False):
+        self._is_tty = is_tty
+
+    def is_tty(self) -> bool:
+        return self._is_tty
 
 
 class FailingTransport(Transport):

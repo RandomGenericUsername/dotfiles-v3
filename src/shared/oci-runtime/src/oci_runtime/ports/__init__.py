@@ -18,6 +18,7 @@ from oci_runtime.ports.parsers import (
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
+from oci_runtime.ports.tty import TtyDetector
 
 __all__ = [
     "ContainerEngine",
@@ -35,6 +36,7 @@ __all__ = [
     "RuntimeProvider",
     "StreamingTransport",
     "Transport",
+    "TtyDetector",
     "VolumeManager",
     "VolumeParser",
 ]

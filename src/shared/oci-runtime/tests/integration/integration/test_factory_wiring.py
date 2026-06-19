@@ -19,7 +19,7 @@ from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.parsers import ContainerParser, ImageParser
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.domain.types import ExecResult
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 class TestFactoryCreateEngine:
@@ -139,7 +139,7 @@ class TestFactoryConfigInjection:
                 parsers = self.create_parsers()
                 return Managers(
                     image_manager=CliImageManager(transport, parsers.image_parser, caps),
-                    container_manager=CliContainerManager(transport, parsers.container_parser, caps, streaming=streaming_transport),
+                    container_manager=CliContainerManager(transport, parsers.container_parser, caps, streaming=streaming_transport, tty_detector=FakeTtyDetector()),
                     volume_manager=CliVolumeManager(transport, parsers.volume_parser, caps),
                     network_manager=CliNetworkManager(transport, parsers.network_parser, caps),
                 )

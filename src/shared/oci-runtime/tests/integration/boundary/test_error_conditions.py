@@ -40,7 +40,7 @@ from oci_runtime.ports.managers import (
     VolumeManager,
 )
 from oci_runtime.domain.types import ExecResult
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ class TestManagerErrorPropagation:
 
     def test_container_not_found_from_stderr(self, transport, streaming, caps):
         transport._responses = {"docker container inspect --format json ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         with pytest.raises(ContainerNotFoundError, match="ctr1"):
             mgr.inspect("ctr1")
 
@@ -100,7 +100,7 @@ class TestManagerErrorPropagation:
     def test_generic_error_raises_container_runtime_error(self, transport, streaming, caps):
         transport._responses = {"docker run -d alpine": ExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
         streaming._responses = {"docker run -d alpine": ExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         config = RunConfig(image="alpine")
         with pytest.raises(ContainerRuntimeError) as exc_info:
             mgr.run(config)
@@ -109,19 +109,19 @@ class TestManagerErrorPropagation:
 
     def test_non_zero_without_stderr(self, transport, streaming, caps):
         transport._responses = {"docker container inspect --format json ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         with pytest.raises(ContainerRuntimeError):
             mgr.inspect("ctr1")
 
     def test_not_found_error_for_stop(self, transport, streaming, caps):
         transport._responses = {"docker stop -t 10 ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         with pytest.raises(ContainerNotFoundError, match="ctr1"):
             mgr.stop("ctr1")
 
     def test_not_found_error_for_remove(self, transport, streaming, caps):
         transport._responses = {"docker rm ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         with pytest.raises(ContainerNotFoundError, match="ctr1"):
             mgr.remove("ctr1")
 

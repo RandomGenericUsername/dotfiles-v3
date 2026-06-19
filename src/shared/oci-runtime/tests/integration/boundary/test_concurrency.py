@@ -10,7 +10,7 @@ from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import ExecResult
 from tests.helpers.mock_parsers import MockContainerParser
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 INSPECT_JSON = b'[{"Id":"abc123","Name":"/c1","Config":{"Image":"alpine"},"State":{"Status":"running","ExitCode":0,"Running":true},"Created":"2024-01-01T00:00:00Z","HostConfig":{},"NetworkSettings":{"Ports":{}}}]'
@@ -36,7 +36,7 @@ class TestConcurrency:
         })
         caps = RuntimeCapabilities()
         parser = MockContainerParser()
-        mgr = CliContainerManager(t, parser, caps, streaming=st)
+        mgr = CliContainerManager(t, parser, caps, streaming=st, tty_detector=FakeTtyDetector())
         n = 30
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
             results = list(ex.map(lambda _: mgr.inspect("ctr1"), range(n)))

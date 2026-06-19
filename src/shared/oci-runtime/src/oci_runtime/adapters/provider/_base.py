@@ -2,6 +2,7 @@ from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
+from oci_runtime.adapters.tty import StdoutTtyDetector
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -41,6 +42,7 @@ class BaseCliRuntimeProvider(RuntimeProvider):
             image_manager=CliImageManager(transport, parsers.image_parser, caps),
             container_manager=CliContainerManager(
                 transport, parsers.container_parser, caps, streaming=streaming_transport,
+                tty_detector=StdoutTtyDetector(),
             ),
             volume_manager=CliVolumeManager(transport, parsers.volume_parser, caps),
             network_manager=CliNetworkManager(transport, parsers.network_parser, caps),

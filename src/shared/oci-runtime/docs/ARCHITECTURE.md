@@ -192,3 +192,17 @@ class NerdctlRuntimeProvider(BaseCliRuntimeProvider):
 ```
 
 Register it in `factory.py:_default_providers()`.
+
+## Remediation Log
+
+Changes applied from `docs/REMEDIATION_PLAN.md`:
+
+| Date | ID | Change |
+|------|----|--------|
+| 2026-06-17 | 0.1 | `parse_size_to_bytes()` now raises `ValueError` on unknown units instead of silently returning 0 |
+| 2026-06-17 | 0.2 | All four manager `list()` methods now call `_check_result()` before parsing — CLI errors map to domain exceptions instead of `ParsingError` |
+| 2026-06-17 | 0.3 | Verified `create()` methods already had `_check_result()` — no change needed |
+| 2026-06-17 | 1.10 | `CliStreamingTransport.stream()` uses `is not None` sentinel for `input_data` on both stdin pipe creation and write/close — consistent with `CliTransport.execute()` semantics |
+| 2026-06-17 | 3.6 | `FailingTransport` removed; contract tests now use `RecordingTransport` with specific error responses |
+| 2026-06-17 | 1.1+2.2 | TTY detection extracted behind `TtyDetector` ABC port (`ports/tty.py`) with `StdoutTtyDetector` adapter (`adapters/tty.py`). `CliContainerManager` requires `tty_detector: TtyDetector` (no default, no `sys` refs). `FakeTtyDetector` in tests. `_resolve_tty()` result cached once in `run()`. Wired in `_base.py`. |
+| 2026-06-17 | 1.4 | Removed unused `ContainerNotFoundError` from `domain/__init__.py` and unused `Enum` from `domain/enums.py` — `ruff check` now passes with zero errors. |

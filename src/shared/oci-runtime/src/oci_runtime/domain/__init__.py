@@ -1,7 +1,6 @@
 from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, RuntimeKind
 from oci_runtime.domain.exceptions import (
     ContainerError,
-    ContainerNotFoundError,
     ContainerRuntimeError,
     ImageError,
     ImageNotFoundError,

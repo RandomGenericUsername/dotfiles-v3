@@ -1,7 +1,6 @@
 from queue import Queue
 from threading import Thread
 from typing import Iterator
-import sys
 
 from oci_runtime.adapters.managers.pty import run_pty
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy
@@ -17,20 +16,23 @@ from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
+from oci_runtime.ports.tty import TtyDetector
 from oci_runtime.adapters.managers.base import CliBaseManager
 
 
 class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
-    def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, streaming: StreamingTransport):
+    def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, streaming: StreamingTransport, tty_detector: TtyDetector):
         super().__init__(transport, parser, caps)
         self._streaming = streaming
+        self._tty_detector = tty_detector
 
-    @staticmethod
-    def _resolve_tty(config: RunConfig) -> bool:
-        return config.tty or (config.auto_tty and sys.stdout.isatty())
+    def _resolve_tty(self, config: RunConfig) -> bool:
+        return config.tty or (config.auto_tty and self._tty_detector.is_tty())
 
     def run(self, config: RunConfig) -> str:
-        if config.detach and self._resolve_tty(config):
+        effective_tty = self._resolve_tty(config)
+
+        if config.detach and effective_tty:
             raise ContainerRuntimeError(
                 "detach=True and tty/auto_tty are mutually exclusive: "
                 "a detached container has no terminal to attach a PTY to",
@@ -45,7 +47,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.append("--rm")
         if config.name:
             cmd.extend(["--name", config.name])
-        if self._resolve_tty(config):
+        if effective_tty:
             cmd.append("-t")
         if config.stdin_open:
             cmd.append("-i")
@@ -110,7 +112,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         if config.command:
             cmd.extend(config.command)
 
-        if self._resolve_tty(config):
+        if effective_tty:
             result = run_pty(cmd)
             if result.returncode != 0:
                 raise ContainerRuntimeError(
@@ -172,6 +174,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             for key, val in filters.items():
                 cmd.extend(["--filter", f"{key}={val}"])
         result = self._transport.execute(cmd)
+        self._check_result(result, cmd, operation="list containers", entity="", not_found=ContainerNotFoundError)
         return self._parser.parse_list(self._decode_stdout(result.stdout))
 
     def logs(self, container: str, follow: bool = False, tail: int | None = None) -> Iterator[str]:

@@ -32,13 +32,13 @@ class CliStreamingTransport(StreamingTransport):
         try:
             process = subprocess.Popen(
                 command,
-                stdin=subprocess.PIPE if input_data else None,
+                stdin=subprocess.PIPE if input_data is not None else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 bufsize=0,
             )
 
-            if input_data:
+            if input_data is not None:
                 def _write_stdin() -> None:
                     process.stdin.write(input_data)
                     process.stdin.close()

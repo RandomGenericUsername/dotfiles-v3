@@ -17,4 +17,6 @@ def parse_size_to_bytes(size_str: str) -> int:
     if not match:
         raise ValueError(f"Cannot parse size string: {size_str!r}")
     number, unit = match.groups()
-    return int(float(number) * units.get(unit, 0))
+    if unit not in units:
+        raise ValueError(f"Unknown size unit: {unit!r} in {size_str!r}")
+    return int(float(number) * units[unit])

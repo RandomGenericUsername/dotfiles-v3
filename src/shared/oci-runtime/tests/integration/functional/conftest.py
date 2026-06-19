@@ -14,7 +14,7 @@ from tests.helpers.mock_parsers import (
     MockNetworkParser,
     MockVolumeParser,
 )
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def docker_engine(empty_transport, empty_streaming, docker_caps, docker_parsers)
     return CliRuntime(
         transport=empty_transport,
         image_manager=CliImageManager(empty_transport, ip, docker_caps),
-        container_manager=CliContainerManager(empty_transport, cp, docker_caps, streaming=empty_streaming),
+        container_manager=CliContainerManager(empty_transport, cp, docker_caps, streaming=empty_streaming, tty_detector=FakeTtyDetector()),
         volume_manager=CliVolumeManager(empty_transport, vp, docker_caps),
         network_manager=CliNetworkManager(empty_transport, np, docker_caps),
         caps=docker_caps,

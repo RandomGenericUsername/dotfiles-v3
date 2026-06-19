@@ -46,7 +46,7 @@ from oci_runtime.domain.types import ExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.factory import RuntimeFactory
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 class TestTransportContract:
@@ -228,7 +228,7 @@ class TestContainerManagerContract:
         streaming = RecordingStreamingTransport("docker")
         caps = RuntimeCapabilities()
         from oci_runtime.adapters.parser.docker import DockerContainerParser
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming)
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         assert isinstance(mgr, ContainerManager)
         assert callable(mgr.run)
         assert callable(mgr.start)

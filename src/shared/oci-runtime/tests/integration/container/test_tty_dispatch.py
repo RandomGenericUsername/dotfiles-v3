@@ -11,6 +11,7 @@ from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import ExecResult
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.streaming import StreamingTransport
+from tests.helpers.mock_transport import FakeTtyDetector
 
 
 class _MockParser(ContainerParser):
@@ -38,7 +39,7 @@ def manager(transport):
     parser = _MockParser()
     streaming = MagicMock(spec=StreamingTransport)
     streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
-    return CliContainerManager(transport, parser, caps, streaming=streaming)
+    return CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector())
 
 
 class TestTtyDispatch:
@@ -66,16 +67,18 @@ class TestTtyDispatch:
     @patch("oci_runtime.adapters.managers.container.run_pty")
     def test_auto_tty_true_with_isatty_calls_execute_pty(self, mock_run_pty, manager, transport):
         mock_run_pty.return_value.returncode = 0
-        with patch("sys.stdout.isatty", return_value=True):
-            config = RunConfig(image="alpine", command=["bash"], auto_tty=True, detach=False)
-            result = manager.run(config)
+        tty_detector = FakeTtyDetector(is_tty=True)
+        mgr = CliContainerManager(transport, _MockParser(), RuntimeCapabilities(), streaming=manager._streaming, tty_detector=tty_detector)
+        config = RunConfig(image="alpine", command=["bash"], auto_tty=True, detach=False)
+        result = mgr.run(config)
         mock_run_pty.assert_called_once()
         assert result == ""
 
     def test_auto_tty_true_without_isatty_calls_streaming(self, manager, transport):
-        with patch("sys.stdout.isatty", return_value=False):
-            config = RunConfig(image="alpine", command=["echo", "hi"], auto_tty=True, detach=True)
-            result = manager.run(config)
+        tty_detector = FakeTtyDetector(is_tty=False)
+        mgr = CliContainerManager(transport, _MockParser(), RuntimeCapabilities(), streaming=manager._streaming, tty_detector=tty_detector)
+        config = RunConfig(image="alpine", command=["echo", "hi"], auto_tty=True, detach=True)
+        result = mgr.run(config)
         manager._streaming.stream.assert_called_once()
         assert result == "abc123"
 
@@ -98,7 +101,7 @@ class TestTtyReturnContract:
         streaming.stream.return_value = ExecResult(returncode=0, stdout=b"", stderr=b"")
         caps = RuntimeCapabilities()
         parser = _MockParser()
-        mgr = CliContainerManager(transport, parser, caps, streaming=streaming)
+        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector())
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
         result = mgr.run(config)
         assert result == ""
@@ -118,7 +121,7 @@ class TestTtyEdgeCases:
         parser = _MockParser()
         streaming = MagicMock(spec=StreamingTransport)
         streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
-        m = CliContainerManager(transport, parser, caps, streaming=streaming)
+        m = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector())
         mock_run_pty.return_value.returncode = 0
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         m.run(config)
