@@ -173,6 +173,11 @@ class CancellationToken(ABC):
     This is a **port** — a pure interface with no implementation.
     Concrete adapters (e.g. ``ThreadCancellationToken``) provide
     the actual thread-safe wiring.
+
+    Note: Under CPython, a plain ``bool`` flag would appear atomic
+    due to the GIL, but **this is not guaranteed** in free-threaded
+    Python (PEP 703).  Always use a ``threading.Event``-based adapter
+    like ``ThreadCancellationToken`` for cross-thread cancellation.
     """
 
     @abstractmethod

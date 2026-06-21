@@ -13,6 +13,13 @@ class RecordedCall:
 
 
 class RecordingTransport(Transport):
+    """Mock transport that records calls and returns canned responses.
+
+    Note: ``self.calls`` is a plain ``list``, not a thread-safe data
+    structure.  For concurrent test scenarios, wrap access to
+    ``self.calls`` with a ``threading.Lock`` or use a ``queue.Queue``.
+    """
+
     def __init__(self, binary: str = "docker", responses: dict[tuple[str, ...], RawExecResult] | None = None):
         self._binary = binary
         self._responses = responses or {}
