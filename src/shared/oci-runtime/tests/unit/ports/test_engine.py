@@ -3,12 +3,6 @@ from abc import ABC
 import pytest
 
 from oci_runtime.ports.engine import ContainerEngine
-from oci_runtime.ports.managers import (
-    ContainerManager,
-    ImageManager,
-    NetworkManager,
-    VolumeManager,
-)
 
 
 class TestContainerEngine:

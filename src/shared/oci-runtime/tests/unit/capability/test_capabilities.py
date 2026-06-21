@@ -1,11 +1,8 @@
 import pytest
 
-from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.domain.types import ExecResult
-from tests.helpers.mock_transport import RecordingTransport
 
 
 from dataclasses import FrozenInstanceError

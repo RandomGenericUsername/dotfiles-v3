@@ -5,7 +5,7 @@ import pytest
 
 from oci_runtime.adapters.transport.cli import CliTransport
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 
 
 class TestCliTransport:
@@ -24,7 +24,7 @@ class TestCliTransport:
             timeout=None,
             input=None,
         )
-        assert isinstance(result, ExecResult)
+        assert isinstance(result, RawExecResult)
         assert result.returncode == 0
         assert result.stdout == b"ok\n"
         assert result.stderr == b""

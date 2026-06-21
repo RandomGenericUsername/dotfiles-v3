@@ -2,7 +2,7 @@ import shutil
 import subprocess
 
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 
 
@@ -20,7 +20,7 @@ class CliTransport(Transport):
         *,
         timeout: int | None = None,
         input_data: bytes | None = None,
-    ) -> ExecResult:
+    ) -> RawExecResult:
         self._ensure_binary()
 
         try:
@@ -30,7 +30,7 @@ class CliTransport(Transport):
                 timeout=timeout,
                 input=input_data,
             )
-            return ExecResult(
+            return RawExecResult(
                 returncode=result.returncode,
                 stdout=result.stdout,
                 stderr=result.stderr,

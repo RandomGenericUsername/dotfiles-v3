@@ -5,10 +5,10 @@ from oci_runtime.domain.types import NetworkInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import NetworkManager
 from oci_runtime.ports.parsers import NetworkParser
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockNetworkParser
-from tests.helpers.mock_transport import FailingTransport, RecordingTransport
+from tests.helpers.mock_transport import RecordingTransport
 
 
 class NetworkManagerContractTest(ABC):
@@ -22,7 +22,10 @@ class NetworkManagerContractTest(ABC):
         return self.make_manager(t, MockNetworkParser(), caps), t
 
     def _failing(self, stderr="No such network: nonexistent"):
-        t = FailingTransport("docker", stderr=stderr)
+        cmd = ('docker', 'network', 'inspect', '--format', 'json', 'nonexistent')
+        t = RecordingTransport("docker", responses={
+            cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
+        })
         return self.make_manager(t, MockNetworkParser(), RuntimeCapabilities()), t
 
     def test_base_is_abstract(self):
@@ -30,49 +33,49 @@ class NetworkManagerContractTest(ABC):
 
     def test_create_returns_str(self):
         mgr, t = self._defaults()
-        t._responses["docker network create --driver bridge mynet"] = ExecResult(0, b"mynet\n", b"")
+        t._responses[("docker", "network", "create", "--driver", "bridge", "mynet")] = RawExecResult(0, b"mynet\n", b"")
         result = mgr.create("mynet")
         assert isinstance(result, str)
 
     def test_remove_returns_none(self):
         mgr, t = self._defaults()
-        t._responses["docker network rm mynet"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "network", "rm", "mynet")] = RawExecResult(0, b"", b"")
         result = mgr.remove("mynet")
         assert result is None
 
     def test_connect_returns_none(self):
         mgr, t = self._defaults()
-        t._responses["docker network connect mynet c1"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "network", "connect", "mynet", "c1")] = RawExecResult(0, b"", b"")
         result = mgr.connect("mynet", "c1")
         assert result is None
 
     def test_disconnect_returns_none(self):
         mgr, t = self._defaults()
-        t._responses["docker network disconnect mynet c1"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "network", "disconnect", "mynet", "c1")] = RawExecResult(0, b"", b"")
         result = mgr.disconnect("mynet", "c1")
         assert result is None
 
     def test_exists_returns_bool(self):
         mgr, t = self._defaults()
-        t._responses["docker network inspect --format json mynet"] = ExecResult(0, b'dummy', b"")
+        t._responses[("docker", "network", "inspect", "--format", "json", "mynet")] = RawExecResult(0, b'dummy', b"")
         result = mgr.exists("mynet")
         assert isinstance(result, bool)
 
     def test_inspect_returns_network_info(self):
         mgr, t = self._defaults()
-        t._responses["docker network inspect --format json mynet"] = ExecResult(0, b"dummy", b"")
+        t._responses[("docker", "network", "inspect", "--format", "json", "mynet")] = RawExecResult(0, b"dummy", b"")
         result = mgr.inspect("mynet")
         assert isinstance(result, NetworkInfo)
 
     def test_list_returns_list(self):
         mgr, t = self._defaults()
-        t._responses["docker network list"] = ExecResult(0, b"dummy", b"")
+        t._responses[("docker", "network", "list")] = RawExecResult(0, b"dummy", b"")
         result = mgr.list()
         assert isinstance(result, list)
 
     def test_prune_returns_dict(self):
         mgr, t = self._defaults()
-        t._responses["docker network prune --force"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "network", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()
         assert isinstance(result, dict)
 

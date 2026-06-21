@@ -7,7 +7,6 @@ import pytest
 from oci_runtime.adapters._process_reader import ProcessPipeReader
 from oci_runtime.adapters.transport.streaming import CliStreamingTransport
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.domain.types import ExecResult
 
 
 class _MockSelectorKey:
@@ -262,7 +261,7 @@ class TestCliStreamingTransport:
 
     def test_stream_cancellation_returns_partial(self):
         """When cancelled, stream returns partial data with returncode=-1."""
-        from oci_runtime.domain.types import CancellationToken
+        from oci_runtime.adapters._cancellation import ThreadCancellationToken
         s = CliStreamingTransport("docker")
 
         mock_stdout = MagicMock()
@@ -277,7 +276,7 @@ class TestCliStreamingTransport:
         process.wait = MagicMock(return_value=0)
 
         selector = _MockSelector()
-        token = CancellationToken()
+        token = ThreadCancellationToken()
         token.cancel()
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),

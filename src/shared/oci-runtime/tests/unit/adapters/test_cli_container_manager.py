@@ -1,14 +1,14 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.domain.enums import NetworkMode
 from oci_runtime.domain.exceptions import ContainerRuntimeError, ImageNotFoundError
-from oci_runtime.domain.types import ContainerInfo, PortMapping, RunConfig, VolumeMount
+from oci_runtime.domain.types import ContainerInfo, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_transport import FakeTtyDetector
@@ -29,9 +29,9 @@ class TestCliContainerManager:
     def setup_method(self):
         self.transport = MagicMock(spec=Transport)
         self.transport.binary = "docker"
-        self.transport.execute.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+        self.transport.execute.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
         self.streaming = MagicMock(spec=StreamingTransport)
-        self.streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+        self.streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
         self.parser = _MockParser()
         self.caps = RuntimeCapabilities()
         self.manager = CliContainerManager(self.transport, self.parser, self.caps, streaming=self.streaming, tty_detector=FakeTtyDetector())
@@ -60,7 +60,7 @@ class TestCliContainerManager:
     def test_check_result_raises_not_found(self):
         with pytest.raises(ImageNotFoundError, match="my-image"):
             self.manager._check_result(
-                ExecResult(returncode=1, stdout=b"", stderr=b"No such container: x"),
+                RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: x"),
                 cmd=["docker", "run", "my-image"],
                 entity="my-image",
                 not_found=ImageNotFoundError,
@@ -70,7 +70,7 @@ class TestCliContainerManager:
         with pytest.raises(AttributeError, match="is_not_found_error"):
             manager = CliContainerManager(self.transport, object(), self.caps, streaming=self.streaming, tty_detector=FakeTtyDetector())
             manager._check_result(
-                ExecResult(returncode=1, stdout=b"", stderr=b"any error"),
+                RawExecResult(returncode=1, stdout=b"", stderr=b"any error"),
                 cmd=["docker", "run", "x"],
                 entity="x",
                 not_found=ImageNotFoundError,

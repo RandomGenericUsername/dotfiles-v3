@@ -2,7 +2,7 @@ from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
     BuildContext,
     ContainerInfo,
-    ExecOutput,
+    ExecResult,
     ImageInfo,
     NetworkInfo,
     PortMapping,
@@ -17,7 +17,7 @@ __all__ = [
     "BuildContext",
     "ContainerInfo",
     "ContainerState",
-    "ExecOutput",
+    "ExecResult",
     "ImageInfo",
     "NetworkInfo",
     "PortMapping",

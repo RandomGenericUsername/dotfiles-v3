@@ -1,3 +1,4 @@
+from oci_runtime.adapters.output_stream import StdoutBufferStream
 from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.adapters.managers.network import CliNetworkManager
@@ -43,6 +44,7 @@ class BaseCliRuntimeProvider(RuntimeProvider):
             container_manager=CliContainerManager(
                 transport, parsers.container_parser, caps, streaming=streaming_transport,
                 tty_detector=StdoutTtyDetector(),
+                output_stream=StdoutBufferStream(),
             ),
             volume_manager=CliVolumeManager(transport, parsers.volume_parser, caps),
             network_manager=CliNetworkManager(transport, parsers.network_parser, caps),

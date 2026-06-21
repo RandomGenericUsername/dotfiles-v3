@@ -4,7 +4,7 @@ from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.types import VolumeInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import VolumeParser
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 
 
@@ -23,7 +23,7 @@ class TestCliVolumeManager:
     def setup_method(self):
         self.transport = MagicMock(spec=Transport)
         self.transport.get_runtime_binary.return_value = "docker"
-        self.transport.execute.return_value = ExecResult(returncode=0, stdout=b"test-volume", stderr=b"")
+        self.transport.execute.return_value = RawExecResult(returncode=0, stdout=b"test-volume", stderr=b"")
         self.parser = _MockParser()
         self.caps = RuntimeCapabilities()
         self.manager = CliVolumeManager(self.transport, self.parser, self.caps)

@@ -1,4 +1,4 @@
-from dataclasses import is_dataclass, fields, field
+from dataclasses import is_dataclass
 
 import pytest
 from dataclasses import FrozenInstanceError

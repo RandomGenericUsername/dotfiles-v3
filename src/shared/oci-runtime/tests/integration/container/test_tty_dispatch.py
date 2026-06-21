@@ -8,7 +8,7 @@ from oci_runtime.domain.exceptions import ContainerRuntimeError
 from oci_runtime.domain.types import RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.streaming import StreamingTransport
 from tests.helpers.mock_transport import FakeTtyDetector
@@ -28,7 +28,7 @@ class _MockParser(ContainerParser):
 @pytest.fixture
 def transport():
     t = MagicMock(spec=Transport)
-    t.execute.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+    t.execute.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
     t.get_runtime_binary.return_value = "docker"
     return t
 
@@ -38,7 +38,7 @@ def manager(transport):
     caps = RuntimeCapabilities()
     parser = _MockParser()
     streaming = MagicMock(spec=StreamingTransport)
-    streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+    streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
     return CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector())
 
 
@@ -49,7 +49,8 @@ class TestTtyDispatch:
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         result = manager.run(config)
         mock_run_pty.assert_called_once_with(
-            ["docker", "run", "-t", "alpine", "bash"]
+            ["docker", "run", "-t", "alpine", "bash"],
+            output_stream=None,
         )
         assert result == ""
 
@@ -98,7 +99,7 @@ class TestTtyReturnContract:
 
     def test_stream_output_returns_empty(self, manager, transport):
         streaming = MagicMock(spec=StreamingTransport)
-        streaming.stream.return_value = ExecResult(returncode=0, stdout=b"", stderr=b"")
+        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"", stderr=b"")
         caps = RuntimeCapabilities()
         parser = _MockParser()
         mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector())
@@ -120,11 +121,12 @@ class TestTtyEdgeCases:
         caps = RuntimeCapabilities(default_run_flags=["--userns=keep-id"])
         parser = _MockParser()
         streaming = MagicMock(spec=StreamingTransport)
-        streaming.stream.return_value = ExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
         m = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector())
         mock_run_pty.return_value.returncode = 0
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         m.run(config)
         mock_run_pty.assert_called_once_with(
-            ["docker", "run", "--userns=keep-id", "-t", "alpine", "bash"]
+            ["docker", "run", "--userns=keep-id", "-t", "alpine", "bash"],
+            output_stream=None,
         )

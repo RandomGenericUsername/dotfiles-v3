@@ -1,16 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Iterator
 
-from oci_runtime.domain.enums import ContainerState
-from oci_runtime.domain.exceptions import ContainerNotFoundError, ImageNotFoundError
-from oci_runtime.domain.types import ContainerInfo, ExecOutput, PortMapping, RunConfig, VolumeMount
+from oci_runtime.domain.exceptions import ContainerNotFoundError
+from oci_runtime.domain.types import ContainerInfo, ExecResult, RawExecResult, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
-from oci_runtime.domain.types import ExecResult
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockContainerParser
-from tests.helpers.mock_transport import FailingTransport, RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
 class ContainerManagerContractTest(ABC):
@@ -25,7 +23,10 @@ class ContainerManagerContractTest(ABC):
         return self.make_manager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector()), t, st
 
     def _failing(self, stderr="No such container: nonexistent"):
-        t = FailingTransport("docker", stderr=stderr)
+        cmd = ("docker", "container", "inspect", "--format", "json", "nonexistent")
+        t = RecordingTransport("docker", responses={
+            cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
+        })
         st = RecordingStreamingTransport("docker")
         return self.make_manager(t, MockContainerParser(), RuntimeCapabilities(), streaming=st, tty_detector=FakeTtyDetector()), t
 
@@ -40,70 +41,70 @@ class ContainerManagerContractTest(ABC):
 
     def test_run_returns_str(self):
         mgr, t, st = self._defaults()
-        st._responses["docker run"] = ExecResult(0, b"abc\n", b"")
+        st._responses[("docker", "run")] = RawExecResult(0, b"abc\n", b"")
         result = mgr.run(RunConfig(image="alpine"))
         assert isinstance(result, str)
 
     def test_start_returns_none(self):
         mgr, t, st = self._defaults()
-        t._responses["docker start c1"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "start", "c1")] = RawExecResult(0, b"", b"")
         result = mgr.start("c1")
         assert result is None
 
     def test_stop_returns_none(self):
         mgr, t, st = self._defaults()
-        t._responses["docker stop -t 10 c1"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "stop", "-t", "10", "c1")] = RawExecResult(0, b"", b"")
         result = mgr.stop("c1")
         assert result is None
 
     def test_restart_returns_none(self):
         mgr, t, st = self._defaults()
-        t._responses["docker restart -t 10 c1"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "restart", "-t", "10", "c1")] = RawExecResult(0, b"", b"")
         result = mgr.restart("c1")
         assert result is None
 
     def test_remove_returns_none(self):
         mgr, t, st = self._defaults()
-        t._responses["docker rm c1"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "rm", "c1")] = RawExecResult(0, b"", b"")
         result = mgr.remove("c1")
         assert result is None
 
     def test_exists_returns_bool(self):
         mgr, t, st = self._defaults()
-        t._responses["docker container inspect --format json c1"] = ExecResult(0, b'{"Id":"abc"}', b"")
+        t._responses[("docker", "container", "inspect", "--format", "json", "c1")] = RawExecResult(0, b'{"Id":"abc"}', b"")
         result = mgr.exists("c1")
         assert isinstance(result, bool)
 
     def test_inspect_returns_container_info(self):
         mgr, t, st = self._defaults()
-        t._responses["docker container inspect --format json c1"] = ExecResult(0, b"dummy", b"")
+        t._responses[("docker", "container", "inspect", "--format", "json", "c1")] = RawExecResult(0, b"dummy", b"")
         result = mgr.inspect("c1")
         assert isinstance(result, ContainerInfo)
 
     def test_list_returns_list(self):
         mgr, t, st = self._defaults()
-        t._responses["docker container list"] = ExecResult(0, b"dummy", b"")
+        t._responses[("docker", "container", "list")] = RawExecResult(0, b"dummy", b"")
         result = mgr.list()
         assert isinstance(result, list)
 
     def test_logs_returns_iterator(self):
         mgr, t, st = self._defaults()
-        t._responses["docker logs c1"] = ExecResult(0, b"log output\n", b"")
+        t._responses[("docker", "logs", "c1")] = RawExecResult(0, b"log output\n", b"")
         result = mgr.logs("c1")
         assert isinstance(result, Iterator)
 
     def test_exec_container_returns_exec_output(self):
         mgr, t, st = self._defaults()
-        t._responses["docker exec c1 ls"] = ExecResult(0, b"file1\n", b"")
+        t._responses[("docker", "exec", "c1", "ls")] = RawExecResult(0, b"file1\n", b"")
         result = mgr.exec_container("c1", ["ls"])
-        assert isinstance(result, ExecOutput)
+        assert isinstance(result, ExecResult)
         assert result.returncode == 0
         assert result.stdout == "file1\n"
         assert result.stderr == ""
 
     def test_prune_returns_dict(self):
         mgr, t, st = self._defaults()
-        t._responses["docker container prune --force"] = ExecResult(0, b"", b"")
+        t._responses[("docker", "container", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()
         assert isinstance(result, dict)
 
@@ -117,7 +118,7 @@ class ContainerManagerContractTest(ABC):
 
     def test_run_delegates_to_streaming(self):
         mgr, t, st = self._defaults()
-        st._responses["docker run"] = ExecResult(0, b"abc\n", b"")
+        st._responses[("docker", "run")] = RawExecResult(0, b"abc\n", b"")
         mgr.run(RunConfig(image="alpine"))
         assert len(st.calls) > 0
 

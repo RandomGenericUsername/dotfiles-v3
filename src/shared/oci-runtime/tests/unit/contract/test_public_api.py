@@ -1,4 +1,3 @@
-import pytest
 
 from oci_runtime import (
     BuildContext,

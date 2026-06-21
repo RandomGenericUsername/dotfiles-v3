@@ -4,10 +4,8 @@ import pytest
 
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.ports.capabilities import RuntimeCapabilities
 
 
 def test_global_registry_no_longer_exists():
@@ -38,7 +36,7 @@ class TestRuntimeFactoryCreate:
         runtime = RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman"))
         assert isinstance(runtime, CliRuntime)
 
-    def test_bogus_raises_runtime_not_available(self):
+    def test_create_does_not_probe(self):
         bogus = RuntimePreference(kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz")
-        with pytest.raises(RuntimeNotAvailableError):
-            RuntimeFactory().create(bogus)
+        engine = RuntimeFactory().create(bogus)
+        assert engine.is_available() is False

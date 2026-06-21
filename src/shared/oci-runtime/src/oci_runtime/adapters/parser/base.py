@@ -2,6 +2,7 @@ import json
 import re
 
 from oci_runtime.adapters._utils import parse_size_to_bytes
+from oci_runtime.domain.types import PruneResult
 from oci_runtime.ports.parsers import ParsingError
 
 
@@ -51,9 +52,12 @@ class BaseCliParser:
 
     def is_not_found_error(self, stderr: str) -> bool:
         lower = stderr.lower()
-        return any(p in lower for p in self._not_found_patterns)
+        return any(
+            re.search(rf'\b{re.escape(p)}\b', lower)
+            for p in self._not_found_patterns
+        )
 
-    def parse_prune(self, raw: str) -> dict[str, int]:
+    def parse_prune(self, raw: str) -> PruneResult:
         deleted_count = 0
         reclaimed_bytes = 0
 
@@ -64,7 +68,4 @@ class BaseCliParser:
         if space_match:
             reclaimed_bytes = parse_size_to_bytes(space_match.group(1))
 
-        return {
-            "deleted": deleted_count,
-            "reclaimed_bytes": reclaimed_bytes
-        }
+        return PruneResult(deleted=deleted_count, reclaimed_bytes=reclaimed_bytes)

@@ -11,7 +11,7 @@ from oci_runtime.ports.managers import (
     NetworkManager,
     VolumeManager,
 )
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_transport import RecordingTransport
 
 
@@ -44,7 +44,7 @@ def make_runtime(transport, caps, managers):
 class TestEngineIsAvailable:
     def test_is_available_true_when_probe_succeeds(self, caps, mock_managers):
         transport = RecordingTransport("docker", {
-            "docker --version": ExecResult(returncode=0, stdout=b"Docker 24.0.0", stderr=b""),
+            ("docker", "--version"): RawExecResult(returncode=0, stdout=b"Docker 24.0.0", stderr=b""),
         })
         runtime = make_runtime(transport, caps, mock_managers)
         assert runtime.is_available() is True
@@ -57,7 +57,7 @@ class TestEngineIsAvailable:
 
     def test_is_available_delegates_to_probe(self, caps, mock_managers):
         transport = RecordingTransport("docker", {
-            "docker --version": ExecResult(returncode=0, stdout=b"Docker 24.0.0", stderr=b""),
+            ("docker", "--version"): RawExecResult(returncode=0, stdout=b"Docker 24.0.0", stderr=b""),
         })
         runtime = make_runtime(transport, caps, mock_managers)
         result = runtime.is_available()
@@ -67,14 +67,14 @@ class TestEngineIsAvailable:
 class TestEngineVersion:
     def test_version_returns_parsed_string(self, caps, mock_managers):
         transport = RecordingTransport("docker", {
-            "docker --version": ExecResult(returncode=0, stdout=b"Docker version 24.0.0\n", stderr=b""),
+            ("docker", "--version"): RawExecResult(returncode=0, stdout=b"Docker version 24.0.0\n", stderr=b""),
         })
         runtime = make_runtime(transport, caps, mock_managers)
         assert runtime.version() == "Docker version 24.0.0"
 
     def test_version_raises_on_nonzero(self, caps, mock_managers):
         transport = RecordingTransport("docker", {
-            "docker --version": ExecResult(returncode=1, stdout=b"", stderr=b""),
+            ("docker", "--version"): RawExecResult(returncode=1, stdout=b"", stderr=b""),
         })
         runtime = make_runtime(transport, caps, mock_managers)
         with pytest.raises(RuntimeNotAvailableError):

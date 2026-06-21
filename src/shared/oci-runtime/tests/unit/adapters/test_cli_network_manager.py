@@ -4,7 +4,7 @@ from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.domain.types import NetworkInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import NetworkParser
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 
 
@@ -24,7 +24,7 @@ class TestCliNetworkManager:
     def setup_method(self):
         self.transport = MagicMock(spec=Transport)
         self.transport.get_runtime_binary.return_value = "docker"
-        self.transport.execute.return_value = ExecResult(returncode=0, stdout=b"test-network", stderr=b"")
+        self.transport.execute.return_value = RawExecResult(returncode=0, stdout=b"test-network", stderr=b"")
         self.parser = _MockParser()
         self.caps = RuntimeCapabilities()
         self.manager = CliNetworkManager(self.transport, self.parser, self.caps)

@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 import pytest
 
-from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.adapters.managers.network import CliNetworkManager
@@ -33,13 +32,7 @@ from oci_runtime.domain.types import RunConfig
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.factory import RuntimeFactory
-from oci_runtime.ports.managers import (
-    ContainerManager,
-    ImageManager,
-    NetworkManager,
-    VolumeManager,
-)
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
 
@@ -74,32 +67,36 @@ class TestTransportErrors:
 
 class TestManagerErrorPropagation:
     def test_image_not_found_from_stderr(self, transport, caps):
-        transport._responses = {"docker image inspect --format json alpine": ExecResult(returncode=1, stdout=b"", stderr=b"No such image: alpine")}
+        transport._responses = {("docker", "image", "inspect", "--format", "json", "alpine"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such image: alpine")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
-        with pytest.raises(ImageNotFoundError, match="alpine"):
+        with pytest.raises(ImageNotFoundError) as exc:
             mgr.inspect("alpine")
+        assert "alpine" in exc.value.image_name
 
     def test_container_not_found_from_stderr(self, transport, streaming, caps):
-        transport._responses = {"docker container inspect --format json ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
+        transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
-        with pytest.raises(ContainerNotFoundError, match="ctr1"):
+        with pytest.raises(ContainerNotFoundError) as exc:
             mgr.inspect("ctr1")
+        assert "ctr1" in exc.value.container_id
 
     def test_volume_not_found_from_stderr(self, transport, caps):
-        transport._responses = {"docker volume inspect --format json myvol": ExecResult(returncode=1, stdout=b"", stderr=b"No such volume: myvol")}
+        transport._responses = {("docker", "volume", "inspect", "--format", "json", "myvol"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such volume: myvol")}
         mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
-        with pytest.raises(VolumeNotFoundError, match="myvol"):
+        with pytest.raises(VolumeNotFoundError) as exc:
             mgr.inspect("myvol")
+        assert "myvol" in exc.value.volume_name
 
     def test_network_not_found_from_stderr(self, transport, caps):
-        transport._responses = {"docker network inspect --format json mynet": ExecResult(returncode=1, stdout=b"", stderr=b"No such network: mynet")}
+        transport._responses = {("docker", "network", "inspect", "--format", "json", "mynet"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such network: mynet")}
         mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
-        with pytest.raises(NetworkNotFoundError, match="mynet"):
+        with pytest.raises(NetworkNotFoundError) as exc:
             mgr.inspect("mynet")
+        assert "mynet" in exc.value.network_name
 
     def test_generic_error_raises_container_runtime_error(self, transport, streaming, caps):
-        transport._responses = {"docker run -d alpine": ExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
-        streaming._responses = {"docker run -d alpine": ExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
+        transport._responses = {("docker", "run", "-d", "alpine"): RawExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
+        streaming._responses = {("docker", "run", "-d", "alpine"): RawExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
         config = RunConfig(image="alpine")
         with pytest.raises(ContainerRuntimeError) as exc_info:
@@ -108,22 +105,25 @@ class TestManagerErrorPropagation:
         assert "something went wrong" in exc_info.value.stderr
 
     def test_non_zero_without_stderr(self, transport, streaming, caps):
-        transport._responses = {"docker container inspect --format json ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"")}
+        transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
-        with pytest.raises(ContainerRuntimeError):
+        with pytest.raises(ContainerRuntimeError) as exc:
             mgr.inspect("ctr1")
+        assert exc.value.exit_code == 1
 
     def test_not_found_error_for_stop(self, transport, streaming, caps):
-        transport._responses = {"docker stop -t 10 ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
+        transport._responses = {("docker", "stop", "-t", "10", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
-        with pytest.raises(ContainerNotFoundError, match="ctr1"):
+        with pytest.raises(ContainerNotFoundError) as exc:
             mgr.stop("ctr1")
+        assert "ctr1" in exc.value.container_id
 
     def test_not_found_error_for_remove(self, transport, streaming, caps):
-        transport._responses = {"docker rm ctr1": ExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
+        transport._responses = {("docker", "rm", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
-        with pytest.raises(ContainerNotFoundError, match="ctr1"):
+        with pytest.raises(ContainerNotFoundError) as exc:
             mgr.remove("ctr1")
+        assert "ctr1" in exc.value.container_id
 
 
 class TestParserNotFoundDetection:
@@ -171,17 +171,16 @@ class TestParserNotFoundDetection:
 
 
 class TestFactoryErrorConditions:
-    def test_create_unavailable_engine_raises(self):
+    def test_create_does_not_probe_unavailable(self):
         bogus = RuntimePreference(kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz")
-        with pytest.raises(RuntimeNotAvailableError):
-            RuntimeFactory().create(bogus)
+        engine = RuntimeFactory().create(bogus)
+        assert engine.is_available() is False
 
-    def test_factory_create_wrong_binary_raises(self):
-        with patch("shutil.which", return_value="/usr/bin/which"):
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value.returncode = 1
-                mock_run.return_value.stdout = b""
-                mock_run.return_value.stderr = b""
-                pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="/usr/bin/which")
-                with pytest.raises(RuntimeNotAvailableError):
-                    RuntimeFactory().create(pref)
+    def test_create_engine_with_wrong_binary(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stdout = b""
+            mock_run.return_value.stderr = b""
+            pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="/usr/bin/which")
+            engine = RuntimeFactory().create(pref)
+            assert engine.is_available() is False

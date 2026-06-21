@@ -82,16 +82,16 @@ class TestBaseCliParser:
 
     def test_parse_prune_counts_deleted(self):
         result = self.parser.parse_prune(DOCKER_PRUNE_OUTPUT)
-        assert result["deleted"] == 2
+        assert result.deleted == 2
 
     def test_parse_prune_parses_reclaimed_space(self):
         result = self.parser.parse_prune(DOCKER_PRUNE_OUTPUT)
-        assert result["reclaimed_bytes"] == int(1.5 * 1024**3)
+        assert result.reclaimed_bytes == int(1.5 * 1024**3)
 
     def test_parse_prune_empty(self):
         result = self.parser.parse_prune("")
-        assert result["deleted"] == 0
-        assert result["reclaimed_bytes"] == 0
+        assert result.deleted == 0
+        assert result.reclaimed_bytes == 0
 
 
 class TestParseJsonListNDJSON:

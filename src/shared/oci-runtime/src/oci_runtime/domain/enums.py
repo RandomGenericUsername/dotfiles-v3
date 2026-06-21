@@ -33,3 +33,9 @@ class NetworkMode(StrEnum):
     HOST = "host"
     NONE = "none"
     CONTAINER = "container"
+
+
+class VolumeMountType(StrEnum):
+    BIND = "bind"
+    VOLUME = "volume"
+    TMPFS = "tmpfs"

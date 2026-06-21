@@ -42,7 +42,7 @@ from oci_runtime.ports.parsers import (
     NetworkParser,
     VolumeParser,
 )
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.factory import RuntimeFactory
@@ -94,17 +94,17 @@ class TestTransportContract:
         result = t.execute(["docker", "ps"])
         assert len(t.calls) == 1
         assert t.calls[0].command == ["docker", "ps"]
-        assert isinstance(result, ExecResult)
+        assert isinstance(result, RawExecResult)
 
     def test_exec_result_is_dataclass(self):
-        assert is_dataclass(ExecResult)
+        assert is_dataclass(RawExecResult)
 
     def test_exec_result_has_correct_fields(self):
-        fs = {f.name: f.type for f in fields(ExecResult)}
+        fs = {f.name: f.type for f in fields(RawExecResult)}
         assert fs == {"returncode": int, "stdout": bytes, "stderr": bytes}
 
     def test_exec_result_construct(self):
-        r = ExecResult(returncode=0, stdout=b"out", stderr=b"err")
+        r = RawExecResult(returncode=0, stdout=b"out", stderr=b"err")
         assert r.returncode == 0
         assert r.stdout == b"out"
         assert r.stderr == b"err"
@@ -137,7 +137,7 @@ class TestStreamingTransportContract:
         result = s.stream(["docker", "ps"])
         assert len(s.calls) == 1
         assert s.calls[0].command == ["docker", "ps"]
-        assert isinstance(result, ExecResult)
+        assert isinstance(result, RawExecResult)
 
 
 class TestEngineContract:
@@ -387,7 +387,7 @@ class TestExceptionHierarchyContract:
         assert issubclass(ContainerRuntimeError, ContainerError)
 
     def test_parsing_error_chain(self):
-        assert not issubclass(ParsingError, OciError)
+        assert issubclass(ParsingError, OciError)
         assert not issubclass(ParsingError, ContainerError)
 
     def test_not_found_includes_entity_name(self):

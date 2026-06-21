@@ -1,30 +1,35 @@
 from queue import Queue
 from threading import Thread
-from typing import Iterator
+from typing import Callable, Iterator
 
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
 from oci_runtime.adapters.managers.pty import run_pty
-from oci_runtime.domain.enums import NetworkMode, RestartPolicy
+from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ContainerRuntimeError,
     ImageNotFoundError,
 )
-from oci_runtime.domain.types import CancellationToken, ContainerInfo, ExecOutput, RunConfig
+from oci_runtime.domain.types import CancellationToken, ContainerInfo, ExecResult, PruneResult, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
+from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.tty import TtyDetector
 from oci_runtime.adapters.managers.base import CliBaseManager
 
-
 class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
-    def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, streaming: StreamingTransport, tty_detector: TtyDetector):
+    _not_found_error = ContainerNotFoundError
+
+    def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, streaming: StreamingTransport, tty_detector: TtyDetector, cancellation_factory: Callable[[], CancellationToken] | None = None, output_stream: OutputStream | None = None):
         super().__init__(transport, parser, caps)
         self._streaming = streaming
         self._tty_detector = tty_detector
+        self._cancellation_factory = cancellation_factory or ThreadCancellationToken
+        self._output_stream = output_stream
 
     def _resolve_tty(self, config: RunConfig) -> bool:
         return config.tty or (config.auto_tty and self._tty_detector.is_tty())
@@ -92,10 +97,13 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         for vol in config.volumes:
             src = str(vol.source)
             tgt = str(vol.target)
-            spec = f"{src}:{tgt}"
-            if vol.read_only:
-                spec += ":ro"
-            cmd.extend(["-v", spec])
+            if vol.type == VolumeMountType.TMPFS:
+                cmd.extend(["--mount", f"type=tmpfs,target={tgt}"])
+            else:
+                spec = f"{src}:{tgt}"
+                if vol.read_only:
+                    spec += ":ro"
+                cmd.extend(["-v", spec])
 
         for port in config.ports:
             if port.host_port is not None:
@@ -113,7 +121,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(config.command)
 
         if effective_tty:
-            result = run_pty(cmd)
+            result = run_pty(cmd, output_stream=self._output_stream)
             if result.returncode != 0:
                 raise ContainerRuntimeError(
                     f"Container exited with code {result.returncode}",
@@ -131,17 +139,17 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
     def start(self, container: str) -> None:
         cmd = [self._transport.get_runtime_binary(), "start", container]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="start container", entity=container, not_found=ContainerNotFoundError)
+        self._check_result(result, cmd, operation="start container", entity=container)
 
     def stop(self, container: str, timeout: int = 10) -> None:
         cmd = [self._transport.get_runtime_binary(), "stop", "-t", str(timeout), container]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="stop container", entity=container, not_found=ContainerNotFoundError)
+        self._check_result(result, cmd, operation="stop container", entity=container)
 
     def restart(self, container: str, timeout: int = 10) -> None:
         cmd = [self._transport.get_runtime_binary(), "restart", "-t", str(timeout), container]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="restart container", entity=container, not_found=ContainerNotFoundError)
+        self._check_result(result, cmd, operation="restart container", entity=container)
 
     def remove(self, container: str, force: bool = False, volumes: bool = False) -> None:
         cmd = [self._transport.get_runtime_binary(), "rm", container]
@@ -150,7 +158,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         if volumes:
             cmd.append("-v")
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="remove container", entity=container, not_found=ContainerNotFoundError)
+        self._check_result(result, cmd, operation="remove container", entity=container)
 
     def exists(self, container: str) -> bool:
         try:
@@ -162,7 +170,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
     def inspect(self, container: str) -> ContainerInfo:
         cmd = [self._transport.get_runtime_binary(), "container", "inspect", "--format", "json", container]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="inspect container", entity=container, not_found=ContainerNotFoundError)
+        self._check_result(result, cmd, operation="inspect container", entity=container)
         return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, show_all: bool = False, filters: dict[str, str] | None = None) -> list[ContainerInfo]:
@@ -174,7 +182,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             for key, val in filters.items():
                 cmd.extend(["--filter", f"{key}={val}"])
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="list containers", entity="", not_found=ContainerNotFoundError)
+        self._check_result(result, cmd, operation="list containers", entity="")
         return self._parser.parse_list(self._decode_stdout(result.stdout))
 
     def logs(self, container: str, follow: bool = False, tail: int | None = None) -> Iterator[str]:
@@ -186,11 +194,11 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         if not follow:
             result = self._transport.execute(cmd)
-            self._check_result(result, cmd, operation="get logs", entity=container, not_found=ContainerNotFoundError)
+            self._check_result(result, cmd, operation="get logs", entity=container)
             yield self._decode_stdout(result.stdout)
             return
 
-        cancel_token = CancellationToken()
+        cancel_token = self._cancellation_factory()
         queue: Queue[str | None] = Queue()
         errors: list[BaseException] = []
 
@@ -221,7 +229,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         if errors:
             raise errors[0]
 
-    def exec_container(self, container: str, command: list[str], detach: bool = False, user: str | None = None) -> ExecOutput:
+    def exec_container(self, container: str, command: list[str], detach: bool = False, user: str | None = None) -> ExecResult:
         cmd = [self._transport.get_runtime_binary(), "exec"]
         if detach:
             cmd.append("-d")
@@ -230,14 +238,14 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         cmd.append(container)
         cmd.extend(command)
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="exec in container", entity=container, not_found=ContainerNotFoundError)
-        return ExecOutput(
+        self._check_result(result, cmd, operation="exec in container", entity=container)
+        return ExecResult(
             returncode=result.returncode,
             stdout=self._decode_stdout(result.stdout),
             stderr=self._decode_stdout(result.stderr),
         )
 
-    def prune(self) -> dict[str, int]:
+    def prune(self) -> PruneResult:
         cmd = [self._transport.get_runtime_binary(), "container", "prune", "--force"]
         result = self._transport.execute(cmd)
         return self._parser.parse_prune(self._decode_stdout(result.stdout))

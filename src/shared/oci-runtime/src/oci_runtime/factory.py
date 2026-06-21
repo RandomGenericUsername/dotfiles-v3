@@ -2,7 +2,6 @@ from dataclasses import dataclass, replace
 from typing import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
@@ -96,6 +95,10 @@ class RuntimeFactory:
         """Create the explicitly requested engine or raise immediately.
 
         No fallback. No retry. The user asked for X, they get X or an error.
+
+        Note: This method does NOT probe availability. Callers who need
+        to verify the engine is reachable should call
+        ``engine.is_available()`` themselves after creation.
         """
         binary = preference.binary
         transport = self._cfg.transport_factory(binary)
@@ -110,7 +113,7 @@ class RuntimeFactory:
         caps = provider.capabilities()
         managers = provider.create_managers(transport, streaming_transport, caps)
 
-        runtime = self._cfg.runtime_cls(
+        return self._cfg.runtime_cls(
             transport=transport,
             image_manager=managers.image_manager,
             container_manager=managers.container_manager,
@@ -118,13 +121,6 @@ class RuntimeFactory:
             network_manager=managers.network_manager,
             caps=caps,
         )
-
-        if not runtime.is_available():
-            raise RuntimeNotAvailableError(
-                f"Requested engine '{preference.kind.value}' is not available."
-            )
-
-        return runtime
 
     @property
     def discovery(self) -> RuntimeDiscovery:

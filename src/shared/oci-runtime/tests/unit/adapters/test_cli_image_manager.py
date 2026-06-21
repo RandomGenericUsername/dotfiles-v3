@@ -2,11 +2,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from oci_runtime.adapters.managers.image import CliImageManager
-from oci_runtime.domain.exceptions import ImageNotFoundError
 from oci_runtime.domain.types import BuildContext, ImageInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ImageParser
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 
 
@@ -29,7 +28,7 @@ class TestCliImageManager:
     def setup_method(self):
         self.transport = MagicMock(spec=Transport)
         self.transport.binary = "docker"
-        self.transport.execute.return_value = ExecResult(returncode=0, stdout=b'[{"Id":"sha256:abc"}]', stderr=b"")
+        self.transport.execute.return_value = RawExecResult(returncode=0, stdout=b'[{"Id":"sha256:abc"}]', stderr=b"")
         self.parser = _MockParser()
         self.caps = RuntimeCapabilities()
         self.manager = CliImageManager(self.transport, self.parser, self.caps)
@@ -83,7 +82,7 @@ class TestCliImageManager:
         assert self.manager.exists("alpine") is True
 
     def test_exists_false(self):
-        self.transport.execute.return_value = ExecResult(returncode=1, stdout=b"", stderr=b"No such image: alpine")
+        self.transport.execute.return_value = RawExecResult(returncode=1, stdout=b"", stderr=b"No such image: alpine")
         assert self.manager.exists("nonexistent") is False
 
     def test_create_tar_is_deterministic(self):

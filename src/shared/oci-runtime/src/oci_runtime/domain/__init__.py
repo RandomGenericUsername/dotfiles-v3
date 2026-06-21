@@ -1,4 +1,4 @@
-from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, RuntimeKind
+from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, RuntimeKind, VolumeMountType
 from oci_runtime.domain.exceptions import (
     ContainerError,
     ContainerRuntimeError,
@@ -15,11 +15,12 @@ from oci_runtime.domain.types import (
     BuildContext,
     CancellationToken,
     ContainerInfo,
-    ExecOutput,
     ExecResult,
     ImageInfo,
     NetworkInfo,
     PortMapping,
+    PruneResult,
+    RawExecResult,
     RunConfig,
     RuntimePreference,
     VolumeInfo,
@@ -33,7 +34,6 @@ __all__ = [
     "ContainerInfo",
     "ContainerRuntimeError",
     "ContainerState",
-    "ExecOutput",
     "ExecResult",
     "ImageError",
     "ImageInfo",
@@ -44,6 +44,8 @@ __all__ = [
     "NetworkNotFoundError",
     "OciError",
     "PortMapping",
+    "PruneResult",
+    "RawExecResult",
     "RestartPolicy",
     "RunConfig",
     "RuntimeKind",
@@ -52,5 +54,6 @@ __all__ = [
     "VolumeError",
     "VolumeInfo",
     "VolumeMount",
+    "VolumeMountType",
     "VolumeNotFoundError",
 ]

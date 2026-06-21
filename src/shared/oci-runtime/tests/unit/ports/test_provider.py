@@ -99,7 +99,6 @@ class TestConcreteProviderContract:
         assert isinstance(provider.capabilities(), RuntimeCapabilities)
         assert isinstance(provider.create_parsers(), Parsers)
         from oci_runtime.ports.streaming import StreamingTransport
-        from oci_runtime.ports.transport import Transport
         from unittest.mock import MagicMock
         managers = provider.create_managers(MagicMock(spec=Transport), MagicMock(spec=StreamingTransport), RuntimeCapabilities())
         assert isinstance(managers, Managers)

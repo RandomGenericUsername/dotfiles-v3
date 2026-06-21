@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 
 
 class Transport(ABC):
@@ -11,7 +11,7 @@ class Transport(ABC):
         *,
         timeout: int | None = None,
         input_data: bytes | None = None,
-    ) -> ExecResult: ...
+    ) -> RawExecResult: ...
 
     @abstractmethod
     def get_runtime_binary(self) -> str: ...

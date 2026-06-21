@@ -83,16 +83,22 @@ class DockerImageParser(BaseCliParser, ImageParser):
             size = item.get("Size", 0)
             if isinstance(size, str):
                 try:
-                    size = parse_size_to_bytes(size)
+                    size = int(size)
                 except ValueError:
-                    size = 0
+                    try:
+                        size = parse_size_to_bytes(size)
+                    except ValueError as e:
+                        raise ParsingError(raw=raw, message=f"Cannot parse image size: {size!r}") from e
             if not size:
                 virtual = item.get("VirtualSize", 0)
                 if isinstance(virtual, str):
                     try:
-                        size = parse_size_to_bytes(virtual)
+                        size = int(virtual)
                     except ValueError:
-                        size = 0
+                        try:
+                            size = parse_size_to_bytes(virtual)
+                        except ValueError as e:
+                            raise ParsingError(raw=raw, message=f"Cannot parse image VirtualSize: {virtual!r}") from e
                 else:
                     size = virtual
             labels = item.get("Labels", {})

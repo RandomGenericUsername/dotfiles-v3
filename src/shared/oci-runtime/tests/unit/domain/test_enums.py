@@ -1,6 +1,5 @@
 from enum import Enum, StrEnum
 
-import pytest
 
 from oci_runtime.domain.enums import (
     ContainerState,

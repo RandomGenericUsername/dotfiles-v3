@@ -1,6 +1,5 @@
 import concurrent.futures
 
-import pytest
 
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.adapters.managers.container import CliContainerManager
@@ -8,7 +7,7 @@ from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_parsers import MockContainerParser
 from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
@@ -29,10 +28,10 @@ class TestConcurrency:
 
     def test_concurrent_manager_calls(self):
         t = RecordingTransport("docker", {
-            "docker container inspect --format json ctr1": ExecResult(0, INSPECT_JSON, b""),
+            "docker container inspect --format json ctr1": RawExecResult(0, INSPECT_JSON, b""),
         })
         st = RecordingStreamingTransport("docker", {
-            "docker container inspect --format json ctr1": ExecResult(0, INSPECT_JSON, b""),
+            "docker container inspect --format json ctr1": RawExecResult(0, INSPECT_JSON, b""),
         })
         caps = RuntimeCapabilities()
         parser = MockContainerParser()

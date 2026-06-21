@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable
 
-from oci_runtime.domain.types import CancellationToken, ExecResult
+from oci_runtime.domain.types import CancellationToken, RawExecResult
 
 
 class StreamingTransport(ABC):
@@ -22,9 +22,9 @@ class StreamingTransport(ABC):
         on_stdout: Callable[[bytes], None] | None = None,
         on_stderr: Callable[[bytes], None] | None = None,
         cancel_token: CancellationToken | None = None,
-    ) -> ExecResult:
+    ) -> RawExecResult:
         """Execute command, call callbacks as output arrives.
 
-        Returns ExecResult with accumulated output and exit code.
+        Returns RawExecResult with accumulated output and exit code.
         When cancelled, returns partial data with returncode=-1.
         """

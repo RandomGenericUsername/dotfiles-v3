@@ -3,7 +3,7 @@ from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import (
     ImageNotFoundError,
 )
-from oci_runtime.domain.types import BuildContext, ImageInfo
+from oci_runtime.domain.types import PruneResult, BuildContext, ImageInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ImageManager
 from oci_runtime.ports.parsers import ImageParser
@@ -12,6 +12,7 @@ from oci_runtime.adapters.managers.base import CliBaseManager
 
 
 class CliImageManager(CliBaseManager[ImageParser], ImageManager):
+    _not_found_error = ImageNotFoundError
     def __init__(self, transport: Transport, parser: ImageParser, caps: RuntimeCapabilities):
         super().__init__(transport, parser, caps)
 
@@ -37,23 +38,23 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
             cmd.extend(["--target", context.target])
 
         result = self._transport.execute(cmd, input_data=input_data, timeout=timeout)
-        self._check_result(result, cmd, operation="build image", entity=image_name, not_found=ImageNotFoundError)
+        self._check_result(result, cmd, operation="build image", entity=image_name)
         return self._parser.parse_build_output(self._decode_stdout(result.stdout))
 
     def tag(self, image: str, tag: str) -> None:
         cmd = [self._transport.get_runtime_binary(), "tag", image, tag]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="tag image", entity=image, not_found=ImageNotFoundError)
+        self._check_result(result, cmd, operation="tag image", entity=image)
 
     def push(self, image: str, timeout: int = 300) -> None:
         cmd = [self._transport.get_runtime_binary(), "push", image]
         result = self._transport.execute(cmd, timeout=timeout)
-        self._check_result(result, cmd, operation="push image", entity=image, not_found=ImageNotFoundError)
+        self._check_result(result, cmd, operation="push image", entity=image)
 
     def pull(self, image: str, timeout: int = 300) -> str:
         cmd = [self._transport.get_runtime_binary(), "pull", image]
         result = self._transport.execute(cmd, timeout=timeout)
-        self._check_result(result, cmd, operation="pull image", entity=image, not_found=ImageNotFoundError)
+        self._check_result(result, cmd, operation="pull image", entity=image)
         return self._parser.parse_id_from_pull(self._decode_stdout(result.stdout))
 
     def remove(self, image: str, force: bool = False) -> None:
@@ -61,7 +62,7 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
         if force:
             cmd.append("--force")
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="remove image", entity=image, not_found=ImageNotFoundError)
+        self._check_result(result, cmd, operation="remove image", entity=image)
 
     def exists(self, image: str) -> bool:
         try:
@@ -73,7 +74,7 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
     def inspect(self, image: str) -> ImageInfo:
         cmd = [self._transport.get_runtime_binary(), "image", "inspect", "--format", "json", image]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="inspect image", entity=image, not_found=ImageNotFoundError)
+        self._check_result(result, cmd, operation="inspect image", entity=image)
         return self._parser.parse_inspect(self._decode_stdout(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[ImageInfo]:
@@ -83,10 +84,10 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
             for key, val in filters.items():
                 cmd.extend(["--filter", f"{key}={val}"])
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="list images", entity="", not_found=ImageNotFoundError)
+        self._check_result(result, cmd, operation="list images", entity="")
         return self._parser.parse_list(self._decode_stdout(result.stdout))
 
-    def prune(self, show_all: bool = False) -> dict[str, int]:
+    def prune(self, show_all: bool = False) -> PruneResult:
         cmd = [self._transport.get_runtime_binary(), "image", "prune", "--force"]
         if show_all:
             cmd.append("--all")

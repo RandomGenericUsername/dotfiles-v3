@@ -1,11 +1,13 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import pytest
 
+from oci_runtime.domain.exceptions import ContainerError, OciError
 from oci_runtime.ports.parsers import (
     ContainerParser,
     ImageParser,
     NetworkParser,
+    ParsingError,
     VolumeParser,
 )
 
@@ -83,3 +85,24 @@ class TestNetworkParser:
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
             NetworkParser()
+
+
+class TestParsingError:
+    def test_stores_raw_and_message(self):
+        err = ParsingError(raw='{"invalid": json', message="failed to parse JSON")
+        assert err.raw == '{"invalid": json'
+        assert "failed to parse JSON" in str(err)
+
+    def test_str_includes_raw_and_message(self):
+        err = ParsingError(raw="some bad output", message="parse failure")
+        msg = str(err)
+        assert "some bad output" in msg or "parse failure" in msg
+
+    def test_is_oci_error(self):
+        assert issubclass(ParsingError, OciError)
+
+    def test_is_not_container_error(self):
+        assert not issubclass(ParsingError, ContainerError)
+
+    def test_is_exception(self):
+        assert issubclass(ParsingError, Exception)

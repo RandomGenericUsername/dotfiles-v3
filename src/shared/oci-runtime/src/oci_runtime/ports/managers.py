@@ -4,9 +4,10 @@ from typing import Iterator
 from oci_runtime.domain.types import (
     BuildContext,
     ContainerInfo,
-    ExecOutput,
+    ExecResult,
     ImageInfo,
     NetworkInfo,
+    PruneResult,
     RunConfig,
     VolumeInfo,
 )
@@ -37,7 +38,7 @@ class ImageManager(ABC):
     def list(self, filters: dict[str, str] | None = None) -> list[ImageInfo]: ...
 
     @abstractmethod
-    def prune(self, show_all: bool = False) -> dict[str, int]: ...
+    def prune(self, show_all: bool = False) -> PruneResult: ...
 
 
 class ContainerManager(ABC):
@@ -69,10 +70,10 @@ class ContainerManager(ABC):
     def logs(self, container: str, follow: bool = False, tail: int | None = None) -> Iterator[str]: ...
 
     @abstractmethod
-    def exec_container(self, container: str, command: list[str], detach: bool = False, user: str | None = None) -> ExecOutput: ...
+    def exec_container(self, container: str, command: list[str], detach: bool = False, user: str | None = None) -> ExecResult: ...
 
     @abstractmethod
-    def prune(self) -> dict[str, int]: ...
+    def prune(self) -> PruneResult: ...
 
 
 class VolumeManager(ABC):
@@ -92,7 +93,7 @@ class VolumeManager(ABC):
     def list(self, filters: dict[str, str] | None = None) -> list[VolumeInfo]: ...
 
     @abstractmethod
-    def prune(self) -> dict[str, int]: ...
+    def prune(self) -> PruneResult: ...
 
 
 class NetworkManager(ABC):
@@ -118,4 +119,4 @@ class NetworkManager(ABC):
     def list(self, filters: dict[str, str] | None = None) -> list[NetworkInfo]: ...
 
     @abstractmethod
-    def prune(self) -> dict[str, int]: ...
+    def prune(self) -> PruneResult: ...

@@ -1,7 +1,7 @@
 from typing import Generic, Type, TypeVar
 
 from oci_runtime.domain.exceptions import ContainerRuntimeError, OciError
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.transport import Transport
 
@@ -15,6 +15,8 @@ class CliBaseManager(Generic[P]):
     logic for CLI command execution and result checking here.
     """
 
+    _not_found_error: type[OciError] = ContainerRuntimeError
+
     def __init__(self, transport: Transport, parser: P, caps: RuntimeCapabilities):
         self._transport = transport
         self._parser = parser
@@ -25,15 +27,18 @@ class CliBaseManager(Generic[P]):
 
     def _check_result(
         self,
-        result: ExecResult,
+        result: RawExecResult,
         cmd: list[str],
         *,
         operation: str = "execute command",
         entity: str = "",
-        not_found: Type[OciError],
+        not_found: Type[OciError] | None = None,
     ) -> None:
         if result.returncode == 0:
             return
+
+        if not_found is None:
+            not_found = self._not_found_error
 
         stderr_str = result.stderr.decode("utf-8", errors="replace")
 

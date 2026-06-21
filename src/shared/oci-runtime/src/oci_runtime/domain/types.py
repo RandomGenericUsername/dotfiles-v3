@@ -1,15 +1,25 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 
-from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, RuntimeKind
+from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, RuntimeKind, VolumeMountType
+
+
+_MEMORY_LIMIT_RE = re.compile(r"^\d+(\.\d+)?[bkmg]?$", re.IGNORECASE)
+_CPU_LIMIT_RE = re.compile(r"^\d+\.?\d*$")
 
 
 @dataclass
 class VolumeMount:
     source: str | Path
     target: str | Path
-    type: str
+    type: VolumeMountType = VolumeMountType.BIND
     read_only: bool = False
+
+    def __post_init__(self) -> None:
+        if isinstance(self.type, str):
+            self.type = VolumeMountType(self.type)
 
 
 @dataclass
@@ -80,6 +90,12 @@ class RunConfig:
     auto_tty: bool = False
     runtime_flags: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if self.memory_limit is not None and not _MEMORY_LIMIT_RE.match(self.memory_limit):
+            raise ValueError(f"Invalid memory_limit: {self.memory_limit!r}")
+        if self.cpu_limit is not None and not _CPU_LIMIT_RE.match(self.cpu_limit):
+            raise ValueError(f"Invalid cpu_limit: {self.cpu_limit!r}")
+
 
 @dataclass
 class ImageInfo:
@@ -111,15 +127,21 @@ class VolumeInfo:
     labels: dict[str, str] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class PruneResult:
+    deleted: int = 0
+    reclaimed_bytes: int = 0
+
+
 @dataclass
-class ExecOutput:
+class ExecResult:
     returncode: int
     stdout: str
     stderr: str
 
 
 @dataclass
-class ExecResult:
+class RawExecResult:
     returncode: int
     stdout: bytes
     stderr: bytes
@@ -145,19 +167,17 @@ class RuntimePreference:
     binary: str
 
 
-class CancellationToken:
+class CancellationToken(ABC):
     """Signals cancellation across threads.
 
-    Pure domain value — no I/O, no threading primitives.
-    The flag is set by one thread and observed by another;
-    adapters are responsible for the actual thread-safe wiring.
+    This is a **port** — a pure interface with no implementation.
+    Concrete adapters (e.g. ``ThreadCancellationToken``) provide
+    the actual thread-safe wiring.
     """
-    def __init__(self):
-        self._cancelled = False
 
-    def cancel(self) -> None:
-        self._cancelled = True
+    @abstractmethod
+    def cancel(self) -> None: ...
 
     @property
-    def is_cancelled(self) -> bool:
-        return self._cancelled
+    @abstractmethod
+    def is_cancelled(self) -> bool: ...

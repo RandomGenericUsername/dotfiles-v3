@@ -1,22 +1,21 @@
-import io
 import os
 import pty
 import select
 import shutil
 import subprocess
-import sys
 
 from oci_runtime.domain.exceptions import ContainerRuntimeError, RuntimeNotAvailableError
+from oci_runtime.ports.output_stream import OutputStream
 
 
 def run_pty(
     command: list[str],
-    output_stream: io.IOBase | None = None,
+    output_stream: OutputStream | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a command in a PTY, writing output to output_stream as it arrives.
 
-    When output_stream is None, defaults to sys.stdout.buffer.
-    The buffered output is also returned in the CompletedProcess.stdout.
+    When output_stream is None, defaults to writing to sys.stdout.buffer
+    via ``StdoutBufferStream``.
     """
     if not command:
         raise ContainerRuntimeError("Empty command list", command=command)
@@ -25,7 +24,8 @@ def run_pty(
         raise RuntimeNotAvailableError(runtime)
 
     if output_stream is None:
-        output_stream = sys.stdout.buffer
+        from oci_runtime.adapters.output_stream import StdoutBufferStream
+        output_stream = StdoutBufferStream()
 
     output_buffer = bytearray()
 

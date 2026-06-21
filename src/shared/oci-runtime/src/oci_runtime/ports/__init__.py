@@ -1,3 +1,4 @@
+from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.discovery import RuntimeDiscovery
@@ -29,6 +30,7 @@ __all__ = [
     "Managers",
     "NetworkManager",
     "NetworkParser",
+    "OutputStream",
     "Parsers",
     "ParsingError",
     "RuntimeCapabilities",

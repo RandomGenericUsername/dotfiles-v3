@@ -1,18 +1,9 @@
 from abc import ABC
-from typing import Generic
 
-import pytest
 
-from oci_runtime.domain.exceptions import ImageNotFoundError
 from oci_runtime.domain.types import (
-    BuildContext,
-    ContainerInfo,
     ImageInfo,
-    NetworkInfo,
-    RunConfig,
-    VolumeInfo,
 )
-from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import (
     ContainerManager,
     ImageManager,
@@ -20,7 +11,7 @@ from oci_runtime.ports.managers import (
     VolumeManager,
 )
 from oci_runtime.ports.parsers import ImageParser
-from oci_runtime.domain.types import ExecResult
+from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 
 
@@ -69,7 +60,7 @@ class TestNetworkManager:
 def _make_transport() -> Transport:
     class T(Transport):
         def execute(self, command, *, timeout=None, input_data=None, stream=False):
-            return ExecResult(returncode=0, stdout=b"", stderr=b"")
+            return RawExecResult(returncode=0, stdout=b"", stderr=b"")
         def get_runtime_binary(self) -> str:
             return "docker"
         def probe(self) -> bool:

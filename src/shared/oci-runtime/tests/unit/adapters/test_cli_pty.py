@@ -11,8 +11,9 @@ from oci_runtime.domain.exceptions import ContainerRuntimeError, RuntimeNotAvail
 class TestRunPty:
     def test_empty_command_raises(self):
         from oci_runtime.adapters.managers.pty import run_pty
-        with pytest.raises(ContainerRuntimeError, match="Empty command"):
+        with pytest.raises(ContainerRuntimeError) as exc:
             run_pty([])
+        assert "Empty" in str(exc.value)
 
     def test_missing_binary_raises(self):
         from oci_runtime.adapters.managers.pty import run_pty

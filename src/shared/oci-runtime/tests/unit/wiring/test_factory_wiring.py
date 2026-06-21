@@ -1,6 +1,5 @@
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.adapters.managers.container import CliContainerManager
@@ -9,7 +8,6 @@ from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -18,8 +16,8 @@ from oci_runtime.factory import RuntimeFactoryConfig
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.parsers import ContainerParser, ImageParser
 from oci_runtime.ports.provider import RuntimeProvider
-from oci_runtime.domain.types import ExecResult
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.domain.types import RawExecResult
+from tests.helpers.mock_transport import RecordingTransport, FakeTtyDetector
 
 
 class TestFactoryCreateEngine:
@@ -66,16 +64,16 @@ class TestFactoryCreateEngine:
         runtime = RuntimeFactory().create(pref)
         assert isinstance(runtime, CliRuntime)
 
-    def test_create_unavailable_engine_raises(self):
+    def test_create_unavailable_engine_not_probed(self):
         bogus = RuntimePreference(kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz")
-        with pytest.raises(RuntimeNotAvailableError):
-            RuntimeFactory().create(bogus)
+        engine = RuntimeFactory().create(bogus)
+        assert engine.is_available() is False
 
 
 class TestFactoryConfigInjection:
     def test_custom_transport_factory_is_used(self):
         transport = RecordingTransport("docker", {
-            "docker --version": ExecResult(returncode=0, stdout=b"Docker", stderr=b""),
+            "docker --version": RawExecResult(returncode=0, stdout=b"Docker", stderr=b""),
         })
         config = RuntimeFactoryConfig(
             transport_factory=lambda _: transport,
@@ -145,7 +143,7 @@ class TestFactoryConfigInjection:
                 )
 
         transport = RecordingTransport("docker", {
-            "docker --version": ExecResult(returncode=0, stdout=b"Docker", stderr=b""),
+            "docker --version": RawExecResult(returncode=0, stdout=b"Docker", stderr=b""),
         })
         config = RuntimeFactoryConfig(
             transport_factory=lambda _: transport,

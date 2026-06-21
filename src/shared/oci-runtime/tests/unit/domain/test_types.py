@@ -1,9 +1,9 @@
-from dataclasses import MISSING, dataclass, is_dataclass, fields
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
 
-from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy
+from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.types import (
     BuildContext,
     ContainerInfo,
@@ -17,15 +17,13 @@ from oci_runtime.domain.types import (
 
 
 class TestVolumeMount:
-    def test_is_dataclass(self):
-        assert is_dataclass(VolumeMount)
 
     def test_required_fields(self):
         fs = {f.name: f for f in fields(VolumeMount)}
         assert fs["source"].type == str | Path
         assert fs["target"].type == str | Path
-        assert fs["type"].type is str
-        assert fs["type"].default is MISSING
+        assert fs["type"].type == VolumeMountType
+        assert fs["type"].default == VolumeMountType.BIND
 
     def test_defaults(self):
         vm = VolumeMount(source="/src", target="/dst", type="bind")
@@ -35,19 +33,21 @@ class TestVolumeMount:
         vm = VolumeMount(source="/src", target="/dst", type="bind", read_only=True)
         assert vm.read_only is True
 
-    def test_type_is_required(self):
-        with pytest.raises(TypeError):
-            VolumeMount(source="/src", target="/dst")
+    def test_type_defaults_to_bind(self):
+        vm = VolumeMount(source="/src", target="/dst")
+        assert vm.type == VolumeMountType.BIND
 
     def test_source_and_target_accept_path(self):
         vm = VolumeMount(source=Path("/src"), target=Path("/dst"), type="volume")
         assert isinstance(vm.source, Path)
         assert isinstance(vm.target, Path)
 
+    def test_invalid_type_raises(self):
+        with pytest.raises(ValueError):
+            VolumeMount(source="/src", target="/dst", type="invalid")
+
 
 class TestPortMapping:
-    def test_is_dataclass(self):
-        assert is_dataclass(PortMapping)
 
     def test_required_fields(self):
         fs = {f.name: f for f in fields(PortMapping)}
@@ -66,10 +66,16 @@ class TestPortMapping:
         assert pm.protocol == "udp"
         assert pm.host_ip == "0.0.0.0"
 
+    def test_host_port_zero(self):
+        pm = PortMapping(container_port=80, host_port=0)
+        assert pm.host_port == 0
+
+    def test_host_port_none(self):
+        pm = PortMapping(container_port=80)
+        assert pm.host_port is None
+
 
 class TestBuildContext:
-    def test_is_dataclass(self):
-        assert is_dataclass(BuildContext)
 
     def test_defaults(self):
         ctx = BuildContext(build_file_content="FROM alpine")
@@ -160,8 +166,6 @@ class TestBuildContext:
 
 
 class TestRunConfig:
-    def test_is_dataclass(self):
-        assert is_dataclass(RunConfig)
 
     def test_required_fields(self):
         fs = {f.name: f for f in fields(RunConfig)}
@@ -288,10 +292,18 @@ class TestRunConfig:
         assert config.auto_tty is True
         assert config.runtime_flags == ["--cap-drop=ALL"]
 
+    def test_network_container_valid_combination(self):
+        config = RunConfig(image="alpine", network=NetworkMode.CONTAINER, network_container="nginx")
+        assert config.network == NetworkMode.CONTAINER
+        assert config.network_container == "nginx"
+
+    def test_network_container_without_name(self):
+        config = RunConfig(image="alpine", network=NetworkMode.CONTAINER)
+        assert config.network == NetworkMode.CONTAINER
+        assert config.network_container is None
+
 
 class TestImageInfo:
-    def test_is_dataclass(self):
-        assert is_dataclass(ImageInfo)
 
     def test_required_fields(self):
         info = ImageInfo(id="sha256:abc123")
@@ -320,8 +332,6 @@ class TestImageInfo:
 
 
 class TestContainerInfo:
-    def test_is_dataclass(self):
-        assert is_dataclass(ContainerInfo)
 
     def test_state_is_typed_as_container_state(self):
         fs = {f.name: f for f in fields(ContainerInfo)}
@@ -366,8 +376,6 @@ class TestContainerInfo:
 
 
 class TestVolumeInfo:
-    def test_is_dataclass(self):
-        assert is_dataclass(VolumeInfo)
 
     def test_required_fields(self):
         info = VolumeInfo(name="my-vol", driver="local")
@@ -388,8 +396,6 @@ class TestVolumeInfo:
 
 
 class TestNetworkInfo:
-    def test_is_dataclass(self):
-        assert is_dataclass(NetworkInfo)
 
     def test_required_fields(self):
         info = NetworkInfo(id="net1", name="bridge", driver="bridge", scope="local")
