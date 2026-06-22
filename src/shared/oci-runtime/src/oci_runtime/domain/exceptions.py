@@ -23,6 +23,13 @@ class OciError(Exception):
         return "\n".join(parts)
 
 
+class ParsingError(OciError):
+    """Raised when CLI output cannot be parsed."""
+    def __init__(self, raw: str, message: str = "Failed to parse output"):
+        self.raw = raw
+        super().__init__(message)
+
+
 class ContainerError(OciError):
     pass
 
@@ -61,6 +68,25 @@ class NetworkNotFoundError(NetworkError):
     def __init__(self, network_name: str):
         self.network_name = network_name
         super().__init__(f"Network not found: {network_name}")
+
+
+class OperationTimeoutError(OciError):
+    def __init__(self, command: list[str], timeout: float, message: str = "Operation timed out"):
+        self.command = command
+        self.timeout = timeout
+        super().__init__(message, command=command)
+
+
+class ImageRuntimeError(ImageError):
+    pass
+
+
+class VolumeRuntimeError(VolumeError):
+    pass
+
+
+class NetworkRuntimeError(NetworkError):
+    pass
 
 
 class ContainerRuntimeError(ContainerError):

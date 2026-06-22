@@ -30,7 +30,7 @@ from oci_runtime.domain.exceptions import (
 )
 from oci_runtime.domain.types import RunConfig
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
@@ -124,6 +124,15 @@ class TestManagerErrorPropagation:
         with pytest.raises(ContainerNotFoundError) as exc:
             mgr.remove("ctr1")
         assert "ctr1" in exc.value.container_id
+
+    def test_pull_unparseable_raises_image_error(self, transport, caps):
+        from oci_runtime.domain.exceptions import ImageError
+        transport._responses = {("docker", "pull", "alpine"): RawExecResult(returncode=0, stdout=b"random text", stderr=b"")}
+        from oci_runtime.adapters.parser.docker import DockerImageParser
+        from oci_runtime.adapters.managers.image import CliImageManager
+        mgr = CliImageManager(transport, DockerImageParser(), caps)
+        with pytest.raises(ImageError):
+            mgr.pull("alpine", timeout=30)
 
 
 class TestParserNotFoundDetection:

@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 from oci_runtime.adapters.managers.network import CliNetworkManager
-from oci_runtime.domain.types import NetworkInfo
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import NetworkInfo, PruneResult
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import NetworkParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
@@ -13,8 +13,8 @@ class _MockParser(NetworkParser):
         return NetworkInfo(id="n1", name="net1", driver="bridge", scope="local")
     def parse_list(self, raw: str) -> list[NetworkInfo]:
         return [NetworkInfo(id="n1", name="net1", driver="bridge", scope="local")]
-    def parse_prune(self, raw: str) -> dict[str, int]:
-        return {"deleted": 0, "reclaimed_bytes": 0}
+    def parse_prune(self, raw: str) -> PruneResult:
+        return PruneResult()
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such network" in stderr
 

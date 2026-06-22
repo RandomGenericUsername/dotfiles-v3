@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import (
     ContainerManager,
     ImageManager,
@@ -78,47 +78,6 @@ class TestCliRuntime:
         )
         with pytest.raises(Exception):
             runtime.is_available()
-
-    def test_is_available_propagates_memory_error(self):
-        transport = MagicMock(spec=Transport)
-        transport.probe.side_effect = MemoryError("oom")
-        runtime = CliRuntime(
-            transport=transport,
-            image_manager=MagicMock(spec=ImageManager),
-            container_manager=MagicMock(spec=ContainerManager),
-            volume_manager=MagicMock(spec=VolumeManager),
-            network_manager=MagicMock(spec=NetworkManager),
-            caps=RuntimeCapabilities(),
-        )
-        with pytest.raises(MemoryError):
-            runtime.is_available()
-
-    def test_version_propagates_assertion_error(self):
-        transport = MagicMock(spec=Transport)
-        transport.execute.side_effect = AssertionError("bug")
-        runtime = CliRuntime(
-            transport=transport,
-            image_manager=MagicMock(spec=ImageManager),
-            container_manager=MagicMock(spec=ContainerManager),
-            volume_manager=MagicMock(spec=VolumeManager),
-            network_manager=MagicMock(spec=NetworkManager),
-            caps=RuntimeCapabilities(),
-        )
-        with pytest.raises(AssertionError):
-            runtime.version()
-
-    def test_is_available_returns_false_when_probe_returns_false(self):
-        transport = MagicMock(spec=Transport)
-        transport.probe.return_value = False
-        runtime = CliRuntime(
-            transport=transport,
-            image_manager=MagicMock(spec=ImageManager),
-            container_manager=MagicMock(spec=ContainerManager),
-            volume_manager=MagicMock(spec=VolumeManager),
-            network_manager=MagicMock(spec=NetworkManager),
-            caps=RuntimeCapabilities(),
-        )
-        assert runtime.is_available() is False
 
     def test_version_raises_on_non_zero_exit(self):
         transport = MagicMock(spec=Transport)

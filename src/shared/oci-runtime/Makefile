@@ -1,4 +1,4 @@
-.PHONY: test test-all lint format check build clean
+.PHONY: test test-all lint format check build clean capture-fixtures
 
 test:
 	@uv run pytest tests/ -v
@@ -13,7 +13,10 @@ lint:
 format:
 	@uv run ruff format src/
 
-check: lint
+check: lint test
+
+capture-fixtures:
+	@uv run python tests/conformance/capture.py
 
 build:
 	@uv build

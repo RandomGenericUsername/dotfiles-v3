@@ -4,7 +4,7 @@ from oci_runtime.adapters.provider.docker import DockerRuntimeProvider
 from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.parsers import (
     ContainerParser,
@@ -35,9 +35,9 @@ class TestDockerRuntimeProvider:
         assert caps.needs_userns_keep_id is False
         assert caps.supports_log_drivers is True
         assert caps.tar_entry_name == "Dockerfile"
-        assert caps.default_run_flags == []
-        assert caps.default_build_flags == ["--quiet"]
-        assert caps.list_format_flags == ["--format", "{{json .}}"]
+        assert caps.default_run_flags == ()
+        assert caps.default_build_flags == ("--quiet",)
+        assert caps.list_format_flags == ("--format", "{{json .}}")
 
     def test_create_parsers_returns_parsers(self):
         parsers = self.provider.create_parsers()
@@ -66,7 +66,7 @@ class TestDockerRuntimeProvider:
         from unittest.mock import MagicMock
         transport = MagicMock(spec=Transport)
         streaming = MagicMock(spec=StreamingTransport)
-        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities())
+        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock())
         assert isinstance(managers, Managers)
 
 
@@ -88,9 +88,9 @@ class TestPodmanRuntimeProvider:
         assert caps.needs_userns_keep_id is True
         assert caps.supports_log_drivers is False
         assert caps.tar_entry_name == "Containerfile"
-        assert caps.default_run_flags == ["--userns=keep-id"]
-        assert caps.default_build_flags == ["--quiet"]
-        assert caps.list_format_flags == ["--format", "json"]
+        assert caps.default_run_flags == ("--userns=keep-id",)
+        assert caps.default_build_flags == ("--quiet",)
+        assert caps.list_format_flags == ("--format", "json")
 
     def test_create_parsers_returns_parsers(self):
         parsers = self.provider.create_parsers()
@@ -119,7 +119,7 @@ class TestPodmanRuntimeProvider:
         from unittest.mock import MagicMock
         transport = MagicMock(spec=Transport)
         streaming = MagicMock(spec=StreamingTransport)
-        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities())
+        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock())
         assert isinstance(managers, Managers)
 
 

@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Iterator
 
 from oci_runtime.domain.exceptions import ContainerNotFoundError
-from oci_runtime.domain.types import ContainerInfo, ExecResult, RawExecResult, RunConfig
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RawExecResult, RunConfig
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.ports.transport import Transport
@@ -106,7 +106,7 @@ class ContainerManagerContractTest(ABC):
         mgr, t, st = self._defaults()
         t._responses[("docker", "container", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()
-        assert isinstance(result, dict)
+        assert isinstance(result, PruneResult)
 
     def test_inspect_nonexistent_raises_not_found(self):
         mgr, _ = self._failing()

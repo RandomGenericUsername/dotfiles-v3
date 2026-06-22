@@ -215,6 +215,11 @@ class TestPodmanContainerParser:
         with pytest.raises(ParsingError, match="Names"):
             self.parser.parse_list('[{"Id": "abc", "Names": []}]')
 
+    def test_podman_list_malformed_port_skipped(self):
+        raw = '[{"Id":"abc","Names":["/c1"],"Image":"alpine","State":"running","Status":"Up","Created":"2024-01-01","Ports":[{"HostPort":"8080","ContainerPort":"notanint","Protocol":"tcp","HostIp":"0.0.0.0"}],"Labels":{}}]'
+        result = self.parser.parse_list(raw)
+        assert len(result[0].ports) == 0
+
     def test_parse_inspect_with_single_port(self):
        """Unit test for Podman port parsing with single mapped port."""
        info = self.parser.parse_inspect(PODMAN_CONTAINER_INSPECT_WITH_PORTS)
@@ -341,6 +346,12 @@ class TestPodmanImageParserNormalization:
         result = self.parser.parse_list(data)
         assert len(result) == 1
         assert result[0].tags == ["alpine:latest"]
+
+    def test_podman_image_list_string_size(self):
+        raw = '[{"Id":"sha256:abc","RepoTags":["alpine:latest"],"Size":"5000000","Created":1704067200,"Labels":{}}]'
+        result = self.parser.parse_list(raw)
+        assert result[0].size == 5000000
+        assert isinstance(result[0].size, int)
 
 
 class TestPodmanNetworkParserNormalization:

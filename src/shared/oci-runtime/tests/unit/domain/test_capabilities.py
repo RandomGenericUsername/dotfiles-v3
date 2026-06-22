@@ -5,13 +5,7 @@ from dataclasses import FrozenInstanceError
 
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.ports.capabilities import RuntimeCapabilities
-
-
-class TestEngineProfileRemoved:
-    def test_engine_profile_no_longer_exists(self):
-        import oci_runtime.ports.capabilities as mod
-        assert not hasattr(mod, "EngineProfile")
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 
 
 class TestRuntimeCapabilities:
@@ -23,27 +17,26 @@ class TestRuntimeCapabilities:
         assert caps.needs_userns_keep_id is False
         assert caps.supports_log_drivers is False
         assert caps.tar_entry_name == ""
-        assert caps.default_run_flags == []
-        assert caps.default_build_flags == []
+        assert caps.default_run_flags == ()
+        assert caps.default_build_flags == ()
 
     def test_custom_values(self):
         caps = RuntimeCapabilities(
             needs_userns_keep_id=True,
             supports_log_drivers=False,
             tar_entry_name="Containerfile",
-            default_run_flags=["--userns=keep-id"],
-            default_build_flags=["--no-cache"],
+            default_run_flags=("--userns=keep-id",),
+            default_build_flags=("--no-cache",),
         )
         assert caps.needs_userns_keep_id is True
         assert caps.supports_log_drivers is False
         assert caps.tar_entry_name == "Containerfile"
-        assert caps.default_run_flags == ["--userns=keep-id"]
-        assert caps.default_build_flags == ["--no-cache"]
+        assert caps.default_run_flags == ("--userns=keep-id",)
+        assert caps.default_build_flags == ("--no-cache",)
 
-    def test_default_run_flags_is_new_list_each_time(self):
-        c1 = RuntimeCapabilities()
-        c2 = RuntimeCapabilities()
-        assert c1.default_run_flags is not c2.default_run_flags
+    def test_default_run_flags_is_immutable_tuple(self):
+        c = RuntimeCapabilities()
+        assert isinstance(c.default_run_flags, tuple)
 
 
 class TestRuntimePreference:

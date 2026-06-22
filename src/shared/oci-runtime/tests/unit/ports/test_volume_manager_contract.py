@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 from oci_runtime.domain.exceptions import VolumeNotFoundError
-from oci_runtime.domain.types import VolumeInfo
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import PruneResult, VolumeInfo
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import VolumeManager
 from oci_runtime.ports.parsers import VolumeParser
 from oci_runtime.domain.types import RawExecResult
@@ -65,7 +65,7 @@ class VolumeManagerContractTest(ABC):
         mgr, t = self._defaults()
         t._responses[("docker", "volume", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()
-        assert isinstance(result, dict)
+        assert isinstance(result, PruneResult)
 
     def test_inspect_nonexistent_raises_not_found(self):
         mgr, _ = self._failing()

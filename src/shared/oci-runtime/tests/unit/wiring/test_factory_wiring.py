@@ -10,13 +10,13 @@ from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.factory import RuntimeFactoryConfig
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.parsers import ContainerParser, ImageParser
 from oci_runtime.ports.provider import RuntimeProvider
-from oci_runtime.domain.types import RawExecResult
+from oci_runtime.domain.types import PruneResult, RawExecResult
 from tests.helpers.mock_transport import RecordingTransport, FakeTtyDetector
 
 
@@ -111,15 +111,15 @@ class TestFactoryConfigInjection:
         class FakeContainerParser(ContainerParser):
             def parse_inspect(self, raw): raise ParsingError(raw)
             def parse_list(self, raw): return []
-            def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
+            def parse_prune(self, raw): return PruneResult()
             def is_not_found_error(self, stderr): return False
-
+    
         class FakeImageParser(ImageParser):
             def parse_inspect(self, raw): raise ParsingError(raw)
             def parse_list(self, raw): return []
             def parse_build_output(self, raw): return ""
             def parse_id_from_pull(self, raw): return ""
-            def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
+            def parse_prune(self, raw): return PruneResult()
             def is_not_found_error(self, stderr): return False
 
         class FakeProvider(RuntimeProvider):
@@ -133,7 +133,7 @@ class TestFactoryConfigInjection:
                     volume_parser=FakeContainerParser(),
                     network_parser=FakeContainerParser(),
                 )
-            def create_managers(self, transport, streaming_transport, caps):
+            def create_managers(self, transport, streaming_transport, caps, *, tty_detector_factory=None, output_stream_factory=None, cancellation_factory=None):
                 parsers = self.create_parsers()
                 return Managers(
                     image_manager=CliImageManager(transport, parsers.image_parser, caps),
@@ -175,3 +175,58 @@ class TestFactoryAvailable:
         kinds = {p.kind for p in available}
         assert RuntimeKind.DOCKER in kinds
         assert RuntimeKind.PODMAN not in kinds
+
+
+class TestFactoryCustomInjection:
+    def test_custom_tty_detector_factory_is_used(self):
+        from oci_runtime.factory import RuntimeFactoryConfig
+        from oci_runtime.domain.enums import RuntimeKind
+        from oci_runtime.domain.types import RuntimePreference
+        from oci_runtime.domain.capabilities import RuntimeCapabilities
+        from oci_runtime.ports.aggregates import Managers, Parsers
+        from oci_runtime.ports.parsers import ContainerParser, ImageParser
+        from oci_runtime.ports.parsers import ParsingError
+        from oci_runtime.ports.provider import RuntimeProvider
+        from oci_runtime.adapters.managers.container import CliContainerManager
+        from oci_runtime.adapters.managers.image import CliImageManager
+        from oci_runtime.adapters.managers.volume import CliVolumeManager
+        from oci_runtime.adapters.managers.network import CliNetworkManager
+        from tests.helpers.mock_transport import FakeTtyDetector, RecordingTransport
+        from oci_runtime.domain.types import RawExecResult
+
+        class FakeCP(ContainerParser):
+            def parse_inspect(self, raw): raise ParsingError(raw)
+            def parse_list(self, raw): return []
+            def parse_prune(self, raw): return PruneResult()
+            def is_not_found_error(self, stderr): return False
+
+        class FakeIP(ImageParser):
+            def parse_inspect(self, raw): raise ParsingError(raw)
+            def parse_list(self, raw): return []
+            def parse_build_output(self, raw): return ""
+            def parse_id_from_pull(self, raw): return ""
+            def parse_prune(self, raw): return PruneResult()
+            def is_not_found_error(self, stderr): return False
+
+        custom_tty = FakeTtyDetector(is_tty=True)
+        config = RuntimeFactoryConfig(
+            tty_detector_factory=lambda: custom_tty,
+            output_stream_factory=lambda: __import__("io").BytesIO(),
+        )
+        factory = RuntimeFactory(config)
+        engine = factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
+        assert engine.containers._tty_detector is custom_tty
+
+    def test_custom_output_stream_factory_is_used(self):
+        import io
+        from oci_runtime.factory import RuntimeFactoryConfig
+        from oci_runtime.domain.enums import RuntimeKind
+        from oci_runtime.domain.types import RuntimePreference
+        custom_stream = io.BytesIO()
+        config = RuntimeFactoryConfig(
+            tty_detector_factory=lambda: FakeTtyDetector(),
+            output_stream_factory=lambda: custom_stream,
+        )
+        factory = RuntimeFactory(config)
+        engine = factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
+        assert engine.containers._output_stream is custom_stream

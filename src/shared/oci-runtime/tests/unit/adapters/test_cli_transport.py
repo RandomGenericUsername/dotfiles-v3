@@ -104,3 +104,13 @@ class TestCliTransport:
         t = CliTransport("docker")
         with patch("subprocess.run", side_effect=OSError):
             assert t.probe() is False
+
+    def test_transport_caches_which(self):
+        from unittest.mock import patch
+        with patch("shutil.which", side_effect=["/usr/bin/docker", "/usr/bin/docker", "/usr/bin/docker"]) as mock_which:
+            from oci_runtime.adapters.transport.cli import CliTransport
+            t = CliTransport("docker")
+            t.get_runtime_binary()
+            t.execute(["docker", "ps"])
+            t.execute(["docker", "ps"])
+            assert mock_which.call_count == 1

@@ -7,7 +7,7 @@ from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy,
 
 
 _MEMORY_LIMIT_RE = re.compile(r"^\d+(\.\d+)?[bkmg]?$", re.IGNORECASE)
-_CPU_LIMIT_RE = re.compile(r"^\d+\.?\d*$")
+_CPU_LIMIT_RE = re.compile(r"^\d+(\.\d+)?$")
 
 
 @dataclass
@@ -59,6 +59,13 @@ class BuildContext:
                 "BuildContext: must set either build_file_content or "
                 "build_file_path."
             )
+        if self.context_path is not None and self.files:
+            raise ValueError(
+                "BuildContext: 'files' (in-memory) cannot be combined with 'context_path' "
+                "(filesystem). docker build takes context from either stdin (tar) or a PATH, "
+                "not both. Drop 'context_path' to send files via stdin tar, or drop 'files' "
+                "to use the filesystem context at context_path."
+            )
 
 
 @dataclass
@@ -95,6 +102,10 @@ class RunConfig:
             raise ValueError(f"Invalid memory_limit: {self.memory_limit!r}")
         if self.cpu_limit is not None and not _CPU_LIMIT_RE.match(self.cpu_limit):
             raise ValueError(f"Invalid cpu_limit: {self.cpu_limit!r}")
+        if self.network == NetworkMode.CONTAINER and not self.network_container:
+            raise ValueError("RunConfig: network=CONTAINER requires network_container to be set")
+        if self.detach and (self.tty or self.auto_tty):
+            raise ValueError("RunConfig: detach=True is mutually exclusive with tty/auto_tty")
 
 
 @dataclass

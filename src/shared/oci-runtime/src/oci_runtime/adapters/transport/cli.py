@@ -6,12 +6,18 @@ from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 
 
+_NOT_PROBED = object()
+
+
 class CliTransport(Transport):
     def __init__(self, binary: str):
         self.binary = binary
+        self._which_cache: str | None | object = _NOT_PROBED
 
     def _ensure_binary(self) -> None:
-        if shutil.which(self.binary) is None:
+        if self._which_cache is _NOT_PROBED:
+            self._which_cache = shutil.which(self.binary)
+        if self._which_cache is None:
             raise RuntimeNotAvailableError(self.binary)
 
     def execute(
@@ -37,8 +43,6 @@ class CliTransport(Transport):
             )
         except FileNotFoundError:
             raise RuntimeNotAvailableError(self.binary) from None
-        except subprocess.TimeoutExpired:
-            raise
 
     def probe(self) -> bool:
         try:
@@ -53,4 +57,4 @@ class CliTransport(Transport):
 
     def get_runtime_binary(self) -> str:
         self._ensure_binary()
-        return self.binary
+        return self._which_cache

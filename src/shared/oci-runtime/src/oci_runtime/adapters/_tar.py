@@ -7,6 +7,8 @@ def create_build_tar(
     files: dict[str, bytes],
     tar_entry_name: str = "Dockerfile",
 ) -> bytes:
+    """Note: ``files`` dict keys are used verbatim as tar entry names.
+    Callers must not include ``..`` or absolute paths from untrusted input."""
     tar_buffer = io.BytesIO()
     with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
         info = tarfile.TarInfo(name=tar_entry_name)

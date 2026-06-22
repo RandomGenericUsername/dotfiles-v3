@@ -1,7 +1,7 @@
 import pytest
 
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.transport import Transport
@@ -84,7 +84,7 @@ class TestConcreteProviderContract:
                     def is_not_found_error(self, stderr): return False
                 return Parsers(container_parser=FakeCP(), image_parser=FakeIP(), volume_parser=FakeVP(), network_parser=FakeNP())
 
-            def create_managers(self, transport, streaming_transport, caps):
+            def create_managers(self, transport, streaming_transport, caps, *, tty_detector_factory=None, output_stream_factory=None, cancellation_factory=None):
                 from unittest.mock import MagicMock
                 from oci_runtime.ports.managers import ContainerManager, ImageManager, NetworkManager, VolumeManager
                 return Managers(

@@ -26,7 +26,7 @@ from oci_runtime.domain.exceptions import (
     VolumeNotFoundError,
 )
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.factory import RuntimeFactoryConfig
 from oci_runtime.ports.aggregates import Parsers
@@ -74,8 +74,9 @@ class TestTransportContract:
         assert callable(t.probe)
 
     def test_cli_transport_get_runtime_binary(self):
-        t = CliTransport("docker")
-        assert t.get_runtime_binary() == "docker"
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            t = CliTransport("docker")
+            assert t.get_runtime_binary() == "/usr/bin/docker"
 
     def test_cli_transport_get_runtime_binary_custom(self):
         with patch("shutil.which", return_value="/usr/local/bin/podman"):
@@ -429,38 +430,6 @@ class TestExceptionHierarchyContract:
         err = ParsingError("bad json", message="could not parse")
         assert err.raw == "bad json"
         assert "could not parse" in str(err)
-
-
-class TestCapabilitiesContract:
-    def test_runtime_preference_is_frozen(self):
-        pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker")
-        with pytest.raises(FrozenInstanceError):
-            pref.kind = RuntimeKind.PODMAN
-
-    def test_runtime_preference_default_docker_binary(self):
-        pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker")
-        assert pref.binary == "docker"
-
-    def test_runtime_preference_default_podman_binary(self):
-        pref = RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman")
-        assert pref.binary == "podman"
-
-    def test_runtime_preference_binary_override(self):
-        pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="/usr/local/bin/docker")
-        assert pref.binary == "/usr/local/bin/docker"
-
-    def test_runtime_preference_binary_override_podman(self):
-        pref = RuntimePreference(kind=RuntimeKind.PODMAN, binary="/custom/path/podman")
-        assert pref.binary == "/custom/path/podman"
-
-    def test_runtime_capabilities_default_list_format_flags(self):
-        caps = RuntimeCapabilities()
-        assert caps.list_format_flags == []
-
-    def test_runtime_capabilities_is_frozen(self):
-        caps = RuntimeCapabilities()
-        with pytest.raises(FrozenInstanceError):
-            caps.supports_log_drivers = False
 
 
 class TestFactoryContract:

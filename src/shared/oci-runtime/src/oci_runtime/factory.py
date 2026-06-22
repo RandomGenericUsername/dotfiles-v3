@@ -2,12 +2,14 @@ from dataclasses import dataclass, replace
 from typing import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.types import RuntimePreference
+from oci_runtime.domain.types import CancellationToken, RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
+from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
+from oci_runtime.ports.tty import TtyDetector
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,9 @@ class RuntimeFactoryConfig:
     streaming_transport_factory: Callable[[str], StreamingTransport] | None = None
     runtime_cls: type[ContainerEngine] | None = None
     discovery_factory: Callable[[Callable[[str], Transport]], "RuntimeDiscovery"] | None = None
+    tty_detector_factory: Callable[[], TtyDetector] | None = None
+    output_stream_factory: Callable[[], OutputStream] | None = None
+    cancellation_factory: Callable[[], CancellationToken] | None = None
 
 
 def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
@@ -72,6 +77,15 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
         replacements["runtime_cls"] = _default_runtime_cls()
     if cfg.discovery_factory is None:
         replacements["discovery_factory"] = _default_discovery_factory
+    if cfg.tty_detector_factory is None:
+        from oci_runtime.adapters.tty import StdoutTtyDetector
+        replacements["tty_detector_factory"] = lambda: StdoutTtyDetector()
+    if cfg.output_stream_factory is None:
+        from oci_runtime.adapters.output_stream import StdoutBufferStream
+        replacements["output_stream_factory"] = lambda: StdoutBufferStream()
+    if cfg.cancellation_factory is None:
+        from oci_runtime.adapters._cancellation import ThreadCancellationToken
+        replacements["cancellation_factory"] = lambda: ThreadCancellationToken()
 
     return replace(cfg, **replacements) if replacements else cfg
 
@@ -82,14 +96,6 @@ class RuntimeFactory:
     Depends on abstractions (ports), not implementations (adapters).
     This is true hexagonal architecture.
     """
-
-    def __init__(
-        self,
-        config: RuntimeFactoryConfig | None = None,
-        providers: dict[RuntimeKind, RuntimeProvider] | None = None,
-    ):
-        self._cfg = _resolve_config(config)
-        self._providers = dict(providers) if providers is not None else _default_providers()
 
     def create(self, preference: RuntimePreference) -> ContainerEngine:
         """Create the explicitly requested engine or raise immediately.
@@ -111,7 +117,12 @@ class RuntimeFactory:
                 f"Registered: {list(self._providers.keys())}"
             )
         caps = provider.capabilities()
-        managers = provider.create_managers(transport, streaming_transport, caps)
+        managers = provider.create_managers(
+            transport, streaming_transport, caps,
+            tty_detector_factory=self._cfg.tty_detector_factory,
+            output_stream_factory=self._cfg.output_stream_factory,
+            cancellation_factory=self._cfg.cancellation_factory,
+        )
 
         return self._cfg.runtime_cls(
             transport=transport,
@@ -122,9 +133,20 @@ class RuntimeFactory:
             caps=caps,
         )
 
+    def __init__(
+        self,
+        config: RuntimeFactoryConfig | None = None,
+        providers: dict[RuntimeKind, RuntimeProvider] | None = None,
+    ):
+        self._cfg = _resolve_config(config)
+        self._providers = dict(providers) if providers is not None else _default_providers()
+        self._discovery: RuntimeDiscovery | None = None
+
     @property
     def discovery(self) -> RuntimeDiscovery:
-        return self._cfg.discovery_factory(self._cfg.transport_factory)
+        if self._discovery is None:
+            self._discovery = self._cfg.discovery_factory(self._cfg.transport_factory)
+        return self._discovery
 
     def available(self) -> list[RuntimePreference]:
         """Return all engines that are currently available.

@@ -1,7 +1,6 @@
 import re
 
-from oci_runtime.adapters._utils import parse_size_to_bytes
-from oci_runtime.adapters.parser.base import BaseCliParser
+from oci_runtime.adapters.parser.base import BaseCliParser, _coerce_size
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
@@ -32,7 +31,7 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
             status=item.get("State", {}).get("Status", ""),
             created=item.get("Created"),
             ports=_parse_docker_ports(item),
-            labels=item.get("Config", {}).get("Labels", {}),
+            labels=item.get("Config", {}).get("Labels") or {},
             exit_code=item.get("State", {}).get("ExitCode"),
         )
 
@@ -41,6 +40,8 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
         result = []
         for item in data:
             names = item.get("Names")
+            if isinstance(names, str):
+                names = [names]
             if not names or not isinstance(names, list):
                 raise ParsingError(raw=raw, message="Container list entry missing 'Names' field")
             result.append(ContainerInfo(
@@ -51,7 +52,7 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
                 status=item.get("Status", ""),
                 created=str(item.get("Created", "")),
                 ports=_parse_docker_ports_from_list(item),
-                labels=item.get("Labels", {}),
+                labels=item.get("Labels") or {},
             ))
         return result
 
@@ -66,7 +67,7 @@ class DockerImageParser(BaseCliParser, ImageParser):
             tags=item.get("RepoTags", []),
             size=item.get("Size", 0),
             created=item.get("Created"),
-            labels=item.get("Labels", {}),
+            labels=item.get("Labels") or {},
         )
 
     def parse_list(self, raw: str) -> list[ImageInfo]:
@@ -80,27 +81,9 @@ class DockerImageParser(BaseCliParser, ImageParser):
                 tag = item.get("Tag", "")
                 if repo and repo != "<none>":
                     tags = [f"{repo}:{tag}"] if tag and tag != "<none>" else [f"{repo}:latest"]
-            size = item.get("Size", 0)
-            if isinstance(size, str):
-                try:
-                    size = int(size)
-                except ValueError:
-                    try:
-                        size = parse_size_to_bytes(size)
-                    except ValueError as e:
-                        raise ParsingError(raw=raw, message=f"Cannot parse image size: {size!r}") from e
+            size = _coerce_size(item.get("Size", 0))
             if not size:
-                virtual = item.get("VirtualSize", 0)
-                if isinstance(virtual, str):
-                    try:
-                        size = int(virtual)
-                    except ValueError:
-                        try:
-                            size = parse_size_to_bytes(virtual)
-                        except ValueError as e:
-                            raise ParsingError(raw=raw, message=f"Cannot parse image VirtualSize: {virtual!r}") from e
-                else:
-                    size = virtual
+                size = _coerce_size(item.get("VirtualSize", 0))
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
@@ -143,7 +126,7 @@ class DockerVolumeParser(BaseCliParser, VolumeParser):
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
             mountpoint=item.get("Mountpoint"),
-            labels=item.get("Labels", {}),
+            labels=item.get("Labels") or {},
         )
 
     def parse_list(self, raw: str) -> list[VolumeInfo]:
@@ -172,7 +155,7 @@ class DockerNetworkParser(BaseCliParser, NetworkParser):
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
             scope=item.get("Scope", ""),
-            labels=item.get("Labels", {}),
+            labels=item.get("Labels") or {},
         )
 
     def parse_list(self, raw: str) -> list[NetworkInfo]:

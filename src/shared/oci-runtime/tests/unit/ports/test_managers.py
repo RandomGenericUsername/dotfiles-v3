@@ -3,6 +3,7 @@ from abc import ABC
 
 from oci_runtime.domain.types import (
     ImageInfo,
+    PruneResult,
 )
 from oci_runtime.ports.managers import (
     ContainerManager,
@@ -20,7 +21,8 @@ class _Parser(ImageParser):
     def parse_list(self, raw: str) -> list[ImageInfo]: ...
     def parse_build_output(self, raw: str) -> str: ...
     def parse_id_from_pull(self, raw: str) -> str: ...
-    def parse_prune(self, raw: str) -> dict[str, int]: ...
+    def parse_prune(self, raw: str) -> PruneResult:
+        return PruneResult()
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such image" in stderr
 
@@ -59,7 +61,7 @@ class TestNetworkManager:
 
 def _make_transport() -> Transport:
     class T(Transport):
-        def execute(self, command, *, timeout=None, input_data=None, stream=False):
+        def execute(self, command, *, timeout=None, input_data=None):
             return RawExecResult(returncode=0, stdout=b"", stderr=b"")
         def get_runtime_binary(self) -> str:
             return "docker"

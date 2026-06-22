@@ -1,0 +1,5 @@
+Using default tag: latest
+latest: Pulling from library/alpine
+Digest: sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+Status: Image is up to date for alpine:latest
+docker.io/library/alpine:latest

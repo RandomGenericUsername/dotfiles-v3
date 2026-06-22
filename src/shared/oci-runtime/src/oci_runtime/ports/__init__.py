@@ -1,6 +1,5 @@
 from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.aggregates import Managers, Parsers
-from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.ports.managers import (
@@ -33,7 +32,6 @@ __all__ = [
     "OutputStream",
     "Parsers",
     "ParsingError",
-    "RuntimeCapabilities",
     "RuntimeDiscovery",
     "RuntimeProvider",
     "StreamingTransport",

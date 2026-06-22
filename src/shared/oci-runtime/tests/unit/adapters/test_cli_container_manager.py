@@ -3,24 +3,41 @@ from unittest.mock import MagicMock
 import pytest
 
 from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.domain.enums import NetworkMode
+from oci_runtime.adapters.parser.docker import DockerContainerParser
+from oci_runtime.domain.enums import ContainerState, NetworkMode
 from oci_runtime.domain.exceptions import ContainerRuntimeError, ImageNotFoundError
-from oci_runtime.domain.types import ContainerInfo, RunConfig
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import ContainerInfo, PruneResult, RunConfig
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
-from tests.helpers.mock_transport import FakeTtyDetector
+from tests.helpers.mock_transport import FakeTtyDetector, RecordingTransport, RecordingStreamingTransport
+
+
+
+@pytest.fixture
+def transport():
+    return RecordingTransport("docker")
+
+
+@pytest.fixture
+def streaming():
+    return RecordingStreamingTransport("docker")
+
+
+@pytest.fixture
+def caps():
+    return RuntimeCapabilities()
 
 
 class _MockParser(ContainerParser):
     def parse_inspect(self, raw: str) -> ContainerInfo:
-        return ContainerInfo(id="abc", name="c1", image="alpine", state="running", status="Up")
+        return ContainerInfo(id="abc", name="c1", image="alpine", state=ContainerState.RUNNING, status="Up")
     def parse_list(self, raw: str) -> list[ContainerInfo]:
-        return [ContainerInfo(id="abc", name="c1", image="alpine", state="running", status="Up")]
-    def parse_prune(self, raw: str) -> dict[str, int]:
-        return {"deleted": 0, "reclaimed_bytes": 0}
+        return [ContainerInfo(id="abc", name="c1", image="alpine", state=ContainerState.RUNNING, status="Up")]
+    def parse_prune(self, raw: str) -> PruneResult:
+        return PruneResult()
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such container" in stderr
 
@@ -50,7 +67,7 @@ class TestCliContainerManager:
         assert "hi" in args
 
     def test_run_adds_default_run_flags_from_caps(self):
-        caps = RuntimeCapabilities(default_run_flags=["--userns=keep-id"])
+        caps = RuntimeCapabilities(default_run_flags=("--userns=keep-id",))
         manager = CliContainerManager(self.transport, self.parser, caps, streaming=self.streaming, tty_detector=FakeTtyDetector())
         config = RunConfig(image="alpine")
         manager.run(config)
@@ -94,9 +111,8 @@ class TestCliContainerManager:
         assert args[idx + 1] == "host"
 
     def test_run_network_container_requires_arg(self):
-        config = RunConfig(image="alpine", network=NetworkMode.CONTAINER)
-        with pytest.raises(ContainerRuntimeError, match="network_container"):
-            self.manager.run(config)
+        with pytest.raises(ValueError, match="network=CONTAINER requires network_container"):
+            RunConfig(image="alpine", network=NetworkMode.CONTAINER)
 
     def test_run_network_container_adds_flag(self):
         config = RunConfig(
@@ -113,3 +129,16 @@ class TestCliContainerManager:
         args = self.streaming.stream.call_args[0][0]
         idx = args.index("--network")
         assert args[idx + 1] == "none"
+
+    def test_exec_non_zero_returns_exec_result(self, transport, streaming, caps):
+        transport._responses = {("docker", "exec", "ctr1", "false"): RawExecResult(returncode=1, stdout=b"", stderr=b"")}
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        result = mgr.exec_container("ctr1", ["false"])
+        assert result.returncode == 1
+
+    def test_exec_not_found_raises_container_not_found(self, transport, streaming, caps):
+        from oci_runtime.domain.exceptions import ContainerNotFoundError
+        transport._responses = {("docker", "exec", "ctr1", "ls"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: c1")}
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        with pytest.raises(ContainerNotFoundError):
+            mgr.exec_container("ctr1", ["ls"])

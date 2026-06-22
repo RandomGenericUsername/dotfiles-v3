@@ -1,7 +1,6 @@
-from oci_runtime.ports.parsers import ParsingError
-from oci_runtime.domain.exceptions import NetworkNotFoundError
+from oci_runtime.domain.exceptions import NetworkNotFoundError, NetworkRuntimeError
 from oci_runtime.domain.types import NetworkInfo, PruneResult
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import NetworkManager
 from oci_runtime.ports.parsers import NetworkParser
 from oci_runtime.ports.transport import Transport
@@ -10,6 +9,7 @@ from oci_runtime.adapters.managers.base import CliBaseManager
 
 class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
     _not_found_error = NetworkNotFoundError
+    _generic_error = NetworkRuntimeError
     def __init__(self, transport: Transport, parser: NetworkParser, caps: RuntimeCapabilities):
         super().__init__(transport, parser, caps)
 
@@ -20,7 +20,7 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
                 cmd.extend(["--label", f"{k}={v}"])
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="create network", entity=name)
-        return self._decode_stdout(result.stdout).strip()
+        return self._decode_bytes(result.stdout).strip()
 
     def remove(self, name: str) -> None:
         cmd = [self._transport.get_runtime_binary(), "network", "rm", name]
@@ -43,14 +43,14 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
         try:
             self.inspect(name)
             return True
-        except (NetworkNotFoundError, ParsingError):
+        except NetworkNotFoundError:
             return False
 
     def inspect(self, name: str) -> NetworkInfo:
         cmd = [self._transport.get_runtime_binary(), "network", "inspect", "--format", "json", name]
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="inspect network", entity=name)
-        return self._parser.parse_inspect(self._decode_stdout(result.stdout))
+        return self._parser.parse_inspect(self._decode_bytes(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[NetworkInfo]:
         cmd = [self._transport.get_runtime_binary(), "network", "list"]
@@ -60,9 +60,10 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
                 cmd.extend(["--filter", f"{key}={val}"])
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="list networks", entity="")
-        return self._parser.parse_list(self._decode_stdout(result.stdout))
+        return self._parser.parse_list(self._decode_bytes(result.stdout))
 
     def prune(self) -> PruneResult:
         cmd = [self._transport.get_runtime_binary(), "network", "prune", "--force"]
         result = self._transport.execute(cmd)
-        return self._parser.parse_prune(self._decode_stdout(result.stdout))
+        self._check_result(result, cmd, operation="prune networks", entity="")
+        return self._parser.parse_prune(self._decode_bytes(result.stdout))

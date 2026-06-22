@@ -6,7 +6,7 @@ import pytest
 
 from oci_runtime.adapters._process_reader import ProcessPipeReader
 from oci_runtime.adapters.transport.streaming import CliStreamingTransport
-from oci_runtime.domain.exceptions import RuntimeNotAvailableError
+from oci_runtime.domain.exceptions import OperationTimeoutError, RuntimeNotAvailableError
 
 
 class _MockSelectorKey:
@@ -231,7 +231,7 @@ class TestCliStreamingTransport:
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
               patch("selectors.DefaultSelector", return_value=selector)):
-            with pytest.raises(subprocess.TimeoutExpired):
+            with pytest.raises(OperationTimeoutError):
                 s.stream(["docker", "ps"], timeout=10)
 
         process.kill.assert_called_once()
@@ -286,6 +286,30 @@ class TestCliStreamingTransport:
 
         assert result.returncode == -1
         process.kill.assert_called_once()
+
+    def test_stream_deadline_token_timeout_cancellation(self):
+        import selectors
+        with patch("shutil.which", return_value="/usr/bin/docker"), \
+             patch("subprocess.Popen") as mock_popen, \
+             patch("selectors.DefaultSelector") as mock_sel_cls:
+            mock_proc = MagicMock()
+            mock_proc.stdout = MagicMock()
+            mock_proc.stdout.fileno.return_value = 5
+            mock_proc.stderr = MagicMock()
+            mock_proc.stderr.fileno.return_value = 6
+            mock_proc.poll.return_value = None
+            mock_popen.return_value = mock_proc
+            mock_key_stdout = MagicMock()
+            mock_key_stdout.fileobj = mock_proc.stdout
+            mock_sel = MagicMock()
+            mock_sel_cls.return_value = mock_sel
+            mock_sel.get_map.return_value = {5: mock_key_stdout, 6: MagicMock()}
+            mock_sel.select.return_value = []
+            from oci_runtime.adapters.transport.streaming import CliStreamingTransport
+            s = CliStreamingTransport("docker")
+            with pytest.raises(OperationTimeoutError):
+                s.stream(["docker", "ps"], timeout=0.3)
+            assert mock_proc.kill.called
 
 
 class TestProcessPipeReader:

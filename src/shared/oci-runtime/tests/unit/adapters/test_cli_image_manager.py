@@ -2,8 +2,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from oci_runtime.adapters.managers.image import CliImageManager
-from oci_runtime.domain.types import BuildContext, ImageInfo
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import BuildContext, ImageInfo, PruneResult
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ImageParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
@@ -18,8 +18,8 @@ class _MockParser(ImageParser):
         return "sha256:abc"
     def parse_id_from_pull(self, raw: str) -> str:
         return "sha256:abc"
-    def parse_prune(self, raw: str) -> dict[str, int]:
-        return {"deleted": 0, "reclaimed_bytes": 0}
+    def parse_prune(self, raw: str) -> PruneResult:
+        return PruneResult()
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such image" in stderr
 

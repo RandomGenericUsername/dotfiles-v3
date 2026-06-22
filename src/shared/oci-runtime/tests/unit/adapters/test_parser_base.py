@@ -93,6 +93,12 @@ class TestBaseCliParser:
         assert result.deleted == 0
         assert result.reclaimed_bytes == 0
 
+    def test_prune_all_counts_deleted_sha256_lines(self):
+        from oci_runtime.domain.types import PruneResult
+        output = "deleted: sha256:abc123def456\ndeleted: sha256:789012abcdef\nTotal reclaimed space: 1.2GB\n"
+        result = self.parser.parse_prune(output)
+        assert result == PruneResult(deleted=2, reclaimed_bytes=1288490188)
+
 
 class TestParseJsonListNDJSON:
     def setup_method(self):
@@ -124,9 +130,9 @@ class TestParseJsonListNDJSON:
         with pytest.raises(ParsingError):
             self.parser._parse_json_list("")
 
-    def test_empty_list_raises(self):
-        with pytest.raises(ParsingError, match="Empty response"):
-            self.parser._parse_json_list("[]")
+    def test_empty_list_returns_empty(self):
+        result = self.parser._parse_json_list("[]")
+        assert result == []
 
     def test_garbage_raises(self):
         with pytest.raises(ParsingError):

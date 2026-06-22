@@ -3,14 +3,16 @@ import pty
 import select
 import shutil
 import subprocess
+import time
 
-from oci_runtime.domain.exceptions import ContainerRuntimeError, RuntimeNotAvailableError
+from oci_runtime.domain.exceptions import ContainerRuntimeError, OperationTimeoutError, RuntimeNotAvailableError
 from oci_runtime.ports.output_stream import OutputStream
 
 
 def run_pty(
     command: list[str],
     output_stream: OutputStream | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a command in a PTY, writing output to output_stream as it arrives.
 
@@ -51,10 +53,18 @@ def run_pty(
         os.close(slave_fd)
         slave_fd = -1
 
+        start = time.monotonic()
         drain_after_exit = False
         while True:
+            remaining = None
+            if timeout is not None:
+                remaining = max(0.0, timeout - (time.monotonic() - start))
+                if remaining == 0:
+                    proc.kill()
+                    proc.wait()
+                    raise OperationTimeoutError(command=command, timeout=timeout)
             try:
-                r, _, _ = select.select([master_fd], [], [], 0.1)
+                r, _, _ = select.select([master_fd], [], [], min(0.1, remaining) if remaining is not None else 0.1)
             except (ValueError, OSError):
                 break
             if r:

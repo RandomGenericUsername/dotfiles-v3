@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 from oci_runtime.adapters.managers.volume import CliVolumeManager
-from oci_runtime.domain.types import VolumeInfo
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import PruneResult, VolumeInfo
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import VolumeParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
@@ -13,8 +13,8 @@ class _MockParser(VolumeParser):
         return VolumeInfo(name="my-vol", driver="local")
     def parse_list(self, raw: str) -> list[VolumeInfo]:
         return [VolumeInfo(name="my-vol", driver="local")]
-    def parse_prune(self, raw: str) -> dict[str, int]:
-        return {"deleted": 0, "reclaimed_bytes": 0}
+    def parse_prune(self, raw: str) -> PruneResult:
+        return PruneResult()
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such volume" in stderr
 
@@ -28,18 +28,18 @@ class TestCliVolumeManager:
         self.caps = RuntimeCapabilities()
         self.manager = CliVolumeManager(self.transport, self.parser, self.caps)
 
-    def test_decode_stdout_converts_bytes_to_str(self):
-        result = self.manager._decode_stdout(b"my-vol")
+    def test_decode_bytes_converts_bytes_to_str(self):
+        result = self.manager._decode_bytes(b"my-vol")
         assert isinstance(result, str)
         assert result == "my-vol"
 
-    def test_decode_stdout_handles_non_utf8(self):
-        result = self.manager._decode_stdout(b"valid\xff\xfe")
+    def test_decode_bytes_handles_non_utf8(self):
+        result = self.manager._decode_bytes(b"valid\xff\xfe")
         assert isinstance(result, str)
         assert "\ufffd" in result
 
-    def test_decode_stdout_strip_preserved(self):
-        result = self.manager._decode_stdout(b"my-vol\n").strip()
+    def test_decode_bytes_strip_preserved(self):
+        result = self.manager._decode_bytes(b"my-vol\n").strip()
         assert isinstance(result, str)
         assert result == "my-vol"
 

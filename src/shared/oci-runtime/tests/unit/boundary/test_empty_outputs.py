@@ -10,9 +10,10 @@ from oci_runtime.adapters.parser.docker import (
     DockerNetworkParser,
     DockerVolumeParser,
 )
+from oci_runtime.domain.exceptions import ImageError
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.types import BuildContext, RunConfig
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
@@ -62,26 +63,26 @@ class TestEmptyList:
     def test_list_containers_empty(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "list"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
-        with pytest.raises(ParsingError, match="Empty response"):
-            mgr.list()
+        result = mgr.list()
+        assert result == []
 
     def test_list_images_empty(self, transport, caps):
         transport._responses = {("docker", "image", "list"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
-        with pytest.raises(ParsingError, match="Empty response"):
-            mgr.list()
+        result = mgr.list()
+        assert result == []
 
     def test_list_volumes_empty(self, transport, caps):
         transport._responses = {("docker", "volume", "list"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
-        with pytest.raises(ParsingError, match="Empty response"):
-            mgr.list()
+        result = mgr.list()
+        assert result == []
 
     def test_list_networks_empty(self, transport, caps):
         transport._responses = {("docker", "network", "list"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
-        with pytest.raises(ParsingError, match="Empty response"):
-            mgr.list()
+        result = mgr.list()
+        assert result == []
 
 
 class TestEmptyOutput:
@@ -108,23 +109,26 @@ class TestEmptyOutput:
         transport._responses = {("docker", "build", "-t", "myimg", "-"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        result = mgr.build(ctx, "myimg", timeout=30)
-        assert result == "sha256:"
+        with pytest.raises(ImageError):
+            mgr.build(ctx, "myimg", timeout=30)
 
     def test_pull_empty_stdout(self, transport, caps):
+        from oci_runtime.domain.exceptions import ImageError
         transport._responses = {("docker", "pull", "alpine"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
-        result = mgr.pull("alpine", timeout=30)
-        assert result == ""
+        with pytest.raises(ImageError):
+            mgr.pull("alpine", timeout=30)
 
 
 class TestEmptyExists:
     def test_container_exists_false_on_empty_inspect(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "nonexistent"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
-        assert mgr.exists("nonexistent") is False
+        with pytest.raises(ParsingError):
+            mgr.exists("nonexistent")
 
     def test_image_exists_false_on_empty_inspect(self, transport, caps):
         transport._responses = {("docker", "image", "inspect", "--format", "json", "nonexistent"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
-        assert mgr.exists("nonexistent") is False
+        with pytest.raises(ParsingError):
+            mgr.exists("nonexistent")

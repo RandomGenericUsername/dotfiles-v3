@@ -1,18 +1,16 @@
 from abc import ABC, abstractmethod
 
-from oci_runtime.domain.exceptions import OciError
+from oci_runtime.domain.exceptions import ParsingError
 from oci_runtime.domain.types import ContainerInfo, ImageInfo, NetworkInfo, PruneResult, VolumeInfo
 
 
-class ParsingError(OciError):
-    """Raised when CLI output cannot be parsed.
-
-    Part of the parser port contract — any parser implementation
-    may raise this when the runtime returns unparseable output.
-    """
-    def __init__(self, raw: str, message: str = "Failed to parse output"):
-        self.raw = raw
-        super().__init__(message)
+__all__ = [
+    "ParsingError",
+    "ContainerParser",
+    "ImageParser",
+    "VolumeParser",
+    "NetworkParser",
+]
 
 
 class ContainerParser(ABC):

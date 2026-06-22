@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
 from oci_runtime.domain.exceptions import ImageNotFoundError
-from oci_runtime.domain.types import BuildContext, ImageInfo
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import BuildContext, ImageInfo, PruneResult
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ImageManager
 from oci_runtime.ports.parsers import ImageParser
 from oci_runtime.domain.types import RawExecResult
@@ -18,7 +18,7 @@ class ImageManagerContractTest(ABC):
 
     def _defaults(self):
         t = RecordingTransport("docker")
-        caps = RuntimeCapabilities(default_build_flags=["--quiet"])
+        caps = RuntimeCapabilities(default_build_flags=("--quiet",))
         return self.make_manager(t, MockImageParser(), caps), t
 
     def _failing(self, stderr="No such image: nonexistent"):
@@ -87,7 +87,7 @@ class ImageManagerContractTest(ABC):
         mgr, t = self._defaults()
         t._responses[("docker", "image", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()
-        assert isinstance(result, dict)
+        assert isinstance(result, PruneResult)
 
     def test_inspect_nonexistent_raises_not_found(self):
         mgr, _ = self._failing()

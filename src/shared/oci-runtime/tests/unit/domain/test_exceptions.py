@@ -153,3 +153,10 @@ class TestRuntimeNotAvailableError:
         assert not issubclass(RuntimeNotAvailableError, ContainerError)
 
 
+class TestParsingError:
+    def test_parsing_error_importable_from_domain(self):
+        from oci_runtime.domain import ParsingError
+        from oci_runtime.domain.exceptions import ParsingError as P2
+        assert ParsingError is P2
+
+

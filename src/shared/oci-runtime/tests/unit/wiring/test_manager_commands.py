@@ -4,8 +4,8 @@ from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
-from oci_runtime.domain.types import BuildContext, ImageInfo, RunConfig
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import BuildContext, ImageInfo, PruneResult, RunConfig
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_parsers import (
     MockContainerParser,
@@ -17,11 +17,21 @@ from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingT
 
 
 @pytest.fixture
+def transport():
+    return RecordingTransport("docker")
+
+
+@pytest.fixture
+def streaming():
+    return RecordingStreamingTransport("docker")
+
+
+@pytest.fixture
 def caps():
     return RuntimeCapabilities(
         supports_log_drivers=True,
         tar_entry_name="Dockerfile",
-        default_build_flags=["--quiet"],
+        default_build_flags=("--quiet",),
     )
 
 
@@ -113,7 +123,7 @@ class TestImageManagerCommands:
         mgr = CliImageManager(t, MockImageParser(), caps)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "image", "prune", "--force"]
-        assert result == {"deleted": 0, "reclaimed_bytes": 0}
+        assert result == PruneResult()
 
     def test_prune_all(self, t, caps):
         t._responses = {("docker", "image", "prune", "--force", "--all"): RawExecResult(0, b"", b"")}
@@ -194,7 +204,7 @@ class TestContainerManagerCommands:
         pcaps = RuntimeCapabilities(
             needs_userns_keep_id=True,
             tar_entry_name="Containerfile",
-            default_run_flags=["--userns=keep-id"],
+            default_run_flags=("--userns=keep-id",),
         )
         podman_t = RecordingTransport("podman", {"podman run --userns=keep-id -d alpine": RawExecResult(0, b"abc123", b"")})
         podman_st = RecordingStreamingTransport("podman", {"podman run --userns=keep-id -d alpine": RawExecResult(0, b"abc123", b"")})
@@ -296,7 +306,39 @@ class TestContainerManagerCommands:
         mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "container", "prune", "--force"]
-        assert result == {"deleted": 0, "reclaimed_bytes": 0}
+        assert result == PruneResult()
+
+
+class TestImageManagerBuildCommands:
+    def test_build_with_no_cache_and_target_flags(self, transport, streaming, caps):
+        from pathlib import Path
+        from oci_runtime.domain.types import BuildContext
+        from oci_runtime.adapters.parser.docker import DockerImageParser
+        from oci_runtime.adapters.managers.image import CliImageManager
+        from oci_runtime.domain.types import RawExecResult
+        transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet", "--no-cache", "--target", "stage1"): RawExecResult(0, b"sha256:abc123", b"")}
+        mgr = CliImageManager(transport, DockerImageParser(), caps)
+        ctx = BuildContext(build_file_content="FROM alpine", no_cache=True, target="stage1")
+        mgr.build(ctx, "myimg", timeout=30)
+        cmd = transport.calls[-1].command
+        assert "--no-cache" in cmd
+        assert "--target" in cmd
+        assert "stage1" in cmd
+
+    def test_build_with_file_path_and_context_path(self, transport, streaming, caps):
+        from pathlib import Path
+        from oci_runtime.domain.types import BuildContext
+        from oci_runtime.adapters.parser.docker import DockerImageParser
+        from oci_runtime.adapters.managers.image import CliImageManager
+        from oci_runtime.domain.types import RawExecResult
+        transport._responses = {("docker", "build", "-t", "myimg", "-f", "/d/Dockerfile", "/ctx", "--quiet"): RawExecResult(0, b"sha256:abc123", b"")}
+        mgr = CliImageManager(transport, DockerImageParser(), caps)
+        ctx = BuildContext(build_file_path=Path("/d/Dockerfile"), context_path=Path("/ctx"))
+        mgr.build(ctx, "myimg", timeout=30)
+        cmd = transport.calls[-1].command
+        assert "-f" in cmd
+        assert "/d/Dockerfile" in cmd
+        assert "/ctx" in cmd
 
 
 class TestVolumeManagerCommands:
@@ -350,7 +392,7 @@ class TestVolumeManagerCommands:
         mgr = CliVolumeManager(t, MockVolumeParser(), caps)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "volume", "prune", "--force"]
-        assert result == {"deleted": 0, "reclaimed_bytes": 0}
+        assert result == PruneResult()
 
 
 class TestNetworkManagerCommands:
@@ -416,4 +458,4 @@ class TestNetworkManagerCommands:
         mgr = CliNetworkManager(t, MockNetworkParser(), caps)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "network", "prune", "--force"]
-        assert result == {"deleted": 0, "reclaimed_bytes": 0}
+        assert result == PruneResult()

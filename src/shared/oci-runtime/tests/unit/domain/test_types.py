@@ -106,7 +106,6 @@ class TestBuildContext:
         ctx = BuildContext(
             build_file_content="FROM alpine",
             context_path=Path("/ctx"),
-            files={"extra.txt": b"data"},
             build_args={"VERSION": "1.0"},
             labels={"app": "test"},
             target="stage1",
@@ -119,7 +118,7 @@ class TestBuildContext:
         assert ctx.build_file_content == "FROM alpine"
         assert ctx.build_file_path is None
         assert ctx.context_path == Path("/ctx")
-        assert ctx.files == {"extra.txt": b"data"}
+        assert ctx.files == {}
         assert ctx.build_args == {"VERSION": "1.0"}
         assert ctx.labels == {"app": "test"}
         assert ctx.target == "stage1"
@@ -133,7 +132,6 @@ class TestBuildContext:
         ctx = BuildContext(
             build_file_path=Path("Containerfile"),
             context_path=Path("/ctx"),
-            files={"extra.txt": b"data"},
             build_args={"VERSION": "1.0"},
             labels={"app": "test"},
             target="stage1",
@@ -146,7 +144,7 @@ class TestBuildContext:
         assert ctx.build_file_path == Path("Containerfile")
         assert ctx.build_file_content is None
         assert ctx.context_path == Path("/ctx")
-        assert ctx.files == {"extra.txt": b"data"}
+        assert ctx.files == {}
         assert ctx.build_args == {"VERSION": "1.0"}
         assert ctx.labels == {"app": "test"}
         assert ctx.target == "stage1"
@@ -163,6 +161,11 @@ class TestBuildContext:
     def test_neither_set_raises_value_error(self):
         with pytest.raises(ValueError, match="BuildContext"):
             BuildContext()
+
+    def test_build_context_forbids_path_and_files(self):
+        from pathlib import Path
+        with pytest.raises(ValueError, match="context_path"):
+            BuildContext(build_file_content="FROM alpine", context_path=Path("/x"), files={"a": b"x"})
 
 
 class TestRunConfig:
@@ -298,9 +301,28 @@ class TestRunConfig:
         assert config.network_container == "nginx"
 
     def test_network_container_without_name(self):
-        config = RunConfig(image="alpine", network=NetworkMode.CONTAINER)
-        assert config.network == NetworkMode.CONTAINER
-        assert config.network_container is None
+        with pytest.raises(ValueError, match="network=CONTAINER requires network_container"):
+            RunConfig(image="alpine", network=NetworkMode.CONTAINER)
+
+    def test_runconfig_network_container_requires_arg(self):
+        with pytest.raises(ValueError, match="network=CONTAINER requires network_container"):
+            RunConfig(image="alpine", network=NetworkMode.CONTAINER)
+
+    def test_runconfig_detach_tty_mutually_exclusive(self):
+        with pytest.raises(ValueError, match="detach=True is mutually exclusive with tty/auto_tty"):
+            RunConfig(image="alpine", detach=True, tty=True)
+
+    def test_runconfig_invalid_memory_limit_raises(self):
+        with pytest.raises(ValueError):
+            RunConfig(image="x", memory_limit="notalimit")
+
+    def test_runconfig_invalid_cpu_limit_raises(self):
+        with pytest.raises(ValueError):
+            RunConfig(image="x", cpu_limit="abc")
+
+    def test_runconfig_cpu_limit_rejects_trailing_dot(self):
+        with pytest.raises(ValueError):
+            RunConfig(image="x", cpu_limit="1.")
 
 
 class TestImageInfo:

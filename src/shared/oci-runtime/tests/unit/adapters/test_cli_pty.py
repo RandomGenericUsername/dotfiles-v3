@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import subprocess
 
-from oci_runtime.domain.exceptions import ContainerRuntimeError, RuntimeNotAvailableError
+from oci_runtime.domain.exceptions import ContainerRuntimeError, OperationTimeoutError, RuntimeNotAvailableError
 
 
 class TestRunPty:
@@ -36,6 +36,23 @@ class TestRunPty:
                                 result = run_pty(["/usr/bin/true"])
         assert isinstance(result, subprocess.CompletedProcess)
         assert result.returncode == 0
+
+    def test_run_pty_timeout_raises(self):
+        with patch("pty.openpty") as mock_openpty, \
+             patch("subprocess.Popen") as mock_popen, \
+             patch("select.select") as mock_select, \
+             patch("os.read") as mock_read, \
+             patch("os.close"):
+            mock_openpty.return_value = (3, 4)
+            mock_proc = MagicMock()
+            mock_proc.poll.return_value = None
+            mock_popen.return_value = mock_proc
+            mock_select.return_value = ([], [], [])
+            mock_read.side_effect = [b"data"] * 3 + [b""]
+            from oci_runtime.adapters.managers.pty import run_pty
+            with pytest.raises(OperationTimeoutError):
+                run_pty(["/bin/sleep", "5"], timeout=0.3)
+            mock_proc.kill.assert_called_once()
 
     def test_non_zero_exit_returns_completed_process(self):
         from oci_runtime.adapters.managers.pty import run_pty

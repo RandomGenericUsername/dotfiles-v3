@@ -1,6 +1,6 @@
 import re
 
-from oci_runtime.adapters.parser.base import BaseCliParser
+from oci_runtime.adapters.parser.base import BaseCliParser, _coerce_size, _safe_int
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
@@ -59,16 +59,19 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
           [{"HostPort": 8080, "ContainerPort": 80, "Protocol": "tcp", "HostIp": "0.0.0.0"}, ...]
         """
         ports = []
-        for p in item.get("Ports", []):
+        for p in (item.get("Ports") or []):
             if not isinstance(p, dict):
                 continue
             host_port = p.get("HostPort")
             container_port = p.get("ContainerPort")
             protocol = p.get("Protocol", "tcp")
             host_ip = p.get("HostIp", "") or "0.0.0.0"
+            cport = _safe_int(container_port)
+            if cport is None:
+                continue
             ports.append(PortMapping(
-                container_port=int(container_port) if container_port is not None else 0,
-                host_port=int(host_port) if host_port is not None else None,
+                container_port=cport,
+                host_port=_safe_int(host_port),
                 protocol=protocol,
                 host_ip=host_ip,
             ))
@@ -86,7 +89,7 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
             status=item.get("State", {}).get("Status", ""),
             created=item.get("Created"),
             ports=ports,
-            labels=item.get("Config", {}).get("Labels", {}),
+            labels=item.get("Config", {}).get("Labels") or {},
             exit_code=item.get("State", {}).get("ExitCode"),
         )
 
@@ -105,7 +108,7 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
                 status=item.get("Status", ""),
                 created=str(item.get("Created", "")),
                 ports=self._parse_ports_from_list(item),
-                labels=item.get("Labels", {}),
+                labels=item.get("Labels") or {},
             ))
         return result
 
@@ -120,7 +123,7 @@ class PodmanImageParser(BaseCliParser, ImageParser):
             tags=item.get("RepoTags", []),
             size=item.get("Size", 0),
             created=item.get("Created"),
-            labels=item.get("Labels", {}),
+            labels=item.get("Labels") or {},
         )
 
     def parse_list(self, raw: str) -> list[ImageInfo]:
@@ -138,7 +141,7 @@ class PodmanImageParser(BaseCliParser, ImageParser):
             result.append(ImageInfo(
                 id=item.get("Id", ""),
                 tags=tags if tags else [],
-                size=item.get("Size", 0),
+                size=_coerce_size(item.get("Size", 0)),
                 created=str(item.get("Created", "")),
                 labels=labels,
             ))
@@ -161,6 +164,8 @@ class PodmanImageParser(BaseCliParser, ImageParser):
                         if match:
                             return f"sha256:{match.group(1)}"
                     if line and not line.startswith('Error') and not line.startswith('Warning'):
+                        if re.match(r'^[a-f0-9]{12,64}$', line):
+                            return f"sha256:{line}"
                         return line
         return ""
 
@@ -174,7 +179,7 @@ class PodmanVolumeParser(BaseCliParser, VolumeParser):
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
             mountpoint=item.get("Mountpoint"),
-            labels=item.get("Labels", {}),
+            labels=item.get("Labels") or {},
         )
 
     def parse_list(self, raw: str) -> list[VolumeInfo]:
@@ -203,7 +208,7 @@ class PodmanNetworkParser(BaseCliParser, NetworkParser):
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
             scope=item.get("Scope", ""),
-            labels=item.get("Labels", {}),
+            labels=item.get("Labels") or {},
         )
 
     def parse_list(self, raw: str) -> list[NetworkInfo]:

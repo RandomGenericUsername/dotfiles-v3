@@ -1,0 +1,244 @@
+[
+    {
+        "Id": "6fdd9940679c7f9035d0b2c1da3e022c703569fbe4ed98330e4e3ace8fb65e9a",
+        "ParentId": "3cb067eab609612d81b4d82ff8ad71d73482bb3059a87b642d7e14f0ed659cde",
+        "RepoTags": null,
+        "RepoDigests": [
+            "localhost/oci-finding26-test-6c6ff8b4@sha256:0604cf8b08c5c8e23e0d8a04231052909ac2275f461b0c8cb391882a870210e9"
+        ],
+        "Size": 8735049,
+        "SharedSize": 0,
+        "VirtualSize": 8735049,
+        "Labels": {
+            "io.buildah.version": "1.39.4"
+        },
+        "Containers": 0,
+        "Digest": "sha256:0604cf8b08c5c8e23e0d8a04231052909ac2275f461b0c8cb391882a870210e9",
+        "History": [
+            "localhost/oci-finding26-test-6c6ff8b4:latest"
+        ],
+        "Names": [
+            "localhost/oci-finding26-test-6c6ff8b4:latest"
+        ],
+        "Created": 1780538130,
+        "CreatedAt": "2026-06-04T01:55:30Z"
+    },
+    {
+        "Id": "7b9ec72b311190821c27072fcd17d3af1b459e6ad50f18fbb3b1dc95777a9bdc",
+        "ParentId": "df7d60a423d597343e3448bdf8dbaafd650857cf5ae120d4784a3d54a30b43ac",
+        "RepoTags": null,
+        "RepoDigests": [
+            "localhost/ubidots_scylla@sha256:e6523446c4e3a97ff5bd5fb94baee87e13a3e240d5a07a4254cc0ccc4a84fbdf"
+        ],
+        "Size": 899065798,
+        "SharedSize": 0,
+        "VirtualSize": 899065798,
+        "Labels": {
+            "io.buildah.version": "1.39.2"
+        },
+        "Containers": 0,
+        "Digest": "sha256:e6523446c4e3a97ff5bd5fb94baee87e13a3e240d5a07a4254cc0ccc4a84fbdf",
+        "History": [
+            "localhost/ubidots_scylla:v0.0.8"
+        ],
+        "Names": [
+            "localhost/ubidots_scylla:v0.0.8"
+        ],
+        "Created": 1779740373,
+        "CreatedAt": "2026-05-25T20:19:33Z"
+    },
+    {
+        "Id": "40b1fa64a8129bf87753806706f45b93448909a642bc8357f3a5c216f341391b",
+        "ParentId": "de912cbbf07f938bb8aaa5682464a73a00c6a996efdf0880423aeb4eae006c34",
+        "RepoTags": null,
+        "RepoDigests": [
+            "localhost/ubidots_rabbitmq@sha256:75d1459a5b6217b13a159d16e0e26f10f336ee549c3e16625da089547a527546"
+        ],
+        "Size": 257996833,
+        "SharedSize": 0,
+        "VirtualSize": 257996833,
+        "Labels": {
+            "io.buildah.version": "1.39.2",
+            "org.opencontainers.image.ref.name": "ubuntu",
+            "org.opencontainers.image.version": "24.04"
+        },
+        "Containers": 0,
+        "Digest": "sha256:75d1459a5b6217b13a159d16e0e26f10f336ee549c3e16625da089547a527546",
+        "History": [
+            "localhost/ubidots_rabbitmq:v0.0.10"
+        ],
+        "Names": [
+            "localhost/ubidots_rabbitmq:v0.0.10"
+        ],
+        "Created": 1779740248,
+        "CreatedAt": "2026-05-25T20:17:28Z"
+    },
+    {
+        "Id": "e32ee2a606ee8ab8bda719c92ee1b1a9b4ed68f7af0838d7935ab0f639bd654f",
+        "ParentId": "65750d044ac86b73a473c01a854d5f7f2b55a77b43f007d0e10a5db5dd1d926f",
+        "RepoTags": null,
+        "RepoDigests": [
+            "localhost/ubidots_redis@sha256:870c051e3a3eef565f8984c101845c748037f4b704c0b57016cd7e6898fde207"
+        ],
+        "Size": 120293923,
+        "SharedSize": 0,
+        "VirtualSize": 120293923,
+        "Labels": {
+            "io.buildah.version": "1.39.2"
+        },
+        "Containers": 0,
+        "Digest": "sha256:870c051e3a3eef565f8984c101845c748037f4b704c0b57016cd7e6898fde207",
+        "History": [
+            "localhost/ubidots_redis:v0.0.9"
+        ],
+        "Names": [
+            "localhost/ubidots_redis:v0.0.9"
+        ],
+        "Created": 1779740223,
+        "CreatedAt": "2026-05-25T20:17:03Z"
+    },
+    {
+        "Id": "b01f5c2ccde3d92e61b107c819b951a0d8f91ddcfe8449fbe824bae97f4f16c8",
+        "ParentId": "fff3594bf464bea0f502788874403882d8bbbe618b3250f8649e7e42fd118020",
+        "RepoTags": null,
+        "RepoDigests": [
+            "localhost/ubidots_postgresql@sha256:1c66417de27de4a1b7e689dd2891176a67b6d50cbc70b9369445e0b26a45a294"
+        ],
+        "Size": 279050173,
+        "SharedSize": 0,
+        "VirtualSize": 279050173,
+        "Labels": {
+            "io.buildah.version": "1.39.2"
+        },
+        "Containers": 0,
+        "Digest": "sha256:1c66417de27de4a1b7e689dd2891176a67b6d50cbc70b9369445e0b26a45a294",
+        "History": [
+            "localhost/ubidots_postgresql:v0.0.9"
+        ],
+        "Names": [
+            "localhost/ubidots_postgresql:v0.0.9"
+        ],
+        "Created": 1779740213,
+        "CreatedAt": "2026-05-25T20:16:53Z"
+    },
+    {
+        "Id": "fff3594bf464bea0f502788874403882d8bbbe618b3250f8649e7e42fd118020",
+        "ParentId": "",
+        "RepoTags": null,
+        "RepoDigests": [
+            "docker.io/library/postgres@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
+            "docker.io/library/postgres@sha256:79950da386bda7fcc9d57aa9aa9be6c6d7407596a9b8f68014b09a778a9ab316"
+        ],
+        "Size": 279033226,
+        "SharedSize": 0,
+        "VirtualSize": 279033226,
+        "Labels": null,
+        "Containers": 1,
+        "Digest": "sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
+        "History": [
+            "docker.io/library/postgres:16-alpine"
+        ],
+        "Names": [
+            "docker.io/library/postgres:16-alpine"
+        ],
+        "Created": 1778785427,
+        "CreatedAt": "2026-05-14T19:03:47Z"
+    },
+    {
+        "Id": "3cb067eab609612d81b4d82ff8ad71d73482bb3059a87b642d7e14f0ed659cde",
+        "ParentId": "",
+        "RepoTags": null,
+        "RepoDigests": [
+            "docker.io/library/alpine@sha256:4d889c14e7d5a73929ab00be2ef8ff22437e7cbc545931e52554a7b00e123d8b",
+            "docker.io/library/alpine@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11"
+        ],
+        "Size": 8744033,
+        "SharedSize": 0,
+        "VirtualSize": 8744033,
+        "Labels": null,
+        "Containers": 0,
+        "Digest": "sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11",
+        "History": [
+            "docker.io/library/alpine:latest"
+        ],
+        "Names": [
+            "docker.io/library/alpine:latest"
+        ],
+        "Created": 1776283300,
+        "CreatedAt": "2026-04-15T20:01:40Z"
+    },
+    {
+        "Id": "de912cbbf07f938bb8aaa5682464a73a00c6a996efdf0880423aeb4eae006c34",
+        "ParentId": "",
+        "RepoTags": null,
+        "RepoDigests": [
+            "docker.io/library/rabbitmq@sha256:9cfb7e92ae7d296aec4d1ae799e431209f7ed57d55f9c929d95667d0ccf1c920",
+            "docker.io/library/rabbitmq@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69"
+        ],
+        "Size": 257965603,
+        "SharedSize": 0,
+        "VirtualSize": 257965603,
+        "Labels": {
+            "org.opencontainers.image.ref.name": "ubuntu",
+            "org.opencontainers.image.version": "24.04"
+        },
+        "Containers": 1,
+        "Digest": "sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69",
+        "History": [
+            "docker.io/library/rabbitmq:3.13-management"
+        ],
+        "Names": [
+            "docker.io/library/rabbitmq:3.13-management"
+        ],
+        "Created": 1764644869,
+        "CreatedAt": "2025-12-02T03:07:49Z"
+    },
+    {
+        "Id": "65750d044ac86b73a473c01a854d5f7f2b55a77b43f007d0e10a5db5dd1d926f",
+        "ParentId": "",
+        "RepoTags": null,
+        "RepoDigests": [
+            "docker.io/library/redis@sha256:f452836040018082f5383b5969c66ed3009bfd38932ae188a28d206870ae277b",
+            "docker.io/library/redis@sha256:fbdbaea47b9ae4ecc2082ecdb4e1cea81e32176ffb1dcf643d422ad07427e5d9"
+        ],
+        "Size": 120208649,
+        "SharedSize": 0,
+        "VirtualSize": 120208649,
+        "Labels": null,
+        "Containers": 1,
+        "Digest": "sha256:fbdbaea47b9ae4ecc2082ecdb4e1cea81e32176ffb1dcf643d422ad07427e5d9",
+        "History": [
+            "docker.io/library/redis:7.4.2"
+        ],
+        "Names": [
+            "docker.io/library/redis:7.4.2"
+        ],
+        "Created": 1736180071,
+        "CreatedAt": "2025-01-06T16:14:31Z"
+    },
+    {
+        "Id": "df7d60a423d597343e3448bdf8dbaafd650857cf5ae120d4784a3d54a30b43ac",
+        "ParentId": "",
+        "RepoTags": null,
+        "RepoDigests": [
+            "docker.io/scylladb/scylla@sha256:62a7255a1f98191947c14c9bdb5ea32499076cffeb09203679652c35ab044f00",
+            "docker.io/scylladb/scylla@sha256:b6b16d47d8625b0b983664882557845e154c02d05c4d235e206b5404c501f259"
+        ],
+        "Size": 899040408,
+        "SharedSize": 0,
+        "VirtualSize": 899040408,
+        "Labels": {
+            "io.buildah.version": "1.23.3"
+        },
+        "Containers": 1,
+        "Digest": "sha256:b6b16d47d8625b0b983664882557845e154c02d05c4d235e206b5404c501f259",
+        "History": [
+            "docker.io/scylladb/scylla:5.1.0-rc4"
+        ],
+        "Names": [
+            "docker.io/scylladb/scylla:5.1.0-rc4"
+        ],
+        "Created": 1667752485,
+        "CreatedAt": "2022-11-06T16:34:45Z"
+    }
+]

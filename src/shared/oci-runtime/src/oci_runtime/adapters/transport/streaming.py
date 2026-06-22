@@ -7,15 +7,25 @@ from oci_runtime.adapters._cancellation import (
     CompositeCancellationToken,
     DeadlineCancellationToken,
 )
-from oci_runtime.adapters._process_reader import ProcessPipeReader
-from oci_runtime.domain.exceptions import RuntimeNotAvailableError
+from oci_runtime.adapters import _process_reader
+from oci_runtime.domain.exceptions import OperationTimeoutError, RuntimeNotAvailableError
 from oci_runtime.domain.types import CancellationToken, RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
+
+
+_NOT_PROBED = object()
 
 
 class CliStreamingTransport(StreamingTransport):
     def __init__(self, binary: str):
         self.binary = binary
+        self._which_cache: str | None | object = _NOT_PROBED
+
+    def _ensure_binary(self) -> None:
+        if self._which_cache is _NOT_PROBED:
+            self._which_cache = shutil.which(self.binary)
+        if self._which_cache is None:
+            raise RuntimeNotAvailableError(self.binary)
 
     def stream(
         self,
@@ -27,8 +37,7 @@ class CliStreamingTransport(StreamingTransport):
         on_stderr: Callable[[bytes], None] | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> RawExecResult:
-        if shutil.which(self.binary) is None:
-            raise RuntimeNotAvailableError(self.binary)
+        self._ensure_binary()
 
         deadline_token: DeadlineCancellationToken | None = None
         if timeout is not None:
@@ -59,7 +68,7 @@ class CliStreamingTransport(StreamingTransport):
                 _stdin_thread = threading.Thread(target=_write_stdin, daemon=True)
                 _stdin_thread.start()
 
-            reader = ProcessPipeReader(process)
+            reader = _process_reader.ProcessPipeReader(process)
             stdout_acc, stderr_acc = reader.read(on_stdout, on_stderr, effective_token)
 
             if _stdin_thread:
@@ -70,10 +79,7 @@ class CliStreamingTransport(StreamingTransport):
                 process.wait()
                 _process_reaped = True
                 if deadline_token is not None and deadline_token.is_cancelled:
-                    raise subprocess.TimeoutExpired(
-                        " ".join(command) if isinstance(command, list) else command,
-                        timeout,
-                    )
+                    raise OperationTimeoutError(command=command, timeout=timeout)
                 return RawExecResult(
                     returncode=-1,
                     stdout=b"".join(stdout_acc),
@@ -91,15 +97,21 @@ class CliStreamingTransport(StreamingTransport):
         except subprocess.TimeoutExpired:
             if process and process.poll() is None:
                 process.kill()
-                process.wait()
+                try:
+                    process.wait()
+                except subprocess.TimeoutExpired:
+                    pass
             _process_reaped = True
-            raise
+            raise OperationTimeoutError(command=command, timeout=timeout) from None
         finally:
             if deadline_token is not None:
                 deadline_token.cancel()
             if process and not _process_reaped:
                 process.kill()
-                process.wait()
+                try:
+                    process.wait()
+                except subprocess.TimeoutExpired:
+                    pass
             if process:
                 for pipe in (process.stdout, process.stderr, process.stdin):
                     if pipe:

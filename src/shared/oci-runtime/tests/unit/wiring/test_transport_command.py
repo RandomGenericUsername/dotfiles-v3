@@ -67,7 +67,7 @@ class TestCliTransportExecute:
     def test_get_runtime_binary_returns_binary(self):
         with patch("shutil.which", return_value="/usr/bin/docker"):
             t = CliTransport("docker")
-            assert t.get_runtime_binary() == "docker"
+            assert t.get_runtime_binary() == "/usr/bin/docker"
 
     def test_get_runtime_binary_custom_path(self):
         with patch("shutil.which", return_value="/custom/bin/podman"):

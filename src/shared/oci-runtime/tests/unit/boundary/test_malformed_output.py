@@ -10,9 +10,10 @@ from oci_runtime.adapters.parser.docker import (
     DockerNetworkParser,
     DockerVolumeParser,
 )
+from oci_runtime.domain.exceptions import ImageError
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.types import BuildContext
-from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.domain.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
 
@@ -98,17 +99,17 @@ class TestMalformedList:
 
 class TestMalformedBuildOutput:
     def test_build_output_empty(self, transport, caps):
-        caps = RuntimeCapabilities(default_build_flags=["--quiet"])
+        caps = RuntimeCapabilities(default_build_flags=("--quiet",))
         transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        result = mgr.build(ctx, "myimg", timeout=30)
-        assert result == "sha256:"
+        with pytest.raises(ImageError):
+            mgr.build(ctx, "myimg", timeout=30)
 
     def test_build_output_whitespace_only(self, transport, caps):
-        caps = RuntimeCapabilities(default_build_flags=["--quiet"])
+        caps = RuntimeCapabilities(default_build_flags=("--quiet",))
         transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet"): RawExecResult(returncode=0, stdout=b"  \n  ", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        result = mgr.build(ctx, "myimg", timeout=30)
-        assert result == "sha256:"
+        with pytest.raises(ImageError):
+            mgr.build(ctx, "myimg", timeout=30)
