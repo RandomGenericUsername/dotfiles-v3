@@ -10,7 +10,7 @@ class Transport(ABC):
         self,
         command: list[str],
         *,
-        timeout: int | None = None,
+        timeout: float | None = None,
         input_data: bytes | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> RawExecResult: ...

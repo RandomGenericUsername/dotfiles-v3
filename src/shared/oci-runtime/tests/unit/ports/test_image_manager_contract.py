@@ -37,7 +37,7 @@ class ImageManagerContractTest(ABC):
 
     def test_build_returns_str(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "build", "-t", "myimg", "-", "--quiet")] = RawExecResult(0, b"sha256:abc\n", b"")
+        t._responses[("docker", "build", "-t", "myimg", "--quiet", "-")] = RawExecResult(0, b"sha256:abc\n", b"")
         result = mgr.build(BuildContext(build_file_content="FROM alpine"), "myimg")
         assert isinstance(result, str)
 
@@ -83,7 +83,7 @@ class ImageManagerContractTest(ABC):
         result = mgr.list()
         assert isinstance(result, list)
 
-    def test_prune_returns_dict(self):
+    def test_prune_returns_prune_result(self):
         mgr, t = self._defaults()
         t._responses[("docker", "image", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()
@@ -99,7 +99,7 @@ class ImageManagerContractTest(ABC):
 
     def test_build_delegates_to_transport(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "build", "-t", "myimg", "-", "--quiet")] = RawExecResult(0, b"sha256:abc\n", b"")
+        t._responses[("docker", "build", "-t", "myimg", "--quiet", "-")] = RawExecResult(0, b"sha256:abc\n", b"")
         mgr.build(BuildContext(build_file_content="FROM alpine"), "myimg")
         assert len(t.calls) > 0
 

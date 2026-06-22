@@ -10,7 +10,7 @@ from oci_runtime.adapters.parser.docker import (
     DockerNetworkParser,
     DockerVolumeParser,
 )
-from oci_runtime.domain.exceptions import ImageError
+from oci_runtime.domain.exceptions import ImageError, ImageRuntimeError
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.types import BuildContext, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -115,8 +115,16 @@ class TestEmptyOutput:
         transport._responses = {("docker", "build", "-t", "myimg", "-"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        with pytest.raises(ParsingError):
+        with pytest.raises(ImageError):
             mgr.build(ctx, "myimg", timeout=30)
+
+    def test_build_invalid_hex_raises_image_error_with_cause(self, transport, caps):
+        transport._responses = {("docker", "build", "-t", "myimg", "-"): RawExecResult(returncode=0, stdout=b"not a hex string", stderr=b"")}
+        mgr = CliImageManager(transport, DockerImageParser(), caps)
+        ctx = BuildContext(build_file_content="FROM alpine")
+        with pytest.raises(ImageRuntimeError) as exc_info:
+            mgr.build(ctx, "myimg", timeout=30)
+        assert isinstance(exc_info.value.__cause__, ParsingError)
 
     def test_pull_empty_stdout(self, transport, caps):
         from oci_runtime.domain.exceptions import ImageError, ParsingError

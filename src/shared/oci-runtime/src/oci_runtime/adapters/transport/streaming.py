@@ -24,7 +24,7 @@ class CliStreamingTransport(StreamingTransport):
         self,
         command: list[str],
         *,
-        timeout: int | None = None,
+        timeout: float | None = None,
         input_data: bytes | None = None,
         on_stdout: Callable[[bytes], None] | None = None,
         on_stderr: Callable[[bytes], None] | None = None,
@@ -68,13 +68,12 @@ class CliStreamingTransport(StreamingTransport):
                 cancel_token=effective_token,
             )
 
-            if _stdin_thread:
-                _stdin_thread.join(timeout=5)
-
             if effective_token is not None and effective_token.is_cancelled:
                 process.kill()
                 process.wait()
                 _process_reaped = True
+                if _stdin_thread:
+                    _stdin_thread.join(timeout=5)
                 if deadline_token is not None and deadline_token.is_cancelled:
                     raise OperationTimeoutError(command=command, timeout=timeout)
                 return RawExecResult(
@@ -83,7 +82,25 @@ class CliStreamingTransport(StreamingTransport):
                     stderr=b"".join(stderr_acc),
                 )
 
-            returncode = process.wait()
+            if _stdin_thread:
+                _stdin_thread.join(timeout=5)
+            while True:
+                if effective_token is not None and effective_token.is_cancelled:
+                    process.kill()
+                    process.wait()
+                    _process_reaped = True
+                    if deadline_token is not None and deadline_token.is_cancelled:
+                        raise OperationTimeoutError(command=command, timeout=timeout)
+                    return RawExecResult(
+                        returncode=-1,
+                        stdout=b"".join(stdout_acc),
+                        stderr=b"".join(stderr_acc),
+                    )
+                try:
+                    returncode = process.wait(timeout=0.5)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
             _process_reaped = True
             return RawExecResult(
                 returncode=returncode,

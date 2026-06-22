@@ -105,16 +105,16 @@ class TestMalformedList:
 class TestMalformedBuildOutput:
     def test_build_output_empty(self, transport, caps):
         caps = RuntimeCapabilities(default_build_flags=("--quiet",))
-        transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
+        transport._responses = {("docker", "build", "-t", "myimg", "--quiet", "-"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        with pytest.raises(ParsingError):
+        with pytest.raises(ImageError):
             mgr.build(ctx, "myimg", timeout=30)
 
     def test_build_output_whitespace_only(self, transport, caps):
         caps = RuntimeCapabilities(default_build_flags=("--quiet",))
-        transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet"): RawExecResult(returncode=0, stdout=b"  \n  ", stderr=b"")}
+        transport._responses = {("docker", "build", "-t", "myimg", "--quiet", "-"): RawExecResult(returncode=0, stdout=b"  \n  ", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        with pytest.raises(ParsingError):
+        with pytest.raises(ImageError):
             mgr.build(ctx, "myimg", timeout=30)

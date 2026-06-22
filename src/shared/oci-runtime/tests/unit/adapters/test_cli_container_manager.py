@@ -86,17 +86,6 @@ class TestCliContainerManager:
                 not_found=ImageNotFoundError,
             )
 
-    def test_check_result_lacks_is_not_found_error_raises_attribute_error(self):
-        with pytest.raises(AttributeError, match="is_not_found_error"):
-            manager = CliContainerManager(self.transport, object(), self.caps, streaming=self.streaming, tty_detector=FakeTtyDetector(),
-                pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
-            manager._check_result(
-                RawExecResult(returncode=1, stdout=b"", stderr=b"any error"),
-                cmd=["docker", "run", "x"],
-                entity="x",
-                not_found=ImageNotFoundError,
-            )
-
     def test_list_calls_transport(self):
         self.manager.list()
         self.transport.execute.assert_called_once()

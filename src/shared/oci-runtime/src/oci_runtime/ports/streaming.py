@@ -18,7 +18,7 @@ class StreamingTransport(ABC):
         self,
         command: list[str],
         *,
-        timeout: int | None = None,
+        timeout: float | None = None,
         input_data: bytes | None = None,
         on_stdout: Callable[[bytes], None] | None = None,
         on_stderr: Callable[[bytes], None] | None = None,

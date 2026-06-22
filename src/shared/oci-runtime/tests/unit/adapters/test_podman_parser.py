@@ -273,7 +273,7 @@ class TestPodmanImageParser:
     def test_parse_inspect(self):
         info = self.parser.parse_inspect(PODMAN_IMAGE_INSPECT)
         assert "xyz789ghi012" in info.id
-        assert info.tags == ["alpine:latest"]
+        assert info.tags == ("alpine:latest",)
         assert info.size == 5000000
 
     def test_parse_list(self):
@@ -339,13 +339,13 @@ class TestPodmanImageParserNormalization:
         data = '[{"Id":"sha256:abc","RepoTags":null,"Size":5000000,"Labels":{}}]'
         result = self.parser.parse_list(data)
         assert len(result) == 1
-        assert result[0].tags == []
+        assert result[0].tags == ()
 
     def test_parse_list_names_fallback(self):
         data = '[{"Id":"sha256:abc","Names":["alpine:latest"],"Size":5000000,"Labels":{}}]'
         result = self.parser.parse_list(data)
         assert len(result) == 1
-        assert result[0].tags == ["alpine:latest"]
+        assert result[0].tags == ("alpine:latest",)
 
     def test_podman_image_list_string_size(self):
         raw = '[{"Id":"sha256:abc","RepoTags":["alpine:latest"],"Size":"5000000","Created":1704067200,"Labels":{}}]'

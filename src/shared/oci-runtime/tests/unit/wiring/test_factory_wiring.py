@@ -134,16 +134,6 @@ class TestFactoryConfigInjection:
                     volume_parser=FakeContainerParser(),
                     network_parser=FakeContainerParser(),
                 )
-            def create_managers(self, transport, streaming_transport, caps, *, tty_detector_factory=None, output_stream_factory=None, cancellation_factory=None, pty_transport=None):
-                parsers = self.create_parsers()
-                return Managers(
-                    image_manager=CliImageManager(transport, parsers.image_parser, caps),
-                    container_manager=CliContainerManager(transport, parsers.container_parser, caps, streaming=streaming_transport, tty_detector=FakeTtyDetector(),
-                        pty_transport=pty_transport or MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken()),
-                    volume_manager=CliVolumeManager(transport, parsers.volume_parser, caps),
-                    network_manager=CliNetworkManager(transport, parsers.network_parser, caps),
-                )
-
         transport = RecordingTransport("docker", {
             "docker --version": RawExecResult(returncode=0, stdout=b"Docker", stderr=b""),
         })

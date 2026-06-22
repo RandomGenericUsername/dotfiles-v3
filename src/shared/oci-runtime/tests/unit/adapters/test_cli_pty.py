@@ -120,9 +120,10 @@ class TestRunPtyEdgeCases:
         assert result.stdout == b"output data"
         assert result.returncode == 0
 
-    def test_run_pty_default_writes_to_stdout(self):
+    def test_run_pty_default_writes_to_output_stream(self):
         resolver = CliBinaryResolver()
         transport = CliPtyTransport(resolver)
+        buf = io.BytesIO()
         with patch("shutil.which", return_value="/usr/bin/echo"):
             with patch("pty.openpty", return_value=(3, 4)):
                 with patch("os.close"):
@@ -136,11 +137,8 @@ class TestRunPtyEdgeCases:
                                     on_primary(b"hello default")
                                 return ([b"hello default"], [b""])
                             mock_reader.from_fds.return_value.read.side_effect = _mock_read
-                            with patch.object(sys.stdout.buffer, "write") as mock_write:
-                                with patch.object(sys.stdout.buffer, "flush") as mock_flush:
-                                    result = transport.execute_pty(["/usr/bin/echo", "hello"])
-        mock_write.assert_called_once_with(b"hello default")
-        mock_flush.assert_called_once()
+                            result = transport.execute_pty(["/usr/bin/echo", "hello"], output_stream=buf)
+        assert buf.getvalue() == b"hello default"
         assert result.returncode == 0
 
     def test_drain_after_exit(self):
@@ -189,7 +187,7 @@ class TestRunPtyEdgeCases:
                             result = transport.execute_pty(["/usr/bin/echo", "x"])
         assert result.returncode == 0
 
-    def test_select_raises_value_error(self):
+    def test_reader_raises_value_error(self):
         resolver = CliBinaryResolver()
         transport = CliPtyTransport(resolver)
         with patch("shutil.which", return_value="/usr/bin/true"):
@@ -203,6 +201,26 @@ class TestRunPtyEdgeCases:
                             mock_reader.from_fds.return_value.read.side_effect = ValueError("bad fd")
                             with pytest.raises(ValueError):
                                 transport.execute_pty(["/usr/bin/true"])
+
+    def test_pty_stderr_separation(self):
+        resolver = CliBinaryResolver()
+        transport = CliPtyTransport(resolver)
+        with patch("shutil.which", return_value="/usr/bin/true"):
+            with patch("pty.openpty", return_value=(3, 4)):
+                with patch("os.close"):
+                    with patch("subprocess.Popen") as mock_popen:
+                        proc = MagicMock()
+                        proc.wait.return_value = 0
+                        mock_popen.return_value = proc
+                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
+                            mock_reader.from_fds.return_value.read.return_value = (
+                                [b"stdout data"],
+                                [b"stderr data"],
+                            )
+                            result = transport.execute_pty(["/usr/bin/true"])
+        assert result.stdout == b"stdout data"
+        assert result.stderr == b"stderr data"
+        assert result.returncode == 0
 
     def test_proc_never_started_raises(self):
         resolver = CliBinaryResolver()

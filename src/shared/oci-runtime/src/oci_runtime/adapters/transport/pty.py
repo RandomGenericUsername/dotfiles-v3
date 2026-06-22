@@ -76,7 +76,22 @@ class CliPtyTransport(PtyTransport):
                     stderr=b"".join(stderr_acc),
                 )
 
-            returncode = process.wait()
+            while True:
+                if effective_token is not None and effective_token.is_cancelled:
+                    process.kill()
+                    process.wait()
+                    if deadline_token is not None and deadline_token.is_cancelled:
+                        raise OperationTimeoutError(command=command, timeout=timeout)
+                    return RawExecResult(
+                        returncode=-1,
+                        stdout=b"".join(stdout_acc),
+                        stderr=b"".join(stderr_acc),
+                    )
+                try:
+                    returncode = process.wait(timeout=0.5)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
             return RawExecResult(
                 returncode=returncode,
                 stdout=b"".join(stdout_acc),

@@ -139,6 +139,28 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             )
             return ""
 
+        if config.stream_output:
+            output_stream = self._output_stream
+
+            def _write(data: bytes) -> None:
+                if output_stream is not None:
+                    output_stream.write(data)
+
+            result = self._streaming.stream(
+                cmd,
+                on_stdout=_write,
+                on_stderr=_write,
+                timeout=config.timeout,
+            )
+            self._check_result(
+                result,
+                cmd,
+                operation="run container",
+                entity=config.image,
+                not_found=ImageNotFoundError,
+            )
+            return ""
+
         result = self._streaming.stream(cmd, timeout=config.timeout)
         self._check_result(
             result,
@@ -147,8 +169,6 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             entity=config.image,
             not_found=ImageNotFoundError,
         )
-        if config.stream_output:
-            return ""
         return self._decode_bytes(result.stdout).strip()
 
     def start(self, container: str) -> None:
@@ -270,7 +290,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         finally:
             cancel_token.cancel()
             thread.join(timeout=_LOGS_JOIN_TIMEOUT)
-            if errors:
+            if errors and not isinstance(errors[0], GeneratorExit):
                 raise errors[0]
 
     def exec_container(

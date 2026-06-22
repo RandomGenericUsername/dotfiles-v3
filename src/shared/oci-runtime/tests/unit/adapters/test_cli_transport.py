@@ -91,3 +91,36 @@ class TestCliTransport:
                     t.execute(["docker", "ps"])
                     t.execute(["docker", "ps"])
                     assert mock_which.call_count == 1
+
+    def test_execute_timeout_raises_operation_timeout(self):
+        from oci_runtime.domain.exceptions import OperationTimeoutError
+        t = CliTransport("docker")
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            with patch("subprocess.Popen") as mock_popen:
+                proc = MagicMock()
+                proc.stdout.fileno.return_value = 3
+                proc.stderr.fileno.return_value = 4
+                proc.wait.side_effect = [None, None]
+                mock_popen.return_value = proc
+                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
+                    with patch("oci_runtime.adapters.transport.cli.DeadlineCancellationToken") as mock_dc:
+                        mock_dc.return_value.is_cancelled = True
+                        with pytest.raises(OperationTimeoutError):
+                            t.execute(["docker", "sleep", "10"], timeout=0.1)
+
+    def test_execute_pre_cancelled_token_returns_neg_one(self):
+        t = CliTransport("docker")
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            with patch("subprocess.Popen") as mock_popen:
+                proc = MagicMock()
+                proc.stdout.fileno.return_value = 3
+                proc.stderr.fileno.return_value = 4
+                mock_popen.return_value = proc
+                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
+                    from oci_runtime.adapters._cancellation import ThreadCancellationToken
+                    token = ThreadCancellationToken()
+                    token.cancel()
+                    result = t.execute(["docker", "version"], cancel_token=token)
+        assert result.returncode == -1

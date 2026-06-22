@@ -8,7 +8,7 @@ from oci_runtime.domain.exceptions import (
 from oci_runtime.domain.types import PruneResult, BuildContext, ImageInfo
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ImageManager
-from oci_runtime.ports.parsers import ImageParser
+from oci_runtime.ports.parsers import ImageParser, ParsingError
 from oci_runtime.ports.transport import Transport
 from oci_runtime.adapters.managers.base import CliBaseManager
 
@@ -63,12 +63,13 @@ class CliImageManager(CliBaseManager[ImageParser], ImageManager):
 
         result = self._transport.execute(cmd, input_data=input_data, timeout=timeout)
         self._check_result(result, cmd, operation="build image", entity=image_name)
-        ident = self._parser.parse_build_output(self._decode_bytes(result.stdout))
-        if not ident or ident == "sha256:":
-            raise ImageError(
-                message="Could not parse image id from build output",
+        try:
+            ident = self._parser.parse_build_output(self._decode_bytes(result.stdout))
+        except ParsingError as e:
+            raise ImageRuntimeError(
+                message=f"Could not parse image id from build output: {e.message}",
                 stderr=self._decode_bytes(result.stdout),
-            )
+            ) from e
         return ident
 
     def tag(self, image: str, tag: str) -> None:

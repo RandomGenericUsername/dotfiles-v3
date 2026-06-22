@@ -1,3 +1,4 @@
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -108,6 +109,51 @@ class TestTtyReturnContract:
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
         result = mgr.run(config)
         assert result == ""
+
+    def test_stream_output_with_output_stream_writes_chunks(self, transport):
+        output_stream = BytesIO()
+        streaming = MagicMock(spec=StreamingTransport)
+
+        def _stream(cmd, *, on_stdout=None, on_stderr=None, timeout=None, input_data=None, cancel_token=None):
+            if on_stdout:
+                on_stdout(b"chunk1 ")
+            if on_stdout:
+                on_stdout(b"chunk2")
+            return RawExecResult(returncode=0, stdout=b"chunk1 chunk2", stderr=b"")
+
+        streaming.stream.side_effect = _stream
+        caps = RuntimeCapabilities()
+        parser = _MockParser()
+        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken(),
+            output_stream=output_stream)
+        config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
+        result = mgr.run(config)
+        assert result == ""
+        assert output_stream.getvalue() == b"chunk1 chunk2"
+
+    def test_stream_output_with_none_output_stream_does_not_crash(self, transport):
+        streaming = MagicMock(spec=StreamingTransport)
+        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"ignored", stderr=b"")
+        caps = RuntimeCapabilities()
+        parser = _MockParser()
+        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken(),
+            output_stream=None)
+        config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
+        result = mgr.run(config)
+        assert result == ""
+
+    def test_stream_output_false_returns_stdout(self, transport):
+        streaming = MagicMock(spec=StreamingTransport)
+        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+        caps = RuntimeCapabilities()
+        parser = _MockParser()
+        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        config = RunConfig(image="alpine", stream_output=False, tty=False, detach=True)
+        result = mgr.run(config)
+        assert result == "abc123"
 
 
 class TestTtyEdgeCases:

@@ -16,6 +16,7 @@ A failing test always indicates a real parser bug that must be fixed.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -84,7 +85,7 @@ class TestImageInspectConformance:
     def test_parse_inspect_tags_present(self, runtime):
         raw = _fixture(runtime, "image_inspect_alpine.json")
         info = _PARSERS[runtime]["image"].parse_inspect(raw)
-        assert isinstance(info.tags, list)
+        assert isinstance(info.tags, tuple)
         assert any("alpine" in t for t in info.tags), f"expected alpine tag, got {info.tags}"
 
 
@@ -123,7 +124,7 @@ class TestContainerInspectConformance:
     def test_parse_inspect_labels_is_dict(self, runtime):
         raw = _fixture(runtime, "container_inspect.json")
         info = _PARSERS[runtime]["container"].parse_inspect(raw)
-        assert isinstance(info.labels, dict), f"labels must be dict, got {type(info.labels).__name__}"
+        assert isinstance(info.labels, Mapping), f"labels must be dict, got {type(info.labels).__name__}"
 
 
 # ─── Container list ───
@@ -149,7 +150,7 @@ class TestContainerListConformance:
         raw = _fixture(runtime, "container_list.ndjson")
         result = _PARSERS[runtime]["container"].parse_list(raw)
         for c in result:
-            assert isinstance(c.labels, dict), f"labels must be dict, got {type(c.labels).__name__}: {c.labels!r}"
+            assert isinstance(c.labels, Mapping), f"labels must be dict, got {type(c.labels).__name__}: {c.labels!r}"
 
 
 # ─── Volume inspect ───
@@ -167,7 +168,7 @@ class TestVolumeInspectConformance:
     def test_parse_inspect_labels_is_dict(self, runtime):
         raw = _fixture(runtime, "volume_inspect.json")
         info = _PARSERS[runtime]["volume"].parse_inspect(raw)
-        assert isinstance(info.labels, dict), f"labels must be dict, got {type(info.labels).__name__}"
+        assert isinstance(info.labels, Mapping), f"labels must be dict, got {type(info.labels).__name__}"
 
 
 # ─── Volume list ───
@@ -186,7 +187,7 @@ class TestVolumeListConformance:
         raw = _fixture(runtime, "volume_list.ndjson")
         result = _PARSERS[runtime]["volume"].parse_list(raw)
         for v in result:
-            assert isinstance(v.labels, dict), f"labels must be dict, got {type(v.labels).__name__}"
+            assert isinstance(v.labels, Mapping), f"labels must be dict, got {type(v.labels).__name__}"
 
 
 # ─── Network inspect ───
@@ -226,7 +227,7 @@ class TestNetworkListConformance:
         raw = _fixture(runtime, "network_list.ndjson")
         result = _PARSERS[runtime]["network"].parse_list(raw)
         for n in result:
-            assert isinstance(n.labels, dict), f"labels must be dict, got {type(n.labels).__name__}"
+            assert isinstance(n.labels, Mapping), f"labels must be dict, got {type(n.labels).__name__}"
 
 
 # ─── Pull output ───

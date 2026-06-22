@@ -184,7 +184,7 @@ class TestCliStreamingTransport:
 
         process.kill.assert_called_once()
 
-    def test_stream_selectors_cleaned_up(self):
+    def test_stream_exception_propagates(self):
         s = CliStreamingTransport("docker")
 
         process = MagicMock()

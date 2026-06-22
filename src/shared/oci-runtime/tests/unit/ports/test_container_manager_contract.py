@@ -103,7 +103,7 @@ class ContainerManagerContractTest(ABC):
         assert result.stdout == "file1\n"
         assert result.stderr == ""
 
-    def test_prune_returns_dict(self):
+    def test_prune_returns_prune_result(self):
         mgr, t, st = self._defaults()
         t._responses[("docker", "container", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()

@@ -26,7 +26,7 @@ class MockImageParser(ImageParser):
     def parse_prune(self, raw: str) -> PruneResult:
         return PruneResult()
     def is_not_found_error(self, stderr: str) -> bool:
-        return "No such image" in stderr or "pull access denied" in stderr
+        return "No such image" in stderr
 
 
 class MockVolumeParser(VolumeParser):

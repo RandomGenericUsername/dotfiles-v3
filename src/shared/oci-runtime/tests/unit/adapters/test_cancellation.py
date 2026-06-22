@@ -1,5 +1,4 @@
-import time
-
+from unittest.mock import patch
 
 from oci_runtime.adapters._cancellation import (
     CompositeCancellationToken,
@@ -42,9 +41,8 @@ class TestDeadlineCancellationToken:
         d.cancel()
 
     def test_fires_after_timeout(self):
-        d = DeadlineCancellationToken(0.05)
-        assert d.is_cancelled is False
-        time.sleep(0.1)
+        d = DeadlineCancellationToken(0.01)
+        d._timer.join()
         assert d.is_cancelled is True
 
     def test_cancel_disarms_timer(self):
@@ -55,7 +53,6 @@ class TestDeadlineCancellationToken:
     def test_cancel_before_timeout(self):
         d = DeadlineCancellationToken(0.5)
         d.cancel()
-        time.sleep(0.1)
         assert d.is_cancelled is True
 
 

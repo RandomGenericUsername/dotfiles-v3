@@ -24,6 +24,7 @@ from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ContainerRuntimeError,
     ImageNotFoundError,
+    ImagePullAccessDeniedError,
     NetworkNotFoundError,
     RuntimeNotAvailableError,
     VolumeNotFoundError,
@@ -196,3 +197,35 @@ class TestFactoryErrorConditions:
             pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz")
             engine = RuntimeFactory().create(pref)
             assert engine.is_available() is False
+
+
+class TestImagePullAuthErrors:
+    def test_pull_access_denied_raises_image_pull_access_denied_error(self):
+        transport = RecordingTransport("docker", {
+            ("docker", "pull", "private/image"): RawExecResult(1, b"", b"pull access denied for private/image"),
+        })
+        mgr = CliImageManager(transport, DockerImageParser(), RuntimeCapabilities())
+        with pytest.raises(ImagePullAccessDeniedError) as exc:
+            mgr.pull("private/image")
+        assert "private/image" in exc.value.image_name
+
+    def test_pull_unauthorized_raises_image_pull_access_denied_error(self):
+        transport = RecordingTransport("docker", {
+            ("docker", "pull", "private/image"): RawExecResult(1, b"", b"unauthorized: access denied"),
+        })
+        mgr = CliImageManager(transport, DockerImageParser(), RuntimeCapabilities())
+        with pytest.raises(ImagePullAccessDeniedError) as exc:
+            mgr.pull("private/image")
+        assert "private/image" in exc.value.image_name
+
+
+class TestTarPathTraversal:
+    def test_absolute_path_raises_value_error(self):
+        from oci_runtime.adapters._tar import create_build_tar
+        with pytest.raises(ValueError, match="Absolute path"):
+            create_build_tar("FROM alpine", {"/etc/passwd": b"data"})
+
+    def test_parent_path_raises_value_error(self):
+        from oci_runtime.adapters._tar import create_build_tar
+        with pytest.raises(ValueError, match="parent reference"):
+            create_build_tar("FROM alpine", {"../outside": b"data"})

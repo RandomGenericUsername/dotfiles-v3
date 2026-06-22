@@ -61,7 +61,7 @@ class VolumeManagerContractTest(ABC):
         result = mgr.list()
         assert isinstance(result, list)
 
-    def test_prune_returns_dict(self):
+    def test_prune_returns_prune_result(self):
         mgr, t = self._defaults()
         t._responses[("docker", "volume", "prune", "--force")] = RawExecResult(0, b"", b"")
         result = mgr.prune()

@@ -28,8 +28,10 @@ class RuntimeFactoryConfig:
     providers for parser resolution, not to a separate callback.
     """
 
-    transport_factory: Callable[[str], Transport] | None = None
-    streaming_transport_factory: Callable[[str], StreamingTransport] | None = None
+    transport_factory: Callable[[str, BinaryResolver], Transport] | None = None
+    streaming_transport_factory: (
+        Callable[[str, BinaryResolver], StreamingTransport] | None
+    ) = None
     runtime_cls: type[ContainerEngine] | None = None
     discovery_factory: (
         Callable[[Callable[[str], Transport]], "RuntimeDiscovery"] | None
@@ -39,6 +41,10 @@ class RuntimeFactoryConfig:
     cancellation_factory: Callable[[], CancellationToken] | None = None
     binary_resolver_factory: Callable[[], BinaryResolver] | None = None
     pty_transport_factory: Callable[[BinaryResolver], PtyTransport] | None = None
+    container_manager_cls: type | None = None
+    image_manager_cls: type | None = None
+    volume_manager_cls: type | None = None
+    network_manager_cls: type | None = None
 
 
 def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
@@ -81,6 +87,30 @@ def _default_discovery_factory(
     return CliRuntimeDiscovery(transport_factory)
 
 
+def _default_container_manager_cls() -> type:
+    from oci_runtime.adapters.managers.container import CliContainerManager
+
+    return CliContainerManager
+
+
+def _default_image_manager_cls() -> type:
+    from oci_runtime.adapters.managers.image import CliImageManager
+
+    return CliImageManager
+
+
+def _default_volume_manager_cls() -> type:
+    from oci_runtime.adapters.managers.volume import CliVolumeManager
+
+    return CliVolumeManager
+
+
+def _default_network_manager_cls() -> type:
+    from oci_runtime.adapters.managers.network import CliNetworkManager
+
+    return CliNetworkManager
+
+
 def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
     if cfg is None:
         cfg = RuntimeFactoryConfig()
@@ -118,6 +148,14 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
         replacements["pty_transport_factory"] = lambda resolver: CliPtyTransport(
             resolver
         )
+    if cfg.container_manager_cls is None:
+        replacements["container_manager_cls"] = _default_container_manager_cls()
+    if cfg.image_manager_cls is None:
+        replacements["image_manager_cls"] = _default_image_manager_cls()
+    if cfg.volume_manager_cls is None:
+        replacements["volume_manager_cls"] = _default_volume_manager_cls()
+    if cfg.network_manager_cls is None:
+        replacements["network_manager_cls"] = _default_network_manager_cls()
 
     return replace(cfg, **replacements) if replacements else cfg
 
@@ -153,22 +191,34 @@ class RuntimeFactory:
                 f"Registered: {list(self._providers.keys())}"
             )
         caps = provider.capabilities()
-        managers = provider.create_managers(
+        parsers = provider.create_parsers()
+
+        image_manager = self._cfg.image_manager_cls(
+            transport, parsers.image_parser, caps
+        )
+        container_manager = self._cfg.container_manager_cls(
             transport,
-            streaming_transport,
+            parsers.container_parser,
             caps,
-            tty_detector_factory=self._cfg.tty_detector_factory,
-            output_stream_factory=self._cfg.output_stream_factory,
-            cancellation_factory=self._cfg.cancellation_factory,
+            streaming=streaming_transport,
+            tty_detector=self._cfg.tty_detector_factory(),
             pty_transport=pty_transport,
+            cancellation_factory=self._cfg.cancellation_factory,
+            output_stream=self._cfg.output_stream_factory(),
+        )
+        volume_manager = self._cfg.volume_manager_cls(
+            transport, parsers.volume_parser, caps
+        )
+        network_manager = self._cfg.network_manager_cls(
+            transport, parsers.network_parser, caps
         )
 
         return self._cfg.runtime_cls(
             transport=transport,
-            image_manager=managers.image_manager,
-            container_manager=managers.container_manager,
-            volume_manager=managers.volume_manager,
-            network_manager=managers.network_manager,
+            image_manager=image_manager,
+            container_manager=container_manager,
+            volume_manager=volume_manager,
+            network_manager=network_manager,
             caps=caps,
         )
 

@@ -1,5 +1,6 @@
 from dataclasses import FrozenInstanceError, fields
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -196,8 +197,8 @@ class TestRunConfig:
         assert config.command is None
         assert config.entrypoint is None
         assert config.environment == {}
-        assert config.volumes == []
-        assert config.ports == []
+        assert config.volumes == ()
+        assert config.ports == ()
         assert config.network is NetworkMode.BRIDGE
         assert config.network_container is None
         assert config.restart_policy is RestartPolicy.NO
@@ -215,17 +216,17 @@ class TestRunConfig:
         assert config.tty is False
         assert config.stdin_open is False
         assert config.auto_tty is False
-        assert config.runtime_flags == []
+        assert config.runtime_flags == ()
 
     def test_volumes_list_of_volumemount(self):
         vm = VolumeMount(source="/s", target="/t", type=VolumeMountType.BIND)
         config = RunConfig(image="alpine", volumes=[vm])
-        assert config.volumes == [vm]
+        assert config.volumes == (vm,)
 
     def test_ports_list_of_portmapping(self):
         pm = PortMapping(container_port=80, host_ip=None)
         config = RunConfig(image="alpine", ports=[pm])
-        assert config.ports == [pm]
+        assert config.ports == (pm,)
 
     def test_network_accepts_str(self):
         config = RunConfig(image="alpine", network="host")
@@ -282,7 +283,7 @@ class TestRunConfig:
         )
         assert config.image == "my-image"
         assert config.name == "my-container"
-        assert config.command == ["echo", "hello"]
+        assert config.command == ("echo", "hello")
         assert config.entrypoint == "/bin/sh"
         assert config.environment == {"ENV": "prod"}
         assert len(config.volumes) == 1
@@ -305,7 +306,7 @@ class TestRunConfig:
         assert config.tty is True
         assert config.stdin_open is True
         assert config.auto_tty is True
-        assert config.runtime_flags == ["--cap-drop=ALL"]
+        assert config.runtime_flags == ("--cap-drop=ALL",)
 
     def test_network_container_valid_combination(self):
         config = RunConfig(image="alpine", network=NetworkMode.CONTAINER, network_container="nginx")
@@ -361,7 +362,7 @@ class TestImageInfo:
 
     def test_defaults(self):
         info = ImageInfo(id="sha256:abc123")
-        assert info.tags == []
+        assert info.tags == ()
         assert info.size == 0
         assert info.created is None
         assert info.labels == {}
@@ -375,7 +376,7 @@ class TestImageInfo:
             labels={"maintainer": "test"},
         )
         assert info.id == "sha256:abc123"
-        assert info.tags == ["alpine:latest"]
+        assert info.tags == ("alpine:latest",)
         assert info.size == 5000000
         assert info.created == "2024-01-01T00:00:00Z"
         assert info.labels == {"maintainer": "test"}
@@ -398,7 +399,7 @@ class TestContainerInfo:
     def test_defaults(self):
         info = ContainerInfo(id="abc", name="c1", image="alpine", state="running", status="Up 2h")
         assert info.created is None
-        assert info.ports == []
+        assert info.ports == ()
         assert info.labels == {}
         assert info.exit_code is None
 
@@ -512,3 +513,80 @@ class TestFrozenValueObjects:
         obj = cls(**kwargs)
         with pytest.raises(FrozenInstanceError):
             setattr(obj, field_to_mutate, new_value)
+
+
+class TestDeepImmutability:
+    def test_build_context_mapping_fields_are_mappingproxy(self):
+        ctx = BuildContext(
+            build_file_content="FROM alpine",
+            files={"a": b"1"},
+            build_args={"K": "V"},
+            labels={"app": "test"},
+            build_contexts={"root": "/repo"},
+        )
+        assert isinstance(ctx.files, MappingProxyType)
+        assert isinstance(ctx.build_args, MappingProxyType)
+        assert isinstance(ctx.labels, MappingProxyType)
+        assert isinstance(ctx.build_contexts, MappingProxyType)
+
+    def test_build_context_mapping_mutation_raises(self):
+        ctx = BuildContext(build_file_content="FROM alpine", labels={"app": "test"})
+        with pytest.raises(TypeError):
+            ctx.labels["new"] = "x"
+
+    def test_run_config_mapping_fields_are_mappingproxy(self):
+        config = RunConfig(image="alpine", environment={"ENV": "prod"}, labels={"app": "test"})
+        assert isinstance(config.environment, MappingProxyType)
+        assert isinstance(config.labels, MappingProxyType)
+
+    def test_run_config_sequence_fields_are_tuples(self):
+        config = RunConfig(
+            image="alpine",
+            volumes=[VolumeMount(source="/s", target="/t")],
+            ports=[PortMapping(container_port=80, host_ip=None)],
+            runtime_flags=["--cap-drop=ALL"],
+            command=["echo", "hi"],
+        )
+        assert isinstance(config.volumes, tuple)
+        assert isinstance(config.ports, tuple)
+        assert isinstance(config.runtime_flags, tuple)
+        assert isinstance(config.command, tuple)
+
+    def test_run_config_sequence_field_mutation_raises(self):
+        config = RunConfig(image="alpine", runtime_flags=["--cap-drop=ALL"])
+        with pytest.raises(AttributeError):
+            config.runtime_flags.append("--another")
+
+    def test_image_info_fields_are_immutable_containers(self):
+        info = ImageInfo(id="sha256:abc", tags=["latest"], labels={"k": "v"})
+        assert isinstance(info.labels, MappingProxyType)
+        assert isinstance(info.tags, tuple)
+        with pytest.raises(TypeError):
+            info.labels["new"] = "x"
+        with pytest.raises(AttributeError):
+            info.tags.append("new")
+
+    def test_container_info_fields_are_immutable_containers(self):
+        info = ContainerInfo(
+            id="c1", name="n", image="i", state=ContainerState.RUNNING, status="up",
+            ports=[PortMapping(container_port=80, host_ip=None)],
+            labels={"app": "test"},
+        )
+        assert isinstance(info.labels, MappingProxyType)
+        assert isinstance(info.ports, tuple)
+        with pytest.raises(TypeError):
+            info.labels["new"] = "x"
+        with pytest.raises(AttributeError):
+            info.ports.append(PortMapping(container_port=81, host_ip=None))
+
+    def test_volume_info_labels_are_mappingproxy(self):
+        info = VolumeInfo(name="v", driver="local", labels={"app": "test"})
+        assert isinstance(info.labels, MappingProxyType)
+        with pytest.raises(TypeError):
+            info.labels["new"] = "x"
+
+    def test_network_info_labels_are_mappingproxy(self):
+        info = NetworkInfo(id="n", name="n", driver="d", scope="s", labels={"app": "test"})
+        assert isinstance(info.labels, MappingProxyType)
+        with pytest.raises(TypeError):
+            info.labels["new"] = "x"

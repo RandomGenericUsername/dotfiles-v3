@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 class OutputStream(ABC):
     """Port: a writable byte stream.
 
-    This is the minimal interface required by ``run_pty()``.  Production
+    This is the minimal interface required by ``execute_pty()``.  Production
     adapters write to ``sys.stdout.buffer``; test adapters can use
     ``io.BytesIO``.
     """

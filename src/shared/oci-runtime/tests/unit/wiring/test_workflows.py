@@ -5,6 +5,7 @@ from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ImageNotFoundError,
+    ImageRuntimeError,
     NetworkNotFoundError,
     VolumeNotFoundError,
 )
@@ -83,7 +84,7 @@ class TestImageLifecycle:
     def test_build_from_dockerfile_tar(self, docker_engine: CliRuntime):
         t = docker_engine._transport
         _inject_responses(t, {
-            "docker build -t myimg - --quiet": RawExecResult(0, b"buildabc123\n", b""),
+            "docker build -t myimg --quiet -": RawExecResult(0, b"buildabc123\n", b""),
         })
         ctx = BuildContext(build_file_content="FROM alpine\nRUN echo hi")
         docker_engine.images.build(ctx, "myimg")
@@ -95,7 +96,7 @@ class TestImageLifecycle:
         dfile = tmp_path / "Dockerfile"
         dfile.write_text("FROM alpine")
         _inject_responses(t, {
-            f"docker build -t myimg -f {dfile} {tmp_path} --quiet": RawExecResult(0, b"def456\n", b""),
+            f"docker build -t myimg -f {dfile} --quiet {tmp_path}": RawExecResult(0, b"def456\n", b""),
         })
         ctx = BuildContext(build_file_path=dfile)
         docker_engine.images.build(ctx, "myimg")
@@ -106,9 +107,8 @@ class TestImageLifecycle:
         _inject_responses(t, {
             "docker pull nonexistent:latest": RawExecResult(1, b"", b"pull access denied for nonexistent:latest"),
         })
-        with pytest.raises(ImageNotFoundError) as exc:
+        with pytest.raises(ImageRuntimeError) as exc:
             docker_engine.images.pull("nonexistent:latest")
-        assert "nonexistent" in exc.value.image_name
 
 
 class TestContainerLifecycle:

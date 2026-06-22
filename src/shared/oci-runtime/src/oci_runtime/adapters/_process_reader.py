@@ -33,7 +33,7 @@ class ProcessPipeReader:
         return cls(primary_fd, secondary_fd)
 
     def _read_fd(self, fd, size: int = 4096) -> bytes:
-        if isinstance(fd, int) and fd < 1000:
+        if isinstance(fd, int):
             try:
                 return os.read(fd, size)
             except OSError:

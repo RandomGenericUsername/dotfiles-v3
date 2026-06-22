@@ -5,7 +5,7 @@ from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from oci_runtime.ports.aggregates import Managers, Parsers
+from oci_runtime.ports.aggregates import Parsers
 from oci_runtime.ports.parsers import (
     ContainerParser,
     ImageParser,
@@ -60,16 +60,6 @@ class TestDockerRuntimeProvider:
         p2 = self.provider.create_parsers()
         assert p1 is not p2
 
-    def test_create_managers_returns_managers(self):
-        from oci_runtime.ports.transport import Transport
-        from oci_runtime.ports.streaming import StreamingTransport
-        from unittest.mock import MagicMock
-        transport = MagicMock(spec=Transport)
-        streaming = MagicMock(spec=StreamingTransport)
-        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock(), cancellation_factory=lambda: MagicMock(), pty_transport=MagicMock())
-        assert isinstance(managers, Managers)
-
-
 class TestPodmanRuntimeProvider:
     def setup_method(self):
         self.provider = PodmanRuntimeProvider()
@@ -112,16 +102,6 @@ class TestPodmanRuntimeProvider:
         p1 = self.provider.create_parsers()
         p2 = self.provider.create_parsers()
         assert p1 is not p2
-
-    def test_create_managers_returns_managers(self):
-        from oci_runtime.ports.transport import Transport
-        from oci_runtime.ports.streaming import StreamingTransport
-        from unittest.mock import MagicMock
-        transport = MagicMock(spec=Transport)
-        streaming = MagicMock(spec=StreamingTransport)
-        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock(), cancellation_factory=lambda: MagicMock(), pty_transport=MagicMock())
-        assert isinstance(managers, Managers)
-
 
 class TestDockerProviderParserTypes:
     def test_container_parser_is_docker(self):

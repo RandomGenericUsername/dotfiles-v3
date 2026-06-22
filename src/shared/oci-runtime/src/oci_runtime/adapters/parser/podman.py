@@ -135,12 +135,16 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
 
 class PodmanImageParser(BaseCliParser, ImageParser):
     _not_found_patterns = ("image not found",)
+    _auth_error_patterns = (
+        "authentication required",
+        "requested access to the resource is denied",
+    )
 
     def parse_inspect(self, raw: str) -> ImageInfo:
         item = self._parse_json_item(raw)
         return ImageInfo(
             id=item.get("Id", ""),
-            tags=item.get("RepoTags", []),
+            tags=(item.get("RepoTags") or []),
             size=item.get("Size", 0),
             created=item.get("Created"),
             labels=item.get("Labels") or {},
@@ -179,26 +183,28 @@ class PodmanImageParser(BaseCliParser, ImageParser):
 
     def parse_digest_from_pull(self, raw: str) -> str:
         lines = raw.strip().split("\n")
-        if lines:
-            for line in reversed(lines):
-                line = line.strip()
-                if (
-                    line
-                    and not line.startswith("Trying")
-                    and not line.startswith("Getting")
-                ):
-                    if "sha256:" in line:
-                        match = re.search(r"sha256:([a-f0-9]+)", line)
-                        if match:
-                            return f"sha256:{match.group(1)}"
-                    if (
-                        line
-                        and not line.startswith("Error")
-                        and not line.startswith("Warning")
-                    ):
-                        if re.match(r"^[a-f0-9]{12,64}$", line):
-                            return f"sha256:{line}"
-                        return ""
+        noise_prefixes = (
+            "Resolved",
+            "Trying",
+            "Getting",
+            "Copying",
+            "Writing",
+            "Storing",
+        )
+        for line in reversed(lines):
+            cleaned = line.strip()
+            if not cleaned:
+                continue
+            if cleaned.startswith(noise_prefixes):
+                continue
+            if cleaned.startswith("Error") or cleaned.startswith("Warning"):
+                continue
+            if "sha256:" in cleaned:
+                match = re.search(r"sha256:([a-f0-9]+)", cleaned)
+                if match:
+                    return f"sha256:{match.group(1)}"
+            if re.match(r"^[a-f0-9]{12,64}$", cleaned):
+                return f"sha256:{cleaned}"
         return ""
 
 
