@@ -13,9 +13,10 @@ from oci_runtime.adapters.parser.docker import (
 from oci_runtime.domain.exceptions import ImageError
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.types import BuildContext, RunConfig
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 @pytest.fixture
@@ -36,7 +37,8 @@ def streaming():
 class TestEmptyInspect:
     def test_container_inspect_empty_json_raises_parsing_error(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ParsingError):
             mgr.inspect("ctr1")
 
@@ -62,7 +64,8 @@ class TestEmptyInspect:
 class TestEmptyList:
     def test_list_containers_empty(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "list"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.list()
         assert result == []
 
@@ -88,19 +91,22 @@ class TestEmptyList:
 class TestEmptyOutput:
     def test_logs_empty(self, transport, streaming, caps):
         transport._responses = {("docker", "logs", "ctr1"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         assert "".join(mgr.logs("ctr1")) == ""
 
     def test_exec_empty_output(self, transport, streaming, caps):
         transport._responses = {("docker", "exec", "ctr1", "ls"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.exec_container("ctr1", ["ls"])
         assert result.returncode == 0
         assert result.stdout == ""
 
     def test_run_empty_stdout(self, transport, streaming, caps):
         streaming._responses = {("docker", "run", "-d", "alpine"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         config = RunConfig(image="alpine")
         result = mgr.run(config)
         assert result == ""
@@ -109,11 +115,11 @@ class TestEmptyOutput:
         transport._responses = {("docker", "build", "-t", "myimg", "-"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        with pytest.raises(ImageError):
+        with pytest.raises(ParsingError):
             mgr.build(ctx, "myimg", timeout=30)
 
     def test_pull_empty_stdout(self, transport, caps):
-        from oci_runtime.domain.exceptions import ImageError
+        from oci_runtime.domain.exceptions import ImageError, ParsingError
         transport._responses = {("docker", "pull", "alpine"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         with pytest.raises(ImageError):
@@ -123,7 +129,8 @@ class TestEmptyOutput:
 class TestEmptyExists:
     def test_container_exists_false_on_empty_inspect(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "nonexistent"): RawExecResult(returncode=0, stdout=b"[]", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ParsingError):
             mgr.exists("nonexistent")
 

@@ -1,7 +1,7 @@
 import pytest
 
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.transport import Transport
@@ -69,7 +69,7 @@ class TestConcreteProviderContract:
                     def parse_inspect(self, raw): raise ParsingError(raw)
                     def parse_list(self, raw): return []
                     def parse_build_output(self, raw): return ""
-                    def parse_id_from_pull(self, raw): return ""
+                    def parse_digest_from_pull(self, raw): return ""
                     def parse_prune(self, raw): return {"deleted": 0, "reclaimed_bytes": 0}
                     def is_not_found_error(self, stderr): return False
                 class FakeVP(VolumeParser):

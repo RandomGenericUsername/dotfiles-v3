@@ -26,7 +26,7 @@ from oci_runtime.domain.exceptions import (
     VolumeNotFoundError,
 )
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.factory import RuntimeFactoryConfig
 from oci_runtime.ports.aggregates import Parsers
@@ -46,7 +46,8 @@ from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.factory import RuntimeFactory
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 class TestTransportContract:
@@ -229,7 +230,8 @@ class TestContainerManagerContract:
         streaming = RecordingStreamingTransport("docker")
         caps = RuntimeCapabilities()
         from oci_runtime.adapters.parser.docker import DockerContainerParser
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         assert isinstance(mgr, ContainerManager)
         assert callable(mgr.run)
         assert callable(mgr.start)
@@ -317,7 +319,7 @@ class TestParserContract:
         assert issubclass(ImageParser, ABC)
 
     def test_image_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_build_output", "parse_id_from_pull", "parse_prune", "is_not_found_error"}
+        expected = {"parse_inspect", "parse_list", "parse_build_output", "parse_digest_from_pull", "parse_prune", "is_not_found_error"}
         actual = set(ImageParser.__abstractmethods__)
         assert actual == expected
 

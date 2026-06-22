@@ -7,14 +7,15 @@ from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from tests.helpers.mock_parsers import (
     MockContainerParser,
     MockImageParser,
     MockNetworkParser,
     MockVolumeParser,
 )
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 @pytest.fixture
@@ -57,7 +58,8 @@ def docker_engine(empty_transport, empty_streaming, docker_caps, docker_parsers)
     return CliRuntime(
         transport=empty_transport,
         image_manager=CliImageManager(empty_transport, ip, docker_caps),
-        container_manager=CliContainerManager(empty_transport, cp, docker_caps, streaming=empty_streaming, tty_detector=FakeTtyDetector()),
+        container_manager=CliContainerManager(empty_transport, cp, docker_caps, streaming=empty_streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken()),
         volume_manager=CliVolumeManager(empty_transport, vp, docker_caps),
         network_manager=CliNetworkManager(empty_transport, np, docker_caps),
         caps=docker_caps,

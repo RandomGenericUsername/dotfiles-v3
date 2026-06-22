@@ -1,6 +1,22 @@
 import threading
 
-from oci_runtime.domain.types import CancellationToken
+from oci_runtime.ports.cancellation import CancellationToken
+
+
+def compose_tokens(
+    *tokens: CancellationToken | None,
+) -> CancellationToken | None:
+    """Combine optional tokens into a single CompositeCancellationToken.
+
+    Returns None if all tokens are None.  Filters out None values
+    so the composite only tracks active tokens.
+    """
+    active = [t for t in tokens if t is not None]
+    if not active:
+        return None
+    if len(active) == 1:
+        return active[0]
+    return CompositeCancellationToken(*active)
 
 
 class ThreadCancellationToken(CancellationToken):
@@ -36,6 +52,9 @@ class DeadlineCancellationToken(CancellationToken):
         self._timer = threading.Timer(timeout, self._event.set)
         self._timer.daemon = True
         self._timer.start()
+
+    def __del__(self) -> None:
+        self._timer.cancel()
 
     def cancel(self) -> None:
         self._timer.cancel()

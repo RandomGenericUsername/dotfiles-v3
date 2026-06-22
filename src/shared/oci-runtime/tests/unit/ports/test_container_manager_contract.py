@@ -3,12 +3,13 @@ from typing import Iterator
 
 from oci_runtime.domain.exceptions import ContainerNotFoundError
 from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RawExecResult, RunConfig
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockContainerParser
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 class ContainerManagerContractTest(ABC):
@@ -126,4 +127,5 @@ class ContainerManagerContractTest(ABC):
 class TestCliContainerManagerContract(ContainerManagerContractTest):
     def make_manager(self, transport, parser, caps, *, streaming, tty_detector) -> ContainerManager:
         from oci_runtime.adapters.managers.container import CliContainerManager
-        return CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=tty_detector)
+        return CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=tty_detector,
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())

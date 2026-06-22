@@ -12,9 +12,12 @@ from oci_runtime.domain.types import (
     VolumeInfo,
 )
 
+
 class ImageManager(ABC):
     @abstractmethod
-    def build(self, context: BuildContext, image_name: str, timeout: int = 600) -> str: ...
+    def build(
+        self, context: BuildContext, image_name: str, timeout: int = 600
+    ) -> str: ...
 
     @abstractmethod
     def tag(self, image: str, tag: str) -> None: ...
@@ -55,7 +58,9 @@ class ContainerManager(ABC):
     def restart(self, container: str, timeout: int = 10) -> None: ...
 
     @abstractmethod
-    def remove(self, container: str, force: bool = False, volumes: bool = False) -> None: ...
+    def remove(
+        self, container: str, force: bool = False, volumes: bool = False
+    ) -> None: ...
 
     @abstractmethod
     def exists(self, container: str) -> bool: ...
@@ -64,13 +69,24 @@ class ContainerManager(ABC):
     def inspect(self, container: str) -> ContainerInfo: ...
 
     @abstractmethod
-    def list(self, show_all: bool = False, filters: dict[str, str] | None = None) -> list[ContainerInfo]: ...
+    def list(
+        self, show_all: bool = False, filters: dict[str, str] | None = None
+    ) -> list[ContainerInfo]: ...
 
     @abstractmethod
-    def logs(self, container: str, follow: bool = False, tail: int | None = None) -> Iterator[str]: ...
+    def logs(
+        self, container: str, follow: bool = False, tail: int | None = None
+    ) -> Iterator[str]: ...
 
     @abstractmethod
-    def exec_container(self, container: str, command: list[str], detach: bool = False, user: str | None = None) -> ExecResult: ...
+    def exec_container(
+        self,
+        container: str,
+        command: list[str],
+        detach: bool = False,
+        user: str | None = None,
+        timeout: float | None = None,
+    ) -> ExecResult: ...
 
     @abstractmethod
     def prune(self) -> PruneResult: ...
@@ -78,7 +94,9 @@ class ContainerManager(ABC):
 
 class VolumeManager(ABC):
     @abstractmethod
-    def create(self, name: str, driver: str = "local", labels: dict[str, str] | None = None) -> str: ...
+    def create(
+        self, name: str, driver: str = "local", labels: dict[str, str] | None = None
+    ) -> str: ...
 
     @abstractmethod
     def remove(self, name: str, force: bool = False) -> None: ...
@@ -98,7 +116,9 @@ class VolumeManager(ABC):
 
 class NetworkManager(ABC):
     @abstractmethod
-    def create(self, name: str, driver: str = "bridge", labels: dict[str, str] | None = None) -> str: ...
+    def create(
+        self, name: str, driver: str = "bridge", labels: dict[str, str] | None = None
+    ) -> str: ...
 
     @abstractmethod
     def remove(self, name: str) -> None: ...

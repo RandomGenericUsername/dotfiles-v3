@@ -3,13 +3,14 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.output_stream import OutputStream
+from oci_runtime.ports.pty_transport import PtyTransport
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.tty import TtyDetector
-from oci_runtime.domain.types import CancellationToken
+from oci_runtime.ports.cancellation import CancellationToken
 
 
 class RuntimeProvider(ABC):
@@ -41,6 +42,7 @@ class RuntimeProvider(ABC):
         *,
         tty_detector_factory: Callable[[], TtyDetector],
         output_stream_factory: Callable[[], OutputStream],
-        cancellation_factory: Callable[[], CancellationToken] | None = None,
+        cancellation_factory: Callable[[], CancellationToken],
+        pty_transport: PtyTransport,
     ) -> Managers:
         """Create and return manager instances for this runtime."""

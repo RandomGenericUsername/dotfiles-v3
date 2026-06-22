@@ -205,8 +205,13 @@ class TestDockerImageParser:
 
     def test_is_not_found_error(self):
         assert self.parser.is_not_found_error("No such image: alpine")
-        assert self.parser.is_not_found_error("pull access denied")
+        assert not self.parser.is_not_found_error("pull access denied")
         assert not self.parser.is_not_found_error("something else")
+
+    def test_is_auth_error(self):
+        assert self.parser.is_auth_error("pull access denied")
+        assert self.parser.is_auth_error("unauthorized: access denied")
+        assert not self.parser.is_auth_error("No such image: alpine")
 
     def test_parse_build_output_with_prefix(self):
         image_id = self.parser.parse_build_output("sha256:abc123def456\n")

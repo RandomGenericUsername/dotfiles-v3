@@ -1,6 +1,6 @@
 import re
 
-from oci_runtime.adapters.parser.base import BaseCliParser, _coerce_size
+from oci_runtime.adapters.parser.base import BaseCliParser, _coerce_size, _safe_int
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
@@ -27,7 +27,9 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
             id=item.get("Id", ""),
             name=item.get("Name", "").lstrip("/"),
             image=item.get("Config", {}).get("Image", ""),
-            state=ContainerState(item.get("State", {}).get("Status", ContainerState.CREATED)),
+            state=ContainerState(
+                item.get("State", {}).get("Status", ContainerState.CREATED)
+            ),
             status=item.get("State", {}).get("Status", ""),
             created=item.get("Created"),
             ports=_parse_docker_ports(item),
@@ -43,28 +45,37 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
             if isinstance(names, str):
                 names = [names]
             if not names or not isinstance(names, list):
-                raise ParsingError(raw=raw, message="Container list entry missing 'Names' field")
-            result.append(ContainerInfo(
-                id=item.get("Id", ""),
-                name=names[0].lstrip("/"),
-                image=item.get("Image", ""),
-                state=ContainerState(item.get("State", ContainerState.CREATED)),
-                status=item.get("Status", ""),
-                created=str(item.get("Created", "")),
-                ports=_parse_docker_ports_from_list(item),
-                labels=item.get("Labels") or {},
-            ))
+                raise ParsingError(
+                    raw=raw, message="Container list entry missing 'Names' field"
+                )
+            result.append(
+                ContainerInfo(
+                    id=item.get("Id", ""),
+                    name=names[0].lstrip("/"),
+                    image=item.get("Image", ""),
+                    state=ContainerState(item.get("State", ContainerState.CREATED)),
+                    status=item.get("Status", ""),
+                    created=str(item.get("Created", "")),
+                    ports=_parse_docker_ports_from_list(item),
+                    labels=item.get("Labels") or {},
+                )
+            )
         return result
 
 
 class DockerImageParser(BaseCliParser, ImageParser):
-    _not_found_patterns = ("no such image", "pull access denied")
+    _not_found_patterns = ("no such image",)
+    _auth_error_patterns = (
+        "pull access denied",
+        "unauthorized",
+        "authentication required",
+    )
 
     def parse_inspect(self, raw: str) -> ImageInfo:
         item = self._parse_json_item(raw)
         return ImageInfo(
             id=item.get("Id", ""),
-            tags=item.get("RepoTags", []),
+            tags=(item.get("RepoTags") or []),
             size=item.get("Size", 0),
             created=item.get("Created"),
             labels=item.get("Labels") or {},
@@ -80,37 +91,45 @@ class DockerImageParser(BaseCliParser, ImageParser):
                 repo = item.get("Repository", "")
                 tag = item.get("Tag", "")
                 if repo and repo != "<none>":
-                    tags = [f"{repo}:{tag}"] if tag and tag != "<none>" else [f"{repo}:latest"]
+                    tags = (
+                        [f"{repo}:{tag}"]
+                        if tag and tag != "<none>"
+                        else [f"{repo}:latest"]
+                    )
             size = _coerce_size(item.get("Size", 0))
             if not size:
                 size = _coerce_size(item.get("VirtualSize", 0))
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
-            result.append(ImageInfo(
-                id=image_id,
-                tags=tags if tags else [],
-                size=size if isinstance(size, int) else 0,
-                created=str(item.get("Created", "")),
-                labels=labels,
-            ))
+            result.append(
+                ImageInfo(
+                    id=image_id,
+                    tags=tags if tags else [],
+                    size=size if isinstance(size, int) else 0,
+                    created=str(item.get("Created", "")),
+                    labels=labels,
+                )
+            )
         return result
 
     def parse_build_output(self, raw: str) -> str:
         output = raw.strip()
-        if output.startswith("sha256:"):
-            return output
-        return f"sha256:{output}"
+        if not output.startswith("sha256:"):
+            output = f"sha256:{output}"
+        if not re.match(r"^sha256:[a-f0-9]{12,64}$", output):
+            raise ParsingError(raw=raw, message=f"Invalid build output: {raw!r}")
+        return output
 
-    def parse_id_from_pull(self, raw: str) -> str:
+    def parse_digest_from_pull(self, raw: str) -> str:
         """Extract image ID or name from pull output."""
         match = re.search(r"Digest: sha256:([a-f0-9]+)", raw)
         if match:
             return f"sha256:{match.group(1)}"
-        lines = raw.strip().split('\n')
+        lines = raw.strip().split("\n")
         if lines:
             for line in reversed(lines):
-                if 'sha256' in line:
+                if "sha256" in line:
                     match = re.search(r"sha256:([a-f0-9]+)", line)
                     if match:
                         return f"sha256:{match.group(1)}"
@@ -136,12 +155,14 @@ class DockerVolumeParser(BaseCliParser, VolumeParser):
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
-            result.append(VolumeInfo(
-                name=item.get("Name", ""),
-                driver=item.get("Driver", ""),
-                mountpoint=item.get("Mountpoint"),
-                labels=labels,
-            ))
+            result.append(
+                VolumeInfo(
+                    name=item.get("Name", ""),
+                    driver=item.get("Driver", ""),
+                    mountpoint=item.get("Mountpoint"),
+                    labels=labels,
+                )
+            )
         return result
 
 
@@ -166,13 +187,15 @@ class DockerNetworkParser(BaseCliParser, NetworkParser):
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
-            result.append(NetworkInfo(
-                id=net_id,
-                name=item.get("Name", ""),
-                driver=item.get("Driver", ""),
-                scope=item.get("Scope", ""),
-                labels=labels,
-            ))
+            result.append(
+                NetworkInfo(
+                    id=net_id,
+                    name=item.get("Name", ""),
+                    driver=item.get("Driver", ""),
+                    scope=item.get("Scope", ""),
+                    labels=labels,
+                )
+            )
         return result
 
 
@@ -188,30 +211,42 @@ def _parse_docker_ports(item: dict) -> list[PortMapping]:
             continue
         if bindings:
             for binding in bindings:
-                host_port = int(binding["HostPort"]) if binding.get("HostPort") else None
+                host_port = (
+                    int(binding["HostPort"]) if binding.get("HostPort") else None
+                )
                 host_ip = binding.get("HostIp", "") or "0.0.0.0"
-                ports.append(PortMapping(
-                    container_port=container_port,
-                    host_port=host_port,
-                    protocol=protocol,
-                    host_ip=host_ip,
-                ))
+                ports.append(
+                    PortMapping(
+                        container_port=container_port,
+                        host_port=host_port,
+                        protocol=protocol,
+                        host_ip=host_ip,
+                    )
+                )
         else:
-            ports.append(PortMapping(
-                container_port=container_port,
-                protocol=protocol,
-            ))
+            ports.append(
+                PortMapping(
+                    container_port=container_port,
+                    protocol=protocol,
+                    host_ip=None,
+                )
+            )
     return ports
 
 
 def _parse_docker_ports_from_list(item: dict) -> list[PortMapping]:
     ports = []
     for p in item.get("Ports", []):
-        host_ip = p.get("HostIp", "") or "0.0.0.0"
-        ports.append(PortMapping(
-            container_port=p.get("PrivatePort", 0),
-            host_port=p.get("PublicPort"),
-            protocol=p.get("Type", "tcp"),
-            host_ip=host_ip,
-        ))
+        cport = _safe_int(p.get("PrivatePort"))
+        if cport is None:
+            continue
+        host_ip = p.get("HostIp") or None
+        ports.append(
+            PortMapping(
+                container_port=cport,
+                host_port=p.get("PublicPort"),
+                protocol=p.get("Type", "tcp"),
+                host_ip=host_ip,
+            )
+        )
     return ports

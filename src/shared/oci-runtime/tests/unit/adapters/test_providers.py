@@ -4,7 +4,7 @@ from oci_runtime.adapters.provider.docker import DockerRuntimeProvider
 from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.parsers import (
     ContainerParser,
@@ -66,7 +66,7 @@ class TestDockerRuntimeProvider:
         from unittest.mock import MagicMock
         transport = MagicMock(spec=Transport)
         streaming = MagicMock(spec=StreamingTransport)
-        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock())
+        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock(), cancellation_factory=lambda: MagicMock(), pty_transport=MagicMock())
         assert isinstance(managers, Managers)
 
 
@@ -119,7 +119,7 @@ class TestPodmanRuntimeProvider:
         from unittest.mock import MagicMock
         transport = MagicMock(spec=Transport)
         streaming = MagicMock(spec=StreamingTransport)
-        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock())
+        managers = self.provider.create_managers(transport, streaming, RuntimeCapabilities(), tty_detector_factory=lambda: MagicMock(), output_stream_factory=lambda: MagicMock(), cancellation_factory=lambda: MagicMock(), pty_transport=MagicMock())
         assert isinstance(managers, Managers)
 
 

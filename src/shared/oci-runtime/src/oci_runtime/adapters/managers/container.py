@@ -1,33 +1,49 @@
 from queue import Queue
 from threading import Thread
-from typing import Callable, Iterator
+from collections.abc import Callable, Iterator
 
-from oci_runtime.adapters._cancellation import ThreadCancellationToken
-from oci_runtime.adapters.managers.pty import run_pty
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ContainerRuntimeError,
     ImageNotFoundError,
 )
-from oci_runtime.domain.types import CancellationToken, ContainerInfo, ExecResult, PruneResult, RunConfig
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RunConfig
+from oci_runtime.ports.cancellation import CancellationToken
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
+from oci_runtime.ports.pty_transport import PtyTransport
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.tty import TtyDetector
 from oci_runtime.adapters.managers.base import CliBaseManager
 
+_LOGS_JOIN_TIMEOUT = 5.0
+
+
 class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
     _not_found_error = ContainerNotFoundError
+    _generic_error = ContainerRuntimeError
 
-    def __init__(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, streaming: StreamingTransport, tty_detector: TtyDetector, cancellation_factory: Callable[[], CancellationToken] | None = None, output_stream: OutputStream | None = None):
+    def __init__(
+        self,
+        transport: Transport,
+        parser: ContainerParser,
+        caps: RuntimeCapabilities,
+        streaming: StreamingTransport,
+        tty_detector: TtyDetector,
+        *,
+        pty_transport: PtyTransport,
+        cancellation_factory: Callable[[], CancellationToken],
+        output_stream: OutputStream | None = None,
+    ):
         super().__init__(transport, parser, caps)
         self._streaming = streaming
         self._tty_detector = tty_detector
-        self._cancellation_factory = cancellation_factory or ThreadCancellationToken
+        self._pty_transport = pty_transport
+        self._cancellation_factory = cancellation_factory
         self._output_stream = output_stream
 
     def _resolve_tty(self, config: RunConfig) -> bool:
@@ -58,15 +74,14 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         if config.entrypoint:
             cmd.extend(["--entrypoint", config.entrypoint])
 
-
         if config.network == NetworkMode.CONTAINER:
             cmd.extend(["--network", f"container:{config.network_container}"])
         elif config.network != NetworkMode.BRIDGE:
             cmd.extend(["--network", str(config.network)])
-        
+
         if config.restart_policy != RestartPolicy.NO:
             cmd.extend(["--restart", str(config.restart_policy)])
-        
+
         if config.log_driver and self._caps.supports_log_drivers:
             cmd.extend(["--log-driver", config.log_driver])
         if config.privileged:
@@ -84,7 +99,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         for vol in config.volumes:
             src = str(vol.source)
             tgt = str(vol.target)
-            if vol.type == VolumeMountType.TMPFS:
+            if vol.type is VolumeMountType.TMPFS:
                 cmd.extend(["--mount", f"type=tmpfs,target={tgt}"])
             else:
                 spec = f"{src}:{tgt}"
@@ -94,7 +109,9 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         for port in config.ports:
             if port.host_port is not None:
-                cmd.extend(["-p", f"{port.host_port}:{port.container_port}/{port.protocol}"])
+                cmd.extend(
+                    ["-p", f"{port.host_port}:{port.container_port}/{port.protocol}"]
+                )
             else:
                 cmd.extend(["-p", f"{port.container_port}/{port.protocol}"])
 
@@ -108,17 +125,28 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(config.command)
 
         if effective_tty:
-            result = run_pty(cmd, output_stream=self._output_stream)
-            if result.returncode != 0:
-                raise ContainerRuntimeError(
-                    f"Container exited with code {result.returncode}",
-                    command=cmd,
-                    exit_code=result.returncode,
-                )
+            result = self._pty_transport.execute_pty(
+                cmd,
+                output_stream=self._output_stream,
+                timeout=config.timeout,
+            )
+            self._check_result(
+                result,
+                cmd,
+                operation="run container",
+                entity=config.image,
+                not_found=ImageNotFoundError,
+            )
             return ""
 
-        result = self._streaming.stream(cmd)
-        self._check_result(result, cmd, operation="run container", entity=config.image, not_found=ImageNotFoundError)
+        result = self._streaming.stream(cmd, timeout=config.timeout)
+        self._check_result(
+            result,
+            cmd,
+            operation="run container",
+            entity=config.image,
+            not_found=ImageNotFoundError,
+        )
         if config.stream_output:
             return ""
         return self._decode_bytes(result.stdout).strip()
@@ -129,16 +157,30 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         self._check_result(result, cmd, operation="start container", entity=container)
 
     def stop(self, container: str, timeout: int = 10) -> None:
-        cmd = [self._transport.get_runtime_binary(), "stop", "-t", str(timeout), container]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            "stop",
+            "-t",
+            str(timeout),
+            container,
+        ]
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="stop container", entity=container)
 
     def restart(self, container: str, timeout: int = 10) -> None:
-        cmd = [self._transport.get_runtime_binary(), "restart", "-t", str(timeout), container]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            "restart",
+            "-t",
+            str(timeout),
+            container,
+        ]
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="restart container", entity=container)
 
-    def remove(self, container: str, force: bool = False, volumes: bool = False) -> None:
+    def remove(
+        self, container: str, force: bool = False, volumes: bool = False
+    ) -> None:
         cmd = [self._transport.get_runtime_binary(), "rm", container]
         if force:
             cmd.append("-f")
@@ -155,12 +197,21 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             return False
 
     def inspect(self, container: str) -> ContainerInfo:
-        cmd = [self._transport.get_runtime_binary(), "container", "inspect", "--format", "json", container]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            "container",
+            "inspect",
+            "--format",
+            "json",
+            container,
+        ]
         result = self._transport.execute(cmd)
         self._check_result(result, cmd, operation="inspect container", entity=container)
         return self._parser.parse_inspect(self._decode_bytes(result.stdout))
 
-    def list(self, show_all: bool = False, filters: dict[str, str] | None = None) -> list[ContainerInfo]:
+    def list(
+        self, show_all: bool = False, filters: dict[str, str] | None = None
+    ) -> list[ContainerInfo]:
         cmd = [self._transport.get_runtime_binary(), "container", "list"]
         cmd.extend(self._caps.list_format_flags)
         if show_all:
@@ -172,7 +223,9 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         self._check_result(result, cmd, operation="list containers", entity="")
         return self._parser.parse_list(self._decode_bytes(result.stdout))
 
-    def logs(self, container: str, follow: bool = False, tail: int | None = None) -> Iterator[str]:
+    def logs(
+        self, container: str, follow: bool = False, tail: int | None = None
+    ) -> Iterator[str]:
         cmd = [self._transport.get_runtime_binary(), "logs", container]
         if follow:
             cmd.append("--follow")
@@ -187,14 +240,19 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         cancel_token = self._cancellation_factory()
         queue: Queue[str | None] = Queue()
-        errors: list[BaseException] = []
+        errors: list[Exception] = []
 
         def _on_stdout(data: bytes) -> None:
             queue.put(self._decode_bytes(data))
 
         def _run() -> None:
             try:
-                self._streaming.stream(cmd, on_stdout=_on_stdout, on_stderr=_on_stdout, cancel_token=cancel_token)
+                self._streaming.stream(
+                    cmd,
+                    on_stdout=_on_stdout,
+                    on_stderr=_on_stdout,
+                    cancel_token=cancel_token,
+                )
             except Exception as e:
                 errors.append(e)
             finally:
@@ -211,20 +269,25 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
                 yield chunk
         finally:
             cancel_token.cancel()
-            thread.join(timeout=5)
+            thread.join(timeout=_LOGS_JOIN_TIMEOUT)
+            if errors:
+                raise errors[0]
 
-        if errors:
-            raise errors[0]
-
-    def exec_container(self, container: str, command: list[str], detach: bool = False, user: str | None = None) -> ExecResult:
+    def exec_container(
+        self,
+        container: str,
+        command: list[str],
+        detach: bool = False,
+        user: str | None = None,
+        timeout: float | None = None,
+    ) -> ExecResult:
         cmd = [self._transport.get_runtime_binary(), "exec"]
         if detach:
             cmd.append("-d")
         if user:
             cmd.extend(["-u", user])
-        cmd.append(container)
-        cmd.extend(command)
-        result = self._transport.execute(cmd)
+        cmd.extend([container] + command)
+        result = self._transport.execute(cmd, timeout=timeout)
         stderr_str = self._decode_bytes(result.stderr)
         if result.returncode != 0 and self._parser.is_not_found_error(stderr_str):
             raise self._not_found_error(container)

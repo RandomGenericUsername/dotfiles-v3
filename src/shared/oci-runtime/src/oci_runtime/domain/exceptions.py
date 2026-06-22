@@ -25,6 +25,7 @@ class OciError(Exception):
 
 class ParsingError(OciError):
     """Raised when CLI output cannot be parsed."""
+
     def __init__(self, raw: str, message: str = "Failed to parse output"):
         self.raw = raw
         super().__init__(message)
@@ -52,6 +53,16 @@ class ImageNotFoundError(ImageError):
         super().__init__(f"Image not found: {image_name}")
 
 
+class ImagePullAccessDeniedError(ImageError):
+    def __init__(self, image_name: str, registry: str = ""):
+        self.image_name = image_name
+        self.registry = registry
+        msg = f"Pull access denied for image: {image_name}"
+        if registry:
+            msg += f" (registry: {registry})"
+        super().__init__(msg)
+
+
 class ContainerNotFoundError(ContainerError):
     def __init__(self, container_id: str):
         self.container_id = container_id
@@ -71,7 +82,9 @@ class NetworkNotFoundError(NetworkError):
 
 
 class OperationTimeoutError(OciError):
-    def __init__(self, command: list[str], timeout: float, message: str = "Operation timed out"):
+    def __init__(
+        self, command: list[str], timeout: float, message: str = "Operation timed out"
+    ):
         self.command = command
         self.timeout = timeout
         super().__init__(message, command=command)
@@ -100,6 +113,3 @@ class RuntimeNotAvailableError(OciError):
             f"Container runtime '{runtime}' is not available. "
             f"Please ensure it is installed and running."
         )
-
-
-

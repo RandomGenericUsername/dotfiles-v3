@@ -1,5 +1,14 @@
 import io
+import os
 import tarfile
+
+
+def _validate_tar_path(path: str) -> None:
+    norm = os.path.normpath(path)
+    if os.path.isabs(norm):
+        raise ValueError(f"Absolute path not allowed in tar: {path!r}")
+    if norm.startswith("..") or norm == "..":
+        raise ValueError(f"Path with parent reference not allowed in tar: {path!r}")
 
 
 def create_build_tar(
@@ -7,8 +16,10 @@ def create_build_tar(
     files: dict[str, bytes],
     tar_entry_name: str = "Dockerfile",
 ) -> bytes:
-    """Note: ``files`` dict keys are used verbatim as tar entry names.
-    Callers must not include ``..`` or absolute paths from untrusted input."""
+    _validate_tar_path(tar_entry_name)
+    for path in files:
+        _validate_tar_path(path)
+
     tar_buffer = io.BytesIO()
     with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
         info = tarfile.TarInfo(name=tar_entry_name)

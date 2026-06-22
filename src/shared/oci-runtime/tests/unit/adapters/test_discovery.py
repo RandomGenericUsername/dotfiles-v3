@@ -148,7 +148,7 @@ class TestDiscoveryViaFactory:
         assert result[0].kind == RuntimeKind.DOCKER
 
     def test_factory_available_still_works_with_default_discovery(self):
-        with patch("subprocess.run", return_value=MagicMock(returncode=1)):
+        with patch("shutil.which", return_value=None):
             factory = RuntimeFactory()
             result = factory.available()
             assert result == []

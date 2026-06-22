@@ -17,6 +17,7 @@ from oci_runtime.ports.parsers import (
 @dataclass(frozen=True)
 class Parsers:
     """Typed container for parser instances."""
+
     container_parser: ContainerParser
     image_parser: ImageParser
     volume_parser: VolumeParser
@@ -26,6 +27,7 @@ class Parsers:
 @dataclass(frozen=True)
 class Managers:
     """Typed container for manager instances."""
+
     image_manager: ImageManager
     container_manager: ContainerManager
     volume_manager: VolumeManager

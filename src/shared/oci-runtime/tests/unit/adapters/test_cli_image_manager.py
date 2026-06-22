@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.domain.types import BuildContext, ImageInfo, PruneResult
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ImageParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
@@ -16,7 +16,7 @@ class _MockParser(ImageParser):
         return [ImageInfo(id="sha256:abc")]
     def parse_build_output(self, raw: str) -> str:
         return "sha256:abc"
-    def parse_id_from_pull(self, raw: str) -> str:
+    def parse_digest_from_pull(self, raw: str) -> str:
         return "sha256:abc"
     def parse_prune(self, raw: str) -> PruneResult:
         return PruneResult()

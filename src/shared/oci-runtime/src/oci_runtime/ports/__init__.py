@@ -1,3 +1,7 @@
+from oci_runtime.ports.binary_resolver import BinaryResolver
+from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.ports.cancellation import CancellationToken
+from oci_runtime.ports.pty_transport import PtyTransport
 from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.discovery import RuntimeDiscovery
@@ -21,6 +25,8 @@ from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.tty import TtyDetector
 
 __all__ = [
+    "BinaryResolver",
+    "CancellationToken",
     "ContainerEngine",
     "ContainerManager",
     "ContainerParser",
@@ -32,6 +38,8 @@ __all__ = [
     "OutputStream",
     "Parsers",
     "ParsingError",
+    "PtyTransport",
+    "RuntimeCapabilities",
     "RuntimeDiscovery",
     "RuntimeProvider",
     "StreamingTransport",

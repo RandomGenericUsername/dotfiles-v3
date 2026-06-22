@@ -30,10 +30,11 @@ from oci_runtime.domain.exceptions import (
 )
 from oci_runtime.domain.types import RunConfig
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RawExecResult
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 @pytest.fixture
@@ -75,7 +76,8 @@ class TestManagerErrorPropagation:
 
     def test_container_not_found_from_stderr(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ContainerNotFoundError) as exc:
             mgr.inspect("ctr1")
         assert "ctr1" in exc.value.container_id
@@ -97,7 +99,8 @@ class TestManagerErrorPropagation:
     def test_generic_error_raises_container_runtime_error(self, transport, streaming, caps):
         transport._responses = {("docker", "run", "-d", "alpine"): RawExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
         streaming._responses = {("docker", "run", "-d", "alpine"): RawExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         config = RunConfig(image="alpine")
         with pytest.raises(ContainerRuntimeError) as exc_info:
             mgr.run(config)
@@ -106,21 +109,24 @@ class TestManagerErrorPropagation:
 
     def test_non_zero_without_stderr(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ContainerRuntimeError) as exc:
             mgr.inspect("ctr1")
         assert exc.value.exit_code == 1
 
     def test_not_found_error_for_stop(self, transport, streaming, caps):
         transport._responses = {("docker", "stop", "-t", "10", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ContainerNotFoundError) as exc:
             mgr.stop("ctr1")
         assert "ctr1" in exc.value.container_id
 
     def test_not_found_error_for_remove(self, transport, streaming, caps):
         transport._responses = {("docker", "rm", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ContainerNotFoundError) as exc:
             mgr.remove("ctr1")
         assert "ctr1" in exc.value.container_id
@@ -145,7 +151,7 @@ class TestParserNotFoundDetection:
     def test_docker_image_not_found_pattern(self):
         p = DockerImageParser()
         assert p.is_not_found_error("No such image: alpine")
-        assert p.is_not_found_error("pull access denied")
+        assert not p.is_not_found_error("pull access denied")
         assert not p.is_not_found_error("something else")
 
     def test_docker_volume_not_found_pattern(self):
@@ -186,10 +192,7 @@ class TestFactoryErrorConditions:
         assert engine.is_available() is False
 
     def test_create_engine_with_wrong_binary(self):
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value.returncode = 1
-            mock_run.return_value.stdout = b""
-            mock_run.return_value.stderr = b""
-            pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="/usr/bin/which")
+        with patch("shutil.which", return_value=None):
+            pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz")
             engine = RuntimeFactory().create(pref)
             assert engine.is_available() is False

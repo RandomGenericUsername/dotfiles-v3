@@ -1,20 +1,13 @@
-"""Committed reproductions for known bugs found in the audit.
+"""Regression tests for bugs found in the audit.
 
-Each test reproduces a specific mechanically-verifiable bug. All are
-marked ``xfail(strict=True)``:
+These tests WERE marked xfail(strict=True) to document known bugs.
+All bugs were fixed in commit 15f6238 (guardrail remediation).
+The xfail markers were removed, and these tests now PASS as
+regression guards — if a bug is reintroduced, the test fails.
 
-  - The test is **expected to fail** — documenting the bug exists.
-  - If someone fixes the bug, the test starts **passing**, and
-    ``strict=True`` makes the suite go RED — forcing the xfail marker
-    to be removed. This makes both the bug AND the fix visible.
-  - The bugs cannot be silently re-introduced: if the fix is reverted,
-    the test fails again (now without the xfail), going red.
-
-This file is the durable record of what the audit found. Unlike
-prototypes in /tmp, these tests live in the repo and run on every
-``pytest`` invocation. The cycle of "audit finds bugs → mark tasks
-complete → bugs persist → re-audit" is broken because the bugs are
-now visible to CI, not just to the auditor.
+The cycle of "audit finds bugs → mark tasks complete → bugs persist
+→ re-audit" is broken because these tests run on every pytest
+invocation, not just during audits.
 """
 
 from __future__ import annotations
@@ -41,9 +34,10 @@ from oci_runtime.domain.exceptions import (
     VolumeError,
 )
 from oci_runtime.domain.types import BuildContext, PruneResult, RawExecResult, RunConfig
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser, ImageParser, NetworkParser, VolumeParser
-from tests.helpers.mock_transport import FakeTtyDetector, RecordingStreamingTransport, RecordingTransport
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 # ─── Helpers ───
 
@@ -61,7 +55,7 @@ class _NoOpImageParser(ImageParser):
     def parse_inspect(self, raw): return MagicMock()
     def parse_list(self, raw): return []
     def parse_build_output(self, raw): return "sha256:abc"
-    def parse_id_from_pull(self, raw): return "sha256:abc"
+    def parse_digest_from_pull(self, raw): return "sha256:abc"
     def parse_prune(self, raw): return PruneResult()
     def is_not_found_error(self, stderr): return False
 
@@ -90,7 +84,9 @@ class TestF01ExecStderrDroppedOnSuccess:
         })
         mgr = CliContainerManager(t, _NoOpContainerParser(), _CAPS,
                                   streaming=RecordingStreamingTransport("docker"),
-                                  tty_detector=FakeTtyDetector())
+                                  tty_detector=FakeTtyDetector(),
+                                  pty_transport=MockPtyTransport(),
+                                  cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.exec_container("ctr1", ["sh", "-c", "echo err >&2"])
         assert result.stderr == "err\n", f"stderr was dropped: {result.stderr!r}"
 
@@ -114,7 +110,9 @@ class TestF02LogsFollowDropsStderr:
 
         t = RecordingTransport("docker")
         mgr = CliContainerManager(t, _NoOpContainerParser(), _CAPS,
-                                  streaming=st, tty_detector=FakeTtyDetector())
+                                  streaming=st, tty_detector=FakeTtyDetector(),
+                                  pty_transport=MockPtyTransport(),
+                                  cancellation_factory=lambda: ThreadCancellationToken())
         chunks = list(mgr.logs("ctr1", follow=True))
         combined = "".join(chunks)
         assert "stderr-line" in combined, f"stderr was dropped from logs: {combined!r}"
@@ -130,7 +128,9 @@ class TestF03PruneSkipsCheckResult:
         })
         mgr = CliContainerManager(t, _NoOpContainerParser(), _CAPS,
                                   streaming=RecordingStreamingTransport("docker"),
-                                  tty_detector=FakeTtyDetector())
+                                  tty_detector=FakeTtyDetector(),
+                                  pty_transport=MockPtyTransport(),
+                                  cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(OciError):
             mgr.prune()
 
@@ -263,18 +263,22 @@ class TestF11GetRuntimeBinaryReturnsUnresolved:
 
 class TestF14TimeoutEscapesOciError:
     def test_stream_timeout_is_oci_error(self):
+        """B2: deadline timeout in streaming transport raises OperationTimeoutError (OciError),
+        not subprocess.TimeoutExpired (which was the pre-fix leak)."""
         from oci_runtime.adapters.transport.streaming import CliStreamingTransport
-        st = CliStreamingTransport("docker")
-        with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.Popen") as mock_popen:
-                proc = MagicMock()
-                proc.stdout = MagicMock()
-                proc.stderr = MagicMock()
-                proc.stdin = None
-                proc.poll.return_value = None
-                proc.wait.side_effect = subprocess.TimeoutExpired("cmd", 0.01)
-                mock_popen.return_value = proc
-                with patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader:
-                    mock_reader.return_value.read.return_value = ([], [])
-                    with pytest.raises(OciError):
-                        st.stream(["docker", "ps"], timeout=0.01)
+        with patch("oci_runtime.adapters.transport.streaming.DeadlineCancellationToken") as mock_deadline:
+            mock_deadline.return_value.is_cancelled = True
+            st = CliStreamingTransport("docker")
+            with patch("shutil.which", return_value="/usr/bin/docker"):
+                with patch("subprocess.Popen") as mock_popen:
+                    proc = MagicMock()
+                    proc.stdout = MagicMock()
+                    proc.stderr = MagicMock()
+                    proc.stdin = None
+                    proc.poll.return_value = None
+                    proc.wait.return_value = -1
+                    mock_popen.return_value = proc
+                    with patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader:
+                        mock_reader.from_process.return_value.read.return_value = ([], [])
+                        with pytest.raises(OciError):
+                            st.stream(["docker", "ps"], timeout=0.01)

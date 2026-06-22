@@ -17,7 +17,7 @@ from oci_runtime.domain.types import (
     VolumeInfo,
     VolumeMount,
 )
-from oci_runtime.domain.enums import NetworkMode, RestartPolicy
+from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.types import RawExecResult
 
 
@@ -157,8 +157,8 @@ class TestContainerLifecycle:
         })
         cid = docker_engine.containers.run(RunConfig(
             image="alpine", name="myapp", command=["echo", "hi"], entrypoint="/bin/sh",
-            environment={"FOO": "bar"}, volumes=[VolumeMount(source="/host", target="/container", type="bind")],
-            ports=[PortMapping(container_port=80, host_port=8080)],
+            environment={"FOO": "bar"}, volumes=[VolumeMount(source="/host", target="/container", type=VolumeMountType.BIND)],
+            ports=[PortMapping(container_port=80, host_port=8080, host_ip="0.0.0.0")],
             network=NetworkMode.HOST, restart_policy=RestartPolicy.ALWAYS,
             detach=True, remove=True, tty=False, stdin_open=True, user="root",
             working_dir="/app", hostname="myhost", log_driver="json-file",

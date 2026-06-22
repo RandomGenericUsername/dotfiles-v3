@@ -13,9 +13,10 @@ from oci_runtime.adapters.parser.docker import (
 from oci_runtime.domain.exceptions import ImageError
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.types import BuildContext
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 @pytest.fixture
@@ -36,7 +37,8 @@ def streaming():
 class TestMalformedInspect:
     def test_inspect_malformed_json_raises_parsing_error(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=0, stdout=b"not json", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ParsingError, match="Invalid JSON"):
             mgr.inspect("ctr1")
 
@@ -60,13 +62,15 @@ class TestMalformedInspect:
 
     def test_inspect_truncated_json_container(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=0, stdout=b'{"Id": "abc', stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ParsingError):
             mgr.inspect("ctr1")
 
     def test_inspect_wrong_structure(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=0, stdout=b'{"not": "expected"}', stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.inspect("ctr1")
         assert result.id == ""
 
@@ -74,7 +78,8 @@ class TestMalformedInspect:
 class TestMalformedList:
     def test_list_malformed_json_containers(self, transport, streaming, caps):
         transport._responses = {("docker", "container", "list"): RawExecResult(returncode=0, stdout=b"not json", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ParsingError, match="Invalid JSON on line"):
             mgr.list()
 
@@ -103,7 +108,7 @@ class TestMalformedBuildOutput:
         transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet"): RawExecResult(returncode=0, stdout=b"", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        with pytest.raises(ImageError):
+        with pytest.raises(ParsingError):
             mgr.build(ctx, "myimg", timeout=30)
 
     def test_build_output_whitespace_only(self, transport, caps):
@@ -111,5 +116,5 @@ class TestMalformedBuildOutput:
         transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet"): RawExecResult(returncode=0, stdout=b"  \n  ", stderr=b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
-        with pytest.raises(ImageError):
+        with pytest.raises(ParsingError):
             mgr.build(ctx, "myimg", timeout=30)

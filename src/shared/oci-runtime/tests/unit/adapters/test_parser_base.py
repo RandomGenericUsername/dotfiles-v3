@@ -126,9 +126,9 @@ class TestParseJsonListNDJSON:
         result = self.parser._parse_json_list(ndjson)
         assert len(result) == 2
 
-    def test_empty_string_raises(self):
-        with pytest.raises(ParsingError):
-            self.parser._parse_json_list("")
+    def test_empty_string_returns_empty_list(self):
+        result = self.parser._parse_json_list("")
+        assert result == []
 
     def test_empty_list_returns_empty(self):
         result = self.parser._parse_json_list("[]")

@@ -33,19 +33,29 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
                 container_port, protocol = port_spec.split("/")
                 container_port = int(container_port)
 
-                if isinstance(mappings, list):
+                if mappings is None:
+                    ports.append(
+                        PortMapping(
+                            container_port=container_port,
+                            protocol=protocol,
+                            host_ip=None,
+                        )
+                    )
+                elif isinstance(mappings, list):
                     for mapping in mappings:
                         if isinstance(mapping, dict):
                             host_port = mapping.get("HostPort")
                             host_ip = mapping.get("HostIp", "") or "0.0.0.0"
 
                             if host_port:
-                                ports.append(PortMapping(
-                                    container_port=container_port,
-                                    host_port=int(host_port),
-                                    protocol=protocol,
-                                    host_ip=host_ip,
-                                ))
+                                ports.append(
+                                    PortMapping(
+                                        container_port=container_port,
+                                        host_port=int(host_port),
+                                        protocol=protocol,
+                                        host_ip=host_ip,
+                                    )
+                                )
             except (ValueError, AttributeError):
                 continue
 
@@ -59,7 +69,7 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
           [{"HostPort": 8080, "ContainerPort": 80, "Protocol": "tcp", "HostIp": "0.0.0.0"}, ...]
         """
         ports = []
-        for p in (item.get("Ports") or []):
+        for p in item.get("Ports") or []:
             if not isinstance(p, dict):
                 continue
             host_port = p.get("HostPort")
@@ -69,12 +79,14 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
             cport = _safe_int(container_port)
             if cport is None:
                 continue
-            ports.append(PortMapping(
-                container_port=cport,
-                host_port=_safe_int(host_port),
-                protocol=protocol,
-                host_ip=host_ip,
-            ))
+            ports.append(
+                PortMapping(
+                    container_port=cport,
+                    host_port=_safe_int(host_port),
+                    protocol=protocol,
+                    host_ip=host_ip,
+                )
+            )
         return ports
 
     def parse_inspect(self, raw: str) -> ContainerInfo:
@@ -85,7 +97,9 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
             id=item.get("Id", ""),
             name=item.get("Name", "").lstrip("/"),
             image=item.get("Config", {}).get("Image", ""),
-            state=ContainerState(item.get("State", {}).get("Status", ContainerState.CREATED)),
+            state=ContainerState(
+                item.get("State", {}).get("Status", ContainerState.CREATED)
+            ),
             status=item.get("State", {}).get("Status", ""),
             created=item.get("Created"),
             ports=ports,
@@ -98,18 +112,24 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
         result = []
         for item in data:
             names = item.get("Names")
+            if isinstance(names, str):
+                names = [names]
             if not names or not isinstance(names, list):
-                raise ParsingError(raw=raw, message="Container list entry missing 'Names' field")
-            result.append(ContainerInfo(
-                id=item.get("Id", ""),
-                name=names[0].lstrip("/"),
-                image=item.get("Image", ""),
-                state=ContainerState(item.get("State", ContainerState.CREATED)),
-                status=item.get("Status", ""),
-                created=str(item.get("Created", "")),
-                ports=self._parse_ports_from_list(item),
-                labels=item.get("Labels") or {},
-            ))
+                raise ParsingError(
+                    raw=raw, message="Container list entry missing 'Names' field"
+                )
+            result.append(
+                ContainerInfo(
+                    id=item.get("Id", ""),
+                    name=names[0].lstrip("/"),
+                    image=item.get("Image", ""),
+                    state=ContainerState(item.get("State", ContainerState.CREATED)),
+                    status=item.get("Status", ""),
+                    created=str(item.get("Created", "")),
+                    ports=self._parse_ports_from_list(item),
+                    labels=item.get("Labels") or {},
+                )
+            )
         return result
 
 
@@ -138,35 +158,47 @@ class PodmanImageParser(BaseCliParser, ImageParser):
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
-            result.append(ImageInfo(
-                id=item.get("Id", ""),
-                tags=tags if tags else [],
-                size=_coerce_size(item.get("Size", 0)),
-                created=str(item.get("Created", "")),
-                labels=labels,
-            ))
+            result.append(
+                ImageInfo(
+                    id=item.get("Id", ""),
+                    tags=tags if tags else [],
+                    size=_coerce_size(item.get("Size", 0)),
+                    created=str(item.get("Created", "")),
+                    labels=labels,
+                )
+            )
         return result
 
     def parse_build_output(self, raw: str) -> str:
         output = raw.strip()
-        if output.startswith("sha256:"):
-            return output
-        return f"sha256:{output}"
+        if not output.startswith("sha256:"):
+            output = f"sha256:{output}"
+        if not re.match(r"^sha256:[a-f0-9]{12,64}$", output):
+            raise ParsingError(raw=raw, message=f"Invalid build output: {raw!r}")
+        return output
 
-    def parse_id_from_pull(self, raw: str) -> str:
-        lines = raw.strip().split('\n')
+    def parse_digest_from_pull(self, raw: str) -> str:
+        lines = raw.strip().split("\n")
         if lines:
             for line in reversed(lines):
                 line = line.strip()
-                if line and not line.startswith('Trying') and not line.startswith('Getting'):
-                    if 'sha256:' in line:
+                if (
+                    line
+                    and not line.startswith("Trying")
+                    and not line.startswith("Getting")
+                ):
+                    if "sha256:" in line:
                         match = re.search(r"sha256:([a-f0-9]+)", line)
                         if match:
                             return f"sha256:{match.group(1)}"
-                    if line and not line.startswith('Error') and not line.startswith('Warning'):
-                        if re.match(r'^[a-f0-9]{12,64}$', line):
+                    if (
+                        line
+                        and not line.startswith("Error")
+                        and not line.startswith("Warning")
+                    ):
+                        if re.match(r"^[a-f0-9]{12,64}$", line):
                             return f"sha256:{line}"
-                        return line
+                        return ""
         return ""
 
 
@@ -189,12 +221,14 @@ class PodmanVolumeParser(BaseCliParser, VolumeParser):
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
-            result.append(VolumeInfo(
-                name=item.get("Name", ""),
-                driver=item.get("Driver", ""),
-                mountpoint=item.get("Mountpoint"),
-                labels=labels,
-            ))
+            result.append(
+                VolumeInfo(
+                    name=item.get("Name", ""),
+                    driver=item.get("Driver", ""),
+                    mountpoint=item.get("Mountpoint"),
+                    labels=labels,
+                )
+            )
         return result
 
 
@@ -222,11 +256,13 @@ class PodmanNetworkParser(BaseCliParser, NetworkParser):
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
-            result.append(NetworkInfo(
-                id=net_id,
-                name=name,
-                driver=driver,
-                scope=scope,
-                labels=labels,
-            ))
+            result.append(
+                NetworkInfo(
+                    id=net_id,
+                    name=name,
+                    driver=driver,
+                    scope=scope,
+                    labels=labels,
+                )
+            )
         return result

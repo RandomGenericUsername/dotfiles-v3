@@ -1,36 +1,46 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
 
-from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, RuntimeKind, VolumeMountType
+from oci_runtime.domain.enums import (
+    ContainerState,
+    NetworkMode,
+    RestartPolicy,
+    RuntimeKind,
+    VolumeMountType,
+)
 
 
 _MEMORY_LIMIT_RE = re.compile(r"^\d+(\.\d+)?[bkmg]?$", re.IGNORECASE)
 _CPU_LIMIT_RE = re.compile(r"^\d+(\.\d+)?$")
 
 
-@dataclass
+@dataclass(frozen=True)
 class VolumeMount:
-    source: str | Path
+    source: str | Path | None
     target: str | Path
     type: VolumeMountType = VolumeMountType.BIND
     read_only: bool = False
 
     def __post_init__(self) -> None:
-        if isinstance(self.type, str):
-            self.type = VolumeMountType(self.type)
+        if not isinstance(self.type, VolumeMountType):
+            raise TypeError(
+                f"VolumeMount: type must be VolumeMountType, got "
+                f"{type(self.type).__name__}: {self.type!r}"
+            )
+        if self.type is not VolumeMountType.TMPFS and self.source is None:
+            raise ValueError("VolumeMount: source is required for non-TMPFS mounts")
 
 
-@dataclass
+@dataclass(frozen=True)
 class PortMapping:
     container_port: int
+    host_ip: str | None
     host_port: int | None = None
     protocol: str = "tcp"
-    host_ip: str = "0.0.0.0"
 
 
-@dataclass
+@dataclass(frozen=True)
 class BuildContext:
     build_file_content: str | None = None
     build_file_path: Path | None = None
@@ -56,8 +66,7 @@ class BuildContext:
             )
         if not has_content and not has_path:
             raise ValueError(
-                "BuildContext: must set either build_file_content or "
-                "build_file_path."
+                "BuildContext: must set either build_file_content or build_file_path."
             )
         if self.context_path is not None and self.files:
             raise ValueError(
@@ -68,7 +77,7 @@ class BuildContext:
             )
 
 
-@dataclass
+@dataclass(frozen=True)
 class RunConfig:
     image: str
     name: str | None = None
@@ -95,20 +104,31 @@ class RunConfig:
     tty: bool = False
     stdin_open: bool = False
     auto_tty: bool = False
+    timeout: float | None = None
     runtime_flags: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        if self.memory_limit is not None and not _MEMORY_LIMIT_RE.match(self.memory_limit):
+        if self.memory_limit is not None and not _MEMORY_LIMIT_RE.match(
+            self.memory_limit
+        ):
             raise ValueError(f"Invalid memory_limit: {self.memory_limit!r}")
         if self.cpu_limit is not None and not _CPU_LIMIT_RE.match(self.cpu_limit):
             raise ValueError(f"Invalid cpu_limit: {self.cpu_limit!r}")
         if self.network == NetworkMode.CONTAINER and not self.network_container:
-            raise ValueError("RunConfig: network=CONTAINER requires network_container to be set")
+            raise ValueError(
+                "RunConfig: network=CONTAINER requires network_container to be set"
+            )
         if self.detach and (self.tty or self.auto_tty):
-            raise ValueError("RunConfig: detach=True is mutually exclusive with tty/auto_tty")
+            raise ValueError(
+                "RunConfig: detach=True is mutually exclusive with tty/auto_tty"
+            )
+        if self.timeout is not None and self.timeout <= 0:
+            raise ValueError(
+                f"RunConfig: timeout must be positive, got {self.timeout!r}"
+            )
 
 
-@dataclass
+@dataclass(frozen=True)
 class ImageInfo:
     id: str
     tags: list[str] = field(default_factory=list)
@@ -117,7 +137,7 @@ class ImageInfo:
     labels: dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ContainerInfo:
     id: str
     name: str
@@ -130,7 +150,7 @@ class ContainerInfo:
     exit_code: int | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class VolumeInfo:
     name: str
     driver: str
@@ -144,21 +164,21 @@ class PruneResult:
     reclaimed_bytes: int = 0
 
 
-@dataclass
+@dataclass(frozen=True)
 class ExecResult:
     returncode: int
     stdout: str
     stderr: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class RawExecResult:
     returncode: int
     stdout: bytes
     stderr: bytes
 
 
-@dataclass
+@dataclass(frozen=True)
 class NetworkInfo:
     id: str
     name: str
@@ -174,26 +194,6 @@ class RuntimePreference:
     No guessing, no fallback. The binary must be explicitly declared.
     If the requested engine is not available, creation fails immediately.
     """
+
     kind: RuntimeKind
     binary: str
-
-
-class CancellationToken(ABC):
-    """Signals cancellation across threads.
-
-    This is a **port** — a pure interface with no implementation.
-    Concrete adapters (e.g. ``ThreadCancellationToken``) provide
-    the actual thread-safe wiring.
-
-    Note: Under CPython, a plain ``bool`` flag would appear atomic
-    due to the GIL, but **this is not guaranteed** in free-threaded
-    Python (PEP 703).  Always use a ``threading.Event``-based adapter
-    like ``ThreadCancellationToken`` for cross-thread cancellation.
-    """
-
-    @abstractmethod
-    def cancel(self) -> None: ...
-
-    @property
-    @abstractmethod
-    def is_cancelled(self) -> bool: ...

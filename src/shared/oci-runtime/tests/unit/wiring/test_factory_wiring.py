@@ -10,14 +10,15 @@ from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.factory import RuntimeFactoryConfig
 from oci_runtime.ports.aggregates import Managers, Parsers
 from oci_runtime.ports.parsers import ContainerParser, ImageParser
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.domain.types import PruneResult, RawExecResult
-from tests.helpers.mock_transport import RecordingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingTransport
 
 
 class TestFactoryCreateEngine:
@@ -76,7 +77,7 @@ class TestFactoryConfigInjection:
             "docker --version": RawExecResult(returncode=0, stdout=b"Docker", stderr=b""),
         })
         config = RuntimeFactoryConfig(
-            transport_factory=lambda _: transport,
+            transport_factory=lambda _, **kwargs: transport,
         )
         factory = RuntimeFactory(config)
         engine = factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
@@ -100,7 +101,7 @@ class TestFactoryConfigInjection:
             def version(self): return ""
         transport = RecordingTransport("docker")
         config = RuntimeFactoryConfig(
-            transport_factory=lambda _: transport,
+            transport_factory=lambda _, **kwargs: transport,
             runtime_cls=MockEngine,
         )
         factory = RuntimeFactory(config)
@@ -118,7 +119,7 @@ class TestFactoryConfigInjection:
             def parse_inspect(self, raw): raise ParsingError(raw)
             def parse_list(self, raw): return []
             def parse_build_output(self, raw): return ""
-            def parse_id_from_pull(self, raw): return ""
+            def parse_digest_from_pull(self, raw): return ""
             def parse_prune(self, raw): return PruneResult()
             def is_not_found_error(self, stderr): return False
 
@@ -133,11 +134,12 @@ class TestFactoryConfigInjection:
                     volume_parser=FakeContainerParser(),
                     network_parser=FakeContainerParser(),
                 )
-            def create_managers(self, transport, streaming_transport, caps, *, tty_detector_factory=None, output_stream_factory=None, cancellation_factory=None):
+            def create_managers(self, transport, streaming_transport, caps, *, tty_detector_factory=None, output_stream_factory=None, cancellation_factory=None, pty_transport=None):
                 parsers = self.create_parsers()
                 return Managers(
                     image_manager=CliImageManager(transport, parsers.image_parser, caps),
-                    container_manager=CliContainerManager(transport, parsers.container_parser, caps, streaming=streaming_transport, tty_detector=FakeTtyDetector()),
+                    container_manager=CliContainerManager(transport, parsers.container_parser, caps, streaming=streaming_transport, tty_detector=FakeTtyDetector(),
+                        pty_transport=pty_transport or MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken()),
                     volume_manager=CliVolumeManager(transport, parsers.volume_parser, caps),
                     network_manager=CliNetworkManager(transport, parsers.network_parser, caps),
                 )
@@ -146,7 +148,7 @@ class TestFactoryConfigInjection:
             "docker --version": RawExecResult(returncode=0, stdout=b"Docker", stderr=b""),
         })
         config = RuntimeFactoryConfig(
-            transport_factory=lambda _: transport,
+            transport_factory=lambda _, **kwargs: transport,
         )
         factory = RuntimeFactory(config, providers={RuntimeKind.DOCKER: FakeProvider()})
         engine = factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
@@ -164,13 +166,13 @@ class TestFactoryAvailable:
         assert isinstance(available, list)
         assert all(isinstance(p, RuntimePreference) for p in available)
 
-    @patch("subprocess.run")
-    def test_available_only_returns_available_runtimes(self, mock_run):
-        def run_side_effect(cmd, *args, **kwargs):
-            if cmd[0] == "podman":
-                raise FileNotFoundError("podman not found")
-            return MagicMock(returncode=0, stdout=b"Docker", stderr=b"")
-        mock_run.side_effect = run_side_effect
+    @patch("shutil.which")
+    def test_available_only_returns_available_runtimes(self, mock_which):
+        def which_side_effect(cmd, *args, **kwargs):
+            if cmd == "podman":
+                return None
+            return f"/usr/bin/{cmd}"
+        mock_which.side_effect = which_side_effect
         available = RuntimeFactory().available()
         kinds = {p.kind for p in available}
         assert RuntimeKind.DOCKER in kinds
@@ -182,7 +184,7 @@ class TestFactoryCustomInjection:
         from oci_runtime.factory import RuntimeFactoryConfig
         from oci_runtime.domain.enums import RuntimeKind
         from oci_runtime.domain.types import RuntimePreference
-        from oci_runtime.domain.capabilities import RuntimeCapabilities
+        from oci_runtime.ports.capabilities import RuntimeCapabilities
         from oci_runtime.ports.aggregates import Managers, Parsers
         from oci_runtime.ports.parsers import ContainerParser, ImageParser
         from oci_runtime.ports.parsers import ParsingError
@@ -191,7 +193,7 @@ class TestFactoryCustomInjection:
         from oci_runtime.adapters.managers.image import CliImageManager
         from oci_runtime.adapters.managers.volume import CliVolumeManager
         from oci_runtime.adapters.managers.network import CliNetworkManager
-        from tests.helpers.mock_transport import FakeTtyDetector, RecordingTransport
+        from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingTransport
         from oci_runtime.domain.types import RawExecResult
 
         class FakeCP(ContainerParser):
@@ -204,7 +206,7 @@ class TestFactoryCustomInjection:
             def parse_inspect(self, raw): raise ParsingError(raw)
             def parse_list(self, raw): return []
             def parse_build_output(self, raw): return ""
-            def parse_id_from_pull(self, raw): return ""
+            def parse_digest_from_pull(self, raw): return ""
             def parse_prune(self, raw): return PruneResult()
             def is_not_found_error(self, stderr): return False
 

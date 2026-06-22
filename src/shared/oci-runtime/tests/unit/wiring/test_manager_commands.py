@@ -5,7 +5,7 @@ from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.types import BuildContext, ImageInfo, PruneResult, RunConfig
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
 from tests.helpers.mock_parsers import (
     MockContainerParser,
@@ -13,7 +13,8 @@ from tests.helpers.mock_parsers import (
     MockNetworkParser,
     MockVolumeParser,
 )
-from tests.helpers.mock_transport import RecordingTransport, RecordingStreamingTransport, FakeTtyDetector
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 @pytest.fixture
@@ -59,11 +60,11 @@ LIST_NETWORK_JSON = b'[{"Id":"net123","Name":"bridge","Driver":"bridge","Scope":
 
 class TestImageManagerCommands:
     def test_build_tar_command(self, t, caps):
-        t._responses = {("docker", "build", "-t", "myimg", "-", "--quiet"): RawExecResult(0, b"abc123\n", b"")}
+        t._responses = {("docker", "build", "-t", "myimg", "--quiet", "-"): RawExecResult(0, b"abc123\n", b"")}
         mgr = CliImageManager(t, MockImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
         result = mgr.build(ctx, "myimg", timeout=30)
-        assert t.calls[0].command == ["docker", "build", "-t", "myimg", "-", "--quiet"]
+        assert t.calls[0].command == ["docker", "build", "-t", "myimg", "--quiet", "-"]
         assert isinstance(result, str)
 
     def test_tag_command(self, t, caps):
@@ -145,21 +146,24 @@ class TestImageManagerCommands:
 class TestContainerManagerCommands:
     def test_run_minimal(self, t, st, caps):
         st._responses = {("docker", "run", "-d", "alpine"): RawExecResult(0, b"abc123\n", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.run(RunConfig(image="alpine"))
         assert st.calls[0].command == ["docker", "run", "-d", "alpine"]
         assert result == "abc123"
 
     def test_run_with_name(self, t, st, caps):
         st._responses = {("docker", "run", "-d", "--name", "myapp", "alpine"): RawExecResult(0, b"abc123", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.run(RunConfig(image="alpine", name="myapp"))
         assert st.calls[0].command == ["docker", "run", "-d", "--name", "myapp", "alpine"]
 
     def test_run_with_all_options(self, t, st, caps):
         st._responses = {("docker", "run", "-d", "--rm", "--name", "myapp", "-t", "-i", "-u", "root", "-w", "/app", "--hostname", "myhost", "--entrypoint", "/bin/sh", "--network", "host", "--restart", "always", "--log-driver", "json-file", "--privileged", "--read-only", "-m", "512m", "--cpus", "2", "-e", "FOO=bar", "-v", "/host:/container", "-p", "8080:80/tcp", "-l", "app=web", "alpine", "echo", "hi"): RawExecResult(0, b"abc123", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
-        from oci_runtime.domain.enums import NetworkMode, RestartPolicy
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
         from oci_runtime.domain.types import PortMapping, VolumeMount
         config = RunConfig(
             image="alpine",
@@ -167,8 +171,8 @@ class TestContainerManagerCommands:
             command=["echo", "hi"],
             entrypoint="/bin/sh",
             environment={"FOO": "bar"},
-            volumes=[VolumeMount(source="/host", target="/container", type="bind")],
-            ports=[PortMapping(container_port=80, host_port=8080)],
+            volumes=[VolumeMount(source="/host", target="/container", type=VolumeMountType.BIND)],
+            ports=[PortMapping(container_port=80, host_port=8080, host_ip="0.0.0.0")],
             network=NetworkMode.HOST,
             restart_policy=RestartPolicy.ALWAYS,
             detach=True,
@@ -190,13 +194,15 @@ class TestContainerManagerCommands:
 
     def test_run_detach_false(self, t, st, caps):
         st._responses = {("docker", "run", "alpine"): RawExecResult(0, b"abc123", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.run(RunConfig(image="alpine", detach=False))
         assert st.calls[0].command == ["docker", "run", "alpine"]
 
     def test_run_stream(self, t, st, caps):
         st._responses = {("docker", "run", "-d", "alpine"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.run(RunConfig(image="alpine", stream_output=True))
         assert result == ""
 
@@ -208,88 +214,102 @@ class TestContainerManagerCommands:
         )
         podman_t = RecordingTransport("podman", {"podman run --userns=keep-id -d alpine": RawExecResult(0, b"abc123", b"")})
         podman_st = RecordingStreamingTransport("podman", {"podman run --userns=keep-id -d alpine": RawExecResult(0, b"abc123", b"")})
-        mgr = CliContainerManager(podman_t, MockContainerParser(), pcaps, streaming=podman_st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(podman_t, MockContainerParser(), pcaps, streaming=podman_st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.run(RunConfig(image="alpine"))
         assert podman_st.calls[0].command == ["podman", "run", "--userns=keep-id", "-d", "alpine"]
 
     def test_start(self, t, st, caps):
         t._responses = {("docker", "start", "ctr1"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.start("ctr1")
         assert t.calls[0].command == ["docker", "start", "ctr1"]
 
     def test_stop(self, t, st, caps):
         t._responses = {("docker", "stop", "-t", "10", "ctr1"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.stop("ctr1")
         assert t.calls[0].command == ["docker", "stop", "-t", "10", "ctr1"]
 
     def test_restart(self, t, st, caps):
         t._responses = {("docker", "restart", "-t", "10", "ctr1"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.restart("ctr1")
         assert t.calls[0].command == ["docker", "restart", "-t", "10", "ctr1"]
 
     def test_remove(self, t, st, caps):
         t._responses = {("docker", "rm", "ctr1"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.remove("ctr1")
         assert t.calls[0].command == ["docker", "rm", "ctr1"]
 
     def test_remove_force_volumes(self, t, st, caps):
         t._responses = {("docker", "rm", "ctr1", "-f", "-v"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.remove("ctr1", force=True, volumes=True)
         assert t.calls[0].command == ["docker", "rm", "ctr1", "-f", "-v"]
 
     def test_inspect_command_and_parsed(self, t, st, caps):
         t._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(0, INSPECT_CONTAINER_JSON, b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         info = mgr.inspect("ctr1")
         assert t.calls[0].command == ["docker", "container", "inspect", "--format", "json", "ctr1"]
         assert info.id == "abc"
 
     def test_list(self, t, st, caps):
         t._responses = {("docker", "container", "list"): RawExecResult(0, LIST_CONTAINER_JSON, b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.list()
         assert t.calls[0].command == ["docker", "container", "list"]
         assert len(result) == 1
 
     def test_list_all(self, t, st, caps):
         t._responses = {("docker", "container", "list", "-a"): RawExecResult(0, b"[]", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.list(show_all=True)
         assert t.calls[0].command == ["docker", "container", "list", "-a"]
 
     def test_list_with_filter(self, t, st, caps):
         t._responses = {("docker", "container", "list", "--filter", "name=web"): RawExecResult(0, b"[]", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.list(filters={"name": "web"})
         assert t.calls[0].command == ["docker", "container", "list", "--filter", "name=web"]
 
     def test_logs(self, t, st, caps):
         t._responses = {("docker", "logs", "ctr1"): RawExecResult(0, b"log output\n", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = "".join(mgr.logs("ctr1"))
         assert t.calls[0].command == ["docker", "logs", "ctr1"]
         assert result == "log output\n"
 
     def test_logs_follow_tail(self, t, st, caps):
         st._stream_responses = {("docker", "logs", "ctr1", "--follow", "--tail", "50"): [b"", b""]}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         list(mgr.logs("ctr1", follow=True, tail=50))
         assert st.calls[0].command == ["docker", "logs", "ctr1", "--follow", "--tail", "50"]
 
     def test_logs_follow_streams_chunks(self, t, st, caps):
         st._stream_responses[("docker", "logs", "ctr1", "--follow")] = [b"chunk1\n", b"chunk2\n"]
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         chunks = list(mgr.logs("ctr1", follow=True))
         assert chunks == ["chunk1\n", "chunk2\n"]
 
     def test_exec(self, t, st, caps):
         t._responses = {("docker", "exec", "ctr1", "ls", "-la"): RawExecResult(0, b"file1\nfile2\n", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.exec_container("ctr1", ["ls", "-la"])
         assert t.calls[0].command == ["docker", "exec", "ctr1", "ls", "-la"]
         assert result.returncode == 0
@@ -297,13 +317,15 @@ class TestContainerManagerCommands:
 
     def test_exec_detach_user(self, t, st, caps):
         t._responses = {("docker", "exec", "-d", "-u", "root", "ctr1", "ls"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         mgr.exec_container("ctr1", ["ls"], detach=True, user="root")
         assert t.calls[0].command == ["docker", "exec", "-d", "-u", "root", "ctr1", "ls"]
 
     def test_prune(self, t, st, caps):
         t._responses = {("docker", "container", "prune", "--force"): RawExecResult(0, b"", b"")}
-        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "container", "prune", "--force"]
         assert result == PruneResult()
@@ -316,7 +338,7 @@ class TestImageManagerBuildCommands:
         from oci_runtime.adapters.parser.docker import DockerImageParser
         from oci_runtime.adapters.managers.image import CliImageManager
         from oci_runtime.domain.types import RawExecResult
-        transport._responses = {("docker", "build", "-t", "myimg", "-", "--quiet", "--no-cache", "--target", "stage1"): RawExecResult(0, b"sha256:abc123", b"")}
+        transport._responses = {("docker", "build", "-t", "myimg", "--quiet", "--no-cache", "--target", "stage1", "-"): RawExecResult(0, b"sha256:abc123def456\n", b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine", no_cache=True, target="stage1")
         mgr.build(ctx, "myimg", timeout=30)
@@ -331,7 +353,7 @@ class TestImageManagerBuildCommands:
         from oci_runtime.adapters.parser.docker import DockerImageParser
         from oci_runtime.adapters.managers.image import CliImageManager
         from oci_runtime.domain.types import RawExecResult
-        transport._responses = {("docker", "build", "-t", "myimg", "-f", "/d/Dockerfile", "/ctx", "--quiet"): RawExecResult(0, b"sha256:abc123", b"")}
+        transport._responses = {("docker", "build", "-t", "myimg", "-f", "/d/Dockerfile", "--quiet", "/ctx"): RawExecResult(0, b"sha256:abc123def456\n", b"")}
         mgr = CliImageManager(transport, DockerImageParser(), caps)
         ctx = BuildContext(build_file_path=Path("/d/Dockerfile"), context_path=Path("/ctx"))
         mgr.build(ctx, "myimg", timeout=30)

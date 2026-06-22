@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import (
     ContainerManager,
     ImageManager,
@@ -35,6 +35,3 @@ class ContainerEngine(ABC):
 
     @abstractmethod
     def version(self) -> str: ...
-
-
-

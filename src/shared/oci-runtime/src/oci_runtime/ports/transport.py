@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 from oci_runtime.domain.types import RawExecResult
+from oci_runtime.ports.cancellation import CancellationToken
 
 
 class Transport(ABC):
@@ -11,6 +12,7 @@ class Transport(ABC):
         *,
         timeout: int | None = None,
         input_data: bytes | None = None,
+        cancel_token: CancellationToken | None = None,
     ) -> RawExecResult: ...
 
     @abstractmethod

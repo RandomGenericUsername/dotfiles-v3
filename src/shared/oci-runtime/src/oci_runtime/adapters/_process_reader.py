@@ -1,42 +1,68 @@
+import os
 import selectors
-import subprocess
-from typing import Callable
+from collections.abc import Callable
 
-from oci_runtime.domain.types import CancellationToken
+from oci_runtime.ports.cancellation import CancellationToken
 
 
 class ProcessPipeReader:
-    """Read stdout/stderr from a subprocess until both pipes deliver EOF.
+    """Read from two file descriptors until both deliver EOF or cancellation.
 
-    Exits purely on pipe EOF, not on process exit. The OS guarantees
-    that EOF is delivered on a pipe only after the writer has closed
-    its end *and* all buffered data has been consumed. This ensures
-    no data is lost even if the process exits before the reader
-    finishes draining the pipes.
+    Works with subprocess pipes AND PTY master fds. Uses os.read(fd, n)
+    which returns available data immediately (non-blocking after select).
+    Handles PTY EIO (OSError) as EOF on Linux.
     """
 
-    def __init__(
-        self,
-        process: subprocess.Popen,
-    ):
-        self._process = process
+    def __init__(self, primary_fd: int, secondary_fd: int):
+        self._primary_fd = primary_fd
+        self._secondary_fd = secondary_fd
+
+    @classmethod
+    def from_process(cls, process):
+        try:
+            fd = process.stdout.fileno()
+            if isinstance(fd, int):
+                return cls(process.stdout.fileno(), process.stderr.fileno())
+        except Exception:
+            pass
+        return cls(process.stdout, process.stderr)
+
+    @classmethod
+    def from_fds(cls, primary_fd: int, secondary_fd: int) -> "ProcessPipeReader":
+        """Create from raw file descriptors (e.g., PTY master + stderr pipe)."""
+        return cls(primary_fd, secondary_fd)
+
+    def _read_fd(self, fd, size: int = 4096) -> bytes:
+        if isinstance(fd, int) and fd < 1000:
+            try:
+                return os.read(fd, size)
+            except OSError:
+                return b""
+        try:
+            return fd.read(size)
+        except (OSError, AttributeError):
+            return b""
 
     def read(
         self,
-        on_stdout: Callable[[bytes], None] | None = None,
-        on_stderr: Callable[[bytes], None] | None = None,
+        on_primary: Callable[[bytes], None] | None = None,
+        on_secondary: Callable[[bytes], None] | None = None,
         cancel_token: CancellationToken | None = None,
+        **kwargs: Callable[[bytes], None] | None,
     ) -> tuple[list[bytes], list[bytes]]:
-        """Read all output until both pipes reach EOF or cancellation.
+        on_stdout = kwargs.pop("on_stdout", None)
+        on_stderr = kwargs.pop("on_stderr", None)
+        if on_stdout is not None:
+            on_primary = on_stdout
+        if on_stderr is not None:
+            on_secondary = on_stderr
 
-        When cancelled, returns partial data accumulated so far.
-        """
-        stdout_acc: list[bytes] = []
-        stderr_acc: list[bytes] = []
+        primary_acc: list[bytes] = []
+        secondary_acc: list[bytes] = []
         selector = selectors.DefaultSelector()
         try:
-            selector.register(self._process.stdout, selectors.EVENT_READ)
-            selector.register(self._process.stderr, selectors.EVENT_READ)
+            selector.register(self._primary_fd, selectors.EVENT_READ)
+            selector.register(self._secondary_fd, selectors.EVENT_READ)
             while selector.get_map():
                 if cancel_token and cancel_token.is_cancelled:
                     break
@@ -44,18 +70,21 @@ class ProcessPipeReader:
                 if not events:
                     continue
                 for key, _ in events:
-                    data = key.fileobj.read(1024)
+                    data = self._read_fd(key.fd)
                     if not data:
-                        selector.unregister(key.fileobj)
+                        try:
+                            selector.unregister(key.fd)
+                        except KeyError:
+                            pass
                         continue
-                    if key.fileobj is self._process.stdout:
-                        stdout_acc.append(data)
-                        if on_stdout:
-                            on_stdout(data)
+                    if key.fd == self._primary_fd:
+                        primary_acc.append(data)
+                        if on_primary:
+                            on_primary(data)
                     else:
-                        stderr_acc.append(data)
-                        if on_stderr:
-                            on_stderr(data)
+                        secondary_acc.append(data)
+                        if on_secondary:
+                            on_secondary(data)
         finally:
             selector.close()
-        return stdout_acc, stderr_acc
+        return primary_acc, secondary_acc

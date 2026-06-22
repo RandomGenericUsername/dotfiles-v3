@@ -5,7 +5,7 @@ from dataclasses import FrozenInstanceError
 
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.types import RuntimePreference
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 
 
 class TestRuntimeCapabilities:

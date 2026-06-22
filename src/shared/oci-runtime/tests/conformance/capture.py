@@ -89,7 +89,7 @@ def _capture_runtime(binary: str, runtime: str) -> None:
     if r.returncode == 0:
         _save(runtime, "image_list.ndjson", r.stdout)
 
-    # --- Pull alpine (for parse_id_from_pull) ---
+    # --- Pull alpine (for parse_digest_from_pull) ---
     r = _run(binary, ["pull", "alpine"], timeout=60)
     if r.returncode == 0:
         _save(runtime, "pull_alpine.txt", r.stdout)

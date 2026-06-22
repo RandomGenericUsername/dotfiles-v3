@@ -1,4 +1,4 @@
-from dataclasses import fields
+from dataclasses import FrozenInstanceError, fields
 from pathlib import Path
 
 import pytest
@@ -7,9 +7,11 @@ from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy,
 from oci_runtime.domain.types import (
     BuildContext,
     ContainerInfo,
+    ExecResult,
     ImageInfo,
     NetworkInfo,
     PortMapping,
+    RawExecResult,
     RunConfig,
     VolumeInfo,
     VolumeMount,
@@ -20,17 +22,17 @@ class TestVolumeMount:
 
     def test_required_fields(self):
         fs = {f.name: f for f in fields(VolumeMount)}
-        assert fs["source"].type == str | Path
+        assert fs["source"].type == str | Path | None
         assert fs["target"].type == str | Path
         assert fs["type"].type == VolumeMountType
         assert fs["type"].default == VolumeMountType.BIND
 
     def test_defaults(self):
-        vm = VolumeMount(source="/src", target="/dst", type="bind")
+        vm = VolumeMount(source="/src", target="/dst", type=VolumeMountType.BIND)
         assert vm.read_only is False
 
     def test_read_only_true(self):
-        vm = VolumeMount(source="/src", target="/dst", type="bind", read_only=True)
+        vm = VolumeMount(source="/src", target="/dst", type=VolumeMountType.BIND, read_only=True)
         assert vm.read_only is True
 
     def test_type_defaults_to_bind(self):
@@ -38,13 +40,23 @@ class TestVolumeMount:
         assert vm.type == VolumeMountType.BIND
 
     def test_source_and_target_accept_path(self):
-        vm = VolumeMount(source=Path("/src"), target=Path("/dst"), type="volume")
+        vm = VolumeMount(source=Path("/src"), target=Path("/dst"), type=VolumeMountType.VOLUME)
         assert isinstance(vm.source, Path)
         assert isinstance(vm.target, Path)
 
     def test_invalid_type_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             VolumeMount(source="/src", target="/dst", type="invalid")
+
+    def test_non_tmpfs_requires_source(self):
+        with pytest.raises(ValueError, match="non-TMPFS"):
+            VolumeMount(source=None, target="/t", type=VolumeMountType.BIND)
+
+    def test_tmpfs_allows_source_none(self):
+        vm = VolumeMount(source=None, target="/tmpfs", type=VolumeMountType.TMPFS)
+        assert vm.source is None
+        assert vm.target == "/tmpfs"
+        assert vm.type is VolumeMountType.TMPFS
 
 
 class TestPortMapping:
@@ -54,10 +66,10 @@ class TestPortMapping:
         assert fs["container_port"].type is int
 
     def test_defaults(self):
-        pm = PortMapping(container_port=80)
+        pm = PortMapping(container_port=80, host_ip=None)
         assert pm.host_port is None
         assert pm.protocol == "tcp"
-        assert pm.host_ip == "0.0.0.0"
+        assert pm.host_ip is None
 
     def test_all_fields(self):
         pm = PortMapping(container_port=443, host_port=8443, protocol="udp", host_ip="0.0.0.0")
@@ -67,11 +79,11 @@ class TestPortMapping:
         assert pm.host_ip == "0.0.0.0"
 
     def test_host_port_zero(self):
-        pm = PortMapping(container_port=80, host_port=0)
+        pm = PortMapping(container_port=80, host_port=0, host_ip="0.0.0.0")
         assert pm.host_port == 0
 
     def test_host_port_none(self):
-        pm = PortMapping(container_port=80)
+        pm = PortMapping(container_port=80, host_ip=None)
         assert pm.host_port is None
 
 
@@ -206,12 +218,12 @@ class TestRunConfig:
         assert config.runtime_flags == []
 
     def test_volumes_list_of_volumemount(self):
-        vm = VolumeMount(source="/s", target="/t", type="bind")
+        vm = VolumeMount(source="/s", target="/t", type=VolumeMountType.BIND)
         config = RunConfig(image="alpine", volumes=[vm])
         assert config.volumes == [vm]
 
     def test_ports_list_of_portmapping(self):
-        pm = PortMapping(container_port=80)
+        pm = PortMapping(container_port=80, host_ip=None)
         config = RunConfig(image="alpine", ports=[pm])
         assert config.ports == [pm]
 
@@ -246,8 +258,8 @@ class TestRunConfig:
             command=["echo", "hello"],
             entrypoint="/bin/sh",
             environment={"ENV": "prod"},
-            volumes=[VolumeMount(source="/src", target="/dst", type="bind")],
-            ports=[PortMapping(container_port=80)],
+            volumes=[VolumeMount(source="/src", target="/dst", type=VolumeMountType.BIND)],
+            ports=[PortMapping(container_port=80, host_ip=None)],
             network=NetworkMode.HOST,
             network_container="nginx",
             restart_policy=RestartPolicy.ALWAYS,
@@ -324,6 +336,22 @@ class TestRunConfig:
         with pytest.raises(ValueError):
             RunConfig(image="x", cpu_limit="1.")
 
+    def test_timeout_defaults_to_none(self):
+        config = RunConfig(image="alpine")
+        assert config.timeout is None
+
+    def test_timeout_accepts_positive_float(self):
+        config = RunConfig(image="alpine", timeout=30.0)
+        assert config.timeout == 30.0
+
+    def test_timeout_zero_raises(self):
+        with pytest.raises(ValueError, match="timeout must be positive"):
+            RunConfig(image="alpine", timeout=0)
+
+    def test_timeout_negative_raises(self):
+        with pytest.raises(ValueError, match="timeout must be positive"):
+            RunConfig(image="alpine", timeout=-1)
+
 
 class TestImageInfo:
 
@@ -382,7 +410,7 @@ class TestContainerInfo:
             state="exited",
             status="Exited (0) 1h ago",
             created="2024-01-01T00:00:00Z",
-            ports=[PortMapping(container_port=80)],
+            ports=[PortMapping(container_port=80, host_ip=None)],
             labels={"app": "test"},
             exit_code=0,
         )
@@ -437,3 +465,50 @@ class TestNetworkInfo:
         assert info.driver == "host"
         assert info.scope == "local"
         assert info.labels == {"app": "test"}
+
+
+class TestFrozenValueObjects:
+    """All value-object dataclasses must be frozen (E1).
+
+    Reassigning any field after construction must raise FrozenInstanceError.
+    This is the regression guard for the freeze — if someone removes
+    frozen=True from a value object, the corresponding parametrize case
+    fails.
+    """
+
+    @pytest.mark.parametrize(
+        "cls,kwargs,field_to_mutate,new_value",
+        [
+            (VolumeMount, {"source": "/s", "target": "/t"}, "source", "/x"),
+            (PortMapping, {"container_port": 80, "host_ip": None}, "container_port", 81),
+            (BuildContext, {"build_file_content": "FROM alpine"}, "build_file_content", "x"),
+            (RunConfig, {"image": "alpine"}, "image", "other"),
+            (ImageInfo, {"id": "sha256:abc"}, "id", "sha256:zzz"),
+            (
+                ContainerInfo,
+                {"id": "c", "name": "n", "image": "i", "state": ContainerState.RUNNING, "status": "up"},
+                "id",
+                "zzz",
+            ),
+            (VolumeInfo, {"name": "v", "driver": "local"}, "name", "v2"),
+            (ExecResult, {"returncode": 0, "stdout": "", "stderr": ""}, "returncode", 1),
+            (RawExecResult, {"returncode": 0, "stdout": b"", "stderr": b""}, "returncode", 1),
+            (NetworkInfo, {"id": "n", "name": "n", "driver": "d", "scope": "s"}, "id", "n2"),
+        ],
+        ids=[
+            "VolumeMount",
+            "PortMapping",
+            "BuildContext",
+            "RunConfig",
+            "ImageInfo",
+            "ContainerInfo",
+            "VolumeInfo",
+            "ExecResult",
+            "RawExecResult",
+            "NetworkInfo",
+        ],
+    )
+    def test_frozen_blocks_reassignment(self, cls, kwargs, field_to_mutate, new_value):
+        obj = cls(**kwargs)
+        with pytest.raises(FrozenInstanceError):
+            setattr(obj, field_to_mutate, new_value)

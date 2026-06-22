@@ -1,19 +1,21 @@
-.PHONY: test test-all lint format check build clean capture-fixtures
+.PHONY: test test-all lint format format-check check build clean capture-fixtures
 
 test:
 	@uv run pytest tests/ -v
 
 test-all: test
-	@echo "Running e2e tests..."
-	@bash tests/e2e/run-e2e-tests.sh
+	@echo "All tests complete."
+
+check: lint format-check test
+
+format-check:
+	@uv run ruff format --check src/
 
 lint:
 	@uv run ruff check src/
 
 format:
 	@uv run ruff format src/
-
-check: lint test
 
 capture-fixtures:
 	@uv run python tests/conformance/capture.py

@@ -7,12 +7,13 @@ from oci_runtime.adapters.parser.docker import DockerContainerParser
 from oci_runtime.domain.enums import ContainerState, NetworkMode
 from oci_runtime.domain.exceptions import ContainerRuntimeError, ImageNotFoundError
 from oci_runtime.domain.types import ContainerInfo, PruneResult, RunConfig
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
-from tests.helpers.mock_transport import FakeTtyDetector, RecordingTransport, RecordingStreamingTransport
+from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
 
 
 
@@ -51,7 +52,8 @@ class TestCliContainerManager:
         self.streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
         self.parser = _MockParser()
         self.caps = RuntimeCapabilities()
-        self.manager = CliContainerManager(self.transport, self.parser, self.caps, streaming=self.streaming, tty_detector=FakeTtyDetector())
+        self.manager = CliContainerManager(self.transport, self.parser, self.caps, streaming=self.streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
 
     def test_run_calls_streaming_stream(self):
         config = RunConfig(image="alpine", command=["echo", "hi"])
@@ -68,7 +70,8 @@ class TestCliContainerManager:
 
     def test_run_adds_default_run_flags_from_caps(self):
         caps = RuntimeCapabilities(default_run_flags=("--userns=keep-id",))
-        manager = CliContainerManager(self.transport, self.parser, caps, streaming=self.streaming, tty_detector=FakeTtyDetector())
+        manager = CliContainerManager(self.transport, self.parser, caps, streaming=self.streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         config = RunConfig(image="alpine")
         manager.run(config)
         args = self.streaming.stream.call_args[0][0]
@@ -85,7 +88,8 @@ class TestCliContainerManager:
 
     def test_check_result_lacks_is_not_found_error_raises_attribute_error(self):
         with pytest.raises(AttributeError, match="is_not_found_error"):
-            manager = CliContainerManager(self.transport, object(), self.caps, streaming=self.streaming, tty_detector=FakeTtyDetector())
+            manager = CliContainerManager(self.transport, object(), self.caps, streaming=self.streaming, tty_detector=FakeTtyDetector(),
+                pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
             manager._check_result(
                 RawExecResult(returncode=1, stdout=b"", stderr=b"any error"),
                 cmd=["docker", "run", "x"],
@@ -132,13 +136,15 @@ class TestCliContainerManager:
 
     def test_exec_non_zero_returns_exec_result(self, transport, streaming, caps):
         transport._responses = {("docker", "exec", "ctr1", "false"): RawExecResult(returncode=1, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         result = mgr.exec_container("ctr1", ["false"])
         assert result.returncode == 1
 
     def test_exec_not_found_raises_container_not_found(self, transport, streaming, caps):
         from oci_runtime.domain.exceptions import ContainerNotFoundError
         transport._responses = {("docker", "exec", "ctr1", "ls"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: c1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector())
+        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
         with pytest.raises(ContainerNotFoundError):
             mgr.exec_container("ctr1", ["ls"])

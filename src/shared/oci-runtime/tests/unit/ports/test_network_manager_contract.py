@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from oci_runtime.domain.exceptions import NetworkNotFoundError
 from oci_runtime.domain.types import NetworkInfo, PruneResult
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import NetworkManager
 from oci_runtime.ports.parsers import NetworkParser
 from oci_runtime.domain.types import RawExecResult

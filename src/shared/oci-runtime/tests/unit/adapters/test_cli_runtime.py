@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import (
     ContainerManager,
     ImageManager,

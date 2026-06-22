@@ -6,7 +6,7 @@ from oci_runtime.adapters.parser.podman import (
     PodmanVolumeParser,
 )
 from oci_runtime.domain.enums import RuntimeKind
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 
 
 class PodmanRuntimeProvider(BaseCliRuntimeProvider):

@@ -5,6 +5,7 @@ from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ImageError,
     ImageNotFoundError,
+    ImagePullAccessDeniedError,
     NetworkError,
     NetworkNotFoundError,
     OciError,
@@ -92,6 +93,33 @@ class TestImageNotFoundError:
 
     def test_is_image_error(self):
         assert issubclass(ImageNotFoundError, ImageError)
+
+
+class TestImagePullAccessDeniedError:
+    def test_formats_message_with_image_name(self):
+        err = ImagePullAccessDeniedError(image_name="private-repo/my-image")
+        assert "private-repo/my-image" in str(err)
+        assert "Pull access denied" in str(err)
+
+    def test_formats_message_with_registry(self):
+        err = ImagePullAccessDeniedError(image_name="my-image", registry="ghcr.io")
+        assert "ghcr.io" in str(err)
+        assert "registry" in str(err).lower()
+
+    def test_stores_image_name(self):
+        err = ImagePullAccessDeniedError(image_name="alpine:latest")
+        assert err.image_name == "alpine:latest"
+
+    def test_stores_registry(self):
+        err = ImagePullAccessDeniedError(image_name="img", registry="docker.io")
+        assert err.registry == "docker.io"
+
+    def test_stores_default_registry(self):
+        err = ImagePullAccessDeniedError(image_name="img")
+        assert err.registry == ""
+
+    def test_is_image_error(self):
+        assert issubclass(ImagePullAccessDeniedError, ImageError)
 
 
 class TestContainerNotFoundError:

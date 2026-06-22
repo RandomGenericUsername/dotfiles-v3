@@ -1,3 +1,4 @@
+import subprocess
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -8,54 +9,66 @@ from oci_runtime.domain.types import RawExecResult
 
 
 class TestCliTransportExecute:
-    def test_execute_calls_subprocess_run(self):
+    def test_execute_calls_subprocess_popen(self):
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout=b"running", stderr=b"")
-                t = CliTransport("docker")
-                result = t.execute(["docker", "ps"])
-                mock_run.assert_called_once_with(
-                    ["docker", "ps"],
-                    capture_output=True,
-                    timeout=None,
-                    input=None,
-                )
-                assert isinstance(result, RawExecResult)
-                assert result.returncode == 0
-                assert result.stdout == b"running"
+            with patch("subprocess.Popen") as mock_popen:
+                proc = MagicMock()
+                proc.wait.return_value = 0
+                mock_popen.return_value = proc
+                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = ([b"running"], [b""])
+                    t = CliTransport("docker")
+                    result = t.execute(["docker", "ps"])
+                    mock_popen.assert_called_once_with(
+                        ["docker", "ps"],
+                        stdin=None,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    assert isinstance(result, RawExecResult)
+                    assert result.returncode == 0
+                    assert result.stdout == b"running"
 
     def test_execute_passes_input_data(self):
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout=b"built", stderr=b"")
-                t = CliTransport("docker")
-                t.execute(["docker", "build", "-"], input_data=b"FROM alpine")
-                mock_run.assert_called_once_with(
-                    ["docker", "build", "-"],
-                    capture_output=True,
-                    timeout=None,
-                    input=b"FROM alpine",
-                )
+            with patch("subprocess.Popen") as mock_popen:
+                proc = MagicMock()
+                proc.wait.return_value = 0
+                mock_popen.return_value = proc
+                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = ([b"built"], [b""])
+                    t = CliTransport("docker")
+                    t.execute(["docker", "build", "-"], input_data=b"FROM alpine")
+                    mock_popen.assert_called_once_with(
+                        ["docker", "build", "-"],
+                        stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
 
     def test_execute_passes_timeout(self):
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
-                t = CliTransport("docker")
-                t.execute(["docker", "pull", "alpine"], timeout=300)
-                mock_run.assert_called_once_with(
-                    ["docker", "pull", "alpine"],
-                    capture_output=True,
-                    timeout=300,
-                    input=None,
-                )
+            with patch("subprocess.Popen") as mock_popen:
+                proc = MagicMock()
+                proc.wait.return_value = 0
+                mock_popen.return_value = proc
+                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
+                    t = CliTransport("docker")
+                    t.execute(["docker", "pull", "alpine"], timeout=300)
+                    mock_popen.assert_called_once_with(
+                        ["docker", "pull", "alpine"],
+                        stdin=None,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
 
     def test_execute_propagates_file_not_found(self):
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.run") as mock_run:
-                mock_run.side_effect = FileNotFoundError()
+            with patch("subprocess.Popen") as mock_popen:
+                mock_popen.side_effect = FileNotFoundError()
                 t = CliTransport("docker")
-                with pytest.raises(RuntimeNotAvailableError):
+                with pytest.raises(FileNotFoundError):
                     t.execute(["docker", "ps"])
 
     def test_execute_raises_on_missing_binary(self):

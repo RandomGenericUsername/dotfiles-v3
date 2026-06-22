@@ -64,6 +64,15 @@ class RecordingStreamingTransport(StreamingTransport):
         return RawExecResult(returncode=0, stdout=b"", stderr=b"")
 
 
+class MockPtyTransport:
+    """Minimal mock that satisfies the PtyTransport interface."""
+
+    def execute_pty(
+        self, command, *, output_stream=None, timeout=None, cancel_token=None
+    ):
+        return RawExecResult(returncode=0, stdout=b"", stderr=b"")
+
+
 class FakeTtyDetector(TtyDetector):
     def __init__(self, is_tty: bool = False):
         self._is_tty = is_tty

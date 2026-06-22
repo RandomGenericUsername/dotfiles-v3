@@ -15,33 +15,38 @@ oci-runtime/
 │   │   ├── __init__.py
 │   │   ├── enums.py               # RuntimeKind, ContainerState, RestartPolicy, NetworkMode, VolumeMountType
 │   │   ├── exceptions.py          # OciError hierarchy + ParsingError
-│   │   ├── capabilities.py        # RuntimeCapabilities (frozen value object)
 │   │   └── types.py               # RunConfig, ContainerInfo, ExecResult, RawExecResult,
-│   │                              #   CancellationToken (ABC), PruneResult, VolumeMount, PortMapping, etc.
+│   │                              #   PruneResult, VolumeMount, PortMapping, etc.
 │   ├── ports/                     # Port interfaces (ABCs only) + aggregate types
 │   │   ├── __init__.py
-│   │   ├── engine.py              # ContainerEngine ABC
-│   │   ├── transport.py           # Transport ABC (batch subprocess execution)
-│   │   ├── streaming.py           # StreamingTransport ABC (real-time output streaming)
+│   │   ├── aggregates.py          # Parsers, Managers (port-level aggregate types)
+│   │   ├── binary_resolver.py     # BinaryResolver ABC
+│   │   ├── cancellation.py        # CancellationToken ABC
+│   │   ├── capabilities.py        # RuntimeCapabilities (frozen dataclass)
 │   │   ├── discovery.py           # RuntimeDiscovery ABC
-│   │   ├── provider.py            # RuntimeProvider ABC
+│   │   ├── engine.py              # ContainerEngine ABC
 │   │   ├── managers.py            # ImageManager, ContainerManager, VolumeManager, NetworkManager ABCs
+│   │   ├── output_stream.py       # OutputStream ABC
 │   │   ├── parsers.py             # ContainerParser, ImageParser, VolumeParser, NetworkParser ABCs
 │   │   │                          #   (re-exports ParsingError from domain)
-│   │   ├── tty.py                 # TtyDetector ABC
-│   │   ├── output_stream.py       # OutputStream ABC
-│   │   └── aggregates.py          # Parsers, Managers (port-level aggregate types)
+│   │   ├── provider.py            # RuntimeProvider ABC
+│   │   ├── pty_transport.py       # PtyTransport ABC
+│   │   ├── streaming.py           # StreamingTransport ABC (real-time output streaming)
+│   │   ├── transport.py           # Transport ABC (batch subprocess execution)
+│   │   └── tty.py                 # TtyDetector ABC
 │   └── adapters/                  # Adapter implementations of the ports
 │       ├── _cancellation.py       # ThreadCancellationToken, DeadlineCancellationToken, CompositeCancellationToken
 │       ├── _process_reader.py     # ProcessPipeReader (selector-based pipe reading)
 │       ├── _tar.py                # create_build_tar (tar archive builder for stdin context)
 │       ├── _utils.py              # parse_size_to_bytes (size string parser)
+│       ├── binary.py              # CliBinaryResolver
 │       ├── tty.py                 # StdoutTtyDetector
 │       ├── output_stream.py       # StdoutBufferStream
 │       ├── engine/cli.py          # CliRuntime
 │       ├── transport/
 │       │   ├── cli.py             # CliTransport (batch subprocess.run, cached binary lookup)
-│       │   └── streaming.py       # CliStreamingTransport (Popen + ProcessPipeReader)
+│       │   ├── streaming.py       # CliStreamingTransport (Popen + ProcessPipeReader)
+│       │   └── pty.py             # CliPtyTransport (PTY process execution)
 │       ├── discovery/cli.py       # CliRuntimeDiscovery
 │       ├── provider/
 │       │   ├── _base.py           # BaseCliRuntimeProvider
@@ -85,9 +90,10 @@ The dependency direction is strictly **domain ← ports ← adapters**, with the
 The domain layer is pure and I/O-free.
 
 - **`CancellationToken` is an ABC** — the domain defines only the interface. Concrete `ThreadCancellationToken` (backed by `threading.Event`) lives in `adapters/_cancellation.py`. This keeps thread-safety concerns out of the domain and avoids relying on CPython GIL atomicity.
-- **`RuntimeCapabilities` is a frozen value object** — declared in `domain/capabilities.py`, it carries runtime-specific configuration (CLI format flags, default run/build flags, tar entry name, feature toggles). It is consumed by adapters and providers, never by the domain itself.
-- **`PruneResult` is a frozen dataclass** — all `prune()` methods return `PruneResult(deleted=..., reclaimed_bytes=...)` rather than a magic-key dict.
-- **`VolumeMountType(StrEnum)`** — `VolumeMount.type` is a typed enum with `BIND`, `VOLUME`, `TMPFS` members. `__post_init__` coerces string values to the enum.
+- **`RuntimeCapabilities`** — declared in `ports/capabilities.py`, it carries runtime-specific configuration (CLI format flags, default run/build flags, tar entry name, feature toggles). It is consumed by adapters and providers, never by the domain itself.
+- **`PruneResult`** — all `prune()` methods return `PruneResult(deleted=..., reclaimed_bytes=...)` rather than a magic-key dict.
+- **All domain value objects use `frozen=True`** — every domain dataclass (`RuntimeCapabilities`, `PruneResult`, `RunConfig`, `BuildContext`, `VolumeMount`, `PortMapping`, `ContainerInfo`, `ImageInfo`, `VolumeInfo`, `NetworkInfo`, `ExecResult`, `RawExecResult`, `RuntimePreference`) is frozen, ensuring value semantics — instances cannot be mutated after creation, preventing accidental side effects.
+- **`VolumeMountType(StrEnum)`** — `VolumeMount.type` is a typed enum with `BIND`, `VOLUME`, `TMPFS` members. `__post_init__` enforces the type at runtime: passing a `str` (or any non-`VolumeMountType` value) raises `TypeError`. Callers must pass `VolumeMountType` members explicitly.
 - **`RunConfig` validates limits** — `memory_limit` and `cpu_limit` are validated in `__post_init__` against regex patterns (`^\d+(\.\d+)?[bkmg]?$` and `^\d+(\.\d+)?$` respectively).
 - **`BuildContext` forbids impossible combinations** — `__post_init__` raises `ValueError` when both `build_file_content` and `build_file_path` are set, when neither is set, and when both `context_path` and `files` are set (the latter two cannot be combined in a single `docker build` invocation: context comes from either a filesystem PATH or a stdin tar, not both).
 
@@ -104,6 +110,7 @@ OciError (base)
 │   └── ContainerRuntimeError
 ├── ImageError
 │   ├── ImageNotFoundError
+│   ├── ImagePullAccessDeniedError
 │   └── ImageRuntimeError
 ├── VolumeError
 │   ├── VolumeNotFoundError
@@ -130,7 +137,7 @@ The port layer defines the ABCs that adapters implement.
 
 **`ImageManager` / `ContainerManager` / `VolumeManager` / `NetworkManager`** — the four manager ABCs defining the lifecycle operations (build, pull, run, exec, inspect, list, prune, etc.). Each `prune()` returns `PruneResult`. Each `list()` returns `list[<entity info>]` — an empty result returns `[]`, not an error.
 
-**`ContainerParser` / `ImageParser` / `VolumeParser` / `NetworkParser`** — parser ABCs that convert CLI JSON/text output into domain types. Each declares `parse_inspect`, `parse_list`, `parse_prune`, and `is_not_found_error`. `ImageParser` adds `parse_build_output` and `parse_id_from_pull`.
+**`ContainerParser` / `ImageParser` / `VolumeParser` / `NetworkParser`** — parser ABCs that convert CLI JSON/text output into domain types. Each declares `parse_inspect`, `parse_list`, `parse_prune`, and `is_not_found_error`. `ImageParser` adds `parse_build_output` and `parse_digest_from_pull`.
 
 **`TtyDetector`** — single-method ABC: `is_tty() -> bool`. `CliContainerManager` requires a `TtyDetector` instance (no default) so TTY detection is injectable and testable without patching `sys.stdout`.
 
@@ -206,6 +213,9 @@ class RuntimeFactoryConfig:
     discovery_factory: Callable[[Callable[[str], Transport]], RuntimeDiscovery] | None = None
     tty_detector_factory: Callable[[], TtyDetector] | None = None
     output_stream_factory: Callable[[], OutputStream] | None = None
+    cancellation_factory: Callable[[], CancellationToken] | None = None
+    binary_resolver_factory: Callable[[], BinaryResolver] | None = None
+    pty_transport_factory: Callable[[BinaryResolver], PtyTransport] | None = None
 ```
 
 `RuntimeFactory.create(preference)` resolves the config, looks up the registered `RuntimeProvider` for `preference.kind`, builds the transport and streaming transport from `preference.binary`, and asks the provider to create the managers (passing the TTY and output-stream factories through). It does not probe availability — `is_available()` is the caller's responsibility. The `discovery` property caches the `RuntimeDiscovery` instance on first access.
@@ -309,6 +319,8 @@ def create_managers(
     *,
     tty_detector_factory: Callable[[], TtyDetector],
     output_stream_factory: Callable[[], OutputStream],
+    cancellation_factory: Callable[[], CancellationToken] | None = None,
+    pty_transport: PtyTransport | None = None,
 ) -> Managers: ...
 ```
 
@@ -337,9 +349,7 @@ providers = {
 factory = RuntimeFactory(providers=providers)
 ```
 
-The factory passes `tty_detector_factory`, `output_stream_factory`, and `cancellation_factory` to `provider.create_managers()` automatically; the new provider does not need to handle them directly — `BaseCliRuntimeProvider` wires them into `CliContainerManager`.
-
-`RuntimeCapabilities` list fields (`list_format_flags`, `default_run_flags`, `default_build_flags`) are `tuple[str, ...]`, not `list[str]`. This ensures the frozen dataclass is truly immutable.
+The factory passes `tty_detector_factory`, `output_stream_factory`, `cancellation_factory`, and `pty_transport` to `provider.create_managers()` automatically; the new provider does not need to handle them directly — `BaseCliRuntimeProvider` wires them into `CliContainerManager`.
 
 ## Testing Strategy
 
@@ -356,4 +366,4 @@ The factory passes `tty_detector_factory`, `output_stream_factory`, and `cancell
 
 | Date | Change | Summary |
 |------|--------|---------|
-| 2026-06-21 | `oci-runtime-guardrail-remediation` | F1-F42 fixes: `OperationTimeoutError`, entity-typed runtime errors, prune error propagation, tuple fields, cached which, RunConfig domain validation, null label/size/port edge cases, conformance parser fixes, wiring test corrections. Bumped to 0.3.0. |
+| 2026-06-21 | `oci-runtime-guardrail-remediation` (`15f6238`) | **F15-F42**: a comprehensive batch of 28 fixes addressing the audit findings. See the commit message and AUDIT_REMEDIATION_PLAN.md for details. Bumped to 0.3.0. |

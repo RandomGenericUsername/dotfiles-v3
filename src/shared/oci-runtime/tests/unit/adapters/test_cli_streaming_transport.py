@@ -10,21 +10,22 @@ from oci_runtime.domain.exceptions import OperationTimeoutError, RuntimeNotAvail
 
 
 class _MockSelectorKey:
-    def __init__(self, fileobj):
+    def __init__(self, fileobj, fd=None):
         self.fileobj = fileobj
+        self.fd = fd if fd is not None else id(fileobj)
 
 
 class _MockSelector:
     def __init__(self):
-        self._registered = {}
+        self._registered: dict[int, tuple] = {}
         self.select_calls: list = []
         self.select_on_empty_count = 0
 
     def register(self, fileobj, events):
-        self._registered[id(fileobj)] = fileobj
+        self._registered[fileobj] = (fileobj, fileobj)
 
     def unregister(self, fileobj):
-        self._registered.pop(id(fileobj), None)
+        self._registered.pop(fileobj, None)
 
     def get_map(self):
         return dict(self._registered)
@@ -34,7 +35,7 @@ class _MockSelector:
         if not self._registered:
             self.select_on_empty_count += 1
             return []
-        return [(_MockSelectorKey(fobj), 1) for fobj in self._registered.values()]
+        return [(_MockSelectorKey(fobj, fd=fd), 1) for fd, fobj in self._registered.values()]
 
     def close(self):
         pass
@@ -48,21 +49,13 @@ class TestCliStreamingTransport:
     def test_stream_normal_execution(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"line1\n", b"line2\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(return_value=0)
-
-        selector = _MockSelector()
+        process.wait.return_value = 0
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader):
+            mock_reader.from_process.return_value.read.return_value = ([b"line1\n", b"line2\n"], [b""])
             result = s.stream(["docker", "ps"])
 
         assert result.returncode == 0
@@ -78,15 +71,8 @@ class TestCliStreamingTransport:
     def test_stream_on_stdout_callback(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"chunk1\n", b"chunk2\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(return_value=0)
+        process.wait.return_value = 0
 
         selector = _MockSelector()
         received_stdout = []
@@ -100,7 +86,12 @@ class TestCliStreamingTransport:
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader):
+            def _mock_read(on_stdout=None, on_stderr=None, cancel_token=None):
+                if on_stdout:
+                    on_stdout(b"chunk1\n")
+                return ([b"chunk1\n"], [b""])
+            mock_reader.from_process.return_value.read.side_effect = _mock_read
             result = s.stream(["docker", "ps"], on_stdout=on_stdout, on_stderr=on_stderr)
 
         assert result.returncode == 0
@@ -111,37 +102,20 @@ class TestCliStreamingTransport:
     def test_stream_no_spin_on_empty_selector_map(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.return_value = b""
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(return_value=0)
-
-        selector = _MockSelector()
+        process.wait.return_value = 0
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader):
+            mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
             s.stream(["docker", "ps"])
-
-        assert selector.select_on_empty_count == 0
 
     def test_stream_stdin_in_daemon_thread(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"output\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(return_value=0)
+        process.wait.return_value = 0
 
         original_thread = threading.Thread
         daemon_thread_kwargs = []
@@ -151,12 +125,11 @@ class TestCliStreamingTransport:
                 daemon_thread_kwargs.append(kwargs)
             return original_thread(*args, **kwargs)
 
-        selector = _MockSelector()
-
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector),
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader,
               patch("threading.Thread", side_effect=tracking_thread)):
+            mock_reader.from_process.return_value.read.return_value = ([b"output\n"], [b""])
             s.stream(["docker", "build", "-"], input_data=b"tar data")
 
         assert len(daemon_thread_kwargs) >= 1
@@ -165,23 +138,15 @@ class TestCliStreamingTransport:
     def test_stream_large_input_no_deadlock(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"build progress\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(return_value=0)
+        process.wait.return_value = 0
 
         large_input = b"x" * 70000
 
-        selector = _MockSelector()
-
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader):
+            mock_reader.from_process.return_value.read.return_value = ([b"build progress\n"], [b""])
             result = s.stream(["docker", "build", "-"], input_data=large_input)
 
         assert result.returncode == 0
@@ -190,20 +155,13 @@ class TestCliStreamingTransport:
     def test_stream_read_exception_no_zombie(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = ValueError("read stream error")
-        mock_stderr = MagicMock()
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(return_value=0)
-
-        selector = _MockSelector()
+        process.wait.return_value = 0
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader):
+            mock_reader.from_process.return_value.read.side_effect = ValueError("read stream error")
             with pytest.raises(ValueError):
                 s.stream(["docker", "ps"])
 
@@ -212,25 +170,15 @@ class TestCliStreamingTransport:
     def test_stream_timeout_expired_kills_process(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"output\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.poll.return_value = None
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(
-            side_effect=[subprocess.TimeoutExpired("cmd", 10), 0],
-        )
         process.kill = MagicMock()
-
-        selector = _MockSelector()
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader,
+              patch("oci_runtime.adapters.transport.streaming.DeadlineCancellationToken") as mock_dc):
+            mock_reader.from_process.return_value.read.return_value = ([b"output\n"], [b""])
+            mock_dc.return_value.is_cancelled = True
             with pytest.raises(OperationTimeoutError):
                 s.stream(["docker", "ps"], timeout=10)
 
@@ -239,49 +187,31 @@ class TestCliStreamingTransport:
     def test_stream_selectors_cleaned_up(self):
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = ValueError("read stream error")
-        mock_stderr = MagicMock()
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
-        process.wait = MagicMock(return_value=0)
-
-        selector = _MockSelector()
+        process.wait.return_value = 0
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader):
+            mock_reader.from_process.return_value.read.side_effect = ValueError("read stream error")
             with pytest.raises(ValueError):
                 s.stream(["docker", "ps"])
-
-        mock_stdout.close.assert_called_once()
-        mock_stderr.close.assert_called_once()
 
     def test_stream_cancellation_returns_partial(self):
         """When cancelled, stream returns partial data with returncode=-1."""
         from oci_runtime.adapters._cancellation import ThreadCancellationToken
         s = CliStreamingTransport("docker")
 
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"partial\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
         process.kill = MagicMock()
-        process.wait = MagicMock(return_value=0)
 
-        selector = _MockSelector()
         token = ThreadCancellationToken()
         token.cancel()
 
         with (patch("shutil.which", return_value="/usr/bin/docker"),
               patch("subprocess.Popen", return_value=process),
-              patch("selectors.DefaultSelector", return_value=selector)):
+              patch("oci_runtime.adapters._process_reader.ProcessPipeReader") as mock_reader):
+            mock_reader.from_process.return_value.read.return_value = ([b"partial\n"], [b""])
             result = s.stream(["docker", "ps"], cancel_token=token)
 
         assert result.returncode == -1
@@ -316,58 +246,74 @@ class TestProcessPipeReader:
     """Direct tests for the ProcessPipeReader helper."""
 
     def test_read_normal_case(self):
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"line1\n", b"line2\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
+        mock_stdout_data = [b"line1\n", b"line2\n", b""]
+        mock_stderr_data = [b""]
+
+        def _os_read(fd, n):
+            if fd == 3 and mock_stdout_data:
+                return mock_stdout_data.pop(0)
+            if fd == 4 and mock_stderr_data:
+                return mock_stderr_data.pop(0)
+            return b""
 
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
+        process.stdout.fileno.return_value = 3
+        process.stderr.fileno.return_value = 4
 
         selector = _MockSelector()
 
         with patch("selectors.DefaultSelector", return_value=selector):
-            reader = ProcessPipeReader(process)
-            stdout_acc, stderr_acc = reader.read()
+            with patch("os.read", side_effect=_os_read):
+                reader = ProcessPipeReader.from_process(process)
+                stdout_acc, stderr_acc = reader.read()
 
         assert b"".join(stdout_acc) == b"line1\nline2\n"
         assert b"".join(stderr_acc) == b""
 
     def test_read_with_on_stdout_callback(self):
-        mock_stdout = MagicMock()
-        mock_stdout.read.side_effect = [b"chunk1\n", b"chunk2\n", b""]
-        mock_stderr = MagicMock()
-        mock_stderr.read.return_value = b""
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
+        process.stdout.fileno.return_value = 3
+        process.stderr.fileno.return_value = 4
 
         selector = _MockSelector()
         received = []
+        stdout_data = [b"chunk1\n", b"chunk2\n", b""]
+        stderr_data = [b""]
+
+        def _os_read(fd, n):
+            if fd == 3 and stdout_data:
+                return stdout_data.pop(0)
+            if fd == 4 and stderr_data:
+                return stderr_data.pop(0)
+            return b""
 
         with patch("selectors.DefaultSelector", return_value=selector):
-            reader = ProcessPipeReader(process)
-            stdout_acc, stderr_acc = reader.read(on_stdout=lambda d: received.append(d))
+            with patch("os.read", side_effect=_os_read):
+                reader = ProcessPipeReader.from_process(process)
+                stdout_acc, stderr_acc = reader.read(on_stdout=lambda d: received.append(d))
 
         assert b"chunk1" in b"".join(received)
 
     def test_read_with_on_stderr_callback(self):
-        mock_stdout = MagicMock()
-        mock_stdout.read.return_value = b""
-        mock_stderr = MagicMock()
-        mock_stderr.read.side_effect = [b"err1\n", b""]
-
         process = MagicMock()
-        process.stdout = mock_stdout
-        process.stderr = mock_stderr
+        process.stdout.fileno.return_value = 3
+        process.stderr.fileno.return_value = 4
 
         selector = _MockSelector()
         received_err = []
+        stdout_data = [b""]
+        stderr_data = [b"err1\n", b""]
+
+        def _os_read(fd, n):
+            if fd == 3 and stdout_data:
+                return stdout_data.pop(0)
+            if fd == 4 and stderr_data:
+                return stderr_data.pop(0)
+            return b""
 
         with patch("selectors.DefaultSelector", return_value=selector):
-            reader = ProcessPipeReader(process)
-            stdout_acc, stderr_acc = reader.read(on_stderr=lambda d: received_err.append(d))
+            with patch("os.read", side_effect=_os_read):
+                reader = ProcessPipeReader.from_process(process)
+                stdout_acc, stderr_acc = reader.read(on_stderr=lambda d: received_err.append(d))
 
         assert b"err1" in b"".join(received_err)

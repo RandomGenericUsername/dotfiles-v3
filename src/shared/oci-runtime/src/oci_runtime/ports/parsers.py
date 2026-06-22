@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
 
 from oci_runtime.domain.exceptions import ParsingError
-from oci_runtime.domain.types import ContainerInfo, ImageInfo, NetworkInfo, PruneResult, VolumeInfo
+from oci_runtime.domain.types import (
+    ContainerInfo,
+    ImageInfo,
+    NetworkInfo,
+    PruneResult,
+    VolumeInfo,
+)
 
 
 __all__ = [
@@ -38,7 +44,7 @@ class ImageParser(ABC):
     def parse_build_output(self, raw: str) -> str: ...
 
     @abstractmethod
-    def parse_id_from_pull(self, raw: str) -> str: ...
+    def parse_digest_from_pull(self, raw: str) -> str: ...
 
     @abstractmethod
     def parse_prune(self, raw: str) -> PruneResult: ...

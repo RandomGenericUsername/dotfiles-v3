@@ -9,11 +9,9 @@ implementer's imagination of those shapes.
 Fixtures are committed under ``tests/conformance/fixtures/``.
 Refresh them with:  make capture-fixtures
 
-Known parser bugs that surface against real output are marked
-``xfail(strict=True)``: the test is expected to fail, documenting the
-bug. If someone fixes the parser, the test starts passing and the
-strict xfail forces the marker to be removed — making both the bug
-and the fix visible.
+These are conformance checks that assert parser behavior directly — every
+parser must correctly convert real CLI output into valid domain objects.
+A failing test always indicates a real parser bug that must be fixed.
 """
 
 from __future__ import annotations
@@ -149,10 +147,7 @@ class TestContainerListConformance:
     def test_parse_list_labels_is_dict(self, runtime):
         """Labels must be a dict even when the CLI emits null/empty string."""
         raw = _fixture(runtime, "container_list.ndjson")
-        try:
-            result = _PARSERS[runtime]["container"].parse_list(raw)
-        except Exception:
-            pytest.xfail(f"parse_list crashes on real {runtime} output — see test_{{runtime}}_parse_list_produces_container_infos")
+        result = _PARSERS[runtime]["container"].parse_list(raw)
         for c in result:
             assert isinstance(c.labels, dict), f"labels must be dict, got {type(c.labels).__name__}: {c.labels!r}"
 
@@ -238,8 +233,8 @@ class TestNetworkListConformance:
 
 class TestPullIdConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
-    def test_parse_id_from_pull_returns_sha256(self, runtime):
+    def test_parse_digest_from_pull_returns_sha256(self, runtime):
         raw = _fixture(runtime, "pull_alpine.txt")
-        ident = _PARSERS[runtime]["image"].parse_id_from_pull(raw)
+        ident = _PARSERS[runtime]["image"].parse_digest_from_pull(raw)
         assert ident, "pull id must be non-empty (empty = silent failure)"
         assert ident.startswith("sha256:"), f"pull id must be sha256-prefixed, got {ident!r}"

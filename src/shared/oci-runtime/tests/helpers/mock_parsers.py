@@ -21,7 +21,7 @@ class MockImageParser(ImageParser):
         return [ImageInfo(id="sha256:abc")]
     def parse_build_output(self, raw: str) -> str:
         return "sha256:abc"
-    def parse_id_from_pull(self, raw: str) -> str:
+    def parse_digest_from_pull(self, raw: str) -> str:
         return "sha256:abc"
     def parse_prune(self, raw: str) -> PruneResult:
         return PruneResult()

@@ -14,7 +14,9 @@ def _coerce_size(size) -> int:
             try:
                 return parse_size_to_bytes(size)
             except ValueError as e:
-                raise ParsingError(raw=str(size), message=f"Cannot parse size: {size!r}") from e
+                raise ParsingError(
+                    raw=str(size), message=f"Cannot parse size: {size!r}"
+                ) from e
     return int(size or 0)
 
 
@@ -29,6 +31,13 @@ class BaseCliParser:
     """Shared logic for CLI parsers."""
 
     _not_found_patterns: tuple[str, ...] = ()
+    _auth_error_patterns: tuple[str, ...] = ()
+
+    def is_auth_error(self, stderr: str) -> bool:
+        lower = stderr.lower()
+        return any(
+            re.search(rf"\b{re.escape(p)}\b", lower) for p in self._auth_error_patterns
+        )
 
     def _parse_json_item(self, raw: str) -> dict:
         """Parse JSON that may be a list with a single item or a dict."""
@@ -49,7 +58,11 @@ class BaseCliParser:
         else:
             if isinstance(data, list):
                 return data
-            return [data]
+            if isinstance(data, dict):
+                return [data]
+            raise ParsingError(
+                raw=raw, message=f"Expected dict or list, got {type(data).__name__}"
+            )
 
         lines = raw.strip().split("\n")
         items: list[dict] = []
@@ -66,20 +79,21 @@ class BaseCliParser:
                 )
         if items:
             return items
-        raise ParsingError(raw=raw, message="Invalid JSON in list response")
+        return []
 
     def is_not_found_error(self, stderr: str) -> bool:
         lower = stderr.lower()
         return any(
-            re.search(rf'\b{re.escape(p)}\b', lower)
-            for p in self._not_found_patterns
+            re.search(rf"\b{re.escape(p)}\b", lower) for p in self._not_found_patterns
         )
 
     def parse_prune(self, raw: str) -> PruneResult:
         deleted_count = 0
         reclaimed_bytes = 0
 
-        id_pattern = re.compile(r"^(?:deleted:\s*)?(?:sha256:)?([a-f0-9]{12,64})$", re.MULTILINE)
+        id_pattern = re.compile(
+            r"^(?:deleted:\s*)?(?:sha256:)?([a-f0-9]{12,64})$", re.MULTILINE
+        )
         deleted_count = len(id_pattern.findall(raw))
 
         space_match = re.search(r"Total reclaimed space:\s*(.*)", raw, re.IGNORECASE)

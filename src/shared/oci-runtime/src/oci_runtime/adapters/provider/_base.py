@@ -6,13 +6,14 @@ from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.aggregates import Managers, Parsers
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.ports.output_stream import OutputStream
+from oci_runtime.ports.pty_transport import PtyTransport
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.tty import TtyDetector
-from oci_runtime.domain.types import CancellationToken
+from oci_runtime.ports.cancellation import CancellationToken
 
 
 class BaseCliRuntimeProvider(RuntimeProvider):
@@ -48,14 +49,19 @@ class BaseCliRuntimeProvider(RuntimeProvider):
         *,
         tty_detector_factory: Callable[[], TtyDetector],
         output_stream_factory: Callable[[], OutputStream],
-        cancellation_factory: Callable[[], CancellationToken] | None = None,
+        cancellation_factory: Callable[[], CancellationToken],
+        pty_transport: PtyTransport,
     ) -> Managers:
         parsers = self.create_parsers()
         return Managers(
             image_manager=CliImageManager(transport, parsers.image_parser, caps),
             container_manager=CliContainerManager(
-                transport, parsers.container_parser, caps, streaming=streaming_transport,
+                transport,
+                parsers.container_parser,
+                caps,
+                streaming=streaming_transport,
                 tty_detector=tty_detector_factory(),
+                pty_transport=pty_transport,
                 cancellation_factory=cancellation_factory,
                 output_stream=output_stream_factory(),
             ),

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.types import PruneResult, VolumeInfo
-from oci_runtime.domain.capabilities import RuntimeCapabilities
+from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import VolumeParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
