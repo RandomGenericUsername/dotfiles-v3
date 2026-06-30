@@ -1,20 +1,29 @@
-from oci_runtime.domain.exceptions import VolumeNotFoundError, VolumeRuntimeError
+from oci_runtime.domain.encoding import safe_decode
+from oci_runtime.domain.exceptions import VolumeNotFoundError
 from oci_runtime.domain.types import VolumeInfo, PruneResult
 from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.ports.list_executor import ListExecutor
 from oci_runtime.ports.managers import VolumeManager
 from oci_runtime.ports.parsers import VolumeParser
+from oci_runtime.ports.result_checker import ResultChecker
 from oci_runtime.ports.transport import Transport
-from oci_runtime.adapters.managers.base import CliBaseManager
 
 
-class CliVolumeManager(CliBaseManager[VolumeParser], VolumeManager):
-    _not_found_error = VolumeNotFoundError
-    _generic_error = VolumeRuntimeError
-
+class CliVolumeManager(VolumeManager):
     def __init__(
-        self, transport: Transport, parser: VolumeParser, caps: RuntimeCapabilities
+        self,
+        transport: Transport,
+        parser: VolumeParser,
+        caps: RuntimeCapabilities,
+        *,
+        result_checker: ResultChecker,
+        list_executor: ListExecutor[VolumeInfo],
     ):
-        super().__init__(transport, parser, caps)
+        self._transport = transport
+        self._parser = parser
+        self._caps = caps
+        self._result_checker = result_checker
+        self._list_executor = list_executor
 
     def create(
         self, name: str, driver: str = "local", labels: dict[str, str] | None = None
@@ -31,15 +40,15 @@ class CliVolumeManager(CliBaseManager[VolumeParser], VolumeManager):
             for k, v in labels.items():
                 cmd.extend(["--label", f"{k}={v}"])
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="create volume", entity=name)
-        return self._decode_bytes(result.stdout).strip()
+        self._result_checker.check(result, cmd, operation="create volume", entity=name)
+        return safe_decode(result.stdout).strip()
 
     def remove(self, name: str, force: bool = False) -> None:
         cmd = [self._transport.get_runtime_binary(), "volume", "rm", name]
         if force:
             cmd.append("-f")
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="remove volume", entity=name)
+        self._result_checker.check(result, cmd, operation="remove volume", entity=name)
 
     def exists(self, name: str) -> bool:
         try:
@@ -58,21 +67,19 @@ class CliVolumeManager(CliBaseManager[VolumeParser], VolumeManager):
             name,
         ]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="inspect volume", entity=name)
-        return self._parser.parse_inspect(self._decode_bytes(result.stdout))
+        self._result_checker.check(result, cmd, operation="inspect volume", entity=name)
+        return self._parser.parse_inspect(safe_decode(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[VolumeInfo]:
-        cmd = [self._transport.get_runtime_binary(), "volume", "list"]
-        cmd.extend(self._caps.list_format_flags)
-        if filters:
-            for key, val in filters.items():
-                cmd.extend(["--filter", f"{key}={val}"])
-        result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="list volumes", entity="")
-        return self._parser.parse_list(self._decode_bytes(result.stdout))
+        return self._list_executor.execute_list(
+            ["volume", "list"],
+            "volumes",
+            show_all=False,
+            filters=filters,
+        )
 
     def prune(self) -> PruneResult:
         cmd = [self._transport.get_runtime_binary(), "volume", "prune", "--force"]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="prune volumes", entity="")
-        return self._parser.parse_prune(self._decode_bytes(result.stdout))
+        self._result_checker.check(result, cmd, operation="prune volumes", entity="")
+        return self._parser.parse_prune(safe_decode(result.stdout))

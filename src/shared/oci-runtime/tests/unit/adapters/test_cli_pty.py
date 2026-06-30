@@ -6,7 +6,12 @@ import pytest
 
 from oci_runtime.adapters.binary import CliBinaryResolver
 from oci_runtime.adapters.transport.pty import CliPtyTransport
-from oci_runtime.domain.exceptions import ContainerRuntimeError, OperationTimeoutError, RuntimeNotAvailableError
+from oci_runtime.domain.exceptions import (
+    ContainerRuntimeError,
+    OciError,
+    OperationTimeoutError,
+    RuntimeNotAvailableError,
+)
 from oci_runtime.domain.types import RawExecResult
 
 
@@ -14,7 +19,7 @@ class TestRunPty:
     def test_empty_command_raises(self):
         resolver = CliBinaryResolver()
         transport = CliPtyTransport(resolver)
-        with pytest.raises(ContainerRuntimeError) as exc:
+        with pytest.raises(OciError) as exc:
             transport.execute_pty([])
         assert "Empty" in str(exc.value)
 
@@ -35,8 +40,13 @@ class TestRunPty:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            mock_reader.from_fds.return_value.read.return_value = ([b""], [b""])
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+                            mock_reader.from_fds.return_value.read.return_value = (
+                                [b""],
+                                [b""],
+                            )
                             result = transport.execute_pty(["/usr/bin/true"])
         assert isinstance(result, RawExecResult)
         assert result.returncode == 0
@@ -44,11 +54,17 @@ class TestRunPty:
     def test_run_pty_timeout_raises(self):
         resolver = CliBinaryResolver()
         transport = CliPtyTransport(resolver)
-        with patch("pty.openpty") as mock_openpty, \
-             patch("subprocess.Popen") as mock_popen, \
-             patch("os.close"), \
-             patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader, \
-             patch("oci_runtime.adapters.transport.pty.DeadlineCancellationToken") as mock_dc:
+        with (
+            patch("pty.openpty") as mock_openpty,
+            patch("subprocess.Popen") as mock_popen,
+            patch("os.close"),
+            patch(
+                "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+            ) as mock_reader,
+            patch(
+                "oci_runtime.adapters.transport.pty.DeadlineCancellationToken"
+            ) as mock_dc,
+        ):
             mock_openpty.return_value = (3, 4)
             mock_proc = MagicMock()
             mock_popen.return_value = mock_proc
@@ -68,8 +84,13 @@ class TestRunPty:
                         proc = MagicMock()
                         proc.wait.return_value = 1
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            mock_reader.from_fds.return_value.read.return_value = ([b""], [b""])
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+                            mock_reader.from_fds.return_value.read.return_value = (
+                                [b""],
+                                [b""],
+                            )
                             result = transport.execute_pty(["/usr/bin/false"])
         assert isinstance(result, RawExecResult)
         assert result.returncode == 1
@@ -87,13 +108,23 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            def _mock_read(on_primary=None, on_secondary=None, cancel_token=None):
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+
+                            def _mock_read(
+                                on_primary=None, on_secondary=None, cancel_token=None
+                            ):
                                 if on_primary:
                                     on_primary(b"hello")
                                 return ([b"hello"], [b""])
-                            mock_reader.from_fds.return_value.read.side_effect = _mock_read
-                            result = transport.execute_pty(["/usr/bin/echo", "hello"], output_stream=buf)
+
+                            mock_reader.from_fds.return_value.read.side_effect = (
+                                _mock_read
+                            )
+                            result = transport.execute_pty(
+                                ["/usr/bin/echo", "hello"], output_stream=buf
+                            )
         assert buf.getvalue() == b"hello"
         assert result.stdout == b"hello"
         assert result.returncode == 0
@@ -109,13 +140,23 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            def _mock_read(on_primary=None, on_secondary=None, cancel_token=None):
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+
+                            def _mock_read(
+                                on_primary=None, on_secondary=None, cancel_token=None
+                            ):
                                 if on_primary:
                                     on_primary(b"output data")
                                 return ([b"output data"], [b""])
-                            mock_reader.from_fds.return_value.read.side_effect = _mock_read
-                            result = transport.execute_pty(["/usr/bin/echo", "test"], output_stream=buf)
+
+                            mock_reader.from_fds.return_value.read.side_effect = (
+                                _mock_read
+                            )
+                            result = transport.execute_pty(
+                                ["/usr/bin/echo", "test"], output_stream=buf
+                            )
         assert buf.getvalue() == b"output data"
         assert result.stdout == b"output data"
         assert result.returncode == 0
@@ -131,13 +172,23 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            def _mock_read(on_primary=None, on_secondary=None, cancel_token=None):
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+
+                            def _mock_read(
+                                on_primary=None, on_secondary=None, cancel_token=None
+                            ):
                                 if on_primary:
                                     on_primary(b"hello default")
                                 return ([b"hello default"], [b""])
-                            mock_reader.from_fds.return_value.read.side_effect = _mock_read
-                            result = transport.execute_pty(["/usr/bin/echo", "hello"], output_stream=buf)
+
+                            mock_reader.from_fds.return_value.read.side_effect = (
+                                _mock_read
+                            )
+                            result = transport.execute_pty(
+                                ["/usr/bin/echo", "hello"], output_stream=buf
+                            )
         assert buf.getvalue() == b"hello default"
         assert result.returncode == 0
 
@@ -151,8 +202,13 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            mock_reader.from_fds.return_value.read.return_value = ([b""], [b""])
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+                            mock_reader.from_fds.return_value.read.return_value = (
+                                [b""],
+                                [b""],
+                            )
                             result = transport.execute_pty(["/usr/bin/echo"])
         assert result.returncode == 0
 
@@ -166,8 +222,13 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            mock_reader.from_fds.return_value.read.return_value = ([b"valid\xff\xfe"], [b""])
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+                            mock_reader.from_fds.return_value.read.return_value = (
+                                [b"valid\xff\xfe"],
+                                [b""],
+                            )
                             result = transport.execute_pty(["/usr/bin/echo", "test"])
         assert result.returncode == 0
 
@@ -182,8 +243,13 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            mock_reader.from_fds.return_value.read.return_value = ([big_data], [b""])
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+                            mock_reader.from_fds.return_value.read.return_value = (
+                                [big_data],
+                                [b""],
+                            )
                             result = transport.execute_pty(["/usr/bin/echo", "x"])
         assert result.returncode == 0
 
@@ -197,8 +263,12 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
-                            mock_reader.from_fds.return_value.read.side_effect = ValueError("bad fd")
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+                            mock_reader.from_fds.return_value.read.side_effect = (
+                                ValueError("bad fd")
+                            )
                             with pytest.raises(ValueError):
                                 transport.execute_pty(["/usr/bin/true"])
 
@@ -212,7 +282,9 @@ class TestRunPtyEdgeCases:
                         proc = MagicMock()
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
-                        with patch("oci_runtime.adapters.transport.pty.ProcessPipeReader") as mock_reader:
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
                             mock_reader.from_fds.return_value.read.return_value = (
                                 [b"stdout data"],
                                 [b"stderr data"],

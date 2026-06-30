@@ -54,13 +54,20 @@ class ImageNotFoundError(ImageError):
 
 
 class ImagePullAccessDeniedError(ImageError):
-    def __init__(self, image_name: str, registry: str = ""):
+    def __init__(
+        self,
+        image_name: str,
+        registry: str = "",
+        command=None,
+        exit_code=None,
+        stderr=None,
+    ):
         self.image_name = image_name
         self.registry = registry
         msg = f"Pull access denied for image: {image_name}"
         if registry:
             msg += f" (registry: {registry})"
-        super().__init__(msg)
+        super().__init__(msg, command=command, exit_code=exit_code, stderr=stderr)
 
 
 class ContainerNotFoundError(ContainerError):

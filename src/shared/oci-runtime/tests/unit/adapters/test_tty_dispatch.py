@@ -13,16 +13,51 @@ from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.adapters._cancellation import ThreadCancellationToken
-from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.domain.exceptions import ContainerNotFoundError, ContainerRuntimeError
+from tests.helpers.mock_transport import (
+    FakeTtyDetector,
+    MockPtyTransport,
+    MockResultChecker,
+    MockListExecutor,
+)
+
+
+def _container_mgr(transport, parser, caps, streaming, tty_detector=None, **extra):
+    chk = CliResultChecker(
+        generic_error=ContainerRuntimeError,
+        not_found_error=ContainerNotFoundError,
+        is_not_found=parser.is_not_found_error,
+    )
+    if tty_detector is None:
+        tty_detector = FakeTtyDetector()
+    return CliContainerManager(
+        transport,
+        parser,
+        caps,
+        streaming=streaming,
+        tty_detector=tty_detector,
+        pty_transport=MockPtyTransport(),
+        cancellation_factory=lambda: ThreadCancellationToken(),
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+        **extra,
+    )
 
 
 class _MockParser(ContainerParser):
     def parse_inspect(self, raw: str):
         raise ParsingError(raw=raw)
+
     def parse_list(self, raw: str):
         return []
+
     def parse_prune(self, raw: str) -> PruneResult:
         return PruneResult()
+
     def is_not_found_error(self, stderr: str):
         return False
 
@@ -40,48 +75,71 @@ def manager(transport):
     caps = RuntimeCapabilities()
     parser = _MockParser()
     streaming = MagicMock(spec=StreamingTransport)
-    streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
-    return CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-        pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+    streaming.stream.return_value = RawExecResult(
+        returncode=0, stdout=b"abc123", stderr=b""
+    )
+    return _container_mgr(transport, parser, caps, streaming=streaming)
 
 
 class TestTtyDispatch:
     def test_tty_true_calls_execute_pty(self, manager, transport):
-        manager._pty_transport.execute_pty = MagicMock(return_value=RawExecResult(returncode=0, stdout=b"", stderr=b""))
+        manager._pty_transport.execute_pty = MagicMock(
+            return_value=RawExecResult(returncode=0, stdout=b"", stderr=b"")
+        )
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         result = manager.run(config)
         manager._pty_transport.execute_pty.assert_called_once_with(
-            ["docker", "run", "-t", "alpine", "bash"],
+            ["docker", "run", "-t", "--network", "bridge", "alpine", "bash"],
             output_stream=None,
             timeout=None,
         )
         assert result == ""
 
     def test_tty_false_calls_streaming_stream(self, manager, transport):
-        config = RunConfig(image="alpine", command=["echo", "hi"], tty=False, detach=True)
+        config = RunConfig(
+            image="alpine", command=["echo", "hi"], tty=False, detach=True
+        )
         result = manager.run(config)
         manager._streaming.stream.assert_called_once()
         assert result == "abc123"
 
     def test_detach_and_tty_mutually_exclusive(self, manager, transport):
-        with pytest.raises(ValueError, match="detach=True is mutually exclusive with tty/auto_tty"):
+        with pytest.raises(
+            ValueError, match="detach=True is mutually exclusive with tty/auto_tty"
+        ):
             RunConfig(image="alpine", command=["bash"], tty=True, detach=True)
 
     def test_auto_tty_true_with_isatty_calls_execute_pty(self, manager, transport):
         tty_detector = FakeTtyDetector(is_tty=True)
-        mgr = CliContainerManager(transport, _MockParser(), RuntimeCapabilities(), streaming=manager._streaming, tty_detector=tty_detector,
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
-        mgr._pty_transport.execute_pty = MagicMock(return_value=RawExecResult(returncode=0, stdout=b"", stderr=b""))
-        config = RunConfig(image="alpine", command=["bash"], auto_tty=True, detach=False)
+        mgr = _container_mgr(
+            transport,
+            _MockParser(),
+            RuntimeCapabilities(),
+            streaming=manager._streaming,
+            tty_detector=tty_detector,
+        )
+        mgr._pty_transport.execute_pty = MagicMock(
+            return_value=RawExecResult(returncode=0, stdout=b"", stderr=b"")
+        )
+        config = RunConfig(
+            image="alpine", command=["bash"], auto_tty=True, detach=False
+        )
         result = mgr.run(config)
         mgr._pty_transport.execute_pty.assert_called_once()
         assert result == ""
 
     def test_auto_tty_true_without_isatty_calls_streaming(self, manager, transport):
         tty_detector = FakeTtyDetector(is_tty=False)
-        mgr = CliContainerManager(transport, _MockParser(), RuntimeCapabilities(), streaming=manager._streaming, tty_detector=tty_detector,
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
-        config = RunConfig(image="alpine", command=["echo", "hi"], auto_tty=True, detach=False)
+        mgr = _container_mgr(
+            transport,
+            _MockParser(),
+            RuntimeCapabilities(),
+            streaming=manager._streaming,
+            tty_detector=tty_detector,
+        )
+        config = RunConfig(
+            image="alpine", command=["echo", "hi"], auto_tty=True, detach=False
+        )
         result = mgr.run(config)
         manager._streaming.stream.assert_called_once()
         assert result == "abc123"
@@ -89,23 +147,28 @@ class TestTtyDispatch:
 
 class TestTtyReturnContract:
     def test_tty_path_returns_empty_string(self, manager, transport):
-        manager._pty_transport.execute_pty = MagicMock(return_value=RawExecResult(returncode=0, stdout=b"", stderr=b""))
+        manager._pty_transport.execute_pty = MagicMock(
+            return_value=RawExecResult(returncode=0, stdout=b"", stderr=b"")
+        )
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         result = manager.run(config)
         assert result == ""
 
     def test_non_tty_path_returns_container_id(self, manager, transport):
-        config = RunConfig(image="alpine", command=["echo", "hi"], tty=False, detach=True)
+        config = RunConfig(
+            image="alpine", command=["echo", "hi"], tty=False, detach=True
+        )
         result = manager.run(config)
         assert result == "abc123"
 
     def test_stream_output_returns_empty(self, manager, transport):
         streaming = MagicMock(spec=StreamingTransport)
-        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"", stderr=b"")
+        streaming.stream.return_value = RawExecResult(
+            returncode=0, stdout=b"", stderr=b""
+        )
         caps = RuntimeCapabilities()
         parser = _MockParser()
-        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        mgr = _container_mgr(transport, parser, caps, streaming=streaming)
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
         result = mgr.run(config)
         assert result == ""
@@ -114,7 +177,15 @@ class TestTtyReturnContract:
         output_stream = BytesIO()
         streaming = MagicMock(spec=StreamingTransport)
 
-        def _stream(cmd, *, on_stdout=None, on_stderr=None, timeout=None, input_data=None, cancel_token=None):
+        def _stream(
+            cmd,
+            *,
+            on_stdout=None,
+            on_stderr=None,
+            timeout=None,
+            input_data=None,
+            cancel_token=None,
+        ):
             if on_stdout:
                 on_stdout(b"chunk1 ")
             if on_stdout:
@@ -124,9 +195,9 @@ class TestTtyReturnContract:
         streaming.stream.side_effect = _stream
         caps = RuntimeCapabilities()
         parser = _MockParser()
-        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken(),
-            output_stream=output_stream)
+        mgr = _container_mgr(
+            transport, parser, caps, streaming=streaming, output_stream=output_stream
+        )
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
         result = mgr.run(config)
         assert result == ""
@@ -134,23 +205,26 @@ class TestTtyReturnContract:
 
     def test_stream_output_with_none_output_stream_does_not_crash(self, transport):
         streaming = MagicMock(spec=StreamingTransport)
-        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"ignored", stderr=b"")
+        streaming.stream.return_value = RawExecResult(
+            returncode=0, stdout=b"ignored", stderr=b""
+        )
         caps = RuntimeCapabilities()
         parser = _MockParser()
-        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken(),
-            output_stream=None)
+        mgr = _container_mgr(
+            transport, parser, caps, streaming=streaming, output_stream=None
+        )
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
         result = mgr.run(config)
         assert result == ""
 
     def test_stream_output_false_returns_stdout(self, transport):
         streaming = MagicMock(spec=StreamingTransport)
-        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
+        streaming.stream.return_value = RawExecResult(
+            returncode=0, stdout=b"abc123", stderr=b""
+        )
         caps = RuntimeCapabilities()
         parser = _MockParser()
-        mgr = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        mgr = _container_mgr(transport, parser, caps, streaming=streaming)
         config = RunConfig(image="alpine", stream_output=False, tty=False, detach=True)
         result = mgr.run(config)
         assert result == "abc123"
@@ -158,7 +232,9 @@ class TestTtyReturnContract:
 
 class TestTtyEdgeCases:
     def test_execute_pty_failure_propagates(self, manager, transport):
-        manager._pty_transport.execute_pty = MagicMock(side_effect=ContainerRuntimeError("PTY failed", command=["docker"]))
+        manager._pty_transport.execute_pty = MagicMock(
+            side_effect=ContainerRuntimeError("PTY failed", command=["docker"])
+        )
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         with pytest.raises(ContainerRuntimeError, match="PTY failed"):
             manager.run(config)
@@ -167,14 +243,26 @@ class TestTtyEdgeCases:
         caps = RuntimeCapabilities(default_run_flags=("--userns=keep-id",))
         parser = _MockParser()
         streaming = MagicMock(spec=StreamingTransport)
-        streaming.stream.return_value = RawExecResult(returncode=0, stdout=b"abc123", stderr=b"")
-        m = CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
-        m._pty_transport.execute_pty = MagicMock(return_value=RawExecResult(returncode=0, stdout=b"", stderr=b""))
+        streaming.stream.return_value = RawExecResult(
+            returncode=0, stdout=b"abc123", stderr=b""
+        )
+        m = _container_mgr(transport, parser, caps, streaming=streaming)
+        m._pty_transport.execute_pty = MagicMock(
+            return_value=RawExecResult(returncode=0, stdout=b"", stderr=b"")
+        )
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         m.run(config)
         m._pty_transport.execute_pty.assert_called_once_with(
-            ["docker", "run", "--userns=keep-id", "-t", "alpine", "bash"],
+            [
+                "docker",
+                "run",
+                "--userns=keep-id",
+                "-t",
+                "--network",
+                "bridge",
+                "alpine",
+                "bash",
+            ],
             output_stream=None,
             timeout=None,
         )

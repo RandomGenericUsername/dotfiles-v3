@@ -25,9 +25,12 @@ class TestThreadCancellationToken:
 
     def test_cross_thread_visibility(self):
         import threading
+
         t = ThreadCancellationToken()
+
         def setter():
             t.cancel()
+
         thread = threading.Thread(target=setter)
         thread.start()
         thread.join()

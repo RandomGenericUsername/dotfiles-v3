@@ -221,49 +221,49 @@ class TestPodmanContainerParser:
         assert len(result[0].ports) == 0
 
     def test_parse_inspect_with_single_port(self):
-       """Unit test for Podman port parsing with single mapped port."""
-       info = self.parser.parse_inspect(PODMAN_CONTAINER_INSPECT_WITH_PORTS)
-       assert info.id == "abc123def456"
-       assert info.name == "web-server"
-       assert len(info.ports) == 2
-        
-       # First port: 80/tcp -> 8080
-       assert info.ports[0].container_port == 80
-       assert info.ports[0].host_port == 8080
-       assert info.ports[0].protocol == "tcp"
-       assert info.ports[0].host_ip == "0.0.0.0"
-        
-       # Second port: 443/tcp -> 8443 on localhost
-       assert info.ports[1].container_port == 443
-       assert info.ports[1].host_port == 8443
-       assert info.ports[1].protocol == "tcp"
-       assert info.ports[1].host_ip == "127.0.0.1"
+        """Unit test for Podman port parsing with single mapped port."""
+        info = self.parser.parse_inspect(PODMAN_CONTAINER_INSPECT_WITH_PORTS)
+        assert info.id == "abc123def456"
+        assert info.name == "web-server"
+        assert len(info.ports) == 2
+
+        # First port: 80/tcp -> 8080
+        assert info.ports[0].container_port == 80
+        assert info.ports[0].host_port == 8080
+        assert info.ports[0].protocol == "tcp"
+        assert info.ports[0].host_ip == "0.0.0.0"
+
+        # Second port: 443/tcp -> 8443 on localhost
+        assert info.ports[1].container_port == 443
+        assert info.ports[1].host_port == 8443
+        assert info.ports[1].protocol == "tcp"
+        assert info.ports[1].host_ip == "127.0.0.1"
 
     def test_parse_inspect_with_multiple_bindings_per_port(self):
-       """Unit test for Podman port parsing with multiple bindings per container port."""
-       info = self.parser.parse_inspect(PODMAN_CONTAINER_INSPECT_MULTI_PORTS)
-       assert info.id == "multi789xyz"
-       assert info.name == "app-server"
-       # Should have 3 port mappings: 3000/tcp (2 bindings) + 5000/udp (1 binding)
-       assert len(info.ports) == 3
-        
-       # Find the TCP port
-       tcp_ports = [p for p in info.ports if p.protocol == "tcp"]
-       assert len(tcp_ports) == 2
-       assert all(p.container_port == 3000 for p in tcp_ports)
-       assert {p.host_port for p in tcp_ports} == {3000, 13000}
-        
-       # Find the UDP port
-       udp_ports = [p for p in info.ports if p.protocol == "udp"]
-       assert len(udp_ports) == 1
-       assert udp_ports[0].container_port == 5000
-       assert udp_ports[0].host_port == 5000
+        """Unit test for Podman port parsing with multiple bindings per container port."""
+        info = self.parser.parse_inspect(PODMAN_CONTAINER_INSPECT_MULTI_PORTS)
+        assert info.id == "multi789xyz"
+        assert info.name == "app-server"
+        # Should have 3 port mappings: 3000/tcp (2 bindings) + 5000/udp (1 binding)
+        assert len(info.ports) == 3
+
+        # Find the TCP port
+        tcp_ports = [p for p in info.ports if p.protocol == "tcp"]
+        assert len(tcp_ports) == 2
+        assert all(p.container_port == 3000 for p in tcp_ports)
+        assert {p.host_port for p in tcp_ports} == {3000, 13000}
+
+        # Find the UDP port
+        udp_ports = [p for p in info.ports if p.protocol == "udp"]
+        assert len(udp_ports) == 1
+        assert udp_ports[0].container_port == 5000
+        assert udp_ports[0].host_port == 5000
 
     def test_parse_inspect_empty_ports(self):
-       """Unit test for Podman port parsing with no port mappings."""
-       info = self.parser.parse_inspect(PODMAN_CONTAINER_INSPECT)
-       assert info.id == "xyz789ghi012"
-       assert len(info.ports) == 0
+        """Unit test for Podman port parsing with no port mappings."""
+        info = self.parser.parse_inspect(PODMAN_CONTAINER_INSPECT)
+        assert info.id == "xyz789ghi012"
+        assert len(info.ports) == 0
 
 
 class TestPodmanImageParser:
@@ -342,7 +342,9 @@ class TestPodmanImageParserNormalization:
         assert result[0].tags == ()
 
     def test_parse_list_names_fallback(self):
-        data = '[{"Id":"sha256:abc","Names":["alpine:latest"],"Size":5000000,"Labels":{}}]'
+        data = (
+            '[{"Id":"sha256:abc","Names":["alpine:latest"],"Size":5000000,"Labels":{}}]'
+        )
         result = self.parser.parse_list(data)
         assert len(result) == 1
         assert result[0].tags == ("alpine:latest",)

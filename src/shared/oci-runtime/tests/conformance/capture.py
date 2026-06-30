@@ -48,7 +48,9 @@ def _have(binary: str) -> bool:
     return shutil.which(binary) is not None
 
 
-def _run(binary: str, args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess:
+def _run(
+    binary: str, args: list[str], *, timeout: int = 30
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [binary, *args],
         capture_output=True,
@@ -145,7 +147,10 @@ def main() -> int:
             print(f"  ERROR capturing {runtime}: {e}", file=sys.stderr)
             _cleanup(binary)
     if not captured_any:
-        print("No runtimes available. Install docker or podman to capture fixtures.", file=sys.stderr)
+        print(
+            "No runtimes available. Install docker or podman to capture fixtures.",
+            file=sys.stderr,
+        )
         return 1
     print("Fixtures captured. Commit them to anchor parser tests to real CLI output.")
     return 0

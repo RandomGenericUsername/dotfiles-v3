@@ -1,3 +1,11 @@
+from oci_runtime.domain.build_tar import create_build_tar
+from oci_runtime.domain.encoding import safe_decode
+from oci_runtime.domain.error_matching import matches_any_pattern
+from oci_runtime.domain.json_parsing import parse_json_item, parse_json_list
+from oci_runtime.domain.list_command import build_list_command
+from oci_runtime.domain.prune_parsing import parse_prune_result
+from oci_runtime.domain.result_checking import check_cli_result
+from oci_runtime.domain.size_parsing import coerce_size, parse_size_to_bytes, safe_int
 from oci_runtime.domain.enums import (
     ContainerState,
     NetworkMode,
@@ -74,4 +82,15 @@ __all__ = [
     "VolumeMountType",
     "VolumeNotFoundError",
     "VolumeRuntimeError",
+    "build_list_command",
+    "check_cli_result",
+    "coerce_size",
+    "create_build_tar",
+    "matches_any_pattern",
+    "parse_json_item",
+    "parse_json_list",
+    "parse_prune_result",
+    "parse_size_to_bytes",
+    "safe_decode",
+    "safe_int",
 ]

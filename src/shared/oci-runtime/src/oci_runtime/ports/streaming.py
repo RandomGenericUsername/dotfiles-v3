@@ -8,7 +8,7 @@ from oci_runtime.domain.types import RawExecResult
 class StreamingTransport(ABC):
     """Execute a command and stream its output in real-time.
 
-    Unlike Transport.execute() which is batch (subprocess.run),
+    Unlike Transport.execute() which is batch,
     StreamingTransport uses Popen + selector-based reading to
     deliver output as it arrives via callbacks.
     """

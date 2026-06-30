@@ -7,6 +7,7 @@ class TestCancellationTokenRelocated:
 
     def test_importable_from_ports(self):
         from oci_runtime.ports.cancellation import CancellationToken
+
         assert issubclass(CancellationToken, ABC)
         assert hasattr(CancellationToken, "cancel")
         assert hasattr(CancellationToken, "is_cancelled")

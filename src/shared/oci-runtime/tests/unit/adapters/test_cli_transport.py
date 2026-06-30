@@ -21,8 +21,13 @@ class TestCliTransport:
                 proc.stderr.fileno.return_value = 4
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([b"binary\x00data"], [b""])
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b"binary\x00data"],
+                        [b""],
+                    )
                     result = t.execute(["docker", "build", "-"])
         assert isinstance(result.stdout, bytes)
         assert isinstance(result.stderr, bytes)
@@ -37,8 +42,13 @@ class TestCliTransport:
                 proc.stderr.fileno.return_value = 4
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b""],
+                        [b""],
+                    )
                     t.execute(["docker", "build", "-"], input_data=b"tar content")
         mock_popen.assert_called_once()
 
@@ -53,9 +63,16 @@ class TestCliTransport:
                 proc.stderr.fileno.return_value = 4
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([binary_output], [b""])
-                    result = t.execute(["docker", "build", "-"], input_data=binary_input)
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [binary_output],
+                        [b""],
+                    )
+                    result = t.execute(
+                        ["docker", "build", "-"], input_data=binary_input
+                    )
         assert result.stdout == binary_output
         assert result.returncode == 0
 
@@ -76,16 +93,22 @@ class TestCliTransport:
             assert t.probe() is False
 
     def test_transport_caches_which(self):
-        with patch("shutil.which", side_effect=["/usr/bin/docker", "/usr/bin/docker", "/usr/bin/docker"]) as mock_which:
+        with patch(
+            "shutil.which",
+            side_effect=["/usr/bin/docker", "/usr/bin/docker", "/usr/bin/docker"],
+        ) as mock_which:
             with patch("subprocess.Popen") as mock_popen:
                 proc = MagicMock()
                 proc.stdout.fileno.return_value = 3
                 proc.stderr.fileno.return_value = 4
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
                     mock_reader.from_process.return_value.read.return_value = ([], [])
                     from oci_runtime.adapters.transport.cli import CliTransport
+
                     t = CliTransport("docker")
                     t.get_runtime_binary()
                     t.execute(["docker", "ps"])
@@ -94,6 +117,7 @@ class TestCliTransport:
 
     def test_execute_timeout_raises_operation_timeout(self):
         from oci_runtime.domain.exceptions import OperationTimeoutError
+
         t = CliTransport("docker")
         with patch("shutil.which", return_value="/usr/bin/docker"):
             with patch("subprocess.Popen") as mock_popen:
@@ -102,9 +126,16 @@ class TestCliTransport:
                 proc.stderr.fileno.return_value = 4
                 proc.wait.side_effect = [None, None]
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
-                    with patch("oci_runtime.adapters.transport.cli.DeadlineCancellationToken") as mock_dc:
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b""],
+                        [b""],
+                    )
+                    with patch(
+                        "oci_runtime.adapters.transport.cli.DeadlineCancellationToken"
+                    ) as mock_dc:
                         mock_dc.return_value.is_cancelled = True
                         with pytest.raises(OperationTimeoutError):
                             t.execute(["docker", "sleep", "10"], timeout=0.1)
@@ -117,9 +148,17 @@ class TestCliTransport:
                 proc.stdout.fileno.return_value = 3
                 proc.stderr.fileno.return_value = 4
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
-                    from oci_runtime.adapters._cancellation import ThreadCancellationToken
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b""],
+                        [b""],
+                    )
+                    from oci_runtime.adapters._cancellation import (
+                        ThreadCancellationToken,
+                    )
+
                     token = ThreadCancellationToken()
                     token.cancel()
                     result = t.execute(["docker", "version"], cancel_token=token)

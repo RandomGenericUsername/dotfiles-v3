@@ -1,4 +1,4 @@
-from oci_runtime.domain.exceptions import RuntimeNotAvailableError
+from oci_runtime.domain.exceptions import OciError
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.engine import ContainerEngine
 from oci_runtime.ports.managers import (
@@ -52,9 +52,13 @@ class CliRuntime(ContainerEngine):
 
     def version(self) -> str:
         """Get the version of the container engine."""
-        result = self._transport.execute(
-            [self._transport.get_runtime_binary(), "--version"]
-        )
+        cmd = [self._transport.get_runtime_binary(), "--version"]
+        result = self._transport.execute(cmd)
         if result.returncode == 0:
             return result.stdout.decode("utf-8", errors="replace").strip()
-        raise RuntimeNotAvailableError(self._transport.get_runtime_binary())
+        raise OciError(
+            "Failed to get version",
+            command=cmd,
+            exit_code=result.returncode,
+            stderr=result.stderr.decode("utf-8", errors="replace").strip(),
+        )

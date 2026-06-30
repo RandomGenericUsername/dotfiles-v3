@@ -101,6 +101,7 @@ DOCKER_NETWORK_LIST = """[
 class TestDockerPortParsing:
     def test_parse_docker_ports_non_numeric_key(self):
         from oci_runtime.adapters.parser.docker import _parse_docker_ports
+
         item = {
             "NetworkSettings": {
                 "Ports": {
@@ -113,6 +114,7 @@ class TestDockerPortParsing:
 
     def test_parse_docker_ports_missing_slash(self):
         from oci_runtime.adapters.parser.docker import _parse_docker_ports
+
         item = {
             "NetworkSettings": {
                 "Ports": {
@@ -125,6 +127,7 @@ class TestDockerPortParsing:
 
     def test_parse_docker_ports_valid_ports_still_work(self):
         from oci_runtime.adapters.parser.docker import _parse_docker_ports
+
         item = {
             "NetworkSettings": {
                 "Ports": {

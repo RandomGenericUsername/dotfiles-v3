@@ -1,8 +1,11 @@
 import pytest
 
-from oci_runtime.adapters._utils import parse_size_to_bytes
-from oci_runtime.adapters.parser.base import BaseCliParser
-from oci_runtime.ports.parsers import ParsingError
+from oci_runtime.domain.size_parsing import parse_size_to_bytes
+from oci_runtime.domain.json_parsing import parse_json_item, parse_json_list
+from oci_runtime.domain.error_matching import matches_any_pattern
+from oci_runtime.domain.prune_parsing import parse_prune_result
+from oci_runtime.domain.exceptions import ParsingError
+from oci_runtime.domain.types import PruneResult
 
 
 DOCKER_PRUNE_OUTPUT = """abc123def4567890abc123def4567890
@@ -25,9 +28,8 @@ class TestParseSizeToBytes:
         with pytest.raises(ValueError, match="Cannot parse size"):
             parse_size_to_bytes("")
 
-    def test_raises_for_no_unit(self):
-        with pytest.raises(ValueError, match="Cannot parse size"):
-            parse_size_to_bytes("9999")
+    def test_accepts_unitless_value(self):
+        assert parse_size_to_bytes("9999") == 9999
 
     def test_raises_for_gibberish(self):
         with pytest.raises(ValueError, match="Cannot parse size"):
@@ -37,113 +39,115 @@ class TestParseSizeToBytes:
         assert parse_size_to_bytes("2 KB") == 2048
 
 
-class TestBaseCliParser:
-    def setup_method(self):
-        self.parser = BaseCliParser()
-
-    def test_parse_json_item_dict(self):
-        result = self.parser._parse_json_item('{"key": "val"}')
+class TestParseJsonItem:
+    def test_dict(self):
+        result = parse_json_item('{"key": "val"}')
         assert result == {"key": "val"}
 
-    def test_parse_json_item_list(self):
-        result = self.parser._parse_json_item('[{"key": "val"}]')
+    def test_list(self):
+        result = parse_json_item('[{"key": "val"}]')
         assert result == {"key": "val"}
 
-    def test_parse_json_item_empty_raises(self):
-        with pytest.raises(ParsingError, match="Empty response"):
-            self.parser._parse_json_item("[]")
+    def test_empty_list_raises(self):
+        with pytest.raises(ParsingError, match="0 items"):
+            parse_json_item("[]")
 
-    def test_parse_json_item_malformed_raises(self):
+    def test_malformed_raises(self):
         with pytest.raises(ParsingError, match="Invalid JSON"):
-            self.parser._parse_json_item("not json")
+            parse_json_item("not json")
 
-    def test_parse_json_list_list(self):
-        result = self.parser._parse_json_list('[{"a": 1}, {"b": 2}]')
+    def test_scalar_raises(self):
+        with pytest.raises(ParsingError):
+            parse_json_item('"a string"')
+
+    def test_int_raises(self):
+        with pytest.raises(ParsingError):
+            parse_json_item("42")
+
+
+class TestParseJsonList:
+    def test_list(self):
+        result = parse_json_list('[{"a": 1}, {"b": 2}]')
         assert result == [{"a": 1}, {"b": 2}]
 
-    def test_parse_json_list_dict(self):
-        result = self.parser._parse_json_list('{"a": 1}')
+    def test_dict(self):
+        result = parse_json_list('{"a": 1}')
         assert result == [{"a": 1}]
 
-    def test_parse_json_list_malformed_raises(self):
+    def test_malformed_raises(self):
         with pytest.raises(ParsingError, match="Invalid JSON on line"):
-            self.parser._parse_json_list("not json")
-
-    def test_is_not_found_error_default_false(self):
-        assert self.parser.is_not_found_error("anything") is False
-
-    def test_is_not_found_error_with_patterns(self):
-        class ParserWithPatterns(BaseCliParser):
-            _not_found_patterns = ("not found", "no such")
-        p = ParserWithPatterns()
-        assert p.is_not_found_error("Not Found") is True
-        assert p.is_not_found_error("no such thing") is True
-        assert p.is_not_found_error("something else") is False
-
-    def test_parse_prune_counts_deleted(self):
-        result = self.parser.parse_prune(DOCKER_PRUNE_OUTPUT)
-        assert result.deleted == 2
-
-    def test_parse_prune_parses_reclaimed_space(self):
-        result = self.parser.parse_prune(DOCKER_PRUNE_OUTPUT)
-        assert result.reclaimed_bytes == int(1.5 * 1024**3)
-
-    def test_parse_prune_empty(self):
-        result = self.parser.parse_prune("")
-        assert result.deleted == 0
-        assert result.reclaimed_bytes == 0
-
-    def test_prune_all_counts_deleted_sha256_lines(self):
-        from oci_runtime.domain.types import PruneResult
-        output = "deleted: sha256:abc123def456\ndeleted: sha256:789012abcdef\nTotal reclaimed space: 1.2GB\n"
-        result = self.parser.parse_prune(output)
-        assert result == PruneResult(deleted=2, reclaimed_bytes=1288490188)
-
-
-class TestParseJsonListNDJSON:
-    def setup_method(self):
-        self.parser = BaseCliParser()
+            parse_json_list("not json")
 
     def test_json_array(self):
-        result = self.parser._parse_json_list('[{"id": "abc"}]')
+        result = parse_json_list('[{"id": "abc"}]')
         assert len(result) == 1
         assert result[0]["id"] == "abc"
 
     def test_single_object(self):
-        result = self.parser._parse_json_list('{"id": "abc"}')
+        result = parse_json_list('{"id": "abc"}')
         assert len(result) == 1
         assert result[0]["id"] == "abc"
 
     def test_ndjson_two_objects(self):
         ndjson = '{"id": "abc"}\n{"id": "def"}'
-        result = self.parser._parse_json_list(ndjson)
+        result = parse_json_list(ndjson)
         assert len(result) == 2
         assert result[0]["id"] == "abc"
         assert result[1]["id"] == "def"
 
     def test_ndjson_with_blank_lines(self):
         ndjson = '{"id": "abc"}\n\n{"id": "def"}\n'
-        result = self.parser._parse_json_list(ndjson)
+        result = parse_json_list(ndjson)
         assert len(result) == 2
 
     def test_empty_string_returns_empty_list(self):
-        result = self.parser._parse_json_list("")
+        result = parse_json_list("")
         assert result == []
 
     def test_empty_list_returns_empty(self):
-        result = self.parser._parse_json_list("[]")
+        result = parse_json_list("[]")
         assert result == []
 
     def test_garbage_raises(self):
         with pytest.raises(ParsingError):
-            self.parser._parse_json_list("not json at all")
+            parse_json_list("not json at all")
 
     def test_partial_ndjson_raises_on_bad_line(self):
         ndjson = '{"id": "abc"}\nnot json\n{"id": "def"}'
         with pytest.raises(ParsingError, match="Invalid JSON on line 2"):
-            self.parser._parse_json_list(ndjson)
+            parse_json_list(ndjson)
 
     def test_table_format_raises(self):
         table = "REPOSITORY    TAG       IMAGE ID\nalpine         latest    abc123"
         with pytest.raises(ParsingError):
-            self.parser._parse_json_list(table)
+            parse_json_list(table)
+
+
+class TestMatchesAnyPattern:
+    def test_default_false(self):
+        assert matches_any_pattern("anything", ()) is False
+
+    def test_with_patterns(self):
+        assert matches_any_pattern("Not Found", ("not found", "no such")) is True
+        assert matches_any_pattern("no such thing", ("not found", "no such")) is True
+        assert matches_any_pattern("something else", ("not found", "no such")) is False
+
+
+class TestParsePruneResult:
+    def test_counts_deleted(self):
+        result = parse_prune_result(DOCKER_PRUNE_OUTPUT)
+        assert result.deleted == 2
+
+    def test_parses_reclaimed_space(self):
+        result = parse_prune_result(DOCKER_PRUNE_OUTPUT)
+        assert result.reclaimed_bytes == int(1.5 * 1024**3)
+
+    def test_empty(self):
+        result = parse_prune_result("")
+        assert result.deleted == 0
+        assert result.reclaimed_bytes == 0
+
+    def test_all_counts_deleted_sha256_lines(self):
+        output = "deleted: sha256:abc123def456\ndeleted: sha256:789012abcdef\nTotal reclaimed space: 1.2GB\n"
+        result = parse_prune_result(output)
+        assert result == PruneResult(deleted=2, reclaimed_bytes=1288490188)

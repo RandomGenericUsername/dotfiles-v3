@@ -7,7 +7,7 @@ def _validate_tar_path(path: str) -> None:
     norm = os.path.normpath(path)
     if os.path.isabs(norm):
         raise ValueError(f"Absolute path not allowed in tar: {path!r}")
-    if norm.startswith("..") or norm == "..":
+    if norm == ".." or norm.startswith("../"):
         raise ValueError(f"Path with parent reference not allowed in tar: {path!r}")
 
 
@@ -37,3 +37,6 @@ def create_build_tar(
             info.mtime = 0
             tar.addfile(info, io.BytesIO(data))
     return tar_buffer.getvalue()
+
+
+from oci_runtime.domain.build_tar import *  # noqa: F401, E402, F403 — re-export shim, deleted in T4

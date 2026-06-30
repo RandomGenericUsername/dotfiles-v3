@@ -1,13 +1,17 @@
 import re
 
-from oci_runtime.adapters.parser.base import BaseCliParser, _coerce_size, _safe_int
-from oci_runtime.ports.parsers import ParsingError
+from oci_runtime.domain.json_parsing import parse_json_item, parse_json_list
+from oci_runtime.domain.error_matching import matches_any_pattern
+from oci_runtime.domain.prune_parsing import parse_prune_result
+from oci_runtime.domain.size_parsing import coerce_size, safe_int
+from oci_runtime.domain.exceptions import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
     ContainerInfo,
     ImageInfo,
     NetworkInfo,
     PortMapping,
+    PruneResult,
     VolumeInfo,
 )
 from oci_runtime.ports.parsers import (
@@ -18,7 +22,7 @@ from oci_runtime.ports.parsers import (
 )
 
 
-class PodmanContainerParser(BaseCliParser, ContainerParser):
+class PodmanContainerParser(ContainerParser):
     _not_found_patterns = ("no such container",)
 
     def _parse_ports(self, network_settings: dict) -> list[PortMapping]:
@@ -45,7 +49,7 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
                     for mapping in mappings:
                         if isinstance(mapping, dict):
                             host_port = mapping.get("HostPort")
-                            host_ip = mapping.get("HostIp", "") or "0.0.0.0"
+                            host_ip = mapping.get("HostIp") or None
 
                             if host_port:
                                 ports.append(
@@ -63,11 +67,6 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
 
     @staticmethod
     def _parse_ports_from_list(item: dict) -> list[PortMapping]:
-        """Parse the Ports array from `podman ps --format json` output.
-
-        The list format has a different structure than inspect:
-          [{"HostPort": 8080, "ContainerPort": 80, "Protocol": "tcp", "HostIp": "0.0.0.0"}, ...]
-        """
         ports = []
         for p in item.get("Ports") or []:
             if not isinstance(p, dict):
@@ -75,14 +74,14 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
             host_port = p.get("HostPort")
             container_port = p.get("ContainerPort")
             protocol = p.get("Protocol", "tcp")
-            host_ip = p.get("HostIp", "") or "0.0.0.0"
-            cport = _safe_int(container_port)
+            host_ip = p.get("HostIp") or None
+            cport = safe_int(container_port)
             if cport is None:
                 continue
             ports.append(
                 PortMapping(
                     container_port=cport,
-                    host_port=_safe_int(host_port),
+                    host_port=safe_int(host_port),
                     protocol=protocol,
                     host_ip=host_ip,
                 )
@@ -90,7 +89,7 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
         return ports
 
     def parse_inspect(self, raw: str) -> ContainerInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         network_settings = item.get("NetworkSettings", {})
         ports = self._parse_ports(network_settings)
         return ContainerInfo(
@@ -108,7 +107,7 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
         )
 
     def parse_list(self, raw: str) -> list[ContainerInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             names = item.get("Names")
@@ -132,8 +131,14 @@ class PodmanContainerParser(BaseCliParser, ContainerParser):
             )
         return result
 
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
 
-class PodmanImageParser(BaseCliParser, ImageParser):
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)
+
+
+class PodmanImageParser(ImageParser):
     _not_found_patterns = ("image not found",)
     _auth_error_patterns = (
         "authentication required",
@@ -141,7 +146,7 @@ class PodmanImageParser(BaseCliParser, ImageParser):
     )
 
     def parse_inspect(self, raw: str) -> ImageInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         return ImageInfo(
             id=item.get("Id", ""),
             tags=(item.get("RepoTags") or []),
@@ -151,7 +156,7 @@ class PodmanImageParser(BaseCliParser, ImageParser):
         )
 
     def parse_list(self, raw: str) -> list[ImageInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             tags = item.get("RepoTags", [])
@@ -166,7 +171,7 @@ class PodmanImageParser(BaseCliParser, ImageParser):
                 ImageInfo(
                     id=item.get("Id", ""),
                     tags=tags if tags else [],
-                    size=_coerce_size(item.get("Size", 0)),
+                    size=coerce_size(item.get("Size", 0)),
                     created=str(item.get("Created", "")),
                     labels=labels,
                 )
@@ -207,12 +212,21 @@ class PodmanImageParser(BaseCliParser, ImageParser):
                 return f"sha256:{cleaned}"
         return ""
 
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
 
-class PodmanVolumeParser(BaseCliParser, VolumeParser):
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)
+
+    def is_auth_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._auth_error_patterns)
+
+
+class PodmanVolumeParser(VolumeParser):
     _not_found_patterns = ("no such volume",)
 
     def parse_inspect(self, raw: str) -> VolumeInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         return VolumeInfo(
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
@@ -221,7 +235,7 @@ class PodmanVolumeParser(BaseCliParser, VolumeParser):
         )
 
     def parse_list(self, raw: str) -> list[VolumeInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             labels = item.get("Labels", {})
@@ -237,12 +251,18 @@ class PodmanVolumeParser(BaseCliParser, VolumeParser):
             )
         return result
 
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
 
-class PodmanNetworkParser(BaseCliParser, NetworkParser):
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)
+
+
+class PodmanNetworkParser(NetworkParser):
     _not_found_patterns = ("no such network",)
 
     def parse_inspect(self, raw: str) -> NetworkInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         return NetworkInfo(
             id=item.get("Id", ""),
             name=item.get("Name", ""),
@@ -252,7 +272,7 @@ class PodmanNetworkParser(BaseCliParser, NetworkParser):
         )
 
     def parse_list(self, raw: str) -> list[NetworkInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             net_id = item.get("Id") or item.get("id", "")
@@ -272,3 +292,9 @@ class PodmanNetworkParser(BaseCliParser, NetworkParser):
                 )
             )
         return result
+
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
+
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)

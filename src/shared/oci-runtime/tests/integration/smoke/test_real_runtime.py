@@ -10,11 +10,13 @@ class TestFactoryCreatesEngine:
     @pytest.mark.docker_required
     def test_factory_creates_live_docker_engine(self, live_docker_engine):
         from oci_runtime.ports.engine import ContainerEngine
+
         assert isinstance(live_docker_engine, ContainerEngine)
 
     @pytest.mark.podman_required
     def test_factory_creates_live_podman_engine(self, live_podman_engine):
         from oci_runtime.ports.engine import ContainerEngine
+
         assert isinstance(live_podman_engine, ContainerEngine)
 
 
@@ -24,12 +26,14 @@ class TestLiveEngineBasicCommands:
         version = live_docker_engine.version()
         assert len(version) > 0
 
+
 class TestLiveEngineContainerLifecycle:
     @pytest.mark.docker_required
     def test_live_engine_can_pull_and_run_container(self, live_docker_engine):
         image_id = live_docker_engine.images.pull("alpine")
         assert len(image_id) > 0
         from oci_runtime.domain.types import RunConfig
+
         cid = live_docker_engine.containers.run(RunConfig(image="alpine"))
         assert re.match(r"^[a-f0-9]{12,64}$", cid) is not None
         live_docker_engine.containers.remove(cid, force=True)
@@ -37,6 +41,7 @@ class TestLiveEngineContainerLifecycle:
     @pytest.mark.docker_required
     def test_live_engine_container_lifecycle(self, live_docker_engine):
         from oci_runtime.domain.types import RunConfig
+
         live_docker_engine.images.pull("alpine")
         cid = live_docker_engine.containers.run(RunConfig(image="alpine", detach=True))
         assert len(cid) > 0

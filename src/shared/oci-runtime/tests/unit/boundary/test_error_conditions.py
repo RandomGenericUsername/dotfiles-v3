@@ -25,9 +25,12 @@ from oci_runtime.domain.exceptions import (
     ContainerRuntimeError,
     ImageNotFoundError,
     ImagePullAccessDeniedError,
+    ImageRuntimeError,
     NetworkNotFoundError,
+    NetworkRuntimeError,
     RuntimeNotAvailableError,
     VolumeNotFoundError,
+    VolumeRuntimeError,
 )
 from oci_runtime.domain.types import RunConfig
 from oci_runtime.domain.types import RuntimePreference
@@ -35,7 +38,14 @@ from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.adapters._cancellation import ThreadCancellationToken
-from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from tests.helpers.mock_transport import (
+    FakeTtyDetector,
+    MockPtyTransport,
+    RecordingStreamingTransport,
+    RecordingTransport,
+)
 
 
 @pytest.fixture
@@ -51,6 +61,84 @@ def transport():
 @pytest.fixture
 def streaming():
     return RecordingStreamingTransport("docker")
+
+
+def _image_mgr(transport, parser, caps):
+    chk = CliResultChecker(
+        generic_error=ImageRuntimeError,
+        not_found_error=ImageNotFoundError,
+        is_not_found=parser.is_not_found_error,
+        auth_error=ImagePullAccessDeniedError,
+        is_auth=parser.is_auth_error,
+    )
+    return CliImageManager(
+        transport,
+        parser,
+        caps,
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+    )
+
+
+def _container_mgr(transport, parser, caps, streaming, tty_detector=None):
+    if tty_detector is None:
+        from tests.helpers.mock_transport import FakeTtyDetector
+
+        tty_detector = FakeTtyDetector()
+    chk = CliResultChecker(
+        generic_error=ContainerRuntimeError,
+        not_found_error=ContainerNotFoundError,
+        is_not_found=parser.is_not_found_error,
+    )
+    return CliContainerManager(
+        transport,
+        parser,
+        caps,
+        streaming=streaming,
+        tty_detector=tty_detector,
+        pty_transport=MockPtyTransport(),
+        cancellation_factory=lambda: ThreadCancellationToken(),
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+    )
+
+
+def _volume_mgr(transport, parser, caps):
+    chk = CliResultChecker(
+        generic_error=VolumeRuntimeError,
+        not_found_error=VolumeNotFoundError,
+        is_not_found=parser.is_not_found_error,
+    )
+    return CliVolumeManager(
+        transport,
+        parser,
+        caps,
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+    )
+
+
+def _network_mgr(transport, parser, caps):
+    chk = CliResultChecker(
+        generic_error=NetworkRuntimeError,
+        not_found_error=NetworkNotFoundError,
+        is_not_found=parser.is_not_found_error,
+    )
+    return CliNetworkManager(
+        transport,
+        parser,
+        caps,
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+    )
 
 
 class TestTransportErrors:
@@ -69,39 +157,83 @@ class TestTransportErrors:
 
 class TestManagerErrorPropagation:
     def test_image_not_found_from_stderr(self, transport, caps):
-        transport._responses = {("docker", "image", "inspect", "--format", "json", "alpine"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such image: alpine")}
-        mgr = CliImageManager(transport, DockerImageParser(), caps)
+        transport._responses = {
+            ("docker", "image", "inspect", "--format", "json", "alpine"): RawExecResult(
+                returncode=1, stdout=b"", stderr=b"No such image: alpine"
+            )
+        }
+        mgr = _image_mgr(transport, DockerImageParser(), caps)
         with pytest.raises(ImageNotFoundError) as exc:
             mgr.inspect("alpine")
         assert "alpine" in exc.value.image_name
 
     def test_container_not_found_from_stderr(self, transport, streaming, caps):
-        transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        transport._responses = {
+            (
+                "docker",
+                "container",
+                "inspect",
+                "--format",
+                "json",
+                "ctr1",
+            ): RawExecResult(
+                returncode=1, stdout=b"", stderr=b"No such container: ctr1"
+            )
+        }
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), caps, streaming=streaming
+        )
         with pytest.raises(ContainerNotFoundError) as exc:
             mgr.inspect("ctr1")
         assert "ctr1" in exc.value.container_id
 
     def test_volume_not_found_from_stderr(self, transport, caps):
-        transport._responses = {("docker", "volume", "inspect", "--format", "json", "myvol"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such volume: myvol")}
-        mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
+        transport._responses = {
+            ("docker", "volume", "inspect", "--format", "json", "myvol"): RawExecResult(
+                returncode=1, stdout=b"", stderr=b"No such volume: myvol"
+            )
+        }
+        mgr = _volume_mgr(transport, DockerVolumeParser(), caps)
         with pytest.raises(VolumeNotFoundError) as exc:
             mgr.inspect("myvol")
         assert "myvol" in exc.value.volume_name
 
     def test_network_not_found_from_stderr(self, transport, caps):
-        transport._responses = {("docker", "network", "inspect", "--format", "json", "mynet"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such network: mynet")}
-        mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
+        transport._responses = {
+            (
+                "docker",
+                "network",
+                "inspect",
+                "--format",
+                "json",
+                "mynet",
+            ): RawExecResult(returncode=1, stdout=b"", stderr=b"No such network: mynet")
+        }
+        mgr = _network_mgr(transport, DockerNetworkParser(), caps)
         with pytest.raises(NetworkNotFoundError) as exc:
             mgr.inspect("mynet")
         assert "mynet" in exc.value.network_name
 
-    def test_generic_error_raises_container_runtime_error(self, transport, streaming, caps):
-        transport._responses = {("docker", "run", "-d", "alpine"): RawExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
-        streaming._responses = {("docker", "run", "-d", "alpine"): RawExecResult(returncode=125, stdout=b"", stderr=b"Error response from daemon: something went wrong")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+    def test_generic_error_raises_container_runtime_error(
+        self, transport, streaming, caps
+    ):
+        transport._responses = {
+            ("docker", "run", "-d", "--network", "bridge", "alpine"): RawExecResult(
+                returncode=125,
+                stdout=b"",
+                stderr=b"Error response from daemon: something went wrong",
+            )
+        }
+        streaming._responses = {
+            ("docker", "run", "-d", "--network", "bridge", "alpine"): RawExecResult(
+                returncode=125,
+                stdout=b"",
+                stderr=b"Error response from daemon: something went wrong",
+            )
+        }
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), caps, streaming=streaming
+        )
         config = RunConfig(image="alpine")
         with pytest.raises(ContainerRuntimeError) as exc_info:
             mgr.run(config)
@@ -109,35 +241,61 @@ class TestManagerErrorPropagation:
         assert "something went wrong" in exc_info.value.stderr
 
     def test_non_zero_without_stderr(self, transport, streaming, caps):
-        transport._responses = {("docker", "container", "inspect", "--format", "json", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        transport._responses = {
+            (
+                "docker",
+                "container",
+                "inspect",
+                "--format",
+                "json",
+                "ctr1",
+            ): RawExecResult(returncode=1, stdout=b"", stderr=b"")
+        }
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), caps, streaming=streaming
+        )
         with pytest.raises(ContainerRuntimeError) as exc:
             mgr.inspect("ctr1")
         assert exc.value.exit_code == 1
 
     def test_not_found_error_for_stop(self, transport, streaming, caps):
-        transport._responses = {("docker", "stop", "-t", "10", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        transport._responses = {
+            ("docker", "stop", "-t", "10", "ctr1"): RawExecResult(
+                returncode=1, stdout=b"", stderr=b"No such container: ctr1"
+            )
+        }
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), caps, streaming=streaming
+        )
         with pytest.raises(ContainerNotFoundError) as exc:
             mgr.stop("ctr1")
         assert "ctr1" in exc.value.container_id
 
     def test_not_found_error_for_remove(self, transport, streaming, caps):
-        transport._responses = {("docker", "rm", "ctr1"): RawExecResult(returncode=1, stdout=b"", stderr=b"No such container: ctr1")}
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+        transport._responses = {
+            ("docker", "rm", "ctr1"): RawExecResult(
+                returncode=1, stdout=b"", stderr=b"No such container: ctr1"
+            )
+        }
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), caps, streaming=streaming
+        )
         with pytest.raises(ContainerNotFoundError) as exc:
             mgr.remove("ctr1")
         assert "ctr1" in exc.value.container_id
 
     def test_pull_unparseable_raises_image_error(self, transport, caps):
         from oci_runtime.domain.exceptions import ImageError
-        transport._responses = {("docker", "pull", "alpine"): RawExecResult(returncode=0, stdout=b"random text", stderr=b"")}
+
+        transport._responses = {
+            ("docker", "pull", "alpine"): RawExecResult(
+                returncode=0, stdout=b"random text", stderr=b""
+            )
+        }
         from oci_runtime.adapters.parser.docker import DockerImageParser
         from oci_runtime.adapters.managers.image import CliImageManager
-        mgr = CliImageManager(transport, DockerImageParser(), caps)
+
+        mgr = _image_mgr(transport, DockerImageParser(), caps)
         with pytest.raises(ImageError):
             mgr.pull("alpine", timeout=30)
 
@@ -188,32 +346,46 @@ class TestParserNotFoundDetection:
 
 class TestFactoryErrorConditions:
     def test_create_does_not_probe_unavailable(self):
-        bogus = RuntimePreference(kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz")
+        bogus = RuntimePreference(
+            kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz"
+        )
         engine = RuntimeFactory().create(bogus)
         assert engine.is_available() is False
 
     def test_create_engine_with_wrong_binary(self):
         with patch("shutil.which", return_value=None):
-            pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz")
+            pref = RuntimePreference(
+                kind=RuntimeKind.DOCKER, binary="nonexistent-runtime-xyz"
+            )
             engine = RuntimeFactory().create(pref)
             assert engine.is_available() is False
 
 
 class TestImagePullAuthErrors:
     def test_pull_access_denied_raises_image_pull_access_denied_error(self):
-        transport = RecordingTransport("docker", {
-            ("docker", "pull", "private/image"): RawExecResult(1, b"", b"pull access denied for private/image"),
-        })
-        mgr = CliImageManager(transport, DockerImageParser(), RuntimeCapabilities())
+        transport = RecordingTransport(
+            "docker",
+            {
+                ("docker", "pull", "private/image"): RawExecResult(
+                    1, b"", b"pull access denied for private/image"
+                ),
+            },
+        )
+        mgr = _image_mgr(transport, DockerImageParser(), RuntimeCapabilities())
         with pytest.raises(ImagePullAccessDeniedError) as exc:
             mgr.pull("private/image")
         assert "private/image" in exc.value.image_name
 
     def test_pull_unauthorized_raises_image_pull_access_denied_error(self):
-        transport = RecordingTransport("docker", {
-            ("docker", "pull", "private/image"): RawExecResult(1, b"", b"unauthorized: access denied"),
-        })
-        mgr = CliImageManager(transport, DockerImageParser(), RuntimeCapabilities())
+        transport = RecordingTransport(
+            "docker",
+            {
+                ("docker", "pull", "private/image"): RawExecResult(
+                    1, b"", b"unauthorized: access denied"
+                ),
+            },
+        )
+        mgr = _image_mgr(transport, DockerImageParser(), RuntimeCapabilities())
         with pytest.raises(ImagePullAccessDeniedError) as exc:
             mgr.pull("private/image")
         assert "private/image" in exc.value.image_name
@@ -222,10 +394,12 @@ class TestImagePullAuthErrors:
 class TestTarPathTraversal:
     def test_absolute_path_raises_value_error(self):
         from oci_runtime.adapters._tar import create_build_tar
+
         with pytest.raises(ValueError, match="Absolute path"):
             create_build_tar("FROM alpine", {"/etc/passwd": b"data"})
 
     def test_parent_path_raises_value_error(self):
         from oci_runtime.adapters._tar import create_build_tar
+
         with pytest.raises(ValueError, match="parent reference"):
             create_build_tar("FROM alpine", {"../outside": b"data"})

@@ -46,8 +46,103 @@ from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.factory import RuntimeFactory
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.domain.exceptions import (
+    ContainerNotFoundError,
+    ContainerRuntimeError,
+    ImageNotFoundError,
+    ImagePullAccessDeniedError,
+    ImageRuntimeError,
+    NetworkNotFoundError,
+    NetworkRuntimeError,
+    VolumeNotFoundError,
+    VolumeRuntimeError,
+)
 from oci_runtime.adapters._cancellation import ThreadCancellationToken
-from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
+from tests.helpers.mock_transport import (
+    FakeTtyDetector,
+    MockPtyTransport,
+    MockResultChecker,
+    MockListExecutor,
+    RecordingStreamingTransport,
+    RecordingTransport,
+)
+
+
+def _image_mgr(transport, parser, caps):
+    chk = CliResultChecker(
+        generic_error=ImageRuntimeError,
+        not_found_error=ImageNotFoundError,
+        is_not_found=parser.is_not_found_error,
+        auth_error=ImagePullAccessDeniedError,
+        is_auth=parser.is_auth_error,
+    )
+    return CliImageManager(
+        transport,
+        parser,
+        caps,
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+    )
+
+
+def _container_mgr(transport, parser, caps, streaming, **extra):
+    chk = CliResultChecker(
+        generic_error=ContainerRuntimeError,
+        not_found_error=ContainerNotFoundError,
+        is_not_found=parser.is_not_found_error,
+    )
+    return CliContainerManager(
+        transport,
+        parser,
+        caps,
+        streaming=streaming,
+        tty_detector=FakeTtyDetector(),
+        pty_transport=MockPtyTransport(),
+        cancellation_factory=lambda: ThreadCancellationToken(),
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+        **extra,
+    )
+
+
+def _volume_mgr(transport, parser, caps):
+    chk = CliResultChecker(
+        generic_error=VolumeRuntimeError,
+        not_found_error=VolumeNotFoundError,
+        is_not_found=parser.is_not_found_error,
+    )
+    return CliVolumeManager(
+        transport,
+        parser,
+        caps,
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+    )
+
+
+def _network_mgr(transport, parser, caps):
+    chk = CliResultChecker(
+        generic_error=NetworkRuntimeError,
+        not_found_error=NetworkNotFoundError,
+        is_not_found=parser.is_not_found_error,
+    )
+    return CliNetworkManager(
+        transport,
+        parser,
+        caps,
+        result_checker=chk,
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
+    )
 
 
 class TestTransportContract:
@@ -57,7 +152,9 @@ class TestTransportContract:
     def test_has_all_abstract_methods(self):
         expected = {"execute", "get_runtime_binary", "probe"}
         actual = set(Transport.__abstractmethods__)
-        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+        assert actual == expected, (
+            f"Missing: {expected - actual}, Extra: {actual - expected}"
+        )
 
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
@@ -119,7 +216,9 @@ class TestStreamingTransportContract:
     def test_has_all_abstract_methods(self):
         expected = {"stream"}
         actual = set(StreamingTransport.__abstractmethods__)
-        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+        assert actual == expected, (
+            f"Missing: {expected - actual}, Extra: {actual - expected}"
+        )
 
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
@@ -148,13 +247,25 @@ class TestEngineContract:
 
     def test_has_all_abstract_properties(self):
         expected_props = {"images", "containers", "volumes", "networks", "capabilities"}
-        actual = {m for m in ContainerEngine.__abstractmethods__ if isinstance(getattr(ContainerEngine, m, None), property)}
-        assert actual == expected_props, f"Missing props: {expected_props - actual}, Extra: {actual - expected_props}"
+        actual = {
+            m
+            for m in ContainerEngine.__abstractmethods__
+            if isinstance(getattr(ContainerEngine, m, None), property)
+        }
+        assert actual == expected_props, (
+            f"Missing props: {expected_props - actual}, Extra: {actual - expected_props}"
+        )
 
     def test_has_all_abstract_methods(self):
         expected_methods = {"is_available", "version"}
-        actual = {m for m in ContainerEngine.__abstractmethods__ if not isinstance(getattr(ContainerEngine, m, None), property)}
-        assert actual == expected_methods, f"Missing methods: {expected_methods - actual}, Extra: {actual - expected_methods}"
+        actual = {
+            m
+            for m in ContainerEngine.__abstractmethods__
+            if not isinstance(getattr(ContainerEngine, m, None), property)
+        }
+        assert actual == expected_methods, (
+            f"Missing methods: {expected_methods - actual}, Extra: {actual - expected_methods}"
+        )
 
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
@@ -164,6 +275,7 @@ class TestEngineContract:
         transport = RecordingTransport("docker")
         caps = RuntimeCapabilities()
         from unittest.mock import MagicMock
+
         runtime = CliRuntime(
             transport=transport,
             image_manager=MagicMock(spec=ImageManager),
@@ -187,9 +299,21 @@ class TestImageManagerContract:
         assert issubclass(ImageManager, ABC)
 
     def test_has_all_abstract_methods(self):
-        expected = {"build", "tag", "push", "pull", "remove", "exists", "inspect", "list", "prune"}
+        expected = {
+            "build",
+            "tag",
+            "push",
+            "pull",
+            "remove",
+            "exists",
+            "inspect",
+            "list",
+            "prune",
+        }
         actual = set(ImageManager.__abstractmethods__)
-        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+        assert actual == expected, (
+            f"Missing: {expected - actual}, Extra: {actual - expected}"
+        )
 
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
@@ -199,7 +323,8 @@ class TestImageManagerContract:
         transport = RecordingTransport("docker")
         caps = RuntimeCapabilities()
         from oci_runtime.adapters.parser.docker import DockerImageParser
-        mgr = CliImageManager(transport, DockerImageParser(), caps)
+
+        mgr = _image_mgr(transport, DockerImageParser(), caps)
         assert isinstance(mgr, ImageManager)
         assert callable(mgr.build)
         assert callable(mgr.tag)
@@ -217,9 +342,23 @@ class TestContainerManagerContract:
         assert issubclass(ContainerManager, ABC)
 
     def test_has_all_abstract_methods(self):
-        expected = {"run", "start", "stop", "restart", "remove", "exists", "inspect", "list", "logs", "exec_container", "prune"}
+        expected = {
+            "run",
+            "start",
+            "stop",
+            "restart",
+            "remove",
+            "exists",
+            "inspect",
+            "list",
+            "logs",
+            "exec_container",
+            "prune",
+        }
         actual = set(ContainerManager.__abstractmethods__)
-        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+        assert actual == expected, (
+            f"Missing: {expected - actual}, Extra: {actual - expected}"
+        )
 
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
@@ -230,8 +369,10 @@ class TestContainerManagerContract:
         streaming = RecordingStreamingTransport("docker")
         caps = RuntimeCapabilities()
         from oci_runtime.adapters.parser.docker import DockerContainerParser
-        mgr = CliContainerManager(transport, DockerContainerParser(), caps, streaming=streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), caps, streaming=streaming
+        )
         assert isinstance(mgr, ContainerManager)
         assert callable(mgr.run)
         assert callable(mgr.start)
@@ -253,7 +394,9 @@ class TestVolumeManagerContract:
     def test_has_all_abstract_methods(self):
         expected = {"create", "remove", "exists", "inspect", "list", "prune"}
         actual = set(VolumeManager.__abstractmethods__)
-        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+        assert actual == expected, (
+            f"Missing: {expected - actual}, Extra: {actual - expected}"
+        )
 
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
@@ -263,7 +406,8 @@ class TestVolumeManagerContract:
         transport = RecordingTransport("docker")
         caps = RuntimeCapabilities()
         from oci_runtime.adapters.parser.docker import DockerVolumeParser
-        mgr = CliVolumeManager(transport, DockerVolumeParser(), caps)
+
+        mgr = _volume_mgr(transport, DockerVolumeParser(), caps)
         assert isinstance(mgr, VolumeManager)
         assert callable(mgr.create)
         assert callable(mgr.remove)
@@ -278,9 +422,20 @@ class TestNetworkManagerContract:
         assert issubclass(NetworkManager, ABC)
 
     def test_has_all_abstract_methods(self):
-        expected = {"create", "remove", "connect", "disconnect", "exists", "inspect", "list", "prune"}
+        expected = {
+            "create",
+            "remove",
+            "connect",
+            "disconnect",
+            "exists",
+            "inspect",
+            "list",
+            "prune",
+        }
         actual = set(NetworkManager.__abstractmethods__)
-        assert actual == expected, f"Missing: {expected - actual}, Extra: {actual - expected}"
+        assert actual == expected, (
+            f"Missing: {expected - actual}, Extra: {actual - expected}"
+        )
 
     def test_cannot_instantiate(self):
         with pytest.raises(TypeError):
@@ -290,7 +445,8 @@ class TestNetworkManagerContract:
         transport = RecordingTransport("docker")
         caps = RuntimeCapabilities()
         from oci_runtime.adapters.parser.docker import DockerNetworkParser
-        mgr = CliNetworkManager(transport, DockerNetworkParser(), caps)
+
+        mgr = _network_mgr(transport, DockerNetworkParser(), caps)
         assert isinstance(mgr, NetworkManager)
         assert callable(mgr.create)
         assert callable(mgr.remove)
@@ -319,7 +475,14 @@ class TestParserContract:
         assert issubclass(ImageParser, ABC)
 
     def test_image_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_build_output", "parse_digest_from_pull", "parse_prune", "is_not_found_error"}
+        expected = {
+            "parse_inspect",
+            "parse_list",
+            "parse_build_output",
+            "parse_digest_from_pull",
+            "parse_prune",
+            "is_not_found_error",
+        }
         actual = set(ImageParser.__abstractmethods__)
         assert actual == expected
 
@@ -346,8 +509,16 @@ class TestParserContract:
             DockerNetworkParser,
             DockerVolumeParser,
         )
-        for cls in [DockerContainerParser, DockerImageParser, DockerNetworkParser, DockerVolumeParser]:
-            assert len(cls.__abstractmethods__) == 0, f"{cls.__name__} still has abstract methods: {cls.__abstractmethods__}"
+
+        for cls in [
+            DockerContainerParser,
+            DockerImageParser,
+            DockerNetworkParser,
+            DockerVolumeParser,
+        ]:
+            assert len(cls.__abstractmethods__) == 0, (
+                f"{cls.__name__} still has abstract methods: {cls.__abstractmethods__}"
+            )
 
     def test_podman_parsers_implement_all(self):
         from oci_runtime.adapters.parser.podman import (
@@ -356,8 +527,16 @@ class TestParserContract:
             PodmanNetworkParser,
             PodmanVolumeParser,
         )
-        for cls in [PodmanContainerParser, PodmanImageParser, PodmanNetworkParser, PodmanVolumeParser]:
-            assert len(cls.__abstractmethods__) == 0, f"{cls.__name__} still has abstract methods: {cls.__abstractmethods__}"
+
+        for cls in [
+            PodmanContainerParser,
+            PodmanImageParser,
+            PodmanNetworkParser,
+            PodmanVolumeParser,
+        ]:
+            assert len(cls.__abstractmethods__) == 0, (
+                f"{cls.__name__} still has abstract methods: {cls.__abstractmethods__}"
+            )
 
 
 class TestExceptionHierarchyContract:
@@ -437,12 +616,15 @@ class TestExceptionHierarchyContract:
 class TestFactoryContract:
     def test_factory_create_returns_container_engine(self):
         from unittest.mock import patch
+
         with patch("shutil.which", return_value="/usr/bin/docker"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = b"Docker version 24.0.0"
                 mock_run.return_value.stderr = b""
-                engine = RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
+                engine = RuntimeFactory().create(
+                    RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker")
+                )
                 assert isinstance(engine, ContainerEngine)
 
     def test_factory_available_returns_list(self):
@@ -465,15 +647,32 @@ class TestFactoryContract:
         assert cfg.streaming_transport_factory is None
         assert cfg.runtime_cls is None
         assert cfg.discovery_factory is None
+        assert cfg.tty_detector_factory is None
+        assert cfg.output_stream_factory is None
+        assert cfg.cancellation_factory is None
+        assert cfg.binary_resolver_factory is None
+        assert cfg.pty_transport_factory is None
+        assert cfg.result_checker_factory is None
+        assert cfg.list_executor_factory is None
+        assert cfg.container_manager_cls is None
+        assert cfg.image_manager_cls is None
+        assert cfg.volume_manager_cls is None
+        assert cfg.network_manager_cls is None
 
     def test_parsers_is_frozen_dataclass(self):
         assert is_dataclass(Parsers)
-        from oci_runtime.adapters.parser.docker import DockerContainerParser
+        from oci_runtime.adapters.parser.docker import (
+            DockerContainerParser,
+            DockerImageParser,
+            DockerVolumeParser,
+            DockerNetworkParser,
+        )
+
         parsers = Parsers(
             container_parser=DockerContainerParser(),
-            image_parser=DockerContainerParser(),
-            volume_parser=DockerContainerParser(),
-            network_parser=DockerContainerParser(),
+            image_parser=DockerImageParser(),
+            volume_parser=DockerVolumeParser(),
+            network_parser=DockerNetworkParser(),
         )
         with pytest.raises(FrozenInstanceError):
             parsers.container_parser = None

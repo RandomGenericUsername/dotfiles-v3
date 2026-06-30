@@ -1,11 +1,24 @@
 import pytest
 
 from oci_runtime.adapters.engine.cli import CliRuntime
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
 from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.managers.image import CliImageManager
 from oci_runtime.adapters.managers.network import CliNetworkManager
 from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.enums import RuntimeKind
+from oci_runtime.domain.exceptions import (
+    ContainerNotFoundError,
+    ContainerRuntimeError,
+    ImageNotFoundError,
+    ImagePullAccessDeniedError,
+    ImageRuntimeError,
+    NetworkNotFoundError,
+    NetworkRuntimeError,
+    VolumeNotFoundError,
+    VolumeRuntimeError,
+)
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from tests.helpers.mock_parsers import (
@@ -15,7 +28,12 @@ from tests.helpers.mock_parsers import (
     MockVolumeParser,
 )
 from oci_runtime.adapters._cancellation import ThreadCancellationToken
-from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
+from tests.helpers.mock_transport import (
+    FakeTtyDetector,
+    MockPtyTransport,
+    RecordingStreamingTransport,
+    RecordingTransport,
+)
 
 
 @pytest.fixture
@@ -34,11 +52,39 @@ def docker_caps(docker_pref):
 
 @pytest.fixture
 def docker_parsers():
+    cp = MockContainerParser()
+    ip = MockImageParser()
+    vp = MockVolumeParser()
+    np = MockNetworkParser()
     return (
-        MockContainerParser(),
-        MockImageParser(),
-        MockVolumeParser(),
-        MockNetworkParser(),
+        cp,
+        ip,
+        vp,
+        np,
+        {
+            "container": CliResultChecker(
+                generic_error=ContainerRuntimeError,
+                not_found_error=ContainerNotFoundError,
+                is_not_found=cp.is_not_found_error,
+            ),
+            "image": CliResultChecker(
+                generic_error=ImageRuntimeError,
+                not_found_error=ImageNotFoundError,
+                is_not_found=ip.is_not_found_error,
+                auth_error=ImagePullAccessDeniedError,
+                is_auth=ip.is_auth_error,
+            ),
+            "volume": CliResultChecker(
+                generic_error=VolumeRuntimeError,
+                not_found_error=VolumeNotFoundError,
+                is_not_found=vp.is_not_found_error,
+            ),
+            "network": CliResultChecker(
+                generic_error=NetworkRuntimeError,
+                not_found_error=NetworkNotFoundError,
+                is_not_found=np.is_not_found_error,
+            ),
+        },
     )
 
 
@@ -54,13 +100,60 @@ def empty_streaming():
 
 @pytest.fixture
 def docker_engine(empty_transport, empty_streaming, docker_caps, docker_parsers):
-    cp, ip, vp, np = docker_parsers
+    cp, ip, vp, np, checkers = docker_parsers
     return CliRuntime(
         transport=empty_transport,
-        image_manager=CliImageManager(empty_transport, ip, docker_caps),
-        container_manager=CliContainerManager(empty_transport, cp, docker_caps, streaming=empty_streaming, tty_detector=FakeTtyDetector(),
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken()),
-        volume_manager=CliVolumeManager(empty_transport, vp, docker_caps),
-        network_manager=CliNetworkManager(empty_transport, np, docker_caps),
+        image_manager=CliImageManager(
+            empty_transport,
+            ip,
+            docker_caps,
+            result_checker=checkers["image"],
+            list_executor=CliListExecutor(
+                empty_transport,
+                docker_caps,
+                checkers["image"],
+                parse_list=ip.parse_list,
+            ),
+        ),
+        container_manager=CliContainerManager(
+            empty_transport,
+            cp,
+            docker_caps,
+            streaming=empty_streaming,
+            tty_detector=FakeTtyDetector(),
+            pty_transport=MockPtyTransport(),
+            cancellation_factory=lambda: ThreadCancellationToken(),
+            result_checker=checkers["container"],
+            list_executor=CliListExecutor(
+                empty_transport,
+                docker_caps,
+                checkers["container"],
+                parse_list=cp.parse_list,
+            ),
+        ),
+        volume_manager=CliVolumeManager(
+            empty_transport,
+            vp,
+            docker_caps,
+            result_checker=checkers["volume"],
+            list_executor=CliListExecutor(
+                empty_transport,
+                docker_caps,
+                checkers["volume"],
+                parse_list=vp.parse_list,
+            ),
+        ),
+        network_manager=CliNetworkManager(
+            empty_transport,
+            np,
+            docker_caps,
+            result_checker=checkers["network"],
+            list_executor=CliListExecutor(
+                empty_transport,
+                docker_caps,
+                checkers["network"],
+                parse_list=np.parse_list,
+            ),
+        ),
         caps=docker_caps,
     )

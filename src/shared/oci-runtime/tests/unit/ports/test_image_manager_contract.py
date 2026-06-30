@@ -8,13 +8,25 @@ from oci_runtime.ports.parsers import ImageParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockImageParser
-from tests.helpers.mock_transport import RecordingTransport
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.domain.exceptions import (
+    ImageNotFoundError,
+    ImagePullAccessDeniedError,
+    ImageRuntimeError,
+)
+from tests.helpers.mock_transport import (
+    RecordingTransport,
+    MockResultChecker,
+    MockListExecutor,
+)
 
 
 class ImageManagerContractTest(ABC):
     @abstractmethod
-    def make_manager(self, transport: Transport, parser: ImageParser, caps: RuntimeCapabilities) -> ImageManager:
-        ...
+    def make_manager(
+        self, transport: Transport, parser: ImageParser, caps: RuntimeCapabilities
+    ) -> ImageManager: ...
 
     def _defaults(self):
         t = RecordingTransport("docker")
@@ -22,10 +34,13 @@ class ImageManagerContractTest(ABC):
         return self.make_manager(t, MockImageParser(), caps), t
 
     def _failing(self, stderr="No such image: nonexistent"):
-        cmd = ('docker', 'image', 'inspect', '--format', 'json', 'nonexistent')
-        t = RecordingTransport("docker", responses={
-            cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
-        })
+        cmd = ("docker", "image", "inspect", "--format", "json", "nonexistent")
+        t = RecordingTransport(
+            "docker",
+            responses={
+                cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
+            },
+        )
         return self.make_manager(t, MockImageParser(), RuntimeCapabilities()), t
 
     def test_base_is_abstract(self):
@@ -37,7 +52,9 @@ class ImageManagerContractTest(ABC):
 
     def test_build_returns_str(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "build", "-t", "myimg", "--quiet", "-")] = RawExecResult(0, b"sha256:abc\n", b"")
+        t._responses[("docker", "build", "-t", "myimg", "--quiet", "-")] = (
+            RawExecResult(0, b"sha256:abc\n", b"")
+        )
         result = mgr.build(BuildContext(build_file_content="FROM alpine"), "myimg")
         assert isinstance(result, str)
 
@@ -55,7 +72,9 @@ class ImageManagerContractTest(ABC):
 
     def test_pull_returns_str(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "pull", "alpine")] = RawExecResult(0, b"sha256:abc\n", b"")
+        t._responses[("docker", "pull", "alpine")] = RawExecResult(
+            0, b"sha256:abc\n", b""
+        )
         result = mgr.pull("alpine")
         assert isinstance(result, str)
 
@@ -67,13 +86,17 @@ class ImageManagerContractTest(ABC):
 
     def test_exists_returns_bool(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "image", "inspect", "--format", "json", "alpine")] = RawExecResult(0, b"dummy", b"")
+        t._responses[("docker", "image", "inspect", "--format", "json", "alpine")] = (
+            RawExecResult(0, b"dummy", b"")
+        )
         result = mgr.exists("alpine")
         assert isinstance(result, bool)
 
     def test_inspect_returns_image_info(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "image", "inspect", "--format", "json", "alpine")] = RawExecResult(0, b"dummy", b"")
+        t._responses[("docker", "image", "inspect", "--format", "json", "alpine")] = (
+            RawExecResult(0, b"dummy", b"")
+        )
         result = mgr.inspect("alpine")
         assert isinstance(result, ImageInfo)
 
@@ -85,7 +108,9 @@ class ImageManagerContractTest(ABC):
 
     def test_prune_returns_prune_result(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "image", "prune", "--force")] = RawExecResult(0, b"", b"")
+        t._responses[("docker", "image", "prune", "--force")] = RawExecResult(
+            0, b"", b""
+        )
         result = mgr.prune()
         assert isinstance(result, PruneResult)
 
@@ -99,7 +124,9 @@ class ImageManagerContractTest(ABC):
 
     def test_build_delegates_to_transport(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "build", "-t", "myimg", "--quiet", "-")] = RawExecResult(0, b"sha256:abc\n", b"")
+        t._responses[("docker", "build", "-t", "myimg", "--quiet", "-")] = (
+            RawExecResult(0, b"sha256:abc\n", b"")
+        )
         mgr.build(BuildContext(build_file_content="FROM alpine"), "myimg")
         assert len(t.calls) > 0
 
@@ -107,4 +134,20 @@ class ImageManagerContractTest(ABC):
 class TestCliImageManagerContract(ImageManagerContractTest):
     def make_manager(self, transport, parser, caps) -> ImageManager:
         from oci_runtime.adapters.managers.image import CliImageManager
-        return CliImageManager(transport, parser, caps)
+
+        chk = CliResultChecker(
+            generic_error=ImageRuntimeError,
+            not_found_error=ImageNotFoundError,
+            is_not_found=parser.is_not_found_error,
+            auth_error=ImagePullAccessDeniedError,
+            is_auth=parser.is_auth_error,
+        )
+        return CliImageManager(
+            transport,
+            parser,
+            caps,
+            result_checker=chk,
+            list_executor=CliListExecutor(
+                transport, caps, chk, parse_list=parser.parse_list
+            ),
+        )

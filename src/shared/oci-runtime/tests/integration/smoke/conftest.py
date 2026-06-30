@@ -32,7 +32,10 @@ def live_docker_engine(docker_available):
     from oci_runtime.domain.enums import RuntimeKind
     from oci_runtime.factory import RuntimeFactory
     from oci_runtime.domain.types import RuntimePreference
-    return RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
+
+    return RuntimeFactory().create(
+        RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker")
+    )
 
 
 @pytest.fixture(scope="session")
@@ -42,4 +45,7 @@ def live_podman_engine(podman_available):
     from oci_runtime.domain.enums import RuntimeKind
     from oci_runtime.factory import RuntimeFactory
     from oci_runtime.domain.types import RuntimePreference
-    return RuntimeFactory().create(RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman"))
+
+    return RuntimeFactory().create(
+        RuntimePreference(kind=RuntimeKind.PODMAN, binary="podman")
+    )

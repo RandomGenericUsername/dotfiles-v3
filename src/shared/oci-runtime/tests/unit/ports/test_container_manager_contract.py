@@ -2,37 +2,81 @@ from abc import ABC, abstractmethod
 from typing import Iterator
 
 from oci_runtime.domain.exceptions import ContainerNotFoundError
-from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RawExecResult, RunConfig
+from oci_runtime.domain.types import (
+    ContainerInfo,
+    ExecResult,
+    PruneResult,
+    RawExecResult,
+    RunConfig,
+)
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockContainerParser
 from oci_runtime.adapters._cancellation import ThreadCancellationToken
-from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport, RecordingStreamingTransport, RecordingTransport
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.domain.exceptions import ContainerNotFoundError, ContainerRuntimeError
+from tests.helpers.mock_transport import (
+    FakeTtyDetector,
+    MockPtyTransport,
+    MockResultChecker,
+    MockListExecutor,
+    RecordingStreamingTransport,
+    RecordingTransport,
+)
 
 
 class ContainerManagerContractTest(ABC):
     @abstractmethod
-    def make_manager(self, transport: Transport, parser: ContainerParser, caps: RuntimeCapabilities, *, streaming, tty_detector) -> ContainerManager:
-        ...
+    def make_manager(
+        self,
+        transport: Transport,
+        parser: ContainerParser,
+        caps: RuntimeCapabilities,
+        *,
+        streaming,
+        tty_detector,
+    ) -> ContainerManager: ...
 
     def _defaults(self):
         t = RecordingTransport("docker")
         st = RecordingStreamingTransport("docker")
         caps = RuntimeCapabilities()
-        return self.make_manager(t, MockContainerParser(), caps, streaming=st, tty_detector=FakeTtyDetector()), t, st
+        return (
+            self.make_manager(
+                t,
+                MockContainerParser(),
+                caps,
+                streaming=st,
+                tty_detector=FakeTtyDetector(),
+            ),
+            t,
+            st,
+        )
 
     def _failing(self, stderr="No such container: nonexistent"):
         cmd = ("docker", "container", "inspect", "--format", "json", "nonexistent")
-        t = RecordingTransport("docker", responses={
-            cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
-        })
+        t = RecordingTransport(
+            "docker",
+            responses={
+                cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
+            },
+        )
         st = RecordingStreamingTransport("docker")
-        return self.make_manager(t, MockContainerParser(), RuntimeCapabilities(), streaming=st, tty_detector=FakeTtyDetector()), t
+        return self.make_manager(
+            t,
+            MockContainerParser(),
+            RuntimeCapabilities(),
+            streaming=st,
+            tty_detector=FakeTtyDetector(),
+        ), t
 
     def test_base_is_abstract(self):
-        with_impl = [m for m in dir(ContainerManagerContractTest) if not m.startswith("_")]
+        with_impl = [
+            m for m in dir(ContainerManagerContractTest) if not m.startswith("_")
+        ]
         assert "make_manager" in with_impl
         assert ContainerManagerContractTest.make_manager.__isabstractmethod__
 
@@ -60,7 +104,9 @@ class ContainerManagerContractTest(ABC):
 
     def test_restart_returns_none(self):
         mgr, t, st = self._defaults()
-        t._responses[("docker", "restart", "-t", "10", "c1")] = RawExecResult(0, b"", b"")
+        t._responses[("docker", "restart", "-t", "10", "c1")] = RawExecResult(
+            0, b"", b""
+        )
         result = mgr.restart("c1")
         assert result is None
 
@@ -72,13 +118,17 @@ class ContainerManagerContractTest(ABC):
 
     def test_exists_returns_bool(self):
         mgr, t, st = self._defaults()
-        t._responses[("docker", "container", "inspect", "--format", "json", "c1")] = RawExecResult(0, b'{"Id":"abc"}', b"")
+        t._responses[("docker", "container", "inspect", "--format", "json", "c1")] = (
+            RawExecResult(0, b'{"Id":"abc"}', b"")
+        )
         result = mgr.exists("c1")
         assert isinstance(result, bool)
 
     def test_inspect_returns_container_info(self):
         mgr, t, st = self._defaults()
-        t._responses[("docker", "container", "inspect", "--format", "json", "c1")] = RawExecResult(0, b"dummy", b"")
+        t._responses[("docker", "container", "inspect", "--format", "json", "c1")] = (
+            RawExecResult(0, b"dummy", b"")
+        )
         result = mgr.inspect("c1")
         assert isinstance(result, ContainerInfo)
 
@@ -105,7 +155,9 @@ class ContainerManagerContractTest(ABC):
 
     def test_prune_returns_prune_result(self):
         mgr, t, st = self._defaults()
-        t._responses[("docker", "container", "prune", "--force")] = RawExecResult(0, b"", b"")
+        t._responses[("docker", "container", "prune", "--force")] = RawExecResult(
+            0, b"", b""
+        )
         result = mgr.prune()
         assert isinstance(result, PruneResult)
 
@@ -125,7 +177,26 @@ class ContainerManagerContractTest(ABC):
 
 
 class TestCliContainerManagerContract(ContainerManagerContractTest):
-    def make_manager(self, transport, parser, caps, *, streaming, tty_detector) -> ContainerManager:
+    def make_manager(
+        self, transport, parser, caps, *, streaming, tty_detector
+    ) -> ContainerManager:
         from oci_runtime.adapters.managers.container import CliContainerManager
-        return CliContainerManager(transport, parser, caps, streaming=streaming, tty_detector=tty_detector,
-            pty_transport=MockPtyTransport(), cancellation_factory=lambda: ThreadCancellationToken())
+
+        chk = CliResultChecker(
+            generic_error=ContainerRuntimeError,
+            not_found_error=ContainerNotFoundError,
+            is_not_found=parser.is_not_found_error,
+        )
+        return CliContainerManager(
+            transport,
+            parser,
+            caps,
+            streaming=streaming,
+            tty_detector=tty_detector,
+            pty_transport=MockPtyTransport(),
+            cancellation_factory=lambda: ThreadCancellationToken(),
+            result_checker=chk,
+            list_executor=CliListExecutor(
+                transport, caps, chk, parse_list=parser.parse_list
+            ),
+        )

@@ -108,7 +108,9 @@ def _check_file(file_path: Path) -> list[str]:
 class TestHexagonalLayering:
     """Mechanical guard: no layer may import from a layer above it."""
 
-    @pytest.mark.parametrize("file_path", _all_source_files(), ids=lambda p: str(p.relative_to(_SRC_ROOT)))
+    @pytest.mark.parametrize(
+        "file_path", _all_source_files(), ids=lambda p: str(p.relative_to(_SRC_ROOT))
+    )
     def test_no_layering_violations(self, file_path: Path):
         violations = _check_file(file_path)
         assert not violations, "\n".join(violations)

@@ -23,6 +23,7 @@ class _Parser(ImageParser):
     def parse_digest_from_pull(self, raw: str) -> str: ...
     def parse_prune(self, raw: str) -> PruneResult:
         return PruneResult()
+
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such image" in stderr
 
@@ -63,8 +64,11 @@ def _make_transport() -> Transport:
     class T(Transport):
         def execute(self, command, *, timeout=None, input_data=None):
             return RawExecResult(returncode=0, stdout=b"", stderr=b"")
+
         def get_runtime_binary(self) -> str:
             return "docker"
+
         def probe(self) -> bool:
             return True
+
     return T()

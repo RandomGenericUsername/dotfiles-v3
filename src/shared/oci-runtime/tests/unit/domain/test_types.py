@@ -4,7 +4,12 @@ from types import MappingProxyType
 
 import pytest
 
-from oci_runtime.domain.enums import ContainerState, NetworkMode, RestartPolicy, VolumeMountType
+from oci_runtime.domain.enums import (
+    ContainerState,
+    NetworkMode,
+    RestartPolicy,
+    VolumeMountType,
+)
 from oci_runtime.domain.types import (
     BuildContext,
     ContainerInfo,
@@ -20,7 +25,6 @@ from oci_runtime.domain.types import (
 
 
 class TestVolumeMount:
-
     def test_required_fields(self):
         fs = {f.name: f for f in fields(VolumeMount)}
         assert fs["source"].type == str | Path | None
@@ -33,7 +37,9 @@ class TestVolumeMount:
         assert vm.read_only is False
 
     def test_read_only_true(self):
-        vm = VolumeMount(source="/src", target="/dst", type=VolumeMountType.BIND, read_only=True)
+        vm = VolumeMount(
+            source="/src", target="/dst", type=VolumeMountType.BIND, read_only=True
+        )
         assert vm.read_only is True
 
     def test_type_defaults_to_bind(self):
@@ -41,7 +47,9 @@ class TestVolumeMount:
         assert vm.type == VolumeMountType.BIND
 
     def test_source_and_target_accept_path(self):
-        vm = VolumeMount(source=Path("/src"), target=Path("/dst"), type=VolumeMountType.VOLUME)
+        vm = VolumeMount(
+            source=Path("/src"), target=Path("/dst"), type=VolumeMountType.VOLUME
+        )
         assert isinstance(vm.source, Path)
         assert isinstance(vm.target, Path)
 
@@ -61,7 +69,6 @@ class TestVolumeMount:
 
 
 class TestPortMapping:
-
     def test_required_fields(self):
         fs = {f.name: f for f in fields(PortMapping)}
         assert fs["container_port"].type is int
@@ -73,7 +80,9 @@ class TestPortMapping:
         assert pm.host_ip is None
 
     def test_all_fields(self):
-        pm = PortMapping(container_port=443, host_port=8443, protocol="udp", host_ip="0.0.0.0")
+        pm = PortMapping(
+            container_port=443, host_port=8443, protocol="udp", host_ip="0.0.0.0"
+        )
         assert pm.container_port == 443
         assert pm.host_port == 8443
         assert pm.protocol == "udp"
@@ -89,7 +98,6 @@ class TestPortMapping:
 
 
 class TestBuildContext:
-
     def test_defaults(self):
         ctx = BuildContext(build_file_content="FROM alpine")
         assert ctx.build_file_content == "FROM alpine"
@@ -169,7 +177,9 @@ class TestBuildContext:
 
     def test_both_set_raises_value_error(self):
         with pytest.raises(ValueError, match="BuildContext"):
-            BuildContext(build_file_content="FROM alpine", build_file_path=Path("/Dockerfile"))
+            BuildContext(
+                build_file_content="FROM alpine", build_file_path=Path("/Dockerfile")
+            )
 
     def test_neither_set_raises_value_error(self):
         with pytest.raises(ValueError, match="BuildContext"):
@@ -177,12 +187,16 @@ class TestBuildContext:
 
     def test_build_context_forbids_path_and_files(self):
         from pathlib import Path
+
         with pytest.raises(ValueError, match="context_path"):
-            BuildContext(build_file_content="FROM alpine", context_path=Path("/x"), files={"a": b"x"})
+            BuildContext(
+                build_file_content="FROM alpine",
+                context_path=Path("/x"),
+                files={"a": b"x"},
+            )
 
 
 class TestRunConfig:
-
     def test_required_fields(self):
         fs = {f.name: f for f in fields(RunConfig)}
         assert fs["image"].type is str
@@ -259,7 +273,9 @@ class TestRunConfig:
             command=["echo", "hello"],
             entrypoint="/bin/sh",
             environment={"ENV": "prod"},
-            volumes=[VolumeMount(source="/src", target="/dst", type=VolumeMountType.BIND)],
+            volumes=[
+                VolumeMount(source="/src", target="/dst", type=VolumeMountType.BIND)
+            ],
             ports=[PortMapping(container_port=80, host_ip=None)],
             network=NetworkMode.HOST,
             network_container="nginx",
@@ -309,20 +325,28 @@ class TestRunConfig:
         assert config.runtime_flags == ("--cap-drop=ALL",)
 
     def test_network_container_valid_combination(self):
-        config = RunConfig(image="alpine", network=NetworkMode.CONTAINER, network_container="nginx")
+        config = RunConfig(
+            image="alpine", network=NetworkMode.CONTAINER, network_container="nginx"
+        )
         assert config.network == NetworkMode.CONTAINER
         assert config.network_container == "nginx"
 
     def test_network_container_without_name(self):
-        with pytest.raises(ValueError, match="network=CONTAINER requires network_container"):
+        with pytest.raises(
+            ValueError, match="network=CONTAINER requires network_container"
+        ):
             RunConfig(image="alpine", network=NetworkMode.CONTAINER)
 
     def test_runconfig_network_container_requires_arg(self):
-        with pytest.raises(ValueError, match="network=CONTAINER requires network_container"):
+        with pytest.raises(
+            ValueError, match="network=CONTAINER requires network_container"
+        ):
             RunConfig(image="alpine", network=NetworkMode.CONTAINER)
 
     def test_runconfig_detach_tty_mutually_exclusive(self):
-        with pytest.raises(ValueError, match="detach=True is mutually exclusive with tty/auto_tty"):
+        with pytest.raises(
+            ValueError, match="detach=True is mutually exclusive with tty/auto_tty"
+        ):
             RunConfig(image="alpine", detach=True, tty=True)
 
     def test_runconfig_invalid_memory_limit_raises(self):
@@ -355,7 +379,6 @@ class TestRunConfig:
 
 
 class TestImageInfo:
-
     def test_required_fields(self):
         info = ImageInfo(id="sha256:abc123")
         assert info.id == "sha256:abc123"
@@ -383,13 +406,18 @@ class TestImageInfo:
 
 
 class TestContainerInfo:
-
     def test_state_is_typed_as_container_state(self):
         fs = {f.name: f for f in fields(ContainerInfo)}
         assert fs["state"].type is ContainerState
 
     def test_required_fields(self):
-        info = ContainerInfo(id="abc123", name="my-container", image="alpine", state="running", status="Up 2h")
+        info = ContainerInfo(
+            id="abc123",
+            name="my-container",
+            image="alpine",
+            state="running",
+            status="Up 2h",
+        )
         assert info.id == "abc123"
         assert info.name == "my-container"
         assert info.image == "alpine"
@@ -397,7 +425,9 @@ class TestContainerInfo:
         assert info.status == "Up 2h"
 
     def test_defaults(self):
-        info = ContainerInfo(id="abc", name="c1", image="alpine", state="running", status="Up 2h")
+        info = ContainerInfo(
+            id="abc", name="c1", image="alpine", state="running", status="Up 2h"
+        )
         assert info.created is None
         assert info.ports == ()
         assert info.labels == {}
@@ -427,7 +457,6 @@ class TestContainerInfo:
 
 
 class TestVolumeInfo:
-
     def test_required_fields(self):
         info = VolumeInfo(name="my-vol", driver="local")
         assert info.name == "my-vol"
@@ -439,7 +468,12 @@ class TestVolumeInfo:
         assert info.labels == {}
 
     def test_all_fields(self):
-        info = VolumeInfo(name="my-vol", driver="local", mountpoint="/mnt/data", labels={"app": "test"})
+        info = VolumeInfo(
+            name="my-vol",
+            driver="local",
+            mountpoint="/mnt/data",
+            labels={"app": "test"},
+        )
         assert info.name == "my-vol"
         assert info.driver == "local"
         assert info.mountpoint == "/mnt/data"
@@ -447,7 +481,6 @@ class TestVolumeInfo:
 
 
 class TestNetworkInfo:
-
     def test_required_fields(self):
         info = NetworkInfo(id="net1", name="bridge", driver="bridge", scope="local")
         assert info.id == "net1"
@@ -460,7 +493,9 @@ class TestNetworkInfo:
         assert info.labels == {}
 
     def test_all_fields(self):
-        info = NetworkInfo(id="net1", name="host", driver="host", scope="local", labels={"app": "test"})
+        info = NetworkInfo(
+            id="net1", name="host", driver="host", scope="local", labels={"app": "test"}
+        )
         assert info.id == "net1"
         assert info.name == "host"
         assert info.driver == "host"
@@ -481,20 +516,51 @@ class TestFrozenValueObjects:
         "cls,kwargs,field_to_mutate,new_value",
         [
             (VolumeMount, {"source": "/s", "target": "/t"}, "source", "/x"),
-            (PortMapping, {"container_port": 80, "host_ip": None}, "container_port", 81),
-            (BuildContext, {"build_file_content": "FROM alpine"}, "build_file_content", "x"),
+            (
+                PortMapping,
+                {"container_port": 80, "host_ip": None},
+                "container_port",
+                81,
+            ),
+            (
+                BuildContext,
+                {"build_file_content": "FROM alpine"},
+                "build_file_content",
+                "x",
+            ),
             (RunConfig, {"image": "alpine"}, "image", "other"),
             (ImageInfo, {"id": "sha256:abc"}, "id", "sha256:zzz"),
             (
                 ContainerInfo,
-                {"id": "c", "name": "n", "image": "i", "state": ContainerState.RUNNING, "status": "up"},
+                {
+                    "id": "c",
+                    "name": "n",
+                    "image": "i",
+                    "state": ContainerState.RUNNING,
+                    "status": "up",
+                },
                 "id",
                 "zzz",
             ),
             (VolumeInfo, {"name": "v", "driver": "local"}, "name", "v2"),
-            (ExecResult, {"returncode": 0, "stdout": "", "stderr": ""}, "returncode", 1),
-            (RawExecResult, {"returncode": 0, "stdout": b"", "stderr": b""}, "returncode", 1),
-            (NetworkInfo, {"id": "n", "name": "n", "driver": "d", "scope": "s"}, "id", "n2"),
+            (
+                ExecResult,
+                {"returncode": 0, "stdout": "", "stderr": ""},
+                "returncode",
+                1,
+            ),
+            (
+                RawExecResult,
+                {"returncode": 0, "stdout": b"", "stderr": b""},
+                "returncode",
+                1,
+            ),
+            (
+                NetworkInfo,
+                {"id": "n", "name": "n", "driver": "d", "scope": "s"},
+                "id",
+                "n2",
+            ),
         ],
         ids=[
             "VolumeMount",
@@ -535,7 +601,9 @@ class TestDeepImmutability:
             ctx.labels["new"] = "x"
 
     def test_run_config_mapping_fields_are_mappingproxy(self):
-        config = RunConfig(image="alpine", environment={"ENV": "prod"}, labels={"app": "test"})
+        config = RunConfig(
+            image="alpine", environment={"ENV": "prod"}, labels={"app": "test"}
+        )
         assert isinstance(config.environment, MappingProxyType)
         assert isinstance(config.labels, MappingProxyType)
 
@@ -568,7 +636,11 @@ class TestDeepImmutability:
 
     def test_container_info_fields_are_immutable_containers(self):
         info = ContainerInfo(
-            id="c1", name="n", image="i", state=ContainerState.RUNNING, status="up",
+            id="c1",
+            name="n",
+            image="i",
+            state=ContainerState.RUNNING,
+            status="up",
             ports=[PortMapping(container_port=80, host_ip=None)],
             labels={"app": "test"},
         )
@@ -586,7 +658,9 @@ class TestDeepImmutability:
             info.labels["new"] = "x"
 
     def test_network_info_labels_are_mappingproxy(self):
-        info = NetworkInfo(id="n", name="n", driver="d", scope="s", labels={"app": "test"})
+        info = NetworkInfo(
+            id="n", name="n", driver="d", scope="s", labels={"app": "test"}
+        )
         assert isinstance(info.labels, MappingProxyType)
         with pytest.raises(TypeError):
             info.labels["new"] = "x"

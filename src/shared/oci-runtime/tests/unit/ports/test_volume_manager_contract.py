@@ -8,13 +8,21 @@ from oci_runtime.ports.parsers import VolumeParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 from tests.helpers.mock_parsers import MockVolumeParser
-from tests.helpers.mock_transport import RecordingTransport
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.domain.exceptions import VolumeNotFoundError, VolumeRuntimeError
+from tests.helpers.mock_transport import (
+    RecordingTransport,
+    MockResultChecker,
+    MockListExecutor,
+)
 
 
 class VolumeManagerContractTest(ABC):
     @abstractmethod
-    def make_manager(self, transport: Transport, parser: VolumeParser, caps: RuntimeCapabilities) -> VolumeManager:
-        ...
+    def make_manager(
+        self, transport: Transport, parser: VolumeParser, caps: RuntimeCapabilities
+    ) -> VolumeManager: ...
 
     def _defaults(self):
         t = RecordingTransport("docker")
@@ -22,10 +30,13 @@ class VolumeManagerContractTest(ABC):
         return self.make_manager(t, MockVolumeParser(), caps), t
 
     def _failing(self, stderr="No such volume: nonexistent"):
-        cmd = ('docker', 'volume', 'inspect', '--format', 'json', 'nonexistent')
-        t = RecordingTransport("docker", responses={
-            cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
-        })
+        cmd = ("docker", "volume", "inspect", "--format", "json", "nonexistent")
+        t = RecordingTransport(
+            "docker",
+            responses={
+                cmd: RawExecResult(returncode=1, stdout=b"", stderr=stderr.encode()),
+            },
+        )
         return self.make_manager(t, MockVolumeParser(), RuntimeCapabilities()), t
 
     def test_base_is_abstract(self):
@@ -33,7 +44,9 @@ class VolumeManagerContractTest(ABC):
 
     def test_create_returns_str(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "volume", "create", "--driver", "local", "myvol")] = RawExecResult(0, b"myvol\n", b"")
+        t._responses[("docker", "volume", "create", "--driver", "local", "myvol")] = (
+            RawExecResult(0, b"myvol\n", b"")
+        )
         result = mgr.create("myvol")
         assert isinstance(result, str)
 
@@ -45,13 +58,17 @@ class VolumeManagerContractTest(ABC):
 
     def test_exists_returns_bool(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "volume", "inspect", "--format", "json", "myvol")] = RawExecResult(0, b'dummy', b"")
+        t._responses[("docker", "volume", "inspect", "--format", "json", "myvol")] = (
+            RawExecResult(0, b"dummy", b"")
+        )
         result = mgr.exists("myvol")
         assert isinstance(result, bool)
 
     def test_inspect_returns_volume_info(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "volume", "inspect", "--format", "json", "myvol")] = RawExecResult(0, b"dummy", b"")
+        t._responses[("docker", "volume", "inspect", "--format", "json", "myvol")] = (
+            RawExecResult(0, b"dummy", b"")
+        )
         result = mgr.inspect("myvol")
         assert isinstance(result, VolumeInfo)
 
@@ -63,7 +80,9 @@ class VolumeManagerContractTest(ABC):
 
     def test_prune_returns_prune_result(self):
         mgr, t = self._defaults()
-        t._responses[("docker", "volume", "prune", "--force")] = RawExecResult(0, b"", b"")
+        t._responses[("docker", "volume", "prune", "--force")] = RawExecResult(
+            0, b"", b""
+        )
         result = mgr.prune()
         assert isinstance(result, PruneResult)
 
@@ -79,4 +98,18 @@ class VolumeManagerContractTest(ABC):
 class TestCliVolumeManagerContract(VolumeManagerContractTest):
     def make_manager(self, transport, parser, caps) -> VolumeManager:
         from oci_runtime.adapters.managers.volume import CliVolumeManager
-        return CliVolumeManager(transport, parser, caps)
+
+        chk = CliResultChecker(
+            generic_error=VolumeRuntimeError,
+            not_found_error=VolumeNotFoundError,
+            is_not_found=parser.is_not_found_error,
+        )
+        return CliVolumeManager(
+            transport,
+            parser,
+            caps,
+            result_checker=chk,
+            list_executor=CliListExecutor(
+                transport, caps, chk, parse_list=parser.parse_list
+            ),
+        )

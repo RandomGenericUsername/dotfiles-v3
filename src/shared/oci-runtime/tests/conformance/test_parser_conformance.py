@@ -61,7 +61,9 @@ _PARSERS = {
 def _fixture(runtime: str, name: str) -> str:
     p = _FIXTURES / runtime / name
     if not p.exists():
-        pytest.skip(f"fixture {runtime}/{name} not captured (run make capture-fixtures)")
+        pytest.skip(
+            f"fixture {runtime}/{name} not captured (run make capture-fixtures)"
+        )
     return p.read_text(encoding="utf-8")
 
 
@@ -71,6 +73,7 @@ def _has_fixture(runtime: str, name: str) -> bool:
 
 # ─── Image inspect ───
 
+
 class TestImageInspectConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
     def test_parse_inspect_produces_valid_image_info(self, runtime):
@@ -78,7 +81,9 @@ class TestImageInspectConformance:
         info = _PARSERS[runtime]["image"].parse_inspect(raw)
         assert isinstance(info, ImageInfo)
         assert info.id, "id must be non-empty"
-        assert isinstance(info.size, int), f"size must be int, got {type(info.size).__name__}"
+        assert isinstance(info.size, int), (
+            f"size must be int, got {type(info.size).__name__}"
+        )
         assert info.size >= 0
 
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
@@ -86,10 +91,13 @@ class TestImageInspectConformance:
         raw = _fixture(runtime, "image_inspect_alpine.json")
         info = _PARSERS[runtime]["image"].parse_inspect(raw)
         assert isinstance(info.tags, tuple)
-        assert any("alpine" in t for t in info.tags), f"expected alpine tag, got {info.tags}"
+        assert any("alpine" in t for t in info.tags), (
+            f"expected alpine tag, got {info.tags}"
+        )
 
 
 # ─── Image list ───
+
 
 class TestImageListConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
@@ -105,10 +113,13 @@ class TestImageListConformance:
         raw = _fixture(runtime, "image_list.ndjson")
         result = _PARSERS[runtime]["image"].parse_list(raw)
         for img in result:
-            assert isinstance(img.size, int), f"size must be int, got {type(img.size).__name__}: {img.size!r}"
+            assert isinstance(img.size, int), (
+                f"size must be int, got {type(img.size).__name__}: {img.size!r}"
+            )
 
 
 # ─── Container inspect ───
+
 
 class TestContainerInspectConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
@@ -124,10 +135,13 @@ class TestContainerInspectConformance:
     def test_parse_inspect_labels_is_dict(self, runtime):
         raw = _fixture(runtime, "container_inspect.json")
         info = _PARSERS[runtime]["container"].parse_inspect(raw)
-        assert isinstance(info.labels, Mapping), f"labels must be dict, got {type(info.labels).__name__}"
+        assert isinstance(info.labels, Mapping), (
+            f"labels must be dict, got {type(info.labels).__name__}"
+        )
 
 
 # ─── Container list ───
+
 
 class TestContainerListConformance:
     def test_docker_parse_list_produces_container_infos(self):
@@ -150,10 +164,13 @@ class TestContainerListConformance:
         raw = _fixture(runtime, "container_list.ndjson")
         result = _PARSERS[runtime]["container"].parse_list(raw)
         for c in result:
-            assert isinstance(c.labels, Mapping), f"labels must be dict, got {type(c.labels).__name__}: {c.labels!r}"
+            assert isinstance(c.labels, Mapping), (
+                f"labels must be dict, got {type(c.labels).__name__}: {c.labels!r}"
+            )
 
 
 # ─── Volume inspect ───
+
 
 class TestVolumeInspectConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
@@ -168,10 +185,13 @@ class TestVolumeInspectConformance:
     def test_parse_inspect_labels_is_dict(self, runtime):
         raw = _fixture(runtime, "volume_inspect.json")
         info = _PARSERS[runtime]["volume"].parse_inspect(raw)
-        assert isinstance(info.labels, Mapping), f"labels must be dict, got {type(info.labels).__name__}"
+        assert isinstance(info.labels, Mapping), (
+            f"labels must be dict, got {type(info.labels).__name__}"
+        )
 
 
 # ─── Volume list ───
+
 
 class TestVolumeListConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
@@ -187,10 +207,13 @@ class TestVolumeListConformance:
         raw = _fixture(runtime, "volume_list.ndjson")
         result = _PARSERS[runtime]["volume"].parse_list(raw)
         for v in result:
-            assert isinstance(v.labels, Mapping), f"labels must be dict, got {type(v.labels).__name__}"
+            assert isinstance(v.labels, Mapping), (
+                f"labels must be dict, got {type(v.labels).__name__}"
+            )
 
 
 # ─── Network inspect ───
+
 
 class TestNetworkInspectConformance:
     def test_docker_parse_inspect_produces_valid_network_info(self):
@@ -213,6 +236,7 @@ class TestNetworkInspectConformance:
 
 # ─── Network list ───
 
+
 class TestNetworkListConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
     def test_parse_list_produces_list_of_network_info(self, runtime):
@@ -227,10 +251,13 @@ class TestNetworkListConformance:
         raw = _fixture(runtime, "network_list.ndjson")
         result = _PARSERS[runtime]["network"].parse_list(raw)
         for n in result:
-            assert isinstance(n.labels, Mapping), f"labels must be dict, got {type(n.labels).__name__}"
+            assert isinstance(n.labels, Mapping), (
+                f"labels must be dict, got {type(n.labels).__name__}"
+            )
 
 
 # ─── Pull output ───
+
 
 class TestPullIdConformance:
     @pytest.mark.parametrize("runtime", ["docker", "podman"])
@@ -238,4 +265,6 @@ class TestPullIdConformance:
         raw = _fixture(runtime, "pull_alpine.txt")
         ident = _PARSERS[runtime]["image"].parse_digest_from_pull(raw)
         assert ident, "pull id must be non-empty (empty = silent failure)"
-        assert ident.startswith("sha256:"), f"pull id must be sha256-prefixed, got {ident!r}"
+        assert ident.startswith("sha256:"), (
+            f"pull id must be sha256-prefixed, got {ident!r}"
+        )

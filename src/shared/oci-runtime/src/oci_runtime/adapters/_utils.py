@@ -31,3 +31,6 @@ def parse_size_to_bytes(size_str: str) -> int:
     if unit not in units:
         raise ValueError(f"Unknown size unit: {unit!r} in {size_str!r}")
     return int(float(number) * units[unit])
+
+
+from oci_runtime.domain.size_parsing import *  # noqa: F401, E402, F403 — re-export shim, deleted in T4

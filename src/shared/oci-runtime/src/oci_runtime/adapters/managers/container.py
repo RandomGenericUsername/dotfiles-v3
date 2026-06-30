@@ -1,32 +1,35 @@
+import warnings
 from queue import Queue
 from threading import Thread
 from collections.abc import Callable, Iterator
 
+from oci_runtime.domain.encoding import safe_decode
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
-    ContainerRuntimeError,
     ImageNotFoundError,
 )
 from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RunConfig
 from oci_runtime.ports.cancellation import CancellationToken
 from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.ports.list_executor import ListExecutor
 from oci_runtime.ports.managers import ContainerManager
 from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.ports.pty_transport import PtyTransport
+from oci_runtime.ports.result_checker import ResultChecker
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.tty import TtyDetector
-from oci_runtime.adapters.managers.base import CliBaseManager
 
 _LOGS_JOIN_TIMEOUT = 5.0
 
 
-class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
-    _not_found_error = ContainerNotFoundError
-    _generic_error = ContainerRuntimeError
+class LogDriverNotSupportedWarning(UserWarning):
+    """Emitted when a log driver is configured but the runtime does not support it."""
 
+
+class CliContainerManager(ContainerManager):
     def __init__(
         self,
         transport: Transport,
@@ -38,13 +41,19 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         pty_transport: PtyTransport,
         cancellation_factory: Callable[[], CancellationToken],
         output_stream: OutputStream | None = None,
+        result_checker: ResultChecker,
+        list_executor: ListExecutor[ContainerInfo],
     ):
-        super().__init__(transport, parser, caps)
+        self._transport = transport
+        self._parser = parser
+        self._caps = caps
         self._streaming = streaming
         self._tty_detector = tty_detector
         self._pty_transport = pty_transport
         self._cancellation_factory = cancellation_factory
         self._output_stream = output_stream
+        self._result_checker = result_checker
+        self._list_executor = list_executor
 
     def _resolve_tty(self, config: RunConfig) -> bool:
         return config.tty or (config.auto_tty and self._tty_detector.is_tty())
@@ -76,14 +85,21 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         if config.network == NetworkMode.CONTAINER:
             cmd.extend(["--network", f"container:{config.network_container}"])
-        elif config.network != NetworkMode.BRIDGE:
+        else:
             cmd.extend(["--network", str(config.network)])
 
         if config.restart_policy != RestartPolicy.NO:
             cmd.extend(["--restart", str(config.restart_policy)])
 
-        if config.log_driver and self._caps.supports_log_drivers:
-            cmd.extend(["--log-driver", config.log_driver])
+        if config.log_driver:
+            if self._caps.supports_log_drivers:
+                cmd.extend(["--log-driver", config.log_driver])
+            else:
+                warnings.warn(
+                    LogDriverNotSupportedWarning(
+                        f"Log driver {config.log_driver!r} configured but not supported"
+                    )
+                )
         if config.privileged:
             cmd.append("--privileged")
         if config.read_only:
@@ -109,9 +125,20 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         for port in config.ports:
             if port.host_port is not None:
-                cmd.extend(
-                    ["-p", f"{port.host_port}:{port.container_port}/{port.protocol}"]
-                )
+                if port.host_ip:
+                    cmd.extend(
+                        [
+                            "-p",
+                            f"{port.host_ip}:{port.host_port}:{port.container_port}/{port.protocol}",
+                        ]
+                    )
+                else:
+                    cmd.extend(
+                        [
+                            "-p",
+                            f"{port.host_port}:{port.container_port}/{port.protocol}",
+                        ]
+                    )
             else:
                 cmd.extend(["-p", f"{port.container_port}/{port.protocol}"])
 
@@ -130,12 +157,12 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
                 output_stream=self._output_stream,
                 timeout=config.timeout,
             )
-            self._check_result(
+            self._result_checker.check(
                 result,
                 cmd,
                 operation="run container",
                 entity=config.image,
-                not_found=ImageNotFoundError,
+                not_found_error=ImageNotFoundError,
             )
             return ""
 
@@ -152,51 +179,57 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
                 on_stderr=_write,
                 timeout=config.timeout,
             )
-            self._check_result(
+            self._result_checker.check(
                 result,
                 cmd,
                 operation="run container",
                 entity=config.image,
-                not_found=ImageNotFoundError,
+                not_found_error=ImageNotFoundError,
             )
             return ""
 
         result = self._streaming.stream(cmd, timeout=config.timeout)
-        self._check_result(
+        self._result_checker.check(
             result,
             cmd,
             operation="run container",
             entity=config.image,
-            not_found=ImageNotFoundError,
+            not_found_error=ImageNotFoundError,
         )
-        return self._decode_bytes(result.stdout).strip()
+        return safe_decode(result.stdout).strip()
 
     def start(self, container: str) -> None:
         cmd = [self._transport.get_runtime_binary(), "start", container]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="start container", entity=container)
+        self._result_checker.check(
+            result, cmd, operation="start container", entity=container
+        )
 
-    def stop(self, container: str, timeout: int = 10) -> None:
+    def stop(self, container: str, timeout: float | None = 10.0) -> None:
         cmd = [
             self._transport.get_runtime_binary(),
             "stop",
             "-t",
-            str(timeout),
+            str(int(timeout)) if timeout is not None else "10",
             container,
         ]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="stop container", entity=container)
+        self._result_checker.check(
+            result, cmd, operation="stop container", entity=container
+        )
 
-    def restart(self, container: str, timeout: int = 10) -> None:
+    def restart(self, container: str, timeout: float | None = 10.0) -> None:
         cmd = [
             self._transport.get_runtime_binary(),
             "restart",
             "-t",
-            str(timeout),
+            str(int(timeout)) if timeout is not None else "10",
             container,
         ]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="restart container", entity=container)
+        self._result_checker.check(
+            result, cmd, operation="restart container", entity=container
+        )
 
     def remove(
         self, container: str, force: bool = False, volumes: bool = False
@@ -207,7 +240,9 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         if volumes:
             cmd.append("-v")
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="remove container", entity=container)
+        self._result_checker.check(
+            result, cmd, operation="remove container", entity=container
+        )
 
     def exists(self, container: str) -> bool:
         try:
@@ -226,22 +261,20 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             container,
         ]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="inspect container", entity=container)
-        return self._parser.parse_inspect(self._decode_bytes(result.stdout))
+        self._result_checker.check(
+            result, cmd, operation="inspect container", entity=container
+        )
+        return self._parser.parse_inspect(safe_decode(result.stdout))
 
     def list(
         self, show_all: bool = False, filters: dict[str, str] | None = None
     ) -> list[ContainerInfo]:
-        cmd = [self._transport.get_runtime_binary(), "container", "list"]
-        cmd.extend(self._caps.list_format_flags)
-        if show_all:
-            cmd.append("-a")
-        if filters:
-            for key, val in filters.items():
-                cmd.extend(["--filter", f"{key}={val}"])
-        result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="list containers", entity="")
-        return self._parser.parse_list(self._decode_bytes(result.stdout))
+        return self._list_executor.execute_list(
+            ["container", "list"],
+            "containers",
+            show_all=show_all,
+            filters=filters,
+        )
 
     def logs(
         self, container: str, follow: bool = False, tail: int | None = None
@@ -254,8 +287,10 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
 
         if not follow:
             result = self._transport.execute(cmd)
-            self._check_result(result, cmd, operation="get logs", entity=container)
-            yield self._decode_bytes(result.stdout)
+            self._result_checker.check(
+                result, cmd, operation="get logs", entity=container
+            )
+            yield safe_decode(result.stdout)
             return
 
         cancel_token = self._cancellation_factory()
@@ -263,7 +298,7 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
         errors: list[Exception] = []
 
         def _on_stdout(data: bytes) -> None:
-            queue.put(self._decode_bytes(data))
+            queue.put(safe_decode(data))
 
         def _run() -> None:
             try:
@@ -308,17 +343,17 @@ class CliContainerManager(CliBaseManager[ContainerParser], ContainerManager):
             cmd.extend(["-u", user])
         cmd.extend([container] + command)
         result = self._transport.execute(cmd, timeout=timeout)
-        stderr_str = self._decode_bytes(result.stderr)
+        stderr_str = safe_decode(result.stderr)
         if result.returncode != 0 and self._parser.is_not_found_error(stderr_str):
-            raise self._not_found_error(container)
+            raise ContainerNotFoundError(container)
         return ExecResult(
             returncode=result.returncode,
-            stdout=self._decode_bytes(result.stdout),
+            stdout=safe_decode(result.stdout),
             stderr=stderr_str,
         )
 
     def prune(self) -> PruneResult:
         cmd = [self._transport.get_runtime_binary(), "container", "prune", "--force"]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="prune containers", entity="")
-        return self._parser.parse_prune(self._decode_bytes(result.stdout))
+        self._result_checker.check(result, cmd, operation="prune containers", entity="")
+        return self._parser.parse_prune(safe_decode(result.stdout))

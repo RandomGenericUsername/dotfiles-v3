@@ -1,20 +1,29 @@
-from oci_runtime.domain.exceptions import NetworkNotFoundError, NetworkRuntimeError
+from oci_runtime.domain.encoding import safe_decode
+from oci_runtime.domain.exceptions import NetworkNotFoundError
 from oci_runtime.domain.types import NetworkInfo, PruneResult
 from oci_runtime.ports.capabilities import RuntimeCapabilities
+from oci_runtime.ports.list_executor import ListExecutor
 from oci_runtime.ports.managers import NetworkManager
 from oci_runtime.ports.parsers import NetworkParser
+from oci_runtime.ports.result_checker import ResultChecker
 from oci_runtime.ports.transport import Transport
-from oci_runtime.adapters.managers.base import CliBaseManager
 
 
-class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
-    _not_found_error = NetworkNotFoundError
-    _generic_error = NetworkRuntimeError
-
+class CliNetworkManager(NetworkManager):
     def __init__(
-        self, transport: Transport, parser: NetworkParser, caps: RuntimeCapabilities
+        self,
+        transport: Transport,
+        parser: NetworkParser,
+        caps: RuntimeCapabilities,
+        *,
+        result_checker: ResultChecker,
+        list_executor: ListExecutor[NetworkInfo],
     ):
-        super().__init__(transport, parser, caps)
+        self._transport = transport
+        self._parser = parser
+        self._caps = caps
+        self._result_checker = result_checker
+        self._list_executor = list_executor
 
     def create(
         self, name: str, driver: str = "bridge", labels: dict[str, str] | None = None
@@ -31,13 +40,13 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
             for k, v in labels.items():
                 cmd.extend(["--label", f"{k}={v}"])
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="create network", entity=name)
-        return self._decode_bytes(result.stdout).strip()
+        self._result_checker.check(result, cmd, operation="create network", entity=name)
+        return safe_decode(result.stdout).strip()
 
     def remove(self, name: str) -> None:
         cmd = [self._transport.get_runtime_binary(), "network", "rm", name]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="remove network", entity=name)
+        self._result_checker.check(result, cmd, operation="remove network", entity=name)
 
     def connect(self, network: str, container: str) -> None:
         cmd = [
@@ -48,7 +57,9 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
             container,
         ]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="connect network", entity=network)
+        self._result_checker.check(
+            result, cmd, operation="connect network", entity=network
+        )
 
     def disconnect(self, network: str, container: str, force: bool = False) -> None:
         cmd = [
@@ -61,7 +72,9 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
         if force:
             cmd.append("-f")
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="disconnect network", entity=network)
+        self._result_checker.check(
+            result, cmd, operation="disconnect network", entity=network
+        )
 
     def exists(self, name: str) -> bool:
         try:
@@ -80,21 +93,21 @@ class CliNetworkManager(CliBaseManager[NetworkParser], NetworkManager):
             name,
         ]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="inspect network", entity=name)
-        return self._parser.parse_inspect(self._decode_bytes(result.stdout))
+        self._result_checker.check(
+            result, cmd, operation="inspect network", entity=name
+        )
+        return self._parser.parse_inspect(safe_decode(result.stdout))
 
     def list(self, filters: dict[str, str] | None = None) -> list[NetworkInfo]:
-        cmd = [self._transport.get_runtime_binary(), "network", "list"]
-        cmd.extend(self._caps.list_format_flags)
-        if filters:
-            for key, val in filters.items():
-                cmd.extend(["--filter", f"{key}={val}"])
-        result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="list networks", entity="")
-        return self._parser.parse_list(self._decode_bytes(result.stdout))
+        return self._list_executor.execute_list(
+            ["network", "list"],
+            "networks",
+            show_all=False,
+            filters=filters,
+        )
 
     def prune(self) -> PruneResult:
         cmd = [self._transport.get_runtime_binary(), "network", "prune", "--force"]
         result = self._transport.execute(cmd)
-        self._check_result(result, cmd, operation="prune networks", entity="")
-        return self._parser.parse_prune(self._decode_bytes(result.stdout))
+        self._result_checker.check(result, cmd, operation="prune networks", entity="")
+        return self._parser.parse_prune(safe_decode(result.stdout))

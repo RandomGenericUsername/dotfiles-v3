@@ -1,13 +1,17 @@
 import re
 
-from oci_runtime.adapters.parser.base import BaseCliParser, _coerce_size, _safe_int
-from oci_runtime.ports.parsers import ParsingError
+from oci_runtime.domain.json_parsing import parse_json_item, parse_json_list
+from oci_runtime.domain.error_matching import matches_any_pattern
+from oci_runtime.domain.prune_parsing import parse_prune_result
+from oci_runtime.domain.size_parsing import coerce_size
+from oci_runtime.domain.exceptions import ParsingError
 from oci_runtime.domain.enums import ContainerState
 from oci_runtime.domain.types import (
     ContainerInfo,
     ImageInfo,
     NetworkInfo,
     PortMapping,
+    PruneResult,
     VolumeInfo,
 )
 from oci_runtime.ports.parsers import (
@@ -18,11 +22,11 @@ from oci_runtime.ports.parsers import (
 )
 
 
-class DockerContainerParser(BaseCliParser, ContainerParser):
+class DockerContainerParser(ContainerParser):
     _not_found_patterns = ("no such container", "no such object")
 
     def parse_inspect(self, raw: str) -> ContainerInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         return ContainerInfo(
             id=item.get("Id", ""),
             name=item.get("Name", "").lstrip("/"),
@@ -38,7 +42,7 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
         )
 
     def parse_list(self, raw: str) -> list[ContainerInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             names = item.get("Names")
@@ -62,8 +66,14 @@ class DockerContainerParser(BaseCliParser, ContainerParser):
             )
         return result
 
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
 
-class DockerImageParser(BaseCliParser, ImageParser):
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)
+
+
+class DockerImageParser(ImageParser):
     _not_found_patterns = ("no such image",)
     _auth_error_patterns = (
         "pull access denied",
@@ -72,7 +82,7 @@ class DockerImageParser(BaseCliParser, ImageParser):
     )
 
     def parse_inspect(self, raw: str) -> ImageInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         return ImageInfo(
             id=item.get("Id", ""),
             tags=(item.get("RepoTags") or []),
@@ -82,7 +92,7 @@ class DockerImageParser(BaseCliParser, ImageParser):
         )
 
     def parse_list(self, raw: str) -> list[ImageInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             image_id = item.get("Id") or item.get("ID") or item.get("id", "")
@@ -96,9 +106,9 @@ class DockerImageParser(BaseCliParser, ImageParser):
                         if tag and tag != "<none>"
                         else [f"{repo}:latest"]
                     )
-            size = _coerce_size(item.get("Size", 0))
+            size = coerce_size(item.get("Size", 0))
             if not size:
-                size = _coerce_size(item.get("VirtualSize", 0))
+                size = coerce_size(item.get("VirtualSize", 0))
             labels = item.get("Labels", {})
             if isinstance(labels, str):
                 labels = {}
@@ -122,7 +132,6 @@ class DockerImageParser(BaseCliParser, ImageParser):
         return output
 
     def parse_digest_from_pull(self, raw: str) -> str:
-        """Extract image ID or name from pull output."""
         match = re.search(r"Digest: sha256:([a-f0-9]+)", raw)
         if match:
             return f"sha256:{match.group(1)}"
@@ -135,12 +144,21 @@ class DockerImageParser(BaseCliParser, ImageParser):
                         return f"sha256:{match.group(1)}"
         return ""
 
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
 
-class DockerVolumeParser(BaseCliParser, VolumeParser):
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)
+
+    def is_auth_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._auth_error_patterns)
+
+
+class DockerVolumeParser(VolumeParser):
     _not_found_patterns = ("no such volume",)
 
     def parse_inspect(self, raw: str) -> VolumeInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         return VolumeInfo(
             name=item.get("Name", ""),
             driver=item.get("Driver", ""),
@@ -149,7 +167,7 @@ class DockerVolumeParser(BaseCliParser, VolumeParser):
         )
 
     def parse_list(self, raw: str) -> list[VolumeInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             labels = item.get("Labels", {})
@@ -165,12 +183,18 @@ class DockerVolumeParser(BaseCliParser, VolumeParser):
             )
         return result
 
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
 
-class DockerNetworkParser(BaseCliParser, NetworkParser):
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)
+
+
+class DockerNetworkParser(NetworkParser):
     _not_found_patterns = ("no such network",)
 
     def parse_inspect(self, raw: str) -> NetworkInfo:
-        item = self._parse_json_item(raw)
+        item = parse_json_item(raw)
         return NetworkInfo(
             id=item.get("Id", ""),
             name=item.get("Name", ""),
@@ -180,7 +204,7 @@ class DockerNetworkParser(BaseCliParser, NetworkParser):
         )
 
     def parse_list(self, raw: str) -> list[NetworkInfo]:
-        data = self._parse_json_list(raw)
+        data = parse_json_list(raw)
         result = []
         for item in data:
             net_id = item.get("Id") or item.get("ID") or item.get("id", "")
@@ -198,6 +222,12 @@ class DockerNetworkParser(BaseCliParser, NetworkParser):
             )
         return result
 
+    def parse_prune(self, raw: str) -> PruneResult:
+        return parse_prune_result(raw)
+
+    def is_not_found_error(self, stderr: str) -> bool:
+        return matches_any_pattern(stderr, self._not_found_patterns)
+
 
 def _parse_docker_ports(item: dict) -> list[PortMapping]:
     ports = []
@@ -214,7 +244,7 @@ def _parse_docker_ports(item: dict) -> list[PortMapping]:
                 host_port = (
                     int(binding["HostPort"]) if binding.get("HostPort") else None
                 )
-                host_ip = binding.get("HostIp", "") or "0.0.0.0"
+                host_ip = binding.get("HostIp") or None
                 ports.append(
                     PortMapping(
                         container_port=container_port,
@@ -237,7 +267,7 @@ def _parse_docker_ports(item: dict) -> list[PortMapping]:
 def _parse_docker_ports_from_list(item: dict) -> list[PortMapping]:
     ports = []
     for p in item.get("Ports", []):
-        cport = _safe_int(p.get("PrivatePort"))
+        cport = p.get("PrivatePort")
         if cport is None:
             continue
         host_ip = p.get("HostIp") or None

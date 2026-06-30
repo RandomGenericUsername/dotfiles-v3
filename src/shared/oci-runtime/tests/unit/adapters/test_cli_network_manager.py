@@ -6,28 +6,49 @@ from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import NetworkParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.domain.exceptions import NetworkNotFoundError, NetworkRuntimeError
+from tests.helpers.mock_transport import MockResultChecker, MockListExecutor
 
 
 class _MockParser(NetworkParser):
     def parse_inspect(self, raw: str) -> NetworkInfo:
         return NetworkInfo(id="n1", name="net1", driver="bridge", scope="local")
+
     def parse_list(self, raw: str) -> list[NetworkInfo]:
         return [NetworkInfo(id="n1", name="net1", driver="bridge", scope="local")]
+
     def parse_prune(self, raw: str) -> PruneResult:
         return PruneResult()
+
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such network" in stderr
-
 
 
 class TestCliNetworkManager:
     def setup_method(self):
         self.transport = MagicMock(spec=Transport)
         self.transport.get_runtime_binary.return_value = "docker"
-        self.transport.execute.return_value = RawExecResult(returncode=0, stdout=b"test-network", stderr=b"")
+        self.transport.execute.return_value = RawExecResult(
+            returncode=0, stdout=b"test-network", stderr=b""
+        )
         self.parser = _MockParser()
         self.caps = RuntimeCapabilities()
-        self.manager = CliNetworkManager(self.transport, self.parser, self.caps)
+        chk = CliResultChecker(
+            generic_error=NetworkRuntimeError,
+            not_found_error=NetworkNotFoundError,
+            is_not_found=self.parser.is_not_found_error,
+        )
+        self.manager = CliNetworkManager(
+            self.transport,
+            self.parser,
+            self.caps,
+            result_checker=chk,
+            list_executor=CliListExecutor(
+                self.transport, self.caps, chk, parse_list=self.parser.parse_list
+            ),
+        )
 
     def test_create_returns_str(self):
         name = self.manager.create("my-net")
@@ -49,8 +70,18 @@ class TestCliNetworkManager:
     def test_create_calls_transport_with_labels(self):
         self.manager.create("my-net", labels={"env": "test", "project": "foo"})
         self.transport.execute.assert_called_once_with(
-            ["docker", "network", "create", "--driver", "bridge", "my-net",
-             "--label", "env=test", "--label", "project=foo"]
+            [
+                "docker",
+                "network",
+                "create",
+                "--driver",
+                "bridge",
+                "my-net",
+                "--label",
+                "env=test",
+                "--label",
+                "project=foo",
+            ]
         )
 
     def test_list_returns_list_of_network_info(self):

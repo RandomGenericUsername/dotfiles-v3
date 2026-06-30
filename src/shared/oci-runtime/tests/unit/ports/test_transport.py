@@ -29,10 +29,13 @@ class TestTransport:
         class GoodTransport(Transport):
             def execute(self, command, *, timeout=None, input_data=None):
                 return RawExecResult(returncode=0, stdout=b"", stderr=b"")
+
             def get_runtime_binary(self) -> str:
                 return "docker"
+
             def probe(self) -> bool:
                 return True
+
         t = GoodTransport()
         assert isinstance(t, Transport)
         assert t.get_runtime_binary() == "docker"

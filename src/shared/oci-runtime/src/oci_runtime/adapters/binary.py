@@ -4,9 +4,6 @@ from oci_runtime.domain.exceptions import RuntimeNotAvailableError
 from oci_runtime.ports.binary_resolver import BinaryResolver
 
 
-_NOT_PROBED = object()
-
-
 class CliBinaryResolver(BinaryResolver):
     """Adapter: caches shutil.which results per binary name."""
 

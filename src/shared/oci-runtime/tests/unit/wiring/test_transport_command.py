@@ -15,8 +15,13 @@ class TestCliTransportExecute:
                 proc = MagicMock()
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([b"running"], [b""])
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b"running"],
+                        [b""],
+                    )
                     t = CliTransport("docker")
                     result = t.execute(["docker", "ps"])
                     mock_popen.assert_called_once_with(
@@ -35,8 +40,13 @@ class TestCliTransportExecute:
                 proc = MagicMock()
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([b"built"], [b""])
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b"built"],
+                        [b""],
+                    )
                     t = CliTransport("docker")
                     t.execute(["docker", "build", "-"], input_data=b"FROM alpine")
                     mock_popen.assert_called_once_with(
@@ -52,8 +62,13 @@ class TestCliTransportExecute:
                 proc = MagicMock()
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
-                with patch("oci_runtime.adapters.transport.cli.ProcessPipeReader") as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b""],
+                        [b""],
+                    )
                     t = CliTransport("docker")
                     t.execute(["docker", "pull", "alpine"], timeout=300)
                     mock_popen.assert_called_once_with(

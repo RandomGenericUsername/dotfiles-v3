@@ -2,8 +2,23 @@ from dataclasses import dataclass, replace
 from collections.abc import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
+from oci_runtime.adapters.helpers.result_checker import CliResultChecker
+from oci_runtime.adapters.helpers.list_executor import CliListExecutor
+from oci_runtime.domain.exceptions import (
+    ContainerNotFoundError,
+    ContainerRuntimeError,
+    ImageNotFoundError,
+    ImagePullAccessDeniedError,
+    ImageRuntimeError,
+    NetworkNotFoundError,
+    NetworkRuntimeError,
+    VolumeNotFoundError,
+    VolumeRuntimeError,
+)
 from oci_runtime.ports.binary_resolver import BinaryResolver
 from oci_runtime.ports.cancellation import CancellationToken
+from oci_runtime.ports.list_executor import ListExecutor
+from oci_runtime.ports.result_checker import ResultChecker
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
@@ -41,6 +56,8 @@ class RuntimeFactoryConfig:
     cancellation_factory: Callable[[], CancellationToken] | None = None
     binary_resolver_factory: Callable[[], BinaryResolver] | None = None
     pty_transport_factory: Callable[[BinaryResolver], PtyTransport] | None = None
+    result_checker_factory: Callable[..., ResultChecker] | None = None
+    list_executor_factory: Callable[..., ListExecutor] | None = None
     container_manager_cls: type | None = None
     image_manager_cls: type | None = None
     volume_manager_cls: type | None = None
@@ -48,12 +65,42 @@ class RuntimeFactoryConfig:
 
 
 def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
-    from oci_runtime.adapters.provider.docker import DockerRuntimeProvider
-    from oci_runtime.adapters.provider.podman import PodmanRuntimeProvider
+    from oci_runtime.adapters.parser.docker import (
+        DockerContainerParser,
+        DockerImageParser,
+        DockerNetworkParser,
+        DockerVolumeParser,
+    )
+    from oci_runtime.adapters.parser.podman import (
+        PodmanContainerParser,
+        PodmanImageParser,
+        PodmanNetworkParser,
+        PodmanVolumeParser,
+    )
+    from oci_runtime.adapters.provider.docker import (
+        _DOCKER_CAPABILITIES,
+        DockerRuntimeProvider,
+    )
+    from oci_runtime.adapters.provider.podman import (
+        _PODMAN_CAPABILITIES,
+        PodmanRuntimeProvider,
+    )
 
     return {
-        RuntimeKind.DOCKER: DockerRuntimeProvider(),
-        RuntimeKind.PODMAN: PodmanRuntimeProvider(),
+        RuntimeKind.DOCKER: DockerRuntimeProvider(
+            container_parser_cls=DockerContainerParser,
+            image_parser_cls=DockerImageParser,
+            volume_parser_cls=DockerVolumeParser,
+            network_parser_cls=DockerNetworkParser,
+            capabilities=_DOCKER_CAPABILITIES,
+        ),
+        RuntimeKind.PODMAN: PodmanRuntimeProvider(
+            container_parser_cls=PodmanContainerParser,
+            image_parser_cls=PodmanImageParser,
+            volume_parser_cls=PodmanVolumeParser,
+            network_parser_cls=PodmanNetworkParser,
+            capabilities=_PODMAN_CAPABILITIES,
+        ),
     }
 
 
@@ -156,6 +203,10 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
         replacements["volume_manager_cls"] = _default_volume_manager_cls()
     if cfg.network_manager_cls is None:
         replacements["network_manager_cls"] = _default_network_manager_cls()
+    if cfg.result_checker_factory is None:
+        replacements["result_checker_factory"] = CliResultChecker
+    if cfg.list_executor_factory is None:
+        replacements["list_executor_factory"] = CliListExecutor
 
     return replace(cfg, **replacements) if replacements else cfg
 
@@ -193,8 +244,40 @@ class RuntimeFactory:
         caps = provider.capabilities()
         parsers = provider.create_parsers()
 
+        image_checker = self._cfg.result_checker_factory(
+            generic_error=ImageRuntimeError,
+            not_found_error=ImageNotFoundError,
+            is_not_found=parsers.image_parser.is_not_found_error,
+            auth_error=ImagePullAccessDeniedError,
+            is_auth=parsers.image_parser.is_auth_error,
+        )
+        container_checker = self._cfg.result_checker_factory(
+            generic_error=ContainerRuntimeError,
+            not_found_error=ContainerNotFoundError,
+            is_not_found=parsers.container_parser.is_not_found_error,
+        )
+        volume_checker = self._cfg.result_checker_factory(
+            generic_error=VolumeRuntimeError,
+            not_found_error=VolumeNotFoundError,
+            is_not_found=parsers.volume_parser.is_not_found_error,
+        )
+        network_checker = self._cfg.result_checker_factory(
+            generic_error=NetworkRuntimeError,
+            not_found_error=NetworkNotFoundError,
+            is_not_found=parsers.network_parser.is_not_found_error,
+        )
+
         image_manager = self._cfg.image_manager_cls(
-            transport, parsers.image_parser, caps
+            transport,
+            parsers.image_parser,
+            caps,
+            result_checker=image_checker,
+            list_executor=self._cfg.list_executor_factory(
+                transport,
+                caps,
+                image_checker,
+                parse_list=parsers.image_parser.parse_list,
+            ),
         )
         container_manager = self._cfg.container_manager_cls(
             transport,
@@ -205,12 +288,37 @@ class RuntimeFactory:
             pty_transport=pty_transport,
             cancellation_factory=self._cfg.cancellation_factory,
             output_stream=self._cfg.output_stream_factory(),
+            result_checker=container_checker,
+            list_executor=self._cfg.list_executor_factory(
+                transport,
+                caps,
+                container_checker,
+                parse_list=parsers.container_parser.parse_list,
+            ),
         )
         volume_manager = self._cfg.volume_manager_cls(
-            transport, parsers.volume_parser, caps
+            transport,
+            parsers.volume_parser,
+            caps,
+            result_checker=volume_checker,
+            list_executor=self._cfg.list_executor_factory(
+                transport,
+                caps,
+                volume_checker,
+                parse_list=parsers.volume_parser.parse_list,
+            ),
         )
         network_manager = self._cfg.network_manager_cls(
-            transport, parsers.network_parser, caps
+            transport,
+            parsers.network_parser,
+            caps,
+            result_checker=network_checker,
+            list_executor=self._cfg.list_executor_factory(
+                transport,
+                caps,
+                network_checker,
+                parse_list=parsers.network_parser.parse_list,
+            ),
         )
 
         return self._cfg.runtime_cls(

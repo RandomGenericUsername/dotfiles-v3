@@ -1,3 +1,4 @@
+import io
 import os
 import selectors
 from collections.abc import Callable
@@ -19,28 +20,26 @@ class ProcessPipeReader:
 
     @classmethod
     def from_process(cls, process):
+        if not hasattr(process.stdout, "fileno"):
+            raise TypeError(
+                f"Expected process with stdout.fileno(), got {type(process).__name__}"
+            )
         try:
-            fd = process.stdout.fileno()
-            if isinstance(fd, int):
-                return cls(process.stdout.fileno(), process.stderr.fileno())
-        except Exception:
-            pass
-        return cls(process.stdout, process.stderr)
+            return cls(process.stdout.fileno(), process.stderr.fileno())
+        except (io.UnsupportedOperation, OSError) as e:
+            raise TypeError(
+                f"Expected process with stdout.fileno(), got {type(process).__name__}: {e}"
+            ) from e
 
     @classmethod
     def from_fds(cls, primary_fd: int, secondary_fd: int) -> "ProcessPipeReader":
         """Create from raw file descriptors (e.g., PTY master + stderr pipe)."""
         return cls(primary_fd, secondary_fd)
 
-    def _read_fd(self, fd, size: int = 4096) -> bytes:
-        if isinstance(fd, int):
-            try:
-                return os.read(fd, size)
-            except OSError:
-                return b""
+    def _read_fd(self, fd: int, size: int = 4096) -> bytes:
         try:
-            return fd.read(size)
-        except (OSError, AttributeError):
+            return os.read(fd, size)
+        except OSError:
             return b""
 
     def read(

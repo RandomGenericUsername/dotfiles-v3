@@ -8,7 +8,7 @@ from oci_runtime.adapters._cancellation import (
 )
 from oci_runtime.adapters._process_reader import ProcessPipeReader
 from oci_runtime.domain.exceptions import (
-    ContainerRuntimeError,
+    OciError,
     OperationTimeoutError,
 )
 from oci_runtime.domain.types import RawExecResult
@@ -31,7 +31,7 @@ class CliPtyTransport(PtyTransport):
         cancel_token: CancellationToken | None = None,
     ) -> RawExecResult:
         if not command:
-            raise ContainerRuntimeError("Empty command list", command=command)
+            raise OciError("Empty command list", command=command)
         self._resolver.resolve(command[0])
 
         if output_stream is None:

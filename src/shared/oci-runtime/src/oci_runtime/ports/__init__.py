@@ -3,9 +3,10 @@ from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.cancellation import CancellationToken
 from oci_runtime.ports.pty_transport import PtyTransport
 from oci_runtime.ports.output_stream import OutputStream
-from oci_runtime.ports.aggregates import Managers, Parsers
+from oci_runtime.ports.aggregates import Parsers
 from oci_runtime.ports.discovery import RuntimeDiscovery
 from oci_runtime.ports.engine import ContainerEngine
+from oci_runtime.ports.list_executor import ListExecutor
 from oci_runtime.ports.managers import (
     ContainerManager,
     ImageManager,
@@ -20,6 +21,7 @@ from oci_runtime.ports.parsers import (
     VolumeParser,
 )
 from oci_runtime.ports.provider import RuntimeProvider
+from oci_runtime.ports.result_checker import ResultChecker
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.tty import TtyDetector
@@ -32,13 +34,14 @@ __all__ = [
     "ContainerParser",
     "ImageManager",
     "ImageParser",
-    "Managers",
+    "ListExecutor",
     "NetworkManager",
     "NetworkParser",
     "OutputStream",
     "Parsers",
     "ParsingError",
     "PtyTransport",
+    "ResultChecker",
     "RuntimeCapabilities",
     "RuntimeDiscovery",
     "RuntimeProvider",

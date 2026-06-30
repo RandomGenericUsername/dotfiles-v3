@@ -34,7 +34,9 @@ class TestContainerError:
         assert err.stderr is None
 
     def test_str_includes_details(self):
-        err = ContainerError(message="fail", command=["docker", "run"], exit_code=1, stderr="err")
+        err = ContainerError(
+            message="fail", command=["docker", "run"], exit_code=1, stderr="err"
+        )
         msg = str(err)
         assert "fail" in msg
         assert "docker run" in msg
@@ -185,6 +187,5 @@ class TestParsingError:
     def test_parsing_error_importable_from_domain(self):
         from oci_runtime.domain import ParsingError
         from oci_runtime.domain.exceptions import ParsingError as P2
+
         assert ParsingError is P2
-
-

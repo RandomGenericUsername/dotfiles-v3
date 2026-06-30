@@ -13,13 +13,21 @@ oci-runtime/
 │   ├── factory.py                 # RuntimeFactory + RuntimeFactoryConfig (composition root)
 │   ├── domain/                    # Pure domain layer — no I/O, no adapter imports
 │   │   ├── __init__.py
+│   │   ├── build_tar.py           # (new) create_build_tar, _validate_tar_path
+│   │   ├── encoding.py            # (new) safe_decode
+│   │   ├── error_matching.py      # (new) matches_any_pattern
 │   │   ├── enums.py               # RuntimeKind, ContainerState, RestartPolicy, NetworkMode, VolumeMountType
 │   │   ├── exceptions.py          # OciError hierarchy + ParsingError + ImagePullAccessDeniedError
+│   │   ├── json_parsing.py        # (new) parse_json_item (scalar-guarded), parse_json_list
+│   │   ├── list_command.py        # (new) build_list_command
+│   │   ├── prune_parsing.py       # (new) parse_prune_result
+│   │   ├── result_checking.py     # (new) check_cli_result
+│   │   ├── size_parsing.py        # (new) parse_size_to_bytes, coerce_size, safe_int
 │   │   └── types.py               # RunConfig, ContainerInfo, ExecResult, RawExecResult,
 │   │                              #   PruneResult, VolumeMount, PortMapping, etc.
 │   ├── ports/                     # Port interfaces (ABCs only) + aggregate types
 │   │   ├── __init__.py
-│   │   ├── aggregates.py          # Parsers, Managers (port-level aggregate types)
+│   │   ├── aggregates.py          # Parsers (port-level aggregate types)
 │   │   ├── binary_resolver.py     # BinaryResolver ABC
 │   │   ├── cancellation.py        # CancellationToken ABC
 │   │   ├── capabilities.py        # RuntimeCapabilities (frozen dataclass)
@@ -34,34 +42,23 @@ oci-runtime/
 │   │   ├── streaming.py           # StreamingTransport ABC (real-time output streaming)
 │   │   ├── transport.py           # Transport ABC (batch subprocess execution)
 │   │   └── tty.py                 # TtyDetector ABC
-│   └── adapters/                  # Adapter implementations of the ports
-│       ├── _cancellation.py       # ThreadCancellationToken, DeadlineCancellationToken, CompositeCancellationToken
-│       ├── _process_reader.py     # ProcessPipeReader (selector-based fd reading, works with pipes AND PTY)
-│       ├── _tar.py                # create_build_tar (tar archive builder for stdin context, path-validated)
-│       ├── _utils.py              # parse_size_to_bytes (size string parser, B–E units)
-│       ├── binary.py              # CliBinaryResolver (cached shutil.which)
-│       ├── tty.py                 # StdoutTtyDetector
-│       ├── output_stream.py       # StdoutBufferStream
-│       ├── engine/cli.py          # CliRuntime
-│       ├── transport/
-│       │   ├── cli.py             # CliTransport (Popen + ProcessPipeReader + CancellationToken)
-│       │   ├── streaming.py       # CliStreamingTransport (Popen + ProcessPipeReader)
-│       │   └── pty.py             # CliPtyTransport (PTY stdout + stderr PIPE, returns RawExecResult)
-│       ├── discovery/cli.py       # CliRuntimeDiscovery
-│       ├── provider/
-│       │   ├── _base.py           # BaseCliRuntimeProvider
-│       │   ├── docker.py          # DockerRuntimeProvider
-│       │   └── podman.py          # PodmanRuntimeProvider
+│   └── adapters/
+│       ├── _tar.py                 # re-export shim (will be removed)
+│       ├── _utils.py               # re-export shim (will be removed)
+│       ├── helpers/
+│       │   ├── list_executor.py    # CliListExecutor[T]
+│       │   └── result_checker.py   # CliResultChecker
 │       ├── parser/
-│       │   ├── base.py            # BaseCliParser + _coerce_size / _safe_int helpers
-│       │   ├── docker.py          # Docker*Parser classes
-│       │   └── podman.py          # Podman*Parser classes
+│       │   ├── docker.py           # implements port ABCs directly
+│       │   └── podman.py           # implements port ABCs directly
+│       ├── provider/
+│       │   ├── docker.py           # implements RuntimeProvider directly
+│       │   └── podman.py           # implements RuntimeProvider directly
 │       └── managers/
-│           ├── base.py            # CliBaseManager[P] (bounded generic, _check_result + _execute_list)
-│           ├── container.py       # CliContainerManager
-│           ├── image.py           # CliImageManager
-│           ├── volume.py          # CliVolumeManager
-│           └── network.py         # CliNetworkManager
+│           ├── container.py        # injects ResultChecker + ListExecutor
+│           ├── image.py            # injects ResultChecker + ListExecutor
+│           ├── volume.py           # injects ResultChecker + ListExecutor
+│           └── network.py          # injects ResultChecker + ListExecutor
 └── tests/
     ├── unit/                      # Domain, port, adapter, contract, wiring, boundary tests
     │   ├── domain/
@@ -80,9 +77,9 @@ oci-runtime/
 The dependency direction is strictly **domain ← ports ← adapters**, with the factory as the single composition root that wires adapters to ports.
 
 - **domain/** contains value objects, enums, and exceptions. It imports only the standard library (`re`, `abc`, `dataclasses`, `pathlib`, `enum`). It never imports `ports` or `adapters`.
-- **ports/** contains ABCs, aggregate dataclasses (`Parsers`, `Managers`), and port-level value objects (`RuntimeCapabilities`, `CancellationToken`). It imports from `domain` and defines the contracts the adapters implement. The only non-ABC artifact is the `ParsingError` re-export in `ports/parsers.py`, sourced from `domain/exceptions.py`.
+- **ports/** contains ABCs, aggregate dataclasses (`Parsers`), and port-level value objects (`RuntimeCapabilities`, `CancellationToken`). It imports from `domain` and defines the contracts the adapters implement. The only non-ABC artifact is the `ParsingError` re-export in `ports/parsers.py`, sourced from `domain/exceptions.py`.
 - **adapters/** contains the concrete implementations. It imports from `ports` and `domain`. Adapters are not re-exported by `oci_runtime/__init__.py` — they are implementation details reachable via their submodules.
-- **factory.py** is the only place manager, transport, engine, discovery, and infrastructure adapter classes are referenced. Provider subclasses reference only parser adapter classes. `RuntimeFactoryConfig` exposes factory callables for every adapter so the entire object graph is injectable for testing.
+- **factory.py** is the only place manager, transport, engine, discovery, and infrastructure adapter classes are referenced. `RuntimeFactoryConfig` exposes factory callables for every adapter so the entire object graph is injectable for testing.
 
 ## Domain Layer
 
@@ -138,7 +135,7 @@ The port layer defines the ABCs that adapters implement.
 
 **`CancellationToken`** — signals cancellation across threads. `cancel() -> None` sets the cancelled state. `is_cancelled -> bool` is a property. This is a pure interface — concrete implementations live in `adapters/_cancellation.py`.
 
-**`RuntimeProvider`** — encapsulates all runtime-specific knowledge. `create_parsers() -> Parsers` and `create_managers(transport, streaming, caps, *, tty_detector_factory, output_stream_factory, cancellation_factory, pty_transport) -> Managers` build the parser and manager instances for a given runtime. The factory hooks are keyword-only and required, so the composition root controls which `TtyDetector`, `OutputStream`, `CancellationToken`, and `PtyTransport` adapters are wired into the container manager.
+**`RuntimeProvider`** — encapsulates all runtime-specific knowledge. `kind` returns the `RuntimeKind`. `capabilities()` returns `RuntimeCapabilities`. `create_parsers() -> Parsers` builds the four parser instances. Providers are constructed with parser classes and capabilities injected via keyword arguments.
 
 **`ImageManager` / `ContainerManager` / `VolumeManager` / `NetworkManager`** — the four manager ABCs defining the lifecycle operations (build, pull, run, exec, inspect, list, prune, etc.). Each `prune()` returns `PruneResult`. Each `list()` returns `list[<entity info>]` — an empty result returns `[]`, not an error. `exec_container` accepts an optional `timeout: float | None`.
 
@@ -150,7 +147,7 @@ The port layer defines the ABCs that adapters implement.
 
 **`RuntimeDiscovery`** — single-method ABC: `available() -> list[RuntimePreference]`. Enumerates which runtimes are reachable.
 
-**`Parsers` / `Managers`** — frozen aggregate dataclasses grouping the four parsers / four managers so providers can return them as a single value.
+**`Parsers`** — frozen aggregate dataclass grouping the four parsers so providers can return them as a single value.
 
 ## Adapter Layer
 
@@ -170,54 +167,45 @@ The port layer defines the ABCs that adapters implement.
 
 **`CliPtyTransport`** implements `PtyTransport.execute_pty()` using `pty.openpty()` + `subprocess.Popen`. The key architectural decision: stdout is connected to the PTY slave (terminal rendering for interactive container output) while stderr is connected to `subprocess.PIPE` (separate pipe for docker CLI error messages). This decouples output rendering from error classification — `_check_result` can inspect stderr for not-found patterns in PTY mode, just as it does in non-TTY mode. I/O is read via `ProcessPipeReader.from_fds(master_fd, stderr_fileno)`. After the reader exits, a timeout-aware poll loop replaces bare `process.wait()` — polling `process.wait(timeout=0.5)` with cancellation checks, matching `CliTransport` and `CliStreamingTransport`. Returns `RawExecResult(returncode, pty_stdout, stderr_bytes)`.
 
-### Managers
+### ResultChecker + ListExecutor
 
-**`CliBaseManager[P]`** is a `Generic[P]` base where `P` is bounded to `ContainerParser | ImageParser | VolumeParser | NetworkParser`. It holds the shared `transport`, `parser`, and `caps`. Class variables `_not_found_error` (required — no default) and `_generic_error` (defaults to `ContainerRuntimeError`) define the error types raised by `_check_result`. An optional `_auth_error` class variable (set only by `CliImageManager` to `ImagePullAccessDeniedError`) enables auth-error detection.
+Managers no longer inherit from a shared `CliBaseManager`. Instead, each manager
+receives two injected dependencies via its constructor:
+- **`ResultChecker`** (port: `ports/result_checker.py`, adapter: `helpers/result_checker.py`):
+  `check(result, cmd, *, operation, entity, not_found_error) -> None` — inspects a
+  `RawExecResult` and raises the appropriate `OciError` subclass:
+  1. On success (returncode 0): returns.
+  2. If `is_auth` callback matches: raises `auth_error` with command/exit_code/stderr.
+  3. If `is_not_found` callback matches: raises `not_found_error(entity)`.
+  4. On any other non-zero exit: raises `generic_error` with full context.
 
-`_check_result(result, cmd, *, operation, entity, not_found=None)` inspects a `RawExecResult`:
-1. On success (returncode 0): returns.
-2. If `_auth_error` is set and `parser.is_auth_error(stderr)` matches: raises `_auth_error(entity)`.
-3. If `parser.is_not_found_error(stderr)` matches: raises `_not_found_error(entity)` (or the `not_found` override if provided).
-4. On any other non-zero exit: raises `_generic_error` with command, exit code, and stderr attached.
+  The checker is configured with `generic_error`, `not_found_error`, optional
+  `auth_error`/`is_auth`, and `is_not_found` callbacks — all injected at construction
+  time, making error behavior fully testable.
 
-`_execute_list(entity_type, subcommand, show_all, filters)` is a shared helper that builds the list command (binary + subcommand + format flags + optional `-a`/filters), executes it, calls `_check_result`, and returns the parsed list. Each manager's `list()` delegates to this helper, eliminating the 4× copy-pasted list method.
+- **`ListExecutor[T]`** (port: `ports/list_executor.py`, adapter: `helpers/list_executor.py`):
+  `execute_list(subcommand, entity_type, *, show_all, filters) -> list[T]` — builds
+  the list command (binary + subcommand + format flags + optional -a/filters),
+  executes it via transport, checks the result via its injected `ResultChecker`, and
+  returns the parsed list via the injected `parse_list` callback.
 
-**`CliContainerManager`** diverges from `_check_result` in one place:
-- `exec_container()` does not call `_check_result`. It returns `ExecResult(returncode, stdout, stderr)` for any exit code, raising `ContainerNotFoundError` only when the container is missing. The exit code of the inner command is returned to the caller, not raised. Accepts an optional `timeout: float | None`.
-
-`run()` builds the `docker run` / `podman run` command from `RunConfig`, dispatching TMPFS mounts to `--mount type=tmpfs,target=...` and BIND/VOLUME mounts to `-v src:tgt[:ro]`. When TTY is effective (`config.tty` or `config.auto_tty` + `tty_detector.is_tty()`) it calls `pty_transport.execute_pty()`; when `config.stream_output=True` and not TTY it calls `streaming.stream()` with `on_stdout`/`on_stderr` callbacks writing to `self._output_stream`; otherwise it calls `streaming.stream()` without callbacks. The routing matrix:
-
-| Condition | Transport | Output | Return |
-|-----------|-----------|--------|--------|
-| `detach=True` | batch `execute()` (via `transport`) | captured | container ID |
-| `effective_tty=True` | `pty_transport.execute_pty()` | → `output_stream` | `""` |
-| `stream_output=True` | `streaming.stream()` with callbacks | → `output_stream` | `""` |
-| neither | `streaming.stream()` no callbacks | captured | `stdout.strip()` |
-
-**All branches call `_check_result` with `not_found=ImageNotFoundError`** — error classification is consistent regardless of TTY mode. `detach=True` and effective-TTY are mutually exclusive (a detached container has no terminal to attach a PTY to). Build flags are emitted before the positional context arg, ensuring `docker build [OPTIONS] PATH` grammar (runtime-agnostic, works with cobra and non-cobra CLIs).
-
-`logs(follow=True)` runs the streaming transport in a daemon thread, feeding decoded chunks to a `Queue` that the generator drains. The thread catches `Exception` (not `BaseException`) so `KeyboardInterrupt`/`SystemExit` propagate. A `CancellationToken` cancels the stream when the consumer stops iterating. **Errors are checked in the `finally` block** — if the consumer breaks early, streaming errors are still propagated, not silently dropped. The thread join timeout is `_LOGS_JOIN_TIMEOUT = 5.0`.
-
-**`CliImageManager`** builds images by sending the Dockerfile and extra files as a tar archive on stdin (`-f -`), or by pointing at a filesystem path (`-f <path> <context>`). `pull()` returns the parsed digest and raises `ImageError` if no digest can be extracted. Auth failures (pull access denied) raise `ImagePullAccessDeniedError`, not `ImageNotFoundError`. `parse_digest_from_pull` is the renamed method (was `parse_id_from_pull`).
-
-**`CliVolumeManager`** and **`CliNetworkManager`** follow the same `_check_result` pattern for their respective CLI subcommands.
+Each manager's `list()` is a one-line delegate to `self._list_executor.execute_list(...)`.
 
 ### Parsers
 
-**`BaseCliParser`** provides shared JSON parsing and the prune parser:
-- `_parse_json_item(raw)` — parses JSON that is either a list-with-one-item or a single dict. Raises `ParsingError` on malformed JSON or an empty result (inspect requires exactly one item).
-- `_parse_json_list(raw)` — parses JSON that is a list, a single object, or NDJSON (newline-delimited JSON). An empty JSON array `[]` or empty NDJSON stream returns `[]` (a valid empty result). Non-list/non-dict JSON scalars (integers, strings, null, bool) raise `ParsingError` — they are not silently wrapped. Malformed input raises `ParsingError`.
-- `is_not_found_error(stderr)` — word-boundary regex match against `_not_found_patterns` (lowercased).
-- `is_auth_error(stderr)` — word-boundary regex match against `_auth_error_patterns` (only on `DockerImageParser`; checks for "pull access denied", "unauthorized", "authentication required").
-- `parse_prune(raw)` — counts deleted IDs matching `^(?:deleted:\s*)?(?:sha256:)?([a-f0-9]{12,64})$` (covers both bare-hex and `deleted: sha256:` lines emitted by `prune --all`), and parses `Total reclaimed space:` via `parse_size_to_bytes`, defaulting to 0 on unparseable values.
+Each parser (`Docker*Parser`, `Podman*Parser`) implements the port ABCs directly
+(`ContainerParser`, `ImageParser`, etc.) without a shared base class. Parsing helpers
+live in `domain/`:
+- `parse_json_item(raw)` / `parse_json_list(raw)` from `domain/json_parsing.py` — JSON
+  parsing with scalar guard (rejects non-dict/non-list JSON).
+- `matches_any_pattern(text, patterns)` from `domain/error_matching.py` — word-boundary
+  regex matching used by both `is_not_found_error` and `is_auth_error`.
+- `parse_prune_result(raw)` from `domain/prune_parsing.py` — parses `prune` CLI output.
+- `coerce_size(size)` / `safe_int(v)` from `domain/size_parsing.py` — size parsing.
+- `parse_size_to_bytes(raw)` from the same module — converts human-readable sizes to int.
 
-`parse_build_output` validates the result against `^sha256:[a-f0-9]{12,64}$` after prefixing — if the output is not a valid image id (e.g. `--quiet` wasn't honored or build failed mid-output), it raises `ParsingError` rather than returning `sha256:<garbage>`.
-
-`_coerce_size(size)` and `_safe_int(v)` are module-level helpers in `base.py` used by both Docker and Podman image/container parsers to coerce string sizes to int and guard against malformed port values.
-
-The Docker and Podman parser classes (`Docker*Parser`, `Podman*Parser`) differ in their not-found/auth patterns and in how they normalize fields between the two runtimes' JSON shapes:
-- Docker: `RepoTags: null` coerced to `[]` (not `None`); string `Names` coerced to `[string]`; `Repository`/`Tag` fallback when `RepoTags` is empty.
-- Podman: `Names` fallback when `RepoTags` is null; string `Names` coerced to `[string]`; unbound ports (no host binding) kept in the port list, matching Docker behavior; `parse_digest_from_pull` returns `""` on no match (not the raw line), matching Docker's contract.
+`parse_build_output` validates the result against `^sha256:[a-f0-9]{12,64}$`.
+Image parsers also implement `is_auth_error` for pull-access-denied detection.
 
 ### Cancellation
 
@@ -230,7 +218,10 @@ The Docker and Podman parser classes (`Docker*Parser`, `Podman*Parser`) differ i
 
 ### Provider
 
-`BaseCliRuntimeProvider` implements `RuntimeProvider` by reading class-level attributes (`_kind`, `_capabilities`, `_container_parser_cls`, etc.) that concrete subclasses (`DockerRuntimeProvider`, `PodmanRuntimeProvider`) set. `create_managers` receives the `tty_detector_factory`, `output_stream_factory`, `cancellation_factory`, and `pty_transport` from the factory and invokes them to wire the `CliContainerManager`.
+Each provider (`DockerRuntimeProvider`, `PodmanRuntimeProvider`) implements
+`RuntimeProvider` directly with constructor injection of parser classes + capabilities.
+The factory passes the classes explicitly in `_default_providers()`. There is no shared
+base class — each provider declares its own `create_parsers() -> Parsers`.
 
 ## Composition Root
 
@@ -250,7 +241,7 @@ class RuntimeFactoryConfig:
     pty_transport_factory: Callable[[BinaryResolver], PtyTransport] | None = None
 ```
 
-`RuntimeFactory.create(preference)` resolves the config, creates a `BinaryResolver`, builds the transport and streaming transport from `preference.binary` and the resolver, creates a `PtyTransport` from the resolver, and asks the provider to create the managers (passing the TTY, output-stream, cancellation, and PTY factories through). It does not probe availability — `is_available()` is the caller's responsibility. The `discovery` property caches the `RuntimeDiscovery` instance on first access.
+`RuntimeFactory.create(preference)` resolves the config, creates transports, asks the provider for caps + parsers, builds per-manager `CliResultChecker` and `CliListExecutor` instances, and wires them into each manager. `RuntimeFactoryConfig` has `result_checker_factory` and `list_executor_factory` fields (default `CliResultChecker` / `CliListExecutor`).
 
 ## Public API
 
@@ -352,32 +343,46 @@ class PruneResult:
 
 ## Adding a New Runtime (e.g. nerdctl)
 
-Create a provider inheriting from `BaseCliRuntimeProvider` (needs only `kind`, `capabilities`, `create_parsers`; no `create_managers`) and register it in the `providers` dict passed to `RuntimeFactory`:
+Create a provider implementing `RuntimeProvider` directly — it only needs `kind`,
+`capabilities`, and `create_parsers`:
 
 ```python
-class NerdctlRuntimeProvider(BaseCliRuntimeProvider):
-    _kind = RuntimeKind("nerdctl")
-    _container_parser_cls = DockerContainerParser
-    _image_parser_cls = DockerImageParser
-    _volume_parser_cls = DockerVolumeParser
-    _network_parser_cls = DockerNetworkParser
-    _capabilities = RuntimeCapabilities(
-        list_format_flags=("--format", "{{json .}}"),
-        tar_entry_name="Dockerfile",
-        default_build_flags=("--quiet",),
-    )
+class NerdctlRuntimeProvider(RuntimeProvider):
+    def __init__(
+        self,
+        *,
+        container_parser_cls: type[ContainerParser],
+        image_parser_cls: type[ImageParser],
+        volume_parser_cls: type[VolumeParser],
+        network_parser_cls: type[NetworkParser],
+        capabilities: RuntimeCapabilities | None = None,
+    ):
+        self._kind = RuntimeKind("nerdctl")
+        self._container_parser_cls = container_parser_cls
+        self._image_parser_cls = image_parser_cls
+        self._volume_parser_cls = volume_parser_cls
+        self._network_parser_cls = network_parser_cls
+        self._capabilities = capabilities or _NERDCTL_CAPABILITIES
+
+    @property
+    def kind(self) -> RuntimeKind: ...
+    def capabilities(self) -> RuntimeCapabilities: ...
+    def create_parsers(self) -> Parsers: ...
+```
+
+Register it in the factory:
+```python
+from oci_runtime.adapters.parser.docker import DockerContainerParser, ...
+
+_NERDCTL_CAPABILITIES = RuntimeCapabilities(...)
 
 providers = {
-    RuntimeKind.DOCKER: DockerRuntimeProvider(),
-    RuntimeKind.PODMAN: PodmanRuntimeProvider(),
-    RuntimeKind("nerdctl"): NerdctlRuntimeProvider(),
+    RuntimeKind.DOCKER: DockerRuntimeProvider(container_parser_cls=..., ...),
+    RuntimeKind.PODMAN: PodmanRuntimeProvider(container_parser_cls=..., ...),
+    RuntimeKind("nerdctl"): NerdctlRuntimeProvider(container_parser_cls=DockerContainerParser, ...),
 }
 factory = RuntimeFactory(providers=providers)
 ```
-
-The factory builds managers directly from the provider's parsers, wiring transports and factories without requiring a `create_managers` method on the provider. The new provider only needs `kind`, `capabilities`, and `create_parsers`.
-
-`RuntimeCapabilities` list fields (`list_format_flags`, `default_run_flags`, `default_build_flags`) are `tuple[str, ...]` with `default=()`, not `list[str]`. This ensures the frozen dataclass is truly immutable.
 
 ## Testing Strategy
 
@@ -400,3 +405,4 @@ The factory builds managers directly from the provider's parsers, wiring transpo
 | 2026-06-21 | `oci-runtime-guardrail-remediation` (`15f6238`) | **F1-F14**: silent-failure fixes (exec stderr, logs stderr, prune error propagation, build context fields, entity-typed errors, coerce_size, parse_size_to_bytes, get_runtime_binary, timeout→OperationTimeoutError). **F15-F42**: 28 additional fixes (cancellation_factory, RunConfig validation, tuple fields, cached which, conformance parser fixes, wiring test corrections). Bumped to 0.3.0. |
 | 2026-06-22 | `oci-runtime-audit-remediation` | Full audit remediation: CancellationToken + RuntimeCapabilities relocated to ports/, BinaryResolver port + adapter, PtyTransport port + CliPtyTransport adapter (stderr=PIPE separation), ProcessPipeReader generalized (os.read, PTY EIO handling), CliTransport.execute() CancellationToken unification, all value objects frozen, PortMapping.host_ip required, VolumeMount.source Optional, ImagePullAccessDeniedError, parse_build_output hex validation, parse_digest_from_pull rename, Docker/Podman parser parity (RepoTags null, unbound ports, string Names), _parse_json_list scalar guard + empty NDJSON, tar path validation, DeadlineCancellationToken __del__, parse_size_to_bytes P/E units + regex fix, list() factored into base, _not_found_error required, collections.abc.Callable, conformance xfail removed, docs updated. 826 tests pass. |
 | 2026-06-22 | `oci-runtime-audit-remediation-v2` | Full audit remediation v2: Podman pull digest fix (remove premature return), Podman null RepoTags handling, Podman auth-error patterns, ProcessPipeReader fd<1000 removal, CliTransport stdin thread ValueError catch, CliStreamingTransport cancellation ordering, logs(follow) GeneratorExit guard, timeout-aware poll loop in all 3 transports, factory type annotation fix (BinaryResolver param), timeout type unification (float), RuntimePreference docstring fix, build error contract (ParsingError→ImageRuntimeError wrapping), stream_output wiring with OutputStream callbacks, composition root consolidation (factory builds managers, provider create_managers removed), domain deep immutability (MappingProxyType + tuple), test fidelity improvements (timeout/cancellation/PTY/tar/logs tests, concurrency fix, build-command key ordering, test renames, mock parser fixes, sleep→deterministic cancellation tests). 840+ tests pass. |
+| 2026-06-29 | `oci-runtime-audit-remediation-v3` | Full audit remediation v3: Domain extraction (8 new domain modules), parser rewire (BaseCliParser deleted, port ABCs implemented directly), manager rewire (CliBaseManager deleted, ResultChecker+ListExecutor injection), provider rewire (BaseCliRuntimeProvider deleted, constructor injection), factory DI (result_checker_factory+list_executor_factory), audit bug fixes A1-A8 (host_ip port flags, scalar guard, process reader strict, ImagePullAccessDeniedError context, PTY OciError, pull digest error, version OciError, Managers aggregate deleted), timeout params unified to float|None, hidden_tar_path norm fix, --network bridge explicit, LogDriverNotSupportedWarning, test cleanup. 861 tests pass. |

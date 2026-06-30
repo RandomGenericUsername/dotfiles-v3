@@ -1,17 +1,17 @@
 [
      {
-          "Id": "3cb067eab609612d81b4d82ff8ad71d73482bb3059a87b642d7e14f0ed659cde",
-          "Digest": "sha256:4d889c14e7d5a73929ab00be2ef8ff22437e7cbc545931e52554a7b00e123d8b",
+          "Id": "d529dd0c6e5597ac7e4a3e2dea65c3fcc6173f4cae713c409265c1dd9914a11b",
+          "Digest": "sha256:79ff19e9084a00eece421b2523fb93e22d730e2c0e525905de047e848e56d95f",
           "RepoTags": [
                "docker.io/library/alpine:latest"
           ],
           "RepoDigests": [
-               "docker.io/library/alpine@sha256:4d889c14e7d5a73929ab00be2ef8ff22437e7cbc545931e52554a7b00e123d8b",
-               "docker.io/library/alpine@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11"
+               "docker.io/library/alpine@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b",
+               "docker.io/library/alpine@sha256:79ff19e9084a00eece421b2523fb93e22d730e2c0e525905de047e848e56d95f"
           ],
           "Parent": "",
           "Comment": "buildkit.dockerfile.v0",
-          "Created": "2026-04-15T20:01:40.139676757Z",
+          "Created": "2026-06-16T00:01:29.967161902Z",
           "Config": {
                "Env": [
                     "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -25,41 +25,41 @@
           "Author": "",
           "Architecture": "amd64",
           "Os": "linux",
-          "Size": 8744033,
-          "VirtualSize": 8744033,
+          "Size": 8709729,
+          "VirtualSize": 8709729,
           "GraphDriver": {
                "Name": "overlay",
                "Data": {
-                    "UpperDir": "/home/inumaki/.local/share/containers/storage/overlay/29df493baa13de438d6d2ece3a8333032e0b7b9b9d8cce4ee82194da255f61e1/diff",
-                    "WorkDir": "/home/inumaki/.local/share/containers/storage/overlay/29df493baa13de438d6d2ece3a8333032e0b7b9b9d8cce4ee82194da255f61e1/work"
+                    "UpperDir": "/home/inumaki/.local/share/containers/storage/overlay/34884abbe92863fce933ed7c39c0e045631af0ed86d5cc0dfbdf9fdca426ce3c/diff",
+                    "WorkDir": "/home/inumaki/.local/share/containers/storage/overlay/34884abbe92863fce933ed7c39c0e045631af0ed86d5cc0dfbdf9fdca426ce3c/work"
                }
           },
           "RootFS": {
                "Type": "layers",
                "Layers": [
-                    "sha256:29df493baa13de438d6d2ece3a8333032e0b7b9b9d8cce4ee82194da255f61e1"
+                    "sha256:34884abbe92863fce933ed7c39c0e045631af0ed86d5cc0dfbdf9fdca426ce3c"
                ]
           },
           "Labels": null,
           "Annotations": {
                "com.docker.official-images.bashbrew.arch": "amd64",
                "org.opencontainers.image.base.name": "scratch",
-               "org.opencontainers.image.created": "2026-04-15T20:01:12Z",
-               "org.opencontainers.image.revision": "c68e08480b8fb053591ade7dbaffa2ea67db2f56",
-               "org.opencontainers.image.source": "https://github.com/alpinelinux/docker-alpine.git#c68e08480b8fb053591ade7dbaffa2ea67db2f56:x86_64",
+               "org.opencontainers.image.created": "2026-06-16T00:01:04Z",
+               "org.opencontainers.image.revision": "398ff0c866d27e9f46f53e48184fe36c674b8897",
+               "org.opencontainers.image.source": "https://github.com/alpinelinux/docker-alpine.git#398ff0c866d27e9f46f53e48184fe36c674b8897:x86_64",
                "org.opencontainers.image.url": "https://hub.docker.com/_/alpine",
-               "org.opencontainers.image.version": "3.23.4"
+               "org.opencontainers.image.version": "3.24.1"
           },
           "ManifestType": "application/vnd.oci.image.manifest.v1+json",
           "User": "",
           "History": [
                {
-                    "created": "2026-04-15T20:01:40.139676757Z",
-                    "created_by": "ADD alpine-minirootfs-3.23.4-x86_64.tar.gz / # buildkit",
+                    "created": "2026-06-16T00:01:29.967161902Z",
+                    "created_by": "ADD alpine-minirootfs-3.24.1-x86_64.tar.gz / # buildkit",
                     "comment": "buildkit.dockerfile.v0"
                },
                {
-                    "created": "2026-04-15T20:01:40.139676757Z",
+                    "created": "2026-06-16T00:01:29.967161902Z",
                     "created_by": "CMD [\"/bin/sh\"]",
                     "comment": "buildkit.dockerfile.v0",
                     "empty_layer": true
