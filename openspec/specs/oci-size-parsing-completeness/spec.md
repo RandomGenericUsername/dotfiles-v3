@@ -1,25 +1,31 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
-### Requirement: parse_size_to_bytes accepts all common size units
+### Requirement: parse_size_to_bytes accepts unitless integers and trailing whitespace
 
-`parse_size_to_bytes` must accept single-letter units (`K`, `M`, `G`, `T`), their lowercase equivalents, and `TIB` (tebibyte), in addition to the currently supported `KB`/`MB`/`GB`/`TB`/`KIB`/`MIB`/`GIB`. It must use `re.fullmatch` so that substring matches (e.g. `"junk 1.5GB trailing"`) are rejected rather than silently parsed.
+`domain/size_parsing.parse_size_to_bytes()` must accept size strings without a unit suffix (interpreted as bytes) and strings with trailing whitespace.
 
-#### Scenario: Single-letter megabyte
-- **WHEN** `parse_size_to_bytes("500M")` is called
-- **THEN** it returns `500 * 1024**2` (524288000), not `ValueError`
+Regex relaxed to: `r"^\s*(\d*\.?\d+)\s*([a-zA-Z]+)?\s*$"` (unit optional, leading/trailing whitespace allowed). When unit is missing, multiplier defaults to 1 (bytes). Examples: `"1024"` → `1024`, `" 512 "` → `512`, `"1.5GB "` → `1610612736`.
 
-#### Scenario: Single-letter terabyte
-- **WHEN** `parse_size_to_bytes("2T")` is called
-- **THEN** it returns `2 * 1024**4`, not `ValueError`
+#### Scenario: Unitless integer parses as bytes
+- **WHEN** `parse_size_to_bytes("1024")` is called
+- **THEN** returns `1024` (int)
 
-#### Scenario: Tebibyte unit
-- **WHEN** `parse_size_to_bytes("3TIB")` is called
-- **THEN** it returns `3 * 1024**4`, not `ValueError`
+#### Scenario: Trailing whitespace ignored
+- **WHEN** `parse_size_to_bytes(" 1.5GB ")` is called
+- **THEN** returns `1610612736` (same as `"1.5GB"`)
 
-#### Scenario: Substring match rejected
+#### Scenario: Leading whitespace ignored
+- **WHEN** `parse_size_to_bytes("\t1.5GB")` is called
+- **THEN** returns `1610612736`
+
+#### Scenario: Case-insensitive units preserved
+- **WHEN** `parse_size_to_bytes("1.5gb")` is called
+- **THEN** returns `1610612736`
+
+### Requirement: parse_size_to_bytes rejects embedded garbage
+
+Full-match regex still rejects strings with extra non-whitespace content after the unit (e.g., `"junk 1.5GB trailing"` raises `ValueError`).
+
+#### Scenario: Embedded garbage rejected
 - **WHEN** `parse_size_to_bytes("junk 1.5GB trailing")` is called
-- **THEN** it raises `ValueError` (the full string is not a valid size, not just a substring)
-
-#### Scenario: Standard units still work
-- **WHEN** `parse_size_to_bytes("1.5GB")` is called
-- **THEN** it returns `1610612736` (unchanged from current behavior)
+- **THEN** raises `ValueError`

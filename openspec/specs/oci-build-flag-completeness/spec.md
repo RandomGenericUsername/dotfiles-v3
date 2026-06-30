@@ -1,34 +1,45 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
-### Requirement: Build must emit all BuildContext flags
+### Requirement: All list() methods delegate to ListExecutor port
 
-`ImageManager.build()` must emit CLI flags for every documented `BuildContext` field. No field that the user sets may be silently dropped. Specifically:
+`CliContainerManager.list()`, `CliImageManager.list()`, `CliVolumeManager.list()`, `CliNetworkManager.list()` are rewritten as one-line delegates to `self._list_executor.execute_list(subcommand, entity_type, show_all, filters)`. The four copy-pasted inline implementations are deleted. `ListExecutor.execute_list` is the single implementation of list command construction, execution, error-checking, and parsing.
 
-- `build_args`: each key-value pair must produce `--build-arg KEY=VALUE`
-- `labels`: each key-value pair must produce `--label KEY=VALUE`
-- `pull=True`: must produce `--pull`
-- `rm=False`: must produce `--rm=false` (default `rm=True` omits the flag)
-- `network`: must produce `--network VALUE`
-- `build_contexts`: each entry must produce `--build-context KEY=VALUE`
+#### Scenario: Container manager list delegates to ListExecutor
+- **WHEN** `CliContainerManager.list(show_all=True, filters={"name": "web"})` is called
+- **THEN** `self._list_executor.execute_list(["container", "list"], "containers", show_all=True, filters={"name": "web"})` is called and its result returned
 
-Fields that are `None`, empty, or at their default value may be omitted (no flag emitted). But a field the user explicitly sets must appear in the command.
+#### Scenario: Image manager list delegates to ListExecutor
+- **WHEN** `CliImageManager.list(filters={"dangling": "true"})` is called
+- **THEN** `self._list_executor.execute_list(["image", "list"], "images", filters={"dangling": "true"})` is called
 
-#### Scenario: Build with build_args
-- **WHEN** `BuildContext(build_file_content="FROM alpine", build_args={"HTTP_PROXY": "http://proxy"})` is built
-- **THEN** the emitted command contains `--build-arg HTTP_PROXY=http://proxy`
+#### Scenario: Volume manager list delegates to ListExecutor
+- **WHEN** `CliVolumeManager.list()` is called
+- **THEN** `self._list_executor.execute_list(["volume", "list"], "volumes")` is called
 
-#### Scenario: Build with labels
-- **WHEN** `BuildContext(build_file_content="FROM alpine", labels={"maintainer": "team"})` is built
-- **THEN** the emitted command contains `--label maintainer=team`
+#### Scenario: Network manager list delegates to ListExecutor
+- **WHEN** `CliNetworkManager.list()` is called
+- **THEN** `self._list_executor.execute_list(["network", "list"], "networks")` is called
 
-#### Scenario: Build with pull
-- **WHEN** `BuildContext(build_file_content="FROM alpine", pull=True)` is built
-- **THEN** the emitted command contains `--pull`
+### Requirement: _NOT_PROBED sentinel deleted
 
-#### Scenario: Build with network
-- **WHEN** `BuildContext(build_file_content="FROM alpine", network="host")` is built
-- **THEN** the emitted command contains `--network host`
+The module-level `_NOT_PROBED = object()` in `adapters/binary.py` is removed. It was a remnant of the pre-v2 duplicated `_ensure_binary` / `_which_cache` mechanism and is unused.
 
-#### Scenario: Build with rm=False
-- **WHEN** `BuildContext(build_file_content="FROM alpine", rm=False)` is built
-- **THEN** the emitted command contains `--rm=false`
+#### Scenario: Binary.py has no _NOT_PROBED
+- **WHEN** `grep -n "_NOT_PROBED" src/oci_runtime/adapters/binary.py` is run
+- **THEN** no matches
+
+### Requirement: Dead getattr defensive check removed from ResultChecker
+
+`ResultChecker.check()` receives `is_auth` as a `Callable[[str], bool] | None` parameter. The `getattr(self._parser, "is_auth_error", None)` guard is not needed because `is_auth` is `None` when no auth check is required. This is handled at wiring time by the factory.
+
+#### Scenario: Container ResultChecker checks no auth
+- **WHEN** `ResultChecker` for containers calls `check()` with `is_auth=None`
+- **THEN** the auth branch is never entered; not-found and generic branches work normally
+
+### Requirement: Dead except clause removed from RuntimeDiscovery
+
+`CliRuntimeDiscovery.available()` catches `(FileNotFoundError, OSError, RuntimeNotAvailableError)` but `transport.probe()` returns `bool` and raises none of these. The `except` block is deleted.
+
+#### Scenario: available() no longer catches dead exceptions
+- **WHEN** `available()` is called and `transport.probe()` returns `False`
+- **THEN** no exception is caught; the runtime is simply omitted from the available list

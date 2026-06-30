@@ -1,17 +1,29 @@
 ## MODIFIED Requirements
 
-### Requirement: run_pty timeout uses OperationTimeoutError
+### Requirement: PTY empty-command raises OciError not ContainerRuntimeError
 
-`run_pty()` must raise `OperationTimeoutError(OciError)` on timeout, not `subprocess.TimeoutExpired`. This keeps timeouts within the `OciError` hierarchy so `except OciError` catches them.
+`CliPtyTransport.execute_pty()` raises `OciError` (with `command=[]` attached) when `command` is an empty list. `ContainerRuntimeError` is a container-specific exception and must not be raised from a generic transport port.
 
-#### Scenario: PTY timeout raises OperationTimeoutError
-- **WHEN** `run_pty(["/bin/sleep", "5"], timeout=0.3)` exceeds the deadline
-- **THEN** `OperationTimeoutError` is raised, and `except OciError` catches it
+#### Scenario: Empty command raises OciError
+- **WHEN** `pty_transport.execute_pty([], output_stream=stream)` is called
+- **THEN** `OciError` raised with `message="Empty command list"`, `command=[]`, `exit_code=None`, `stderr=None`
 
-### Requirement: Stream timeout uses OperationTimeoutError
+#### Scenario: OciError formatted message includes empty command
+- **WHEN** the `OciError` from empty command is formatted (str())
+- **THEN** the message includes the `command=[]` (even though empty, it is represented)
 
-`CliStreamingTransport.stream()` must raise `OperationTimeoutError(OciError)` on deadline expiry, not `subprocess.TimeoutExpired`.
+### Requirement: PTY timeout raises OperationTimeoutError
 
-#### Scenario: Stream timeout raises OperationTimeoutError
-- **WHEN** `stream(["docker", "ps"], timeout=0.01)` exceeds the deadline
-- **THEN** `OperationTimeoutError` is raised, and `except OciError` catches it
+`CliPtyTransport.execute_pty()` with `timeout=...` raises `OperationTimeoutError(OciError)` on deadline expiry, same as `CliTransport.execute()` and `CliStreamingTransport.stream()`. The timeout-aware poll loop (`process.wait(timeout=0.5)` checking `cancel_token`) is present and functional.
+
+#### Scenario: PTY deadline raises OperationTimeoutError
+- **WHEN** `execute_pty(cmd, timeout=0.1)` and the process runs >0.1s
+- **THEN** `OperationTimeoutError` raised with `command=cmd`, `timeout=0.1`
+
+### Requirement: PTY stderr separation preserved
+
+The architecture decision (PTY for stdout, PIPE for stderr) is maintained. `_check_result` inspects stderr for not-found patterns in PTY mode.
+
+#### Scenario: PTY mode not-found detection works
+- **WHEN** `run(config, effective_tty=True)` and the CLI emits "No such image: foo" to stderr
+- **THEN** `ImageNotFoundError("foo")` is raised (via `_check_result` on the PTY result's stderr)

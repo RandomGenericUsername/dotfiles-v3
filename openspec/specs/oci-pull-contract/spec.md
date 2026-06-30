@@ -1,17 +1,17 @@
 ## MODIFIED Requirements
 
-### Requirement: parse_id_from_pull returns sha256-prefixed id for both runtimes
+### Requirement: pull() raises ImageRuntimeError on digest-extraction failure
 
-`parse_id_from_pull` must return a `sha256:`-prefixed image id for both docker and podman pull output. The current podman parser falls back to returning the first non-Trying/Getting/Error/Warning line as-is, which may be a bare hex id without the `sha256:` prefix. This makes the return value inconsistent between runtimes and violates the implicit contract that pull returns a digest-style id.
+`CliImageManager.pull()` must raise `ImageRuntimeError` (the manager's `_generic_error`) when `parse_digest_from_pull()` returns an empty string. Previously it raised base `ImageError`. The exception carries `command`, `exit_code`, and `stderr` from the transport result.
 
-#### Scenario: Docker pull with Digest line
-- **WHEN** docker pull output contains `Digest: sha256:abc123...`
-- **THEN** `parse_id_from_pull` returns `"sha256:abc123..."` (unchanged)
+#### Scenario: Docker pull digest missing raises ImageRuntimeError
+- **WHEN** `docker pull alpine` succeeds (exit 0) but stdout has no `Digest: sha256:...` line (e.g., already present, output is just `"Status: Image is up to date for alpine:latest\n"`)
+- **THEN** `image_manager.pull("alpine")` raises `ImageRuntimeError` with `command=["docker", "pull", "alpine"]`, `exit_code=0`, `stderr` empty (or the raw stdout if parsed)
 
-#### Scenario: Podman pull with bare hex id
-- **WHEN** podman pull output for a cached image is a single line with a bare hex id `d529dd0c6e55...`
-- **THEN** `parse_id_from_pull` returns `"sha256:d529dd0c6e55..."`, not the bare hex string
+#### Scenario: Podman pull digest missing raises ImageRuntimeError
+- **WHEN** `podman pull alpine` succeeds but stdout has no parseable digest (already cached)
+- **THEN** `ImageRuntimeError` raised with command/exit_code/stderr attached
 
-#### Scenario: Unparseable pull output raises ImageError (unchanged)
-- **WHEN** pull output cannot be parsed to extract any id
-- **THEN** `pull()` raises `ImageError` (the manager-level check, unchanged from prior spec)
+#### Scenario: Auth error still raises ImagePullAccessDeniedError
+- **WHEN** `docker pull private/image` returns exit 1, stderr `"pull access denied"`
+- **THEN** `ImagePullAccessDeniedError` raised (not `ImageRuntimeError`); auth path takes precedence
