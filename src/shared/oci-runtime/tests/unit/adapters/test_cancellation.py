@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from oci_runtime.adapters._cancellation import (
+from oci_runtime.ports.cancellation import (
     CompositeCancellationToken,
     DeadlineCancellationToken,
     ThreadCancellationToken,

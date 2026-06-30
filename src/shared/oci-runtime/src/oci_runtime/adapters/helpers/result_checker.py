@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
-from oci_runtime.domain.encoding import safe_decode
 from oci_runtime.domain.exceptions import OciError
+from oci_runtime.domain.result_checking import check_cli_result
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.result_checker import ResultChecker
 
@@ -31,25 +31,14 @@ class CliResultChecker(ResultChecker):
         entity: str = "",
         not_found_error: type[OciError] | None = None,
     ) -> None:
-        if result.returncode == 0:
-            return
-        not_found_error = not_found_error or self._not_found_error
-        stderr_str = safe_decode(result.stderr)
-
-        if self._auth_error and self._is_auth and self._is_auth(stderr_str):
-            raise self._auth_error(
-                entity,
-                command=cmd,
-                exit_code=result.returncode,
-                stderr=stderr_str,
-            )
-
-        if self._is_not_found(stderr_str):
-            raise not_found_error(entity)
-
-        raise self._generic_error(
-            message=f"Failed to {operation} | {stderr_str}",
-            command=cmd,
-            exit_code=result.returncode,
-            stderr=stderr_str,
+        check_cli_result(
+            result,
+            cmd,
+            operation=operation,
+            entity=entity,
+            not_found_error=not_found_error or self._not_found_error,
+            generic_error=self._generic_error,
+            auth_error=self._auth_error,
+            is_auth=self._is_auth,
+            is_not_found=self._is_not_found,
         )

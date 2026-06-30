@@ -1,4 +1,4 @@
-from oci_runtime.adapters._tar import create_build_tar
+from oci_runtime.domain.build_tar import create_build_tar
 from oci_runtime.domain.encoding import safe_decode
 from oci_runtime.domain.exceptions import (
     ImageNotFoundError,

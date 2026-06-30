@@ -1,6 +1,6 @@
 from abc import ABC
 from dataclasses import FrozenInstanceError, is_dataclass, fields
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -59,7 +59,7 @@ from oci_runtime.domain.exceptions import (
     VolumeNotFoundError,
     VolumeRuntimeError,
 )
-from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
     MockPtyTransport,
@@ -165,20 +165,23 @@ class TestTransportContract:
             type("BadTransport", (Transport,), {})()
 
     def test_cli_transport_implements_all(self):
-        t = CliTransport("docker")
+        from oci_runtime.adapters.binary import CliBinaryResolver
+        t = CliTransport("docker", binary_resolver=CliBinaryResolver())
         assert isinstance(t, Transport)
         assert callable(t.execute)
         assert callable(t.get_runtime_binary)
         assert callable(t.probe)
 
     def test_cli_transport_get_runtime_binary(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            t = CliTransport("docker")
+            t = CliTransport("docker", binary_resolver=CliBinaryResolver())
             assert t.get_runtime_binary() == "/usr/bin/docker"
 
     def test_cli_transport_get_runtime_binary_custom(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value="/usr/local/bin/podman"):
-            t = CliTransport("/usr/local/bin/podman")
+            t = CliTransport("/usr/local/bin/podman", binary_resolver=CliBinaryResolver())
             assert t.get_runtime_binary() == "/usr/local/bin/podman"
 
     def test_recording_transport_implements_transport(self):
@@ -463,7 +466,7 @@ class TestParserContract:
         assert issubclass(ContainerParser, ABC)
 
     def test_container_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error"}
+        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error", "is_auth_error"}
         actual = set(ContainerParser.__abstractmethods__)
         assert actual == expected
 
@@ -482,6 +485,7 @@ class TestParserContract:
             "parse_digest_from_pull",
             "parse_prune",
             "is_not_found_error",
+            "is_auth_error",
         }
         actual = set(ImageParser.__abstractmethods__)
         assert actual == expected
@@ -490,7 +494,7 @@ class TestParserContract:
         assert issubclass(VolumeParser, ABC)
 
     def test_volume_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error"}
+        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error", "is_auth_error"}
         actual = set(VolumeParser.__abstractmethods__)
         assert actual == expected
 
@@ -498,7 +502,7 @@ class TestParserContract:
         assert issubclass(NetworkParser, ABC)
 
     def test_network_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error"}
+        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error", "is_auth_error"}
         actual = set(NetworkParser.__abstractmethods__)
         assert actual == expected
 
@@ -615,8 +619,6 @@ class TestExceptionHierarchyContract:
 
 class TestFactoryContract:
     def test_factory_create_returns_container_engine(self):
-        from unittest.mock import patch
-
         with patch("shutil.which", return_value="/usr/bin/docker"):
             with patch("subprocess.run") as mock_run:
                 mock_run.return_value.returncode = 0

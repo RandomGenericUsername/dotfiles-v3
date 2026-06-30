@@ -41,6 +41,9 @@ class MockContainerParser(ContainerParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such container" in stderr or "No such object" in stderr
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class MockImageParser(ImageParser):
     def parse_inspect(self, raw: str) -> ImageInfo:
@@ -78,6 +81,9 @@ class MockVolumeParser(VolumeParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such volume" in stderr
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class MockNetworkParser(NetworkParser):
     def parse_inspect(self, raw: str) -> NetworkInfo:
@@ -91,3 +97,6 @@ class MockNetworkParser(NetworkParser):
 
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such network" in stderr
+
+    def is_auth_error(self, stderr: str) -> bool:
+        return False

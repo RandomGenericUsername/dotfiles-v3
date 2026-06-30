@@ -32,6 +32,9 @@ class ContainerParser(ABC):
     @abstractmethod
     def is_not_found_error(self, stderr: str) -> bool: ...
 
+    @abstractmethod
+    def is_auth_error(self, stderr: str) -> bool: ...
+
 
 class ImageParser(ABC):
     @abstractmethod
@@ -52,6 +55,9 @@ class ImageParser(ABC):
     @abstractmethod
     def is_not_found_error(self, stderr: str) -> bool: ...
 
+    @abstractmethod
+    def is_auth_error(self, stderr: str) -> bool: ...
+
 
 class VolumeParser(ABC):
     @abstractmethod
@@ -66,6 +72,9 @@ class VolumeParser(ABC):
     @abstractmethod
     def is_not_found_error(self, stderr: str) -> bool: ...
 
+    @abstractmethod
+    def is_auth_error(self, stderr: str) -> bool: ...
+
 
 class NetworkParser(ABC):
     @abstractmethod
@@ -79,3 +88,6 @@ class NetworkParser(ABC):
 
     @abstractmethod
     def is_not_found_error(self, stderr: str) -> bool: ...
+
+    @abstractmethod
+    def is_auth_error(self, stderr: str) -> bool: ...

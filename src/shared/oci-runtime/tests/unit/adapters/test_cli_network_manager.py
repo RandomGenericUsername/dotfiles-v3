@@ -25,6 +25,9 @@ class _MockParser(NetworkParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such network" in stderr
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class TestCliNetworkManager:
     def setup_method(self):

@@ -26,6 +26,9 @@ class _MockParser(VolumeParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such volume" in stderr
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class TestCliVolumeManager:
     def setup_method(self):

@@ -1,12 +1,23 @@
 import io
 import os
 import selectors
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 
 from oci_runtime.ports.cancellation import CancellationToken
 
 
-class ProcessPipeReader:
+class PipeReader(ABC):
+    @abstractmethod
+    def read(
+        self,
+        on_primary: Callable[[bytes], None] | None = None,
+        on_secondary: Callable[[bytes], None] | None = None,
+        cancel_token: CancellationToken | None = None,
+    ) -> tuple[list[bytes], list[bytes]]: ...
+
+
+class ProcessPipeReader(PipeReader):
     """Read from two file descriptors until both deliver EOF or cancellation.
 
     Works with subprocess pipes AND PTY master fds. Uses os.read(fd, n)

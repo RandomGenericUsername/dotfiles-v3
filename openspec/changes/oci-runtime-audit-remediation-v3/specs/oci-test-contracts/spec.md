@@ -12,13 +12,13 @@
 - **WHEN** `test_cli_image_manager_implements_all` runs
 - **THEN** it constructs `CliImageManager` and asserts `isinstance(mgr, ImageManager)` (port), not identity check on class name
 
-### Requirement: Factory config defaults test covers all 12 fields
+### Requirement: Factory config defaults test covers all 15 fields
 
-`test_factory_config_defaults_are_none` asserts that **all 12** `RuntimeFactoryConfig` fields default to `None` (was 4). Any future field added must be included.
+`test_factory_config_defaults_are_none` asserts that **all 15** `RuntimeFactoryConfig` fields default to `None` (was 4). Any future field added must be included.
 
-#### Scenario: All 12 config fields default to None
+#### Scenario: All 15 config fields default to None
 - **WHEN** `RuntimeFactoryConfig()` is constructed
-- **THEN** `transport_factory`, `streaming_transport_factory`, `runtime_cls`, `discovery_factory`, `tty_detector_factory`, `output_stream_factory`, `cancellation_factory`, `binary_resolver_factory`, `pty_transport_factory`, `container_manager_cls`, `image_manager_cls`, `volume_manager_cls`, `network_manager_cls` are all `None`
+- **THEN** `transport_factory`, `streaming_transport_factory`, `runtime_cls`, `discovery_factory`, `tty_detector_factory`, `output_stream_factory`, `cancellation_factory`, `binary_resolver_factory`, `pty_transport_factory`, `result_checker_factory`, `list_executor_factory`, `container_manager_cls`, `image_manager_cls`, `volume_manager_cls`, `network_manager_cls` are all `None`
 
 ### Requirement: CliResultChecker constructor contract test
 

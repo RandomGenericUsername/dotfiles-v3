@@ -27,6 +27,9 @@ class _Parser(ImageParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return "No such image" in stderr
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class TestImageManager:
     def test_is_abc(self):

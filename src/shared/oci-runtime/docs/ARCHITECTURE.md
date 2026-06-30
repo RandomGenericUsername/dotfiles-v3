@@ -25,11 +25,12 @@ oci-runtime/
 │   │   ├── size_parsing.py        # (new) parse_size_to_bytes, coerce_size, safe_int
 │   │   └── types.py               # RunConfig, ContainerInfo, ExecResult, RawExecResult,
 │   │                              #   PruneResult, VolumeMount, PortMapping, etc.
-│   ├── ports/                     # Port interfaces (ABCs only) + aggregate types
+│   ├── ports/                     # Port interfaces (ABCs) + concrete implementations of infrastructure concerns
 │   │   ├── __init__.py
 │   │   ├── aggregates.py          # Parsers (port-level aggregate types)
 │   │   ├── binary_resolver.py     # BinaryResolver ABC
-│   │   ├── cancellation.py        # CancellationToken ABC
+│   │   ├── cancellation.py        # CancellationToken ABC + ThreadCancellationToken,
+│   │   │                          #   DeadlineCancellationToken, CompositeCancellationToken, compose_tokens
 │   │   ├── capabilities.py        # RuntimeCapabilities (frozen dataclass)
 │   │   ├── discovery.py           # RuntimeDiscovery ABC
 │   │   ├── engine.py              # ContainerEngine ABC
@@ -37,14 +38,13 @@ oci-runtime/
 │   │   ├── output_stream.py       # OutputStream ABC
 │   │   ├── parsers.py             # ContainerParser, ImageParser, VolumeParser, NetworkParser ABCs
 │   │   │                          #   (re-exports ParsingError from domain)
+│   │   ├── pipe_reader.py         # PipeReader ABC + ProcessPipeReader
 │   │   ├── provider.py            # RuntimeProvider ABC
 │   │   ├── pty_transport.py       # PtyTransport ABC
 │   │   ├── streaming.py           # StreamingTransport ABC (real-time output streaming)
 │   │   ├── transport.py           # Transport ABC (batch subprocess execution)
 │   │   └── tty.py                 # TtyDetector ABC
 │   └── adapters/
-│       ├── _tar.py                 # re-export shim (will be removed)
-│       ├── _utils.py               # re-export shim (will be removed)
 │       ├── helpers/
 │       │   ├── list_executor.py    # CliListExecutor[T]
 │       │   └── result_checker.py   # CliResultChecker
@@ -76,9 +76,11 @@ oci-runtime/
 
 The dependency direction is strictly **domain ← ports ← adapters**, with the factory as the single composition root that wires adapters to ports.
 
+The AST-based layering linter (`tests/architecture/test_layering.py`) enforces strict dependency direction with no intra-layer imports in the adapter layer:
+
 - **domain/** contains value objects, enums, and exceptions. It imports only the standard library (`re`, `abc`, `dataclasses`, `pathlib`, `enum`). It never imports `ports` or `adapters`.
 - **ports/** contains ABCs, aggregate dataclasses (`Parsers`), and port-level value objects (`RuntimeCapabilities`, `CancellationToken`). It imports from `domain` and defines the contracts the adapters implement. The only non-ABC artifact is the `ParsingError` re-export in `ports/parsers.py`, sourced from `domain/exceptions.py`.
-- **adapters/** contains the concrete implementations. It imports from `ports` and `domain`. Adapters are not re-exported by `oci_runtime/__init__.py` — they are implementation details reachable via their submodules.
+- **adapters/** contains the concrete implementations. It imports from `ports` and `domain` only — the layering linter blocks intra-adapter imports (`adapters` → `adapters`), enforcing that adapters share no dependencies between themselves; all sharing goes through `ports`. Adapters are not re-exported by `oci_runtime/__init__.py` — they are implementation details reachable via their submodules.
 - **factory.py** is the only place manager, transport, engine, discovery, and infrastructure adapter classes are referenced. `RuntimeFactoryConfig` exposes factory callables for every adapter so the entire object graph is injectable for testing.
 
 ## Domain Layer
@@ -133,13 +135,13 @@ The port layer defines the ABCs that adapters implement.
 
 **`BinaryResolver`** — resolves a runtime binary name to an executable path. `resolve(binary) -> str` raises `RuntimeNotAvailableError` if not found. `is_available(binary) -> bool` returns a boolean without raising. Caches results so repeated calls do not re-invoke `shutil.which`.
 
-**`CancellationToken`** — signals cancellation across threads. `cancel() -> None` sets the cancelled state. `is_cancelled -> bool` is a property. This is a pure interface — concrete implementations live in `adapters/_cancellation.py`.
+**`CancellationToken`** — signals cancellation across threads. `cancel() -> None` sets the cancelled state. `is_cancelled -> bool` is a property. Concrete implementations (`ThreadCancellationToken`, `DeadlineCancellationToken`, `CompositeCancellationToken`) and the `compose_tokens()` helper live alongside the ABC in `ports/cancellation.py`, eliminating the old adapter-level module.
 
 **`RuntimeProvider`** — encapsulates all runtime-specific knowledge. `kind` returns the `RuntimeKind`. `capabilities()` returns `RuntimeCapabilities`. `create_parsers() -> Parsers` builds the four parser instances. Providers are constructed with parser classes and capabilities injected via keyword arguments.
 
 **`ImageManager` / `ContainerManager` / `VolumeManager` / `NetworkManager`** — the four manager ABCs defining the lifecycle operations (build, pull, run, exec, inspect, list, prune, etc.). Each `prune()` returns `PruneResult`. Each `list()` returns `list[<entity info>]` — an empty result returns `[]`, not an error. `exec_container` accepts an optional `timeout: float | None`.
 
-**`ContainerParser` / `ImageParser` / `VolumeParser` / `NetworkParser`** — parser ABCs that convert CLI JSON/text output into domain types. Each declares `parse_inspect`, `parse_list`, `parse_prune`, and `is_not_found_error`. `ImageParser` adds `parse_build_output` and `parse_digest_from_pull`.
+**`ContainerParser` / `ImageParser` / `VolumeParser` / `NetworkParser`** — parser ABCs that convert CLI JSON/text output into domain types. Each declares `parse_inspect`, `parse_list`, `parse_prune`, `is_not_found_error`, and `is_auth_error`. `ImageParser` adds `parse_build_output` and `parse_digest_from_pull`.
 
 **`TtyDetector`** — single-method ABC: `is_tty() -> bool`. `CliContainerManager` requires a `TtyDetector` instance (no default) so TTY detection is injectable and testable without patching `sys.stdout`.
 
@@ -157,11 +159,11 @@ The port layer defines the ABCs that adapters implement.
 
 ### Transport
 
-**`CliTransport`** implements `Transport.execute()` using `subprocess.Popen` + `ProcessPipeReader` + `DeadlineCancellationToken`. When `timeout` is set, a `DeadlineCancellationToken` is created and composed with any user-provided `cancel_token` via `compose_tokens()`. The reader loop polls `is_cancelled` each iteration; on deadline expiry the process is killed and `OperationTimeoutError(OciError)` is raised; on user cancellation it returns partial data with `returncode=-1`. Stdin (when `input_data` is provided) is written in a daemon thread to avoid pipe deadlock on large inputs. After the reader exits (pipes drained), a timeout-aware poll loop replaces bare `process.wait()` — it calls `process.wait(timeout=0.5)` in a loop, checking `effective_token.is_cancelled` each iteration, so that user cancellation or deadline expiry is detected even during the post-read wait phase. This replaces the previous `subprocess.run(timeout=...)` approach, unifying batch and streaming transports under the same `CancellationToken` framework and ensuring all timeouts raise `OperationTimeoutError` (never leaking `subprocess.TimeoutExpired`).
+**`CliTransport`** implements `Transport.execute()` using `subprocess.Popen` + `ProcessPipeReader` + `DeadlineCancellationToken`. Receives `binary` and `BinaryResolver` via constructor injection (no default fallback — the factory provides the resolver). When `timeout` is set, a `DeadlineCancellationToken` is created and composed with any user-provided `cancel_token` via `compose_tokens()`. The reader loop polls `is_cancelled` each iteration; on deadline expiry the process is killed and `OperationTimeoutError(OciError)` is raised; on user cancellation it returns partial data with `returncode=-1`. Stdin (when `input_data` is provided) is written in a daemon thread to avoid pipe deadlock on large inputs. After the reader exits (pipes drained), a timeout-aware poll loop replaces bare `process.wait()` — it calls `process.wait(timeout=0.5)` in a loop, checking `effective_token.is_cancelled` each iteration, so that user cancellation or deadline expiry is detected even during the post-read wait phase. This replaces the previous `subprocess.run(timeout=...)` approach, unifying batch and streaming transports under the same `CancellationToken` framework and ensuring all timeouts raise `OperationTimeoutError` (never leaking `subprocess.TimeoutExpired`).
 
-**`CliStreamingTransport`** wraps `subprocess.Popen` + `ProcessPipeReader`. Same `DeadlineCancellationToken` + `compose_tokens()` pattern as `CliTransport`. After the reader exits on EOF, a timeout-aware poll loop replaces bare `process.wait()` — polling `process.wait(timeout=0.5)` with cancellation checks, matching `CliTransport` and `CliPtyTransport`. In the cancellation branch, `process.kill()` + `process.wait()` run BEFORE `_stdin_thread.join()` to break the pipe buffer deadlock. This avoids a double-timeout where `process.wait(timeout=timeout)` could raise `TimeoutExpired` after the deadline already passed.
+**`CliStreamingTransport`** wraps `subprocess.Popen` + `ProcessPipeReader`. Same `BinaryResolver` constructor injection, `DeadlineCancellationToken` + `compose_tokens()` pattern as `CliTransport`. After the reader exits on EOF, a timeout-aware poll loop replaces bare `process.wait()` — polling `process.wait(timeout=0.5)` with cancellation checks, matching `CliTransport` and `CliPtyTransport`. In the cancellation branch, `process.kill()` + `process.wait()` run BEFORE `_stdin_thread.join()` to break the pipe buffer deadlock. This avoids a double-timeout where `process.wait(timeout=timeout)` could raise `TimeoutExpired` after the deadline already passed.
 
-**`ProcessPipeReader`** reads from two file descriptors via `selectors.DefaultSelector` until both deliver EOF or cancellation. It uses `os.read(fd, n)` (not `fileobj.read(n)`) which returns available data immediately after `select` fires — `fileobj.read(n)` on `FileIO` blocks until `n` bytes or EOF, which would deadlock on processes that emit small chunks then wait. Works with both subprocess pipes AND PTY master fds; PTY `OSError(EIO)` on Linux (raised when the PTY master is drained) is caught and treated as EOF. The reader is constructed via `ProcessPipeReader.from_process(process)` (for subprocess pipes) or `ProcessPipeReader.from_fds(primary_fd, secondary_fd)` (for PTY + pipe).
+**`PipeReader`** (ABC) / **`ProcessPipeReader`** (concrete) in `ports/pipe_reader.py` — reads from two file descriptors via `selectors.DefaultSelector` until both deliver EOF or cancellation. It uses `os.read(fd, n)` (not `fileobj.read(n)`) which returns available data immediately after `select` fires — `fileobj.read(n)` on `FileIO` blocks until `n` bytes or EOF, which would deadlock on processes that emit small chunks then wait. Works with both subprocess pipes AND PTY master fds; PTY `OSError(EIO)` on Linux (raised when the PTY master is drained) is caught and treated as EOF. The reader is constructed via `ProcessPipeReader.from_process(process)` (for subprocess pipes) or `ProcessPipeReader.from_fds(primary_fd, secondary_fd)` (for PTY + pipe). The port-level `PipeReader` ABC provides a seam for testing without real file descriptors.
 
 ### PTY
 
@@ -173,7 +175,8 @@ Managers no longer inherit from a shared `CliBaseManager`. Instead, each manager
 receives two injected dependencies via its constructor:
 - **`ResultChecker`** (port: `ports/result_checker.py`, adapter: `helpers/result_checker.py`):
   `check(result, cmd, *, operation, entity, not_found_error) -> None` — inspects a
-  `RawExecResult` and raises the appropriate `OciError` subclass:
+  `RawExecResult` and raises the appropriate `OciError` subclass. The `not_found_error`
+  parameter is typed as `type[OciError] | None` (not bare `type`), improving type safety.
   1. On success (returncode 0): returns.
   2. If `is_auth` callback matches: raises `auth_error` with command/exit_code/stderr.
   3. If `is_not_found` callback matches: raises `not_found_error(entity)`.
@@ -209,12 +212,12 @@ Image parsers also implement `is_auth_error` for pull-access-denied detection.
 
 ### Cancellation
 
-`adapters/_cancellation.py` provides three `CancellationToken` implementations:
+`ports/cancellation.py` provides three `CancellationToken` implementations alongside the ABC:
 - **`ThreadCancellationToken`** — backed by `threading.Event`; the production default.
 - **`DeadlineCancellationToken(timeout)`** — starts a `threading.Timer` on construction that sets the event after `timeout` seconds. `cancel()` disarms the timer and sets the event immediately. `__del__` calls `self._timer.cancel()` to prevent the timer thread from lingering if the token is garbage-collected before firing.
 - **`CompositeCancellationToken(*children)`** — cancelled when any child is cancelled; `cancel()` propagates to all children.
 
-`compose_tokens(user_token, deadline_token)` is a module-level helper that returns the effective token: `CompositeCancellationToken(user_token, deadline_token)` if both are set, the non-None one if only one is set, or `None` if neither is set.
+`compose_tokens(*tokens)` is a module-level helper that returns the effective token: `CompositeCancellationToken` if multiple tokens are passed, the single non-None one, or `None` if none are set.
 
 ### Provider
 
@@ -265,19 +268,19 @@ class CancellationToken(ABC):
     def is_cancelled(self) -> bool: ...
 ```
 
-### `ThreadCancellationToken` (adapters/_cancellation.py)
+### `ThreadCancellationToken` (ports/cancellation.py)
 ```python
 class ThreadCancellationToken(CancellationToken):
     """Backed by threading.Event — thread-safe, no GIL dependency."""
 ```
 
-### `DeadlineCancellationToken` (adapters/_cancellation.py)
+### `DeadlineCancellationToken` (ports/cancellation.py)
 ```python
 class DeadlineCancellationToken(CancellationToken):
     """Self-cancels after N seconds. Disarmed by cancel(). __del__ cancels the timer."""
 ```
 
-### `CompositeCancellationToken` (adapters/_cancellation.py)
+### `CompositeCancellationToken` (ports/cancellation.py)
 ```python
 class CompositeCancellationToken(CancellationToken):
     """Cancelled if ANY child token is cancelled."""
@@ -327,7 +330,7 @@ def execute_pty(self, command, *, output_stream=None, timeout=None,
                 cancel_token: CancellationToken | None = None) -> RawExecResult: ...
 ```
 
-### `ProcessPipeReader.read()` (adapters/_process_reader.py)
+### `ProcessPipeReader.read()` (ports/pipe_reader.py)
 ```python
 def read(self, on_primary=None, on_secondary=None,
          cancel_token: CancellationToken | None = None) -> tuple[list[bytes], list[bytes]]: ...
@@ -406,3 +409,4 @@ factory = RuntimeFactory(providers=providers)
 | 2026-06-22 | `oci-runtime-audit-remediation` | Full audit remediation: CancellationToken + RuntimeCapabilities relocated to ports/, BinaryResolver port + adapter, PtyTransport port + CliPtyTransport adapter (stderr=PIPE separation), ProcessPipeReader generalized (os.read, PTY EIO handling), CliTransport.execute() CancellationToken unification, all value objects frozen, PortMapping.host_ip required, VolumeMount.source Optional, ImagePullAccessDeniedError, parse_build_output hex validation, parse_digest_from_pull rename, Docker/Podman parser parity (RepoTags null, unbound ports, string Names), _parse_json_list scalar guard + empty NDJSON, tar path validation, DeadlineCancellationToken __del__, parse_size_to_bytes P/E units + regex fix, list() factored into base, _not_found_error required, collections.abc.Callable, conformance xfail removed, docs updated. 826 tests pass. |
 | 2026-06-22 | `oci-runtime-audit-remediation-v2` | Full audit remediation v2: Podman pull digest fix (remove premature return), Podman null RepoTags handling, Podman auth-error patterns, ProcessPipeReader fd<1000 removal, CliTransport stdin thread ValueError catch, CliStreamingTransport cancellation ordering, logs(follow) GeneratorExit guard, timeout-aware poll loop in all 3 transports, factory type annotation fix (BinaryResolver param), timeout type unification (float), RuntimePreference docstring fix, build error contract (ParsingError→ImageRuntimeError wrapping), stream_output wiring with OutputStream callbacks, composition root consolidation (factory builds managers, provider create_managers removed), domain deep immutability (MappingProxyType + tuple), test fidelity improvements (timeout/cancellation/PTY/tar/logs tests, concurrency fix, build-command key ordering, test renames, mock parser fixes, sleep→deterministic cancellation tests). 840+ tests pass. |
 | 2026-06-29 | `oci-runtime-audit-remediation-v3` | Full audit remediation v3: Domain extraction (8 new domain modules), parser rewire (BaseCliParser deleted, port ABCs implemented directly), manager rewire (CliBaseManager deleted, ResultChecker+ListExecutor injection), provider rewire (BaseCliRuntimeProvider deleted, constructor injection), factory DI (result_checker_factory+list_executor_factory), audit bug fixes A1-A8 (host_ip port flags, scalar guard, process reader strict, ImagePullAccessDeniedError context, PTY OciError, pull digest error, version OciError, Managers aggregate deleted), timeout params unified to float|None, hidden_tar_path norm fix, --network bridge explicit, LogDriverNotSupportedWarning, test cleanup. 861 tests pass. |
+| 2026-06-29 | (current) | **Post-v3 hardening**: CancellationToken implementations (`ThreadCancellationToken`, `DeadlineCancellationToken`, `CompositeCancellationToken`, `compose_tokens`) moved from `adapters/_cancellation.py` to `ports/cancellation.py`. ProcessPipeReader moved from `adapters/_process_reader.py` to `ports/pipe_reader.py` with new `PipeReader` ABC. `adapters/_tar.py` re-export shim deleted (logic already in `domain/build_tar.py`). All parser ABCs now require `is_auth_error(stderr) -> bool`. ResultChecker port `not_found_error` param typed as `type[OciError]`. `CliTransport`/`CliStreamingTransport` require `BinaryResolver` injection (no default fallback). Layering linter blocks `adapters` → `adapters` imports. Adapting tests updated. |

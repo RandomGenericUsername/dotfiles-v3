@@ -1,5 +1,5 @@
 import subprocess
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -22,7 +22,7 @@ class TestCliTransportExecute:
                         [b"running"],
                         [b""],
                     )
-                    t = CliTransport("docker")
+                    t = CliTransport("docker", binary_resolver=MagicMock())
                     result = t.execute(["docker", "ps"])
                     mock_popen.assert_called_once_with(
                         ["docker", "ps"],
@@ -47,7 +47,7 @@ class TestCliTransportExecute:
                         [b"built"],
                         [b""],
                     )
-                    t = CliTransport("docker")
+                    t = CliTransport("docker", binary_resolver=MagicMock())
                     t.execute(["docker", "build", "-"], input_data=b"FROM alpine")
                     mock_popen.assert_called_once_with(
                         ["docker", "build", "-"],
@@ -69,7 +69,7 @@ class TestCliTransportExecute:
                         [b""],
                         [b""],
                     )
-                    t = CliTransport("docker")
+                    t = CliTransport("docker", binary_resolver=MagicMock())
                     t.execute(["docker", "pull", "alpine"], timeout=300)
                     mock_popen.assert_called_once_with(
                         ["docker", "pull", "alpine"],
@@ -82,28 +82,32 @@ class TestCliTransportExecute:
         with patch("shutil.which", return_value="/usr/bin/docker"):
             with patch("subprocess.Popen") as mock_popen:
                 mock_popen.side_effect = FileNotFoundError()
-                t = CliTransport("docker")
+                t = CliTransport("docker", binary_resolver=MagicMock())
                 with pytest.raises(FileNotFoundError):
                     t.execute(["docker", "ps"])
 
     def test_execute_raises_on_missing_binary(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value=None):
-            t = CliTransport("nonexistent")
+            t = CliTransport("nonexistent", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError, match="nonexistent"):
                 t.execute(["nonexistent", "ps"])
 
     def test_get_runtime_binary_returns_binary(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            t = CliTransport("docker")
+            t = CliTransport("docker", binary_resolver=CliBinaryResolver())
             assert t.get_runtime_binary() == "/usr/bin/docker"
 
     def test_get_runtime_binary_custom_path(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value="/custom/bin/podman"):
-            t = CliTransport("/custom/bin/podman")
+            t = CliTransport("/custom/bin/podman", binary_resolver=CliBinaryResolver())
             assert t.get_runtime_binary() == "/custom/bin/podman"
 
     def test_get_runtime_binary_raises_on_missing(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value=None):
-            t = CliTransport("missing")
+            t = CliTransport("missing", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError):
                 t.get_runtime_binary()

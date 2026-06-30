@@ -137,6 +137,9 @@ class PodmanContainerParser(ContainerParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return matches_any_pattern(stderr, self._not_found_patterns)
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class PodmanImageParser(ImageParser):
     _not_found_patterns = ("image not found",)
@@ -257,6 +260,9 @@ class PodmanVolumeParser(VolumeParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return matches_any_pattern(stderr, self._not_found_patterns)
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class PodmanNetworkParser(NetworkParser):
     _not_found_patterns = ("no such network",)
@@ -298,3 +304,6 @@ class PodmanNetworkParser(NetworkParser):
 
     def is_not_found_error(self, stderr: str) -> bool:
         return matches_any_pattern(stderr, self._not_found_patterns)
+
+    def is_auth_error(self, stderr: str) -> bool:
+        return False

@@ -182,7 +182,7 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
 
         replacements["output_stream_factory"] = lambda: StdoutBufferStream()
     if cfg.cancellation_factory is None:
-        from oci_runtime.adapters._cancellation import ThreadCancellationToken
+        from oci_runtime.ports.cancellation import ThreadCancellationToken
 
         replacements["cancellation_factory"] = lambda: ThreadCancellationToken()
     if cfg.binary_resolver_factory is None:

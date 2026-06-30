@@ -12,7 +12,7 @@ from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.streaming import StreamingTransport
-from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from oci_runtime.ports.cancellation import ThreadCancellationToken
 from oci_runtime.adapters.helpers.result_checker import CliResultChecker
 from oci_runtime.adapters.helpers.list_executor import CliListExecutor
 from oci_runtime.domain.exceptions import ContainerNotFoundError, ContainerRuntimeError
@@ -59,6 +59,9 @@ class _MockParser(ContainerParser):
         return PruneResult()
 
     def is_not_found_error(self, stderr: str):
+        return False
+
+    def is_auth_error(self, stderr: str) -> bool:
         return False
 
 

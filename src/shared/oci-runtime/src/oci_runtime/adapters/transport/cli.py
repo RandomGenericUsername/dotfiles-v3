@@ -1,25 +1,24 @@
 import subprocess
 import threading
 
-from oci_runtime.adapters._cancellation import (
-    DeadlineCancellationToken,
-    compose_tokens,
-)
-from oci_runtime.adapters._process_reader import ProcessPipeReader
-from oci_runtime.adapters.binary import CliBinaryResolver
 from oci_runtime.domain.exceptions import (
     OperationTimeoutError,
 )
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.binary_resolver import BinaryResolver
-from oci_runtime.ports.cancellation import CancellationToken
+from oci_runtime.ports.cancellation import (
+    CancellationToken,
+    DeadlineCancellationToken,
+    compose_tokens,
+)
+from oci_runtime.ports.pipe_reader import ProcessPipeReader
 from oci_runtime.ports.transport import Transport
 
 
 class CliTransport(Transport):
     def __init__(self, binary: str, binary_resolver: BinaryResolver | None = None):
         self.binary = binary
-        self._resolver = binary_resolver or CliBinaryResolver()
+        self._resolver = binary_resolver
 
     def execute(
         self,

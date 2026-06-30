@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,7 +37,7 @@ from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RawExecResult
-from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from oci_runtime.ports.cancellation import ThreadCancellationToken
 from oci_runtime.adapters.helpers.list_executor import CliListExecutor
 from oci_runtime.adapters.helpers.result_checker import CliResultChecker
 from tests.helpers.mock_transport import (
@@ -143,14 +143,16 @@ def _network_mgr(transport, parser, caps):
 
 class TestTransportErrors:
     def test_missing_binary_raises_runtime_not_available(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value=None):
-            t = CliTransport("nonexistent-runtime")
+            t = CliTransport("nonexistent-runtime", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError, match="nonexistent-runtime"):
                 t.execute(["nonexistent-runtime", "ps"])
 
     def test_get_runtime_binary_missing_raises(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value=None):
-            t = CliTransport("nonexistent-runtime")
+            t = CliTransport("nonexistent-runtime", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError):
                 t.get_runtime_binary()
 
@@ -393,13 +395,13 @@ class TestImagePullAuthErrors:
 
 class TestTarPathTraversal:
     def test_absolute_path_raises_value_error(self):
-        from oci_runtime.adapters._tar import create_build_tar
+        from oci_runtime.domain.build_tar import create_build_tar
 
         with pytest.raises(ValueError, match="Absolute path"):
             create_build_tar("FROM alpine", {"/etc/passwd": b"data"})
 
     def test_parent_path_raises_value_error(self):
-        from oci_runtime.adapters._tar import create_build_tar
+        from oci_runtime.domain.build_tar import create_build_tar
 
         with pytest.raises(ValueError, match="parent reference"):
             create_build_tar("FROM alpine", {"../outside": b"data"})

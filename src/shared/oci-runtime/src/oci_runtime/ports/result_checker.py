@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+from oci_runtime.domain.exceptions import OciError
 from oci_runtime.domain.types import RawExecResult
 
 
@@ -12,5 +13,5 @@ class ResultChecker(ABC):
         *,
         operation: str = "execute",
         entity: str = "",
-        not_found_error: type | None = None,
+        not_found_error: type[OciError] | None = None,
     ) -> None: ...

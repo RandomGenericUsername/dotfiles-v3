@@ -62,7 +62,7 @@ from oci_runtime.domain.exceptions import (
     VolumeNotFoundError,
     VolumeRuntimeError,
 )
-from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
     MockPtyTransport,
@@ -169,6 +169,9 @@ class _NoOpContainerParser(ContainerParser):
     def is_not_found_error(self, stderr):
         return False
 
+    def is_auth_error(self, stderr):
+        return False
+
 
 class _NoOpImageParser(ImageParser):
     def parse_inspect(self, raw):
@@ -206,6 +209,9 @@ class _NoOpVolumeParser(VolumeParser):
     def is_not_found_error(self, stderr):
         return False
 
+    def is_auth_error(self, stderr):
+        return False
+
 
 class _NoOpNetworkParser(NetworkParser):
     def parse_inspect(self, raw):
@@ -218,6 +224,9 @@ class _NoOpNetworkParser(NetworkParser):
         return PruneResult()
 
     def is_not_found_error(self, stderr):
+        return False
+
+    def is_auth_error(self, stderr):
         return False
 
 
@@ -462,8 +471,9 @@ class TestF09ParseSizeToBytesIncomplete:
 
 class TestF11GetRuntimeBinaryReturnsUnresolved:
     def test_get_runtime_binary_returns_resolved_path(self):
+        from oci_runtime.adapters.binary import CliBinaryResolver
         with patch("shutil.which", return_value="/usr/local/bin/docker"):
-            t = CliTransport("docker")
+            t = CliTransport("docker", binary_resolver=CliBinaryResolver())
             resolved = t.get_runtime_binary()
             assert resolved == "/usr/local/bin/docker", (
                 f"expected resolved path, got {resolved!r}"
@@ -483,7 +493,7 @@ class TestF14TimeoutEscapesOciError:
             "oci_runtime.adapters.transport.streaming.DeadlineCancellationToken"
         ) as mock_deadline:
             mock_deadline.return_value.is_cancelled = True
-            st = CliStreamingTransport("docker")
+            st = CliStreamingTransport("docker", binary_resolver=MagicMock())
             with patch("shutil.which", return_value="/usr/bin/docker"):
                 with patch("subprocess.Popen") as mock_popen:
                     proc = MagicMock()
@@ -494,7 +504,7 @@ class TestF14TimeoutEscapesOciError:
                     proc.wait.return_value = -1
                     mock_popen.return_value = proc
                     with patch(
-                        "oci_runtime.adapters._process_reader.ProcessPipeReader"
+                        "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
                     ) as mock_reader:
                         mock_reader.from_process.return_value.read.return_value = (
                             [],

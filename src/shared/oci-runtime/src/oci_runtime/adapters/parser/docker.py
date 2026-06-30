@@ -72,6 +72,9 @@ class DockerContainerParser(ContainerParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return matches_any_pattern(stderr, self._not_found_patterns)
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class DockerImageParser(ImageParser):
     _not_found_patterns = ("no such image",)
@@ -189,6 +192,9 @@ class DockerVolumeParser(VolumeParser):
     def is_not_found_error(self, stderr: str) -> bool:
         return matches_any_pattern(stderr, self._not_found_patterns)
 
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
+
 
 class DockerNetworkParser(NetworkParser):
     _not_found_patterns = ("no such network",)
@@ -227,6 +233,9 @@ class DockerNetworkParser(NetworkParser):
 
     def is_not_found_error(self, stderr: str) -> bool:
         return matches_any_pattern(stderr, self._not_found_patterns)
+
+    def is_auth_error(self, stderr: str) -> bool:
+        return False
 
 
 def _parse_docker_ports(item: dict) -> list[PortMapping]:

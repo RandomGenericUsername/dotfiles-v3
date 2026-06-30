@@ -23,7 +23,7 @@ from oci_runtime.ports.aggregates import Parsers
 from oci_runtime.ports.parsers import ContainerParser, ImageParser
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.domain.types import PruneResult, RawExecResult
-from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
     MockPtyTransport,
@@ -158,6 +158,9 @@ class TestFactoryConfigInjection:
             def is_not_found_error(self, stderr):
                 return False
 
+            def is_auth_error(self, stderr):
+                return False
+
         class FakeImageParser(ImageParser):
             def parse_inspect(self, raw):
                 raise ParsingError(raw)
@@ -275,6 +278,9 @@ class TestFactoryCustomInjection:
             def is_not_found_error(self, stderr):
                 return False
 
+            def is_auth_error(self, stderr):
+                return False
+
         class FakeIP(ImageParser):
             def parse_inspect(self, raw):
                 raise ParsingError(raw)
@@ -292,6 +298,9 @@ class TestFactoryCustomInjection:
                 return PruneResult()
 
             def is_not_found_error(self, stderr):
+                return False
+
+            def is_auth_error(self, stderr):
                 return False
 
         custom_tty = FakeTtyDetector(is_tty=True)

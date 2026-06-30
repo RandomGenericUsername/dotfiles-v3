@@ -35,7 +35,7 @@ _LAYERS = ("domain", "ports", "adapters")
 _ALLOWED_TARGETS = {
     "domain": {"domain"},
     "ports": {"domain", "ports"},
-    "adapters": {"domain", "ports", "adapters"},
+    "adapters": {"domain", "ports"},
     "factory": {"domain", "ports", "adapters", "factory"},
     "root": {"domain", "ports", "adapters", "factory"},
 }

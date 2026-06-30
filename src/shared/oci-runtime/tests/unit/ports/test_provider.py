@@ -79,6 +79,9 @@ class TestConcreteProviderContract:
                     def is_not_found_error(self, stderr):
                         return False
 
+                    def is_auth_error(self, stderr):
+                        return False
+
                 class FakeIP(ImageParser):
                     def parse_inspect(self, raw):
                         raise ParsingError(raw)
@@ -98,6 +101,9 @@ class TestConcreteProviderContract:
                     def is_not_found_error(self, stderr):
                         return False
 
+                    def is_auth_error(self, stderr):
+                        return False
+
                 class FakeVP(VolumeParser):
                     def parse_inspect(self, raw):
                         raise ParsingError(raw)
@@ -111,6 +117,9 @@ class TestConcreteProviderContract:
                     def is_not_found_error(self, stderr):
                         return False
 
+                    def is_auth_error(self, stderr):
+                        return False
+
                 class FakeNP(NetworkParser):
                     def parse_inspect(self, raw):
                         raise ParsingError(raw)
@@ -122,6 +131,9 @@ class TestConcreteProviderContract:
                         return PruneResult()
 
                     def is_not_found_error(self, stderr):
+                        return False
+
+                    def is_auth_error(self, stderr):
                         return False
 
                 return Parsers(

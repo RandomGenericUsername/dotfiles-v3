@@ -7,6 +7,7 @@ from oci_runtime.domain.encoding import safe_decode
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
+    ContainerRuntimeError,
     ImageNotFoundError,
 )
 from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RunConfig
@@ -343,13 +344,20 @@ class CliContainerManager(ContainerManager):
             cmd.extend(["-u", user])
         cmd.extend([container] + command)
         result = self._transport.execute(cmd, timeout=timeout)
-        stderr_str = safe_decode(result.stderr)
-        if result.returncode != 0 and self._parser.is_not_found_error(stderr_str):
-            raise ContainerNotFoundError(container)
+        try:
+            self._result_checker.check(
+                result,
+                cmd,
+                operation="exec in container",
+                entity=container,
+                not_found_error=ContainerNotFoundError,
+            )
+        except ContainerRuntimeError:
+            pass
         return ExecResult(
             returncode=result.returncode,
             stdout=safe_decode(result.stdout),
-            stderr=stderr_str,
+            stderr=safe_decode(result.stderr),
         )
 
     def prune(self) -> PruneResult:

@@ -2,23 +2,22 @@ import subprocess
 import threading
 from collections.abc import Callable
 
-from oci_runtime.adapters._cancellation import (
+from oci_runtime.domain.exceptions import OperationTimeoutError
+from oci_runtime.domain.types import RawExecResult
+from oci_runtime.ports.binary_resolver import BinaryResolver
+from oci_runtime.ports.cancellation import (
+    CancellationToken,
     DeadlineCancellationToken,
     compose_tokens,
 )
-from oci_runtime.adapters import _process_reader
-from oci_runtime.adapters.binary import CliBinaryResolver
-from oci_runtime.domain.exceptions import OperationTimeoutError
-from oci_runtime.ports.binary_resolver import BinaryResolver
-from oci_runtime.ports.cancellation import CancellationToken
-from oci_runtime.domain.types import RawExecResult
+from oci_runtime.ports.pipe_reader import ProcessPipeReader
 from oci_runtime.ports.streaming import StreamingTransport
 
 
 class CliStreamingTransport(StreamingTransport):
     def __init__(self, binary: str, binary_resolver: BinaryResolver | None = None):
         self.binary = binary
-        self._resolver = binary_resolver or CliBinaryResolver()
+        self._resolver = binary_resolver
 
     def stream(
         self,
@@ -61,7 +60,7 @@ class CliStreamingTransport(StreamingTransport):
                 _stdin_thread = threading.Thread(target=_write_stdin, daemon=True)
                 _stdin_thread.start()
 
-            reader = _process_reader.ProcessPipeReader.from_process(process)
+            reader = ProcessPipeReader.from_process(process)
             stdout_acc, stderr_acc = reader.read(
                 on_stdout,
                 on_stderr,

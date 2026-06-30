@@ -2,19 +2,19 @@ import os
 import pty
 import subprocess
 
-from oci_runtime.adapters._cancellation import (
-    DeadlineCancellationToken,
-    compose_tokens,
-)
-from oci_runtime.adapters._process_reader import ProcessPipeReader
 from oci_runtime.domain.exceptions import (
     OciError,
     OperationTimeoutError,
 )
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.binary_resolver import BinaryResolver
-from oci_runtime.ports.cancellation import CancellationToken
+from oci_runtime.ports.cancellation import (
+    CancellationToken,
+    DeadlineCancellationToken,
+    compose_tokens,
+)
 from oci_runtime.ports.output_stream import OutputStream
+from oci_runtime.ports.pipe_reader import ProcessPipeReader
 from oci_runtime.ports.pty_transport import PtyTransport
 
 
@@ -33,11 +33,6 @@ class CliPtyTransport(PtyTransport):
         if not command:
             raise OciError("Empty command list", command=command)
         self._resolver.resolve(command[0])
-
-        if output_stream is None:
-            from oci_runtime.adapters.output_stream import StdoutBufferStream
-
-            output_stream = StdoutBufferStream()
 
         deadline_token = None
         if timeout is not None:

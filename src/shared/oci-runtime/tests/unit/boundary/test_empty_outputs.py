@@ -28,7 +28,7 @@ from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.types import BuildContext, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
-from oci_runtime.adapters._cancellation import ThreadCancellationToken
+from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
     MockPtyTransport,
