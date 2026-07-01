@@ -5,10 +5,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from oci_runtime.adapters.engine.cli import CliRuntime
-from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.adapters.managers.image import CliImageManager
-from oci_runtime.adapters.managers.network import CliNetworkManager
-from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.adapters.transport.cli import CliTransport
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.parsers import ParsingError
@@ -46,103 +42,16 @@ from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
 from oci_runtime.factory import RuntimeFactory
-from oci_runtime.adapters.helpers.result_checker import CliResultChecker
-from oci_runtime.adapters.helpers.list_executor import CliListExecutor
-from oci_runtime.domain.exceptions import (
-    ContainerNotFoundError,
-    ContainerRuntimeError,
-    ImageNotFoundError,
-    ImagePullAccessDeniedError,
-    ImageRuntimeError,
-    NetworkNotFoundError,
-    NetworkRuntimeError,
-    VolumeNotFoundError,
-    VolumeRuntimeError,
+from tests.helpers.factory_helpers import (
+    image_mgr as _image_mgr,
+    container_mgr as _container_mgr,
+    volume_mgr as _volume_mgr,
+    network_mgr as _network_mgr,
 )
-from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
-    FakeTtyDetector,
-    MockPtyTransport,
-    MockResultChecker,
-    MockListExecutor,
     RecordingStreamingTransport,
     RecordingTransport,
 )
-
-
-def _image_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=ImageRuntimeError,
-        not_found_error=ImageNotFoundError,
-        is_not_found=parser.is_not_found_error,
-        auth_error=ImagePullAccessDeniedError,
-        is_auth=parser.is_auth_error,
-    )
-    return CliImageManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _container_mgr(transport, parser, caps, streaming, **extra):
-    chk = CliResultChecker(
-        generic_error=ContainerRuntimeError,
-        not_found_error=ContainerNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliContainerManager(
-        transport,
-        parser,
-        caps,
-        streaming=streaming,
-        tty_detector=FakeTtyDetector(),
-        pty_transport=MockPtyTransport(),
-        cancellation_factory=lambda: ThreadCancellationToken(),
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-        **extra,
-    )
-
-
-def _volume_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=VolumeRuntimeError,
-        not_found_error=VolumeNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliVolumeManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _network_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=NetworkRuntimeError,
-        not_found_error=NetworkNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliNetworkManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
 
 
 class TestTransportContract:
@@ -277,7 +186,6 @@ class TestEngineContract:
     def test_cli_runtime_implements_all(self):
         transport = RecordingTransport("docker")
         caps = RuntimeCapabilities()
-        from unittest.mock import MagicMock
 
         runtime = CliRuntime(
             transport=transport,

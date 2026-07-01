@@ -21,6 +21,7 @@ from oci_runtime.adapters.provider.podman import (
     PodmanRuntimeProvider,
 )
 from oci_runtime.domain.enums import RuntimeKind
+from oci_runtime.domain.exceptions import ProviderNotRegisteredError
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.aggregates import Parsers
@@ -63,10 +64,10 @@ class TestDockerRuntimeProvider:
         assert self.provider.kind == RuntimeKind.DOCKER
 
     def test_capabilities_returns_runtime_capabilities(self):
-        assert isinstance(self.provider.capabilities(), RuntimeCapabilities)
+        assert isinstance(self.provider.capabilities, RuntimeCapabilities)
 
     def test_capabilities_values(self):
-        caps = self.provider.capabilities()
+        caps = self.provider.capabilities
         assert caps.needs_userns_keep_id is False
         assert caps.supports_log_drivers is True
         assert caps.tar_entry_name == "Dockerfile"
@@ -109,10 +110,10 @@ class TestPodmanRuntimeProvider:
         assert self.provider.kind == RuntimeKind.PODMAN
 
     def test_capabilities_returns_runtime_capabilities(self):
-        assert isinstance(self.provider.capabilities(), RuntimeCapabilities)
+        assert isinstance(self.provider.capabilities, RuntimeCapabilities)
 
     def test_capabilities_values(self):
-        caps = self.provider.capabilities()
+        caps = self.provider.capabilities
         assert caps.needs_userns_keep_id is True
         assert caps.supports_log_drivers is False
         assert caps.tar_entry_name == "Containerfile"
@@ -231,7 +232,6 @@ class TestDefaultProviders:
 
     def test_runtime_factory_uses_default_providers(self):
         factory = RuntimeFactory()
-        pref = RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker")
         # Should not raise — default providers are used
         providers = factory._providers
         assert RuntimeKind.DOCKER in providers
@@ -239,5 +239,5 @@ class TestDefaultProviders:
 
     def test_runtime_factory_empty_providers_raises(self):
         factory = RuntimeFactory(providers={})
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(ProviderNotRegisteredError):
             factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))

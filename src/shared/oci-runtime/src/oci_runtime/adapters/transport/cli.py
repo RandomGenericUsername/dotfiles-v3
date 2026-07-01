@@ -41,14 +41,18 @@ class CliTransport(Transport):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        _process_reaped = False
 
         stdin_thread: threading.Thread | None = None
         if input_data is not None:
 
             def _write_stdin() -> None:
+                stdin = process.stdin
+                if stdin is None:
+                    return
                 try:
-                    process.stdin.write(input_data)
-                    process.stdin.close()
+                    stdin.write(input_data)
+                    stdin.close()
                 except (OSError, ValueError):
                     pass
 
@@ -62,6 +66,12 @@ class CliTransport(Transport):
             )
 
             if effective_token is not None and effective_token.is_cancelled:
+                if isinstance(process.poll(), int):
+                    return RawExecResult(
+                        returncode=process.returncode,
+                        stdout=b"".join(stdout_acc),
+                        stderr=b"".join(stderr_acc),
+                    )
                 process.kill()
                 process.wait()
                 if deadline_token is not None and deadline_token.is_cancelled:
@@ -74,6 +84,12 @@ class CliTransport(Transport):
 
             while True:
                 if effective_token is not None and effective_token.is_cancelled:
+                    if isinstance(process.poll(), int):
+                        return RawExecResult(
+                            returncode=process.returncode,
+                            stdout=b"".join(stdout_acc),
+                            stderr=b"".join(stderr_acc),
+                        )
                     process.kill()
                     process.wait()
                     if deadline_token is not None and deadline_token.is_cancelled:
@@ -88,6 +104,7 @@ class CliTransport(Transport):
                     break
                 except subprocess.TimeoutExpired:
                     continue
+            _process_reaped = True
             return RawExecResult(
                 returncode=returncode,
                 stdout=b"".join(stdout_acc),
@@ -96,6 +113,12 @@ class CliTransport(Transport):
         finally:
             if deadline_token is not None:
                 deadline_token.cancel()
+            if not _process_reaped and process:
+                process.kill()
+                try:
+                    process.wait()
+                except Exception:
+                    pass
             if process.stdout:
                 process.stdout.close()
             if process.stderr:

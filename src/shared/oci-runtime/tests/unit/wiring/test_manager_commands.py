@@ -1,35 +1,21 @@
 import pytest
 
-from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.adapters.managers.image import CliImageManager
-from oci_runtime.adapters.managers.network import CliNetworkManager
-from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.types import BuildContext, ImageInfo, PruneResult, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
-from tests.helpers.mock_parsers import (
-    MockContainerParser,
-    MockImageParser,
-    MockNetworkParser,
-    MockVolumeParser,
+from oci_runtime.adapters.parser.docker import (
+    DockerContainerParser,
+    DockerImageParser,
+    DockerNetworkParser,
+    DockerVolumeParser,
 )
-from oci_runtime.adapters.helpers.result_checker import CliResultChecker
-from oci_runtime.adapters.helpers.list_executor import CliListExecutor
-from oci_runtime.domain.exceptions import (
-    ContainerNotFoundError,
-    ContainerRuntimeError,
-    ImageNotFoundError,
-    ImagePullAccessDeniedError,
-    ImageRuntimeError,
-    NetworkNotFoundError,
-    NetworkRuntimeError,
-    VolumeNotFoundError,
-    VolumeRuntimeError,
+from tests.helpers.factory_helpers import (
+    image_mgr as _image_mgr,
+    container_mgr as _container_mgr,
+    volume_mgr as _volume_mgr,
+    network_mgr as _network_mgr,
 )
-from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
-    FakeTtyDetector,
-    MockPtyTransport,
     RecordingStreamingTransport,
     RecordingTransport,
 )
@@ -66,82 +52,6 @@ def st():
 
 # ─── Helpers ───
 
-
-def _image_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=ImageRuntimeError,
-        not_found_error=ImageNotFoundError,
-        is_not_found=parser.is_not_found_error,
-        auth_error=ImagePullAccessDeniedError,
-        is_auth=parser.is_auth_error,
-    )
-    return CliImageManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _container_mgr(transport, parser, caps, streaming, **extra):
-    chk = CliResultChecker(
-        generic_error=ContainerRuntimeError,
-        not_found_error=ContainerNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliContainerManager(
-        transport,
-        parser,
-        caps,
-        streaming=streaming,
-        tty_detector=FakeTtyDetector(),
-        pty_transport=MockPtyTransport(),
-        cancellation_factory=lambda: ThreadCancellationToken(),
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-        **extra,
-    )
-
-
-def _volume_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=VolumeRuntimeError,
-        not_found_error=VolumeNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliVolumeManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _network_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=NetworkRuntimeError,
-        not_found_error=NetworkNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliNetworkManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
 INSPECT_CONTAINER_JSON = b'[{"Id":"abc123","Name":"/c1","Config":{"Image":"alpine"},"State":{"Status":"running","ExitCode":0,"Running":true},"Created":"2024-01-01T00:00:00Z","HostConfig":{},"NetworkSettings":{"Ports":{}}}]'
 LIST_CONTAINER_JSON = b'[{"Id":"abc123","Names":["/c1"],"Image":"alpine","ImageID":"sha256:x","State":"running","Status":"Up 2h","Created":1704067200,"Ports":[],"Labels":{}}]'
 INSPECT_IMAGE_JSON = b'[{"Id":"sha256:img123","RepoTags":["alpine:latest"],"Size":5000000,"Created":"2024-01-01T00:00:00Z","Labels":{}}]'
@@ -164,10 +74,10 @@ class TestImageManagerCommands:
     def test_build_tar_command(self, t, caps):
         t._responses = {
             ("docker", "build", "-t", "myimg", "--quiet", "-"): RawExecResult(
-                0, b"abc123\n", b""
+                0, b"sha256:abc123def456\n", b""
             )
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         ctx = BuildContext(build_file_content="FROM alpine")
         result = mgr.build(ctx, "myimg", timeout=30)
         assert t.calls[0].command == ["docker", "build", "-t", "myimg", "--quiet", "-"]
@@ -177,30 +87,30 @@ class TestImageManagerCommands:
         t._responses = {
             ("docker", "tag", "alpine", "test:latest"): RawExecResult(0, b"", b"")
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         mgr.tag("alpine", "test:latest")
         assert t.calls[0].command == ["docker", "tag", "alpine", "test:latest"]
 
     def test_push_command(self, t, caps):
         t._responses = {("docker", "push", "alpine"): RawExecResult(0, b"", b"")}
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         mgr.push("alpine", timeout=60)
         assert t.calls[0].command == ["docker", "push", "alpine"]
 
     def test_pull_command_and_parsed_id(self, t, caps):
         t._responses = {
             ("docker", "pull", "alpine"): RawExecResult(
-                0, b"Status: Downloaded alpine:latest\n", b""
+                0, b"Digest: sha256:abc123\nStatus: Downloaded alpine:latest\n", b""
             )
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         result = mgr.pull("alpine", timeout=60)
         assert t.calls[0].command == ["docker", "pull", "alpine"]
         assert isinstance(result, str)
 
     def test_remove_command(self, t, caps):
         t._responses = {("docker", "rmi", "alpine"): RawExecResult(0, b"", b"")}
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         mgr.remove("alpine")
         assert t.calls[0].command == ["docker", "rmi", "alpine"]
 
@@ -208,7 +118,7 @@ class TestImageManagerCommands:
         t._responses = {
             ("docker", "rmi", "alpine", "--force"): RawExecResult(0, b"", b"")
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         mgr.remove("alpine", force=True)
         assert t.calls[0].command == ["docker", "rmi", "alpine", "--force"]
 
@@ -218,7 +128,7 @@ class TestImageManagerCommands:
                 0, INSPECT_IMAGE_JSON, b""
             )
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         info = mgr.inspect("alpine")
         assert t.calls[0].command == [
             "docker",
@@ -234,7 +144,7 @@ class TestImageManagerCommands:
         t._responses = {
             ("docker", "image", "list"): RawExecResult(0, LIST_IMAGE_JSON, b"")
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         result = mgr.list()
         assert t.calls[0].command == ["docker", "image", "list"]
         assert len(result) == 1
@@ -246,7 +156,7 @@ class TestImageManagerCommands:
                 0, b"[]", b""
             )
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         mgr.list(filters={"label": "app=web"})
         assert t.calls[0].command == [
             "docker",
@@ -260,7 +170,7 @@ class TestImageManagerCommands:
         t._responses = {
             ("docker", "image", "prune", "--force"): RawExecResult(0, b"", b"")
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "image", "prune", "--force"]
         assert result == PruneResult()
@@ -269,7 +179,7 @@ class TestImageManagerCommands:
         t._responses = {
             ("docker", "image", "prune", "--force", "--all"): RawExecResult(0, b"", b"")
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         mgr.prune(show_all=True)
         assert t.calls[0].command == ["docker", "image", "prune", "--force", "--all"]
 
@@ -279,7 +189,7 @@ class TestImageManagerCommands:
                 0, INSPECT_IMAGE_JSON, b""
             )
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         assert mgr.exists("alpine") is True
 
     def test_exists_false_delegates_to_inspect(self, t, caps):
@@ -293,7 +203,7 @@ class TestImageManagerCommands:
                 "nonexistent",
             ): RawExecResult(1, b"", b"No such image: nonexistent")
         }
-        mgr = _image_mgr(t, MockImageParser(), caps)
+        mgr = _image_mgr(t, DockerImageParser(), caps)
         assert mgr.exists("nonexistent") is False
 
 
@@ -304,7 +214,7 @@ class TestContainerManagerCommands:
                 0, b"abc123\n", b""
             )
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         result = mgr.run(RunConfig(image="alpine"))
         assert st.calls[0].command == [
             "docker",
@@ -329,7 +239,7 @@ class TestContainerManagerCommands:
                 "alpine",
             ): RawExecResult(0, b"abc123", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.run(RunConfig(image="alpine", name="myapp"))
         assert st.calls[0].command == [
             "docker",
@@ -386,7 +296,7 @@ class TestContainerManagerCommands:
                 "hi",
             ): RawExecResult(0, b"abc123", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
         from oci_runtime.domain.types import PortMapping, VolumeMount
 
@@ -466,7 +376,7 @@ class TestContainerManagerCommands:
                 0, b"abc123", b""
             )
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.run(RunConfig(image="alpine", detach=False))
         assert st.calls[0].command == ["docker", "run", "--network", "bridge", "alpine"]
 
@@ -476,7 +386,7 @@ class TestContainerManagerCommands:
                 0, b"", b""
             )
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         result = mgr.run(RunConfig(image="alpine", stream_output=True))
         assert result == ""
 
@@ -503,7 +413,7 @@ class TestContainerManagerCommands:
             },
         )
         mgr = _container_mgr(
-            podman_t, MockContainerParser(), pcaps, streaming=podman_st
+            podman_t, DockerContainerParser(), pcaps, streaming=podman_st
         )
         mgr.run(RunConfig(image="alpine"))
         assert podman_st.calls[0].command == [
@@ -518,7 +428,7 @@ class TestContainerManagerCommands:
 
     def test_start(self, t, st, caps):
         t._responses = {("docker", "start", "ctr1"): RawExecResult(0, b"", b"")}
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.start("ctr1")
         assert t.calls[0].command == ["docker", "start", "ctr1"]
 
@@ -526,7 +436,7 @@ class TestContainerManagerCommands:
         t._responses = {
             ("docker", "stop", "-t", "10", "ctr1"): RawExecResult(0, b"", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.stop("ctr1")
         assert t.calls[0].command == ["docker", "stop", "-t", "10", "ctr1"]
 
@@ -534,13 +444,13 @@ class TestContainerManagerCommands:
         t._responses = {
             ("docker", "restart", "-t", "10", "ctr1"): RawExecResult(0, b"", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.restart("ctr1")
         assert t.calls[0].command == ["docker", "restart", "-t", "10", "ctr1"]
 
     def test_remove(self, t, st, caps):
         t._responses = {("docker", "rm", "ctr1"): RawExecResult(0, b"", b"")}
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.remove("ctr1")
         assert t.calls[0].command == ["docker", "rm", "ctr1"]
 
@@ -548,7 +458,7 @@ class TestContainerManagerCommands:
         t._responses = {
             ("docker", "rm", "ctr1", "-f", "-v"): RawExecResult(0, b"", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.remove("ctr1", force=True, volumes=True)
         assert t.calls[0].command == ["docker", "rm", "ctr1", "-f", "-v"]
 
@@ -563,7 +473,7 @@ class TestContainerManagerCommands:
                 "ctr1",
             ): RawExecResult(0, INSPECT_CONTAINER_JSON, b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         info = mgr.inspect("ctr1")
         assert t.calls[0].command == [
             "docker",
@@ -573,13 +483,13 @@ class TestContainerManagerCommands:
             "json",
             "ctr1",
         ]
-        assert info.id == "abc"
+        assert info.id == "abc123"
 
     def test_list(self, t, st, caps):
         t._responses = {
             ("docker", "container", "list"): RawExecResult(0, LIST_CONTAINER_JSON, b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         result = mgr.list()
         assert t.calls[0].command == ["docker", "container", "list"]
         assert len(result) == 1
@@ -588,7 +498,7 @@ class TestContainerManagerCommands:
         t._responses = {
             ("docker", "container", "list", "-a"): RawExecResult(0, b"[]", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.list(show_all=True)
         assert t.calls[0].command == ["docker", "container", "list", "-a"]
 
@@ -598,7 +508,7 @@ class TestContainerManagerCommands:
                 0, b"[]", b""
             )
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.list(filters={"name": "web"})
         assert t.calls[0].command == [
             "docker",
@@ -612,7 +522,7 @@ class TestContainerManagerCommands:
         t._responses = {
             ("docker", "logs", "ctr1"): RawExecResult(0, b"log output\n", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         result = "".join(mgr.logs("ctr1"))
         assert t.calls[0].command == ["docker", "logs", "ctr1"]
         assert result == "log output\n"
@@ -621,7 +531,7 @@ class TestContainerManagerCommands:
         st._stream_responses = {
             ("docker", "logs", "ctr1", "--follow", "--tail", "50"): [b"", b""]
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         list(mgr.logs("ctr1", follow=True, tail=50))
         assert st.calls[0].command == [
             "docker",
@@ -637,7 +547,7 @@ class TestContainerManagerCommands:
             b"chunk1\n",
             b"chunk2\n",
         ]
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         chunks = list(mgr.logs("ctr1", follow=True))
         assert chunks == ["chunk1\n", "chunk2\n"]
 
@@ -647,7 +557,7 @@ class TestContainerManagerCommands:
                 0, b"file1\nfile2\n", b""
             )
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         result = mgr.exec_container("ctr1", ["ls", "-la"])
         assert t.calls[0].command == ["docker", "exec", "ctr1", "ls", "-la"]
         assert result.returncode == 0
@@ -659,7 +569,7 @@ class TestContainerManagerCommands:
                 0, b"", b""
             )
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         mgr.exec_container("ctr1", ["ls"], detach=True, user="root")
         assert t.calls[0].command == [
             "docker",
@@ -675,7 +585,7 @@ class TestContainerManagerCommands:
         t._responses = {
             ("docker", "container", "prune", "--force"): RawExecResult(0, b"", b"")
         }
-        mgr = _container_mgr(t, MockContainerParser(), caps, streaming=st)
+        mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "container", "prune", "--force"]
         assert result == PruneResult()
@@ -683,10 +593,8 @@ class TestContainerManagerCommands:
 
 class TestImageManagerBuildCommands:
     def test_build_with_no_cache_and_target_flags(self, transport, streaming, caps):
-        from pathlib import Path
         from oci_runtime.domain.types import BuildContext
         from oci_runtime.adapters.parser.docker import DockerImageParser
-        from oci_runtime.adapters.managers.image import CliImageManager
         from oci_runtime.domain.types import RawExecResult
 
         transport._responses = {
@@ -716,7 +624,6 @@ class TestImageManagerBuildCommands:
         from pathlib import Path
         from oci_runtime.domain.types import BuildContext
         from oci_runtime.adapters.parser.docker import DockerImageParser
-        from oci_runtime.adapters.managers.image import CliImageManager
         from oci_runtime.domain.types import RawExecResult
 
         transport._responses = {
@@ -749,7 +656,7 @@ class TestVolumeManagerCommands:
                 0, b"myvol\n", b""
             )
         }
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         result = mgr.create("myvol")
         assert t.calls[0].command == [
             "docker",
@@ -774,7 +681,7 @@ class TestVolumeManagerCommands:
                 "app=web",
             ): RawExecResult(0, b"myvol", b"")
         }
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         mgr.create("myvol", labels={"app": "web"})
         assert t.calls[0].command == [
             "docker",
@@ -789,7 +696,7 @@ class TestVolumeManagerCommands:
 
     def test_remove(self, t, caps):
         t._responses = {("docker", "volume", "rm", "myvol"): RawExecResult(0, b"", b"")}
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         mgr.remove("myvol")
         assert t.calls[0].command == ["docker", "volume", "rm", "myvol"]
 
@@ -797,7 +704,7 @@ class TestVolumeManagerCommands:
         t._responses = {
             ("docker", "volume", "rm", "myvol", "-f"): RawExecResult(0, b"", b"")
         }
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         mgr.remove("myvol", force=True)
         assert t.calls[0].command == ["docker", "volume", "rm", "myvol", "-f"]
 
@@ -807,7 +714,7 @@ class TestVolumeManagerCommands:
                 0, INSPECT_VOLUME_JSON, b""
             )
         }
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         info = mgr.inspect("myvol")
         assert t.calls[0].command == [
             "docker",
@@ -817,13 +724,13 @@ class TestVolumeManagerCommands:
             "json",
             "myvol",
         ]
-        assert info.name == "my-vol"
+        assert info.name == "myvol"
 
     def test_list(self, t, caps):
         t._responses = {
             ("docker", "volume", "list"): RawExecResult(0, LIST_VOLUME_JSON, b"")
         }
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         result = mgr.list()
         assert t.calls[0].command == ["docker", "volume", "list"]
         assert len(result) == 1
@@ -834,7 +741,7 @@ class TestVolumeManagerCommands:
                 0, b"[]", b""
             )
         }
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         mgr.list(filters={"label": "app=web"})
         assert t.calls[0].command == [
             "docker",
@@ -848,7 +755,7 @@ class TestVolumeManagerCommands:
         t._responses = {
             ("docker", "volume", "prune", "--force"): RawExecResult(0, b"", b"")
         }
-        mgr = _volume_mgr(t, MockVolumeParser(), caps)
+        mgr = _volume_mgr(t, DockerVolumeParser(), caps)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "volume", "prune", "--force"]
         assert result == PruneResult()
@@ -866,7 +773,7 @@ class TestNetworkManagerCommands:
                 "mynet",
             ): RawExecResult(0, b"mynet\n", b"")
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         result = mgr.create("mynet")
         assert t.calls[0].command == [
             "docker",
@@ -891,7 +798,7 @@ class TestNetworkManagerCommands:
                 "app=web",
             ): RawExecResult(0, b"mynet", b"")
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         mgr.create("mynet", labels={"app": "web"})
         assert t.calls[0].command == [
             "docker",
@@ -915,7 +822,7 @@ class TestNetworkManagerCommands:
                 "mynet",
             ): RawExecResult(0, b"mynet", b"")
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         mgr.create("mynet", driver="macvlan")
         assert t.calls[0].command == [
             "docker",
@@ -930,7 +837,7 @@ class TestNetworkManagerCommands:
         t._responses = {
             ("docker", "network", "rm", "mynet"): RawExecResult(0, b"", b"")
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         mgr.remove("mynet")
         assert t.calls[0].command == ["docker", "network", "rm", "mynet"]
 
@@ -940,7 +847,7 @@ class TestNetworkManagerCommands:
                 0, b"", b""
             )
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         mgr.connect("mynet", "ctr1")
         assert t.calls[0].command == ["docker", "network", "connect", "mynet", "ctr1"]
 
@@ -950,7 +857,7 @@ class TestNetworkManagerCommands:
                 0, b"", b""
             )
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         mgr.disconnect("mynet", "ctr1")
         assert t.calls[0].command == [
             "docker",
@@ -966,7 +873,7 @@ class TestNetworkManagerCommands:
                 0, b"", b""
             )
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         mgr.disconnect("mynet", "ctr1", force=True)
         assert t.calls[0].command == [
             "docker",
@@ -988,7 +895,7 @@ class TestNetworkManagerCommands:
                 "mynet",
             ): RawExecResult(0, INSPECT_NETWORK_JSON, b"")
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         info = mgr.inspect("mynet")
         assert t.calls[0].command == [
             "docker",
@@ -998,13 +905,13 @@ class TestNetworkManagerCommands:
             "json",
             "mynet",
         ]
-        assert info.id == "n1"
+        assert info.id == "net123"
 
     def test_list(self, t, caps):
         t._responses = {
             ("docker", "network", "list"): RawExecResult(0, LIST_NETWORK_JSON, b"")
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         result = mgr.list()
         assert t.calls[0].command == ["docker", "network", "list"]
         assert len(result) == 1
@@ -1013,7 +920,7 @@ class TestNetworkManagerCommands:
         t._responses = {
             ("docker", "network", "prune", "--force"): RawExecResult(0, b"", b"")
         }
-        mgr = _network_mgr(t, MockNetworkParser(), caps)
+        mgr = _network_mgr(t, DockerNetworkParser(), caps)
         result = mgr.prune()
         assert t.calls[0].command == ["docker", "network", "prune", "--force"]
         assert result == PruneResult()

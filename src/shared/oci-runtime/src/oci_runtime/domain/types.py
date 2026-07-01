@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
 import re
@@ -17,7 +17,7 @@ def _freeze_mapping(self, field_names: list[str]) -> None:
     for name in field_names:
         value = getattr(self, name)
         if isinstance(value, dict):
-            object.__setattr__(self, name, MappingProxyType(value))
+            object.__setattr__(self, name, MappingProxyType(dict(value)))
 
 
 def _freeze_sequence(self, field_names: list[str]) -> None:
@@ -27,7 +27,7 @@ def _freeze_sequence(self, field_names: list[str]) -> None:
             object.__setattr__(self, name, tuple(value))
 
 
-_MEMORY_LIMIT_RE = re.compile(r"^\d+(\.\d+)?[bkmg]?$", re.IGNORECASE)
+_MEMORY_LIMIT_RE = re.compile(r"^\d+(\.\d+)?(?:[kmg]b?|b)?$", re.IGNORECASE)
 _CPU_LIMIT_RE = re.compile(r"^\d+(\.\d+)?$")
 
 
@@ -54,6 +54,23 @@ class PortMapping:
     host_ip: str | None
     host_port: int | None = None
     protocol: str = "tcp"
+
+    def __post_init__(self) -> None:
+        if not 0 < self.container_port <= 65535:
+            raise ValueError(
+                f"PortMapping: container_port must be 1-65535, got "
+                f"{self.container_port!r}"
+            )
+        if self.host_port is not None and not 0 < self.host_port <= 65535:
+            raise ValueError(
+                f"PortMapping: host_port must be 1-65535 or None, got "
+                f"{self.host_port!r}"
+            )
+        if self.protocol not in ("tcp", "udp", "sctp"):
+            raise ValueError(
+                f"PortMapping: protocol must be 'tcp', 'udp', or 'sctp', got "
+                f"{self.protocol!r}"
+            )
 
 
 @dataclass(frozen=True)
@@ -152,7 +169,7 @@ class RunConfig:
 @dataclass(frozen=True)
 class ImageInfo:
     id: str
-    tags: tuple[str, ...] = field(default_factory=tuple)
+    tags: Sequence[str] = field(default_factory=tuple)
     size: int = 0
     created: str | None = None
     labels: Mapping[str, str] = field(default_factory=dict)
@@ -170,7 +187,7 @@ class ContainerInfo:
     state: ContainerState
     status: str
     created: str | None = None
-    ports: tuple[PortMapping, ...] = field(default_factory=tuple)
+    ports: Sequence[PortMapping] = field(default_factory=tuple)
     labels: Mapping[str, str] = field(default_factory=dict)
     exit_code: int | None = None
 

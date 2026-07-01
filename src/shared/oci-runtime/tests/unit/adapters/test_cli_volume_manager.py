@@ -10,7 +10,6 @@ from oci_runtime.ports.transport import Transport
 from oci_runtime.adapters.helpers.result_checker import CliResultChecker
 from oci_runtime.adapters.helpers.list_executor import CliListExecutor
 from oci_runtime.domain.exceptions import VolumeNotFoundError, VolumeRuntimeError
-from tests.helpers.mock_transport import MockResultChecker, MockListExecutor
 
 
 class _MockParser(VolumeParser):

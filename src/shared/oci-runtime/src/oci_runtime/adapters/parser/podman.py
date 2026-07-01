@@ -23,10 +23,10 @@ from oci_runtime.ports.parsers import (
 
 
 class PodmanContainerParser(ContainerParser):
-    _not_found_patterns = ("no such container",)
+    _not_found_patterns = ("no such container", "no such object")
 
     def _parse_ports(self, network_settings: dict) -> list[PortMapping]:
-        ports = []
+        ports: list[PortMapping] = []
         ports_dict = network_settings.get("Ports", {})
 
         if not isinstance(ports_dict, dict):
@@ -48,18 +48,17 @@ class PodmanContainerParser(ContainerParser):
                 elif isinstance(mappings, list):
                     for mapping in mappings:
                         if isinstance(mapping, dict):
-                            host_port = mapping.get("HostPort")
-                            host_ip = mapping.get("HostIp") or None
+                            host_port = mapping.get("host_port") or mapping.get("HostPort")
+                            host_ip = mapping.get("host_ip") or mapping.get("HostIp") or None
 
-                            if host_port:
-                                ports.append(
-                                    PortMapping(
-                                        container_port=container_port,
-                                        host_port=int(host_port),
-                                        protocol=protocol,
-                                        host_ip=host_ip,
-                                    )
+                            ports.append(
+                                PortMapping(
+                                    container_port=container_port,
+                                    host_port=int(host_port) if host_port else None,
+                                    protocol=protocol,
+                                    host_ip=host_ip,
                                 )
+                            )
             except (ValueError, AttributeError):
                 continue
 
@@ -71,10 +70,10 @@ class PodmanContainerParser(ContainerParser):
         for p in item.get("Ports") or []:
             if not isinstance(p, dict):
                 continue
-            host_port = p.get("HostPort")
-            container_port = p.get("ContainerPort")
-            protocol = p.get("Protocol", "tcp")
-            host_ip = p.get("HostIp") or None
+            host_port = p.get("host_port") or p.get("HostPort")
+            container_port = p.get("container_port") or p.get("ContainerPort")
+            protocol = p.get("protocol") or p.get("Protocol", "tcp")
+            host_ip = p.get("host_ip") or p.get("HostIp") or None
             cport = safe_int(container_port)
             if cport is None:
                 continue
@@ -142,7 +141,7 @@ class PodmanContainerParser(ContainerParser):
 
 
 class PodmanImageParser(ImageParser):
-    _not_found_patterns = ("image not found",)
+    _not_found_patterns = ("image not found", "image not known")
     _auth_error_patterns = (
         "authentication required",
         "requested access to the resource is denied",
@@ -270,11 +269,11 @@ class PodmanNetworkParser(NetworkParser):
     def parse_inspect(self, raw: str) -> NetworkInfo:
         item = parse_json_item(raw)
         return NetworkInfo(
-            id=item.get("Id", ""),
-            name=item.get("Name", ""),
-            driver=item.get("Driver", ""),
-            scope=item.get("Scope", ""),
-            labels=item.get("Labels") or {},
+            id=item.get("Id") or item.get("id", ""),
+            name=item.get("Name") or item.get("name", ""),
+            driver=item.get("Driver") or item.get("driver", ""),
+            scope=item.get("Scope") or item.get("scope", ""),
+            labels=item.get("Labels") or item.get("labels") or {},
         )
 
     def parse_list(self, raw: str) -> list[NetworkInfo]:

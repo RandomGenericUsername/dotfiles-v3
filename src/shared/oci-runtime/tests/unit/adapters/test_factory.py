@@ -1,9 +1,10 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.enums import RuntimeKind
+from oci_runtime.domain.exceptions import ProviderNotRegisteredError
 from oci_runtime.factory import RuntimeFactory
 from oci_runtime.domain.types import RuntimePreference
 
@@ -18,7 +19,7 @@ def test_global_registry_no_longer_exists():
 
 def test_factory_requires_providers():
     factory = RuntimeFactory(providers={})
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ProviderNotRegisteredError):
         factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
 
 
@@ -43,3 +44,18 @@ class TestRuntimeFactoryCreate:
         )
         engine = RuntimeFactory().create(bogus)
         assert engine.is_available() is False
+
+
+def test_runtime_kind_extensible_to_unknown_value():
+    k = RuntimeKind("nerdctl")
+    assert k.value == "nerdctl"
+    assert k != RuntimeKind.DOCKER
+    assert k != RuntimeKind.PODMAN
+    with pytest.raises(ProviderNotRegisteredError):
+        RuntimeFactory().create(RuntimePreference(kind=k, binary="nerdctl"))
+
+
+def test_provider_not_registered_error_carries_kind():
+    k = RuntimeKind("nerdctl")
+    err = ProviderNotRegisteredError(k)
+    assert err.kind is k

@@ -42,8 +42,10 @@ class CliImageManager(ImageManager):
         elif context.context_path is not None:
             cmd.extend(["-f", "-"])
             positional = str(context.context_path)
+            assert context.build_file_content is not None
             input_data = context.build_file_content.encode("utf-8")
         else:
+            assert context.build_file_content is not None
             input_data = create_build_tar(
                 context.build_file_content, context.files, self._caps.tar_entry_name
             )
@@ -64,11 +66,10 @@ class CliImageManager(ImageManager):
             cmd.extend(["--rm", "false"])
         if context.network:
             cmd.extend(["--network", context.network])
-        for k, v in context.build_contexts.items():
-            cmd.extend(["--build-context", f"{k}={v}"])
+        for bck, bcv in context.build_contexts.items():
+            cmd.extend(["--build-context", f"{bck}={bcv}"])
 
         cmd.append(positional)
-
         result = self._transport.execute(cmd, input_data=input_data, timeout=timeout)
         self._result_checker.check(
             result, cmd, operation="build image", entity=image_name

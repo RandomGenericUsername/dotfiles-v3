@@ -36,7 +36,7 @@ def parse_size_to_bytes(size_str: str) -> int:
     return int(float(number) * multiplier)
 
 
-def coerce_size(size) -> int:
+def coerce_size(size: str | int | float | None) -> int:
     if isinstance(size, str):
         try:
             return int(size)
@@ -50,7 +50,9 @@ def coerce_size(size) -> int:
     return int(size or 0)
 
 
-def safe_int(v):
+def safe_int(v: int | float | str | None) -> int | None:
+    if v is None:
+        return None
     try:
         return int(v)
     except (TypeError, ValueError):

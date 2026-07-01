@@ -1,0 +1,5 @@
+Deleted Images:
+untagged: conformance:latest
+deleted: sha256:7c92cc862c787ce019b871ad620900bacc52f34f5edde0ab9c4da8478f837f6f
+
+Total reclaimed space: 0B

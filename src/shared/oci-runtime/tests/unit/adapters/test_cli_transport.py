@@ -1,10 +1,9 @@
-from unittest.mock import MagicMock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 import pytest
 
 from oci_runtime.adapters.transport.cli import CliTransport
 from oci_runtime.domain.exceptions import RuntimeNotAvailableError
-from oci_runtime.domain.types import RawExecResult
 
 
 class TestCliTransport:

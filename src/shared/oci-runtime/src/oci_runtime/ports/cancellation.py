@@ -42,7 +42,9 @@ class DeadlineCancellationToken(CancellationToken):
         self._timer.start()
 
     def __del__(self) -> None:
-        self._timer.cancel()
+        timer = getattr(self, "_timer", None)
+        if timer is not None:
+            timer.cancel()
 
     def cancel(self) -> None:
         self._timer.cancel()

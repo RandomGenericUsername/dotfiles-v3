@@ -21,7 +21,12 @@ def check_cli_result(
         return
     stderr_str = safe_decode(result.stderr)
     if auth_error is not None and is_auth is not None and is_auth(stderr_str):
-        raise auth_error(entity)
+        raise auth_error(
+            entity,
+            command=cmd,
+            exit_code=result.returncode,
+            stderr=stderr_str,
+        )
     if is_not_found(stderr_str):
         raise not_found_error(entity)
     raise generic_error(

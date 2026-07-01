@@ -1,6 +1,5 @@
-import subprocess
 import threading
-from unittest.mock import MagicMock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -87,7 +86,6 @@ class TestCliStreamingTransport:
         process = MagicMock()
         process.wait.return_value = 0
 
-        selector = _MockSelector()
         received_stdout = []
         received_stderr = []
 
@@ -286,7 +284,6 @@ class TestCliStreamingTransport:
         process.kill.assert_called_once()
 
     def test_stream_deadline_token_timeout_cancellation(self):
-        import selectors
 
         with (
             patch("shutil.which", return_value="/usr/bin/docker"),

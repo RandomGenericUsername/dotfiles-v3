@@ -275,7 +275,10 @@ def _parse_docker_ports(item: dict) -> list[PortMapping]:
 
 def _parse_docker_ports_from_list(item: dict) -> list[PortMapping]:
     ports = []
-    for p in item.get("Ports", []):
+    raw_ports = item.get("Ports", [])
+    if isinstance(raw_ports, str):
+        return _parse_docker_ports_from_list_string(raw_ports)
+    for p in raw_ports:
         cport = p.get("PrivatePort")
         if cport is None:
             continue
@@ -288,4 +291,43 @@ def _parse_docker_ports_from_list(item: dict) -> list[PortMapping]:
                 host_ip=host_ip,
             )
         )
+    return ports
+
+
+_PORT_LIST_FULL_RE = re.compile(
+    r"(?:(.+?):)?(\d+)->(\d+)/(tcp|udp|sctp)"
+)
+_PORT_LIST_BARE_RE = re.compile(
+    r"(\d+)/(tcp|udp|sctp)"
+)
+
+
+def _parse_docker_ports_from_list_string(raw: str) -> list[PortMapping]:
+    ports = []
+    for entry in raw.split(", "):
+        entry = entry.strip()
+        if not entry:
+            continue
+        m = _PORT_LIST_FULL_RE.match(entry)
+        if m:
+            host_ip = m.group(1) or None
+            host_port = int(m.group(2)) if m.group(2) else None
+            ports.append(
+                PortMapping(
+                    container_port=int(m.group(3)),
+                    host_port=host_port,
+                    protocol=m.group(4),
+                    host_ip=host_ip,
+                )
+            )
+        else:
+            m = _PORT_LIST_BARE_RE.match(entry)
+            if m:
+                ports.append(
+                    PortMapping(
+                        container_port=int(m.group(1)),
+                        protocol=m.group(2),
+                        host_ip=None,
+                    )
+                )
     return ports

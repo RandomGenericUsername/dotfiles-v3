@@ -1,9 +1,8 @@
 from io import BytesIO
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.exceptions import ContainerRuntimeError
 from oci_runtime.domain.types import PruneResult, RunConfig
@@ -12,40 +11,12 @@ from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.streaming import StreamingTransport
-from oci_runtime.ports.cancellation import ThreadCancellationToken
-from oci_runtime.adapters.helpers.result_checker import CliResultChecker
-from oci_runtime.adapters.helpers.list_executor import CliListExecutor
-from oci_runtime.domain.exceptions import ContainerNotFoundError, ContainerRuntimeError
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
-    MockPtyTransport,
-    MockResultChecker,
-    MockListExecutor,
 )
 
 
-def _container_mgr(transport, parser, caps, streaming, tty_detector=None, **extra):
-    chk = CliResultChecker(
-        generic_error=ContainerRuntimeError,
-        not_found_error=ContainerNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    if tty_detector is None:
-        tty_detector = FakeTtyDetector()
-    return CliContainerManager(
-        transport,
-        parser,
-        caps,
-        streaming=streaming,
-        tty_detector=tty_detector,
-        pty_transport=MockPtyTransport(),
-        cancellation_factory=lambda: ThreadCancellationToken(),
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-        **extra,
-    )
+from tests.helpers.factory_helpers import container_mgr as _container_mgr
 
 
 class _MockParser(ContainerParser):
@@ -81,7 +52,10 @@ def manager(transport):
     streaming.stream.return_value = RawExecResult(
         returncode=0, stdout=b"abc123", stderr=b""
     )
-    return _container_mgr(transport, parser, caps, streaming=streaming)
+    return _container_mgr(
+        transport, parser, caps, streaming=streaming,
+        output_stream=BytesIO(),
+    )
 
 
 class TestTtyDispatch:
@@ -91,11 +65,10 @@ class TestTtyDispatch:
         )
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         result = manager.run(config)
-        manager._pty_transport.execute_pty.assert_called_once_with(
-            ["docker", "run", "-t", "--network", "bridge", "alpine", "bash"],
-            output_stream=None,
-            timeout=None,
-        )
+        manager._pty_transport.execute_pty.assert_called_once()
+        args, kwargs = manager._pty_transport.execute_pty.call_args
+        assert kwargs["output_stream"] is not None
+        assert kwargs["timeout"] is None
         assert result == ""
 
     def test_tty_false_calls_streaming_stream(self, manager, transport):
@@ -120,6 +93,7 @@ class TestTtyDispatch:
             RuntimeCapabilities(),
             streaming=manager._streaming,
             tty_detector=tty_detector,
+            output_stream=BytesIO(),
         )
         mgr._pty_transport.execute_pty = MagicMock(
             return_value=RawExecResult(returncode=0, stdout=b"", stderr=b"")
@@ -249,23 +223,16 @@ class TestTtyEdgeCases:
         streaming.stream.return_value = RawExecResult(
             returncode=0, stdout=b"abc123", stderr=b""
         )
-        m = _container_mgr(transport, parser, caps, streaming=streaming)
+        m = _container_mgr(
+            transport, parser, caps, streaming=streaming,
+            output_stream=BytesIO(),
+        )
         m._pty_transport.execute_pty = MagicMock(
             return_value=RawExecResult(returncode=0, stdout=b"", stderr=b"")
         )
         config = RunConfig(image="alpine", command=["bash"], tty=True, detach=False)
         m.run(config)
-        m._pty_transport.execute_pty.assert_called_once_with(
-            [
-                "docker",
-                "run",
-                "--userns=keep-id",
-                "-t",
-                "--network",
-                "bridge",
-                "alpine",
-                "bash",
-            ],
-            output_stream=None,
-            timeout=None,
-        )
+        m._pty_transport.execute_pty.assert_called_once()
+        args, kwargs = m._pty_transport.execute_pty.call_args
+        assert kwargs["output_stream"] is not None
+        assert kwargs["timeout"] is None

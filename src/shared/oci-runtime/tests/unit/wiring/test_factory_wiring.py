@@ -2,10 +2,6 @@ from unittest.mock import patch
 
 
 from oci_runtime.adapters.engine.cli import CliRuntime
-from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.adapters.managers.image import CliImageManager
-from oci_runtime.adapters.managers.network import CliNetworkManager
-from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.factory import RuntimeFactory
@@ -23,10 +19,8 @@ from oci_runtime.ports.aggregates import Parsers
 from oci_runtime.ports.parsers import ContainerParser, ImageParser
 from oci_runtime.ports.provider import RuntimeProvider
 from oci_runtime.domain.types import PruneResult, RawExecResult
-from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
-    MockPtyTransport,
     RecordingTransport,
 )
 
@@ -188,6 +182,7 @@ class TestFactoryConfigInjection:
             def kind(self):
                 return RuntimeKind.DOCKER
 
+            @property
             def capabilities(self):
                 return RuntimeCapabilities()
 
@@ -245,21 +240,11 @@ class TestFactoryCustomInjection:
         from oci_runtime.factory import RuntimeFactoryConfig
         from oci_runtime.domain.enums import RuntimeKind
         from oci_runtime.domain.types import RuntimePreference
-        from oci_runtime.ports.capabilities import RuntimeCapabilities
-        from oci_runtime.ports.aggregates import Parsers
         from oci_runtime.ports.parsers import ContainerParser, ImageParser
         from oci_runtime.ports.parsers import ParsingError
-        from oci_runtime.ports.provider import RuntimeProvider
-        from oci_runtime.adapters.managers.container import CliContainerManager
-        from oci_runtime.adapters.managers.image import CliImageManager
-        from oci_runtime.adapters.managers.volume import CliVolumeManager
-        from oci_runtime.adapters.managers.network import CliNetworkManager
         from tests.helpers.mock_transport import (
             FakeTtyDetector,
-            MockPtyTransport,
-            RecordingTransport,
         )
-        from oci_runtime.domain.types import RawExecResult
 
         class FakeCP(ContainerParser):
             def parse_inspect(self, raw):

@@ -1,4 +1,3 @@
-from unittest.mock import patch
 
 from oci_runtime.ports.cancellation import (
     CompositeCancellationToken,

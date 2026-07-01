@@ -124,5 +124,5 @@ class TestEngineWiring:
 
     def test_runtime_uses_transport_for_binary(self, caps, mock_managers):
         transport = RecordingTransport("/usr/bin/docker")
-        runtime = make_runtime(transport, caps, mock_managers)
+        make_runtime(transport, caps, mock_managers)
         assert transport.get_runtime_binary() == "/usr/bin/docker"

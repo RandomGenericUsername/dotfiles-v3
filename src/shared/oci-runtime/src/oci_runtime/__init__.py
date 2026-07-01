@@ -19,6 +19,7 @@ from oci_runtime.domain.exceptions import (  # noqa: F401
     OciError,
     OperationTimeoutError,
     ParsingError,
+    ProviderNotRegisteredError,
     RuntimeNotAvailableError,
     VolumeError,
     VolumeNotFoundError,
@@ -40,7 +41,14 @@ from oci_runtime.domain.types import (  # noqa: F401
 )
 from oci_runtime.ports.binary_resolver import BinaryResolver  # noqa: F401
 from oci_runtime.ports.capabilities import RuntimeCapabilities  # noqa: F401
-from oci_runtime.ports.cancellation import CancellationToken  # noqa: F401
+from oci_runtime.ports.aggregates import Parsers  # noqa: F401
+from oci_runtime.ports.cancellation import (  # noqa: F401
+    CancellationToken,
+    CompositeCancellationToken,
+    DeadlineCancellationToken,
+    ThreadCancellationToken,
+    compose_tokens,
+)
 from oci_runtime.ports.engine import ContainerEngine  # noqa: F401
 from oci_runtime.ports.managers import (
     ContainerManager,  # noqa: F401
@@ -68,6 +76,7 @@ __all__ = sorted(
         "BinaryResolver",
         "BuildContext",
         "CancellationToken",
+        "CompositeCancellationToken",
         "ContainerEngine",
         "ContainerError",
         "ContainerInfo",
@@ -76,6 +85,7 @@ __all__ = sorted(
         "ContainerParser",
         "ContainerRuntimeError",
         "ContainerState",
+        "DeadlineCancellationToken",
         "ExecResult",
         "ImageError",
         "ImageInfo",
@@ -94,8 +104,10 @@ __all__ = sorted(
         "OciError",
         "OperationTimeoutError",
         "OutputStream",
+        "Parsers",
         "ParsingError",
         "PortMapping",
+        "ProviderNotRegisteredError",
         "PruneResult",
         "PtyTransport",
         "RawExecResult",
@@ -110,6 +122,7 @@ __all__ = sorted(
         "RuntimePreference",
         "RuntimeProvider",
         "StreamingTransport",
+        "ThreadCancellationToken",
         "Transport",
         "TtyDetector",
         "VolumeError",
@@ -120,5 +133,6 @@ __all__ = sorted(
         "VolumeNotFoundError",
         "VolumeParser",
         "VolumeRuntimeError",
+        "compose_tokens",
     ]
 )

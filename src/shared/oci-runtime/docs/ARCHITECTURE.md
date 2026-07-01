@@ -9,15 +9,15 @@ oci-runtime/
 ├── pyproject.toml
 ├── docs/ARCHITECTURE.md           # This file
 ├── src/oci_runtime/
-│   ├── __init__.py                # Public API re-exports (domain + ports + factory)
-│   ├── factory.py                 # RuntimeFactory + RuntimeFactoryConfig (composition root)
+│   ├── __init__.py                # Public API re-exports (domain + ports + factory + cancellation + Parsers)
+│   ├── factory.py                 # RuntimeFactory, RuntimeFactoryConfig, ResolvedRuntimeFactoryConfig (composition root)
 │   ├── domain/                    # Pure domain layer — no I/O, no adapter imports
 │   │   ├── __init__.py
 │   │   ├── build_tar.py           # (new) create_build_tar, _validate_tar_path
 │   │   ├── encoding.py            # (new) safe_decode
 │   │   ├── error_matching.py      # (new) matches_any_pattern
 │   │   ├── enums.py               # RuntimeKind, ContainerState, RestartPolicy, NetworkMode, VolumeMountType
-│   │   ├── exceptions.py          # OciError hierarchy + ParsingError + ImagePullAccessDeniedError
+│   │   ├── exceptions.py          # OciError hierarchy + ParsingError + ImagePullAccessDeniedError + ProviderNotRegisteredError
 │   │   ├── json_parsing.py        # (new) parse_json_item (scalar-guarded), parse_json_list
 │   │   ├── list_command.py        # (new) build_list_command
 │   │   ├── prune_parsing.py       # (new) parse_prune_result
@@ -45,20 +45,31 @@ oci-runtime/
 │   │   ├── transport.py           # Transport ABC (batch subprocess execution)
 │   │   └── tty.py                 # TtyDetector ABC
 │   └── adapters/
+│       ├── binary.py               # CliBinaryResolver
+│       ├── output_stream.py        # StdoutBufferStream
+│       ├── tty.py                  # StdoutTtyDetector
+│       ├── discovery/
+│       │   └── cli.py              # CliRuntimeDiscovery
+│       ├── engine/
+│       │   └── cli.py              # CliRuntime (implements ContainerEngine)
 │       ├── helpers/
 │       │   ├── list_executor.py    # CliListExecutor[T]
 │       │   └── result_checker.py   # CliResultChecker
+│       ├── managers/
+│       │   ├── container.py        # injects ResultChecker + ListExecutor
+│       │   ├── image.py            # injects ResultChecker + ListExecutor
+│       │   ├── volume.py           # injects ResultChecker + ListExecutor
+│       │   └── network.py          # injects ResultChecker + ListExecutor
 │       ├── parser/
 │       │   ├── docker.py           # implements port ABCs directly
 │       │   └── podman.py           # implements port ABCs directly
 │       ├── provider/
 │       │   ├── docker.py           # implements RuntimeProvider directly
 │       │   └── podman.py           # implements RuntimeProvider directly
-│       └── managers/
-│           ├── container.py        # injects ResultChecker + ListExecutor
-│           ├── image.py            # injects ResultChecker + ListExecutor
-│           ├── volume.py           # injects ResultChecker + ListExecutor
-│           └── network.py          # injects ResultChecker + ListExecutor
+│       └── transport/
+│           ├── cli.py              # CliTransport (batch subprocess)
+│           ├── pty.py              # CliPtyTransport (PTY execution)
+│           └── streaming.py        # CliStreamingTransport (real-time output)
 └── tests/
     ├── unit/                      # Domain, port, adapter, contract, wiring, boundary tests
     │   ├── domain/
@@ -67,9 +78,15 @@ oci-runtime/
     │   ├── contract/
     │   ├── wiring/                # Mock-based workflow + command-shape tests
     │   └── boundary/              # Empty/malformed/concurrency edge cases
+    ├── audit/                     # Regression tests for audit-found bugs
+    ├── conformance/               # Parser round-trip tests against live CLI fixtures
+    │   ├── capture.py             # CLI fixture capture script
+    │   └── fixtures/              # Captured docker/podman JSON output
     ├── integration/
-    │   └── smoke/                 # Real-runtime tests (skip when no docker/podman present)
-    └── helpers/                   # RecordingTransport, FakeTtyDetector, Mock*Parser
+    │   └── smoke/                 # Real-runtime lifecycle tests (skip when unavailable)
+    ├── architecture/              # AST-based import-direction linter
+    └── helpers/                   # RecordingTransport, FakeTtyDetector,
+                                   #   factory_helpers (shared _image_mgr, _container_mgr, etc.)
 ```
 
 ## Layering Rules
@@ -78,7 +95,7 @@ The dependency direction is strictly **domain ← ports ← adapters**, with the
 
 The AST-based layering linter (`tests/architecture/test_layering.py`) enforces strict dependency direction with no intra-layer imports in the adapter layer:
 
-- **domain/** contains value objects, enums, and exceptions. It imports only the standard library (`re`, `abc`, `dataclasses`, `pathlib`, `enum`). It never imports `ports` or `adapters`.
+- **domain/** contains value objects, enums, and exceptions. It imports only the standard library (`re`, `abc`, `dataclasses`, `pathlib`, `enum`, `json`, `types`, `collections.abc`). It never imports `ports` or `adapters`.
 - **ports/** contains ABCs, aggregate dataclasses (`Parsers`), and port-level value objects (`RuntimeCapabilities`, `CancellationToken`). It imports from `domain` and defines the contracts the adapters implement. The only non-ABC artifact is the `ParsingError` re-export in `ports/parsers.py`, sourced from `domain/exceptions.py`.
 - **adapters/** contains the concrete implementations. It imports from `ports` and `domain` only — the layering linter blocks intra-adapter imports (`adapters` → `adapters`), enforcing that adapters share no dependencies between themselves; all sharing goes through `ports`. Adapters are not re-exported by `oci_runtime/__init__.py` — they are implementation details reachable via their submodules.
 - **factory.py** is the only place manager, transport, engine, discovery, and infrastructure adapter classes are referenced. `RuntimeFactoryConfig` exposes factory callables for every adapter so the entire object graph is injectable for testing.
@@ -137,7 +154,7 @@ The port layer defines the ABCs that adapters implement.
 
 **`CancellationToken`** — signals cancellation across threads. `cancel() -> None` sets the cancelled state. `is_cancelled -> bool` is a property. Concrete implementations (`ThreadCancellationToken`, `DeadlineCancellationToken`, `CompositeCancellationToken`) and the `compose_tokens()` helper live alongside the ABC in `ports/cancellation.py`, eliminating the old adapter-level module.
 
-**`RuntimeProvider`** — encapsulates all runtime-specific knowledge. `kind` returns the `RuntimeKind`. `capabilities()` returns `RuntimeCapabilities`. `create_parsers() -> Parsers` builds the four parser instances. Providers are constructed with parser classes and capabilities injected via keyword arguments.
+**`RuntimeProvider`** — encapsulates all runtime-specific knowledge. `kind` returns the `RuntimeKind`. `capabilities` returns `RuntimeCapabilities` (both are properties, matching `ContainerEngine`). `create_parsers() -> Parsers` builds the four parser instances. Providers are constructed with parser classes and capabilities injected via keyword arguments.
 
 **`ImageManager` / `ContainerManager` / `VolumeManager` / `NetworkManager`** — the four manager ABCs defining the lifecycle operations (build, pull, run, exec, inspect, list, prune, etc.). Each `prune()` returns `PruneResult`. Each `list()` returns `list[<entity info>]` — an empty result returns `[]`, not an error. `exec_container` accepts an optional `timeout: float | None`.
 
@@ -250,8 +267,8 @@ class RuntimeFactoryConfig:
 
 `oci_runtime/__init__.py` re-exports the full set of public names so consumers never need to import from submodules:
 
-- **Domain**: all enums (`RuntimeKind`, `ContainerState`, `RestartPolicy`, `NetworkMode`, `VolumeMountType`), all exceptions (`OciError` hierarchy including `ParsingError`, `ImagePullAccessDeniedError`), all types (`RunConfig`, `BuildContext`, `ContainerInfo`, `ImageInfo`, `VolumeInfo`, `NetworkInfo`, `PortMapping`, `VolumeMount`, `PruneResult`, `ExecResult`, `RawExecResult`, `RuntimePreference`).
-- **Ports**: `ContainerEngine`, `ImageManager`, `ContainerManager`, `VolumeManager`, `NetworkManager`, `ContainerParser`, `ImageParser`, `VolumeParser`, `NetworkParser`, `Transport`, `StreamingTransport`, `PtyTransport`, `BinaryResolver`, `CancellationToken`, `TtyDetector`, `OutputStream`, `RuntimeDiscovery`, `RuntimeProvider`, `RuntimeCapabilities`.
+- **Domain**: all enums (`RuntimeKind`, `ContainerState`, `RestartPolicy`, `NetworkMode`, `VolumeMountType`), all exceptions (`OciError` hierarchy including `ParsingError`, `ImagePullAccessDeniedError`, `ProviderNotRegisteredError`), all types (`RunConfig`, `BuildContext`, `ContainerInfo`, `ImageInfo`, `VolumeInfo`, `NetworkInfo`, `PortMapping`, `VolumeMount`, `PruneResult`, `ExecResult`, `RawExecResult`, `RuntimePreference`).
+- **Ports**: `ContainerEngine`, `ImageManager`, `ContainerManager`, `VolumeManager`, `NetworkManager`, `ContainerParser`, `ImageParser`, `VolumeParser`, `NetworkParser`, `Transport`, `StreamingTransport`, `PtyTransport`, `BinaryResolver`, `CancellationToken`, `ThreadCancellationToken`, `DeadlineCancellationToken`, `CompositeCancellationToken`, `compose_tokens`, `TtyDetector`, `OutputStream`, `RuntimeDiscovery`, `RuntimeProvider`, `RuntimeCapabilities`, `Parsers`.
 - **Factory**: `RuntimeFactory`, `RuntimeFactoryConfig`.
 
 Adapter classes (`CliTransport`, `CliRuntime`, `DockerRuntimeProvider`, etc.) are deliberately not exported — they are implementation details. The `__all__` list is the authoritative surface.
@@ -333,7 +350,7 @@ def execute_pty(self, command: list[str], *, output_stream: OutputStream,
 
 ### `ProcessPipeReader.read()` (ports/pipe_reader.py)
 ```python
-def read(self, on_primary=None, on_secondary=None,
+def read(self, on_stdout=None, on_stderr=None,
          cancel_token: CancellationToken | None = None) -> tuple[list[bytes], list[bytes]]: ...
 ```
 
@@ -347,8 +364,9 @@ class PruneResult:
 
 ## Adding a New Runtime (e.g. nerdctl)
 
-Create a provider implementing `RuntimeProvider` directly — it only needs `kind`,
-`capabilities`, and `create_parsers`:
+`RuntimeKind` now has a `_missing_` hook that creates ad‑hoc members for unrecognised strings, so `RuntimeKind("nerdctl")` works without modifying the enum. If the corresponding `RuntimeProvider` is not registered in the factory, `RuntimeFactory.create()` raises `ProviderNotRegisteredError` instead of `ValueError` — the caller gets a clear message ("No RuntimeProvider registered for RuntimeKind: nerdctl. Registered: [DOCKER, PODMAN]").
+
+Create a provider implementing `RuntimeProvider` directly — it only needs `kind`, `capabilities`, and `create_parsers`:
 
 ```python
 class NerdctlRuntimeProvider(RuntimeProvider):
@@ -370,6 +388,7 @@ class NerdctlRuntimeProvider(RuntimeProvider):
 
     @property
     def kind(self) -> RuntimeKind: ...
+    @property
     def capabilities(self) -> RuntimeCapabilities: ...
     def create_parsers(self) -> Parsers: ...
 ```
@@ -397,7 +416,7 @@ factory = RuntimeFactory(providers=providers)
 - **`tests/unit/wiring/`** — full object-graph assembly via `RecordingTransport` and mock parsers; verifies the exact CLI command shape each manager method produces.
 - **`tests/unit/boundary/`** — empty outputs, malformed JSON, error conditions, concurrent access.
 - **`tests/integration/smoke/`** — real docker/podman lifecycle tests; skipped when no runtime is present.
-- **`tests/helpers/`** — shared `RecordingTransport`, `RecordingStreamingTransport`, `FakeTtyDetector`, and `Mock*Parser` instances. The mocks conform to the port return types (`parse_prune` returns `PruneResult`, not `dict`).
+- **`tests/helpers/`** — shared `RecordingTransport`, `RecordingStreamingTransport`, `FakeTtyDetector`, `Mock*Parser`, and `factory_helpers` (shared `image_mgr`/`container_mgr`/`volume_mgr`/`network_mgr` factories). The mocks conform to the port return types (`parse_prune` returns `PruneResult`, not `dict`).
 - **`tests/architecture/`** — AST-based import-direction linter enforcing `domain ← ports ← adapters ← factory`. Runs on every `pytest` invocation.
 - **`tests/audit/`** — regression tests for bugs found in the audit. All pass as regression guards — if a bug is reintroduced, the test fails.
 - **`tests/conformance/`** — parser round-trip tests against real docker/podman CLI fixtures. No xfail mechanism; tests assert correctness directly.
@@ -412,3 +431,4 @@ factory = RuntimeFactory(providers=providers)
 | 2026-06-29 | `oci-runtime-audit-remediation-v3` | Full audit remediation v3: Domain extraction (8 new domain modules), parser rewire (BaseCliParser deleted, port ABCs implemented directly), manager rewire (CliBaseManager deleted, ResultChecker+ListExecutor injection), provider rewire (BaseCliRuntimeProvider deleted, constructor injection), factory DI (result_checker_factory+list_executor_factory), audit bug fixes A1-A8 (host_ip port flags, scalar guard, process reader strict, ImagePullAccessDeniedError context, PTY OciError, pull digest error, version OciError, Managers aggregate deleted), timeout params unified to float|None, hidden_tar_path norm fix, --network bridge explicit, LogDriverNotSupportedWarning, test cleanup. 861 tests pass. |
 | 2026-06-29 | Post-v3 hardening (`1953540`) | CancellationToken implementations (`ThreadCancellationToken`, `DeadlineCancellationToken`, `CompositeCancellationToken`, `compose_tokens`) moved from `adapters/_cancellation.py` to `ports/cancellation.py`. ProcessPipeReader moved from `adapters/_process_reader.py` to `ports/pipe_reader.py` with new `PipeReader` ABC. `adapters/_tar.py` re-export shim deleted (logic already in `domain/build_tar.py`). All parser ABCs now require `is_auth_error(stderr) -> bool`. ResultChecker port `not_found_error` param typed as `type[OciError]`. `CliTransport`/`CliStreamingTransport` require `BinaryResolver` injection (no default fallback). Layering linter blocks `adapters` → `adapters` imports. Adapting tests updated. |
 | 2026-06-30 | `oci-runtime-regression-fix` | Regression fixes R1-R3: PTY `output_stream` required (not `| None`), transport `binary_resolver` required (not `| None`), `exec_container` only suppresses `ContainerNotFoundError`. A1: `host_ip` port flag building fixed (handles `host_ip` without `host_port`, `None` vs truthy check). Dead code removal (`_NOT_PROBED`, `Managers` aggregate, `_execute_list` — already cleaned). Doc/type fixes (C4, E5). Test quality improvements (D2: Podman parser types; D5: dead `@patch` removed). New regression tests (T1-T4: PTY output_stream, transport binary_resolver, exec_container error propagation, host_ip port flags). 868 tests pass. |
+| 2026-07-01 | `oci-runtime-audit-remediation-v4` | Incomplete v3 remediations closed (A4 auth error context, ProviderNotRegisteredError, R1 PTY output_stream port). Spec/fix-created defects (B1 prune capital D, H3 poll-before-timeout timing). Consistency fix (B3 two-letter memory units + unitless regression fix, B4 freeze mapping alias). Pre-existing bugs (B5 docker list ports as string, H1/H2 parser case/host-ip, plus Podman image "image not known" not-found pattern gap found during smoke-stabilization). Factory + enums + public API improvements (RuntimeKind._missing_ via str.__new__, ProviderNotRegisteredError, ResolvedRuntimeFactoryConfig with Callable[...,T] fields, capabilities property, Parsers/cancellation re-export). Test quality (shared factory helpers, ruff cleanup 87→0, Mock*Parser→Docker*Parser in wiring tests, MagicMock→real types, mid-flight cancellation test, parametrized smoke tests with registry-search probe + per-test skip-on-auth, conformance fixtures for build/prune/ports). mypy 83→2 (residual 2 are `valid-type` quirks on a method named `list`, not real type holes). Verified green: 918–920 passed, 0 failed across 3 consecutive runs (0–2 skipped = intermittent podman registry auth, skipped not failed). |

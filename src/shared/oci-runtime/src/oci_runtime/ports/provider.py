@@ -17,6 +17,7 @@ class RuntimeProvider(ABC):
     def kind(self) -> RuntimeKind:
         """Return the RuntimeKind enum member for this runtime."""
 
+    @property
     @abstractmethod
     def capabilities(self) -> RuntimeCapabilities:
         """Return the capabilities for this runtime."""

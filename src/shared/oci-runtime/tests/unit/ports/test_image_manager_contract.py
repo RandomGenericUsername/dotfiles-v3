@@ -11,14 +11,11 @@ from tests.helpers.mock_parsers import MockImageParser
 from oci_runtime.adapters.helpers.result_checker import CliResultChecker
 from oci_runtime.adapters.helpers.list_executor import CliListExecutor
 from oci_runtime.domain.exceptions import (
-    ImageNotFoundError,
     ImagePullAccessDeniedError,
     ImageRuntimeError,
 )
 from tests.helpers.mock_transport import (
     RecordingTransport,
-    MockResultChecker,
-    MockListExecutor,
 )
 
 

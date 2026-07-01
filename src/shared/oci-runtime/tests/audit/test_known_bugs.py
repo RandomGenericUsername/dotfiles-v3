@@ -13,18 +13,15 @@ invocation, not just during audits.
 from __future__ import annotations
 
 import io
-import subprocess
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from oci_runtime.adapters._utils import parse_size_to_bytes
+from oci_runtime.domain.prune_parsing import parse_prune_result as domain_parse_prune_result
+from oci_runtime.domain.size_parsing import parse_size_to_bytes
 from oci_runtime.adapters.parser.docker import DockerContainerParser
 from oci_runtime.domain.json_parsing import parse_json_item
-from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.adapters.managers.image import CliImageManager
-from oci_runtime.adapters.managers.network import CliNetworkManager
-from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.domain.size_parsing import coerce_size
 from oci_runtime.adapters.transport.cli import CliTransport
 from oci_runtime.domain.exceptions import (
@@ -36,11 +33,16 @@ from oci_runtime.domain.exceptions import (
 )
 from oci_runtime.domain.types import (
     BuildContext,
+    ContainerInfo,
+    ImageInfo,
+    NetworkInfo,
     PortMapping,
     PruneResult,
     RawExecResult,
     RunConfig,
+    VolumeInfo,
 )
+from oci_runtime.domain.enums import ContainerState
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.parsers import (
     ContainerParser,
@@ -48,26 +50,20 @@ from oci_runtime.ports.parsers import (
     NetworkParser,
     VolumeParser,
 )
-from oci_runtime.adapters.helpers.result_checker import CliResultChecker
-from oci_runtime.adapters.helpers.list_executor import CliListExecutor
 from oci_runtime.domain.exceptions import (
-    ContainerNotFoundError,
-    ContainerRuntimeError,
     ImageNotFoundError,
     ImagePullAccessDeniedError,
     ImageRuntimeError,
-    NetworkNotFoundError,
-    NetworkRuntimeError,
     ParsingError,
-    VolumeNotFoundError,
-    VolumeRuntimeError,
 )
-from oci_runtime.ports.cancellation import ThreadCancellationToken
+from oci_runtime.domain.result_checking import check_cli_result
+from tests.helpers.factory_helpers import (
+    image_mgr as _image_mgr,
+    container_mgr as _container_mgr,
+    volume_mgr as _volume_mgr,
+    network_mgr as _network_mgr,
+)
 from tests.helpers.mock_transport import (
-    FakeTtyDetector,
-    MockPtyTransport,
-    MockResultChecker,
-    MockListExecutor,
     RecordingStreamingTransport,
     RecordingTransport,
 )
@@ -81,84 +77,12 @@ _CAPS = RuntimeCapabilities(
 )
 
 
-def _image_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=ImageRuntimeError,
-        not_found_error=ImageNotFoundError,
-        is_not_found=parser.is_not_found_error,
-        auth_error=ImagePullAccessDeniedError,
-        is_auth=parser.is_auth_error,
-    )
-    return CliImageManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _container_mgr(transport, parser, caps, streaming, **extra):
-    chk = CliResultChecker(
-        generic_error=ContainerRuntimeError,
-        not_found_error=ContainerNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliContainerManager(
-        transport,
-        parser,
-        caps,
-        streaming=streaming,
-        tty_detector=FakeTtyDetector(),
-        pty_transport=MockPtyTransport(),
-        cancellation_factory=lambda: ThreadCancellationToken(),
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-        **extra,
-    )
-
-
-def _volume_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=VolumeRuntimeError,
-        not_found_error=VolumeNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliVolumeManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _network_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=NetworkRuntimeError,
-        not_found_error=NetworkNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliNetworkManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
 class _NoOpContainerParser(ContainerParser):
     def parse_inspect(self, raw):
-        return MagicMock()
+        return ContainerInfo(
+            id="", name="", image="",
+            state=ContainerState.CREATED, status="",
+        )
 
     def parse_list(self, raw):
         return []
@@ -175,7 +99,7 @@ class _NoOpContainerParser(ContainerParser):
 
 class _NoOpImageParser(ImageParser):
     def parse_inspect(self, raw):
-        return MagicMock()
+        return ImageInfo(id="")
 
     def parse_list(self, raw):
         return []
@@ -198,7 +122,7 @@ class _NoOpImageParser(ImageParser):
 
 class _NoOpVolumeParser(VolumeParser):
     def parse_inspect(self, raw):
-        return MagicMock()
+        return VolumeInfo(name="", driver="")
 
     def parse_list(self, raw):
         return []
@@ -215,7 +139,7 @@ class _NoOpVolumeParser(VolumeParser):
 
 class _NoOpNetworkParser(NetworkParser):
     def parse_inspect(self, raw):
-        return MagicMock()
+        return NetworkInfo(id="", name="", driver="", scope="")
 
     def parse_list(self, raw):
         return []
@@ -228,6 +152,333 @@ class _NoOpNetworkParser(NetworkParser):
 
     def is_auth_error(self, stderr):
         return False
+
+
+# ─── B1: prune capital D (Docker's capitalized Deleted:) ───
+
+
+class TestB01PruneCapitalD:
+    def test_capitalized_deleted_counted(self):
+        result = domain_parse_prune_result(
+            "Deleted: sha256:abc123def456abc123def456\n"
+            "Deleted: sha256:def456abc123def456abc123\n"
+        )
+        assert result.deleted == 2
+
+    def test_lowercase_deleted_counted(self):
+        result = domain_parse_prune_result(
+            "deleted: sha256:abc123def456abc123def456\n"
+            "deleted: sha256:def456abc123def456abc123\n"
+        )
+        assert result.deleted == 2
+
+
+# ─── B2: auth_error context (command/exit_code/stderr) ───
+
+
+class TestB02AuthErrorContext:
+    def test_auth_error_has_context(self):
+        try:
+            check_cli_result(
+                RawExecResult(1, b"", b"pull access denied for img"),
+                cmd=["docker", "pull", "img"],
+                entity="img",
+                not_found_error=ImageNotFoundError,
+                generic_error=ImageRuntimeError,
+                auth_error=ImagePullAccessDeniedError,
+                is_auth=lambda s: True,
+                is_not_found=lambda s: False,
+            )
+        except ImagePullAccessDeniedError as e:
+            assert e.command == ["docker", "pull", "img"]
+            assert e.exit_code == 1
+            assert e.stderr == "pull access denied for img"
+        else:
+            pytest.fail("Expected ImagePullAccessDeniedError")
+
+
+# ─── PortMapping validation ───
+
+
+class TestPortMappingValidation:
+    def test_valid_mapping(self):
+        PortMapping(container_port=80, host_ip=None)
+
+    def test_container_port_zero_rejected(self):
+        with pytest.raises(ValueError):
+            PortMapping(container_port=0, host_ip=None)
+
+    def test_container_port_negative_rejected(self):
+        with pytest.raises(ValueError):
+            PortMapping(container_port=-1, host_ip=None)
+
+    def test_container_port_over_65535_rejected(self):
+        with pytest.raises(ValueError):
+            PortMapping(container_port=65536, host_ip=None)
+
+    def test_host_port_zero_rejected(self):
+        with pytest.raises(ValueError):
+            PortMapping(container_port=80, host_port=0, host_ip=None)
+
+    def test_host_port_over_65535_rejected(self):
+        with pytest.raises(ValueError):
+            PortMapping(container_port=80, host_port=65536, host_ip=None)
+
+    def test_host_port_none_accepted(self):
+        PortMapping(container_port=80, host_port=None, host_ip=None)
+
+    def test_invalid_protocol_rejected(self):
+        with pytest.raises(ValueError):
+            PortMapping(container_port=80, host_ip=None, protocol="http")
+
+    def test_valid_protocols_accepted(self):
+        for proto in ("tcp", "udp", "sctp"):
+            PortMapping(container_port=80, host_ip=None, protocol=proto)
+
+
+# ─── B4: _freeze_mapping alias (source dict mutation should not leak) ───
+
+
+class TestB04FreezeMappingNoAlias:
+    def test_source_dict_mutation_does_not_leak(self):
+        from oci_runtime.domain.types import ImageInfo
+        labels = {"key": "original"}
+        info = ImageInfo(id="abc", labels=labels)
+        labels["key"] = "mutated"
+        assert info.labels["key"] == "original"
+
+
+# ─── B3: memory limit two-letter units (2GB, 512MB, 1.5gb) ───
+
+
+class TestB03MemoryLimitTwoLetterUnits:
+    def test_two_gb_accepted(self):
+        RunConfig(image="alpine", memory_limit="2GB")
+
+    def test_512_mb_accepted(self):
+        RunConfig(image="alpine", memory_limit="512MB")
+
+    def test_one_dot_five_gb_lowercase_accepted(self):
+        RunConfig(image="alpine", memory_limit="1.5gb")
+
+    def test_single_letter_still_accepted(self):
+        RunConfig(image="alpine", memory_limit="512m")
+        RunConfig(image="alpine", memory_limit="2g")
+
+    def test_abc_rejected(self):
+        with pytest.raises(ValueError):
+            RunConfig(image="alpine", memory_limit="abc")
+
+    def test_unitless_bytes_accepted(self):
+        RunConfig(image="alpine", memory_limit="1024")
+        RunConfig(image="alpine", memory_limit="4096")
+
+
+# ─── M7: _read_fd narrows OSError to EIO ───
+
+
+class TestM07ReadFdNonEioPropagates:
+    def test_non_eio_oserror_propagates(self):
+        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+
+        reader = ProcessPipeReader(99, 100)
+        with pytest.raises(OSError):
+            reader._read_fd(9999)
+
+    def test_eio_returns_empty(self):
+        import errno
+        import os
+        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+
+        reader = ProcessPipeReader(99, 100)
+        with patch.object(os, "read", side_effect=OSError(errno.EIO, "Input/output error")):
+            result = reader._read_fd(99)
+            assert result == b""
+
+
+# ─── M6: from_process validates both streams ───
+
+
+class TestM06FromProcessStderrNone:
+    def test_stderr_none_raises_type_error(self):
+        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+
+        proc = MagicMock()
+        proc.stdout = MagicMock()
+        proc.stdout.fileno.return_value = 3
+        proc.stderr = None
+        with pytest.raises(TypeError):
+            ProcessPipeReader.from_process(proc)
+
+    def test_stderr_no_fileno_raises_type_error(self):
+        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+
+        proc = MagicMock()
+        proc.stdout = MagicMock()
+        proc.stdout.fileno.return_value = 3
+        proc.stderr = MagicMock()
+        del proc.stderr.fileno
+        with pytest.raises(TypeError):
+            ProcessPipeReader.from_process(proc)
+
+
+# ─── H5: PipeReader substitutable (no kwargs shim) ───
+
+
+class TestH05PipeReaderSubstitutable:
+    def test_no_shim_test_double_works(self):
+        from oci_runtime.ports.pipe_reader import PipeReader
+
+        class ShimlessReader(PipeReader):
+            def read(self, on_stdout=None, on_stderr=None, cancel_token=None):
+                if on_stdout:
+                    on_stdout(b"out")
+                if on_stderr:
+                    on_stderr(b"err")
+                return ([b"out"], [b"err"])
+
+        out_calls = []
+        err_calls = []
+        reader = ShimlessReader()
+        reader.read(
+            on_stdout=lambda d: out_calls.append(d),
+            on_stderr=lambda d: err_calls.append(d),
+        )
+        assert out_calls == [b"out"]
+        assert err_calls == [b"err"]
+
+
+# ─── B5: Docker list Ports as string ───
+
+
+class TestB05DockerListPortsAsString:
+    def test_ports_as_string_parsed(self):
+        parser = DockerContainerParser()
+        raw = json.dumps([
+            {
+                "Id": "abc",
+                "Names": ["/ctr1"],
+                "Image": "nginx",
+                "State": "running",
+                "Status": "Up",
+                "Created": "2024-01-01",
+                "Ports": "0.0.0.0:8080->80/tcp, 0.0.0.0:443->443/tcp",
+                "Labels": {},
+            }
+        ])
+        result = parser.parse_list(raw)
+        assert len(result) == 1
+        assert len(result[0].ports) == 2
+        assert result[0].ports[0].container_port == 80
+        assert result[0].ports[0].host_port == 8080
+        assert result[0].ports[0].protocol == "tcp"
+        assert result[0].ports[1].container_port == 443
+
+    def test_ports_as_string_bare_proto(self):
+        parser = DockerContainerParser()
+        raw = json.dumps([
+            {
+                "Id": "def",
+                "Names": ["/ctr2"],
+                "Image": "alpine",
+                "State": "running",
+                "Status": "Up",
+                "Created": "2024-01-01",
+                "Ports": "80/tcp",
+                "Labels": {},
+            }
+        ])
+        result = parser.parse_list(raw)
+        assert len(result[0].ports) == 1
+        assert result[0].ports[0].container_port == 80
+        assert result[0].ports[0].host_port is None
+
+
+# ─── M4: Podman "no such object" pattern parity ───
+
+
+class TestM04PodmanNotFoundParity:
+    def test_no_such_object_detected(self):
+        from oci_runtime.adapters.parser.podman import PodmanContainerParser
+
+        parser = PodmanContainerParser()
+        assert parser.is_not_found_error("Error: no such object")
+
+
+# ─── H2: Podman HostIp-only binding preserved ───
+
+
+class TestH02PodmanHostIpOnlyBinding:
+    def test_host_ip_only_bound(self):
+        from oci_runtime.adapters.parser.podman import PodmanContainerParser
+
+        parser = PodmanContainerParser()
+        raw = json.dumps({
+            "Id": "abc",
+            "Name": "/ctr1",
+            "Config": {"Image": "nginx"},
+            "State": {"Status": "running"},
+            "NetworkSettings": {
+                "Ports": {
+                    "80/tcp": [
+                        {"HostIp": "127.0.0.1", "HostPort": ""}
+                    ]
+                }
+            }
+        })
+        info = parser.parse_inspect(raw)
+        assert len(info.ports) == 1
+        assert info.ports[0].container_port == 80
+        assert info.ports[0].host_port is None
+        assert info.ports[0].host_ip == "127.0.0.1"
+
+
+# ─── H4: manager output_stream guard ───
+
+
+class TestH04ManagerNoneOutputStream:
+    def test_none_output_stream_raises(self):
+        t = RecordingTransport("docker")
+        st = RecordingStreamingTransport("docker")
+        from oci_runtime.domain.exceptions import OciError
+
+        mgr = _container_mgr(
+            t, _NoOpContainerParser(), _CAPS, streaming=st
+        )
+        config = RunConfig(image="alpine", tty=True, detach=False)
+        with pytest.raises(OciError, match="output_stream required"):
+            mgr.run(config)
+
+
+# ─── B6: PtyTransport output_stream required ───
+
+
+class TestB06PtyPortOutputStreamRequired:
+    def test_output_stream_has_no_default(self):
+        import inspect
+        from oci_runtime.ports.pty_transport import PtyTransport
+        sig = inspect.signature(PtyTransport.execute_pty)
+        param = sig.parameters["output_stream"]
+        assert param.default is inspect.Parameter.empty, (
+            f"output_stream should be required, but has default={param.default!r}"
+        )
+
+
+# ─── H1: matches_any_pattern case insensitivity ───
+
+
+class TestH01MatchesAnyPatternCase:
+    def test_uppercase_pattern_matches_lowercase_text(self):
+        from oci_runtime.domain.error_matching import matches_any_pattern
+        assert matches_any_pattern("no such container", ("No Such Container",))
+
+    def test_lowercase_pattern_matches_uppercase_text(self):
+        from oci_runtime.domain.error_matching import matches_any_pattern
+        assert matches_any_pattern("NO SUCH CONTAINER", ("no such container",))
+
+    def test_non_match_returns_false(self):
+        from oci_runtime.domain.error_matching import matches_any_pattern
+        assert not matches_any_pattern("everything is fine", ("no such container",))
 
 
 # ─── F1: exec_container discards stderr on success ───
@@ -638,10 +889,10 @@ class TestT01PtyOutputStream:
                                 [b""],
                             )
                             def _mock_read(
-                                on_primary=None, on_secondary=None, cancel_token=None
+                                on_stdout=None, on_stderr=None, cancel_token=None
                             ):
-                                if on_primary:
-                                    on_primary(b"output")
+                                if on_stdout:
+                                    on_stdout(b"output")
                                 return ([b"output"], [b""])
 
                             mock_reader.from_fds.return_value.read.side_effect = (

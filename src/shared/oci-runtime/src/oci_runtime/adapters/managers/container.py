@@ -8,6 +8,7 @@ from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ImageNotFoundError,
+    OciError,
 )
 from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RunConfig
 from oci_runtime.ports.cancellation import CancellationToken
@@ -149,6 +150,8 @@ class CliContainerManager(ContainerManager):
             cmd.extend(config.command)
 
         if effective_tty:
+            if self._output_stream is None:
+                raise OciError("output_stream required for TTY run")
             result = self._pty_transport.execute_pty(
                 cmd,
                 output_stream=self._output_stream,

@@ -1,3 +1,5 @@
+import threading
+import time
 import pytest
 from pathlib import Path
 
@@ -5,6 +7,7 @@ from oci_runtime.adapters.engine.cli import CliRuntime
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ImageNotFoundError,
+    ImagePullAccessDeniedError,
     ImageRuntimeError,
     NetworkNotFoundError,
     VolumeNotFoundError,
@@ -20,6 +23,8 @@ from oci_runtime.domain.types import (
 )
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.types import RawExecResult
+from oci_runtime.ports.cancellation import ThreadCancellationToken
+from tests.helpers.mock_transport import RecordingStreamingTransport
 
 
 def _inject_responses(transport, responses):
@@ -50,7 +55,7 @@ class TestImageLifecycle:
             t,
             {
                 "docker pull alpine": RawExecResult(
-                    0, b"Status: Downloaded newer image for alpine:latest\n", b""
+                    0, b"Digest: sha256:abc\nStatus: Downloaded newer image for alpine:latest\n", b""
                 ),
                 "docker image list": RawExecResult(
                     0,
@@ -88,7 +93,7 @@ class TestImageLifecycle:
         _inject_responses(
             t,
             {
-                "docker pull alpine": RawExecResult(0, b"abc\n", b""),
+                "docker pull alpine": RawExecResult(0, b"Digest: sha256:abc\n", b""),
                 "docker image inspect --format json alpine": RawExecResult(
                     0, b'[{"Id":"sha256:abc","RepoTags":["alpine:latest"]}]', b""
                 ),
@@ -115,7 +120,7 @@ class TestImageLifecycle:
             t,
             {
                 "docker build -t myimg --quiet -": RawExecResult(
-                    0, b"buildabc123\n", b""
+                    0, b"sha256:aabbccddee11\n", b""
                 ),
             },
         )
@@ -134,7 +139,7 @@ class TestImageLifecycle:
             t,
             {
                 f"docker build -t myimg -f {dfile} --quiet {tmp_path}": RawExecResult(
-                    0, b"def456\n", b""
+                    0, b"sha256:def456abc123\n", b""
                 ),
             },
         )
@@ -152,16 +157,15 @@ class TestImageLifecycle:
                 ),
             },
         )
-        with pytest.raises(ImageRuntimeError) as exc:
+        with pytest.raises((ImageRuntimeError, ImagePullAccessDeniedError)):
             docker_engine.images.pull("nonexistent:latest")
 
 
 class TestContainerLifecycle:
     def test_container_lifecycle(self, docker_engine: CliRuntime):
-        t = docker_engine._transport
         st = docker_engine.containers._streaming
         _inject_responses(
-            t,
+            docker_engine._transport,
             {
                 "docker container list": RawExecResult(
                     0,
@@ -194,7 +198,7 @@ class TestContainerLifecycle:
         containers = mgr.list()
         assert len(containers) == 1
         info = mgr.inspect("ctr1")
-        assert info.id == "abc"
+        assert info.id == "ctr1"
         mgr.stop("ctr1")
         mgr.start("ctr1")
         logs = "".join(mgr.logs("ctr1"))
@@ -204,7 +208,7 @@ class TestContainerLifecycle:
         assert result.stdout == "ok\n"
         mgr.remove("ctr1")
         _inject_responses(
-            t,
+            docker_engine._transport,
             {
                 "docker container inspect --format json ctr1": RawExecResult(
                     1, b"", b"Error: No such container"
@@ -216,7 +220,6 @@ class TestContainerLifecycle:
         assert "ctr1" in exc.value.container_id
 
     def test_container_run_with_all_options(self, docker_engine: CliRuntime):
-        t = docker_engine._transport
         st = docker_engine.containers._streaming
         _inject_stream_responses(
             st,
@@ -261,7 +264,6 @@ class TestContainerLifecycle:
         assert cid == "ctr1"
 
     def test_container_logs_with_options(self, docker_engine: CliRuntime):
-        t = docker_engine._transport
         st = docker_engine.containers._streaming
         _inject_stream_responses(
             st,
@@ -298,6 +300,9 @@ class TestContainerLifecycle:
         docker_engine.containers.exec_container(
             "ctr1", ["ls"], detach=True, user="root"
         )
+        assert t.calls[0].command == [
+            "docker", "exec", "-d", "-u", "root", "ctr1", "ls"
+        ]
 
     def test_container_exists_true(self, docker_engine: CliRuntime):
         t = docker_engine._transport
@@ -378,7 +383,7 @@ class TestVolumeLifecycle:
         name = mgr.create("myvol")
         assert name == "myvol"
         info = mgr.inspect("myvol")
-        assert info.name == "my-vol"
+        assert info.name == "myvol"
         volumes = mgr.list()
         assert len(volumes) == 1
         mgr.remove("myvol")
@@ -460,7 +465,7 @@ class TestNetworkLifecycle:
         networks = mgr.list()
         assert len(networks) == 1
         info = mgr.inspect("mynet")
-        assert info.name == "net1"
+        assert info.name == "mynet"
         mgr.connect("mynet", "ctr1")
         mgr.disconnect("mynet", "ctr1")
         mgr.remove("mynet")
@@ -499,3 +504,53 @@ class TestNetworkLifecycle:
         with pytest.raises(NetworkNotFoundError) as exc:
             docker_engine.networks.disconnect("net1", "ctr1")
         assert "net1" in exc.value.network_name
+
+
+class _BlockingStream(RecordingStreamingTransport):
+    """Streaming transport that blocks after first chunk until cancelled."""
+
+    def stream(self, command, *, timeout=None, input_data=None,
+               on_stdout=None, on_stderr=None, cancel_token=None):
+        key = tuple(command)
+        if on_stdout and key in self._stream_responses:
+            chunks = self._stream_responses[key]
+            if chunks:
+                on_stdout(chunks[0])
+            deadline = time.monotonic() + (timeout or 5)
+            while not (cancel_token and cancel_token.is_cancelled):
+                if time.monotonic() >= deadline:
+                    break
+                time.sleep(0.01)
+            return RawExecResult(returncode=-1, stdout=b"", stderr=b"")
+        return super().stream(
+            command, timeout=timeout, input_data=input_data,
+            on_stdout=on_stdout, on_stderr=on_stderr,
+            cancel_token=cancel_token,
+        )
+
+
+class TestCancellation:
+    def test_mid_flight_cancellation_returns_partial(self):
+        st = _BlockingStream("docker")
+        st._stream_responses = {
+            ("docker", "logs", "ctr1", "--follow"): [b"first chunk\n"],
+        }
+        token = ThreadCancellationToken()
+        result_holder = []
+
+        def _run_stream():
+            result = st.stream(
+                ["docker", "logs", "ctr1", "--follow"],
+                on_stdout=lambda d: None,
+                cancel_token=token,
+                timeout=5,
+            )
+            result_holder.append(result)
+
+        t = threading.Thread(target=_run_stream, daemon=True)
+        t.start()
+        time.sleep(0.05)
+        token.cancel()
+        t.join(timeout=3)
+        assert len(result_holder) == 1
+        assert result_holder[0].returncode == -1

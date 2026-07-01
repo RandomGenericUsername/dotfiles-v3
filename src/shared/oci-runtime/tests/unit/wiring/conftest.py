@@ -21,11 +21,11 @@ from oci_runtime.domain.exceptions import (
 )
 from oci_runtime.domain.types import RuntimePreference
 from oci_runtime.ports.capabilities import RuntimeCapabilities
-from tests.helpers.mock_parsers import (
-    MockContainerParser,
-    MockImageParser,
-    MockNetworkParser,
-    MockVolumeParser,
+from oci_runtime.adapters.parser.docker import (
+    DockerContainerParser,
+    DockerImageParser,
+    DockerNetworkParser,
+    DockerVolumeParser,
 )
 from oci_runtime.ports.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
@@ -52,10 +52,10 @@ def docker_caps(docker_pref):
 
 @pytest.fixture
 def docker_parsers():
-    cp = MockContainerParser()
-    ip = MockImageParser()
-    vp = MockVolumeParser()
-    np = MockNetworkParser()
+    cp = DockerContainerParser()
+    ip = DockerImageParser()
+    vp = DockerVolumeParser()
+    np = DockerNetworkParser()
     return (
         cp,
         ip,

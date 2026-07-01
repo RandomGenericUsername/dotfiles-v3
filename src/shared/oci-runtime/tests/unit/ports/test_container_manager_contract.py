@@ -17,12 +17,10 @@ from tests.helpers.mock_parsers import MockContainerParser
 from oci_runtime.ports.cancellation import ThreadCancellationToken
 from oci_runtime.adapters.helpers.result_checker import CliResultChecker
 from oci_runtime.adapters.helpers.list_executor import CliListExecutor
-from oci_runtime.domain.exceptions import ContainerNotFoundError, ContainerRuntimeError
+from oci_runtime.domain.exceptions import ContainerRuntimeError
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
     MockPtyTransport,
-    MockResultChecker,
-    MockListExecutor,
     RecordingStreamingTransport,
     RecordingTransport,
 )

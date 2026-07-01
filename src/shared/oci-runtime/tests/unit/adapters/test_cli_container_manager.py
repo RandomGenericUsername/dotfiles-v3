@@ -2,7 +2,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from oci_runtime.adapters.managers.container import CliContainerManager
 from oci_runtime.adapters.parser.docker import DockerContainerParser
 from oci_runtime.domain.enums import ContainerState, NetworkMode
 from oci_runtime.domain.exceptions import ContainerRuntimeError, ImageNotFoundError
@@ -12,40 +11,13 @@ from oci_runtime.ports.parsers import ContainerParser
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.streaming import StreamingTransport
 from oci_runtime.ports.transport import Transport
-from oci_runtime.ports.cancellation import ThreadCancellationToken
-from oci_runtime.adapters.helpers.result_checker import CliResultChecker
-from oci_runtime.adapters.helpers.list_executor import CliListExecutor
-from oci_runtime.domain.exceptions import ContainerNotFoundError, ContainerRuntimeError
 from tests.helpers.mock_transport import (
-    FakeTtyDetector,
-    MockPtyTransport,
-    MockResultChecker,
-    MockListExecutor,
     RecordingStreamingTransport,
     RecordingTransport,
 )
 
 
-def _container_mgr(transport, parser, caps, streaming, **extra):
-    chk = CliResultChecker(
-        generic_error=ContainerRuntimeError,
-        not_found_error=ContainerNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliContainerManager(
-        transport,
-        parser,
-        caps,
-        streaming=streaming,
-        tty_detector=FakeTtyDetector(),
-        pty_transport=MockPtyTransport(),
-        cancellation_factory=lambda: ThreadCancellationToken(),
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-        **extra,
-    )
+from tests.helpers.factory_helpers import container_mgr as _container_mgr
 
 
 @pytest.fixture
@@ -189,7 +161,6 @@ class TestCliContainerManager:
     def test_exec_non_zero_raises_container_runtime_error(
         self, transport, streaming, caps
     ):
-        from oci_runtime.domain.exceptions import ContainerRuntimeError
 
         transport._responses = {
             ("docker", "exec", "ctr1", "false"): RawExecResult(

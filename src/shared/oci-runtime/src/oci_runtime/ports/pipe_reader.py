@@ -1,3 +1,4 @@
+import errno
 import io
 import os
 import selectors
@@ -11,8 +12,8 @@ class PipeReader(ABC):
     @abstractmethod
     def read(
         self,
-        on_primary: Callable[[bytes], None] | None = None,
-        on_secondary: Callable[[bytes], None] | None = None,
+        on_stdout: Callable[[bytes], None] | None = None,
+        on_stderr: Callable[[bytes], None] | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> tuple[list[bytes], list[bytes]]: ...
 
@@ -35,6 +36,11 @@ class ProcessPipeReader(PipeReader):
             raise TypeError(
                 f"Expected process with stdout.fileno(), got {type(process).__name__}"
             )
+        if process.stderr is None or not hasattr(process.stderr, "fileno"):
+            raise TypeError(
+                f"Expected process with stderr.fileno(), got "
+                f"{type(process.stderr).__name__ if process.stderr is not None else 'None'}"
+            )
         try:
             return cls(process.stdout.fileno(), process.stderr.fileno())
         except (io.UnsupportedOperation, OSError) as e:
@@ -50,23 +56,17 @@ class ProcessPipeReader(PipeReader):
     def _read_fd(self, fd: int, size: int = 4096) -> bytes:
         try:
             return os.read(fd, size)
-        except OSError:
-            return b""
+        except OSError as e:
+            if e.errno == errno.EIO:
+                return b""
+            raise
 
     def read(
         self,
-        on_primary: Callable[[bytes], None] | None = None,
-        on_secondary: Callable[[bytes], None] | None = None,
+        on_stdout: Callable[[bytes], None] | None = None,
+        on_stderr: Callable[[bytes], None] | None = None,
         cancel_token: CancellationToken | None = None,
-        **kwargs: Callable[[bytes], None] | None,
     ) -> tuple[list[bytes], list[bytes]]:
-        on_stdout = kwargs.pop("on_stdout", None)
-        on_stderr = kwargs.pop("on_stderr", None)
-        if on_stdout is not None:
-            on_primary = on_stdout
-        if on_stderr is not None:
-            on_secondary = on_stderr
-
         primary_acc: list[bytes] = []
         secondary_acc: list[bytes] = []
         selector = selectors.DefaultSelector()
@@ -89,12 +89,12 @@ class ProcessPipeReader(PipeReader):
                         continue
                     if key.fd == self._primary_fd:
                         primary_acc.append(data)
-                        if on_primary:
-                            on_primary(data)
+                        if on_stdout:
+                            on_stdout(data)
                     else:
                         secondary_acc.append(data)
-                        if on_secondary:
-                            on_secondary(data)
+                        if on_stderr:
+                            on_stderr(data)
         finally:
             selector.close()
         return primary_acc, secondary_acc

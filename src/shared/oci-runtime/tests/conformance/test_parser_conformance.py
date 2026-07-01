@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
+import re
 
 import pytest
 
@@ -37,6 +38,7 @@ from oci_runtime.domain.types import (
     ContainerInfo,
     ImageInfo,
     NetworkInfo,
+    PruneResult,
     VolumeInfo,
 )
 
@@ -224,14 +226,14 @@ class TestNetworkInspectConformance:
         assert info.driver, "driver must be non-empty"
 
     @pytest.mark.skipif(
-        not _has_fixture("podman", "network_inspect_bridge.json"),
+        not _has_fixture("podman", "network_inspect_podman.json"),
         reason="podman network inspect fixture not captured",
     )
     def test_podman_parse_inspect_produces_valid_network_info(self):
-        raw = _fixture("podman", "network_inspect_bridge.json")
+        raw = _fixture("podman", "network_inspect_podman.json")
         info = _PARSERS["podman"]["network"].parse_inspect(raw)
         assert isinstance(info, NetworkInfo)
-        assert info.name == "bridge"
+        assert info.name == "podman"
 
 
 # ─── Network list ───
@@ -267,4 +269,88 @@ class TestPullIdConformance:
         assert ident, "pull id must be non-empty (empty = silent failure)"
         assert ident.startswith("sha256:"), (
             f"pull id must be sha256-prefixed, got {ident!r}"
+        )
+
+
+# ─── Container list with ports ───
+
+
+class TestContainerListPortsConformance:
+    @pytest.mark.parametrize("runtime", ["docker", "podman"])
+    def test_parse_list_with_ports_has_non_empty_ports(self, runtime):
+        raw = _fixture(runtime, "container_list_ports.ndjson")
+        result = _PARSERS[runtime]["container"].parse_list(raw)
+        assert isinstance(result, list)
+        assert len(result) > 0
+        assert all(isinstance(c, ContainerInfo) for c in result)
+        assert any(len(c.ports) > 0 for c in result), (
+            "expected at least one container with ports, got none"
+        )
+
+
+# ─── Image prune output ───
+
+
+class TestImagePruneConformance:
+    @pytest.mark.parametrize("runtime", ["docker", "podman"])
+    def test_parse_prune_returns_prune_result(self, runtime):
+        raw = _fixture(runtime, "image_prune.txt")
+        result = _PARSERS[runtime]["image"].parse_prune(raw)
+        assert isinstance(result, PruneResult)
+
+    def test_docker_prune_has_capitalized_deleted(self):
+        raw = _fixture("docker", "image_prune.txt")
+        assert "Deleted Images:" in raw or "Deleted:" in raw, (
+            "docker prune output must contain capitalized 'Deleted'"
+        )
+
+    def test_docker_prune_deleted_gte_1(self):
+        raw = _fixture("docker", "image_prune.txt")
+        result = _PARSERS["docker"]["image"].parse_prune(raw)
+        assert result.deleted >= 1, (
+            f"docker prune must report >= 1 deleted items, got {result.deleted}"
+        )
+
+
+# ─── Build output ───
+
+
+class TestBuildOutputConformance:
+    @pytest.mark.parametrize("runtime", ["docker", "podman"])
+    def test_parse_build_output_returns_sha256(self, runtime):
+        raw = _fixture(runtime, "build_output.txt")
+        ident = _PARSERS[runtime]["image"].parse_build_output(raw)
+        assert re.match(r"^sha256:[a-f0-9]{12,64}$", ident), (
+            f"build output must match sha256 pattern, got {ident!r}"
+        )
+
+
+# ─── Docker vs Podman parity ───
+
+
+class TestParityConformance:
+    def test_both_runtimes_produce_valid_container_info(self):
+        d_raw = _fixture("docker", "container_inspect.json")
+        p_raw = _fixture("podman", "container_inspect.json")
+        d_info = _PARSERS["docker"]["container"].parse_inspect(d_raw)
+        p_info = _PARSERS["podman"]["container"].parse_inspect(p_raw)
+        assert isinstance(d_info, ContainerInfo)
+        assert isinstance(p_info, ContainerInfo)
+        assert d_info.id, "docker container id must be non-empty"
+        assert p_info.id, "podman container id must be non-empty"
+        assert d_info.image, "docker container image must be non-empty"
+        assert p_info.image, "podman container image must be non-empty"
+
+    def test_both_runtimes_produce_valid_image_info(self):
+        d_raw = _fixture("docker", "image_inspect_alpine.json")
+        p_raw = _fixture("podman", "image_inspect_alpine.json")
+        d_info = _PARSERS["docker"]["image"].parse_inspect(d_raw)
+        p_info = _PARSERS["podman"]["image"].parse_inspect(p_raw)
+        assert isinstance(d_info, ImageInfo)
+        assert isinstance(p_info, ImageInfo)
+        assert "alpine" in " ".join(d_info.tags).lower(), (
+            f"docker tags must include alpine: {d_info.tags}"
+        )
+        assert "alpine" in " ".join(p_info.tags).lower(), (
+            f"podman tags must include alpine: {p_info.tags}"
         )

@@ -1,5 +1,29 @@
 [
     {
+        "Id": "81861ce179b5be9062f1cf36b86f44b705b93dbc1a017b9cf1802e456448425f",
+        "ParentId": "d529dd0c6e5597ac7e4a3e2dea65c3fcc6173f4cae713c409265c1dd9914a11b",
+        "RepoTags": null,
+        "RepoDigests": [
+            "localhost/conformance@sha256:958f268f1bcd53eb395fc5610a746e7723d27b1619c5b4a4832482e3ac10ee48"
+        ],
+        "Size": 8703632,
+        "SharedSize": 0,
+        "VirtualSize": 8703632,
+        "Labels": {
+            "io.buildah.version": "1.39.4"
+        },
+        "Containers": 0,
+        "Digest": "sha256:958f268f1bcd53eb395fc5610a746e7723d27b1619c5b4a4832482e3ac10ee48",
+        "History": [
+            "localhost/conformance:latest"
+        ],
+        "Names": [
+            "localhost/conformance:latest"
+        ],
+        "Created": 1782920052,
+        "CreatedAt": "2026-07-01T15:34:12Z"
+    },
+    {
         "Id": "d529dd0c6e5597ac7e4a3e2dea65c3fcc6173f4cae713c409265c1dd9914a11b",
         "ParentId": "",
         "RepoTags": null,
@@ -11,7 +35,7 @@
         "SharedSize": 0,
         "VirtualSize": 8709729,
         "Labels": null,
-        "Containers": 0,
+        "Containers": 2,
         "Digest": "sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b",
         "History": [
             "docker.io/library/alpine:latest"

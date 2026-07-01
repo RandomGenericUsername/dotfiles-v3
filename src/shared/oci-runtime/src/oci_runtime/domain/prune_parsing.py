@@ -3,14 +3,17 @@ import re
 from oci_runtime.domain.size_parsing import parse_size_to_bytes
 from oci_runtime.domain.types import PruneResult
 
+_ID_PATTERN = re.compile(
+    r"^(?:deleted:\s*)?(?:sha256:)?([a-f0-9]{12,64})$",
+    re.MULTILINE | re.IGNORECASE,
+)
+_SPACE_PATTERN = re.compile(r"Total reclaimed space:\s*(.*)", re.IGNORECASE)
+
 
 def parse_prune_result(raw: str) -> PruneResult:
-    id_pattern = re.compile(
-        r"^(?:deleted:\s*)?(?:sha256:)?([a-f0-9]{12,64})$", re.MULTILINE
-    )
-    deleted_count = len(id_pattern.findall(raw))
+    deleted_count = len(_ID_PATTERN.findall(raw))
 
-    space_match = re.search(r"Total reclaimed space:\s*(.*)", raw, re.IGNORECASE)
+    space_match = _SPACE_PATTERN.search(raw)
     reclaimed_bytes = 0
     if space_match:
         try:

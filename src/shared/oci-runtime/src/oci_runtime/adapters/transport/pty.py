@@ -51,16 +51,25 @@ class CliPtyTransport(PtyTransport):
             os.close(slave_fd)
             slave_fd = -1
 
+            assert process.stderr is not None
             reader = ProcessPipeReader.from_fds(master_fd, process.stderr.fileno())
+
+            def _on_stdout(data: bytes) -> None:
+                output_stream.write(data)
+                output_stream.flush()
+
             stdout_acc, stderr_acc = reader.read(
-                on_primary=lambda data: (
-                    output_stream.write(data),
-                    output_stream.flush(),
-                ),
+                on_stdout=_on_stdout,
                 cancel_token=effective_token,
             )
 
             if effective_token is not None and effective_token.is_cancelled:
+                if isinstance(process.poll(), int):
+                    return RawExecResult(
+                        returncode=process.returncode,
+                        stdout=b"".join(stdout_acc),
+                        stderr=b"".join(stderr_acc),
+                    )
                 process.kill()
                 process.wait()
                 if deadline_token is not None and deadline_token.is_cancelled:
@@ -73,6 +82,12 @@ class CliPtyTransport(PtyTransport):
 
             while True:
                 if effective_token is not None and effective_token.is_cancelled:
+                    if isinstance(process.poll(), int):
+                        return RawExecResult(
+                            returncode=process.returncode,
+                            stdout=b"".join(stdout_acc),
+                            stderr=b"".join(stderr_acc),
+                        )
                     process.kill()
                     process.wait()
                     if deadline_token is not None and deadline_token.is_cancelled:

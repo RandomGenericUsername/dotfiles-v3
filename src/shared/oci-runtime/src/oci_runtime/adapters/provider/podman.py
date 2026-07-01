@@ -43,6 +43,7 @@ class PodmanRuntimeProvider(RuntimeProvider):
     def kind(self) -> RuntimeKind:
         return self._kind
 
+    @property
     def capabilities(self) -> RuntimeCapabilities:
         return self._capabilities
 

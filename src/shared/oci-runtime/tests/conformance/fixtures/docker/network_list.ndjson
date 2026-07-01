@@ -1,3 +1,3 @@
-{"CreatedAt":"2026-06-29 16:00:41.222579968 -0500 -05","Driver":"bridge","ID":"6ceb92e5f319","IPv4":"true","IPv6":"false","Internal":"false","Labels":"","Name":"bridge","Scope":"local"}
+{"CreatedAt":"2026-07-01 07:38:09.201230642 -0500 -05","Driver":"bridge","ID":"d3f60ca7246f","IPv4":"true","IPv6":"false","Internal":"false","Labels":"","Name":"bridge","Scope":"local"}
 {"CreatedAt":"2026-02-12 16:24:10.907767128 -0500 -05","Driver":"host","ID":"8d7e2f0997be","IPv4":"true","IPv6":"false","Internal":"false","Labels":"","Name":"host","Scope":"local"}
 {"CreatedAt":"2026-02-12 16:24:10.903216341 -0500 -05","Driver":"null","ID":"9a21f1d63c01","IPv4":"true","IPv6":"false","Internal":"false","Labels":"","Name":"none","Scope":"local"}

@@ -5,6 +5,15 @@ class RuntimeKind(StrEnum):
     DOCKER = "docker"
     PODMAN = "podman"
 
+    @classmethod
+    def _missing_(cls, value: object) -> "RuntimeKind | None":
+        if isinstance(value, str) and value:
+            member = str.__new__(cls, value)
+            member._name_ = value
+            member._value_ = value
+            return member
+        return None
+
 
 class ContainerState(StrEnum):
     CREATED = "created"

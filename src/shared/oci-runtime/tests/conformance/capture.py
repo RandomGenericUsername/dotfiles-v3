@@ -18,11 +18,14 @@ Output layout:
     │   ├── image_list.ndjson
     │   ├── container_inspect.json
     │   ├── container_list.ndjson
+    │   ├── container_list_ports.ndjson    # container ls with published port 8080:80/tcp
     │   ├── volume_inspect.json
     │   ├── volume_list.ndjson
     │   ├── network_inspect_bridge.json
     │   ├── network_list.ndjson
-    │   └── pull_alpine.txt
+    │   ├── pull_alpine.txt
+    │   ├── build_output.txt               # docker build -t conformance -
+    │   └── image_prune.txt                # docker image prune --force
     └── podman/
         └── ...
 
@@ -41,7 +44,9 @@ _FIXTURES_ROOT = Path(__file__).parent / "fixtures"
 
 _LABEL = "oci-runtime-conformance"
 _CONTAINER_NAME = "oci-runtime-conformance-ctr"
+_CONTAINER_NAME_PORTS = "oci-runtime-conformance-ports"
 _VOLUME_NAME = "oci-runtime-conformance-vol"
+_PRUNE_IMAGE_TAG = "oci-runtime-conformance-prune"
 
 
 def _have(binary: str) -> bool:
@@ -49,12 +54,13 @@ def _have(binary: str) -> bool:
 
 
 def _run(
-    binary: str, args: list[str], *, timeout: int = 30
+    binary: str, args: list[str], *, timeout: int = 30, input_data: bytes | None = None
 ) -> subprocess.CompletedProcess:
     return subprocess.run(
         [binary, *args],
         capture_output=True,
         timeout=timeout,
+        input=input_data,
     )
 
 
@@ -68,7 +74,9 @@ def _save(runtime: str, name: str, data: bytes) -> None:
 def _cleanup(binary: str) -> None:
     for cmd in (
         ["rm", "-f", _CONTAINER_NAME],
+        ["rm", "-f", _CONTAINER_NAME_PORTS],
         ["volume", "rm", "-f", _VOLUME_NAME],
+        ["rmi", "-f", _PRUNE_IMAGE_TAG],
     ):
         try:
             _run(binary, cmd, timeout=10)
@@ -121,14 +129,44 @@ def _capture_runtime(binary: str, runtime: str) -> None:
         if r.returncode == 0:
             _save(runtime, "volume_list.ndjson", r.stdout)
 
-    # --- Network: bridge always exists ---
-    r = _run(binary, ["network", "inspect", "--format", "json", "bridge"])
-    if r.returncode == 0:
-        _save(runtime, "network_inspect_bridge.json", r.stdout)
+    # --- Network: bridge always exists for docker, podman uses 'podman' ---
+    for net_name in ("bridge", "podman"):
+        r = _run(binary, ["network", "inspect", "--format", "json", net_name])
+        if r.returncode == 0:
+            _save(runtime, f"network_inspect_{net_name}.json", r.stdout)
 
     r = _run(binary, ["network", "list", "--format", fmt])
     if r.returncode == 0:
         _save(runtime, "network_list.ndjson", r.stdout)
+
+    # --- Container with published port: for port parsing conformance ---
+    r = _run(binary, [
+        "run", "-d", "--name", _CONTAINER_NAME_PORTS,
+        "-p", "8080:80/tcp", "alpine", "sleep", "300",
+    ])
+    if r.returncode == 0:
+        r = _run(binary, ["container", "list", "--format", fmt])
+        if r.returncode == 0:
+            _save(runtime, "container_list_ports.ndjson", r.stdout)
+
+    # --- Build output (for parse_build_output conformance) ---
+    r = _run(binary, ["build", "-t", "conformance", "--quiet", "-"], timeout=60,
+             input_data=b"FROM alpine\nRUN echo hello")
+    if r.returncode == 0:
+        _save(runtime, "build_output.txt", r.stdout)
+
+    # --- Image prune output (for parse_prune conformance) ---
+    r = _run(binary, ["build", "--no-cache", "-t", _PRUNE_IMAGE_TAG, "-"], timeout=120,
+             input_data=b"FROM alpine\nRUN echo unique-prune-layer")
+    if r.returncode == 0:
+        _run(binary, ["rmi", _PRUNE_IMAGE_TAG], timeout=30)
+        r = _run(binary, ["image", "prune", "--force", "--all"], timeout=60)
+        if r.returncode == 0 and r.stdout.strip():
+            _save(runtime, "image_prune.txt", r.stdout)
+        else:
+            r = _run(binary, ["system", "prune", "--force", "--all"], timeout=60)
+            if r.returncode == 0 and r.stdout.strip():
+                _save(runtime, "image_prune.txt", r.stdout)
 
     _cleanup(binary)
     print(f"  {runtime} done.")

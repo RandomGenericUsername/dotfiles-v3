@@ -14,7 +14,6 @@ from oci_runtime.domain.exceptions import (
     ImagePullAccessDeniedError,
     ImageRuntimeError,
 )
-from tests.helpers.mock_transport import MockResultChecker, MockListExecutor
 
 
 class _MockParser(ImageParser):
@@ -84,7 +83,7 @@ class TestCliImageManager:
         ctx = BuildContext(
             build_file_content="FROM alpine:latest", context_path=Path("/tmp/build-ctx")
         )
-        result = self.manager.build(ctx, "my-image")
+        self.manager.build(ctx, "my-image")
         _, kwargs = self.transport.execute.call_args
         assert kwargs["input_data"] == b"FROM alpine:latest"
 
@@ -92,7 +91,7 @@ class TestCliImageManager:
         ctx = BuildContext(
             build_file_content="FROM alpine", context_path=Path("/tmp/build-ctx")
         )
-        result = self.manager.build(ctx, "my-image")
+        self.manager.build(ctx, "my-image")
         args = self.transport.execute.call_args[0][0]
         assert "-f" in args
         f_idx = args.index("-f")

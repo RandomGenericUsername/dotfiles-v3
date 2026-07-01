@@ -1,6 +1,7 @@
 import io
 import os
 import tarfile
+from collections.abc import Mapping
 
 
 def _validate_tar_path(path: str) -> None:
@@ -13,7 +14,7 @@ def _validate_tar_path(path: str) -> None:
 
 def create_build_tar(
     build_file_content: str,
-    files: dict[str, bytes],
+    files: Mapping[str, bytes],
     tar_entry_name: str = "Dockerfile",
 ) -> bytes:
     _validate_tar_path(tar_entry_name)

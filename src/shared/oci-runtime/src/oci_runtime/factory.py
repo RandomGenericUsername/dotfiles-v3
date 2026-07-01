@@ -1,4 +1,4 @@
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from collections.abc import Callable
 
 from oci_runtime.domain.enums import RuntimeKind
@@ -12,6 +12,7 @@ from oci_runtime.domain.exceptions import (
     ImageRuntimeError,
     NetworkNotFoundError,
     NetworkRuntimeError,
+    ProviderNotRegisteredError,
     VolumeNotFoundError,
     VolumeRuntimeError,
 )
@@ -43,11 +44,9 @@ class RuntimeFactoryConfig:
     providers for parser resolution, not to a separate callback.
     """
 
-    transport_factory: Callable[[str, BinaryResolver], Transport] | None = None
-    streaming_transport_factory: (
-        Callable[[str, BinaryResolver], StreamingTransport] | None
-    ) = None
-    runtime_cls: type[ContainerEngine] | None = None
+    transport_factory: Callable[..., Transport] | None = None
+    streaming_transport_factory: Callable[..., StreamingTransport] | None = None
+    runtime_cls: Callable[..., ContainerEngine] | None = None
     discovery_factory: (
         Callable[[Callable[[str], Transport]], "RuntimeDiscovery"] | None
     ) = None
@@ -55,13 +54,34 @@ class RuntimeFactoryConfig:
     output_stream_factory: Callable[[], OutputStream] | None = None
     cancellation_factory: Callable[[], CancellationToken] | None = None
     binary_resolver_factory: Callable[[], BinaryResolver] | None = None
-    pty_transport_factory: Callable[[BinaryResolver], PtyTransport] | None = None
+    pty_transport_factory: Callable[..., PtyTransport] | None = None
     result_checker_factory: Callable[..., ResultChecker] | None = None
     list_executor_factory: Callable[..., ListExecutor] | None = None
     container_manager_cls: type | None = None
     image_manager_cls: type | None = None
     volume_manager_cls: type | None = None
     network_manager_cls: type | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedRuntimeFactoryConfig:
+    """Post-resolution config with all fields guaranteed non-None."""
+
+    transport_factory: Callable[..., Transport]
+    streaming_transport_factory: Callable[..., StreamingTransport]
+    runtime_cls: Callable[..., ContainerEngine]
+    discovery_factory: Callable[[Callable[[str], Transport]], "RuntimeDiscovery"]
+    tty_detector_factory: Callable[[], TtyDetector]
+    output_stream_factory: Callable[[], OutputStream]
+    cancellation_factory: Callable[[], CancellationToken]
+    binary_resolver_factory: Callable[[], BinaryResolver]
+    pty_transport_factory: Callable[..., PtyTransport]
+    result_checker_factory: Callable[..., ResultChecker]
+    list_executor_factory: Callable[..., ListExecutor]
+    container_manager_cls: type
+    image_manager_cls: type
+    volume_manager_cls: type
+    network_manager_cls: type
 
 
 def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
@@ -158,57 +178,72 @@ def _default_network_manager_cls() -> type:
     return CliNetworkManager
 
 
-def _resolve_config(cfg: RuntimeFactoryConfig | None) -> RuntimeFactoryConfig:
+def _default_tty_detector_factory() -> TtyDetector:
+    from oci_runtime.adapters.tty import StdoutTtyDetector
+
+    return StdoutTtyDetector()
+
+
+def _default_output_stream_factory() -> OutputStream:
+    from oci_runtime.adapters.output_stream import StdoutBufferStream
+
+    return StdoutBufferStream()
+
+
+def _default_cancellation_factory() -> CancellationToken:
+    from oci_runtime.ports.cancellation import ThreadCancellationToken
+
+    return ThreadCancellationToken()
+
+
+def _default_binary_resolver_factory() -> BinaryResolver:
+    from oci_runtime.adapters.binary import CliBinaryResolver
+
+    return CliBinaryResolver()
+
+
+def _default_pty_transport_factory(resolver: BinaryResolver) -> PtyTransport:
+    from oci_runtime.adapters.transport.pty import CliPtyTransport
+
+    return CliPtyTransport(resolver)
+
+
+def _resolve_config(cfg: RuntimeFactoryConfig | None) -> ResolvedRuntimeFactoryConfig:
     if cfg is None:
         cfg = RuntimeFactoryConfig()
 
-    replacements = {}
-    if cfg.transport_factory is None:
-        replacements["transport_factory"] = _default_transport_factory
-    if cfg.streaming_transport_factory is None:
-        replacements["streaming_transport_factory"] = (
-            _default_streaming_transport_factory
-        )
-    if cfg.runtime_cls is None:
-        replacements["runtime_cls"] = _default_runtime_cls()
-    if cfg.discovery_factory is None:
-        replacements["discovery_factory"] = _default_discovery_factory
-    if cfg.tty_detector_factory is None:
-        from oci_runtime.adapters.tty import StdoutTtyDetector
-
-        replacements["tty_detector_factory"] = lambda: StdoutTtyDetector()
-    if cfg.output_stream_factory is None:
-        from oci_runtime.adapters.output_stream import StdoutBufferStream
-
-        replacements["output_stream_factory"] = lambda: StdoutBufferStream()
-    if cfg.cancellation_factory is None:
-        from oci_runtime.ports.cancellation import ThreadCancellationToken
-
-        replacements["cancellation_factory"] = lambda: ThreadCancellationToken()
-    if cfg.binary_resolver_factory is None:
-        from oci_runtime.adapters.binary import CliBinaryResolver
-
-        replacements["binary_resolver_factory"] = lambda: CliBinaryResolver()
-    if cfg.pty_transport_factory is None:
-        from oci_runtime.adapters.transport.pty import CliPtyTransport
-
-        replacements["pty_transport_factory"] = lambda resolver: CliPtyTransport(
-            resolver
-        )
-    if cfg.container_manager_cls is None:
-        replacements["container_manager_cls"] = _default_container_manager_cls()
-    if cfg.image_manager_cls is None:
-        replacements["image_manager_cls"] = _default_image_manager_cls()
-    if cfg.volume_manager_cls is None:
-        replacements["volume_manager_cls"] = _default_volume_manager_cls()
-    if cfg.network_manager_cls is None:
-        replacements["network_manager_cls"] = _default_network_manager_cls()
-    if cfg.result_checker_factory is None:
-        replacements["result_checker_factory"] = CliResultChecker
-    if cfg.list_executor_factory is None:
-        replacements["list_executor_factory"] = CliListExecutor
-
-    return replace(cfg, **replacements) if replacements else cfg
+    return ResolvedRuntimeFactoryConfig(
+        transport_factory=cfg.transport_factory or _default_transport_factory,
+        streaming_transport_factory=(
+            cfg.streaming_transport_factory
+            or _default_streaming_transport_factory
+        ),
+        runtime_cls=cfg.runtime_cls or _default_runtime_cls(),
+        discovery_factory=cfg.discovery_factory or _default_discovery_factory,
+        tty_detector_factory=(
+            cfg.tty_detector_factory or _default_tty_detector_factory
+        ),
+        output_stream_factory=(
+            cfg.output_stream_factory or _default_output_stream_factory
+        ),
+        cancellation_factory=(
+            cfg.cancellation_factory or _default_cancellation_factory
+        ),
+        binary_resolver_factory=(
+            cfg.binary_resolver_factory or _default_binary_resolver_factory
+        ),
+        pty_transport_factory=(
+            cfg.pty_transport_factory or _default_pty_transport_factory
+        ),
+        container_manager_cls=(
+            cfg.container_manager_cls or _default_container_manager_cls()
+        ),
+        image_manager_cls=cfg.image_manager_cls or _default_image_manager_cls(),
+        volume_manager_cls=cfg.volume_manager_cls or _default_volume_manager_cls(),
+        network_manager_cls=cfg.network_manager_cls or _default_network_manager_cls(),
+        result_checker_factory=cfg.result_checker_factory or CliResultChecker,
+        list_executor_factory=cfg.list_executor_factory or CliListExecutor,
+    )
 
 
 class RuntimeFactory:
@@ -237,11 +272,8 @@ class RuntimeFactory:
         try:
             provider = self._providers[preference.kind]
         except KeyError:
-            raise NotImplementedError(
-                f"No RuntimeProvider registered for RuntimeKind: {preference.kind}. "
-                f"Registered: {list(self._providers.keys())}"
-            )
-        caps = provider.capabilities()
+            raise ProviderNotRegisteredError(preference.kind)
+        caps = provider.capabilities
         parsers = provider.create_parsers()
 
         image_checker = self._cfg.result_checker_factory(

@@ -4,7 +4,6 @@ from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.ports.aggregates import Parsers
 from oci_runtime.ports.provider import RuntimeProvider
-from oci_runtime.ports.transport import Transport
 from oci_runtime.ports.parsers import (
     ContainerParser,
     ImageParser,
@@ -42,7 +41,7 @@ class TestProviderImportable:
     def test_method_signatures_exist(self):
         import inspect
 
-        sig = inspect.signature(RuntimeProvider.capabilities)
+        sig = inspect.signature(RuntimeProvider.capabilities.fget)
         assert list(sig.parameters.keys()) == ["self"]
         sig = inspect.signature(RuntimeProvider.create_parsers)
         assert list(sig.parameters.keys()) == ["self"]
@@ -62,6 +61,7 @@ class TestConcreteProviderContract:
             def kind(self) -> RuntimeKind:
                 return RuntimeKind.DOCKER
 
+            @property
             def capabilities(self) -> RuntimeCapabilities:
                 return RuntimeCapabilities()
 
@@ -145,5 +145,5 @@ class TestConcreteProviderContract:
 
         provider = CompleteProvider()
         assert provider.kind == RuntimeKind.DOCKER
-        assert isinstance(provider.capabilities(), RuntimeCapabilities)
+        assert isinstance(provider.capabilities, RuntimeCapabilities)
         assert isinstance(provider.create_parsers(), Parsers)

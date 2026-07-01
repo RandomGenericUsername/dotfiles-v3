@@ -51,10 +51,13 @@ class CliStreamingTransport(StreamingTransport):
             if input_data is not None:
 
                 def _write_stdin() -> None:
+                    stdin = process.stdin
+                    if stdin is None:
+                        return
                     try:
-                        process.stdin.write(input_data)
-                        process.stdin.close()
-                    except OSError:
+                        stdin.write(input_data)
+                        stdin.close()
+                    except (OSError, ValueError):
                         pass
 
                 _stdin_thread = threading.Thread(target=_write_stdin, daemon=True)
@@ -68,6 +71,12 @@ class CliStreamingTransport(StreamingTransport):
             )
 
             if effective_token is not None and effective_token.is_cancelled:
+                if isinstance(process.poll(), int):
+                    return RawExecResult(
+                        returncode=process.returncode,
+                        stdout=b"".join(stdout_acc),
+                        stderr=b"".join(stderr_acc),
+                    )
                 process.kill()
                 process.wait()
                 _process_reaped = True
@@ -85,6 +94,12 @@ class CliStreamingTransport(StreamingTransport):
                 _stdin_thread.join(timeout=5)
             while True:
                 if effective_token is not None and effective_token.is_cancelled:
+                    if isinstance(process.poll(), int):
+                        return RawExecResult(
+                            returncode=process.returncode,
+                            stdout=b"".join(stdout_acc),
+                            stderr=b"".join(stderr_acc),
+                        )
                     process.kill()
                     process.wait()
                     _process_reaped = True

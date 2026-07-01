@@ -1,5 +1,4 @@
 import io
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,7 +6,6 @@ import pytest
 from oci_runtime.adapters.binary import CliBinaryResolver
 from oci_runtime.adapters.transport.pty import CliPtyTransport
 from oci_runtime.domain.exceptions import (
-    ContainerRuntimeError,
     OciError,
     OperationTimeoutError,
     RuntimeNotAvailableError,
@@ -117,10 +115,10 @@ class TestRunPtyEdgeCases:
                         ) as mock_reader:
 
                             def _mock_read(
-                                on_primary=None, on_secondary=None, cancel_token=None
+                                on_stdout=None, on_stderr=None, cancel_token=None
                             ):
-                                if on_primary:
-                                    on_primary(b"hello")
+                                if on_stdout:
+                                    on_stdout(b"hello")
                                 return ([b"hello"], [b""])
 
                             mock_reader.from_fds.return_value.read.side_effect = (
@@ -149,10 +147,10 @@ class TestRunPtyEdgeCases:
                         ) as mock_reader:
 
                             def _mock_read(
-                                on_primary=None, on_secondary=None, cancel_token=None
+                                on_stdout=None, on_stderr=None, cancel_token=None
                             ):
-                                if on_primary:
-                                    on_primary(b"output data")
+                                if on_stdout:
+                                    on_stdout(b"output data")
                                 return ([b"output data"], [b""])
 
                             mock_reader.from_fds.return_value.read.side_effect = (
@@ -181,10 +179,10 @@ class TestRunPtyEdgeCases:
                         ) as mock_reader:
 
                             def _mock_read(
-                                on_primary=None, on_secondary=None, cancel_token=None
+                                on_stdout=None, on_stderr=None, cancel_token=None
                             ):
-                                if on_primary:
-                                    on_primary(b"hello default")
+                                if on_stdout:
+                                    on_stdout(b"hello default")
                                 return ([b"hello default"], [b""])
 
                             mock_reader.from_fds.return_value.read.side_effect = (

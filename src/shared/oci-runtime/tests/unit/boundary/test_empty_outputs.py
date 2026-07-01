@@ -1,11 +1,5 @@
 import pytest
 
-from oci_runtime.adapters.helpers.result_checker import CliResultChecker
-from oci_runtime.adapters.helpers.list_executor import CliListExecutor
-from oci_runtime.adapters.managers.container import CliContainerManager
-from oci_runtime.adapters.managers.image import CliImageManager
-from oci_runtime.adapters.managers.network import CliNetworkManager
-from oci_runtime.adapters.managers.volume import CliVolumeManager
 from oci_runtime.adapters.parser.docker import (
     DockerContainerParser,
     DockerImageParser,
@@ -13,25 +7,20 @@ from oci_runtime.adapters.parser.docker import (
     DockerVolumeParser,
 )
 from oci_runtime.domain.exceptions import (
-    ContainerNotFoundError,
-    ContainerRuntimeError,
     ImageError,
-    ImageNotFoundError,
     ImageRuntimeError,
-    ImagePullAccessDeniedError,
-    VolumeNotFoundError,
-    VolumeRuntimeError,
-    NetworkNotFoundError,
-    NetworkRuntimeError,
 )
 from oci_runtime.ports.parsers import ParsingError
 from oci_runtime.domain.types import BuildContext, RunConfig
 from oci_runtime.ports.capabilities import RuntimeCapabilities
 from oci_runtime.domain.types import RawExecResult
-from oci_runtime.ports.cancellation import ThreadCancellationToken
+from tests.helpers.factory_helpers import (
+    image_mgr as _image_mgr,
+    container_mgr as _container_mgr,
+    volume_mgr as _volume_mgr,
+    network_mgr as _network_mgr,
+)
 from tests.helpers.mock_transport import (
-    FakeTtyDetector,
-    MockPtyTransport,
     RecordingStreamingTransport,
     RecordingTransport,
 )
@@ -50,82 +39,6 @@ def transport():
 @pytest.fixture
 def streaming():
     return RecordingStreamingTransport("docker")
-
-
-def _image_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=ImageRuntimeError,
-        not_found_error=ImageNotFoundError,
-        is_not_found=parser.is_not_found_error,
-        auth_error=ImagePullAccessDeniedError,
-        is_auth=parser.is_auth_error,
-    )
-    return CliImageManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _container_mgr(transport, parser, caps, streaming, tty_detector=None):
-    if tty_detector is None:
-        tty_detector = FakeTtyDetector()
-    chk = CliResultChecker(
-        generic_error=ContainerRuntimeError,
-        not_found_error=ContainerNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliContainerManager(
-        transport,
-        parser,
-        caps,
-        streaming=streaming,
-        tty_detector=tty_detector,
-        pty_transport=MockPtyTransport(),
-        cancellation_factory=lambda: ThreadCancellationToken(),
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _volume_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=VolumeRuntimeError,
-        not_found_error=VolumeNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliVolumeManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
-
-
-def _network_mgr(transport, parser, caps):
-    chk = CliResultChecker(
-        generic_error=NetworkRuntimeError,
-        not_found_error=NetworkNotFoundError,
-        is_not_found=parser.is_not_found_error,
-    )
-    return CliNetworkManager(
-        transport,
-        parser,
-        caps,
-        result_checker=chk,
-        list_executor=CliListExecutor(
-            transport, caps, chk, parse_list=parser.parse_list
-        ),
-    )
 
 
 class TestEmptyInspect:
@@ -290,7 +203,7 @@ class TestEmptyOutput:
         assert isinstance(exc_info.value.__cause__, ParsingError)
 
     def test_pull_empty_stdout(self, transport, caps):
-        from oci_runtime.domain.exceptions import ImageError, ParsingError
+        from oci_runtime.domain.exceptions import ImageError
 
         transport._responses = {
             ("docker", "pull", "alpine"): RawExecResult(

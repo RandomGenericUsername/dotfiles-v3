@@ -88,9 +88,9 @@ class TestPortMapping:
         assert pm.protocol == "udp"
         assert pm.host_ip == "0.0.0.0"
 
-    def test_host_port_zero(self):
-        pm = PortMapping(container_port=80, host_port=0, host_ip="0.0.0.0")
-        assert pm.host_port == 0
+    def test_host_port_zero_rejected(self):
+        with pytest.raises(ValueError):
+            PortMapping(container_port=80, host_port=0, host_ip="0.0.0.0")
 
     def test_host_port_none(self):
         pm = PortMapping(container_port=80, host_ip=None)

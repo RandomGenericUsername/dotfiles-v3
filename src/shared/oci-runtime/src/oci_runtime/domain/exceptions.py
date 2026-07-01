@@ -58,9 +58,9 @@ class ImagePullAccessDeniedError(ImageError):
         self,
         image_name: str,
         registry: str = "",
-        command=None,
-        exit_code=None,
-        stderr=None,
+        command: list[str] | None = None,
+        exit_code: int | None = None,
+        stderr: str | None = None,
     ):
         self.image_name = image_name
         self.registry = registry
@@ -90,7 +90,10 @@ class NetworkNotFoundError(NetworkError):
 
 class OperationTimeoutError(OciError):
     def __init__(
-        self, command: list[str], timeout: float, message: str = "Operation timed out"
+        self,
+        command: list[str],
+        timeout: float | None,
+        message: str = "Operation timed out",
     ):
         self.command = command
         self.timeout = timeout
@@ -119,4 +122,14 @@ class RuntimeNotAvailableError(OciError):
         super().__init__(
             f"Container runtime '{runtime}' is not available. "
             f"Please ensure it is installed and running."
+        )
+
+
+class ProviderNotRegisteredError(OciError):
+    def __init__(self, kind):
+        from oci_runtime.domain.enums import RuntimeKind as _RuntimeKind
+        self.kind = kind
+        super().__init__(
+            f"No RuntimeProvider registered for RuntimeKind: {kind}. "
+            f"Registered: {list(_RuntimeKind)}"
         )
