@@ -1,4 +1,4 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 from oci_runtime.adapters.engine.cli import CliRuntime
@@ -221,11 +221,7 @@ class TestFactoryConfigInjection:
 
 class TestFactoryAvailable:
     @patch("shutil.which", return_value="/usr/bin/docker")
-    @patch("subprocess.run")
-    def test_available_returns_list_of_preferences(self, mock_run, mock_which):
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=b"Docker version 24.0.0", stderr=b""
-        )
+    def test_available_returns_list_of_preferences(self, mock_which):
         available = RuntimeFactory().available()
         assert isinstance(available, list)
         assert all(isinstance(p, RuntimePreference) for p in available)

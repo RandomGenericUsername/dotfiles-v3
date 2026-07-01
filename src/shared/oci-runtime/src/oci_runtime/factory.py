@@ -105,7 +105,7 @@ def _default_providers() -> dict[RuntimeKind, RuntimeProvider]:
 
 
 def _default_transport_factory(
-    binary: str, binary_resolver: BinaryResolver | None = None
+    binary: str, binary_resolver: BinaryResolver
 ) -> Transport:
     from oci_runtime.adapters.transport.cli import CliTransport
 
@@ -113,7 +113,7 @@ def _default_transport_factory(
 
 
 def _default_streaming_transport_factory(
-    binary: str, binary_resolver: BinaryResolver | None = None
+    binary: str, binary_resolver: BinaryResolver
 ) -> StreamingTransport:
     from oci_runtime.adapters.transport.streaming import CliStreamingTransport
 

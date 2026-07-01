@@ -7,7 +7,6 @@ from oci_runtime.domain.encoding import safe_decode
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
-    ContainerRuntimeError,
     ImageNotFoundError,
 )
 from oci_runtime.domain.types import ContainerInfo, ExecResult, PruneResult, RunConfig
@@ -125,23 +124,20 @@ class CliContainerManager(ContainerManager):
                 cmd.extend(["-v", spec])
 
         for port in config.ports:
-            if port.host_port is not None:
-                if port.host_ip:
-                    cmd.extend(
-                        [
-                            "-p",
-                            f"{port.host_ip}:{port.host_port}:{port.container_port}/{port.protocol}",
-                        ]
+            proto = port.protocol or "tcp"
+            if port.host_ip is not None:
+                if port.host_port is not None:
+                    flag = (
+                        f"{port.host_ip}:{port.host_port}:{port.container_port}/{proto}"
                     )
                 else:
-                    cmd.extend(
-                        [
-                            "-p",
-                            f"{port.host_port}:{port.container_port}/{port.protocol}",
-                        ]
-                    )
+                    flag = f"{port.host_ip}::{port.container_port}/{proto}"
             else:
-                cmd.extend(["-p", f"{port.container_port}/{port.protocol}"])
+                if port.host_port is not None:
+                    flag = f"{port.host_port}:{port.container_port}/{proto}"
+                else:
+                    flag = str(port.container_port)
+            cmd.extend(["-p", flag])
 
         for k, v in config.labels.items():
             cmd.extend(["-l", f"{k}={v}"])
@@ -352,7 +348,7 @@ class CliContainerManager(ContainerManager):
                 entity=container,
                 not_found_error=ContainerNotFoundError,
             )
-        except ContainerRuntimeError:
+        except ContainerNotFoundError:
             pass
         return ExecResult(
             returncode=result.returncode,

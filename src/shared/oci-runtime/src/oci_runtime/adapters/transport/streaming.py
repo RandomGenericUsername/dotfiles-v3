@@ -15,7 +15,7 @@ from oci_runtime.ports.streaming import StreamingTransport
 
 
 class CliStreamingTransport(StreamingTransport):
-    def __init__(self, binary: str, binary_resolver: BinaryResolver | None = None):
+    def __init__(self, binary: str, binary_resolver: BinaryResolver):
         self.binary = binary
         self._resolver = binary_resolver
 

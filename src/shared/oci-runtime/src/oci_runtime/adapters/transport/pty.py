@@ -26,7 +26,7 @@ class CliPtyTransport(PtyTransport):
         self,
         command: list[str],
         *,
-        output_stream: OutputStream | None = None,
+        output_stream: OutputStream,
         timeout: float | None = None,
         cancel_token: CancellationToken | None = None,
     ) -> RawExecResult:

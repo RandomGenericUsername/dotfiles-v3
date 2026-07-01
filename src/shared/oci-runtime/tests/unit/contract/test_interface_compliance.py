@@ -663,18 +663,18 @@ class TestFactoryContract:
 
     def test_parsers_is_frozen_dataclass(self):
         assert is_dataclass(Parsers)
-        from oci_runtime.adapters.parser.docker import (
-            DockerContainerParser,
-            DockerImageParser,
-            DockerVolumeParser,
-            DockerNetworkParser,
+        from oci_runtime.adapters.parser.podman import (
+            PodmanContainerParser,
+            PodmanImageParser,
+            PodmanVolumeParser,
+            PodmanNetworkParser,
         )
 
         parsers = Parsers(
-            container_parser=DockerContainerParser(),
-            image_parser=DockerImageParser(),
-            volume_parser=DockerVolumeParser(),
-            network_parser=DockerNetworkParser(),
+            container_parser=PodmanContainerParser(),
+            image_parser=PodmanImageParser(),
+            volume_parser=PodmanVolumeParser(),
+            network_parser=PodmanNetworkParser(),
         )
         with pytest.raises(FrozenInstanceError):
             parsers.container_parser = None

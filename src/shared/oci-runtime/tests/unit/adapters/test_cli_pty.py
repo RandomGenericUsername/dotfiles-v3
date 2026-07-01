@@ -20,7 +20,7 @@ class TestRunPty:
         resolver = CliBinaryResolver()
         transport = CliPtyTransport(resolver)
         with pytest.raises(OciError) as exc:
-            transport.execute_pty([])
+            transport.execute_pty([], output_stream=MagicMock())
         assert "Empty" in str(exc.value)
 
     def test_missing_binary_raises(self):
@@ -28,7 +28,7 @@ class TestRunPty:
         transport = CliPtyTransport(resolver)
         with patch("shutil.which", return_value=None):
             with pytest.raises(RuntimeNotAvailableError, match="nonexistent"):
-                transport.execute_pty(["nonexistent", "arg"])
+                transport.execute_pty(["nonexistent", "arg"], output_stream=MagicMock())
 
     def test_basic_execution_returns_raw_exec_result(self):
         resolver = CliBinaryResolver()
@@ -47,7 +47,9 @@ class TestRunPty:
                                 [b""],
                                 [b""],
                             )
-                            result = transport.execute_pty(["/usr/bin/true"])
+                            result = transport.execute_pty(
+                                ["/usr/bin/true"], output_stream=MagicMock()
+                            )
         assert isinstance(result, RawExecResult)
         assert result.returncode == 0
 
@@ -71,7 +73,7 @@ class TestRunPty:
             mock_reader.from_fds.return_value.read.return_value = ([b""], [b""])
             mock_dc.return_value.is_cancelled = True
             with pytest.raises(OperationTimeoutError):
-                transport.execute_pty(["/bin/sleep", "5"], timeout=0.3)
+                transport.execute_pty(["/bin/sleep", "5"], timeout=0.3, output_stream=MagicMock())
             mock_proc.kill.assert_called_once()
 
     def test_non_zero_exit_returns_raw_exec_result(self):
@@ -91,7 +93,9 @@ class TestRunPty:
                                 [b""],
                                 [b""],
                             )
-                            result = transport.execute_pty(["/usr/bin/false"])
+                            result = transport.execute_pty(
+                                ["/usr/bin/false"], output_stream=MagicMock()
+                            )
         assert isinstance(result, RawExecResult)
         assert result.returncode == 1
 
@@ -209,7 +213,9 @@ class TestRunPtyEdgeCases:
                                 [b""],
                                 [b""],
                             )
-                            result = transport.execute_pty(["/usr/bin/echo"])
+                            result = transport.execute_pty(
+                                ["/usr/bin/echo"], output_stream=MagicMock()
+                            )
         assert result.returncode == 0
 
     def test_non_utf8_output_handled(self):
@@ -229,7 +235,9 @@ class TestRunPtyEdgeCases:
                                 [b"valid\xff\xfe"],
                                 [b""],
                             )
-                            result = transport.execute_pty(["/usr/bin/echo", "test"])
+                            result = transport.execute_pty(
+                                ["/usr/bin/echo", "test"], output_stream=MagicMock()
+                            )
         assert result.returncode == 0
 
     def test_large_output(self):
@@ -250,7 +258,9 @@ class TestRunPtyEdgeCases:
                                 [big_data],
                                 [b""],
                             )
-                            result = transport.execute_pty(["/usr/bin/echo", "x"])
+                            result = transport.execute_pty(
+                                ["/usr/bin/echo", "x"], output_stream=MagicMock()
+                            )
         assert result.returncode == 0
 
     def test_reader_raises_value_error(self):
@@ -270,7 +280,9 @@ class TestRunPtyEdgeCases:
                                 ValueError("bad fd")
                             )
                             with pytest.raises(ValueError):
-                                transport.execute_pty(["/usr/bin/true"])
+                                transport.execute_pty(
+                                    ["/usr/bin/true"], output_stream=MagicMock()
+                                )
 
     def test_pty_stderr_separation(self):
         resolver = CliBinaryResolver()
@@ -289,7 +301,9 @@ class TestRunPtyEdgeCases:
                                 [b"stdout data"],
                                 [b"stderr data"],
                             )
-                            result = transport.execute_pty(["/usr/bin/true"])
+                            result = transport.execute_pty(
+                                ["/usr/bin/true"], output_stream=MagicMock()
+                            )
         assert result.stdout == b"stdout data"
         assert result.stderr == b"stderr data"
         assert result.returncode == 0
@@ -303,4 +317,6 @@ class TestRunPtyEdgeCases:
                     with patch("subprocess.Popen") as mock_popen:
                         mock_popen.side_effect = OSError("fork failed")
                         with pytest.raises(OSError):
-                            transport.execute_pty(["/usr/bin/true"])
+                            transport.execute_pty(
+                                ["/usr/bin/true"], output_stream=MagicMock()
+                            )

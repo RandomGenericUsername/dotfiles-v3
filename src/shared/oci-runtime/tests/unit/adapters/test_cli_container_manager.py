@@ -186,7 +186,11 @@ class TestCliContainerManager:
         idx = args.index("--network")
         assert args[idx + 1] == "none"
 
-    def test_exec_non_zero_returns_exec_result(self, transport, streaming, caps):
+    def test_exec_non_zero_raises_container_runtime_error(
+        self, transport, streaming, caps
+    ):
+        from oci_runtime.domain.exceptions import ContainerRuntimeError
+
         transport._responses = {
             ("docker", "exec", "ctr1", "false"): RawExecResult(
                 returncode=1, stdout=b"", stderr=b""
@@ -195,14 +199,12 @@ class TestCliContainerManager:
         mgr = _container_mgr(
             transport, DockerContainerParser(), caps, streaming=streaming
         )
-        result = mgr.exec_container("ctr1", ["false"])
-        assert result.returncode == 1
+        with pytest.raises(ContainerRuntimeError):
+            mgr.exec_container("ctr1", ["false"])
 
-    def test_exec_not_found_raises_container_not_found(
+    def test_exec_not_found_returns_exec_result(
         self, transport, streaming, caps
     ):
-        from oci_runtime.domain.exceptions import ContainerNotFoundError
-
         transport._responses = {
             ("docker", "exec", "ctr1", "ls"): RawExecResult(
                 returncode=1, stdout=b"", stderr=b"No such container: c1"
@@ -211,5 +213,5 @@ class TestCliContainerManager:
         mgr = _container_mgr(
             transport, DockerContainerParser(), caps, streaming=streaming
         )
-        with pytest.raises(ContainerNotFoundError):
-            mgr.exec_container("ctr1", ["ls"])
+        result = mgr.exec_container("ctr1", ["ls"])
+        assert result.returncode == 1

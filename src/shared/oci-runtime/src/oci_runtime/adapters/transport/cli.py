@@ -16,7 +16,7 @@ from oci_runtime.ports.transport import Transport
 
 
 class CliTransport(Transport):
-    def __init__(self, binary: str, binary_resolver: BinaryResolver | None = None):
+    def __init__(self, binary: str, binary_resolver: BinaryResolver):
         self.binary = binary
         self._resolver = binary_resolver
 

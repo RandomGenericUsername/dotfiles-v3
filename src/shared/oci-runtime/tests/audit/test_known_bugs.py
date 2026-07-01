@@ -542,6 +542,58 @@ class TestA01HostIpLoopbackBinding:
             PortMapping(container_port=80, host_port=8080, host_ip="192.168.1.1"),
         )
 
+    def test_port_flag_host_ip_and_host_port(self):
+        transport = RecordingTransport()
+        streaming = RecordingStreamingTransport()
+        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        config = RunConfig(
+            image="alpine",
+            ports=[PortMapping(container_port=80, host_port=8080, host_ip="127.0.0.1")],
+        )
+        mgr.run(config)
+        cmd = streaming.calls[0].command
+        idx_p = cmd.index("-p")
+        assert cmd[idx_p + 1] == "127.0.0.1:8080:80/tcp"
+
+    def test_port_flag_host_ip_only(self):
+        transport = RecordingTransport()
+        streaming = RecordingStreamingTransport()
+        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        config = RunConfig(
+            image="alpine",
+            ports=[PortMapping(container_port=80, host_ip="127.0.0.1")],
+        )
+        mgr.run(config)
+        cmd = streaming.calls[0].command
+        idx_p = cmd.index("-p")
+        assert cmd[idx_p + 1] == "127.0.0.1::80/tcp"
+
+    def test_port_flag_host_port_only(self):
+        transport = RecordingTransport()
+        streaming = RecordingStreamingTransport()
+        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        config = RunConfig(
+            image="alpine",
+            ports=[PortMapping(container_port=80, host_port=8080, host_ip=None)],
+        )
+        mgr.run(config)
+        cmd = streaming.calls[0].command
+        idx_p = cmd.index("-p")
+        assert cmd[idx_p + 1] == "8080:80/tcp"
+
+    def test_port_flag_neither(self):
+        transport = RecordingTransport()
+        streaming = RecordingStreamingTransport()
+        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        config = RunConfig(
+            image="alpine",
+            ports=[PortMapping(container_port=80, host_ip=None)],
+        )
+        mgr.run(config)
+        cmd = streaming.calls[0].command
+        idx_p = cmd.index("-p")
+        assert cmd[idx_p + 1] == "80"
+
 
 # ─── A2: parse_json_item scalar guard ───
 
@@ -558,3 +610,133 @@ class TestA02ParseJsonItemScalarGuard:
     def test_null_raises(self):
         with pytest.raises(ParsingError):
             parse_json_item("null")
+
+
+# ─── T1: PTY output_stream regression test (R1) ───
+
+
+class TestT01PtyOutputStream:
+    def test_execute_pty_with_output_stream(self):
+        from oci_runtime.adapters.transport.pty import CliPtyTransport
+        from oci_runtime.adapters.binary import CliBinaryResolver
+
+        resolver = CliBinaryResolver()
+        transport = CliPtyTransport(resolver)
+        buf = io.BytesIO()
+        with patch("shutil.which", return_value="/usr/bin/true"):
+            with patch("pty.openpty", return_value=(3, 4)):
+                with patch("os.close"):
+                    with patch("subprocess.Popen") as mock_popen:
+                        proc = MagicMock()
+                        proc.wait.return_value = 0
+                        mock_popen.return_value = proc
+                        with patch(
+                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                        ) as mock_reader:
+                            mock_reader.from_fds.return_value.read.return_value = (
+                                [b"output"],
+                                [b""],
+                            )
+                            def _mock_read(
+                                on_primary=None, on_secondary=None, cancel_token=None
+                            ):
+                                if on_primary:
+                                    on_primary(b"output")
+                                return ([b"output"], [b""])
+
+                            mock_reader.from_fds.return_value.read.side_effect = (
+                                _mock_read
+                            )
+                            result = transport.execute_pty(
+                                ["/usr/bin/true"], output_stream=buf
+                            )
+        assert result.stdout == b"output"
+        assert result.returncode == 0
+        assert buf.getvalue() == b"output"
+
+
+# ─── T2: Transport binary_resolver regression test (R2) ───
+
+
+class TestT02TransportBinaryResolver:
+    def test_cli_transport_execute_with_binary_resolver(self):
+        from oci_runtime.adapters.transport.cli import CliTransport
+        from oci_runtime.adapters.binary import CliBinaryResolver
+
+        t = CliTransport("docker", binary_resolver=CliBinaryResolver())
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            with patch("subprocess.Popen") as mock_popen:
+                proc = MagicMock()
+                proc.stdout.fileno.return_value = 3
+                proc.stderr.fileno.return_value = 4
+                proc.wait.return_value = 0
+                mock_popen.return_value = proc
+                with patch(
+                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b"ok"],
+                        [b""],
+                    )
+                    result = t.execute(["docker", "version"])
+        assert isinstance(result, RawExecResult)
+        assert result.returncode == 0
+
+    def test_cli_streaming_transport_stream_with_binary_resolver(self):
+        from oci_runtime.adapters.transport.streaming import CliStreamingTransport
+        from oci_runtime.adapters.binary import CliBinaryResolver
+
+        s = CliStreamingTransport("docker", binary_resolver=CliBinaryResolver())
+        with patch("shutil.which", return_value="/usr/bin/docker"):
+            with patch("subprocess.Popen") as mock_popen:
+                proc = MagicMock()
+                proc.stdout = MagicMock()
+                proc.stderr = MagicMock()
+                proc.stdin = None
+                proc.wait.return_value = 0
+                mock_popen.return_value = proc
+                with patch(
+                    "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                ) as mock_reader:
+                    mock_reader.from_process.return_value.read.return_value = (
+                        [b"ok"],
+                        [b""],
+                    )
+                    result = s.stream(["docker", "ps"])
+        assert isinstance(result, RawExecResult)
+        assert result.returncode == 0
+
+
+# ─── T3: exec_container error propagation regression test (R3) ───
+
+
+class TestT03ExecContainerErrorPropagation:
+    def test_exec_container_propagates_non_not_found_error(self):
+        transport = RecordingTransport(
+            responses={
+                ("docker", "exec", "ctr1", "badcmd"): RawExecResult(
+                    returncode=1, stdout=b"", stderr=b"permission denied"
+                )
+            }
+        )
+        streaming = RecordingStreamingTransport()
+        from oci_runtime.adapters.parser.docker import DockerContainerParser
+
+        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        with pytest.raises(ContainerRuntimeError):
+            mgr.exec_container("ctr1", ["badcmd"])
+
+    def test_exec_container_suppresses_not_found(self):
+        transport = RecordingTransport(
+            responses={
+                ("docker", "exec", "ctr1", "ls"): RawExecResult(
+                    returncode=1, stdout=b"", stderr=b"No such container: c1"
+                )
+            }
+        )
+        streaming = RecordingStreamingTransport()
+        from oci_runtime.adapters.parser.docker import DockerContainerParser
+
+        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        result = mgr.exec_container("ctr1", ["ls"])
+        assert result.returncode == 1
