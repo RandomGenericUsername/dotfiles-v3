@@ -503,6 +503,96 @@ class TestNetworkInfo:
         assert info.labels == {"app": "test"}
 
 
+class TestBuildContextCrossField:
+    def test_build_file_path_with_files_rejected(self):
+        with pytest.raises(ValueError, match="build_file_path"):
+            BuildContext(
+                build_file_path=Path("/Dockerfile"),
+                files={"a": b"x"},
+            )
+
+    def test_context_path_with_files_raises(self):
+        with pytest.raises(ValueError, match="context_path"):
+            BuildContext(
+                build_file_content="FROM alpine",
+                context_path=Path("/ctx"),
+                files={"a": b"x"},
+            )
+
+    def test_build_context_rejects_files_with_build_file_path(self):
+        with pytest.raises(ValueError):
+            BuildContext(build_file_path=Path("Dockerfile"), files={"app.py": b"..."})
+
+    def test_build_context_build_file_path_alone_accepted(self):
+        ctx = BuildContext(build_file_path=Path("Dockerfile"))
+        assert ctx.build_file_path == Path("Dockerfile")
+
+
+class TestContainerIdConstruction:
+    def test_container_id_as_string(self):
+        cid = "abc123def456"
+        assert isinstance(cid, str)
+        assert len(cid) > 0
+
+    def test_container_id_from_info(self):
+        from oci_runtime.domain.enums import ContainerState
+
+        info = ContainerInfo(
+            id="a1b2c3",
+            name="test",
+            image="alpine",
+            state=ContainerState.RUNNING,
+            status="Up",
+        )
+        assert info.id == "a1b2c3"
+        assert isinstance(info.id, str)
+
+
+class TestPortMappingEqualityHash:
+    def test_equal_port_mappings(self):
+        p1 = PortMapping(
+            container_port=80, host_ip="0.0.0.0", host_port=8080, protocol="tcp"
+        )
+        p2 = PortMapping(
+            container_port=80, host_ip="0.0.0.0", host_port=8080, protocol="tcp"
+        )
+        assert p1 == p2
+
+    def test_different_port_mappings(self):
+        p1 = PortMapping(
+            container_port=80, host_ip="0.0.0.0", host_port=8080, protocol="tcp"
+        )
+        p2 = PortMapping(
+            container_port=443, host_ip="0.0.0.0", host_port=8443, protocol="tcp"
+        )
+        assert p1 != p2
+
+    def test_port_mapping_is_hashable(self):
+        p = PortMapping(
+            container_port=80, host_ip="0.0.0.0", host_port=8080, protocol="tcp"
+        )
+        s = {p}
+        assert p in s
+
+    def test_equal_port_mappings_have_same_hash(self):
+        p1 = PortMapping(
+            container_port=80, host_ip="0.0.0.0", host_port=8080, protocol="tcp"
+        )
+        p2 = PortMapping(
+            container_port=80, host_ip="0.0.0.0", host_port=8080, protocol="tcp"
+        )
+        assert hash(p1) == hash(p2)
+
+    def test_different_port_mappings_have_different_hash(self):
+        p1 = PortMapping(
+            container_port=80, host_ip="0.0.0.0", host_port=8080, protocol="tcp"
+        )
+        p2 = PortMapping(
+            container_port=443, host_ip="0.0.0.0", host_port=8443, protocol="tcp"
+        )
+        assert hash(p1) != hash(p2)
+
+
 class TestFrozenValueObjects:
     """All value-object dataclasses must be frozen (E1).
 

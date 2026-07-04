@@ -59,7 +59,10 @@ def parse_json_list(raw: str) -> list[dict]:
         except json.JSONDecodeError:
             raise ParsingError(
                 raw=raw,
-                message=f"Invalid JSON on line {i}: {line[:200]}",
+                message=f"Invalid JSON on line {i}: {line[:200]}. "
+                f"If the output is pretty-printed (multi-line), "
+                f"invoke the runtime with --format '{{json .}}' "
+                f"to emit single-line NDJSON.",
             )
         if not isinstance(item, dict):
             raise ParsingError(

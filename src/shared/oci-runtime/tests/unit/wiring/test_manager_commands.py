@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from oci_runtime.domain.types import BuildContext, ImageInfo, PruneResult, RunConfig
@@ -528,28 +530,58 @@ class TestContainerManagerCommands:
         assert result == "log output\n"
 
     def test_logs_follow_tail(self, t, st, caps):
-        st._stream_responses = {
-            ("docker", "logs", "ctr1", "--follow", "--tail", "50"): [b"", b""]
-        }
         mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
-        list(mgr.logs("ctr1", follow=True, tail=50))
-        assert st.calls[0].command == [
-            "docker",
-            "logs",
-            "ctr1",
-            "--follow",
-            "--tail",
-            "50",
-        ]
+        with (
+            patch(
+                "oci_runtime.adapters.managers.container._SubprocessRunner"
+            ) as MockRunner,
+            patch(
+                "oci_runtime.adapters.managers.container._AsyncStreamReader"
+            ) as MockReader,
+        ):
+            mock_process = MagicMock()
+            mock_process.stdout.fileno.return_value = 3
+            mock_process.stderr.fileno.return_value = 5
+            mock_runner = MockRunner.return_value
+            mock_runner.process = mock_process
+
+            mock_reader = MockReader.return_value
+            mock_reader.read.return_value = ([b""], [b""])
+
+            list(mgr.logs("ctr1", follow=True, tail=50))
+
+            MockRunner.assert_called_once_with(
+                ["docker", "logs", "ctr1", "--follow", "--tail", "50"],
+            )
 
     def test_logs_follow_streams_chunks(self, t, st, caps):
-        st._stream_responses[("docker", "logs", "ctr1", "--follow")] = [
-            b"chunk1\n",
-            b"chunk2\n",
-        ]
         mgr = _container_mgr(t, DockerContainerParser(), caps, streaming=st)
-        chunks = list(mgr.logs("ctr1", follow=True))
-        assert chunks == ["chunk1\n", "chunk2\n"]
+        with (
+            patch(
+                "oci_runtime.adapters.managers.container._SubprocessRunner"
+            ) as MockRunner,
+            patch(
+                "oci_runtime.adapters.managers.container._AsyncStreamReader"
+            ) as MockReader,
+        ):
+            mock_process = MagicMock()
+            mock_process.stdout.fileno.return_value = 3
+            mock_process.stderr.fileno.return_value = 5
+            mock_runner = MockRunner.return_value
+            mock_runner.process = mock_process
+
+            mock_reader = MockReader.return_value
+
+            def _mock_read(on_stdout=None, **kwargs):
+                if on_stdout:
+                    on_stdout(b"chunk1\n")
+                    on_stdout(b"chunk2\n")
+                return ([b"chunk1\n", b"chunk2\n"], [])
+
+            mock_reader.read.side_effect = _mock_read
+
+            chunks = list(mgr.logs("ctr1", follow=True))
+            assert chunks == ["chunk1\n", "chunk2\n"]
 
     def test_exec(self, t, st, caps):
         t._responses = {

@@ -43,6 +43,7 @@ class TestCliImageManager:
     def setup_method(self):
         self.transport = MagicMock(spec=Transport)
         self.transport.binary = "docker"
+        self.transport.get_runtime_binary.return_value = "docker"
         self.transport.execute.return_value = RawExecResult(
             returncode=0, stdout=b'[{"Id":"sha256:abc"}]', stderr=b""
         )

@@ -27,7 +27,7 @@ from oci_runtime.adapters.parser.docker import (
     DockerNetworkParser,
     DockerVolumeParser,
 )
-from oci_runtime.ports.cancellation import ThreadCancellationToken
+from oci_runtime.adapters.transport.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import (
     FakeTtyDetector,
     MockPtyTransport,

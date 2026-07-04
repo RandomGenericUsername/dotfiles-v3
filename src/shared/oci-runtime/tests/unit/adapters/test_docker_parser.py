@@ -143,6 +143,13 @@ class TestDockerPortParsing:
         assert ports[1].container_port == 443
         assert ports[1].protocol == "udp"
 
+    def test_docker_list_ports_none_emits_empty(self):
+        from oci_runtime.adapters.parser.docker import _parse_docker_ports_from_list
+
+        item = {"Ports": None}
+        ports = _parse_docker_ports_from_list(item)
+        assert ports == []
+
 
 class TestDockerContainerParser:
     def setup_method(self):

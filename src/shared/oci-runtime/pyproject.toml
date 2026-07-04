@@ -30,4 +30,5 @@ markers = [
     "runtime_required: test requires any container runtime (docker or podman)",
     "smoke: quick smoke test that proves the system works end-to-end",
     "functional: multi-step user workflow test",
+    "slow: test that requires real CLI output or is slow to run",
 ]

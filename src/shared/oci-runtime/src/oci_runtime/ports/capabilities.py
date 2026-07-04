@@ -11,7 +11,11 @@ class RuntimeCapabilities:
     default_build_flags: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        _TUPLE_FIELDS = ("list_format_flags", "default_run_flags", "default_build_flags")
+        _TUPLE_FIELDS = (
+            "list_format_flags",
+            "default_run_flags",
+            "default_build_flags",
+        )
         for name in _TUPLE_FIELDS:
             value = getattr(self, name)
             if not isinstance(value, tuple):

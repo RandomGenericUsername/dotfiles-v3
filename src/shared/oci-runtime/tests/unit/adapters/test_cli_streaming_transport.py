@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from oci_runtime.ports.pipe_reader import ProcessPipeReader
+from oci_runtime.adapters.transport.pipe_reader import ProcessPipeReader
 from oci_runtime.adapters.transport.streaming import CliStreamingTransport
 from oci_runtime.domain.exceptions import (
     OperationTimeoutError,
@@ -60,10 +60,10 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
         ):
-            mock_reader.from_process.return_value.read.return_value = (
+            mock_reader.return_value.read.return_value = (
                 [b"line1\n", b"line2\n"],
                 [b""],
             )
@@ -75,7 +75,10 @@ class TestCliStreamingTransport:
 
     def test_stream_raises_runtime_not_available(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
-        s = CliStreamingTransport("nonexistent-runtime", binary_resolver=CliBinaryResolver())
+
+        s = CliStreamingTransport(
+            "nonexistent-runtime", binary_resolver=CliBinaryResolver()
+        )
         with patch("shutil.which", return_value=None):
             with pytest.raises(RuntimeNotAvailableError, match="nonexistent-runtime"):
                 s.stream(["nonexistent-runtime", "ps"])
@@ -99,16 +102,18 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
         ):
 
-            def _mock_read(on_stdout=None, on_stderr=None, cancel_token=None):
+            def _mock_read(
+                on_stdout=None, on_stderr=None, cancel_ctx=None, timeout=None
+            ):
                 if on_stdout:
                     on_stdout(b"chunk1\n")
                 return ([b"chunk1\n"], [b""])
 
-            mock_reader.from_process.return_value.read.side_effect = _mock_read
+            mock_reader.return_value.read.side_effect = _mock_read
             result = s.stream(
                 ["docker", "ps"], on_stdout=on_stdout, on_stderr=on_stderr
             )
@@ -128,10 +133,10 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
         ):
-            mock_reader.from_process.return_value.read.return_value = ([b""], [b""])
+            mock_reader.return_value.read.return_value = ([b""], [b""])
             s.stream(["docker", "ps"])
 
     def test_stream_stdin_in_daemon_thread(self):
@@ -152,11 +157,11 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
             patch("threading.Thread", side_effect=tracking_thread),
         ):
-            mock_reader.from_process.return_value.read.return_value = (
+            mock_reader.return_value.read.return_value = (
                 [b"output\n"],
                 [b""],
             )
@@ -177,10 +182,10 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
         ):
-            mock_reader.from_process.return_value.read.return_value = (
+            mock_reader.return_value.read.return_value = (
                 [b"build progress\n"],
                 [b""],
             )
@@ -199,12 +204,10 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
         ):
-            mock_reader.from_process.return_value.read.side_effect = ValueError(
-                "read stream error"
-            )
+            mock_reader.return_value.read.side_effect = ValueError("read stream error")
             with pytest.raises(ValueError):
                 s.stream(["docker", "ps"])
 
@@ -220,13 +223,13 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
             patch(
                 "oci_runtime.adapters.transport.streaming.DeadlineCancellationToken"
             ) as mock_dc,
         ):
-            mock_reader.from_process.return_value.read.return_value = (
+            mock_reader.return_value.read.return_value = (
                 [b"output\n"],
                 [b""],
             )
@@ -246,18 +249,16 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
         ):
-            mock_reader.from_process.return_value.read.side_effect = ValueError(
-                "read stream error"
-            )
+            mock_reader.return_value.read.side_effect = ValueError("read stream error")
             with pytest.raises(ValueError):
                 s.stream(["docker", "ps"])
 
     def test_stream_cancellation_returns_partial(self):
         """When cancelled, stream returns partial data with returncode=-1."""
-        from oci_runtime.ports.cancellation import ThreadCancellationToken
+        from oci_runtime.adapters.transport.cancellation import ThreadCancellationToken
 
         s = CliStreamingTransport("docker", binary_resolver=MagicMock())
 
@@ -271,10 +272,10 @@ class TestCliStreamingTransport:
             patch("shutil.which", return_value="/usr/bin/docker"),
             patch("subprocess.Popen", return_value=process),
             patch(
-                "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
             ) as mock_reader,
         ):
-            mock_reader.from_process.return_value.read.return_value = (
+            mock_reader.return_value.read.return_value = (
                 [b"partial\n"],
                 [b""],
             )

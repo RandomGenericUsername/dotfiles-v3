@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# Pull Contract
+
+## Purpose
+
+Defines pull() error handling contract: ImageRuntimeError for digest-extraction failure, ImagePullAccessDeniedError for auth errors, command/exit_code/stderr attached to all exceptions.
+
+## Requirements
 
 ### Requirement: pull() raises ImageRuntimeError on digest-extraction failure
 

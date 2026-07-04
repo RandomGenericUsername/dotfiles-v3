@@ -1,4 +1,10 @@
-## ADDED Requirements
+# List Executor Port
+
+## Purpose
+
+Defines the ListExecutor[T] ABC port for the generic list-command pattern (list, inspect, prune) with a single abstract execute_list method.
+
+## Requirements
 
 ### Requirement: ListExecutor port defines a pure generic ABC for the list pattern
 

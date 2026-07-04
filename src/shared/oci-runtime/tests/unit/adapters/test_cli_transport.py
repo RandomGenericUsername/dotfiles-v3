@@ -14,16 +14,21 @@ class TestCliTransport:
     def test_execute_returns_bytes(self):
         t = CliTransport("docker", binary_resolver=MagicMock())
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.Popen") as mock_popen:
-                proc = MagicMock()
-                proc.stdout.fileno.return_value = 3
-                proc.stderr.fileno.return_value = 4
-                proc.wait.return_value = 0
-                mock_popen.return_value = proc
+            with patch(
+                "oci_runtime.adapters.transport.cli._SubprocessRunner"
+            ) as MockRunner:
+                mock_process = MagicMock()
+                mock_process.stdout.fileno.return_value = 3
+                mock_process.stderr.fileno.return_value = 4
+                mock_process.wait.return_value = 0
+                mock_process.poll.return_value = 0
+                mock_runner = MockRunner.return_value
+                mock_runner.process = mock_process
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
-                ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
+                ) as MockReader:
+                    mock_reader_instance = MockReader.return_value
+                    mock_reader_instance.read.return_value = (
                         [b"binary\x00data"],
                         [b""],
                     )
@@ -35,37 +40,44 @@ class TestCliTransport:
     def test_execute_passes_input_data(self):
         t = CliTransport("docker", binary_resolver=MagicMock())
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.Popen") as mock_popen:
-                proc = MagicMock()
-                proc.stdout.fileno.return_value = 3
-                proc.stderr.fileno.return_value = 4
-                proc.wait.return_value = 0
-                mock_popen.return_value = proc
+            with patch(
+                "oci_runtime.adapters.transport.cli._SubprocessRunner"
+            ) as MockRunner:
+                mock_process = MagicMock()
+                mock_process.stdout.fileno.return_value = 3
+                mock_process.stderr.fileno.return_value = 4
+                mock_process.wait.return_value = 0
+                mock_process.poll.return_value = 0
+                mock_runner = MockRunner.return_value
+                mock_runner.process = mock_process
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
-                ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
-                        [b""],
-                        [b""],
-                    )
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
+                ) as MockReader:
+                    mock_reader_instance = MockReader.return_value
+                    mock_reader_instance.read.return_value = ([b""], [b""])
                     t.execute(["docker", "build", "-"], input_data=b"tar content")
-        mock_popen.assert_called_once()
+        MockRunner.assert_called_once_with(["docker", "build", "-"], b"tar content")
 
     def test_execute_handles_binary_input_and_output(self):
         t = CliTransport("docker", binary_resolver=MagicMock())
         binary_input = b"\x00\x01\x02\x03binary data"
         binary_output = b"output\x00with\x00nulls"
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.Popen") as mock_popen:
-                proc = MagicMock()
-                proc.stdout.fileno.return_value = 3
-                proc.stderr.fileno.return_value = 4
-                proc.wait.return_value = 0
-                mock_popen.return_value = proc
+            with patch(
+                "oci_runtime.adapters.transport.cli._SubprocessRunner"
+            ) as MockRunner:
+                mock_process = MagicMock()
+                mock_process.stdout.fileno.return_value = 3
+                mock_process.stderr.fileno.return_value = 4
+                mock_process.wait.return_value = 0
+                mock_process.poll.return_value = 0
+                mock_runner = MockRunner.return_value
+                mock_runner.process = mock_process
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
-                ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
+                ) as MockReader:
+                    mock_reader_instance = MockReader.return_value
+                    mock_reader_instance.read.return_value = (
                         [binary_output],
                         [b""],
                     )
@@ -77,6 +89,7 @@ class TestCliTransport:
 
     def test_execute_raises_runtime_not_available_when_binary_missing(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         t = CliTransport("nonexistent-runtime", binary_resolver=CliBinaryResolver())
         with patch("shutil.which", return_value=None):
             with pytest.raises(RuntimeNotAvailableError, match="nonexistent-runtime"):
@@ -84,12 +97,14 @@ class TestCliTransport:
 
     def test_probe_returns_true_when_binary_available(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         t = CliTransport("docker", binary_resolver=CliBinaryResolver())
         with patch("shutil.which", return_value="/usr/bin/docker"):
             assert t.probe() is True
 
     def test_probe_returns_false_when_binary_not_found(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         t = CliTransport("nonexistent", binary_resolver=CliBinaryResolver())
         with patch("shutil.which", return_value=None):
             assert t.probe() is False
@@ -101,16 +116,21 @@ class TestCliTransport:
             "shutil.which",
             side_effect=["/usr/bin/docker", "/usr/bin/docker", "/usr/bin/docker"],
         ) as mock_which:
-            with patch("subprocess.Popen") as mock_popen:
-                proc = MagicMock()
-                proc.stdout.fileno.return_value = 3
-                proc.stderr.fileno.return_value = 4
-                proc.wait.return_value = 0
-                mock_popen.return_value = proc
+            with patch(
+                "oci_runtime.adapters.transport.cli._SubprocessRunner"
+            ) as MockRunner:
+                mock_process = MagicMock()
+                mock_process.stdout.fileno.return_value = 3
+                mock_process.stderr.fileno.return_value = 4
+                mock_process.wait.return_value = 0
+                mock_process.poll.return_value = 0
+                mock_runner = MockRunner.return_value
+                mock_runner.process = mock_process
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
-                ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = ([], [])
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
+                ) as MockReader:
+                    mock_reader_instance = MockReader.return_value
+                    mock_reader_instance.read.return_value = ([], [])
                     from oci_runtime.adapters.transport.cli import CliTransport
 
                     t = CliTransport("docker", binary_resolver=CliBinaryResolver())
@@ -124,19 +144,21 @@ class TestCliTransport:
 
         t = CliTransport("docker", binary_resolver=MagicMock())
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.Popen") as mock_popen:
-                proc = MagicMock()
-                proc.stdout.fileno.return_value = 3
-                proc.stderr.fileno.return_value = 4
-                proc.wait.side_effect = [None, None]
-                mock_popen.return_value = proc
+            with patch(
+                "oci_runtime.adapters.transport.cli._SubprocessRunner"
+            ) as MockRunner:
+                mock_process = MagicMock()
+                mock_process.stdout.fileno.return_value = 3
+                mock_process.stderr.fileno.return_value = 4
+                mock_process.poll.return_value = None
+                mock_process.pid = 123
+                mock_runner = MockRunner.return_value
+                mock_runner.process = mock_process
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
-                ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
-                        [b""],
-                        [b""],
-                    )
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
+                ) as MockReader:
+                    mock_reader_instance = MockReader.return_value
+                    mock_reader_instance.read.return_value = ([b""], [b""])
                     with patch(
                         "oci_runtime.adapters.transport.cli.DeadlineCancellationToken"
                     ) as mock_dc:
@@ -147,19 +169,21 @@ class TestCliTransport:
     def test_execute_pre_cancelled_token_returns_neg_one(self):
         t = CliTransport("docker", binary_resolver=MagicMock())
         with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch("subprocess.Popen") as mock_popen:
-                proc = MagicMock()
-                proc.stdout.fileno.return_value = 3
-                proc.stderr.fileno.return_value = 4
-                mock_popen.return_value = proc
+            with patch(
+                "oci_runtime.adapters.transport.cli._SubprocessRunner"
+            ) as MockRunner:
+                mock_process = MagicMock()
+                mock_process.stdout.fileno.return_value = 3
+                mock_process.stderr.fileno.return_value = 4
+                mock_process.poll.return_value = None
+                mock_runner = MockRunner.return_value
+                mock_runner.process = mock_process
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
-                ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
-                        [b""],
-                        [b""],
-                    )
-                    from oci_runtime.ports.cancellation import (
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
+                ) as MockReader:
+                    mock_reader_instance = MockReader.return_value
+                    mock_reader_instance.read.return_value = ([b""], [b""])
+                    from oci_runtime.adapters.transport.cancellation import (
                         ThreadCancellationToken,
                     )
 

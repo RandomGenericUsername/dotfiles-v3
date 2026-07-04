@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# Size Parsing Completeness
+
+## Purpose
+
+Extends parse_size_to_bytes to accept unitless integers (interpreted as bytes) and trailing whitespace.
+
+## Requirements
 
 ### Requirement: parse_size_to_bytes accepts unitless integers and trailing whitespace
 

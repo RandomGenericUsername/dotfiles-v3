@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Prune Error Propagation
+
+## Purpose
+
+Requires all four manager prune() methods to call _check_result before parsing, so failed prunes raise OciError instead of returning PruneResult(0, 0).
+
+## Requirements
 
 ### Requirement: Prune methods must propagate errors
 

@@ -42,13 +42,13 @@ from oci_runtime.domain.types import (  # noqa: F401
 from oci_runtime.ports.binary_resolver import BinaryResolver  # noqa: F401
 from oci_runtime.ports.capabilities import RuntimeCapabilities  # noqa: F401
 from oci_runtime.ports.aggregates import Parsers  # noqa: F401
-from oci_runtime.ports.cancellation import (  # noqa: F401
-    CancellationToken,
+from oci_runtime.adapters.transport.cancellation import (  # noqa: F401
     CompositeCancellationToken,
     DeadlineCancellationToken,
     ThreadCancellationToken,
     compose_tokens,
 )
+from oci_runtime.ports.cancellation import CancellationToken  # noqa: F401
 from oci_runtime.ports.engine import ContainerEngine  # noqa: F401
 from oci_runtime.ports.managers import (
     ContainerManager,  # noqa: F401

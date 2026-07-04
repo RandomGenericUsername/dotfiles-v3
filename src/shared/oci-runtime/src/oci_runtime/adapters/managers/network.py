@@ -1,4 +1,5 @@
 from oci_runtime.domain.encoding import safe_decode
+from oci_runtime.domain.enums import Subcommand
 from oci_runtime.domain.exceptions import NetworkNotFoundError
 from oci_runtime.domain.types import NetworkInfo, PruneResult
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -30,8 +31,8 @@ class CliNetworkManager(NetworkManager):
     ) -> str:
         cmd = [
             self._transport.get_runtime_binary(),
-            "network",
-            "create",
+            Subcommand.NETWORK.value,
+            Subcommand.CREATE.value,
             "--driver",
             driver,
             name,
@@ -44,15 +45,20 @@ class CliNetworkManager(NetworkManager):
         return safe_decode(result.stdout).strip()
 
     def remove(self, name: str) -> None:
-        cmd = [self._transport.get_runtime_binary(), "network", "rm", name]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            Subcommand.NETWORK.value,
+            Subcommand.RM.value,
+            name,
+        ]
         result = self._transport.execute(cmd)
         self._result_checker.check(result, cmd, operation="remove network", entity=name)
 
     def connect(self, network: str, container: str) -> None:
         cmd = [
             self._transport.get_runtime_binary(),
-            "network",
-            "connect",
+            Subcommand.NETWORK.value,
+            Subcommand.CONNECT.value,
             network,
             container,
         ]
@@ -64,8 +70,8 @@ class CliNetworkManager(NetworkManager):
     def disconnect(self, network: str, container: str, force: bool = False) -> None:
         cmd = [
             self._transport.get_runtime_binary(),
-            "network",
-            "disconnect",
+            Subcommand.NETWORK.value,
+            Subcommand.DISCONNECT.value,
             network,
             container,
         ]
@@ -86,8 +92,8 @@ class CliNetworkManager(NetworkManager):
     def inspect(self, name: str) -> NetworkInfo:
         cmd = [
             self._transport.get_runtime_binary(),
-            "network",
-            "inspect",
+            Subcommand.NETWORK.value,
+            Subcommand.INSPECT.value,
             "--format",
             "json",
             name,
@@ -100,14 +106,19 @@ class CliNetworkManager(NetworkManager):
 
     def list(self, filters: dict[str, str] | None = None) -> list[NetworkInfo]:
         return self._list_executor.execute_list(
-            ["network", "list"],
+            [Subcommand.NETWORK.value, Subcommand.LIST.value],
             "networks",
             show_all=False,
             filters=filters,
         )
 
     def prune(self) -> PruneResult:
-        cmd = [self._transport.get_runtime_binary(), "network", "prune", "--force"]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            Subcommand.NETWORK.value,
+            Subcommand.PRUNE.value,
+            "--force",
+        ]
         result = self._transport.execute(cmd)
         self._result_checker.check(result, cmd, operation="prune networks", entity="")
         return self._parser.parse_prune(safe_decode(result.stdout))

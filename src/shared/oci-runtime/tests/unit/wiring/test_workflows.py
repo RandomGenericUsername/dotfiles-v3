@@ -1,5 +1,6 @@
 import threading
 import time
+from unittest.mock import MagicMock, patch
 import pytest
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from oci_runtime.domain.types import (
 )
 from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
 from oci_runtime.domain.types import RawExecResult
-from oci_runtime.ports.cancellation import ThreadCancellationToken
+from oci_runtime.adapters.transport.cancellation import ThreadCancellationToken
 from tests.helpers.mock_transport import RecordingStreamingTransport
 
 
@@ -55,7 +56,9 @@ class TestImageLifecycle:
             t,
             {
                 "docker pull alpine": RawExecResult(
-                    0, b"Digest: sha256:abc\nStatus: Downloaded newer image for alpine:latest\n", b""
+                    0,
+                    b"Digest: sha256:abc\nStatus: Downloaded newer image for alpine:latest\n",
+                    b"",
                 ),
                 "docker image list": RawExecResult(
                     0,
@@ -271,15 +274,32 @@ class TestContainerLifecycle:
                 "docker run -d alpine": RawExecResult(0, b"ctr1", b""),
             },
         )
-        _inject_stream_chunks(
-            st,
-            {
-                "docker logs ctr1 --follow --tail 50": [b"log output\n"],
-            },
-        )
         docker_engine.containers.run(RunConfig(image="alpine"))
-        logs = "".join(docker_engine.containers.logs("ctr1", follow=True, tail=50))
-        assert logs == "log output\n"
+        with (
+            patch(
+                "oci_runtime.adapters.managers.container._SubprocessRunner"
+            ) as MockRunner,
+            patch(
+                "oci_runtime.adapters.managers.container._AsyncStreamReader"
+            ) as MockReader,
+        ):
+            mock_process = MagicMock()
+            mock_process.stdout.fileno.return_value = 3
+            mock_process.stderr.fileno.return_value = 5
+            mock_runner = MockRunner.return_value
+            mock_runner.process = mock_process
+
+            mock_reader = MockReader.return_value
+
+            def _mock_read(on_stdout=None, **kwargs):
+                if on_stdout:
+                    on_stdout(b"log output\n")
+                return ([b"log output\n"], [])
+
+            mock_reader.read.side_effect = _mock_read
+
+            logs = "".join(docker_engine.containers.logs("ctr1", follow=True, tail=50))
+            assert logs == "log output\n"
 
     def test_container_exec_with_options(self, docker_engine: CliRuntime):
         t = docker_engine._transport
@@ -301,7 +321,13 @@ class TestContainerLifecycle:
             "ctr1", ["ls"], detach=True, user="root"
         )
         assert t.calls[0].command == [
-            "docker", "exec", "-d", "-u", "root", "ctr1", "ls"
+            "docker",
+            "exec",
+            "-d",
+            "-u",
+            "root",
+            "ctr1",
+            "ls",
         ]
 
     def test_container_exists_true(self, docker_engine: CliRuntime):
@@ -509,8 +535,16 @@ class TestNetworkLifecycle:
 class _BlockingStream(RecordingStreamingTransport):
     """Streaming transport that blocks after first chunk until cancelled."""
 
-    def stream(self, command, *, timeout=None, input_data=None,
-               on_stdout=None, on_stderr=None, cancel_token=None):
+    def stream(
+        self,
+        command,
+        *,
+        timeout=None,
+        input_data=None,
+        on_stdout=None,
+        on_stderr=None,
+        cancel_token=None,
+    ):
         key = tuple(command)
         if on_stdout and key in self._stream_responses:
             chunks = self._stream_responses[key]
@@ -523,8 +557,11 @@ class _BlockingStream(RecordingStreamingTransport):
                 time.sleep(0.01)
             return RawExecResult(returncode=-1, stdout=b"", stderr=b"")
         return super().stream(
-            command, timeout=timeout, input_data=input_data,
-            on_stdout=on_stdout, on_stderr=on_stderr,
+            command,
+            timeout=timeout,
+            input_data=input_data,
+            on_stdout=on_stdout,
+            on_stderr=on_stderr,
             cancel_token=cancel_token,
         )
 

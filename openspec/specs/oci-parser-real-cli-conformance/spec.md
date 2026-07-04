@@ -1,4 +1,8 @@
-## MODIFIED Requirements
+## Purpose
+
+Real CLI output conformance for parser implementations.
+
+## Requirements
 
 ### Requirement: parse_json_item rejects scalar JSON with ParsingError
 

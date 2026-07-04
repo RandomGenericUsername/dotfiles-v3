@@ -140,24 +140,42 @@ def _capture_runtime(binary: str, runtime: str) -> None:
         _save(runtime, "network_list.ndjson", r.stdout)
 
     # --- Container with published port: for port parsing conformance ---
-    r = _run(binary, [
-        "run", "-d", "--name", _CONTAINER_NAME_PORTS,
-        "-p", "8080:80/tcp", "alpine", "sleep", "300",
-    ])
+    r = _run(
+        binary,
+        [
+            "run",
+            "-d",
+            "--name",
+            _CONTAINER_NAME_PORTS,
+            "-p",
+            "8080:80/tcp",
+            "alpine",
+            "sleep",
+            "300",
+        ],
+    )
     if r.returncode == 0:
         r = _run(binary, ["container", "list", "--format", fmt])
         if r.returncode == 0:
             _save(runtime, "container_list_ports.ndjson", r.stdout)
 
     # --- Build output (for parse_build_output conformance) ---
-    r = _run(binary, ["build", "-t", "conformance", "--quiet", "-"], timeout=60,
-             input_data=b"FROM alpine\nRUN echo hello")
+    r = _run(
+        binary,
+        ["build", "-t", "conformance", "--quiet", "-"],
+        timeout=60,
+        input_data=b"FROM alpine\nRUN echo hello",
+    )
     if r.returncode == 0:
         _save(runtime, "build_output.txt", r.stdout)
 
     # --- Image prune output (for parse_prune conformance) ---
-    r = _run(binary, ["build", "--no-cache", "-t", _PRUNE_IMAGE_TAG, "-"], timeout=120,
-             input_data=b"FROM alpine\nRUN echo unique-prune-layer")
+    r = _run(
+        binary,
+        ["build", "--no-cache", "-t", _PRUNE_IMAGE_TAG, "-"],
+        timeout=120,
+        input_data=b"FROM alpine\nRUN echo unique-prune-layer",
+    )
     if r.returncode == 0:
         _run(binary, ["rmi", _PRUNE_IMAGE_TAG], timeout=30)
         r = _run(binary, ["image", "prune", "--force", "--all"], timeout=60)

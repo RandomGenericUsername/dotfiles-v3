@@ -1,12 +1,12 @@
 import io
-import os
+import posixpath
 import tarfile
 from collections.abc import Mapping
 
 
 def _validate_tar_path(path: str) -> None:
-    norm = os.path.normpath(path)
-    if os.path.isabs(norm):
+    norm = posixpath.normpath(path)
+    if posixpath.isabs(norm):
         raise ValueError(f"Absolute path not allowed in tar: {path!r}")
     if norm == ".." or norm.startswith("../"):
         raise ValueError(f"Path with parent reference not allowed in tar: {path!r}")

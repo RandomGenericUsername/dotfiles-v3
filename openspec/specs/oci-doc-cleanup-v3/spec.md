@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Doc Cleanup V3
+
+## Purpose
+
+Aligns documentation (ARCHITECTURE.md, remediation logs) to reflect v3 actual module structure and behavior.
+
+## Requirements
 
 ### Requirement: Documentation drift removed and ARCHITECTURE.md aligned to v3 truth
 

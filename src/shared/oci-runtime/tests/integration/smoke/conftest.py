@@ -1,3 +1,4 @@
+import os
 import subprocess
 import shutil
 
@@ -5,11 +6,12 @@ import pytest
 
 
 def _is_runtime_available(name: str) -> bool:
-    binary = shutil.which(name)
+    oci_bin = os.environ.get("OCI_PATH", name)
+    binary = shutil.which(oci_bin)
     if binary is None:
         return False
     try:
-        result = subprocess.run([binary, "--version"], capture_output=True, timeout=5)
+        result = subprocess.run([oci_bin, "--help"], capture_output=True, timeout=5)
         return result.returncode == 0
     except (subprocess.TimeoutExpired, OSError):
         return False
@@ -69,7 +71,10 @@ def _podman_smoke_capable() -> tuple[bool, str]:
             engine.images.inspect(probe_tag)
             return True, ""
         except Exception as e:
-            return False, f"manager.tag/inspect failed: {type(e).__name__}: {str(e)[:120]}"
+            return (
+                False,
+                f"manager.tag/inspect failed: {type(e).__name__}: {str(e)[:120]}",
+            )
         finally:
             try:
                 engine.images.remove(probe_tag)
@@ -106,6 +111,4 @@ def live_engine(request):
     from oci_runtime.domain.types import RuntimePreference
 
     kind = RuntimeKind.DOCKER if name == "docker" else RuntimeKind.PODMAN
-    return RuntimeFactory().create(
-        RuntimePreference(kind=kind, binary=name)
-    )
+    return RuntimeFactory().create(RuntimePreference(kind=kind, binary=name))

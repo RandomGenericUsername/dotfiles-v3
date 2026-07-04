@@ -75,6 +75,7 @@ class TestTransportContract:
 
     def test_cli_transport_implements_all(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         t = CliTransport("docker", binary_resolver=CliBinaryResolver())
         assert isinstance(t, Transport)
         assert callable(t.execute)
@@ -83,14 +84,18 @@ class TestTransportContract:
 
     def test_cli_transport_get_runtime_binary(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value="/usr/bin/docker"):
             t = CliTransport("docker", binary_resolver=CliBinaryResolver())
             assert t.get_runtime_binary() == "/usr/bin/docker"
 
     def test_cli_transport_get_runtime_binary_custom(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value="/usr/local/bin/podman"):
-            t = CliTransport("/usr/local/bin/podman", binary_resolver=CliBinaryResolver())
+            t = CliTransport(
+                "/usr/local/bin/podman", binary_resolver=CliBinaryResolver()
+            )
             assert t.get_runtime_binary() == "/usr/local/bin/podman"
 
     def test_recording_transport_implements_transport(self):
@@ -374,7 +379,13 @@ class TestParserContract:
         assert issubclass(ContainerParser, ABC)
 
     def test_container_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error", "is_auth_error"}
+        expected = {
+            "parse_inspect",
+            "parse_list",
+            "parse_prune",
+            "is_not_found_error",
+            "is_auth_error",
+        }
         actual = set(ContainerParser.__abstractmethods__)
         assert actual == expected
 
@@ -402,7 +413,13 @@ class TestParserContract:
         assert issubclass(VolumeParser, ABC)
 
     def test_volume_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error", "is_auth_error"}
+        expected = {
+            "parse_inspect",
+            "parse_list",
+            "parse_prune",
+            "is_not_found_error",
+            "is_auth_error",
+        }
         actual = set(VolumeParser.__abstractmethods__)
         assert actual == expected
 
@@ -410,7 +427,13 @@ class TestParserContract:
         assert issubclass(NetworkParser, ABC)
 
     def test_network_parser_abstract_methods(self):
-        expected = {"parse_inspect", "parse_list", "parse_prune", "is_not_found_error", "is_auth_error"}
+        expected = {
+            "parse_inspect",
+            "parse_list",
+            "parse_prune",
+            "is_not_found_error",
+            "is_auth_error",
+        }
         actual = set(NetworkParser.__abstractmethods__)
         assert actual == expected
 

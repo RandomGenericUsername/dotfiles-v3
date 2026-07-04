@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Exec Semantics
+
+## Purpose
+
+Documents and verifies the semantics of exec_container: returns ExecResult for any exit code, raises ContainerNotFoundError only on not-found stderr patterns.
+
+## Requirements
 
 ### Requirement: exec_container semantics are documented, not changed
 

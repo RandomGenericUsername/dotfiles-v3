@@ -1,5 +1,4 @@
-
-from oci_runtime.ports.cancellation import (
+from oci_runtime.adapters.transport.cancellation import (
     CompositeCancellationToken,
     DeadlineCancellationToken,
     ThreadCancellationToken,

@@ -60,6 +60,7 @@ def streaming():
 class TestTransportErrors:
     def test_missing_binary_raises_runtime_not_available(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value=None):
             t = CliTransport("nonexistent-runtime", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError, match="nonexistent-runtime"):
@@ -67,6 +68,7 @@ class TestTransportErrors:
 
     def test_get_runtime_binary_missing_raises(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value=None):
             t = CliTransport("nonexistent-runtime", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError):

@@ -108,6 +108,11 @@ class BuildContext:
                 "not both. Drop 'context_path' to send files via stdin tar, or drop 'files' "
                 "to use the filesystem context at context_path."
             )
+        if self.build_file_path is not None and self.files:
+            raise ValueError(
+                "BuildContext: 'files' (in-memory) cannot be combined with "
+                "'build_file_path' (filesystem). Drop 'files' or use 'context_path'."
+            )
         _freeze_mapping(self, ["files", "build_args", "labels", "build_contexts"])
 
 

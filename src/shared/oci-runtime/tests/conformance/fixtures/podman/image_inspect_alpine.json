@@ -30,8 +30,8 @@
           "GraphDriver": {
                "Name": "overlay",
                "Data": {
-                    "UpperDir": "/home/inumaki/.local/share/containers/storage/overlay/34884abbe92863fce933ed7c39c0e045631af0ed86d5cc0dfbdf9fdca426ce3c/diff",
-                    "WorkDir": "/home/inumaki/.local/share/containers/storage/overlay/34884abbe92863fce933ed7c39c0e045631af0ed86d5cc0dfbdf9fdca426ce3c/work"
+                    "UpperDir": "<SCRUBBED>",
+                    "WorkDir": "<SCRUBBED>"
                }
           },
           "RootFS": {

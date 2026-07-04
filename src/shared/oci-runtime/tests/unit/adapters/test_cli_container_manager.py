@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -173,9 +173,7 @@ class TestCliContainerManager:
         with pytest.raises(ContainerRuntimeError):
             mgr.exec_container("ctr1", ["false"])
 
-    def test_exec_not_found_returns_exec_result(
-        self, transport, streaming, caps
-    ):
+    def test_exec_not_found_returns_exec_result(self, transport, streaming, caps):
         transport._responses = {
             ("docker", "exec", "ctr1", "ls"): RawExecResult(
                 returncode=1, stdout=b"", stderr=b"No such container: c1"
@@ -186,3 +184,38 @@ class TestCliContainerManager:
         )
         result = mgr.exec_container("ctr1", ["ls"])
         assert result.returncode == 1
+
+    def test_container_logs_follow(self):
+        with (
+            patch(
+                "oci_runtime.adapters.managers.container._SubprocessRunner"
+            ) as MockRunner,
+            patch(
+                "oci_runtime.adapters.managers.container._AsyncStreamReader"
+            ) as MockReader,
+        ):
+            mock_process = MagicMock()
+            mock_process.stdout.fileno.return_value = 3
+            mock_process.stderr.fileno.return_value = 5
+            mock_process.poll.return_value = None
+            mock_process.returncode = 0
+
+            mock_runner = MockRunner.return_value
+            mock_runner.process = mock_process
+
+            mock_reader_instance = MockReader.return_value
+
+            def _mock_read(
+                on_stdout=None, on_stderr=None, cancel_ctx=None, timeout=None
+            ):
+                if on_stdout:
+                    on_stdout(b"line1\n")
+                    on_stdout(b"line2\n")
+                return ([b"line1\n", b"line2\n"], [])
+
+            mock_reader_instance.read.side_effect = _mock_read
+
+            result = list(self.manager.logs("ctr", follow=True, timeout=5))
+            assert result == ["line1\n", "line2\n"]
+
+            MockReader.assert_called_once_with(3, 5)

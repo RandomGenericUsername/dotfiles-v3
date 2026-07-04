@@ -191,7 +191,7 @@ def _default_output_stream_factory() -> OutputStream:
 
 
 def _default_cancellation_factory() -> CancellationToken:
-    from oci_runtime.ports.cancellation import ThreadCancellationToken
+    from oci_runtime.adapters.transport.cancellation import ThreadCancellationToken
 
     return ThreadCancellationToken()
 
@@ -215,8 +215,7 @@ def _resolve_config(cfg: RuntimeFactoryConfig | None) -> ResolvedRuntimeFactoryC
     return ResolvedRuntimeFactoryConfig(
         transport_factory=cfg.transport_factory or _default_transport_factory,
         streaming_transport_factory=(
-            cfg.streaming_transport_factory
-            or _default_streaming_transport_factory
+            cfg.streaming_transport_factory or _default_streaming_transport_factory
         ),
         runtime_cls=cfg.runtime_cls or _default_runtime_cls(),
         discovery_factory=cfg.discovery_factory or _default_discovery_factory,

@@ -18,7 +18,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from oci_runtime.domain.prune_parsing import parse_prune_result as domain_parse_prune_result
+from oci_runtime.domain.prune_parsing import (
+    parse_prune_result as domain_parse_prune_result,
+)
 from oci_runtime.domain.size_parsing import parse_size_to_bytes
 from oci_runtime.adapters.parser.docker import DockerContainerParser
 from oci_runtime.domain.json_parsing import parse_json_item
@@ -80,8 +82,11 @@ _CAPS = RuntimeCapabilities(
 class _NoOpContainerParser(ContainerParser):
     def parse_inspect(self, raw):
         return ContainerInfo(
-            id="", name="", image="",
-            state=ContainerState.CREATED, status="",
+            id="",
+            name="",
+            image="",
+            state=ContainerState.CREATED,
+            status="",
         )
 
     def parse_list(self, raw):
@@ -242,6 +247,7 @@ class TestPortMappingValidation:
 class TestB04FreezeMappingNoAlias:
     def test_source_dict_mutation_does_not_leak(self):
         from oci_runtime.domain.types import ImageInfo
+
         labels = {"key": "original"}
         info = ImageInfo(id="abc", labels=labels)
         labels["key"] = "mutated"
@@ -279,7 +285,7 @@ class TestB03MemoryLimitTwoLetterUnits:
 
 class TestM07ReadFdNonEioPropagates:
     def test_non_eio_oserror_propagates(self):
-        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+        from oci_runtime.adapters.transport.pipe_reader import ProcessPipeReader
 
         reader = ProcessPipeReader(99, 100)
         with pytest.raises(OSError):
@@ -288,10 +294,12 @@ class TestM07ReadFdNonEioPropagates:
     def test_eio_returns_empty(self):
         import errno
         import os
-        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+        from oci_runtime.adapters.transport.pipe_reader import ProcessPipeReader
 
         reader = ProcessPipeReader(99, 100)
-        with patch.object(os, "read", side_effect=OSError(errno.EIO, "Input/output error")):
+        with patch.object(
+            os, "read", side_effect=OSError(errno.EIO, "Input/output error")
+        ):
             result = reader._read_fd(99)
             assert result == b""
 
@@ -301,7 +309,7 @@ class TestM07ReadFdNonEioPropagates:
 
 class TestM06FromProcessStderrNone:
     def test_stderr_none_raises_type_error(self):
-        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+        from oci_runtime.adapters.transport.pipe_reader import ProcessPipeReader
 
         proc = MagicMock()
         proc.stdout = MagicMock()
@@ -311,7 +319,7 @@ class TestM06FromProcessStderrNone:
             ProcessPipeReader.from_process(proc)
 
     def test_stderr_no_fileno_raises_type_error(self):
-        from oci_runtime.ports.pipe_reader import ProcessPipeReader
+        from oci_runtime.adapters.transport.pipe_reader import ProcessPipeReader
 
         proc = MagicMock()
         proc.stdout = MagicMock()
@@ -354,18 +362,20 @@ class TestH05PipeReaderSubstitutable:
 class TestB05DockerListPortsAsString:
     def test_ports_as_string_parsed(self):
         parser = DockerContainerParser()
-        raw = json.dumps([
-            {
-                "Id": "abc",
-                "Names": ["/ctr1"],
-                "Image": "nginx",
-                "State": "running",
-                "Status": "Up",
-                "Created": "2024-01-01",
-                "Ports": "0.0.0.0:8080->80/tcp, 0.0.0.0:443->443/tcp",
-                "Labels": {},
-            }
-        ])
+        raw = json.dumps(
+            [
+                {
+                    "Id": "abc",
+                    "Names": ["/ctr1"],
+                    "Image": "nginx",
+                    "State": "running",
+                    "Status": "Up",
+                    "Created": "2024-01-01",
+                    "Ports": "0.0.0.0:8080->80/tcp, 0.0.0.0:443->443/tcp",
+                    "Labels": {},
+                }
+            ]
+        )
         result = parser.parse_list(raw)
         assert len(result) == 1
         assert len(result[0].ports) == 2
@@ -376,18 +386,20 @@ class TestB05DockerListPortsAsString:
 
     def test_ports_as_string_bare_proto(self):
         parser = DockerContainerParser()
-        raw = json.dumps([
-            {
-                "Id": "def",
-                "Names": ["/ctr2"],
-                "Image": "alpine",
-                "State": "running",
-                "Status": "Up",
-                "Created": "2024-01-01",
-                "Ports": "80/tcp",
-                "Labels": {},
-            }
-        ])
+        raw = json.dumps(
+            [
+                {
+                    "Id": "def",
+                    "Names": ["/ctr2"],
+                    "Image": "alpine",
+                    "State": "running",
+                    "Status": "Up",
+                    "Created": "2024-01-01",
+                    "Ports": "80/tcp",
+                    "Labels": {},
+                }
+            ]
+        )
         result = parser.parse_list(raw)
         assert len(result[0].ports) == 1
         assert result[0].ports[0].container_port == 80
@@ -413,19 +425,17 @@ class TestH02PodmanHostIpOnlyBinding:
         from oci_runtime.adapters.parser.podman import PodmanContainerParser
 
         parser = PodmanContainerParser()
-        raw = json.dumps({
-            "Id": "abc",
-            "Name": "/ctr1",
-            "Config": {"Image": "nginx"},
-            "State": {"Status": "running"},
-            "NetworkSettings": {
-                "Ports": {
-                    "80/tcp": [
-                        {"HostIp": "127.0.0.1", "HostPort": ""}
-                    ]
-                }
+        raw = json.dumps(
+            {
+                "Id": "abc",
+                "Name": "/ctr1",
+                "Config": {"Image": "nginx"},
+                "State": {"Status": "running"},
+                "NetworkSettings": {
+                    "Ports": {"80/tcp": [{"HostIp": "127.0.0.1", "HostPort": ""}]}
+                },
             }
-        })
+        )
         info = parser.parse_inspect(raw)
         assert len(info.ports) == 1
         assert info.ports[0].container_port == 80
@@ -442,9 +452,7 @@ class TestH04ManagerNoneOutputStream:
         st = RecordingStreamingTransport("docker")
         from oci_runtime.domain.exceptions import OciError
 
-        mgr = _container_mgr(
-            t, _NoOpContainerParser(), _CAPS, streaming=st
-        )
+        mgr = _container_mgr(t, _NoOpContainerParser(), _CAPS, streaming=st)
         config = RunConfig(image="alpine", tty=True, detach=False)
         with pytest.raises(OciError, match="output_stream required"):
             mgr.run(config)
@@ -457,6 +465,7 @@ class TestB06PtyPortOutputStreamRequired:
     def test_output_stream_has_no_default(self):
         import inspect
         from oci_runtime.ports.pty_transport import PtyTransport
+
         sig = inspect.signature(PtyTransport.execute_pty)
         param = sig.parameters["output_stream"]
         assert param.default is inspect.Parameter.empty, (
@@ -470,14 +479,17 @@ class TestB06PtyPortOutputStreamRequired:
 class TestH01MatchesAnyPatternCase:
     def test_uppercase_pattern_matches_lowercase_text(self):
         from oci_runtime.domain.error_matching import matches_any_pattern
+
         assert matches_any_pattern("no such container", ("No Such Container",))
 
     def test_lowercase_pattern_matches_uppercase_text(self):
         from oci_runtime.domain.error_matching import matches_any_pattern
+
         assert matches_any_pattern("NO SUCH CONTAINER", ("no such container",))
 
     def test_non_match_returns_false(self):
         from oci_runtime.domain.error_matching import matches_any_pattern
+
         assert not matches_any_pattern("everything is fine", ("no such container",))
 
 
@@ -509,26 +521,38 @@ class TestF01ExecStderrDroppedOnSuccess:
 
 class TestF02LogsFollowDropsStderr:
     def test_logs_follow_includes_stderr(self):
-        st = RecordingStreamingTransport("docker")
-        st._stream_responses = {
-            ("docker", "logs", "ctr1", "--follow"): [b"stdout-line\n"],
-        }
-        # Simulate stderr delivery by also calling on_stderr
-        original_stream = st.stream
-
-        def _stream_with_stderr(*args, **kwargs):
-            on_stderr = kwargs.get("on_stderr")
-            if on_stderr:
-                on_stderr(b"stderr-line\n")
-            return original_stream(*args, **kwargs)
-
-        st.stream = _stream_with_stderr
-
         t = RecordingTransport("docker")
-        mgr = _container_mgr(t, _NoOpContainerParser(), _CAPS, streaming=st)
-        chunks = list(mgr.logs("ctr1", follow=True))
-        combined = "".join(chunks)
-        assert "stderr-line" in combined, f"stderr was dropped from logs: {combined!r}"
+        mgr = _container_mgr(t, _NoOpContainerParser(), _CAPS, streaming=MagicMock())
+        with (
+            patch(
+                "oci_runtime.adapters.managers.container._SubprocessRunner"
+            ) as MockRunner,
+            patch(
+                "oci_runtime.adapters.managers.container._AsyncStreamReader"
+            ) as MockReader,
+        ):
+            mock_process = MagicMock()
+            mock_process.stdout.fileno.return_value = 3
+            mock_process.stderr.fileno.return_value = 5
+            mock_runner = MockRunner.return_value
+            mock_runner.process = mock_process
+
+            mock_reader = MockReader.return_value
+
+            def _mock_read(on_stdout=None, on_stderr=None, **kwargs):
+                if on_stdout:
+                    on_stdout(b"stdout-line\n")
+                if on_stderr:
+                    on_stderr(b"stderr-line\n")
+                return ([b"stdout-line\n"], [b"stderr-line\n"])
+
+            mock_reader.read.side_effect = _mock_read
+
+            chunks = list(mgr.logs("ctr1", follow=True))
+            combined = "".join(chunks)
+            assert "stderr-line" in combined, (
+                f"stderr was dropped from logs: {combined!r}"
+            )
 
 
 # ─── F3: prune() skips _check_result (all 4 managers) ───
@@ -723,6 +747,7 @@ class TestF09ParseSizeToBytesIncomplete:
 class TestF11GetRuntimeBinaryReturnsUnresolved:
     def test_get_runtime_binary_returns_resolved_path(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value="/usr/local/bin/docker"):
             t = CliTransport("docker", binary_resolver=CliBinaryResolver())
             resolved = t.get_runtime_binary()
@@ -755,9 +780,9 @@ class TestF14TimeoutEscapesOciError:
                     proc.wait.return_value = -1
                     mock_popen.return_value = proc
                     with patch(
-                        "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                        "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
                     ) as mock_reader:
-                        mock_reader.from_process.return_value.read.return_value = (
+                        mock_reader.return_value.read.return_value = (
                             [],
                             [],
                         )
@@ -796,7 +821,9 @@ class TestA01HostIpLoopbackBinding:
     def test_port_flag_host_ip_and_host_port(self):
         transport = RecordingTransport()
         streaming = RecordingStreamingTransport()
-        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), _CAPS, streaming=streaming
+        )
         config = RunConfig(
             image="alpine",
             ports=[PortMapping(container_port=80, host_port=8080, host_ip="127.0.0.1")],
@@ -809,7 +836,9 @@ class TestA01HostIpLoopbackBinding:
     def test_port_flag_host_ip_only(self):
         transport = RecordingTransport()
         streaming = RecordingStreamingTransport()
-        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), _CAPS, streaming=streaming
+        )
         config = RunConfig(
             image="alpine",
             ports=[PortMapping(container_port=80, host_ip="127.0.0.1")],
@@ -822,7 +851,9 @@ class TestA01HostIpLoopbackBinding:
     def test_port_flag_host_port_only(self):
         transport = RecordingTransport()
         streaming = RecordingStreamingTransport()
-        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), _CAPS, streaming=streaming
+        )
         config = RunConfig(
             image="alpine",
             ports=[PortMapping(container_port=80, host_port=8080, host_ip=None)],
@@ -835,7 +866,9 @@ class TestA01HostIpLoopbackBinding:
     def test_port_flag_neither(self):
         transport = RecordingTransport()
         streaming = RecordingStreamingTransport()
-        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), _CAPS, streaming=streaming
+        )
         config = RunConfig(
             image="alpine",
             ports=[PortMapping(container_port=80, host_ip=None)],
@@ -882,22 +915,24 @@ class TestT01PtyOutputStream:
                         proc.wait.return_value = 0
                         mock_popen.return_value = proc
                         with patch(
-                            "oci_runtime.adapters.transport.pty.ProcessPipeReader"
+                            "oci_runtime.adapters.transport.pty._AsyncStreamReader"
                         ) as mock_reader:
-                            mock_reader.from_fds.return_value.read.return_value = (
+                            mock_reader.return_value.read.return_value = (
                                 [b"output"],
                                 [b""],
                             )
+
                             def _mock_read(
-                                on_stdout=None, on_stderr=None, cancel_token=None
+                                on_stdout=None,
+                                on_stderr=None,
+                                cancel_ctx=None,
+                                timeout=None,
                             ):
                                 if on_stdout:
                                     on_stdout(b"output")
                                 return ([b"output"], [b""])
 
-                            mock_reader.from_fds.return_value.read.side_effect = (
-                                _mock_read
-                            )
+                            mock_reader.return_value.read.side_effect = _mock_read
                             result = transport.execute_pty(
                                 ["/usr/bin/true"], output_stream=buf
                             )
@@ -923,9 +958,9 @@ class TestT02TransportBinaryResolver:
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
                 ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
+                    mock_reader.return_value.read.return_value = (
                         [b"ok"],
                         [b""],
                     )
@@ -947,9 +982,9 @@ class TestT02TransportBinaryResolver:
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
                 with patch(
-                    "oci_runtime.adapters.transport.streaming.ProcessPipeReader"
+                    "oci_runtime.adapters.transport.streaming._AsyncStreamReader"
                 ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
+                    mock_reader.return_value.read.return_value = (
                         [b"ok"],
                         [b""],
                     )
@@ -973,7 +1008,9 @@ class TestT03ExecContainerErrorPropagation:
         streaming = RecordingStreamingTransport()
         from oci_runtime.adapters.parser.docker import DockerContainerParser
 
-        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), _CAPS, streaming=streaming
+        )
         with pytest.raises(ContainerRuntimeError):
             mgr.exec_container("ctr1", ["badcmd"])
 
@@ -988,6 +1025,8 @@ class TestT03ExecContainerErrorPropagation:
         streaming = RecordingStreamingTransport()
         from oci_runtime.adapters.parser.docker import DockerContainerParser
 
-        mgr = _container_mgr(transport, DockerContainerParser(), _CAPS, streaming=streaming)
+        mgr = _container_mgr(
+            transport, DockerContainerParser(), _CAPS, streaming=streaming
+        )
         result = mgr.exec_container("ctr1", ["ls"])
         assert result.returncode == 1

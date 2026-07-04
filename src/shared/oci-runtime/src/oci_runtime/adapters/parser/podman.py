@@ -48,8 +48,12 @@ class PodmanContainerParser(ContainerParser):
                 elif isinstance(mappings, list):
                     for mapping in mappings:
                         if isinstance(mapping, dict):
-                            host_port = mapping.get("host_port") or mapping.get("HostPort")
-                            host_ip = mapping.get("host_ip") or mapping.get("HostIp") or None
+                            host_port = mapping.get("host_port") or mapping.get(
+                                "HostPort"
+                            )
+                            host_ip = (
+                                mapping.get("host_ip") or mapping.get("HostIp") or None
+                            )
 
                             ports.append(
                                 PortMapping(

@@ -3,8 +3,17 @@ from queue import Queue
 from threading import Thread
 from collections.abc import Callable, Iterator
 
+from oci_runtime.adapters.managers._timeouts import cli_seconds
+from oci_runtime.adapters.transport.cancel import _CancelContext
+from oci_runtime.adapters.transport.runner import _SubprocessRunner
+from oci_runtime.adapters.transport.stream import _AsyncStreamReader
 from oci_runtime.domain.encoding import safe_decode
-from oci_runtime.domain.enums import NetworkMode, RestartPolicy, VolumeMountType
+from oci_runtime.domain.enums import (
+    NetworkMode,
+    RestartPolicy,
+    Subcommand,
+    VolumeMountType,
+)
 from oci_runtime.domain.exceptions import (
     ContainerNotFoundError,
     ImageNotFoundError,
@@ -24,6 +33,7 @@ from oci_runtime.ports.output_stream import OutputStream
 from oci_runtime.ports.tty import TtyDetector
 
 _LOGS_JOIN_TIMEOUT = 5.0
+_DEFAULT_STOP_TIMEOUT_SECONDS = 10
 
 
 class LogDriverNotSupportedWarning(UserWarning):
@@ -62,7 +72,7 @@ class CliContainerManager(ContainerManager):
     def run(self, config: RunConfig) -> str:
         effective_tty = self._resolve_tty(config)
 
-        cmd = [self._transport.get_runtime_binary(), "run"]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.RUN.value]
         cmd.extend(self._caps.default_run_flags)
 
         if config.detach:
@@ -186,7 +196,7 @@ class CliContainerManager(ContainerManager):
                 entity=config.image,
                 not_found_error=ImageNotFoundError,
             )
-            return ""
+            return safe_decode(result.stdout).strip()
 
         result = self._streaming.stream(cmd, timeout=config.timeout)
         self._result_checker.check(
@@ -199,7 +209,7 @@ class CliContainerManager(ContainerManager):
         return safe_decode(result.stdout).strip()
 
     def start(self, container: str) -> None:
-        cmd = [self._transport.get_runtime_binary(), "start", container]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.START.value, container]
         result = self._transport.execute(cmd)
         self._result_checker.check(
             result, cmd, operation="start container", entity=container
@@ -208,9 +218,9 @@ class CliContainerManager(ContainerManager):
     def stop(self, container: str, timeout: float | None = 10.0) -> None:
         cmd = [
             self._transport.get_runtime_binary(),
-            "stop",
+            Subcommand.STOP.value,
             "-t",
-            str(int(timeout)) if timeout is not None else "10",
+            cli_seconds(timeout, default=_DEFAULT_STOP_TIMEOUT_SECONDS),
             container,
         ]
         result = self._transport.execute(cmd)
@@ -221,9 +231,9 @@ class CliContainerManager(ContainerManager):
     def restart(self, container: str, timeout: float | None = 10.0) -> None:
         cmd = [
             self._transport.get_runtime_binary(),
-            "restart",
+            Subcommand.RESTART.value,
             "-t",
-            str(int(timeout)) if timeout is not None else "10",
+            cli_seconds(timeout, default=_DEFAULT_STOP_TIMEOUT_SECONDS),
             container,
         ]
         result = self._transport.execute(cmd)
@@ -234,7 +244,7 @@ class CliContainerManager(ContainerManager):
     def remove(
         self, container: str, force: bool = False, volumes: bool = False
     ) -> None:
-        cmd = [self._transport.get_runtime_binary(), "rm", container]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.RM.value, container]
         if force:
             cmd.append("-f")
         if volumes:
@@ -254,8 +264,8 @@ class CliContainerManager(ContainerManager):
     def inspect(self, container: str) -> ContainerInfo:
         cmd = [
             self._transport.get_runtime_binary(),
-            "container",
-            "inspect",
+            Subcommand.CONTAINER.value,
+            Subcommand.INSPECT.value,
             "--format",
             "json",
             container,
@@ -270,16 +280,20 @@ class CliContainerManager(ContainerManager):
         self, show_all: bool = False, filters: dict[str, str] | None = None
     ) -> list[ContainerInfo]:
         return self._list_executor.execute_list(
-            ["container", "list"],
+            [Subcommand.CONTAINER.value, Subcommand.LIST.value],
             "containers",
             show_all=show_all,
             filters=filters,
         )
 
     def logs(
-        self, container: str, follow: bool = False, tail: int | None = None
+        self,
+        container: str,
+        follow: bool = False,
+        tail: int | None = None,
+        timeout: float | None = None,
     ) -> Iterator[str]:
-        cmd = [self._transport.get_runtime_binary(), "logs", container]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.LOGS.value, container]
         if follow:
             cmd.append("--follow")
         if tail is not None:
@@ -294,6 +308,16 @@ class CliContainerManager(ContainerManager):
             return
 
         cancel_token = self._cancellation_factory()
+        cancel_ctx = _CancelContext(cancel_token)
+
+        runner = _SubprocessRunner(cmd)
+        runner.start_stdin_writer()
+
+        reader = _AsyncStreamReader(
+            runner.process.stdout.fileno(),
+            runner.process.stderr.fileno(),
+        )
+
         queue: Queue[str | None] = Queue()
         errors: list[Exception] = []
 
@@ -302,11 +326,11 @@ class CliContainerManager(ContainerManager):
 
         def _run() -> None:
             try:
-                self._streaming.stream(
-                    cmd,
+                reader.read(
                     on_stdout=_on_stdout,
                     on_stderr=_on_stdout,
-                    cancel_token=cancel_token,
+                    cancel_ctx=cancel_ctx,
+                    timeout=timeout,
                 )
             except Exception as e:
                 errors.append(e)
@@ -323,7 +347,7 @@ class CliContainerManager(ContainerManager):
                     break
                 yield chunk
         finally:
-            cancel_token.cancel()
+            cancel_ctx.cancel()
             thread.join(timeout=_LOGS_JOIN_TIMEOUT)
             if errors and not isinstance(errors[0], GeneratorExit):
                 raise errors[0]
@@ -336,7 +360,7 @@ class CliContainerManager(ContainerManager):
         user: str | None = None,
         timeout: float | None = None,
     ) -> ExecResult:
-        cmd = [self._transport.get_runtime_binary(), "exec"]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.EXEC.value]
         if detach:
             cmd.append("-d")
         if user:
@@ -360,7 +384,12 @@ class CliContainerManager(ContainerManager):
         )
 
     def prune(self) -> PruneResult:
-        cmd = [self._transport.get_runtime_binary(), "container", "prune", "--force"]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            Subcommand.CONTAINER.value,
+            Subcommand.PRUNE.value,
+            "--force",
+        ]
         result = self._transport.execute(cmd)
         self._result_checker.check(result, cmd, operation="prune containers", entity="")
         return self._parser.parse_prune(safe_decode(result.stdout))

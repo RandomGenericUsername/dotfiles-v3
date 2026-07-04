@@ -1,4 +1,5 @@
 from oci_runtime.domain.encoding import safe_decode
+from oci_runtime.domain.enums import Subcommand
 from oci_runtime.domain.exceptions import VolumeNotFoundError
 from oci_runtime.domain.types import VolumeInfo, PruneResult
 from oci_runtime.ports.capabilities import RuntimeCapabilities
@@ -30,8 +31,8 @@ class CliVolumeManager(VolumeManager):
     ) -> str:
         cmd = [
             self._transport.get_runtime_binary(),
-            "volume",
-            "create",
+            Subcommand.VOLUME.value,
+            Subcommand.CREATE.value,
             "--driver",
             driver,
             name,
@@ -44,7 +45,12 @@ class CliVolumeManager(VolumeManager):
         return safe_decode(result.stdout).strip()
 
     def remove(self, name: str, force: bool = False) -> None:
-        cmd = [self._transport.get_runtime_binary(), "volume", "rm", name]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            Subcommand.VOLUME.value,
+            Subcommand.RM.value,
+            name,
+        ]
         if force:
             cmd.append("-f")
         result = self._transport.execute(cmd)
@@ -60,8 +66,8 @@ class CliVolumeManager(VolumeManager):
     def inspect(self, name: str) -> VolumeInfo:
         cmd = [
             self._transport.get_runtime_binary(),
-            "volume",
-            "inspect",
+            Subcommand.VOLUME.value,
+            Subcommand.INSPECT.value,
             "--format",
             "json",
             name,
@@ -72,14 +78,19 @@ class CliVolumeManager(VolumeManager):
 
     def list(self, filters: dict[str, str] | None = None) -> list[VolumeInfo]:
         return self._list_executor.execute_list(
-            ["volume", "list"],
+            [Subcommand.VOLUME.value, Subcommand.LIST.value],
             "volumes",
             show_all=False,
             filters=filters,
         )
 
     def prune(self) -> PruneResult:
-        cmd = [self._transport.get_runtime_binary(), "volume", "prune", "--force"]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            Subcommand.VOLUME.value,
+            Subcommand.PRUNE.value,
+            "--force",
+        ]
         result = self._transport.execute(cmd)
         self._result_checker.check(result, cmd, operation="prune volumes", entity="")
         return self._parser.parse_prune(safe_decode(result.stdout))

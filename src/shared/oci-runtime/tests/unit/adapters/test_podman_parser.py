@@ -285,7 +285,9 @@ class TestPodmanImageParser:
         # "image not known" is what `podman image inspect <missing>` emits;
         # without this pattern exists() raises ImageRuntimeError instead of
         # returning False (regression: B5/M4 image-pattern gap).
-        assert self.parser.is_not_found_error("Error: test-smoke:latest: image not known")
+        assert self.parser.is_not_found_error(
+            "Error: test-smoke:latest: image not known"
+        )
         assert not self.parser.is_not_found_error("something else")
 
     def test_parse_build_output_without_prefix(self):

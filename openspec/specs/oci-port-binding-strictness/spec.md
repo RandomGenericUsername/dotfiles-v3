@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Port Binding Strictness
+
+## Purpose
+
+Ensures PortMapping.host_ip is honored in container run -p flags and that Docker inspect parser preserves the CLI truth for empty vs. explicit 0.0.0.0 HostIp.
+
+## Requirements
 
 ### Requirement: PortMapping.host_ip honored in container run
 

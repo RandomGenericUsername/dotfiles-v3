@@ -1,5 +1,6 @@
 from oci_runtime.domain.build_tar import create_build_tar
 from oci_runtime.domain.encoding import safe_decode
+from oci_runtime.domain.enums import Subcommand
 from oci_runtime.domain.exceptions import (
     ImageNotFoundError,
     ImageRuntimeError,
@@ -32,7 +33,12 @@ class CliImageManager(ImageManager):
     def build(
         self, context: BuildContext, image_name: str, timeout: float | None = 600.0
     ) -> str:
-        cmd = [self._transport.get_runtime_binary(), "build", "-t", image_name]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            Subcommand.BUILD.value,
+            "-t",
+            image_name,
+        ]
         input_data = None
         positional = "."
 
@@ -42,10 +48,16 @@ class CliImageManager(ImageManager):
         elif context.context_path is not None:
             cmd.extend(["-f", "-"])
             positional = str(context.context_path)
-            assert context.build_file_content is not None
+            if context.build_file_content is None:
+                raise ImageRuntimeError(
+                    message="BuildContext.build_file_content required for stdin (-f -)"
+                )
             input_data = context.build_file_content.encode("utf-8")
         else:
-            assert context.build_file_content is not None
+            if context.build_file_content is None:
+                raise ImageRuntimeError(
+                    message="BuildContext.build_file_content or build_file_path required"
+                )
             input_data = create_build_tar(
                 context.build_file_content, context.files, self._caps.tar_entry_name
             )
@@ -84,17 +96,17 @@ class CliImageManager(ImageManager):
         return ident
 
     def tag(self, image: str, tag: str) -> None:
-        cmd = [self._transport.get_runtime_binary(), "tag", image, tag]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.TAG.value, image, tag]
         result = self._transport.execute(cmd)
         self._result_checker.check(result, cmd, operation="tag image", entity=image)
 
     def push(self, image: str, timeout: float | None = 300.0) -> None:
-        cmd = [self._transport.get_runtime_binary(), "push", image]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.PUSH.value, image]
         result = self._transport.execute(cmd, timeout=timeout)
         self._result_checker.check(result, cmd, operation="push image", entity=image)
 
     def pull(self, image: str, timeout: float | None = 300.0) -> str:
-        cmd = [self._transport.get_runtime_binary(), "pull", image]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.PULL.value, image]
         result = self._transport.execute(cmd, timeout=timeout)
         self._result_checker.check(result, cmd, operation="pull image", entity=image)
         ident = self._parser.parse_digest_from_pull(safe_decode(result.stdout))
@@ -106,7 +118,7 @@ class CliImageManager(ImageManager):
         return ident
 
     def remove(self, image: str, force: bool = False) -> None:
-        cmd = [self._transport.get_runtime_binary(), "rmi", image]
+        cmd = [self._transport.get_runtime_binary(), Subcommand.RMI.value, image]
         if force:
             cmd.append("--force")
         result = self._transport.execute(cmd)
@@ -122,8 +134,8 @@ class CliImageManager(ImageManager):
     def inspect(self, image: str) -> ImageInfo:
         cmd = [
             self._transport.get_runtime_binary(),
-            "image",
-            "inspect",
+            Subcommand.IMAGE.value,
+            Subcommand.INSPECT.value,
             "--format",
             "json",
             image,
@@ -134,14 +146,19 @@ class CliImageManager(ImageManager):
 
     def list(self, filters: dict[str, str] | None = None) -> list[ImageInfo]:
         return self._list_executor.execute_list(
-            ["image", "list"],
+            [Subcommand.IMAGE.value, Subcommand.LIST.value],
             "images",
             show_all=False,
             filters=filters,
         )
 
     def prune(self, show_all: bool = False) -> PruneResult:
-        cmd = [self._transport.get_runtime_binary(), "image", "prune", "--force"]
+        cmd = [
+            self._transport.get_runtime_binary(),
+            Subcommand.IMAGE.value,
+            Subcommand.PRUNE.value,
+            "--force",
+        ]
         if show_all:
             cmd.append("--all")
         result = self._transport.execute(cmd)

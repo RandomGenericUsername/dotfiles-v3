@@ -1,3 +1,6 @@
+from oci_runtime.domain.enums import RuntimeKind
+
+
 class OciError(Exception):
     def __init__(
         self,
@@ -48,9 +51,21 @@ class NetworkError(OciError):
 
 
 class ImageNotFoundError(ImageError):
-    def __init__(self, image_name: str):
+    def __init__(
+        self,
+        image_name: str,
+        *,
+        command: list[str] | None = None,
+        exit_code: int | None = None,
+        stderr: str | None = None,
+    ):
         self.image_name = image_name
-        super().__init__(f"Image not found: {image_name}")
+        super().__init__(
+            f"Image not found: {image_name}",
+            command=command,
+            exit_code=exit_code,
+            stderr=stderr,
+        )
 
 
 class ImagePullAccessDeniedError(ImageError):
@@ -71,21 +86,57 @@ class ImagePullAccessDeniedError(ImageError):
 
 
 class ContainerNotFoundError(ContainerError):
-    def __init__(self, container_id: str):
+    def __init__(
+        self,
+        container_id: str,
+        *,
+        command: list[str] | None = None,
+        exit_code: int | None = None,
+        stderr: str | None = None,
+    ):
         self.container_id = container_id
-        super().__init__(f"Container not found: {container_id}")
+        super().__init__(
+            f"Container not found: {container_id}",
+            command=command,
+            exit_code=exit_code,
+            stderr=stderr,
+        )
 
 
 class VolumeNotFoundError(VolumeError):
-    def __init__(self, volume_name: str):
+    def __init__(
+        self,
+        volume_name: str,
+        *,
+        command: list[str] | None = None,
+        exit_code: int | None = None,
+        stderr: str | None = None,
+    ):
         self.volume_name = volume_name
-        super().__init__(f"Volume not found: {volume_name}")
+        super().__init__(
+            f"Volume not found: {volume_name}",
+            command=command,
+            exit_code=exit_code,
+            stderr=stderr,
+        )
 
 
 class NetworkNotFoundError(NetworkError):
-    def __init__(self, network_name: str):
+    def __init__(
+        self,
+        network_name: str,
+        *,
+        command: list[str] | None = None,
+        exit_code: int | None = None,
+        stderr: str | None = None,
+    ):
         self.network_name = network_name
-        super().__init__(f"Network not found: {network_name}")
+        super().__init__(
+            f"Network not found: {network_name}",
+            command=command,
+            exit_code=exit_code,
+            stderr=stderr,
+        )
 
 
 class OperationTimeoutError(OciError):
@@ -126,10 +177,9 @@ class RuntimeNotAvailableError(OciError):
 
 
 class ProviderNotRegisteredError(OciError):
-    def __init__(self, kind):
-        from oci_runtime.domain.enums import RuntimeKind as _RuntimeKind
+    def __init__(self, kind: RuntimeKind):
         self.kind = kind
         super().__init__(
             f"No RuntimeProvider registered for RuntimeKind: {kind}. "
-            f"Registered: {list(_RuntimeKind)}"
+            f"Registered: {list(RuntimeKind)}"
         )

@@ -8,13 +8,14 @@ from oci_runtime.domain.exceptions import (
 )
 from oci_runtime.domain.types import RawExecResult
 from oci_runtime.ports.binary_resolver import BinaryResolver
-from oci_runtime.ports.cancellation import (
-    CancellationToken,
+from oci_runtime.adapters.transport.cancel import _CancelContext
+from oci_runtime.adapters.transport.cancellation import (
     DeadlineCancellationToken,
     compose_tokens,
 )
+from oci_runtime.adapters.transport.stream import _AsyncStreamReader
+from oci_runtime.ports.cancellation import CancellationToken
 from oci_runtime.ports.output_stream import OutputStream
-from oci_runtime.ports.pipe_reader import ProcessPipeReader
 from oci_runtime.ports.pty_transport import PtyTransport
 
 
@@ -51,8 +52,15 @@ class CliPtyTransport(PtyTransport):
             os.close(slave_fd)
             slave_fd = -1
 
-            assert process.stderr is not None
-            reader = ProcessPipeReader.from_fds(master_fd, process.stderr.fileno())
+            if process.stderr is None:
+                process.kill()
+                raise OciError(
+                    "CliPtyTransport.execute_pty: subprocess.Popen returned "
+                    "stderr=None despite stderr=PIPE — internal invariant violated"
+                )
+
+            cancel_ctx = _CancelContext(effective_token)
+            reader = _AsyncStreamReader(master_fd, process.stderr.fileno())
 
             def _on_stdout(data: bytes) -> None:
                 output_stream.write(data)
@@ -60,7 +68,7 @@ class CliPtyTransport(PtyTransport):
 
             stdout_acc, stderr_acc = reader.read(
                 on_stdout=_on_stdout,
-                cancel_token=effective_token,
+                cancel_ctx=cancel_ctx,
             )
 
             if effective_token is not None and effective_token.is_cancelled:

@@ -2,7 +2,7 @@
   {
     "Name": "oci-runtime-conformance-vol",
     "Driver": "local",
-    "Mountpoint": "/home/inumaki/.local/share/containers/storage/volumes/oci-runtime-conformance-vol/_data",
+    "Mountpoint": "<SCRUBBED>",
     "CreatedAt": "2026-07-01T10:38:16.440654008-05:00",
     "Labels": {
       

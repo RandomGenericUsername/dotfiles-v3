@@ -53,7 +53,10 @@ def manager(transport):
         returncode=0, stdout=b"abc123", stderr=b""
     )
     return _container_mgr(
-        transport, parser, caps, streaming=streaming,
+        transport,
+        parser,
+        caps,
+        streaming=streaming,
         output_stream=BytesIO(),
     )
 
@@ -177,7 +180,7 @@ class TestTtyReturnContract:
         )
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
         result = mgr.run(config)
-        assert result == ""
+        assert result == "chunk1 chunk2"
         assert output_stream.getvalue() == b"chunk1 chunk2"
 
     def test_stream_output_with_none_output_stream_does_not_crash(self, transport):
@@ -192,7 +195,7 @@ class TestTtyReturnContract:
         )
         config = RunConfig(image="alpine", stream_output=True, tty=False, detach=True)
         result = mgr.run(config)
-        assert result == ""
+        assert result == "ignored"
 
     def test_stream_output_false_returns_stdout(self, transport):
         streaming = MagicMock(spec=StreamingTransport)
@@ -224,7 +227,10 @@ class TestTtyEdgeCases:
             returncode=0, stdout=b"abc123", stderr=b""
         )
         m = _container_mgr(
-            transport, parser, caps, streaming=streaming,
+            transport,
+            parser,
+            caps,
+            streaming=streaming,
             output_stream=BytesIO(),
         )
         m._pty_transport.execute_pty = MagicMock(

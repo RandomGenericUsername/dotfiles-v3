@@ -275,7 +275,7 @@ def _parse_docker_ports(item: dict) -> list[PortMapping]:
 
 def _parse_docker_ports_from_list(item: dict) -> list[PortMapping]:
     ports = []
-    raw_ports = item.get("Ports", [])
+    raw_ports = item.get("Ports") or []
     if isinstance(raw_ports, str):
         return _parse_docker_ports_from_list_string(raw_ports)
     for p in raw_ports:
@@ -294,12 +294,8 @@ def _parse_docker_ports_from_list(item: dict) -> list[PortMapping]:
     return ports
 
 
-_PORT_LIST_FULL_RE = re.compile(
-    r"(?:(.+?):)?(\d+)->(\d+)/(tcp|udp|sctp)"
-)
-_PORT_LIST_BARE_RE = re.compile(
-    r"(\d+)/(tcp|udp|sctp)"
-)
+_PORT_LIST_FULL_RE = re.compile(r"(?:(.+?):)?(\d+)->(\d+)/(tcp|udp|sctp)")
+_PORT_LIST_BARE_RE = re.compile(r"(\d+)/(tcp|udp|sctp)")
 
 
 def _parse_docker_ports_from_list_string(raw: str) -> list[PortMapping]:

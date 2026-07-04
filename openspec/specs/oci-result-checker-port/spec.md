@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Result Checker Port
+
+## Purpose
+
+Defines the ResultChecker ABC port for CLI result checking, depending only on domain types RawExecResult and OciError.
+
+## Requirements
 
 ### Requirement: ResultChecker port defines a pure ABC for CLI result checking
 

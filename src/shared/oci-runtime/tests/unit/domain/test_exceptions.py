@@ -1,5 +1,6 @@
 import pytest
 
+from oci_runtime.domain.enums import RuntimeKind
 from oci_runtime.domain.exceptions import (
     ContainerError,
     ContainerNotFoundError,
@@ -181,6 +182,224 @@ class TestRuntimeNotAvailableError:
 
     def test_is_not_container_error(self):
         assert not issubclass(RuntimeNotAvailableError, ContainerError)
+
+
+class TestOperationTimeoutError:
+    def test_construct_with_command_and_timeout(self):
+        from oci_runtime.domain.exceptions import OperationTimeoutError
+
+        err = OperationTimeoutError(
+            command=["docker", "ps"],
+            timeout=30.0,
+            message="Operation timed out",
+        )
+        assert err.command == ["docker", "ps"]
+        assert err.timeout == 30.0
+
+    def test_str_contains_command(self):
+        from oci_runtime.domain.exceptions import OperationTimeoutError
+
+        err = OperationTimeoutError(command=["docker", "run"], timeout=None)
+        assert "docker run" in str(err)
+
+    def test_is_oci_error(self):
+        from oci_runtime.domain.exceptions import OperationTimeoutError
+
+        assert issubclass(OperationTimeoutError, OciError)
+
+
+class TestImageRuntimeError:
+    def test_construct(self):
+        from oci_runtime.domain.exceptions import ImageRuntimeError
+
+        err = ImageRuntimeError(
+            message="image runtime failed",
+            command=["docker", "build"],
+            exit_code=1,
+        )
+        assert err.message == "image runtime failed"
+        assert err.exit_code == 1
+
+    def test_is_image_error(self):
+        from oci_runtime.domain.exceptions import ImageRuntimeError
+
+        assert issubclass(ImageRuntimeError, ImageError)
+
+
+class TestVolumeRuntimeError:
+    def test_construct(self):
+        from oci_runtime.domain.exceptions import VolumeRuntimeError
+
+        err = VolumeRuntimeError(
+            message="volume runtime failed",
+            command=["docker", "volume", "create"],
+            exit_code=1,
+        )
+        assert err.message == "volume runtime failed"
+
+    def test_is_volume_error(self):
+        from oci_runtime.domain.exceptions import VolumeRuntimeError
+
+        assert issubclass(VolumeRuntimeError, VolumeError)
+
+
+class TestNetworkRuntimeError:
+    def test_construct(self):
+        from oci_runtime.domain.exceptions import NetworkRuntimeError
+
+        err = NetworkRuntimeError(
+            message="network runtime failed",
+            command=["docker", "network", "create"],
+            exit_code=1,
+        )
+        assert err.message == "network runtime failed"
+
+    def test_is_network_error(self):
+        from oci_runtime.domain.exceptions import NetworkRuntimeError
+
+        assert issubclass(NetworkRuntimeError, NetworkError)
+
+
+class TestContainerRuntimeError:
+    def test_construct(self):
+        from oci_runtime.domain.exceptions import ContainerRuntimeError
+
+        err = ContainerRuntimeError(
+            message="container runtime failed",
+            command=["docker", "run"],
+            exit_code=1,
+            stderr="error output",
+        )
+        assert err.message == "container runtime failed"
+        assert err.exit_code == 1
+        assert err.stderr == "error output"
+
+    def test_is_container_error(self):
+        from oci_runtime.domain.exceptions import ContainerRuntimeError
+
+        assert issubclass(ContainerRuntimeError, ContainerError)
+
+
+class TestOciErrorKeywordContext:
+    def test_oci_error_accepts_keyword_command(self):
+        err = OciError(
+            message="test",
+            command=["docker", "ps"],
+        )
+        assert err.command == ["docker", "ps"]
+
+    def test_oci_error_accepts_keyword_exit_code(self):
+        err = OciError(
+            message="test",
+            exit_code=1,
+        )
+        assert err.exit_code == 1
+
+    def test_oci_error_accepts_keyword_stderr(self):
+        err = OciError(
+            message="test",
+            stderr="something went wrong",
+        )
+        assert err.stderr == "something went wrong"
+
+    def test_container_error_accepts_keyword_context(self):
+        err = ContainerError(
+            message="fail",
+            command=["docker", "run"],
+            exit_code=1,
+            stderr="OOM",
+        )
+        assert err.command == ["docker", "run"]
+        assert err.exit_code == 1
+        assert err.stderr == "OOM"
+
+
+class TestNotFoundErrorContext:
+    def test_image_not_found_populates_context(self):
+        err = ImageNotFoundError(
+            "alpine",
+            command=["docker", "pull", "alpine"],
+            exit_code=1,
+            stderr="No such image",
+        )
+        assert err.command == ["docker", "pull", "alpine"]
+        assert err.exit_code == 1
+        assert err.stderr == "No such image"
+
+    def test_container_not_found_populates_context(self):
+        err = ContainerNotFoundError(
+            "abc123",
+            command=["docker", "inspect", "abc123"],
+            exit_code=1,
+            stderr="No such container",
+        )
+        assert err.command == ["docker", "inspect", "abc123"]
+        assert err.exit_code == 1
+        assert err.stderr == "No such container"
+
+    def test_volume_not_found_populates_context(self):
+        err = VolumeNotFoundError(
+            "my-vol",
+            command=["docker", "volume", "inspect", "my-vol"],
+            exit_code=1,
+            stderr="No such volume",
+        )
+        assert err.command == ["docker", "volume", "inspect", "my-vol"]
+        assert err.exit_code == 1
+        assert err.stderr == "No such volume"
+
+    def test_network_not_found_populates_context(self):
+        err = NetworkNotFoundError(
+            "net1",
+            command=["docker", "network", "inspect", "net1"],
+            exit_code=1,
+            stderr="No such network",
+        )
+        assert err.command == ["docker", "network", "inspect", "net1"]
+        assert err.exit_code == 1
+        assert err.stderr == "No such network"
+
+
+class TestProviderNotRegisteredError:
+    def test_construct(self):
+        from oci_runtime.domain.exceptions import ProviderNotRegisteredError
+
+        err = ProviderNotRegisteredError(kind="unknown")
+        assert "unknown" in str(err)
+        assert "No RuntimeProvider registered" in str(err)
+
+    def test_is_oci_error(self):
+        from oci_runtime.domain.exceptions import ProviderNotRegisteredError
+
+        assert issubclass(ProviderNotRegisteredError, OciError)
+
+    def test_kind_typed(self):
+        from oci_runtime.domain.exceptions import ProviderNotRegisteredError
+
+        err = ProviderNotRegisteredError(RuntimeKind.DOCKER)
+        assert err.kind is RuntimeKind.DOCKER
+
+
+class TestExistingPositionalCallersUnbroken:
+    def test_image_not_found_positional_works(self):
+        err = ImageNotFoundError("alpine")
+        assert err.image_name == "alpine"
+        assert "Image not found: alpine" in str(err)
+
+    def test_container_not_found_positional_works(self):
+        err = ContainerNotFoundError("abc123")
+        assert err.container_id == "abc123"
+        assert "Container not found: abc123" in str(err)
+
+    def test_volume_not_found_positional_works(self):
+        err = VolumeNotFoundError("my-vol")
+        assert err.volume_name == "my-vol"
+        assert "Volume not found: my-vol" in str(err)
+
+    def test_network_not_found_positional_works(self):
+        err = NetworkNotFoundError("net1")
+        assert err.network_name == "net1"
+        assert "Network not found: net1" in str(err)
 
 
 class TestParsingError:

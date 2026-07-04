@@ -32,8 +32,8 @@
           "ResolvConfPath": "/run/user/1000/containers/overlay-containers/922f383af2218017a1813388157692418a12f078c9b53b49d0a68102423f72d6/userdata/resolv.conf",
           "HostnamePath": "/run/user/1000/containers/overlay-containers/922f383af2218017a1813388157692418a12f078c9b53b49d0a68102423f72d6/userdata/hostname",
           "HostsPath": "/run/user/1000/containers/overlay-containers/922f383af2218017a1813388157692418a12f078c9b53b49d0a68102423f72d6/userdata/hosts",
-          "StaticDir": "/home/inumaki/.local/share/containers/storage/overlay-containers/922f383af2218017a1813388157692418a12f078c9b53b49d0a68102423f72d6/userdata",
-          "OCIConfigPath": "/home/inumaki/.local/share/containers/storage/overlay-containers/922f383af2218017a1813388157692418a12f078c9b53b49d0a68102423f72d6/userdata/config.json",
+          "StaticDir": "<SCRUBBED>",
+          "OCIConfigPath": "<SCRUBBED>",
           "OCIRuntime": "crun",
           "ConmonPidFile": "/run/user/1000/containers/overlay-containers/922f383af2218017a1813388157692418a12f078c9b53b49d0a68102423f72d6/userdata/conmon.pid",
           "PidFile": "/run/user/1000/containers/overlay-containers/922f383af2218017a1813388157692418a12f078c9b53b49d0a68102423f72d6/userdata/pidfile",
@@ -73,10 +73,10 @@
           "GraphDriver": {
                "Name": "overlay",
                "Data": {
-                    "LowerDir": "/home/inumaki/.local/share/containers/storage/overlay/34884abbe92863fce933ed7c39c0e045631af0ed86d5cc0dfbdf9fdca426ce3c/diff",
-                    "MergedDir": "/home/inumaki/.local/share/containers/storage/overlay/b87150ef52617c2a81b717f6a38f173a72dea18bc8397f1fdbd92c77a00f428b/merged",
-                    "UpperDir": "/home/inumaki/.local/share/containers/storage/overlay/b87150ef52617c2a81b717f6a38f173a72dea18bc8397f1fdbd92c77a00f428b/diff",
-                    "WorkDir": "/home/inumaki/.local/share/containers/storage/overlay/b87150ef52617c2a81b717f6a38f173a72dea18bc8397f1fdbd92c77a00f428b/work"
+                    "LowerDir": "<SCRUBBED>",
+                    "MergedDir": "<SCRUBBED>",
+                    "UpperDir": "<SCRUBBED>",
+                    "WorkDir": "<SCRUBBED>"
                }
           },
           "Mounts": [],

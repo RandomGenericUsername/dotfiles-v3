@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from oci_runtime.ports.pipe_reader import ProcessPipeReader
+from oci_runtime.adapters.transport.pipe_reader import ProcessPipeReader
 
 
 class TestProcessPipeReaderFromProcess:

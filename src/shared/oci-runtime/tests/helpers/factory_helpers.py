@@ -15,7 +15,7 @@ from oci_runtime.domain.exceptions import (
     VolumeNotFoundError,
     VolumeRuntimeError,
 )
-from oci_runtime.ports.cancellation import ThreadCancellationToken
+from oci_runtime.adapters.transport.cancellation import ThreadCancellationToken
 
 from tests.helpers.mock_transport import FakeTtyDetector, MockPtyTransport
 
@@ -33,7 +33,9 @@ def image_mgr(transport, parser, caps):
         parser,
         caps,
         result_checker=chk,
-        list_executor=CliListExecutor(transport, caps, chk, parse_list=parser.parse_list),
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
     )
 
 
@@ -54,7 +56,9 @@ def container_mgr(transport, parser, caps, streaming, tty_detector=None, **extra
         pty_transport=MockPtyTransport(),
         cancellation_factory=lambda: ThreadCancellationToken(),
         result_checker=chk,
-        list_executor=CliListExecutor(transport, caps, chk, parse_list=parser.parse_list),
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
         **extra,
     )
 
@@ -70,7 +74,9 @@ def volume_mgr(transport, parser, caps):
         parser,
         caps,
         result_checker=chk,
-        list_executor=CliListExecutor(transport, caps, chk, parse_list=parser.parse_list),
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
     )
 
 
@@ -85,5 +91,7 @@ def network_mgr(transport, parser, caps):
         parser,
         caps,
         result_checker=chk,
-        list_executor=CliListExecutor(transport, caps, chk, parse_list=parser.parse_list),
+        list_executor=CliListExecutor(
+            transport, caps, chk, parse_list=parser.parse_list
+        ),
     )

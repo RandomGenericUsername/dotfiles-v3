@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Pipe Reader Port
+
+## Purpose
+
+Defines the PipeReader ABC port for reading output from subprocess pipes and PTY master file descriptors without partial-read blocking.
+
+## Requirements
 
 ### Requirement: PipeReader port abstracts fd-based subprocess/PTY output reading
 

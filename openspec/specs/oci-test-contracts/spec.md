@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# Test Contracts
+
+## Purpose
+
+Ensures wiring and contract tests assert against port ABCs, not concrete adapter implementations.
+
+## Requirements
 
 ### Requirement: Wiring tests assert against ports, not concrete adapters
 

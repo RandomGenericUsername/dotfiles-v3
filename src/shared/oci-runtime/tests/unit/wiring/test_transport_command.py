@@ -13,12 +13,14 @@ class TestCliTransportExecute:
         with patch("shutil.which", return_value="/usr/bin/docker"):
             with patch("subprocess.Popen") as mock_popen:
                 proc = MagicMock()
+                proc.stdout.fileno.return_value = 3
+                proc.stderr.fileno.return_value = 4
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
                 ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
+                    mock_reader.return_value.read.return_value = (
                         [b"running"],
                         [b""],
                     )
@@ -38,12 +40,14 @@ class TestCliTransportExecute:
         with patch("shutil.which", return_value="/usr/bin/docker"):
             with patch("subprocess.Popen") as mock_popen:
                 proc = MagicMock()
+                proc.stdout.fileno.return_value = 3
+                proc.stderr.fileno.return_value = 4
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
                 ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
+                    mock_reader.return_value.read.return_value = (
                         [b"built"],
                         [b""],
                     )
@@ -60,12 +64,14 @@ class TestCliTransportExecute:
         with patch("shutil.which", return_value="/usr/bin/docker"):
             with patch("subprocess.Popen") as mock_popen:
                 proc = MagicMock()
+                proc.stdout.fileno.return_value = 3
+                proc.stderr.fileno.return_value = 4
                 proc.wait.return_value = 0
                 mock_popen.return_value = proc
                 with patch(
-                    "oci_runtime.adapters.transport.cli.ProcessPipeReader"
+                    "oci_runtime.adapters.transport.cli._AsyncStreamReader"
                 ) as mock_reader:
-                    mock_reader.from_process.return_value.read.return_value = (
+                    mock_reader.return_value.read.return_value = (
                         [b""],
                         [b""],
                     )
@@ -88,6 +94,7 @@ class TestCliTransportExecute:
 
     def test_execute_raises_on_missing_binary(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value=None):
             t = CliTransport("nonexistent", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError, match="nonexistent"):
@@ -95,18 +102,21 @@ class TestCliTransportExecute:
 
     def test_get_runtime_binary_returns_binary(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value="/usr/bin/docker"):
             t = CliTransport("docker", binary_resolver=CliBinaryResolver())
             assert t.get_runtime_binary() == "/usr/bin/docker"
 
     def test_get_runtime_binary_custom_path(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value="/custom/bin/podman"):
             t = CliTransport("/custom/bin/podman", binary_resolver=CliBinaryResolver())
             assert t.get_runtime_binary() == "/custom/bin/podman"
 
     def test_get_runtime_binary_raises_on_missing(self):
         from oci_runtime.adapters.binary import CliBinaryResolver
+
         with patch("shutil.which", return_value=None):
             t = CliTransport("missing", binary_resolver=CliBinaryResolver())
             with pytest.raises(RuntimeNotAvailableError):

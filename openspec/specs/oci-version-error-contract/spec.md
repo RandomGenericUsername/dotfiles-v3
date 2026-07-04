@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# Version Error Contract
+
+## Purpose
+
+Requires version() to raise OciError (not RuntimeNotAvailableError) on non-zero exit, carrying command/exit_code/stderr.
+
+## Requirements
 
 ### Requirement: version() raises OciError on non-zero exit
 

@@ -28,7 +28,9 @@ def check_cli_result(
             stderr=stderr_str,
         )
     if is_not_found(stderr_str):
-        raise not_found_error(entity)
+        raise not_found_error(
+            entity, command=cmd, exit_code=result.returncode, stderr=stderr_str
+        )
     raise generic_error(
         message=f"Failed to {operation} | {stderr_str}",
         command=cmd,
