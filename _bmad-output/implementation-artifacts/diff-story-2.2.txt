@@ -1,0 +1,1360 @@
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/__init__.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/settings_serializer.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/settings_serializer.py
+new file mode 100644
+index 0000000..50574a8
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/settings_serializer.py
+@@ -0,0 +1,117 @@
++import tomllib
++from dataclasses import fields, is_dataclass
++from enum import Enum
++from pathlib import Path
++from typing import Any, get_args, get_origin, get_type_hints
++
++from wallpaper_effects_generator.domain.models import (
++    AppSettings,
++    BackendSettings,
++    ContainerSettings,
++    ExecutionSettings,
++    OutputSettings,
++    ProcessingSettings,
++    RuntimeSettings,
++)
++
++_SETTINGS_CLS_MAP: dict[str, type[Any]] = {
++    "execution": ExecutionSettings,
++    "output": OutputSettings,
++    "processing": ProcessingSettings,
++    "backend": BackendSettings,
++    "runtime": RuntimeSettings,
++    "container": ContainerSettings,
++}
++
++
++def _has_path_type(ftype: Any) -> bool:
++    origin = get_origin(ftype)
++    if origin is None:
++        return ftype is Path
++    args = get_args(ftype)
++    return any(_has_path_type(a) for a in args)
++
++
++def _dataclass_to_toml(obj: Any, prefix: str = "") -> str:
++    lines: list[str] = []
++    for f in fields(obj):
++        val = getattr(obj, f.name)
++        if val is None:
++            continue
++        key = f.name
++        if is_dataclass(val.__class__):
++            table_name = f"{prefix}{key}" if prefix else key
++            lines.append(f"\n[{table_name}]")
++            lines.append(_dataclass_to_toml(val, prefix="  "))
++        elif isinstance(val, Enum):
++            lines.append(f"{prefix}{key} = \"{val.value}\"")
++        elif isinstance(val, bool):
++            lines.append(f"{prefix}{key} = {str(val).lower()}")
++        elif isinstance(val, int | float):
++            lines.append(f"{prefix}{key} = {val}")
++        else:
++            lines.append(f"{prefix}{key} = \"{val}\"")
++    return "\n".join(lines)
++
++
++def _find_enum_type(ftype: Any) -> type[Enum] | None:
++    origin = get_origin(ftype)
++    if origin is None:
++        if isinstance(ftype, type) and issubclass(ftype, Enum):
++            return ftype
++        return None
++    args = get_args(ftype)
++    for arg in args:
++        result = _find_enum_type(arg)
++        if result is not None:
++            return result
++    return None
++
++
++def _coerce_value(val: Any, ftype: Any) -> Any:
++    if is_dataclass(ftype):
++        return _toml_to_dataclass(val, ftype)
++    enum_cls = _find_enum_type(ftype)
++    if enum_cls is not None:
++        if isinstance(val, str):
++            try:
++                return enum_cls(val)
++            except ValueError:
++                for member in enum_cls:
++                    if str(member.value) == val:
++                        return member
++                try:
++                    return enum_cls(int(val))
++                except (ValueError, TypeError):
++                    return enum_cls(val)
++        return enum_cls(val)
++    if _has_path_type(ftype) and isinstance(val, str):
++        return Path(val)
++    return val
++
++
++def _toml_to_dataclass(data: dict[str, Any], model_cls: type[Any]) -> Any:
++    hints = get_type_hints(model_cls)
++    field_map = {f.name: hints.get(f.name, f.type) for f in fields(model_cls)}
++    kwargs: dict[str, Any] = {}
++    for key, val in data.items():
++        if key in field_map:
++            kwargs[key] = _coerce_value(val, field_map[key])
++    return model_cls(**kwargs)
++
++
++class SettingsSerializer:
++    def serialize(self, settings: AppSettings, path: Path) -> None:
++        content = _dataclass_to_toml(settings)
++        path.write_text(content, encoding="utf-8")
++
++    def deserialize(self, path: Path) -> AppSettings:
++        raw = path.read_bytes()
++        data = tomllib.loads(raw.decode("utf-8"))
++        root: dict[str, Any] = {}
++        for key in ("version",):
++            root[key] = data.get(key, AppSettings().version)
++        for section_key, cls in _SETTINGS_CLS_MAP.items():
++            section_data = data.get(section_key, {})
++            root[section_key] = _toml_to_dataclass(section_data, cls)
++        return AppSettings(**root)
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/effects_serializer.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/effects_serializer.py
+new file mode 100644
+index 0000000..8d52dd1
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/serializer/effects_serializer.py
+@@ -0,0 +1,123 @@
++from __future__ import annotations
++
++from pathlib import Path
++from typing import Any
++
++import yaml
++
++from wallpaper_effects_generator.domain.enums import ItemType
++from wallpaper_effects_generator.domain.models import (
++    ChainStep,
++    CompositeDefinition,
++    EffectDefinition,
++    EffectsCatalog,
++    ParameterDefinition,
++    PresetDefinition,
++)
++
++
++def _catalog_to_dict(catalog: EffectsCatalog) -> dict[str, Any]:
++    return {
++        "effects": [
++            {
++                "name": e.name,
++                "description": e.description,
++                "command": e.command,
++                "item_type": e.item_type.value,
++                "parameters": [
++                    {
++                        "key": p.key,
++                        "description": p.description,
++                        "default": p.default,
++                        "required": p.required,
++                    }
++                    for p in e.parameters
++                ],
++            }
++            for e in catalog.effects
++        ],
++        "composites": [
++            {
++                "name": c.name,
++                "description": c.description,
++                "steps": [
++                    {
++                        "effect_name": s.effect_name,
++                        "parameters": dict(s.parameters),
++                    }
++                    for s in c.steps
++                ],
++            }
++            for c in catalog.composites
++        ],
++        "presets": [
++            {
++                "name": p.name,
++                "description": p.description,
++                "effects": list(p.effects),
++            }
++            for p in catalog.presets
++        ],
++    }
++
++
++def _dict_to_catalog(data: dict[str, Any]) -> EffectsCatalog:
++    effects = tuple(
++        EffectDefinition(
++            name=e["name"],
++            description=e.get("description", ""),
++            command=e["command"],
++            item_type=(
++                ItemType(e["item_type"])
++                if "item_type" in e and e["item_type"] in {"effect", "composite", "preset"}
++                else ItemType.EFFECT
++            ),
++            parameters=tuple(
++                ParameterDefinition(
++                    key=p["key"],
++                    description=p.get("description", ""),
++                    default=p.get("default"),
++                    required=p.get("required", False),
++                )
++                for p in e.get("parameters", [])
++            ),
++        )
++        for e in data.get("effects", [])
++    )
++    composites = tuple(
++        CompositeDefinition(
++            name=c["name"],
++            description=c.get("description", ""),
++            steps=tuple(
++                ChainStep(
++                    effect_name=s["effect_name"],
++                    parameters=dict(s.get("parameters", {})),
++                )
++                for s in c.get("steps", [])
++            ),
++        )
++        for c in data.get("composites", [])
++    )
++    presets = tuple(
++        PresetDefinition(
++            name=p["name"],
++            description=p.get("description", ""),
++            effects=tuple(p.get("effects", [])),
++        )
++        for p in data.get("presets", [])
++    )
++    return EffectsCatalog(effects=effects, composites=composites, presets=presets)
++
++
++class EffectsSerializer:
++    def serialize(self, catalog: EffectsCatalog, path: Path) -> None:
++        data = _catalog_to_dict(catalog)
++        with path.open("w", encoding="utf-8") as f:
++            yaml.dump(data, f, default_flow_style=False, sort_keys=False)
++
++    def deserialize(self, path: Path) -> EffectsCatalog:
++        with path.open("r", encoding="utf-8") as f:
++            data = yaml.safe_load(f)
++        if data is None:
++            return EffectsCatalog()
++        return _dict_to_catalog(data)
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/container_processor.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/container_processor.py
+new file mode 100644
+index 0000000..9c5dabd
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/container_processor.py
+@@ -0,0 +1,324 @@
++from __future__ import annotations
++
++import shlex
++import shutil
++import tempfile
++from pathlib import Path
++from typing import Any
++
++from wallpaper_effects_generator.adapters.serializer.effects_serializer import (
++    EffectsSerializer,
++)
++from wallpaper_effects_generator.adapters.serializer.settings_serializer import (
++    SettingsSerializer,
++)
++from wallpaper_effects_generator.domain.enums import ItemType
++from wallpaper_effects_generator.domain.exceptions import (
++    CompositeNotFoundError,
++    EffectNotFoundError,
++    PresetNotFoundError,
++)
++from wallpaper_effects_generator.domain.models import (
++    AppSettings,
++    ContainerSettings,
++    EffectsCatalog,
++    ProcessingRequest,
++    ProcessingResult,
++)
++from wallpaper_effects_generator.domain.services import (
++    CommandSubstitutionService,
++    OutputPathService,
++    ParameterResolutionService,
++)
++from wallpaper_effects_generator.ports.command_runner import CommandRunnerPort
++from wallpaper_effects_generator.ports.processor import EffectProcessorPort
++
++
++class ContainerProcessor(EffectProcessorPort):
++    def __init__(
++        self,
++        command_runner: CommandRunnerPort,
++        catalog: EffectsCatalog,
++        output_dir: Path,
++        container_settings: ContainerSettings | None = None,
++        settings: AppSettings | None = None,
++        settings_serializer: SettingsSerializer | None = None,
++        effects_serializer: EffectsSerializer | None = None,
++        command_substitution: CommandSubstitutionService | None = None,
++        parameter_resolution: ParameterResolutionService | None = None,
++        output_path_service: OutputPathService | None = None,
++    ) -> None:
++        self._runner = command_runner
++        self._catalog = catalog
++        self._output_dir = output_dir
++        self._container_settings = container_settings or ContainerSettings()
++        self._settings = settings
++        self._settings_serializer = settings_serializer or SettingsSerializer()
++        self._effects_serializer = effects_serializer or EffectsSerializer()
++        self._subst = command_substitution or CommandSubstitutionService()
++        self._param_resolver = parameter_resolution or ParameterResolutionService()
++        self._output_path_svc = output_path_service or OutputPathService()
++
++    def process_effect(
++        self,
++        name: str,
++        request: ProcessingRequest,
++        params: dict[str, Any] | None = None,
++    ) -> ProcessingResult:
++        effect = self._lookup_effect(name)
++        resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
++        container_req = self._to_container_request(request)
++        rendered = self._subst.substitute(effect.command, resolved_params, container_req)
++        return self._run_in_container(rendered, request, name)
++
++    def process_composite(
++        self,
++        name: str,
++        request: ProcessingRequest,
++        params: dict[str, Any] | None = None,
++    ) -> ProcessingResult:
++        composite = self._lookup_composite(name)
++        current_req = request
++        all_commands: list[str] = []
++        total_duration = 0.0
++        temp_dir = Path(tempfile.mkdtemp(prefix=f"weg-container-{name}-"))
++        try:
++            for i, step in enumerate(composite.steps):
++                effect = self._lookup_effect(step.effect_name)
++                merged_params = {**step.parameters, **(params or {})}
++                resolved_params = self._param_resolver.resolve_all(
++                    effect.parameters, merged_params
++                )
++                if i < len(composite.steps) - 1:
++                    step_output = temp_dir / f"step_{i}_{Path(current_req.input_path).name}"
++                    step_req = ProcessingRequest(
++                        input_path=current_req.input_path,
++                        output_path=step_output,
++                        params=current_req.params,
++                    )
++                else:
++                    step_req = ProcessingRequest(
++                        input_path=current_req.input_path,
++                        output_path=self._output_path_svc.resolve(
++                            request.input_path, self._output_dir, ItemType.COMPOSITE
++                        ),
++                        params=current_req.params,
++                    )
++                container_req = self._to_container_request(step_req)
++                rendered = self._subst.substitute(
++                    effect.command, resolved_params, container_req
++                )
++                result = self._run_in_container(rendered, step_req, effect.name)
++                all_commands.append(rendered)
++                total_duration += result.duration
++                if not result.success:
++                    return ProcessingResult(
++                        success=False,
++                        command="; ".join(all_commands),
++                        stdout=result.stdout,
++                        stderr=result.stderr,
++                        return_code=result.return_code,
++                        duration=total_duration,
++                        output_path=result.output_path,
++                    )
++                current_req = ProcessingRequest(
++                    input_path=step_req.output_path,
++                    output_path=step_req.output_path,
++                    params=current_req.params,
++                )
++            return ProcessingResult(
++                success=True,
++                command="; ".join(all_commands),
++                stdout="",
++                stderr="",
++                return_code=0,
++                duration=total_duration,
++                output_path=current_req.input_path,
++            )
++        finally:
++            shutil.rmtree(temp_dir, ignore_errors=True)
++
++    def process_preset(
++        self,
++        name: str,
++        request: ProcessingRequest,
++        params: dict[str, Any] | None = None,
++    ) -> ProcessingResult:
++        preset = self._lookup_preset(name)
++        if not preset.effects:
++            return ProcessingResult(
++                success=False,
++                command="",
++                stdout="",
++                stderr="",
++                return_code=-1,
++                duration=0.0,
++            )
++        current_req = request
++        all_commands: list[str] = []
++        total_duration = 0.0
++        temp_dir = Path(tempfile.mkdtemp(prefix=f"weg-container-preset-{name}-"))
++        try:
++            for i, effect_name in enumerate(preset.effects):
++                effect = self._lookup_effect(effect_name)
++                resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
++                is_last = i == len(preset.effects) - 1
++                if is_last:
++                    step_output = self._output_path_svc.resolve(
++                        request.input_path, self._output_dir, ItemType.PRESET
++                    )
++                else:
++                    step_output = temp_dir / f"step_{i}_{Path(current_req.input_path).name}"
++                step_req = ProcessingRequest(
++                    input_path=current_req.input_path,
++                    output_path=step_output,
++                    params=current_req.params,
++                )
++                container_req = self._to_container_request(step_req)
++                rendered = self._subst.substitute(
++                    effect.command, resolved_params, container_req
++                )
++                result = self._run_in_container(rendered, step_req, effect.name)
++                all_commands.append(rendered)
++                total_duration += result.duration
++                if not result.success:
++                    return ProcessingResult(
++                        success=False,
++                        command="; ".join(all_commands),
++                        stdout=result.stdout,
++                        stderr=result.stderr,
++                        return_code=result.return_code,
++                        duration=total_duration,
++                        output_path=result.output_path,
++                    )
++                current_req = ProcessingRequest(
++                    input_path=step_output,
++                    output_path=step_output,
++                    params=current_req.params,
++                )
++            return ProcessingResult(
++                success=True,
++                command="; ".join(all_commands),
++                stdout="",
++                stderr="",
++                return_code=0,
++                duration=total_duration,
++                output_path=current_req.input_path,
++            )
++        finally:
++            shutil.rmtree(temp_dir, ignore_errors=True)
++
++    def process_batch(self, request: Any) -> Any:
++        raise NotImplementedError("Batch processing deferred to Epic 3")
++
++    def _to_container_request(self, request: ProcessingRequest) -> ProcessingRequest:
++        input_name = Path(request.input_path).name
++        output_name = Path(request.output_path).name
++        return ProcessingRequest(
++            input_path=Path(f"/input/{input_name}"),
++            output_path=Path(f"/output/{output_name}"),
++            params=request.params,
++        )
++
++    def _build_container_command(self, rendered_command: str) -> str:
++        image = self._resolve_image()
++        engine = self._container_settings.engine
++        settings_toml, effects_yaml = self._serialize_artifacts()
++        input_parent = self._get_input_parent_dir()
++        try:
++            mounts = [
++                f"{settings_toml}:/weg-config/settings.toml:ro",
++                f"{effects_yaml}:/weg-effects/effects.yaml:ro",
++                f"{input_parent}:/input:ro",
++                f"{self._output_dir.resolve()}:/output:rw",
++            ]
++            mount_args = " ".join(f"-v {m}" for m in mounts)
++            return (
++                f"{engine} run --rm {mount_args} "
++                f"--entrypoint /bin/sh {image} -c {shlex.quote(rendered_command)}"
++            )
++        finally:
++            self._cleanup_artifacts()
++
++    def _run_in_container(
++        self,
++        rendered_command: str,
++        request: ProcessingRequest,
++        effect_name: str,
++    ) -> ProcessingResult:
++        settings_toml: Path | None = None
++        effects_yaml: Path | None = None
++        try:
++            settings_toml, effects_yaml = self._serialize_artifacts()
++            image = self._resolve_image()
++            engine = self._container_settings.engine
++            input_parent = Path(request.input_path).parent if request.input_path else Path()
++            if not input_parent.exists():
++                input_parent = request.input_path.parent
++            input_parent = input_parent.resolve()
++            mounts = [
++                f"{settings_toml}:/weg-config/settings.toml:ro",
++                f"{effects_yaml}:/weg-effects/effects.yaml:ro",
++                f"{input_parent}:/input:ro",
++                f"{self._output_dir.resolve()}:/output:rw",
++            ]
++            mount_args = " ".join(f"-v {m}" for m in mounts)
++            container_cmd = (
++                f"{engine} run --rm {mount_args} "
++                f"--entrypoint /bin/sh {image} -c {shlex.quote(rendered_command)}"
++            )
++            cmd_result = self._runner.execute(container_cmd)
++            output_path = self._output_path_svc.resolve(
++                request.input_path, self._output_dir, ItemType.EFFECT
++            )
++            return ProcessingResult(
++                success=cmd_result.return_code == 0,
++                command=rendered_command,
++                stdout=cmd_result.stdout,
++                stderr=cmd_result.stderr,
++                return_code=cmd_result.return_code,
++                duration=cmd_result.duration,
++                output_path=output_path,
++            )
++        finally:
++            self._cleanup_artifacts(settings_toml, effects_yaml)
++
++    def _serialize_artifacts(self) -> tuple[Path, Path]:
++        settings_toml = Path(tempfile.mktemp(suffix=".toml"))
++        if self._settings is not None:
++            self._settings_serializer.serialize(self._settings, settings_toml)
++        effects_yaml = Path(tempfile.mktemp(suffix=".yaml"))
++        self._effects_serializer.serialize(self._catalog, effects_yaml)
++        return settings_toml, effects_yaml
++
++    @staticmethod
++    def _cleanup_artifacts(*paths: Path | None) -> None:
++        for p in paths:
++            if p is not None and p.exists():
++                p.unlink(missing_ok=True)
++
++    def _resolve_image(self) -> str:
++        registry = self._container_settings.image_registry
++        tag = self._container_settings.image_tag
++        return f"{registry}/weg:{tag}"
++
++    def _get_input_parent_dir(self) -> Path:
++        return self._output_dir.resolve()
++
++    def _lookup_effect(self, name: str) -> Any:
++        for effect in self._catalog.effects:
++            if effect.name == name:
++                return effect
++        raise EffectNotFoundError(name)
++
++    def _lookup_composite(self, name: str) -> Any:
++        for composite in self._catalog.composites:
++            if composite.name == name:
++                return composite
++        raise CompositeNotFoundError(name)
++
++    def _lookup_preset(self, name: str) -> Any:
++        for preset in self._catalog.presets:
++            if preset.name == name:
++                return preset
++        raise PresetNotFoundError(name)
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py
+new file mode 100644
+index 0000000..920051f
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py
+@@ -0,0 +1,163 @@
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from pathlib import Path
++
++from rich.console import Console
++
++from wallpaper_effects_generator.adapters.assembled_config_resolver import (
++    AssembledConfigResolver,
++)
++from wallpaper_effects_generator.adapters.catalog_cache import CatalogCache
++from wallpaper_effects_generator.adapters.container_processor import (
++    ContainerProcessor,
++)
++from wallpaper_effects_generator.adapters.context_validator import (
++    InputContextValidator,
++)
++from wallpaper_effects_generator.adapters.docker_image_manager import (
++    DockerImageManager,
++)
++from wallpaper_effects_generator.adapters.dry_run_processor import DryRunProcessor
++from wallpaper_effects_generator.adapters.importlib_version_provider import (
++    ImportlibVersionProvider,
++)
++from wallpaper_effects_generator.adapters.local_processor import LocalProcessor
++from wallpaper_effects_generator.adapters.oci_command_runner import OCICommandRunner
++from wallpaper_effects_generator.adapters.output.json_output import JsonOutputAdapter
++from wallpaper_effects_generator.adapters.output.plain_output import PlainOutputAdapter
++from wallpaper_effects_generator.adapters.output.rich_output import RichOutputAdapter
++from wallpaper_effects_generator.adapters.subprocess_runner import (
++    SubprocessCommandRunner,
++)
++from wallpaper_effects_generator.adapters.yaml_effect_loader import YamlEffectLoader
++from wallpaper_effects_generator.domain.enums import OutputFormat, RuntimeMode
++from wallpaper_effects_generator.domain.models import (
++    AppSettings,
++    ContainerSettings,
++    EffectsCatalog,
++)
++from wallpaper_effects_generator.ports.command_runner import CommandRunnerPort
++from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
++from wallpaper_effects_generator.ports.context_validator import (
++    ContextValidatorPort,
++)
++from wallpaper_effects_generator.ports.effect_loader import EffectLoaderPort
++from wallpaper_effects_generator.ports.image_manager import ImageManagerPort
++from wallpaper_effects_generator.ports.output import OutputPort
++from wallpaper_effects_generator.ports.processor import EffectProcessorPort
++from wallpaper_effects_generator.ports.version_provider import VersionProviderPort
++
++
++@dataclass
++class CliDependencies:
++    config_resolver: ConfigResolverPort = field(default_factory=AssembledConfigResolver)
++    effect_loader: EffectLoaderPort = field(default_factory=YamlEffectLoader)
++    catalog_cache: CatalogCache | None = None
++    output_adapter: OutputPort | None = None
++    context_validator: ContextValidatorPort | None = None
++    command_runner: CommandRunnerPort | None = None
++
++    def __post_init__(self) -> None:
++        if self.catalog_cache is None:
++            self.catalog_cache = CatalogCache(self.effect_loader)
++
++
++def create_config_resolver(
++    default_settings_path: Path | None = None,
++) -> ConfigResolverPort:
++    return AssembledConfigResolver(default_settings_path=default_settings_path)
++
++
++def create_effect_loader(
++    default_effects_path: Path | None = None,
++) -> EffectLoaderPort:
++    return YamlEffectLoader(default_effects_path=default_effects_path)
++
++
++def create_command_runner(
++    settings: AppSettings,
++) -> CommandRunnerPort:
++    if settings.runtime.mode == RuntimeMode.CONTAINER:
++        return create_oci_command_runner(settings)
++    return SubprocessCommandRunner(binary=settings.backend.binary)
++
++
++def create_oci_command_runner(settings: AppSettings) -> CommandRunnerPort:
++    return OCICommandRunner(engine=settings.container.engine)
++
++
++def create_image_manager(command_runner: CommandRunnerPort) -> ImageManagerPort:
++    return DockerImageManager(command_runner=command_runner)
++
++
++def create_local_processor(
++    command_runner: CommandRunnerPort,
++    catalog: EffectsCatalog,
++    output_dir: Path,
++) -> EffectProcessorPort:
++    return LocalProcessor(
++        command_runner=command_runner,
++        catalog=catalog,
++        output_dir=output_dir,
++    )
++
++
++def create_dry_run_processor(
++    command_runner: CommandRunnerPort,
++    catalog: EffectsCatalog,
++    output_dir: Path,
++) -> EffectProcessorPort:
++    return DryRunProcessor(
++        command_runner=command_runner,
++        catalog=catalog,
++        output_dir=output_dir,
++    )
++
++
++def create_container_processor(
++    command_runner: CommandRunnerPort,
++    catalog: EffectsCatalog,
++    output_dir: Path,
++    container_settings: ContainerSettings | None = None,
++    settings: AppSettings | None = None,
++    context_validator: ContextValidatorPort | None = None,
++) -> EffectProcessorPort:
++    return ContainerProcessor(
++        command_runner=command_runner,
++        catalog=catalog,
++        output_dir=output_dir,
++        container_settings=container_settings,
++        settings=settings,
++    )
++
++
++def create_output_adapter(
++    output_format: OutputFormat,
++    console: Console | None = None,
++) -> OutputPort:
++    if output_format == OutputFormat.JSON:
++        return JsonOutputAdapter()
++    if output_format == OutputFormat.RICH:
++        return RichOutputAdapter(console=console)
++    if output_format == OutputFormat.PLAIN:
++        return PlainOutputAdapter()
++    raise ValueError(f"Unsupported output format: {output_format}")
++
++
++def create_version_provider() -> VersionProviderPort:
++    return ImportlibVersionProvider()
++
++
++def create_context_validator(
++    command_runner: CommandRunnerPort,
++    image_manager: ImageManagerPort | None = None,
++) -> ContextValidatorPort:
++    return InputContextValidator(
++        command_runner=command_runner,
++        image_manager=image_manager,
++    )
++
++
++def create_catalog_cache(loader: EffectLoaderPort) -> CatalogCache:
++    return CatalogCache(loader=loader)
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/process.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/process.py
+new file mode 100644
+index 0000000..56e2525
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/process.py
+@@ -0,0 +1,201 @@
++from __future__ import annotations
++
++import sys
++from pathlib import Path
++
++import typer
++
++from wallpaper_effects_generator.domain.enums import OutputFormat, RuntimeMode
++from wallpaper_effects_generator.domain.models import (
++    AppSettings,
++    ContainerSettings,
++    EffectsCatalog,
++    ProcessingRequest,
++    RuntimeSettings,
++)
++from wallpaper_effects_generator.factory import (
++    create_command_runner,
++    create_container_processor,
++    create_dry_run_processor,
++    create_local_processor,
++    create_output_adapter,
++)
++from wallpaper_effects_generator.ports.output import OutputPort
++
++process_app = typer.Typer(
++    name="process",
++    help="Apply effects to wallpapers",
++)
++
++
++def _resolve_context(ctx: typer.Context, input_path: Path) -> tuple[AppSettings, EffectsCatalog]:
++    if not input_path.exists():
++        raise typer.BadParameter(f"Input file not found: {input_path}")
++    try:
++        config_resolver = ctx.obj["deps"].config_resolver
++        effect_loader = ctx.obj["deps"].effect_loader
++        settings = config_resolver.resolve(
++            explicit_path=Path(ctx.obj["config"]) if ctx.obj.get("config") else None
++        )
++        runtime_override = ctx.obj.get("runtime")
++        engine_override = ctx.obj.get("container_engine")
++        container = settings.container
++        if engine_override is not None:
++            container = ContainerSettings(
++                engine=engine_override.value,
++                image_tag=container.image_tag,
++                image_registry=container.image_registry,
++            )
++        if runtime_override is not None:
++            settings = AppSettings(
++                version=settings.version,
++                execution=settings.execution,
++                output=settings.output,
++                processing=settings.processing,
++                backend=settings.backend,
++                runtime=RuntimeSettings(mode=runtime_override),
++                container=container,
++            )
++        elif engine_override is not None:
++            settings = AppSettings(
++                version=settings.version,
++                execution=settings.execution,
++                output=settings.output,
++                processing=settings.processing,
++                backend=settings.backend,
++                runtime=settings.runtime,
++                container=container,
++            )
++        catalog = effect_loader.load(
++            path=Path(ctx.obj["effects"]) if ctx.obj.get("effects") else None
++        )
++        return settings, catalog
++    except (OSError, ValueError) as e:
++        raise typer.BadParameter(f"Configuration error: {e}") from e
++
++
++def _resolve_processor(
++    settings: AppSettings,
++    catalog: EffectsCatalog,
++    output_dir: Path,
++    dry_run: bool = False,
++) -> object:
++    runner = create_command_runner(settings)
++    if dry_run:
++        return create_dry_run_processor(
++            command_runner=runner, catalog=catalog, output_dir=output_dir
++        )
++    if settings.runtime.mode == RuntimeMode.CONTAINER:
++        return create_container_processor(
++            command_runner=runner,
++            catalog=catalog,
++            output_dir=output_dir,
++            container_settings=settings.container,
++            settings=settings,
++        )
++    return create_local_processor(
++        command_runner=runner, catalog=catalog, output_dir=output_dir
++    )
++
++
++def _get_output_adapter(ctx: typer.Context) -> OutputPort:
++    output_format = ctx.obj.get("output_format", OutputFormat.JSON)
++    return create_output_adapter(output_format)
++
++
++@process_app.command()
++def effect(
++    ctx: typer.Context,
++    name: str = typer.Argument(..., help="Effect name"),
++    input: Path = typer.Argument(..., help="Input image path"),
++    output: Path | None = typer.Option(
++        None, "-o", "--output", help="Output directory"
++    ),
++    dry_run: bool = typer.Option(False, "--dry-run", help="Preview commands only"),
++    param: list[str] = typer.Option(
++        [], "--param", help="Parameter overrides (key=value)"
++    ),
++    effect_name: str | None = typer.Option(
++        None, "-e", "--effect", help="Effect name (overrides positional)"
++    ),
++) -> None:
++    output_adapter = _get_output_adapter(ctx)
++    name = effect_name or name
++    output_dir = output or Path("/tmp/wallpaper-effects")
++    params: dict[str, str] = {}
++    for p in param:
++        if "=" in p:
++            k, v = p.split("=", 1)
++            params[k] = v
++        else:
++            sys.stderr.write(f"ignoring malformed param '{p}'\n")
++    settings, catalog = _resolve_context(ctx, input)
++    output_path = (output_dir / input.name).resolve()
++    request = ProcessingRequest(
++        input_path=input.resolve(),
++        output_path=output_path,
++        params=params,
++    )
++    processor = _resolve_processor(settings, catalog, output_dir, dry_run)
++    if dry_run:
++        output_adapter.message("Dry run mode")
++    result = processor.process_effect(name, request, params)
++    output_adapter.process_result(result)
++
++
++@process_app.command()
++def composite(
++    ctx: typer.Context,
++    name: str = typer.Argument(..., help="Composite name"),
++    input: Path = typer.Argument(..., help="Input image path"),
++    output: Path | None = typer.Option(
++        None, "-o", "--output", help="Output directory"
++    ),
++    dry_run: bool = typer.Option(False, "--dry-run", help="Preview commands only"),
++    composite_name: str | None = typer.Option(
++        None, "-c", "--composite", help="Composite name (overrides positional)"
++    ),
++) -> None:
++    output_adapter = _get_output_adapter(ctx)
++    name = composite_name or name
++    output_dir = output or Path("/tmp/wallpaper-effects")
++    settings, catalog = _resolve_context(ctx, input)
++    output_path = (output_dir / input.name).resolve()
++    request = ProcessingRequest(
++        input_path=input.resolve(),
++        output_path=output_path,
++    )
++    processor = _resolve_processor(settings, catalog, output_dir, dry_run)
++    if dry_run:
++        output_adapter.message("Dry run mode")
++    result = processor.process_composite(name, request)
++    output_adapter.process_result(result)
++
++
++@process_app.command()
++def preset(
++    ctx: typer.Context,
++    name: str = typer.Argument(..., help="Preset name"),
++    input: Path = typer.Argument(..., help="Input image path"),
++    output: Path | None = typer.Option(
++        None, "-o", "--output", help="Output directory"
++    ),
++    dry_run: bool = typer.Option(False, "--dry-run", help="Preview commands only"),
++    preset_name: str | None = typer.Option(
++        None, "-p", "--preset", help="Preset name (overrides positional)"
++    ),
++) -> None:
++    output_adapter = _get_output_adapter(ctx)
++    name = preset_name or name
++    output_dir = output or Path("/tmp/wallpaper-effects")
++    settings, catalog = _resolve_context(ctx, input)
++    output_path = (output_dir / input.name).resolve()
++    request = ProcessingRequest(
++        input_path=input.resolve(),
++        output_path=output_path,
++    )
++    processor = _resolve_processor(settings, catalog, output_dir, dry_run)
++    if dry_run:
++        output_adapter.message("Dry run mode")
++    result = processor.process_preset(name, request)
++    output_adapter.process_result(result)
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/__init__.py b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/__init__.py b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/test_settings_serializer.py b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/test_settings_serializer.py
+new file mode 100644
+index 0000000..d0b2393
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/test_settings_serializer.py
+@@ -0,0 +1,71 @@
++from __future__ import annotations
++
++from pathlib import Path
++
++import pytest
++
++from wallpaper_effects_generator.adapters.serializer.settings_serializer import (
++    SettingsSerializer,
++)
++from wallpaper_effects_generator.domain.enums import RuntimeMode, Verbosity
++from wallpaper_effects_generator.domain.models import (
++    AppSettings,
++    BackendSettings,
++    ContainerSettings,
++    ExecutionSettings,
++    OutputSettings,
++    RuntimeSettings,
++)
++
++
++class TestSettingsSerializer:
++    def test_round_trip_defaults(self, tmp_path: Path) -> None:
++        original = AppSettings()
++        path = tmp_path / "settings.toml"
++        serializer = SettingsSerializer()
++        serializer.serialize(original, path)
++        restored = serializer.deserialize(path)
++        assert restored.version == original.version
++        assert restored.execution == original.execution
++        assert restored.output == original.output
++        assert restored.backend == original.backend
++        assert restored.runtime == original.runtime
++        assert restored.container == original.container
++
++    def test_round_trip_custom(self, tmp_path: Path) -> None:
++        original = AppSettings(
++            version="1.0.0",
++            execution=ExecutionSettings(parallel=False, strict=True, max_workers=2),
++            output=OutputSettings(verbosity=Verbosity.VERBOSE, directory=Path("/out")),
++            backend=BackendSettings(binary="convert"),
++            runtime=RuntimeSettings(mode=RuntimeMode.CONTAINER),
++            container=ContainerSettings(engine="podman", image_tag="v2", image_registry="docker.io"),
++        )
++        path = tmp_path / "settings.toml"
++        serializer = SettingsSerializer()
++        serializer.serialize(original, path)
++        restored = serializer.deserialize(path)
++        assert restored.version == "1.0.0"
++        assert restored.execution.parallel is False
++        assert restored.execution.strict is True
++        assert restored.execution.max_workers == 2
++        assert restored.output.verbosity == Verbosity.VERBOSE
++        assert restored.backend.binary == "convert"
++        assert restored.runtime.mode == RuntimeMode.CONTAINER
++        assert restored.container.engine == "podman"
++        assert restored.container.image_tag == "v2"
++        assert restored.container.image_registry == "docker.io"
++
++    def test_serialize_creates_file(self, tmp_path: Path) -> None:
++        serializer = SettingsSerializer()
++        path = tmp_path / "out.toml"
++        serializer.serialize(AppSettings(), path)
++        assert path.exists()
++        content = path.read_text()
++        assert "version = \"0.1.0\"" in content
++        assert "[execution]" in content
++
++    def test_deserialize_missing_file(self, tmp_path: Path) -> None:
++        serializer = SettingsSerializer()
++        with pytest.raises(FileNotFoundError):
++            serializer.deserialize(tmp_path / "nonexistent.toml")
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/test_effects_serializer.py b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/test_effects_serializer.py
+new file mode 100644
+index 0000000..a88251c
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/serializer/test_effects_serializer.py
+@@ -0,0 +1,119 @@
++from __future__ import annotations
++
++from pathlib import Path
++
++from wallpaper_effects_generator.adapters.serializer.effects_serializer import (
++    EffectsSerializer,
++)
++from wallpaper_effects_generator.domain.models import (
++    ChainStep,
++    CompositeDefinition,
++    EffectDefinition,
++    EffectsCatalog,
++    ParameterDefinition,
++    PresetDefinition,
++)
++
++
++class TestEffectsSerializer:
++    def test_round_trip_empty(self, tmp_path: Path) -> None:
++        original = EffectsCatalog()
++        path = tmp_path / "effects.yaml"
++        serializer = EffectsSerializer()
++        serializer.serialize(original, path)
++        restored = serializer.deserialize(path)
++        assert len(restored.effects) == 0
++        assert len(restored.composites) == 0
++        assert len(restored.presets) == 0
++
++    def test_round_trip_with_effects(self, tmp_path: Path) -> None:
++        original = EffectsCatalog(
++            effects=(
++                EffectDefinition(
++                    name="blur",
++                    description="Blur effect",
++                    command="magick {{input}} -blur {{radius}} {{output}}",
++                    parameters=(
++                        ParameterDefinition(key="radius", description="Radius", default="0x8"),
++                    ),
++                ),
++            ),
++        )
++        path = tmp_path / "effects.yaml"
++        serializer = EffectsSerializer()
++        serializer.serialize(original, path)
++        restored = serializer.deserialize(path)
++        assert len(restored.effects) == 1
++        assert restored.effects[0].name == "blur"
++        assert restored.effects[0].command == "magick {{input}} -blur {{radius}} {{output}}"
++
++    def test_round_trip_full_catalog(self, tmp_path: Path) -> None:
++        original = EffectsCatalog(
++            effects=(
++                EffectDefinition(
++                    name="blur",
++                    description="Blur effect",
++                    command="magick {{input}} -blur {{radius}} {{output}}",
++                    parameters=(
++                        ParameterDefinition(key="radius", description="Radius", default="0x8"),
++                    ),
++                ),
++                EffectDefinition(
++                    name="resize",
++                    description="Resize effect",
++                    command="magick {{input}} -resize {{size}} {{output}}",
++                    parameters=(
++                        ParameterDefinition(key="size", description="Size", default="50%"),
++                    ),
++                ),
++            ),
++            composites=(
++                CompositeDefinition(
++                    name="blur-resize",
++                    description="Blur then resize",
++                    steps=(
++                        ChainStep(effect_name="blur", parameters={"radius": "0x4"}),
++                        ChainStep(effect_name="resize", parameters={"size": "800"}),
++                    ),
++                ),
++            ),
++            presets=(
++                PresetDefinition(
++                    name="social",
++                    description="Social media preset",
++                    effects=("resize",),
++                ),
++            ),
++        )
++        path = tmp_path / "effects.yaml"
++        serializer = EffectsSerializer()
++        serializer.serialize(original, path)
++        restored = serializer.deserialize(path)
++        assert len(restored.effects) == 2
++        assert len(restored.composites) == 1
++        assert len(restored.presets) == 1
++        assert restored.composites[0].name == "blur-resize"
++        assert len(restored.composites[0].steps) == 2
++        assert restored.presets[0].name == "social"
++        assert restored.presets[0].effects == ("resize",)
++
++    def test_serialize_creates_yaml(self, tmp_path: Path) -> None:
++        catalog = EffectsCatalog(
++            effects=(
++                EffectDefinition(name="test", description="Test", command="echo"),
++            ),
++        )
++        serializer = EffectsSerializer()
++        path = tmp_path / "out.yaml"
++        serializer.serialize(catalog, path)
++        assert path.exists()
++        content = path.read_text()
++        assert "name: test" in content
++
++    def test_deserialize_missing_file(self, tmp_path: Path) -> None:
++        import pytest
++        serializer = EffectsSerializer()
++        path = tmp_path / "nonexistent.yaml"
++        assert not path.exists()
++        with pytest.raises(FileNotFoundError):
++            serializer.deserialize(path)
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_container_processor.py b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_container_processor.py
+new file mode 100644
+index 0000000..558808d
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_container_processor.py
+@@ -0,0 +1,185 @@
++from __future__ import annotations
++
++from pathlib import Path
++from unittest.mock import Mock, patch
++
++import pytest
++
++from wallpaper_effects_generator.adapters.container_processor import (
++    ContainerProcessor,
++)
++from wallpaper_effects_generator.domain.models import (
++    CommandResult,
++    ContainerSettings,
++    EffectsCatalog,
++    ProcessingRequest,
++)
++
++
++@pytest.fixture
++def mock_runner() -> Mock:
++    runner = Mock()
++    runner.execute.return_value = CommandResult(
++        stdout="ok", stderr="", return_code=0, duration=0.1
++    )
++    return runner
++
++
++@pytest.fixture
++def catalog() -> EffectsCatalog:
++    from wallpaper_effects_generator.domain.models import (
++        ChainStep,
++        CompositeDefinition,
++        EffectDefinition,
++        ParameterDefinition,
++        PresetDefinition,
++    )
++
++    return EffectsCatalog(
++        effects=(
++            EffectDefinition(
++                name="blur",
++                description="Blur effect",
++                command="magick {{input}} -blur {{radius}} {{output}}",
++                parameters=(
++                    ParameterDefinition(key="radius", description="Radius", default="0x8"),
++                ),
++            ),
++            EffectDefinition(
++                name="resize",
++                description="Resize effect",
++                command="magick {{input}} -resize {{size}} {{output}}",
++                parameters=(ParameterDefinition(key="size", description="Size", default="50%"),),
++            ),
++        ),
++        composites=(
++            CompositeDefinition(
++                name="blur-resize",
++                description="Blur then resize",
++                steps=(
++                    ChainStep(effect_name="blur", parameters={"radius": "0x4"}),
++                    ChainStep(effect_name="resize", parameters={"size": "800"}),
++                ),
++            ),
++        ),
++        presets=(
++            PresetDefinition(
++                name="social",
++                description="Social media preset",
++                effects=("resize",),
++            ),
++        ),
++    )
++
++
++@pytest.fixture
++def processor(mock_runner: Mock, catalog: EffectsCatalog) -> ContainerProcessor:
++    return ContainerProcessor(
++        command_runner=mock_runner,
++        catalog=catalog,
++        output_dir=Path("/tmp/out"),
++        container_settings=ContainerSettings(engine="docker"),
++    )
++
++
++class TestContainerProcessor:
++    def test_process_effect_success(self, processor: ContainerProcessor, mock_runner: Mock) -> None:
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        result = processor.process_effect("blur", request, {"radius": "0x8"})
++        assert result.success
++        assert "magick" in result.command
++        mock_runner.execute.assert_called_once()
++        cmd = mock_runner.execute.call_args[0][0]
++        assert "docker run" in cmd
++        assert "/input/img.png" in cmd or "img.png" in cmd
++
++    def test_process_effect_not_found(self, processor: ContainerProcessor) -> None:
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        from wallpaper_effects_generator.domain.exceptions import EffectNotFoundError
++        with pytest.raises(EffectNotFoundError):
++            processor.process_effect("nonexistent", request)
++
++    def test_process_composite_success(
++        self, processor: ContainerProcessor, mock_runner: Mock
++    ) -> None:
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        result = processor.process_composite("blur-resize", request)
++        assert result.success
++        assert mock_runner.execute.call_count >= 1
++
++    def test_process_composite_not_found(self, processor: ContainerProcessor) -> None:
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        from wallpaper_effects_generator.domain.exceptions import CompositeNotFoundError
++        with pytest.raises(CompositeNotFoundError):
++            processor.process_composite("nonexistent", request)
++
++    def test_process_preset_success(
++        self, processor: ContainerProcessor, mock_runner: Mock
++    ) -> None:
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        result = processor.process_preset("social", request)
++        assert result.success
++        mock_runner.execute.assert_called_once()
++
++    def test_process_preset_not_found(self, processor: ContainerProcessor) -> None:
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        from wallpaper_effects_generator.domain.exceptions import PresetNotFoundError
++        with pytest.raises(PresetNotFoundError):
++            processor.process_preset("nonexistent", request)
++
++    def test_process_batch_not_implemented(self, processor: ContainerProcessor) -> None:
++        with pytest.raises(NotImplementedError):
++            processor.process_batch(None)
++
++    def test_uses_oci_command_runner(
++        self, catalog: EffectsCatalog
++    ) -> None:
++        mock_runner = Mock()
++        mock_runner.execute.return_value = CommandResult(
++            stdout="ok", stderr="", return_code=0, duration=0.1
++        )
++        processor = ContainerProcessor(
++            command_runner=mock_runner,
++            catalog=catalog,
++            output_dir=Path("/tmp/out"),
++            container_settings=ContainerSettings(engine="podman"),
++        )
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        processor.process_effect("blur", request, {"radius": "0x8"})
++        cmd = mock_runner.execute.call_args[0][0]
++        assert "podman run" in cmd
++
++    def test_temp_cleanup_on_success(
++        self, processor: ContainerProcessor, mock_runner: Mock
++    ) -> None:
++        request = ProcessingRequest(
++            input_path=Path("/in/img.png"),
++            output_path=Path("/out/img.png"),
++        )
++        with patch(
++            "wallpaper_effects_generator.adapters.container_processor.tempfile.mktemp",
++            return_value="/tmp/test_weg.toml",
++        ):
++            result = processor.process_effect("blur", request, {"radius": "0x8"})
++            assert result.success

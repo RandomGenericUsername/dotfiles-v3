@@ -1,0 +1,33 @@
+from wallpaper_effects_generator.domain.exceptions import (
+    BinaryNotFoundError,
+    CatalogError,
+    CommandExecutionError,
+    CompositeNotFoundError,
+    ConfigResolutionError,
+    ContainerImageNotFoundError,
+    ContainerRuntimeUnavailableError,
+    ContainerTimeoutError,
+    EffectNotFoundError,
+    EffectsLoadError,
+    EffectsValidationError,
+    ImagePullAccessError,
+    PresetNotFoundError,
+    WallpaperEffectsError,
+)
+
+__all__ = [
+    "WallpaperEffectsError",
+    "EffectsLoadError",
+    "EffectsValidationError",
+    "CommandExecutionError",
+    "CatalogError",
+    "EffectNotFoundError",
+    "CompositeNotFoundError",
+    "PresetNotFoundError",
+    "BinaryNotFoundError",
+    "ContainerImageNotFoundError",
+    "ContainerRuntimeUnavailableError",
+    "ContainerTimeoutError",
+    "ImagePullAccessError",
+    "ConfigResolutionError",
+]

@@ -1,0 +1,306 @@
+from __future__ import annotations
+
+import shutil
+import tempfile
+from pathlib import Path
+from typing import Any
+
+from wallpaper_effects_generator.adapters.serializer.effects_serializer import (
+    EffectsSerializer,
+)
+from wallpaper_effects_generator.adapters.serializer.settings_serializer import (
+    SettingsSerializer,
+)
+from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.exceptions import (
+    BinaryNotFoundError,
+    CommandExecutionError,
+    CompositeNotFoundError,
+    ContainerTimeoutError,
+    EffectNotFoundError,
+    PresetNotFoundError,
+)
+from wallpaper_effects_generator.domain.models import (
+    AppSettings,
+    CompositeDefinition,
+    ContainerSettings,
+    EffectDefinition,
+    EffectsCatalog,
+    PresetDefinition,
+    ProcessingRequest,
+    ProcessingResult,
+)
+from wallpaper_effects_generator.domain.services import (
+    OutputPathService,
+    ParameterResolutionService,
+)
+from wallpaper_effects_generator.ports.command_runner import CommandRunnerPort
+from wallpaper_effects_generator.ports.context_validator import (
+    ContextValidatorPort,
+)
+from wallpaper_effects_generator.ports.processor import EffectProcessorPort
+
+
+class ContainerProcessor(EffectProcessorPort):
+    def __init__(
+        self,
+        command_runner: CommandRunnerPort,
+        catalog: EffectsCatalog,
+        output_dir: Path,
+        container_settings: ContainerSettings | None = None,
+        settings: AppSettings | None = None,
+        settings_serializer: SettingsSerializer | None = None,
+        effects_serializer: EffectsSerializer | None = None,
+        parameter_resolution: ParameterResolutionService | None = None,
+        output_path_service: OutputPathService | None = None,
+        context_validator: ContextValidatorPort | None = None,
+        timeout: int | None = 3600,
+    ) -> None:
+        self._runner = command_runner
+        self._catalog = catalog
+        self._output_dir = output_dir
+        self._container_settings = container_settings or ContainerSettings()
+        self._settings = settings
+        self._settings_serializer = settings_serializer or SettingsSerializer()
+        self._effects_serializer = effects_serializer or EffectsSerializer()
+        self._param_resolver = parameter_resolution or ParameterResolutionService()
+        self._output_path_svc = output_path_service or OutputPathService()
+        self._context_validator = context_validator
+        self._timeout = timeout
+
+    def _pre_flight(self, request: ProcessingRequest) -> ProcessingResult | None:
+        if self._context_validator is None or self._settings is None:
+            return None
+        result = self._context_validator.validate(
+            input_path=request.input_path,
+            settings=self._settings,
+            catalog=self._catalog,
+            output_dir=self._output_dir,
+        )
+        if not result.valid:
+            return ProcessingResult(
+                success=False,
+                command="",
+                stdout="",
+                stderr="; ".join(result.errors),
+                return_code=-1,
+            )
+        return None
+
+    def process_effect(
+        self,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
+    ) -> ProcessingResult:
+        pre = self._pre_flight(request)
+        if pre is not None:
+            return pre
+        effect = self._lookup_effect(name)
+        self._param_resolver.resolve_all(effect.parameters, params or request.params)
+        container_req = self._to_container_request(request)
+        return self._run_in_container(
+            self._build_weg_command("effect", name, container_req, params or request.params),
+            request,
+            name,
+            ItemType.EFFECT,
+        )
+
+    def process_composite(
+        self,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
+    ) -> ProcessingResult:
+        pre = self._pre_flight(request)
+        if pre is not None:
+            return pre
+        composite = self._lookup_composite(name)
+        if not composite.steps:
+            return ProcessingResult(
+                success=False,
+                command="",
+                stdout="",
+                stderr=f"Composite '{name}' has no steps defined",
+                return_code=-1,
+            )
+        container_req = self._to_container_request(request)
+        return self._run_in_container(
+            self._build_weg_command("composite", name, container_req, params or request.params),
+            request,
+            name,
+            ItemType.COMPOSITE,
+        )
+
+    def process_preset(
+        self,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
+    ) -> ProcessingResult:
+        pre = self._pre_flight(request)
+        if pre is not None:
+            return pre
+        preset = self._lookup_preset(name)
+        if not preset.effects:
+            return ProcessingResult(
+                success=False,
+                command="",
+                stdout="",
+                stderr=f"Preset '{name}' has no effects defined",
+                return_code=-1,
+            )
+        container_req = self._to_container_request(request)
+        return self._run_in_container(
+            self._build_weg_command("preset", name, container_req, params or request.params),
+            request,
+            name,
+            ItemType.PRESET,
+        )
+
+    def process_batch(self, request: Any) -> Any:
+        raise NotImplementedError("Batch processing deferred to Epic 3")
+
+    def _build_weg_command(
+        self,
+        subcommand: str,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
+    ) -> list[str]:
+        cmd = [
+            "weg", "process", subcommand, name,
+            str(request.input_path),
+            "-o", str(request.output_path),
+            "--config", "/weg-config/settings.toml",
+            "--effects", "/weg-effects/effects.yaml",
+        ]
+        if params:
+            for key, value in params.items():
+                cmd.extend(["--param", f"{key}={value}"])
+        return cmd
+
+    def _to_container_request(self, request: ProcessingRequest) -> ProcessingRequest:
+        input_name = Path(request.input_path).name
+        output_name = Path(request.output_path).name
+        return ProcessingRequest(
+            input_path=Path(f"/input/{input_name}"),
+            output_path=Path(f"/output/{output_name}"),
+            params=request.params,
+        )
+
+    def _run_in_container(
+        self,
+        container_args: list[str],
+        request: ProcessingRequest,
+        effect_name: str,
+        item_type: ItemType = ItemType.EFFECT,
+    ) -> ProcessingResult:
+        settings_toml: Path | None = None
+        effects_yaml: Path | None = None
+        settings_toml, effects_yaml = self._serialize_artifacts()
+        try:
+            image = self._resolve_image()
+            engine = self._container_settings.engine
+            input_parent = request.input_path.parent.resolve()
+            self._output_dir.mkdir(parents=True, exist_ok=True)
+            output_dir_resolved = self._output_dir.resolve()
+            docker_cmd: list[str] = [
+                engine, "run", "--rm",
+                "-v", f"{settings_toml}:/weg-config/settings.toml:ro",
+                "-v", f"{effects_yaml}:/weg-effects/effects.yaml:ro",
+                "-v", f"{input_parent}:/input:ro",
+                "-v", f"{output_dir_resolved}:/output:rw",
+                image,
+                *container_args,
+            ]
+            output_path = self._output_path_svc.resolve(
+                request.input_path, self._output_dir, item_type
+            )
+            try:
+                cmd_result = self._runner.execute(docker_cmd, timeout=self._timeout)
+            except BinaryNotFoundError as e:
+                command_str = " ".join(container_args)
+                return ProcessingResult(
+                    success=False,
+                    command=command_str,
+                    stdout="",
+                    stderr=str(e),
+                    return_code=-1,
+                    output_path=output_path,
+                )
+            except CommandExecutionError as e:
+                command_str = " ".join(container_args)
+                if self._timeout is not None:
+                    return ProcessingResult(
+                        success=False,
+                        command=command_str,
+                        stdout="",
+                        stderr=str(ContainerTimeoutError(command=command_str, timeout=self._timeout)),
+                        return_code=e.return_code,
+                        output_path=output_path,
+                    )
+                return ProcessingResult(
+                    success=False,
+                    command=command_str,
+                    stdout="",
+                    stderr=str(e),
+                    return_code=e.return_code,
+                    output_path=output_path,
+                )
+            return ProcessingResult(
+                success=cmd_result.return_code == 0,
+                command=" ".join(container_args),
+                stdout=cmd_result.stdout,
+                stderr=cmd_result.stderr,
+                return_code=cmd_result.return_code,
+                duration=cmd_result.duration,
+                output_path=output_path,
+            )
+        finally:
+            self._cleanup_artifacts(settings_toml, effects_yaml)
+
+    def _serialize_artifacts(self) -> tuple[Path, Path]:
+        settings_toml: Path | None = None
+        effects_yaml: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as f:
+                settings_toml = Path(f.name)
+            if self._settings is not None:
+                self._settings_serializer.serialize(self._settings, settings_toml)
+            with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+                effects_yaml = Path(f.name)
+            self._effects_serializer.serialize(self._catalog, effects_yaml)
+            return settings_toml, effects_yaml
+        except BaseException:
+            self._cleanup_artifacts(settings_toml, effects_yaml)
+            raise
+
+    @staticmethod
+    def _cleanup_artifacts(*paths: Path | None) -> None:
+        for p in paths:
+            if p is not None:
+                p.unlink(missing_ok=True)
+
+    def _resolve_image(self) -> str:
+        registry = self._container_settings.image_registry
+        tag = self._container_settings.image_tag
+        return f"{registry}/weg:{tag}" if registry else f"weg:{tag}"
+
+    def _lookup_effect(self, name: str) -> EffectDefinition:
+        for effect in self._catalog.effects:
+            if effect.name == name:
+                return effect
+        raise EffectNotFoundError(name)
+
+    def _lookup_composite(self, name: str) -> CompositeDefinition:
+        for composite in self._catalog.composites:
+            if composite.name == name:
+                return composite
+        raise CompositeNotFoundError(name)
+
+    def _lookup_preset(self, name: str) -> PresetDefinition:
+        for preset in self._catalog.presets:
+            if preset.name == name:
+                return preset
+        raise PresetNotFoundError(name)

@@ -1,0 +1,447 @@
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py
+new file mode 100644
+index 0000000..df698c5
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py
+@@ -0,0 +1,41 @@
++from enum import Enum
++
++
++class ItemType(Enum):
++    EFFECT = "effect"
++    COMPOSITE = "composite"
++    PRESET = "preset"
++
++    @property
++    def subdir_name(self) -> str:
++        return self.value
++
++
++class CatalogQuery(Enum):
++    EFFECT = "effect"
++    COMPOSITE = "composite"
++    PRESET = "preset"
++    ALL = "all"
++
++
++class Verbosity(Enum):
++    QUIET = 0
++    NORMAL = 1
++    VERBOSE = 2
++    DEBUG = 3
++
++
++class RuntimeMode(Enum):
++    LOCAL = "local"
++    CONTAINER = "container"
++
++
++class ContainerEngine(Enum):
++    DOCKER = "docker"
++    PODMAN = "podman"
++
++
++class OutputFormat(Enum):
++    JSON = "json"
++    RICH = "rich"
++    PLAIN = "plain"
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py
+new file mode 100644
+index 0000000..bb3cc66
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py
+@@ -0,0 +1,102 @@
++from pathlib import Path
++
++
++class WallpaperEffectsError(Exception):
++    pass
++
++
++class EffectsLoadError(WallpaperEffectsError):
++    def __init__(self, file_path: Path, reason: str) -> None:
++        self.file_path = file_path
++        self.reason = reason
++        super().__init__(f"Failed to load effects from {file_path}: {reason}")
++
++
++class EffectsValidationError(WallpaperEffectsError):
++    def __init__(self, message: str) -> None:
++        self.message = message
++        super().__init__(message)
++
++
++class CommandExecutionError(WallpaperEffectsError):
++    def __init__(self, command: str, return_code: int, stderr: str) -> None:
++        self.command = command
++        self.return_code = return_code
++        self.stderr = stderr
++        super().__init__(f"Command '{command}' failed with code {return_code}: {stderr}")
++
++
++class CatalogError(WallpaperEffectsError):
++    pass
++
++
++class EffectNotFoundError(CatalogError):
++    def __init__(self, name: str) -> None:
++        self.name = name
++        super().__init__(f"Effect not found: {name}")
++
++
++class CompositeNotFoundError(CatalogError):
++    def __init__(self, name: str) -> None:
++        self.name = name
++        super().__init__(f"Composite not found: {name}")
++
++
++class PresetNotFoundError(CatalogError):
++    def __init__(self, name: str) -> None:
++        self.name = name
++        super().__init__(f"Preset not found: {name}")
++
++
++class BinaryNotFoundError(WallpaperEffectsError):
++    def __init__(self, binary: str) -> None:
++        self.binary = binary
++        super().__init__(f"Binary not found: {binary}")
++
++
++class ContainerImageNotFoundError(WallpaperEffectsError):
++    def __init__(self, image: str) -> None:
++        self.image = image
++        super().__init__(f"Container image not found: {image}")
++
++
++class ContainerRuntimeUnavailableError(WallpaperEffectsError):
++    def __init__(self, runtime: str) -> None:
++        self.runtime = runtime
++        super().__init__(f"Container runtime unavailable: {runtime}")
++
++
++class ContainerTimeoutError(WallpaperEffectsError):
++    def __init__(self, command: str, timeout: int) -> None:
++        self.command = command
++        self.timeout = timeout
++        super().__init__(f"Container command timed out after {timeout}s: {command}")
++
++
++class ImagePullAccessError(WallpaperEffectsError):
++    def __init__(self, image: str, registry: str) -> None:
++        self.image = image
++        self.registry = registry
++        super().__init__(f"Access denied pulling image {image} from {registry}")
++
++
++class ConfigResolutionError(WallpaperEffectsError):
++    pass
++
++
++__all__ = [
++    "WallpaperEffectsError",
++    "EffectsLoadError",
++    "EffectsValidationError",
++    "CommandExecutionError",
++    "CatalogError",
++    "EffectNotFoundError",
++    "CompositeNotFoundError",
++    "PresetNotFoundError",
++    "BinaryNotFoundError",
++    "ContainerImageNotFoundError",
++    "ContainerRuntimeUnavailableError",
++    "ContainerTimeoutError",
++    "ImagePullAccessError",
++    "ConfigResolutionError",
++]
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py
+new file mode 100644
+index 0000000..232bdfc
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py
+@@ -0,0 +1,33 @@
++from wallpaper_effects_generator.domain.exceptions import (
++    BinaryNotFoundError,
++    CatalogError,
++    CommandExecutionError,
++    CompositeNotFoundError,
++    ConfigResolutionError,
++    ContainerImageNotFoundError,
++    ContainerRuntimeUnavailableError,
++    ContainerTimeoutError,
++    EffectNotFoundError,
++    EffectsLoadError,
++    EffectsValidationError,
++    ImagePullAccessError,
++    PresetNotFoundError,
++    WallpaperEffectsError,
++)
++
++__all__ = [
++    "WallpaperEffectsError",
++    "EffectsLoadError",
++    "EffectsValidationError",
++    "CommandExecutionError",
++    "CatalogError",
++    "EffectNotFoundError",
++    "CompositeNotFoundError",
++    "PresetNotFoundError",
++    "BinaryNotFoundError",
++    "ContainerImageNotFoundError",
++    "ContainerRuntimeUnavailableError",
++    "ContainerTimeoutError",
++    "ImagePullAccessError",
++    "ConfigResolutionError",
++]
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py
+new file mode 100644
+index 0000000..12e19b1
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py
+@@ -0,0 +1,187 @@
++from __future__ import annotations
++
++from pathlib import Path
++
++import typer
++
++from wallpaper_effects_generator.cli.dump_config import dump_config_command
++from wallpaper_effects_generator.cli.dump_effects import dump_effects_command
++from wallpaper_effects_generator.cli.info import info_command
++from wallpaper_effects_generator.cli.install import install_command
++from wallpaper_effects_generator.cli.process import process_app
++from wallpaper_effects_generator.cli.show import show_app
++from wallpaper_effects_generator.cli.uninstall import uninstall_command
++from wallpaper_effects_generator.cli.version_cmd import version_command
++from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, RuntimeMode
++from wallpaper_effects_generator.factory import (
++    CliDependencies,
++    create_output_adapter,
++    create_version_provider,
++)
++from wallpaper_effects_generator.ports.output import OutputPort
++
++app = typer.Typer(
++    name="weg",
++    help="Wallpaper Effects Generator — apply effects to wallpapers",
++)
++
++
++@app.callback()
++def main(
++    ctx: typer.Context,
++    config: Path | None = typer.Option(
++        None,
++        "--config",
++        "-c",
++        help="Path to settings.toml",
++    ),
++    effects: Path | None = typer.Option(
++        None,
++        "--effects",
++        "-e",
++        help="Path to effects.yaml",
++    ),
++    runtime: str | None = typer.Option(
++        None,
++        "--runtime",
++        "-r",
++        help="Runtime mode (local/container)",
++    ),
++    container_engine: str | None = typer.Option(
++        None,
++        "--container-engine",
++        help="Container engine (docker/podman)",
++    ),
++    output_format: str = typer.Option(
++        "json",
++        "--output-format",
++        help="Output format (json/rich/plain)",
++    ),
++    quiet: bool = typer.Option(
++        False,
++        "--quiet",
++        "-q",
++        help="Suppress output",
++    ),
++    verbose: bool = typer.Option(
++        False,
++        "--verbose",
++        "-v",
++        help="Increase verbosity",
++    ),
++) -> None:
++    ctx.ensure_object(dict)
++    ctx.obj["config"] = str(config) if config else None
++    ctx.obj["effects"] = str(effects) if effects else None
++    try:
++        output_fmt = OutputFormat(output_format)
++    except ValueError:
++        valid = ", ".join(f"'{f.value}'" for f in OutputFormat)
++        raise typer.BadParameter(
++            f"Invalid value '{output_format}'. Choose from: {valid}"
++        )
++    ctx.obj["output_format"] = output_fmt
++    if runtime is not None:
++        try:
++            ctx.obj["runtime"] = RuntimeMode(runtime)
++        except ValueError:
++            valid = ", ".join(m.value for m in RuntimeMode)
++            raise typer.BadParameter(
++                f"Invalid --runtime '{runtime}'. Choose from: {valid}"
++            )
++    else:
++        ctx.obj["runtime"] = None
++    if container_engine is not None:
++        try:
++            ctx.obj["container_engine"] = ContainerEngine(container_engine)
++        except ValueError:
++            valid = ", ".join(m.value for m in ContainerEngine)
++            raise typer.BadParameter(
++                f"Invalid --container-engine '{container_engine}'. Choose from: {valid}"
++            )
++    else:
++        ctx.obj["container_engine"] = None
++    ctx.obj["quiet"] = quiet
++    ctx.obj["verbose"] = verbose
++    deps = CliDependencies()
++    deps.output_adapter = create_output_adapter(output_fmt)
++    ctx.obj["deps"] = deps
++
++
++def _get_output_adapter(ctx: typer.Context) -> OutputPort:
++    return ctx.obj["deps"].output_adapter
++
++
++@app.command()
++def info(ctx: typer.Context) -> None:
++    output_adapter = _get_output_adapter(ctx)
++    deps = ctx.obj["deps"]
++    info_command(
++        config_path=ctx.obj["config"],
++        effects_path=ctx.obj["effects"],
++        output_adapter=output_adapter,
++        config_resolver=deps.config_resolver,
++        effect_loader=deps.effect_loader,
++        catalog_cache=deps.catalog_cache,
++    )
++
++
++@app.command(name="dump-config")
++def dump_config(ctx: typer.Context) -> None:
++    output_adapter = _get_output_adapter(ctx)
++    deps = ctx.obj["deps"]
++    dump_config_command(
++        config_path=ctx.obj["config"],
++        output_adapter=output_adapter,
++        config_resolver=deps.config_resolver,
++    )
++
++
++@app.command(name="dump-effects")
++def dump_effects(ctx: typer.Context) -> None:
++    output_adapter = _get_output_adapter(ctx)
++    deps = ctx.obj["deps"]
++    dump_effects_command(
++        effects_path=ctx.obj["effects"],
++        output_adapter=output_adapter,
++        effect_loader=deps.effect_loader,
++    )
++
++
++@app.command()
++def version(ctx: typer.Context) -> None:
++    version_command(ctx, create_version_provider())
++
++
++@app.command()
++def install(
++    ctx: typer.Context,
++    dump_config: bool = typer.Option(False, "--dump-config", help="Write default settings.toml"),
++    dump_effects: bool = typer.Option(False, "--dump-effects", help="Write default effects.yaml"),
++) -> None:
++    deps = ctx.obj["deps"]
++    install_command(
++        config_resolver=deps.config_resolver,
++        output_adapter=deps.output_adapter,
++        config_path=ctx.obj.get("config"),
++        dump_config=dump_config,
++        dump_effects=dump_effects,
++    )
++
++
++@app.command()
++def uninstall(ctx: typer.Context) -> None:
++    deps = ctx.obj["deps"]
++    uninstall_command(
++        config_resolver=deps.config_resolver,
++        output_adapter=deps.output_adapter,
++        config_path=ctx.obj.get("config"),
++    )
++
++
++app.add_typer(process_app)
++app.add_typer(show_app)
++
++
++if __name__ == "__main__":
++    app()
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/context_validator.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/context_validator.py
+new file mode 100644
+index 0000000..80ccc92
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/context_validator.py
+@@ -0,0 +1,54 @@
++from __future__ import annotations
++
++import shutil
++from pathlib import Path
++
++from wallpaper_effects_generator.domain.enums import RuntimeMode
++from wallpaper_effects_generator.domain.models import AppSettings, EffectsCatalog
++from wallpaper_effects_generator.ports.command_runner import CommandRunnerPort
++from wallpaper_effects_generator.ports.context_validator import (
++    ContextValidationResult,
++    ContextValidatorPort,
++)
++from wallpaper_effects_generator.ports.image_manager import ImageManagerPort
++
++
++class InputContextValidator(ContextValidatorPort):
++    def __init__(
++        self,
++        command_runner: CommandRunnerPort | None = None,
++        image_manager: ImageManagerPort | None = None,
++    ) -> None:
++        self._runner = command_runner
++        self._image_manager = image_manager
++
++    def set_image_manager(self, image_manager: ImageManagerPort) -> None:
++        self._image_manager = image_manager
++
++    def validate(
++        self,
++        input_path: Path | None,
++        settings: AppSettings,
++        catalog: EffectsCatalog,
++        output_dir: Path | None = None,
++    ) -> ContextValidationResult:
++        errors: list[str] = []
++        if input_path is not None and not input_path.exists():
++            errors.append(f"Input not found: {input_path}")
++        if self._runner is not None and not self._runner.is_available():
++            errors.append(f"Binary not available: {self._runner.get_binary()}")
++        if output_dir is not None and not output_dir.exists():
++            errors.append(f"Output dir not found: {output_dir}")
++        if settings.runtime.mode == RuntimeMode.CONTAINER:
++            engine = settings.container.engine
++            if shutil.which(engine) is None:
++                errors.append(
++                    f"Container runtime '{engine}' not found on PATH"
++                )
++            if self._image_manager is not None:
++                image = f"{settings.container.image_registry}/weg:{settings.container.image_tag}"
++                if not self._image_manager.exists(image):
++                    errors.append(f"Container image not found: {image}")
++        if errors:
++            return ContextValidationResult(valid=False, errors=errors)
++        return ContextValidationResult(valid=True)

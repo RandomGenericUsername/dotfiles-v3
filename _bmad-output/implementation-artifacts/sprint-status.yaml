@@ -1,0 +1,49 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+generated: 2026-07-05
+last_updated: 2026-07-08T19:00
+project: dotfiles-repo-v3
+project_key: NOKEY
+tracking_system: file-system
+story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
+
+action_items:
+  epic-1-retro:
+    - "Update spec: `--output` -> `--output-format` across epics.md ACs — DONE"
+    - "Refactoring pass: CommandSanitizer, ContextValidator, CatalogCache, CliDependencies — DONE"
+    - "New review protocol: classify findings as Patch (P) vs Abstraction gap (A) before accepting"
+
+development_status:
+  epic-1: in-progress
+  1-1-domain-models-resolution-contracts: done
+  1-2-config-resolution-cli-wiring: done
+   1-3-local-processing-engine: done
+   1-4-multi-format-output-adapters: done
+    1-5-operational-commands: done
+  epic-1-retrospective: done
+  epic-2: in-progress
+  2-1-oci-runtime-integration-image-management: done
+  2-2-container-processing-via-pre-resolved-host-config: done
+  2-3-runtime-mode-selection-error-mapping: done
+  epic-2-retrospective: optional
+  epic-3: in-progress
+  3-1-batch-scope-result-contract: ready-for-dev
+  3-2-deterministic-output-path-semantics: backlog
+  3-3-strict-parallel-execution-controls: backlog
+  epic-3-retrospective: optional

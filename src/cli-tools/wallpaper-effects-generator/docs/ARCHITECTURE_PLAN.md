@@ -11,6 +11,7 @@
 | `ItemType` enum | EFFECT / COMPOSITE / PRESET, with `subdir_name` |
 | `Verbosity` enum | QUIET / NORMAL / VERBOSE / DEBUG |
 | `RuntimeMode` enum | LOCAL / CONTAINER |
+| `OutputFormat` enum | JSON / RICH / PLAIN (default: JSON) |
 | `ParameterType` | Reusable param type definition (type, pattern, min/max, default) |
 | `ParameterDefinition` | Effect param definition (type ref, cli_flag, default, description) |
 | `EffectDefinition` | Atomic effect: name, description, command template, parameters |
@@ -18,16 +19,19 @@
 | `CompositeDefinition` | Composite: name, description, chain |
 | `PresetDefinition` | Preset: name, description, XOR composite/effect, params |
 | `EffectsCatalog` | Root aggregate: version, parameter_types, effects, composites, presets |
-| `ProcessingRequest` | input_path, output_path, runtime_mode |
+| `ProcessingRequest` | input_path, output_path, params (CLI --param overrides) |
 | `ProcessingResult` | success, command, stdout, stderr, return_code, duration |
-| `BatchRequest` | input_path, output_dir, item_types, flat, parallel, strict, max_workers, runtime_mode |
+| `BatchRequest` | input_path, output_dir, item_types, flat, explicit_output, parallel, strict, max_workers |
 | `BatchResult` | total, succeeded, failed, results map, output_dir |
-| `AppSettings` | version, execution, output, processing, backend, container |
+| `AppSettings` | version, execution, output, processing, backend, runtime, container |
 | `ExecutionSettings` | parallel, strict, max_workers |
 | `OutputSettings` | verbosity, directory |
 | `ProcessingSettings` | temp_dir |
 | `BackendSettings` | binary |
-| `ContainerSettings` | engine, image_tag, image_registry |
+| `RuntimeSettings` | mode (local/container) -- WHERE to process |
+| `ContainerSettings` | engine (docker/podman), image_tag, image_registry -- WHICH runtime |
+
+> **NOTE**: `RuntimeSettings.mode` and `ContainerSettings.engine` are orthogonal. `mode` decides WHERE to process (local or container). `engine` decides WHICH OCI runtime (docker or podman). See ADR-006.
 
 ---
 
@@ -36,8 +40,8 @@
 | Service | Responsibility |
 |---------|----------------|
 | `CommandSubstitutionService` | Substitute `$INPUT`, `$OUTPUT`, `$PARAM` in command templates |
-| `ParameterResolutionService` | Resolve param values: explicit overrides -> effect defaults -> parameter_type defaults |
-| `OutputPathService` | Compute output file paths from base_dir, item name, type, flat flag |
+| `ParameterResolutionService` | Resolve param values: explicit CLI --param overrides -> effect defaults -> parameter_type defaults |
+| `OutputPathService` | Compute output file paths from base_dir, item name, type, flat flag, explicit_output flag |
 | `CatalogValidationService` | Validate cross-refs (composites -> effects, presets -> effects/composites) |
 
 ---
@@ -55,21 +59,27 @@ WallpaperEffectsError (base)
 |   +-- PresetNotFoundError (name)
 +-- BinaryNotFoundError (binary)
 +-- ContainerImageNotFoundError (image)
++-- ContainerRuntimeUnavailableError (runtime)
++-- ImagePullAccessError (image, registry)
 +-- ConfigResolutionError
 ```
 
 ---
 
-## 4. Ports (Protocol classes)
+## 4. Ports (Protocol/ABC interfaces)
 
 | Port | Methods | Direction |
 |------|---------|-----------|
-| `EffectLoaderPort` | `load(path=None) -> EffectsCatalog`, `get_default_path() -> Path` | Inbound |
-| `ConfigResolverPort` | `resolve(explicit_path=None) -> AppSettings` | Inbound |
+| `EffectLoaderPort` | `load(path=None) -> EffectsCatalog`, `get_default_path() -> Path`, `get_resolved_path() -> Path \| None` | Inbound |
+| `ConfigResolverPort` | `resolve(explicit_path=None) -> AppSettings`, `get_resolved_path() -> Path \| None` | Inbound |
 | `CommandRunnerPort` | `is_available(binary=None) -> bool`, `get_binary() -> str`, `execute(command, timeout=None) -> CommandResult` | Outbound |
-| `EffectProcessorPort` | `process_effect()`, `process_composite()`, `process_preset()`, `process_batch()` | Core |
-| `ImageManagerPort` | `build()`, `remove()`, `exists() -> bool` | Outbound |
-| `OutputPort` | `info()`, `error()`, `debug()`, `command()`, `progress()` | Outbound |
+| `EffectProcessorPort` | `process_effect(name, request) -> ProcessingResult`, `process_composite(name, request) -> ProcessingResult`, `process_preset(name, request) -> ProcessingResult`, `process_batch(request) -> BatchResult` | Core |
+| `ImageManagerPort` | `build(context, image_name) -> str`, `remove(image, force) -> None`, `exists(image) -> bool`, `pull(image) -> str` | Outbound |
+| `OutputPort` | `process_result(result)`, `batch_result(result)`, `catalog_list(catalog, item_type)`, `config_info(settings, catalog, sources)`, `dry_run(...)`, `error(exc)`, `message(msg)`, `progress_start(total, desc)`, `progress_advance(name)`, `progress_done()` | Outbound |
+| `SettingsSerializerPort` | `serialize(settings: AppSettings) -> str` | Outbound |
+| `EffectsSerializerPort` | `serialize(catalog: EffectsCatalog) -> str` | Outbound |
+
+> **NOTE**: `OutputPort` is restructured for structured output. Instead of `info(str)` / `error(str)`, it takes **domain objects** and each adapter renders them differently (JSON / Rich / Plain). See ADR-007.
 
 ---
 
@@ -79,15 +89,17 @@ WallpaperEffectsError (base)
 |---------|------------|-------------|
 | `YamlEffectLoader` | `EffectLoaderPort` | Uses config-assembler-engine with `YamlConfigParser` + strategies to resolve effects.yaml. Parses YAML, validates via `EffectsConfigSchema` (Pydantic), converts to domain `EffectsCatalog`. Returns resolved path. |
 | `AssembledConfigResolver` | `ConfigResolverPort` | Uses config-assembler-engine with `TomlConfigParser` + strategies to resolve settings.toml. Applies OverrideRules for ENV+CLI. Returns domain `AppSettings`. Also returns resolved path (needed for container mount). |
-| `LocalProcessor` | `EffectProcessorPort` | Runs ImageMagick via `CommandRunnerPort`. Single effects, chains via temp files, batch via ThreadPoolExecutor. |
-| `ContainerProcessor` | `EffectProcessorPort` | Serializes resolved `AppSettings` -> temp TOML, resolves effects file path, builds mount plan (input, output, config, effects), constructs container command, runs via `oci-runtime`'s `ContainerEngine.containers.run()`. Cleans up temp files after. |
-| `DryRunProcessor` | `EffectProcessorPort` | Records what would be executed, outputs to `OutputPort` without running anything. |
-| `SubprocessCommandRunner` | `CommandRunnerPort` | `subprocess.run()` with auto-detection of `magick`/`convert`. |
+| `LocalProcessor` | `EffectProcessorPort` | Runs ImageMagick via `CommandRunnerPort`. Single effects, chains via temp files, batch via ThreadPoolExecutor. Accepts CLI param overrides. |
+| `ContainerProcessor` | `EffectProcessorPort` | Serializes resolved `AppSettings` -> temp TOML, resolves effects file path, builds mount plan (input, output, config, effects), constructs RunConfig (tuples, VolumeMountType.BIND), runs via `oci-runtime`'s `ContainerEngine.containers.run()`. Checks image availability first (ImageNotFoundError vs ImagePullAccessDeniedError). Cleans up temp files after. chmod output dir for container user. |
+| `DryRunProcessor` | `EffectProcessorPort` | Records what would be executed, outputs to `OutputPort` without running anything. Validates: input exists, binary found, effect/composite/preset in catalog, output dir writable, container engine available, container image exists. |
+| `SubprocessCommandRunner` | `CommandRunnerPort` | `subprocess.run()` with auto-detection of `magick`/`convert` (ImageMagick v6/v7). |
 | `DryRunCommandRunner` | `CommandRunnerPort` | Records commands without executing. |
-| `OciImageManager` | `ImageManagerPort` | Delegates to `oci-runtime`'s `ContainerEngine.images` (build, remove, exists). |
-| `RichOutput` | `OutputPort` | Rich library for styled console output. |
-| `QuietOutput` | `OutputPort` | Suppresses all non-error output. |
-| `DryRunOutput` | `OutputPort` | Captures output for dry-run display. |
+| `OciImageManager` | `ImageManagerPort` | Delegates to `oci-runtime`'s `ContainerEngine.images` (build, remove, exists, pull). Maps oci-runtime exceptions to wallpaper domain exceptions. |
+| `JsonOutput` | `OutputPort` | **DEFAULT**. All output is structured JSON. Process result -> `{"success": true, "command": "...", "output_path": "..."}`. Batch result -> `{"total": 10, "succeeded": 8, "failed": 2, "results": [...]}`. Errors -> `{"error": {"type": "...", "message": "..."}}`. LLM-friendly. |
+| `RichOutput` | `OutputPort` | Rich library for styled console output. Tables, progress bars, colored text. Human-friendly. |
+| `PlainOutput` | `OutputPort` | Simple text lines. No colors, no tables. Pipe-friendly. |
+| `TomlSettingsSerializer` | `SettingsSerializerPort` | Converts `AppSettings` -> TOML string. Used by dump-config and ContainerProcessor. |
+| `YamlEffectsSerializer` | `EffectsSerializerPort` | Converts `EffectsCatalog` -> YAML string. Used by dump-effects. |
 
 ---
 
@@ -95,15 +107,16 @@ WallpaperEffectsError (base)
 
 | Use Case | Flow |
 |----------|------|
-| `ProcessEffect` | Resolve catalog -> resolve params -> check runtime mode -> delegate to LocalProcessor or ContainerProcessor |
-| `ProcessComposite` | Resolve catalog -> iterate chain -> pipe via temp files -> delegate to processor |
-| `ProcessPreset` | Resolve catalog -> delegate to ProcessEffect or ProcessComposite based on preset type |
-| `ProcessBatch` | Resolve catalog -> enumerate items -> compute output paths -> execute parallel/sequential -> aggregate results |
-| `InstallImage` | Resolve settings -> locate Dockerfile -> build via OciImageManager -> report |
-| `UninstallImage` | Resolve settings -> remove via OciImageManager -> report |
-| `ShowCatalog` | Resolve catalog -> list effects/composites/presets |
-| `DumpConfig` | Resolve settings -> serialize to TOML |
-| `DumpEffects` | Load catalog -> serialize to YAML |
+| `ProcessEffect` | Resolve catalog -> resolve params (CLI --param overrides via ParameterResolutionService) -> select processor by runtime mode -> delegate to LocalProcessor or ContainerProcessor -> return ProcessingResult |
+| `ProcessComposite` | Resolve catalog -> validate chain is non-empty -> select processor -> delegate (processor handles chain internally) -> return ProcessingResult |
+| `ProcessPreset` | Resolve catalog -> determine if preset references effect or composite -> delegate accordingly -> return ProcessingResult |
+| `ProcessBatch` | Resolve catalog -> enumerate items by type -> compute output paths (with explicit_output) -> execute parallel/sequential -> aggregate BatchResult |
+| `InstallImage` | Resolve settings -> locate Dockerfile -> build BuildContext (build_file_path) -> build via OciImageManager -> report. Support --dump-config, --dump-effects post-build. |
+| `UninstallImage` | Resolve settings -> if --yes not provided, prompt for confirmation -> remove via OciImageManager -> report. |
+| `ShowCatalog` | Resolve catalog -> list effects/composites/presets via OutputPort.catalog_list() |
+| `DumpConfig` | Resolve settings -> serialize via SettingsSerializerPort -> output to file or stdout |
+| `DumpEffects` | Load catalog -> serialize via EffectsSerializerPort -> output to file or stdout |
+| `ShowInfo` | Resolve settings + effects -> display via OutputPort.config_info() (resolved paths, applied overrides, runtime mode, container image availability) |
 
 ---
 
@@ -117,7 +130,7 @@ Config-assembler-engine resolves **one** config file through a priority chain an
 
 Once a file is resolved, all ENV and CLI overrides are applied on top via `OverrideRule`s.
 
-The `__` separator is the universal nesting separator in ENV vars. After the prefix `WALLPAPER__` is stripped, any remaining `__` becomes a `.` in the field path:
+The `__` separator is the universal nesting separator in ENV vars. ENV var names are case-sensitive (must be uppercase). After the prefix `WALLPAPER__` is stripped, any remaining `__` becomes a `.` in the field path:
 
 | ENV Var | After strip | After `__` -> `.` | Matches Rule |
 |---------|-------------|---------------------|--------------|
@@ -142,18 +155,20 @@ Parser: TomlConfigParser
 Schema: CoreSettingsSchema (Pydantic)
 
 OverrideRules:
-  - execution.parallel     -> ENV, CLI
-  - execution.strict       -> ENV, CLI
-  - execution.max_workers  -> ENV, CLI
-  - output.verbosity       -> ENV, CLI
-  - output.directory       -> ENV, CLI
-  - backend.binary         -> ENV, CLI
-  - container.engine        -> ENV, CLI
-  - container.image_tag    -> ENV, CLI
-  - container.image_registry -> ENV, CLI
+  - execution.parallel        -> ENV, CLI
+  - execution.strict          -> ENV, CLI
+  - execution.max_workers    -> ENV, CLI
+  - output.verbosity          -> ENV, CLI
+  - output.directory          -> ENV, CLI
+  - backend.binary            -> ENV, CLI
+  - runtime.mode               -> ENV, CLI   (local | container); Pydantic @field_validator enforces these values
+  - container.engine           -> ENV, CLI   (docker | podman); Pydantic @field_validator enforces these values
+  - container.image_tag       -> ENV, CLI
+  - container.image_registry  -> ENV, CLI
 
 ENV vars (examples):
   WALLPAPER__EXECUTION__PARALLEL=false
+  WALLPAPER__RUNTIME__MODE=container
   WALLPAPER__CONTAINER__ENGINE=podman
   WALLPAPER_CONFIG_FILE_PATH=/custom/path.toml
 ```
@@ -185,7 +200,7 @@ Settings and effects each get their own `AssembleConfiguration` instance:
 | File path env var | `WALLPAPER_CONFIG_FILE_PATH` | `WALLPAPER_EFFECTS_CONFIG_FILE_PATH` |
 | XDG subdir | `weg` | `weg` |
 | Default filename | `settings.toml` | `effects.yaml` |
-| Override rules | Scalar settings (parallel, engine, etc.) | None |
+| Override rules | Scalar settings (parallel, runtime mode, engine, etc.) | None |
 | Schema | `CoreSettingsSchema` | `EffectsConfigSchema` |
 
 ---
@@ -209,22 +224,37 @@ HOST:
   1. Resolve settings via AssembledConfigResolver -> AppSettings + resolved settings path
   2. Resolve effects via YamlEffectLoader -> EffectsCatalog + resolved effects path
   3. If RuntimeMode.CONTAINER:
-     a. Serialize AppSettings -> temp TOML file
-     b. Build mount plan:
-        - Input parent dir       -> /input                      (RO)
-        - Output dir             -> /output                     (RW)
-        - Temp settings TOML    -> /weg-config/settings.toml   (RO)
-        - Resolved effects dir  -> /weg-effects                (RO)
-     c. Build RunConfig:
+     a. Check image availability via engine.images.exists(image_name)
+        - If not found: raise ContainerImageNotFoundError (suggest: run install)
+        - Use RuntimeFactory.create(RuntimePreference(kind, binary)) to get engine
+        - Note: `exists()` then `run()` is not atomic. Handle `ImageNotFoundError`
+          from `run()` by pulling and retrying once, or letting it propagate as
+          `ContainerImageNotFoundError`.
+     b. Serialize AppSettings -> temp TOML file
+     c. chmod output dir to 0o777 (for container non-root user)
+      d. Build mount plan:
+         - Input parent dir       -> /input                      (RO, VolumeMountType.BIND)
+           Note: `os.path.realpath()` resolves input path first. If parent dir is `/`,
+           error out — mounting the entire root filesystem is unsafe.
+         - Output dir             -> /output                     (RW, VolumeMountType.BIND)
+           Note: create dir via `Path.mkdir(parents=True, exist_ok=True)` if absent.
+           `os.path.realpath()` resolves before mounting to prevent symlink escapes.
+         - Temp settings TOML    -> /weg-config/settings.toml   (RO, VolumeMountType.BIND)
+         - Resolved effects dir  -> /weg-effects                (RO, VolumeMountType.BIND)
+     e. Build RunConfig:
         - image: wallpaper-effects:latest
-        - command: ["process", "effect", "blur", "/input/photo.jpg",
+        - command: ("process", "effect", "blur", "/input/photo.jpg",
                     "--config", "/weg-config/settings.toml",
                     "--effects", "/weg-effects/effects.yaml",
-                    "-o", "/output"]
-        - mounts: above
-        - remove: True, detach: False
-     d. engine.containers.run(run_config)
-     e. Clean up temp TOML
+                    "-o", "/output")
+        - volumes: tuple of VolumeMount objects (NOT list)
+        - ports: () (no port mappings needed)
+        - remove: True
+        - detach: False
+        - stream_output: False (JSON mode prints final result only; use True only for Rich output)
+        - timeout: 3600 (configurable, default 1h prevents infinite hangs)
+     f. engine.containers.run(run_config)
+     g. Clean up temp TOML (use try/finally or context manager to ensure cleanup on exception)
   4. If RuntimeMode.LOCAL:
      a. Use LocalProcessor with resolved AppSettings and EffectsCatalog
 ```
@@ -236,7 +266,7 @@ No ENV forwarding. No double-resolution divergence. The container receives pre-r
 | Host Resource | Container Path | Mode | When |
 |---------------|---------------|------|------|
 | Input file's parent dir | `/input` | RO | Always |
-| Output directory | `/output` | RW | Always |
+| Output directory | `/output` | RW | Always (chmod 0o777 first) |
 | Pre-resolved settings TOML | `/weg-config/settings.toml` | RO | Always |
 | Resolved effects file | `/weg-effects/effects.yaml` | RO | Always |
 
@@ -254,7 +284,7 @@ No ENV forwarding. No double-resolution divergence. The container receives pre-r
 | `install` | Always local | Runs `docker build` on host |
 | `uninstall` | Always local | Runs `docker rmi` on host |
 
-The runtime mode (`--runtime local|container`) only affects `process` and `batch`. It is resolved via `container.engine` in AppSettings (default: "local").
+The runtime mode (`--runtime local|container`) only affects `process` and `batch`. It is resolved via `runtime.mode` in AppSettings (default: "local").
 
 ---
 
@@ -263,9 +293,9 @@ The runtime mode (`--runtime local|container`) only affects `process` and `batch
 ```
 wallpaper-effects-generator
   process
-    effect <name> <input> [-o output] [--flat] [--dry-run]
-    composite <name> <input> [-o output] [--flat] [--dry-run]
-    preset <name> <input> [-o output] [--flat] [--dry-run]
+    effect <name> <input> [-e effect] [-o output] [--flat] [--dry-run] [--param key=value...]
+    composite <name> <input> [-c composite] [-o output] [--flat] [--dry-run]
+    preset <name> <input> [-p preset] [-o output] [--flat] [--dry-run]
   batch
     effects <input> [-o dir] [--flat] [--parallel|--sequential] [--strict|--no-strict] [--dry-run]
     composites <input> ...
@@ -283,10 +313,17 @@ wallpaper-effects-generator
   info
   version
 
-Global: -q/--quiet, -v/--verbose, --effects PATH, --config PATH, --runtime local|container
+Global: -q/--quiet, -v/--verbose, --output json|rich|plain, --effects PATH, --config PATH, --runtime local|container
 ```
 
-`--runtime` maps to `container.engine` in AppSettings as a CLI override. When `local`, uses `LocalProcessor`. When `container`, uses `ContainerProcessor`.
+- `--output json|rich|plain` (default: `json`) — controls output format. JSON is default for LLM-friendliness.
+- `--runtime local|container` maps to `runtime.mode` in AppSettings via CLI override.
+- `--param key=value` is repeatable and passes effect parameter overrides to ParameterResolutionService.
+  - Duplicate keys: last value wins (no merge).
+  - Value containing `=`: split on first `=` only.
+  - Non-existent parameter: gracefully ignored with a warning (not an error, for forward compat).
+  - Coercion failure (e.g., `--param radius=abc` when `radius` expects `float`): raises `ConfigValidationError` with a clear message.
+- `-q`/`-v` control verbosity, mapped to `output.verbosity` via CLI override or handled in CLI adapter directly.
 
 ---
 
@@ -315,6 +352,7 @@ wallpaper-effects-generator/
       processor.py
       image_manager.py
       output.py
+      serializers.py
     application/
       __init__.py
       use_cases.py
@@ -323,6 +361,7 @@ wallpaper-effects-generator/
       schemas/
         __init__.py
         effects_schema.py
+        settings_schema.py
       yaml_effect_loader.py
       assembled_config_resolver.py
       local_processor.py
@@ -331,12 +370,15 @@ wallpaper-effects-generator/
       subprocess_runner.py
       dry_run_runner.py
       oci_image_manager.py
-      rich_output.py
-      quiet_output.py
+      output/
+        __init__.py
+        json_output.py
+        rich_output.py
+        plain_output.py
       serializers/
         __init__.py
-        settings_serializer.py
-        effects_serializer.py
+        toml_settings_serializer.py
+        yaml_effects_serializer.py
       docker/
         __init__.py
         Dockerfile.imagemagick
@@ -372,15 +414,74 @@ wallpaper-effects-generator/
 | Dependency | Purpose | Source |
 |------------|---------|--------|
 | `config-assembler-engine` | Settings + effects file resolution (single-file + overrides) | workspace |
-| `oci-runtime` | Container image build/run/remove | workspace |
+| `oci-runtime` >= 0.3.0 | Container image build/run/remove | workspace |
 | `pydantic` >= 2.0 | Schema validation for effects.yaml and settings.toml | PyPI |
 | `pyyaml` >= 6.0 | Effects YAML parsing | PyPI |
 | `typer[all]` >= 0.9.0 | CLI framework | PyPI |
-| `rich` >= 13.0 | Terminal output | PyPI |
+| `rich` >= 13.0 | Terminal output (rich output adapter only) | PyPI |
+| `tomli-w` or manual | TOML serialization for dump-config and ContainerProcessor | PyPI |
 
 ---
 
-## 12. Key Architectural Decisions
+## 12. oci-runtime v0.3.0 API Surface (Validated)
+
+### Engine Creation
+
+```python
+from oci_runtime import RuntimeFactory, RuntimePreference, RuntimeKind
+
+factory = RuntimeFactory()
+available = factory.available()  # list[RuntimePreference] (informational only)
+engine = factory.create(RuntimePreference(kind=RuntimeKind.DOCKER, binary="docker"))
+# No fallback. Raises RuntimeNotAvailableError if binary not found.
+# Call engine.is_available() to probe.
+```
+
+### Key Types (all frozen dataclasses)
+
+| Type | Key Fields | Constraints |
+|------|-----------|-------------|
+| `VolumeMount` | source, target, type, read_only | `type` must be `VolumeMountType` enum (BIND/VOLUME/TMPFS). Non-TMPFS requires `source`. |
+| `PortMapping` | container_port, host_ip, host_port, protocol | `host_ip` is **required** (pass None explicitly). `container_port` 1-65535. |
+| `BuildContext` | build_file_path XOR build_file_content, context_path XOR files, build_args, labels, build_contexts, target, no_cache, pull, rm | Mutually exclusive pairs enforced in `__post_init__`. |
+| `RunConfig` | image, command (tuple), volumes (tuple), ports (tuple), environment (dict), network, restart_policy, detach, remove, stream_output, timeout, runtime_flags (tuple), tty, auto_tty, stdin_open, user, working_dir, hostname, labels, log_driver, privileged, read_only, memory_limit, cpu_limit | `detach=True` mutually exclusive with `tty`/`auto_tty`. `timeout` must be positive. All sequences frozen to tuples. |
+
+### Exception Hierarchy
+
+```
+OciError (message, command, exit_code, stderr)
++-- ContainerError
+|   +-- ContainerNotFoundError (container_id)
+|   +-- ContainerRuntimeError
++-- ImageError
+|   +-- ImageNotFoundError (image_name)
+|   +-- ImagePullAccessDeniedError (image_name, registry)
+|   +-- ImageRuntimeError
++-- VolumeError / NetworkError / etc.
++-- RuntimeNotAvailableError (runtime)
++-- OperationTimeoutError (command, timeout)
++-- ProviderNotRegisteredError (kind)
++-- ParsingError (raw)
+```
+
+### ContainerManager.run() Dispatch
+
+| Mode | Flag Combination | Transport | Returns |
+|------|------------------|-----------|---------|
+| TTY | `effective_tty=True` | `PtyTransport.execute_pty()` | `""` (output goes to OutputStream) |
+| Streaming | `stream_output=True`, no TTY | `StreamingTransport.stream()` with callbacks | Stripped stdout |
+| Batched | `stream_output=False`, no TTY, `detach=False` | `StreamingTransport.stream()` no callbacks | Stripped stdout |
+| Detached | `detach=True` | `Transport.execute()` | Container ID |
+
+### H3, Q1, C3: All Resolved
+
+- **H3**: `TestImagePullAuthErrors` in `tests/unit/boundary/test_error_conditions.py` — real `DockerImageParser` + "pull access denied" stderr -> `ImagePullAccessDeniedError`. FIXED.
+- **Q1**: GIL-dependent concurrency tests removed. Replaced with `test_concurrent_factory_create` testing factory thread-safety. `RecordingTransport` documents it's not thread-safe. FIXED.
+- **C3**: `stream_output=True` always takes streaming branch. Internal `_write` closure with None-check. No outer guard. Matches design. FIXED.
+
+---
+
+## 13. Key Architectural Decisions
 
 ### ADR-001: Single-File Config Resolution (No Merging)
 
@@ -402,6 +503,99 @@ Effects files are not overridden via ENV vars, so the resolved effects.yaml on d
 
 Each command the `ContainerProcessor` handles has typed domain inputs/outputs. There is no "run any CLI command in a container" capability. Rationale: explicit is better than implicit. No fragile CLI string interception or Typer/Click internals coupling. New container commands are added deliberately to the adapter.
 
-### ADR-006: Runtime Mode as AppSettings Field
+### ADR-006: Runtime Mode vs Container Engine (Orthogonal Settings)
 
-`--runtime local|container` is not a separate concept. It maps to the `container.engine` setting (values: "local", "container") via an OverrideRule. Rationale: unified configuration pipeline. The runtime mode can be set via settings.toml, ENV var (`WALLPAPER__CONTAINER__ENGINE=container`), or CLI flag, all going through config-assembler-engine.
+`runtime.mode` (local/container) decides WHERE to process. `container.engine` (docker/podman) decides WHICH OCI runtime. These are separate settings in AppSettings, each with their own OverrideRule. The old tool conflated these into a single `container.engine` field. Rationale: a user might want podman as their engine but still process locally, or use docker while processing in a container.
+
+### ADR-007: JSON-First Output (LLM-Friendly Default)
+
+The default output format is **structured JSON**, not Rich human-friendly output. A `--output json|rich|plain` flag selects the format. Rationale: the primary consumer of CLI output in modern workflows includes LLMs and automation tools that need structured data. The `OutputPort` takes domain objects (not strings) and each adapter renders them. This inverts the old tool's design where Rich was the only output mode.
+
+### ADR-008: oci-runtime v0.3.0 as Foundation
+
+The wallpaper tool depends on `oci-runtime` >= 0.3.0 which has resolved all known issues (H3, Q1, C3). The factory pattern, frozen dataclass types, and explicit error hierarchy are fully adopted. No workarounds or custom wiring needed beyond the standard `RuntimeFactory.create()` flow.
+
+---
+
+## 14. Resolved Decisions
+
+All open items have been discussed and decided:
+
+1. **Dry-run**: Full validation + commands. Pre-flight checks (input exists, binary found, effect in catalog, container engine available, container image exists) AND resolved command rendering (ImageMagick commands, chain commands, batch table, container run command with mounts). All via OutputPort.
+
+2. **`--param` coercion**: Reuse `PydanticTypeCoercer` from config-assembler-engine. The CLI adapter passes raw string values; the coercer converts to the target type from `ParameterType` in the effects schema. Consistent with ENV override coercion. No changes to config-assembler-engine needed.
+
+3. **`--show-config` flag**: DROPPED. The `info` command covers config attribution display. No per-command `--show-config` flag. Users who want config details run `info` separately.
+
+4. **Verbosity flags**: Through config-assembler-engine as an `OverrideRule("output.verbosity", {ENV, CLI})`. The CLI flag `-v` (count) maps to `cli_overrides={"output.verbosity": "2"}`, `-q` maps to `"0"`. No changes to config-assembler-engine needed — OverrideRules + CLI overrides + type coercion already exist.
+
+5. **ContainerSettings validation**: Pydantic `@field_validator` on `ContainerSettingsSchema` in `adapters/schemas/settings_schema.py`. Validates `engine` is "docker" or "podman". Strips trailing slashes from `image_registry`. Invalid values fail at config resolution time as `ConfigValidationError`.
+
+6. **`image_registry` default**: `None` (not empty string). `image_registry: str | None = None` in both the Pydantic schema and the domain dataclass. Truthy check `if settings.container.image_registry:` works for both None and "".
+
+7. **TOML serializer**: Use `tomli-w` library. Added as a dependency. Handles nested dicts, arrays, booleans, None values. Used by `dump-config` command and `ContainerProcessor` (temp TOML for pre-resolved config).
+
+8. **Container dry-run**: Show full `docker run` command with volumes and flags AND the inner command. Also render mount mappings as a structured table/list. Most useful for debugging.
+
+9. **Timeout handling**: Batch operations use `RunConfig.timeout` (configurable via settings, default None = no timeout). `OperationTimeoutError` from oci-runtime is caught and rendered via `OutputPort.error()` with command + timeout details.
+
+10. **JSON progress**: Final result only, no streaming. Batch operations print nothing during processing. After completion, a single JSON object with full results is printed. `RunConfig.stream_output=False` in JSON mode. `stream_output=True` only for `--output rich` mode._PROGRESS bars only appear in `--output rich` mode._
+
+11. **Chain execution in ContainerProcessor**: Confirmed — the container handles chains internally via `process composite <name>`. No special temp-file handling from the host. The container's own CLI manages the chain through temp files inside the container filesystem.
+
+12. **`explicit_output` flag**: Keep old behavior. `flat=True + explicit_output=True` -> `output_dir/item_name.ext` (no stem subdir). `flat=True + explicit_output=False` -> `output_dir/input_stem/item_name.ext`. `flat=False` -> `output_dir/input_stem/type_subdir/item_name.ext`. `explicit_output=True` is only valid when `-o` is provided; otherwise, `ProcessingRequest.output_path` is `None` and `explicit_output` is ignored (treated as `False`).
+
+13. **Container Dockerfile**: `python:3.14-alpine` base + ImageMagick via `apk`. Non-root `wallpaper` user (UID 1000). `/input` and `/output` mount points. Install wallpaper-effects-generator via `uv pip install --system`.
+
+14. **install --dump-config / --dump-effects**: Keep both flags. After building the image, optionally write default settings.toml and effects.yaml to the user's XDG config directory (`~/.config/weg/`). Creates the directory via `Path.mkdir(parents=True, exist_ok=True)` if absent. Requires `--overwrite` to replace existing files.
+
+---
+
+## 15. Default Config Files
+
+### settings.toml (package defaults)
+
+```toml
+version = "1.0"
+
+[execution]
+parallel = true
+strict = true
+max_workers
+
+[output]
+verbosity = 1
+directory = "/tmp/wallpaper-effects"
+
+[processing]
+temp_dir = "/tmp/.wallpaper-effects-tmp"
+
+[backend]
+binary = "magick"
+
+[runtime]
+mode = "local"
+
+[container]
+engine = "docker"
+image_tag = "latest"
+image_registry = ""
+```
+
+### effects.yaml (package defaults)
+
+Same effect definitions as old tool (blur, blackwhite, negate, brightness, contrast, saturation, sepia, vignette, color_overlay, composites, presets). See section 1 for the full schema.
+
+---
+
+## 16. Dependency Versions
+
+| Dependency | Version Constraint | Purpose |
+|------------|-------------------|---------|
+| `config-assembler-engine` | workspace (>= 0.1.0) | Config resolution |
+| `oci-runtime` | workspace (>= 0.3.0) | Container management |
+| `pydantic` | >= 2.0 | Schema validation |
+| `pyyaml` | >= 6.0 | YAML parsing |
+| `typer[all]` | >= 0.9.0 | CLI framework |
+| `rich` | >= 13.0 | Rich output adapter |
+| `tomli-w` | >= 1.0 | TOML serialization |
