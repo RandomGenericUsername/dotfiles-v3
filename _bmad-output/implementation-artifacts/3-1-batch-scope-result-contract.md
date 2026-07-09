@@ -46,13 +46,13 @@ Then the output is a valid JSON `BatchResult` with structured per-item details
 ## Tasks / Subtasks
 
 ### Domain Layer
-- [ ] Add `BatchScope` enum to `domain/enums.py` (EFFECTS / COMPOSITES / PRESETS / ALL)
+- [ ] Add `ALL` member to existing `ItemType` enum in `domain/enums.py` (use existing EFFECT/COMPOSITE/PRESET — no new enum needed)
 - [ ] Add `NoInputFilesError`, `BatchProcessingError` to `domain/exceptions.py` if not already present
 
 ### CLI Layer
 - [ ] Create `cli/batch.py` — Typer subcommand group under `process` or top-level `app`
   - [ ] `app.command("batch")` with subcommands: `effects`, `composites`, `presets`, `all`
-  - [ ] Common args: `--input`, `--output`, `--flat`, `--explicit-output`, `--strict`, `--parallel`, `--max-workers`, `--runtime`, `--container-engine`, `--dry-run`
+  - [ ] Common args: `--input`, `--output`, `--flat`, `--explicit-output`, `--strict`, `--parallel`, `--max-workers`, `--runtime`, `--container-engine`
   - [ ] Wire batch command context resolution via `_resolve_context` (reuse from `cli/process.py`)
   - [ ] Wire `_resolve_processor` for single-item delegation within batch loop
 - [ ] Register batch subcommand in `cli/main.py` app
@@ -81,7 +81,7 @@ Then the output is a valid JSON `BatchResult` with structured per-item details
 - [ ] Verify `PlainOutputAdapter.batch_result` renders summary + per-item lines
 
 ### Tests
-- [ ] Unit tests for `BatchScope` enum values
+- [ ] Unit tests for `ItemType.ALL` enum value and expansion logic
 - [ ] Unit tests for `BatchProcessor.process_batch`:
   - [ ] All effects processed when scope=EFFECTS
   - [ ] All composites processed when scope=COMPOSITES
@@ -254,12 +254,12 @@ From `cli/main.py:42-47`:
 - NEW: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/batch_processor.py`
 - NEW: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/batch.py`
 - UPDATE: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py` — register batch subcommand
-- UPDATE: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py` — add `BatchScope` if needed
+- UPDATE: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py` — add `ALL` to `ItemType`
 - UPDATE: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py` — add batch errors if needed
 - UPDATE: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py` — add `create_batch_processor`
 - UPDATE: `src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py` — re-export if needed
-- NEW: `tests/unit/adapters/test_batch_processor.py`
-- UPDATE: `tests/unit/cli/test_process_commands.py` — or new `tests/unit/cli/test_batch_commands.py`
+- NEW: `src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_batch_processor.py`
+- UPDATE: `src/cli-tools/wallpaper-effects-generator/tests/unit/cli/test_process_commands.py` — or new `src/cli-tools/wallpaper-effects-generator/tests/unit/cli/test_batch_commands.py`
 
 ### Reference Source Paths
 
