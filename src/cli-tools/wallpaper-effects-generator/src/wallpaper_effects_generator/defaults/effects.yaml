@@ -1,98 +1,157 @@
-version: "1.0"
+version: '1.0'
 parameter_types:
-  radius:
+  blur_geometry:
     type: string
-    description: "Blur radius (e.g. 0x8)"
-  brightness:
+    description: Blur geometry in format RADIUSxSIGMA (e.g., 0x8)
+    pattern: ^\d+x\d+$
+    default: '0x8'
+  percent:
+    type: integer
+    description: Percentage value (-100 to 100)
+    default: 0
+  color_hex:
     type: string
-    description: "Brightness adjustment (e.g. 10)"
-  contrast:
-    type: string
-    description: "Contrast adjustment (e.g. 10)"
-  saturation:
-    type: string
-    description: "Saturation percentage (e.g. 150)"
+    description: 'Hex color code (e.g., #ff5500)'
+    pattern: ^#[0-9a-fA-F]{6}$
+    default: '#000000'
   opacity:
-    type: string
-    description: "Overlay opacity (e.g. 30)"
-  color:
-    type: string
-    description: "Hex color (e.g. #ff0000)"
+    type: float
+    description: Opacity value (0.0 to 1.0)
+    default: 0.5
 effects:
-  - name: blur
-    description: "Gaussian blur"
-    command: "magick {{input}} -blur {{radius}} {{output}}"
-    parameters:
-      radius: "0x8"
-    item_type: "effect"
-  - name: blackwhite
-    description: "Convert to black and white"
-    command: "magick {{input}} -colorspace Gray {{output}}"
-    parameters: {}
-    item_type: "effect"
-  - name: negate
-    description: "Negate colors"
-    command: "magick {{input}} -negate {{output}}"
-    parameters: {}
-    item_type: "effect"
-  - name: brightness
-    description: "Adjust brightness"
-    command: "magick {{input}} -brightness-contrast {{brightness}},0 {{output}}"
-    parameters:
-      brightness: "10"
-    item_type: "effect"
-  - name: contrast
-    description: "Adjust contrast"
-    command: "magick {{input}} -brightness-contrast 0,{{contrast}} {{output}}"
-    parameters:
-      contrast: "10"
-    item_type: "effect"
-  - name: saturation
-    description: "Adjust color saturation"
-    command: "magick {{input}} -modulate 100,{{saturation}},100 {{output}}"
-    parameters:
-      saturation: "150"
-    item_type: "effect"
-  - name: sepia
-    description: "Sepia tone effect"
-    command: "magick {{input}} -sepia-tone 80% {{output}}"
-    parameters: {}
-    item_type: "effect"
-  - name: vignette
-    description: "Vignette effect"
-    command: "magick {{input}} -vignette 0x3 {{output}}"
-    parameters: {}
-    item_type: "effect"
-  - name: color_overlay
-    description: "Color overlay"
-    command: "magick {{input}} -fill {{color}} -opaque none {{output}}"
-    parameters:
-      color: "#ff0000"
-    item_type: "effect"
+- name: blur
+  description: Apply Gaussian blur
+  command: magick "{{input}}" -blur "{{blur}}" "{{output}}"
+  item_type: effect
+  parameters:
+    blur:
+      type: blur_geometry
+      cli_flag: --blur
+      description: Blur geometry (RADIUSxSIGMA)
+- name: blackwhite
+  description: Convert to grayscale
+  command: magick "{{input}}" -grayscale Average "{{output}}"
+  item_type: effect
+- name: negate
+  description: Invert colors
+  command: magick "{{input}}" -channel RGB -negate +channel "{{output}}"
+  item_type: effect
+- name: brightness
+  description: Adjust brightness/contrast
+  command: magick "{{input}}" -brightness-contrast "{{brightness}}"% "{{output}}"
+  item_type: effect
+  parameters:
+    brightness:
+      type: percent
+      cli_flag: --brightness
+      description: Brightness adjustment percentage
+      default: -20
+- name: contrast
+  description: Adjust contrast
+  command: magick "{{input}}" -brightness-contrast 0x"{{contrast}}"% "{{output}}"
+  item_type: effect
+  parameters:
+    contrast:
+      type: percent
+      cli_flag: --contrast
+      description: Contrast adjustment percentage
+      default: 20
+- name: saturation
+  description: Adjust color saturation
+  command: magick "{{input}}" -modulate 100,"{{saturation}}",100 "{{output}}"
+  item_type: effect
+  parameters:
+    saturation:
+      type: integer
+      cli_flag: --saturation
+      description: Saturation level (100 = normal, 0 = grayscale, 200 = double)
+      default: 100
+- name: sepia
+  description: Apply sepia tone effect
+  command: magick "{{input}}" -sepia-tone 80% "{{output}}"
+  item_type: effect
+- name: vignette
+  description: Apply vignette effect
+  command: magick "{{input}}" -vignette 0x"{{strength}}" "{{output}}"
+  item_type: effect
+  parameters:
+    strength:
+      type: integer
+      cli_flag: --strength
+      description: Vignette strength
+      default: 50
+- name: color_overlay
+  description: Apply color overlay
+  command: magick "{{input}}" -fill "{{color}}" -colorize "{{opacity}}"% "{{output}}"
+  item_type: effect
+  parameters:
+    color:
+      type: color_hex
+      cli_flag: --color
+      description: Overlay color
+      default: '#000000'
+    opacity:
+      type: integer
+      cli_flag: --opacity
+      description: Overlay opacity percentage (0-100)
+      default: 30
 composites:
-  - name: warm-fade
-    description: "Sepia with slight blur for a warm faded look"
-    steps:
-      - effect_name: sepia
-        parameters: {}
-      - effect_name: blur
-        parameters:
-          radius: "0x2"
-  - name: high-contrast-bw
-    description: "Black and white with boosted contrast"
-    steps:
-      - effect_name: blackwhite
-        parameters: {}
-      - effect_name: contrast
-        parameters:
-          contrast: "30"
+- name: blur-brightness80
+  description: Blur then dim to 80% brightness
+  steps:
+  - effect_name: blur
+    parameters:
+      blur: '0x8'
+  - effect_name: brightness
+    parameters:
+      brightness: '-20'
+- name: blackwhite-blur
+  description: Convert to grayscale then blur
+  steps:
+  - effect_name: blackwhite
+  - effect_name: blur
+    parameters:
+      blur: '0x8'
+- name: blackwhite-brightness80
+  description: Convert to grayscale then dim
+  steps:
+  - effect_name: blackwhite
+  - effect_name: brightness
+    parameters:
+      brightness: '-20'
+- name: negate-brightness80
+  description: Invert colors then adjust brightness
+  steps:
+  - effect_name: negate
+  - effect_name: brightness
+    parameters:
+      brightness: '20'
 presets:
-  - name: cinematic
-    description: "Cinematic look — desaturated with vignette"
-    effects:
-      - saturation
-      - vignette
-  - name: vintage-photo
-    description: "Vintage photo look"
-    effects:
-      - warm-fade
+- name: dark_blur
+  description: Dark blurred background for overlays
+  effects:
+  - blur-brightness80
+- name: subtle_blur
+  description: Gentle blur effect
+  effects:
+  - blur
+- name: dim
+  description: Slightly dimmed image
+  effects:
+  - brightness
+- name: high_contrast
+  description: High contrast effect
+  effects:
+  - contrast
+- name: desaturated
+  description: Reduced color saturation
+  effects:
+  - saturation
+- name: warm_overlay
+  description: Warm orange tint
+  effects:
+  - color_overlay
+- name: cool_overlay
+  description: Cool blue tint
+  effects:
+  - color_overlay

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from config_assembler_engine import (
     ResolutionPolicy,
@@ -15,6 +16,8 @@ from config_assembler_engine.adapters.strategies.xdg import XdgStrategy
 
 from wallpaper_effects_generator.adapters.schemas.effects_schema import (
     EffectsConfigSchema,
+    ParameterDefSchema,
+    ParameterTypeSchema,
 )
 from wallpaper_effects_generator.domain.enums import ItemType
 from wallpaper_effects_generator.domain.models import (
@@ -27,7 +30,19 @@ from wallpaper_effects_generator.domain.models import (
 )
 
 
+def _resolve_param_default(
+    pdef: ParameterDefSchema, param_types: dict[str, ParameterTypeSchema]
+) -> Any:
+    if pdef.default is not None:
+        return pdef.default
+    type_def = param_types.get(pdef.type)
+    if type_def is not None:
+        return type_def.default
+    return None
+
+
 def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
+    param_types = schema.parameter_types
     return EffectsCatalog(
         effects=tuple(
             EffectDefinition(
@@ -35,7 +50,11 @@ def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
                 description=e.description,
                 command=e.command,
                 parameters=tuple(
-                    ParameterDefinition(key=k, default=v, description="")
+                    ParameterDefinition(
+                        key=k,
+                        description=v.description,
+                        default=_resolve_param_default(v, param_types),
+                    )
                     for k, v in e.parameters.items()
                 ),
                 item_type=(

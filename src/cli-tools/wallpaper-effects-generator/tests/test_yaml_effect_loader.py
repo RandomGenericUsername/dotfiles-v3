@@ -27,8 +27,12 @@ effects:
     description: "Gaussian blur"
     command: "convert {input} -blur {radius}x{sigma} {output}"
     parameters:
-      radius: "int"
-      sigma: "float"
+      radius:
+        type: int
+        description: "Blur radius"
+      sigma:
+        type: float
+        description: "Blur sigma"
     item_type: "effect"
 composites:
   - name: vintage

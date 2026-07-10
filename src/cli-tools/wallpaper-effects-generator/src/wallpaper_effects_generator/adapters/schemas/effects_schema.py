@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
 class ParameterTypeSchema(BaseModel):
     type: str
+    pattern: str = ""
+    default: Any = None
+    description: str = ""
+
+
+class ParameterDefSchema(BaseModel):
+    type: str = "string"
+    cli_flag: str = ""
+    default: Any = None
     description: str = ""
 
 
@@ -12,7 +23,7 @@ class EffectSchema(BaseModel):
     name: str
     description: str
     command: str
-    parameters: dict[str, str] = {}
+    parameters: dict[str, ParameterDefSchema] = {}
     item_type: str = "effect"
 
 
