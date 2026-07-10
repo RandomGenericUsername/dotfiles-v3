@@ -12,6 +12,7 @@ from wallpaper_effects_generator.domain.exceptions import (
     PresetNotFoundError,
 )
 from wallpaper_effects_generator.domain.models import (
+    CommandResult,
     EffectsCatalog,
     ProcessingRequest,
     ProcessingResult,
@@ -152,22 +153,31 @@ class LocalProcessor(EffectProcessorPort):
         total_duration = 0.0
         try:
             for i, effect_name in enumerate(preset.effects):
-                effect = self._lookup_effect(effect_name)
-                resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
                 is_last = i == len(preset.effects) - 1
-                if is_last:
-                    step_output = request.output_path or self._output_path_svc.resolve(
+                step_output = (
+                    request.output_path or self._output_path_svc.resolve(
                         request.input_path, self._output_dir, ItemType.PRESET
-                    )
-                else:
-                    step_output = temp_dir / f"step_{i}_{Path(current_input).name}"
-                step_request = ProcessingRequest(
-                    input_path=current_input,
-                    output_path=step_output,
-                    params=request.params,
+                    ) if is_last else temp_dir / f"step_{i}_{Path(current_input).name}"
                 )
-                rendered = self._subst.substitute(effect.command, resolved_params, step_request)
-                cmd_result = self._runner.execute(rendered)
+                step_request = ProcessingRequest(
+                    input_path=current_input, output_path=step_output, params=request.params,
+                )
+                try:
+                    composite = self._lookup_composite(effect_name)
+                    result = self.process_composite(
+                        effect_name, step_request, params
+                    )
+                    rendered = result.command
+                    cmd_result = CommandResult(
+                        stdout=result.stdout, stderr=result.stderr,
+                        return_code=0 if result.success else 1,
+                        duration=result.duration,
+                    )
+                except CompositeNotFoundError:
+                    effect = self._lookup_effect(effect_name)
+                    resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
+                    rendered = self._subst.substitute(effect.command, resolved_params, step_request)
+                    cmd_result = self._runner.execute(rendered)
                 all_commands.append(rendered)
                 total_duration += cmd_result.duration
                 if cmd_result.return_code != 0:

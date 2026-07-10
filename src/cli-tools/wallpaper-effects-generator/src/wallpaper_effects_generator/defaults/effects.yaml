@@ -82,7 +82,7 @@ effects:
       default: 50
 - name: color_overlay
   description: Apply color overlay
-  command: magick "{{input}}" -fill "{{color}}" -colorize "{{opacity}}"% "{{output}}"
+  command: magick "{{input}}" -fill {{color}} -colorize {{opacity}}% "{{output}}"
   item_type: effect
   parameters:
     color:
