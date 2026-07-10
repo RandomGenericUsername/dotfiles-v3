@@ -156,11 +156,14 @@ def dump_config(
     ctx: typer.Context,
     output: Path | None = typer.Option(None, "--output", help="Write default config to path"),
 ) -> None:
-    output_adapter = _get_output_adapter(ctx, default=OutputFormat.PLAIN)
     deps = ctx.obj["deps"]
+    content_fmt = ctx.obj.get("output_format", OutputFormat.PLAIN)
+    content_adapter = create_output_adapter(content_fmt)
+    message_adapter = _get_output_adapter(ctx)
     dump_config_command(
         config_path=ctx.obj["config"],
-        output_adapter=output_adapter,
+        output_adapter=content_adapter,
+        message_adapter=message_adapter,
         config_resolver=deps.config_resolver,
         output_path=output,
     )
@@ -171,11 +174,14 @@ def dump_effects(
     ctx: typer.Context,
     output: Path | None = typer.Option(None, "--output", help="Write default effects to path"),
 ) -> None:
-    output_adapter = _get_output_adapter(ctx, default=OutputFormat.PLAIN)
     deps = ctx.obj["deps"]
+    content_fmt = ctx.obj.get("output_format", OutputFormat.PLAIN)
+    content_adapter = create_output_adapter(content_fmt)
+    message_adapter = _get_output_adapter(ctx)
     dump_effects_command(
         effects_path=ctx.obj["effects"],
-        output_adapter=output_adapter,
+        output_adapter=content_adapter,
+        message_adapter=message_adapter,
         effect_loader=deps.effect_loader,
         output_path=output,
     )

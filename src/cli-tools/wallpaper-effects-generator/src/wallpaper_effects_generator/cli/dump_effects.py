@@ -13,6 +13,7 @@ def dump_effects_command(
     output_adapter: OutputPort,
     effect_loader: EffectLoaderPort,
     output_path: Path | None = None,
+    message_adapter: OutputPort | None = None,
 ) -> None:
     if output_path:
         content = (
@@ -24,7 +25,7 @@ def dump_effects_command(
             output_path = output_path / "effects.yaml"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content)
-        output_adapter.message(f"Default effects written to {output_path}")
+        (message_adapter or output_adapter).message(f"Default effects written to {output_path}")
         return
 
     catalog = effect_loader.load(

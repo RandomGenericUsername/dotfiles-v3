@@ -12,6 +12,7 @@ def dump_config_command(
     output_adapter: OutputPort,
     config_resolver: ConfigResolverPort,
     output_path: Path | None = None,
+    message_adapter: OutputPort | None = None,
 ) -> None:
     if output_path:
         content = (
@@ -23,7 +24,7 @@ def dump_config_command(
             output_path = output_path / "settings.toml"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content)
-        output_adapter.message(f"Default config written to {output_path}")
+        (message_adapter or output_adapter).message(f"Default config written to {output_path}")
         return
 
     settings = config_resolver.resolve(
