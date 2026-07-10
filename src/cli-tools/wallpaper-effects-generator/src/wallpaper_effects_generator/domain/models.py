@@ -50,6 +50,7 @@ class PresetDefinition:
     name: str
     description: str
     effects: tuple[str, ...] = ()
+    parameters: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

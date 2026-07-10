@@ -135,23 +135,37 @@ presets:
   description: Gentle blur effect
   effects:
   - blur
+  parameters:
+    blur: '0x4'
 - name: dim
   description: Slightly dimmed image
   effects:
   - brightness
+  parameters:
+    brightness: '-30'
 - name: high_contrast
   description: High contrast effect
   effects:
   - contrast
+  parameters:
+    contrast: '40'
 - name: desaturated
   description: Reduced color saturation
   effects:
   - saturation
+  parameters:
+    saturation: '50'
 - name: warm_overlay
   description: Warm orange tint
   effects:
   - color_overlay
+  parameters:
+    color: '#ff8800'
+    opacity: '20'
 - name: cool_overlay
   description: Cool blue tint
   effects:
   - color_overlay
+  parameters:
+    color: '#0088ff'
+    opacity: '20'

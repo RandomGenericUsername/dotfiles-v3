@@ -81,6 +81,7 @@ def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
                 name=p.name,
                 description=p.description,
                 effects=tuple(p.effects),
+                parameters=dict(p.parameters),
             )
             for p in schema.presets
         ),

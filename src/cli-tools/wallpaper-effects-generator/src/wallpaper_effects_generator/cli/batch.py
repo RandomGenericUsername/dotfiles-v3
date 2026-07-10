@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.enums import ItemType, OutputFormat
 from wallpaper_effects_generator.domain.models import BatchRequest
 from wallpaper_effects_generator.factory import create_batch_processor, create_output_adapter
 from wallpaper_effects_generator.ports.output import OutputPort
@@ -19,8 +19,9 @@ batch_app = typer.Typer(
 )
 
 
-def _get_output_adapter(ctx: typer.Context) -> OutputPort:
-    return create_output_adapter(ctx.obj.get("output_format"))
+def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat.JSON) -> OutputPort:
+    fmt = ctx.obj.get("output_format")
+    return create_output_adapter(fmt if fmt is not None else default)
 
 
 def _run_batch(

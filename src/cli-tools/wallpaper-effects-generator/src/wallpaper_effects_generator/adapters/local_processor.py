@@ -152,6 +152,7 @@ class LocalProcessor(EffectProcessorPort):
         all_commands: list[str] = []
         total_duration = 0.0
         try:
+            merged_preset_params = {**preset.parameters, **(params or {})}
             for i, effect_name in enumerate(preset.effects):
                 is_last = i == len(preset.effects) - 1
                 step_output = (
@@ -165,7 +166,7 @@ class LocalProcessor(EffectProcessorPort):
                 try:
                     composite = self._lookup_composite(effect_name)
                     result = self.process_composite(
-                        effect_name, step_request, params
+                        effect_name, step_request, merged_preset_params
                     )
                     rendered = result.command
                     cmd_result = CommandResult(
@@ -175,7 +176,7 @@ class LocalProcessor(EffectProcessorPort):
                     )
                 except CompositeNotFoundError:
                     effect = self._lookup_effect(effect_name)
-                    resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
+                    resolved_params = self._param_resolver.resolve_all(effect.parameters, merged_preset_params)
                     rendered = self._subst.substitute(effect.command, resolved_params, step_request)
                     cmd_result = self._runner.execute(rendered)
                 all_commands.append(rendered)
