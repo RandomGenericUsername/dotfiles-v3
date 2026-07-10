@@ -145,24 +145,32 @@ def info(ctx: typer.Context) -> None:
 
 
 @app.command(name="dump-config")
-def dump_config(ctx: typer.Context) -> None:
+def dump_config(
+    ctx: typer.Context,
+    output: Path | None = typer.Option(None, "--output", help="Write default config to path"),
+) -> None:
     output_adapter = _get_output_adapter(ctx)
     deps = ctx.obj["deps"]
     dump_config_command(
         config_path=ctx.obj["config"],
         output_adapter=output_adapter,
         config_resolver=deps.config_resolver,
+        output_path=output,
     )
 
 
 @app.command(name="dump-effects")
-def dump_effects(ctx: typer.Context) -> None:
+def dump_effects(
+    ctx: typer.Context,
+    output: Path | None = typer.Option(None, "--output", help="Write default effects to path"),
+) -> None:
     output_adapter = _get_output_adapter(ctx)
     deps = ctx.obj["deps"]
     dump_effects_command(
         effects_path=ctx.obj["effects"],
         output_adapter=output_adapter,
         effect_loader=deps.effect_loader,
+        output_path=output,
     )
 
 
