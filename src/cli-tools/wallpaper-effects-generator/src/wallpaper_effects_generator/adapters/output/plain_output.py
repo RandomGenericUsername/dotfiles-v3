@@ -14,6 +14,16 @@ from wallpaper_effects_generator.domain.models import (
 )
 
 
+def _convert(obj: object) -> object:
+    if isinstance(obj, tuple):
+        return [_convert(i) for i in obj]
+    if isinstance(obj, dict):
+        return {k: _convert(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_convert(i) for i in obj]
+    return obj
+
+
 def _effect_to_dict(e: object) -> dict:
     d = asdict(e)
     d["item_type"] = e.item_type.value if isinstance(e.item_type, ItemType) else e.item_type
@@ -103,9 +113,9 @@ class PlainOutputAdapter:
         if query in (CatalogQuery.EFFECT, CatalogQuery.ALL):
             data["effects"] = [_effect_to_dict(e) for e in catalog.effects]
         if query in (CatalogQuery.COMPOSITE, CatalogQuery.ALL):
-            data["composites"] = [asdict(c) for c in catalog.composites]
+            data["composites"] = _convert([asdict(c) for c in catalog.composites])
         if query in (CatalogQuery.PRESET, CatalogQuery.ALL):
-            data["presets"] = [asdict(p) for p in catalog.presets]
+            data["presets"] = _convert([asdict(p) for p in catalog.presets])
         yaml.dump({"version": "1.0", **data}, sys.stdout, default_flow_style=False, sort_keys=False)
 
     def config_info(
