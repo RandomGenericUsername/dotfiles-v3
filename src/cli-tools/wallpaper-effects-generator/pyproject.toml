@@ -26,8 +26,8 @@ packages = ["src/wallpaper_effects_generator"]
 weg = "wallpaper_effects_generator.cli.main:app"
 
 [tool.uv.sources]
-config-assembler-engine = { path = "../../src/shared/config-assembler-engine", editable = true }
-oci-runtime = { path = "../../src/shared/oci-runtime", editable = true }
+config-assembler-engine = { path = "../../shared/config-assembler-engine", editable = true }
+oci-runtime = { path = "../../shared/oci-runtime", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
