@@ -56,8 +56,8 @@ def main(
         "--container-engine",
         help="Container engine (docker/podman)",
     ),
-    output_format: str = typer.Option(
-        "json",
+    output_format: str | None = typer.Option(
+        None,
         "--output-format",
         help="Output format (json/rich/plain)",
     ),
@@ -78,14 +78,14 @@ def main(
     ctx.ensure_object(dict)
     ctx.obj["config"] = str(config) if config else None
     ctx.obj["effects"] = str(effects) if effects else None
-    try:
-        output_fmt = OutputFormat(output_format)
-    except ValueError:
-        valid = ", ".join(f"'{f.value}'" for f in OutputFormat)
-        raise typer.BadParameter(
-            f"Invalid value '{output_format}'. Choose from: {valid}"
-        )
-    ctx.obj["output_format"] = output_fmt
+    if output_format is not None:
+        try:
+            ctx.obj["output_format"] = OutputFormat(output_format)
+        except ValueError:
+            valid = ", ".join(f"'{f.value}'" for f in OutputFormat)
+            raise typer.BadParameter(
+                f"Invalid value '{output_format}'. Choose from: {valid}"
+            )
     if runtime is not None:
         try:
             ctx.obj["runtime"] = RuntimeMode(runtime)
@@ -122,12 +122,19 @@ def main(
             default_effects_path=defaults_dir / "effects.yaml"
         ),
     )
-    deps.output_adapter = create_output_adapter(output_fmt)
+    fmt = ctx.obj.get("output_format")
+    if fmt is not None:
+        deps.output_adapter = create_output_adapter(fmt)
     ctx.obj["deps"] = deps
 
 
-def _get_output_adapter(ctx: typer.Context) -> OutputPort:
-    return ctx.obj["deps"].output_adapter
+def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat.JSON) -> OutputPort:
+    deps = ctx.obj["deps"]
+    if deps.output_adapter is not None:
+        return deps.output_adapter
+    adapter = create_output_adapter(default)
+    deps.output_adapter = adapter
+    return adapter
 
 
 @app.command()
@@ -149,7 +156,7 @@ def dump_config(
     ctx: typer.Context,
     output: Path | None = typer.Option(None, "--output", help="Write default config to path"),
 ) -> None:
-    output_adapter = _get_output_adapter(ctx)
+    output_adapter = _get_output_adapter(ctx, default=OutputFormat.PLAIN)
     deps = ctx.obj["deps"]
     dump_config_command(
         config_path=ctx.obj["config"],
@@ -164,7 +171,7 @@ def dump_effects(
     ctx: typer.Context,
     output: Path | None = typer.Option(None, "--output", help="Write default effects to path"),
 ) -> None:
-    output_adapter = _get_output_adapter(ctx)
+    output_adapter = _get_output_adapter(ctx, default=OutputFormat.PLAIN)
     deps = ctx.obj["deps"]
     dump_effects_command(
         effects_path=ctx.obj["effects"],
@@ -176,7 +183,8 @@ def dump_effects(
 
 @app.command()
 def version(ctx: typer.Context) -> None:
-    version_command(ctx, create_version_provider())
+    output_adapter = _get_output_adapter(ctx)
+    version_command(ctx, create_version_provider(), output_adapter)
 
 
 @app.command()

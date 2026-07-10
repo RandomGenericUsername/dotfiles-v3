@@ -3,8 +3,6 @@ from __future__ import annotations
 from importlib.resources import files as resource_files
 from pathlib import Path
 
-import typer
-
 from wallpaper_effects_generator.domain.enums import CatalogQuery
 from wallpaper_effects_generator.ports.effect_loader import EffectLoaderPort
 from wallpaper_effects_generator.ports.output import OutputPort
@@ -26,7 +24,7 @@ def dump_effects_command(
             output_path = output_path / "effects.yaml"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content)
-        typer.echo(f"Default effects written to {output_path}")
+        output_adapter.message(f"Default effects written to {output_path}")
         return
 
     catalog = effect_loader.load(

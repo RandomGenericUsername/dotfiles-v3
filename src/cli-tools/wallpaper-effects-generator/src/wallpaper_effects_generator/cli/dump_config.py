@@ -3,8 +3,6 @@ from __future__ import annotations
 from importlib.resources import files as resource_files
 from pathlib import Path
 
-import typer
-
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
 from wallpaper_effects_generator.ports.output import OutputPort
 
@@ -25,7 +23,7 @@ def dump_config_command(
             output_path = output_path / "settings.toml"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content)
-        typer.echo(f"Default config written to {output_path}")
+        output_adapter.message(f"Default config written to {output_path}")
         return
 
     settings = config_resolver.resolve(
