@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.resources import files as package_files
 from pathlib import Path
 
 import typer
@@ -16,6 +17,8 @@ from wallpaper_effects_generator.cli.version_cmd import version_command
 from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, RuntimeMode, Verbosity
 from wallpaper_effects_generator.factory import (
     CliDependencies,
+    create_config_resolver,
+    create_effect_loader,
     create_output_adapter,
     create_version_provider,
 )
@@ -110,7 +113,15 @@ def main(
             case 0: ctx.obj["verbosity"] = Verbosity.NORMAL
             case 1: ctx.obj["verbosity"] = Verbosity.VERBOSE
             case _: ctx.obj["verbosity"] = Verbosity.DEBUG
-    deps = CliDependencies()
+    defaults_dir = package_files("wallpaper_effects_generator") / "defaults"
+    deps = CliDependencies(
+        config_resolver=create_config_resolver(
+            default_settings_path=defaults_dir / "settings.toml"
+        ),
+        effect_loader=create_effect_loader(
+            default_effects_path=defaults_dir / "effects.yaml"
+        ),
+    )
     deps.output_adapter = create_output_adapter(output_fmt)
     ctx.obj["deps"] = deps
 
