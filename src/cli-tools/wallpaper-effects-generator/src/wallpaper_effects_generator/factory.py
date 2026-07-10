@@ -8,6 +8,7 @@ from rich.console import Console
 from wallpaper_effects_generator.adapters.assembled_config_resolver import (
     AssembledConfigResolver,
 )
+from wallpaper_effects_generator.adapters.batch_processor import BatchProcessor
 from wallpaper_effects_generator.adapters.catalog_cache import CatalogCache
 from wallpaper_effects_generator.adapters.container_processor import (
     ContainerProcessor,
@@ -162,3 +163,15 @@ def create_context_validator(
 
 def create_catalog_cache(loader: EffectLoaderPort) -> CatalogCache:
     return CatalogCache(loader=loader)
+
+
+def create_batch_processor(
+    processor: EffectProcessorPort,
+    settings: AppSettings,
+    catalog: EffectsCatalog,
+) -> BatchProcessor:
+    return BatchProcessor(
+        single_processor=processor,
+        settings=settings,
+        catalog=catalog,
+    )

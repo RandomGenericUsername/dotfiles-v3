@@ -141,7 +141,7 @@ class TestOutputPathService:
             flat=False,
             explicit_output=False,
         )
-        assert result == Path("/out/all")
+        assert result == Path("/out/in")
 
     def test_batch_output_dir_flat(self) -> None:
         svc = OutputPathService()
@@ -151,7 +151,75 @@ class TestOutputPathService:
             flat=True,
             explicit_output=False,
         )
+        assert result == Path("/out/in")
+
+    def test_batch_output_dir_explicit(self) -> None:
+        svc = OutputPathService()
+        result = svc.batch_output_dir(
+            input_path=Path("/in"),
+            output_dir=Path("/out"),
+            flat=False,
+            explicit_output=True,
+        )
         assert result == Path("/out")
+
+    def test_resolve_explicit_output(self) -> None:
+        svc = OutputPathService()
+        result = svc.resolve(
+            input_path=Path("img.png"),
+            output_dir=Path("/out"),
+            item_type=ItemType.EFFECT,
+            explicit_output=True,
+            output_name="blur",
+        )
+        assert result == Path("/out/blur.png")
+
+    def test_resolve_flat_no_explicit(self) -> None:
+        svc = OutputPathService()
+        result = svc.resolve(
+            input_path=Path("img.png"),
+            output_dir=Path("/out/input_stem"),
+            item_type=ItemType.EFFECT,
+            flat=True,
+        )
+        assert result == Path("/out/input_stem/img.png")
+
+    def test_resolve_nested_default(self) -> None:
+        svc = OutputPathService()
+        result = svc.resolve(
+            input_path=Path("img.png"),
+            output_dir=Path("/out/input_stem"),
+            item_type=ItemType.EFFECT,
+        )
+        assert result == Path("/out/input_stem/effect/img.png")
+
+    def test_resolve_with_output_name(self) -> None:
+        svc = OutputPathService()
+        result = svc.resolve(
+            input_path=Path("photo.png"),
+            output_dir=Path("/out/input_stem"),
+            item_type=ItemType.COMPOSITE,
+            output_name="my-composite",
+        )
+        assert result == Path("/out/input_stem/composite/my-composite.png")
+
+    def test_resolve_composite_subdir(self) -> None:
+        svc = OutputPathService()
+        result = svc.resolve(
+            input_path=Path("img.png"),
+            output_dir=Path("/out"),
+            item_type=ItemType.COMPOSITE,
+        )
+        assert result == Path("/out/composite/img.png")
+
+    def test_resolve_preset_subdir(self) -> None:
+        svc = OutputPathService()
+        result = svc.resolve(
+            input_path=Path("img.png"),
+            output_dir=Path("/out"),
+            item_type=ItemType.PRESET,
+        )
+        assert result == Path("/out/preset/img.png")
 
 
 class TestCatalogValidationService:

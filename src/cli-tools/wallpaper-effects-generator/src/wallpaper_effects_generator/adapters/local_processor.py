@@ -51,7 +51,7 @@ class LocalProcessor(EffectProcessorPort):
         effect = self._lookup_effect(name)
         resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
         rendered = self._subst.substitute(effect.command, resolved_params, request)
-        output_path = self._output_path_svc.resolve(
+        output_path = request.output_path or self._output_path_svc.resolve(
             request.input_path, self._output_dir, ItemType.EFFECT
         )
         cmd_result = self._runner.execute(rendered)
@@ -86,7 +86,7 @@ class LocalProcessor(EffectProcessorPort):
                 if i < len(composite.steps) - 1:
                     step_output = temp_dir / f"step_{i}_{current_input.name}"
                 else:
-                    step_output = self._output_path_svc.resolve(
+                    step_output = request.output_path or self._output_path_svc.resolve(
                         request.input_path, self._output_dir, ItemType.COMPOSITE
                     )
                 step_request = ProcessingRequest(
@@ -101,7 +101,7 @@ class LocalProcessor(EffectProcessorPort):
                 all_commands.append(rendered)
                 total_duration += cmd_result.duration
                 if cmd_result.return_code != 0:
-                    stable_path = self._output_path_svc.resolve(
+                    stable_path = request.output_path or self._output_path_svc.resolve(
                         request.input_path, self._output_dir, ItemType.COMPOSITE
                     )
                     try:
@@ -156,7 +156,7 @@ class LocalProcessor(EffectProcessorPort):
                 resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
                 is_last = i == len(preset.effects) - 1
                 if is_last:
-                    step_output = self._output_path_svc.resolve(
+                    step_output = request.output_path or self._output_path_svc.resolve(
                         request.input_path, self._output_dir, ItemType.PRESET
                     )
                 else:

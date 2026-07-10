@@ -66,8 +66,14 @@ class OutputPathService:
         item_type: ItemType,
         flat: bool = False,
         explicit_output: bool = False,
+        output_name: str | None = None,
     ) -> Path:
-        filename = input_path.resolve().name
+        input_resolved = input_path.resolve()
+        if output_name is not None:
+            suffix = "".join(input_resolved.suffixes)
+            filename = f"{output_name}{suffix}"
+        else:
+            filename = input_resolved.name
         if explicit_output or flat:
             return output_dir / filename
         return output_dir / item_type.subdir_name / filename
@@ -79,9 +85,12 @@ class OutputPathService:
         flat: bool,
         explicit_output: bool,
     ) -> Path:
-        if explicit_output or flat:
+        if explicit_output:
             return output_dir
-        return output_dir / "all"
+        stem = input_path.resolve().stem
+        if not stem:
+            stem = "batch"
+        return output_dir / stem
 
 
 class CatalogValidationService:

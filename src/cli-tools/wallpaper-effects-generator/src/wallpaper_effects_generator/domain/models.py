@@ -106,6 +106,8 @@ class BatchResult:
     total: int = 0
     succeeded: int = 0
     failed: int = 0
+    attempted: int = 0
+    cancelled: int = 0
     results: tuple[ProcessingResult, ...] = ()
     output_dir: Path | None = None
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from wallpaper_effects_generator.cli.batch import batch_app
 from wallpaper_effects_generator.cli.dump_config import dump_config_command
 from wallpaper_effects_generator.cli.dump_effects import dump_effects_command
 from wallpaper_effects_generator.cli.info import info_command
@@ -187,6 +188,7 @@ def uninstall(ctx: typer.Context) -> None:
 
 app.add_typer(process_app)
 app.add_typer(show_app)
+app.add_typer(batch_app)
 
 
 if __name__ == "__main__":

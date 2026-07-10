@@ -1,4 +1,5 @@
 from wallpaper_effects_generator.domain.exceptions import (
+    BatchProcessingError,
     BinaryNotFoundError,
     CatalogError,
     CommandExecutionError,
@@ -11,6 +12,7 @@ from wallpaper_effects_generator.domain.exceptions import (
     EffectsLoadError,
     EffectsValidationError,
     ImagePullAccessError,
+    NoInputFilesError,
     PresetNotFoundError,
     WallpaperEffectsError,
 )
@@ -30,4 +32,6 @@ __all__ = [
     "ContainerTimeoutError",
     "ImagePullAccessError",
     "ConfigResolutionError",
+    "NoInputFilesError",
+    "BatchProcessingError",
 ]

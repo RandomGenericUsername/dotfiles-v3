@@ -214,7 +214,7 @@ class ContainerProcessor(EffectProcessorPort):
                 image,
                 *container_args,
             ]
-            output_path = self._output_path_svc.resolve(
+            output_path = request.output_path or self._output_path_svc.resolve(
                 request.input_path, self._output_dir, item_type
             )
             try:

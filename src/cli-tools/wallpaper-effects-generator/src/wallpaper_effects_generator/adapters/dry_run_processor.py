@@ -52,7 +52,7 @@ class DryRunProcessor(EffectProcessorPort):
         effect = self._lookup_effect(name)
         resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
         rendered = self._subst.substitute(effect.command, resolved_params, request)
-        output_path = self._output_path_svc.resolve(
+        output_path = request.output_path or self._output_path_svc.resolve(
             request.input_path, self._output_dir, ItemType.EFFECT
         )
         return ProcessingResult(
@@ -85,7 +85,7 @@ class DryRunProcessor(EffectProcessorPort):
             if i < len(composite.steps) - 1:
                 step_output = Path(f"temp_step_{i}")
             else:
-                step_output = self._output_path_svc.resolve(
+                step_output = request.output_path or self._output_path_svc.resolve(
                     request.input_path, self._output_dir, ItemType.COMPOSITE
                 )
             step_request = ProcessingRequest(
@@ -145,7 +145,7 @@ class DryRunProcessor(EffectProcessorPort):
             stdout="",
             stderr="",
             return_code=0,
-            output_path=current_input,
+            output_path=request.output_path or current_input,
         )
 
     def process_batch(self, request: Any) -> Any:

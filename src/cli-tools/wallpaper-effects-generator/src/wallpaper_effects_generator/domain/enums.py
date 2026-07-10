@@ -5,10 +5,11 @@ class ItemType(Enum):
     EFFECT = "effect"
     COMPOSITE = "composite"
     PRESET = "preset"
+    ALL = "all"
 
     @property
     def subdir_name(self) -> str:
-        return self.value
+        return self.value if self != ItemType.ALL else "all"
 
 
 class CatalogQuery(Enum):

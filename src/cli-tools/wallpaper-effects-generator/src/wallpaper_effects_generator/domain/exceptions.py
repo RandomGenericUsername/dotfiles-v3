@@ -84,6 +84,18 @@ class ConfigResolutionError(WallpaperEffectsError):
     pass
 
 
+class NoInputFilesError(WallpaperEffectsError):
+    def __init__(self, input_path: str) -> None:
+        self.input_path = input_path
+        super().__init__(f"No input files found at: {input_path}")
+
+
+class BatchProcessingError(WallpaperEffectsError):
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
+
+
 __all__ = [
     "WallpaperEffectsError",
     "EffectsLoadError",
@@ -99,4 +111,6 @@ __all__ = [
     "ContainerTimeoutError",
     "ImagePullAccessError",
     "ConfigResolutionError",
+    "NoInputFilesError",
+    "BatchProcessingError",
 ]
