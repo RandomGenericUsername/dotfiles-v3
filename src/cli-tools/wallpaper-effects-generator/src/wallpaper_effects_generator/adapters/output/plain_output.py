@@ -1,14 +1,61 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import asdict
 
-from wallpaper_effects_generator.domain.enums import CatalogQuery
+import yaml
+
+from wallpaper_effects_generator.domain.enums import CatalogQuery, ItemType
 from wallpaper_effects_generator.domain.models import (
     AppSettings,
     BatchResult,
     EffectsCatalog,
     ProcessingResult,
 )
+
+
+def _effect_to_dict(e: object) -> dict:
+    d = asdict(e)
+    d["item_type"] = e.item_type.value if isinstance(e.item_type, ItemType) else e.item_type
+    d["parameters"] = {
+        p.key: {
+            "type": str(type(p.default).__name__) if p.default is not None else "string",
+            "default": p.default,
+            "description": p.description,
+        }
+        for p in e.parameters
+    }
+    return d
+
+
+def _format_toml(settings: AppSettings, sources: list[str]) -> str:
+    lines = [f'version = "{settings.version}"', ""]
+    lines.append("[execution]")
+    lines.append(f"parallel = {str(settings.execution.parallel).lower()}")
+    lines.append(f"strict = {str(settings.execution.strict).lower()}")
+    lines.append(f"max_workers = {settings.execution.max_workers}")
+    lines.append("")
+    lines.append("[output]")
+    lines.append(f"verbosity = {settings.output.verbosity.value}")
+    lines.append(f"directory = {str(settings.output.directory)!r}" if settings.output.directory else "# directory = ")
+    lines.append("")
+    lines.append("[processing]")
+    lines.append(f"temp_dir = {str(settings.processing.temp_dir)!r}")
+    lines.append("")
+    lines.append("[backend]")
+    lines.append(f"binary = {settings.backend.binary!r}")
+    lines.append("")
+    lines.append("[runtime]")
+    lines.append(f"mode = {settings.runtime.mode.value!r}")
+    lines.append("")
+    lines.append("[container]")
+    lines.append(f"engine = {settings.container.engine!r}")
+    lines.append(f"image_tag = {settings.container.image_tag!r}")
+    lines.append(f"image_registry = {settings.container.image_registry!r}")
+    if sources:
+        lines.append("")
+        lines.append(f"# Sources: {', '.join(sources)}")
+    return "\n".join(lines) + "\n"
 
 
 class PlainOutputAdapter:
@@ -52,27 +99,14 @@ class PlainOutputAdapter:
         sys.stdout.write("\n".join(lines) + "\n")
 
     def catalog_list(self, catalog: EffectsCatalog, query: CatalogQuery) -> None:
-        lines: list[str] = []
+        data: dict[str, list[dict]] = {}
         if query in (CatalogQuery.EFFECT, CatalogQuery.ALL):
-            for e in catalog.effects:
-                lines.append(f"effect: {e.name}")
-                lines.append(f"  description: {e.description}")
-                lines.append(f"  command: {e.command}")
-                lines.append("  ---")
+            data["effects"] = [_effect_to_dict(e) for e in catalog.effects]
         if query in (CatalogQuery.COMPOSITE, CatalogQuery.ALL):
-            for c in catalog.composites:
-                steps = ", ".join(s.effect_name for s in c.steps)
-                lines.append(f"composite: {c.name}")
-                lines.append(f"  description: {c.description}")
-                lines.append(f"  steps: [{steps}]")
-                lines.append("  ---")
+            data["composites"] = [asdict(c) for c in catalog.composites]
         if query in (CatalogQuery.PRESET, CatalogQuery.ALL):
-            for p in catalog.presets:
-                lines.append(f"preset: {p.name}")
-                lines.append(f"  description: {p.description}")
-                lines.append(f"  effects: {', '.join(p.effects)}")
-                lines.append("  ---")
-        sys.stdout.write("\n".join(lines) + "\n")
+            data["presets"] = [asdict(p) for p in catalog.presets]
+        yaml.dump({"version": "1.0", **data}, sys.stdout, default_flow_style=False, sort_keys=False)
 
     def config_info(
         self,
@@ -96,23 +130,7 @@ class PlainOutputAdapter:
         settings: AppSettings,
         sources: list[str],
     ) -> None:
-        lines = [
-            f"version: {settings.version}",
-            f"parallel: {settings.execution.parallel}",
-            f"strict: {settings.execution.strict}",
-            f"max_workers: {settings.execution.max_workers}",
-            f"verbosity: {settings.output.verbosity.value}",
-            f"temp_dir: {settings.processing.temp_dir}",
-            f"binary: {settings.backend.binary}",
-            f"runtime_mode: {settings.runtime.mode.value}",
-            f"container_engine: {settings.container.engine}",
-            f"image_tag: {settings.container.image_tag}",
-        ]
-        if settings.container.image_registry:
-            lines.append(f"image_registry: {settings.container.image_registry}")
-        if sources:
-            lines.append(f"sources: {', '.join(sources)}")
-        sys.stdout.write("\n".join(lines) + "\n")
+        sys.stdout.write(_format_toml(settings, sources))
 
     def error(self, exc: Exception) -> None:
         sys.stderr.write(f"error: {type(exc).__name__}: {exc}\n")
