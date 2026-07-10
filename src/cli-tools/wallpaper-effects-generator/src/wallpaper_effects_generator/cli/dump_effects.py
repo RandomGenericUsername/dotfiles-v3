@@ -31,4 +31,4 @@ def dump_effects_command(
     catalog = effect_loader.load(
         path=Path(effects_path) if effects_path else None,
     )
-    output_adapter.catalog_list(catalog, CatalogQuery.EFFECT)
+    output_adapter.catalog_list(catalog, CatalogQuery.ALL)
