@@ -21,6 +21,9 @@ def dump_config_command(
             .joinpath("settings.toml")
             .read_text()
         )
+        if output_path.suffix != ".toml":
+            output_path = output_path / "settings.toml"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content)
         typer.echo(f"Default config written to {output_path}")
         return

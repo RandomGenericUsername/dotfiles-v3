@@ -22,6 +22,9 @@ def dump_effects_command(
             .joinpath("effects.yaml")
             .read_text()
         )
+        if output_path.suffix != ".yaml":
+            output_path = output_path / "effects.yaml"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(content)
         typer.echo(f"Default effects written to {output_path}")
         return
