@@ -22,6 +22,7 @@ from wallpaper_effects_generator.domain.models import (
     CompositeDefinition,
     EffectDefinition,
     EffectsCatalog,
+    ParameterDefinition,
     PresetDefinition,
 )
 
@@ -33,6 +34,10 @@ def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
                 name=e.name,
                 description=e.description,
                 command=e.command,
+                parameters=tuple(
+                    ParameterDefinition(key=k, default=v, description="")
+                    for k, v in e.parameters.items()
+                ),
                 item_type=(
                     ItemType(e.item_type)
                     if e.item_type in {"effect", "composite", "preset"}

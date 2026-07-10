@@ -1,5 +1,98 @@
 version: "1.0"
-parameter_types: {}
-effects: []
-composites: []
-presets: []
+parameter_types:
+  radius:
+    type: string
+    description: "Blur radius (e.g. 0x8)"
+  brightness:
+    type: string
+    description: "Brightness adjustment (e.g. 10)"
+  contrast:
+    type: string
+    description: "Contrast adjustment (e.g. 10)"
+  saturation:
+    type: string
+    description: "Saturation percentage (e.g. 150)"
+  opacity:
+    type: string
+    description: "Overlay opacity (e.g. 30)"
+  color:
+    type: string
+    description: "Hex color (e.g. #ff0000)"
+effects:
+  - name: blur
+    description: "Gaussian blur"
+    command: "magick {{input}} -blur {{radius}} {{output}}"
+    parameters:
+      radius: "0x8"
+    item_type: "effect"
+  - name: blackwhite
+    description: "Convert to black and white"
+    command: "magick {{input}} -colorspace Gray {{output}}"
+    parameters: {}
+    item_type: "effect"
+  - name: negate
+    description: "Negate colors"
+    command: "magick {{input}} -negate {{output}}"
+    parameters: {}
+    item_type: "effect"
+  - name: brightness
+    description: "Adjust brightness"
+    command: "magick {{input}} -brightness-contrast {{brightness}},0 {{output}}"
+    parameters:
+      brightness: "10"
+    item_type: "effect"
+  - name: contrast
+    description: "Adjust contrast"
+    command: "magick {{input}} -brightness-contrast 0,{{contrast}} {{output}}"
+    parameters:
+      contrast: "10"
+    item_type: "effect"
+  - name: saturation
+    description: "Adjust color saturation"
+    command: "magick {{input}} -modulate 100,{{saturation}},100 {{output}}"
+    parameters:
+      saturation: "150"
+    item_type: "effect"
+  - name: sepia
+    description: "Sepia tone effect"
+    command: "magick {{input}} -sepia-tone 80% {{output}}"
+    parameters: {}
+    item_type: "effect"
+  - name: vignette
+    description: "Vignette effect"
+    command: "magick {{input}} -vignette 0x3 {{output}}"
+    parameters: {}
+    item_type: "effect"
+  - name: color_overlay
+    description: "Color overlay"
+    command: "magick {{input}} -fill {{color}} -opaque none {{output}}"
+    parameters:
+      color: "#ff0000"
+    item_type: "effect"
+composites:
+  - name: warm-fade
+    description: "Sepia with slight blur for a warm faded look"
+    steps:
+      - effect_name: sepia
+        parameters: {}
+      - effect_name: blur
+        parameters:
+          radius: "0x2"
+  - name: high-contrast-bw
+    description: "Black and white with boosted contrast"
+    steps:
+      - effect_name: blackwhite
+        parameters: {}
+      - effect_name: contrast
+        parameters:
+          contrast: "30"
+presets:
+  - name: cinematic
+    description: "Cinematic look — desaturated with vignette"
+    effects:
+      - saturation
+      - vignette
+  - name: vintage-photo
+    description: "Vintage photo look"
+    effects:
+      - warm-fade
