@@ -202,7 +202,7 @@ def install(
     deps = ctx.obj["deps"]
     install_command(
         config_resolver=deps.config_resolver,
-        output_adapter=deps.output_adapter,
+        output_adapter=_get_output_adapter(ctx),
         config_path=ctx.obj.get("config"),
         dump_config=dump_config,
         dump_effects=dump_effects,
@@ -214,7 +214,7 @@ def uninstall(ctx: typer.Context) -> None:
     deps = ctx.obj["deps"]
     uninstall_command(
         config_resolver=deps.config_resolver,
-        output_adapter=deps.output_adapter,
+        output_adapter=_get_output_adapter(ctx),
         config_path=ctx.obj.get("config"),
     )
 

@@ -1,25 +1,20 @@
 FROM python:3.14-alpine AS base
 
-RUN apk add --no-cache \
-    imagemagick \
-    imagemagick-jpeg \
-    imagemagick-png \
-    imagemagick-webp \
-    gcc \
-    g++ \
-    musl-dev \
-    python3-dev \
-    libffi-dev
+RUN apk add --no-cache imagemagick
 
 RUN adduser -D -u 1000 wallpaper
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+COPY src/shared/config-assembler-engine /app/shared/config-assembler-engine
+COPY src/shared/oci-runtime /app/shared/oci-runtime
+COPY src/cli-tools/wallpaper-effects-generator /app/wallpaper-effects-generator
 
-COPY --chown=wallpaper:wallpaper . /app
-
-RUN uv pip install --system --no-cache -e /app
+RUN pip install --no-cache-dir \
+    typer pyyaml rich pydantic \
+    /app/shared/config-assembler-engine \
+    /app/shared/oci-runtime \
+    /app/wallpaper-effects-generator
 
 RUN mkdir -p /input /output && \
     chown -R wallpaper:wallpaper /input /output

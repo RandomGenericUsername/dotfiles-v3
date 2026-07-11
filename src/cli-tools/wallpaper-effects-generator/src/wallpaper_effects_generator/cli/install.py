@@ -32,11 +32,11 @@ def install_command(
         resource_files("wallpaper_effects_generator.adapters.docker")
         .joinpath("Dockerfile.imagemagick")
     )
-    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
 
     output_adapter.message(f"Building container image {image_name}...")
     image_id = engine.images.build(
-        BuildContext(build_file_path=str(df_path), context_path=str(project_root)),
+        BuildContext(build_file_path=str(df_path), context_path=str(repo_root)),
         image_name,
     )
     output_adapter.message(f"Image built: {image_id}")
