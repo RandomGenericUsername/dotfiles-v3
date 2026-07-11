@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from oci_runtime.domain.encoding import safe_decode
 from oci_runtime.domain.enums import Subcommand
 from oci_runtime.domain.exceptions import VolumeNotFoundError

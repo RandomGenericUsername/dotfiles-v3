@@ -10,20 +10,14 @@ from wallpaper_effects_generator.ports.context_validator import (
     ContextValidationResult,
     ContextValidatorPort,
 )
-from wallpaper_effects_generator.ports.image_manager import ImageManagerPort
 
 
 class InputContextValidator(ContextValidatorPort):
     def __init__(
         self,
         command_runner: CommandRunnerPort | None = None,
-        image_manager: ImageManagerPort | None = None,
     ) -> None:
         self._runner = command_runner
-        self._image_manager = image_manager
-
-    def set_image_manager(self, image_manager: ImageManagerPort) -> None:
-        self._image_manager = image_manager
 
     def validate(
         self,
@@ -45,12 +39,6 @@ class InputContextValidator(ContextValidatorPort):
                 errors.append(
                     f"Container runtime '{engine}' not found on PATH"
                 )
-            if self._image_manager is not None:
-                registry = settings.container.image_registry
-                tag = settings.container.image_tag
-                image = f"{registry}/weg:{tag}" if registry else f"weg:{tag}"
-                if not self._image_manager.exists(image):
-                    errors.append(f"Container image not found: {image}")
         if errors:
             return ContextValidationResult(valid=False, errors=errors)
         return ContextValidationResult(valid=True)

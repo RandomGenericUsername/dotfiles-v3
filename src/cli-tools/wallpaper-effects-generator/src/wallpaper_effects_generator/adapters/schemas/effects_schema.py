@@ -42,6 +42,7 @@ class PresetSchema(BaseModel):
     name: str
     description: str
     effects: list[str] = []
+    parameters: dict[str, str] = {}
 
 
 class EffectsConfigSchema(BaseModel):

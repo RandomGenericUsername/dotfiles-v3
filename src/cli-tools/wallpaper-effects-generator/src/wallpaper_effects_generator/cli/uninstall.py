@@ -1,17 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from wallpaper_effects_generator.domain.exceptions import (
-    BinaryNotFoundError,
-    ContainerImageNotFoundError,
     ContainerRuntimeUnavailableError,
 )
-from wallpaper_effects_generator.factory import (
-    create_command_runner,
-    create_image_manager,
-)
+from wallpaper_effects_generator.factory import create_container_engine
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
 from wallpaper_effects_generator.ports.output import OutputPort
 
@@ -22,24 +16,24 @@ def uninstall_command(
     config_path: str | None = None,
 ) -> None:
     settings = config_resolver.resolve(explicit_path=Path(config_path) if config_path else None)
-    image = _build_image_fqn(settings)
+    image = _build_image_name(settings.container)
+    engine = create_container_engine(settings.container)
 
-    try:
-        runner = create_command_runner(settings)
-    except BinaryNotFoundError as e:
-        raise ContainerRuntimeUnavailableError(runtime=e.binary) from e
+    if not engine.is_available():
+        raise ContainerRuntimeUnavailableError(runtime=settings.container.engine)
 
-    mgr = create_image_manager(runner)
-    try:
-        mgr.remove(image)
-    except ContainerImageNotFoundError:
+    if engine.images.exists(image):
+        engine.images.remove(image)
+        output_adapter.message(f"Container image removed: {image}")
+    else:
         output_adapter.message(f"Image not found — nothing to uninstall: {image}")
-        return
-
-    output_adapter.message(f"Container image removed: {image}")
 
 
-def _build_image_fqn(settings: Any) -> str:
-    registry = settings.container.image_registry.rstrip("/")
-    tag = settings.container.image_tag
-    return f"{registry}/weg-managed:{tag}"
+def _build_image_name(container_settings: object) -> str:
+    registry = getattr(container_settings, "image_registry", "") or ""
+    name = getattr(container_settings, "image_name", "weg")
+    tag = getattr(container_settings, "image_tag", "latest")
+    registry = registry.rstrip("/")
+    if registry:
+        return f"{registry}/{name}:{tag}"
+    return f"{name}:{tag}"

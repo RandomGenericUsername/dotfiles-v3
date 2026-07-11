@@ -20,5 +20,6 @@ mode = "local"
 
 [container]
 engine = "docker"
+image_name = "weg"
 image_tag = "latest"
 image_registry = ""

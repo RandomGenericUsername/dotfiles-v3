@@ -2,18 +2,14 @@ from __future__ import annotations
 
 from importlib.resources import files as resource_files
 from pathlib import Path
-from typing import Any
 
-import typer
+from oci_runtime import BuildContext, RuntimeKind, RuntimePreference
 
 from wallpaper_effects_generator.domain.exceptions import (
     BinaryNotFoundError,
     ContainerRuntimeUnavailableError,
 )
-from wallpaper_effects_generator.factory import (
-    create_command_runner,
-    create_image_manager,
-)
+from wallpaper_effects_generator.factory import create_container_engine
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
 from wallpaper_effects_generator.ports.output import OutputPort
 
@@ -26,17 +22,25 @@ def install_command(
     dump_effects: bool = False,
 ) -> None:
     settings = config_resolver.resolve(explicit_path=Path(config_path) if config_path else None)
-    image = _build_image_fqn(settings)
+    image_name = _build_image_name(settings.container)
+    engine = create_container_engine(settings.container)
 
-    try:
-        runner = create_command_runner(settings)
-    except BinaryNotFoundError as e:
-        raise ContainerRuntimeUnavailableError(runtime=e.binary) from e
+    if not engine.is_available():
+        raise ContainerRuntimeUnavailableError(runtime=settings.container.engine)
 
-    mgr = create_image_manager(runner)
-    mgr.pull(image)
+    df_path = (
+        resource_files("wallpaper_effects_generator.adapters.docker")
+        .joinpath("Dockerfile.imagemagick")
+    )
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
 
-    output_adapter.message(f"Container image installed: {image}")
+    output_adapter.message(f"Building container image {image_name}...")
+    image_id = engine.images.build(
+        BuildContext(build_file_path=str(df_path), context_path=str(project_root)),
+        image_name,
+    )
+    output_adapter.message(f"Image built: {image_id}")
+    output_adapter.message(f"Container image installed: {image_name}")
 
     if dump_config:
         _dump_default_config()
@@ -44,10 +48,14 @@ def install_command(
         _dump_default_effects()
 
 
-def _build_image_fqn(settings: Any) -> str:
-    registry = settings.container.image_registry.rstrip("/")
-    tag = settings.container.image_tag
-    return f"{registry}/weg-managed:{tag}"
+def _build_image_name(container_settings: object) -> str:
+    registry = getattr(container_settings, "image_registry", "") or ""
+    name = getattr(container_settings, "image_name", "weg")
+    tag = getattr(container_settings, "image_tag", "latest")
+    registry = registry.rstrip("/")
+    if registry:
+        return f"{registry}/{name}:{tag}"
+    return f"{name}:{tag}"
 
 
 def _dump_default_config() -> None:
@@ -58,10 +66,8 @@ def _dump_default_config() -> None:
     )
     path = Path("settings.toml")
     if path.exists():
-        typer.echo("settings.toml already exists (use --force to overwrite)")
-        return
+        path = Path("settings.toml")
     path.write_text(content)
-    typer.echo(f"Default config written to {path}")
 
 
 def _dump_default_effects() -> None:
@@ -72,7 +78,5 @@ def _dump_default_effects() -> None:
     )
     path = Path("effects.yaml")
     if path.exists():
-        typer.echo("effects.yaml already exists (use --force to overwrite)")
-        return
+        path = Path("effects.yaml")
     path.write_text(content)
-    typer.echo(f"Default effects written to {path}")

@@ -17,11 +17,10 @@ from wallpaper_effects_generator.domain.models import (
     RuntimeSettings,
 )
 from wallpaper_effects_generator.factory import (
-    create_command_runner,
+    create_container_engine,
     create_container_processor,
     create_context_validator,
     create_dry_run_processor,
-    create_image_manager,
     create_local_processor,
     create_output_adapter,
 )
@@ -98,24 +97,26 @@ def _resolve_processor(
     output_dir: Path,
     dry_run: bool = False,
 ) -> EffectProcessorPort:
-    runner = create_command_runner(settings)
     if dry_run:
+        runner = create_command_runner(settings)
         return create_dry_run_processor(
             command_runner=runner, catalog=catalog, output_dir=output_dir
         )
     if settings.runtime.mode == RuntimeMode.CONTAINER:
-        image_manager = create_image_manager(runner)
+        engine = create_container_engine(settings.container)
         context_validator = create_context_validator(
-            command_runner=runner, image_manager=image_manager
+            command_runner=engine
         )
         return create_container_processor(
-            command_runner=runner,
+            command_runner=engine,
             catalog=catalog,
             output_dir=output_dir,
+            container_engine=engine,
             container_settings=settings.container,
             settings=settings,
             context_validator=context_validator,
         )
+    runner = create_command_runner(settings)
     return create_local_processor(
         command_runner=runner, catalog=catalog, output_dir=output_dir
     )

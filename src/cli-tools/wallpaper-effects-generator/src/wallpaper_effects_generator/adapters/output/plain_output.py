@@ -60,6 +60,7 @@ def _format_toml(settings: AppSettings, sources: list[str]) -> str:
     lines.append("")
     lines.append("[container]")
     lines.append(f"engine = {settings.container.engine!r}")
+    lines.append(f"image_name = {settings.container.image_name!r}")
     lines.append(f"image_tag = {settings.container.image_tag!r}")
     lines.append(f"image_registry = {settings.container.image_registry!r}")
     if sources:

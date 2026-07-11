@@ -54,6 +54,7 @@ def _pydantic_to_app_settings(schema: CoreSettingsSchema) -> AppSettings:
         runtime=RuntimeSettings(mode=runtime_mode),
         container=ContainerSettings(
             engine=schema.container.engine,
+            image_name=schema.container.image_name,
             image_tag=schema.container.image_tag,
             image_registry=schema.container.image_registry or "",
         ),
@@ -76,6 +77,7 @@ _ALL_SETTINGS_FIELDS = [
     "backend.binary",
     "runtime.mode",
     "container.engine",
+    "container.image_name",
     "container.image_tag",
     "container.image_registry",
 ]

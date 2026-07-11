@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import subprocess
 
 from oci_runtime.domain.exceptions import (

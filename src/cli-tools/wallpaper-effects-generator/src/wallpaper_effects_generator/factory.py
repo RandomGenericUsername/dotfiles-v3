@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from oci_runtime import RuntimeFactory, RuntimeKind, RuntimePreference
 from rich.console import Console
 
 from wallpaper_effects_generator.adapters.assembled_config_resolver import (
@@ -16,15 +17,11 @@ from wallpaper_effects_generator.adapters.container_processor import (
 from wallpaper_effects_generator.adapters.context_validator import (
     InputContextValidator,
 )
-from wallpaper_effects_generator.adapters.docker_image_manager import (
-    DockerImageManager,
-)
 from wallpaper_effects_generator.adapters.dry_run_processor import DryRunProcessor
 from wallpaper_effects_generator.adapters.importlib_version_provider import (
     ImportlibVersionProvider,
 )
 from wallpaper_effects_generator.adapters.local_processor import LocalProcessor
-from wallpaper_effects_generator.adapters.oci_command_runner import OCICommandRunner
 from wallpaper_effects_generator.adapters.output.json_output import JsonOutputAdapter
 from wallpaper_effects_generator.adapters.output.plain_output import PlainOutputAdapter
 from wallpaper_effects_generator.adapters.output.rich_output import RichOutputAdapter
@@ -44,7 +41,6 @@ from wallpaper_effects_generator.ports.context_validator import (
     ContextValidatorPort,
 )
 from wallpaper_effects_generator.ports.effect_loader import EffectLoaderPort
-from wallpaper_effects_generator.ports.image_manager import ImageManagerPort
 from wallpaper_effects_generator.ports.output import OutputPort
 from wallpaper_effects_generator.ports.processor import EffectProcessorPort
 from wallpaper_effects_generator.ports.version_provider import VersionProviderPort
@@ -58,6 +54,7 @@ class CliDependencies:
     output_adapter: OutputPort | None = None
     context_validator: ContextValidatorPort | None = None
     command_runner: CommandRunnerPort | None = None
+    container_engine: object | None = None
 
     def __post_init__(self) -> None:
         if self.catalog_cache is None:
@@ -79,17 +76,13 @@ def create_effect_loader(
 def create_command_runner(
     settings: AppSettings,
 ) -> CommandRunnerPort:
-    if settings.runtime.mode == RuntimeMode.CONTAINER:
-        return create_oci_command_runner(settings)
     return SubprocessCommandRunner(binary=settings.backend.binary)
 
 
-def create_oci_command_runner(settings: AppSettings) -> CommandRunnerPort:
-    return OCICommandRunner(engine=settings.container.engine)
-
-
-def create_image_manager(command_runner: CommandRunnerPort) -> ImageManagerPort:
-    return DockerImageManager(command_runner=command_runner)
+def create_container_engine(container_settings: ContainerSettings) -> object:
+    kind = RuntimeKind(container_settings.engine)
+    factory = RuntimeFactory()
+    return factory.create(preference=RuntimePreference(kind, container_settings.engine))
 
 
 def create_local_processor(
@@ -120,6 +113,7 @@ def create_container_processor(
     command_runner: CommandRunnerPort,
     catalog: EffectsCatalog,
     output_dir: Path,
+    container_engine: object | None = None,
     container_settings: ContainerSettings | None = None,
     settings: AppSettings | None = None,
     context_validator: ContextValidatorPort | None = None,
@@ -128,6 +122,7 @@ def create_container_processor(
         command_runner=command_runner,
         catalog=catalog,
         output_dir=output_dir,
+        container_engine=container_engine,
         container_settings=container_settings,
         settings=settings,
         context_validator=context_validator,
@@ -153,12 +148,8 @@ def create_version_provider() -> VersionProviderPort:
 
 def create_context_validator(
     command_runner: CommandRunnerPort,
-    image_manager: ImageManagerPort | None = None,
 ) -> ContextValidatorPort:
-    return InputContextValidator(
-        command_runner=command_runner,
-        image_manager=image_manager,
-    )
+    return InputContextValidator(command_runner=command_runner)
 
 
 def create_catalog_cache(loader: EffectLoaderPort) -> CatalogCache:

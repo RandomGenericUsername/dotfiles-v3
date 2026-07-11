@@ -28,6 +28,7 @@ class RuntimeSchema(BaseModel):
 
 class ContainerSchema(BaseModel):
     engine: str = "docker"
+    image_name: str = "weg"
     image_tag: str = "latest"
     image_registry: str | None = ""
 
