@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 class ExecutionSchema(BaseModel):
     parallel: bool = True
     strict: bool = False
-    max_workers: int = 0
+    max_workers: int = 0  # 0 = auto (uses system CPU count)
 
 
 class OutputSchema(BaseModel):
