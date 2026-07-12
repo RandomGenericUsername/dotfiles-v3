@@ -44,6 +44,7 @@ def _pydantic_to_app_settings(schema: CoreSettingsSchema) -> AppSettings:
         ),
         output=OutputSettings(
             verbosity=Verbosity(schema.output.verbosity),
+            directory=Path(schema.output.directory) if schema.output.directory else None,
         ),
         processing=ProcessingSettings(
             temp_dir=Path(schema.processing.temp_dir) if schema.processing.temp_dir else None,
