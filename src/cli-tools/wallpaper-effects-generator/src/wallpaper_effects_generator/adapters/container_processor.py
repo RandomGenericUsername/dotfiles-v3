@@ -12,7 +12,7 @@ from wallpaper_effects_generator.adapters.serializer.effects_serializer import (
 from wallpaper_effects_generator.adapters.serializer.settings_serializer import (
     SettingsSerializer,
 )
-from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.enums import ItemType, RuntimeMode
 from wallpaper_effects_generator.domain.exceptions import (
     CommandExecutionError,
     CompositeNotFoundError,
@@ -30,6 +30,7 @@ from wallpaper_effects_generator.domain.models import (
     PresetDefinition,
     ProcessingRequest,
     ProcessingResult,
+    RuntimeSettings,
 )
 from wallpaper_effects_generator.domain.services import (
     OutputPathService,
@@ -144,11 +145,12 @@ class ContainerProcessor(EffectProcessorPort):
         input_name = Path(request.input_path).name
         output_name = Path(request.output_path).name
         cmd = [
-            "weg", "process", subcommand, name,
-            f"/input/{input_name}",
-            "-o", f"/output/{output_name}",
+            "weg",
             "--config", "/weg-config/settings.toml",
             "--effects", "/weg-effects/effects.yaml",
+            "process", subcommand, name,
+            f"/input/{input_name}",
+            "-o", "/output",
         ]
         if params:
             for key, value in params.items():
@@ -174,6 +176,7 @@ class ContainerProcessor(EffectProcessorPort):
             run_config = RunConfig(
                 image=image,
                 command=tuple(container_args),
+                detach=False,
                 remove=True,
                 volumes=(
                     VolumeMount(source=str(settings_toml), target="/weg-config/settings.toml", read_only=True),
@@ -210,7 +213,16 @@ class ContainerProcessor(EffectProcessorPort):
             with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as f:
                 settings_toml = Path(f.name)
             if self._settings is not None:
-                self._settings_serializer.serialize(self._settings, settings_toml)
+                local_settings = AppSettings(
+                    version=self._settings.version,
+                    execution=self._settings.execution,
+                    output=self._settings.output,
+                    processing=self._settings.processing,
+                    backend=self._settings.backend,
+                    runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
+                    container=self._settings.container,
+                )
+                self._settings_serializer.serialize(local_settings, settings_toml)
             with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
                 effects_yaml = Path(f.name)
             self._effects_serializer.serialize(self._catalog, effects_yaml)

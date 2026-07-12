@@ -17,6 +17,7 @@ from wallpaper_effects_generator.domain.models import (
     RuntimeSettings,
 )
 from wallpaper_effects_generator.factory import (
+    create_command_runner,
     create_container_engine,
     create_container_processor,
     create_context_validator,

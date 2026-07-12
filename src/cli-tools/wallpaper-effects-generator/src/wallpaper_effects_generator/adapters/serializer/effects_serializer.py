@@ -24,15 +24,14 @@ def _catalog_to_dict(catalog: EffectsCatalog) -> dict[str, Any]:
                 "description": e.description,
                 "command": e.command,
                 "item_type": e.item_type.value,
-                "parameters": [
-                    {
-                        "key": p.key,
-                        "description": p.description,
+                "parameters": {
+                    p.key: {
+                        "type": str(type(p.default).__name__) if p.default is not None else "string",
                         "default": p.default,
-                        "required": p.required,
+                        "description": p.description,
                     }
                     for p in e.parameters
-                ],
+                },
             }
             for e in catalog.effects
         ],
