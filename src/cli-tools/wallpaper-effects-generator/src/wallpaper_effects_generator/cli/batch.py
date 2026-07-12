@@ -25,6 +25,16 @@ def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat
     return create_output_adapter(fmt if fmt is not None else default)
 
 
+def _parse_params(raw: list[str]) -> dict[str, str]:
+    params: dict[str, str] = {}
+    for item in raw:
+        if "=" not in item:
+            raise typer.BadParameter(f"Invalid param format '{item}', expected key=value")
+        key, value = item.split("=", 1)
+        params[key] = value
+    return params
+
+
 def _run_batch(
     ctx: typer.Context,
     input: Path,
@@ -35,6 +45,7 @@ def _run_batch(
     parallel: bool,
     max_workers: int,
     item_types: tuple[ItemType, ...],
+    params: dict[str, str] | None = None,
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     output_dir = output or _DEFAULT_OUTPUT_DIR
@@ -51,6 +62,7 @@ def _run_batch(
         parallel=parallel,
         strict=strict,
         max_workers=max_workers,
+        params=params or {},
     )
     result = batch_processor.process_batch(request)
     output_adapter.batch_result(result)
@@ -66,8 +78,9 @@ def effects(
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
     max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.EFFECT,))
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.EFFECT,), params=_parse_params(param))
 
 
 @batch_app.command()
@@ -80,8 +93,9 @@ def composites(
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
     max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.COMPOSITE,))
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.COMPOSITE,), params=_parse_params(param))
 
 
 @batch_app.command()
@@ -94,8 +108,9 @@ def presets(
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
     max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.PRESET,))
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.PRESET,), params=_parse_params(param))
 
 
 @batch_app.command(name="all")
@@ -108,5 +123,6 @@ def run_all(
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
     max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.ALL,))
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.ALL,), params=_parse_params(param))

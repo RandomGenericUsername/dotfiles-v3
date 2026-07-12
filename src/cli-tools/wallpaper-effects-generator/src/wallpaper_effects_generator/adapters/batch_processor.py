@@ -72,6 +72,7 @@ class BatchProcessor:
             parallel=request.parallel,
             strict=request.strict,
             max_workers=request.max_workers,
+            params=request.params,
         )
 
         if request.parallel:
@@ -243,12 +244,13 @@ class BatchProcessor:
         )
 
         try:
+            params = dict(request.params) if request.params else None
             if item_type == ItemType.EFFECT:
-                return self._processor.process_effect(name, processing_request)
+                return self._processor.process_effect(name, processing_request, params)
             if item_type == ItemType.COMPOSITE:
-                return self._processor.process_composite(name, processing_request)
+                return self._processor.process_composite(name, processing_request, params)
             if item_type == ItemType.PRESET:
-                return self._processor.process_preset(name, processing_request)
+                return self._processor.process_preset(name, processing_request, params)
             return ProcessingResult(
                 success=False,
                 command="",

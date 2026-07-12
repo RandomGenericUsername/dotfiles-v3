@@ -97,6 +97,7 @@ class BatchRequest:
     parallel: bool = True
     strict: bool = False
     max_workers: int = MAX_WORKERS_AUTO
+    params: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.max_workers < 0:
