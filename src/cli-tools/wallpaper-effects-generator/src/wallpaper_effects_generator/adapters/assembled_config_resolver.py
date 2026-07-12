@@ -64,8 +64,8 @@ def _pydantic_to_app_settings(schema: CoreSettingsSchema) -> AppSettings:
 _STRATEGIES = [
     CliPathStrategy(),
     EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename="settings.toml", max_levels=3),
     XdgStrategy(xdg_subdir="weg", filename="settings.toml"),
+    DirectoryTraversalStrategy(filename="settings.toml", max_levels=3),
 ]
 
 _ALL_SETTINGS_FIELDS = [

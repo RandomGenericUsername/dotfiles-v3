@@ -91,8 +91,8 @@ def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
 _STRATEGIES = [
     CliPathStrategy(),
     EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename="effects.yaml", max_levels=3),
     XdgStrategy(xdg_subdir="weg", filename="effects.yaml"),
+    DirectoryTraversalStrategy(filename="effects.yaml", max_levels=3),
 ]
 
 
