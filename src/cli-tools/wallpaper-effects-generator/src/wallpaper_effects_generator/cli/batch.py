@@ -4,6 +4,7 @@ from pathlib import Path
 
 import typer
 
+from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
 from wallpaper_effects_generator.domain.enums import ItemType, OutputFormat
 from wallpaper_effects_generator.domain.models import BatchRequest
 from wallpaper_effects_generator.factory import create_batch_processor, create_output_adapter
@@ -64,7 +65,7 @@ def effects(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.EFFECT,))
 
@@ -78,7 +79,7 @@ def composites(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.COMPOSITE,))
 
@@ -92,7 +93,7 @@ def presets(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.PRESET,))
 
@@ -106,6 +107,6 @@ def run_all(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.ALL,))

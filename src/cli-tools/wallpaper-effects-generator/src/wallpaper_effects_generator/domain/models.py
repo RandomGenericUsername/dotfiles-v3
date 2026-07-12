@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
 from wallpaper_effects_generator.domain.enums import (
     ItemType,
     RuntimeMode,
@@ -95,7 +96,7 @@ class BatchRequest:
     explicit_output: bool = False
     parallel: bool = True
     strict: bool = False
-    max_workers: int = 0
+    max_workers: int = MAX_WORKERS_AUTO
 
     def __post_init__(self) -> None:
         if self.max_workers < 0:
@@ -117,10 +118,10 @@ class BatchResult:
 class ExecutionSettings:
     parallel: bool = True
     strict: bool = False
-    max_workers: int = 0
+    max_workers: int = MAX_WORKERS_AUTO
 
     def __post_init__(self) -> None:
-        if self.max_workers < 0:
+        if self.max_workers < MAX_WORKERS_AUTO:
             raise ValueError(f"max_workers must be >= 0, got {self.max_workers}")
 
 
