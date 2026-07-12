@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from importlib.resources import files as resource_files
 from pathlib import Path
 
@@ -58,15 +59,20 @@ def _build_image_name(container_settings: object) -> str:
     return f"{name}:{tag}"
 
 
+def _xdg_config_dir() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "weg"
+
+
 def _dump_default_config(output_adapter: OutputPort) -> None:
     content = (
         resource_files("wallpaper_effects_generator.defaults")
         .joinpath("settings.toml")
         .read_text()
     )
-    path = Path("settings.toml")
+    path = _xdg_config_dir() / "settings.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
-    output_adapter.message(f"Default config written to {path.resolve()}")
+    output_adapter.message(f"Default config written to {path}")
 
 
 def _dump_default_effects(output_adapter: OutputPort) -> None:
@@ -75,6 +81,7 @@ def _dump_default_effects(output_adapter: OutputPort) -> None:
         .joinpath("effects.yaml")
         .read_text()
     )
-    path = Path("effects.yaml")
+    path = _xdg_config_dir() / "effects.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
-    output_adapter.message(f"Default effects written to {path.resolve()}")
+    output_adapter.message(f"Default effects written to {path}")
