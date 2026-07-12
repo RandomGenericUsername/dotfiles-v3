@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -186,7 +187,9 @@ class ContainerProcessor(EffectProcessorPort):
                 ),
                 runtime_flags=tuple(run_flags),
             )
+            start = time.monotonic()
             self._engine.containers.run(run_config)
+            duration = time.monotonic() - start
             container_out = temp_out / request.input_path.name
             if container_out.exists():
                 output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -194,6 +197,7 @@ class ContainerProcessor(EffectProcessorPort):
             return ProcessingResult(
                 success=True, command=" ".join(container_args),
                 stdout="", stderr="", return_code=0, output_path=output_path,
+                duration=duration,
             )
         except CommandExecutionError as e:
             command_str = " ".join(container_args)
