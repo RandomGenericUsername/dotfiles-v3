@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -163,48 +164,47 @@ class ContainerProcessor(EffectProcessorPort):
     ) -> ProcessingResult:
         settings_toml: Path | None = None
         effects_yaml: Path | None = None
+        temp_out: Path | None = None
         try:
             image = self._ensure_image()
             settings_toml, effects_yaml = self._serialize_artifacts()
             input_parent = request.input_path.parent.resolve()
-            self._output_dir.mkdir(parents=True, exist_ok=True)
-            output_dir_resolved = self._output_dir.resolve()
-
+            output_path = request.output_path or self._output_path_svc.resolve(
+                request.input_path, self._output_dir, item_type,
+            )
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_out = Path(tempfile.mkdtemp(dir=output_path.parent, prefix=".weg-container-"))
             caps = self._engine.capabilities if self._engine is not None else None
             run_flags = list(caps.default_run_flags) if caps is not None else []
-
             run_config = RunConfig(
-                image=image,
-                command=tuple(container_args),
-                detach=False,
-                remove=True,
+                image=image, command=tuple(container_args), detach=False, remove=True,
                 volumes=(
                     VolumeMount(source=str(settings_toml), target="/weg-config/settings.toml", read_only=True),
                     VolumeMount(source=str(effects_yaml), target="/weg-effects/effects.yaml", read_only=True),
                     VolumeMount(source=str(input_parent), target="/input", read_only=True),
-                    VolumeMount(source=str(output_dir_resolved), target="/output", read_only=False),
+                    VolumeMount(source=str(temp_out), target="/output", read_only=False),
                 ),
                 runtime_flags=tuple(run_flags),
             )
-
-            output_path = request.output_path or self._output_path_svc.resolve(
-                request.input_path, self._output_dir, item_type,
+            self._engine.containers.run(run_config)
+            container_out = temp_out / request.input_path.name
+            if container_out.exists():
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(container_out), str(output_path))
+            return ProcessingResult(
+                success=True, command=" ".join(container_args),
+                stdout="", stderr="", return_code=0, output_path=output_path,
             )
-
-            try:
-                self._engine.containers.run(run_config)
-                return ProcessingResult(
-                    success=True, command=" ".join(container_args),
-                    stdout="", stderr="", return_code=0, output_path=output_path,
-                )
-            except CommandExecutionError as e:
-                command_str = " ".join(container_args)
-                return ProcessingResult(
-                    success=False, command=command_str, stdout="", stderr=str(e),
-                    return_code=e.return_code, output_path=output_path,
-                )
+        except CommandExecutionError as e:
+            command_str = " ".join(container_args)
+            return ProcessingResult(
+                success=False, command=command_str, stdout="", stderr=str(e),
+                return_code=e.return_code, output_path=output_path,
+            )
         finally:
             self._cleanup_artifacts(settings_toml, effects_yaml)
+            if temp_out is not None and temp_out.exists():
+                shutil.rmtree(temp_out, ignore_errors=True)
 
     def _serialize_artifacts(self) -> tuple[Path, Path]:
         settings_toml: Path | None = None
