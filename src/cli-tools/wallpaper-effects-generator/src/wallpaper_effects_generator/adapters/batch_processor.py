@@ -169,7 +169,7 @@ class BatchProcessor:
 
         cancelled = 0
         try:
-            with ThreadPoolExecutor(max_workers=request.max_workers) as executor:
+            with ThreadPoolExecutor(max_workers=request.max_workers or None) as executor:
                 future_map = {
                     executor.submit(self._process_one, item_type, name, request): (item_type, name)
                     for item_type, name in items

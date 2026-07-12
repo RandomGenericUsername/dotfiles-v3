@@ -95,11 +95,11 @@ class BatchRequest:
     explicit_output: bool = False
     parallel: bool = True
     strict: bool = False
-    max_workers: int = 4
+    max_workers: int = 0
 
     def __post_init__(self) -> None:
-        if self.max_workers < 1:
-            raise ValueError(f"max_workers must be >= 1, got {self.max_workers}")
+        if self.max_workers < 0:
+            raise ValueError(f"max_workers must be >= 0, got {self.max_workers}")
 
 
 @dataclass(frozen=True)
@@ -117,11 +117,11 @@ class BatchResult:
 class ExecutionSettings:
     parallel: bool = True
     strict: bool = False
-    max_workers: int = 4
+    max_workers: int = 0
 
     def __post_init__(self) -> None:
-        if self.max_workers < 1:
-            raise ValueError(f"max_workers must be >= 1, got {self.max_workers}")
+        if self.max_workers < 0:
+            raise ValueError(f"max_workers must be >= 0, got {self.max_workers}")
 
 
 @dataclass(frozen=True)

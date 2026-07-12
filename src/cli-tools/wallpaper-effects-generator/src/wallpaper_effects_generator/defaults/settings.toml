@@ -3,7 +3,7 @@ version = "1.0"
 [execution]
 parallel = true
 strict = true
-max_workers = 4
+max_workers = 0
 
 [output]
 verbosity = 1

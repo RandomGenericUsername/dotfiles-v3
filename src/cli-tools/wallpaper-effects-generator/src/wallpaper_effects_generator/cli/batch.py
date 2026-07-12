@@ -64,7 +64,7 @@ def effects(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.EFFECT,))
 
@@ -78,7 +78,7 @@ def composites(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.COMPOSITE,))
 
@@ -92,7 +92,7 @@ def presets(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.PRESET,))
 
@@ -106,6 +106,6 @@ def run_all(
     explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
     parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+    max_workers: int = typer.Option(0, "--max-workers", help="Maximum parallel workers (0 = auto)"),
 ) -> None:
     _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.ALL,))
