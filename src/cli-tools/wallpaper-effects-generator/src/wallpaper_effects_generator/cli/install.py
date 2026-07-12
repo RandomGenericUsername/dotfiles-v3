@@ -43,9 +43,9 @@ def install_command(
     output_adapter.message(f"Container image installed: {image_name}")
 
     if dump_config:
-        _dump_default_config()
+        _dump_default_config(output_adapter)
     if dump_effects:
-        _dump_default_effects()
+        _dump_default_effects(output_adapter)
 
 
 def _build_image_name(container_settings: object) -> str:
@@ -58,25 +58,23 @@ def _build_image_name(container_settings: object) -> str:
     return f"{name}:{tag}"
 
 
-def _dump_default_config() -> None:
+def _dump_default_config(output_adapter: OutputPort) -> None:
     content = (
         resource_files("wallpaper_effects_generator.defaults")
         .joinpath("settings.toml")
         .read_text()
     )
     path = Path("settings.toml")
-    if path.exists():
-        path = Path("settings.toml")
     path.write_text(content)
+    output_adapter.message(f"Default config written to {path.resolve()}")
 
 
-def _dump_default_effects() -> None:
+def _dump_default_effects(output_adapter: OutputPort) -> None:
     content = (
         resource_files("wallpaper_effects_generator.defaults")
         .joinpath("effects.yaml")
         .read_text()
     )
     path = Path("effects.yaml")
-    if path.exists():
-        path = Path("effects.yaml")
     path.write_text(content)
+    output_adapter.message(f"Default effects written to {path.resolve()}")

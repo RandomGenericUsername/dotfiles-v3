@@ -37,13 +37,13 @@ def main(
         None,
         "--config",
         "-c",
-        help="Path to settings.toml",
+        help="Path to settings.toml (default: XDG_CONFIG_HOME/weg/settings.toml, then directory traversal up to 3 levels, then package defaults)",
     ),
     effects: Path | None = typer.Option(
         None,
         "--effects",
         "-e",
-        help="Path to effects.yaml",
+        help="Path to effects.yaml (default: XDG_CONFIG_HOME/weg/effects.yaml, then directory traversal, then package defaults)",
     ),
     runtime: str | None = typer.Option(
         None,
