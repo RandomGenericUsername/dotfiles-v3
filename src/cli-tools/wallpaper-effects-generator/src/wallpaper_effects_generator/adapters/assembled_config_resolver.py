@@ -16,6 +16,11 @@ from config_assembler_engine.adapters.strategies.env_path import EnvPathStrategy
 from config_assembler_engine.adapters.strategies.xdg import XdgStrategy
 
 from wallpaper_effects_generator.adapters.schemas.settings_schema import CoreSettingsSchema
+from wallpaper_effects_generator.constants import (
+    CONFIG_FILENAME,
+    CONFIG_TRAVERSAL_DEPTH,
+    CONFIG_XDG_SUBDIR,
+)
 from wallpaper_effects_generator.domain.enums import RuntimeMode, Verbosity
 from wallpaper_effects_generator.domain.models import (
     AppSettings,
@@ -65,8 +70,8 @@ def _pydantic_to_app_settings(schema: CoreSettingsSchema) -> AppSettings:
 _STRATEGIES = [
     CliPathStrategy(),
     EnvPathStrategy(),
-    XdgStrategy(xdg_subdir="weg", filename="settings.toml"),
-    DirectoryTraversalStrategy(filename="settings.toml", max_levels=3),
+    XdgStrategy(xdg_subdir=CONFIG_XDG_SUBDIR, filename=CONFIG_FILENAME),
+    DirectoryTraversalStrategy(filename=CONFIG_FILENAME, max_levels=CONFIG_TRAVERSAL_DEPTH),
 ]
 
 _ALL_SETTINGS_FIELDS = [

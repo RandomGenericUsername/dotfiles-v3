@@ -19,6 +19,11 @@ from wallpaper_effects_generator.adapters.schemas.effects_schema import (
     ParameterDefSchema,
     ParameterTypeSchema,
 )
+from wallpaper_effects_generator.constants import (
+    EFFECTS_FILENAME,
+    EFFECTS_TRAVERSAL_DEPTH,
+    EFFECTS_XDG_SUBDIR,
+)
 from wallpaper_effects_generator.domain.enums import ItemType
 from wallpaper_effects_generator.domain.models import (
     ChainStep,
@@ -91,8 +96,8 @@ def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
 _STRATEGIES = [
     CliPathStrategy(),
     EnvPathStrategy(),
-    XdgStrategy(xdg_subdir="weg", filename="effects.yaml"),
-    DirectoryTraversalStrategy(filename="effects.yaml", max_levels=3),
+    XdgStrategy(xdg_subdir=EFFECTS_XDG_SUBDIR, filename=EFFECTS_FILENAME),
+    DirectoryTraversalStrategy(filename=EFFECTS_FILENAME, max_levels=EFFECTS_TRAVERSAL_DEPTH),
 ]
 
 

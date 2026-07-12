@@ -10,6 +10,7 @@ from wallpaper_effects_generator.domain.exceptions import (
     BinaryNotFoundError,
     ContainerRuntimeUnavailableError,
 )
+from wallpaper_effects_generator.constants import CONFIG_XDG_SUBDIR
 from wallpaper_effects_generator.factory import create_container_engine
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
 from wallpaper_effects_generator.ports.output import OutputPort
@@ -60,7 +61,7 @@ def _build_image_name(container_settings: object) -> str:
 
 
 def _xdg_config_dir() -> Path:
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "weg"
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / CONFIG_XDG_SUBDIR
 
 
 def _dump_default_config(output_adapter: OutputPort) -> None:
