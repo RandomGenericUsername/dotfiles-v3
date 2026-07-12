@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import typer
 
-from wallpaper_effects_generator.domain.enums import CatalogQuery
+from wallpaper_effects_generator.domain.enums import CatalogQuery, OutputFormat
+from wallpaper_effects_generator.factory import create_output_adapter
 from wallpaper_effects_generator.ports.output import OutputPort
 
 show_app = typer.Typer(
@@ -12,7 +13,12 @@ show_app = typer.Typer(
 
 
 def _get_output_adapter(ctx: typer.Context) -> OutputPort:
-    return ctx.obj["deps"].output_adapter
+    deps = ctx.obj["deps"]
+    if deps.output_adapter is not None:
+        return deps.output_adapter
+    adapter = create_output_adapter(OutputFormat.JSON)
+    deps.output_adapter = adapter
+    return adapter
 
 
 def _load_catalog(ctx: typer.Context) -> object:
