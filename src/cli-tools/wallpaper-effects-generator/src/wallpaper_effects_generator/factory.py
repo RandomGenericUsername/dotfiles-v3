@@ -158,11 +158,9 @@ def create_catalog_cache(loader: EffectLoaderPort) -> CatalogCache:
 
 def create_batch_processor(
     processor: EffectProcessorPort,
-    settings: AppSettings,
     catalog: EffectsCatalog,
 ) -> BatchProcessor:
     return BatchProcessor(
         single_processor=processor,
-        settings=settings,
         catalog=catalog,
     )

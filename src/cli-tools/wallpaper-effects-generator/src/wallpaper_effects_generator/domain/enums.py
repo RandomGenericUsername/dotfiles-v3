@@ -9,7 +9,7 @@ class ItemType(Enum):
 
     @property
     def subdir_name(self) -> str:
-        return self.value if self != ItemType.ALL else "all"
+        return self.value
 
 
 class CatalogQuery(Enum):

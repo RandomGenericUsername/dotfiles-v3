@@ -15,7 +15,6 @@ from wallpaper_effects_generator.domain.exceptions import (
     PresetNotFoundError,
 )
 from wallpaper_effects_generator.domain.models import (
-    AppSettings,
     BatchRequest,
     BatchResult,
     EffectsCatalog,
@@ -33,7 +32,6 @@ class BatchProcessor:
     def __init__(
         self,
         single_processor: EffectProcessorPort,
-        settings: AppSettings,
         catalog: EffectsCatalog,
         output_path_service: OutputPathService | None = None,
     ) -> None:
@@ -113,6 +111,7 @@ class BatchProcessor:
         results: list[ProcessingResult] = []
         succeeded = 0
         failed = 0
+        cancelled = 0
 
         for item_type, name in items:
             try:
@@ -137,6 +136,7 @@ class BatchProcessor:
                     )
                 )
             if request.strict and failed > 0:
+                cancelled = len(items) - (succeeded + failed)
                 break
 
         return BatchResult(
@@ -144,7 +144,7 @@ class BatchProcessor:
             succeeded=succeeded,
             failed=failed,
             attempted=succeeded + failed,
-            cancelled=0,
+            cancelled=cancelled,
             results=tuple(results),
             output_dir=request.output_dir,
         )
@@ -183,6 +183,32 @@ class BatchProcessor:
                         for f in pending:
                             if f.cancel():
                                 cancelled += 1
+                        # Drain outcomes from futures not cancelled (done at break time,
+                        # or still running) so total == succeeded + failed + cancelled.
+                        for f in pending:
+                            if f.cancelled():
+                                continue
+                            try:
+                                result = f.result()
+                                results.append(result)
+                                if result.success:
+                                    succeeded += 1
+                                else:
+                                    failed += 1
+                            except (KeyboardInterrupt, SystemExit):
+                                raise
+                            except Exception as e:
+                                failed += 1
+                                results.append(
+                                    ProcessingResult(
+                                        success=False,
+                                        command="",
+                                        stdout="",
+                                        stderr=str(e),
+                                        return_code=-1,
+                                        duration=0.0,
+                                    )
+                                )
                         break
                     done, pending = wait(pending, return_when=FIRST_COMPLETED, timeout=0.5)
                     for future in done:
@@ -236,14 +262,13 @@ class BatchProcessor:
             explicit_output=request.explicit_output,
             output_name=name,
         )
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        processing_request = ProcessingRequest(
-            input_path=request.input_path,
-            output_path=output_path,
-        )
 
         try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            processing_request = ProcessingRequest(
+                input_path=request.input_path,
+                output_path=output_path,
+            )
             params = dict(request.params) if request.params else None
             if item_type == ItemType.EFFECT:
                 return self._processor.process_effect(name, processing_request, params)
@@ -261,6 +286,16 @@ class BatchProcessor:
                 output_path=output_path,
             )
         except (EffectNotFoundError, CompositeNotFoundError, PresetNotFoundError) as e:
+            return ProcessingResult(
+                success=False,
+                command="",
+                stdout="",
+                stderr=str(e),
+                return_code=-1,
+                duration=0.0,
+                output_path=output_path,
+            )
+        except OSError as e:
             return ProcessingResult(
                 success=False,
                 command="",

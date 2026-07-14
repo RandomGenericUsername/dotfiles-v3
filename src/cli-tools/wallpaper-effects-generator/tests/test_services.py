@@ -103,7 +103,7 @@ class TestOutputPathService:
             item_type=ItemType.EFFECT,
             flat=True,
         )
-        assert result == Path("/out/img.png")
+        assert result == Path("/out/effect-img.png")
 
     def test_explicit_output_path(self) -> None:
         svc = OutputPathService()
@@ -113,7 +113,7 @@ class TestOutputPathService:
             item_type=ItemType.EFFECT,
             explicit_output=True,
         )
-        assert result == Path("/out/img.png")
+        assert result == Path("/out/effect-img.png")
 
     def test_composite_subdir(self) -> None:
         svc = OutputPathService()
@@ -172,7 +172,7 @@ class TestOutputPathService:
             explicit_output=True,
             output_name="blur",
         )
-        assert result == Path("/out/blur.png")
+        assert result == Path("/out/effect-blur.png")
 
     def test_resolve_flat_no_explicit(self) -> None:
         svc = OutputPathService()
@@ -182,7 +182,7 @@ class TestOutputPathService:
             item_type=ItemType.EFFECT,
             flat=True,
         )
-        assert result == Path("/out/input_stem/img.png")
+        assert result == Path("/out/input_stem/effect-img.png")
 
     def test_resolve_nested_default(self) -> None:
         svc = OutputPathService()

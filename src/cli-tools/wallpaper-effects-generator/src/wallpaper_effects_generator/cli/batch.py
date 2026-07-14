@@ -51,7 +51,7 @@ def _run_batch(
     output_dir = output or _DEFAULT_OUTPUT_DIR
     settings, catalog = _resolve_context(ctx, input)
     processor = _resolve_processor(settings, catalog, output_dir)
-    batch_processor = create_batch_processor(processor, settings, catalog)
+    batch_processor = create_batch_processor(processor, catalog)
 
     request = BatchRequest(
         input_path=input.resolve(),

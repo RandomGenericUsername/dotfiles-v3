@@ -69,13 +69,13 @@ class OutputPathService:
         output_name: str | None = None,
     ) -> Path:
         input_resolved = input_path.resolve()
-        if output_name is not None:
+        if output_name:
             suffix = "".join(input_resolved.suffixes)
             filename = f"{output_name}{suffix}"
         else:
             filename = input_resolved.name
         if explicit_output or flat:
-            return output_dir / filename
+            return output_dir / f"{item_type.value}-{filename}"
         return output_dir / item_type.subdir_name / filename
 
     def batch_output_dir(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -9,7 +11,6 @@ from wallpaper_effects_generator.adapters.batch_processor import BatchProcessor
 from wallpaper_effects_generator.domain.enums import ItemType
 from wallpaper_effects_generator.domain.exceptions import NoInputFilesError
 from wallpaper_effects_generator.domain.models import (
-    AppSettings,
     BatchRequest,
     EffectsCatalog,
     ProcessingResult,
@@ -48,12 +49,9 @@ def _make_success_processor() -> MagicMock:
 
 def _make_partial_processor() -> MagicMock:
     mock = MagicMock()
-    call_count: int = 0
 
-    def effect_side_effect(name: str, request: object) -> ProcessingResult:
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
+    def effect_side_effect(name: str, request: object, params: dict | None = None) -> ProcessingResult:
+        if name == "blur":
             return ProcessingResult(
                 success=True,
                 command="effect ok",
@@ -163,7 +161,6 @@ class TestBatchProcessor:
     ) -> BatchProcessor:
         return BatchProcessor(
             single_processor=processor or _make_success_processor(),
-            settings=AppSettings(),
             catalog=catalog or _make_full_catalog(),
         )
 
@@ -313,7 +310,7 @@ class TestBatchProcessor:
         assert result.total == 3
         assert result.succeeded == 1
         assert result.failed == 1
-        assert result.cancelled == 0
+        assert result.cancelled == 1  # strict skipped remaining items
         assert len(result.results) == 2
 
     def test_strict_parallel_cancels_remaining(self, tmp_path: Path) -> None:
@@ -336,6 +333,66 @@ class TestBatchProcessor:
 
         assert result.succeeded >= 1
         assert result.failed >= 1
+        assert result.total == result.succeeded + result.failed + result.cancelled
+
+    def test_strict_parallel_drains_inflight_futures_after_break(self, tmp_path: Path) -> None:
+        """Strict-parallel break drains in-flight futures so the accounting
+        invariant total == succeeded + failed + cancelled holds even when
+        items were still running at break time."""
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("slow", "fail")
+
+        blocker_release = threading.Event()
+        slow_started = threading.Event()
+
+        def side_effect(name: str, request: object, params: dict | None = None) -> ProcessingResult:
+            if name == "slow":
+                slow_started.set()
+                blocker_release.wait(timeout=2.0)  # blocked at break time
+                return ProcessingResult(
+                    success=True,
+                    command="slow-ok",
+                    stdout="",
+                    stderr="",
+                    return_code=0,
+                    duration=0.1,
+                )
+            # "fail" — wait until "slow" is in-flight, then return failure
+            slow_started.wait(timeout=2.0)
+            return ProcessingResult(
+                success=False,
+                command="fail",
+                stdout="",
+                stderr="err",
+                return_code=1,
+                duration=0.0,
+            )
+
+        mock_processor = MagicMock()
+        mock_processor.process_effect = MagicMock(side_effect=side_effect)
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        # Release the blocker shortly so the drain's f.result() can complete
+        threading.Timer(0.2, blocker_release.set).start()
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+            strict=True,
+            parallel=True,
+            max_workers=2,
+        )
+        result = bp.process_batch(request)
+
+        # "slow" must be drained — its outcome counted even though it was
+        # still running when strict break fired. Without the drain patch,
+        # succeeded would be 0 and the invariant would break.
+        assert result.total == 2
+        assert result.failed == 1
+        assert result.succeeded == 1  # "slow" drained, not lost
+        assert result.cancelled == 0
         assert result.total == result.succeeded + result.failed + result.cancelled
 
     def test_parallel_mode_executes_with_max_workers(self, tmp_path: Path) -> None:
@@ -386,7 +443,7 @@ class TestBatchProcessor:
         mock = MagicMock()
         processed: list[str] = []
 
-        def track(name: str, request: object) -> ProcessingResult:
+        def track(name: str, request: object, params: dict | None = None) -> ProcessingResult:
             processed.append(name)
             return ProcessingResult(
                 success=True,

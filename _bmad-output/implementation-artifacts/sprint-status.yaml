@@ -17,7 +17,8 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-07-05
-last_updated: 2026-07-08T19:00
+last_updated: 2026-07-13
+
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -43,7 +44,7 @@ development_status:
   2-3-runtime-mode-selection-error-mapping: done
   epic-2-retrospective: optional
   epic-3: in-progress
-  3-1-batch-scope-result-contract: ready-for-dev
-  3-2-deterministic-output-path-semantics: backlog
-  3-3-strict-parallel-execution-controls: backlog
+  3-1-batch-scope-result-contract: done
+  3-2-deterministic-output-path-semantics: done
+  3-3-strict-parallel-execution-controls: done
   epic-3-retrospective: optional

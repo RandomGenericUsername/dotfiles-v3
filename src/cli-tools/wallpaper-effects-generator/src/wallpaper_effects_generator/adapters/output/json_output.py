@@ -43,6 +43,8 @@ class JsonOutputAdapter:
             "total": result.total,
             "succeeded": result.succeeded,
             "failed": result.failed,
+            "attempted": result.attempted,
+            "cancelled": result.cancelled,
             "output_dir": str(result.output_dir) if result.output_dir else None,
             "results": [asdict(r) for r in result.results],
         }
