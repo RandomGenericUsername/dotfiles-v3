@@ -4,7 +4,7 @@ baseline_commit: 5818602
 
 # Story 2.2: Settings Config Resolution Pipeline
 
-Status: review
+Status: done
 
 ## Story
 
@@ -153,6 +153,18 @@ pip install -e .
 ruff check --fix
 pytest
 ```
+
+### Review Findings
+
+- [x] [Review][Patch] `ConfigResolverResult` exposes `AppliedOverride` from external package — replaced with domain-native `AppliedOverride` dataclass
+- [x] [Review][Patch] No `ConfigResolutionError` raised on malformed TOML (AC 4) [config_resolver.py:107-113] — wrapped parser exceptions in `ConfigResolutionError`
+- [x] [Review][Patch] No integration test for malformed TOML raising `ConfigResolutionError` [tests/]
+- [x] [Review][Patch] `memory_limit` field accepts any unvalidated string [schema.py:69]
+- [x] [Review][Patch] Timeout fields accept negative integers [schema.py:68-70]
+- [x] [Review][Patch] Empty-string `directory` silently resolves to CWD [schema.py:12]
+- [x] [Review][Patch] Template directory paths not validated for existence [schema.py:34-36]
+- [x] [Review][Defer] `explicit_path` to missing file not wrapped — depends on config-assembler-engine contract
+- [x] [Review][Defer] `resolved_path` and `applied_overrides` could be `None` — depends on config-assembler-engine contract
 
 ### References
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import create_autospec
 
+import pytest
+
 from config_assembler_engine.application.use_cases import AssembleConfiguration
 from config_assembler_engine.domain.models import (
     AppliedOverride,
@@ -15,8 +17,10 @@ from config_assembler_engine.domain.models import (
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import (
     AppSettings,
+    AppliedOverride,
     ConfigResolverResult,
     ContainerSettings,
     GenerationSettings,
@@ -84,6 +88,9 @@ class TestAssembledConfigResolver:
         assert isinstance(resolver.last_result, ConfigResolverResult)
         assert resolver.last_result.resolved_path == Path("/tmp/settings.toml")
         assert len(resolver.last_result.applied_overrides) == 1
+        assert isinstance(resolver.last_result.applied_overrides[0], AppliedOverride)
+        assert resolver.last_result.applied_overrides[0].field_path == "runtime.mode"
+        assert resolver.last_result.applied_overrides[0].source == "cli"
 
     def test_resolve_with_cli_overrides(self) -> None:
         mock_assembler = create_autospec(AssembleConfiguration, instance=True)
@@ -116,3 +123,15 @@ class TestAssembledConfigResolver:
         assert kwargs["schema"] == CoreSettingsSchema
         assert kwargs["policy"].env_prefix == "COLORSCHEME"
         assert len(kwargs["rules"]) > 0
+
+
+class TestAssembledConfigResolverIntegration:
+    def test_malformed_toml_raises_config_resolution_error(self, tmp_path: Path) -> None:
+        malformed = tmp_path / "settings.toml"
+        malformed.write_text("{{{ not valid toml }}}")
+
+        resolver = AssembledConfigResolver()
+        with pytest.raises(ConfigResolutionError) as excinfo:
+            resolver.resolve(explicit_path=str(malformed))
+
+        assert "settings.toml" in str(excinfo.value.key) or "toml" in str(excinfo.value).lower()

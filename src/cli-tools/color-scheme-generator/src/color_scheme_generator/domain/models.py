@@ -8,8 +8,6 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
-from config_assembler_engine.domain.models import AppliedOverride
-
 from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
 
 _UNSET = object()
@@ -135,6 +133,14 @@ class ContainerSettings:
     timeout_seconds: int
     memory_limit: str
     mount_timeout_seconds: int
+
+
+@dataclass(frozen=True)
+class AppliedOverride:
+    field_path: str
+    raw_value: str
+    coerced_value: str
+    source: str
 
 
 @dataclass(frozen=True)

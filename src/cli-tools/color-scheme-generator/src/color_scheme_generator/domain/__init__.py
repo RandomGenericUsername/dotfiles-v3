@@ -20,6 +20,7 @@ from color_scheme_generator.domain.exceptions import (
 )
 from color_scheme_generator.domain.models import (
     AppSettings,
+    AppliedOverride,
     BackendDefinition,
     BackendParameterDefinition,
     Color,
@@ -60,6 +61,7 @@ __all__ = [
     "ConfigResolverResult",
     "PaletteGenerationError",
     "AppSettings",
+    "AppliedOverride",
     "BackendDefinition",
     "BackendParameterDefinition",
     "Color",

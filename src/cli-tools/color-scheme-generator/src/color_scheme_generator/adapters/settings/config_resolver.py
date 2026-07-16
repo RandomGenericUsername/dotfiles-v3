@@ -18,11 +18,15 @@ from config_assembler_engine.domain.models import (
     OverrideSource,
     ResolutionPolicy,
 )
+from config_assembler_engine.errors import ConfigParseError, PathResolutionError
+
+from color_scheme_generator.domain.exceptions import ConfigResolutionError
 
 from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.models import (
     AppSettings,
+    AppliedOverride,
     ConfigResolverResult,
     ContainerSettings,
     GenerationSettings,
@@ -104,15 +108,36 @@ class AssembledConfigResolver:
         cli_overrides: dict[str, str] | None = None,
         explicit_path: str | None = None,
     ) -> AppSettings:
-        result = self._assembler.execute(
-            policy=self._policy,
-            rules=self._rules,
-            schema=CoreSettingsSchema,
-            cli_overrides=cli_overrides,
-            explicit_path=explicit_path,
-        )
+        try:
+            result = self._assembler.execute(
+                policy=self._policy,
+                rules=self._rules,
+                schema=CoreSettingsSchema,
+                cli_overrides=cli_overrides,
+                explicit_path=explicit_path,
+            )
+        except ConfigParseError as e:
+            raise ConfigResolutionError(
+                key="settings.toml",
+                reason=str(e),
+                source=e,
+            ) from e
+        except PathResolutionError as e:
+            raise ConfigResolutionError(
+                key="settings.toml",
+                reason=str(e),
+                source=e,
+            ) from e
         self.last_result = ConfigResolverResult(
             resolved_path=result.resolved_path.path,
-            applied_overrides=tuple(result.applied_overrides),
+            applied_overrides=tuple(
+                AppliedOverride(
+                    field_path=o.field_path,
+                    raw_value=o.raw_value,
+                    coerced_value=o.coerced_value,
+                    source=o.source.value,
+                )
+                for o in result.applied_overrides
+            ),
         )
         return _convert_to_app_settings(result.config)

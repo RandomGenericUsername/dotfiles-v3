@@ -50,3 +50,8 @@
 - TemplateDirResolverPort returns Path even when both dirs can be None — no fallback contract
 - SettingsSerializerPort has no error contract — undocumented exceptions
 - BackendCatalogLoaderPort contract allows empty dict — no minimum-registration guarantee
+
+## Deferred from: code review of 2-2-settings-config-resolution-pipeline (2026-07-16)
+
+- `explicit_path` to missing file not wrapped — depends on config-assembler-engine contract
+- `resolved_path` and `applied_overrides` could be `None` — depends on config-assembler-engine contract

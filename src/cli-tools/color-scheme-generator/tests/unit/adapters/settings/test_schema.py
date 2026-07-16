@@ -18,7 +18,6 @@ class TestCoreSettingsSchema:
         data = {
             "output": {"directory": "/tmp/out", "default_formats": ["json"], "overwrite": True},
             "generation": {"backend": "custom", "default_params": {"quality": "high"}},
-            "template": {"templates_dir": "/templates", "custom_templates_dir": None},
             "runtime": {"mode": "local"},
             "container": {"engine": "docker", "image_prefix": "myapp", "timeout_seconds": 600},
         }

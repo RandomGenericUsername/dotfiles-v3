@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -7,11 +8,20 @@ from pydantic import BaseModel, field_validator
 
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 
+_MEMORY_LIMIT_PATTERN = re.compile(r"^\d+[kKmMgGtT]?$")
+
 
 class OutputSettingsSchema(BaseModel):
     directory: Path
     default_formats: list[str] = []
     overwrite: bool = False
+
+    @field_validator("directory", mode="before")
+    @classmethod
+    def _validate_directory_not_empty(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            raise ValueError("directory must not be empty")
+        return v
 
 
 class GenerationSettingsSchema(BaseModel):
@@ -34,6 +44,13 @@ class GenerationSettingsSchema(BaseModel):
 class TemplateSettingsSchema(BaseModel):
     templates_dir: Path | None = None
     custom_templates_dir: Path | None = None
+
+    @field_validator("templates_dir", "custom_templates_dir")
+    @classmethod
+    def _validate_path_exists(cls, v: Path | None) -> Path | None:
+        if v is not None and not v.exists():
+            raise ValueError(f"Path does not exist: {v}")
+        return v
 
 
 class RuntimeSettingsSchema(BaseModel):
@@ -61,6 +78,22 @@ class ContainerSettingsSchema(BaseModel):
             raise ValueError(
                 f"Invalid container engine '{v}' — must be one of: {', '.join(sorted(valid))}"
             )
+        return v
+
+    @field_validator("memory_limit")
+    @classmethod
+    def _validate_memory_limit(cls, v: str) -> str:
+        if not _MEMORY_LIMIT_PATTERN.match(v):
+            raise ValueError(
+                f"Invalid memory limit '{v}' — must be a number optionally followed by k/m/g/t"
+            )
+        return v.lower()
+
+    @field_validator("timeout_seconds", "mount_timeout_seconds")
+    @classmethod
+    def _validate_timeout(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError(f"Timeout must be non-negative, got {v}")
         return v
 
     image_prefix: str = "csg"
