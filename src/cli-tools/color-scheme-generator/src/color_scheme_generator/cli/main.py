@@ -6,12 +6,17 @@ import typer
 
 from color_scheme_generator.adapters.local_processor import LocalProcessor
 from color_scheme_generator.adapters.output.json_output import JsonOutput
-from color_scheme_generator.domain.enums import Backend
+from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
     AppSettings,
+    ContainerSettings,
     GenerationRequest,
+    GenerationSettings,
     GeneratorConfig,
+    OutputSettings,
+    RuntimeSettings,
+    TemplateSettings,
 )
 from color_scheme_generator.cli.show import show
 from color_scheme_generator.cli.version_cmd import version
@@ -48,7 +53,33 @@ def generate(
     )
     request = GenerationRequest(image_path=image_path, config=config)
     try:
-        result = deps.processor.process_generate(request, AppSettings())
+        settings = AppSettings(
+            output=OutputSettings(
+                directory=Path("/tmp/color-scheme"),
+                default_formats=(),
+                overwrite=False,
+            ),
+            generation=GenerationSettings(
+                backend=Backend.CUSTOM,
+                default_params={},
+            ),
+            template=TemplateSettings(
+                templates_dir=None,
+                custom_templates_dir=None,
+            ),
+            runtime=RuntimeSettings(
+                mode=RuntimeMode.LOCAL,
+                engine=ContainerEngine.DOCKER,
+            ),
+            container=ContainerSettings(
+                image_prefix="csg",
+                image_tag="latest",
+                timeout_seconds=60,
+                memory_limit="512m",
+                mount_timeout_seconds=30,
+            ),
+        )
+        result = deps.processor.process_generate(request, settings)
         deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)
