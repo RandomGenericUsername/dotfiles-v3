@@ -6,6 +6,8 @@ import typer
 
 from color_scheme_generator.adapters.local_processor import LocalProcessor
 from color_scheme_generator.adapters.output.json_output import JsonOutput
+from color_scheme_generator.cli.show import show
+from color_scheme_generator.cli.version_cmd import version
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
@@ -18,8 +20,6 @@ from color_scheme_generator.domain.models import (
     RuntimeSettings,
     TemplateSettings,
 )
-from color_scheme_generator.cli.show import show
-from color_scheme_generator.cli.version_cmd import version
 from color_scheme_generator.factory import CliDependencies, create_backend_registry
 
 app = typer.Typer()
@@ -85,8 +85,8 @@ def generate(
         deps.output_adapter.error(exc)
         raise typer.Exit(code=1) from None
     except Exception:
-        import sys
         import json as _json
+        import sys
         print(_json.dumps({"error": "unexpected error"}), file=sys.stderr)
         raise typer.Exit(code=1) from None
 

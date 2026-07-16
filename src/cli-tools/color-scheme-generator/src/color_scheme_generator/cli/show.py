@@ -63,7 +63,7 @@ def show(
         deps.output_adapter.error(exc)
         raise typer.Exit(code=1) from None
     except Exception:
-        import sys
         import json as _json
+        import sys
         print(_json.dumps({"error": "unexpected error"}), file=sys.stderr)
         raise typer.Exit(code=1) from None

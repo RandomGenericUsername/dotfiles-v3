@@ -8,9 +8,11 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
-_UNSET = object()
+from config_assembler_engine.domain.models import AppliedOverride
 
 from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
+
+_UNSET = object()
 
 _HEX_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}\Z")
 
@@ -133,6 +135,12 @@ class ContainerSettings:
     timeout_seconds: int
     memory_limit: str
     mount_timeout_seconds: int
+
+
+@dataclass(frozen=True)
+class ConfigResolverResult:
+    resolved_path: Path
+    applied_overrides: tuple[AppliedOverride, ...]
 
 
 @dataclass(frozen=True)

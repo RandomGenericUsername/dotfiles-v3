@@ -4,7 +4,12 @@ import re
 from typing import Any, ClassVar
 
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
-from color_scheme_generator.domain.models import BackendParameterDefinition, Color, _HEX_PATTERN, _UNSET
+from color_scheme_generator.domain.models import (
+    _HEX_PATTERN,
+    _UNSET,
+    BackendParameterDefinition,
+    Color,
+)
 
 
 class HexValidationService:
