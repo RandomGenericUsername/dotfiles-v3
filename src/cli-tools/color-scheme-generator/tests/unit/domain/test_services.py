@@ -1,7 +1,15 @@
 from __future__ import annotations
 
-from color_scheme_generator.domain.models import Color
-from color_scheme_generator.domain.services import ColorAdjustmentService, HexValidationService, PaletteNormalizationService
+import pytest
+
+from color_scheme_generator.domain.exceptions import ConfigResolutionError
+from color_scheme_generator.domain.models import BackendParameterDefinition, Color
+from color_scheme_generator.domain.services import (
+    ColorAdjustmentService,
+    HexValidationService,
+    PaletteNormalizationService,
+    ParameterResolutionService,
+)
 
 
 class TestHexValidationService:
@@ -83,3 +91,83 @@ class TestPaletteNormalizationService:
         result = PaletteNormalizationService.sort_by_brightness(colors)
         brightnesses = [sum(c.rgb) for c in result]
         assert brightnesses == sorted(brightnesses)
+
+
+class TestParameterResolutionService:
+    def test_override_takes_precedence(self) -> None:
+        params = (
+            BackendParameterDefinition(
+                name="colors",
+                type_="int",
+                default=16,
+                description="",
+                required=False,
+                choices=None,
+            ),
+        )
+        result = ParameterResolutionService.resolve_all(params, {"colors": 256})
+        assert result == {"colors": 256}
+
+    def test_default_when_no_override(self) -> None:
+        params = (
+            BackendParameterDefinition(
+                name="colors",
+                type_="int",
+                default=16,
+                description="",
+                required=False,
+                choices=None,
+            ),
+        )
+        result = ParameterResolutionService.resolve_all(params, {})
+        assert result == {"colors": 16}
+
+    def test_required_no_default_no_override_raises(self) -> None:
+        params = (
+            BackendParameterDefinition(
+                name="backend",
+                type_="str",
+                description="",
+                required=True,
+                choices=None,
+            ),
+        )
+        with pytest.raises(ConfigResolutionError, match="backend"):
+            ParameterResolutionService.resolve_all(params, {})
+
+    def test_non_required_no_default_returns_none(self) -> None:
+        params = (
+            BackendParameterDefinition(
+                name="optional_arg",
+                type_="str",
+                description="",
+                required=False,
+                choices=None,
+            ),
+        )
+        result = ParameterResolutionService.resolve_all(params, {})
+        assert result == {"optional_arg": None}
+
+    def test_multiple_params(self) -> None:
+        params = (
+            BackendParameterDefinition(
+                name="colors",
+                type_="int",
+                default=16,
+                description="",
+                required=False,
+                choices=None,
+            ),
+            BackendParameterDefinition(
+                name="backend",
+                type_="str",
+                default=None,
+                description="",
+                required=True,
+                choices=None,
+            ),
+        )
+        result = ParameterResolutionService.resolve_all(
+            params, {"colors": 8, "backend": "wal"}
+        )
+        assert result == {"colors": 8, "backend": "wal"}

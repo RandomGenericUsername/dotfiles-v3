@@ -4,10 +4,13 @@ import colorsys
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from types import MappingProxyType
 from typing import Any
 
-from color_scheme_generator.domain.enums import Backend, ColorFormat
+_UNSET = object()
+
+from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
 
 _HEX_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}\Z")
 
@@ -76,5 +79,81 @@ class GenerationResult:
     duration: float
 
 
+@dataclass(frozen=True)
+class BackendParameterDefinition:
+    name: str
+    type_: str
+    description: str
+    required: bool
+    choices: tuple[str, ...] | None
+    default: Any = _UNSET
+
+
+@dataclass(frozen=True)
+class BackendDefinition:
+    backend: Backend
+    display_name: str
+    description: str
+    parameters: tuple[BackendParameterDefinition, ...]
+    min_version: str
+
+
+@dataclass(frozen=True)
+class OutputSettings:
+    directory: Path
+    default_formats: tuple[ColorFormat, ...]
+    overwrite: bool
+
+
+@dataclass(frozen=True)
+class GenerationSettings:
+    backend: Backend
+    default_params: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "default_params", MappingProxyType(self.default_params))
+
+
+@dataclass(frozen=True)
+class TemplateSettings:
+    templates_dir: Path | None
+    custom_templates_dir: Path | None
+
+
+@dataclass(frozen=True)
+class RuntimeSettings:
+    mode: RuntimeMode
+    engine: ContainerEngine
+
+
+@dataclass(frozen=True)
+class ContainerSettings:
+    image_prefix: str
+    image_tag: str
+    timeout_seconds: int
+    memory_limit: str
+    mount_timeout_seconds: int
+
+
+@dataclass(frozen=True)
 class AppSettings:
-    """Placeholder — will be defined as a frozen dataclass in Story 2.1."""
+    output: OutputSettings
+    generation: GenerationSettings
+    template: TemplateSettings
+    runtime: RuntimeSettings
+    container: ContainerSettings
+
+
+@dataclass(frozen=True)
+class ContainerMount:
+    source: Path
+    target: PurePosixPath
+    read_only: bool
+
+
+@dataclass(frozen=True)
+class ContainerResult:
+    return_code: int
+    stdout: str
+    stderr: str
+    duration: float

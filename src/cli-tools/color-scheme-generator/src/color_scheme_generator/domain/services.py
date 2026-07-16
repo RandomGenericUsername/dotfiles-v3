@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
-from typing import ClassVar
+from typing import Any, ClassVar
 
-from color_scheme_generator.domain.models import Color, _HEX_PATTERN
+from color_scheme_generator.domain.exceptions import ConfigResolutionError
+from color_scheme_generator.domain.models import BackendParameterDefinition, Color, _HEX_PATTERN, _UNSET
 
 
 class HexValidationService:
@@ -37,3 +38,25 @@ class PaletteNormalizationService:
     @staticmethod
     def sort_by_brightness(colors: list[Color]) -> list[Color]:
         return sorted(colors, key=lambda c: sum(c.rgb))
+
+
+class ParameterResolutionService:
+    @staticmethod
+    def resolve_all(
+        parameters: tuple[BackendParameterDefinition, ...],
+        overrides: dict[str, Any],
+    ) -> dict[str, Any]:
+        resolved: dict[str, Any] = {}
+        for param in parameters:
+            if param.name in overrides:
+                resolved[param.name] = overrides[param.name]
+            elif param.default is not _UNSET:
+                resolved[param.name] = param.default
+            elif not param.required:
+                resolved[param.name] = None
+            else:
+                raise ConfigResolutionError(
+                    key=param.name,
+                    reason=f"Required parameter '{param.name}' has no default and no override was provided",
+                )
+        return resolved

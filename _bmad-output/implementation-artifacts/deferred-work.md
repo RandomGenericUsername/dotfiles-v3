@@ -37,3 +37,16 @@
 - Silent success in `generate` command (no console feedback) — by-design for JSON output mode, pre-existing
 - `build_deps()` exception propagates uncaught through callback — pre-existing pattern from story 1.6
 - `image_path` not validated for type (accepts directories, special files) — file validation is processor responsibility
+
+## Deferred from: code review of story 2-1-full-domain-and-remaining-ports (2026-07-16)
+
+- `resolve_all` silently ignores unknown override keys — caller typos produce no warning
+- `resolve_all` never enforces `choices` constraint — override values not validated against BackendParameterDefinition.choices
+- ContainerSettings fields lack validation — `timeout_seconds` can be negative, `memory_limit` is unvalidated
+- BackendParameterDefinition.choices and default are type-incompatible — no static check
+- `resolve_all` ignores GenerationSettings.default_params — pipeline not yet built (story 2.2 scope)
+- ConfigResolverPort has no failure contract — undocumented exceptions
+- TemplateRendererPort has no error contract — undocumented exceptions
+- TemplateDirResolverPort returns Path even when both dirs can be None — no fallback contract
+- SettingsSerializerPort has no error contract — undocumented exceptions
+- BackendCatalogLoaderPort contract allows empty dict — no minimum-registration guarantee

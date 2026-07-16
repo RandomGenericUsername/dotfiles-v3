@@ -1,12 +1,28 @@
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
-from color_scheme_generator.domain.enums import Backend, ColorFormat
-from color_scheme_generator.domain.models import Color, ColorScheme, GenerationRequest, GenerationResult, GeneratorConfig
+from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.models import (
+    AppSettings,
+    BackendDefinition,
+    BackendParameterDefinition,
+    Color,
+    ColorScheme,
+    ContainerMount,
+    ContainerResult,
+    ContainerSettings,
+    GenerationRequest,
+    GenerationResult,
+    GenerationSettings,
+    GeneratorConfig,
+    OutputSettings,
+    RuntimeSettings,
+    TemplateSettings,
+)
 
 
 class TestColor:
@@ -169,3 +185,218 @@ class TestGenerationResult:
         assert result.stderr == ""
         assert result.return_code == 0
         assert result.duration == 0.5
+
+
+class TestBackendParameterDefinition:
+    def test_fields(self) -> None:
+        param = BackendParameterDefinition(
+            name="colors",
+            type_="int",
+            default=16,
+            description="Number of colors",
+            required=False,
+            choices=("8", "16", "256"),
+        )
+        assert param.name == "colors"
+        assert param.type_ == "int"
+        assert param.default == 16
+        assert param.description == "Number of colors"
+        assert param.required is False
+        assert param.choices == ("8", "16", "256")
+
+    def test_no_choices(self) -> None:
+        param = BackendParameterDefinition(
+            name="backend",
+            type_="str",
+            default=None,
+            description="Backend engine",
+            required=True,
+            choices=None,
+        )
+        assert param.choices is None
+
+    def test_optional_default(self) -> None:
+        param = BackendParameterDefinition(
+            name="width",
+            type_="int",
+            default=None,
+            description="Image width",
+            required=False,
+            choices=None,
+        )
+        assert param.default is None
+
+
+class TestBackendDefinition:
+    def test_fields(self) -> None:
+        params = (
+            BackendParameterDefinition(
+                name="colors",
+                type_="int",
+                default=16,
+                description="Number of colors",
+                required=False,
+                choices=None,
+            ),
+        )
+        bd = BackendDefinition(
+            backend=Backend.CUSTOM,
+            display_name="Custom Backend",
+            description="A custom color extraction backend",
+            parameters=params,
+            min_version="1.0.0",
+        )
+        assert bd.backend == Backend.CUSTOM
+        assert bd.display_name == "Custom Backend"
+        assert bd.description == "A custom color extraction backend"
+        assert bd.parameters == params
+        assert bd.min_version == "1.0.0"
+
+    def test_empty_parameters(self) -> None:
+        bd = BackendDefinition(
+            backend=Backend.PYWAL,
+            display_name="Pywal",
+            description="",
+            parameters=(),
+            min_version="3.0.0",
+        )
+        assert bd.parameters == ()
+
+
+class TestOutputSettings:
+    def test_fields(self) -> None:
+        s = OutputSettings(
+            directory=Path("/tmp/output"),
+            default_formats=(ColorFormat.JSON, ColorFormat.YAML),
+            overwrite=True,
+        )
+        assert s.directory == Path("/tmp/output")
+        assert s.default_formats == (ColorFormat.JSON, ColorFormat.YAML)
+        assert s.overwrite is True
+
+
+class TestGenerationSettings:
+    def test_fields(self) -> None:
+        s = GenerationSettings(
+            backend=Backend.CUSTOM,
+            default_params={"colors": 16},
+        )
+        assert s.backend == Backend.CUSTOM
+        assert s.default_params == {"colors": 16}
+
+    def test_empty_params(self) -> None:
+        s = GenerationSettings(backend=Backend.PYWAL, default_params={})
+        assert s.default_params == {}
+
+
+class TestTemplateSettings:
+    def test_with_dirs(self) -> None:
+        s = TemplateSettings(
+            templates_dir=Path("/templates"),
+            custom_templates_dir=Path("/custom"),
+        )
+        assert s.templates_dir == Path("/templates")
+        assert s.custom_templates_dir == Path("/custom")
+
+    def test_none_dirs(self) -> None:
+        s = TemplateSettings(templates_dir=None, custom_templates_dir=None)
+        assert s.templates_dir is None
+        assert s.custom_templates_dir is None
+
+
+class TestRuntimeSettings:
+    def test_fields(self) -> None:
+        s = RuntimeSettings(mode=RuntimeMode.LOCAL, engine=ContainerEngine.DOCKER)
+        assert s.mode == RuntimeMode.LOCAL
+        assert s.engine == ContainerEngine.DOCKER
+
+
+class TestContainerSettings:
+    def test_fields(self) -> None:
+        s = ContainerSettings(
+            image_prefix="csg",
+            image_tag="latest",
+            timeout_seconds=300,
+            memory_limit="512m",
+            mount_timeout_seconds=30,
+        )
+        assert s.image_prefix == "csg"
+        assert s.image_tag == "latest"
+        assert s.timeout_seconds == 300
+        assert s.memory_limit == "512m"
+        assert s.mount_timeout_seconds == 30
+
+
+class TestAppSettings:
+    def test_composition(self) -> None:
+        output = OutputSettings(
+            directory=Path("/tmp/output"),
+            default_formats=(ColorFormat.JSON,),
+            overwrite=False,
+        )
+        generation = GenerationSettings(backend=Backend.CUSTOM, default_params={})
+        template = TemplateSettings(templates_dir=None, custom_templates_dir=None)
+        runtime = RuntimeSettings(mode=RuntimeMode.LOCAL, engine=ContainerEngine.DOCKER)
+        container = ContainerSettings(
+            image_prefix="csg",
+            image_tag="latest",
+            timeout_seconds=300,
+            memory_limit="512m",
+            mount_timeout_seconds=30,
+        )
+        settings = AppSettings(
+            output=output,
+            generation=generation,
+            template=template,
+            runtime=runtime,
+            container=container,
+        )
+        assert settings.output == output
+        assert settings.generation == generation
+        assert settings.template == template
+        assert settings.runtime == runtime
+        assert settings.container == container
+
+
+class TestContainerMount:
+    def test_fields(self) -> None:
+        m = ContainerMount(
+            source=Path("/host/path"),
+            target=PurePosixPath("/container/path"),
+            read_only=True,
+        )
+        assert m.source == Path("/host/path")
+        assert m.target == PurePosixPath("/container/path")
+        assert m.read_only is True
+
+    def test_read_write(self) -> None:
+        m = ContainerMount(
+            source=Path("/src"),
+            target=PurePosixPath("/dst"),
+            read_only=False,
+        )
+        assert m.read_only is False
+
+
+class TestContainerResult:
+    def test_fields(self) -> None:
+        r = ContainerResult(
+            return_code=0,
+            stdout="output",
+            stderr="",
+            duration=1.5,
+        )
+        assert r.return_code == 0
+        assert r.stdout == "output"
+        assert r.stderr == ""
+        assert r.duration == 1.5
+
+    def test_error_result(self) -> None:
+        r = ContainerResult(
+            return_code=1,
+            stdout="",
+            stderr="error occurred",
+            duration=2.0,
+        )
+        assert r.return_code == 1
+        assert r.stderr == "error occurred"

@@ -1,6 +1,10 @@
+---
+baseline_commit: 49c889f91398c5c098b0ceedfdaa17e52e57adbd
+---
+
 # Story 2.1: Full Domain & Remaining Ports
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -103,32 +107,32 @@ so that config resolution, template rendering, and container support have contra
 
 ## Tasks / Subtasks
 
-- [ ] Replace AppSettings placeholder with frozen dataclass composing sub-settings (AC 1)
-  - [ ] Define OutputSettings, GenerationSettings, TemplateSettings, RuntimeSettings, ContainerSettings
-  - [ ] Define BackendParameterDefinition, BackendDefinition
-  - [ ] Define AppSettings with composition
-  - [ ] Remove placeholder `class AppSettings` comment
-  - [ ] Export new models from domain/__init__.py
-- [ ] Add ParameterResolutionService to domain/services.py (AC 2)
-  - [ ] Implement resolve_all(parameters, overrides) -> dict
-  - [ ] Raise ConfigResolutionError for missing required params
-  - [ ] Export from domain/__init__.py
-- [ ] Create ContainerMount and ContainerResult models (AC 3)
-  - [ ] Define as frozen dataclasses in domain/models.py
-  - [ ] Export from domain/__init__.py
-- [ ] Define new port interfaces (AC 3)
-  - [ ] ConfigResolverPort
-  - [ ] TemplateRendererPort
-  - [ ] TemplateDirResolverPort
-  - [ ] SettingsSerializerPort
-  - [ ] VersionProviderPort
-  - [ ] BackendCatalogLoaderPort
-  - [ ] ContainerRuntimePort
-  - [ ] Export all from ports/__init__.py
-- [ ] Update tests
-  - [ ] Test ParameterResolutionService
-  - [ ] Test new model instantiations
-  - [ ] Test Protocol structural subtyping
+- [x] Replace AppSettings placeholder with frozen dataclass composing sub-settings (AC 1)
+  - [x] Define OutputSettings, GenerationSettings, TemplateSettings, RuntimeSettings, ContainerSettings
+  - [x] Define BackendParameterDefinition, BackendDefinition
+  - [x] Define AppSettings with composition
+  - [x] Remove placeholder `class AppSettings` comment
+  - [x] Export new models from domain/__init__.py
+- [x] Add ParameterResolutionService to domain/services.py (AC 2)
+  - [x] Implement resolve_all(parameters, overrides) -> dict
+  - [x] Raise ConfigResolutionError for missing required params
+  - [x] Export from domain/__init__.py
+- [x] Create ContainerMount and ContainerResult models (AC 3)
+  - [x] Define as frozen dataclasses in domain/models.py
+  - [x] Export from domain/__init__.py
+- [x] Define new port interfaces (AC 3)
+  - [x] ConfigResolverPort
+  - [x] TemplateRendererPort
+  - [x] TemplateDirResolverPort
+  - [x] SettingsSerializerPort
+  - [x] VersionProviderPort
+  - [x] BackendCatalogLoaderPort
+  - [x] ContainerRuntimePort
+  - [x] Export all from ports/__init__.py
+- [x] Update tests
+  - [x] Test ParameterResolutionService
+  - [x] Test new model instantiations
+  - [x] Test Protocol structural subtyping
 
 ## Dev Notes
 
@@ -181,3 +185,63 @@ pytest
 - [Source: addendum.md:34-36] Domain and port inventory
 - [Source: domain/models.py:79] AppSettings placeholder to replace
 - [Source: domain/services.py:1-39] Existing services to preserve
+
+## File List
+
+### Created
+
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/config_resolver.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/template_renderer.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/template_dir_resolver.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/settings_serializer.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/version_provider.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/backend_catalog_loader.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/container_runtime.py`
+
+### Modified
+
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/domain/models.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/domain/services.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/domain/__init__.py`
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/ports/__init__.py`
+- `src/cli-tools/color-scheme-generator/tests/unit/domain/test_models.py`
+- `src/cli-tools/color-scheme-generator/tests/unit/domain/test_services.py`
+- `src/cli-tools/color-scheme-generator/tests/unit/ports/test_interfaces.py`
+
+## Change Log
+
+- Implemented full domain models: BackendParameterDefinition, BackendDefinition, OutputSettings, GenerationSettings, TemplateSettings, RuntimeSettings, ContainerSettings, AppSettings, ContainerMount, ContainerResult
+- Added ParameterResolutionService with required param validation
+- Created 7 new port interfaces: ConfigResolverPort, TemplateRendererPort, TemplateDirResolverPort, SettingsSerializerPort, VersionProviderPort, BackendCatalogLoaderPort, ContainerRuntimePort
+- Updated domain/__init__.py and ports/__init__.py exports
+- Added comprehensive tests for all new models, services, and protocol structural subtyping
+
+## Dev Agent Record
+
+### Implementation Plan
+
+1. Added new frozen dataclass models to `domain/models.py` replacing the AppSettings placeholder
+2. Added ParameterResolutionService with `resolve_all()` to `domain/services.py` using existing ConfigResolutionError for required param validation
+3. Created 7 new port interface files under `ports/` following the existing `@runtime_checkable Protocol` pattern
+4. Updated `domain/__init__.py` and `ports/__init__.py` with all new exports
+5. Added tests for all new models (instantiations), ParameterResolutionService (resolution paths + error case), and Protocol structural subtyping (valid + invalid implementations)
+
+### Completion Notes
+
+All 5 task groups completed. 30 new test cases added. Full suite: 138 passed, 7 pre-existing failures unchanged.
+
+### Review Findings
+
+- [x] [Review][Patch] `resolve_all` conflates "no default" with "default is None" [`services.py:49-53`] — `BackendParameterDefinition.default: Any | None` uses `None` as sentinel for "no default," so a required param with `default=None` (a valid value) would raise `ConfigResolutionError` instead of resolving to `None`. Fix: use sentinel `_UNSET = object()` for the default field.
+- [x] [Review][Patch] `GenerationSettings.default_params` is a mutable dict inside a frozen dataclass [`models.py:108`] — Python's frozen dataclasses only prevent reassignment, not mutation. `.default_params["x"] = y` silently breaks immutability. Fix: use `types.MappingProxyType` in `__post_init__`.
+- [x] [Review][Patch] `ContainerMount.target` should use `PurePosixPath` [`models.py:144`] — Container-internal paths (e.g. `/app/output`) are not host filesystem paths. `Path` normalizes separators and resolves `.`/`..` which can silently corrupt mount targets. Fix: use `PurePosixPath` for container paths.
+- [x] [Review][Defer] `resolve_all` silently ignores unknown override keys [`services.py:44-55`] — Unknown keys in overrides are silently dropped; caller typos produce no warning
+- [x] [Review][Defer] `resolve_all` never enforces `choices` constraint [`services.py:44-55`, `models.py:86`] — Override values aren't validated against BackendParameterDefinition.choices
+- [x] [Review][Defer] ContainerSettings fields lack validation [`models.py:123-129`] — `timeout_seconds` can be negative, `memory_limit` is an unvalidated free-form string
+- [x] [Review][Defer] BackendParameterDefinition.choices and default are type-incompatible [`models.py:83,86`] — `choices: tuple[str, ...]` but `default: Any`; no static check that default matches choices type
+- [x] [Review][Defer] `resolve_all` ignores `GenerationSettings.default_params` [`models.py:108`, `services.py:43-57`] — Future config pipeline should feed default_params as a lower-priority layer
+- [x] [Review][Defer] ConfigResolverPort has no failure contract [`ports/config_resolver.py:7-8`] — No documented exceptions for missing/malformed config
+- [x] [Review][Defer] TemplateRendererPort has no error contract [`ports/template_renderer.py:9-10`] — No documented exceptions for missing templates, permission errors
+- [x] [Review][Defer] TemplateDirResolverPort returns Path even when both dirs can be None [`ports/template_dir_resolver.py:7-8`] — No contract for what happens when both template dirs are None
+- [x] [Review][Defer] SettingsSerializerPort has no error contract [`ports/settings_serializer.py:10-11`] — Malformed input has no documented error behavior
+- [x] [Review][Defer] BackendCatalogLoaderPort contract allows empty dict [`ports/backend_catalog_loader.py:9-10`] — No guarantee that at least one backend is registered
