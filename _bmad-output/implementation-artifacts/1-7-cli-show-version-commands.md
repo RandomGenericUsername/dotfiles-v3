@@ -1,5 +1,5 @@
 ---
-baseline_commit: 8eacac85e8c86c990fa415e0aab9f671f256f37e
+baseline_commit: 19b93b46536dd04ad63830bb2ae8bce5b8011852
 ---
 
 # Story 1.7: CLI Show + Version Commands

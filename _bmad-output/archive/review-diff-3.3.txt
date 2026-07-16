@@ -1,0 +1,2869 @@
+          )
+                 step_request = ProcessingRequest(
+@@ -101,7 +101,7 @@ class LocalProcessor(EffectProcessorPort):
+                 all_commands.append(rendered)
+                 total_duration += cmd_result.duration
+                 if cmd_result.return_code != 0:
+-                    stable_path = self._output_path_svc.resolve(
++                    stable_path = request.output_path or self._output_path_svc.resolve(
+                         request.input_path, self._output_dir, ItemType.COMPOSITE
+                     )
+                     try:
+@@ -156,7 +156,7 @@ class LocalProcessor(EffectProcessorPort):
+                 resolved_params = self._param_resolver.resolve_all(effect.parameters, params)
+                 is_last = i == len(preset.effects) - 1
+                 if is_last:
+-                    step_output = self._output_path_svc.resolve(
++                    step_output = request.output_path or self._output_path_svc.resolve(
+                         request.input_path, self._output_dir, ItemType.PRESET
+                     )
+                 else:
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py
+index 51db28f..2801fda 100644
+--- a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/main.py
+@@ -4,6 +4,7 @@ from pathlib import Path
+ 
+ import typer
+ 
++from wallpaper_effects_generator.cli.batch import batch_app
+ from wallpaper_effects_generator.cli.dump_config import dump_config_command
+ from wallpaper_effects_generator.cli.dump_effects import dump_effects_command
+ from wallpaper_effects_generator.cli.info import info_command
+@@ -187,6 +188,7 @@ def uninstall(ctx: typer.Context) -> None:
+ 
+ app.add_typer(process_app)
+ app.add_typer(show_app)
++app.add_typer(batch_app)
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py
+index df698c5..12d3b0b 100644
+--- a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/enums.py
+@@ -5,10 +5,11 @@ class ItemType(Enum):
+     EFFECT = "effect"
+     COMPOSITE = "composite"
+     PRESET = "preset"
++    ALL = "all"
+ 
+     @property
+     def subdir_name(self) -> str:
+-        return self.value
++        return self.value if self != ItemType.ALL else "all"
+ 
+ 
+ class CatalogQuery(Enum):
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py
+index bb3cc66..507550f 100644
+--- a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/exceptions.py
+@@ -84,6 +84,18 @@ class ConfigResolutionError(WallpaperEffectsError):
+     pass
+ 
+ 
++class NoInputFilesError(WallpaperEffectsError):
++    def __init__(self, input_path: str) -> None:
++        self.input_path = input_path
++        super().__init__(f"No input files found at: {input_path}")
++
++
++class BatchProcessingError(WallpaperEffectsError):
++    def __init__(self, message: str) -> None:
++        self.message = message
++        super().__init__(message)
++
++
+ __all__ = [
+     "WallpaperEffectsError",
+     "EffectsLoadError",
+@@ -99,4 +111,6 @@ __all__ = [
+     "ContainerTimeoutError",
+     "ImagePullAccessError",
+     "ConfigResolutionError",
++    "NoInputFilesError",
++    "BatchProcessingError",
+ ]
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/models.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/models.py
+index ae50ffa..caf1878 100644
+--- a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/models.py
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/models.py
+@@ -106,6 +106,8 @@ class BatchResult:
+     total: int = 0
+     succeeded: int = 0
+     failed: int = 0
++    attempted: int = 0
++    cancelled: int = 0
+     results: tuple[ProcessingResult, ...] = ()
+     output_dir: Path | None = None
+ 
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/services.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/services.py
+index 8b18d01..0448502 100644
+--- a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/services.py
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/domain/services.py
+@@ -66,8 +66,14 @@ class OutputPathService:
+         item_type: ItemType,
+         flat: bool = False,
+         explicit_output: bool = False,
++        output_name: str | None = None,
+     ) -> Path:
+-        filename = input_path.resolve().name
++        input_resolved = input_path.resolve()
++        if output_name is not None:
++            suffix = "".join(input_resolved.suffixes)
++            filename = f"{output_name}{suffix}"
++        else:
++            filename = input_resolved.name
+         if explicit_output or flat:
+             return output_dir / filename
+         return output_dir / item_type.subdir_name / filename
+@@ -79,9 +85,12 @@ class OutputPathService:
+         flat: bool,
+         explicit_output: bool,
+     ) -> Path:
+-        if explicit_output or flat:
++        if explicit_output:
+             return output_dir
+-        return output_dir / "all"
++        stem = input_path.resolve().stem
++        if not stem:
++            stem = "batch"
++        return output_dir / stem
+ 
+ 
+ class CatalogValidationService:
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py
+index 232bdfc..f06cb96 100644
+--- a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/errors.py
+@@ -1,4 +1,5 @@
+ from wallpaper_effects_generator.domain.exceptions import (
++    BatchProcessingError,
+     BinaryNotFoundError,
+     CatalogError,
+     CommandExecutionError,
+@@ -11,6 +12,7 @@ from wallpaper_effects_generator.domain.exceptions import (
+     EffectsLoadError,
+     EffectsValidationError,
+     ImagePullAccessError,
++    NoInputFilesError,
+     PresetNotFoundError,
+     WallpaperEffectsError,
+ )
+@@ -30,4 +32,6 @@ __all__ = [
+     "ContainerTimeoutError",
+     "ImagePullAccessError",
+     "ConfigResolutionError",
++    "NoInputFilesError",
++    "BatchProcessingError",
+ ]
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py
+index cf731c6..de8a6f4 100644
+--- a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/factory.py
+@@ -8,6 +8,7 @@ from rich.console import Console
+ from wallpaper_effects_generator.adapters.assembled_config_resolver import (
+     AssembledConfigResolver,
+ )
++from wallpaper_effects_generator.adapters.batch_processor import BatchProcessor
+ from wallpaper_effects_generator.adapters.catalog_cache import CatalogCache
+ from wallpaper_effects_generator.adapters.container_processor import (
+     ContainerProcessor,
+@@ -162,3 +163,15 @@ def create_context_validator(
+ 
+ def create_catalog_cache(loader: EffectLoaderPort) -> CatalogCache:
+     return CatalogCache(loader=loader)
++
++
++def create_batch_processor(
++    processor: EffectProcessorPort,
++    settings: AppSettings,
++    catalog: EffectsCatalog,
++) -> BatchProcessor:
++    return BatchProcessor(
++        single_processor=processor,
++        settings=settings,
++        catalog=catalog,
++    )
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/test_services.py b/src/cli-tools/wallpaper-effects-generator/tests/test_services.py
+index fe5abb9..73b87b0 100644
+--- a/src/cli-tools/wallpaper-effects-generator/tests/test_services.py
++++ b/src/cli-tools/wallpaper-effects-generator/tests/test_services.py
+@@ -141,7 +141,7 @@ class TestOutputPathService:
+             flat=False,
+             explicit_output=False,
+         )
+-        assert result == Path("/out/all")
++        assert result == Path("/out/in")
+ 
+     def test_batch_output_dir_flat(self) -> None:
+         svc = OutputPathService()
+@@ -151,8 +151,76 @@ class TestOutputPathService:
+             flat=True,
+             explicit_output=False,
+         )
++        assert result == Path("/out/in")
++
++    def test_batch_output_dir_explicit(self) -> None:
++        svc = OutputPathService()
++        result = svc.batch_output_dir(
++            input_path=Path("/in"),
++            output_dir=Path("/out"),
++            flat=False,
++            explicit_output=True,
++        )
+         assert result == Path("/out")
+ 
++    def test_resolve_explicit_output(self) -> None:
++        svc = OutputPathService()
++        result = svc.resolve(
++            input_path=Path("img.png"),
++            output_dir=Path("/out"),
++            item_type=ItemType.EFFECT,
++            explicit_output=True,
++            output_name="blur",
++        )
++        assert result == Path("/out/blur.png")
++
++    def test_resolve_flat_no_explicit(self) -> None:
++        svc = OutputPathService()
++        result = svc.resolve(
++            input_path=Path("img.png"),
++            output_dir=Path("/out/input_stem"),
++            item_type=ItemType.EFFECT,
++            flat=True,
++        )
++        assert result == Path("/out/input_stem/img.png")
++
++    def test_resolve_nested_default(self) -> None:
++        svc = OutputPathService()
++        result = svc.resolve(
++            input_path=Path("img.png"),
++            output_dir=Path("/out/input_stem"),
++            item_type=ItemType.EFFECT,
++        )
++        assert result == Path("/out/input_stem/effect/img.png")
++
++    def test_resolve_with_output_name(self) -> None:
++        svc = OutputPathService()
++        result = svc.resolve(
++            input_path=Path("photo.png"),
++            output_dir=Path("/out/input_stem"),
++            item_type=ItemType.COMPOSITE,
++            output_name="my-composite",
++        )
++        assert result == Path("/out/input_stem/composite/my-composite.png")
++
++    def test_resolve_composite_subdir(self) -> None:
++        svc = OutputPathService()
++        result = svc.resolve(
++            input_path=Path("img.png"),
++            output_dir=Path("/out"),
++            item_type=ItemType.COMPOSITE,
++        )
++        assert result == Path("/out/composite/img.png")
++
++    def test_resolve_preset_subdir(self) -> None:
++        svc = OutputPathService()
++        result = svc.resolve(
++            input_path=Path("img.png"),
++            output_dir=Path("/out"),
++            item_type=ItemType.PRESET,
++        )
++        assert result == Path("/out/preset/img.png")
++
+ 
+ class TestCatalogValidationService:
+     def test_valid_catalog(self) -> None:
+=== UNTRACKED ===
+--- src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/batch_processor.py ---
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/batch_processor.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/batch_processor.py
+new file mode 100644
+index 0000000..1654de4
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/adapters/batch_processor.py
+@@ -0,0 +1,270 @@
++from __future__ import annotations
++
++import signal
++import threading
++from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
++from pathlib import Path
++from typing import Any
++
++from wallpaper_effects_generator.domain.enums import ItemType
++from wallpaper_effects_generator.domain.exceptions import (
++    BatchProcessingError,
++    CompositeNotFoundError,
++    EffectNotFoundError,
++    NoInputFilesError,
++    PresetNotFoundError,
++)
++from wallpaper_effects_generator.domain.models import (
++    AppSettings,
++    BatchRequest,
++    BatchResult,
++    EffectsCatalog,
++    ProcessingRequest,
++    ProcessingResult,
++)
++from wallpaper_effects_generator.domain.services import OutputPathService
++from wallpaper_effects_generator.ports.processor import EffectProcessorPort
++
++
++_ALL_EXPANSION: tuple[ItemType, ...] = (ItemType.EFFECT, ItemType.COMPOSITE, ItemType.PRESET)
++
++
++class BatchProcessor:
++    def __init__(
++        self,
++        single_processor: EffectProcessorPort,
++        settings: AppSettings,
++        catalog: EffectsCatalog,
++        output_path_service: OutputPathService | None = None,
++    ) -> None:
++        self._processor = single_processor
++        self._catalog = catalog
++        self._output_path_service = output_path_service or OutputPathService()
++
++    def process_batch(self, request: BatchRequest) -> BatchResult:
++        input_path = request.input_path
++        if not input_path.exists() or not input_path.is_file():
++            raise NoInputFilesError(str(input_path))
++
++        items = self._enumerate_items(request.item_types)
++        if not items:
++            return BatchResult(
++                total=0, succeeded=0, failed=0, attempted=0, results=(), output_dir=request.output_dir
++            )
++
++        output_dir = self._output_path_service.batch_output_dir(
++            input_path=input_path,
++            output_dir=request.output_dir,
++            flat=request.flat,
++            explicit_output=request.explicit_output,
++        )
++        try:
++            output_dir.mkdir(parents=True, exist_ok=True)
++        except OSError as e:
++            raise BatchProcessingError(f"Failed to create output directory {output_dir}: {e}")
++
++        request_with_output = BatchRequest(
++            input_path=input_path,
++            output_dir=output_dir,
++            item_types=request.item_types,
++            flat=request.flat,
++            explicit_output=request.explicit_output,
++            parallel=request.parallel,
++            strict=request.strict,
++            max_workers=request.max_workers,
++        )
++
++        if request.parallel:
++            return self._process_parallel(request_with_output, items)
++        return self._process_sequential(request_with_output, items)
++
++    def _enumerate_items(self, item_types: tuple[ItemType, ...]) -> list[tuple[ItemType, str]]:
++        expanded: list[ItemType] = []
++        for t in item_types:
++            if t is ItemType.ALL:
++                expanded.extend(_ALL_EXPANSION)
++            else:
++                expanded.append(t)
++
++        items: list[tuple[ItemType, str]] = []
++        seen: set[tuple[ItemType, str]] = set()
++        for t in expanded:
++            names = self._get_names_for_type(t)
++            for name in names:
++                key = (t, name)
++                if key not in seen:
++                    seen.add(key)
++                    items.append(key)
++        return items
++
++    def _get_names_for_type(self, item_type: ItemType) -> list[str]:
++        if item_type == ItemType.EFFECT:
++            return [e.name for e in self._catalog.effects]
++        if item_type == ItemType.COMPOSITE:
++            return [c.name for c in self._catalog.composites]
++        if item_type == ItemType.PRESET:
++            return [p.name for p in self._catalog.presets]
++        return []
++
++    def _process_sequential(
++        self, request: BatchRequest, items: list[tuple[ItemType, str]]
++    ) -> BatchResult:
++        results: list[ProcessingResult] = []
++        succeeded = 0
++        failed = 0
++
++        for item_type, name in items:
++            try:
++                result = self._process_one(item_type, name, request)
++                results.append(result)
++                if result.success:
++                    succeeded += 1
++                else:
++                    failed += 1
++            except (KeyboardInterrupt, SystemExit):
++                raise
++            except Exception as e:
++                failed += 1
++                results.append(
++                    ProcessingResult(
++                        success=False,
++                        command="",
++                        stdout="",
++                        stderr=str(e),
++                        return_code=-1,
++                        duration=0.0,
++                    )
++                )
++            if request.strict and failed > 0:
++                break
++
++        return BatchResult(
++            total=len(items),
++            succeeded=succeeded,
++            failed=failed,
++            attempted=succeeded + failed,
++            cancelled=0,
++            results=tuple(results),
++            output_dir=request.output_dir,
++        )
++
++    def _process_parallel(
++        self, request: BatchRequest, items: list[tuple[ItemType, str]]
++    ) -> BatchResult:
++        results: list[ProcessingResult] = []
++        succeeded = 0
++        failed = 0
++        interrupted = False
++
++        original: Any = None
++        if threading.current_thread() is threading.main_thread():
++
++            def handler(signum: int, frame: Any) -> None:
++                nonlocal interrupted
++                interrupted = True
++                if callable(original):
++                    original(signum, frame)
++
++            original = signal.signal(signal.SIGINT, handler)
++
++        cancelled = 0
++        try:
++            with ThreadPoolExecutor(max_workers=request.max_workers) as executor:
++                future_map = {
++                    executor.submit(self._process_one, item_type, name, request): (item_type, name)
++                    for item_type, name in items
++                }
++                pending = set(future_map.keys())
++
++                while pending:
++                    if interrupted or (request.strict and failed > 0):
++                        executor.shutdown(wait=False, cancel_futures=True)
++                        for f in pending:
++                            if f.cancel():
++                                cancelled += 1
++                        break
++                    done, pending = wait(pending, return_when=FIRST_COMPLETED, timeout=0.5)
++                    for future in done:
++                        item = future_map[future]
++                        try:
++                            result = future.result()
++                            results.append(result)
++                            if result.success:
++                                succeeded += 1
++                            else:
++                                failed += 1
++                        except (KeyboardInterrupt, SystemExit):
++                            raise
++                        except Exception as e:
++                            failed += 1
++                            results.append(
++                                ProcessingResult(
++                                    success=False,
++                                    command="",
++                                    stdout="",
++                                    stderr=str(e),
++                                    return_code=-1,
++                                    duration=0.0,
++                                )
++                            )
++        finally:
++            if original is not None:
++                signal.signal(signal.SIGINT, original)
++
++        return BatchResult(
++            total=len(items),
++            succeeded=succeeded,
++            failed=failed,
++            attempted=succeeded + failed,
++            cancelled=cancelled,
++            results=tuple(results),
++            output_dir=request.output_dir,
++        )
++
++    def _process_one(
++        self,
++        item_type: ItemType,
++        name: str,
++        request: BatchRequest,
++    ) -> ProcessingResult:
++        output_path = self._output_path_service.resolve(
++            input_path=request.input_path,
++            output_dir=request.output_dir,
++            item_type=item_type,
++            flat=request.flat,
++            explicit_output=request.explicit_output,
++            output_name=name,
++        )
++        output_path.parent.mkdir(parents=True, exist_ok=True)
++
++        processing_request = ProcessingRequest(
++            input_path=request.input_path,
++            output_path=output_path,
++        )
++
++        try:
++            if item_type == ItemType.EFFECT:
++                return self._processor.process_effect(name, processing_request)
++            if item_type == ItemType.COMPOSITE:
++                return self._processor.process_composite(name, processing_request)
++            if item_type == ItemType.PRESET:
++                return self._processor.process_preset(name, processing_request)
++            return ProcessingResult(
++                success=False,
++                command="",
++                stdout="",
++                stderr=f"Unknown item type: {item_type}",
++                return_code=-1,
++                duration=0.0,
++                output_path=output_path,
++            )
++        except (EffectNotFoundError, CompositeNotFoundError, PresetNotFoundError) as e:
++            return ProcessingResult(
++                success=False,
++                command="",
++                stdout="",
++                stderr=str(e),
++                return_code=-1,
++                duration=0.0,
++                output_path=output_path,
++            )
+from __future__ import annotations
+
+import signal
+import threading
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from pathlib import Path
+from typing import Any
+
+from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.exceptions import (
+    BatchProcessingError,
+    CompositeNotFoundError,
+    EffectNotFoundError,
+    NoInputFilesError,
+    PresetNotFoundError,
+)
+from wallpaper_effects_generator.domain.models import (
+    AppSettings,
+    BatchRequest,
+    BatchResult,
+    EffectsCatalog,
+    ProcessingRequest,
+    ProcessingResult,
+)
+from wallpaper_effects_generator.domain.services import OutputPathService
+from wallpaper_effects_generator.ports.processor import EffectProcessorPort
+
+
+_ALL_EXPANSION: tuple[ItemType, ...] = (ItemType.EFFECT, ItemType.COMPOSITE, ItemType.PRESET)
+
+
+class BatchProcessor:
+    def __init__(
+        self,
+        single_processor: EffectProcessorPort,
+        settings: AppSettings,
+        catalog: EffectsCatalog,
+        output_path_service: OutputPathService | None = None,
+    ) -> None:
+        self._processor = single_processor
+        self._catalog = catalog
+        self._output_path_service = output_path_service or OutputPathService()
+
+    def process_batch(self, request: BatchRequest) -> BatchResult:
+        input_path = request.input_path
+        if not input_path.exists() or not input_path.is_file():
+            raise NoInputFilesError(str(input_path))
+
+        items = self._enumerate_items(request.item_types)
+        if not items:
+            return BatchResult(
+                total=0, succeeded=0, failed=0, attempted=0, results=(), output_dir=request.output_dir
+            )
+
+        output_dir = self._output_path_service.batch_output_dir(
+            input_path=input_path,
+            output_dir=request.output_dir,
+            flat=request.flat,
+            explicit_output=request.explicit_output,
+        )
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise BatchProcessingError(f"Failed to create output directory {output_dir}: {e}")
+
+        request_with_output = BatchRequest(
+            input_path=input_path,
+            output_dir=output_dir,
+            item_types=request.item_types,
+            flat=request.flat,
+            explicit_output=request.explicit_output,
+            parallel=request.parallel,
+            strict=request.strict,
+            max_workers=request.max_workers,
+        )
+
+        if request.parallel:
+            return self._process_parallel(request_with_output, items)
+        return self._process_sequential(request_with_output, items)
+
+    def _enumerate_items(self, item_types: tuple[ItemType, ...]) -> list[tuple[ItemType, str]]:
+        expanded: list[ItemType] = []
+        for t in item_types:
+            if t is ItemType.ALL:
+                expanded.extend(_ALL_EXPANSION)
+            else:
+                expanded.append(t)
+
+        items: list[tuple[ItemType, str]] = []
+        seen: set[tuple[ItemType, str]] = set()
+        for t in expanded:
+            names = self._get_names_for_type(t)
+            for name in names:
+                key = (t, name)
+                if key not in seen:
+                    seen.add(key)
+                    items.append(key)
+        return items
+
+    def _get_names_for_type(self, item_type: ItemType) -> list[str]:
+        if item_type == ItemType.EFFECT:
+            return [e.name for e in self._catalog.effects]
+        if item_type == ItemType.COMPOSITE:
+            return [c.name for c in self._catalog.composites]
+        if item_type == ItemType.PRESET:
+            return [p.name for p in self._catalog.presets]
+        return []
+
+    def _process_sequential(
+        self, request: BatchRequest, items: list[tuple[ItemType, str]]
+    ) -> BatchResult:
+        results: list[ProcessingResult] = []
+        succeeded = 0
+        failed = 0
+
+        for item_type, name in items:
+            try:
+                result = self._process_one(item_type, name, request)
+                results.append(result)
+                if result.success:
+                    succeeded += 1
+                else:
+                    failed += 1
+            except (KeyboardInterrupt, SystemExit):
+                raise
+            except Exception as e:
+                failed += 1
+                results.append(
+                    ProcessingResult(
+                        success=False,
+                        command="",
+                        stdout="",
+                        stderr=str(e),
+                        return_code=-1,
+                        duration=0.0,
+                    )
+                )
+            if request.strict and failed > 0:
+                break
+
+        return BatchResult(
+            total=len(items),
+            succeeded=succeeded,
+            failed=failed,
+            attempted=succeeded + failed,
+            cancelled=0,
+            results=tuple(results),
+            output_dir=request.output_dir,
+        )
+
+    def _process_parallel(
+        self, request: BatchRequest, items: list[tuple[ItemType, str]]
+    ) -> BatchResult:
+        results: list[ProcessingResult] = []
+        succeeded = 0
+        failed = 0
+        interrupted = False
+
+        original: Any = None
+        if threading.current_thread() is threading.main_thread():
+
+            def handler(signum: int, frame: Any) -> None:
+                nonlocal interrupted
+                interrupted = True
+                if callable(original):
+                    original(signum, frame)
+
+            original = signal.signal(signal.SIGINT, handler)
+
+        cancelled = 0
+        try:
+            with ThreadPoolExecutor(max_workers=request.max_workers) as executor:
+                future_map = {
+                    executor.submit(self._process_one, item_type, name, request): (item_type, name)
+                    for item_type, name in items
+                }
+                pending = set(future_map.keys())
+
+                while pending:
+                    if interrupted or (request.strict and failed > 0):
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        for f in pending:
+                            if f.cancel():
+                                cancelled += 1
+                        break
+                    done, pending = wait(pending, return_when=FIRST_COMPLETED, timeout=0.5)
+                    for future in done:
+                        item = future_map[future]
+                        try:
+                            result = future.result()
+                            results.append(result)
+                            if result.success:
+                                succeeded += 1
+                            else:
+                                failed += 1
+                        except (KeyboardInterrupt, SystemExit):
+                            raise
+                        except Exception as e:
+                            failed += 1
+                            results.append(
+                                ProcessingResult(
+                                    success=False,
+                                    command="",
+                                    stdout="",
+                                    stderr=str(e),
+                                    return_code=-1,
+                                    duration=0.0,
+                                )
+                            )
+        finally:
+            if original is not None:
+                signal.signal(signal.SIGINT, original)
+
+        return BatchResult(
+            total=len(items),
+            succeeded=succeeded,
+            failed=failed,
+            attempted=succeeded + failed,
+            cancelled=cancelled,
+            results=tuple(results),
+            output_dir=request.output_dir,
+        )
+
+    def _process_one(
+        self,
+        item_type: ItemType,
+        name: str,
+        request: BatchRequest,
+    ) -> ProcessingResult:
+        output_path = self._output_path_service.resolve(
+            input_path=request.input_path,
+            output_dir=request.output_dir,
+            item_type=item_type,
+            flat=request.flat,
+            explicit_output=request.explicit_output,
+            output_name=name,
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        processing_request = ProcessingRequest(
+            input_path=request.input_path,
+            output_path=output_path,
+        )
+
+        try:
+            if item_type == ItemType.EFFECT:
+                return self._processor.process_effect(name, processing_request)
+            if item_type == ItemType.COMPOSITE:
+                return self._processor.process_composite(name, processing_request)
+            if item_type == ItemType.PRESET:
+                return self._processor.process_preset(name, processing_request)
+            return ProcessingResult(
+                success=False,
+                command="",
+                stdout="",
+                stderr=f"Unknown item type: {item_type}",
+                return_code=-1,
+                duration=0.0,
+                output_path=output_path,
+            )
+        except (EffectNotFoundError, CompositeNotFoundError, PresetNotFoundError) as e:
+            return ProcessingResult(
+                success=False,
+                command="",
+                stdout="",
+                stderr=str(e),
+                return_code=-1,
+                duration=0.0,
+                output_path=output_path,
+            )
+--- src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/batch.py ---
+diff --git a/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/batch.py b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/batch.py
+new file mode 100644
+index 0000000..5a38d6f
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/src/wallpaper_effects_generator/cli/batch.py
+@@ -0,0 +1,110 @@
++from __future__ import annotations
++
++from pathlib import Path
++
++import typer
++
++from wallpaper_effects_generator.domain.enums import ItemType
++from wallpaper_effects_generator.domain.models import BatchRequest
++from wallpaper_effects_generator.factory import create_batch_processor, create_output_adapter
++from wallpaper_effects_generator.ports.output import OutputPort
++
++from .process import _resolve_context, _resolve_processor
++
++_DEFAULT_OUTPUT_DIR = Path("/tmp/wallpaper-effects")
++
++batch_app = typer.Typer(
++    name="batch",
++    help="Batch process effects, composites, presets, or all at once",
++)
++
++
++def _get_output_adapter(ctx: typer.Context) -> OutputPort:
++    return create_output_adapter(ctx.obj.get("output_format"))
++
++
++def _run_batch(
++    ctx: typer.Context,
++    input: Path,
++    output: Path | None,
++    flat: bool,
++    explicit_output: bool,
++    strict: bool,
++    parallel: bool,
++    max_workers: int,
++    item_types: tuple[ItemType, ...],
++) -> None:
++    output_adapter = _get_output_adapter(ctx)
++    output_dir = output or _DEFAULT_OUTPUT_DIR
++    settings, catalog = _resolve_context(ctx, input)
++    processor = _resolve_processor(settings, catalog, output_dir)
++    batch_processor = create_batch_processor(processor, settings, catalog)
++
++    request = BatchRequest(
++        input_path=input.resolve(),
++        output_dir=output_dir.resolve(),
++        item_types=item_types,
++        flat=flat,
++        explicit_output=explicit_output,
++        parallel=parallel,
++        strict=strict,
++        max_workers=max_workers,
++    )
++    result = batch_processor.process_batch(request)
++    output_adapter.batch_result(result)
++
++
++@batch_app.command()
++def effects(
++    ctx: typer.Context,
++    input: Path = typer.Argument(..., help="Input image or directory path"),
++    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
++    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
++    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
++    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
++    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
++    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
++) -> None:
++    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.EFFECT,))
++
++
++@batch_app.command()
++def composites(
++    ctx: typer.Context,
++    input: Path = typer.Argument(..., help="Input image or directory path"),
++    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
++    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
++    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
++    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
++    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
++    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
++) -> None:
++    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.COMPOSITE,))
++
++
++@batch_app.command()
++def presets(
++    ctx: typer.Context,
++    input: Path = typer.Argument(..., help="Input image or directory path"),
++    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
++    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
++    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
++    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
++    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
++    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
++) -> None:
++    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.PRESET,))
++
++
++@batch_app.command(name="all")
++def run_all(
++    ctx: typer.Context,
++    input: Path = typer.Argument(..., help="Input image or directory path"),
++    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
++    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
++    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
++    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
++    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
++    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
++) -> None:
++    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.ALL,))
+from __future__ import annotations
+
+from pathlib import Path
+
+import typer
+
+from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.models import BatchRequest
+from wallpaper_effects_generator.factory import create_batch_processor, create_output_adapter
+from wallpaper_effects_generator.ports.output import OutputPort
+
+from .process import _resolve_context, _resolve_processor
+
+_DEFAULT_OUTPUT_DIR = Path("/tmp/wallpaper-effects")
+
+batch_app = typer.Typer(
+    name="batch",
+    help="Batch process effects, composites, presets, or all at once",
+)
+
+
+def _get_output_adapter(ctx: typer.Context) -> OutputPort:
+    return create_output_adapter(ctx.obj.get("output_format"))
+
+
+def _run_batch(
+    ctx: typer.Context,
+    input: Path,
+    output: Path | None,
+    flat: bool,
+    explicit_output: bool,
+    strict: bool,
+    parallel: bool,
+    max_workers: int,
+    item_types: tuple[ItemType, ...],
+) -> None:
+    output_adapter = _get_output_adapter(ctx)
+    output_dir = output or _DEFAULT_OUTPUT_DIR
+    settings, catalog = _resolve_context(ctx, input)
+    processor = _resolve_processor(settings, catalog, output_dir)
+    batch_processor = create_batch_processor(processor, settings, catalog)
+
+    request = BatchRequest(
+        input_path=input.resolve(),
+        output_dir=output_dir.resolve(),
+        item_types=item_types,
+        flat=flat,
+        explicit_output=explicit_output,
+        parallel=parallel,
+        strict=strict,
+        max_workers=max_workers,
+    )
+    result = batch_processor.process_batch(request)
+    output_adapter.batch_result(result)
+
+
+@batch_app.command()
+def effects(
+    ctx: typer.Context,
+    input: Path = typer.Argument(..., help="Input image or directory path"),
+    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
+    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
+    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
+    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
+    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+) -> None:
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.EFFECT,))
+
+
+@batch_app.command()
+def composites(
+    ctx: typer.Context,
+    input: Path = typer.Argument(..., help="Input image or directory path"),
+    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
+    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
+    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
+    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
+    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+) -> None:
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.COMPOSITE,))
+
+
+@batch_app.command()
+def presets(
+    ctx: typer.Context,
+    input: Path = typer.Argument(..., help="Input image or directory path"),
+    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
+    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
+    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
+    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
+    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+) -> None:
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.PRESET,))
+
+
+@batch_app.command(name="all")
+def run_all(
+    ctx: typer.Context,
+    input: Path = typer.Argument(..., help="Input image or directory path"),
+    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
+    flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
+    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
+    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
+    max_workers: int = typer.Option(4, "--max-workers", help="Maximum parallel workers"),
+) -> None:
+    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.ALL,))
+--- src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_batch_processor.py ---
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_batch_processor.py b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_batch_processor.py
+new file mode 100644
+index 0000000..72fcc9f
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_batch_processor.py
+@@ -0,0 +1,498 @@
++from __future__ import annotations
++
++from pathlib import Path
++from unittest.mock import MagicMock
++
++import pytest
++
++from wallpaper_effects_generator.adapters.batch_processor import BatchProcessor
++from wallpaper_effects_generator.domain.enums import ItemType
++from wallpaper_effects_generator.domain.exceptions import NoInputFilesError
++from wallpaper_effects_generator.domain.models import (
++    AppSettings,
++    BatchRequest,
++    EffectsCatalog,
++    ProcessingResult,
++)
++from wallpaper_effects_generator.domain.services import OutputPathService
++
++
++def _make_success_processor() -> MagicMock:
++    mock = MagicMock()
++    mock.process_effect.return_value = ProcessingResult(
++        success=True,
++        command="magick input.png effect output.png",
++        stdout="",
++        stderr="",
++        return_code=0,
++        duration=1.0,
++    )
++    mock.process_composite.return_value = ProcessingResult(
++        success=True,
++        command="magick input.png composite output.png",
++        stdout="",
++        stderr="",
++        return_code=0,
++        duration=1.0,
++    )
++    mock.process_preset.return_value = ProcessingResult(
++        success=True,
++        command="magick input.png preset output.png",
++        stdout="",
++        stderr="",
++        return_code=0,
++        duration=1.0,
++    )
++    return mock
++
++
++def _make_partial_processor() -> MagicMock:
++    mock = MagicMock()
++    call_count: int = 0
++
++    def effect_side_effect(name: str, request: object) -> ProcessingResult:
++        nonlocal call_count
++        call_count += 1
++        if call_count == 1:
++            return ProcessingResult(
++                success=True,
++                command="effect ok",
++                stdout="",
++                stderr="",
++                return_code=0,
++                duration=1.0,
++            )
++        return ProcessingResult(
++            success=False,
++            command="effect fail",
++            stdout="",
++            stderr="error",
++            return_code=1,
++            duration=1.0,
++        )
++
++    mock.process_effect = MagicMock(side_effect=effect_side_effect)
++    mock.process_composite.return_value = ProcessingResult(
++        success=True,
++        command="composite ok",
++        stdout="",
++        stderr="",
++        return_code=0,
++        duration=1.0,
++    )
++    mock.process_preset.return_value = ProcessingResult(
++        success=True,
++        command="preset ok",
++        stdout="",
++        stderr="",
++        return_code=0,
++        duration=1.0,
++    )
++    return mock
++
++
++def _make_all_fail_processor() -> MagicMock:
++    mock = MagicMock()
++    mock.process_effect.return_value = ProcessingResult(
++        success=False,
++        command="fail",
++        stdout="",
++        stderr="error",
++        return_code=1,
++        duration=1.0,
++    )
++    mock.process_composite.return_value = ProcessingResult(
++        success=False,
++        command="fail",
++        stdout="",
++        stderr="error",
++        return_code=1,
++        duration=1.0,
++    )
++    mock.process_preset.return_value = ProcessingResult(
++        success=False,
++        command="fail",
++        stdout="",
++        stderr="error",
++        return_code=1,
++        duration=1.0,
++    )
++    return mock
++
++
++def _make_empty_catalog() -> EffectsCatalog:
++    return EffectsCatalog(effects=(), composites=(), presets=())
++
++
++def _make_full_catalog() -> EffectsCatalog:
++    return EffectsCatalog(
++        effects=(
++            _make_mock_with_name("blur"),
++            _make_mock_with_name("sharpen"),
++        ),
++        composites=(
++            _make_mock_with_name("blur-resize"),
++        ),
++        presets=(
++            _make_mock_with_name("social"),
++        ),
++    )
++
++
++def _make_mock_with_name(name: str) -> MagicMock:
++    m = MagicMock()
++    m.name = name
++    return m
++
++
++def _catalog_with_effects(*names: str) -> EffectsCatalog:
++    return EffectsCatalog(
++        effects=tuple(_make_mock_with_name(n) for n in names),
++        composites=(),
++        presets=(),
++    )
++
++
++class TestBatchProcessor:
++    """Unit tests for BatchProcessor."""
++
++    def _make_batch_processor(
++        self,
++        processor: MagicMock | None = None,
++        catalog: EffectsCatalog | None = None,
++    ) -> BatchProcessor:
++        return BatchProcessor(
++            single_processor=processor or _make_success_processor(),
++            settings=AppSettings(),
++            catalog=catalog or _make_full_catalog(),
++        )
++
++    def test_all_effects_processed_when_scope_effects(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur", "sharpen")
++
++        mock_processor = _make_success_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 2
++        assert result.succeeded == 2
++        assert result.failed == 0
++        assert mock_processor.process_effect.call_count == 2
++
++    def test_all_composites_processed_when_scope_composites(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = EffectsCatalog(
++            effects=(),
++            composites=(_make_mock_with_name("blur-resize"),),
++            presets=(),
++        )
++
++        mock_processor = _make_success_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.COMPOSITE,),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 1
++        assert result.succeeded == 1
++        assert mock_processor.process_composite.call_count == 1
++
++    def test_all_presets_processed_when_scope_presets(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = EffectsCatalog(
++            effects=(),
++            composites=(),
++            presets=(_make_mock_with_name("social"),),
++        )
++
++        mock_processor = _make_success_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.PRESET,),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 1
++        assert result.succeeded == 1
++        assert mock_processor.process_preset.call_count == 1
++
++    def test_all_expands_to_effects_composites_presets(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++
++        mock_processor = _make_success_processor()
++        bp = self._make_batch_processor(processor=mock_processor)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.ALL,),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 4  # 2 effects + 1 composite + 1 preset
++        assert result.succeeded == 4
++        assert mock_processor.process_effect.call_count == 2
++        assert mock_processor.process_composite.call_count == 1
++        assert mock_processor.process_preset.call_count == 1
++
++    def test_partial_failure_returns_mixed_outcomes(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur", "sharpen")
++
++        mock_processor = _make_partial_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 2
++        assert result.succeeded == 1
++        assert result.failed == 1
++        assert len(result.results) == 2
++
++    def test_total_failure_returns_valid_batch_result(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur")
++
++        mock_processor = _make_all_fail_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 1
++        assert result.succeeded == 0
++        assert result.failed == 1
++        assert len(result.results) == 1
++
++    def test_strict_mode_stops_on_first_failure(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur", "sharpen", "edge")
++
++        mock_processor = _make_partial_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++            strict=True,
++            parallel=False,
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 3
++        assert result.succeeded == 1
++        assert result.failed == 1
++        assert result.cancelled == 0
++        assert len(result.results) == 2
++
++    def test_strict_parallel_cancels_remaining(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur", "sharpen", "edge")
++
++        mock_processor = _make_partial_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++            strict=True,
++            parallel=True,
++            max_workers=2,
++        )
++        result = bp.process_batch(request)
++
++        assert result.succeeded >= 1
++        assert result.failed >= 1
++        assert result.total == result.succeeded + result.failed + result.cancelled
++
++    def test_parallel_mode_executes_with_max_workers(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++
++        mock_processor = _make_success_processor()
++        bp = self._make_batch_processor(processor=mock_processor)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++            parallel=True,
++            max_workers=2,
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 2
++        assert result.succeeded == 2
++        assert mock_processor.process_effect.call_count == 2
++
++    def test_empty_catalog_returns_batch_result_with_total_zero(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++
++        mock_processor = _make_success_processor()
++        bp = self._make_batch_processor(
++            processor=mock_processor, catalog=_make_empty_catalog()
++        )
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 0
++        assert result.succeeded == 0
++        assert result.failed == 0
++
++    def test_sequential_mode_executes_in_order(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur", "sharpen", "edge")
++
++        mock = MagicMock()
++        processed: list[str] = []
++
++        def track(name: str, request: object) -> ProcessingResult:
++            processed.append(name)
++            return ProcessingResult(
++                success=True,
++                command=f"magick {name}",
++                stdout="",
++                stderr="",
++                return_code=0,
++                duration=0.5,
++            )
++
++        mock.process_effect.side_effect = track
++        bp = self._make_batch_processor(processor=mock, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++            parallel=False,
++        )
++        result = bp.process_batch(request)
++
++        assert processed == ["blur", "sharpen", "edge"]
++        assert result.total == 3
++        assert result.succeeded == 3
++        assert all(r.success for r in result.results)
++
++    def test_non_strict_continues_on_failure(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur", "sharpen", "edge")
++
++        mock_processor = _make_partial_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++            strict=False,
++            parallel=False,
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 3
++        assert len(result.results) == 3
++        assert result.succeeded == 1
++        assert result.failed == 2
++        assert result.cancelled == 0
++
++    def test_strict_parallel_no_cancelled_if_no_failure(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        catalog = _catalog_with_effects("blur", "sharpen", "edge")
++
++        mock_processor = _make_success_processor()
++        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++            strict=True,
++            parallel=True,
++            max_workers=2,
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 3
++        assert result.succeeded == 3
++        assert result.failed == 0
++        assert result.cancelled == 0
++
++    def test_input_path_does_not_exist_raises_error(self, tmp_path: Path) -> None:
++        bp = self._make_batch_processor()
++
++        request = BatchRequest(
++            input_path=tmp_path / "nonexistent.png",
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++        )
++        with pytest.raises(NoInputFilesError):
++            bp.process_batch(request)
++
++    def test_empty_item_types_returns_zero_batch_result(self, tmp_path: Path) -> None:
++        input_file = tmp_path / "input.png"
++        input_file.write_text("dummy")
++        bp = self._make_batch_processor()
++
++        request = BatchRequest(
++            input_path=input_file,
++            output_dir=tmp_path,
++            item_types=(),
++        )
++        result = bp.process_batch(request)
++
++        assert result.total == 0
++        assert result.succeeded == 0
++        assert result.failed == 0
++
++    def test_directory_input_path_raises_error(self, tmp_path: Path) -> None:
++        bp = self._make_batch_processor()
++
++        request = BatchRequest(
++            input_path=tmp_path,
++            output_dir=tmp_path,
++            item_types=(ItemType.EFFECT,),
++        )
++        with pytest.raises(NoInputFilesError):
++            bp.process_batch(request)
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
+from wallpaper_effects_generator.adapters.batch_processor import BatchProcessor
+from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.exceptions import NoInputFilesError
+from wallpaper_effects_generator.domain.models import (
+    AppSettings,
+    BatchRequest,
+    EffectsCatalog,
+    ProcessingResult,
+)
+from wallpaper_effects_generator.domain.services import OutputPathService
+
+
+def _make_success_processor() -> MagicMock:
+    mock = MagicMock()
+    mock.process_effect.return_value = ProcessingResult(
+        success=True,
+        command="magick input.png effect output.png",
+        stdout="",
+        stderr="",
+        return_code=0,
+        duration=1.0,
+    )
+    mock.process_composite.return_value = ProcessingResult(
+        success=True,
+        command="magick input.png composite output.png",
+        stdout="",
+        stderr="",
+        return_code=0,
+        duration=1.0,
+    )
+    mock.process_preset.return_value = ProcessingResult(
+        success=True,
+        command="magick input.png preset output.png",
+        stdout="",
+        stderr="",
+        return_code=0,
+        duration=1.0,
+    )
+    return mock
+
+
+def _make_partial_processor() -> MagicMock:
+    mock = MagicMock()
+    call_count: int = 0
+
+    def effect_side_effect(name: str, request: object) -> ProcessingResult:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return ProcessingResult(
+                success=True,
+                command="effect ok",
+                stdout="",
+                stderr="",
+                return_code=0,
+                duration=1.0,
+            )
+        return ProcessingResult(
+            success=False,
+            command="effect fail",
+            stdout="",
+            stderr="error",
+            return_code=1,
+            duration=1.0,
+        )
+
+    mock.process_effect = MagicMock(side_effect=effect_side_effect)
+    mock.process_composite.return_value = ProcessingResult(
+        success=True,
+        command="composite ok",
+        stdout="",
+        stderr="",
+        return_code=0,
+        duration=1.0,
+    )
+    mock.process_preset.return_value = ProcessingResult(
+        success=True,
+        command="preset ok",
+        stdout="",
+        stderr="",
+        return_code=0,
+        duration=1.0,
+    )
+    return mock
+
+
+def _make_all_fail_processor() -> MagicMock:
+    mock = MagicMock()
+    mock.process_effect.return_value = ProcessingResult(
+        success=False,
+        command="fail",
+        stdout="",
+        stderr="error",
+        return_code=1,
+        duration=1.0,
+    )
+    mock.process_composite.return_value = ProcessingResult(
+        success=False,
+        command="fail",
+        stdout="",
+        stderr="error",
+        return_code=1,
+        duration=1.0,
+    )
+    mock.process_preset.return_value = ProcessingResult(
+        success=False,
+        command="fail",
+        stdout="",
+        stderr="error",
+        return_code=1,
+        duration=1.0,
+    )
+    return mock
+
+
+def _make_empty_catalog() -> EffectsCatalog:
+    return EffectsCatalog(effects=(), composites=(), presets=())
+
+
+def _make_full_catalog() -> EffectsCatalog:
+    return EffectsCatalog(
+        effects=(
+            _make_mock_with_name("blur"),
+            _make_mock_with_name("sharpen"),
+        ),
+        composites=(
+            _make_mock_with_name("blur-resize"),
+        ),
+        presets=(
+            _make_mock_with_name("social"),
+        ),
+    )
+
+
+def _make_mock_with_name(name: str) -> MagicMock:
+    m = MagicMock()
+    m.name = name
+    return m
+
+
+def _catalog_with_effects(*names: str) -> EffectsCatalog:
+    return EffectsCatalog(
+        effects=tuple(_make_mock_with_name(n) for n in names),
+        composites=(),
+        presets=(),
+    )
+
+
+class TestBatchProcessor:
+    """Unit tests for BatchProcessor."""
+
+    def _make_batch_processor(
+        self,
+        processor: MagicMock | None = None,
+        catalog: EffectsCatalog | None = None,
+    ) -> BatchProcessor:
+        return BatchProcessor(
+            single_processor=processor or _make_success_processor(),
+            settings=AppSettings(),
+            catalog=catalog or _make_full_catalog(),
+        )
+
+    def test_all_effects_processed_when_scope_effects(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur", "sharpen")
+
+        mock_processor = _make_success_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 2
+        assert result.succeeded == 2
+        assert result.failed == 0
+        assert mock_processor.process_effect.call_count == 2
+
+    def test_all_composites_processed_when_scope_composites(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = EffectsCatalog(
+            effects=(),
+            composites=(_make_mock_with_name("blur-resize"),),
+            presets=(),
+        )
+
+        mock_processor = _make_success_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.COMPOSITE,),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 1
+        assert result.succeeded == 1
+        assert mock_processor.process_composite.call_count == 1
+
+    def test_all_presets_processed_when_scope_presets(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = EffectsCatalog(
+            effects=(),
+            composites=(),
+            presets=(_make_mock_with_name("social"),),
+        )
+
+        mock_processor = _make_success_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.PRESET,),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 1
+        assert result.succeeded == 1
+        assert mock_processor.process_preset.call_count == 1
+
+    def test_all_expands_to_effects_composites_presets(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+
+        mock_processor = _make_success_processor()
+        bp = self._make_batch_processor(processor=mock_processor)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.ALL,),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 4  # 2 effects + 1 composite + 1 preset
+        assert result.succeeded == 4
+        assert mock_processor.process_effect.call_count == 2
+        assert mock_processor.process_composite.call_count == 1
+        assert mock_processor.process_preset.call_count == 1
+
+    def test_partial_failure_returns_mixed_outcomes(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur", "sharpen")
+
+        mock_processor = _make_partial_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 2
+        assert result.succeeded == 1
+        assert result.failed == 1
+        assert len(result.results) == 2
+
+    def test_total_failure_returns_valid_batch_result(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur")
+
+        mock_processor = _make_all_fail_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 1
+        assert result.succeeded == 0
+        assert result.failed == 1
+        assert len(result.results) == 1
+
+    def test_strict_mode_stops_on_first_failure(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur", "sharpen", "edge")
+
+        mock_processor = _make_partial_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+            strict=True,
+            parallel=False,
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 3
+        assert result.succeeded == 1
+        assert result.failed == 1
+        assert result.cancelled == 0
+        assert len(result.results) == 2
+
+    def test_strict_parallel_cancels_remaining(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur", "sharpen", "edge")
+
+        mock_processor = _make_partial_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+            strict=True,
+            parallel=True,
+            max_workers=2,
+        )
+        result = bp.process_batch(request)
+
+        assert result.succeeded >= 1
+        assert result.failed >= 1
+        assert result.total == result.succeeded + result.failed + result.cancelled
+
+    def test_parallel_mode_executes_with_max_workers(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+
+        mock_processor = _make_success_processor()
+        bp = self._make_batch_processor(processor=mock_processor)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+            parallel=True,
+            max_workers=2,
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 2
+        assert result.succeeded == 2
+        assert mock_processor.process_effect.call_count == 2
+
+    def test_empty_catalog_returns_batch_result_with_total_zero(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+
+        mock_processor = _make_success_processor()
+        bp = self._make_batch_processor(
+            processor=mock_processor, catalog=_make_empty_catalog()
+        )
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 0
+        assert result.succeeded == 0
+        assert result.failed == 0
+
+    def test_sequential_mode_executes_in_order(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur", "sharpen", "edge")
+
+        mock = MagicMock()
+        processed: list[str] = []
+
+        def track(name: str, request: object) -> ProcessingResult:
+            processed.append(name)
+            return ProcessingResult(
+                success=True,
+                command=f"magick {name}",
+                stdout="",
+                stderr="",
+                return_code=0,
+                duration=0.5,
+            )
+
+        mock.process_effect.side_effect = track
+        bp = self._make_batch_processor(processor=mock, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+            parallel=False,
+        )
+        result = bp.process_batch(request)
+
+        assert processed == ["blur", "sharpen", "edge"]
+        assert result.total == 3
+        assert result.succeeded == 3
+        assert all(r.success for r in result.results)
+
+    def test_non_strict_continues_on_failure(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur", "sharpen", "edge")
+
+        mock_processor = _make_partial_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+            strict=False,
+            parallel=False,
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 3
+        assert len(result.results) == 3
+        assert result.succeeded == 1
+        assert result.failed == 2
+        assert result.cancelled == 0
+
+    def test_strict_parallel_no_cancelled_if_no_failure(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        catalog = _catalog_with_effects("blur", "sharpen", "edge")
+
+        mock_processor = _make_success_processor()
+        bp = self._make_batch_processor(processor=mock_processor, catalog=catalog)
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+            strict=True,
+            parallel=True,
+            max_workers=2,
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 3
+        assert result.succeeded == 3
+        assert result.failed == 0
+        assert result.cancelled == 0
+
+    def test_input_path_does_not_exist_raises_error(self, tmp_path: Path) -> None:
+        bp = self._make_batch_processor()
+
+        request = BatchRequest(
+            input_path=tmp_path / "nonexistent.png",
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+        )
+        with pytest.raises(NoInputFilesError):
+            bp.process_batch(request)
+
+    def test_empty_item_types_returns_zero_batch_result(self, tmp_path: Path) -> None:
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        bp = self._make_batch_processor()
+
+        request = BatchRequest(
+            input_path=input_file,
+            output_dir=tmp_path,
+            item_types=(),
+        )
+        result = bp.process_batch(request)
+
+        assert result.total == 0
+        assert result.succeeded == 0
+        assert result.failed == 0
+
+    def test_directory_input_path_raises_error(self, tmp_path: Path) -> None:
+        bp = self._make_batch_processor()
+
+        request = BatchRequest(
+            input_path=tmp_path,
+            output_dir=tmp_path,
+            item_types=(ItemType.EFFECT,),
+        )
+        with pytest.raises(NoInputFilesError):
+            bp.process_batch(request)
+--- src/cli-tools/wallpaper-effects-generator/tests/unit/cli/test_batch_commands.py ---
+diff --git a/src/cli-tools/wallpaper-effects-generator/tests/unit/cli/test_batch_commands.py b/src/cli-tools/wallpaper-effects-generator/tests/unit/cli/test_batch_commands.py
+new file mode 100644
+index 0000000..ff0bdcc
+--- /dev/null
++++ b/src/cli-tools/wallpaper-effects-generator/tests/unit/cli/test_batch_commands.py
+@@ -0,0 +1,403 @@
++from __future__ import annotations
++
++import json
++from pathlib import Path
++from typing import Any
++from unittest.mock import MagicMock, patch
++
++from typer.testing import CliRunner
++
++from wallpaper_effects_generator.cli.main import app
++from wallpaper_effects_generator.domain.models import BatchResult, ProcessingResult
++
++runner = CliRunner()
++
++
++def _mock_batch_result(
++    total: int = 2,
++    succeeded: int = 2,
++    failed: int = 0,
++    output_dir: Path | None = None,
++) -> BatchResult:
++    return BatchResult(
++        total=total,
++        succeeded=succeeded,
++        failed=failed,
++        attempted=succeeded + failed,
++        cancelled=0,
++        results=tuple(
++            ProcessingResult(
++                success=True,
++                command="magick ...",
++                stdout="",
++                stderr="",
++                return_code=0,
++                output_path=output_dir / f"output_{i}.png" if output_dir else None,
++            )
++            for i in range(succeeded)
++        ) + tuple(
++            ProcessingResult(
++                success=False,
++                command="magick ...",
++                stdout="",
++                stderr="error",
++                return_code=1,
++                output_path=output_dir / f"output_{i}.png" if output_dir else None,
++            )
++            for i in range(succeeded, succeeded + failed)
++        ),
++        output_dir=output_dir,
++    )
++
++
++def _mock_context(*args: Any, **kwargs: Any) -> tuple[MagicMock, MagicMock]:
++    return (MagicMock(), MagicMock())
++
++
++class TestBatchEffectsCommand:
++    def test_batch_effects_basic(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "batch",
++                    "effects",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++    def test_batch_effects_json_output(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "--output-format",
++                    "json",
++                    "batch",
++                    "effects",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++            data = json.loads(result.stdout)
++            assert "total" in data
++            assert data["total"] == 2
++
++    def test_batch_effects_rich_output(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "--output-format",
++                    "rich",
++                    "batch",
++                    "effects",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++    def test_batch_effects_plain_output(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "--output-format",
++                    "plain",
++                    "batch",
++                    "effects",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++    def test_batch_effects_sequential_mode(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "batch",
++                    "effects",
++                    "/tmp/test.png",
++                    "--no-parallel",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++            call_kwargs = mock_bp.process_batch.call_args[0][0]
++            assert call_kwargs.parallel is False
++
++    def test_batch_effects_strict_mode(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=1, failed=1)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "batch",
++                    "effects",
++                    "/tmp/test.png",
++                    "--strict",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++
++class TestBatchCompositesCommand:
++    def test_batch_composites_basic(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=1, succeeded=1)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "batch",
++                    "composites",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++
++class TestBatchPresetsCommand:
++    def test_batch_presets_basic(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=1, succeeded=1)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "batch",
++                    "presets",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++
++class TestBatchAllCommand:
++    def test_batch_all_basic(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=4, succeeded=4)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "batch",
++                    "all",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++    def test_batch_all_json_output(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=4, succeeded=4)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "--output-format",
++                    "json",
++                    "batch",
++                    "all",
++                    "/tmp/test.png",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++            data = json.loads(result.stdout)
++            assert "total" in data
++            assert data["total"] == 4
++
++    def test_batch_all_parallel_with_max_workers(self) -> None:
++        mock_bp = MagicMock()
++        mock_bp.process_batch.return_value = _mock_batch_result(total=4, succeeded=4)
++
++        with (
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_processor",
++                return_value=MagicMock(),
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch._resolve_context",
++                _mock_context,
++            ),
++            patch(
++                "wallpaper_effects_generator.cli.batch.create_batch_processor",
++                return_value=mock_bp,
++            ),
++        ):
++            result = runner.invoke(
++                app,
++                [
++                    "batch",
++                    "all",
++                    "/tmp/test.png",
++                    "--parallel",
++                    "--max-workers",
++                    "8",
++                ],
++            )
++            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
++
++
++def test_batch_invalid_input() -> None:
++    result = runner.invoke(
++        app,
++        [
++            "batch",
++            "effects",
++            "/tmp/nonexistent.png",
++        ],
++    )
++    assert result.exit_code != 0
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+from typer.testing import CliRunner
+
+from wallpaper_effects_generator.cli.main import app
+from wallpaper_effects_generator.domain.models import BatchResult, ProcessingResult
+
+runner = CliRunner()
+
+
+def _mock_batch_result(
+    total: int = 2,
+    succeeded: int = 2,
+    failed: int = 0,
+    output_dir: Path | None = None,
+) -> BatchResult:
+    return BatchResult(
+        total=total,
+        succeeded=succeeded,
+        failed=failed,
+        attempted=succeeded + failed,
+        cancelled=0,
+        results=tuple(
+            ProcessingResult(
+                success=True,
+                command="magick ...",
+                stdout="",
+                stderr="",
+                return_code=0,
+                output_path=output_dir / f"output_{i}.png" if output_dir else None,
+            )
+            for i in range(succeeded)
+        ) + tuple(
+            ProcessingResult(
+                success=False,
+                command="magick ...",
+                stdout="",
+                stderr="error",
+                return_code=1,
+                output_path=output_dir / f"output_{i}.png" if output_dir else None,
+            )
+            for i in range(succeeded, succeeded + failed)
+        ),
+        output_dir=output_dir,
+    )
+
+
+def _mock_context(*args: Any, **kwargs: Any) -> tuple[MagicMock, MagicMock]:
+    return (MagicMock(), MagicMock())
+
+
+class TestBatchEffectsCommand:
+    def test_batch_effects_basic(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "batch",
+                    "effects",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+    def test_batch_effects_json_output(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "--output-format",
+                    "json",
+                    "batch",
+                    "effects",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+            data = json.loads(result.stdout)
+            assert "total" in data
+            assert data["total"] == 2
+
+    def test_batch_effects_rich_output(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "--output-format",
+                    "rich",
+                    "batch",
+                    "effects",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+    def test_batch_effects_plain_output(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "--output-format",
+                    "plain",
+                    "batch",
+                    "effects",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+    def test_batch_effects_sequential_mode(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=2)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "batch",
+                    "effects",
+                    "/tmp/test.png",
+                    "--no-parallel",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+            call_kwargs = mock_bp.process_batch.call_args[0][0]
+            assert call_kwargs.parallel is False
+
+    def test_batch_effects_strict_mode(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=2, succeeded=1, failed=1)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "batch",
+                    "effects",
+                    "/tmp/test.png",
+                    "--strict",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+
+class TestBatchCompositesCommand:
+    def test_batch_composites_basic(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=1, succeeded=1)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "batch",
+                    "composites",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+
+class TestBatchPresetsCommand:
+    def test_batch_presets_basic(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=1, succeeded=1)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "batch",
+                    "presets",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+
+class TestBatchAllCommand:
+    def test_batch_all_basic(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=4, succeeded=4)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "batch",
+                    "all",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+    def test_batch_all_json_output(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=4, succeeded=4)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "--output-format",
+                    "json",
+                    "batch",
+                    "all",
+                    "/tmp/test.png",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+            data = json.loads(result.stdout)
+            assert "total" in data
+            assert data["total"] == 4
+
+    def test_batch_all_parallel_with_max_workers(self) -> None:
+        mock_bp = MagicMock()
+        mock_bp.process_batch.return_value = _mock_batch_result(total=4, succeeded=4)
+
+        with (
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_processor",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch._resolve_context",
+                _mock_context,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.batch.create_batch_processor",
+                return_value=mock_bp,
+            ),
+        ):
+            result = runner.invoke(
+                app,
+                [
+                    "batch",
+                    "all",
+                    "/tmp/test.png",
+                    "--parallel",
+                    "--max-workers",
+                    "8",
+                ],
+            )
+            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+
+
+def test_batch_invalid_input() -> None:
+    result = runner.invoke(
+        app,
+        [
+            "batch",
+            "effects",
+            "/tmp/nonexistent.png",
+        ],
+    )
+    assert result.exit_code != 0
