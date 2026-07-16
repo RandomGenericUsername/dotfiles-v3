@@ -19,8 +19,8 @@ from color_scheme_generator.domain.exceptions import (
     PaletteGenerationError,
 )
 from color_scheme_generator.domain.models import (
-    AppSettings,
     AppliedOverride,
+    AppSettings,
     BackendDefinition,
     BackendParameterDefinition,
     Color,

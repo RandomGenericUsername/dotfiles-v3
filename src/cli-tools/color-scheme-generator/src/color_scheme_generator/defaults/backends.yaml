@@ -1,0 +1,76 @@
+custom:
+  description: "Custom backend using scikit-learn KMeans clustering"
+  display_name: "Custom"
+  parameters:
+    - key: saturation
+      param_type: float
+      default: 1.0
+      min: 0.0
+      max: 2.0
+      description: "Saturation adjustment factor (0.0–2.0)"
+      required: false
+    - key: n_clusters
+      param_type: int
+      default: 16
+      min: 1
+      max: 32
+      description: "Number of color clusters to extract"
+      required: false
+    - key: algorithm
+      param_type: str
+      default: kmeans
+      choices:
+        - kmeans
+      description: "Clustering algorithm"
+      required: false
+
+pywal:
+  description: "pywal color extraction backend"
+  display_name: "Pywal"
+  parameters:
+    - key: saturation
+      param_type: float
+      default: 1.0
+      min: 0.0
+      max: 2.0
+      description: "Saturation adjustment factor (0.0–2.0)"
+      required: false
+    - key: algorithm
+      param_type: str
+      default: wal
+      choices:
+        - auto
+        - thief
+        - color
+        - haishoku
+        - colorthief
+        - wal
+      description: "Color extraction algorithm"
+      required: false
+
+wallust:
+  description: "wallust color extraction backend"
+  display_name: "Wallust"
+  parameters:
+    - key: saturation
+      param_type: float
+      default: 1.0
+      min: 0.0
+      max: 2.0
+      description: "Saturation adjustment factor (0.0–2.0)"
+      required: false
+    - key: algorithm
+      param_type: str
+      default: kmeans
+      choices:
+        - kmeans
+        - kmeans-new
+        - kmeans-old
+        - kmeans-improved
+        - fastkmeans
+        - kmeans-euclid
+        - pam
+        - pam-new
+        - pam-old
+      description: "Color extraction algorithm"
+      required: false

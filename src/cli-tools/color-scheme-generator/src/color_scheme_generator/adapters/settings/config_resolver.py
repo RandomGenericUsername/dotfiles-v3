@@ -20,13 +20,12 @@ from config_assembler_engine.domain.models import (
 )
 from config_assembler_engine.errors import ConfigParseError, PathResolutionError
 
-from color_scheme_generator.domain.exceptions import ConfigResolutionError
-
 from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import (
-    AppSettings,
     AppliedOverride,
+    AppSettings,
     ConfigResolverResult,
     ContainerSettings,
     GenerationSettings,

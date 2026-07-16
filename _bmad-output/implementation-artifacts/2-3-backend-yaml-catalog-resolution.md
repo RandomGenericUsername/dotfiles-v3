@@ -1,6 +1,10 @@
+---
+baseline_commit: 03dfed3d6915c7f8c26f0b6c96ceceb296ceb654
+---
+
 # Story 2.3: Backend YAML Catalog Resolution
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -59,29 +63,29 @@ So that I can inspect and edit per-backend parameters without touching code.
 
 ## Tasks / Subtasks
 
-- [ ] Create BackendsCatalogSchema (Pydantic) in adapters/schemas/ (AC: 2)
-  - [ ] BackendParameterSchema with: key, param_type, default, min, max, choices, description, required
-  - [ ] BackendDefinitionSchema with: description, parameters (list of BackendParameterSchema), display_name
-  - [ ] BackendsCatalogSchema: dict[str, BackendDefinitionSchema] (keyed by backend name)
-  - [ ] @field_validator for param_type choices (float, int, str)
-- [ ] Create YamlBackendCatalogLoader in adapters/yaml_backend_catalog_loader.py (AC: 1, 3)
-  - [ ] Inject AssembleConfiguration use case with YamlConfigParser
-  - [ ] Build ResolutionPolicy with 5-strategy chain (env prefix COLORSCHEME_BACKENDS)
-  - [ ] Build OverrideRules: empty (catalog is file-source only)
-  - [ ] Implement _schema_to_domain(): BackendsCatalogSchema -> dict[Backend, BackendDefinition]
-  - [ ] Create adapters/schemas/__init__.py
-- [ ] Create defaults/backends.yaml with all three backend definitions (AC: 4)
-- [ ] Update factory.py to wire YamlBackendCatalogLoader (AC: 1)
-  - [ ] Add create_backend_catalog_loader() helper
-  - [ ] Store on CliDependencies
-- [ ] Add tests (AC: 2, 3, 5)
-  - [ ] BackendsCatalogSchema validates valid YAML
-  - [ ] BackendsCatalogSchema rejects invalid param_type
-  - [ ] BackendsCatalogSchema rejects missing required fields
-  - [ ] YamlBackendCatalogLoader.load() returns correct dict[Backend, BackendDefinition]
-  - [ ] YamlBackendCatalogLoader.load() raises ConfigResolutionError on corrupt YAML
-  - [ ] YamlBackendCatalogLoader protocol compliance (isinstance check)
-  - [ ] Integration: load default bundled backends.yaml and verify structure
+- [x] Create BackendsCatalogSchema (Pydantic) in adapters/schemas/ (AC: 2)
+  - [x] BackendParameterSchema with: key, param_type, default, min, max, choices, description, required
+  - [x] BackendDefinitionSchema with: description, parameters (list of BackendParameterSchema), display_name
+  - [x] BackendsCatalogSchema: dict[str, BackendDefinitionSchema] (keyed by backend name)
+  - [x] @field_validator for param_type choices (float, int, str)
+- [x] Create YamlBackendCatalogLoader in adapters/yaml_backend_catalog_loader.py (AC: 1, 3)
+  - [x] Inject AssembleConfiguration use case with YamlConfigParser
+  - [x] Build ResolutionPolicy with 5-strategy chain (env prefix COLORSCHEME_BACKENDS)
+  - [x] Build OverrideRules: empty (catalog is file-source only)
+  - [x] Implement _schema_to_domain(): BackendsCatalogSchema -> dict[Backend, BackendDefinition]
+  - [x] Create adapters/schemas/__init__.py
+- [x] Create defaults/backends.yaml with all three backend definitions (AC: 4)
+- [x] Update factory.py to wire YamlBackendCatalogLoader (AC: 1)
+  - [x] Add create_backend_catalog_loader() helper
+  - [x] Store on CliDependencies
+- [x] Add tests (AC: 2, 3, 5)
+  - [x] BackendsCatalogSchema validates valid YAML
+  - [x] BackendsCatalogSchema rejects invalid param_type
+  - [x] BackendsCatalogSchema rejects missing required fields
+  - [x] YamlBackendCatalogLoader.load() returns correct dict[Backend, BackendDefinition]
+  - [x] YamlBackendCatalogLoader.load() raises ConfigResolutionError on corrupt YAML
+  - [x] YamlBackendCatalogLoader protocol compliance (isinstance check)
+  - [x] Integration: load default bundled backends.yaml and verify structure
 
 ## Dev Notes
 
@@ -149,6 +153,7 @@ opencode-go/deepseek-v4-flash
 | `src/cli-tools/color-scheme-generator/tests/unit/adapters/schemas/__init__.py` | Created |
 | `src/cli-tools/color-scheme-generator/tests/unit/adapters/schemas/test_backends_catalog_schema.py` | Created |
 | `src/cli-tools/color-scheme-generator/tests/unit/adapters/test_yaml_backend_catalog_loader.py` | Created |
+| `_bmad-output/implementation-artifacts/2-3-backend-yaml-catalog-resolution.md` | Modified |
 
 ### Post-implementation verification
 
@@ -158,7 +163,33 @@ pytest
 ruff check --fix
 ```
 
+### Implementation Plan
+
+Followed the AssembledConfigResolver pattern from story 2.2. Key differences:
+- Uses YamlConfigParser instead of TomlConfigParser
+- Empty OverrideRules (catalog is file-source only)
+- BackendsCatalogSchema uses RootModel for direct dict validation
+- ResolutionPolicy with COLORSCHEME_BACKENDS env prefix
+- _schema_to_domain() converts validated schema to domain models
+
+### Dependencies Added
+
+- None (used existing config-assembler-engine and pydantic)
+
+### Test Coverage
+
+- 8 unit tests for BackendsCatalogSchema (valid YAML, field structure, valid/invalid param_type, defaults, choices, missing required)
+- 7 tests for YamlBackendCatalogLoader (protocol compliance, correct dict/domain values, schema/policy passing, error handling, integration with real file)
+
+### Debug Log
+
+- Schema initially used BaseModel with `backends:` wrapper field → changed to RootModel for direct dict validation matching the YAML structure
+- Fixed import typo `config_adapters` → `config_assembler_engine` in loader
+- Added missing `pass` to RootModel class body
+
 ### Completion Notes
 
-- All tasks completed
-- Story status: ready-for-dev
+- All tasks completed and verified
+- All 181 existing tests + 15 new tests pass (no regressions)
+- All linting checks pass
+- Story status: review

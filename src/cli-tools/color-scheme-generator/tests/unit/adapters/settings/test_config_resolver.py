@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import create_autospec
 
 import pytest
-
 from config_assembler_engine.application.use_cases import AssembleConfiguration
 from config_assembler_engine.domain.models import (
     AppliedOverride,
@@ -19,8 +18,8 @@ from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import (
-    AppSettings,
     AppliedOverride,
+    AppSettings,
     ConfigResolverResult,
     ContainerSettings,
     GenerationSettings,
