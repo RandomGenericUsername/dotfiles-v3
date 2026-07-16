@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import json
+import sys
+
+from color_scheme_generator.domain.exceptions import (
+    BackendNotAvailableError,
+    ColorExtractionError,
+    ColorSchemeError,
+    ConfigResolutionError,
+    InvalidImageError,
+    OutputWriteError,
+    PaletteGenerationError,
+)
+from color_scheme_generator.domain.models import Color, ColorScheme, GenerationResult
+
+
+class JsonOutput:
+    def process_result(self, result: GenerationResult) -> None:
+        payload: dict = {
+            "success": result.success,
+            "color_scheme": self._serialize_color_scheme(result.color_scheme),
+            "output_files": [str(p) for p in result.output_files],
+            "backend": result.backend.value,
+            "duration": result.duration,
+        }
+        json.dump(payload, sys.stdout, default=str)
+        print()
+
+    def error(self, exc: ColorSchemeError) -> None:
+        payload: dict = {
+            "success": False,
+            "error": self._serialize_error(exc),
+        }
+        json.dump(payload, sys.stdout, default=str)
+        print()
+
+    def palette_display(self, scheme: ColorScheme) -> None:
+        payload = self._serialize_color_scheme(scheme)
+        json.dump(payload, sys.stdout, default=str)
+        print()
+
+    def _serialize_color_scheme(self, scheme: ColorScheme | None) -> dict:
+        if scheme is None:
+            return {}
+        return {
+            "background": self._color_to_dict(scheme.background),
+            "foreground": self._color_to_dict(scheme.foreground),
+            "cursor": self._color_to_dict(scheme.cursor),
+            "colors": [self._color_to_dict(c) for c in scheme.colors],
+            "source_image": str(scheme.source_image),
+            "backend": scheme.backend.value,
+            "generated_at": scheme.generated_at.isoformat(),
+        }
+
+    def _color_to_dict(self, color: Color) -> dict:
+        return {"hex": color.hex, "rgb": list(color.rgb)}
+
+    def _serialize_error(self, exc: ColorSchemeError) -> dict:
+        error_info: dict = {
+            "type": type(exc).__name__,
+            "message": str(exc),
+        }
+
+        if isinstance(exc, InvalidImageError):
+            error_info["image_path"] = str(exc.image_path)
+            error_info["reason"] = exc.reason
+        elif isinstance(exc, ColorExtractionError):
+            error_info["backend"] = exc.backend.value
+            error_info["stderr"] = exc.stderr
+        elif isinstance(exc, BackendNotAvailableError):
+            error_info["backend"] = exc.backend.value
+            error_info["hint"] = exc.hint
+        elif isinstance(exc, OutputWriteError):
+            error_info["path"] = str(exc.path)
+            error_info["reason"] = exc.reason
+        elif isinstance(exc, ConfigResolutionError):
+            error_info["key"] = exc.key
+            error_info["reason"] = exc.reason
+            if exc.source is not None:
+                error_info["source"] = str(exc.source)
+        elif isinstance(exc, PaletteGenerationError):
+            if exc.backend is not None:
+                error_info["backend"] = exc.backend.value
+
+        return error_info
