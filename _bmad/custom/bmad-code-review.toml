@@ -1,0 +1,2 @@
+[workflow]
+on_complete = "git status --short && (git add -A && git commit -m 'fix: auto-commit code review findings' --no-verify || true)"

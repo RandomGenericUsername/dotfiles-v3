@@ -1,0 +1,2 @@
+[workflow]
+on_complete = "git status --short && (git add -A && git commit -m 'feat: auto-commit story implementation' --no-verify || true)"

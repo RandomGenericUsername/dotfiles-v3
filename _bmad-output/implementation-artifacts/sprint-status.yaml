@@ -39,7 +39,7 @@ development_status:
   # ── Epic 2: Configure & Extend ──
   epic-2: in-progress
   2-1-full-domain-and-remaining-ports: done
-  2-2-settings-config-resolution-pipeline: backlog
+  2-2-settings-config-resolution-pipeline: ready-for-dev
   2-3-backend-yaml-catalog-resolution: backlog
   2-4-pywal-backend-adapter: backlog
   2-5-wallust-backend-adapter: backlog
