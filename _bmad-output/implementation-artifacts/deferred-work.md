@@ -27,3 +27,13 @@
 - Only ColorSchemeError caught [main.py:47] — by design per spec ("let unexpected errors propagate")
 - Callback has no error handling for factory failures [main.py:22-26] — low risk, systemic config issues handled at app level
 - CliDependencies.processor field declared but never set [factory.py:23] — forward-looking, will be used in Epic 2/3
+
+## Deferred from: code review of 1-7-cli-show-version-commands (2026-07-16)
+
+- Hardcoded `/tmp/color-scheme` output directory — pre-existing pattern from story 1.6, output customization is Epic 2 scope
+- Empty `formats=()` produces no output files — pre-existing from story 1.6; `show` by design doesn't write files
+- Hardcoded `Backend.CUSTOM` with empty `params` — backend selection is Epic 2 scope
+- Duplicate `GeneratorConfig` construction across `generate` and `show` — pre-existing pattern from story 1.6
+- Silent success in `generate` command (no console feedback) — by-design for JSON output mode, pre-existing
+- `build_deps()` exception propagates uncaught through callback — pre-existing pattern from story 1.6
+- `image_path` not validated for type (accepts directories, special files) — file validation is processor responsibility

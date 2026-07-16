@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -8,8 +9,20 @@ from typer.testing import CliRunner
 
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import InvalidImageError
-from color_scheme_generator.domain.models import GenerationResult
+from color_scheme_generator.domain.models import Color, ColorScheme, GenerationResult
 from color_scheme_generator.factory import CliDependencies
+
+
+def _make_color_scheme() -> ColorScheme:
+    return ColorScheme(
+        background=Color(hex="#000000", rgb=(0, 0, 0)),
+        foreground=Color(hex="#ffffff", rgb=(255, 255, 255)),
+        cursor=Color(hex="#ffffff", rgb=(255, 255, 255)),
+        colors=tuple(Color(hex="#000000", rgb=(0, 0, 0)) for _ in range(16)),
+        source_image=Path("/tmp/test.jpg"),
+        backend=Backend.CUSTOM,
+        generated_at=datetime.now(),
+    )
 
 
 @pytest.fixture
@@ -22,7 +35,7 @@ def mock_processor() -> MagicMock:
     mock = MagicMock()
     mock.process_show.return_value = GenerationResult(
         success=True,
-        color_scheme=None,
+        color_scheme=_make_color_scheme(),
         output_files=(),
         backend=Backend.CUSTOM,
         stderr="",
@@ -80,6 +93,9 @@ class TestCliShow:
         result = runner.invoke(app, ["show", "/nonexistent.jpg"])
         assert result.exit_code == 1
         mock_output.error.assert_called_once()
+        call_arg = mock_output.error.call_args[0][0]
+        assert isinstance(call_arg, InvalidImageError)
+        assert "nonexistent.jpg" in str(call_arg)
 
     def test_calls_palette_display_not_process_result(
         self,

@@ -37,7 +37,7 @@ def main_callback(ctx: typer.Context) -> None:
 @app.command()
 def generate(
     ctx: typer.Context,
-    image_path: Path = typer.Argument(..., exists=False),  # noqa: B008
+    image_path: Path = typer.Argument(..., help="Path to the input image file"),  # noqa: B008
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     config = GeneratorConfig(
@@ -52,6 +52,11 @@ def generate(
         deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)
+        raise typer.Exit(code=1) from None
+    except Exception:
+        import sys
+        import json as _json
+        print(_json.dumps({"error": "unexpected error"}), file=sys.stderr)
         raise typer.Exit(code=1) from None
 
 

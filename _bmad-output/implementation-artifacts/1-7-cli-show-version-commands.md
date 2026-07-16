@@ -4,7 +4,7 @@ baseline_commit: 19b93b46536dd04ad63830bb2ae8bce5b8011852
 
 # Story 1.7: CLI Show + Version Commands
 
-Status: review
+Status: done
 
 ## Story
 
@@ -201,3 +201,20 @@ deepseek-v4-flash
 | `src/cli-tools/color-scheme-generator/src/color_scheme_generator/cli/main.py` | MODIFY |
 | `src/cli-tools/color-scheme-generator/tests/unit/cli/test_show.py` | CREATE |
 | `src/cli-tools/color-scheme-generator/tests/unit/cli/test_version.py` | CREATE |
+
+### Review Findings
+
+- [x] [Review][Patch] `typer.Argument(..., exists=False)` is dead code — parameter silently ignored by typer, has no effect [`main.py:40`, `show.py:14`]
+- [x] [Review][Patch] `version` crashes with unhandled `PackageNotFoundError` when package not installed — wrap in try/except with clean error message and exit code 1 [`version_cmd.py:8`]
+- [x] [Review][Patch] Duplicate test methods `test_version_outputs_json` and `test_version_matches_metadata` assert identical behavior — remove one [`test_version.py:16-32`]
+- [x] [Review][Patch] Mock `color_scheme=None` in `test_show.py` masks real type mismatch — `palette_display` expects `ColorScheme`, not `None`; mock should return a valid `ColorScheme` object [`test_show.py:25`]
+- [x] [Review][Patch] No `--help` text for `IMAGE_PATH` argument — add `help="..."` to `typer.Argument` for better CLI UX [`main.py:40`, `show.py:14`]
+- [x] [Review][Patch] Catches only `ColorSchemeError` — unexpected exception types (e.g., `OSError`, `PermissionError`) crash with traceback; add broader error handling [`main.py:53-55`, `show.py:27-29`]
+- [x] [Review][Patch] Error JSON output not verified in tests — AC2 requires "JSON error payload" but test only checks `mock_output.error.assert_called_once()` without inspecting the payload [`test_show.py:82`]
+- [x] [Review][Defer] Hardcoded `/tmp/color-scheme` output directory — pre-existing pattern from story 1.6, output customization is Epic 2 scope
+- [x] [Review][Defer] Empty `formats=()` produces no output files — pre-existing from story 1.6; `show` by design doesn't write files
+- [x] [Review][Defer] Hardcoded `Backend.CUSTOM` with empty `params` — backend selection is Epic 2 scope
+- [x] [Review][Defer] Duplicate `GeneratorConfig` construction across `generate` and `show` — pre-existing pattern from story 1.6
+- [x] [Review][Defer] Silent success in `generate` command (no console feedback) — by-design for JSON output mode, pre-existing
+- [x] [Review][Defer] `build_deps()` exception propagates uncaught through callback — pre-existing pattern from story 1.6
+- [x] [Review][Defer] `image_path` not validated for type (accepts directories, special files) — file validation is processor responsibility

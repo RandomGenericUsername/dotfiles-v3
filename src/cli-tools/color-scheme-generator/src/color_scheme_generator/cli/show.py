@@ -11,7 +11,7 @@ from color_scheme_generator.domain.models import AppSettings, GenerationRequest,
 
 def show(
     ctx: typer.Context,
-    image_path: Path = typer.Argument(..., exists=False),  # noqa: B008
+    image_path: Path = typer.Argument(..., help="Path to the input image file"),  # noqa: B008
 ) -> None:
     deps = ctx.obj["deps"]
     config = GeneratorConfig(
@@ -26,4 +26,9 @@ def show(
         deps.output_adapter.palette_display(result.color_scheme)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)
+        raise typer.Exit(code=1) from None
+    except Exception:
+        import sys
+        import json as _json
+        print(_json.dumps({"error": "unexpected error"}), file=sys.stderr)
         raise typer.Exit(code=1) from None
