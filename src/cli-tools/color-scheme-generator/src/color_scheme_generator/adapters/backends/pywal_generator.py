@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import subprocess
 import time
@@ -17,7 +18,7 @@ from color_scheme_generator.domain.services import ColorAdjustmentService
 
 _SUBPROCESS_TIMEOUT = 60
 _CACHE_FILE = Path.home() / ".cache" / "wal" / "colors.json"
-_CACHE_RETRY_DELAY = 0.1
+_CACHE_RETRY_DELAY = 0.5
 
 
 class PywalGenerator:
@@ -35,11 +36,15 @@ class PywalGenerator:
         timeout = params.get("timeout", _SUBPROCESS_TIMEOUT)
         saturation = params.get("saturation", 1.0)
 
+        if not isinstance(timeout, (int, float)) or timeout < 1:
+            timeout = _SUBPROCESS_TIMEOUT
+
         cmd = [
             "wal",
             "-i", str(image_path),
             "-n", "-s", "-t", "-e",
             "--backend", str(algorithm),
+            "--stdout",
         ]
 
         try:
@@ -61,21 +66,40 @@ class PywalGenerator:
                 stderr=result.stderr.decode("utf-8", errors="replace"),
             )
 
+        saturation = self._validate_saturation(saturation)
+        special: dict[str, str] = {}
+
         if result.stdout and result.stdout.strip():
             colors = self._parse_stdout(result.stdout)
+            if not colors:
+                colors, special = self._parse_cache_file()
         else:
-            colors = self._parse_cache_file()
+            colors, special = self._parse_cache_file()
 
-        colors = sorted(colors, key=lambda c: sum(c.rgb))
-        saturation = max(0.0, min(1.0, float(saturation)))
         colors = [
             ColorAdjustmentService.adjust_saturation(c, saturation)
             for c in colors
         ]
 
-        background = colors[0]
-        foreground = colors[-1]
-        cursor = max(colors, key=lambda c: max(c.rgb) - min(c.rgb))
+        colors = sorted(colors, key=lambda c: sum(c.rgb))
+
+        if special:
+            bg_hex = special.get("background")
+            fg_hex = special.get("foreground")
+            cursor_hex = special.get("cursor")
+            background = ColorAdjustmentService.adjust_saturation(
+                self._hex_to_color(bg_hex), saturation
+            ) if bg_hex else colors[0]
+            foreground = ColorAdjustmentService.adjust_saturation(
+                self._hex_to_color(fg_hex), saturation
+            ) if fg_hex else colors[-1]
+            cursor = ColorAdjustmentService.adjust_saturation(
+                self._hex_to_color(cursor_hex), saturation
+            ) if cursor_hex else max(colors, key=lambda c: max(c.rgb) - min(c.rgb))
+        else:
+            background = colors[0]
+            foreground = colors[-1]
+            cursor = max(colors, key=lambda c: max(c.rgb) - min(c.rgb))
 
         return ColorScheme(
             background=background,
@@ -87,33 +111,58 @@ class PywalGenerator:
             generated_at=datetime.now(),
         )
 
-    def _parse_stdout(self, stdout: bytes) -> list[Color]:
+    @staticmethod
+    def _validate_saturation(saturation: object) -> float:
+        if not isinstance(saturation, (int, float)) or math.isnan(saturation):
+            return 1.0
+        return max(0.0, min(1.0, float(saturation)))
+
+    @staticmethod
+    def _hex_to_color(hex_str: str) -> Color:
+        if not hex_str.startswith("#"):
+            hex_str = f"#{hex_str}"
+        if len(hex_str) == 4:
+            hex_str = f"#{hex_str[1]*2}{hex_str[2]*2}{hex_str[3]*2}"
+        if len(hex_str) == 7:
+            try:
+                r = int(hex_str[1:3], 16)
+                g = int(hex_str[3:5], 16)
+                b = int(hex_str[5:7], 16)
+                return Color(hex_str, (r, g, b))
+            except ValueError:
+                pass
+        return Color("#000000", (0, 0, 0))
+
+    @staticmethod
+    def _parse_stdout(stdout: bytes) -> list[Color]:
         raw = stdout.decode("utf-8", errors="replace").strip()
         colors: list[Color] = []
         for line in raw.splitlines():
             line = line.strip()
             if line.startswith("#") and len(line) == 7:
-                r, g, b = int(line[1:3], 16), int(line[3:5], 16), int(line[5:7], 16)
-                colors.append(Color(line, (r, g, b)))
+                try:
+                    r, g, b = int(line[1:3], 16), int(line[3:5], 16), int(line[5:7], 16)
+                    colors.append(Color(line, (r, g, b)))
+                except ValueError:
+                    continue
         return colors
 
-    def _parse_cache_file(self) -> list[Color]:
-        data = self._read_cache_with_retry()
+    @staticmethod
+    def _parse_cache_file() -> tuple[list[Color], dict[str, str]]:
+        data = PywalGenerator._read_cache_with_retry()
         raw_colors = data.get("colors", {})
 
         colors: list[Color] = []
         for i in range(16):
             key = f"color{i}"
             hex_val = raw_colors.get(key, "#000000")
-            if not hex_val.startswith("#"):
-                hex_val = f"#{hex_val}"
-            if len(hex_val) == 4:
-                hex_val = f"#{hex_val[1]*2}{hex_val[2]*2}{hex_val[3]*2}"
-            r, g, b = int(hex_val[1:3], 16), int(hex_val[3:5], 16), int(hex_val[5:7], 16)
-            colors.append(Color(hex_val, (r, g, b)))
-        return colors
+            colors.append(PywalGenerator._hex_to_color(hex_val))
 
-    def _read_cache_with_retry(self) -> dict:
+        special = data.get("special", {})
+        return colors, special
+
+    @staticmethod
+    def _read_cache_with_retry() -> dict:
         for attempt in range(2):
             try:
                 with open(_CACHE_FILE) as f:
@@ -126,4 +175,3 @@ class PywalGenerator:
                         Backend.PYWAL,
                         f"Failed to read cache file after retry: {_CACHE_FILE}",
                     ) from None
-        return {}

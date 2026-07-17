@@ -64,3 +64,11 @@
 - AssemblyResult metadata discarded — `resolved_path` and `applied_overrides` not exposed by `load()`. Port signature limits this.
 - `min_version="0.0.0"` hardcoded — no source of truth in YAML for this domain field.
 - Integration test doesn't test actual bundled file — test writes own YAML to `tmp_path`, never loads real `defaults/backends.yaml`.
+
+## Deferred from: code review of 2-4-pywal-backend-adapter (2026-07-16)
+
+- Hardcoded cache path ignores XDG_CACHE_HOME [pywal_generator.py:19] — spec says `~/.cache/wal/colors.json`, pre-existing design choice
+- Stdout parsing only accepts 6-digit hex [pywal_generator.py:95] — wal outputs 6-digit format, not a practical concern
+- Cache parsing doesn't handle 8-digit ARGB [pywal_generator.py:110-112] — wal uses `#RRGGBB`, not triggered
+- No test validates bg/fg/cursor selection semantics — test gap, not a production bug
+- No isolated tests for parse methods — tested indirectly through `generate()`, adequate coverage

@@ -76,6 +76,7 @@ class TestPywalGenerator:
             "wal", "-i", "/tmp/test.png",
             "-n", "-s", "-t", "-e",
             "--backend", "wal",
+            "--stdout",
         ]
         assert kwargs["capture_output"] is True
         assert kwargs["timeout"] == _SUBPROCESS_TIMEOUT
@@ -223,7 +224,7 @@ class TestPywalGenerator:
                         scheme = gen.generate(Path("/tmp/test.png"), _config)
 
         assert len(scheme.colors) == 16
-        mock_sleep.assert_called_once_with(0.1)
+        mock_sleep.assert_called_once_with(0.5)
 
     def test_structural_subtyping(self):
         assert isinstance(PywalGenerator(), PaletteGeneratorPort)

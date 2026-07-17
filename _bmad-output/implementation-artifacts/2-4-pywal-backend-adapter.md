@@ -4,7 +4,7 @@ baseline_commit: 9f9c9b12ac8939cebc885a6d0f5d2da72999e237
 
 # Story 2.4: Pywal Backend Adapter
 
-Status: review
+Status: done
 
 ## Story
 
@@ -232,3 +232,21 @@ ruff check --fix
 ## Change Log
 
 - 2026-07-16: Implemented PywalGenerator with subprocess-based palette extraction, cache fallback, error handling, and 11 tests
+
+### Review Findings
+
+- [x] [Review][Patch] Use `special` fields from cache for bg/fg/cursor instead of brightness sort [pywal_generator.py:76-78]
+- [x] [Review][Patch] Missing `--stdout` flag in subprocess command [pywal_generator.py:38-43]
+- [x] [Review][Patch] Empty color list crashes on background/foreground/cursor access [pywal_generator.py:76-78]
+- [x] [Review][Patch] Invalid hex conversion in stdout parsing raises raw ValueError [pywal_generator.py:96]
+- [x] [Review][Patch] Invalid hex conversion in cache parsing raises raw ValueError [pywal_generator.py:112]
+- [x] [Review][Patch] Non-numeric saturation value raises ValueError [pywal_generator.py:70]
+- [x] [Review][Patch] Background/foreground selected before saturation — order may shift [pywal_generator.py:69-77]
+- [x] [Review][Patch] Custom timeout of 0 or negative causes spurious TimeoutExpired [pywal_generator.py:35]
+- [x] [Review][Patch] Dead code `return {}` in `_read_cache_with_retry` [pywal_generator.py:129]
+- [x] [Review][Patch] Cache race condition — 0.1s retry delay may be insufficient [pywal_generator.py:11]
+- [x] [Review][Defer] Hardcoded cache path ignores XDG_CACHE_HOME [pywal_generator.py:19] — deferred, pre-existing per spec
+- [x] [Review][Defer] Stdout parsing only accepts 6-digit hex [pywal_generator.py:95] — deferred, wal uses 6-digit format
+- [x] [Review][Defer] Cache parsing doesn't handle 8-digit ARGB [pywal_generator.py:110-112] — deferred, wal uses 6-digit
+- [x] [Review][Defer] No test validates bg/fg/cursor selection semantics — deferred, test gap
+- [x] [Review][Defer] No isolated tests for parse methods — deferred, tested indirectly
