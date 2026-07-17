@@ -5,10 +5,9 @@ from pathlib import Path
 import typer
 
 from color_scheme_generator.adapters.local_processor import LocalProcessor
-from color_scheme_generator.adapters.output.json_output import JsonOutput
 from color_scheme_generator.cli.show import show
 from color_scheme_generator.cli.version_cmd import version
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, ContainerEngine, OutputFormat, RuntimeMode
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
     AppSettings,
@@ -20,7 +19,11 @@ from color_scheme_generator.domain.models import (
     RuntimeSettings,
     TemplateSettings,
 )
-from color_scheme_generator.factory import CliDependencies, create_backend_registry
+from color_scheme_generator.factory import (
+    CliDependencies,
+    create_backend_registry,
+    create_output_adapter,
+)
 
 app = typer.Typer()
 
@@ -29,14 +32,22 @@ def build_deps() -> CliDependencies:
     registry = create_backend_registry()
     return CliDependencies(
         backend_registry=registry,
-        output_adapter=JsonOutput(),
         processor=LocalProcessor(registry),
     )
 
 
 @app.callback()
-def main_callback(ctx: typer.Context) -> None:
+def main_callback(
+    ctx: typer.Context,
+    output_format: OutputFormat = typer.Option(  # noqa: B008
+        OutputFormat.JSON,
+        "--output-format",
+        help="Output format for command results",
+        case_sensitive=False,
+    ),
+) -> None:
     ctx.obj = {"deps": build_deps()}
+    ctx.obj["deps"].output_adapter = create_output_adapter(output_format)
 
 
 @app.command()

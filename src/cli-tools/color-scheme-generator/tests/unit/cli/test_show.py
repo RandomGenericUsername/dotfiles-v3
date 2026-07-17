@@ -69,6 +69,10 @@ class TestCliShow:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_output_adapter",
+            lambda _fmt: mock_output,
+        )
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["show", "/tmp/test.jpg"])
@@ -88,6 +92,10 @@ class TestCliShow:
             image_path=Path("/nonexistent.jpg"), reason="file not found"
         )
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_output_adapter",
+            lambda _fmt: mock_output,
+        )
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["show", "/nonexistent.jpg"])
@@ -105,6 +113,10 @@ class TestCliShow:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_output_adapter",
+            lambda _fmt: mock_output,
+        )
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["show", "/tmp/test.jpg"])

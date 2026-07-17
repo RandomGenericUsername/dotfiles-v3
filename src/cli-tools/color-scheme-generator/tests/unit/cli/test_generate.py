@@ -7,7 +7,6 @@ import pytest
 from typer.testing import CliRunner
 
 from color_scheme_generator.adapters.local_processor import LocalProcessor
-from color_scheme_generator.adapters.output.json_output import JsonOutput
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import InvalidImageError
 from color_scheme_generator.domain.models import GenerationResult
@@ -58,6 +57,10 @@ class TestCliGenerate:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_output_adapter",
+            lambda _fmt: mock_output,
+        )
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["generate", "/tmp/test.jpg"])
@@ -77,6 +80,10 @@ class TestCliGenerate:
             image_path=Path("/nonexistent.jpg"), reason="file not found"
         )
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_output_adapter",
+            lambda _fmt: mock_output,
+        )
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["generate", "/nonexistent.jpg"])
@@ -107,7 +114,7 @@ class TestCliGenerate:
         deps = build_deps()
         assert isinstance(deps, CliDependencies)
         assert deps.backend_registry is not None
-        assert isinstance(deps.output_adapter, JsonOutput)
+        assert deps.output_adapter is None
         assert isinstance(deps.processor, LocalProcessor)
 
 

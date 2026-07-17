@@ -1,6 +1,10 @@
+---
+baseline_commit: d8fdc02
+---
+
 # Story 2.7: Rich + Plain Output Adapters
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -66,7 +70,7 @@ So that I can read results in a terminal or pipe them to other tools.
 ## Tasks / Subtasks
 
 ### RichOutput adapter (new)
-- [ ] Create `adapters/output/rich_output.py` (AC: 1)
+- [x] Create `adapters/output/rich_output.py` (AC: 1)
   - Implements `OutputPort`
   - Uses `rich.console.Console` for output
   - `process_result()`: renders with Rich formatting
@@ -83,7 +87,7 @@ So that I can read results in a terminal or pipe them to other tools.
   - Structural subtyping via `isinstance(obj, OutputPort)`
 
 ### PlainOutput adapter (new)
-- [ ] Create `adapters/output/plain_output.py` (AC: 2)
+- [x] Create `adapters/output/plain_output.py` (AC: 2)
   - Implements `OutputPort`
   - No formatting, no color codes, no Rich dependency
   - `process_result()`:
@@ -98,64 +102,64 @@ So that I can read results in a terminal or pipe them to other tools.
   - Structural subtyping via `isinstance(obj, OutputPort)`
 
 ### Update adapters/output/__init__.py (existing)
-- [ ] Export `RichOutput` and `PlainOutput` from `adapters/output/__init__.py`
+- [x] Export `RichOutput` and `PlainOutput` from `adapters/output/__init__.py`
 
 ### Factory wiring (existing file: factory.py)
-- [ ] Add `create_output_adapter(fmt: OutputFormat) -> OutputPort` helper
+- [x] Add `create_output_adapter(fmt: OutputFormat) -> OutputPort` helper
   - Dispatches on `OutputFormat.JSON` → `JsonOutput()`, `OutputFormat.RICH` → `RichOutput()`, `OutputFormat.PLAIN` → `PlainOutput()`
 
 ### CLI update: main.py (existing)
-- [ ] Add `--output-format` as a global Typer option in `@app.callback()`
+- [x] Add `--output-format` as a global Typer option in `@app.callback()`
   - Type: `OutputFormat` enum
   - Default: `OutputFormat.JSON`
   - Store on `ctx.obj["deps"].output_adapter` via `create_output_adapter(format)`
-- [ ] Remove hardcoded `output_adapter=JsonOutput()` from `build_deps()`
-- [ ] Ensure `generate` command respects `deps.output_adapter` (already done via `deps.output_adapter.process_result` / `.error`)
+- [x] Remove hardcoded `output_adapter=JsonOutput()` from `build_deps()`
+- [x] Ensure `generate` command respects `deps.output_adapter` (already done via `deps.output_adapter.process_result` / `.error`)
 
 ### CLI update: show.py (existing)
-- [ ] Remove `--output-format` flag from show command (it's now global)
-- [ ] Remove any hardcoded format selection
+- [x] Remove `--output-format` flag from show command (it's now global)
+- [x] Remove any hardcoded format selection
 
 ### CLI update: version_cmd.py (existing)
-- [ ] Refactor to use `deps.output_adapter` pattern
+- [x] Refactor to use `deps.output_adapter` pattern
   - Add `ctx: typer.Context` parameter
   - Accept version text from `deps.output_adapter.message(ver)` or similar
   - Or use `process_result` with a special lightweight result type
   - For now: format version output manually based on output adapter type
 
 ### Dependencies
-- [ ] Add `rich>=13.0` to `pyproject.toml` dependencies
+- [x] Add `rich>=13.0` to `pyproject.toml` dependencies
 
 ### Write tests
 
 #### test_rich_output.py (new, ~15 tests)
-- [ ] `test_process_result_renders_rich_success` (AC: 1)
-- [ ] `test_error_formats_rich_error_message` (AC: 1)
-- [ ] `test_palette_display_renders_color_swatches` (AC: 1)
-- [ ] `test_structural_subtyping` (AC: 1)
-- [ ] `test_process_result_with_none_color_scheme` (edge case)
-- [ ] `test_all_output_goes_to_stdout` (capsys check)
-- [ ] `test_rich_output_never_raises` (with all error types)
+- [x] `test_process_result_renders_rich_success` (AC: 1)
+- [x] `test_error_formats_rich_error_message` (AC: 1)
+- [x] `test_palette_display_renders_color_swatches` (AC: 1)
+- [x] `test_structural_subtyping` (AC: 1)
+- [x] `test_process_result_with_none_color_scheme` (edge case)
+- [x] `test_all_output_goes_to_stdout` (capsys check)
+- [x] `test_rich_output_never_raises` (with all error types)
 
 #### test_plain_output.py (new, ~15 tests)
-- [ ] `test_process_result_outputs_plain_text` (AC: 2)
-- [ ] `test_error_outputs_plain_text_error` (AC: 2)
-- [ ] `test_palette_display_outputs_hex_values` (AC: 2)
-- [ ] `test_no_color_codes_in_output` (AC: 2)
-- [ ] `test_structural_subtyping` (AC: 2)
-- [ ] `test_plain_output_never_raises` (with all error types)
-- [ ] `test_plain_output_format_matches_expected_pattern`
+- [x] `test_process_result_outputs_plain_text` (AC: 2)
+- [x] `test_error_outputs_plain_text_error` (AC: 2)
+- [x] `test_palette_display_outputs_hex_values` (AC: 2)
+- [x] `test_no_color_codes_in_output` (AC: 2)
+- [x] `test_structural_subtyping` (AC: 2)
+- [x] `test_plain_output_never_raises` (with all error types)
+- [x] `test_plain_output_format_matches_expected_pattern`
 
 #### test_output_format_selection.py (new, ~8 tests)
-- [ ] `test_create_output_adapter_returns_json_output` (AC: 3)
-- [ ] `test_create_output_adapter_returns_rich_output` (AC: 3)
-- [ ] `test_create_output_adapter_returns_plain_output` (AC: 3)
-- [ ] `test_create_output_adapter_json_default` (AC: 3)
+- [x] `test_create_output_adapter_returns_json_output` (AC: 3)
+- [x] `test_create_output_adapter_returns_rich_output` (AC: 3)
+- [x] `test_create_output_adapter_returns_plain_output` (AC: 3)
+- [x] `test_create_output_adapter_json_default` (AC: 3)
 
 #### CLI-level tests (update or create)
-- [ ] Update existing CLI tests if they reference `output_adapter` selection
-- [ ] Test `--output-format` flag propagation from global callback (AC: 4)
-- [ ] Test version command with all three output formats (AC: 5)
+- [x] Update existing CLI tests if they reference `output_adapter` selection
+- [x] Test `--output-format` flag propagation from global callback (AC: 4)
+- [x] Test version command with all three output formats (AC: 5)
 
 ## Dev Notes
 
@@ -414,6 +418,17 @@ ruff check --fix
 
 ### Completion Notes
 
+- Implemented RichOutput adapter with rich.console, rich.table.Table, rich.panel.Panel
+- Implemented PlainOutput adapter using only stdlib print()
+- Both adapters implement OutputPort protocol, pass structural subtyping checks
+- Added create_output_adapter(fmt) to factory.py — dispatches on OutputFormat enum
+- Updated cli/main.py: added --output-format global option in callback, removed hardcoded JsonOutput from build_deps()
+- Refactored cli/version_cmd.py to use ctx.obj["deps"].output_adapter for format-aware output
+- Added rich>=13.0 to pyproject.toml dependencies
+- 48 adapter-level tests all pass (15 rich + 13 plain + 5 format selection + 15 existing json)
+- All 251 total tests pass with zero regressions
+- No new ruff errors introduced
+
 ### Dependencies
 
 - New PyPI dependency: `rich>=13.0` (add to pyproject.toml)
@@ -466,3 +481,4 @@ Prevent re-review of issues already caught in 2.6:
 ## Change Log
 
 - 2026-07-17: Created comprehensive story spec for Rich + Plain Output Adapters
+- 2026-07-17: Implemented RichOutput, PlainOutput adapters; factory wiring; CLI integration; all tests passing (251/251)

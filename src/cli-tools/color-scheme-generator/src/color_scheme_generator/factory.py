@@ -9,7 +9,7 @@ from color_scheme_generator.adapters.backends.wallust_generator import WallustGe
 from color_scheme_generator.adapters.jinja_template_renderer import JinjaTemplateRenderer
 from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
-from color_scheme_generator.domain.enums import Backend
+from color_scheme_generator.domain.enums import Backend, OutputFormat
 from color_scheme_generator.ports.output import OutputPort
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
 from color_scheme_generator.ports.template_renderer import TemplateRendererPort
@@ -48,3 +48,15 @@ def create_template_dir_resolver() -> TemplateDirResolver:
 
 def create_template_renderer() -> TemplateRendererPort:
     return JinjaTemplateRenderer(create_template_dir_resolver())
+
+
+def create_output_adapter(fmt: OutputFormat) -> OutputPort:
+    from color_scheme_generator.adapters.output.json_output import JsonOutput
+    from color_scheme_generator.adapters.output.plain_output import PlainOutput
+    from color_scheme_generator.adapters.output.rich_output import RichOutput
+
+    if fmt is OutputFormat.RICH:
+        return RichOutput()
+    if fmt is OutputFormat.PLAIN:
+        return PlainOutput()
+    return JsonOutput()

@@ -44,7 +44,7 @@ development_status:
   2-4-pywal-backend-adapter: done
   2-5-wallust-backend-adapter: done
   2-6-template-rendering: done
-  2-7-rich-and-plain-output-adapters: ready-for-dev
+  2-7-rich-and-plain-output-adapters: review
   2-8-operational-commands: backlog
   2-9-full-generate-show-with-config: backlog
   2-10-shell-completion-and-first-run: backlog
