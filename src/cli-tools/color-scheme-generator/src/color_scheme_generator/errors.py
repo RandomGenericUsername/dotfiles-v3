@@ -8,6 +8,8 @@ from color_scheme_generator.domain.exceptions import (
     InvalidImageError,
     OutputWriteError,
     PaletteGenerationError,
+    TemplateNotFoundError,
+    TemplateRenderError,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "OutputWriteError",
     "ConfigResolutionError",
     "PaletteGenerationError",
+    "TemplateNotFoundError",
+    "TemplateRenderError",
 ]

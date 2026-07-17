@@ -1,0 +1,11 @@
+:root {
+  --color-background: {{ background.hex }};
+  --color-foreground: {{ foreground.hex }};
+  --color-cursor: {{ cursor.hex }};
+{% for i in range(16) %}
+  --color-{{ '%02d' % i }}: {{ colors[i].hex }};
+{% endfor %}
+  --source-image: "{{ source_image }}";
+  --backend: "{{ backend }}";
+  --generated-at: "{{ generated_at }}";
+}

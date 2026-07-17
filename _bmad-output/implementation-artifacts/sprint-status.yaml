@@ -17,7 +17,7 @@
 #   - done: Retrospective has been completed
 
 generated: 2026-07-16
-last_updated: 2026-07-16
+last_updated: 2026-07-17
 
 project: dotfiles-repo-v3
 project_key: NOKEY
@@ -43,8 +43,8 @@ development_status:
   2-3-backend-yaml-catalog-resolution: done
   2-4-pywal-backend-adapter: done
   2-5-wallust-backend-adapter: done
-  2-6-template-rendering: ready-for-dev
-  2-7-rich-and-plain-output-adapters: backlog
+  2-6-template-rendering: done
+  2-7-rich-and-plain-output-adapters: ready-for-dev
   2-8-operational-commands: backlog
   2-9-full-generate-show-with-config: backlog
   2-10-shell-completion-and-first-run: backlog

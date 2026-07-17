@@ -184,6 +184,51 @@ class TestLocalProcessor:
 
         assert exc_info.value.backend == Backend.CUSTOM
 
+    def test_generate_renders_templates(self) -> None:
+        scheme = _make_scheme()
+        mock_gen = MagicMock()
+        mock_gen.is_available.return_value = True
+        mock_gen.generate.return_value = scheme
+
+        mock_renderer = MagicMock()
+        registry = {Backend.CUSTOM: mock_gen}
+        processor = LocalProcessor(registry, template_renderer=mock_renderer)
+
+        result = processor.process_generate(_make_request(), object())
+
+        assert mock_renderer.render.called
+        assert result.output_files != ()
+
+    def test_show_does_not_render_templates(self) -> None:
+        scheme = _make_scheme()
+        mock_gen = MagicMock()
+        mock_gen.is_available.return_value = True
+        mock_gen.generate.return_value = scheme
+
+        mock_renderer = MagicMock()
+        registry = {Backend.CUSTOM: mock_gen}
+        processor = LocalProcessor(registry, template_renderer=mock_renderer)
+
+        result = processor.process_show(_make_request(), object())
+
+        mock_renderer.render.assert_not_called()
+        assert result.output_files == ()
+
+    def test_output_files_populated_in_result(self) -> None:
+        scheme = _make_scheme()
+        mock_gen = MagicMock()
+        mock_gen.is_available.return_value = True
+        mock_gen.generate.return_value = scheme
+
+        mock_renderer = MagicMock()
+        registry = {Backend.CUSTOM: mock_gen}
+        processor = LocalProcessor(registry, template_renderer=mock_renderer)
+
+        result = processor.process_generate(_make_request(), object())
+
+        assert len(result.output_files) > 0
+        assert all(isinstance(f, Path) for f in result.output_files)
+
 
 class TestCreateBackendRegistry:
     def test_returns_dict_with_all_three_backends(self) -> None:

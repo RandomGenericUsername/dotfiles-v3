@@ -1,0 +1,6 @@
+@define-color color_background {{ background.hex }};
+@define-color color_foreground {{ foreground.hex }};
+@define-color color_cursor {{ cursor.hex }};
+{% for i in range(16) %}
+@define-color color_{{ '%02d' % i }} {{ colors[i].hex }};
+{% endfor %}

@@ -1,0 +1,9 @@
+COLOR_BACKGROUND='{{ background.hex }}'
+COLOR_FOREGROUND='{{ foreground.hex }}'
+COLOR_CURSOR='{{ cursor.hex }}'
+{% for i in range(16) %}
+COLOR_{{ '%02d' % i }}='{{ colors[i].hex }}'
+{% endfor %}
+SOURCE_IMAGE='{{ source_image }}'
+BACKEND='{{ backend }}'
+GENERATED_AT='{{ generated_at }}'

@@ -1,0 +1,13 @@
+{
+  "background": "{{ background.hex }}",
+  "foreground": "{{ foreground.hex }}",
+  "cursor": "{{ cursor.hex }}",
+  "colors": [
+    {%- for color in colors %}
+    "{{ color.hex }}"{% if not loop.last %},{% endif %}
+    {%- endfor %}
+  ],
+  "source_image": "{{ source_image }}",
+  "backend": "{{ backend }}",
+  "generated_at": "{{ generated_at }}"
+}

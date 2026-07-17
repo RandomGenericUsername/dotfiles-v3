@@ -61,3 +61,19 @@ class PaletteGenerationError(ColorSchemeError):
         self.backend = backend
         prefix = f"[{backend.value}] " if backend else ""
         super().__init__(f"{prefix}Palette generation failed: {message}")
+
+
+class TemplateNotFoundError(ColorSchemeError):
+    def __init__(self, template_name: str, searched_paths: tuple[Path, ...]) -> None:
+        self.template_name = template_name
+        self.searched_paths = searched_paths
+        super().__init__(
+            f"Template '{template_name}' not found. Searched: {searched_paths}"
+        )
+
+
+class TemplateRenderError(ColorSchemeError):
+    def __init__(self, template_name: str, reason: str) -> None:
+        self.template_name = template_name
+        self.reason = reason
+        super().__init__(f"Failed to render template '{template_name}': {reason}")

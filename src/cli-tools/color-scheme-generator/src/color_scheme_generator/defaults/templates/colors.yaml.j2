@@ -1,0 +1,10 @@
+background: "{{ background.hex }}"
+foreground: "{{ foreground.hex }}"
+cursor: "{{ cursor.hex }}"
+colors:
+{% for i in range(16) %}
+  - "{{ colors[i].hex }}"
+{% endfor %}
+source_image: "{{ source_image }}"
+backend: "{{ backend }}"
+generated_at: "{{ generated_at }}"

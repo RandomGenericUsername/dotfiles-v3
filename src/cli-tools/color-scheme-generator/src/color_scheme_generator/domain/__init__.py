@@ -17,6 +17,8 @@ from color_scheme_generator.domain.exceptions import (
     InvalidImageError,
     OutputWriteError,
     PaletteGenerationError,
+    TemplateNotFoundError,
+    TemplateRenderError,
 )
 from color_scheme_generator.domain.models import (
     AppliedOverride,
@@ -60,6 +62,8 @@ __all__ = [
     "ConfigResolutionError",
     "ConfigResolverResult",
     "PaletteGenerationError",
+    "TemplateNotFoundError",
+    "TemplateRenderError",
     "AppSettings",
     "AppliedOverride",
     "BackendDefinition",
