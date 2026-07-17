@@ -1,6 +1,10 @@
+---
+baseline_commit: e05b8dadbb4009e3d52c99fce3cf7d696ede8b62
+---
+
 # Story 2.5: Wallust Backend Adapter
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -56,34 +60,34 @@ So that I get colors matching my wallust-based workflow.
 
 ## Tasks / Subtasks
 
-- [ ] Implement WallustGenerator.generate() (AC: 1)
-  - [ ] Build subprocess command: `wallust run <image> --backend <type> -s -T -q --print-scheme`
-  - [ ] Capture stdout — wallust supports `--print-scheme` flag (confirmed from wallust v3.5 source); falls back to `~/.cache/wallust/colors.json`
-  - [ ] Parse stdout output format: newline-separated hex colors (`#RRGGBB` per line)
-  - [ ] Parse cache file format (JSON with `color0`-`color15`, `special.background`, `special.foreground`)
-  - [ ] Build ColorScheme with background (darkest), foreground (lightest), cursor (highest contrast), and 16 sorted colors
-  - [ ] Apply saturation via ColorAdjustmentService
-  - [ ] Apply configurable subprocess timeout (default 60s)
-- [ ] Implement WallustGenerator.is_available() (AC: 2)
-  - [ ] Use `shutil.which("wallust")` — return True if found, False otherwise
-- [ ] Handle subprocess errors (AC: 4)
-  - [ ] Non-zero exit → ColorExtractionError(Backend.WALLUST, message, stderr)
-  - [ ] Timeout → ColorExtractionError with timeout message
-  - [ ] Partially written cache file → retry once with short delay, then raise
-- [ ] Wire into factory.py (AC: 1) — already wired, verify
-  - [ ] WallustGenerator() already registered in create_backend_registry() — verify existing wiring
-- [ ] Update adapters/backends/__init__.py exports — already present, verify
-- [ ] Write tests (AC: 1-5)
-  - [ ] is_available returns True when wallust is on PATH
-  - [ ] is_available returns False when wallust is not on PATH
-  - [ ] is_available is side-effect free
-  - [ ] generate shells out with correct args
-  - [ ] generate parses stdout correctly
-  - [ ] generate applies saturation
-  - [ ] generate raises ColorExtractionError on non-zero exit
-  - [ ] generate raises ColorExtractionError on timeout
-  - [ ] generate retries on partially written cache
-  - [ ] structural subtyping (isinstance check)
+- [x] Implement WallustGenerator.generate() (AC: 1)
+  - [x] Build subprocess command: `wallust run <image> --backend <type> -s -T -q --print-scheme`
+  - [x] Capture stdout — wallust supports `--print-scheme` flag (confirmed from wallust v3.5 source); falls back to `~/.cache/wallust/colors.json`
+  - [x] Parse stdout output format: newline-separated hex colors (`#RRGGBB` per line)
+  - [x] Parse cache file format (JSON with `color0`-`color15`, `special.background`, `special.foreground`)
+  - [x] Build ColorScheme with background (darkest), foreground (lightest), cursor (highest contrast), and 16 sorted colors
+  - [x] Apply saturation via ColorAdjustmentService
+  - [x] Apply configurable subprocess timeout (default 60s)
+- [x] Implement WallustGenerator.is_available() (AC: 2)
+  - [x] Use `shutil.which("wallust")` — return True if found, False otherwise
+- [x] Handle subprocess errors (AC: 4)
+  - [x] Non-zero exit → ColorExtractionError(Backend.WALLUST, message, stderr)
+  - [x] Timeout → ColorExtractionError with timeout message
+  - [x] Partially written cache file → retry once with short delay, then raise
+- [x] Wire into factory.py (AC: 1) — already wired, verify
+  - [x] WallustGenerator() already registered in create_backend_registry() — verify existing wiring
+- [x] Update adapters/backends/__init__.py exports — already present, verify
+- [x] Write tests (AC: 1-5)
+  - [x] is_available returns True when wallust is on PATH
+  - [x] is_available returns False when wallust is not on PATH
+  - [x] is_available is side-effect free
+  - [x] generate shells out with correct args
+  - [x] generate parses stdout correctly
+  - [x] generate applies saturation
+  - [x] generate raises ColorExtractionError on non-zero exit
+  - [x] generate raises ColorExtractionError on timeout
+  - [x] generate retries on partially written cache
+  - [x] structural subtyping (isinstance check)
 
 ## Dev Notes
 
@@ -224,6 +228,15 @@ ruff check --fix
 4. Verify factory wiring (already in place)
 5. Write tests (mock subprocess, mock shutil.which, mock file reads)
 
+### Completion Notes
+
+- Implemented WallustGenerator.is_available() using shutil.which("wallust")
+- Implemented WallustGenerator.generate() with full subprocess command, stdout parsing, cache fallback, saturation adjustment, and ColorScheme construction
+- All 9 pre-applied review findings from 2.4 incorporated (special fields from cache, empty color list guard, hex conversion try/except, saturation clamping, pre-sort saturation, timeout validation, no dead code, 0.5s cache retry, --print-scheme flag)
+- 11 tests written covering all acceptance criteria and error conditions
+- All 203 tests pass (192 existing + 11 new)
+- Ruff clean on both implementation and test files
+
 ### Dependencies
 
 - No new PyPI dependencies — uses built-in `subprocess`, `shutil`, `json`, `pathlib`
@@ -265,3 +278,4 @@ Prevent re-review of issues already caught in 2.4:
 ## Change Log
 
 - 2026-07-16: Created comprehensive story spec for Wallust Backend Adapter
+- 2026-07-16: Implemented WallustGenerator — replaced stub with full implementation, added 11 tests, all 203 pass, ruff clean
