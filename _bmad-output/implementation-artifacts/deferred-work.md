@@ -55,3 +55,12 @@
 
 - `explicit_path` to missing file not wrapped — depends on config-assembler-engine contract
 - `resolved_path` and `applied_overrides` could be `None` — depends on config-assembler-engine contract
+
+## Deferred from: code review of 2-3-backend-yaml-catalog-resolution (2026-07-16)
+
+- Cross-field validation on BackendParameterSchema — no validators for `min <= max`, `default` type matching `param_type`, or `default` in `choices`. Pre-existing pattern from settings resolver.
+- Empty `choices` list accepted — `choices: []` passes all validators but is semantically void.
+- Duplicate param keys silently accepted — two parameters with same key in one backend both added.
+- AssemblyResult metadata discarded — `resolved_path` and `applied_overrides` not exposed by `load()`. Port signature limits this.
+- `min_version="0.0.0"` hardcoded — no source of truth in YAML for this domain field.
+- Integration test doesn't test actual bundled file — test writes own YAML to `tmp_path`, never loads real `defaults/backends.yaml`.

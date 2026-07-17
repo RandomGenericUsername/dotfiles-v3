@@ -192,4 +192,16 @@ Followed the AssembledConfigResolver pattern from story 2.2. Key differences:
 - All tasks completed and verified
 - All 181 existing tests + 15 new tests pass (no regressions)
 - All linting checks pass
-- Story status: review
+- Story status: done
+
+### Review Findings
+
+- [x] [Review][Patch] **Bundled defaults/backends.yaml unreachable at runtime** — `DefaultFileStrategy(path=Path("backends.yaml"))` resolves relative to CWD, not the package. The actual file at `defaults/backends.yaml` is never found. Fix: use `importlib.resources` to reference the bundled file. [`adapters/yaml_backend_catalog_loader.py:61`]
+- [x] [Review][Patch] **ConfigValidationError escapes uncaught (AC 5 violation)** — AC 5 requires wrapping Pydantic validation errors in `ConfigResolutionError`. `AssembleConfiguration.execute()` raises `ConfigValidationError` on schema validation failure but the loader only catches `ConfigParseError` and `PathResolutionError`. [`adapters/yaml_backend_catalog_loader.py:72-91`]
+- [x] [Review][Patch] **Unknown backend names silently dropped** — `except ValueError: continue` at `_schema_to_domain():30-31` discards YAML entries whose keys don't match the `Backend` enum without any logging. Add logging or re-raise for unknown backends.
+- [x] [Review][Defer] **Cross-field validation on BackendParameterSchema** — No validators enforce `min <= max`, `default` type matching `param_type`, or `default` in `choices`. Pre-existing pattern from settings resolver — medium, deferred.
+- [x] [Review][Defer] **Empty `choices` list accepted** — `choices: []` passes all validators but is semantically void. Low severity.
+- [x] [Review][Defer] **Duplicate param keys silently accepted** — Two parameters with the same `key` in one backend both added to the tuple. Low severity.
+- [x] [Review][Defer] **AssemblyResult metadata discarded** — `resolved_path` and `applied_overrides` from `AssemblyResult` are not exposed by `load()`. Port signature limits this — medium, deferred.
+- [x] [Review][Defer] **`min_version="0.0.0"` hardcoded** — No source of truth in YAML for this domain field. Low severity, pre-existing.
+- [x] [Review][Defer] **Integration test doesn't test actual bundled file** — Test writes own YAML to `tmp_path`, never loads real `defaults/backends.yaml`. Low severity.

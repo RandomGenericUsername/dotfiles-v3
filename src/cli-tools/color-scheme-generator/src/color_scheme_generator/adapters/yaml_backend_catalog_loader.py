@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
+import logging
+from importlib.resources import files as resource_files
 
 from config_assembler_engine.adapters.config_validator import PydanticValidator
 from config_assembler_engine.adapters.env_reader import OsEnvironmentReader
@@ -14,12 +15,18 @@ from config_assembler_engine.adapters.strategies.xdg import XdgStrategy
 from config_assembler_engine.adapters.type_coercer import PydanticTypeCoercer
 from config_assembler_engine.application.use_cases import AssembleConfiguration
 from config_assembler_engine.domain.models import ResolutionPolicy
-from config_assembler_engine.errors import ConfigParseError, PathResolutionError
+from config_assembler_engine.errors import (
+    ConfigParseError,
+    ConfigValidationError,
+    PathResolutionError,
+)
 
 from color_scheme_generator.adapters.schemas.backends_catalog_schema import BackendsCatalogSchema
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import BackendDefinition, BackendParameterDefinition
+
+logger = logging.getLogger(__name__)
 
 
 def _schema_to_domain(schema: BackendsCatalogSchema) -> dict[Backend, BackendDefinition]:
@@ -28,6 +35,7 @@ def _schema_to_domain(schema: BackendsCatalogSchema) -> dict[Backend, BackendDef
         try:
             backend = Backend(name)
         except ValueError:
+            logger.warning("Unknown backend '%s' in catalog — skipping", name)
             continue
         params = tuple(
             BackendParameterDefinition(
@@ -58,7 +66,9 @@ class YamlBackendCatalogLoader:
             EnvPathStrategy(),
             DirectoryTraversalStrategy(filename="backends.yaml", max_levels=3),
             XdgStrategy(xdg_subdir="color-scheme-generator", filename="backends.yaml"),
-            DefaultFileStrategy(path=Path("backends.yaml")),
+            DefaultFileStrategy(
+                path=resource_files("color_scheme_generator.defaults") / "backends.yaml"
+            ),
         ]
         self._assembler = assembler or AssembleConfiguration(
             path_resolver=CompositePathResolver(strategies),
@@ -84,6 +94,12 @@ class YamlBackendCatalogLoader:
                 source=e,
             ) from e
         except PathResolutionError as e:
+            raise ConfigResolutionError(
+                key="backends.yaml",
+                reason=str(e),
+                source=e,
+            ) from e
+        except ConfigValidationError as e:
             raise ConfigResolutionError(
                 key="backends.yaml",
                 reason=str(e),
