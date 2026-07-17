@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import shutil
 import subprocess
 import time
 from datetime import datetime
+from functools import cache
 from pathlib import Path
+from typing import Any
 
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import (
@@ -14,11 +17,20 @@ from color_scheme_generator.domain.exceptions import (
     ColorExtractionError,
 )
 from color_scheme_generator.domain.models import Color, ColorScheme, GeneratorConfig
-from color_scheme_generator.domain.services import ColorAdjustmentService
+from color_scheme_generator.domain.services import (
+    ColorAdjustmentService,
+    PaletteNormalizationService,
+)
 
 _SUBPROCESS_TIMEOUT = 60
-_CACHE_FILE = Path.home() / ".cache" / "wallust" / "colors.json"
 _CACHE_RETRY_DELAY = 0.5
+
+logger = logging.getLogger(__name__)
+
+
+@cache
+def _get_cache_file() -> Path:
+    return Path.home() / ".cache" / "wallust" / "colors.json"
 
 
 class WallustGenerator:
@@ -36,7 +48,12 @@ class WallustGenerator:
         timeout = params.get("timeout", _SUBPROCESS_TIMEOUT)
         saturation = params.get("saturation", 1.0)
 
-        if not isinstance(timeout, (int, float)) or timeout < 1:
+        if (
+            not isinstance(timeout, (int, float))
+            or math.isnan(timeout)
+            or math.isinf(timeout)
+            or timeout < 1
+        ):
             timeout = _SUBPROCESS_TIMEOUT
 
         cmd = [
@@ -57,6 +74,11 @@ class WallustGenerator:
             raise ColorExtractionError(
                 Backend.WALLUST,
                 f"subprocess timed out after {timeout}s",
+            ) from None
+        except (FileNotFoundError, OSError) as e:
+            raise ColorExtractionError(
+                Backend.WALLUST,
+                f"Failed to execute wallust: {e}",
             ) from None
 
         if result.returncode != 0:
@@ -108,7 +130,7 @@ class WallustGenerator:
             background=background,
             foreground=foreground,
             cursor=cursor,
-            colors=tuple(colors),
+            colors=PaletteNormalizationService.normalize(colors),
             source_image=image_path,
             backend=Backend.WALLUST,
             generated_at=datetime.now(),
@@ -134,6 +156,7 @@ class WallustGenerator:
                 return Color(hex_str, (r, g, b))
             except ValueError:
                 pass
+        logger.warning("Failed to parse hex color '%s', falling back to black", hex_str)
         return Color("#000000", (0, 0, 0))
 
     @staticmethod
@@ -151,9 +174,17 @@ class WallustGenerator:
         return colors
 
     @staticmethod
-    def _parse_cache_file() -> tuple[list[Color], dict[str, str]]:
+    def _parse_cache_file() -> tuple[list[Color], dict[str, Any]]:
         data = WallustGenerator._read_cache_with_retry()
+        if not isinstance(data, dict):
+            raise ColorExtractionError(
+                Backend.WALLUST,
+                f"Cache file is not a JSON object: {type(data).__name__}",
+            )
+
         raw_colors = data.get("colors", {})
+        if not isinstance(raw_colors, dict):
+            raw_colors = {}
 
         colors: list[Color] = []
         for i in range(16):
@@ -162,13 +193,15 @@ class WallustGenerator:
             colors.append(WallustGenerator._hex_to_color(hex_val))
 
         special = data.get("special", {})
+        if not isinstance(special, dict):
+            special = {}
         return colors, special
 
     @staticmethod
     def _read_cache_with_retry() -> dict:
         for attempt in range(2):
             try:
-                with open(_CACHE_FILE) as f:
+                with open(_get_cache_file()) as f:
                     return json.load(f)
             except (FileNotFoundError, json.JSONDecodeError, OSError):
                 if attempt == 0:
@@ -176,5 +209,5 @@ class WallustGenerator:
                 else:
                     raise ColorExtractionError(
                         Backend.WALLUST,
-                        f"Failed to read cache file after retry: {_CACHE_FILE}",
+                        f"Failed to read cache file after retry: {_get_cache_file()}",
                     ) from None

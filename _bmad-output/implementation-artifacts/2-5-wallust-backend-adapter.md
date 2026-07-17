@@ -4,7 +4,7 @@ baseline_commit: e05b8dadbb4009e3d52c99fce3cf7d696ede8b62
 
 # Story 2.5: Wallust Backend Adapter
 
-Status: review
+Status: done
 
 ## Story
 
@@ -279,3 +279,16 @@ Prevent re-review of issues already caught in 2.4:
 
 - 2026-07-16: Created comprehensive story spec for Wallust Backend Adapter
 - 2026-07-16: Implemented WallustGenerator — replaced stub with full implementation, added 11 tests, all 203 pass, ruff clean
+
+### Review Findings
+
+- [x] [Review][Patch] `Path.home()` evaluated at import time for `_CACHE_FILE` [wallust_generator.py:20] — Defer to lazy property or function call; `Path.home()` raises `RuntimeError` in headless environments (containers, CI without $HOME).
+- [x] [Review][Patch] Unhandled cache JSON crashes: root non-dict or `colors` field non-dict [wallust_generator.py:154-165] — `_read_cache_with_retry()` returns raw `json.load()` output; if cache file root is a JSON array/scalar, `data.get("colors", {})` raises `AttributeError`; if `colors` value is null/non-dict, `.get(key)` crashes. Add `isinstance` guards.
+- [x] [Review][Patch] Variable color count from stdout crashes `ColorScheme` [wallust_generator.py:140-151] — `_parse_stdout()` can return 0–N colors but `ColorScheme.__post_init__` requires exactly 16. Use `PaletteNormalizationService.normalize()` to pad/truncate.
+- [x] [Review][Patch] TOCTOU race on subprocess binary [wallust_generator.py:50-60] — If wallust is deleted between `shutil.which()` and `subprocess.run()`, `FileNotFoundError` is unhandled. Wrap in try/except and translate to `ColorExtractionError`.
+- [x] [Review][Patch] NaN/Inf subprocess timeout bypasses guard [wallust_generator.py:36-40] — `float('nan')` passes `isinstance` check and `nan < 1` is `False`; `subprocess.run(timeout=nan)` raises `ValueError`. Add `math.isnan()` and `math.isinf()` checks.
+- [x] [Review][Patch] `_hex_to_color` silently returns black for corrupt cache entries [wallust_generator.py:124-137] — Missing/ invalid cache entries produce `#000000` with no warning. Add logging.
+- [x] [Review][Patch] Test imports private constant `_SUBPROCESS_TIMEOUT` [test_wallust_generator.py:11] — `_`-prefixed constants are implementation details; make public or have test define its own.
+- [x] [Review][Patch] `test_is_available_side_effect_free` asserts nothing [test_wallust_generator.py:41-46] — Calls `is_available()` under two patches but never asserts any return value. Remove or add assertions.
+- [x] [Review][Patch] Wrong return type annotation on `_parse_cache_file` [wallust_generator.py:154] — `dict[str, str]` is incorrect; values can be `None` from `.get()`. Fix to `dict[str, str | None]` or `dict[str, Any]`.
+- [x] [Review][Defer] Naive sort key `sum(c.rgb)` for luminance [wallust_generator.py:84] — Uses `sum(c.rgb)` which perceptually underweights blue. However, this matches the codebase-wide `PaletteNormalizationService.sort_by_brightness()`, so it's a pre-existing project pattern, not specific to this change.

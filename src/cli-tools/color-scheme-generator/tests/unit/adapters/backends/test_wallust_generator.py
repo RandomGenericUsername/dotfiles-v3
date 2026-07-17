@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from color_scheme_generator.adapters.backends.wallust_generator import (
-    _SUBPROCESS_TIMEOUT,
     WallustGenerator,
 )
 from color_scheme_generator.domain.enums import Backend, ColorFormat
@@ -18,6 +17,8 @@ from color_scheme_generator.domain.exceptions import (
 )
 from color_scheme_generator.domain.models import Color, GeneratorConfig
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
+
+_SUBPROCESS_TIMEOUT = 60
 
 _config = GeneratorConfig(
     backend=Backend.WALLUST,
@@ -41,9 +42,11 @@ class TestWallustGenerator:
     def test_is_available_side_effect_free(self):
         gen = WallustGenerator()
         with patch("shutil.which", return_value="/usr/bin/wallust"):
-            gen.is_available()
+            result_true = gen.is_available()
         with patch("shutil.which", return_value=None):
-            gen.is_available()
+            result_false = gen.is_available()
+        assert result_true is True
+        assert result_false is False
 
     def test_generate_raises_backend_not_available_when_wallust_missing(self):
         gen = WallustGenerator()

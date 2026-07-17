@@ -72,3 +72,7 @@
 - Cache parsing doesn't handle 8-digit ARGB [pywal_generator.py:110-112] — wal uses `#RRGGBB`, not triggered
 - No test validates bg/fg/cursor selection semantics — test gap, not a production bug
 - No isolated tests for parse methods — tested indirectly through `generate()`, adequate coverage
+
+## Deferred from: code review of 2-5-wallust-backend-adapter (2026-07-16)
+
+- Naive sort key `sum(c.rgb)` for luminance [wallust_generator.py:84] — matches codebase-wide `PaletteNormalizationService.sort_by_brightness()`; pre-existing project pattern, not specific to this change
