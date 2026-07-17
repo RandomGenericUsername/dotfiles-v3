@@ -1,6 +1,10 @@
+---
+baseline_commit: 9f9c9b12ac8939cebc885a6d0f5d2da72999e237
+---
+
 # Story 2.4: Pywal Backend Adapter
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -56,32 +60,32 @@ So that I get colors matching my pywal-based workflow.
 
 ## Tasks / Subtasks
 
-- [ ] Implement PywalGenerator.generate() (AC: 1)
-  - [ ] Build subprocess command: `wal -i <image> -n -s -t -e --backend <algorithm>`
-  - [ ] Capture stdout — investigate wal's `--stdout` support; fall back to `~/.cache/wal/colors.json`
-  - [ ] Parse extracted colors from JSON cache file format
-  - [ ] Build ColorScheme with background (darkest), foreground (lightest), cursor (highest contrast), and 16 sorted colors
-  - [ ] Apply saturation via ColorAdjustmentService
-  - [ ] Apply configurable subprocess timeout (default 60s)
-- [ ] Implement PywalGenerator.is_available() (AC: 2)
-  - [ ] Use `shutil.which("wal")` — return True if found, False otherwise
-- [ ] Handle subprocess errors (AC: 4)
-  - [ ] Non-zero exit → ColorExtractionError(Backend.PYWAL, message, stderr)
-  - [ ] Timeout → ColorExtractionError with timeout message
-  - [ ] Partially written cache file → retry once with short delay, then raise
-- [ ] Wire into factory.py (AC: 1)
-  - [ ] Add PywalGenerator() to BackendRegistry in create_backend_registry()
-- [ ] Update adapters/backends/__init__.py exports
-- [ ] Write tests (AC: 1-5)
-  - [ ] is_available returns True when wal is on PATH
-  - [ ] is_available returns False when wal is not on PATH
-  - [ ] generate shells out with correct args
-  - [ ] generate parses stdout/cache correctly
-  - [ ] generate applies saturation
-  - [ ] generate raises ColorExtractionError on non-zero exit
-  - [ ] generate raises ColorExtractionError on timeout
-  - [ ] generate retries on partially written cache
-  - [ ] structural subtyping (isinstance check)
+- [x] Implement PywalGenerator.generate() (AC: 1)
+  - [x] Build subprocess command: `wal -i <image> -n -s -t -e --backend <algorithm>`
+  - [x] Capture stdout — investigate wal's `--stdout` support; fall back to `~/.cache/wal/colors.json`
+  - [x] Parse extracted colors from JSON cache file format
+  - [x] Build ColorScheme with background (darkest), foreground (lightest), cursor (highest contrast), and 16 sorted colors
+  - [x] Apply saturation via ColorAdjustmentService
+  - [x] Apply configurable subprocess timeout (default 60s)
+- [x] Implement PywalGenerator.is_available() (AC: 2)
+  - [x] Use `shutil.which("wal")` — return True if found, False otherwise
+- [x] Handle subprocess errors (AC: 4)
+  - [x] Non-zero exit → ColorExtractionError(Backend.PYWAL, message, stderr)
+  - [x] Timeout → ColorExtractionError with timeout message
+  - [x] Partially written cache file → retry once with short delay, then raise
+- [x] Wire into factory.py (AC: 1)
+  - [x] Add PywalGenerator() to BackendRegistry in create_backend_registry()
+- [x] Update adapters/backends/__init__.py exports
+- [x] Write tests (AC: 1-5)
+  - [x] is_available returns True when wal is on PATH
+  - [x] is_available returns False when wal is not on PATH
+  - [x] generate shells out with correct args
+  - [x] generate parses stdout/cache correctly
+  - [x] generate applies saturation
+  - [x] generate raises ColorExtractionError on non-zero exit
+  - [x] generate raises ColorExtractionError on timeout
+  - [x] generate retries on partially written cache
+  - [x] structural subtyping (isinstance check)
 
 ## Dev Notes
 
@@ -186,6 +190,20 @@ ruff check --fix
 4. Wire into factory.py BackendRegistry
 5. Write tests (mock subprocess, mock shutil.which, mock file reads)
 
+### Completion Notes
+
+- Implemented `PywalGenerator.is_available()` using `shutil.which("wal")` — side-effect free
+- Implemented `PywalGenerator.generate()` with subprocess shell-out to `wal -i <image> -n -s -t -e --backend <algorithm>`
+  - Captures stdout first; falls back to `~/.cache/wal/colors.json` cache file
+  - Parses 16 colors from cache JSON (`color0`–`color15`)
+  - Sorts colors by brightness, applies saturation via `ColorAdjustmentService`
+  - Configurable subprocess timeout (default 60s)
+- Error handling: non-zero exit → `ColorExtractionError` with stderr; timeout → `ColorExtractionError`; partially written cache → retry once with 100ms delay
+- Factory wiring and `__init__.py` exports were already in place (pre-existing)
+- 11 tests written: availability (4), subprocess args, cache parsing, saturation, non-zero exit, timeout, cache retry, structural subtyping
+- 192 tests pass (181 existing + 11 new), zero regressions
+- Ruff clean for pywal_generator.py and test_pywal_generator.py
+
 ### Dependencies
 
 - No new PyPI dependencies — uses built-in `subprocess`, `shutil`, `json`, `pathlib`
@@ -205,3 +223,12 @@ ruff check --fix
 - [Source: adapters/backends/custom_generator.py] Established pattern reference
 - [Source: tests/unit/adapters/backends/test_custom_generator.py] Test pattern reference
 - [Source: adapters/backends/pywal_generator.py] Current stub file
+
+## File List
+
+- `src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/backends/pywal_generator.py` (modified — replaced stub with full implementation)
+- `src/cli-tools/color-scheme-generator/tests/unit/adapters/backends/test_pywal_generator.py` (new — 11 test cases)
+
+## Change Log
+
+- 2026-07-16: Implemented PywalGenerator with subprocess-based palette extraction, cache fallback, error handling, and 11 tests

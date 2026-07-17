@@ -41,7 +41,7 @@ development_status:
   2-1-full-domain-and-remaining-ports: done
   2-2-settings-config-resolution-pipeline: done
   2-3-backend-yaml-catalog-resolution: done
-  2-4-pywal-backend-adapter: ready-for-dev
+  2-4-pywal-backend-adapter: review
   2-5-wallust-backend-adapter: backlog
   2-6-template-rendering: backlog
   2-7-rich-and-plain-output-adapters: backlog
