@@ -62,10 +62,20 @@ def list_backends(ctx: typer.Context) -> None:
 
     backends_list = [_get_backend_info(b, deps.backend_registry, catalog) for b in Backend]
 
+    all_unavailable = all(not b["available"] for b in backends_list)
+    hint = (
+        "No backends are available on the host. "
+        "Try `csg install` to build container images, "
+        "or install a backend binary (wal, wallust) locally."
+    ) if all_unavailable else ""
+
     adapter = deps.output_adapter
 
     if isinstance(adapter, JsonOutput):
-        print(json.dumps({"backends": backends_list}, indent=2))
+        payload: dict = {"backends": backends_list}
+        if hint:
+            payload["hint"] = hint
+        print(json.dumps(payload, indent=2))
     elif isinstance(adapter, RichOutput):
         from rich.table import Table
 
@@ -95,6 +105,10 @@ def list_backends(ctx: typer.Context) -> None:
 
             adapter._console.print(table)
             adapter._console.print()
+        if hint:
+            from rich.panel import Panel
+            adapter._console.print(Panel(hint, title="Tip", border_style="yellow"))
+            adapter._console.print()
     elif isinstance(adapter, PlainOutput):
         for b in backends_list:
             desc = b.get("description", "")
@@ -109,3 +123,6 @@ def list_backends(ctx: typer.Context) -> None:
                     print(
                         f"    {p['name']} ({p['type']}, default: {p.get('default', '')}{choices})"
                     )
+        if hint:
+            print()
+            print(f"Tip: {hint}")

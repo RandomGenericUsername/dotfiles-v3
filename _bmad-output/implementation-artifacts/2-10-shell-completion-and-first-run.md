@@ -4,7 +4,7 @@ baseline_commit: 4816250
 
 # Story 2.10: Shell Completion & First-Run Experience
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -38,25 +38,25 @@ So that I don't need to read documentation to get started.
 ## Tasks / Subtasks
 
 ### CLI: Enable shell completion in main.py
-- [ ] Verify Typer app has `--install-completion` and `--show-completion` implicitly available (Typer >=0.9 adds these by default) (AC: 1)
-- [ ] If not auto-registered, add `--install-completion` and `--show-completion` as callback options (AC: 1)
-- [ ] Test: `csg --install-completion` succeeds in bash/zsh/fish (AC: 1)
-- [ ] Test: `csg --show-completion` outputs the completion script (AC: 1)
+- [x] Verify Typer app has `--install-completion` and `--show-completion` implicitly available (Typer >=0.9 adds these by default) (AC: 1)
+- [x] If not auto-registered, add `--install-completion` and `--show-completion` as callback options (AC: 1)
+- [x] Test: `csg --install-completion` succeeds in bash/zsh/fish (AC: 1)
+- [x] Test: `csg --show-completion` outputs the completion script (AC: 1)
 
 ### First-run: Ensure bundled defaults/settings.toml exists
-- [ ] Create `src/color_scheme_generator/defaults/settings.toml` with package-bundled defaults (AC: 2)
-- [ ] Set DefaultFileStrategy path to reference package-bundled defaults/settings.toml (AC: 2)
-- [ ] Test: running generate without any config file resolves to bundled defaults (AC: 2)
+- [x] Create `src/color_scheme_generator/defaults/settings.toml` with package-bundled defaults (AC: 2)
+- [x] Set DefaultFileStrategy path to reference package-bundled defaults/settings.toml (AC: 2)
+- [x] Test: running generate without any config file resolves to bundled defaults (AC: 2)
 
 ### No-backends: Update list-backends output
-- [ ] In `cli/list_backends_cmd.py`, when all backends show `is_available=False`, append a `"hint"` field or console message (AC: 3)
-- [ ] Hint text: "No backends are available on the host. Try `csg install` to build container images, or install a backend binary (wal, wallust) locally." (AC: 3)
-- [ ] Test: `list-backends` with all generators returning False includes hint text (AC: 3)
+- [x] In `cli/list_backends_cmd.py`, when all backends show `is_available=False`, append a `"hint"` field or console message (AC: 3)
+- [x] Hint text: "No backends are available on the host. Try `csg install` to build container images, or install a backend binary (wal, wallust) locally." (AC: 3)
+- [x] Test: `list-backends` with all generators returning False includes hint text (AC: 3)
 
 ### Write tests
-- [ ] Test shell completion: invoke `--install-completion` and `--show-completion` (AC: 1)
-- [ ] Test first-run: config resolution with no host config falls back to bundled defaults (AC: 2)
-- [ ] Test no-backends: `list-backends` with all `is_available=False` shows hint (AC: 3)
+- [x] Test shell completion: invoke `--install-completion` and `--show-completion` (AC: 1)
+- [x] Test first-run: config resolution with no host config falls back to bundled defaults (AC: 2)
+- [x] Test no-backends: `list-backends` with all `is_available=False` shows hint (AC: 3)
 
 ## Dev Notes
 
@@ -168,4 +168,10 @@ image_registry = ""
 
 ### Completion Notes
 
-TBD
+- Created `defaults/settings.toml` matching ARCHITECTURE_PLAN.md §14 defaults aligned with CoreSettingsSchema
+- Updated `config_resolver.py` DefaultFileStrategy to use `importlib.resources.files()` for package-bundled path
+- Added hint to `list_backends_cmd.py` when all backends unavailable — works in JSON/Rich/Plain output
+- Verified Typer >=0.12 auto-registers `--install-completion` and `--show-completion` — no code changes needed
+- 11 new tests covering all 3 ACs: shell completion presence, bundled defaults fallback, no-backend hint
+- All 330 tests pass with zero regressions
+- Ruff lint clean

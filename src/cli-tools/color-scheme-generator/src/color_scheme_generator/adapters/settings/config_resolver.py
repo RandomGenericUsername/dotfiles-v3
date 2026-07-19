@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.resources import files as resource_files
 from pathlib import Path
 
 from config_assembler_engine.adapters.config_validator import PydanticValidator
@@ -71,7 +72,9 @@ class AssembledConfigResolver:
             EnvPathStrategy(),
             DirectoryTraversalStrategy(filename="settings.toml", max_levels=3),
             XdgStrategy(xdg_subdir="color-scheme-generator", filename="settings.toml"),
-            DefaultFileStrategy(path=Path("settings.toml")),
+            DefaultFileStrategy(
+                path=Path(resource_files("color_scheme_generator") / "defaults" / "settings.toml")
+            ),
         ]
         self._assembler = assembler or AssembleConfiguration(
             path_resolver=CompositePathResolver(strategies),

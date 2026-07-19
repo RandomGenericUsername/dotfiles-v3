@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.models import (
