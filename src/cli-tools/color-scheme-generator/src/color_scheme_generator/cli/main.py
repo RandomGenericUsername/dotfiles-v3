@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import typer
 
@@ -11,8 +12,14 @@ from color_scheme_generator.cli.info_cmd import info
 from color_scheme_generator.cli.list_backends_cmd import list_backends
 from color_scheme_generator.cli.show import show
 from color_scheme_generator.cli.version_cmd import version
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, OutputFormat, RuntimeMode
-from color_scheme_generator.domain.exceptions import ColorSchemeError
+from color_scheme_generator.domain.enums import (
+    Backend,
+    ColorFormat,
+    ContainerEngine,
+    OutputFormat,
+    RuntimeMode,
+)
+from color_scheme_generator.domain.exceptions import ColorSchemeError, ConfigResolutionError
 from color_scheme_generator.domain.models import (
     AppSettings,
     ContainerSettings,
@@ -23,6 +30,7 @@ from color_scheme_generator.domain.models import (
     RuntimeSettings,
     TemplateSettings,
 )
+from color_scheme_generator.domain.services import ParameterResolutionService
 from color_scheme_generator.factory import (
     CliDependencies,
     create_backend_catalog_loader,
@@ -34,6 +42,45 @@ from color_scheme_generator.factory import (
 )
 
 app = typer.Typer()
+
+
+def _default_app_settings() -> AppSettings:
+    return AppSettings(
+        output=OutputSettings(
+            directory=Path("/tmp/color-scheme"),
+            default_formats=(),
+            overwrite=False,
+        ),
+        generation=GenerationSettings(
+            backend=Backend.CUSTOM,
+            default_params={},
+        ),
+        template=TemplateSettings(
+            templates_dir=None,
+            custom_templates_dir=None,
+        ),
+        runtime=RuntimeSettings(
+            mode=RuntimeMode.LOCAL,
+            engine=ContainerEngine.DOCKER,
+        ),
+        container=ContainerSettings(
+            image_prefix="csg",
+            image_tag="latest",
+            timeout_seconds=60,
+            memory_limit="512m",
+            mount_timeout_seconds=30,
+        ),
+    )
+
+
+def _parse_params(raw: list[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for entry in raw:
+        if "=" not in entry:
+            continue
+        key, _, value = entry.partition("=")
+        result[key.strip()] = value.strip()
+    return result
 
 
 def build_deps() -> CliDependencies:
@@ -66,42 +113,65 @@ def main_callback(
 def generate(
     ctx: typer.Context,
     image_path: Path = typer.Argument(..., help="Path to the input image file"),  # noqa: B008
+    backend: Backend | None = typer.Option(None, "--backend", help="Extraction backend"),  # noqa: B008
+    param: list[str] = typer.Option([], "--param", help="Backend parameter overrides"),  # noqa: B008
+    formats: list[ColorFormat] | None = typer.Option(  # noqa: B008
+        None, "--format", "-f", help="Output formats"
+    ),
+    output_dir: Path | None = typer.Option(  # noqa: B008
+        None, "--output-dir", "-o", help="Output directory"
+    ),
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
-    config = GeneratorConfig(
-        backend=Backend.CUSTOM,
-        params={},
-        formats=(),
-        output_dir=Path("/tmp/color-scheme"),
-    )
-    request = GenerationRequest(image_path=image_path, config=config)
     try:
-        settings = AppSettings(
-            output=OutputSettings(
-                directory=Path("/tmp/color-scheme"),
-                default_formats=(),
-                overwrite=False,
-            ),
-            generation=GenerationSettings(
-                backend=Backend.CUSTOM,
-                default_params={},
-            ),
-            template=TemplateSettings(
-                templates_dir=None,
-                custom_templates_dir=None,
-            ),
-            runtime=RuntimeSettings(
-                mode=RuntimeMode.LOCAL,
-                engine=ContainerEngine.DOCKER,
-            ),
-            container=ContainerSettings(
-                image_prefix="csg",
-                image_tag="latest",
-                timeout_seconds=60,
-                memory_limit="512m",
-                mount_timeout_seconds=30,
-            ),
+        settings = (
+            deps.config_resolver.resolve()
+            if deps.config_resolver
+            else _default_app_settings()
         )
+    except ColorSchemeError:
+        settings = _default_app_settings()
+
+    try:
+        raw_params = _parse_params(param)
+
+        resolved_backend = backend or settings.generation.backend or Backend.CUSTOM
+
+        resolved_params: dict[str, Any] = {}
+        if deps.backend_catalog_loader and raw_params:
+            catalog = deps.backend_catalog_loader.load()
+            backend_def = catalog.get(resolved_backend)
+            if backend_def:
+                valid_keys = {p.name for p in backend_def.parameters}
+                for key in raw_params:
+                    if key not in valid_keys:
+                        raise ConfigResolutionError(
+                            key=key,
+                            reason=(
+                                f"Parameter '{key}' is not defined"
+                                f" for backend '{resolved_backend.value}'"
+                            ),
+                        )
+                if backend_def.parameters:
+                    resolved_params = ParameterResolutionService.resolve_all(
+                        backend_def.parameters, raw_params
+                    )
+
+        resolved_formats: tuple[ColorFormat, ...]
+        if formats is not None:
+            resolved_formats = tuple(formats)
+        else:
+            resolved_formats = settings.output.default_formats
+
+        resolved_output_dir = output_dir or settings.output.directory
+
+        config = GeneratorConfig(
+            backend=resolved_backend,
+            params=resolved_params,
+            formats=resolved_formats,
+            output_dir=resolved_output_dir,
+        )
+        request = GenerationRequest(image_path=image_path, config=config)
         result = deps.processor.process_generate(request, settings)
         deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:

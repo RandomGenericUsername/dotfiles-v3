@@ -9,7 +9,17 @@ from typer.testing import CliRunner
 
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import InvalidImageError
-from color_scheme_generator.domain.models import Color, ColorScheme, GenerationResult
+from color_scheme_generator.domain.models import (
+    AppSettings,
+    Color,
+    ColorScheme,
+    ContainerSettings,
+    GenerationResult,
+    GenerationSettings,
+    OutputSettings,
+    RuntimeSettings,
+    TemplateSettings,
+)
 from color_scheme_generator.factory import CliDependencies
 
 
@@ -22,6 +32,35 @@ def _make_color_scheme() -> ColorScheme:
         source_image=Path("/tmp/test.jpg"),
         backend=Backend.CUSTOM,
         generated_at=datetime.now(),
+    )
+
+
+def _default_app_settings(**overrides: object) -> AppSettings:
+    return AppSettings(
+        output=OutputSettings(
+            directory=Path("/tmp/color-scheme"),
+            default_formats=(),
+            overwrite=False,
+        ),
+        generation=GenerationSettings(
+            backend=Backend.CUSTOM,
+            default_params={},
+        ),
+        template=TemplateSettings(
+            templates_dir=None,
+            custom_templates_dir=None,
+        ),
+        runtime=RuntimeSettings(
+            mode=overrides.get("runtime_mode", "local"),  # type: ignore[arg-type]
+            engine=overrides.get("container_engine", "docker"),  # type: ignore[arg-type]
+        ),
+        container=ContainerSettings(
+            image_prefix="csg",
+            image_tag="latest",
+            timeout_seconds=60,
+            memory_limit="512m",
+            mount_timeout_seconds=30,
+        ),
     )
 
 
@@ -51,9 +90,25 @@ def mock_output() -> MagicMock:
 
 
 @pytest.fixture
-def mock_deps(mock_processor, mock_output) -> CliDependencies:
+def mock_config_resolver() -> MagicMock:
+    mock = MagicMock()
+    mock.resolve.return_value = _default_app_settings()
+    return mock
+
+
+@pytest.fixture
+def mock_backend_catalog_loader() -> MagicMock:
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_deps(
+    mock_processor, mock_output, mock_config_resolver, mock_backend_catalog_loader
+) -> CliDependencies:
     return CliDependencies(
         backend_registry=MagicMock(),
+        backend_catalog_loader=mock_backend_catalog_loader,
+        config_resolver=mock_config_resolver,
         output_adapter=mock_output,
         processor=mock_processor,
     )
@@ -132,10 +187,12 @@ class TestCliShow:
         assert "Usage:" in result.stdout
         assert "image_path" in result.stdout or "IMAGE_PATH" in result.stdout
 
-    def test_help_has_no_out_of_scope_flags(self, runner: CliRunner) -> None:
+    def test_help_shows_new_flags(self, runner: CliRunner) -> None:
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["show", "--help"])
-        assert "--backend" not in result.stdout
-        assert "--param" not in result.stdout
+        assert "--backend" in result.stdout
+        assert "--param" in result.stdout
+        assert "--format" not in result.stdout
+        assert "--output-dir" not in result.stdout
         assert "--dry-run" not in result.stdout
