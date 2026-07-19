@@ -41,3 +41,8 @@ ignore = ["B905"]
 
 [tool.ruff.format]
 quote-style = "double"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

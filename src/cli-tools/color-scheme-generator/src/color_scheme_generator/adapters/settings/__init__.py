@@ -9,6 +9,7 @@ from color_scheme_generator.adapters.settings.schema import (
     RuntimeSettingsSchema,
     TemplateSettingsSchema,
 )
+from color_scheme_generator.adapters.settings.settings_serializer import SettingsSerializer
 
 __all__ = [
     "AssembledConfigResolver",
@@ -18,4 +19,5 @@ __all__ = [
     "OutputSettingsSchema",
     "RuntimeSettingsSchema",
     "TemplateSettingsSchema",
+    "SettingsSerializer",
 ]

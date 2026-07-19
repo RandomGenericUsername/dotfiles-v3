@@ -7,6 +7,7 @@ from color_scheme_generator.adapters.backends.custom_generator import CustomGene
 from color_scheme_generator.adapters.backends.pywal_generator import PywalGenerator
 from color_scheme_generator.adapters.backends.wallust_generator import WallustGenerator
 from color_scheme_generator.adapters.jinja_template_renderer import JinjaTemplateRenderer
+from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
 from color_scheme_generator.domain.enums import Backend, OutputFormat
@@ -24,6 +25,7 @@ BackendRegistry = dict[Backend, PaletteGeneratorPort]
 class CliDependencies:
     backend_registry: BackendRegistry
     backend_catalog_loader: YamlBackendCatalogLoader | None = None
+    config_resolver: AssembledConfigResolver | None = None
     output_adapter: OutputPort | None = None
     processor: LocalProcessor | None = None
     template_dir_resolver: TemplateDirResolver | None = None
@@ -48,6 +50,10 @@ def create_template_dir_resolver() -> TemplateDirResolver:
 
 def create_template_renderer() -> TemplateRendererPort:
     return JinjaTemplateRenderer(create_template_dir_resolver())
+
+
+def create_config_resolver() -> AssembledConfigResolver:
+    return AssembledConfigResolver()
 
 
 def create_output_adapter(fmt: OutputFormat) -> OutputPort:

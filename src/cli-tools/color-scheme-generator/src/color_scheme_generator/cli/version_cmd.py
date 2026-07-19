@@ -16,7 +16,8 @@ def version(ctx: typer.Context) -> None:
     try:
         ver = _pkg_version("color-scheme-generator")
     except PackageNotFoundError:
-        print(json.dumps({"error": "color-scheme-generator package not installed"}), file=sys.stderr)
+        msg = json.dumps({"error": "color-scheme-generator package not installed"})
+        print(msg, file=sys.stderr)
         raise typer.Exit(code=1) from None
 
     adapter = ctx.obj["deps"].output_adapter

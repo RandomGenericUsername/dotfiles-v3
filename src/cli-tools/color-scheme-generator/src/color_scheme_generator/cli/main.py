@@ -5,6 +5,10 @@ from pathlib import Path
 import typer
 
 from color_scheme_generator.adapters.local_processor import LocalProcessor
+from color_scheme_generator.cli.dump_config_cmd import dump_config
+from color_scheme_generator.cli.dump_templates_cmd import dump_templates
+from color_scheme_generator.cli.info_cmd import info
+from color_scheme_generator.cli.list_backends_cmd import list_backends
 from color_scheme_generator.cli.show import show
 from color_scheme_generator.cli.version_cmd import version
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, OutputFormat, RuntimeMode
@@ -21,8 +25,12 @@ from color_scheme_generator.domain.models import (
 )
 from color_scheme_generator.factory import (
     CliDependencies,
+    create_backend_catalog_loader,
     create_backend_registry,
+    create_config_resolver,
     create_output_adapter,
+    create_template_dir_resolver,
+    create_template_renderer,
 )
 
 app = typer.Typer()
@@ -32,7 +40,11 @@ def build_deps() -> CliDependencies:
     registry = create_backend_registry()
     return CliDependencies(
         backend_registry=registry,
+        backend_catalog_loader=create_backend_catalog_loader(),
+        config_resolver=create_config_resolver(),
         processor=LocalProcessor(registry),
+        template_dir_resolver=create_template_dir_resolver(),
+        template_renderer=create_template_renderer(),
     )
 
 
@@ -102,5 +114,9 @@ def generate(
         raise typer.Exit(code=1) from None
 
 
+app.command()(info)
+app.command()(dump_config)
+app.command()(dump_templates)
+app.command()(list_backends)
 app.command()(show)
 app.command()(version)

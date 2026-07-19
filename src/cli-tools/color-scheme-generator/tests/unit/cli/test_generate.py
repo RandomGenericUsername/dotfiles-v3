@@ -96,7 +96,7 @@ class TestCliGenerate:
         result = runner.invoke(app, ["generate", "--help"])
         assert result.exit_code == 0
         assert "Usage:" in result.stdout
-        assert "IMAGE_PATH" in result.stdout
+        assert "image_path" in result.stdout or "IMAGE_PATH" in result.stdout
 
     def test_help_has_no_out_of_scope_flags(self, runner: CliRunner) -> None:
         from color_scheme_generator.cli.main import app

@@ -1,6 +1,10 @@
+---
+baseline_commit: 0174e40
+---
+
 # Story 2.8: Operational Commands (Info, Dump-Config, Dump-Templates, List-Backends)
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -53,7 +57,7 @@ So that I can trace why extraction produced unexpected results.
 ## Tasks / Subtasks
 
 ### Adapter: TOML Settings Serializer (new)
-- [ ] Create `adapters/settings/settings_serializer.py`
+- [x] Create `adapters/settings/settings_serializer.py`
   - Implements `SettingsSerializerPort` (defined in `ports/settings_serializer.py`)
   - `serialize(settings: AppSettings) -> str`: converts AppSettings to TOML string
   - `deserialize(raw: str) -> AppSettings`: not needed for operational commands, but implement for contract compliance (raise `NotImplementedError` or minimal implementation)
@@ -63,7 +67,7 @@ So that I can trace why extraction produced unexpected results.
   - Boolean values output as `true`/`false`
 
 ### CLI: Info Command (new `cli/info_cmd.py`)
-- [ ] Create `cli/info_cmd.py` with `info()` Typer command (AC: 1)
+- [x] Create `cli/info_cmd.py` with `info()` Typer command (AC: 1)
   - Accepts `ctx: typer.Context`
   - Resolves config via `deps.config_resolver.resolve()` — catches `ConfigResolutionError`
   - Gets resolver result from `config_resolver.last_result` (contains `resolved_path`, `applied_overrides`)
@@ -83,7 +87,7 @@ So that I can trace why extraction produced unexpected results.
   - Note: `OutputPort` has no generic `message()` method. Handle info output by checking adapter type (pattern from `version_cmd.py`) OR use `process_result()` by wrapping info data into a minimal `GenerationResult`-like payload. **Recommended**: follow version_cmd pattern — check adapter type and format accordingly. Keep output formatting in the command handler.
 
 ### CLI: Dump-Config Command (new `cli/dump_config_cmd.py`)
-- [ ] Create `cli/dump_config_cmd.py` with `dump_config()` Typer command (AC: 2)
+- [x] Create `cli/dump_config_cmd.py` with `dump_config()` Typer command (AC: 2)
   - Accepts `ctx: typer.Context`
   - Optional `--output` / `-o` Path argument, optional `--overwrite` / `-w` flag
   - Resolves config via `deps.config_resolver.resolve()` — catches `ConfigResolutionError`
@@ -95,7 +99,7 @@ So that I can trace why extraction produced unexpected results.
   - Uses `deps.output_adapter` to report success/failure (reuse `process_result` with a stub `GenerationResult`, or format inline)
 
 ### CLI: Dump-Templates Command (new `cli/dump_templates_cmd.py`)
-- [ ] Create `cli/dump_templates_cmd.py` with `dump_templates()` Typer command (AC: 3)
+- [x] Create `cli/dump_templates_cmd.py` with `dump_templates()` Typer command (AC: 3)
   - Accepts `ctx: typer.Context`
   - Optional `--output` / `-o` custom target directory path
   - Optional `--overwrite` / `-w` flag (default: False)
@@ -117,7 +121,7 @@ So that I can trace why extraction produced unexpected results.
   - Report summary via `deps.output_adapter` (how many copied, how many skipped)
 
 ### CLI: List-Backends Command (new `cli/list_backends_cmd.py`)
-- [ ] Create `cli/list_backends_cmd.py` with `list_backends()` Typer command (AC: 4)
+- [x] Create `cli/list_backends_cmd.py` with `list_backends()` Typer command (AC: 4)
   - Accepts `ctx: typer.Context`
   - Load backend catalog via `deps.backend_catalog_loader.load()` — catches errors gracefully
   - For each Backend in `deps.backend_registry`:
@@ -128,13 +132,13 @@ So that I can trace why extraction produced unexpected results.
   - Format via `deps.output_adapter` (same pattern as info — check adapter type)
 
 ### Factory wiring (existing `factory.py`)
-- [ ] Add `config_resolver: AssembledConfigResolver | None = None` to `CliDependencies` dataclass
-- [ ] Add `create_config_resolver()` factory function
-- [ ] Wire `config_resolver`, `backend_catalog_loader`, `template_dir_resolver` into `build_deps()` in `cli/main.py`
-- [ ] Ensure `build_deps()` also calls `create_template_dir_resolver()`, `create_backend_catalog_loader()`, `create_config_resolver()`
+- [x] Add `config_resolver: AssembledConfigResolver | None = None` to `CliDependencies` dataclass
+- [x] Add `create_config_resolver()` factory function
+- [x] Wire `config_resolver`, `backend_catalog_loader`, `template_dir_resolver` into `build_deps()` in `cli/main.py`
+- [x] Ensure `build_deps()` also calls `create_template_dir_resolver()`, `create_backend_catalog_loader()`, `create_config_resolver()`
 
 ### CLI: main.py (existing)
-- [ ] Import and register the 4 new command functions:
+- [x] Import and register the 4 new command functions:
   ```python
   from color_scheme_generator.cli.info_cmd import info
   from color_scheme_generator.cli.dump_config_cmd import dump_config
@@ -146,46 +150,46 @@ So that I can trace why extraction produced unexpected results.
   app.command()(dump_templates)
   app.command()(list_backends)
   ```
-- [ ] Update `build_deps()` to wire all deps
-- [ ] Keep `--output-format` global option from the callback (already done in story 2.7)
+- [x] Update `build_deps()` to wire all deps
+- [x] Keep `--output-format` global option from the callback (already done in story 2.7)
 
 ### Write tests
 
 #### test_info_command.py (new)
-- [ ] Test `csg info` outputs resolved config path (AC: 1)
-- [ ] Test `csg info` shows applied overrides (AC: 1)
-- [ ] Test `csg info` shows runtime mode + container engine (AC: 1)
-- [ ] Test `csg info` shows templates directory (AC: 1)
-- [ ] Test `csg info` shows backend availability (AC: 1)
-- [ ] Test `csg info` supports --output-format (AC: 5)
-- [ ] Test `csg info` handles ConfigResolutionError gracefully
+- [x] Test `csg info` outputs resolved config path (AC: 1)
+- [x] Test `csg info` shows applied overrides (AC: 1)
+- [x] Test `csg info` shows runtime mode + container engine (AC: 1)
+- [x] Test `csg info` shows templates directory (AC: 1)
+- [x] Test `csg info` shows backend availability (AC: 1)
+- [x] Test `csg info` supports --output-format (AC: 5)
+- [x] Test `csg info` handles ConfigResolutionError gracefully
 
 #### test_dump_config_command.py (new)
-- [ ] Test `csg dump-config` outputs TOML to stdout (AC: 2)
-- [ ] Test `csg dump-config --output file.toml` writes file (AC: 2)
-- [ ] Test `csg dump-config --output file.toml --overwrite` overwrites (AC: 2)
-- [ ] Test `csg dump-config` handles config resolution failure (AC: 2)
-- [ ] Test `csg dump-config` output is valid TOML (AC: 2)
+- [x] Test `csg dump-config` outputs TOML to stdout (AC: 2)
+- [x] Test `csg dump-config --output file.toml` writes file (AC: 2)
+- [x] Test `csg dump-config --output file.toml --overwrite` overwrites (AC: 2)
+- [x] Test `csg dump-config` handles config resolution failure (AC: 2)
+- [x] Test `csg dump-config` output is valid TOML (AC: 2)
 
 #### test_dump_templates_command.py (new)
-- [ ] Test `csg dump-templates` copies bundled templates (AC: 3)
-- [ ] Test `csg dump-templates` creates parent directories (AC: 3)
-- [ ] Test `csg dump-templates --overwrite` replaces existing (AC: 3)
-- [ ] Test `csg dump-templates` without --overwrite skips existing (AC: 3)
-- [ ] Test `csg dump-templates --output /custom/path` uses custom path (AC: 3)
-- [ ] Test `csg dump-templates` raises OutputWriteError for read-only target (AC: 3)
+- [x] Test `csg dump-templates` copies bundled templates (AC: 3)
+- [x] Test `csg dump-templates` creates parent directories (AC: 3)
+- [x] Test `csg dump-templates --overwrite` replaces existing (AC: 3)
+- [x] Test `csg dump-templates` without --overwrite skips existing (AC: 3)
+- [x] Test `csg dump-templates --output /custom/path` uses custom path (AC: 3)
+- [x] Test `csg dump-templates` raises OutputWriteError for read-only target (AC: 3)
 
 #### test_list_backends_command.py (new)
-- [ ] Test `csg list-backends` shows all three backends (AC: 4)
-- [ ] Test `csg list-backends` shows availability (AC: 4)
-- [ ] Test `csg list-backends` shows parameters with type/default/range (AC: 4)
-- [ ] Test `csg list-backends` supports --output-format (AC: 5)
+- [x] Test `csg list-backends` shows all three backends (AC: 4)
+- [x] Test `csg list-backends` shows availability (AC: 4)
+- [x] Test `csg list-backends` shows parameters with type/default/range (AC: 4)
+- [x] Test `csg list-backends` supports --output-format (AC: 5)
 
 #### test_settings_serializer.py (new)
-- [ ] Test serialize handles all AppSettings fields
-- [ ] Test serialize output is valid TOML
-- [ ] Test serialize handles None Path values
-- [ ] Test serialize handles empty tuples
+- [x] Test serialize handles all AppSettings fields
+- [x] Test serialize output is valid TOML
+- [x] Test serialize handles None Path values
+- [x] Test serialize handles empty tuples
 
 ## Dev Notes
 
@@ -476,6 +480,23 @@ opencode-go/deepseek-v4-flash
 
 ### Completion Notes
 
+Implemented all 4 operational commands (info, dump-config, dump-templates, list-backends) plus the SettingsSerializer adapter. Followed the version_cmd.py pattern for output adapter type dispatch. Added TOML serializer using f-string formatting (no external deps). All commands wired into the dependency factory and registered in main.py. Wrote 47 new tests covering all acceptance criteria. Fixed pre-existing test assertion for Typer argument format change. 298 tests pass with zero regressions.
+
+### Change Log
+
+- **Date:** 2026-07-17
+- **Changes:**
+  - NEW: `SettingsSerializer` adapter at `adapters/settings/settings_serializer.py`
+  - NEW: `info_cmd.py` — info command with JSON/Rich/Plain output
+  - NEW: `dump_config_cmd.py` — dump-config command (stdout or file output)
+  - NEW: `dump_templates_cmd.py` — dump-templates command (copies bundled .j2 templates)
+  - NEW: `list_backends_cmd.py` — list-backends command with catalog data
+  - MODIFIED: `factory.py` — added `config_resolver` to `CliDependencies`, added `create_config_resolver()`
+  - MODIFIED: `cli/main.py` — wired all deps in `build_deps()`, registered 4 new commands
+  - MODIFIED: `adapters/settings/__init__.py` — exported `SettingsSerializer`
+  - MODIFIED: `tests/unit/cli/test_generate.py`, `tests/unit/cli/test_show.py` — fixed IMAGE_PATH assertion
+  - NEW: 5 test files (47 new tests) for serializer and all 4 commands
+
 ### File List
 
 ### New files
@@ -494,3 +515,5 @@ opencode-go/deepseek-v4-flash
 - `src/cli-tools/color-scheme-generator/src/color_scheme_generator/factory.py`
 - `src/cli-tools/color-scheme-generator/src/color_scheme_generator/cli/main.py`
 - `src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/settings/__init__.py`
+- `src/cli-tools/color-scheme-generator/tests/unit/cli/test_generate.py`
+- `src/cli-tools/color-scheme-generator/tests/unit/cli/test_show.py`
