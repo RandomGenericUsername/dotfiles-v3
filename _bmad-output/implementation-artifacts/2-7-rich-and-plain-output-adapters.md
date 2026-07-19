@@ -4,7 +4,7 @@ baseline_commit: d8fdc02
 
 # Story 2.7: Rich + Plain Output Adapters
 
-Status: review
+Status: done
 
 ## Story
 
