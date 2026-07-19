@@ -4,7 +4,7 @@ baseline_commit: 0174e40
 
 # Story 2.9: Full Generate/Show with Config, Backends, Formats
 
-Status: review
+Status: done
 
 ## Story
 
@@ -20,7 +20,7 @@ So that the tool respects my configuration instead of using hardcoded defaults.
 **When** `csg generate ~/wallpaper.jpg` is run
 **Then** it resolves settings.toml via deps.config_resolver.resolve()
 **And** uses settings.generation.backend as the default backend (instead of hardcoded Backend.CUSTOM)
-**And** uses settings.generation.default_formats for output formats
+**And** uses settings.output.default_formats for output formats
 **And** writes rendered template files to settings.output.directory
 **And** respects settings.output.overwrite flag
 
@@ -52,7 +52,7 @@ So that the tool respects my configuration instead of using hardcoded defaults.
 **When** `csg generate -f json -f css ~/wallpaper.jpg` is run
 **Then** only those formats are rendered
 **When** no -f flag is passed
-**Then** settings.generation.default_formats are used
+**Then** settings.output.default_formats are used
 **When** an invalid format value is passed
 **Then** Typer validation rejects it (use ColorFormat enum)
 
@@ -276,6 +276,22 @@ Tests should follow the existing pattern: `tests/unit/cli/test_{command}.py`
 - Ruff linting clean
 - AC 6 (all-backends-unavailable) validated via processor-level check + error propagation test
 - Param bogus validation raises ConfigResolutionError before reaching processor
+
+## Review Findings
+
+### Patch (all resolved)
+- [x] [Review][Decision] Spec field reference mismatch — AC 1 and 4 corrected
+- [x] [Review][Patch] Extract `_default_app_settings()` and `_parse_params()` to `cli/_helpers.py`
+- [x] [Review][Patch] Add warning when config resolution falls back to defaults
+- [x] [Review][Patch] Add `CliDependencies` type hint to `show.py`
+- [x] [Review][Patch] Wrap `catalog.load()` in try/except for non-ColorSchemeError
+- [x] [Review][Patch] Raise `ConfigResolutionError` when params provided but no catalog loader or backend not in catalog
+- [x] [Review][Patch] Remove dead/redundant lines in tests
+- [x] [Review][Patch] Strengthen assertions (`== 2` instead of `!= 0`) in invalid-input tests
+- [x] [Review][Patch] Add show `BackendNotAvailableError` test coverage
+- [x] [Review][Patch] Add test for resolver fallback on `ColorSchemeError`
+- [x] [Review][Patch] Add test for `backend_catalog_loader is None` path
+- [x] [Review][Patch] Add test for backend not in catalog with params
 
 ## Change Log
 

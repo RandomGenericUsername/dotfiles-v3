@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 from color_scheme_generator.domain.enums import Backend, ColorFormat
 from color_scheme_generator.domain.exceptions import (
     BackendNotAvailableError,
+    ColorSchemeError,
     ConfigResolutionError,
 )
 from color_scheme_generator.domain.models import (
@@ -164,7 +165,6 @@ class TestGenerateBackendFlag:
         self, runner, mock_deps, mock_processor, mock_output, mock_config_resolver,
         monkeypatch,
     ) -> None:
-        mock_config_resolver.resolve.return_value = _default_app_settings()
         result = _invoke(runner, mock_deps, mock_output,
                          ["generate", "--backend", "pywal", "/tmp/test.jpg"], monkeypatch)
         assert result.exit_code == 0
@@ -178,7 +178,7 @@ class TestGenerateBackendFlag:
     ) -> None:
         result = _invoke(runner, mock_deps, mock_output,
                          ["generate", "--backend", "invalid", "/tmp/test.jpg"], monkeypatch)
-        assert result.exit_code != 0
+        assert result.exit_code == 2
 
     def test_backend_omitted_uses_settings_default(
         self, runner, mock_deps, mock_processor, mock_output, mock_config_resolver,
@@ -317,7 +317,7 @@ class TestGenerateFormatFlag:
     ) -> None:
         result = _invoke(runner, mock_deps, mock_output,
                          ["generate", "-f", "invalid_format", "/tmp/test.jpg"], monkeypatch)
-        assert result.exit_code != 0
+        assert result.exit_code == 2
 
 
 class TestGenerateOutputDirFlag:
@@ -336,7 +336,6 @@ class TestGenerateOutputDirFlag:
         self, runner, mock_deps, mock_processor, mock_output, mock_config_resolver,
         monkeypatch,
     ) -> None:
-        mock_config_resolver.resolve.return_value = _default_app_settings()
         mock_config_resolver.resolve.return_value = AppSettings(
             output=OutputSettings(
                 directory=Path("/custom/output"),
@@ -395,6 +394,41 @@ class TestGenerateConfigResolution:
         assert result.exit_code == 0
         mock_config_resolver.resolve.assert_called_once()
 
+    def test_resolver_failure_falls_back_to_defaults(
+        self, runner, mock_deps, mock_processor, mock_output, mock_config_resolver,
+        monkeypatch,
+    ) -> None:
+        mock_config_resolver.resolve.side_effect = ColorSchemeError("config not found")
+        result = _invoke(runner, mock_deps, mock_output,
+                         ["generate", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 0
+        mock_processor.process_generate.assert_called_once()
+
+    def test_no_backend_catalog_loader_raises_on_params(
+        self, runner, mock_deps, mock_processor, mock_output, mock_config_resolver,
+        monkeypatch,
+    ) -> None:
+        mock_deps.backend_catalog_loader = None
+        result = _invoke(runner, mock_deps, mock_output,
+                         ["generate", "--param", "saturation=1.0", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 1
+        mock_output.error.assert_called_once()
+        call_arg = mock_output.error.call_args[0][0]
+        assert isinstance(call_arg, ConfigResolutionError)
+
+    def test_backend_not_in_catalog_with_params_raises(
+        self, runner, mock_deps, mock_processor, mock_output, mock_config_resolver,
+        mock_backend_catalog_loader, monkeypatch,
+    ) -> None:
+        mock_backend_catalog_loader.load.return_value = {}
+        result = _invoke(runner, mock_deps, mock_output,
+                         ["generate", "--backend", "pywal", "--param", "saturation=1.0",
+                          "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 1
+        mock_output.error.assert_called_once()
+        call_arg = mock_output.error.call_args[0][0]
+        assert isinstance(call_arg, ConfigResolutionError)
+
 
 class TestShowFlags:
     def test_show_accepts_backend_and_param(
@@ -421,7 +455,7 @@ class TestShowFlags:
     ) -> None:
         result = _invoke(runner, mock_deps, mock_output,
                          ["show", "-f", "json", "/tmp/test.jpg"], monkeypatch)
-        assert result.exit_code != 0
+        assert result.exit_code == 2
 
     def test_show_rejects_output_dir_flag(
         self, runner, mock_deps, mock_processor, mock_output,
@@ -429,4 +463,38 @@ class TestShowFlags:
     ) -> None:
         result = _invoke(runner, mock_deps, mock_output,
                          ["show", "-o", "/tmp", "/tmp/test.jpg"], monkeypatch)
-        assert result.exit_code != 0
+        assert result.exit_code == 2
+
+    def test_show_all_backends_unavailable_raises_error(
+        self, runner, mock_deps, mock_processor, mock_output,
+        monkeypatch,
+    ) -> None:
+        mock_processor.process_show.side_effect = BackendNotAvailableError(
+            backend=Backend.CUSTOM,
+            hint="Try `csg install`",
+        )
+        result = _invoke(runner, mock_deps, mock_output,
+                         ["show", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 1
+        mock_output.error.assert_called_once()
+        call_arg = mock_output.error.call_args[0][0]
+        assert isinstance(call_arg, BackendNotAvailableError)
+
+    def test_show_resolver_failure_falls_back_to_defaults(
+        self, runner, mock_deps, mock_processor, mock_output, mock_config_resolver,
+        monkeypatch,
+    ) -> None:
+        mock_processor.process_show.return_value = GenerationResult(
+            success=True,
+            color_scheme=None,
+            output_files=(),
+            backend=Backend.CUSTOM,
+            stderr="",
+            return_code=0,
+            duration=0.5,
+        )
+        mock_config_resolver.resolve.side_effect = ColorSchemeError("config not found")
+        result = _invoke(runner, mock_deps, mock_output,
+                         ["show", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 0
+        mock_processor.process_show.assert_called_once()
