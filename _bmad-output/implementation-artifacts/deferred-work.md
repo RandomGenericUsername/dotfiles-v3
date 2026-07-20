@@ -76,3 +76,7 @@
 ## Deferred from: code review of 2-5-wallust-backend-adapter (2026-07-16)
 
 - Naive sort key `sum(c.rgb)` for luminance [wallust_generator.py:84] — matches codebase-wide `PaletteNormalizationService.sort_by_brightness()`; pre-existing project pattern, not specific to this change
+
+## Deferred from: code review of 2-10-shell-completion-and-first-run (2026-07-19)
+
+- Fragile test accesses private internals [test_first_run.py:59,136] — tests access `_assembler._path_resolver._strategies[-1]._path`; pre-existing, internal refactoring will break tests

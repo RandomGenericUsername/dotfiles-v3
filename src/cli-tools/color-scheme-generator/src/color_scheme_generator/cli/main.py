@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import typer
 
 from color_scheme_generator.adapters.local_processor import LocalProcessor
-from color_scheme_generator.cli._helpers import default_app_settings, parse_params
+from color_scheme_generator.cli._helpers import (
+    default_app_settings,
+    parse_params,
+    resolve_backend_params,
+)
 from color_scheme_generator.cli.dump_config_cmd import dump_config
 from color_scheme_generator.cli.dump_templates_cmd import dump_templates
 from color_scheme_generator.cli.info_cmd import info
@@ -18,12 +21,11 @@ from color_scheme_generator.domain.enums import (
     ColorFormat,
     OutputFormat,
 )
-from color_scheme_generator.domain.exceptions import ColorSchemeError, ConfigResolutionError
+from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
     GenerationRequest,
     GeneratorConfig,
 )
-from color_scheme_generator.domain.services import ParameterResolutionService
 from color_scheme_generator.factory import (
     CliDependencies,
     create_backend_catalog_loader,
@@ -92,42 +94,9 @@ def generate(
 
         resolved_backend = backend or settings.generation.backend or Backend.CUSTOM
 
-        resolved_params: dict[str, Any] = {}
-        if raw_params:
-            if not deps.backend_catalog_loader:
-                raise ConfigResolutionError(
-                    key=next(iter(raw_params)),
-                    reason="No backend catalog loader available — cannot validate params",
-                )
-            try:
-                catalog = deps.backend_catalog_loader.load()
-            except Exception as exc:
-                raise ColorSchemeError(
-                    f"Failed to load backend catalog: {exc}"
-                ) from exc
-            backend_def = catalog.get(resolved_backend)
-            if not backend_def:
-                raise ConfigResolutionError(
-                    key=next(iter(raw_params)),
-                    reason=(
-                        f"Backend '{resolved_backend.value}' not found in catalog"
-                        " — cannot validate params"
-                    ),
-                )
-            valid_keys = {p.name for p in backend_def.parameters}
-            for key in raw_params:
-                if key not in valid_keys:
-                    raise ConfigResolutionError(
-                        key=key,
-                        reason=(
-                            f"Parameter '{key}' is not defined"
-                            f" for backend '{resolved_backend.value}'"
-                        ),
-                    )
-            if backend_def.parameters:
-                resolved_params = ParameterResolutionService.resolve_all(
-                    backend_def.parameters, raw_params
-                )
+        resolved_params = resolve_backend_params(
+            raw_params, resolved_backend, deps.backend_catalog_loader
+        )
 
         resolved_formats: tuple[ColorFormat, ...]
         if formats is not None:

@@ -4,7 +4,7 @@ baseline_commit: 4816250
 
 # Story 2.10: Shell Completion & First-Run Experience
 
-Status: review
+Status: done
 
 ## Story
 
@@ -153,6 +153,16 @@ image_registry = ""
 ### Created
 - `src/color_scheme_generator/defaults/settings.toml` — Package-bundled default settings
 - `tests/unit/cli/test_first_run.py` — Tests for shell completion and first-run scenarios
+
+## Review Findings
+
+### Patch
+- [x] [Review][Patch] parse_params silently drops malformed entries — now warns on stderr [src/cli-tools/color-scheme-generator/src/color_scheme_generator/cli/_helpers.py:48]
+- [x] [Review][Patch] parse_params("=value") inserts empty string `""` as key — now guards against empty key [src/cli-tools/color-scheme-generator/src/color_scheme_generator/cli/_helpers.py:50]
+- [x] [Review][Patch] Duplicated backend-catalog validation logic in main.py and show.py — extracted to resolve_backend_params() in _helpers.py [src/cli-tools/color-scheme-generator/src/color_scheme_generator/cli/_helpers.py]
+
+### Deferred
+- [x] [Review][Defer] Fragile test accesses private internals [src/cli-tools/color-scheme-generator/tests/unit/cli/test_first_run.py:59,136] — deferred, pre-existing
 
 ## Dev Agent Record
 
