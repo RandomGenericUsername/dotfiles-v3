@@ -87,3 +87,8 @@
 - `create_container_processor` doesn't forward `template_dir_resolver` [factory.py:99-105] — will be needed in story 3.2 when ContainerProcessor is fully implemented
 - `duration` hardcoded to 0.0 in `OciContainerRuntimeAdapter` [oci_container_runtime.py:54] — adapter not yet in production use
 - Empty command/image/mounts edge cases in `OciContainerRuntimeAdapter` [oci_container_runtime.py:15-55] — adapter not yet in production use
+
+## Deferred from: code review of 3-2-container-processor (2026-07-22)
+
+- `return_code=-1` for timeouts is non-standard [container_processor.py:227,338] — POSIX exit codes are 0-255; `-1` conflicts with conventions. Would require documenting/changing `GenerationResult.return_code` contract.
+- Code duplication between `process_generate` and `process_show` [container_processor.py:112-232,234-343] — ~90% body shared. Maintenance concern, not a bug.

@@ -54,7 +54,8 @@ class ContainerProcessor:
             elif isinstance(value, (int, float)):
                 lines.append(f"{key} = {value}")
             else:
-                lines.append(f"{key} = \"{value}\"")
+                escaped = str(value).replace("\\", "\\\\").replace("\"", "\\\"")
+                lines.append(f"{key} = \"{escaped}\"")
 
         lines.append("[output]")
         kv("directory", str(settings.output.directory))
@@ -67,7 +68,8 @@ class ContainerProcessor:
         if settings.generation.default_params:
             lines.append("default_params = {")
             for k, v in settings.generation.default_params.items():
-                lines.append(f"  \"{k}\" = \"{v}\",")
+                ev = str(v).replace("\\", "\\\\").replace("\"", "\\\"")
+                lines.append(f"  \"{k}\" = \"{ev}\",")
             lines.append("}")
         lines.append("")
         lines.append("[template]")
@@ -95,19 +97,20 @@ class ContainerProcessor:
             data = json.loads(raw)
         except json.JSONDecodeError:
             return None
-        if not data or "background" not in data:
+        try:
+            return ColorScheme(
+                background=Color(data["background"]["hex"], tuple(data["background"]["rgb"])),
+                foreground=Color(data["foreground"]["hex"], tuple(data["foreground"]["rgb"])),
+                cursor=Color(data["cursor"]["hex"], tuple(data["cursor"]["rgb"])),
+                colors=tuple(
+                    Color(c["hex"], tuple(c["rgb"])) for c in data["colors"]
+                ),
+                source_image=Path(data["source_image"]),
+                backend=data["backend"],
+                generated_at=data["generated_at"],
+            )
+        except (KeyError, TypeError, ValueError):
             return None
-        return ColorScheme(
-            background=Color(data["background"]["hex"], tuple(data["background"]["rgb"])),
-            foreground=Color(data["foreground"]["hex"], tuple(data["foreground"]["rgb"])),
-            cursor=Color(data["cursor"]["hex"], tuple(data["cursor"]["rgb"])),
-            colors=tuple(
-                Color(c["hex"], tuple(c["rgb"])) for c in data["colors"]
-            ),
-            source_image=Path(data["source_image"]),
-            backend=data["backend"],
-            generated_at=data["generated_at"],
-        )
 
     def process_generate(
         self, request: GenerationRequest, settings: AppSettings
@@ -121,12 +124,15 @@ class ContainerProcessor:
             if not self._container_runtime.image_exists(image):
                 raise ContainerImageNotFoundError(image, request.config.backend)
 
-            input_parent = request.image_path.parent
+            input_parent = request.image_path.resolve().parent
             if input_parent == Path("/"):
                 raise InvalidImageError(
                     request.image_path,
                     "Cannot mount filesystem root as input directory",
                 )
+
+            if not request.image_path.is_file():
+                raise FileNotFoundError(f"Input image not found: {request.image_path}")
 
             output_dir = request.config.output_dir
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -141,6 +147,9 @@ class ContainerProcessor:
                 templates_dir = Path(
                     "/usr/share/color-scheme-generator/templates"
                 )
+
+            if not templates_dir.is_dir():
+                raise FileNotFoundError(f"Templates directory not found: {templates_dir}")
 
             toml_content = self._serialize_settings(settings)
             with tempfile.NamedTemporaryFile(
@@ -196,10 +205,8 @@ class ContainerProcessor:
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
                 )
-            except ContainerTimeoutError:
-                raise
             except Exception as exc:
-                if "timeout" in str(exc).lower():
+                if isinstance(exc, ContainerTimeoutError) or "timeout" in str(exc).lower():
                     raise ContainerTimeoutError() from exc
                 raise
 
@@ -243,12 +250,15 @@ class ContainerProcessor:
             if not self._container_runtime.image_exists(image):
                 raise ContainerImageNotFoundError(image, request.config.backend)
 
-            input_parent = request.image_path.parent
+            input_parent = request.image_path.resolve().parent
             if input_parent == Path("/"):
                 raise InvalidImageError(
                     request.image_path,
                     "Cannot mount filesystem root as input directory",
                 )
+
+            if not request.image_path.is_file():
+                raise FileNotFoundError(f"Input image not found: {request.image_path}")
 
             if self._template_dir_resolver:
                 templates_dir = self._template_dir_resolver.resolve()
@@ -260,6 +270,9 @@ class ContainerProcessor:
                 templates_dir = Path(
                     "/usr/share/color-scheme-generator/templates"
                 )
+
+            if not templates_dir.is_dir():
+                raise FileNotFoundError(f"Templates directory not found: {templates_dir}")
 
             toml_content = self._serialize_settings(settings)
             with tempfile.NamedTemporaryFile(
@@ -307,10 +320,8 @@ class ContainerProcessor:
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
                 )
-            except ContainerTimeoutError:
-                raise
             except Exception as exc:
-                if "timeout" in str(exc).lower():
+                if isinstance(exc, ContainerTimeoutError) or "timeout" in str(exc).lower():
                     raise ContainerTimeoutError() from exc
                 raise
 

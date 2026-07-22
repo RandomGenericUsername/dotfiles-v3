@@ -74,6 +74,24 @@ def _make_request(
     )
 
 
+def _setup_test_env(tmp_path: Path) -> tuple[Path, Path, ContainerProcessor]:
+    img = tmp_path / "input" / "wallpaper.png"
+    img.parent.mkdir(parents=True, exist_ok=True)
+    img.write_text("dummy")
+    tdir = tmp_path / "templates"
+    tdir.mkdir(parents=True, exist_ok=True)
+    output_dir = tmp_path / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    mock_runtime = _make_mock_runtime()
+    processor = ContainerProcessor(
+        mock_runtime,
+        default_settings_path=tmp_path / "settings.toml",
+    )
+    (tmp_path / "settings.toml").write_text("")
+    (tmp_path / "defaults" / "templates").mkdir(parents=True, exist_ok=True)
+    return tdir, output_dir, processor
+
+
 def _make_mock_runtime() -> MagicMock:
     runtime = MagicMock()
     runtime.image_exists.return_value = True
@@ -122,12 +140,8 @@ class TestContainerProcessorGenerate:
         assert "Cannot mount filesystem root" in str(exc_info.value)
 
     def test_temp_toml_cleaned_up_on_success(self, tmp_path: Path) -> None:
-        mock_runtime = _make_mock_runtime()
-        output_dir = tmp_path / "output"
-        output_dir.mkdir()
-        processor = ContainerProcessor(mock_runtime)
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()
-        request = _make_request()
         request = GenerationRequest(
             image_path=tmp_path / "input" / "wallpaper.png",
             config=GeneratorConfig(
@@ -137,8 +151,6 @@ class TestContainerProcessorGenerate:
                 output_dir=output_dir,
             ),
         )
-        (tmp_path / "input").mkdir(parents=True, exist_ok=True)
-        (tmp_path / "input" / "wallpaper.png").write_text("dummy")
 
         temp_files_before = set(tmp_path.rglob("*.toml"))
 
@@ -163,7 +175,14 @@ class TestContainerProcessorGenerate:
         temp_files_after = set(tmp_path.rglob("*.toml"))
         assert temp_files_before == temp_files_after
 
-    def test_constructs_four_mounts(self) -> None:
+    def test_constructs_four_mounts(self, tmp_path: Path) -> None:
+        img = tmp_path / "img.png"
+        img.write_text("dummy")
+        tdir = tmp_path / "templates"
+        tdir.mkdir()
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
         mock_runtime = MagicMock()
         mock_runtime.image_exists.return_value = True
 
@@ -171,13 +190,21 @@ class TestContainerProcessorGenerate:
         mock_runtime.run.return_value = container_result
 
         template_dir_resolver = MagicMock()
-        template_dir_resolver.resolve.return_value = Path("/resolved/templates")
+        template_dir_resolver.resolve.return_value = tdir
 
         processor = ContainerProcessor(
             mock_runtime, template_dir_resolver=template_dir_resolver
         )
         settings = _make_settings()
-        request = _make_request()
+        request = GenerationRequest(
+            image_path=img,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
 
         result = processor.process_generate(request, settings)
 
@@ -189,51 +216,76 @@ class TestContainerProcessorGenerate:
             mounts = args[2] if len(args) > 2 else []
         assert len(mounts) == 4
 
-    def test_inner_command_contains_runtime_local(self) -> None:
-        mock_runtime = MagicMock()
-        mock_runtime.image_exists.return_value = True
-        container_result = MagicMock(return_code=0, stdout="", stderr="", duration=0.3)
-        mock_runtime.run.return_value = container_result
-
-        processor = ContainerProcessor(mock_runtime)
+    def test_inner_command_contains_runtime_local(self, tmp_path: Path) -> None:
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()
-        request = _make_request()
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
 
         processor.process_generate(request, settings)
 
-        call_args = mock_runtime.run.call_args
+        call_args = processor._container_runtime.run.call_args
         command = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("command", [])
         assert "--runtime" in command
         local_idx = command.index("--runtime")
         assert local_idx + 1 < len(command)
         assert command[local_idx + 1] == "local"
 
-    def test_params_forwarded_verbatim(self) -> None:
-        mock_runtime = MagicMock()
-        mock_runtime.image_exists.return_value = True
-        container_result = MagicMock(return_code=0, stdout="", stderr="", duration=0.3)
-        mock_runtime.run.return_value = container_result
-
-        processor = ContainerProcessor(mock_runtime)
+    def test_params_forwarded_verbatim(self, tmp_path: Path) -> None:
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()
-        request = _make_request(params={"saturation": "1.0", "contrast": "0.8"})
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={"saturation": "1.0", "contrast": "0.8"},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
 
         processor.process_generate(request, settings)
 
-        call_args = mock_runtime.run.call_args
+        call_args = processor._container_runtime.run.call_args
         command = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("command", [])
         cmd_str = " ".join(command)
         assert "--param saturation=1.0" in cmd_str
         assert "--param contrast=0.8" in cmd_str
 
-    def test_timeout_maps_to_container_timeout_error(self) -> None:
+    def test_timeout_maps_to_container_timeout_error(self, tmp_path: Path) -> None:
         mock_runtime = MagicMock()
         mock_runtime.image_exists.return_value = True
         mock_runtime.run.side_effect = ContainerTimeoutError()
 
-        processor = ContainerProcessor(mock_runtime)
+        tdir = tmp_path / "templates"
+        tdir.mkdir()
+        img = tmp_path / "img.png"
+        img.write_text("dummy")
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        (tmp_path / "defaults" / "templates").mkdir(parents=True, exist_ok=True)
+
+        processor = ContainerProcessor(
+            mock_runtime, default_settings_path=tmp_path / "settings.toml"
+        )
+        (tmp_path / "settings.toml").write_text("")
         settings = _make_settings()
-        request = _make_request()
+        request = GenerationRequest(
+            image_path=img,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
 
         result = processor.process_generate(request, settings)
 
@@ -244,20 +296,10 @@ class TestContainerProcessorGenerate:
     def test_returns_generation_result_with_same_contract_as_local_processor(
         self, tmp_path: Path
     ) -> None:
-        mock_runtime = MagicMock()
-        mock_runtime.image_exists.return_value = True
-        output_dir = tmp_path / "contract_output"
-        output_dir.mkdir()
-        container_result = MagicMock(
-            return_code=0, stdout="", stderr="", duration=0.3
-        )
-        mock_runtime.run.return_value = container_result
-
-        processor = ContainerProcessor(mock_runtime)
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()
-        request = _make_request()
         request = GenerationRequest(
-            image_path=tmp_path / "img.png",
+            image_path=tmp_path / "input" / "wallpaper.png",
             config=GeneratorConfig(
                 backend=Backend.CUSTOM,
                 params={},
@@ -265,7 +307,6 @@ class TestContainerProcessorGenerate:
                 output_dir=output_dir,
             ),
         )
-        (tmp_path / "img.png").write_text("dummy")
 
         result = processor.process_generate(request, settings)
 
@@ -280,7 +321,14 @@ class TestContainerProcessorGenerate:
 
 
 class TestContainerProcessorShow:
-    def test_show_mode_does_not_mount_output_dir(self) -> None:
+    def test_show_mode_does_not_mount_output_dir(self, tmp_path: Path) -> None:
+        tdir = tmp_path / "templates"
+        tdir.mkdir()
+        img = tmp_path / "img.png"
+        img.write_text("dummy")
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
         mock_runtime = MagicMock()
         mock_runtime.image_exists.return_value = True
         container_result = MagicMock(
@@ -304,9 +352,21 @@ class TestContainerProcessorShow:
         )
         mock_runtime.run.return_value = container_result
 
-        processor = ContainerProcessor(mock_runtime)
+        processor = ContainerProcessor(
+            mock_runtime, default_settings_path=tmp_path / "settings.toml"
+        )
+        (tmp_path / "settings.toml").write_text("")
+        (tmp_path / "defaults" / "templates").mkdir(parents=True, exist_ok=True)
         settings = _make_settings()
-        request = _make_request()
+        request = GenerationRequest(
+            image_path=img,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
 
         result = processor.process_show(request, settings)
 
@@ -317,15 +377,34 @@ class TestContainerProcessorShow:
         assert cmd_str.startswith("csg show")
         assert "-o" not in cmd_str.replace("-o ", "")
 
-    def test_show_inner_command_has_runtime_local(self) -> None:
+    def test_show_inner_command_has_runtime_local(self, tmp_path: Path) -> None:
+        tdir = tmp_path / "templates"
+        tdir.mkdir()
+        img = tmp_path / "img.png"
+        img.write_text("dummy")
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
         mock_runtime = MagicMock()
         mock_runtime.image_exists.return_value = True
         container_result = MagicMock(return_code=0, stdout="{}", stderr="", duration=0.3)
         mock_runtime.run.return_value = container_result
 
-        processor = ContainerProcessor(mock_runtime)
+        processor = ContainerProcessor(
+            mock_runtime, default_settings_path=tmp_path / "settings.toml"
+        )
+        (tmp_path / "settings.toml").write_text("")
+        (tmp_path / "defaults" / "templates").mkdir(parents=True, exist_ok=True)
         settings = _make_settings()
-        request = _make_request()
+        request = GenerationRequest(
+            image_path=img,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
 
         processor.process_show(request, settings)
 
@@ -337,18 +416,10 @@ class TestContainerProcessorShow:
 
 class TestContainerProcessorTempToml:
     def test_temp_toml_is_world_readable(self, tmp_path: Path) -> None:
-        mock_runtime = MagicMock()
-        mock_runtime.image_exists.return_value = True
-        output_dir = tmp_path / "perm_output"
-        output_dir.mkdir()
-        container_result = MagicMock(return_code=0, stdout="", stderr="", duration=0.3)
-        mock_runtime.run.return_value = container_result
-
-        processor = ContainerProcessor(mock_runtime)
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()
-        request = _make_request()
         request = GenerationRequest(
-            image_path=tmp_path / "img.png",
+            image_path=tmp_path / "input" / "wallpaper.png",
             config=GeneratorConfig(
                 backend=Backend.CUSTOM,
                 params={},
@@ -356,7 +427,6 @@ class TestContainerProcessorTempToml:
                 output_dir=output_dir,
             ),
         )
-        (tmp_path / "img.png").write_text("dummy")
 
         toml_paths_before = sorted(tmp_path.rglob("*.toml"))
 

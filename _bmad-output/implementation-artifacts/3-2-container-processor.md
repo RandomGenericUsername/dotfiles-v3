@@ -4,7 +4,7 @@ baseline_commit: a7f767bc182cb08bd69c180e9ce3f44dbdaa74df
 
 # Story 3.2: Container Processor
 
-Status: review
+Status: done
 
 ## Story
 
@@ -310,6 +310,18 @@ CLI integration tests should go in `tests/unit/cli/` following the pattern in `t
 - Template directory resolved via `TemplateDirResolver.resolve()` — returns the resolved templates dir Path
 - All container exceptions are in `domain/exceptions.py` (added in story 3.1)
 - No changes to domain models, enums, or ports needed — they already have everything this story needs
+
+### Review Findings
+
+- [x] [Review][Patch] TOML string values not escaped in `_serialize_settings` [container_processor.py:57,70] — fixed
+- [x] [Review][Patch] `_parse_color_scheme_from_json` crashes with `KeyError` on missing fields [container_processor.py:100-109] — fixed
+- [x] [Review][Patch] Root FS guard bypassable via symlink [container_processor.py:124-125] — fixed
+- [x] [Review][Patch] Timeout heuristic too broad and `except ContainerTimeoutError: raise` is dead code [container_processor.py:199-204] — fixed
+- [x] [Review][Patch] `output_dir.iterdir()` races with overlay filesystem commit [container_processor.py:211-212] — dismissed (false alarm — bind mounts are synchronous)
+- [x] [Review][Patch] No validation that `templates_dir` exists before mounting [container_processor.py:134-143] — fixed
+- [x] [Review][Patch] No validation that `request.image_path` exists on disk [container_processor.py:119-124] — fixed
+- [x] [Review][Defer] `return_code=-1` for timeouts is non-standard [container_processor.py:227,338] — POSIX exit codes are 0-255; `-1` conflicts with conventions. Deferred: would require documenting/changing `GenerationResult.return_code` contract.
+- [x] [Review][Defer] Code duplication between `process_generate` and `process_show` [container_processor.py:112-232,234-343] — ~90% body shared. Deferred: maintenance concern, not a bug.
 
 ## Dev Agent Record
 
