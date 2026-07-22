@@ -115,7 +115,19 @@ def create_container_processor(
     )
 
 
-def create_dry_run_processor() -> ColorSchemeProcessorPort:
+def create_dry_run_processor(
+    backend_catalog_loader: YamlBackendCatalogLoader,
+    output_adapter: OutputPort | None = None,
+    container_runtime: ContainerRuntimePort | None = None,
+    template_dir_resolver: TemplateDirResolver | None = None,
+    backend_registry: BackendRegistry | None = None,
+) -> ColorSchemeProcessorPort:
     from color_scheme_generator.adapters.dry_run_processor import DryRunProcessor
 
-    return DryRunProcessor()
+    return DryRunProcessor(
+        backend_catalog_loader=backend_catalog_loader,
+        container_runtime=container_runtime,
+        output_adapter=output_adapter,
+        template_dir_resolver=template_dir_resolver,
+        backend_registry=backend_registry or create_backend_registry(),
+    )

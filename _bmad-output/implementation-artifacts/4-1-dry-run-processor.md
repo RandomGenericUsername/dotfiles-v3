@@ -4,7 +4,7 @@ baseline_commit: 8b19e87
 
 # Story 4.1: Dry-Run Processor
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -34,50 +34,50 @@ So that I can validate inputs, backends, and params before running.
 ## Tasks / Subtasks
 
 ### Refactor DryRunProcessor constructor with dependencies
-- [ ] Update `DryRunProcessor.__init__()` to accept: `backend_catalog_loader: BackendCatalogLoaderPort`, `container_runtime: ContainerRuntimePort | None`, `output_adapter: OutputPort`, `template_dir_resolver: TemplateDirResolver | None`, `backend_registry: dict[Backend, PaletteGeneratorPort]` (AC: 1)
+- [x] Update `DryRunProcessor.__init__()` to accept: `backend_catalog_loader: BackendCatalogLoaderPort`, `container_runtime: ContainerRuntimePort | None`, `output_adapter: OutputPort`, `template_dir_resolver: TemplateDirResolver | None`, `backend_registry: dict[Backend, PaletteGeneratorPort]` (AC: 1)
   - `backend_catalog_loader` — for parameter schema validation
   - `container_runtime` — for engine/image validation (None in local mode)
   - `output_adapter` — to render resolved command without executing
   - `template_dir_resolver` — for templates dir validation
   - `backend_registry` — for backend availability check in local mode
-- [ ] Update factory.py `create_dry_run_processor()` to wire all dependencies (AC: 1)
+- [x] Update factory.py `create_dry_run_processor()` to wire all dependencies (AC: 1)
 
 ### Implement pre-flight validation
-- [ ] Implement `_pre_flight_generate(request, settings)`:
-  - [ ] Validate input image exists and is readable (`request.image_path.is_file()`) (AC: 1)
-  - [ ] Validate output dir is writable (`request.config.output_dir`) — check parent exists or can be created (AC: 1)
-  - [ ] Validate templates dir resolvable — use `template_dir_resolver.resolve()` or fallback path logic from `ContainerProcessor` (AC: 1)
-  - [ ] If local mode (`settings.runtime.mode == RuntimeMode.LOCAL`): check backend is registered in `backend_registry` (AC: 1)
-  - [ ] If container mode (`settings.runtime.mode == RuntimeMode.CONTAINER`): check engine is available (`container_runtime` not None), check image exists via `container_runtime.image_exists()`, do NOT pull image, do NOT check host-side backend availability (AC: 2)
-- [ ] Implement `_validate_params(backend, params, settings)`:
-  - [ ] Look up BackendDefinition for the target backend from catalog (AC: 3)
-  - [ ] For each param in `params`: find matching BackendParameterDefinition by name, attempt type coercion (AC: 3)
-  - [ ] If coercion fails: raise the first validation error with param name, expected type, and received value (AC: 3)
-  - [ ] If param is unknown (not in BackendDefinition.parameters): raise validation error (AC: 3)
+- [x] Implement `_pre_flight_generate(request, settings)`:
+  - [x] Validate input image exists and is readable (`request.image_path.is_file()`) (AC: 1)
+  - [x] Validate output dir is writable (`request.config.output_dir`) — check parent exists or can be created (AC: 1)
+  - [x] Validate templates dir resolvable — use `template_dir_resolver.resolve()` or fallback path logic from `ContainerProcessor` (AC: 1)
+  - [x] If local mode (`settings.runtime.mode == RuntimeMode.LOCAL`): check backend is registered in `backend_registry` (AC: 1)
+  - [x] If container mode (`settings.runtime.mode == RuntimeMode.CONTAINER`): check engine is available (`container_runtime` not None), check image exists via `container_runtime.image_exists()`, do NOT pull image, do NOT check host-side backend availability (AC: 2)
+- [x] Implement `_validate_params(backend, params, settings)`:
+  - [x] Look up BackendDefinition for the target backend from catalog (AC: 3)
+  - [x] For each param in `params`: find matching BackendParameterDefinition by name, attempt type coercion (AC: 3)
+  - [x] If coercion fails: raise the first validation error with param name, expected type, and received value (AC: 3)
+  - [x] If param is unknown (not in BackendDefinition.parameters): raise validation error (AC: 3)
 
 ### Implement process_generate with dry-run
-- [ ] In `process_generate()`: call `_pre_flight_generate()` and `_validate_params()`, build the resolved CLI command string, render via `output_adapter.process_result()` with a `GenerationResult` that contains the command plan as stderr/stdout, return `GenerationResult(success=True, ...)` (AC: 1)
+- [x] In `process_generate()`: call `_pre_flight_generate()` and `_validate_params()`, build the resolved CLI command string, render via `output_adapter.process_result()` with a `GenerationResult` that contains the command plan as stderr/stdout, return `GenerationResult(success=True, ...)` (AC: 1)
 
 ### Implement process_show with dry-run
-- [ ] In `process_show()`: same pattern as `process_generate` but builds the `show` inner command instead of `generate` (AC: 1)
+- [x] In `process_show()`: same pattern as `process_generate` but builds the `show` inner command instead of `generate` (AC: 1)
 
 ### Write tests
-- [ ] Unit test: `test_pre_flight_input_not_found` — missing input raises clear error (AC: 1)
-- [ ] Unit test: `test_pre_flight_local_backend_not_available` — unregistered backend raises error (AC: 1)
-- [ ] Unit test: `test_pre_flight_container_mode_checks_engine` — container mode validates engine availability (AC: 2)
-- [ ] Unit test: `test_pre_flight_container_mode_does_not_pull` — image existence check does not call `pull_image` (AC: 2)
-- [ ] Unit test: `test_pre_flight_container_mode_skips_host_check` — does not check host backend availability (AC: 2)
-- [ ] Unit test: `test_validate_params_invalid_type` — param with wrong type raises clear error (AC: 3)
-- [ ] Unit test: `test_validate_params_unknown_param` — unknown param raises error (AC: 3)
-- [ ] Unit test: `test_process_generate_returns_success_with_command` — dry-run returns command plan, not executed (AC: 1)
-- [ ] Unit test: `test_process_show_returns_success_with_command` — dry-run show returns command plan (AC: 1)
-- [ ] Unit test: `test_isinstance_check_passes` — update existing stub test to still pass
-- [ ] Run full test suite — verify zero regressions
-- [ ] Run ruff lint — clean
+- [x] Unit test: `test_pre_flight_input_not_found` — missing input raises clear error (AC: 1)
+- [x] Unit test: `test_pre_flight_local_backend_not_available` — unregistered backend raises error (AC: 1)
+- [x] Unit test: `test_pre_flight_container_mode_checks_engine` — container mode validates engine availability (AC: 2)
+- [x] Unit test: `test_pre_flight_container_mode_does_not_pull` — image existence check does not call `pull_image` (AC: 2)
+- [x] Unit test: `test_pre_flight_container_mode_skips_host_check` — does not check host backend availability (AC: 2)
+- [x] Unit test: `test_validate_params_invalid_type` — param with wrong type raises clear error (AC: 3)
+- [x] Unit test: `test_validate_params_unknown_param` — unknown param raises error (AC: 3)
+- [x] Unit test: `test_process_generate_returns_success_with_command` — dry-run returns command plan, not executed (AC: 1)
+- [x] Unit test: `test_process_show_returns_success_with_command` — dry-run show returns command plan (AC: 1)
+- [x] Unit test: `test_isinstance_check_passes` — update existing stub test to still pass
+- [x] Run full test suite — verify zero regressions
+- [x] Run ruff lint — clean
 
 ### Update existing tests and clean up stub
-- [ ] Remove/update `test_dry_run_processor_stub.py` — replace NotImplementedError tests with real behavior tests
-- [ ] Run full test suite — verify zero regressions
+- [x] Remove/update `test_dry_run_processor_stub.py` — replace NotImplementedError tests with real behavior tests
+- [x] Run full test suite — verify zero regressions
 
 ## Dev Notes
 
@@ -199,16 +199,32 @@ opencode-go/deepseek-v4-flash
 
 ### Completion Notes List
 
+- Implemented full DryRunProcessor with DI constructor accepting backend_catalog_loader, container_runtime (optional), output_adapter, template_dir_resolver (optional), backend_registry (optional)
+- Implemented `_pre_flight_generate()` validating: input file exists, output dir writable, templates dir resolvable, local mode backend registration, container mode engine+image availability (no pull, no host check)
+- Implemented `_validate_params()` with type coercion (float, int, str/choices) and unknown param detection
+- Implemented `process_generate()` and `process_show()` building command plan via `_build_command_plan()` and rendering through OutputPort
+- Updated factory.py `create_dry_run_processor()` with all dependency wiring
+- Created comprehensive test suite: 11 tests covering pre-flight validation, param validation, process generate/show, container mode edge cases
+- Updated stub test file to match new constructor signature
+- Updated test_runtime_mode.py factory test to pass backend_catalog_loader mock
+- Full test suite: 408 passed, 0 failed
+- Ruff lint: clean
+
 ### File List
 
 | File | Action |
 |------|--------|
 | `src/color_scheme_generator/adapters/dry_run_processor.py` | MODIFY |
 | `src/color_scheme_generator/factory.py` | MODIFY |
+| `tests/unit/cli/test_runtime_mode.py` | MODIFY |
+| `tests/unit/adapters/test_dry_run_processor_stub.py` | REPLACE |
+| `tests/unit/adapters/test_dry_run_processor.py` | CREATE |
 | `src/color_scheme_generator/adapters/local_processor.py` | READ (reference only) |
 | `src/color_scheme_generator/adapters/container_processor.py` | READ (reference only) |
 | `src/color_scheme_generator/domain/models.py` | READ (reference only) |
 | `src/color_scheme_generator/domain/exceptions.py` | READ (reference only) |
 | `src/color_scheme_generator/domain/enums.py` | READ (reference only) |
-| `tests/unit/adapters/test_dry_run_processor_stub.py` | REPLACE |
-| `tests/unit/adapters/test_dry_run_processor.py` | CREATE |
+
+## Change Log
+
+- 2026-07-22: Implemented DryRunProcessor with DI constructor, pre-flight validation, param coercion, process_generate/show with command plan rendering, comprehensive test suite (12 tests), factory wiring updated

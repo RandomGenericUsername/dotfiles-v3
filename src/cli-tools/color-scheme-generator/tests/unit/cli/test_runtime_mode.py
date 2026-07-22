@@ -155,7 +155,13 @@ class TestFactoryHelpers:
         assert isinstance(processor, ColorSchemeProcessorPort)
 
     def test_create_dry_run_processor_returns_port(self) -> None:
-        processor = create_dry_run_processor()
+        from color_scheme_generator.adapters.yaml_backend_catalog_loader import (
+            YamlBackendCatalogLoader,
+        )
+
+        processor = create_dry_run_processor(
+            backend_catalog_loader=MagicMock(spec=YamlBackendCatalogLoader),
+        )
         assert isinstance(processor, ColorSchemeProcessorPort)
 
 
