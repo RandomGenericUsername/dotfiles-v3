@@ -4,7 +4,7 @@ baseline_commit: ffd2d33
 
 # Story 3.4: Error Mapping (oci-runtime → Domain)
 
-Status: review
+Status: done
 
 ## Story
 
@@ -325,3 +325,12 @@ opencode-go/deepseek-v4-flash
 - Refactored adapter and processor to use error mapping instead of inline/string-based error handling
 - Exported all container exceptions in `errors.py` public API
 - Added 12 new tests; 399 total passing
+
+### Review Findings
+
+- [x] [Review][Decision] **No backend context from adapter callers to map_oci_error** — Resolved: idempotent `map_oci_error` + processor passes `backend=request.config.backend`. Context flows from where it's known, port stays clean.
+- [x] [Review][Decision] **Loss of broad timeout string-match heuristic** — Resolved: accept spec behavior. Only `OperationTimeoutError` maps to `ContainerTimeoutError`. Old heuristic was debt.
+- [x] [Review][Patch] **Double-mapping in ContainerProcessor** [`container_processor.py:210-213`] — Fixed: `isinstance(error, ColorSchemeError): return error` guard added to `map_oci_error`.
+- [x] [Review][Patch] **Dangling container on exec_container failure** [`oci_container_runtime.py:47-55`] — Fixed: try/finally with `containers.remove()` on failure.
+- [x] [Review][Patch] **Misleading test name** [`test_image_lifecycle.py:169`] — Fixed: renamed to `test_image_exists_raises_maps_to_container_image_not_found_error`.
+- [x] [Review][Defer] **Missing coverage for exec_container failure path** [`test_image_lifecycle.py`] — Tests only mock `containers.run` to fail, never `exec_container`. Half the wrapped code path is untested. deferred, pre-existing

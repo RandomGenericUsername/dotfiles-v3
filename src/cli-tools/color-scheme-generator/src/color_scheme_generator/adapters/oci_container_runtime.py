@@ -44,6 +44,7 @@ class OciContainerRuntimeAdapter:
         )
         from color_scheme_generator.adapters.error_mapping import map_oci_error
 
+        container_id = None
         try:
             container_id = self._engine.containers.run(config)
             result = self._engine.containers.exec_container(
@@ -53,6 +54,9 @@ class OciContainerRuntimeAdapter:
             )
         except Exception as exc:
             raise map_oci_error(exc) from exc
+        finally:
+            if container_id is not None:
+                self._engine.containers.remove(container_id)
 
         from color_scheme_generator.domain.models import ContainerResult
 

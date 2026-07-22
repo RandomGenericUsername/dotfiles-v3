@@ -210,7 +210,7 @@ class ContainerProcessor:
             except Exception as exc:
                 from color_scheme_generator.adapters.error_mapping import map_oci_error
 
-                raise map_oci_error(exc) from exc
+                raise map_oci_error(exc, backend=request.config.backend) from exc
 
             duration = time.monotonic() - start
 
@@ -327,7 +327,7 @@ class ContainerProcessor:
             except Exception as exc:
                 from color_scheme_generator.adapters.error_mapping import map_oci_error
 
-                raise map_oci_error(exc) from exc
+                raise map_oci_error(exc, backend=request.config.backend) from exc
 
             duration = time.monotonic() - start
 

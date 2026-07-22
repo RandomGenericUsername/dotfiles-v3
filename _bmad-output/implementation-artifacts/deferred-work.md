@@ -102,3 +102,7 @@
 - No --image-tag CLI flag [install_cmd.py, uninstall_cmd.py] — feature request, tag always from config
 - No CLI integration tests — tests use unit mocking pattern
 - build_image return value discarded [install_cmd.py:67] — image SHA not captured/displayed
+
+## Deferred from: code review of 3-4-error-mapping-oci-runtime-to-domain (2026-07-22)
+
+- Missing coverage for exec_container failure path [test_image_lifecycle.py] — Tests only mock `containers.run` to fail, never `exec_container`. Half the wrapped code path is untested.

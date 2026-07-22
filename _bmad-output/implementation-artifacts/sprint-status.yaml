@@ -61,12 +61,12 @@ development_status:
   3-1-runtime-mode-wiring-and-composition-root: done
   3-2-container-processor: done
   3-3-install-uninstall-commands: done
-  3-4-error-mapping-oci-runtime-to-domain: review
+  3-4-error-mapping-oci-runtime-to-domain: done
   epic-3-retrospective: optional
 
   # ── Epic 4: Production Polish ──
-  epic-4: backlog
-  4-1-dry-run-processor: backlog
+   epic-4: in-progress
+   4-1-dry-run-processor: ready-for-dev
   4-2-edge-case-hardening: backlog
   4-3-port-contract-tests: backlog
   epic-4-retrospective: optional

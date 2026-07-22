@@ -25,6 +25,8 @@ from color_scheme_generator.domain.exceptions import (
 
 
 def map_oci_error(error: Exception, **context: Any) -> ColorSchemeError:
+    if isinstance(error, ColorSchemeError):
+        return error
     if isinstance(error, RuntimeNotAvailableError):
         return ContainerRuntimeUnavailableError(runtime=error.runtime)
     if isinstance(error, ImageNotFoundError):

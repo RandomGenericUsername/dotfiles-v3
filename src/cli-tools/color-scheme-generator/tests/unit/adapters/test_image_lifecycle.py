@@ -175,7 +175,7 @@ class TestRunErrorMapping:
         assert "private/app" in str(exc_info.value)
         assert "ghcr.io" in str(exc_info.value)
 
-    def test_image_exists_raises_maps_to_color_scheme_error(
+    def test_image_exists_raises_maps_to_container_image_not_found_error(
         self,
         adapter: OciContainerRuntimeAdapter,
         mock_oci_engine: MagicMock,
