@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from color_scheme_generator.domain.enums import Backend
+
 if TYPE_CHECKING:
     from oci_runtime.domain.types import BuildContext
     from oci_runtime.ports.engine import ContainerEngine as OciContainerEngine
@@ -66,20 +68,24 @@ class OciContainerRuntimeAdapter:
         context: BuildContext,
         image_name: str,
         timeout: int | None = 600,
+        backend: Backend | None = None,
     ) -> str:
         from oci_runtime.domain.exceptions import ImageError
 
         from color_scheme_generator.domain.exceptions import ImageBuildError
 
+        if timeout is not None and timeout <= 0:
+            raise ImageBuildError(image=image_name, reason=f"Invalid timeout: {timeout}", backend=backend)
         try:
             return self._engine.images.build(context, image_name, timeout)
         except ImageError as exc:
             raise ImageBuildError(
                 image=image_name,
                 reason=str(exc),
+                backend=backend,
             ) from exc
 
-    def remove_image(self, image: str, force: bool = False) -> None:
+    def remove_image(self, image: str, force: bool = False, backend: Backend | None = None) -> None:
         from oci_runtime.domain.exceptions import ImageError
 
         from color_scheme_generator.domain.exceptions import ImageRemoveError
@@ -90,4 +96,5 @@ class OciContainerRuntimeAdapter:
             raise ImageRemoveError(
                 image=image,
                 reason=str(exc),
+                backend=backend,
             ) from exc

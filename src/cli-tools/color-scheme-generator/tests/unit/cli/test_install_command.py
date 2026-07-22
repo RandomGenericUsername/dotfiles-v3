@@ -50,7 +50,6 @@ def mock_container_engine() -> MagicMock:
 @pytest.fixture
 def mock_deps(
     mock_config_resolver: MagicMock,
-    mock_container_engine: MagicMock,
 ) -> CliDependencies:
     return CliDependencies(
         backend_registry={},

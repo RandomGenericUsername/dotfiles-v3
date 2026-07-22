@@ -4,7 +4,7 @@ baseline_commit: 26fde9e23b524fb17daedaed54a158552a875519
 
 # Story 3.3: Install/Uninstall Commands
 
-Status: review
+Status: done
 
 ## Story
 
@@ -378,6 +378,31 @@ Adapter tests:
 3. **Backend extraction for error mapping** — `oci_container_runtime.build_image()` doesn't know which backend is being built. Pass backend as a parameter or extract from image name convention.
 4. **Image existence at uninstall** — should uninstall fail if image doesn't exist? Probably continue silently with a warning.
 5. **--dump-config and --dump-templates post-install bootstrap** — PRD mentions these as install command features. Evaluate if in scope or defer.
+
+### Review Findings
+
+- [x] [Review][Decision] Base image build ordering — Build base first in install loop before per-backend images. [Dockerfile.base, Dockerfile.custom:1, install_cmd.py]
+- [x] [Review][Decision] Dockerfile.wallust installation method — Use pre-built binary download from Codeberg releases (`wallust-x86_64-unknown-linux-musl.tar.gz`) instead of apt-get. [Dockerfile.wallust:2]
+- [x] [Review][Patch] Uninstall confirmation bypass [uninstall_cmd.py:45] — `if not yes and not backend:` skips confirmation when `--backend` is specified without `--yes`. Fix: change to `if not yes:`.
+- [x] [Review][Patch] Broaden exception handling [install_cmd.py:92, uninstall_cmd.py:85] — Only catches `ColorSchemeError`. Non-domain exceptions (OSError, PermissionError) crash. Fix: add `except Exception` like `generate` command does.
+- [x] [Review][Patch] Dockerfile existence not validated [install_cmd.py:65-66] — `_resolve_dockerfile` returns a path but `BuildContext` will fail with uncatchable error if file missing. Fix: validate with `Path.exists()`.
+- [x] [Review][Patch] No --force flag for uninstall [uninstall_cmd.py:60] — `remove_image` always called with `force=False`. Running containers block removal. Fix: add `--force` CLI option.
+- [x] [Review][Patch] backend not passed to exception constructors [install_cmd.py:67, oci_container_runtime.py:77-79] — `ImageBuildError`/`ImageRemoveError` always receive `backend=None`. Fix: pass backend from CLI loop through adapter.
+- [x] [Review][Patch] Timeout value not validated [oci_container_runtime.py:68] — `timeout: int | None = 600` accepts 0, -1, None. Fix: validate timeout > 0.
+- [x] [Review][Patch] Empty image_name/reason not validated [domain/exceptions.py:106-125] — Exception constructors accept empty strings. Fix: validate non-empty.
+- [x] [Review][Patch] Duplicate backends cause redundant work [install_cmd.py:54] — `--backend base --backend base` builds/removes image twice. Fix: deduplicate backend list.
+- [x] [Review][Patch] _build_image_name duplicated [install_cmd.py:27-29, uninstall_cmd.py:26-28] — Identical function in two modules. Fix: extract to shared helper.
+- [x] [Review][Patch] _get_container_engine unused deps parameter [install_cmd.py:20-24, uninstall_cmd.py:19-23] — Takes `deps` but ignores it. Fix: remove parameter.
+- [x] [Review][Patch] Fragile timeout test [test_image_lifecycle.py:71-83] — Uses manual call-arg indexing. Fix: use `.call_args.kwargs.get("timeout")`.
+- [x] [Review][Patch] Unused fixture parameter [test_install_command.py:53, test_uninstall_command.py:53] — `mock_deps` declares `mock_container_engine` but never uses it. Fix: remove param.
+- [x] [Review][Patch] Private _console access [install_cmd.py:86-88, uninstall_cmd.py:79-81] — `adapter._console.print()` accesses private attribute. Fix: add public `print_table` method to `RichOutput`.
+- [x] [Review][Defer] Partial failure orphans images [install_cmd.py, uninstall_cmd.py] — deferred, pre-existing — no rollback for partially built/removed images; inherent to sequential CLI pattern
+- [x] [Review][Defer] Unknown output adapter silent [install_cmd.py:74-91, uninstall_cmd.py:67-84] — deferred, pre-existing — future adapter types silently discard results
+- [x] [Review][Defer] Non-ImageError engine exceptions unhandled [oci_container_runtime.py:74-76, 87-89] — deferred, pre-existing — requires oci-runtime exception knowledge
+- [x] [Review][Defer] No .dockerignore [Dockerfiles] — deferred, pre-existing — builds include unnecessary context
+- [x] [Review][Defer] No --image-tag CLI flag [install_cmd.py, uninstall_cmd.py] — deferred, pre-existing — feature request, tag always from config
+- [x] [Review][Defer] No CLI integration tests — deferred, pre-existing — tests use unit mocking pattern
+- [x] [Review][Defer] build_image return value discarded [install_cmd.py:67] — deferred, pre-existing — image SHA not captured/displayed
 
 ## Dev Agent Record
 

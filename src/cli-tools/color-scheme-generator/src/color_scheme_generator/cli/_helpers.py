@@ -111,3 +111,8 @@ def resolve_backend_params(
     if backend_def.parameters:
         return ParameterResolutionService.resolve_all(backend_def.parameters, raw_params)
     return {}
+
+
+def build_image_name(settings: AppSettings, backend: Backend) -> str:
+    prefix = settings.container.image_prefix
+    return f"{prefix}color-scheme-{backend.image_suffix}:{settings.container.image_tag}"

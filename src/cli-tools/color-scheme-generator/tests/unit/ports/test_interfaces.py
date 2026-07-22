@@ -298,10 +298,11 @@ class TestContainerRuntimePort:
                 context: object,
                 image_name: str,
                 timeout: int | None = 600,
+                backend: object = None,
             ) -> str:
                 return "sha256:mock"
 
-            def remove_image(self, image: str, force: bool = False) -> None:
+            def remove_image(self, image: str, force: bool = False, backend: object = None) -> None:
                 pass
 
         assert isinstance(MockRuntime(), ContainerRuntimePort)

@@ -92,3 +92,13 @@
 
 - `return_code=-1` for timeouts is non-standard [container_processor.py:227,338] — POSIX exit codes are 0-255; `-1` conflicts with conventions. Would require documenting/changing `GenerationResult.return_code` contract.
 - Code duplication between `process_generate` and `process_show` [container_processor.py:112-232,234-343] — ~90% body shared. Maintenance concern, not a bug.
+
+## Deferred from: code review of story 3-3-install-uninstall-commands (2026-07-22)
+
+- Partial failure orphans images [install_cmd.py, uninstall_cmd.py] — no rollback for partially built/removed images; inherent to sequential CLI pattern
+- Unknown output adapter silent [install_cmd.py:74-91, uninstall_cmd.py:67-84] — future adapter types silently discard results
+- Non-ImageError engine exceptions unhandled [oci_container_runtime.py:74-76, 87-89] — requires oci-runtime exception knowledge
+- No .dockerignore [Dockerfiles] — builds include unnecessary context
+- No --image-tag CLI flag [install_cmd.py, uninstall_cmd.py] — feature request, tag always from config
+- No CLI integration tests — tests use unit mocking pattern
+- build_image return value discarded [install_cmd.py:67] — image SHA not captured/displayed

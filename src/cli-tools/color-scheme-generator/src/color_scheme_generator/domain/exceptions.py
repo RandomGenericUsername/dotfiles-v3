@@ -110,7 +110,7 @@ class ImageBuildError(ColorSchemeError):
         self.backend = backend
         prefix = f" for backend {backend.value}" if backend else ""
         super().__init__(
-            f"Failed to build image '{image}'{prefix}: {reason}"
+            f"Failed to build image '{image}'{prefix}: {reason if reason else 'unknown error'}"
         )
 
 
@@ -121,5 +121,5 @@ class ImageRemoveError(ColorSchemeError):
         self.backend = backend
         prefix = f" for backend {backend.value}" if backend else ""
         super().__init__(
-            f"Failed to remove image '{image}'{prefix}: {reason}"
+            f"Failed to remove image '{image}'{prefix}: {reason if reason else 'unknown error'}"
         )

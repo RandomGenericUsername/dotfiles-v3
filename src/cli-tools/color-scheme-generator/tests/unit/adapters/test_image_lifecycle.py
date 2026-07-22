@@ -66,12 +66,7 @@ class TestBuildImage:
         context = BuildContext(build_file_path=Path("/tmp/Dockerfile.test"))
         adapter.build_image(context, "test-image:latest")
 
-        call_kwargs = mock_oci_engine.images.build.call_args
-        args = call_kwargs[0] if call_kwargs else {}
-        if len(args) >= 3:
-            timeout = args[2]
-        else:
-            timeout = call_kwargs[1].get("timeout")
+        _, _, timeout = mock_oci_engine.images.build.call_args[0]
         assert timeout == 600
 
 

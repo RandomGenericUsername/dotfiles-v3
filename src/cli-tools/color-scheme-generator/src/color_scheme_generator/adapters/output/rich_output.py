@@ -95,6 +95,11 @@ class RichOutput:
 
         self._console.print()
 
+    def print_table(self, table: Table) -> None:
+        self._console.print()
+        self._console.print(table)
+        self._console.print()
+
     def _format_error_details(self, exc: ColorSchemeError) -> dict[str, str]:
         details: dict[str, str] = {}
 

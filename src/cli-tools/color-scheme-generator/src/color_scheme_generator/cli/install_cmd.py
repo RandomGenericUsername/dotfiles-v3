@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from importlib.resources import files as pkg_files
 
 import typer
@@ -9,24 +10,12 @@ import typer
 from color_scheme_generator.adapters.output.json_output import JsonOutput
 from color_scheme_generator.adapters.output.plain_output import PlainOutput
 from color_scheme_generator.adapters.output.rich_output import RichOutput
+from color_scheme_generator.cli._helpers import build_image_name
 from color_scheme_generator.domain.enums import Backend, ContainerEngine
 from color_scheme_generator.domain.exceptions import ColorSchemeError
-from color_scheme_generator.domain.models import AppSettings
 from color_scheme_generator.factory import CliDependencies, create_container_engine
 
 log = logging.getLogger(__name__)
-
-
-def _get_container_engine(
-    deps: CliDependencies,
-    engine: ContainerEngine,
-) -> CliDependencies.container_engine:
-    return create_container_engine(engine)
-
-
-def _build_image_name(settings: AppSettings, backend: Backend) -> str:
-    prefix = settings.container.image_prefix
-    return f"{prefix}color-scheme-{backend.image_suffix}:{settings.container.image_tag}"
 
 
 def _resolve_dockerfile(backend: Backend) -> str:
@@ -48,11 +37,11 @@ def install(
     deps: CliDependencies = ctx.obj["deps"]
     try:
         settings = deps.config_resolver.resolve()
-        container_engine = _get_container_engine(deps, engine)
-        target_backends = backend or list(Backend)
+        container_engine = create_container_engine(engine)
+        target_backends = list(dict.fromkeys(backend or list(Backend)))
         results: list[dict[str, str]] = []
         for b in target_backends:
-            image = _build_image_name(settings, b)
+            image = build_image_name(settings, b)
             if dry_run:
                 results.append({
                     "backend": b.value,
@@ -63,8 +52,10 @@ def install(
                 from oci_runtime.domain.types import BuildContext
 
                 dockerfile = _resolve_dockerfile(b)
+                if not Path(dockerfile).exists():
+                    raise FileNotFoundError(f"Dockerfile not found: {dockerfile}")
                 context = BuildContext(build_file_path=dockerfile)
-                container_engine.build_image(context, image)
+                container_engine.build_image(context, image, backend=b)
                 results.append({
                     "backend": b.value,
                     "image": image,
@@ -83,12 +74,15 @@ def install(
             table.add_column("Status")
             for r in results:
                 table.add_row(r["backend"], r["image"], r["status"])
-            adapter._console.print()
-            adapter._console.print(table)
-            adapter._console.print()
+            adapter.print_table(table)
         elif isinstance(adapter, PlainOutput):
             for r in results:
                 print(f"{r['backend']}: {r['image']} [{r['status']}]")
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)
+        raise typer.Exit(code=1) from None
+    except Exception:
+        import json as _json
+        import sys
+        print(_json.dumps({"error": "unexpected error"}), file=sys.stderr)
         raise typer.Exit(code=1) from None
