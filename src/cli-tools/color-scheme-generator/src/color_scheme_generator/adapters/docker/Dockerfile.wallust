@@ -1,3 +1,8 @@
 FROM color-scheme-base:latest
 
-RUN apt-get update && apt-get install -y --no-install-recommends wallust && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates build-essential pkg-config libssl-dev && rm -rf /var/lib/apt/lists/* && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . "$HOME/.cargo/env" && \
+    cargo install wallust && \
+    cp "$HOME/.cargo/bin/wallust" /usr/local/bin/wallust && \
+    rm -rf "$HOME/.cargo" "$HOME/.rustup"
