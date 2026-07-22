@@ -83,7 +83,9 @@ def main_callback(
     elif runtime is RuntimeMode.CONTAINER:
         container_runtime = create_container_engine(engine=container_engine)
         deps.container_engine = container_runtime
-        deps.processor = create_container_processor(container_runtime)
+        deps.processor = create_container_processor(
+            container_runtime, template_dir_resolver=deps.template_dir_resolver
+        )
 
     ctx.obj = {"deps": deps}
     ctx.obj["deps"].output_adapter = create_output_adapter(output_format)

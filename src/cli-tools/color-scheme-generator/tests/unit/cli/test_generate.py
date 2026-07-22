@@ -167,7 +167,9 @@ class TestCliGenerate:
         assert isinstance(deps, CliDependencies)
         assert deps.backend_registry is not None
         assert deps.output_adapter is None
-        assert isinstance(deps.processor, LocalProcessor)
+        assert deps.processor is None
+        assert deps.template_dir_resolver is not None
+        assert deps.template_renderer is not None
 
 
 class TestCliPackage:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -66,6 +66,14 @@ def test_cli_dependencies_container_engine_defaults_to_none() -> None:
 
 
 class TestRuntimeFlags:
+    @pytest.fixture(autouse=True)
+    def _patch_version(self) -> None:
+        with patch(
+            "color_scheme_generator.cli.version_cmd._pkg_version",
+            return_value="0.1.0",
+        ):
+            yield
+
     def test_runtime_local_flag_accepted(
         self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
     ) -> None:

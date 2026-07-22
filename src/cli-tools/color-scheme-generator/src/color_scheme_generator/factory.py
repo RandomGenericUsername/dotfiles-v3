@@ -103,11 +103,16 @@ def create_container_engine(
 
 def create_container_processor(
     container_engine: ContainerRuntimePort,
+    template_dir_resolver: TemplateDirResolver | None = None,
     default_settings_path: Path | None = None,
 ) -> ColorSchemeProcessorPort:
     from color_scheme_generator.adapters.container_processor import ContainerProcessor
 
-    return ContainerProcessor(container_engine, default_settings_path=default_settings_path)
+    return ContainerProcessor(
+        container_engine,
+        template_dir_resolver=template_dir_resolver,
+        default_settings_path=default_settings_path,
+    )
 
 
 def create_dry_run_processor() -> ColorSchemeProcessorPort:
