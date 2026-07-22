@@ -109,6 +109,89 @@ class TestRemoveImage:
         assert "remove failure" in str(exc_info.value)
 
 
+class TestRunErrorMapping:
+    def test_run_raises_image_not_found_maps_to_container_image_not_found(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        from oci_runtime.domain.exceptions import ImageNotFoundError
+
+        mock_oci_engine.containers.run.side_effect = ImageNotFoundError(
+            image_name="missing:latest"
+        )
+
+        from color_scheme_generator.domain.exceptions import ContainerImageNotFoundError
+
+        with pytest.raises(ContainerImageNotFoundError) as exc_info:
+            adapter.run(
+                image="missing:latest",
+                command=["echo", "hello"],
+                mounts=[],
+                timeout=30,
+            )
+
+        assert "missing:latest" in str(exc_info.value)
+
+    def test_run_raises_timeout_maps_to_container_timeout_error(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        from oci_runtime.domain.exceptions import OperationTimeoutError
+
+        mock_oci_engine.containers.run.side_effect = OperationTimeoutError(
+            command=["docker", "run"],
+            timeout=30.0,
+        )
+
+        from color_scheme_generator.domain.exceptions import ContainerTimeoutError
+
+        with pytest.raises(ContainerTimeoutError):
+            adapter.run(
+                image="test:latest",
+                command=["echo", "hello"],
+                mounts=[],
+                timeout=30,
+            )
+
+    def test_pull_image_raises_access_denied_maps_to_image_pull_access_error(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        from oci_runtime.domain.exceptions import ImagePullAccessDeniedError
+
+        mock_oci_engine.images.pull.side_effect = ImagePullAccessDeniedError(
+            image_name="private/app",
+            registry="ghcr.io",
+        )
+
+        from color_scheme_generator.domain.exceptions import ImagePullAccessError
+
+        with pytest.raises(ImagePullAccessError) as exc_info:
+            adapter.pull_image("private/app")
+
+        assert "private/app" in str(exc_info.value)
+        assert "ghcr.io" in str(exc_info.value)
+
+    def test_image_exists_raises_maps_to_color_scheme_error(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        from oci_runtime.domain.exceptions import ImageNotFoundError
+
+        mock_oci_engine.images.exists.side_effect = ImageNotFoundError(
+            image_name="missing:latest"
+        )
+
+        from color_scheme_generator.domain.exceptions import ContainerImageNotFoundError
+
+        with pytest.raises(ContainerImageNotFoundError):
+            adapter.image_exists("missing:latest")
+
+
 class TestDockerfileResolution:
     def test_dockerfile_resolution_works_for_all_backends(self) -> None:
         from importlib.resources import files as pkg_files

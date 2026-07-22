@@ -1,6 +1,10 @@
+---
+baseline_commit: ffd2d33
+---
+
 # Story 3.4: Error Mapping (oci-runtime → Domain)
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -43,46 +47,46 @@ so that container errors produce structured, typed error output.
 ## Tasks / Subtasks
 
 ### Create error_mapping.py module
-- [ ] Create `src/color_scheme_generator/adapters/error_mapping.py` with `map_oci_error()` function (AC: 1-5)
+- [x] Create `src/color_scheme_generator/adapters/error_mapping.py` with `map_oci_error()` function (AC: 1-5)
   - Uses same pattern as `wallpaper-effects-generator/adapters/error_mapping.py`
   - Imports all oci-runtime exception types needed
   - Maps every known `OciError` subclass to corresponding `ColorSchemeError` subclass
   - Fallback clause maps unknown `OciError` to `ColorSchemeError` preserving message
-- [ ] Add `ContainerError` family mapping: `ContainerNotFoundError`, `ContainerRuntimeError` → `ContainerRuntimeUnavailableError`
-- [ ] Handle `OperationTimeoutError` → `ContainerTimeoutError` (ensure image/backend context is preserved where available)
+- [x] Add `ContainerError` family mapping: `ContainerNotFoundError`, `ContainerRuntimeError` → `ContainerRuntimeUnavailableError`
+- [x] Handle `OperationTimeoutError` → `ContainerTimeoutError` (ensure image/backend context is preserved where available)
 
 ### Refactor OciContainerRuntimeAdapter to use error_mapping
-- [ ] In `run()` method: wrap `self._engine.containers.run()` and `exec_container()` calls with `map_oci_error()` (AC: 1, 2, 4, 5)
+- [x] In `run()` method: wrap `self._engine.containers.run()` and `exec_container()` calls with `map_oci_error()` (AC: 1, 2, 4, 5)
   - Currently raw `OciError` subclasses can bubble up uncaught
-- [ ] In `image_exists()`: wrap with `map_oci_error()` for defensive mapping
-- [ ] In `pull_image()`: wrap with `map_oci_error()` (AC: 3)
-- [ ] `build_image()` and `remove_image()` already have inline error mapping — refactor to use `map_oci_error()` for consistency (or keep as-is since they have backend context the mapper doesn't)
+- [x] In `image_exists()`: wrap with `map_oci_error()` for defensive mapping
+- [x] In `pull_image()`: wrap with `map_oci_error()` (AC: 3)
+- [x] `build_image()` and `remove_image()` already have inline error mapping — refactor to use `map_oci_error()` for consistency (or keep as-is since they have backend context the mapper doesn't)
 
 ### Update ContainerProcessor error handling
-- [ ] In `process_generate()` exception block (line 208): replace fragile `isinstance(exc, ContainerTimeoutError) or "timeout" in str(exc).lower()` with proper mapping via `map_oci_error()` (AC: 4)
-- [ ] In `process_show()` exception block (line 323): same replacement
-- [ ] Remove direct dependency on `oci_runtime.domain.exceptions` — only import through `error_mapping` module
+- [x] In `process_generate()` exception block (line 208): replace fragile `isinstance(exc, ContainerTimeoutError) or "timeout" in str(exc).lower()` with proper mapping via `map_oci_error()` (AC: 4)
+- [x] In `process_show()` exception block (line 323): same replacement
+- [x] Remove direct dependency on `oci_runtime.domain.exceptions` — only import through `error_mapping` module
 
 ### Update errors.py re-exports
-- [ ] Add container-related domain exceptions to `errors.py` public API (AC: 6)
+- [x] Add container-related domain exceptions to `errors.py` public API (AC: 6)
   - `ContainerImageNotFoundError`, `ContainerRuntimeUnavailableError`, `ImagePullAccessError`, `ContainerTimeoutError`, `ImageBuildError`, `ImageRemoveError`
-- [ ] Update `__all__` in `errors.py`
+- [x] Update `__all__` in `errors.py`
 
 ### Write tests
-- [ ] Unit test: `map_oci_error(ImageNotFoundError)` → `ContainerImageNotFoundError` (AC: 1)
-- [ ] Unit test: `map_oci_error(RuntimeNotAvailableError)` → `ContainerRuntimeUnavailableError` (AC: 2)
-- [ ] Unit test: `map_oci_error(ImagePullAccessDeniedError)` → `ImagePullAccessError` (AC: 3)
-- [ ] Unit test: `map_oci_error(OperationTimeoutError)` → `ContainerTimeoutError` (AC: 4)
-- [ ] Unit test: `map_oci_error(OciError("generic"))` → `ColorSchemeError` (AC: 5)
-- [ ] Unit test: `map_oci_error(ContainerNotFoundError)` → `ContainerRuntimeUnavailableError`
-- [ ] Unit test: `map_oci_error(ContainerRuntimeError)` → `ContainerRuntimeUnavailableError`
-- [ ] Unit test: mapped exception → JSON output via JsonOutput.error() (AC: 6)
-- [ ] Unit test: `run()` raises `ImageNotFoundError` → adapter re-raises as `ContainerImageNotFoundError`
-- [ ] Unit test: `run()` raises `OperationTimeoutError` → adapter re-raises as `ContainerTimeoutError`
-- [ ] Unit test: `pull_image()` raises `ImagePullAccessDeniedError` → adapter re-raises as `ImagePullAccessError`
-- [ ] Integration test: `ContainerProcessor.process_generate()` with mock that raises oci-runtime `OperationTimeoutError` → returns error `GenerationResult`
-- [ ] Run full test suite — verify zero regressions
-- [ ] Run ruff lint — clean
+- [x] Unit test: `map_oci_error(ImageNotFoundError)` → `ContainerImageNotFoundError` (AC: 1)
+- [x] Unit test: `map_oci_error(RuntimeNotAvailableError)` → `ContainerRuntimeUnavailableError` (AC: 2)
+- [x] Unit test: `map_oci_error(ImagePullAccessDeniedError)` → `ImagePullAccessError` (AC: 3)
+- [x] Unit test: `map_oci_error(OperationTimeoutError)` → `ContainerTimeoutError` (AC: 4)
+- [x] Unit test: `map_oci_error(OciError("generic"))` → `ColorSchemeError` (AC: 5)
+- [x] Unit test: `map_oci_error(ContainerNotFoundError)` → `ContainerRuntimeUnavailableError`
+- [x] Unit test: `map_oci_error(ContainerRuntimeError)` → `ContainerRuntimeUnavailableError`
+- [x] Unit test: mapped exception → JSON output via JsonOutput.error() (AC: 6)
+- [x] Unit test: `run()` raises `ImageNotFoundError` → adapter re-raises as `ContainerImageNotFoundError`
+- [x] Unit test: `run()` raises `OperationTimeoutError` → adapter re-raises as `ContainerTimeoutError`
+- [x] Unit test: `pull_image()` raises `ImagePullAccessDeniedError` → adapter re-raises as `ImagePullAccessError`
+- [x] Integration test: `ContainerProcessor.process_generate()` with mock that raises oci-runtime `OperationTimeoutError` → returns error `GenerationResult`
+- [x] Run full test suite — verify zero regressions
+- [x] Run ruff lint — clean
 
 ## Dev Notes
 
@@ -296,6 +300,13 @@ opencode-go/deepseek-v4-flash
 
 ### Completion Notes List
 
+- Implemented `map_oci_error()` in `adapters/error_mapping.py` with full mapping from oci-runtime exceptions to domain exceptions (AC 1-5)
+- Refactored `OciContainerRuntimeAdapter.run()`, `image_exists()`, `pull_image()` to use centralized error mapping
+- Refactored `ContainerProcessor.process_generate()` and `process_show()` to use `map_oci_error()` instead of fragile string matching for timeout detection
+- Exported all container exceptions in `errors.py` public API (AC 6)
+- 12 new tests for error mapping, adapter integration, and processor integration
+- 399 tests pass, ruff clean
+
 ### File List
 
 | File | Action |
@@ -305,3 +316,12 @@ opencode-go/deepseek-v4-flash
 | `src/color_scheme_generator/adapters/container_processor.py` | MODIFY |
 | `src/color_scheme_generator/errors.py` | MODIFY |
 | `tests/unit/adapters/test_error_mapping.py` | CREATE |
+| `tests/unit/adapters/test_image_lifecycle.py` | MODIFY |
+| `tests/unit/adapters/test_container_processor.py` | MODIFY |
+
+### Change Log
+
+- 2026-07-22: Implemented centralised `map_oci_error()` error mapping from oci-runtime exceptions to domain exceptions
+- Refactored adapter and processor to use error mapping instead of inline/string-based error handling
+- Exported all container exceptions in `errors.py` public API
+- Added 12 new tests; 399 total passing

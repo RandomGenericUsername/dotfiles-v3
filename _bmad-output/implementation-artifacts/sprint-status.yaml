@@ -61,7 +61,7 @@ development_status:
   3-1-runtime-mode-wiring-and-composition-root: done
   3-2-container-processor: done
   3-3-install-uninstall-commands: done
-  3-4-error-mapping-oci-runtime-to-domain: ready-for-dev
+  3-4-error-mapping-oci-runtime-to-domain: review
   epic-3-retrospective: optional
 
   # ── Epic 4: Production Polish ──

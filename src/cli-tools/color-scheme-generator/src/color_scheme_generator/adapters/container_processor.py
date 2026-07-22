@@ -205,10 +205,12 @@ class ContainerProcessor:
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
                 )
-            except Exception as exc:
-                if isinstance(exc, ContainerTimeoutError) or "timeout" in str(exc).lower():
-                    raise ContainerTimeoutError() from exc
+            except ContainerTimeoutError:
                 raise
+            except Exception as exc:
+                from color_scheme_generator.adapters.error_mapping import map_oci_error
+
+                raise map_oci_error(exc) from exc
 
             duration = time.monotonic() - start
 
@@ -320,10 +322,12 @@ class ContainerProcessor:
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
                 )
-            except Exception as exc:
-                if isinstance(exc, ContainerTimeoutError) or "timeout" in str(exc).lower():
-                    raise ContainerTimeoutError() from exc
+            except ContainerTimeoutError:
                 raise
+            except Exception as exc:
+                from color_scheme_generator.adapters.error_mapping import map_oci_error
+
+                raise map_oci_error(exc) from exc
 
             duration = time.monotonic() - start
 

@@ -42,12 +42,18 @@ class OciContainerRuntimeAdapter:
             detach=True,
             remove=False,
         )
-        container_id = self._engine.containers.run(config)
-        result = self._engine.containers.exec_container(
-            container=container_id,
-            command=list(command),
-            timeout=float(timeout),
-        )
+        from color_scheme_generator.adapters.error_mapping import map_oci_error
+
+        try:
+            container_id = self._engine.containers.run(config)
+            result = self._engine.containers.exec_container(
+                container=container_id,
+                command=list(command),
+                timeout=float(timeout),
+            )
+        except Exception as exc:
+            raise map_oci_error(exc) from exc
+
         from color_scheme_generator.domain.models import ContainerResult
 
         return ContainerResult(
@@ -58,10 +64,20 @@ class OciContainerRuntimeAdapter:
         )
 
     def image_exists(self, image: str) -> bool:
-        return self._engine.images.exists(image)
+        from color_scheme_generator.adapters.error_mapping import map_oci_error
+
+        try:
+            return self._engine.images.exists(image)
+        except Exception as exc:
+            raise map_oci_error(exc) from exc
 
     def pull_image(self, image: str) -> None:
-        self._engine.images.pull(image)
+        from color_scheme_generator.adapters.error_mapping import map_oci_error
+
+        try:
+            self._engine.images.pull(image)
+        except Exception as exc:
+            raise map_oci_error(exc) from exc
 
     def build_image(
         self,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from importlib.resources import files as pkg_files
+from pathlib import Path
 
 import typer
 

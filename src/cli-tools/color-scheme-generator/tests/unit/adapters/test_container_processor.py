@@ -293,6 +293,47 @@ class TestContainerProcessorGenerate:
         assert "timed out" in result.stderr
         assert result.return_code == -1
 
+    def test_oci_operation_timeout_via_container_runtime_port(
+        self, tmp_path: Path
+    ) -> None:
+        from oci_runtime.domain.exceptions import OperationTimeoutError
+
+        mock_runtime = MagicMock()
+        mock_runtime.image_exists.return_value = True
+        mock_runtime.run.side_effect = OperationTimeoutError(
+            command=["docker", "run"],
+            timeout=30.0,
+        )
+
+        tdir = tmp_path / "templates"
+        tdir.mkdir()
+        img = tmp_path / "img.png"
+        img.write_text("dummy")
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        (tmp_path / "defaults" / "templates").mkdir(parents=True, exist_ok=True)
+
+        processor = ContainerProcessor(
+            mock_runtime, default_settings_path=tmp_path / "settings.toml"
+        )
+        (tmp_path / "settings.toml").write_text("")
+        settings = _make_settings()
+        request = GenerationRequest(
+            image_path=img,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        result = processor.process_generate(request, settings)
+
+        assert result.success is False
+        assert "timed out" in result.stderr
+        assert result.return_code == -1
+
     def test_returns_generation_result_with_same_contract_as_local_processor(
         self, tmp_path: Path
     ) -> None:
