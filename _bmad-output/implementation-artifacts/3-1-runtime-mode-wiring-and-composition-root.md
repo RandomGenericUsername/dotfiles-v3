@@ -1,6 +1,10 @@
+---
+baseline_commit: 8e25d1632266d08be7cb6e6ee52d4b5a975c705c
+---
+
 # Story 3.1: Runtime Mode Wiring & Composition Root
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -72,39 +76,39 @@ the correct processor (LocalProcessor / ContainerProcessor) is selected at runti
 ## Tasks / Subtasks
 
 ### Factory: Update CliDependencies and create_* helpers
-- [ ] Add `container_engine: ContainerRuntimePort | None` field to `CliDependencies` (AC: 1)
-- [ ] Add `processor: ColorSchemeProcessorPort | None = None` field (replacing concrete `LocalProcessor` type) (AC: 1, 2)
-- [ ] Create `create_container_engine(container_settings: ContainerSettings) -> ContainerRuntimePort` — wraps `RuntimeFactory.create()` (AC: 3, 4)
-- [ ] Create `create_local_processor(backend_registry, template_renderer) -> LocalProcessor` (AC: 1)
-- [ ] Create `create_container_processor(container_engine, default_templates_dir) -> ContainerProcessor` (lazy-import ContainerProcessor) (AC: 1, 4)
-- [ ] Create `create_dry_run_processor(backend_registry, template_renderer) -> DryRunProcessor` (lazy-import DryRunProcessor) (AC: 1)
+- [x] Add `container_engine: ContainerRuntimePort | None` field to `CliDependencies` (AC: 1)
+- [x] Add `processor: ColorSchemeProcessorPort | None = None` field (replacing concrete `LocalProcessor` type) (AC: 1, 2)
+- [x] Create `create_container_engine(container_settings: ContainerSettings) -> ContainerRuntimePort` — wraps `RuntimeFactory.create()` (AC: 3, 4)
+- [x] Create `create_local_processor(backend_registry, template_renderer) -> LocalProcessor` (AC: 1)
+- [x] Create `create_container_processor(container_engine, default_templates_dir) -> ContainerProcessor` (lazy-import ContainerProcessor) (AC: 1, 4)
+- [x] Create `create_dry_run_processor(backend_registry, template_renderer) -> DryRunProcessor` (lazy-import DryRunProcessor) (AC: 1)
 
 ### CLI main.py: Global callback wiring
-- [ ] Add `--runtime: RuntimeMode` global option with default `RuntimeMode.LOCAL` (AC: 2)
-- [ ] Add `--container-engine: ContainerEngine` global option with default `ContainerEngine.DOCKER` (AC: 3)
-- [ ] In `@app.callback()`, build deps including `container_engine` lazily (AC: 1)
-- [ ] Select processor based on `runtime` mode: `LocalProcessor` for local, `ContainerProcessor` for container (AC: 2)
-- [ ] Store deps on `ctx.obj["deps"]` — keep existing pattern (AC: 1)
-- [ ] Keep backward compat: when no `processor` is set, fall back to existing behavior
+- [x] Add `--runtime: RuntimeMode` global option with default `RuntimeMode.LOCAL` (AC: 2)
+- [x] Add `--container-engine: ContainerEngine` global option with default `ContainerEngine.DOCKER` (AC: 3)
+- [x] In `@app.callback()`, build deps including `container_engine` lazily (AC: 1)
+- [x] Select processor based on `runtime` mode: `LocalProcessor` for local, `ContainerProcessor` for container (AC: 2)
+- [x] Store deps on `ctx.obj["deps"]` — keep existing pattern (AC: 1)
+- [x] Keep backward compat: when no `processor` is set, fall back to existing behavior
 
 ### Domain exceptions: Add container error types
-- [ ] Add `ContainerImageNotFoundError(image: str, backend: Backend)` (needed for error mapping in 3.4)
-- [ ] Add `ContainerRuntimeUnavailableError(runtime: str)`
-- [ ] Add `ImagePullAccessError(image: str, registry: str)`
-- [ ] Add `ContainerTimeoutError`
+- [x] Add `ContainerImageNotFoundError(image: str, backend: Backend)` (needed for error mapping in 3.4)
+- [x] Add `ContainerRuntimeUnavailableError(runtime: str)`
+- [x] Add `ImagePullAccessError(image: str, registry: str)`
+- [x] Add `ContainerTimeoutError`
 
 ### pyproject.toml: Add oci-runtime dependency
-- [ ] Add `oci-runtime` to `[project.dependencies]` (AC: 5)
-- [ ] Add dev deps if needed for testing
+- [x] Add `oci-runtime` to `[project.dependencies]` (AC: 5)
+- [x] Add dev deps if needed for testing
 
 ### Write tests
-- [ ] Test `CliDependencies` construction with all fields (AC: 1)
-- [ ] Test `create_container_engine` produces `ContainerRuntimePort` instance (AC: 3, 4)
-- [ ] Test `--runtime local` selects LocalProcessor (AC: 2)
-- [ ] Test `--runtime container` selects ContainerProcessor (AC: 2)
-- [ ] Test `--container-engine docker` / `--container-engine podman` wiring (AC: 3)
-- [ ] Test `@app.callback()` builds deps with both global flags (AC: 1)
-- [ ] Test all existing tests still pass (regression)
+- [x] Test `CliDependencies` construction with all fields (AC: 1)
+- [x] Test `create_container_engine` produces `ContainerRuntimePort` instance (AC: 3, 4)
+- [x] Test `--runtime local` selects LocalProcessor (AC: 2)
+- [x] Test `--runtime container` selects ContainerProcessor (AC: 2)
+- [x] Test `--container-engine docker` / `--container-engine podman` wiring (AC: 3)
+- [x] Test `@app.callback()` builds deps with both global flags (AC: 1)
+- [x] Test all existing tests still pass (regression)
 
 ## Dev Notes
 
@@ -248,6 +252,18 @@ Expected paths (all already exist unless marked NEW):
 
 ### Completion Notes
 
+Implemented all tasks for Story 3.1: Runtime Mode Wiring & Composition Root.
+
+**Key changes:**
+- Added 4 container exceptions to `domain/exceptions.py`
+- Created stub `ContainerProcessor` and `DryRunProcessor` implementing `ColorSchemeProcessorPort`
+- Created `OciContainerRuntimeAdapter` adapting oci-runtime's `ContainerEngine` to CSG's `ContainerRuntimePort`
+- Updated `factory.py`: `CliDependencies` with `container_engine` field, `processor` typed as `ColorSchemeProcessorPort | None`, plus `create_local_processor`, `create_container_engine`, `create_container_processor`, `create_dry_run_processor` helpers
+- Updated `cli/main.py`: added `--runtime` and `--container-engine` global flags in `@app.callback()`, processor selection based on runtime mode, backward-compatible `build_deps()`
+- Added `oci-runtime` to `pyproject.toml` dependencies with uv source
+- 23 new tests pass; all 353 existing tests pass with zero regressions
+- All ruff lint checks pass on all modified/created files
+
 ### File List
 
 #### Modified
@@ -259,6 +275,7 @@ Expected paths (all already exist unless marked NEW):
 #### Created
 - `src/color_scheme_generator/adapters/container_processor.py` — Stub implementing ColorSchemeProcessorPort
 - `src/color_scheme_generator/adapters/dry_run_processor.py` — Stub implementing ColorSchemeProcessorPort
+- `src/color_scheme_generator/adapters/oci_container_runtime.py` — Adapter wrapping oci-runtime ContainerEngine to CSG ContainerRuntimePort
 - `tests/unit/adapters/test_container_processor_stub.py` — Port contract test for ContainerProcessor
 - `tests/unit/adapters/test_dry_run_processor_stub.py` — Port contract test for DryRunProcessor
 - `tests/unit/cli/test_runtime_mode.py` — Runtime mode and container engine flag tests

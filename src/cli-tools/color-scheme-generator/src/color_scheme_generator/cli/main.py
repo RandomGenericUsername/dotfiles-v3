@@ -19,7 +19,9 @@ from color_scheme_generator.cli.version_cmd import version
 from color_scheme_generator.domain.enums import (
     Backend,
     ColorFormat,
+    ContainerEngine,
     OutputFormat,
+    RuntimeMode,
 )
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
@@ -31,6 +33,9 @@ from color_scheme_generator.factory import (
     create_backend_catalog_loader,
     create_backend_registry,
     create_config_resolver,
+    create_container_engine,
+    create_container_processor,
+    create_local_processor,
     create_output_adapter,
     create_template_dir_resolver,
     create_template_renderer,
@@ -60,8 +65,29 @@ def main_callback(
         help="Output format for command results",
         case_sensitive=False,
     ),
+    runtime: RuntimeMode = typer.Option(  # noqa: B008
+        RuntimeMode.LOCAL,
+        "--runtime",
+        help="Execution runtime mode",
+        case_sensitive=False,
+    ),
+    container_engine: ContainerEngine = typer.Option(  # noqa: B008
+        ContainerEngine.DOCKER,
+        "--container-engine",
+        help="Container engine to use (only for container runtime)",
+        case_sensitive=False,
+    ),
 ) -> None:
-    ctx.obj = {"deps": build_deps()}
+    deps = build_deps()
+
+    if runtime is RuntimeMode.LOCAL and deps.processor is None:
+        deps.processor = create_local_processor(deps.backend_registry, deps.template_renderer)
+    elif runtime is RuntimeMode.CONTAINER:
+        container_runtime = create_container_engine(engine=container_engine)
+        deps.container_engine = container_runtime
+        deps.processor = create_container_processor(container_runtime)
+
+    ctx.obj = {"deps": deps}
     ctx.obj["deps"].output_adapter = create_output_adapter(output_format)
 
 

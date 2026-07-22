@@ -77,3 +77,27 @@ class TemplateRenderError(ColorSchemeError):
         self.template_name = template_name
         self.reason = reason
         super().__init__(f"Failed to render template '{template_name}': {reason}")
+
+
+class ContainerImageNotFoundError(ColorSchemeError):
+    def __init__(self, image: str, backend: Backend) -> None:
+        self.image = image
+        self.backend = backend
+        super().__init__(f"Container image '{image}' not found for backend {backend.value}")
+
+
+class ContainerRuntimeUnavailableError(ColorSchemeError):
+    def __init__(self, runtime: str) -> None:
+        self.runtime = runtime
+        super().__init__(f"Container runtime '{runtime}' is not available")
+
+
+class ImagePullAccessError(ColorSchemeError):
+    def __init__(self, image: str, registry: str) -> None:
+        self.image = image
+        self.registry = registry
+        super().__init__(f"Access denied pulling image '{image}' from registry '{registry}'")
+
+
+class ContainerTimeoutError(ColorSchemeError):
+    pass

@@ -10,12 +10,16 @@ from color_scheme_generator.adapters.jinja_template_renderer import JinjaTemplat
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
-from color_scheme_generator.domain.enums import Backend, OutputFormat
+from color_scheme_generator.domain.enums import Backend, ContainerEngine, OutputFormat
+from color_scheme_generator.ports.container_runtime import ContainerRuntimePort
 from color_scheme_generator.ports.output import OutputPort
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
+from color_scheme_generator.ports.processor import ColorSchemeProcessorPort
 from color_scheme_generator.ports.template_renderer import TemplateRendererPort
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from color_scheme_generator.adapters.local_processor import LocalProcessor
 
 BackendRegistry = dict[Backend, PaletteGeneratorPort]
@@ -26,8 +30,9 @@ class CliDependencies:
     backend_registry: BackendRegistry
     backend_catalog_loader: YamlBackendCatalogLoader | None = None
     config_resolver: AssembledConfigResolver | None = None
+    container_engine: ContainerRuntimePort | None = None
     output_adapter: OutputPort | None = None
-    processor: LocalProcessor | None = None
+    processor: ColorSchemeProcessorPort | None = None
     template_dir_resolver: TemplateDirResolver | None = None
     template_renderer: TemplateRendererPort | None = None
 
@@ -66,3 +71,41 @@ def create_output_adapter(fmt: OutputFormat) -> OutputPort:
     if fmt is OutputFormat.PLAIN:
         return PlainOutput()
     return JsonOutput()
+
+
+def create_local_processor(
+    backend_registry: BackendRegistry,
+    template_renderer: TemplateRendererPort | None = None,
+) -> LocalProcessor:
+    from color_scheme_generator.adapters.local_processor import LocalProcessor
+
+    return LocalProcessor(backend_registry, template_renderer)
+
+
+def create_container_engine(
+    engine: ContainerEngine = ContainerEngine.DOCKER,
+) -> ContainerRuntimePort:
+    from oci_runtime.domain.enums import RuntimeKind
+    from oci_runtime.domain.types import RuntimePreference
+    from oci_runtime.factory import RuntimeFactory
+
+    kind = RuntimeKind.DOCKER if engine is ContainerEngine.DOCKER else RuntimeKind.PODMAN
+    runtime_engine = RuntimeFactory().create(RuntimePreference(kind=kind, binary=engine.value))
+    from color_scheme_generator.adapters.oci_container_runtime import OciContainerRuntimeAdapter
+
+    return OciContainerRuntimeAdapter(runtime_engine)
+
+
+def create_container_processor(
+    container_engine: ContainerRuntimePort,
+    default_settings_path: Path | None = None,
+) -> ColorSchemeProcessorPort:
+    from color_scheme_generator.adapters.container_processor import ContainerProcessor
+
+    return ContainerProcessor(container_engine, default_settings_path=default_settings_path)
+
+
+def create_dry_run_processor() -> ColorSchemeProcessorPort:
+    from color_scheme_generator.adapters.dry_run_processor import DryRunProcessor
+
+    return DryRunProcessor()
