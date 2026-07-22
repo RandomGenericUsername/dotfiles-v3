@@ -33,11 +33,11 @@ class OciContainerRuntimeAdapter:
         )
         config = RunConfig(
             image=image,
-            command=tuple(command),
+            command=(),
             volumes=volumes,
             timeout=float(timeout),
-            detach=False,
-            remove=True,
+            detach=True,
+            remove=False,
         )
         container_id = self._engine.containers.run(config)
         result = self._engine.containers.exec_container(

@@ -4,7 +4,6 @@ from pathlib import Path
 
 import typer
 
-from color_scheme_generator.adapters.local_processor import LocalProcessor
 from color_scheme_generator.cli._helpers import (
     default_app_settings,
     parse_params,
@@ -50,7 +49,6 @@ def build_deps() -> CliDependencies:
         backend_registry=registry,
         backend_catalog_loader=create_backend_catalog_loader(),
         config_resolver=create_config_resolver(),
-        processor=LocalProcessor(registry),
         template_dir_resolver=create_template_dir_resolver(),
         template_renderer=create_template_renderer(),
     )

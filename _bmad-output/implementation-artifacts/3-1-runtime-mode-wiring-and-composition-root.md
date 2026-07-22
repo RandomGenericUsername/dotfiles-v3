@@ -4,7 +4,7 @@ baseline_commit: 8e25d1632266d08be7cb6e6ee52d4b5a975c705c
 
 # Story 3.1: Runtime Mode Wiring & Composition Root
 
-Status: review
+Status: done
 
 ## Story
 
@@ -212,6 +212,16 @@ class ContainerTimeoutError(ColorSchemeError): ...
 - [Source: ports/processor.py:1-19] — ColorSchemeProcessorPort protocol definition
 - [Source: tests/unit/cli/test_info_command.py:1-254] — Test pattern example (CliRunner + monkeypatch build_deps)
 - [Source: pyproject.toml:1-48] — Build config with ruff settings and deps
+
+### Review Findings
+
+- [x] [Review][Decision] Double-execution container lifecycle breaks `OciContainerRuntimeAdapter.run()` — resolved: Option 2 (two-step lifecycle: `detach=True, remove=False` in `RunConfig`, let `exec_container` run the command).
+- [x] [Review][Patch] `build_deps()` pre-wires `LocalProcessor` bypassing callback selection [main.py:47-56] — removed `processor` from `build_deps()`, callback handles all modes.
+- [x] [Review][Patch] No error handling in `create_container_engine()` [factory.py:85-96] — wrapped `RuntimeFactory().create()` in try/except raising `ContainerRuntimeUnavailableError`.
+- [x] [Review][Defer] Missing `pywal` optional dependency in `pyproject.toml` [pyproject.toml:18-19] — deferred, pre-existing (not caused by this change)
+- [x] [Review][Defer] `create_container_processor` doesn't forward `template_dir_resolver` [factory.py:99-105] — deferred, will be needed in story 3.2
+- [x] [Review][Defer] `duration` hardcoded to 0.0 in `OciContainerRuntimeAdapter` [oci_container_runtime.py:54] — deferred, adapter not yet in production use
+- [x] [Review][Defer] Empty command/image/mounts edge cases in `OciContainerRuntimeAdapter` [oci_container_runtime.py:15-55] — deferred, adapter not yet in production use
 
 ### Package structure verification
 

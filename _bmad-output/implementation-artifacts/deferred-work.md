@@ -80,3 +80,10 @@
 ## Deferred from: code review of 2-10-shell-completion-and-first-run (2026-07-19)
 
 - Fragile test accesses private internals [test_first_run.py:59,136] — tests access `_assembler._path_resolver._strategies[-1]._path`; pre-existing, internal refactoring will break tests
+
+## Deferred from: code review of 3-1-runtime-mode-wiring-and-composition-root (2026-07-22)
+
+- Missing `pywal` optional dependency in `pyproject.toml` [pyproject.toml:18-19] — pre-existing, not caused by this change
+- `create_container_processor` doesn't forward `template_dir_resolver` [factory.py:99-105] — will be needed in story 3.2 when ContainerProcessor is fully implemented
+- `duration` hardcoded to 0.0 in `OciContainerRuntimeAdapter` [oci_container_runtime.py:54] — adapter not yet in production use
+- Empty command/image/mounts edge cases in `OciContainerRuntimeAdapter` [oci_container_runtime.py:15-55] — adapter not yet in production use

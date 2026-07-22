@@ -89,8 +89,13 @@ def create_container_engine(
     from oci_runtime.domain.types import RuntimePreference
     from oci_runtime.factory import RuntimeFactory
 
+    from color_scheme_generator.domain.exceptions import ContainerRuntimeUnavailableError
+
     kind = RuntimeKind.DOCKER if engine is ContainerEngine.DOCKER else RuntimeKind.PODMAN
-    runtime_engine = RuntimeFactory().create(RuntimePreference(kind=kind, binary=engine.value))
+    try:
+        runtime_engine = RuntimeFactory().create(RuntimePreference(kind=kind, binary=engine.value))
+    except Exception as exc:
+        raise ContainerRuntimeUnavailableError(runtime=engine.value) from exc
     from color_scheme_generator.adapters.oci_container_runtime import OciContainerRuntimeAdapter
 
     return OciContainerRuntimeAdapter(runtime_engine)
