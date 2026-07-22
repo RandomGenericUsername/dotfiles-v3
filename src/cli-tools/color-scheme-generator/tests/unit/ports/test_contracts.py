@@ -252,10 +252,6 @@ class TestVersionProviderContract:
         def get_version(self) -> str:
             return "0.0.0"
 
-    @pytest.fixture
-    def impl(self) -> _TestVersionProvider:
-        return self._TestVersionProvider()
-
     def test_valid_isinstance_check(self) -> None:
         impl = self._TestVersionProvider()
         assert_isinstance(impl, VersionProviderPort)

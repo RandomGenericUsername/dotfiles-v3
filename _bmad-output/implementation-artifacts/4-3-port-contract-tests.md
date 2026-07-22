@@ -4,7 +4,7 @@ baseline_commit: 4f32414
 
 # Story 4.3: Port Contract Tests
 
-Status: review
+Status: done
 
 ## Story
 
@@ -285,3 +285,8 @@ opencode-go/deepseek-v4-flash
 - Each contract validates isinstance structural subtyping, method signature compatibility (param names, kinds), and interface method presence against PRODUCTION adapters
 
 ### Review Findings
+
+- [x] [Review][Patch] Extra implementation parameters not validated to have defaults (LSP violation) [conftest.py:103-105]
+- [x] [Review][Patch] Unused `impl` fixture in `TestVersionProviderContract` [conftest.py:254]
+- [x] [Review][Defer] `inspect.isfunction` skips `@classmethod`/`@staticmethod` on ports [conftest.py:73-74,122-123] — deferred, pre-existing; all port methods are regular functions
+- [x] [Review][Defer] AC 8 uses test stub instead of real Production VersionProvider adapter — deferred, no production adapter exists yet

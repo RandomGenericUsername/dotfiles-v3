@@ -103,6 +103,12 @@ def assert_signature_compatible(impl: object, port: type) -> None:
             f"{type(impl).__name__} has {len(impl_params)}"
         )
 
+        for p_impl in impl_params[len(port_params):]:
+            assert p_impl.default is not inspect.Parameter.empty, (
+                f"Extra parameter '{p_impl.name}' in '{method_name}' "
+                f"of {type(impl).__name__} must have a default value"
+            )
+
         for p_port, p_impl in zip(port_params, impl_params):
             assert p_port.name == p_impl.name, (
                 f"Parameter name mismatch in '{method_name}': "

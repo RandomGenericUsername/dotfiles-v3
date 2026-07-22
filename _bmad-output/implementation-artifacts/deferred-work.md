@@ -114,3 +114,8 @@
 ## Deferred from: code review of story 4-2-edge-case-hardening (2026-07-22)
 
 - `None` timeout raises TypeError instead of ValueError [oci_container_runtime.py:25] — pre-existing; type is `int` (not `Optional[int]`), typing should catch at dev time
+
+## Deferred from: code review of story 4-3-port-contract-tests (2026-07-22)
+
+- `inspect.isfunction` skips `@classmethod`/`@staticmethod` on ports [conftest.py:73-74,122-123] — all methods currently use regular functions
+- AC 8 uses test stub instead of production VersionProvider adapter — no production adapter exists yet

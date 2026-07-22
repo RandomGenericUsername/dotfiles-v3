@@ -71,7 +71,7 @@ development_status:
 
   # ── Epic 4: Production Polish ──
   epic-4: in-progress
-   4-1-dry-run-processor: done
-    4-2-edge-case-hardening: done
-   4-3-port-contract-tests: review
+  4-1-dry-run-processor: done
+  4-2-edge-case-hardening: done
+   4-3-port-contract-tests: done
   epic-4-retrospective: optional
