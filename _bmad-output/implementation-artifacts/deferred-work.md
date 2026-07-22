@@ -110,3 +110,7 @@
 ## Deferred from: code review of 4-1-dry-run-processor (2026-07-22)
 
 - `_validate_params` reloads backend catalog on every invocation [dry_run_processor.py:94] — catalog should handle caching, not the processor
+
+## Deferred from: code review of story 4-2-edge-case-hardening (2026-07-22)
+
+- `None` timeout raises TypeError instead of ValueError [oci_container_runtime.py:25] — pre-existing; type is `int` (not `Optional[int]`), typing should catch at dev time

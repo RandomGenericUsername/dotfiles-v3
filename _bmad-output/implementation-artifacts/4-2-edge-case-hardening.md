@@ -4,7 +4,7 @@ baseline_commit: 9f735b73ae1866e3d0abaeb8e96154f62145d1f4
 
 # Story 4.2: Edge Case Hardening
 
-Status: review
+Status: done
 
 ## Story
 
@@ -246,3 +246,9 @@ opencode-go/deepseek-v4-flash
 ### Change Log
 
 - Implemented edge case hardening across adapters (NaN/Inf guards, empty colors fallback, chmod warning, negative timeout guard, all-backends-unavailable message, sequences bytes verification, separate config instances)
+
+### Review Findings
+
+- [x] [Review][Patch] Test name typo `test_seqences_*` → `test_sequences_*` [test_jinja_template_renderer.py:155,175]
+- [x] [Review][Patch] Empty `_backend_registry` produces awkward error message "No backends available: " [local_processor.py:46-48]
+- [x] [Review][Defer] `None` timeout raises TypeError instead of ValueError [oci_container_runtime.py:25] — deferred, pre-existing; type is `int` (not `Optional[int]`), typing should catch at dev time
