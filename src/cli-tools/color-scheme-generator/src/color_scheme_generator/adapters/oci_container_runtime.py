@@ -21,6 +21,7 @@ class OciContainerRuntimeAdapter:
         command: list[str],
         mounts: list[ContainerMount],
         timeout: int,
+        environment: dict[str, str] | None = None,
     ) -> ContainerResult:
         if timeout <= 0:
             raise ValueError(f"Invalid timeout: {timeout}")
@@ -44,6 +45,7 @@ class OciContainerRuntimeAdapter:
             timeout=float(timeout),
             detach=True,
             remove=False,
+            environment=environment or {},
         )
         from color_scheme_generator.adapters.error_mapping import map_oci_error
 
@@ -59,7 +61,7 @@ class OciContainerRuntimeAdapter:
             raise map_oci_error(exc) from exc
         finally:
             if container_id is not None:
-                self._engine.containers.remove(container_id)
+                self._engine.containers.remove(container_id, force=True)
 
         from color_scheme_generator.domain.models import ContainerResult
 

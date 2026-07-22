@@ -1,3 +1,7 @@
 FROM python:3.14-slim
-
-RUN pip install --no-cache-dir color-scheme-generator
+WORKDIR /app
+COPY cli-tools/color-scheme-generator /app/csg
+COPY shared/config-assembler-engine /app/config-assembler-engine
+COPY shared/oci-runtime /app/oci-runtime
+RUN pip install --no-cache-dir /app/config-assembler-engine /app/oci-runtime /app/csg
+CMD ["sleep", "infinity"]

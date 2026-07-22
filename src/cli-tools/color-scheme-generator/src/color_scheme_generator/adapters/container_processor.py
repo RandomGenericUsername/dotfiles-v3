@@ -8,6 +8,7 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
+from color_scheme_generator.domain.enums import ColorFormat
 from color_scheme_generator.domain.exceptions import (
     ContainerImageNotFoundError,
     ContainerTimeoutError,
@@ -62,7 +63,10 @@ class ContainerProcessor:
 
         lines.append("[output]")
         kv("directory", str(settings.output.directory))
-        fmt_list = ", ".join(f'"{f.value}"' for f in settings.output.default_formats)
+        fmt_list = ", ".join(
+            f'"{f.value}"' if isinstance(f, ColorFormat) else f'"{f}"'
+            for f in settings.output.default_formats
+        )
         lines.append(f"default_formats = [{fmt_list}]")
         kv("overwrite", settings.output.overwrite)
         lines.append("")
@@ -86,6 +90,7 @@ class ContainerProcessor:
         kv("engine", settings.runtime.engine.value)
         lines.append("")
         lines.append("[container]")
+        kv("engine", settings.runtime.engine.value)
         kv("image_prefix", settings.container.image_prefix)
         kv("image_tag", settings.container.image_tag)
         kv("timeout_seconds", settings.container.timeout_seconds)
@@ -191,10 +196,10 @@ class ContainerProcessor:
 
             inner_command = [
                 "csg",
-                "generate",
-                f"/input/{request.image_path.name}",
                 "--runtime",
                 "local",
+                "generate",
+                f"/input/{request.image_path.name}",
                 "--backend",
                 request.config.backend.value,
             ]
@@ -210,6 +215,10 @@ class ContainerProcessor:
                     command=inner_command,
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
+                    environment={
+                        "COLORSCHEME_CONFIG_FILE_PATH": "/csg-config/settings.toml",
+                        "COLORSCHEME_TEMPLATES_TEMPLATES_DIR": "/templates",
+                    },
                 )
             except ContainerTimeoutError:
                 raise

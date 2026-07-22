@@ -18,12 +18,24 @@ from color_scheme_generator.factory import CliDependencies, create_container_eng
 log = logging.getLogger(__name__)
 
 
-def _resolve_dockerfile(backend: Backend) -> str:
-    return str(
-        pkg_files("color_scheme_generator.adapters.docker").joinpath(
-            f"Dockerfile.{backend.image_suffix}"
+def _resolve_dockerfile(backend: Backend) -> Path:
+    return Path(
+        str(
+            pkg_files("color_scheme_generator.adapters.docker").joinpath(
+                f"Dockerfile.{backend.image_suffix}"
+            )
         )
     )
+
+
+def _find_project_root(docker_dir: Path) -> Path | None:
+    for parent in docker_dir.parents:
+        if (parent / "pyproject.toml").exists():
+            for ancestor in parent.parents:
+                if (ancestor / "shared" / "config-assembler-engine").exists():
+                    return ancestor
+            return parent
+    return None
 
 
 def install(
@@ -39,7 +51,29 @@ def install(
         settings = deps.config_resolver.resolve()
         container_engine = create_container_engine(engine)
         target_backends = list(dict.fromkeys(backend or list(Backend)))
+
+        docker_dir = _resolve_dockerfile(list(Backend)[0]).parent
+        project_root = _find_project_root(docker_dir)
+        base_image = "color-scheme-base:latest"
+
         results: list[dict[str, str]] = []
+
+        if not dry_run and project_root is not None:
+            base_dockerfile = docker_dir / "Dockerfile.base"
+            if base_dockerfile.exists():
+                from oci_runtime.domain.types import BuildContext
+
+                ctx_build = BuildContext(
+                    build_file_path=base_dockerfile,
+                    context_path=project_root,
+                )
+                container_engine.build_image(ctx_build, base_image)
+                results.append({
+                    "backend": "base",
+                    "image": base_image,
+                    "status": "built",
+                })
+
         for b in target_backends:
             image = build_image_name(settings, b)
             if dry_run:
@@ -52,9 +86,12 @@ def install(
                 from oci_runtime.domain.types import BuildContext
 
                 dockerfile = _resolve_dockerfile(b)
-                if not Path(dockerfile).exists():
+                if not dockerfile.exists():
                     raise FileNotFoundError(f"Dockerfile not found: {dockerfile}")
-                context = BuildContext(build_file_path=dockerfile)
+                kwargs = {"build_file_path": dockerfile}
+                if project_root is not None:
+                    kwargs["context_path"] = project_root
+                context = BuildContext(**kwargs)
                 container_engine.build_image(context, image, backend=b)
                 results.append({
                     "backend": b.value,

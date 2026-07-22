@@ -128,9 +128,14 @@ def generate(
 
         resolved_formats: tuple[ColorFormat, ...]
         if formats is not None:
-            resolved_formats = tuple(formats)
+            resolved_formats = tuple(
+                ColorFormat(f) if isinstance(f, str) else f for f in formats
+            )
         else:
-            resolved_formats = settings.output.default_formats
+            resolved_formats = tuple(
+                ColorFormat(f) if isinstance(f, str) else f
+                for f in settings.output.default_formats
+            )
 
         resolved_output_dir = output_dir or settings.output.directory
 
