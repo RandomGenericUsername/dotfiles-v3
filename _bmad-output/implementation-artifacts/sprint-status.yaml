@@ -72,5 +72,5 @@ development_status:
   epic-4: in-progress
    4-1-dry-run-processor: done
     4-2-edge-case-hardening: done
-   4-3-port-contract-tests: backlog
+   4-3-port-contract-tests: ready-for-dev
   epic-4-retrospective: optional
