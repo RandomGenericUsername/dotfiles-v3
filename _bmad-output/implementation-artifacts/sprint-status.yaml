@@ -18,6 +18,7 @@
 
 generated: 2026-07-16
 last_updated: 2026-07-22
+# Story 4.3 completed and moved to review on 2026-07-22
 
 # Review completed by bmad-code-review on 2026-07-22
 
@@ -72,5 +73,5 @@ development_status:
   epic-4: in-progress
    4-1-dry-run-processor: done
     4-2-edge-case-hardening: done
-   4-3-port-contract-tests: ready-for-dev
+   4-3-port-contract-tests: review
   epic-4-retrospective: optional

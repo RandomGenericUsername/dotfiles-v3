@@ -1,25 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
     AppSettings,
     BackendDefinition,
-    Color,
     ColorScheme,
     ContainerMount,
     ContainerResult,
-    ContainerSettings,
     GenerationRequest,
     GenerationResult,
-    GenerationSettings,
     GeneratorConfig,
-    OutputSettings,
-    RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.ports.backend_catalog_loader import BackendCatalogLoaderPort
 from color_scheme_generator.ports.config_resolver import ConfigResolverPort
@@ -32,19 +25,7 @@ from color_scheme_generator.ports.template_dir_resolver import TemplateDirResolv
 from color_scheme_generator.ports.template_renderer import TemplateRendererPort
 from color_scheme_generator.ports.version_provider import VersionProviderPort
 
-_now = datetime.now()
-
-
-def _scheme(overrides: object = None) -> ColorScheme:
-    return ColorScheme(
-        background=Color("#000000", (0, 0, 0)),
-        foreground=Color("#ffffff", (255, 255, 255)),
-        cursor=Color("#00ff00", (0, 255, 0)),
-        colors=tuple(Color("#000000", (0, 0, 0)) for _ in range(16)),
-        source_image=Path("/tmp/test.png"),
-        backend=Backend.CUSTOM,
-        generated_at=_now,
-    )
+from .conftest import _scheme, _settings
 
 
 class TestPaletteGeneratorPort:
@@ -156,30 +137,6 @@ class TestOutputPort:
                 pass
 
         assert not isinstance(MissingPaletteDisplay(), OutputPort)
-
-
-def _settings() -> AppSettings:
-    return AppSettings(
-        output=OutputSettings(
-            directory=Path("/tmp/output"),
-            default_formats=(),
-            overwrite=False,
-        ),
-        generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
-        template=TemplateSettings(templates_dir=None, custom_templates_dir=None),
-        runtime=RuntimeSettings(
-            mode=RuntimeMode.LOCAL, engine=ContainerEngine.DOCKER
-        ),
-        container=ContainerSettings(
-            image_prefix="csg",
-            image_tag="latest",
-            timeout_seconds=300,
-            memory_limit="512m",
-            mount_timeout_seconds=30,
-        ),
-    )
-
-
 class TestConfigResolverPort:
     def test_valid_implementation_passes_isinstance(self) -> None:
         class MockResolver:
