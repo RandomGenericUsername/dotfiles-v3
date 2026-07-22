@@ -293,6 +293,17 @@ class TestContainerRuntimePort:
             def pull_image(self, image: str) -> None:
                 pass
 
+            def build_image(
+                self,
+                context: object,
+                image_name: str,
+                timeout: int | None = 600,
+            ) -> str:
+                return "sha256:mock"
+
+            def remove_image(self, image: str, force: bool = False) -> None:
+                pass
+
         assert isinstance(MockRuntime(), ContainerRuntimePort)
 
     def test_invalid_implementation_fails_isinstance(self) -> None:

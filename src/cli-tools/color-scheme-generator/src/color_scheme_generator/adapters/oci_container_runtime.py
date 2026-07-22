@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from oci_runtime.domain.types import BuildContext
     from oci_runtime.ports.engine import ContainerEngine as OciContainerEngine
 
     from color_scheme_generator.domain.models import ContainerMount, ContainerResult
@@ -59,3 +60,34 @@ class OciContainerRuntimeAdapter:
 
     def pull_image(self, image: str) -> None:
         self._engine.images.pull(image)
+
+    def build_image(
+        self,
+        context: BuildContext,
+        image_name: str,
+        timeout: int | None = 600,
+    ) -> str:
+        from oci_runtime.domain.exceptions import ImageError
+
+        from color_scheme_generator.domain.exceptions import ImageBuildError
+
+        try:
+            return self._engine.images.build(context, image_name, timeout)
+        except ImageError as exc:
+            raise ImageBuildError(
+                image=image_name,
+                reason=str(exc),
+            ) from exc
+
+    def remove_image(self, image: str, force: bool = False) -> None:
+        from oci_runtime.domain.exceptions import ImageError
+
+        from color_scheme_generator.domain.exceptions import ImageRemoveError
+
+        try:
+            self._engine.images.remove(image, force=force)
+        except ImageError as exc:
+            raise ImageRemoveError(
+                image=image,
+                reason=str(exc),
+            ) from exc

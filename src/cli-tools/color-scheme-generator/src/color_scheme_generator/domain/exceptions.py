@@ -101,3 +101,25 @@ class ImagePullAccessError(ColorSchemeError):
 
 class ContainerTimeoutError(ColorSchemeError):
     pass
+
+
+class ImageBuildError(ColorSchemeError):
+    def __init__(self, image: str, reason: str, backend: Backend | None = None) -> None:
+        self.image = image
+        self.reason = reason
+        self.backend = backend
+        prefix = f" for backend {backend.value}" if backend else ""
+        super().__init__(
+            f"Failed to build image '{image}'{prefix}: {reason}"
+        )
+
+
+class ImageRemoveError(ColorSchemeError):
+    def __init__(self, image: str, reason: str, backend: Backend | None = None) -> None:
+        self.image = image
+        self.reason = reason
+        self.backend = backend
+        prefix = f" for backend {backend.value}" if backend else ""
+        super().__init__(
+            f"Failed to remove image '{image}'{prefix}: {reason}"
+        )

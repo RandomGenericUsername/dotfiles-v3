@@ -12,8 +12,10 @@ from color_scheme_generator.cli._helpers import (
 from color_scheme_generator.cli.dump_config_cmd import dump_config
 from color_scheme_generator.cli.dump_templates_cmd import dump_templates
 from color_scheme_generator.cli.info_cmd import info
+from color_scheme_generator.cli.install_cmd import install
 from color_scheme_generator.cli.list_backends_cmd import list_backends
 from color_scheme_generator.cli.show import show
+from color_scheme_generator.cli.uninstall_cmd import uninstall
 from color_scheme_generator.cli.version_cmd import version
 from color_scheme_generator.domain.enums import (
     Backend,
@@ -154,6 +156,8 @@ def generate(
 app.command()(info)
 app.command()(dump_config)
 app.command()(dump_templates)
+app.command()(install)
 app.command()(list_backends)
 app.command()(show)
+app.command()(uninstall)
 app.command()(version)

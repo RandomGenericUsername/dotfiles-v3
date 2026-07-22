@@ -60,7 +60,7 @@ development_status:
   epic-3: in-progress
   3-1-runtime-mode-wiring-and-composition-root: done
   3-2-container-processor: done
-  3-3-install-uninstall-commands: ready-for-dev
+  3-3-install-uninstall-commands: review
   3-4-error-mapping-oci-runtime-to-domain: backlog
   epic-3-retrospective: optional
 
