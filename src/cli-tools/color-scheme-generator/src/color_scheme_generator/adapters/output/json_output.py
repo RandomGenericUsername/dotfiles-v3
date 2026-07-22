@@ -32,8 +32,8 @@ class JsonOutput:
             "success": False,
             "error": self._serialize_error(exc),
         }
-        json.dump(payload, sys.stdout, default=str)
-        print()
+        json.dump(payload, sys.stderr, default=str)
+        print(file=sys.stderr)
 
     def palette_display(self, scheme: ColorScheme) -> None:
         payload = self._serialize_color_scheme(scheme)

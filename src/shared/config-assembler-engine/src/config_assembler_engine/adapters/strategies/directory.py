@@ -15,6 +15,8 @@ class DirectoryTraversalStrategy:
     ) -> ResolvedPath | None:
         cwd = Path.cwd()
         for level in range(self._max_levels + 1):
+            if level > 0 and level > len(cwd.parents):
+                break
             check_dir = cwd.parents[level - 1] if level > 0 else cwd
             candidate = check_dir / self._filename
             if candidate.exists():
