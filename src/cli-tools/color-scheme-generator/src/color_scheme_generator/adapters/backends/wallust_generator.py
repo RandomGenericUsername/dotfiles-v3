@@ -138,7 +138,11 @@ class WallustGenerator:
 
     @staticmethod
     def _validate_saturation(saturation: object) -> float:
-        if not isinstance(saturation, (int, float)) or math.isnan(saturation):
+        if (
+            not isinstance(saturation, (int, float))
+            or math.isnan(saturation)
+            or math.isinf(saturation)
+        ):
             return 1.0
         return max(0.0, min(1.0, float(saturation)))
 

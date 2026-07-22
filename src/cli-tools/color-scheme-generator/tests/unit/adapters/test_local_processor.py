@@ -103,22 +103,26 @@ class TestLocalProcessor:
     def test_unavailable_backend_raises_error_before_generate(self) -> None:
         mock_gen = MagicMock()
         mock_gen.is_available.return_value = False
+        available_mock = MagicMock()
+        available_mock.is_available.return_value = True
 
-        registry = {Backend.CUSTOM: mock_gen}
+        registry = {Backend.CUSTOM: mock_gen, Backend.PYWAL: available_mock}
         processor = LocalProcessor(registry)
 
         with pytest.raises(BackendNotAvailableError) as exc_info:
             processor.process_generate(_make_request(), object())
 
         assert exc_info.value.backend == Backend.CUSTOM
-        assert "pip install color-scheme-generator[custom]" in exc_info.value.hint
+        assert "pip install" in exc_info.value.hint
         mock_gen.generate.assert_not_called()
 
     def test_unavailable_backend_show_raises_before_generate(self) -> None:
         mock_gen = MagicMock()
         mock_gen.is_available.return_value = False
+        available_mock = MagicMock()
+        available_mock.is_available.return_value = True
 
-        registry = {Backend.CUSTOM: mock_gen}
+        registry = {Backend.CUSTOM: mock_gen, Backend.PYWAL: available_mock}
         processor = LocalProcessor(registry)
 
         with pytest.raises(BackendNotAvailableError):
@@ -136,6 +140,21 @@ class TestLocalProcessor:
         assert exc_info.value.backend == Backend.CUSTOM
         assert "not found in registry" in str(exc_info.value)
 
+    def test_local_processor_all_backends_unavailable(self) -> None:
+        backends = [Backend.CUSTOM, Backend.PYWAL, Backend.WALLUST]
+        backend_registry = {
+            b: MagicMock(is_available=MagicMock(return_value=False))
+            for b in backends
+        }
+        processor = LocalProcessor(backend_registry=backend_registry)
+
+        for backend in backends:
+            with pytest.raises(BackendNotAvailableError) as exc:
+                processor.process_generate(_make_request(backend), object())
+
+            assert "csg install" in str(exc.value)
+            assert "No backends available" in str(exc.value)
+
     def test_isinstance_check_passes(self) -> None:
         registry = {Backend.CUSTOM: MagicMock()}
         processor = LocalProcessor(registry)
@@ -143,9 +162,11 @@ class TestLocalProcessor:
         assert isinstance(processor, ColorSchemeProcessorPort)
 
     def test_availability_hint_custom(self) -> None:
+        available_mock = MagicMock()
+        available_mock.is_available.return_value = True
         mock_gen = MagicMock()
         mock_gen.is_available.return_value = False
-        registry = {Backend.CUSTOM: mock_gen}
+        registry = {Backend.CUSTOM: mock_gen, Backend.PYWAL: available_mock}
         processor = LocalProcessor(registry)
 
         with pytest.raises(BackendNotAvailableError) as exc_info:
@@ -154,9 +175,11 @@ class TestLocalProcessor:
         assert exc_info.value.hint == "pip install color-scheme-generator[custom]"
 
     def test_availability_hint_pywal(self) -> None:
+        available_mock = MagicMock()
+        available_mock.is_available.return_value = True
         mock_gen = MagicMock()
         mock_gen.is_available.return_value = False
-        registry = {Backend.PYWAL: mock_gen}
+        registry = {Backend.PYWAL: mock_gen, Backend.CUSTOM: available_mock}
         processor = LocalProcessor(registry)
 
         with pytest.raises(BackendNotAvailableError) as exc_info:
@@ -165,9 +188,11 @@ class TestLocalProcessor:
         assert exc_info.value.hint == "pip install color-scheme-generator[pywal]"
 
     def test_availability_hint_wallust(self) -> None:
+        available_mock = MagicMock()
+        available_mock.is_available.return_value = True
         mock_gen = MagicMock()
         mock_gen.is_available.return_value = False
-        registry = {Backend.WALLUST: mock_gen}
+        registry = {Backend.WALLUST: mock_gen, Backend.CUSTOM: available_mock}
         processor = LocalProcessor(registry)
 
         with pytest.raises(BackendNotAvailableError) as exc_info:

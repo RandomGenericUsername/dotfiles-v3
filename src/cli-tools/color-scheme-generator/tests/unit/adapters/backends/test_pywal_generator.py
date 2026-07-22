@@ -226,5 +226,76 @@ class TestPywalGenerator:
         assert len(scheme.colors) == 16
         mock_sleep.assert_called_once_with(0.5)
 
+    def test_pywal_timeout_nan(self):
+        gen = PywalGenerator()
+        _16_colors = [
+            Color(f"#{i*17:02x}{i*17:02x}{i*17:02x}", (i*17, i*17, i*17))
+            for i in range(16)
+        ]
+
+        with patch.object(gen, "is_available", return_value=True):
+            with patch("subprocess.run") as mock_run:
+                mock_result = MagicMock()
+                mock_result.returncode = 0
+                mock_result.stdout = b"#1a1b26\n#a9b1d6\n"
+                mock_result.stderr = b""
+                mock_run.return_value = mock_result
+                with patch.object(gen, "_parse_stdout", return_value=_16_colors):
+                    cfg = GeneratorConfig(
+                        backend=Backend.PYWAL,
+                        params={"timeout": float("nan"), "algorithm": "wal"},
+                        formats=(ColorFormat.JSON,),
+                        output_dir=Path("/tmp/output"),
+                    )
+                    gen.generate(Path("/tmp/test.png"), cfg)
+
+        assert mock_run.call_args[1]["timeout"] == _SUBPROCESS_TIMEOUT
+
+    def test_pywal_timeout_inf(self):
+        gen = PywalGenerator()
+        _16_colors = [
+            Color(f"#{i*17:02x}{i*17:02x}{i*17:02x}", (i*17, i*17, i*17))
+            for i in range(16)
+        ]
+
+        with patch.object(gen, "is_available", return_value=True):
+            with patch("subprocess.run") as mock_run:
+                mock_result = MagicMock()
+                mock_result.returncode = 0
+                mock_result.stdout = b"#1a1b26\n#a9b1d6\n"
+                mock_result.stderr = b""
+                mock_run.return_value = mock_result
+                with patch.object(gen, "_parse_stdout", return_value=_16_colors):
+                    cfg = GeneratorConfig(
+                        backend=Backend.PYWAL,
+                        params={"timeout": float("inf"), "algorithm": "wal"},
+                        formats=(ColorFormat.JSON,),
+                        output_dir=Path("/tmp/output"),
+                    )
+                    gen.generate(Path("/tmp/test.png"), cfg)
+
+        assert mock_run.call_args[1]["timeout"] == _SUBPROCESS_TIMEOUT
+
+    def test_pywal_saturation_inf(self):
+        gen = PywalGenerator()
+        assert gen._validate_saturation(float("inf")) == 1.0
+
+    def test_pywal_empty_colors_fallback(self):
+        gen = PywalGenerator()
+        with patch.object(gen, "is_available", return_value=True):
+            with patch("subprocess.run") as mock_run:
+                mock_result = MagicMock()
+                mock_result.returncode = 0
+                mock_result.stdout = b""
+                mock_result.stderr = b""
+                mock_run.return_value = mock_result
+                with patch.object(gen, "_parse_cache_file", return_value=([], {})):
+                    scheme = gen.generate(Path("/tmp/test.png"), _config)
+
+        assert len(scheme.colors) == 16
+        assert scheme.background.hex == "#000000"
+        assert scheme.foreground.hex == "#000000"
+        assert scheme.cursor.hex == "#000000"
+
     def test_structural_subtyping(self):
         assert isinstance(PywalGenerator(), PaletteGeneratorPort)

@@ -17,8 +17,8 @@ from color_scheme_generator.adapters.settings.config_resolver import AssembledCo
 from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
+from color_scheme_generator.domain.models import AppliedOverride as DomainAppliedOverride
 from color_scheme_generator.domain.models import (
-    AppliedOverride,
     AppSettings,
     ConfigResolverResult,
     ContainerSettings,
@@ -87,7 +87,7 @@ class TestAssembledConfigResolver:
         assert isinstance(resolver.last_result, ConfigResolverResult)
         assert resolver.last_result.resolved_path == Path("/tmp/settings.toml")
         assert len(resolver.last_result.applied_overrides) == 1
-        assert isinstance(resolver.last_result.applied_overrides[0], AppliedOverride)
+        assert isinstance(resolver.last_result.applied_overrides[0], DomainAppliedOverride)
         assert resolver.last_result.applied_overrides[0].field_path == "runtime.mode"
         assert resolver.last_result.applied_overrides[0].source == "cli"
 
@@ -122,6 +122,17 @@ class TestAssembledConfigResolver:
         assert kwargs["schema"] == CoreSettingsSchema
         assert kwargs["policy"].env_prefix == "COLORSCHEME"
         assert len(kwargs["rules"]) > 0
+
+
+    def test_config_resolution_separate_instances(self) -> None:
+        from color_scheme_generator.adapters.yaml_backend_catalog_loader import (
+            YamlBackendCatalogLoader,
+        )
+
+        resolver = AssembledConfigResolver()
+        catalog_loader = YamlBackendCatalogLoader()
+
+        assert resolver._assembler is not catalog_loader._assembler
 
 
 class TestAssembledConfigResolverIntegration:

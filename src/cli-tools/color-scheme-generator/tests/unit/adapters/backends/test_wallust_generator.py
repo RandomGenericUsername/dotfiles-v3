@@ -229,5 +229,9 @@ class TestWallustGenerator:
         assert len(scheme.colors) == 16
         mock_sleep.assert_called_once_with(0.5)
 
+    def test_wallust_saturation_inf(self):
+        gen = WallustGenerator()
+        assert gen._validate_saturation(float("inf")) == 1.0
+
     def test_structural_subtyping(self):
         assert isinstance(WallustGenerator(), PaletteGeneratorPort)

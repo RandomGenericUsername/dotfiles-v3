@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 import time
@@ -18,6 +19,8 @@ from color_scheme_generator.domain.models import (
     ContainerMount,
     GenerationResult,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
@@ -158,7 +161,10 @@ class ContainerProcessor:
                 f.write(toml_content)
                 temp_toml_path = Path(f.name)
 
-            os.chmod(temp_toml_path, 0o644)
+            try:
+                os.chmod(temp_toml_path, 0o644)
+            except OSError:
+                logger.warning("Failed to chmod temp config file: %s", temp_toml_path)
 
             mounts = [
                 ContainerMount(
@@ -283,7 +289,10 @@ class ContainerProcessor:
                 f.write(toml_content)
                 temp_toml_path = Path(f.name)
 
-            os.chmod(temp_toml_path, 0o644)
+            try:
+                os.chmod(temp_toml_path, 0o644)
+            except OSError:
+                logger.warning("Failed to chmod temp config file: %s", temp_toml_path)
 
             mounts = [
                 ContainerMount(

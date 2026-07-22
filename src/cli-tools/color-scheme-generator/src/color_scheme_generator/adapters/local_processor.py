@@ -39,6 +39,18 @@ class LocalProcessor:
         generator = self._get_backend_generator(request.config.backend)
 
         if not generator.is_available():
+            unavailable = [
+                b.value for b, g in self._backend_registry.items()
+                if not g.is_available()
+            ]
+            if len(unavailable) == len(self._backend_registry):
+                tried = ", ".join(unavailable)
+                raise BackendNotAvailableError(
+                    request.config.backend,
+                    f"No backends available: {tried}. "
+                    f"Run `csg install` for container-mode execution "
+                    f"or install a backend binary.",
+                )
             raise BackendNotAvailableError(
                 request.config.backend, request.config.backend.install_hint
             )

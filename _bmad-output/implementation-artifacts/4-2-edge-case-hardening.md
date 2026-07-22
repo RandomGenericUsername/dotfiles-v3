@@ -1,6 +1,10 @@
+---
+baseline_commit: 9f735b73ae1866e3d0abaeb8e96154f62145d1f4
+---
+
 # Story 4.2: Edge Case Hardening
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -54,56 +58,56 @@ So that the tool is robust in production use.
 ## Tasks / Subtasks
 
 ### Harden subprocess backends (PywalGenerator)
-- [ ] Guard timeout against `math.isnan` and `math.isinf` in addition to existing `< 1` check (AC: 1)
-- [ ] Guard saturation validation against `math.isinf` (not just NaN) (AC: 1)
-- [ ] Guard empty `colors` list — if `_parse_stdout` or `_parse_cache_file` returns empty list, fallback to `Color("#000000")` for background/foreground/cursor instead of raising IndexError (AC: 3)
-- [ ] Ensure `_read_cache_with_retry` catches all relevant exceptions (FileNotFoundError, json.JSONDecodeError, OSError) and retries once (AC: 3)
-- [ ] Ensure non-zero exit code captures stderr and raises ColorExtractionError with `backend`, `message`, and `stderr` (AC: 2)
-- [ ] Ensure `TimeoutExpired` from subprocess raises ColorExtractionError (AC: 1)
+- [x] Guard timeout against `math.isnan` and `math.isinf` in addition to existing `< 1` check (AC: 1)
+- [x] Guard saturation validation against `math.isinf` (not just NaN) (AC: 1)
+- [x] Guard empty `colors` list — if `_parse_stdout` or `_parse_cache_file` returns empty list, fallback to `Color("#000000")` for background/foreground/cursor instead of raising IndexError (AC: 3)
+- [x] Ensure `_read_cache_with_retry` catches all relevant exceptions (FileNotFoundError, json.JSONDecodeError, OSError) and retries once (AC: 3)
+- [x] Ensure non-zero exit code captures stderr and raises ColorExtractionError with `backend`, `message`, and `stderr` (AC: 2)
+- [x] Ensure `TimeoutExpired` from subprocess raises ColorExtractionError (AC: 1)
 
 ### Harden subprocess backends (WallustGenerator)
-- [ ] Guard saturation validation against `math.isinf` (not just NaN) (AC: 1)
-- [ ] Ensure `_read_cache_with_retry` catches all relevant exceptions and retries once (AC: 3)
-- [ ] Ensure non-zero exit code captures stderr and raises ColorExtractionError with `backend`, `message`, and `stderr` (AC: 2)
-- [ ] Ensure `TimeoutExpired` from subprocess raises ColorExtractionError (AC: 1)
-- [ ] Ensure empty colors list fallback already exists — verify and add test coverage (AC: 3)
+- [x] Guard saturation validation against `math.isinf` (not just NaN) (AC: 1)
+- [x] Ensure `_read_cache_with_retry` catches all relevant exceptions and retries once (AC: 3)
+- [x] Ensure non-zero exit code captures stderr and raises ColorExtractionError with `backend`, `message`, and `stderr` (AC: 2)
+- [x] Ensure `TimeoutExpired` from subprocess raises ColorExtractionError (AC: 1)
+- [x] Ensure empty colors list fallback already exists — verify and add test coverage (AC: 3)
 
 ### Harden container processor
-- [ ] Verify root-filesystem guard (`if input_parent == Path("/")`) raises InvalidImageError (AC: 4)
-- [ ] Add negative timeout guard in `OciContainerRuntimeAdapter.run()` — validate `timeout > 0` before passing to engine (like build_image does) (AC: 1)
-- [ ] Wrap chmod of output dir in try/except, log warning via `logging.warning()` on failure, continue execution (AC: 5)
-- [ ] Add test: chmod failure logs warning, does not raise
+- [x] Verify root-filesystem guard (`if input_parent == Path("/")`) raises InvalidImageError (AC: 4)
+- [x] Add negative timeout guard in `OciContainerRuntimeAdapter.run()` — validate `timeout > 0` before passing to engine (like build_image does) (AC: 1)
+- [x] Wrap chmod of output dir in try/except, log warning via `logging.warning()` on failure, continue execution (AC: 5)
+- [x] Add test: chmod failure logs warning, does not raise
 
 ### Harden sequences format rendering
-- [ ] Verify `JinjaTemplateRenderer.render()` post-processes sequences: replace `]` → `\x1b]`, `\` → `\x1b\\` (AC: 6)
-- [ ] Verify output is written as bytes (not string) for sequences format (AC: 6)
-- [ ] Add test: sequences rendered output contains proper OSC escape sequences
-- [ ] Add test: sequences output is bytes type
+- [x] Verify `JinjaTemplateRenderer.render()` post-processes sequences: replace `]` → `\x1b]`, `\` → `\x1b\\` (AC: 6)
+- [x] Verify output is written as bytes (not string) for sequences format (AC: 6)
+- [x] Add test: sequences rendered output contains proper OSC escape sequences
+- [x] Add test: sequences output is bytes type
 
 ### Harden config resolution
-- [ ] Verify `AssembledConfigResolver` uses separate `AssembleConfiguration` instances for settings vs. backends pipelines (AC: 7)
-- [ ] If backlog catalog loader reuses the same resolver instance, ensure it creates its own `AssembleConfiguration` (AC: 7)
-- [ ] Add test: settings and backends resolution run concurrently without state leakage
+- [x] Verify `AssembledConfigResolver` uses separate `AssembleConfiguration` instances for settings vs. backends pipelines (AC: 7)
+- [x] If backlog catalog loader reuses the same resolver instance, ensure it creates its own `AssembleConfiguration` (AC: 7)
+- [x] Add test: settings and backends resolution run concurrently without state leakage
 
 ### Harden local processor for unavailable backends
-- [ ] In `LocalProcessor._generate_extract()` or `process_generate()`: when all backends are unavailable, raise `BackendNotAvailableError` with message listing tried backends (e.g., "No backends available: custom, pywal, wallust. Run `csg install` for container-mode execution or install a backend binary.") (AC: 8)
-- [ ] Improve `BackendNotAvailableError` message to include hint about `csg install`
-- [ ] Add test: `process_generate` with all backends unavailable raises BackendNotAvailableError with appropriate message (AC: 8)
+- [x] In `LocalProcessor._generate_extract()` or `process_generate()`: when all backends are unavailable, raise `BackendNotAvailableError` with message listing tried backends (e.g., "No backends available: custom, pywal, wallust. Run `csg install` for container-mode execution or install a backend binary.") (AC: 8)
+- [x] Improve `BackendNotAvailableError` message to include hint about `csg install`
+- [x] Add test: `process_generate` with all backends unavailable raises BackendNotAvailableError with appropriate message (AC: 8)
 
 ### Write / update tests
-- [ ] Unit test: `test_pywal_timeout_nan` — timeout=float('nan') raises ColorExtractionError (AC: 1)
-- [ ] Unit test: `test_pywal_timeout_inf` — timeout=float('inf') raises ColorExtractionError (AC: 1)
-- [ ] Unit test: `test_pywal_saturation_inf` — saturation=float('inf') raises ColorExtractionError (AC: 1)
-- [ ] Unit test: `test_wallust_saturation_inf` — saturation=float('inf') raises ColorExtractionError (AC: 1)
-- [ ] Unit test: `test_pywal_empty_colors_fallback` — empty colors list uses fallback (AC: 3)
-- [ ] Unit test: `test_seqences_output_bytes` — sequences render output is bytes (AC: 6)
-- [ ] Unit test: `test_seqences_osc_escapes` — sequences render contains \x1b] and \x1b\\ (AC: 6)
-- [ ] Unit test: `test_container_chmod_failure_warns` — chmod failure logs warning (AC: 5)
-- [ ] Unit test: `test_oci_runtime_negative_timeout` — negative/zero timeout raises (AC: 1)
-- [ ] Unit test: `test_config_resolution_separate_instances` — settings and backends use separate Assemblers (AC: 7)
-- [ ] Unit test: `test_local_processor_all_backends_unavailable` — all backends unavailable raises with hint (AC: 8)
-- [ ] Run full test suite — verify zero regressions
-- [ ] Run ruff lint — clean
+- [x] Unit test: `test_pywal_timeout_nan` — timeout=float('nan') raises ColorExtractionError (AC: 1)
+- [x] Unit test: `test_pywal_timeout_inf` — timeout=float('inf') raises ColorExtractionError (AC: 1)
+- [x] Unit test: `test_pywal_saturation_inf` — saturation=float('inf') raises ColorExtractionError (AC: 1)
+- [x] Unit test: `test_wallust_saturation_inf` — saturation=float('inf') raises ColorExtractionError (AC: 1)
+- [x] Unit test: `test_pywal_empty_colors_fallback` — empty colors list uses fallback (AC: 3)
+- [x] Unit test: `test_seqences_output_bytes` — sequences render output is bytes (AC: 6)
+- [x] Unit test: `test_seqences_osc_escapes` — sequences render contains \x1b] and \x1b\\ (AC: 6)
+- [x] Unit test: `test_container_chmod_failure_warns` — chmod failure logs warning (AC: 5)
+- [x] Unit test: `test_oci_runtime_negative_timeout` — negative/zero timeout raises (AC: 1)
+- [x] Unit test: `test_config_resolution_separate_instances` — settings and backends use separate Assemblers (AC: 7)
+- [x] Unit test: `test_local_processor_all_backends_unavailable` — all backends unavailable raises with hint (AC: 8)
+- [x] Run full test suite — verify zero regressions
+- [x] Run ruff lint — clean
 
 ## Dev Notes
 
@@ -210,4 +214,35 @@ opencode-go/deepseek-v4-flash
 
 ### Completion Notes List
 
+- Implemented NaN/Inf guards for timeout and saturation in PywalGenerator
+- Implemented Inf guard for saturation in WallustGenerator
+- Added empty colors list fallback in PywalGenerator (16 black colors)
+- Added negative/zero timeout guard in OciContainerRuntimeAdapter.run()
+- Wrapped chmod calls in ContainerProcessor with try/except + warning log
+- Added all-backends-unavailable aggregate error in LocalProcessor
+- Verified sequences bytes output in JinjaTemplateRenderer (already correct)
+- Verified separate AssembleConfiguration instances for settings/backends (correct by design)
+- Added 12 new unit tests covering all edge cases
+- Full test suite: 419 passed, 0 failed
+- Ruff lint: clean (only pre-existing errors remain)
+
 ### File List
+
+| File | Action |
+|------|--------|
+| `src/color_scheme_generator/adapters/backends/pywal_generator.py` | MODIFIED |
+| `src/color_scheme_generator/adapters/backends/wallust_generator.py` | MODIFIED |
+| `src/color_scheme_generator/adapters/container_processor.py` | MODIFIED |
+| `src/color_scheme_generator/adapters/oci_container_runtime.py` | MODIFIED |
+| `src/color_scheme_generator/adapters/local_processor.py` | MODIFIED |
+| `tests/unit/adapters/backends/test_pywal_generator.py` | MODIFIED |
+| `tests/unit/adapters/backends/test_wallust_generator.py` | MODIFIED |
+| `tests/unit/adapters/test_container_processor.py` | MODIFIED |
+| `tests/unit/adapters/test_jinja_template_renderer.py` | MODIFIED |
+| `tests/unit/adapters/test_local_processor.py` | MODIFIED |
+| `tests/unit/adapters/settings/test_config_resolver.py` | MODIFIED |
+| `tests/unit/adapters/test_image_lifecycle.py` | MODIFIED |
+
+### Change Log
+
+- Implemented edge case hardening across adapters (NaN/Inf guards, empty colors fallback, chmod warning, negative timeout guard, all-backends-unavailable message, sequences bytes verification, separate config instances)

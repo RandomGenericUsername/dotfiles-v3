@@ -22,6 +22,9 @@ class OciContainerRuntimeAdapter:
         mounts: list[ContainerMount],
         timeout: int,
     ) -> ContainerResult:
+        if timeout <= 0:
+            raise ValueError(f"Invalid timeout: {timeout}")
+
         from oci_runtime.domain.enums import VolumeMountType
         from oci_runtime.domain.types import RunConfig, VolumeMount
 

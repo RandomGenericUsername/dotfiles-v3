@@ -36,7 +36,12 @@ class PywalGenerator:
         timeout = params.get("timeout", _SUBPROCESS_TIMEOUT)
         saturation = params.get("saturation", 1.0)
 
-        if not isinstance(timeout, (int, float)) or timeout < 1:
+        if (
+            not isinstance(timeout, (int, float))
+            or math.isnan(timeout)
+            or math.isinf(timeout)
+            or timeout < 1
+        ):
             timeout = _SUBPROCESS_TIMEOUT
 
         cmd = [
@@ -83,6 +88,9 @@ class PywalGenerator:
 
         colors = sorted(colors, key=lambda c: sum(c.rgb))
 
+        if not colors:
+            colors = [Color("#000000", (0, 0, 0)) for _ in range(16)]
+
         if special:
             bg_hex = special.get("background")
             fg_hex = special.get("foreground")
@@ -113,7 +121,11 @@ class PywalGenerator:
 
     @staticmethod
     def _validate_saturation(saturation: object) -> float:
-        if not isinstance(saturation, (int, float)) or math.isnan(saturation):
+        if (
+            not isinstance(saturation, (int, float))
+            or math.isnan(saturation)
+            or math.isinf(saturation)
+        ):
             return 1.0
         return max(0.0, min(1.0, float(saturation)))
 

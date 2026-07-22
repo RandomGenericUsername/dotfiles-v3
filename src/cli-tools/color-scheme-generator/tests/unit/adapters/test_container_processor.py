@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -456,6 +456,29 @@ class TestContainerProcessorShow:
 
 
 class TestContainerProcessorTempToml:
+    def test_chmod_failure_logs_warning_and_continues(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
+        settings = _make_settings()
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        import logging
+        caplog.set_level(logging.WARNING)
+        with patch("os.chmod", side_effect=OSError("permission denied")):
+            result = processor.process_generate(request, settings)
+
+        assert result.success is True
+        assert "Failed to chmod" in caplog.text
+
     def test_temp_toml_is_world_readable(self, tmp_path: Path) -> None:
         templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()

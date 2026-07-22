@@ -93,6 +93,26 @@ class TestRemoveImage:
             "test-image:latest", force=True
         )
 
+    def test_oci_runtime_negative_timeout(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+    ) -> None:
+        with pytest.raises(ValueError, match="Invalid timeout"):
+            adapter.run(
+                image="test:latest",
+                command=["echo", "hello"],
+                mounts=[],
+                timeout=0,
+            )
+
+        with pytest.raises(ValueError, match="Invalid timeout"):
+            adapter.run(
+                image="test:latest",
+                command=["echo", "hello"],
+                mounts=[],
+                timeout=-1,
+            )
+
     def test_oci_remove_error_maps_to_image_remove_error(
         self,
         adapter: OciContainerRuntimeAdapter,
