@@ -106,3 +106,7 @@
 ## Deferred from: code review of 3-4-error-mapping-oci-runtime-to-domain (2026-07-22)
 
 - Missing coverage for exec_container failure path [test_image_lifecycle.py] — Tests only mock `containers.run` to fail, never `exec_container`. Half the wrapped code path is untested.
+
+## Deferred from: code review of 4-1-dry-run-processor (2026-07-22)
+
+- `_validate_params` reloads backend catalog on every invocation [dry_run_processor.py:94] — catalog should handle caching, not the processor

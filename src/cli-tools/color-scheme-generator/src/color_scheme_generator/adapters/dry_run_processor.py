@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shlex
 import time
 from typing import TYPE_CHECKING
@@ -61,12 +62,10 @@ class DryRunProcessor:
             )
 
         output_dir = request.config.output_dir
-        try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
+        if not os.access(output_dir, os.W_OK) and not output_dir.parent.is_dir():
             raise PaletteGenerationError(
                 f"Output directory is not writable: {output_dir}"
-            ) from exc
+            )
 
         if self._template_dir_resolver:
             try:
@@ -125,6 +124,7 @@ class DryRunProcessor:
         elif param_def.type_ == "int":
             return int(raw_value)
         elif param_def.type_ == "str":
+            raw_value = raw_value.strip()
             if param_def.choices and raw_value not in param_def.choices:
                 raise ValueError(
                     f"'{raw_value}' is not a valid choice. "
@@ -134,14 +134,15 @@ class DryRunProcessor:
         return raw_value
 
     def _build_command_plan(
-        self, request: GenerationRequest, subcommand: str
+        self, request: GenerationRequest, settings: AppSettings, subcommand: str
     ) -> str:
+        runtime_mode = settings.runtime.mode.value if settings else "local"
         cmd = [
             "csg",
             subcommand,
             str(request.image_path),
             "--runtime",
-            "local",
+            runtime_mode,
             "--backend",
             request.config.backend.value,
         ]
@@ -162,7 +163,7 @@ class DryRunProcessor:
             self._pre_flight_generate(request, settings)
             self._validate_params(request.config.backend, request.config.params)
 
-            command_plan = self._build_command_plan(request, "generate")
+            command_plan = self._build_command_plan(request, settings, "generate")
             result = GenerationResult(
                 success=True,
                 color_scheme=None,
@@ -192,7 +193,7 @@ class DryRunProcessor:
             self._pre_flight_generate(request, settings)
             self._validate_params(request.config.backend, request.config.params)
 
-            command_plan = self._build_command_plan(request, "show")
+            command_plan = self._build_command_plan(request, settings, "show")
             result = GenerationResult(
                 success=True,
                 color_scheme=None,

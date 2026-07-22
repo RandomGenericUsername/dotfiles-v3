@@ -4,7 +4,7 @@ baseline_commit: 8b19e87
 
 # Story 4.1: Dry-Run Processor
 
-Status: review
+Status: done
 
 ## Story
 
@@ -228,3 +228,13 @@ opencode-go/deepseek-v4-flash
 ## Change Log
 
 - 2026-07-22: Implemented DryRunProcessor with DI constructor, pre-flight validation, param coercion, process_generate/show with command plan rendering, comprehensive test suite (12 tests), factory wiring updated
+
+### Review Findings
+
+- [x] [Review][Decision] **Exception choice for unregistered backend** — Resolved: keep `BackendNotRegisteredError`. Semantically more accurate ("not registered" vs "not available") and matches the codebase.
+- [x] [Review][Patch] **`--runtime local` hardcoded in command plan regardless of actual mode** [`dry_run_processor.py:143-144`]
+- [x] [Review][Patch] **Dry-run creates directories as side effect** [`dry_run_processor.py:64-65`]
+- [x] [Review][Patch] **YAML indentation drift in sprint-status.yaml** [`sprint-status.yaml:68`]
+- [ ] [Review][Skip] **finally block exception can mask original mapped error** [`oci_container_runtime.py:57-59`] — dismissed by reviewer: cleanup in finally considered too dirty
+- [x] [Review][Patch] **str choices validation does not strip whitespace** [`dry_run_processor.py:128`]
+- [x] [Review][Defer] **`_validate_params` reloads backend catalog on every invocation** [`dry_run_processor.py:94`] — deferred, pre-existing: catalog should handle caching, not the processor
