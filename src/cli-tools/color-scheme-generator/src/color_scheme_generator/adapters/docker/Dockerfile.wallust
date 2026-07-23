@@ -6,3 +6,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     cargo install wallust && \
     cp "$HOME/.cargo/bin/wallust" /usr/local/bin/wallust && \
     rm -rf "$HOME/.cargo" "$HOME/.rustup"
+
+RUN mkdir -p /root/.config/wallust

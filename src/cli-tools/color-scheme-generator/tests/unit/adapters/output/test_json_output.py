@@ -102,7 +102,7 @@ class TestJsonOutput:
         exc = InvalidImageError(image_path=Path("/bad.jpg"), reason="corrupt header")
         output = JsonOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["success"] is False
@@ -121,7 +121,7 @@ class TestJsonOutput:
         )
         output = JsonOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["error"]["type"] == "ColorExtractionError"
@@ -137,7 +137,7 @@ class TestJsonOutput:
         )
         output = JsonOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["error"]["type"] == "BackendNotAvailableError"
@@ -150,7 +150,7 @@ class TestJsonOutput:
         exc = OutputWriteError(path=Path("/out/file.json"), reason="permission denied")
         output = JsonOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["error"]["type"] == "OutputWriteError"
@@ -163,7 +163,7 @@ class TestJsonOutput:
         exc = ConfigResolutionError(key="backend", reason="not found")
         output = JsonOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["error"]["type"] == "ConfigResolutionError"
@@ -176,7 +176,7 @@ class TestJsonOutput:
         exc = PaletteGenerationError(message="oom", backend=Backend.CUSTOM)
         output = JsonOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["error"]["type"] == "PaletteGenerationError"
@@ -188,7 +188,7 @@ class TestJsonOutput:
         exc = PaletteGenerationError(message="unknown failure")
         output = JsonOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["error"]["type"] == "PaletteGenerationError"
@@ -232,7 +232,7 @@ class TestJsonOutput:
 
         for exc in errors:
             output.error(exc)
-            captured = capsys.readouterr().out
+            captured = capsys.readouterr().err
             data = json.loads(captured)
             assert data["success"] is False, f"failed for {type(exc).__name__}"
 
@@ -246,7 +246,7 @@ class TestJsonOutput:
 
         output = JsonOutput()
         output.error(UnexpectedError())
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
         data = json.loads(captured)
 
         assert data["success"] is False

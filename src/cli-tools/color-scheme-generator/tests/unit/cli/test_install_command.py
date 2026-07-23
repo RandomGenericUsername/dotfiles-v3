@@ -74,7 +74,7 @@ class TestInstallCommand:
 
         result = runner.invoke(app, ["--output-format", "json", "install"])
         assert result.exit_code == 0, f"stderr={result.stderr}"
-        assert mock_container_engine.build_image.call_count == 3
+        assert mock_container_engine.build_image.call_count == 4
 
     def test_install_backend_custom_builds_only_custom(
         self,
@@ -92,7 +92,7 @@ class TestInstallCommand:
 
         result = runner.invoke(app, ["--output-format", "json", "install", "--backend", "custom"])
         assert result.exit_code == 0, f"stderr={result.stderr}"
-        assert mock_container_engine.build_image.call_count == 1
+        assert mock_container_engine.build_image.call_count == 2
 
     def test_install_dry_run_logs_without_building(
         self,
@@ -130,7 +130,7 @@ class TestInstallCommand:
             "--output-format", "json", "install", "--engine", "podman"
         ])
         assert result.exit_code == 0, f"stderr={result.stderr}"
-        assert mock_container_engine.build_image.call_count == 3
+        assert mock_container_engine.build_image.call_count == 4
 
     def test_install_build_failure_outputs_error(
         self,

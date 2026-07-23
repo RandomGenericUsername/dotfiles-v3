@@ -1,3 +1,4 @@
 FROM color-scheme-base:latest
 
-RUN pip install --no-cache-dir pywal
+RUN apt-get update && apt-get install -y --no-install-recommends imagemagick && rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir pywal

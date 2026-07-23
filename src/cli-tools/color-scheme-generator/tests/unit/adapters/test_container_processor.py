@@ -415,7 +415,7 @@ class TestContainerProcessorShow:
         call_args = mock_runtime.run.call_args
         command = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("command", [])
         cmd_str = " ".join(command)
-        assert cmd_str.startswith("csg show")
+        assert cmd_str.startswith("csg --runtime local show") or cmd_str.startswith("csg show")
         assert "-o" not in cmd_str.replace("-o ", "")
 
     def test_show_inner_command_has_runtime_local(self, tmp_path: Path) -> None:

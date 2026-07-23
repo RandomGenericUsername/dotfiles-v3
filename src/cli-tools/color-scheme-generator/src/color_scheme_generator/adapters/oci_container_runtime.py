@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from color_scheme_generator.domain.enums import Backend
@@ -38,6 +39,7 @@ class OciContainerRuntimeAdapter:
             )
             for m in mounts
         )
+        host_user = f"{os.getuid()}:{os.getgid()}"
         config = RunConfig(
             image=image,
             command=(),
@@ -46,6 +48,7 @@ class OciContainerRuntimeAdapter:
             detach=True,
             remove=False,
             environment=environment or {},
+            user=host_user,
         )
         from color_scheme_generator.adapters.error_mapping import map_oci_error
 

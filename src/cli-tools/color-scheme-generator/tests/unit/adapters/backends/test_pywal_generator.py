@@ -76,7 +76,6 @@ class TestPywalGenerator:
             "wal", "-i", "/tmp/test.png",
             "-n", "-s", "-t", "-e",
             "--backend", "wal",
-            "--stdout",
         ]
         assert kwargs["capture_output"] is True
         assert kwargs["timeout"] == _SUBPROCESS_TIMEOUT

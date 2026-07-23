@@ -160,6 +160,7 @@ class TestCliGenerate:
         assert "--output-dir" in result.stdout or "-o" in result.stdout
 
     def test_build_deps_returns_proper_cli_dependencies(self) -> None:
+        from color_scheme_generator.adapters.local_processor import LocalProcessor
         from color_scheme_generator.cli.main import build_deps
         from color_scheme_generator.factory import CliDependencies
 
@@ -167,7 +168,7 @@ class TestCliGenerate:
         assert isinstance(deps, CliDependencies)
         assert deps.backend_registry is not None
         assert deps.output_adapter is None
-        assert deps.processor is None
+        assert isinstance(deps.processor, LocalProcessor)
         assert deps.template_dir_resolver is not None
         assert deps.template_renderer is not None
 

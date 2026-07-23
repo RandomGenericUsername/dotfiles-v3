@@ -16,7 +16,7 @@ from color_scheme_generator.domain.exceptions import (
 from color_scheme_generator.domain.models import Color, ColorScheme, GeneratorConfig
 from color_scheme_generator.domain.services import ColorAdjustmentService
 
-_SUBPROCESS_TIMEOUT = 60
+_SUBPROCESS_TIMEOUT = 300
 _CACHE_FILE = Path.home() / ".cache" / "wal" / "colors.json"
 _CACHE_RETRY_DELAY = 0.5
 
@@ -49,7 +49,6 @@ class PywalGenerator:
             "-i", str(image_path),
             "-n", "-s", "-t", "-e",
             "--backend", str(algorithm),
-            "--stdout",
         ]
 
         try:
@@ -73,13 +72,7 @@ class PywalGenerator:
 
         saturation = self._validate_saturation(saturation)
         special: dict[str, str] = {}
-
-        if result.stdout and result.stdout.strip():
-            colors = self._parse_stdout(result.stdout)
-            if not colors:
-                colors, special = self._parse_cache_file()
-        else:
-            colors, special = self._parse_cache_file()
+        colors, special = self._parse_cache_file()
 
         colors = [
             ColorAdjustmentService.adjust_saturation(c, saturation)

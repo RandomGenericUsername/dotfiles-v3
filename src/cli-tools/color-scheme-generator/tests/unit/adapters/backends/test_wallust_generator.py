@@ -18,7 +18,7 @@ from color_scheme_generator.domain.exceptions import (
 from color_scheme_generator.domain.models import Color, GeneratorConfig
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
 
-_SUBPROCESS_TIMEOUT = 60
+_SUBPROCESS_TIMEOUT = 300
 
 _config = GeneratorConfig(
     backend=Backend.WALLUST,

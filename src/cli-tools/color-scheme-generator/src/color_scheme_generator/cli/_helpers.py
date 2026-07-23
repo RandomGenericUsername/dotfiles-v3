@@ -40,7 +40,7 @@ def default_app_settings() -> AppSettings:
         container=ContainerSettings(
             image_prefix="csg",
             image_tag="latest",
-            timeout_seconds=60,
+            timeout_seconds=300,
             memory_limit="512m",
             mount_timeout_seconds=30,
         ),

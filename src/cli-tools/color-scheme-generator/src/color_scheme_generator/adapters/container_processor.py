@@ -216,6 +216,7 @@ class ContainerProcessor:
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
                     environment={
+                        "HOME": "/tmp",
                         "COLORSCHEME_CONFIG_FILE_PATH": "/csg-config/settings.toml",
                         "COLORSCHEME_TEMPLATES_TEMPLATES_DIR": "/templates",
                     },
@@ -323,10 +324,10 @@ class ContainerProcessor:
 
             inner_command = [
                 "csg",
-                "show",
-                f"/input/{request.image_path.name}",
                 "--runtime",
                 "local",
+                "show",
+                f"/input/{request.image_path.name}",
                 "--backend",
                 request.config.backend.value,
             ]

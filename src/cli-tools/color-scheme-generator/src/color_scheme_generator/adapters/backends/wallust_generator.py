@@ -22,7 +22,7 @@ from color_scheme_generator.domain.services import (
     PaletteNormalizationService,
 )
 
-_SUBPROCESS_TIMEOUT = 60
+_SUBPROCESS_TIMEOUT = 300
 _CACHE_RETRY_DELAY = 0.5
 
 logger = logging.getLogger(__name__)
