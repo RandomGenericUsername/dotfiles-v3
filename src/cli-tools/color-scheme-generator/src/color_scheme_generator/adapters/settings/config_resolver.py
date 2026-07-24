@@ -22,7 +22,7 @@ from config_assembler_engine.domain.models import (
 from config_assembler_engine.errors import ConfigParseError, PathResolutionError
 
 from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode, Verbosity
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import (
     AppliedOverride,
@@ -42,6 +42,7 @@ def _convert_to_app_settings(validated: CoreSettingsSchema) -> AppSettings:
             directory=validated.output.directory,
             default_formats=tuple(validated.output.default_formats),
             overwrite=validated.output.overwrite,
+            verbosity=Verbosity(validated.output.verbosity),
         ),
         generation=GenerationSettings(
             backend=Backend(validated.generation.backend),
@@ -88,6 +89,7 @@ class AssembledConfigResolver:
             OverrideRule("output.directory", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("output.default_formats", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("output.overwrite", {OverrideSource.CLI, OverrideSource.ENV}),
+            OverrideRule("output.verbosity", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("generation.backend", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("generation.default_params", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("template.templates_dir", {OverrideSource.CLI, OverrideSource.ENV}),

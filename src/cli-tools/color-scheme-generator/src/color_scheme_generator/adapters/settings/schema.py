@@ -15,6 +15,7 @@ class OutputSettingsSchema(BaseModel):
     directory: Path
     default_formats: list[str] = []
     overwrite: bool = False
+    verbosity: int = 1
 
     @field_validator("directory", mode="before")
     @classmethod

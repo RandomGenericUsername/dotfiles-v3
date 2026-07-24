@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import typer
@@ -24,6 +25,7 @@ from color_scheme_generator.domain.enums import (
     ContainerEngine,
     OutputFormat,
     RuntimeMode,
+    Verbosity,
 )
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
@@ -100,12 +102,36 @@ def main_callback(
         readable=True,
         resolve_path=True,
     ),
+    verbose: int = typer.Option(  # noqa: B008
+        0,
+        "--verbose",
+        "-v",
+        count=True,
+        help="Increase verbosity (use -v, -vv, -vvv)",
+    ),
+    quiet: bool = typer.Option(  # noqa: B008
+        False,
+        "--quiet",
+        "-q",
+        help="Suppress all non-error output",
+    ),
 ) -> None:
     deps = build_deps()
+
+    if quiet:
+        verbosity = Verbosity.QUIET
+    elif verbose > 0:
+        match verbose:
+            case 1: verbosity = Verbosity.VERBOSE
+            case _: verbosity = Verbosity.DEBUG
+    else:
+        verbosity = None  # use TOML default
 
     cli_overrides = {}
     if templates_dir is not None:
         cli_overrides["template.templates_dir"] = str(templates_dir)
+    if verbosity is not None:
+        cli_overrides["output.verbosity"] = str(verbosity.value)
 
     if runtime is RuntimeMode.LOCAL and deps.processor is None:
         deps.processor = create_local_processor(deps.backend_registry, deps.template_renderer)
@@ -120,8 +146,22 @@ def main_callback(
         "deps": deps,
         "config_path": str(config_path) if config_path else None,
         "cli_overrides": cli_overrides,
+        "verbosity": verbosity,
     }
-    ctx.obj["deps"].output_adapter = create_output_adapter(output_format)
+
+    effective_verbosity = verbosity if verbosity is not None else Verbosity.NORMAL
+    log_level = {
+        Verbosity.QUIET: logging.ERROR,
+        Verbosity.NORMAL: logging.WARNING,
+        Verbosity.VERBOSE: logging.INFO,
+        Verbosity.DEBUG: logging.DEBUG,
+    }[effective_verbosity]
+    logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
+
+    ctx.obj["deps"].output_adapter = create_output_adapter(
+        output_format,
+        verbosity=verbosity if verbosity is not None else Verbosity.NORMAL,
+    )
 
 
 @app.command()
@@ -151,6 +191,16 @@ def generate(
     except ColorSchemeError:
         typer.echo("Warning: config resolution failed, using defaults", err=True)
         settings = default_app_settings()
+
+    if ctx.obj.get("verbosity") is None and deps.output_adapter is not None:
+        settings_verbosity = settings.output.verbosity
+        deps.output_adapter._verbosity = settings_verbosity
+        logging.getLogger().setLevel({
+            Verbosity.QUIET: logging.ERROR,
+            Verbosity.NORMAL: logging.WARNING,
+            Verbosity.VERBOSE: logging.INFO,
+            Verbosity.DEBUG: logging.DEBUG,
+        }[settings_verbosity])
 
     if settings.template.templates_dir is not None and deps.template_renderer is not None:
         deps.template_renderer.update_templates_dir(settings.template.templates_dir)

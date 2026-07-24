@@ -10,7 +10,7 @@ from color_scheme_generator.adapters.jinja_template_renderer import JinjaTemplat
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, OutputFormat
+from color_scheme_generator.domain.enums import Backend, ContainerEngine, OutputFormat, Verbosity
 from color_scheme_generator.ports.container_runtime import ContainerRuntimePort
 from color_scheme_generator.ports.output import OutputPort
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
@@ -61,16 +61,19 @@ def create_config_resolver() -> AssembledConfigResolver:
     return AssembledConfigResolver()
 
 
-def create_output_adapter(fmt: OutputFormat) -> OutputPort:
+def create_output_adapter(
+    fmt: OutputFormat,
+    verbosity: Verbosity = Verbosity.NORMAL,
+) -> OutputPort:
     from color_scheme_generator.adapters.output.json_output import JsonOutput
     from color_scheme_generator.adapters.output.plain_output import PlainOutput
     from color_scheme_generator.adapters.output.rich_output import RichOutput
 
     if fmt is OutputFormat.RICH:
-        return RichOutput()
+        return RichOutput(verbosity=verbosity)
     if fmt is OutputFormat.PLAIN:
-        return PlainOutput()
-    return JsonOutput()
+        return PlainOutput(verbosity=verbosity)
+    return JsonOutput(verbosity=verbosity)
 
 
 def create_local_processor(

@@ -12,11 +12,17 @@ from color_scheme_generator.domain.exceptions import (
     OutputWriteError,
     PaletteGenerationError,
 )
+from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.models import Color, ColorScheme, GenerationResult
 
 
 class JsonOutput:
+    def __init__(self, verbosity: Verbosity = Verbosity.NORMAL) -> None:
+        self._verbosity = verbosity
+
     def process_result(self, result: GenerationResult) -> None:
+        if self._verbosity is Verbosity.QUIET:
+            return
         payload: dict = {
             "success": result.success,
             "color_scheme": self._serialize_color_scheme(result.color_scheme),

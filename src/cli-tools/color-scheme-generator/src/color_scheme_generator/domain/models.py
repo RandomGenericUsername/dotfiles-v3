@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
-from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode, Verbosity
 
 _UNSET = object()
 
@@ -103,6 +103,7 @@ class OutputSettings:
     directory: Path
     default_formats: tuple[ColorFormat, ...]
     overwrite: bool
+    verbosity: Verbosity = Verbosity.NORMAL
 
 
 @dataclass(frozen=True)

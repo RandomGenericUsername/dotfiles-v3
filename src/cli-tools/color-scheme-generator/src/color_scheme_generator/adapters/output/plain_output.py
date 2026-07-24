@@ -11,11 +11,17 @@ from color_scheme_generator.domain.exceptions import (
     TemplateNotFoundError,
     TemplateRenderError,
 )
+from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.models import ColorScheme, GenerationResult
 
 
 class PlainOutput:
+    def __init__(self, verbosity: Verbosity = Verbosity.NORMAL) -> None:
+        self._verbosity = verbosity
+
     def process_result(self, result: GenerationResult) -> None:
+        if self._verbosity is Verbosity.QUIET:
+            return
         print("Success")
         print(f"Backend: {result.backend.value}")
         print(f"Duration: {result.duration:.2f}s")
