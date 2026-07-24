@@ -253,14 +253,23 @@ class ContainerProcessor:
             else:
                 color_scheme = None
 
+            container_output = Path("/output")
+            host_output = request.config.output_dir
+            inner_files = inner.get("output_files", [])
+            if inner_files:
+                output_files = tuple(
+                    Path(str(p).replace(str(container_output), str(host_output)))
+                    for p in inner_files
+                )
+            else:
+                output_files = (
+                    tuple(output_dir.iterdir()) if output_dir.exists() else ()
+                )
+
             return GenerationResult(
                 success=container_result.return_code == 0,
                 color_scheme=color_scheme,
-                output_files=tuple(
-                    Path(p) for p in inner.get("output_files", [])
-                ) if inner.get("output_files") else (
-                    tuple(output_dir.iterdir()) if output_dir.exists() else ()
-                ),
+                output_files=output_files,
                 backend=request.config.backend,
                 stderr=container_result.stderr,
                 return_code=container_result.return_code,

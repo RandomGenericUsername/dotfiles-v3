@@ -26,8 +26,9 @@ def show(
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
+        config_path = ctx.obj.get("config_path")
         settings = (
-            deps.config_resolver.resolve()
+            deps.config_resolver.resolve(explicit_path=config_path)
             if deps.config_resolver
             else default_app_settings()
         )

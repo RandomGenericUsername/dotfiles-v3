@@ -80,6 +80,16 @@ def main_callback(
         help="Container engine to use (only for container runtime)",
         case_sensitive=False,
     ),
+    config_path: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--config",
+        help="Path to settings.toml config file",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+    ),
 ) -> None:
     deps = build_deps()
 
@@ -92,7 +102,7 @@ def main_callback(
             container_runtime, template_dir_resolver=deps.template_dir_resolver
         )
 
-    ctx.obj = {"deps": deps}
+    ctx.obj = {"deps": deps, "config_path": str(config_path) if config_path else None}
     ctx.obj["deps"].output_adapter = create_output_adapter(output_format)
 
 
@@ -111,8 +121,9 @@ def generate(
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
+        config_path = ctx.obj.get("config_path")
         settings = (
-            deps.config_resolver.resolve()
+            deps.config_resolver.resolve(explicit_path=config_path)
             if deps.config_resolver
             else default_app_settings()
         )
