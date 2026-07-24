@@ -61,16 +61,13 @@ wallust:
       required: false
     - key: algorithm
       param_type: str
-      default: kmeans
+      default: fastresize
       choices:
+        - full
+        - resized
+        - wal
+        - thumb
+        - fastresize
         - kmeans
-        - kmeans-new
-        - kmeans-old
-        - kmeans-improved
-        - fastkmeans
-        - kmeans-euclid
-        - pam
-        - pam-new
-        - pam-old
       description: "Color extraction algorithm"
       required: false

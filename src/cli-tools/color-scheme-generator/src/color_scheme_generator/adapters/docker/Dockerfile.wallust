@@ -1,10 +1,7 @@
 FROM color-scheme-base:latest
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates build-essential pkg-config libssl-dev && rm -rf /var/lib/apt/lists/* && \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    . "$HOME/.cargo/env" && \
-    cargo install wallust && \
-    cp "$HOME/.cargo/bin/wallust" /usr/local/bin/wallust && \
-    rm -rf "$HOME/.cargo" "$HOME/.rustup"
-
-RUN mkdir -p /root/.config/wallust
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL "https://codeberg.org/explosion-mental/wallust/releases/download/3.5.2/wallust-3.5.2-x86_64-unknown-linux-musl.tar.gz" | \
+    tar -xz -C /usr/local/bin/ wallust && \
+    chmod +x /usr/local/bin/wallust && \
+    mkdir -p /root/.config/wallust

@@ -44,7 +44,7 @@ class WallustGenerator:
             )
 
         params = config.params or {}
-        algorithm = params.get("algorithm", "kmeans")
+        algorithm = params.get("algorithm", "fastresize")
         timeout = params.get("timeout", _SUBPROCESS_TIMEOUT)
         saturation = params.get("saturation", 1.0)
 
@@ -61,6 +61,8 @@ class WallustGenerator:
             "run", str(image_path),
             "--backend", str(algorithm),
             "-s", "-T", "-q",
+            "--no-hooks",
+            "--no-cache",
             "--print-scheme",
         ]
 
