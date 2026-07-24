@@ -27,14 +27,20 @@ def show(
     deps: CliDependencies = ctx.obj["deps"]
     try:
         config_path = ctx.obj.get("config_path")
+        cli_overrides = ctx.obj.get("cli_overrides", {})
         settings = (
-            deps.config_resolver.resolve(explicit_path=config_path)
+            deps.config_resolver.resolve(
+                explicit_path=config_path, cli_overrides=cli_overrides
+            )
             if deps.config_resolver
             else default_app_settings()
         )
     except ColorSchemeError:
         typer.echo("Warning: config resolution failed, using defaults", err=True)
         settings = default_app_settings()
+
+    if settings.template.templates_dir is not None and deps.template_renderer is not None:
+        deps.template_renderer.update_templates_dir(settings.template.templates_dir)
 
     try:
         raw_params = parse_params(param)

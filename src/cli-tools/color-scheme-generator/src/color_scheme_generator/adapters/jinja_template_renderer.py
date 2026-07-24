@@ -13,7 +13,10 @@ from color_scheme_generator.ports.template_dir_resolver import TemplateDirResolv
 class JinjaTemplateRenderer:
     def __init__(self, resolver: TemplateDirResolverPort) -> None:
         self._resolver = resolver
-        templates_dir = self._resolver.resolve()
+        self._init_env()
+
+    def _init_env(self, settings_dir: Path | None = None) -> None:
+        templates_dir = self._resolver.resolve(settings_dir=settings_dir)
         self._templates_dir = templates_dir
         self._env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -21,6 +24,9 @@ class JinjaTemplateRenderer:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+
+    def update_templates_dir(self, settings_dir: Path | None) -> None:
+        self._init_env(settings_dir=settings_dir)
 
     def render(self, template_name: str, scheme: ColorScheme, output_path: Path) -> None:
         if not template_name:

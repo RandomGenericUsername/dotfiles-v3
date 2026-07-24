@@ -70,16 +70,36 @@ class _DefaultDirStrategy:
         return None
 
 
+class _SettingsDirStrategy:
+    def __init__(self) -> None:
+        self._dir: Path | None = None
+
+    def set_dir(self, path: Path | None) -> None:
+        self._dir = path
+
+    def resolve(
+        self,
+        policy: ResolutionPolicy,
+        explicit_path: str | None = None,
+    ) -> ResolvedPath | None:
+        if self._dir is not None and self._dir.is_dir():
+            return ResolvedPath(path=self._dir.resolve(), source=PathSource.CLI_PATH)
+        return None
+
+
 class TemplateDirResolver:
     def __init__(self) -> None:
+        self._settings_strategy = _SettingsDirStrategy()
         strategies: list = [
+            self._settings_strategy,
             _EnvDirStrategy(var="TEMPLATES_DIR"),
             _XdgDirStrategy(xdg_subdir="color-scheme", dirname="templates"),
             _DefaultDirStrategy(path=_DEFAULT_TEMPLATES_DIR),
         ]
         self._resolver = CompositePathResolver(strategies)
 
-    def resolve(self) -> Path:
+    def resolve(self, settings_dir: Path | None = None) -> Path:
+        self._settings_strategy.set_dir(settings_dir)
         try:
             result = self._resolver.resolve(_RESOLUTION_POLICY)
         except PathResolutionError as exc:

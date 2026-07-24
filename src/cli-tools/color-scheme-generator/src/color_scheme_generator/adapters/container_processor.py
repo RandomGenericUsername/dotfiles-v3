@@ -147,7 +147,8 @@ class ContainerProcessor:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             if self._template_dir_resolver:
-                templates_dir = self._template_dir_resolver.resolve()
+                settings_dir = settings.template.templates_dir if settings else None
+                templates_dir = self._template_dir_resolver.resolve(settings_dir=settings_dir)
             elif self._default_settings_path:
                 templates_dir = (
                     self._default_settings_path.parent / "defaults" / "templates"

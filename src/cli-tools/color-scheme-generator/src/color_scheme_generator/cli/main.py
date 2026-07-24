@@ -90,8 +90,22 @@ def main_callback(
         readable=True,
         resolve_path=True,
     ),
+    templates_dir: Path | None = typer.Option(  # noqa: B008
+        None,
+        "--templates-dir",
+        help="Path to directory containing .j2 template files",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        readable=True,
+        resolve_path=True,
+    ),
 ) -> None:
     deps = build_deps()
+
+    cli_overrides = {}
+    if templates_dir is not None:
+        cli_overrides["template.templates_dir"] = str(templates_dir)
 
     if runtime is RuntimeMode.LOCAL and deps.processor is None:
         deps.processor = create_local_processor(deps.backend_registry, deps.template_renderer)
@@ -102,7 +116,11 @@ def main_callback(
             container_runtime, template_dir_resolver=deps.template_dir_resolver
         )
 
-    ctx.obj = {"deps": deps, "config_path": str(config_path) if config_path else None}
+    ctx.obj = {
+        "deps": deps,
+        "config_path": str(config_path) if config_path else None,
+        "cli_overrides": cli_overrides,
+    }
     ctx.obj["deps"].output_adapter = create_output_adapter(output_format)
 
 
@@ -122,14 +140,20 @@ def generate(
     deps: CliDependencies = ctx.obj["deps"]
     try:
         config_path = ctx.obj.get("config_path")
+        cli_overrides = ctx.obj.get("cli_overrides", {})
         settings = (
-            deps.config_resolver.resolve(explicit_path=config_path)
+            deps.config_resolver.resolve(
+                explicit_path=config_path, cli_overrides=cli_overrides
+            )
             if deps.config_resolver
             else default_app_settings()
         )
     except ColorSchemeError:
         typer.echo("Warning: config resolution failed, using defaults", err=True)
         settings = default_app_settings()
+
+    if settings.template.templates_dir is not None and deps.template_renderer is not None:
+        deps.template_renderer.update_templates_dir(settings.template.templates_dir)
 
     try:
         raw_params = parse_params(param)
