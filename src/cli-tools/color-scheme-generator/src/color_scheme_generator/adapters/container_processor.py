@@ -5,10 +5,11 @@ import logging
 import os
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from color_scheme_generator.domain.enums import ColorFormat
+from color_scheme_generator.domain.enums import Backend, ColorFormat
 from color_scheme_generator.domain.exceptions import (
     ContainerImageNotFoundError,
     ContainerTimeoutError,
@@ -230,10 +231,34 @@ class ContainerProcessor:
 
             duration = time.monotonic() - start
 
+            inner = {}
+            if container_result.return_code == 0 and container_result.stdout:
+                try:
+                    inner = json.loads(container_result.stdout)
+                except json.JSONDecodeError:
+                    pass
+
+            cs_data = inner.get("color_scheme")
+            if cs_data and isinstance(cs_data, dict):
+                from color_scheme_generator.domain.models import Color as _Color
+                color_scheme = ColorScheme(
+                    background=_Color(cs_data["background"]["hex"], tuple(cs_data["background"]["rgb"])),
+                    foreground=_Color(cs_data["foreground"]["hex"], tuple(cs_data["foreground"]["rgb"])),
+                    cursor=_Color(cs_data["cursor"]["hex"], tuple(cs_data["cursor"]["rgb"])),
+                    colors=tuple(_Color(c["hex"], tuple(c["rgb"])) for c in cs_data["colors"]),
+                    source_image=Path(cs_data["source_image"]),
+                    backend=Backend(cs_data["backend"]),
+                    generated_at=datetime.fromisoformat(cs_data["generated_at"]),
+                )
+            else:
+                color_scheme = None
+
             return GenerationResult(
                 success=container_result.return_code == 0,
-                color_scheme=None,
-                output_files=(
+                color_scheme=color_scheme,
+                output_files=tuple(
+                    Path(p) for p in inner.get("output_files", [])
+                ) if inner.get("output_files") else (
                     tuple(output_dir.iterdir()) if output_dir.exists() else ()
                 ),
                 backend=request.config.backend,

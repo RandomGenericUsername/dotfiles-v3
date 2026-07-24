@@ -55,8 +55,6 @@ class OciContainerRuntimeAdapter:
         container_id = None
         try:
             container_id = self._engine.containers.run(config)
-            import time
-            time.sleep(1)
             result = self._engine.containers.exec_container(
                 container=container_id,
                 command=list(command),

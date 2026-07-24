@@ -48,13 +48,14 @@ app = typer.Typer()
 
 def build_deps() -> CliDependencies:
     registry = create_backend_registry()
+    renderer = create_template_renderer()
     return CliDependencies(
         backend_registry=registry,
         backend_catalog_loader=create_backend_catalog_loader(),
         config_resolver=create_config_resolver(),
-        processor=LocalProcessor(registry),
+        processor=LocalProcessor(registry, renderer),
         template_dir_resolver=create_template_dir_resolver(),
-        template_renderer=create_template_renderer(),
+        template_renderer=renderer,
     )
 
 
