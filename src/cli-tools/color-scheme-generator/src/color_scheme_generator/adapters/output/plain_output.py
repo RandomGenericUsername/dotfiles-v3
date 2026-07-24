@@ -41,6 +41,34 @@ class PlainOutput:
             print(f"{key}: {value}")
         print()
 
+    def config_info(
+        self,
+        settings: object,
+        backends: dict,
+        sources: list[str],
+        catalog: object,
+    ) -> None:
+        if settings:
+            for section, fields in settings.__dataclass_fields__.items():
+                section_val = getattr(settings, section)
+                if hasattr(section_val, "__dataclass_fields__"):
+                    for field in section_val.__dataclass_fields__:
+                        val = getattr(section_val, field)
+                        print(f"{section}.{field}: {val}")
+        print()
+        if sources:
+            print("Sources:")
+            for s in sources:
+                print(f"  {s}")
+        print()
+        print("Backends:")
+        for name, info in backends.items():
+            avail = "available" if info.get("available") else "not available"
+            desc = info.get("description", "")
+            print(f"  {name}: {avail}")
+            if desc:
+                print(f"    description: {desc}")
+
     def palette_display(self, scheme: ColorScheme) -> None:
         print(f"Background: {scheme.background.hex}")
         print(f"Foreground: {scheme.foreground.hex}")

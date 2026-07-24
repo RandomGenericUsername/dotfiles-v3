@@ -46,6 +46,39 @@ class JsonOutput:
         json.dump(payload, sys.stdout, default=str)
         print()
 
+    def config_info(
+        self,
+        settings: object,
+        backends: dict,
+        sources: list[str],
+        catalog: object,
+    ) -> None:
+        data = {
+            "settings": self._serialize_settings(settings) if settings else {},
+            "backends": backends,
+            "sources": sources,
+        }
+        sys.stdout.write(json.dumps(data, indent=2, default=str) + "\n")
+
+    @staticmethod
+    def _serialize_settings(settings: object) -> dict:
+        from dataclasses import fields
+        result = {}
+        for f in fields(settings):
+            val = getattr(settings, f.name)
+            if hasattr(val, "__dataclass_fields__"):
+                result[f.name] = JsonOutput._serialize_settings(val)
+            elif isinstance(val, tuple):
+                result[f.name] = [JsonOutput._serialize_settings(v) if hasattr(v, "__dataclass_fields__") else str(v) for v in val]
+            elif isinstance(val, dict):
+                if val and hasattr(next(iter(val.values())), "__dataclass_fields__"):
+                    result[f.name] = {k: JsonOutput._serialize_settings(v) for k, v in val.items()}
+                else:
+                    result[f.name] = {k: str(v) for k, v in val.items()}
+            else:
+                result[f.name] = val.value if hasattr(val, 'value') else str(val)
+        return result
+
     def _serialize_color_scheme(self, scheme: ColorScheme | None) -> dict:
         if scheme is None:
             return {}
