@@ -7,6 +7,7 @@ from config_assembler_engine import ConfigAssemblerError
 
 from wallpaper_effects_generator.adapters.yaml_effect_loader import YamlEffectLoader
 from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.exceptions import EffectsValidationError
 from wallpaper_effects_generator.ports.effect_loader import EffectLoaderPort
 
 
@@ -115,3 +116,99 @@ def test_load_file_not_found(tmp_path: Path):
 
     with pytest.raises(ConfigAssemblerError):
         loader.load(path=nonexistent)
+
+
+def test_load_rejects_param_default_below_min(tmp_path: Path):
+    effects_file = tmp_path / "effects.yaml"
+    effects_file.write_text("""
+version: "1.0"
+parameter_types:
+  percent:
+    type: integer
+    min: -100
+    max: 100
+effects:
+  - name: brightness
+    description: Brightness
+    command: "magick {input} {output}"
+    parameters:
+      amount:
+        type: percent
+        description: Amount
+        default: -150
+""")
+    loader = YamlEffectLoader()
+    with pytest.raises(EffectsValidationError, match="below minimum"):
+        loader.load(path=effects_file)
+
+
+def test_load_rejects_param_default_above_max(tmp_path: Path):
+    effects_file = tmp_path / "effects.yaml"
+    effects_file.write_text("""
+version: "1.0"
+parameter_types:
+  percentage:
+    type: integer
+    min: 0
+    max: 100
+effects:
+  - name: opacity
+    description: Opacity
+    command: "magick {input} {output}"
+    parameters:
+      level:
+        type: percentage
+        description: Level
+        default: 150
+""")
+    loader = YamlEffectLoader()
+    with pytest.raises(EffectsValidationError, match="above maximum"):
+        loader.load(path=effects_file)
+
+
+def test_load_accepts_in_bounds_param_default(tmp_path: Path):
+    effects_file = tmp_path / "effects.yaml"
+    effects_file.write_text("""
+version: "1.0"
+parameter_types:
+  percent:
+    type: integer
+    min: -100
+    max: 100
+effects:
+  - name: brightness
+    description: Brightness
+    command: "magick {input} {output}"
+    parameters:
+      amount:
+        type: percent
+        description: Amount
+        default: -20
+""")
+    loader = YamlEffectLoader()
+    catalog = loader.load(path=effects_file)
+    assert len(catalog.effects) == 1
+    assert catalog.effects[0].name == "brightness"
+
+
+def test_load_accepts_inline_min_max(tmp_path: Path):
+    effects_file = tmp_path / "effects.yaml"
+    effects_file.write_text("""
+version: "1.0"
+effects:
+  - name: opacity
+    description: Opacity
+    command: "magick {input} {output}"
+    parameters:
+      level:
+        type: integer
+        description: Level
+        default: 50
+        min: 0
+        max: 100
+""")
+    loader = YamlEffectLoader()
+    catalog = loader.load(path=effects_file)
+    assert len(catalog.effects) == 1
+    assert catalog.effects[0].parameters[0].min == 0.0
+    assert catalog.effects[0].parameters[0].max == 100.0

@@ -9,6 +9,8 @@ parameter_types:
     type: integer
     description: Percentage value (-100 to 100)
     default: 0
+    min: -100
+    max: 100
   color_hex:
     type: string
     description: 'Hex color code (e.g., #ff5500)'
@@ -66,6 +68,8 @@ effects:
       cli_flag: --saturation
       description: Saturation level (100 = normal, 0 = grayscale, 200 = double)
       default: 100
+      min: 0
+      max: 200
 - name: sepia
   description: Apply sepia tone effect
   command: magick "{{input}}" -sepia-tone 80% "{{output}}"
@@ -80,6 +84,8 @@ effects:
       cli_flag: --strength
       description: Vignette strength
       default: 50
+      min: 0
+      max: 100
 - name: color_overlay
   description: Apply color overlay
   command: magick "{{input}}" -fill {{color}} -colorize {{opacity}}% "{{output}}"
@@ -95,6 +101,8 @@ effects:
       cli_flag: --opacity
       description: Overlay opacity percentage (0-100)
       default: 30
+      min: 0
+      max: 100
 composites:
 - name: blur-brightness80
   description: Blur then dim to 80% brightness
@@ -130,7 +138,11 @@ presets:
 - name: dark_blur
   description: Dark blurred background for overlays
   effects:
-  - blur-brightness80
+  - blur
+  - brightness
+  parameters:
+    blur: '0x8'
+    brightness: '-20'
 - name: subtle_blur
   description: Gentle blur effect
   effects:

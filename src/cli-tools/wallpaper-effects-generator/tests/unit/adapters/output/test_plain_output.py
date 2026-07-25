@@ -90,6 +90,18 @@ class TestPlainOutputAdapter:
         captured = capsys.readouterr()
         assert captured.out == "hello\n"
 
+    def test_dump_config_template(self, adapter: PlainOutputAdapter, capsys) -> None:
+        content = "version = \"1.0\"\n[execution]\n"
+        adapter.dump_config_template(content)
+        captured = capsys.readouterr()
+        assert captured.out == content
+
+    def test_dump_effects_template(self, adapter: PlainOutputAdapter, capsys) -> None:
+        content = "version: '1.0'\neffects: []\n"
+        adapter.dump_effects_template(content)
+        captured = capsys.readouterr()
+        assert captured.out == content
+
     def test_no_ansi_codes(self, adapter: PlainOutputAdapter, capsys) -> None:
         result = ProcessingResult(
             success=True,

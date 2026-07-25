@@ -25,6 +25,7 @@ from wallpaper_effects_generator.constants import (
     EFFECTS_XDG_SUBDIR,
 )
 from wallpaper_effects_generator.domain.enums import ItemType
+from wallpaper_effects_generator.domain.exceptions import EffectsValidationError
 from wallpaper_effects_generator.domain.models import (
     ChainStep,
     CompositeDefinition,
@@ -33,6 +34,7 @@ from wallpaper_effects_generator.domain.models import (
     ParameterDefinition,
     PresetDefinition,
 )
+from wallpaper_effects_generator.domain.services import CatalogValidationService
 
 
 def _resolve_param_default(
@@ -43,6 +45,18 @@ def _resolve_param_default(
     type_def = param_types.get(pdef.type)
     if type_def is not None:
         return type_def.default
+    return None
+
+
+def _resolve_param_bound(
+    pdef: ParameterDefSchema, param_types: dict[str, ParameterTypeSchema], attr: str
+) -> float | None:
+    val = getattr(pdef, attr)
+    if val is not None:
+        return val
+    type_def = param_types.get(pdef.type)
+    if type_def is not None:
+        return getattr(type_def, attr)
     return None
 
 
@@ -59,6 +73,8 @@ def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
                         key=k,
                         description=v.description,
                         default=_resolve_param_default(v, param_types),
+                        min=_resolve_param_bound(v, param_types, "min"),
+                        max=_resolve_param_bound(v, param_types, "max"),
                     )
                     for k, v in e.parameters.items()
                 ),
@@ -120,7 +136,11 @@ class YamlEffectLoader:
             explicit_path=str(path) if path else None,
         )
         self._resolved_path = result.resolved_path.path
-        return _schema_to_catalog(result.config)
+        catalog = _schema_to_catalog(result.config)
+        errors = CatalogValidationService().validate(catalog)
+        if errors:
+            raise EffectsValidationError("; ".join(errors))
+        return catalog
 
     def get_default_path(self) -> Path:
         return Path("effects.yaml")

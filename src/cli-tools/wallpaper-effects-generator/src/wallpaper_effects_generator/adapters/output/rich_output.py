@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
@@ -79,28 +81,11 @@ class RichOutputAdapter:
             table.add_row("Sources", ", ".join(sources))
         self._console.print(table)
 
-    def dump_config(
-        self,
-        settings: AppSettings,
-        sources: list[str],
-    ) -> None:
-        table = Table(title="Resolved Configuration")
-        table.add_column("Key", style="cyan")
-        table.add_column("Value", style="green")
-        table.add_row("Version", settings.version)
-        table.add_row("Parallel", str(settings.execution.parallel))
-        table.add_row("Strict", str(settings.execution.strict))
-        table.add_row("Max Workers", str(settings.execution.max_workers))
-        table.add_row("Verbosity", settings.output.verbosity.value)
-        table.add_row("Temp Dir", str(settings.processing.temp_dir))
-        table.add_row("Binary", settings.backend.binary)
-        table.add_row("Runtime Mode", settings.runtime.mode.value)
-        table.add_row("Container Engine", settings.container.engine)
-        table.add_row("Image Tag", settings.container.image_tag)
-        table.add_row("Image Registry", settings.container.image_registry or "(none)")
-        if sources:
-            table.add_row("Sources", ", ".join(sources))
-        self._console.print(table)
+    def dump_config_template(self, content: str) -> None:
+        sys.stdout.write(content)
+
+    def dump_effects_template(self, content: str) -> None:
+        sys.stdout.write(content)
 
     def error(self, exc: Exception) -> None:
         self._console.print(f"[red]Error:[/red] {escape(type(exc).__name__)}: {escape(str(exc))}")

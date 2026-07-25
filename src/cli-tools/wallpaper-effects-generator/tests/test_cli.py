@@ -47,88 +47,36 @@ effects:
     assert data["settings"]["runtime"]["mode"] == "container"
 
 
-def test_dump_config_command(tmp_path: Path):
-    config_file = tmp_path / "settings.toml"
-    config_file.write_text("""
-version = "1.0"
-[execution]
-parallel = false
-max_workers = 8
-[output]
-[backend]
-binary = "convert"
-[runtime]
-mode = "container"
-[container]
-engine = "podman"
-image_tag = "v2"
-image_registry = "myreg.io"
-""")
-
+def test_dump_config_command():
     result = runner.invoke(
         app,
-        ["--config", str(config_file), "dump-config"],
-    )
-
-    assert result.exit_code == 0
-    import json
-    data = json.loads(result.stdout)
-    assert data["version"] == "1.0"
-    assert data["settings"]["execution"]["parallel"] is False
-    assert data["settings"]["execution"]["max_workers"] == 8
-    assert data["settings"]["backend"]["binary"] == "convert"
-    assert data["settings"]["runtime"]["mode"] == "container"
-    assert data["settings"]["container"]["engine"] == "podman"
-    assert data["settings"]["container"]["image_tag"] == "v2"
-    assert data["settings"]["container"]["image_registry"] == "myreg.io"
-
-
-def test_dump_effects_command(tmp_path: Path):
-    effects_file = tmp_path / "effects.yaml"
-    effects_file.write_text("""
-version: "1.0"
-effects:
-  - name: blur
-    description: "Gaussian blur"
-    command: "convert {input} -blur {radius}x{sigma} {output}"
-    parameters:
-      radius: int
-      sigma: float
-  - name: sharpen
-    description: "Sharpen effect"
-    command: "convert {input} -sharpen {amount} {output}"
-    parameters:
-      amount: float
-""")
-
-    result = runner.invoke(
-        app,
-        ["--effects", str(effects_file), "dump-effects"],
+        ["dump-config"],
     )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr_bytes}"
-    import json
-    data = json.loads(result.stdout)
-    assert data["count"] == 2
-    names = [item["name"] for item in data["items"]]
-    assert "blur" in names
-    assert "sharpen" in names
+    assert 'version = "1.0"' in result.stdout
+    assert "[execution]" in result.stdout
+    assert "parallel = true" in result.stdout
+    assert 'mode = "local"' in result.stdout
+    assert 'engine = "docker"' in result.stdout
 
 
-def test_dump_effects_empty(tmp_path: Path):
-    effects_file = tmp_path / "effects.yaml"
-    effects_file.write_text('version: "1.0"\n')
-
+def test_dump_effects_command():
     result = runner.invoke(
         app,
-        ["--effects", str(effects_file), "dump-effects"],
+        ["dump-effects"],
     )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr_bytes}"
-    import json
-    data = json.loads(result.stdout)
-    assert data["count"] == 0
-    assert data["items"] == []
+    assert "blur" in result.stdout
+    assert "brightness" in result.stdout
+    assert "contrast" in result.stdout
+    assert "saturation" in result.stdout
+    assert "sepia" in result.stdout
+    assert "vignette" in result.stdout
+    assert "color_overlay" in result.stdout
+    assert "negate" in result.stdout
+    assert "blackwhite" in result.stdout
 
 
 def test_cli_help():

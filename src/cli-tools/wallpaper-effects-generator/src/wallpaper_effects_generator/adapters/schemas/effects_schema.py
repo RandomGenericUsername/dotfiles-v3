@@ -10,6 +10,8 @@ class ParameterTypeSchema(BaseModel):
     pattern: str = ""
     default: Any = None
     description: str = ""
+    min: float | None = None
+    max: float | None = None
 
 
 class ParameterDefSchema(BaseModel):
@@ -17,6 +19,8 @@ class ParameterDefSchema(BaseModel):
     cli_flag: str = ""
     default: Any = None
     description: str = ""
+    min: float | None = None
+    max: float | None = None
 
 
 class EffectSchema(BaseModel):

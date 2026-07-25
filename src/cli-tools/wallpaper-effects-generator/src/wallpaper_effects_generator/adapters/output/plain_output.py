@@ -7,7 +7,6 @@ import yaml
 
 from wallpaper_effects_generator.domain.enums import CatalogQuery, ItemType
 from wallpaper_effects_generator.domain.models import (
-    AppSettings,
     BatchResult,
     EffectsCatalog,
     ProcessingResult,
@@ -36,34 +35,6 @@ def _effect_to_dict(e: object) -> dict:
         for p in e.parameters
     }
     return d
-
-
-def _format_toml(settings: AppSettings, sources: list[str]) -> str:
-    lines = [f'version = "{settings.version}"', ""]
-    lines.append("[execution]")
-    lines.append(f"parallel = {str(settings.execution.parallel).lower()}")
-    lines.append(f"strict = {str(settings.execution.strict).lower()}")
-    lines.append(f"max_workers = {settings.execution.max_workers}")
-    lines.append("")
-    lines.append("[output]")
-    lines.append(f"verbosity = {settings.output.verbosity.value}")
-    lines.append(f"directory = {str(settings.output.directory)!r}" if settings.output.directory else "# directory = ")
-    lines.append("")
-    lines.append("[processing]")
-    lines.append(f"temp_dir = {str(settings.processing.temp_dir)!r}")
-    lines.append("")
-    lines.append("[backend]")
-    lines.append(f"binary = {settings.backend.binary!r}")
-    lines.append("")
-    lines.append("[runtime]")
-    lines.append(f"mode = {settings.runtime.mode.value!r}")
-    lines.append("")
-    lines.append("[container]")
-    lines.append(f"engine = {settings.container.engine!r}")
-    lines.append(f"image_name = {settings.container.image_name!r}")
-    lines.append(f"image_tag = {settings.container.image_tag!r}")
-    lines.append(f"image_registry = {settings.container.image_registry!r}")
-    return "\n".join(lines) + "\n"
 
 
 class PlainOutputAdapter:
@@ -133,12 +104,11 @@ class PlainOutputAdapter:
             lines.append(f"sources: {', '.join(sources)}")
         sys.stdout.write("\n".join(lines) + "\n")
 
-    def dump_config(
-        self,
-        settings: AppSettings,
-        sources: list[str],
-    ) -> None:
-        sys.stdout.write(_format_toml(settings, sources))
+    def dump_config_template(self, content: str) -> None:
+        sys.stdout.write(content)
+
+    def dump_effects_template(self, content: str) -> None:
+        sys.stdout.write(content)
 
     def error(self, exc: Exception) -> None:
         sys.stderr.write(f"error: {type(exc).__name__}: {exc}\n")

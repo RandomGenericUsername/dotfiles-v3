@@ -104,6 +104,20 @@ class CatalogValidationService:
                     errors.append(f"Duplicate effect name: '{name}'")
                 seen.add(name)
         effect_name_set = set(effect_names)
+        for effect in catalog.effects:
+            for param in effect.parameters:
+                if not isinstance(param.default, (int, float)):
+                    continue
+                if param.min is not None and param.default < param.min:
+                    errors.append(
+                        f"Effect '{effect.name}' parameter '{param.key}' "
+                        f"default {param.default} is below minimum {param.min}"
+                    )
+                if param.max is not None and param.default > param.max:
+                    errors.append(
+                        f"Effect '{effect.name}' parameter '{param.key}' "
+                        f"default {param.default} is above maximum {param.max}"
+                    )
         for composite in catalog.composites:
             for step in composite.steps:
                 if step.effect_name not in effect_names:

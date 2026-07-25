@@ -18,6 +18,8 @@ class ParameterDefinition:
     description: str
     default: Any = None
     required: bool = False
+    min: float | None = None
+    max: float | None = None
 
 
 @dataclass(frozen=True)

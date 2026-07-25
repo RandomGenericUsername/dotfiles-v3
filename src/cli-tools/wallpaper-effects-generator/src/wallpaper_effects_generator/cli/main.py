@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from importlib.resources import files as package_files
 from pathlib import Path
 
@@ -14,6 +15,14 @@ from wallpaper_effects_generator.cli.process import process_app
 from wallpaper_effects_generator.cli.show import show_app
 from wallpaper_effects_generator.cli.uninstall import uninstall_command
 from wallpaper_effects_generator.cli.version_cmd import version_command
+from wallpaper_effects_generator.constants import (
+    CONFIG_FILENAME,
+    CONFIG_TRAVERSAL_DEPTH,
+    CONFIG_XDG_SUBDIR,
+    EFFECTS_FILENAME,
+    EFFECTS_TRAVERSAL_DEPTH,
+    EFFECTS_XDG_SUBDIR,
+)
 from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, RuntimeMode, Verbosity
 from wallpaper_effects_generator.factory import (
     CliDependencies,
@@ -24,9 +33,22 @@ from wallpaper_effects_generator.factory import (
 )
 from wallpaper_effects_generator.ports.output import OutputPort
 
+_xdg_config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+_xdg_settings_path = Path(_xdg_config_home) / CONFIG_XDG_SUBDIR / CONFIG_FILENAME
+_xdg_effects_path = Path(_xdg_config_home) / EFFECTS_XDG_SUBDIR / EFFECTS_FILENAME
+
 app = typer.Typer(
     name="weg",
-    help="Wallpaper Effects Generator — apply effects to wallpapers",
+    help=(
+        "Wallpaper Effects Generator — apply effects to wallpapers.\n\n"
+        "Configuration discovery (highest priority first):\n"
+        f"  1. Explicit --config / --effects flag\n"
+        f"  2. WALLPAPER_CONFIG_FILE_PATH / WALLPAPER_EFFECTS_CONFIG_FILE_PATH env var\n"
+        f"  3. {CONFIG_FILENAME} / {EFFECTS_FILENAME} in CWD or up to {CONFIG_TRAVERSAL_DEPTH} parent levels\n"
+        f"  4. XDG default: {_xdg_settings_path} / {_xdg_effects_path}\n"
+        f"  5. Package-bundled defaults\n\n"
+        f"ENV overrides: WALLPAPER__SECTION__KEY=value (double underscore = nesting)"
+    ),
 )
 
 
@@ -37,13 +59,13 @@ def main(
         None,
         "--config",
         "-c",
-        help="Path to settings.toml (default: XDG_CONFIG_HOME/weg/settings.toml, then directory traversal up to 3 levels, then package defaults)",
+        help="Path to settings.toml file",
     ),
     effects: Path | None = typer.Option(
         None,
         "--effects",
         "-e",
-        help="Path to effects.yaml (default: XDG_CONFIG_HOME/weg/effects.yaml, then directory traversal, then package defaults)",
+        help="Path to effects.yaml file",
     ),
     runtime: str | None = typer.Option(
         None,
@@ -137,7 +159,7 @@ def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat
     return adapter
 
 
-@app.command()
+@app.command(help="Show resolved configuration, catalog, and source paths")
 def info(ctx: typer.Context) -> None:
     output_adapter = _get_output_adapter(ctx)
     deps = ctx.obj["deps"]
@@ -151,49 +173,37 @@ def info(ctx: typer.Context) -> None:
     )
 
 
-@app.command(name="dump-config")
+@app.command(name="dump-config", help="Print the packaged default settings.toml template")
 def dump_config(
     ctx: typer.Context,
     output: Path | None = typer.Option(None, "--output", help="Write default config to path"),
 ) -> None:
-    deps = ctx.obj["deps"]
-    content_fmt = ctx.obj.get("output_format", OutputFormat.PLAIN)
-    content_adapter = create_output_adapter(content_fmt)
     message_adapter = _get_output_adapter(ctx)
     dump_config_command(
-        config_path=ctx.obj["config"],
-        output_adapter=content_adapter,
-        message_adapter=message_adapter,
-        config_resolver=deps.config_resolver,
+        output_adapter=message_adapter,
         output_path=output,
     )
 
 
-@app.command(name="dump-effects")
+@app.command(name="dump-effects", help="Print the packaged default effects.yaml template")
 def dump_effects(
     ctx: typer.Context,
     output: Path | None = typer.Option(None, "--output", help="Write default effects to path"),
 ) -> None:
-    deps = ctx.obj["deps"]
-    content_fmt = ctx.obj.get("output_format", OutputFormat.PLAIN)
-    content_adapter = create_output_adapter(content_fmt)
     message_adapter = _get_output_adapter(ctx)
     dump_effects_command(
-        effects_path=ctx.obj["effects"],
-        output_adapter=content_adapter,
-        message_adapter=message_adapter,
-        effect_loader=deps.effect_loader,
+        output_adapter=message_adapter,
         output_path=output,
     )
 
 
-@app.command()
+@app.command(help="Print wallpaper-effects-generator version")
 def version(ctx: typer.Context) -> None:
     output_adapter = _get_output_adapter(ctx)
     version_command(ctx, create_version_provider(), output_adapter)
 
 
-@app.command()
+@app.command(help="Build and install the container image")
 def install(
     ctx: typer.Context,
     dump_config: bool = typer.Option(False, "--dump-config", help="Write default settings.toml"),
@@ -209,7 +219,7 @@ def install(
     )
 
 
-@app.command()
+@app.command(help="Remove the installed container image")
 def uninstall(ctx: typer.Context) -> None:
     deps = ctx.obj["deps"]
     uninstall_command(

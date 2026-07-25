@@ -106,7 +106,10 @@ class TestPortProtocols:
             def config_info(self, settings: object, catalog: object, sources: list[str]) -> None:
                 pass
 
-            def dump_config(self, settings: object, sources: list[str]) -> None:
+            def dump_config_template(self, content: str) -> None:
+                pass
+
+            def dump_effects_template(self, content: str) -> None:
                 pass
 
             def error(self, exc: Exception) -> None:

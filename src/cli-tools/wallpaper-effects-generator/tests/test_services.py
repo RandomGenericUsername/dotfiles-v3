@@ -271,6 +271,116 @@ class TestCatalogValidationService:
         errors = svc.validate(catalog)
         assert any("Duplicate" in e for e in errors)
 
+    def test_param_default_below_min(self) -> None:
+        svc = CatalogValidationService()
+        catalog = EffectsCatalog(
+            effects=(
+                EffectDefinition(
+                    name="brightness",
+                    description="Brightness",
+                    command="cmd",
+                    parameters=(
+                        ParameterDefinition(
+                            key="amount",
+                            description="Amount",
+                            default=-150,
+                            min=-100,
+                            max=100,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        errors = svc.validate(catalog)
+        assert any("below minimum" in e for e in errors)
+
+    def test_param_default_above_max(self) -> None:
+        svc = CatalogValidationService()
+        catalog = EffectsCatalog(
+            effects=(
+                EffectDefinition(
+                    name="saturation",
+                    description="Sat",
+                    command="cmd",
+                    parameters=(
+                        ParameterDefinition(
+                            key="level",
+                            description="Level",
+                            default=250,
+                            min=0,
+                            max=200,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        errors = svc.validate(catalog)
+        assert any("above maximum" in e for e in errors)
+
+    def test_param_default_in_bounds(self) -> None:
+        svc = CatalogValidationService()
+        catalog = EffectsCatalog(
+            effects=(
+                EffectDefinition(
+                    name="brightness",
+                    description="Brightness",
+                    command="cmd",
+                    parameters=(
+                        ParameterDefinition(
+                            key="amount",
+                            description="Amount",
+                            default=-20,
+                            min=-100,
+                            max=100,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        assert svc.validate(catalog) == []
+
+    def test_param_without_bounds_skipped(self) -> None:
+        svc = CatalogValidationService()
+        catalog = EffectsCatalog(
+            effects=(
+                EffectDefinition(
+                    name="blur",
+                    description="Blur",
+                    command="cmd",
+                    parameters=(
+                        ParameterDefinition(
+                            key="radius",
+                            description="Radius",
+                            default="0x8",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        assert svc.validate(catalog) == []
+
+    def test_string_default_with_bounds_skipped(self) -> None:
+        svc = CatalogValidationService()
+        catalog = EffectsCatalog(
+            effects=(
+                EffectDefinition(
+                    name="blur",
+                    description="Blur",
+                    command="cmd",
+                    parameters=(
+                        ParameterDefinition(
+                            key="geo",
+                            description="Geometry",
+                            default="0x8",
+                            min=0,
+                            max=100,
+                        ),
+                    ),
+                ),
+            ),
+        )
+        assert svc.validate(catalog) == []
+
     def test_valid_composite_and_preset(self) -> None:
         svc = CatalogValidationService()
         catalog = EffectsCatalog(

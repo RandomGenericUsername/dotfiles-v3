@@ -86,17 +86,11 @@ class JsonOutputAdapter:
         }
         sys.stdout.write(json.dumps(data, cls=_CustomEncoder, indent=2) + "\n")
 
-    def dump_config(
-        self,
-        settings: AppSettings,
-        sources: list[str],
-    ) -> None:
-        data = {
-            "version": settings.version,
-            "settings": asdict(settings),
-            "sources": sources,
-        }
-        sys.stdout.write(json.dumps(data, cls=_CustomEncoder, indent=2) + "\n")
+    def dump_config_template(self, content: str) -> None:
+        sys.stdout.write(content)
+
+    def dump_effects_template(self, content: str) -> None:
+        sys.stdout.write(content)
 
     def error(self, exc: Exception) -> None:
         data = {

@@ -102,3 +102,15 @@ class TestJsonOutputAdapter:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert data["message"] == "hello"
+
+    def test_dump_config_template(self, adapter: JsonOutputAdapter, capsys) -> None:
+        content = "version = \"1.0\"\n[execution]\n"
+        adapter.dump_config_template(content)
+        captured = capsys.readouterr()
+        assert captured.out == content
+
+    def test_dump_effects_template(self, adapter: JsonOutputAdapter, capsys) -> None:
+        content = "version: '1.0'\neffects: []\n"
+        adapter.dump_effects_template(content)
+        captured = capsys.readouterr()
+        assert captured.out == content
