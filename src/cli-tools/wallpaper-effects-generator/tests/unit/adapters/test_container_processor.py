@@ -17,12 +17,23 @@ from wallpaper_effects_generator.domain.models import (
 
 
 @pytest.fixture
-def mock_runner() -> Mock:
-    runner = Mock()
-    runner.execute.return_value = CommandResult(
-        stdout="ok", stderr="", return_code=0, duration=0.1
-    )
-    return runner
+def mock_engine() -> Mock:
+    engine = Mock()
+    engine.images.exists.return_value = True
+    caps = Mock()
+    caps.default_run_flags = []
+    engine.capabilities = caps
+
+    def _run_container(run_config: object) -> None:
+        for vol in run_config.volumes:
+            if vol.target == "/output":
+                out_dir = Path(vol.source)
+                out_dir.mkdir(parents=True, exist_ok=True)
+                (out_dir / "img.png").write_text("")
+                break
+
+    engine.containers.run.side_effect = _run_container
+    return engine
 
 
 @pytest.fixture
@@ -73,30 +84,26 @@ def catalog() -> EffectsCatalog:
 
 
 @pytest.fixture
-def processor(mock_runner: Mock, catalog: EffectsCatalog, tmp_path: Path) -> ContainerProcessor:
+def processor(mock_engine: Mock, catalog: EffectsCatalog, tmp_path: Path) -> ContainerProcessor:
     return ContainerProcessor(
-        command_runner=mock_runner,
+        command_runner=Mock(),
         catalog=catalog,
         output_dir=tmp_path,
+        container_engine=mock_engine,
         container_settings=ContainerSettings(engine="docker"),
     )
 
 
 class TestContainerProcessor:
-    @pytest.mark.skip(reason="Needs real container runtime — mock engine not wired")
-    def test_process_effect_success(self, processor: ContainerProcessor, mock_runner: Mock, tmp_path: Path) -> None:
+    def test_process_effect_success(self, processor: ContainerProcessor, tmp_path: Path) -> None:
         request = ProcessingRequest(
-            input_path=Path("/in/img.png"),
+            input_path=tmp_path / "img.png",
             output_path=tmp_path / "img.png",
         )
         result = processor.process_effect("blur", request, {"radius": "0x8"})
         assert result.success
-        assert "weg process effect blur" in result.command
-        mock_runner.execute.assert_called_once()
-        cmd_list = mock_runner.execute.call_args[0][0]
-        assert isinstance(cmd_list, list)
-        assert "docker" in cmd_list[0]
-        assert "/input/img.png" in " ".join(cmd_list)
+        assert "process effect blur" in result.command
+        assert "/input/img.png" in result.command
 
     def test_process_effect_not_found(self, processor: ContainerProcessor) -> None:
         request = ProcessingRequest(
@@ -107,17 +114,13 @@ class TestContainerProcessor:
         with pytest.raises(EffectNotFoundError):
             processor.process_effect("nonexistent", request)
 
-    @pytest.mark.skip(reason="Needs real container runtime — mock engine not wired")
-    def test_process_composite_success(
-        self, processor: ContainerProcessor, mock_runner: Mock, tmp_path: Path
-    ) -> None:
+    def test_process_composite_success(self, processor: ContainerProcessor, tmp_path: Path) -> None:
         request = ProcessingRequest(
-            input_path=Path("/in/img.png"),
+            input_path=tmp_path / "img.png",
             output_path=tmp_path / "img.png",
         )
         result = processor.process_composite("blur-resize", request)
         assert result.success
-        assert mock_runner.execute.call_count >= 1
 
     def test_process_composite_not_found(self, processor: ContainerProcessor) -> None:
         request = ProcessingRequest(
@@ -128,17 +131,13 @@ class TestContainerProcessor:
         with pytest.raises(CompositeNotFoundError):
             processor.process_composite("nonexistent", request)
 
-    @pytest.mark.skip(reason="Needs real container runtime — mock engine not wired")
-    def test_process_preset_success(
-        self, processor: ContainerProcessor, mock_runner: Mock, tmp_path: Path
-    ) -> None:
+    def test_process_preset_success(self, processor: ContainerProcessor, tmp_path: Path) -> None:
         request = ProcessingRequest(
-            input_path=Path("/in/img.png"),
+            input_path=tmp_path / "img.png",
             output_path=tmp_path / "img.png",
         )
         result = processor.process_preset("social", request)
         assert result.success
-        mock_runner.execute.assert_called_once()
 
     def test_process_preset_not_found(self, processor: ContainerProcessor) -> None:
         request = ProcessingRequest(
@@ -153,35 +152,40 @@ class TestContainerProcessor:
         with pytest.raises(NotImplementedError):
             processor.process_batch(None)
 
-    @pytest.mark.skip(reason="Needs real container runtime — mock engine not wired")
-    def test_uses_oci_command_runner(
-        self, catalog: EffectsCatalog, tmp_path: Path
-    ) -> None:
-        mock_runner = Mock()
-        mock_runner.execute.return_value = CommandResult(
-            stdout="ok", stderr="", return_code=0, duration=0.1
-        )
+    def test_uses_oci_command_runner(self, catalog: EffectsCatalog, tmp_path: Path) -> None:
+        mock_engine = Mock()
+        mock_engine.images.exists.return_value = True
+        caps = Mock()
+        caps.default_run_flags = []
+        mock_engine.capabilities = caps
+
+        def _run_container(run_config: object) -> None:
+            for vol in run_config.volumes:
+                if vol.target == "/output":
+                    Path(vol.source).mkdir(parents=True, exist_ok=True)
+                    (Path(vol.source) / "img.png").write_text("")
+                    break
+
+        mock_engine.containers.run.side_effect = _run_container
+
         processor = ContainerProcessor(
-            command_runner=mock_runner,
+            command_runner=Mock(),
             catalog=catalog,
             output_dir=tmp_path,
+            container_engine=mock_engine,
             container_settings=ContainerSettings(engine="podman"),
         )
         request = ProcessingRequest(
-            input_path=Path("/in/img.png"),
+            input_path=tmp_path / "img.png",
             output_path=tmp_path / "img.png",
         )
-        processor.process_effect("blur", request, {"radius": "0x8"})
-        cmd_list = mock_runner.execute.call_args[0][0]
-        assert isinstance(cmd_list, list)
-        assert cmd_list[0] == "podman"
+        result = processor.process_effect("blur", request, {"radius": "0x8"})
+        assert result.success
+        assert "process effect blur" in result.command
 
-    @pytest.mark.skip(reason="Needs real container runtime — mock engine not wired")
-    def test_temp_cleanup_on_success(
-        self, processor: ContainerProcessor, mock_runner: Mock, tmp_path: Path
-    ) -> None:
+    def test_temp_cleanup_on_success(self, processor: ContainerProcessor, tmp_path: Path) -> None:
         request = ProcessingRequest(
-            input_path=Path("/in/img.png"),
+            input_path=tmp_path / "img.png",
             output_path=tmp_path / "img.png",
         )
         with patch(
