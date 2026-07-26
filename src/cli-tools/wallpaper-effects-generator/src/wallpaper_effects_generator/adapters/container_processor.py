@@ -72,6 +72,12 @@ class ContainerProcessor(EffectProcessorPort):
         self._context_validator = context_validator
         self._timeout = timeout
 
+    def _get_engine(self) -> object:
+        if self._engine is None:
+            from wallpaper_effects_generator.factory import create_container_engine as _make_engine
+            self._engine = _make_engine(self._container_settings)
+        return self._engine
+
     def _pre_flight(self, request: ProcessingRequest) -> ProcessingResult | None:
         if self._context_validator is None or self._settings is None:
             return None
@@ -89,7 +95,7 @@ class ContainerProcessor(EffectProcessorPort):
 
     def _ensure_image(self) -> str:
         image = self._resolve_image()
-        if self._engine is not None and not self._engine.images.exists(image):
+        if not self._get_engine().images.exists(image):
             raise ContainerImageNotFoundError(image)
         return image
 
@@ -175,7 +181,7 @@ class ContainerProcessor(EffectProcessorPort):
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             temp_out = Path(tempfile.mkdtemp(dir=output_path.parent, prefix=".weg-container-"))
-            caps = self._engine.capabilities if self._engine is not None else None
+            caps = self._get_engine().capabilities
             run_flags = list(caps.default_run_flags) if caps is not None else []
             run_config = RunConfig(
                 image=image, command=tuple(container_args), detach=False, remove=True,
@@ -188,7 +194,7 @@ class ContainerProcessor(EffectProcessorPort):
                 runtime_flags=tuple(run_flags),
             )
             start = time.monotonic()
-            self._engine.containers.run(run_config)
+            self._get_engine().containers.run(run_config)
             duration = time.monotonic() - start
             container_out = temp_out / request.input_path.name
             if container_out.exists():

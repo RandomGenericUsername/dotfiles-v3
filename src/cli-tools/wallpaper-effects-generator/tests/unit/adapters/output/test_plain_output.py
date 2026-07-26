@@ -76,7 +76,7 @@ class TestPlainOutputAdapter:
         catalog = EffectsCatalog()
         adapter.catalog_list(catalog, CatalogQuery.EFFECT)
         captured = capsys.readouterr()
-        assert captured.out == "\n"
+        assert "version: '1.0'" in captured.out
 
     def test_error(self, adapter: PlainOutputAdapter, capsys) -> None:
         exc = ValueError("bad value")

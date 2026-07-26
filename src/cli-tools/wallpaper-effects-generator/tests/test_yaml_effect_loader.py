@@ -110,7 +110,8 @@ def test_get_resolved_path_none_before_load():
     assert loader.get_resolved_path() is None
 
 
-def test_load_file_not_found(tmp_path: Path):
+def test_load_file_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     loader = YamlEffectLoader()
     nonexistent = tmp_path / "nonexistent.yaml"
 

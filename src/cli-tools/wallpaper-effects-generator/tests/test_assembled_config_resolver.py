@@ -8,6 +8,7 @@ from config_assembler_engine import ConfigAssemblerError
 from wallpaper_effects_generator.adapters.assembled_config_resolver import (
     AssembledConfigResolver,
 )
+from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
 from wallpaper_effects_generator.domain.enums import RuntimeMode, Verbosity
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
 
@@ -84,7 +85,7 @@ def test_resolve_minimal_config(tmp_path: Path):
 
     assert settings.version == "1.0"
     assert settings.execution.parallel is True
-    assert settings.execution.max_workers == 4
+    assert settings.execution.max_workers == MAX_WORKERS_AUTO
     assert settings.output.verbosity == Verbosity.NORMAL
     assert settings.container.engine == "docker"
 
@@ -94,7 +95,8 @@ def test_get_resolved_path_none_before_resolve():
     assert resolver.get_resolved_path() is None
 
 
-def test_resolve_file_not_found(tmp_path: Path):
+def test_resolve_file_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     resolver = AssembledConfigResolver()
     nonexistent = tmp_path / "nonexistent.toml"
 

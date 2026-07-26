@@ -73,12 +73,11 @@ def _dict_to_catalog(data: dict[str, Any]) -> EffectsCatalog:
             ),
             parameters=tuple(
                 ParameterDefinition(
-                    key=p["key"],
-                    description=p.get("description", ""),
-                    default=p.get("default"),
-                    required=p.get("required", False),
+                    key=k,
+                    description=v.get("description", ""),
+                    default=v.get("default"),
                 )
-                for p in e.get("parameters", [])
+                for k, v in e.get("parameters", {}).items()
             ),
         )
         for e in data.get("effects", [])

@@ -11,6 +11,23 @@ from wallpaper_effects_generator.cli.main import app
 runner = CliRunner()
 
 
+def _parse_ndjson(output: str) -> list[dict]:
+    import json
+    objects: list[dict] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(output):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                objects.append(json.loads(output[start : i + 1]))
+    return objects
+
+
 def test_info_command(tmp_path: Path):
     config_file = tmp_path / "settings.toml"
     config_file.write_text("""
@@ -30,8 +47,12 @@ effects:
     description: "Gaussian blur"
     command: "convert {input} -blur {radius}x{sigma} {output}"
     parameters:
-      radius: int
-      sigma: float
+      radius:
+        type: integer
+        description: "Blur radius"
+      sigma:
+        type: float
+        description: "Blur sigma"
 """)
 
     result = runner.invoke(
@@ -124,8 +145,12 @@ effects:
     description: "Gaussian blur"
     command: "convert {input} -blur {radius}x{sigma} {output}"
     parameters:
-      radius: int
-      sigma: float
+      radius:
+        type: integer
+        description: "Blur radius"
+      sigma:
+        type: float
+        description: "Blur sigma"
 """)
 
     result = runner.invoke(
@@ -288,7 +313,8 @@ image_registry = "ghcr.io"
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
     import json
-    data = json.loads(result.stdout)
+    objects = _parse_ndjson(result.stdout)
+    data = objects[-1]
     assert "installed" in data["message"]
 
 

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
 from wallpaper_effects_generator.domain.enums import ItemType, RuntimeMode, Verbosity
 from wallpaper_effects_generator.domain.models import (
     AppSettings,
@@ -136,7 +137,7 @@ class TestBatchRequest:
         )
         assert req.parallel
         assert not req.strict
-        assert req.max_workers == 4
+        assert req.max_workers == MAX_WORKERS_AUTO
 
     def test_frozen(self) -> None:
         req = BatchRequest(input_path=Path("/in"), output_dir=Path("/out"))
@@ -144,14 +145,7 @@ class TestBatchRequest:
             req.parallel = False  # type: ignore[misc]
 
     def test_max_workers_invalid(self) -> None:
-        with pytest.raises(ValueError, match="max_workers must be >= 1"):
-            BatchRequest(
-                input_path=Path("/in"),
-                output_dir=Path("/out"),
-                max_workers=0,
-            )
-
-        with pytest.raises(ValueError, match="max_workers must be >= 1"):
+        with pytest.raises(ValueError, match="max_workers must be >= 0"):
             BatchRequest(
                 input_path=Path("/in"),
                 output_dir=Path("/out"),
