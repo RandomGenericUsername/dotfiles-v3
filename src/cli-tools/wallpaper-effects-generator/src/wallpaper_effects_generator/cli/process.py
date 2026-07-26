@@ -146,9 +146,9 @@ def effect(
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     name = effect_name or name
-    output_dir = output or Path("/tmp/wallpaper-effects")
-    params = _parse_params(param)
     settings, catalog = _resolve_context(ctx, input)
+    output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
+    params = _parse_params(param)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = (output_dir / input.name).resolve()
     request = ProcessingRequest(
@@ -181,9 +181,9 @@ def composite(
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     name = composite_name or name
-    output_dir = output or Path("/tmp/wallpaper-effects")
-    params = _parse_params(param)
     settings, catalog = _resolve_context(ctx, input)
+    output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
+    params = _parse_params(param)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = (output_dir / input.name).resolve()
     request = ProcessingRequest(
@@ -216,9 +216,9 @@ def preset(
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     name = preset_name or name
-    output_dir = output or Path("/tmp/wallpaper-effects")
-    params = _parse_params(param)
     settings, catalog = _resolve_context(ctx, input)
+    output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
+    params = _parse_params(param)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = (output_dir / input.name).resolve()
     request = ProcessingRequest(

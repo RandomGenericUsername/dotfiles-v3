@@ -48,8 +48,8 @@ def _run_batch(
     params: dict[str, str] | None = None,
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
-    output_dir = output or _DEFAULT_OUTPUT_DIR
     settings, catalog = _resolve_context(ctx, input)
+    output_dir = output or settings.output.directory or _DEFAULT_OUTPUT_DIR
     processor = _resolve_processor(settings, catalog, output_dir)
     batch_processor = create_batch_processor(processor, catalog)
 
