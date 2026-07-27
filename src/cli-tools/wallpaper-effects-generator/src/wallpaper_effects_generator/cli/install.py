@@ -4,12 +4,14 @@ import os
 from importlib.resources import files as resource_files
 from pathlib import Path
 
-from oci_runtime import BuildContext, RuntimeKind, RuntimePreference
+from oci_runtime import BuildContext
 
+from wallpaper_effects_generator.domain.enums import ContainerEngine
 from wallpaper_effects_generator.domain.exceptions import (
     BinaryNotFoundError,
     ContainerRuntimeUnavailableError,
 )
+from wallpaper_effects_generator.domain.models import AppSettings, ContainerSettings
 from wallpaper_effects_generator.constants import CONFIG_XDG_SUBDIR
 from wallpaper_effects_generator.factory import create_container_engine
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
@@ -22,8 +24,25 @@ def install_command(
     config_path: str | None = None,
     dump_config: bool = False,
     dump_effects: bool = False,
+    container_engine: ContainerEngine | None = None,
 ) -> None:
     settings = config_resolver.resolve(explicit_path=Path(config_path) if config_path else None)
+    if container_engine is not None:
+        container = ContainerSettings(
+            engine=container_engine.value,
+            image_name=settings.container.image_name,
+            image_tag=settings.container.image_tag,
+            image_registry=settings.container.image_registry,
+        )
+        settings = AppSettings(
+            version=settings.version,
+            execution=settings.execution,
+            output=settings.output,
+            processing=settings.processing,
+            backend=settings.backend,
+            runtime=settings.runtime,
+            container=container,
+        )
     image_name = _build_image_name(settings.container)
     engine = create_container_engine(settings.container)
 

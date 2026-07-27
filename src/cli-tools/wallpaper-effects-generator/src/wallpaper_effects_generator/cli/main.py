@@ -216,6 +216,7 @@ def install(
         config_path=ctx.obj.get("config"),
         dump_config=dump_config,
         dump_effects=dump_effects,
+        container_engine=ctx.obj.get("container_engine"),
     )
 
 
@@ -226,6 +227,7 @@ def uninstall(ctx: typer.Context) -> None:
         config_resolver=deps.config_resolver,
         output_adapter=_get_output_adapter(ctx),
         config_path=ctx.obj.get("config"),
+        container_engine=ctx.obj.get("container_engine"),
     )
 
 
