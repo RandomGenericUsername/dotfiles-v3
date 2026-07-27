@@ -6,9 +6,7 @@ import typer
 
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.settings.settings_serializer import SettingsSerializer
-from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import ConfigResolutionError, OutputWriteError
-from color_scheme_generator.domain.models import GenerationResult
 from color_scheme_generator.factory import CliDependencies
 
 
@@ -49,14 +47,4 @@ def dump_config(
 
     adapter = deps.output_adapter
     if adapter is not None:
-        adapter.process_result(
-            GenerationResult(
-                success=True,
-                color_scheme=None,
-                output_files=(output_path.resolve(),),
-                backend=Backend.CUSTOM,
-                stderr="",
-                return_code=0,
-                duration=0.0,
-            )
-        )
+        adapter.message(f"Default config written to {output_path.resolve()}")

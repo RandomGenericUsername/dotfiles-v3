@@ -73,19 +73,4 @@ def dump_templates(
 
     adapter = deps.output_adapter
     if adapter is not None:
-        from color_scheme_generator.domain.enums import Backend
-        from color_scheme_generator.domain.models import GenerationResult
-
-        adapter.process_result(
-            GenerationResult(
-                success=True,
-                color_scheme=None,
-                output_files=(),
-                backend=Backend.CUSTOM,
-                stderr="",
-                return_code=0,
-                duration=0.0,
-            )
-        )
-
-    print(f"Copied {copied} template(s), skipped {skipped}")
+        adapter.message(f"Copied {copied} template(s) to {target_dir.resolve()}")

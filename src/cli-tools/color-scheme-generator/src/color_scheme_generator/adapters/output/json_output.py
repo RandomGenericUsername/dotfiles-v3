@@ -46,6 +46,10 @@ class JsonOutput:
         json.dump(payload, sys.stdout, default=str)
         print()
 
+    def message(self, msg: str) -> None:
+        json.dump({"message": msg}, sys.stdout, default=str)
+        print()
+
     def config_info(
         self,
         settings: object,

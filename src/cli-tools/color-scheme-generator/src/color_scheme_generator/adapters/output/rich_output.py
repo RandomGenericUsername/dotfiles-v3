@@ -74,6 +74,9 @@ class RichOutput:
                 self._console.print(f"  {key}: {value}")
         self._console.print()
 
+    def message(self, msg: str) -> None:
+        self._console.print(msg)
+
     def config_info(
         self,
         settings: object,

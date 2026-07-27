@@ -41,6 +41,9 @@ class PlainOutput:
             print(f"{key}: {value}")
         print()
 
+    def message(self, msg: str) -> None:
+        print(msg)
+
     def config_info(
         self,
         settings: object,

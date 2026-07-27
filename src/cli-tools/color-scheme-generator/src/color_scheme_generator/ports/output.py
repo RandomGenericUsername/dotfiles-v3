@@ -16,3 +16,6 @@ class OutputPort(Protocol):
 
     def palette_display(self, scheme: ColorScheme) -> None:
         ...
+
+    def message(self, msg: str) -> None:
+        ...
