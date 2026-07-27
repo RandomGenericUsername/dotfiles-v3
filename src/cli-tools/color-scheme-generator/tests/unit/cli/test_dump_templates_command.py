@@ -35,8 +35,7 @@ class TestDumpTemplatesCommand:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        output_dir = tmp_path / "templates"
-        output_dir.mkdir(parents=True)
+        output_dir = tmp_path
 
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         from color_scheme_generator.cli.main import app
@@ -57,8 +56,8 @@ class TestDumpTemplatesCommand:
             )
 
         assert result.exit_code == 0
-        assert (output_dir / "colors.json.j2").exists()
-        assert (output_dir / "colors.sh.j2").exists()
+        assert (output_dir / "templates" / "colors.json.j2").exists()
+        assert (output_dir / "templates" / "colors.sh.j2").exists()
 
     def test_dump_templates_creates_parent_directories(
         self,
@@ -67,7 +66,7 @@ class TestDumpTemplatesCommand:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        output_dir = tmp_path / "deep" / "nested" / "templates"
+        output_dir = tmp_path / "deep" / "nested"
 
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         from color_scheme_generator.cli.main import app
@@ -87,7 +86,7 @@ class TestDumpTemplatesCommand:
             )
 
         assert result.exit_code == 0
-        assert (output_dir / "colors.json.j2").exists()
+        assert (output_dir / "templates" / "colors.json.j2").exists()
 
     def test_dump_templates_overwrite_replaces_existing(
         self,
@@ -96,9 +95,9 @@ class TestDumpTemplatesCommand:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        output_dir = tmp_path / "templates"
-        output_dir.mkdir(parents=True)
-        existing = output_dir / "colors.json.j2"
+        output_dir = tmp_path
+        existing = output_dir / "templates" / "colors.json.j2"
+        existing.parent.mkdir(parents=True)
         existing.write_text("old content")
 
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
@@ -133,9 +132,9 @@ class TestDumpTemplatesCommand:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        output_dir = tmp_path / "templates"
-        output_dir.mkdir(parents=True)
-        existing = output_dir / "colors.json.j2"
+        output_dir = tmp_path
+        existing = output_dir / "templates" / "colors.json.j2"
+        existing.parent.mkdir(parents=True)
         existing.write_text("old content")
 
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
@@ -189,7 +188,7 @@ class TestDumpTemplatesCommand:
             )
 
         assert result.exit_code == 0
-        assert (custom_dir / "colors.json.j2").exists()
+        assert (custom_dir / "templates" / "colors.json.j2").exists()
 
     def test_dump_templates_help_shows_expected_usage(
         self,

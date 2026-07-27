@@ -26,15 +26,17 @@ def dump_templates(
 
     if output is not None:
         target_dir = output.resolve()
+        if not target_dir.suffix:
+            target_dir = target_dir / "templates"
     elif template_dir_resolver is not None:
         try:
             target_dir = template_dir_resolver.resolve()
         except ConfigResolutionError:
             from pathlib import Path
-            target_dir = Path.home() / ".config" / "color-scheme-generator" / "templates"
+            target_dir = Path.home() / ".config" / "color-scheme" / "templates"
     else:
         from pathlib import Path
-        target_dir = Path.home() / ".config" / "color-scheme-generator" / "templates"
+        target_dir = Path.home() / ".config" / "color-scheme" / "templates"
 
     try:
         bundled = resource_files("color_scheme_generator.defaults").joinpath(
@@ -43,6 +45,8 @@ def dump_templates(
     except (ModuleNotFoundError, TypeError) as e:
         msg = f"Failed to find bundled templates: {e}"
         raise ConfigResolutionError(key="templates", reason=msg) from e
+
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     copied = 0
     skipped = 0

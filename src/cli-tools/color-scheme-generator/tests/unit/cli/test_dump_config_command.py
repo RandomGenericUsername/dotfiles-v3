@@ -117,7 +117,7 @@ class TestDumpConfigCommand:
         content = output_file.read_text()
         assert "[output]" in content
 
-    def test_dump_config_with_overwrite(
+    def test_dump_config_overwrites_existing_file(
         self,
         runner: CliRunner,
         mock_deps: CliDependencies,
@@ -132,12 +132,7 @@ class TestDumpConfigCommand:
 
         result = runner.invoke(
             app,
-            [
-                "dump-config",
-                "--output",
-                str(output_file),
-                "--overwrite",
-            ],
+            ["dump-config", "--output", str(output_file)],
         )
         assert result.exit_code == 0
         content = output_file.read_text()

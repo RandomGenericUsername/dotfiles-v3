@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,13 @@ def _value_to_toml(v: Any) -> str:
         if not v:
             return "[]"
         return "[" + ", ".join(_value_to_toml(x) for x in v) + "]"
+    if isinstance(v, Mapping):
+        if not v:
+            return "{}"
+        items = ", ".join(
+            f"{k} = {_value_to_toml(val)}" for k, val in v.items()
+        )
+        return "{" + items + "}"
     if v is None:
         return ""
     return f'"{v!s}"'

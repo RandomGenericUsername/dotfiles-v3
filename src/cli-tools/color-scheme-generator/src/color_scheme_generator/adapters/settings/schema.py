@@ -69,7 +69,7 @@ class RuntimeSettingsSchema(BaseModel):
 
 
 class ContainerSettingsSchema(BaseModel):
-    engine: str
+    engine: str = "docker"
 
     @field_validator("engine")
     @classmethod
