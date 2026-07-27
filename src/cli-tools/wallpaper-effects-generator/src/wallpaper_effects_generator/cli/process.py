@@ -159,7 +159,7 @@ def effect(
     processor = _resolve_processor(settings, catalog, output_dir, dry_run)
     if dry_run:
         output_adapter.message("Dry run mode")
-    result = processor.process_effect(name, request)
+    result = processor.process_effect(name, request, params=request.params)
     output_adapter.process_result(result)
 
 
@@ -194,7 +194,7 @@ def composite(
     processor = _resolve_processor(settings, catalog, output_dir, dry_run)
     if dry_run:
         output_adapter.message("Dry run mode")
-    result = processor.process_composite(name, request)
+    result = processor.process_composite(name, request, params=request.params)
     output_adapter.process_result(result)
 
 
@@ -229,5 +229,5 @@ def preset(
     processor = _resolve_processor(settings, catalog, output_dir, dry_run)
     if dry_run:
         output_adapter.message("Dry run mode")
-    result = processor.process_preset(name, request)
+    result = processor.process_preset(name, request, params=request.params)
     output_adapter.process_result(result)
