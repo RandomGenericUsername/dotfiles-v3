@@ -51,8 +51,9 @@ def info(ctx: typer.Context) -> None:
 
     if template_dir_resolver is not None:
         try:
+            settings_dir = settings.template.templates_dir if settings else None
             sources.append(
-                f"templates: {template_dir_resolver.resolve()}"
+                f"templates: {template_dir_resolver.resolve(settings_dir=settings_dir)}"
             )
         except ConfigResolutionError:
             pass
