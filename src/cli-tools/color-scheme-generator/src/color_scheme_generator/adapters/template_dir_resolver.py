@@ -5,6 +5,7 @@ from pathlib import Path
 from config_assembler_engine.adapters.path_resolver import CompositePathResolver
 from config_assembler_engine.adapters.strategies.cli_path import CliDirStrategy
 from config_assembler_engine.adapters.strategies.default_file import DefaultDirStrategy
+from config_assembler_engine.adapters.strategies.directory import DirTraversalStrategy
 from config_assembler_engine.adapters.strategies.env_path import EnvDirStrategy
 from config_assembler_engine.adapters.strategies.xdg import XdgDirStrategy
 from config_assembler_engine.domain.models import ResolutionPolicy
@@ -22,6 +23,7 @@ class TemplateDirResolver:
         strategies: list = [
             CliDirStrategy(),
             EnvDirStrategy(var="TEMPLATES_DIR"),
+            DirTraversalStrategy(dirname="templates", max_levels=3),
             XdgDirStrategy(xdg_subdir="color-scheme", dirname="templates"),
             DefaultDirStrategy(path=_DEFAULT_TEMPLATES_DIR),
         ]
