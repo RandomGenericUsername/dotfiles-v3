@@ -253,6 +253,66 @@ class AssembleConfiguration:
         )
 ```
 
+
+### `AssembleDir`
+
+```python
+from pathlib import Path
+
+from config_assembler_engine.domain.models import (
+    DirAssemblyResult,
+    ResolutionPolicy,
+)
+from config_assembler_engine.errors import (
+    NotADirectoryError_,
+    PathResolutionError,
+)
+from config_assembler_engine.ports.path_resolver import PathResolverPort
+
+
+class AssembleDir:
+    """Resolves a directory path and lists files matching a glob pattern."""
+
+    def __init__(
+        self,
+        path_resolver: PathResolverPort,
+        file_pattern: str = "*",
+    ) -> None:
+        self._path_resolver = path_resolver
+        self._file_pattern = file_pattern
+
+    def execute(
+        self,
+        policy: ResolutionPolicy,
+        *,
+        explicit_path: str | None = None,
+    ) -> DirAssemblyResult:
+        resolved = self._path_resolver.resolve(policy, explicit_path)
+        if not resolved.path.is_dir():
+            raise NotADirectoryError_(f"Resolved path is not a directory: {resolved.path}")
+        files = sorted(resolved.path.glob(self._file_pattern))
+        return DirAssemblyResult(
+            directory=resolved.path,
+            source=resolved.source,
+            files=files,
+        )
+```
+
+### `DirAssemblyResult`
+
+```python
+from pathlib import Path
+
+from config_assembler_engine.domain.models import PathSource
+
+
+class DirAssemblyResult:
+    def __init__(self, directory: Path, source: PathSource, files: list[Path]) -> None:
+        self.directory = directory
+        self.source = source
+        self.files = files
+```
+
 ---
 
 ## 3. Adapters
@@ -265,15 +325,16 @@ Each strategy is a self-contained handler. Strategies carry their own configurat
 
 ```python
 # adapters/strategies/cli_path.py
-import os
 from pathlib import Path
 
-from config_assembler_engine.domain.models import ResolutionPolicy, ResolvedPath, PathSource
-from config_assembler_engine.ports.path_resolver import ResolutionStrategy
+from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResourceKind, ResolvedPath
 
 
 class CliPathStrategy:
-    """Returns the explicit CLI path if provided and exists."""
+    """Returns the explicit CLI path if provided and matches the declared resource kind."""
+
+    def __init__(self, *, kind: ResourceKind) -> None:
+        self._kind = kind
 
     def resolve(
         self,
@@ -283,9 +344,17 @@ class CliPathStrategy:
         if not explicit_path:
             return None
         path = Path(explicit_path).expanduser().resolve()
-        if path.exists():
-            return ResolvedPath(path=path, source=PathSource.CLI_PATH)
+        check = path.is_file if self._kind == ResourceKind.FILE else path.is_dir
+        if check():
+            return ResolvedPath(path=path, source=PathSource.CLI_PATH, kind=self._kind)
         return None
+
+
+class CliDirStrategy(CliPathStrategy):
+    """Presets kind=DIRECTORY for directory resolution."""
+
+    def __init__(self) -> None:
+        super().__init__(kind=ResourceKind.DIRECTORY)
 ```
 
 ```python
@@ -293,19 +362,19 @@ class CliPathStrategy:
 import os
 from pathlib import Path
 
-from config_assembler_engine.domain.models import ResolutionPolicy, ResolvedPath, PathSource
-from config_assembler_engine.ports.path_resolver import ResolutionStrategy
+from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResourceKind, ResolvedPath
 
 
 class EnvPathStrategy:
-    """Reads a specific env var to find the config file path.
+    """Reads a specific env var to find the config file or directory path.
 
     Uses single underscore separator (PREFIX_VAR) — outside the PREFIX__* namespace
     used by config overrides. See ADR-006.
     """
 
-    def __init__(self, var: str = "CONFIG_FILE_PATH") -> None:
+    def __init__(self, var: str = "CONFIG_FILE_PATH", *, kind: ResourceKind) -> None:
         self._var = var
+        self._kind = kind
 
     def resolve(
         self,
@@ -317,25 +386,33 @@ class EnvPathStrategy:
         if not file_path:
             return None
         path = Path(file_path).expanduser().resolve()
-        if path.exists():
-            return ResolvedPath(path=path, source=PathSource.ENV_PATH)
+        check = path.is_file if self._kind == ResourceKind.FILE else path.is_dir
+        if check():
+            return ResolvedPath(path=path, source=PathSource.ENV_PATH, kind=self._kind)
         return None
+
+
+class EnvDirStrategy(EnvPathStrategy):
+    """Presets kind=DIRECTORY with default var=CONFIG_DIR_PATH."""
+
+    def __init__(self, var: str = "CONFIG_DIR_PATH") -> None:
+        super().__init__(var=var, kind=ResourceKind.DIRECTORY)
 ```
 
 ```python
 # adapters/strategies/directory.py
 from pathlib import Path
 
-from config_assembler_engine.domain.models import ResolutionPolicy, ResolvedPath, PathSource
-from config_assembler_engine.ports.path_resolver import ResolutionStrategy
+from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResourceKind, ResolvedPath
 
 
 class DirectoryTraversalStrategy:
-    """Walks up from cwd looking for the config file. Closest match wins."""
+    """Walks up from cwd looking for the config file or directory. Closest match wins."""
 
-    def __init__(self, filename: str, max_levels: int = 3) -> None:
+    def __init__(self, filename: str, max_levels: int = 3, *, kind: ResourceKind) -> None:
         self._filename = filename
         self._max_levels = max_levels
+        self._kind = kind
 
     def resolve(
         self,
@@ -344,11 +421,21 @@ class DirectoryTraversalStrategy:
     ) -> ResolvedPath | None:
         cwd = Path.cwd()
         for level in range(self._max_levels + 1):
+            if level > 0 and level > len(cwd.parents):
+                break
             check_dir = cwd.parents[level - 1] if level > 0 else cwd
             candidate = check_dir / self._filename
-            if candidate.exists():
-                return ResolvedPath(path=candidate.resolve(), source=PathSource.DIRECTORY)
+            check = candidate.is_file if self._kind == ResourceKind.FILE else candidate.is_dir
+            if check():
+                return ResolvedPath(path=candidate.resolve(), source=PathSource.DIRECTORY, kind=self._kind)
         return None
+
+
+class DirTraversalStrategy(DirectoryTraversalStrategy):
+    """Presets kind=DIRECTORY for directory traversal."""
+
+    def __init__(self, dirname: str, max_levels: int = 3) -> None:
+        super().__init__(filename=dirname, max_levels=max_levels, kind=ResourceKind.DIRECTORY)
 ```
 
 ```python
@@ -356,16 +443,16 @@ class DirectoryTraversalStrategy:
 import os
 from pathlib import Path
 
-from config_assembler_engine.domain.models import ResolutionPolicy, ResolvedPath, PathSource
-from config_assembler_engine.ports.path_resolver import ResolutionStrategy
+from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResourceKind, ResolvedPath
 
 
 class XdgStrategy:
-    """Checks ~/.config/<subdir>/<filename> (or $XDG_CONFIG_HOME)."""
+    """Checks ~/.config/<subdir>/<filename|dirname> (or $XDG_CONFIG_HOME)."""
 
-    def __init__(self, xdg_subdir: str, filename: str) -> None:
+    def __init__(self, xdg_subdir: str, filename: str, *, kind: ResourceKind) -> None:
         self._xdg_subdir = xdg_subdir
         self._filename = filename
+        self._kind = kind
 
     def resolve(
         self,
@@ -376,33 +463,49 @@ class XdgStrategy:
             return None
         xdg_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
         candidate = xdg_home / self._xdg_subdir / self._filename
-        if candidate.exists():
-            return ResolvedPath(path=candidate.resolve(), source=PathSource.XDG)
+        check = candidate.is_file if self._kind == ResourceKind.FILE else candidate.is_dir
+        if check():
+            return ResolvedPath(path=candidate.resolve(), source=PathSource.XDG, kind=self._kind)
         return None
+
+
+class XdgDirStrategy(XdgStrategy):
+    """Presets kind=DIRECTORY for XDG directory resolution."""
+
+    def __init__(self, xdg_subdir: str, dirname: str) -> None:
+        super().__init__(xdg_subdir=xdg_subdir, filename=dirname, kind=ResourceKind.DIRECTORY)
 ```
 
 ```python
 # adapters/strategies/default_file.py
 from pathlib import Path
 
-from config_assembler_engine.domain.models import ResolutionPolicy, ResolvedPath, PathSource
-from config_assembler_engine.ports.path_resolver import ResolutionStrategy
+from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResourceKind, ResolvedPath
 
 
 class DefaultFileStrategy:
     """Falls back to a hardcoded default path."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, kind: ResourceKind) -> None:
         self._path = path
+        self._kind = kind
 
     def resolve(
         self,
         policy: ResolutionPolicy,
         explicit_path: str | None = None,
     ) -> ResolvedPath | None:
-        if self._path.exists():
-            return ResolvedPath(path=self._path.resolve(), source=PathSource.DEFAULT)
+        check = self._path.is_file if self._kind == ResourceKind.FILE else self._path.is_dir
+        if check():
+            return ResolvedPath(path=self._path.resolve(), source=PathSource.DEFAULT, kind=self._kind)
         return None
+
+
+class DefaultDirStrategy(DefaultFileStrategy):
+    """Presets kind=DIRECTORY for default directory fallback."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(path, kind=ResourceKind.DIRECTORY)
 ```
 
 ### 3.2 `CompositePathResolver`
@@ -683,7 +786,8 @@ class JsonConfigParser(ConfigParserPort):
 ````python
 from pathlib import Path
 
-from config_assembler_engine.application.use_cases import AssembleConfiguration
+from config_assembler_engine.application.use_cases import AssembleConfiguration, AssembleDir
+from config_assembler_engine.domain.models import ResourceKind
 from config_assembler_engine.ports.config_parser import ConfigParserPort
 from config_assembler_engine.ports.config_validator import ConfigValidatorPort
 from config_assembler_engine.ports.path_resolver import ResolutionStrategy
@@ -701,11 +805,11 @@ from .type_coercer import PydanticTypeCoercer
 
 
 _DEFAULT_STRATEGIES = [
-    CliPathStrategy(),
-    EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename="config.yaml", max_levels=3),
-    XdgStrategy(xdg_subdir="", filename="config.yaml"),
-    DefaultFileStrategy(path=Path("config.yaml")),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename="config.yaml", max_levels=3, kind=ResourceKind.FILE),
+    XdgStrategy(xdg_subdir="", filename="config.yaml", kind=ResourceKind.FILE),
+    DefaultFileStrategy(path=Path("config.yaml"), kind=ResourceKind.FILE),
 ]
 
 
@@ -736,6 +840,27 @@ def create_standard_assembler(
         validator=validator or PydanticValidator(),
         coercer=coercer or PydanticTypeCoercer(),
     )
+
+
+def create_directory_assembler(
+    *,
+    strategies: list[ResolutionStrategy] | None = None,
+    file_pattern: str = "*",
+) -> AssembleDir:
+    """Wires a directory resolver with CompositePathResolver only (no parser/validator/coercer).
+
+    Args:
+        strategies: Ordered list of directory resolution strategies. Defaults to
+            the file default strategies (use directory subclasses like DefaultDirStrategy
+            for directory-specific chains).
+        file_pattern: Glob pattern for listing directory contents (default: "*").
+    """
+    return AssembleDir(
+        path_resolver=CompositePathResolver(
+            strategies if strategies is not None else _DEFAULT_STRATEGIES
+        ),
+        file_pattern=file_pattern,
+    )
 ````
 
 ---
@@ -758,6 +883,7 @@ from config_assembler_engine.adapters.strategies import (
     XdgStrategy,
     DefaultFileStrategy,
 )
+from config_assembler_engine.domain.models import ResourceKind
 
 
 class AbcConfig(BaseModel):
@@ -766,13 +892,13 @@ class AbcConfig(BaseModel):
     map: dict[str, str] = Field(default_factory=dict)
 
 
-# Build custom resolution chain
+# Build custom resolution chain — every strategy requires explicit kind
 strategies = [
-    CliPathStrategy(),
-    EnvPathStrategy(var="CONFIG_FILE_PATH"),
-    DirectoryTraversalStrategy(filename="config.yaml", max_levels=2),
-    XdgStrategy(xdg_subdir="abc-project", filename="config.yaml"),
-    DefaultFileStrategy(path=Path(__file__).parent / "config-defaults.yaml"),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(var="CONFIG_FILE_PATH", kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename="config.yaml", max_levels=2, kind=ResourceKind.FILE),
+    XdgStrategy(xdg_subdir="abc-project", filename="config.yaml", kind=ResourceKind.FILE),
+    DefaultFileStrategy(path=Path(__file__).parent / "config-defaults.yaml", kind=ResourceKind.FILE),
 ]
 
 assembler = create_standard_assembler(parser=YamlConfigParser(), strategies=strategies)
@@ -806,21 +932,22 @@ from config_assembler_engine.adapters.strategies import (
     XdgStrategy,
     DefaultFileStrategy,
 )
+from config_assembler_engine.domain.models import ResourceKind
 
 WALLPAPER_STRATEGIES = [
-    CliPathStrategy(),
-    EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename="settings.toml", max_levels=2),
-    XdgStrategy(xdg_subdir="wallpaper-effects-generator", filename="settings.toml"),
-    DefaultFileStrategy(path=Path(__file__).parent / "settings.toml"),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename="settings.toml", max_levels=2, kind=ResourceKind.FILE),
+    XdgStrategy(xdg_subdir="wallpaper-effects-generator", filename="settings.toml", kind=ResourceKind.FILE),
+    DefaultFileStrategy(path=Path(__file__).parent / "settings.toml", kind=ResourceKind.FILE),
 ]
 
 EFFECTS_STRATEGIES = [
-    CliPathStrategy(),
-    EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename="effects.yaml", max_levels=2),
-    XdgStrategy(xdg_subdir="wallpaper-effects-generator", filename="effects.yaml"),
-    DefaultFileStrategy(path=Path(__file__).parent / "effects.yaml"),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename="effects.yaml", max_levels=2, kind=ResourceKind.FILE),
+    XdgStrategy(xdg_subdir="wallpaper-effects-generator", filename="effects.yaml", kind=ResourceKind.FILE),
+    DefaultFileStrategy(path=Path(__file__).parent / "effects.yaml", kind=ResourceKind.FILE),
 ]
 
 # Settings assembler
@@ -835,10 +962,10 @@ settings_result = settings_assembler.execute(
 
 # Effects assembler (skips XDG)
 custom_strategies = [
-    CliPathStrategy(),
-    EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename="effects.yaml", max_levels=2),
-    DefaultFileStrategy(path=Path(__file__).parent / "effects.yaml"),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename="effects.yaml", max_levels=2, kind=ResourceKind.FILE),
+    DefaultFileStrategy(path=Path(__file__).parent / "effects.yaml", kind=ResourceKind.FILE),
 ]
 
 effects_assembler = create_standard_assembler(

@@ -19,6 +19,7 @@ from config_assembler_engine.adapters.strategies.directory import DirectoryTrave
 from config_assembler_engine.adapters.strategies.env_path import EnvPathStrategy
 from config_assembler_engine.adapters.strategies.xdg import XdgStrategy
 from config_assembler_engine.adapters.type_coercer import PydanticTypeCoercer
+from config_assembler_engine.domain.models import ResourceKind
 
 
 class AppConfig(BaseModel):
@@ -35,7 +36,7 @@ class TestFullPipeline:
         monkeypatch.chdir(tmp_path)
 
         strategies = [
-            DirectoryTraversalStrategy(filename="config.yaml", max_levels=0),
+            DirectoryTraversalStrategy(filename="config.yaml", max_levels=0, kind=ResourceKind.FILE),
         ]
 
         assembler = create_standard_assembler(

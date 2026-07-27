@@ -110,7 +110,7 @@ ColorSchemeError (base)
 |---------|------------|-------------|
 | `AssembledConfigResolver` | `ConfigResolverPort` | `config-assembler-engine` + `TomlConfigParser` + strategy chain to resolve `settings.toml`. OverrideRules for all scalar fields. Converts Pydantic `CoreSettingsSchema` → domain `AppSettings` via `_schema_to_domain`. Returns resolved path + applied overrides |
 | `YamlBackendCatalogLoader` | `BackendCatalogLoaderPort` | Wraps `AssembleConfiguration` for `backends.yaml`: `YamlConfigParser` + `BackendsCatalogSchema` (Pydantic). Same 5-strategy resolution chain as settings (CLI path > ENV > traversal > XDG > default). No OverrideRules — catalog content is file-source only. Converts validated schema → `dict[Backend, BackendDefinition]` at composition time |
-| `TemplateDirResolver` | `TemplateDirResolverPort` | `config-assembler-engine`'s **`CompositePathResolver` only** (no Parser / Validator / Coercer — `.j2` files are content, not config). Custom thin strategy classes `DirectoryXdgStrategy` and `DefaultDirectoryStrategy` added in CSG adapters (config-assembler-engine itself untouched). Order: env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → XDG `~/.config/color-scheme/templates` → package `defaults/templates`. Returns a directory `Path` (ADR-004) |
+| `TemplateDirResolver` | `TemplateDirResolverPort` | `config-assembler-engine`'s **`CompositePathResolver` only** (no Parser / Validator / Coercer — `.j2` files are content, not config). Uses engine's built-in `CliDirStrategy`, `EnvDirStrategy`, `XdgDirStrategy`, `DefaultDirStrategy` — no custom strategy classes. Order: explicit path → env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → XDG `~/.config/color-scheme/templates` → package `defaults/templates`. Returns a directory `Path` (ADR-004) |
 | `JinjaTemplateRenderer` | `TemplateRendererPort` | Jinja2 `Environment(undefined=StrictUndefined, trim_blocks=True, lstrip_blocks=True)`. Loads `.j2` files from the `TemplateDirResolverPort`-resolved directory. Renders each requested format, writes to `output_dir/<filename>`. Special binary post-processing for the `sequences` format (`]` → `\x1b]`, `\` → `\x1b\\`) |
 | `LocalProcessor` | `ColorSchemeProcessorPort` | Looks up the active `Backend` from `GeneratorConfig.backend` in the injected `BackendRegistry` (`dict[Backend, PaletteGeneratorPort]`). Calls `PaletteGeneratorPort.generate(image, config)` → `ColorScheme`. For `generate`: iterates `GeneratorConfig.formats`, calls `JinjaTemplateRenderer.render` for each, returns `GenerationResult`. For `show`: returns the `ColorScheme` without writing files. If the backend's `is_available()` returns False, raises `BackendNotAvailableError` |
 | `ContainerProcessor` | `ColorSchemeProcessorPort` | Serialize resolved `AppSettings` as-resolved (no rewrite — the inner CLI's `--runtime local` flag overrides via OverrideRule, preventing recursion). Map `Backend` → image `color-scheme-<backend>:<tag>` (with optional registry prefix). Pre-flight `engine.images.exists()`. Build 4 BIND mounts (`/input`, `/output`, `/csg-config/settings.toml`, `/templates`). `RunConfig.command=("generate", "/input/<basename>", "-o", "/output", "--backend", "<backend>", "--config", "/csg-config/settings.toml", "--templates", "/templates", "--runtime", "local", "--no-summary")` and **forwards `--param key=value` for each resolved parameter override** (WEG `container_processor.py:157-159` pattern). Run via `engine.containers.run()`. Cleanup temp TOML in `finally` (ADR-003) |
@@ -157,12 +157,12 @@ Mirrors WEG §7 exactly. Resolution order: **CLI explicit path > ENV path > XDG 
 ```
 Prefix: COLORSCHEME
 Default file: package-bundled defaults/settings.toml
-Strategies:
-  CliPathStrategy
-  EnvPathStrategy(var="CONFIG_FILE_PATH")      # COLORSCHEME_CONFIG_FILE_PATH
-  XdgStrategy(xdg_subdir="color-scheme", filename="settings.toml")
-  DirectoryTraversalStrategy(filename="settings.toml", max_levels=3)
-  DefaultFileStrategy(path=<package defaults/settings.toml>)
+Strategies (all with `kind=ResourceKind.FILE`):
+  CliPathStrategy(kind=ResourceKind.FILE)
+  EnvPathStrategy(var="CONFIG_FILE_PATH", kind=ResourceKind.FILE)      # COLORSCHEME_CONFIG_FILE_PATH
+  XdgStrategy(xdg_subdir="color-scheme", filename="settings.toml", kind=ResourceKind.FILE)
+  DirectoryTraversalStrategy(filename="settings.toml", max_levels=3, kind=ResourceKind.FILE)
+  DefaultFileStrategy(path=<package defaults/settings.toml>, kind=ResourceKind.FILE)
 Parser: TomlConfigParser
 Schema: CoreSettingsSchema (Pydantic)
   @field_validator enforces runtime.mode ∈ {local, container}
@@ -193,10 +193,11 @@ COLORSCHEME_CONFIG_FILE_PATH=/custom/path.toml
 ```
 Prefix: COLORSCHEME_TEMPLATES
 Default dir: package-bundled defaults/templates/
-Strategies (custom directory-targeting, added in CSG adapters — config-assembler-engine itself untouched):
-  EnvPathStrategy(var="TEMPLATES_DIR")            # COLORSCHEME_TEMPLATES_TEMPLATES_DIR
-  DirectoryXdgStrategy(xdg_subdir="color-scheme", dirname="templates")
-  DefaultDirectoryStrategy(path=<package defaults/templates>)
+Strategies (engine's built-in directory subclasses):
+  CliDirStrategy()                                    # --templates explicit path
+  EnvDirStrategy(var="TEMPLATES_DIR")                 # COLORSCHEME_TEMPLATES_TEMPLATES_DIR
+  XdgDirStrategy(xdg_subdir="color-scheme", dirname="templates")
+  DefaultDirStrategy(path=<package defaults/templates>)
 Resolver: CompositePathResolver   (NO AssembleConfiguration, NO parser, NO schema)
 Returns: directory Path
 ```
@@ -261,12 +262,12 @@ The `ParameterResolutionService` pattern, the `--param key=value` CLI, the `Pyda
 ```
 Prefix: COLORSCHEME_BACKENDS
 Default file: package-bundled defaults/backends.yaml
-Strategies (same 5-chain as settings):
-  CliPathStrategy                          # COLORSCHEME_BACKENDS_CONFIG_FILE_PATH
-  EnvPathStrategy(var="BACKENDS_CONFIG_FILE_PATH")
-  DirectoryTraversalStrategy(filename="backends.yaml", max_levels=3)
-  XdgStrategy(xdg_subdir="color-scheme", filename="backends.yaml")
-  DefaultFileStrategy(path=<package defaults/backends.yaml>)
+Strategies (same 5-chain as settings, all with `kind=ResourceKind.FILE`):
+  CliPathStrategy(kind=ResourceKind.FILE)                          # COLORSCHEME_BACKENDS_CONFIG_FILE_PATH
+  EnvPathStrategy(var="BACKENDS_CONFIG_FILE_PATH", kind=ResourceKind.FILE)
+  DirectoryTraversalStrategy(filename="backends.yaml", max_levels=3, kind=ResourceKind.FILE)
+  XdgStrategy(xdg_subdir="color-scheme", filename="backends.yaml", kind=ResourceKind.FILE)
+  DefaultFileStrategy(path=<package defaults/backends.yaml>, kind=ResourceKind.FILE)
 Parser: YamlConfigParser
 Validator: BackendsCatalogSchema (Pydantic)
 OverrideRules: none (catalog content is file-source only, like WEG effects.yaml)
@@ -391,8 +392,8 @@ csg
 Global:
   -q/--quiet, -v/--verbose (count)               -> OverrideRule("output.verbosity")
   --output-format json|rich|plain               (default: json)  — selects OutputPort adapter
-  --config PATH                                  settings.toml explicit path  -> CliPathStrategy
-  --templates PATH                                templates dir explicit path  -> EnvPathStrategy
+  --config PATH                                  settings.toml explicit path  -> CliPathStrategy(kind=ResourceKind.FILE)
+  --templates PATH                                templates dir explicit path  -> CliDirStrategy()
   --runtime local|container                      overrides runtime.mode         -> OverrideRule via cli_overrides
   --container-engine docker|podman               overrides container.engine     -> OverrideRule via cli_overrides
 ```
@@ -455,7 +456,7 @@ color-scheme-generator/
         │   ├── assembled_config_resolver.py
         │   ├── yaml_backend_catalog_loader.py  # YamlBackendCatalogLoader
         │   ├── jinja_template_renderer.py
-        │   ├── template_dir_resolver.py # thin DirectoryXdgStrategy + DefaultDirectoryStrategy + resolver wrapper
+        │   ├── template_dir_resolver.py # uses engine's CliDirStrategy + EnvDirStrategy + XdgDirStrategy + DefaultDirStrategy
         │   ├── local_processor.py
         │   ├── container_processor.py
         │   ├── dry_run_processor.py

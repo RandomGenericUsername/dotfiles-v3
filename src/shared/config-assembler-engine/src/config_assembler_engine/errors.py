@@ -9,6 +9,10 @@ class PathResolutionError(ConfigAssemblerError):
     pass
 
 
+class NotADirectoryError_(ConfigAssemblerError):
+    pass
+
+
 class ConfigParseError(ConfigAssemblerError):
     pass
 

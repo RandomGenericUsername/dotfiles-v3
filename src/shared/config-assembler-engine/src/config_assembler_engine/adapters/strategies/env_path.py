@@ -1,12 +1,13 @@
 import os
 from pathlib import Path
 
-from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResolvedPath
+from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResourceKind, ResolvedPath
 
 
 class EnvPathStrategy:
-    def __init__(self, var: str = "CONFIG_FILE_PATH") -> None:
+    def __init__(self, var: str = "CONFIG_FILE_PATH", *, kind: ResourceKind) -> None:
         self._var = var
+        self._kind = kind
 
     def resolve(
         self,
@@ -18,6 +19,12 @@ class EnvPathStrategy:
         if not file_path:
             return None
         path = Path(file_path).expanduser().resolve()
-        if path.exists():
-            return ResolvedPath(path=path, source=PathSource.ENV_PATH)
+        check = path.is_file if self._kind == ResourceKind.FILE else path.is_dir
+        if check():
+            return ResolvedPath(path=path, source=PathSource.ENV_PATH, kind=self._kind)
         return None
+
+
+class EnvDirStrategy(EnvPathStrategy):
+    def __init__(self, var: str = "CONFIG_DIR_PATH") -> None:
+        super().__init__(var=var, kind=ResourceKind.DIRECTORY)

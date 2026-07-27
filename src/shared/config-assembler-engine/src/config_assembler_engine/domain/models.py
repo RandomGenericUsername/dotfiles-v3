@@ -5,6 +5,11 @@ from typing import Any
 from pydantic import BaseModel
 
 
+class ResourceKind(Enum):
+    FILE = "file"
+    DIRECTORY = "directory"
+
+
 class PathSource(Enum):
     DEFAULT = "default"
     XDG = "xdg"
@@ -30,9 +35,10 @@ class OverrideRule:
 
 
 class ResolvedPath:
-    def __init__(self, path: Path, source: PathSource) -> None:
+    def __init__(self, path: Path, source: PathSource, kind: ResourceKind = ResourceKind.FILE) -> None:
         self.path = path
         self.source = source
+        self.kind = kind
 
 
 class OverrideValue:
@@ -66,3 +72,10 @@ class AssemblyResult:
         self.config = config
         self.resolved_path = resolved_path
         self.applied_overrides = applied_overrides
+
+
+class DirAssemblyResult:
+    def __init__(self, directory: Path, source: PathSource, files: list[Path]) -> None:
+        self.directory = directory
+        self.source = source
+        self.files = files

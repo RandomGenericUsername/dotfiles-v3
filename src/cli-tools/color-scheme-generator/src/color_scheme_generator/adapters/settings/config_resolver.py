@@ -18,6 +18,7 @@ from config_assembler_engine.domain.models import (
     OverrideRule,
     OverrideSource,
     ResolutionPolicy,
+    ResourceKind,
 )
 from config_assembler_engine.errors import ConfigParseError, PathResolutionError
 
@@ -69,12 +70,13 @@ def _convert_to_app_settings(validated: CoreSettingsSchema) -> AppSettings:
 class AssembledConfigResolver:
     def __init__(self, assembler: AssembleConfiguration | None = None) -> None:
         strategies = [
-            CliPathStrategy(),
-            EnvPathStrategy(),
-            DirectoryTraversalStrategy(filename="settings.toml", max_levels=3),
-            XdgStrategy(xdg_subdir="color-scheme-generator", filename="settings.toml"),
+            CliPathStrategy(kind=ResourceKind.FILE),
+            EnvPathStrategy(kind=ResourceKind.FILE),
+            DirectoryTraversalStrategy(filename="settings.toml", max_levels=3, kind=ResourceKind.FILE),
+            XdgStrategy(xdg_subdir="color-scheme-generator", filename="settings.toml", kind=ResourceKind.FILE),
             DefaultFileStrategy(
-                path=Path(resource_files("color_scheme_generator") / "defaults" / "settings.toml")
+                path=Path(resource_files("color_scheme_generator") / "defaults" / "settings.toml"),
+                kind=ResourceKind.FILE,
             ),
         ]
         self._assembler = assembler or AssembleConfiguration(

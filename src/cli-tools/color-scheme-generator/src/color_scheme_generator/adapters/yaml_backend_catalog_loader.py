@@ -14,7 +14,7 @@ from config_assembler_engine.adapters.strategies.env_path import EnvPathStrategy
 from config_assembler_engine.adapters.strategies.xdg import XdgStrategy
 from config_assembler_engine.adapters.type_coercer import PydanticTypeCoercer
 from config_assembler_engine.application.use_cases import AssembleConfiguration
-from config_assembler_engine.domain.models import ResolutionPolicy
+from config_assembler_engine.domain.models import ResolutionPolicy, ResourceKind
 from config_assembler_engine.errors import (
     ConfigParseError,
     ConfigValidationError,
@@ -62,12 +62,13 @@ def _schema_to_domain(schema: BackendsCatalogSchema) -> dict[Backend, BackendDef
 class YamlBackendCatalogLoader:
     def __init__(self, assembler: AssembleConfiguration | None = None) -> None:
         strategies = [
-            CliPathStrategy(),
-            EnvPathStrategy(),
-            DirectoryTraversalStrategy(filename="backends.yaml", max_levels=3),
-            XdgStrategy(xdg_subdir="color-scheme-generator", filename="backends.yaml"),
+            CliPathStrategy(kind=ResourceKind.FILE),
+            EnvPathStrategy(kind=ResourceKind.FILE),
+            DirectoryTraversalStrategy(filename="backends.yaml", max_levels=3, kind=ResourceKind.FILE),
+            XdgStrategy(xdg_subdir="color-scheme-generator", filename="backends.yaml", kind=ResourceKind.FILE),
             DefaultFileStrategy(
-                path=resource_files("color_scheme_generator.defaults") / "backends.yaml"
+                path=resource_files("color_scheme_generator.defaults") / "backends.yaml",
+                kind=ResourceKind.FILE,
             ),
         ]
         self._assembler = assembler or AssembleConfiguration(

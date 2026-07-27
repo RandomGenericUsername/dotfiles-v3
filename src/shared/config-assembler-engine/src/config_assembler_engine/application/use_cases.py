@@ -1,9 +1,11 @@
+from pathlib import Path
 
 from pydantic import BaseModel
 
 from config_assembler_engine.domain.models import (
     AppliedOverride,
     AssemblyResult,
+    DirAssemblyResult,
     OverrideRule,
     OverrideSource,
     ResolutionPolicy,
@@ -11,7 +13,9 @@ from config_assembler_engine.domain.models import (
 from config_assembler_engine.domain.services import ConfigMergeService, OverrideMatchingService
 from config_assembler_engine.errors import (
     ConfigValidationError,
+    NotADirectoryError_,
     OverrideCoercionError,
+    PathResolutionError,
 )
 from config_assembler_engine.ports.config_parser import ConfigParserPort
 from config_assembler_engine.ports.config_validator import ConfigValidatorPort
@@ -95,4 +99,30 @@ class AssembleConfiguration:
             config=final,
             resolved_path=resolved,
             applied_overrides=applied,
+        )
+
+
+class AssembleDir:
+    def __init__(
+        self,
+        path_resolver: PathResolverPort,
+        file_pattern: str = "*",
+    ) -> None:
+        self._path_resolver = path_resolver
+        self._file_pattern = file_pattern
+
+    def execute(
+        self,
+        policy: ResolutionPolicy,
+        *,
+        explicit_path: str | None = None,
+    ) -> DirAssemblyResult:
+        resolved = self._path_resolver.resolve(policy, explicit_path)
+        if not resolved.path.is_dir():
+            raise NotADirectoryError_(f"Resolved path is not a directory: {resolved.path}")
+        files = sorted(resolved.path.glob(self._file_pattern))
+        return DirAssemblyResult(
+            directory=resolved.path,
+            source=resolved.source,
+            files=files,
         )

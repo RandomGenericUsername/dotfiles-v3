@@ -150,7 +150,7 @@ Config file path env vars use single `_` between prefix and `CONFIG_FILE_PATH`:
 ```
 Prefix: WALLPAPER
 Default file: package-bundled settings.toml
-Strategies: CliPath -> EnvPath(WALLPAPER_CONFIG_FILE_PATH) -> XdgStrategy(weg) -> DefaultFileStrategy(package defaults)
+Strategies (all with `kind=ResourceKind.FILE`): CliPathStrategy(kind=FILE) -> EnvPathStrategy(kind=FILE, var=WALLPAPER_CONFIG_FILE_PATH) -> XdgStrategy(weg, kind=FILE) -> DefaultFileStrategy(kind=FILE, path=package defaults)
 Parser: TomlConfigParser
 Schema: CoreSettingsSchema (Pydantic)
 
@@ -178,7 +178,7 @@ ENV vars (examples):
 ```
 Prefix: WALLPAPER_EFFECTS
 Default file: package-bundled effects.yaml
-Strategies: CliPath -> EnvPath(WALLPAPER_EFFECTS_CONFIG_FILE_PATH) -> XdgStrategy(weg) -> DefaultFileStrategy(package defaults)
+Strategies (all with `kind=ResourceKind.FILE`): CliPathStrategy(kind=FILE) -> EnvPathStrategy(kind=FILE, var=WALLPAPER_EFFECTS_CONFIG_FILE_PATH) -> XdgStrategy(weg, kind=FILE) -> DefaultFileStrategy(kind=FILE, path=package defaults)
 Parser: YamlConfigParser
 Schema: EffectsConfigSchema (Pydantic)
 

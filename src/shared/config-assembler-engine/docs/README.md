@@ -32,6 +32,7 @@ from config_assembler_engine.adapters.strategies import (
     XdgStrategy,
     DefaultFileStrategy,
 )
+from config_assembler_engine.domain.models import ResourceKind
 
 
 class AppConfig(BaseModel):
@@ -41,12 +42,13 @@ class AppConfig(BaseModel):
 
 
 # Build the resolution chain — order matters, first hit wins
+# Every strategy requires an explicit `kind` — FILE for config files, DIRECTORY for directories
 strategies = [
-    CliPathStrategy(),
-    EnvPathStrategy(var="CONFIG_FILE_PATH"),
-    DirectoryTraversalStrategy(filename="config.yaml", max_levels=2),
-    XdgStrategy(xdg_subdir="my-app", filename="config.yaml"),
-    DefaultFileStrategy(path=Path("defaults.yaml")),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(var="CONFIG_FILE_PATH", kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename="config.yaml", max_levels=2, kind=ResourceKind.FILE),
+    XdgStrategy(xdg_subdir="my-app", filename="config.yaml", kind=ResourceKind.FILE),
+    DefaultFileStrategy(path=Path("defaults.yaml"), kind=ResourceKind.FILE),
 ]
 
 assembler = create_standard_assembler(parser=YamlConfigParser(), strategies=strategies)
@@ -66,6 +68,37 @@ config = result.config        # validated AppConfig instance
 src = result.resolved_path     # where the file was found
 overrides = result.applied_overrides  # what was overridden
 ```
+
+## Directory Resolution
+
+The engine also provides `AssembleDir` for resolving directories rather than files:
+
+```python
+from pathlib import Path
+
+from config_assembler_engine import ResolutionPolicy
+from config_assembler_engine.adapters.factories import create_directory_assembler
+from config_assembler_engine.adapters.strategies import (
+    CliDirStrategy, EnvDirStrategy, XdgDirStrategy, DefaultDirStrategy,
+)
+
+
+strategies = [
+    CliDirStrategy(),                                      # --templates /path
+    EnvDirStrategy(var="TEMPLATES_DIR"),                    # APP_TEMPLATES_DIR
+    XdgDirStrategy(xdg_subdir="my-app", dirname="templates"),  # ~/.config/my-app/templates
+    DefaultDirStrategy(path=Path("defaults/templates")),    # fallback
+]
+
+assembler = create_directory_assembler(strategies=strategies, file_pattern="*.j2")
+result = assembler.execute(ResolutionPolicy(env_prefix="MY_APP"))
+
+directory = result.directory  # resolved Path
+files = result.files          # sorted list of matching Paths
+source = result.source        # PathSource enum
+```
+
+Each file strategy has a directory counterpart (`CliDirStrategy`, `EnvDirStrategy`, `DirTraversalStrategy`, `XdgDirStrategy`, `DefaultDirStrategy`) that presets `kind=DIRECTORY` and validates with `is_dir()` instead of `is_file()`.
 
 ## File discovery priority
 

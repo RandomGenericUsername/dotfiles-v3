@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from config_assembler_engine.adapters.path_resolver import CompositePathResolver
-from config_assembler_engine.domain.models import PathSource, ResolutionPolicy, ResolvedPath
+from config_assembler_engine.adapters.strategies.cli_path import CliDirStrategy
+from config_assembler_engine.adapters.strategies.default_file import DefaultDirStrategy
+from config_assembler_engine.adapters.strategies.env_path import EnvDirStrategy
+from config_assembler_engine.adapters.strategies.xdg import XdgDirStrategy
+from config_assembler_engine.domain.models import ResolutionPolicy
 from config_assembler_engine.errors import PathResolutionError
 
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
@@ -14,94 +17,19 @@ _DEFAULT_TEMPLATES_DIR = _PACKAGE_DIR / "defaults" / "templates"
 _RESOLUTION_POLICY = ResolutionPolicy(env_prefix="COLORSCHEME_TEMPLATES")
 
 
-class _EnvDirStrategy:
-    def __init__(self, var: str) -> None:
-        self._var = var
-
-    def resolve(
-        self,
-        policy: ResolutionPolicy,
-        explicit_path: str | None = None,
-    ) -> ResolvedPath | None:
-        env_key = f"{policy.env_prefix}_{self._var}"
-        if env_key not in os.environ:
-            return None
-        dir_path = os.environ[env_key]
-        if not dir_path:
-            return None
-        path = Path(dir_path).expanduser().resolve()
-        if path.is_dir():
-            return ResolvedPath(path=path, source=PathSource.ENV_PATH)
-        return None
-
-
-class _XdgDirStrategy:
-    def __init__(self, xdg_subdir: str, dirname: str) -> None:
-        self._xdg_subdir = xdg_subdir
-        self._dirname = dirname
-
-    def resolve(
-        self,
-        policy: ResolutionPolicy,
-        explicit_path: str | None = None,
-    ) -> ResolvedPath | None:
-        try:
-            home_default = Path.home() / ".config"
-        except RuntimeError:
-            home_default = Path("/root/.config")
-        xdg_home = Path(os.environ.get("XDG_CONFIG_HOME", home_default))
-        candidate = xdg_home / self._xdg_subdir / self._dirname
-        if candidate.is_dir():
-            return ResolvedPath(path=candidate.resolve(), source=PathSource.XDG)
-        return None
-
-
-class _DefaultDirStrategy:
-    def __init__(self, path: Path) -> None:
-        self._path = path
-
-    def resolve(
-        self,
-        policy: ResolutionPolicy,
-        explicit_path: str | None = None,
-    ) -> ResolvedPath | None:
-        if self._path.is_dir():
-            return ResolvedPath(path=self._path.resolve(), source=PathSource.DEFAULT)
-        return None
-
-
-class _SettingsDirStrategy:
-    def __init__(self) -> None:
-        self._dir: Path | None = None
-
-    def set_dir(self, path: Path | None) -> None:
-        self._dir = path
-
-    def resolve(
-        self,
-        policy: ResolutionPolicy,
-        explicit_path: str | None = None,
-    ) -> ResolvedPath | None:
-        if self._dir is not None and self._dir.is_dir():
-            return ResolvedPath(path=self._dir.resolve(), source=PathSource.CLI_PATH)
-        return None
-
-
 class TemplateDirResolver:
     def __init__(self) -> None:
-        self._settings_strategy = _SettingsDirStrategy()
         strategies: list = [
-            self._settings_strategy,
-            _EnvDirStrategy(var="TEMPLATES_DIR"),
-            _XdgDirStrategy(xdg_subdir="color-scheme", dirname="templates"),
-            _DefaultDirStrategy(path=_DEFAULT_TEMPLATES_DIR),
+            CliDirStrategy(),
+            EnvDirStrategy(var="TEMPLATES_DIR"),
+            XdgDirStrategy(xdg_subdir="color-scheme", dirname="templates"),
+            DefaultDirStrategy(path=_DEFAULT_TEMPLATES_DIR),
         ]
         self._resolver = CompositePathResolver(strategies)
 
     def resolve(self, settings_dir: Path | None = None) -> Path:
-        self._settings_strategy.set_dir(settings_dir)
         try:
-            result = self._resolver.resolve(_RESOLUTION_POLICY)
+            result = self._resolver.resolve(_RESOLUTION_POLICY, explicit_path=str(settings_dir) if settings_dir else None)
         except PathResolutionError as exc:
             raise ConfigResolutionError(
                 "templates_dir", f"Failed to resolve templates directory: {exc}"

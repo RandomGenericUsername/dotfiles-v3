@@ -14,6 +14,7 @@ from config_assembler_engine.adapters.strategies.default_file import DefaultFile
 from config_assembler_engine.adapters.strategies.directory import DirectoryTraversalStrategy
 from config_assembler_engine.adapters.strategies.env_path import EnvPathStrategy
 from config_assembler_engine.adapters.strategies.xdg import XdgStrategy
+from config_assembler_engine.domain.models import ResourceKind
 
 from wallpaper_effects_generator.adapters.schemas.settings_schema import CoreSettingsSchema
 from wallpaper_effects_generator.constants import (
@@ -68,10 +69,10 @@ def _pydantic_to_app_settings(schema: CoreSettingsSchema) -> AppSettings:
 
 
 _STRATEGIES = [
-    CliPathStrategy(),
-    EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename=CONFIG_FILENAME, max_levels=CONFIG_TRAVERSAL_DEPTH),
-    XdgStrategy(xdg_subdir=CONFIG_XDG_SUBDIR, filename=CONFIG_FILENAME),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename=CONFIG_FILENAME, max_levels=CONFIG_TRAVERSAL_DEPTH, kind=ResourceKind.FILE),
+    XdgStrategy(xdg_subdir=CONFIG_XDG_SUBDIR, filename=CONFIG_FILENAME, kind=ResourceKind.FILE),
 ]
 
 _ALL_SETTINGS_FIELDS = [
@@ -98,7 +99,7 @@ class AssembledConfigResolver:
     def __init__(self, default_settings_path: Path | None = None) -> None:
         strategies = list(_STRATEGIES)
         if default_settings_path:
-            strategies.append(DefaultFileStrategy(path=default_settings_path))
+            strategies.append(DefaultFileStrategy(path=default_settings_path, kind=ResourceKind.FILE))
         self._assembler = create_standard_assembler(
             parser=TomlConfigParser(),
             strategies=strategies,

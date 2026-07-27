@@ -13,6 +13,7 @@ from config_assembler_engine.adapters.strategies.default_file import DefaultFile
 from config_assembler_engine.adapters.strategies.directory import DirectoryTraversalStrategy
 from config_assembler_engine.adapters.strategies.env_path import EnvPathStrategy
 from config_assembler_engine.adapters.strategies.xdg import XdgStrategy
+from config_assembler_engine.domain.models import ResourceKind
 
 from wallpaper_effects_generator.adapters.schemas.effects_schema import (
     EffectsConfigSchema,
@@ -110,10 +111,10 @@ def _schema_to_catalog(schema: EffectsConfigSchema) -> EffectsCatalog:
 
 
 _STRATEGIES = [
-    CliPathStrategy(),
-    EnvPathStrategy(),
-    DirectoryTraversalStrategy(filename=EFFECTS_FILENAME, max_levels=EFFECTS_TRAVERSAL_DEPTH),
-    XdgStrategy(xdg_subdir=EFFECTS_XDG_SUBDIR, filename=EFFECTS_FILENAME),
+    CliPathStrategy(kind=ResourceKind.FILE),
+    EnvPathStrategy(kind=ResourceKind.FILE),
+    DirectoryTraversalStrategy(filename=EFFECTS_FILENAME, max_levels=EFFECTS_TRAVERSAL_DEPTH, kind=ResourceKind.FILE),
+    XdgStrategy(xdg_subdir=EFFECTS_XDG_SUBDIR, filename=EFFECTS_FILENAME, kind=ResourceKind.FILE),
 ]
 
 
@@ -121,7 +122,7 @@ class YamlEffectLoader:
     def __init__(self, default_effects_path: Path | None = None) -> None:
         strategies = list(_STRATEGIES)
         if default_effects_path:
-            strategies.append(DefaultFileStrategy(path=default_effects_path))
+            strategies.append(DefaultFileStrategy(path=default_effects_path, kind=ResourceKind.FILE))
         self._assembler = create_standard_assembler(
             parser=YamlConfigParser(),
             strategies=strategies,
