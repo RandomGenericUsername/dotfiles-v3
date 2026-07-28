@@ -41,14 +41,12 @@ def _find_project_root(docker_dir: Path) -> Path | None:
 def install(
     ctx: typer.Context,
     backend: list[Backend] = typer.Option([], "--backend", help="Backends to build"),  # noqa: B008
-    engine: ContainerEngine = typer.Option(  # noqa: B008
-        ContainerEngine.DOCKER, "--engine", help="Container engine", case_sensitive=False
-    ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without building"),  # noqa: B008
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
         settings = deps.config_resolver.resolve()
+        engine = ctx.obj.get("container_engine") or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
         container_engine = create_container_engine(engine)
         target_backends = list(dict.fromkeys(backend or list(Backend)))
 

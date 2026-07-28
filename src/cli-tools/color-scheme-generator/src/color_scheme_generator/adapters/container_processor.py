@@ -210,6 +210,7 @@ class ContainerProcessor:
             for fmt in request.config.formats:
                 inner_command.extend(["--format", fmt.value])
             inner_command.extend(["-o", "/output"])
+            command_str = " ".join(inner_command)
 
             try:
                 container_result = self._container_runtime.run(
@@ -247,7 +248,7 @@ class ContainerProcessor:
                     foreground=_Color(cs_data["foreground"]["hex"], tuple(cs_data["foreground"]["rgb"])),
                     cursor=_Color(cs_data["cursor"]["hex"], tuple(cs_data["cursor"]["rgb"])),
                     colors=tuple(_Color(c["hex"], tuple(c["rgb"])) for c in cs_data["colors"]),
-                    source_image=Path(cs_data["source_image"]),
+                    source_image=request.image_path.resolve(),
                     backend=Backend(cs_data["backend"]),
                     generated_at=datetime.fromisoformat(cs_data["generated_at"]),
                 )
@@ -275,6 +276,7 @@ class ContainerProcessor:
                 stderr=container_result.stderr,
                 return_code=container_result.return_code,
                 duration=duration,
+                command=command_str,
             )
 
         except ContainerTimeoutError:
@@ -368,6 +370,7 @@ class ContainerProcessor:
             ]
             for key, value in request.config.params.items():
                 inner_command.extend(["--param", f"{key}={value}"])
+            command_str = " ".join(inner_command)
 
             try:
                 container_result = self._container_runtime.run(
@@ -386,6 +389,9 @@ class ContainerProcessor:
             duration = time.monotonic() - start
 
             color_scheme = self._parse_color_scheme_from_json(container_result.stdout)
+            if color_scheme is not None:
+                from dataclasses import replace
+                color_scheme = replace(color_scheme, source_image=request.image_path.resolve())
 
             return GenerationResult(
                 success=container_result.return_code == 0,
@@ -395,6 +401,7 @@ class ContainerProcessor:
                 stderr=container_result.stderr,
                 return_code=container_result.return_code,
                 duration=duration,
+                command=command_str,
             )
 
         except ContainerTimeoutError:

@@ -132,6 +132,8 @@ def main_callback(
         cli_overrides["template.templates_dir"] = str(templates_dir)
     if verbosity is not None:
         cli_overrides["output.verbosity"] = str(verbosity.value)
+    if container_engine is not None:
+        cli_overrides["container.engine"] = container_engine.value
 
     if runtime is RuntimeMode.LOCAL and deps.processor is None:
         deps.processor = create_local_processor(deps.backend_registry, deps.template_renderer)
@@ -145,6 +147,7 @@ def main_callback(
     ctx.obj = {
         "deps": deps,
         "config_path": str(config_path) if config_path else None,
+        "container_engine": container_engine,
         "cli_overrides": cli_overrides,
         "verbosity": verbosity,
     }

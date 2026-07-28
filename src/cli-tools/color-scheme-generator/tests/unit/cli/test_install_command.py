@@ -127,7 +127,7 @@ class TestInstallCommand:
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, [
-            "--output-format", "json", "install", "--engine", "podman"
+            "--output-format", "json", "--container-engine", "podman", "install"
         ])
         assert result.exit_code == 0, f"stderr={result.stderr}"
         assert mock_container_engine.build_image.call_count == 4

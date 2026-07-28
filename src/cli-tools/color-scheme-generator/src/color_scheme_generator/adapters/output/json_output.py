@@ -29,6 +29,7 @@ class JsonOutput:
             "output_files": [str(p) for p in result.output_files],
             "backend": result.backend.value,
             "duration": result.duration,
+            "command": result.command or None,
         }
         json.dump(payload, sys.stdout, default=str)
         print()

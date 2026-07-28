@@ -90,6 +90,16 @@ class LocalProcessor:
 
         return output_files, "; ".join(errors)
 
+    def _build_command(self, request: GenerationRequest) -> str:
+        cmd = ["csg", "generate", str(request.image_path)]
+        cmd.extend(["--backend", request.config.backend.value])
+        for key, value in request.config.params.items():
+            cmd.extend(["--param", f"{key}={value}"])
+        for fmt in request.config.formats:
+            cmd.extend(["--format", fmt.value])
+        cmd.extend(["-o", str(request.config.output_dir)])
+        return " ".join(cmd)
+
     def process_generate(
         self, request: GenerationRequest, settings: AppSettings
     ) -> GenerationResult:
@@ -105,6 +115,7 @@ class LocalProcessor:
             stderr=stderr,
             return_code=0,
             duration=duration,
+            command=self._build_command(request),
         )
 
     def process_show(
@@ -120,4 +131,5 @@ class LocalProcessor:
             stderr="",
             return_code=0,
             duration=duration,
+            command=self._build_command(request),
         )

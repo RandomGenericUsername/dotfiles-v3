@@ -77,6 +77,7 @@ class GenerationResult:
     stderr: str
     return_code: int
     duration: float
+    command: str = ""
 
 
 @dataclass(frozen=True)

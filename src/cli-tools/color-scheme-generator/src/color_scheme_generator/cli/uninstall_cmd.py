@@ -20,15 +20,13 @@ def uninstall(
     ctx: typer.Context,
     backend: list[Backend] = typer.Option([], "--backend", help="Backends to remove"),  # noqa: B008
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),  # noqa: B008
-    engine: ContainerEngine = typer.Option(  # noqa: B008
-        ContainerEngine.DOCKER, "--engine", help="Container engine", case_sensitive=False
-    ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without removing"),  # noqa: B008
     force: bool = typer.Option(False, "--force", "-f", help="Force image removal even if in use"),  # noqa: B008
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
         settings = deps.config_resolver.resolve()
+        engine = ctx.obj.get("container_engine") or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
         container_engine = create_container_engine(engine)
         target_backends = list(dict.fromkeys(backend or list(Backend)))
         if not yes:
