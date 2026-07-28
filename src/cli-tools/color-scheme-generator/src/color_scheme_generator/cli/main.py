@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import typer
@@ -45,7 +46,22 @@ from color_scheme_generator.factory import (
     create_template_renderer,
 )
 
-app = typer.Typer()
+_xdg_config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+_xdg_settings_path = Path(_xdg_config_home) / "color-scheme-generator" / "settings.toml"
+
+app = typer.Typer(
+    name="csg",
+    help=(
+        "Color Scheme Generator — extract color palettes from images.\n\n"
+        "Configuration discovery (highest priority first):\n"
+        "  1. Explicit --config flag\n"
+        "  2. COLORSCHEME_CONFIG_FILE_PATH env var\n"
+        "  3. settings.toml in CWD or up to 3 parent levels\n"
+        f"  4. XDG default: {_xdg_settings_path}\n"
+        "  5. Package-bundled defaults\n\n"
+        "ENV overrides: COLORSCHEME__SECTION__KEY=value (double underscore = nesting)"
+    ),
+)
 
 
 def build_deps() -> CliDependencies:
