@@ -24,6 +24,14 @@ from color_scheme_generator.domain.models import (
 
 logger = logging.getLogger(__name__)
 
+_CONTAINER_ENV = {
+    "HOME": "/tmp",
+    "XDG_CONFIG_HOME": "/tmp/.config",
+    "XDG_CACHE_HOME": "/tmp/.cache",
+    "COLORSCHEME_CONFIG_FILE_PATH": "/csg-config/settings.toml",
+    "COLORSCHEME_TEMPLATES_TEMPLATES_DIR": "/templates",
+}
+
 if TYPE_CHECKING:
     from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
     from color_scheme_generator.domain.models import (
@@ -115,8 +123,8 @@ class ContainerProcessor:
                     Color(c["hex"], tuple(c["rgb"])) for c in data["colors"]
                 ),
                 source_image=Path(data["source_image"]),
-                backend=data["backend"],
-                generated_at=data["generated_at"],
+                backend=Backend(data["backend"]),
+                generated_at=datetime.fromisoformat(data["generated_at"]),
             )
         except (KeyError, TypeError, ValueError):
             return None
@@ -218,11 +226,7 @@ class ContainerProcessor:
                     command=inner_command,
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
-                    environment={
-                        "HOME": "/tmp",
-                        "COLORSCHEME_CONFIG_FILE_PATH": "/csg-config/settings.toml",
-                        "COLORSCHEME_TEMPLATES_TEMPLATES_DIR": "/templates",
-                    },
+                    environment=_CONTAINER_ENV,
                 )
             except ContainerTimeoutError:
                 raise
@@ -378,6 +382,7 @@ class ContainerProcessor:
                     command=inner_command,
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
+                    environment=_CONTAINER_ENV,
                 )
             except ContainerTimeoutError:
                 raise

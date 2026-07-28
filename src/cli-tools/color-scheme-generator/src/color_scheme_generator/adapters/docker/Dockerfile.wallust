@@ -3,5 +3,4 @@ FROM color-scheme-base:latest
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/* && \
     curl -fsSL "https://codeberg.org/explosion-mental/wallust/releases/download/3.5.2/wallust-3.5.2-x86_64-unknown-linux-musl.tar.gz" | \
     tar -xz -C /usr/local/bin/ wallust && \
-    chmod +x /usr/local/bin/wallust && \
-    mkdir -p /root/.config/wallust
+    chmod +x /usr/local/bin/wallust

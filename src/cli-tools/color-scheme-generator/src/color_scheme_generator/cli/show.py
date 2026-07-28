@@ -59,7 +59,7 @@ def show(
         )
         request = GenerationRequest(image_path=image_path, config=config)
         result = deps.processor.process_show(request, settings)
-        deps.output_adapter.palette_display(result.color_scheme)
+        deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)
         raise typer.Exit(code=1) from None

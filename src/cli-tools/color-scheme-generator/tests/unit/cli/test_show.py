@@ -126,14 +126,14 @@ class TestCliShow:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_output_adapter",
-            lambda _fmt: mock_output,
+            lambda _fmt, **kwargs: mock_output,
         )
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["show", "/tmp/test.jpg"])
         assert result.exit_code == 0
         mock_processor.process_show.assert_called_once()
-        mock_output.palette_display.assert_called_once()
+        mock_output.process_result.assert_called_once()
 
     def test_invalid_image_path_exits_with_code_1(
         self,
@@ -149,7 +149,7 @@ class TestCliShow:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_output_adapter",
-            lambda _fmt: mock_output,
+            lambda _fmt, **kwargs: mock_output,
         )
         from color_scheme_generator.cli.main import app
 
@@ -170,14 +170,14 @@ class TestCliShow:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_output_adapter",
-            lambda _fmt: mock_output,
+            lambda _fmt, **kwargs: mock_output,
         )
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["show", "/tmp/test.jpg"])
         assert result.exit_code == 0
-        mock_output.palette_display.assert_called_once()
-        mock_output.process_result.assert_not_called()
+        mock_output.process_result.assert_called_once()
+        mock_output.palette_display.assert_not_called()
 
     def test_help_output_shows_expected_usage(self, runner: CliRunner) -> None:
         from color_scheme_generator.cli.main import app

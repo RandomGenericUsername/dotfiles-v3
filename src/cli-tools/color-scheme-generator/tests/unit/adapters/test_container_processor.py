@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from color_scheme_generator.adapters.container_processor import ContainerProcessor
+from color_scheme_generator.adapters.container_processor import ContainerProcessor, _CONTAINER_ENV
 from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import (
     ContainerImageNotFoundError,
@@ -334,6 +335,25 @@ class TestContainerProcessorGenerate:
         assert "timed out" in result.stderr
         assert result.return_code == -1
 
+    def test_passes_expected_environment(self, tmp_path: Path) -> None:
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
+        settings = _make_settings()
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        processor.process_generate(request, settings)
+
+        call_kwargs = processor._container_runtime.run.call_args[1]
+        env = call_kwargs.get("environment", {})
+        assert env == _CONTAINER_ENV
+
     def test_returns_generation_result_with_same_contract_as_local_processor(
         self, tmp_path: Path
     ) -> None:
@@ -454,6 +474,41 @@ class TestContainerProcessorShow:
         assert "--runtime" in command
         assert command[command.index("--runtime") + 1] == "local"
 
+    def test_passes_expected_environment(self, tmp_path: Path) -> None:
+        tdir = tmp_path / "templates"
+        tdir.mkdir()
+        img = tmp_path / "img.png"
+        img.write_text("dummy")
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
+        mock_runtime = MagicMock()
+        mock_runtime.image_exists.return_value = True
+        container_result = MagicMock(return_code=0, stdout="{}", stderr="", duration=0.3)
+        mock_runtime.run.return_value = container_result
+
+        processor = ContainerProcessor(
+            mock_runtime, default_settings_path=tmp_path / "settings.toml"
+        )
+        (tmp_path / "settings.toml").write_text("")
+        (tmp_path / "defaults" / "templates").mkdir(parents=True, exist_ok=True)
+        settings = _make_settings()
+        request = GenerationRequest(
+            image_path=img,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        processor.process_show(request, settings)
+
+        call_kwargs = mock_runtime.run.call_args[1]
+        env = call_kwargs.get("environment", {})
+        assert env == _CONTAINER_ENV
+
 
 class TestContainerProcessorTempToml:
     def test_chmod_failure_logs_warning_and_continues(
@@ -502,3 +557,74 @@ class TestContainerProcessorTempToml:
         for toml_path in toml_files_created:
             mode = os.stat(toml_path).st_mode & 0o777
             assert mode == 0o644, f"Expected 0o644, got {oct(mode)} for {toml_path}"
+
+
+class TestParseColorSchemeFromJson:
+    def _make_processor(self) -> ContainerProcessor:
+        return ContainerProcessor(MagicMock())
+
+    def test_parses_backend_as_enum(self) -> None:
+        raw = json.dumps({
+            "background": {"hex": "#000000", "rgb": [0, 0, 0]},
+            "foreground": {"hex": "#ffffff", "rgb": [255, 255, 255]},
+            "cursor": {"hex": "#00ff00", "rgb": [0, 255, 0]},
+            "colors": [{"hex": "#000000", "rgb": [0, 0, 0]}] * 16,
+            "source_image": "/input/test.jpg",
+            "backend": "pywal",
+            "generated_at": "2024-01-01T00:00:00",
+        })
+        processor = self._make_processor()
+        cs = processor._parse_color_scheme_from_json(raw)
+        assert cs is not None
+        assert isinstance(cs.backend, Backend)
+        assert cs.backend == Backend.PYWAL
+
+    def test_parses_generated_at_as_datetime(self) -> None:
+        raw = json.dumps({
+            "background": {"hex": "#000000", "rgb": [0, 0, 0]},
+            "foreground": {"hex": "#ffffff", "rgb": [255, 255, 255]},
+            "cursor": {"hex": "#00ff00", "rgb": [0, 255, 0]},
+            "colors": [{"hex": "#000000", "rgb": [0, 0, 0]}] * 16,
+            "source_image": "/input/test.jpg",
+            "backend": "pywal",
+            "generated_at": "2024-01-01T00:00:00",
+        })
+        processor = self._make_processor()
+        cs = processor._parse_color_scheme_from_json(raw)
+        assert cs is not None
+        assert isinstance(cs.generated_at, datetime)
+        assert cs.generated_at.isoformat() == "2024-01-01T00:00:00"
+
+    def test_returns_none_for_empty_input(self) -> None:
+        processor = self._make_processor()
+        assert processor._parse_color_scheme_from_json("") is None
+        assert processor._parse_color_scheme_from_json("   ") is None
+
+    def test_returns_none_for_malformed_json(self) -> None:
+        processor = self._make_processor()
+        assert processor._parse_color_scheme_from_json("not json") is None
+
+    def test_returns_none_for_missing_backend(self) -> None:
+        raw = json.dumps({
+            "background": {"hex": "#000000", "rgb": [0, 0, 0]},
+            "foreground": {"hex": "#ffffff", "rgb": [255, 255, 255]},
+            "cursor": {"hex": "#00ff00", "rgb": [0, 255, 0]},
+            "colors": [{"hex": "#000000", "rgb": [0, 0, 0]}] * 16,
+            "source_image": "/input/test.jpg",
+            "generated_at": "2024-01-01T00:00:00",
+        })
+        processor = self._make_processor()
+        assert processor._parse_color_scheme_from_json(raw) is None
+
+    def test_returns_none_for_invalid_backend_enum(self) -> None:
+        raw = json.dumps({
+            "background": {"hex": "#000000", "rgb": [0, 0, 0]},
+            "foreground": {"hex": "#ffffff", "rgb": [255, 255, 255]},
+            "cursor": {"hex": "#00ff00", "rgb": [0, 255, 0]},
+            "colors": [{"hex": "#000000", "rgb": [0, 0, 0]}] * 16,
+            "source_image": "/input/test.jpg",
+            "backend": "nonexistent_backend",
+            "generated_at": "2024-01-01T00:00:00",
+        })
+        processor = self._make_processor()
+        assert processor._parse_color_scheme_from_json(raw) is None
