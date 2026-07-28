@@ -42,11 +42,18 @@ app = typer.Typer(
     help=(
         "Wallpaper Effects Generator — apply effects to wallpapers.\n\n"
         "Configuration discovery (highest priority first):\n"
-        f"  1. Explicit --config / --effects flag\n"
-        f"  2. WALLPAPER_CONFIG_FILE_PATH / WALLPAPER_EFFECTS_CONFIG_FILE_PATH env var\n"
-        f"  3. {CONFIG_FILENAME} / {EFFECTS_FILENAME} in CWD or up to {CONFIG_TRAVERSAL_DEPTH} parent levels\n"
-        f"  4. XDG default: {_xdg_settings_path} / {_xdg_effects_path}\n"
-        f"  5. Package-bundled defaults\n\n"
+        "  Settings (settings.toml):\n"
+        "    1. Explicit --config flag\n"
+        "    2. WALLPAPER_CONFIG_FILE_PATH env var\n"
+        f"    3. {CONFIG_FILENAME} in CWD or up to {CONFIG_TRAVERSAL_DEPTH} parent levels\n"
+        f"    4. XDG default: {_xdg_settings_path}\n"
+        "    5. Package-bundled defaults\n"
+        "  Effects (effects.yaml):\n"
+        "    1. Explicit --effects flag\n"
+        "    2. WALLPAPER_EFFECTS_CONFIG_FILE_PATH env var\n"
+        f"    3. {EFFECTS_FILENAME} in CWD or up to {EFFECTS_TRAVERSAL_DEPTH} parent levels\n"
+        f"    4. XDG default: {_xdg_effects_path}\n"
+        "    5. Package-bundled defaults\n\n"
         f"ENV overrides: WALLPAPER__SECTION__KEY=value (double underscore = nesting)"
     ),
 )
