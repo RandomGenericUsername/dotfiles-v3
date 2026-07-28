@@ -59,7 +59,7 @@ def main(
         None,
         "--config",
         "-c",
-        help="Path to settings.toml file",
+        help="Path to settings.toml config file",
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -81,13 +81,13 @@ def main(
         None,
         "--runtime",
         "-r",
-        help="Runtime mode (local/container)",
+        help="Execution runtime mode",
         case_sensitive=False,
     ),
     container_engine: ContainerEngine | None = typer.Option(
         None,
         "--container-engine",
-        help="Container engine (docker/podman)",
+        help="Container engine to use (only for container runtime)",
         case_sensitive=False,
     ),
     output_format: OutputFormat = typer.Option(
@@ -100,7 +100,7 @@ def main(
         False,
         "--quiet",
         "-q",
-        help="Suppress output",
+        help="Suppress all non-error output",
     ),
     verbose: int = typer.Option(
         0,
