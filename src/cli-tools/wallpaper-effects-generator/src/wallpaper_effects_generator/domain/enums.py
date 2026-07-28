@@ -30,13 +30,22 @@ class RuntimeMode(Enum):
     LOCAL = "local"
     CONTAINER = "container"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class ContainerEngine(Enum):
     DOCKER = "docker"
     PODMAN = "podman"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class OutputFormat(Enum):
     JSON = "json"
     RICH = "rich"
     PLAIN = "plain"
+
+    def __str__(self) -> str:
+        return self.value

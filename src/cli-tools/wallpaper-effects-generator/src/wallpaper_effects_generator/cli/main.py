@@ -67,21 +67,24 @@ def main(
         "-e",
         help="Path to effects.yaml file",
     ),
-    runtime: str | None = typer.Option(
+    runtime: RuntimeMode | None = typer.Option(
         None,
         "--runtime",
         "-r",
         help="Runtime mode (local/container)",
+        case_sensitive=False,
     ),
-    container_engine: str | None = typer.Option(
+    container_engine: ContainerEngine | None = typer.Option(
         None,
         "--container-engine",
         help="Container engine (docker/podman)",
+        case_sensitive=False,
     ),
-    output_format: str | None = typer.Option(
-        None,
+    output_format: OutputFormat = typer.Option(
+        OutputFormat.JSON,
         "--output-format",
-        help="Output format (json/rich/plain)",
+        help="Output format for command results",
+        case_sensitive=False,
     ),
     quiet: bool = typer.Option(
         False,
@@ -100,34 +103,9 @@ def main(
     ctx.ensure_object(dict)
     ctx.obj["config"] = str(config) if config else None
     ctx.obj["effects"] = str(effects) if effects else None
-    if output_format is not None:
-        try:
-            ctx.obj["output_format"] = OutputFormat(output_format)
-        except ValueError:
-            valid = ", ".join(f"'{f.value}'" for f in OutputFormat)
-            raise typer.BadParameter(
-                f"Invalid value '{output_format}'. Choose from: {valid}"
-            )
-    if runtime is not None:
-        try:
-            ctx.obj["runtime"] = RuntimeMode(runtime)
-        except ValueError:
-            valid = ", ".join(m.value for m in RuntimeMode)
-            raise typer.BadParameter(
-                f"Invalid --runtime '{runtime}'. Choose from: {valid}"
-            )
-    else:
-        ctx.obj["runtime"] = None
-    if container_engine is not None:
-        try:
-            ctx.obj["container_engine"] = ContainerEngine(container_engine)
-        except ValueError:
-            valid = ", ".join(m.value for m in ContainerEngine)
-            raise typer.BadParameter(
-                f"Invalid --container-engine '{container_engine}'. Choose from: {valid}"
-            )
-    else:
-        ctx.obj["container_engine"] = None
+    ctx.obj["runtime"] = runtime
+    ctx.obj["container_engine"] = container_engine
+    ctx.obj["output_format"] = output_format
     if quiet:
         ctx.obj["verbosity"] = Verbosity.QUIET
     else:
@@ -144,9 +122,7 @@ def main(
             default_effects_path=defaults_dir / "effects.yaml"
         ),
     )
-    fmt = ctx.obj.get("output_format")
-    if fmt is not None:
-        deps.output_adapter = create_output_adapter(fmt)
+    deps.output_adapter = create_output_adapter(output_format)
     ctx.obj["deps"] = deps
 
 
