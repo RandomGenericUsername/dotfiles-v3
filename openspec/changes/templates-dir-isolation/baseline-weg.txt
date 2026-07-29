@@ -1,0 +1,49 @@
+
+==================================== ERRORS ====================================
+____________________ ERROR collecting tests/test_factory.py ____________________
+ImportError while importing test module '/home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/src/cli-tools/wallpaper-effects-generator/tests/test_factory.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_factory.py:9: in <module>
+    from wallpaper_effects_generator.adapters.docker_image_manager import (
+E   ModuleNotFoundError: No module named 'wallpaper_effects_generator.adapters.docker_image_manager'
+_____________________ ERROR collecting tests/test_ports.py _____________________
+ImportError while importing test module '/home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/src/cli-tools/wallpaper-effects-generator/tests/test_ports.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_ports.py:9: in <module>
+    from wallpaper_effects_generator.ports.image_manager import ImageManagerPort
+E   ModuleNotFoundError: No module named 'wallpaper_effects_generator.ports.image_manager'
+______ ERROR collecting tests/unit/adapters/test_docker_image_manager.py _______
+ImportError while importing test module '/home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_docker_image_manager.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/adapters/test_docker_image_manager.py:7: in <module>
+    from wallpaper_effects_generator.adapters.docker_image_manager import (
+E   ModuleNotFoundError: No module named 'wallpaper_effects_generator.adapters.docker_image_manager'
+_______ ERROR collecting tests/unit/adapters/test_oci_command_runner.py ________
+ImportError while importing test module '/home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/src/cli-tools/wallpaper-effects-generator/tests/unit/adapters/test_oci_command_runner.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.14/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/adapters/test_oci_command_runner.py:8: in <module>
+    from wallpaper_effects_generator.adapters.oci_command_runner import OCICommandRunner
+E   ModuleNotFoundError: No module named 'wallpaper_effects_generator.adapters.oci_command_runner'
+=========================== short test summary info ============================
+ERROR tests/test_factory.py
+ERROR tests/test_ports.py
+ERROR tests/unit/adapters/test_docker_image_manager.py
+ERROR tests/unit/adapters/test_oci_command_runner.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!!
+4 errors in 0.62s

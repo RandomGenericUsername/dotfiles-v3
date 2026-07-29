@@ -1,0 +1,30 @@
+Pre-existing failures in CSG test suite (26 failed, 452 passed; 0 errors).
+Root causes from the preflight commit (cli-flag-scope-refinement + engine-qualified-image-tags):
+
+1. **generate/show CLI tests (11)** — `test_generate.py`, `test_generate_full.py`, `test_show.py`:
+   Root cause: tests mock `deps.processor` via `processor=mock_processor` in CliDependencies fixture,
+   but the lazy-processor refactor means `generate`/`show` now create processors directly via
+   `create_local_processor()` or `resolve_processor()` instead of using `deps.processor`.
+   Fix: monkeypatch `create_local_processor` and `create_container_processor` in `cli/main.py` and
+   `cli/_helpers.py` to return the mock processor. Tests can also remove the `processor=` kwarg
+   from CliDependencies constructor.
+
+2. **info command tests (7)** — `test_info_command.py`:
+   Root cause: The `ProcessResult` output format changed — the info command now serializes
+   output using field-name style (`output.directory:`) instead of the old "Config path:" display.
+   Tests assert exact output strings that no longer match.
+
+3. **Port interface contract test (1)** — `test_ports/test_interfaces.py`:
+   Root cause: The `OutputPort` protocol was extended with additional methods (`config_info`,
+   `catalog_list`, `batch_result`, `dump_config_template`, `message`, etc.) but the minimal
+   `MockOutput` in the test only implements the original subset. The protocol check now
+   requires all protocol methods.
+
+4. **Rich output adapter test (1)** — `test_rich_output.py`:
+   Root cause: Rich formatting behavior may have changed.
+
+5. **Wallust generator test (1)** — `test_wallust_generator.py`:
+   Root cause: Shell command arguments may have changed.
+
+These failures are NOT caused by, and are NOT within the scope of, change
+`templates-dir-isolation`. They must be tracked as known pre-existing issues.

@@ -1,3 +1,11 @@
+## 0. Precondition Gates — Verify Solid Base
+
+- [ ] 0.1 Verify working tree is clean: `git status --short` shows no staged or unstaged modifications
+- [ ] 0.2 Establish CSG test baseline: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/csg-baseline.txt`. Save the output. Count total failed/error vs total tests.
+- [ ] 0.3 Establish WEG test baseline: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/weg-baseline.txt`. Save the output. Note: WEG has pre-existing collection errors (`ModuleNotFoundError: docker_image_manager`).
+- [ ] 0.4 Document pre-existing CSG failures in a known baseline file `openspec/changes/templates-dir-isolation/baseline-failures.txt`. These are known issues NOT caused by this change — they come from the lazy-processor refactor in `cli-flag-scope-refinement` and misc adapter/port interface changes. They must be counted before implementing this change so delta can be measured.
+- [ ] 0.5 Confirm the `TemplateSettings` and `TemplateSettingsSchema` classes exist at their expected locations (models.py:119-122, schema.py:45-54, config_resolver.py:97-98) — otherwise the change was already partially applied
+
 ## 1. Remove TemplateSettings and TemplateSettingsSchema
 
 - [ ] 1.1 Delete `TemplateSettings` dataclass from `src/cli-tools/color-scheme-generator/src/color_scheme_generator/domain/models.py` (lines 119-122)
@@ -59,8 +67,8 @@
 
 ## 9. Verify behavior parity
 
-- [ ] 9.1 Run full CSG unit test suite: all tests pass
-- [ ] 9.2 Run full WEG unit test suite: all tests pass (no changes expected)
+- [ ] 9.1 Run full CSG unit test suite: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/csg-after.txt`. Compare with `/tmp/csg-baseline.txt`. The count of failures should be the same or lower. NO new failures should appear.
+- [ ] 9.2 Run full WEG unit test suite: verify same or fewer failures vs baseline. WEG has no changes in this change — should be identical.
 - [ ] 9.3 `csg generate img.png` works with bundled templates (no `--templates-dir`)
 - [ ] 9.4 `csg generate img.png --templates-dir /custom/dir` works (direct renderer update via ctx.obj)
 - [ ] 9.5 `COLORSCHEME_TEMPLATES_TEMPLATES_DIR=/custom/dir csg generate img.png` works (plural env var via TemplateDirResolver.EnvDirStrategy)

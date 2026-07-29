@@ -1,0 +1,173 @@
+...............................F........................................ [ 15%]
+..F..................................................................... [ 30%]
+........................................................................ [ 45%]
+.......................................FF..F..F.FF..FF.FFF.F.....FFFFFFF [ 60%]
+.F.F..............................FF.................................... [ 75%]
+........................................................................ [ 90%]
+............................F.................                           [100%]
+=================================== FAILURES ===================================
+_______ TestWallustGenerator.test_generate_shells_out_with_correct_args ________
+tests/unit/adapters/backends/test_wallust_generator.py:78: in test_generate_shells_out_with_correct_args
+    assert args[0] == [
+E   AssertionError: assert ['wallust', '...s', '-s', ...] == ['wallust', '...s', '-s', ...]
+E     
+E     At index 8 diff: '--no-hooks' != '--print-scheme'
+E     Left contains 2 more items, first extra item: '--no-cache'
+E     Use -v to get more diff
+__________ TestRichOutput.test_palette_display_renders_color_swatches __________
+tests/unit/adapters/output/test_rich_output.py:88: in test_palette_display_renders_color_swatches
+    assert "Background" in captured
+E   AssertionError: assert 'Background' in '\nPalette Display\n                     Foreground: #ffffff\n                     Cursor: #ff0000\n\n                ...  \n#888888       #999999       #aaaaaa       #bbbbbb       #cccccc       #dddddd   \n#eeeeee       #ffffff     \n\n\n'
+_____________ TestCliGenerate.test_successful_generate_exit_code_0 _____________
+tests/unit/cli/test_generate.py:119: in test_successful_generate_exit_code_0
+    mock_processor.process_generate.assert_called_once()
+/usr/lib/python3.14/unittest/mock.py:964: in assert_called_once
+    raise AssertionError(msg)
+E   AssertionError: Expected 'process_generate' to have been called once. Called 0 times.
+__________ TestCliGenerate.test_invalid_image_path_exits_with_code_1 ___________
+tests/unit/cli/test_generate.py:141: in test_invalid_image_path_exits_with_code_1
+    assert result.exit_code == 1
+E   assert 0 == 1
+E    +  where 0 = <Result okay>.exit_code
+_______ TestCliGenerate.test_build_deps_returns_proper_cli_dependencies ________
+tests/unit/cli/test_generate.py:170: in test_build_deps_returns_proper_cli_dependencies
+    assert isinstance(deps.processor, LocalProcessor)
+E   AssertionError: assert False
+E    +  where False = isinstance(None, <class 'color_scheme_generator.adapters.local_processor.LocalProcessor'>)
+E    +    where None = CliDependencies(backend_registry={<Backend.CUSTOM: 'custom'>: <color_scheme_generator.adapters.backends.custom_generat...late_renderer=<color_scheme_generator.adapters.jinja_template_renderer.JinjaTemplateRenderer object at 0x7f863fff5310>).processor
+_________ TestGenerateBackendFlag.test_backend_flag_overrides_default __________
+tests/unit/cli/test_generate_full.py:171: in test_backend_flag_overrides_default
+    config = call_args[0][0].config
+             ^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+______ TestGenerateBackendFlag.test_backend_omitted_uses_settings_default ______
+tests/unit/cli/test_generate_full.py:213: in test_backend_omitted_uses_settings_default
+    config = call_args[0][0].config
+             ^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+_____________ TestGenerateParamFlag.test_param_key_value_overrides _____________
+tests/unit/cli/test_generate_full.py:229: in test_param_key_value_overrides
+    config = call_args[0][0].config
+             ^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+__________ TestGenerateFormatFlag.test_format_flag_only_renders_those __________
+tests/unit/cli/test_generate_full.py:273: in test_format_flag_only_renders_those
+    config = call_args[0][0].config
+             ^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+_______ TestGenerateFormatFlag.test_format_omitted_uses_settings_default _______
+tests/unit/cli/test_generate_full.py:307: in test_format_omitted_uses_settings_default
+    config = call_args[0][0].config
+             ^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+_________ TestGenerateOutputDirFlag.test_output_dir_flag_writes_there __________
+tests/unit/cli/test_generate_full.py:329: in test_output_dir_flag_writes_there
+    config = call_args[0][0].config
+             ^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+_______ TestGenerateOutputDirFlag.test_output_dir_omitted_uses_settings ________
+tests/unit/cli/test_generate_full.py:362: in test_output_dir_omitted_uses_settings
+    config = call_args[0][0].config
+             ^^^^^^^^^^^^
+E   TypeError: 'NoneType' object is not subscriptable
+__ TestGenerateBackendUnavailable.test_all_backends_unavailable_raises_error ___
+tests/unit/cli/test_generate_full.py:377: in test_all_backends_unavailable_raises_error
+    assert result.exit_code == 1
+E   assert 0 == 1
+E    +  where 0 = <Result okay>.exit_code
+__ TestGenerateConfigResolution.test_resolver_failure_falls_back_to_defaults ___
+tests/unit/cli/test_generate_full.py:401: in test_resolver_failure_falls_back_to_defaults
+    mock_processor.process_generate.assert_called_once()
+/usr/lib/python3.14/unittest/mock.py:964: in assert_called_once
+    raise AssertionError(msg)
+E   AssertionError: Expected 'process_generate' to have been called once. Called 0 times.
+________ TestShowFlags.test_show_all_backends_unavailable_raises_error _________
+tests/unit/cli/test_generate_full.py:474: in test_show_all_backends_unavailable_raises_error
+    assert result.exit_code == 1
+E   assert 0 == 1
+E    +  where 0 = <Result okay>.exit_code
+_______ TestShowFlags.test_show_resolver_failure_falls_back_to_defaults ________
+tests/unit/cli/test_generate_full.py:496: in test_show_resolver_failure_falls_back_to_defaults
+    mock_processor.process_show.assert_called_once()
+/usr/lib/python3.14/unittest/mock.py:964: in assert_called_once
+    raise AssertionError(msg)
+E   AssertionError: Expected 'process_show' to have been called once. Called 0 times.
+____________________ TestInfoCommand.test_info_outputs_json ____________________
+tests/unit/cli/test_info_command.py:118: in test_info_outputs_json
+    assert "config_path" in payload
+E   AssertionError: assert 'config_path' in {'settings': {'output': {'directory': '/tmp', 'default_formats': [], 'overwrite': 'False', 'verbosity': 1}, 'generatio...ngs: /home/user/.config/color-scheme-generator/settings.toml', 'templates: /home/user/.config/color-scheme/templates']}
+_________________ TestInfoCommand.test_info_shows_config_path __________________
+tests/unit/cli/test_info_command.py:140: in test_info_shows_config_path
+    assert "settings.toml" in payload["config_path"]
+                              ^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'config_path'
+______________ TestInfoCommand.test_info_shows_applied_overrides _______________
+tests/unit/cli/test_info_command.py:156: in test_info_shows_applied_overrides
+    assert len(payload["applied_overrides"]) > 0
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'applied_overrides'
+_________________ TestInfoCommand.test_info_shows_runtime_mode _________________
+tests/unit/cli/test_info_command.py:173: in test_info_shows_runtime_mode
+    assert payload["runtime_mode"] == "local"
+           ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'runtime_mode'
+_____________ TestInfoCommand.test_info_shows_templates_directory ______________
+tests/unit/cli/test_info_command.py:190: in test_info_shows_templates_directory
+    assert "templates" in payload["templates_directory"]
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'templates_directory'
+__________ TestInfoCommand.test_info_handles_config_resolution_error ___________
+tests/unit/cli/test_info_command.py:230: in test_info_handles_config_resolution_error
+    assert "not resolved" in payload["config_path"]
+                             ^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'config_path'
+_______________ TestInfoCommand.test_info_supports_plain_output ________________
+tests/unit/cli/test_info_command.py:255: in test_info_supports_plain_output
+    assert "Config path:" in result.stdout
+E   AssertionError: assert 'Config path:' in 'output.directory: /tmp\noutput.default_formats: ()\noutput.overwrite: False\noutput.verbosity: Verbosity.NORMAL\ngene...home/user/.config/color-scheme/templates\n\nBackends:\n  custom: available\n  pywal: available\n  wallust: available\n'
+E    +  where 'output.directory: /tmp\noutput.default_formats: ()\noutput.overwrite: False\noutput.verbosity: Verbosity.NORMAL\ngene...home/user/.config/color-scheme/templates\n\nBackends:\n  custom: available\n  pywal: available\n  wallust: available\n' = <Result okay>.stdout
+_________________ TestCliShow.test_successful_show_exit_code_0 _________________
+tests/unit/cli/test_show.py:134: in test_successful_show_exit_code_0
+    mock_processor.process_show.assert_called_once()
+/usr/lib/python3.14/unittest/mock.py:964: in assert_called_once
+    raise AssertionError(msg)
+E   AssertionError: Expected 'process_show' to have been called once. Called 0 times.
+____________ TestCliShow.test_invalid_image_path_exits_with_code_1 _____________
+tests/unit/cli/test_show.py:156: in test_invalid_image_path_exits_with_code_1
+    assert result.exit_code == 1
+E   assert 0 == 1
+E    +  where 0 = <Result okay>.exit_code
+__________ TestOutputPort.test_valid_implementation_passes_isinstance __________
+tests/unit/ports/test_interfaces.py:123: in test_valid_implementation_passes_isinstance
+    assert isinstance(MockOutput(), OutputPort)
+E   AssertionError: assert False
+E    +  where False = isinstance(<unit.ports.test_interfaces.TestOutputPort.test_valid_implementation_passes_isinstance.<locals>.MockOutput object at 0x7f863dfa3a10>, OutputPort)
+E    +    where <unit.ports.test_interfaces.TestOutputPort.test_valid_implementation_passes_isinstance.<locals>.MockOutput object at 0x7f863dfa3a10> = <class 'unit.ports.test_interfaces.TestOutputPort.test_valid_implementation_passes_isinstance.<locals>.MockOutput'>()
+=========================== short test summary info ============================
+FAILED tests/unit/adapters/backends/test_wallust_generator.py::TestWallustGenerator::test_generate_shells_out_with_correct_args
+FAILED tests/unit/adapters/output/test_rich_output.py::TestRichOutput::test_palette_display_renders_color_swatches
+FAILED tests/unit/cli/test_generate.py::TestCliGenerate::test_successful_generate_exit_code_0
+FAILED tests/unit/cli/test_generate.py::TestCliGenerate::test_invalid_image_path_exits_with_code_1
+FAILED tests/unit/cli/test_generate.py::TestCliGenerate::test_build_deps_returns_proper_cli_dependencies
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateBackendFlag::test_backend_flag_overrides_default
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateBackendFlag::test_backend_omitted_uses_settings_default
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateParamFlag::test_param_key_value_overrides
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateFormatFlag::test_format_flag_only_renders_those
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateFormatFlag::test_format_omitted_uses_settings_default
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateOutputDirFlag::test_output_dir_flag_writes_there
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateOutputDirFlag::test_output_dir_omitted_uses_settings
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateBackendUnavailable::test_all_backends_unavailable_raises_error
+FAILED tests/unit/cli/test_generate_full.py::TestGenerateConfigResolution::test_resolver_failure_falls_back_to_defaults
+FAILED tests/unit/cli/test_generate_full.py::TestShowFlags::test_show_all_backends_unavailable_raises_error
+FAILED tests/unit/cli/test_generate_full.py::TestShowFlags::test_show_resolver_failure_falls_back_to_defaults
+FAILED tests/unit/cli/test_info_command.py::TestInfoCommand::test_info_outputs_json
+FAILED tests/unit/cli/test_info_command.py::TestInfoCommand::test_info_shows_config_path
+FAILED tests/unit/cli/test_info_command.py::TestInfoCommand::test_info_shows_applied_overrides
+FAILED tests/unit/cli/test_info_command.py::TestInfoCommand::test_info_shows_runtime_mode
+FAILED tests/unit/cli/test_info_command.py::TestInfoCommand::test_info_shows_templates_directory
+FAILED tests/unit/cli/test_info_command.py::TestInfoCommand::test_info_handles_config_resolution_error
+FAILED tests/unit/cli/test_info_command.py::TestInfoCommand::test_info_supports_plain_output
+FAILED tests/unit/cli/test_show.py::TestCliShow::test_successful_show_exit_code_0
+FAILED tests/unit/cli/test_show.py::TestCliShow::test_invalid_image_path_exits_with_code_1
+FAILED tests/unit/ports/test_interfaces.py::TestOutputPort::test_valid_implementation_passes_isinstance
+26 failed, 452 passed in 3.01s
