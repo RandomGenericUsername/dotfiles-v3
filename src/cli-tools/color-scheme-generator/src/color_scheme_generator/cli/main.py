@@ -16,7 +16,7 @@ from color_scheme_generator.cli.dump_templates_cmd import dump_templates
 from color_scheme_generator.cli.info_cmd import info
 from color_scheme_generator.cli.install_cmd import install
 from color_scheme_generator.cli.list_backends_cmd import list_backends
-from color_scheme_generator.cli.options import ENGINE_OPT, RUNTIME_OPT
+from color_scheme_generator.cli.options import CONFIG_OPT, ENGINE_OPT, RUNTIME_OPT, TEMPLATES_DIR_OPT
 from color_scheme_generator.cli.show import show
 from color_scheme_generator.cli.uninstall_cmd import uninstall
 from color_scheme_generator.cli.version_cmd import version
@@ -55,11 +55,10 @@ app = typer.Typer(
         "Color Scheme Generator — extract color palettes from images.\n\n"
         "Configuration discovery (highest priority first):\n"
         "  Settings (settings.toml):\n"
-        "    1. Explicit --config flag\n"
-        "    2. COLORSCHEME_CONFIG_FILE_PATH env var\n"
-        "    3. settings.toml in CWD or up to 3 parent levels\n"
-        f"    4. XDG default: {_xdg_settings_path}\n"
-        "    5. Package-bundled defaults\n"
+        "    1. COLORSCHEME_CONFIG_FILE_PATH env var\n"
+        "    2. settings.toml in CWD or up to 3 parent levels\n"
+        f"    3. XDG default: {_xdg_settings_path}\n"
+        "    4. Package-bundled defaults\n"
         "  Templates directory:\n"
         "    1. COLORSCHEME_TEMPLATES_TEMPLATES_DIR env var\n"
         "    2. templates/ in CWD or up to 3 parent levels\n"
@@ -90,26 +89,6 @@ def main_callback(
         "--output-format",
         help="Output format for command results",
         case_sensitive=False,
-    ),
-    config_path: Path | None = typer.Option(  # noqa: B008
-        None,
-        "--config",
-        help="Path to settings.toml config file",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        resolve_path=True,
-    ),
-    templates_dir: Path | None = typer.Option(  # noqa: B008
-        None,
-        "--templates-dir",
-        help="Path to directory containing .j2 template files",
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        readable=True,
-        resolve_path=True,
     ),
     verbose: int = typer.Option(  # noqa: B008
         0,
@@ -142,9 +121,7 @@ def main_callback(
 
     ctx.obj = {
         "deps": deps,
-        "config_path": str(config_path) if config_path else None,
         "cli_overrides": cli_overrides,
-        "templates_dir": str(templates_dir) if templates_dir else None,
         "verbosity": verbosity,
     }
 
@@ -167,6 +144,8 @@ def main_callback(
 def generate(
     ctx: typer.Context,
     image_path: Path = typer.Argument(..., help="Path to the input image file"),
+    config_path: Path | None = CONFIG_OPT,
+    templates_dir: Path | None = TEMPLATES_DIR_OPT,
     runtime: RuntimeMode | None = RUNTIME_OPT,
     container_engine: ContainerEngine | None = ENGINE_OPT,
     backend: Backend | None = typer.Option(None, "--backend", help="Extraction backend"),
@@ -180,7 +159,6 @@ def generate(
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
-        config_path = ctx.obj.get("config_path")
         cli_overrides = ctx.obj.get("cli_overrides", {})
         if runtime is not None:
             cli_overrides["runtime.mode"] = runtime.value
@@ -207,8 +185,8 @@ def generate(
             Verbosity.DEBUG: logging.DEBUG,
         }[settings_verbosity])
 
-    if ctx.obj.get("templates_dir") is not None and deps.template_renderer is not None:
-        deps.template_renderer.update_templates_dir(ctx.obj["templates_dir"])
+    if templates_dir is not None and deps.template_renderer is not None:
+        deps.template_renderer.update_templates_dir(str(templates_dir))
 
     try:
         raw_params = parse_params(param)

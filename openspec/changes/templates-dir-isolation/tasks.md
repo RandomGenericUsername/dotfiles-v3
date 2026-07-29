@@ -1,9 +1,9 @@
 ## 0. Precondition Gates — Verify Solid Base
 
 - [x] 0.1 Verify working tree is clean: `git status --short` shows no staged or unstaged modifications
-- [ ] 0.2 Establish CSG test baseline: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/csg-baseline.txt`. Save the output. Count total failed/error vs total tests.
-- [ ] 0.3 Establish WEG test baseline: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/weg-baseline.txt`. Save the output. Note: WEG has pre-existing collection errors (`ModuleNotFoundError: docker_image_manager`).
-- [ ] 0.4 Document pre-existing CSG failures in a known baseline file `openspec/changes/templates-dir-isolation/baseline-failures.txt`. These are known issues NOT caused by this change — they come from the lazy-processor refactor in `cli-flag-scope-refinement` and misc adapter/port interface changes. They must be counted before implementing this change so delta can be measured.
+- [x] 0.2 Establish CSG test baseline: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/csg-baseline.txt`. Save the output. Count total failed/error vs total tests.
+- [x] 0.3 Establish WEG test baseline: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/weg-baseline.txt`. Save the output. Note: WEG has pre-existing collection errors (`ModuleNotFoundError: docker_image_manager`).
+- [x] 0.4 Document pre-existing CSG failures in a known baseline file `openspec/changes/templates-dir-isolation/baseline-failures.txt`. These are known issues NOT caused by this change — they come from the lazy-processor refactor in `cli-flag-scope-refinement` and misc adapter/port interface changes. They must be counted before implementing this change so delta can be measured.
 - [x] 0.5 Confirm the `TemplateSettings` and `TemplateSettingsSchema` classes exist at their expected locations (models.py:119-122, schema.py:45-54, config_resolver.py:97-98) — otherwise the change was already partially applied
 
 ## 1. Remove TemplateSettings and TemplateSettingsSchema
@@ -67,14 +67,14 @@
 
 ## 9. Verify behavior parity
 
-- [ ] 9.1 Run full CSG unit test suite: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/csg-after.txt`. Compare with `/tmp/csg-baseline.txt`. The count of failures should be the same or lower. NO new failures should appear.
-- [ ] 9.2 Run full WEG unit test suite: verify same or fewer failures vs baseline. WEG has no changes in this change — should be identical.
-- [ ] 9.3 `csg generate img.png` works with bundled templates (no `--templates-dir`)
-- [ ] 9.4 `csg generate img.png --templates-dir /custom/dir` works (direct renderer update via ctx.obj)
-- [ ] 9.5 `COLORSCHEME_TEMPLATES_TEMPLATES_DIR=/custom/dir csg generate img.png` works (plural env var via TemplateDirResolver.EnvDirStrategy)
-- [ ] 9.6 `csg info` shows templates path from resolver chain only (no `settings_dir`)
-- [ ] 9.7 `csg dump-config --output /tmp/test.toml` no longer contains `[template]` section
-- [ ] 9.8 `csg generate img.png --runtime container` mounts templates correctly (container processor calls `template_dir_resolver.resolve()` with no args; inner container uses `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` from `_CONTAINER_ENV`)
+- [x] 9.1 Run full CSG unit test suite: `python3 -m pytest --tb=short -q 2>&1 | tee /tmp/csg-after.txt`. Compare with `/tmp/csg-baseline.txt`. The count of failures should be the same or lower. NO new failures should appear.
+- [x] 9.2 Run full WEG unit test suite: verify same or fewer failures vs baseline. WEG has no changes in this change — should be identical.
+- [x] 9.3 `csg generate img.png` works with bundled templates (no `--templates-dir`)
+- [x] 9.4 `csg generate img.png --templates-dir /custom/dir` works (direct renderer update via ctx.obj)
+- [x] 9.5 `COLORSCHEME_TEMPLATES_TEMPLATES_DIR=/custom/dir csg generate img.png` works (plural env var via TemplateDirResolver.EnvDirStrategy)
+- [x] 9.6 `csg info` shows templates path from resolver chain only (no `settings_dir`)
+- [x] 9.7 `csg dump-config --output /tmp/test.toml` no longer contains `[template]` section
+- [x] 9.8 `csg generate img.png --runtime container` mounts templates correctly (container processor calls `template_dir_resolver.resolve()` with no args; inner container uses `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` from `_CONTAINER_ENV`)
 
 ## 10. Update help text
 

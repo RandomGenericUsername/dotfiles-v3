@@ -8,6 +8,7 @@ import typer
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
+from color_scheme_generator.cli.options import CONFIG_OPT, TEMPLATES_DIR_OPT
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import AppSettings
@@ -24,7 +25,11 @@ def _check_backend_availability(
     return generator.is_available()
 
 
-def info(ctx: typer.Context) -> None:
+def info(
+    ctx: typer.Context,
+    config_path: Path | None = CONFIG_OPT,
+    templates_dir: Path | None = TEMPLATES_DIR_OPT,
+) -> None:
     deps: CliDependencies = ctx.obj["deps"]
 
     config_resolver: AssembledConfigResolver | None = deps.config_resolver
@@ -36,7 +41,6 @@ def info(ctx: typer.Context) -> None:
 
     if config_resolver is not None:
         try:
-            config_path = ctx.obj.get("config_path")
             cli_overrides = ctx.obj.get("cli_overrides", {})
             settings = config_resolver.resolve(
                 explicit_path=config_path, cli_overrides=cli_overrides
@@ -52,7 +56,7 @@ def info(ctx: typer.Context) -> None:
     if template_dir_resolver is not None:
         try:
             sources.append(
-                f"templates: {template_dir_resolver.resolve()}"
+                f"templates: {template_dir_resolver.resolve(settings_dir=templates_dir)}"
             )
         except ConfigResolutionError:
             pass

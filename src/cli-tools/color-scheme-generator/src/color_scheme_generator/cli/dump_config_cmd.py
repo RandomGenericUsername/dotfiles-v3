@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+from importlib.resources import files as resource_files
 from pathlib import Path
 
 import typer
 
-from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
-from color_scheme_generator.adapters.settings.settings_serializer import SettingsSerializer
-from color_scheme_generator.domain.exceptions import ConfigResolutionError, OutputWriteError
+from color_scheme_generator.domain.exceptions import OutputWriteError
 from color_scheme_generator.factory import CliDependencies
 
 
@@ -15,24 +14,14 @@ def dump_config(
     output: Path | None = typer.Option(None, "--output", "-o", help="Output file path or directory (appends settings.toml)"),  # noqa: B008
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
-    config_resolver: AssembledConfigResolver | None = deps.config_resolver
-
-    if config_resolver is None:
-        msg = "Config resolver not available"
-        raise ConfigResolutionError(key="settings.toml", reason=msg)
-
-    try:
-        config_path = ctx.obj.get("config_path")
-        cli_overrides = ctx.obj.get("cli_overrides", {})
-        settings = config_resolver.resolve(explicit_path=config_path, cli_overrides=cli_overrides)
-    except ConfigResolutionError:
-        raise
-
-    serializer = SettingsSerializer()
-    toml_str = serializer.serialize(settings)
+    content = (
+        resource_files("color_scheme_generator.defaults")
+        .joinpath("settings.toml")
+        .read_text()
+    )
 
     if output is None:
-        print(toml_str)
+        print(content, end="")
         return
 
     output_path = output
@@ -41,7 +30,7 @@ def dump_config(
 
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(toml_str)
+        output_path.write_text(content)
     except (OSError, PermissionError) as e:
         raise OutputWriteError(path=output_path, reason=str(e)) from e
 

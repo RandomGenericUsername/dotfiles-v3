@@ -169,13 +169,13 @@ def test_process_effect_json_output(tmp_path) -> None:
         result = runner.invoke(
             app,
             [
+                "--output-format",
+                "json",
+                "process",
                 "--config",
                 str(config_file),
                 "--effects",
                 str(effects_file),
-                "--output-format",
-                "json",
-                "process",
                 "effect",
                 "blur",
                 "/tmp/test.png",
@@ -319,13 +319,13 @@ def test_process_effect_rich_output_default(tmp_path) -> None:
         result = runner.invoke(
             app,
             [
+                "--output-format",
+                "rich",
+                "process",
                 "--config",
                 str(config_file),
                 "--effects",
                 str(effects_file),
-                "--output-format",
-                "rich",
-                "process",
                 "effect",
                 "blur",
                 "/tmp/test.png",

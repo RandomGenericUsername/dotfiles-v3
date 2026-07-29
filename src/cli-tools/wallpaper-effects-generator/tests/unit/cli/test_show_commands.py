@@ -70,6 +70,11 @@ class TestShowCommand:
             args = mock_adapter.catalog_list.call_args[0]
             assert args[1] == CatalogQuery.PRESET
 
+    def test_show_rejects_config_flag(self) -> None:
+        result = runner.invoke(app, ["show", "effects", "--config", "/x"])
+        assert result.exit_code != 0
+        assert "no such option" in (result.stdout + result.stderr).lower()
+
     def test_show_all(self) -> None:
         mock_adapter = MagicMock()
         with (

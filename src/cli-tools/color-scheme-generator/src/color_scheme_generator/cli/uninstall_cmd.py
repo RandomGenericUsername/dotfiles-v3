@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 
 import typer
 
@@ -9,7 +10,7 @@ from color_scheme_generator.adapters.output.json_output import JsonOutput
 from color_scheme_generator.adapters.output.plain_output import PlainOutput
 from color_scheme_generator.adapters.output.rich_output import RichOutput
 from color_scheme_generator.cli._helpers import build_image_name
-from color_scheme_generator.cli.options import ENGINE_OPT
+from color_scheme_generator.cli.options import CONFIG_OPT, ENGINE_OPT
 from color_scheme_generator.domain.enums import Backend, ContainerEngine
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.factory import CliDependencies, create_container_engine
@@ -19,6 +20,7 @@ log = logging.getLogger(__name__)
 
 def uninstall(
     ctx: typer.Context,
+    config_path: Path | None = CONFIG_OPT,
     container_engine: ContainerEngine | None = ENGINE_OPT,
     backend: list[Backend] = typer.Option([], "--backend", help="Backends to remove"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
@@ -27,7 +29,7 @@ def uninstall(
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
-        settings = deps.config_resolver.resolve()
+        settings = deps.config_resolver.resolve(explicit_path=config_path)
         engine = container_engine or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
         engine_value = engine.value
         container_engine = create_container_engine(engine)

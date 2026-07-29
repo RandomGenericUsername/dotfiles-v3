@@ -137,7 +137,7 @@ class TestDumpConfigCommand:
         content = output_file.read_text()
         assert "[output]" in content
 
-    def test_dump_config_handles_config_resolution_failure(
+    def test_dump_config_succeeds_independent_of_config_resolver(
         self,
         runner: CliRunner,
         mock_deps: CliDependencies,
@@ -151,7 +151,18 @@ class TestDumpConfigCommand:
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["dump-config"])
-        assert result.exit_code == 1
+        assert result.exit_code == 0
+
+    def test_dump_config_rejects_config_flag(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, ["dump-config", "--config", "/x"])
+        assert result.exit_code != 0
+        assert "no such option" in (result.stdout + result.stderr).lower()
 
     def test_dump_config_help_shows_expected_usage(
         self,

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
+from wallpaper_effects_generator.cli.options import EFFECTS_OPT
 from wallpaper_effects_generator.domain.enums import CatalogQuery, OutputFormat
 from wallpaper_effects_generator.factory import create_output_adapter
 from wallpaper_effects_generator.ports.output import OutputPort
@@ -10,6 +13,15 @@ show_app = typer.Typer(
     name="show",
     help="Display catalog entries",
 )
+
+
+@show_app.callback()
+def show_callback(
+    ctx: typer.Context,
+    effects: Path | None = EFFECTS_OPT,
+) -> None:
+    ctx.ensure_object(dict)
+    ctx.obj["effects"] = str(effects) if effects else None
 
 
 def _get_output_adapter(ctx: typer.Context) -> OutputPort:

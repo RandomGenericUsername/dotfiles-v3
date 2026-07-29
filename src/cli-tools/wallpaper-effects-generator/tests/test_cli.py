@@ -57,7 +57,7 @@ effects:
 
     result = runner.invoke(
         app,
-        ["--config", str(config_file), "--effects", str(effects_file), "info"],
+        ["info", "--config", str(config_file), "--effects", str(effects_file)],
     )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr_bytes}"
@@ -119,13 +119,13 @@ def test_cli_callback_flags(tmp_path: Path):
     result = runner.invoke(
         app,
         [
+            "--output-format",
+            "json",
+            "info",
             "--config",
             str(config_file),
             "--effects",
             str(effects_file),
-            "--output-format",
-            "json",
-            "info",
         ],
     )
 
@@ -164,7 +164,7 @@ effects:
 
     result = runner.invoke(
         app,
-        ["--effects", str(effects_file), "show", "effects"],
+        ["show", "--effects", str(effects_file), "effects"],
     )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr_bytes}"
@@ -185,7 +185,7 @@ composites:
 
     result = runner.invoke(
         app,
-        ["--effects", str(effects_file), "show", "composites"],
+        ["show", "--effects", str(effects_file), "composites"],
     )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr_bytes}"
@@ -206,7 +206,7 @@ presets:
 
     result = runner.invoke(
         app,
-        ["--effects", str(effects_file), "show", "presets"],
+        ["show", "--effects", str(effects_file), "presets"],
     )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr_bytes}"
@@ -234,7 +234,7 @@ presets:
 
     result = runner.invoke(
         app,
-        ["--effects", str(effects_file), "show", "all"],
+        ["show", "--effects", str(effects_file), "all"],
     )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr_bytes}"
@@ -260,9 +260,8 @@ effects:
     result = runner.invoke(
         app,
         [
-            "--effects", str(effects_file),
             "--output-format", "json",
-            "show", "effects",
+            "show", "--effects", str(effects_file), "effects",
         ],
     )
 
@@ -287,7 +286,7 @@ def test_operational_no_processing_dependency(tmp_path: Path):
 
     result = runner.invoke(
         app,
-        ["--config", str(config_file), "--effects", str(effects_file), "info"],
+        ["info", "--config", str(config_file), "--effects", str(effects_file)],
     )
     assert result.exit_code == 0
 
@@ -317,7 +316,7 @@ image_registry = "ghcr.io"
     ):
         result = runner.invoke(
             app,
-            ["--config", str(config_file), "install"],
+            ["install", "--config", str(config_file)],
         )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
@@ -342,7 +341,7 @@ image_registry = "ghcr.io"
     with patch("shutil.which", return_value=None):
         result = runner.invoke(
             app,
-            ["--config", str(config_file), "install"],
+            ["install", "--config", str(config_file)],
         )
 
     assert result.exit_code != 0
@@ -373,7 +372,7 @@ image_registry = "ghcr.io"
     ):
         result = runner.invoke(
             app,
-            ["--config", str(config_file), "uninstall"],
+            ["uninstall", "--config", str(config_file)],
         )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
@@ -407,7 +406,7 @@ image_registry = "ghcr.io"
     ):
         result = runner.invoke(
             app,
-            ["--config", str(config_file), "uninstall"],
+            ["uninstall", "--config", str(config_file)],
         )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"

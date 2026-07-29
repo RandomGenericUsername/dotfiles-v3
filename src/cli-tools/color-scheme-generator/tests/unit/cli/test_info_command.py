@@ -206,6 +206,29 @@ class TestInfoCommand:
         assert "pywal" in backends
         assert "wallust" in backends
 
+    def test_info_accepts_config_leaf_option(
+        self,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        mock_config_resolver: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        config_file = tmp_path / "settings.toml"
+        config_file.write_text("")
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, [
+            "--output-format", "json", "info",
+            "--config", str(config_file),
+        ])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        mock_config_resolver.resolve.assert_called_once()
+        call_kwargs = mock_config_resolver.resolve.call_args[1]
+        assert call_kwargs.get("explicit_path") is not None
+        assert str(call_kwargs["explicit_path"]).endswith("settings.toml")
+
     def test_info_handles_config_resolution_error(
         self,
         runner: CliRunner,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -122,6 +123,28 @@ class TestInstallCommand:
         assert "csg-base-docker:latest" in images
         assert "csg-custom-docker:latest" in images
 
+    def test_install_passes_config_path_to_resolver(
+        self,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        mock_config_resolver: MagicMock,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        config_file = tmp_path / "settings.toml"
+        config_file.write_text("")
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, [
+            "install", "--config", str(config_file), "--dry-run",
+        ])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        mock_config_resolver.resolve.assert_called_once()
+        call_kwargs = mock_config_resolver.resolve.call_args[1]
+        assert call_kwargs.get("explicit_path") is not None
+        assert "settings.toml" in str(call_kwargs["explicit_path"])
+
     def test_install_dry_run_logs_without_building(
         self,
         runner: CliRunner,
@@ -194,6 +217,17 @@ class TestInstallCommand:
             "--output-format", "json", "install", "--backend", "custom"
         ])
         assert result.exit_code == 1
+
+    def test_install_rejects_templates_dir_flag(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, ["install", "--templates-dir", "/x"])
+        assert result.exit_code != 0
+        assert "no such option" in (result.stdout + result.stderr).lower()
 
     def test_install_help_shows_expected_usage(
         self,

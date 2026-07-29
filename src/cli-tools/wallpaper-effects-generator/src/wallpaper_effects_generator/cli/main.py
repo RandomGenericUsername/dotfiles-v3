@@ -11,7 +11,7 @@ from wallpaper_effects_generator.cli.dump_config import dump_config_command
 from wallpaper_effects_generator.cli.dump_effects import dump_effects_command
 from wallpaper_effects_generator.cli.info import info_command
 from wallpaper_effects_generator.cli.install import install_command
-from wallpaper_effects_generator.cli.options import ENGINE_OPT
+from wallpaper_effects_generator.cli.options import CONFIG_OPT, EFFECTS_OPT, ENGINE_OPT
 from wallpaper_effects_generator.cli.process import process_app
 from wallpaper_effects_generator.cli.show import show_app
 from wallpaper_effects_generator.cli.uninstall import uninstall_command
@@ -44,17 +44,15 @@ app = typer.Typer(
         "Wallpaper Effects Generator — apply effects to wallpapers.\n\n"
         "Configuration discovery (highest priority first):\n"
         "  Settings (settings.toml):\n"
-        "    1. Explicit --config flag\n"
-        "    2. WALLPAPER_CONFIG_FILE_PATH env var\n"
-        f"    3. {CONFIG_FILENAME} in CWD or up to {CONFIG_TRAVERSAL_DEPTH} parent levels\n"
-        f"    4. XDG default: {_xdg_settings_path}\n"
-        "    5. Package-bundled defaults\n"
+        "    1. WALLPAPER_CONFIG_FILE_PATH env var\n"
+        f"    2. {CONFIG_FILENAME} in CWD or up to {CONFIG_TRAVERSAL_DEPTH} parent levels\n"
+        f"    3. XDG default: {_xdg_settings_path}\n"
+        "    4. Package-bundled defaults\n"
         "  Effects (effects.yaml):\n"
-        "    1. Explicit --effects flag\n"
-        "    2. WALLPAPER_EFFECTS_CONFIG_FILE_PATH env var\n"
-        f"    3. {EFFECTS_FILENAME} in CWD or up to {EFFECTS_TRAVERSAL_DEPTH} parent levels\n"
-        f"    4. XDG default: {_xdg_effects_path}\n"
-        "    5. Package-bundled defaults\n\n"
+        "    1. WALLPAPER_EFFECTS_CONFIG_FILE_PATH env var\n"
+        f"    2. {EFFECTS_FILENAME} in CWD or up to {EFFECTS_TRAVERSAL_DEPTH} parent levels\n"
+        f"    3. XDG default: {_xdg_effects_path}\n"
+        "    4. Package-bundled defaults\n\n"
         f"ENV overrides: WALLPAPER__SECTION__KEY=value (double underscore = nesting)"
     ),
 )
@@ -63,28 +61,6 @@ app = typer.Typer(
 @app.callback()
 def main(
     ctx: typer.Context,
-    config: Path | None = typer.Option(
-        None,
-        "--config",
-        "-c",
-        help="Path to settings.toml config file",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        resolve_path=True,
-    ),
-    effects: Path | None = typer.Option(
-        None,
-        "--effects",
-        "-e",
-        help="Path to effects.yaml file",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
-        resolve_path=True,
-    ),
     output_format: OutputFormat = typer.Option(
         OutputFormat.JSON,
         "--output-format",
@@ -106,8 +82,6 @@ def main(
     ),
 ) -> None:
     ctx.ensure_object(dict)
-    ctx.obj["config"] = str(config) if config else None
-    ctx.obj["effects"] = str(effects) if effects else None
     ctx.obj["output_format"] = output_format
     if quiet:
         ctx.obj["verbosity"] = Verbosity.QUIET
@@ -139,12 +113,16 @@ def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat
 
 
 @app.command(help="Show resolved configuration, catalog, and source paths")
-def info(ctx: typer.Context) -> None:
+def info(
+    ctx: typer.Context,
+    config_path: Path | None = CONFIG_OPT,
+    effects_path: Path | None = EFFECTS_OPT,
+) -> None:
     output_adapter = _get_output_adapter(ctx)
     deps = ctx.obj["deps"]
     info_command(
-        config_path=ctx.obj["config"],
-        effects_path=ctx.obj["effects"],
+        config_path=str(config_path) if config_path else None,
+        effects_path=str(effects_path) if effects_path else None,
         output_adapter=output_adapter,
         config_resolver=deps.config_resolver,
         effect_loader=deps.effect_loader,
@@ -186,6 +164,7 @@ def version(ctx: typer.Context) -> None:
 @app.command(help="Build and install the container image")
 def install(
     ctx: typer.Context,
+    config_path: Path | None = CONFIG_OPT,
     container_engine: ContainerEngine | None = ENGINE_OPT,
     dump_config: bool = typer.Option(False, "--dump-config", help="Write default settings.toml"),
     dump_effects: bool = typer.Option(False, "--dump-effects", help="Write default effects.yaml"),
@@ -194,7 +173,7 @@ def install(
     install_command(
         config_resolver=deps.config_resolver,
         output_adapter=_get_output_adapter(ctx),
-        config_path=ctx.obj.get("config"),
+        config_path=str(config_path) if config_path else None,
         dump_config=dump_config,
         dump_effects=dump_effects,
         container_engine=container_engine,
@@ -204,13 +183,14 @@ def install(
 @app.command(help="Remove the installed container image")
 def uninstall(
     ctx: typer.Context,
+    config_path: Path | None = CONFIG_OPT,
     container_engine: ContainerEngine | None = ENGINE_OPT,
 ) -> None:
     deps = ctx.obj["deps"]
     uninstall_command(
         config_resolver=deps.config_resolver,
         output_adapter=_get_output_adapter(ctx),
-        config_path=ctx.obj.get("config"),
+        config_path=str(config_path) if config_path else None,
         container_engine=container_engine,
     )
 

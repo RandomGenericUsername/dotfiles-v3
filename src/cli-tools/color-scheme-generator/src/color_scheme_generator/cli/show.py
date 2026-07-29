@@ -10,6 +10,7 @@ from color_scheme_generator.cli._helpers import (
     resolve_backend_params,
     resolve_processor,
 )
+from color_scheme_generator.cli.options import CONFIG_OPT, TEMPLATES_DIR_OPT
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.domain.models import (
@@ -22,12 +23,13 @@ from color_scheme_generator.factory import CliDependencies
 def show(
     ctx: typer.Context,
     image_path: Path = typer.Argument(..., help="Path to the input image file"),  # noqa: B008
+    config_path: Path | None = CONFIG_OPT,
+    templates_dir: Path | None = TEMPLATES_DIR_OPT,
     backend: Backend | None = typer.Option(None, "--backend", help="Extraction backend"),  # noqa: B008
     param: list[str] = typer.Option([], "--param", help="Backend parameter overrides"),  # noqa: B008
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
-        config_path = ctx.obj.get("config_path")
         cli_overrides = ctx.obj.get("cli_overrides", {})
         settings = (
             deps.config_resolver.resolve(
@@ -40,8 +42,8 @@ def show(
         typer.echo("Warning: config resolution failed, using defaults", err=True)
         settings = default_app_settings()
 
-    if ctx.obj.get("templates_dir") is not None and deps.template_renderer is not None:
-        deps.template_renderer.update_templates_dir(ctx.obj["templates_dir"])
+    if templates_dir is not None and deps.template_renderer is not None:
+        deps.template_renderer.update_templates_dir(str(templates_dir))
 
     try:
         raw_params = parse_params(param)

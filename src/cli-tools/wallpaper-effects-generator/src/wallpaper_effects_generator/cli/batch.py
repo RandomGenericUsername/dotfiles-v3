@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from wallpaper_effects_generator.cli.options import ENGINE_OPT, RUNTIME_OPT
+from wallpaper_effects_generator.cli.options import CONFIG_OPT, EFFECTS_OPT, ENGINE_OPT, RUNTIME_OPT
 from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
 from wallpaper_effects_generator.domain.enums import ContainerEngine, ItemType, OutputFormat, RuntimeMode
 from wallpaper_effects_generator.domain.models import BatchRequest
@@ -24,10 +24,14 @@ batch_app = typer.Typer(
 @batch_app.callback()
 def batch_callback(
     ctx: typer.Context,
+    config: Path | None = CONFIG_OPT,
+    effects: Path | None = EFFECTS_OPT,
     runtime: RuntimeMode | None = RUNTIME_OPT,
     container_engine: ContainerEngine | None = ENGINE_OPT,
 ) -> None:
     ctx.ensure_object(dict)
+    ctx.obj["config"] = str(config) if config else None
+    ctx.obj["effects"] = str(effects) if effects else None
     ctx.obj["runtime"] = runtime
     ctx.obj["container_engine"] = container_engine
 
