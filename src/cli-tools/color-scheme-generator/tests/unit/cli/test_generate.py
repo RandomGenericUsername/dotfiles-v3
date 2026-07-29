@@ -84,14 +84,23 @@ def mock_backend_catalog_loader() -> MagicMock:
 class TestCliGenerate:
     @pytest.fixture
     def mock_deps(
-        self, mock_processor, mock_output, mock_config_resolver, mock_backend_catalog_loader
+        self, mock_output, mock_config_resolver, mock_backend_catalog_loader
     ) -> CliDependencies:
         return CliDependencies(
             backend_registry=MagicMock(),
             backend_catalog_loader=mock_backend_catalog_loader,
             config_resolver=mock_config_resolver,
             output_adapter=mock_output,
-            processor=mock_processor,
+        )
+
+    def _patch_processor(self, monkeypatch: pytest.MonkeyPatch, mock_processor: MagicMock) -> None:
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_local_processor",
+            lambda *a, **kw: mock_processor,
+        )
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_container_processor",
+            lambda *a, **kw: mock_processor,
         )
 
     def test_successful_generate_exit_code_0(
@@ -102,6 +111,7 @@ class TestCliGenerate:
         mock_output: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        self._patch_processor(monkeypatch, mock_processor)
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_output_adapter",
@@ -122,6 +132,7 @@ class TestCliGenerate:
         mock_output: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        self._patch_processor(monkeypatch, mock_processor)
         mock_processor.process_generate.side_effect = InvalidImageError(
             image_path=Path("/nonexistent.jpg"), reason="file not found"
         )
@@ -154,7 +165,6 @@ class TestCliGenerate:
         assert "--output-dir" in result.stdout or "-o" in result.stdout
 
     def test_build_deps_returns_proper_cli_dependencies(self) -> None:
-        from color_scheme_generator.adapters.local_processor import LocalProcessor
         from color_scheme_generator.cli.main import build_deps
         from color_scheme_generator.factory import CliDependencies
 
@@ -162,7 +172,7 @@ class TestCliGenerate:
         assert isinstance(deps, CliDependencies)
         assert deps.backend_registry is not None
         assert deps.output_adapter is None
-        assert isinstance(deps.processor, LocalProcessor)
+        # processor is now built lazily (not a deps-level concern)
         assert deps.template_dir_resolver is not None
         assert deps.template_renderer is not None
 

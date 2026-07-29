@@ -80,8 +80,24 @@ def runner() -> CliRunner:
 
 
 @pytest.fixture
-def mock_processor() -> MagicMock:
+def mock_processor(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     mock = MagicMock()
+    monkeypatch.setattr(
+        "color_scheme_generator.cli.main.create_local_processor",
+        lambda *a, **kw: mock,
+    )
+    monkeypatch.setattr(
+        "color_scheme_generator.cli.main.create_container_processor",
+        lambda *a, **kw: mock,
+    )
+    monkeypatch.setattr(
+        "color_scheme_generator.cli._helpers.create_local_processor",
+        lambda *a, **kw: mock,
+    )
+    monkeypatch.setattr(
+        "color_scheme_generator.cli._helpers.create_container_processor",
+        lambda *a, **kw: mock,
+    )
     mock.process_generate.return_value = GenerationResult(
         success=True,
         color_scheme=None,
@@ -133,14 +149,13 @@ def mock_backend_catalog_loader() -> MagicMock:
 
 @pytest.fixture
 def mock_deps(
-    mock_processor, mock_output, mock_config_resolver, mock_backend_catalog_loader
+    mock_output, mock_config_resolver, mock_backend_catalog_loader
 ) -> CliDependencies:
     return CliDependencies(
         backend_registry=MagicMock(),
         backend_catalog_loader=mock_backend_catalog_loader,
         config_resolver=mock_config_resolver,
         output_adapter=mock_output,
-        processor=mock_processor,
     )
 
 

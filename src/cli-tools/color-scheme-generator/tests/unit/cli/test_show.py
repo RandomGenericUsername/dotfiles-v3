@@ -97,18 +97,26 @@ def mock_backend_catalog_loader() -> MagicMock:
 
 @pytest.fixture
 def mock_deps(
-    mock_processor, mock_output, mock_config_resolver, mock_backend_catalog_loader
+    mock_output, mock_config_resolver, mock_backend_catalog_loader
 ) -> CliDependencies:
     return CliDependencies(
         backend_registry=MagicMock(),
         backend_catalog_loader=mock_backend_catalog_loader,
         config_resolver=mock_config_resolver,
         output_adapter=mock_output,
-        processor=mock_processor,
     )
 
 
 class TestCliShow:
+    def _patch_processor(self, monkeypatch: pytest.MonkeyPatch, mock_processor: MagicMock) -> None:
+        monkeypatch.setattr(
+            "color_scheme_generator.cli._helpers.create_local_processor",
+            lambda *a, **kw: mock_processor,
+        )
+        monkeypatch.setattr(
+            "color_scheme_generator.cli._helpers.create_container_processor",
+            lambda *a, **kw: mock_processor,
+        )
     def test_successful_show_exit_code_0(
         self,
         runner: CliRunner,
@@ -117,6 +125,7 @@ class TestCliShow:
         mock_output: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        self._patch_processor(monkeypatch, mock_processor)
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_output_adapter",
@@ -137,6 +146,7 @@ class TestCliShow:
         mock_output: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        self._patch_processor(monkeypatch, mock_processor)
         mock_processor.process_show.side_effect = InvalidImageError(
             image_path=Path("/nonexistent.jpg"), reason="file not found"
         )

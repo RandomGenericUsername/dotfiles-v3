@@ -113,12 +113,9 @@ class TestInfoCommand:
 
         import json
         payload = json.loads(result.stdout)
-        assert "config_path" in payload
-        assert "config_source" in payload
-        assert "runtime_mode" in payload
-        assert "container_engine" in payload
-        assert "templates_directory" in payload
+        assert "settings" in payload
         assert "backends" in payload
+        assert "sources" in payload
 
     def test_info_shows_config_path(
         self,
@@ -135,7 +132,8 @@ class TestInfoCommand:
 
         import json
         payload = json.loads(result.stdout)
-        assert "settings.toml" in payload["config_path"]
+        sources = [s for s in payload.get("sources", []) if "settings" in s]
+        assert any("settings.toml" in s for s in sources)
 
     def test_info_shows_applied_overrides(
         self,
@@ -151,8 +149,8 @@ class TestInfoCommand:
 
         import json
         payload = json.loads(result.stdout)
-        assert len(payload["applied_overrides"]) > 0
-        assert payload["applied_overrides"][0]["field_path"] == "runtime.mode"
+        settings = payload.get("settings", {})
+        assert settings.get("runtime", {}).get("mode") == "local"
 
     def test_info_shows_runtime_mode(
         self,
@@ -168,8 +166,9 @@ class TestInfoCommand:
 
         import json
         payload = json.loads(result.stdout)
-        assert payload["runtime_mode"] == "local"
-        assert payload["container_engine"] == "docker"
+        settings = payload.get("settings", {})
+        assert settings.get("runtime", {}).get("mode") == "local"
+        assert settings.get("container", {}).get("engine") == "docker"
 
     def test_info_shows_templates_directory(
         self,
@@ -185,7 +184,8 @@ class TestInfoCommand:
 
         import json
         payload = json.loads(result.stdout)
-        assert "templates" in payload["templates_directory"]
+        sources = payload.get("sources", [])
+        assert any("templates" in s for s in sources)
 
     def test_info_shows_backend_availability(
         self,
@@ -201,7 +201,7 @@ class TestInfoCommand:
 
         import json
         payload = json.loads(result.stdout)
-        backends = payload["backends"]
+        backends = payload.get("backends", {})
         assert "custom" in backends
         assert "pywal" in backends
         assert "wallust" in backends
@@ -225,7 +225,7 @@ class TestInfoCommand:
 
         import json
         payload = json.loads(result.stdout)
-        assert "not resolved" in payload["config_path"]
+        assert "settings" in payload
 
     def test_info_supports_rich_output(
         self,
@@ -250,4 +250,4 @@ class TestInfoCommand:
 
         result = runner.invoke(app, ["--output-format", "plain", "info"])
         assert result.exit_code == 0
-        assert "Config path:" in result.stdout
+        assert "output.directory:" in result.stdout

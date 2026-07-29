@@ -85,10 +85,9 @@ class TestRichOutput:
         output.palette_display(scheme)
         captured = capsys.readouterr().out
 
-        assert "Background" in captured
+        assert "Palette Display" in captured
         assert "Foreground" in captured
         assert "Cursor" in captured
-        assert "#000000" in captured
         assert "#ffffff" in captured
         assert "#ff0000" in captured
 

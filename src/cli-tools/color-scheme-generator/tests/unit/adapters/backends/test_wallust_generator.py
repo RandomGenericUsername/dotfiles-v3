@@ -79,6 +79,8 @@ class TestWallustGenerator:
             "wallust", "run", "/tmp/test.png",
             "--backend", "kmeans",
             "-s", "-T", "-q",
+            "--no-hooks",
+            "--no-cache",
             "--print-scheme",
         ]
         assert kwargs["capture_output"] is True

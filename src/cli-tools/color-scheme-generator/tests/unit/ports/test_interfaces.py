@@ -120,6 +120,9 @@ class TestOutputPort:
             def palette_display(self, scheme: ColorScheme) -> None:
                 pass
 
+            def message(self, msg: str) -> None:
+                pass
+
         assert isinstance(MockOutput(), OutputPort)
 
     def test_invalid_implementation_fails_isinstance(self) -> None:

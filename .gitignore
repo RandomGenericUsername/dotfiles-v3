@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+/src/cli-tools/wallpaper-effects-generator/feedback.md
+/src/cli-tools/wallpaper-effects-generator/test.sh
