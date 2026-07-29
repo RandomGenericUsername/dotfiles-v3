@@ -11,7 +11,7 @@ from color_scheme_generator.cli._helpers import (
     default_app_settings,
     parse_params,
     resolve_backend_params,
-    resolve_container_engine,
+    resolve_processor,
 )
 from color_scheme_generator.cli.dump_config_cmd import dump_config
 from color_scheme_generator.cli.dump_templates_cmd import dump_templates
@@ -39,9 +39,6 @@ from color_scheme_generator.factory import (
     create_backend_catalog_loader,
     create_backend_registry,
     create_config_resolver,
-    create_container_engine,
-    create_container_processor,
-    create_local_processor,
     create_output_adapter,
     create_template_dir_resolver,
     create_template_renderer,
@@ -95,8 +92,8 @@ def main_callback(
         help="Output format for command results",
         case_sensitive=False,
     ),
-    runtime: RuntimeMode = typer.Option(  # noqa: B008
-        RuntimeMode.LOCAL,
+    runtime: RuntimeMode | None = typer.Option(  # noqa: B008
+        None,
         "--runtime",
         help="Execution runtime mode",
         case_sensitive=False,
@@ -153,22 +150,14 @@ def main_callback(
         verbosity = None  # use TOML default
 
     cli_overrides = {}
+    if runtime is not None:
+        cli_overrides["runtime.mode"] = runtime.value
     if templates_dir is not None:
         cli_overrides["template.templates_dir"] = str(templates_dir)
     if verbosity is not None:
         cli_overrides["output.verbosity"] = str(verbosity.value)
     if container_engine is not None:
         cli_overrides["container.engine"] = container_engine.value
-
-    if runtime is RuntimeMode.LOCAL and deps.processor is None:
-        deps.processor = create_local_processor(deps.backend_registry, deps.template_renderer)
-    elif runtime is RuntimeMode.CONTAINER:
-        engine = resolve_container_engine(container_engine, deps.config_resolver, config_path, cli_overrides)
-        container_runtime = create_container_engine(engine=engine)
-        deps.container_engine = container_runtime
-        deps.processor = create_container_processor(
-            container_runtime, template_dir_resolver=deps.template_dir_resolver
-        )
 
     ctx.obj = {
         "deps": deps,
@@ -263,7 +252,8 @@ def generate(
             output_dir=resolved_output_dir,
         )
         request = GenerationRequest(image_path=image_path, config=config)
-        result = deps.processor.process_generate(request, settings)
+        processor = resolve_processor(settings, deps)
+        result = processor.process_generate(request, settings)
         deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)

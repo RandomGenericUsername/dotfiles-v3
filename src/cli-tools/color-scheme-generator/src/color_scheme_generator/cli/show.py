@@ -8,6 +8,7 @@ from color_scheme_generator.cli._helpers import (
     default_app_settings,
     parse_params,
     resolve_backend_params,
+    resolve_processor,
 )
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import ColorSchemeError
@@ -58,7 +59,8 @@ def show(
             output_dir=settings.output.directory,
         )
         request = GenerationRequest(image_path=image_path, config=config)
-        result = deps.processor.process_show(request, settings)
+        processor = resolve_processor(settings, deps)
+        result = processor.process_show(request, settings)
         deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)

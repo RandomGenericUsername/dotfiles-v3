@@ -17,6 +17,13 @@ from color_scheme_generator.domain.models import (
     TemplateSettings,
 )
 from color_scheme_generator.domain.services import ParameterResolutionService
+from color_scheme_generator.factory import (
+    CliDependencies,
+    create_container_engine,
+    create_container_processor,
+    create_local_processor,
+)
+from color_scheme_generator.ports.processor import ColorSchemeProcessorPort
 
 
 def default_app_settings() -> AppSettings:
@@ -117,6 +124,19 @@ def resolve_backend_params(
 def build_image_name(settings: AppSettings, backend: Backend) -> str:
     prefix = settings.container.image_prefix
     return f"{prefix}color-scheme-{backend.image_suffix}:{settings.container.image_tag}"
+
+
+def resolve_processor(
+    settings: AppSettings,
+    deps: CliDependencies,
+) -> ColorSchemeProcessorPort:
+    if settings.runtime.mode == RuntimeMode.CONTAINER:
+        engine = ContainerEngine(settings.container.engine)
+        container_runtime = create_container_engine(engine=engine)
+        return create_container_processor(
+            container_runtime, template_dir_resolver=deps.template_dir_resolver
+        )
+    return create_local_processor(deps.backend_registry, deps.template_renderer)
 
 
 def resolve_container_engine(
