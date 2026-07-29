@@ -37,7 +37,6 @@ from color_scheme_generator.domain.models import (
     GeneratorConfig,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.domain.services import (
     ColorAdjustmentService,
@@ -79,7 +78,6 @@ __all__ = [
     "GeneratorConfig",
     "OutputSettings",
     "RuntimeSettings",
-    "TemplateSettings",
     "HexValidationService",
     "ColorAdjustmentService",
     "PaletteNormalizationService",

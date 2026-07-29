@@ -117,12 +117,6 @@ class GenerationSettings:
 
 
 @dataclass(frozen=True)
-class TemplateSettings:
-    templates_dir: Path | None
-    custom_templates_dir: Path | None
-
-
-@dataclass(frozen=True)
 class RuntimeSettings:
     mode: RuntimeMode
 
@@ -155,7 +149,6 @@ class ConfigResolverResult:
 class AppSettings:
     output: OutputSettings
     generation: GenerationSettings
-    template: TemplateSettings
     runtime: RuntimeSettings
     container: ContainerSettings
 

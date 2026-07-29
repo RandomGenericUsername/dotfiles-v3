@@ -16,7 +16,6 @@ from color_scheme_generator.domain.models import (
     GenerationSettings,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.domain.services import ParameterResolutionService
 from color_scheme_generator.factory import (
@@ -38,10 +37,6 @@ def default_app_settings() -> AppSettings:
         generation=GenerationSettings(
             backend=Backend.CUSTOM,
             default_params={},
-        ),
-        template=TemplateSettings(
-            templates_dir=None,
-            custom_templates_dir=None,
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode.LOCAL,

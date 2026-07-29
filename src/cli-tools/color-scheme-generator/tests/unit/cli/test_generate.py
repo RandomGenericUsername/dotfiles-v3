@@ -16,7 +16,6 @@ from color_scheme_generator.domain.models import (
     GenerationSettings,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.factory import CliDependencies
 
@@ -31,10 +30,6 @@ def _default_app_settings(**overrides: object) -> AppSettings:
         generation=GenerationSettings(
             backend=Backend.CUSTOM,
             default_params={},
-        ),
-        template=TemplateSettings(
-            templates_dir=None,
-            custom_templates_dir=None,
         ),
         runtime=RuntimeSettings(
             mode=overrides.get("runtime_mode", "local"),  # type: ignore[arg-type]

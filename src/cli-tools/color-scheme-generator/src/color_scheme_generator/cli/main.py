@@ -48,7 +48,6 @@ from color_scheme_generator.factory import (
 
 _xdg_config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
 _xdg_settings_path = Path(_xdg_config_home) / "color-scheme-generator" / "settings.toml"
-_xdg_templates_path = Path(_xdg_config_home) / "color-scheme" / "templates"
 
 app = typer.Typer(
     name="csg",
@@ -62,11 +61,10 @@ app = typer.Typer(
         f"    4. XDG default: {_xdg_settings_path}\n"
         "    5. Package-bundled defaults\n"
         "  Templates directory:\n"
-        "    1. Explicit --templates-dir flag\n"
-        "    2. COLORSCHEME_TEMPLATES_TEMPLATES_DIR env var\n"
-        "    3. templates/ in CWD or up to 3 parent levels\n"
-        f"    4. XDG default: {_xdg_templates_path}\n"
-        "    5. Package-bundled defaults\n\n"
+        "    1. COLORSCHEME_TEMPLATES_TEMPLATES_DIR env var\n"
+        "    2. templates/ in CWD or up to 3 parent levels\n"
+        "    3. XDG default\n"
+        "    4. Package-bundled defaults\n\n"
         "ENV overrides: COLORSCHEME__SECTION__KEY=value (double underscore = nesting)"
     ),
 )
@@ -139,8 +137,6 @@ def main_callback(
         verbosity = None  # use TOML default
 
     cli_overrides = {}
-    if templates_dir is not None:
-        cli_overrides["template.templates_dir"] = str(templates_dir)
     if verbosity is not None:
         cli_overrides["output.verbosity"] = str(verbosity.value)
 
@@ -148,6 +144,7 @@ def main_callback(
         "deps": deps,
         "config_path": str(config_path) if config_path else None,
         "cli_overrides": cli_overrides,
+        "templates_dir": str(templates_dir) if templates_dir else None,
         "verbosity": verbosity,
     }
 
@@ -210,8 +207,8 @@ def generate(
             Verbosity.DEBUG: logging.DEBUG,
         }[settings_verbosity])
 
-    if settings.template.templates_dir is not None and deps.template_renderer is not None:
-        deps.template_renderer.update_templates_dir(settings.template.templates_dir)
+    if ctx.obj.get("templates_dir") is not None and deps.template_renderer is not None:
+        deps.template_renderer.update_templates_dir(ctx.obj["templates_dir"])
 
     try:
         raw_params = parse_params(param)

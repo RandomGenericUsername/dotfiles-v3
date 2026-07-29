@@ -42,18 +42,6 @@ class GenerationSettingsSchema(BaseModel):
         return v
 
 
-class TemplateSettingsSchema(BaseModel):
-    templates_dir: Path | None = None
-    custom_templates_dir: Path | None = None
-
-    @field_validator("templates_dir", "custom_templates_dir")
-    @classmethod
-    def _validate_path_exists(cls, v: Path | None) -> Path | None:
-        if v is not None and not v.exists():
-            raise ValueError(f"Path does not exist: {v}")
-        return v
-
-
 class RuntimeSettingsSchema(BaseModel):
     mode: str
 
@@ -107,6 +95,5 @@ class ContainerSettingsSchema(BaseModel):
 class CoreSettingsSchema(BaseModel):
     output: OutputSettingsSchema
     generation: GenerationSettingsSchema
-    template: TemplateSettingsSchema = TemplateSettingsSchema()
     runtime: RuntimeSettingsSchema
     container: ContainerSettingsSchema

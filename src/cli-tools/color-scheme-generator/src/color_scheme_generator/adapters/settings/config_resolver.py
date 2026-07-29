@@ -33,7 +33,6 @@ from color_scheme_generator.domain.models import (
     GenerationSettings,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 
 
@@ -48,10 +47,6 @@ def _convert_to_app_settings(validated: CoreSettingsSchema) -> AppSettings:
         generation=GenerationSettings(
             backend=Backend(validated.generation.backend),
             default_params=dict(validated.generation.default_params),
-        ),
-        template=TemplateSettings(
-            templates_dir=validated.template.templates_dir,
-            custom_templates_dir=validated.template.custom_templates_dir,
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode(validated.runtime.mode),
@@ -94,8 +89,6 @@ class AssembledConfigResolver:
             OverrideRule("output.verbosity", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("generation.backend", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("generation.default_params", {OverrideSource.CLI, OverrideSource.ENV}),
-            OverrideRule("template.templates_dir", {OverrideSource.CLI, OverrideSource.ENV}),
-            OverrideRule("template.custom_templates_dir", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("runtime.mode", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("container.engine", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("container.image_prefix", {OverrideSource.CLI, OverrideSource.ENV}),

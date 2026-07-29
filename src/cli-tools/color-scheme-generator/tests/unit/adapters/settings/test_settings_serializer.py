@@ -15,7 +15,6 @@ from color_scheme_generator.domain.models import (
     GenerationSettings,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.ports.settings_serializer import SettingsSerializerPort
 
@@ -30,10 +29,6 @@ def _make_full_settings() -> AppSettings:
         generation=GenerationSettings(
             backend=Backend.CUSTOM,
             default_params={"saturation": 1.0},
-        ),
-        template=TemplateSettings(
-            templates_dir=Path("/tmp/templates"),
-            custom_templates_dir=None,
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode.LOCAL,
@@ -61,7 +56,6 @@ class TestSettingsSerializer:
 
         assert "[output]" in result
         assert "[generation]" in result
-        assert "[template]" in result
         assert "[runtime]" in result
         assert "[container]" in result
 
@@ -104,7 +98,6 @@ class TestSettingsSerializer:
         settings = AppSettings(
             output=OutputSettings(directory=Path("/tmp"), default_formats=(), overwrite=False),
             generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
-            template=TemplateSettings(templates_dir=None, custom_templates_dir=None),
             runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
             container=ContainerSettings(
                 engine="docker",
@@ -117,9 +110,6 @@ class TestSettingsSerializer:
         )
         serializer = SettingsSerializer()
         result = serializer.serialize(settings)
-
-        assert "templates_dir" not in result
-        assert "custom_templates_dir" not in result
 
     def test_serialize_handles_empty_tuple(self) -> None:
         settings = _make_full_settings()

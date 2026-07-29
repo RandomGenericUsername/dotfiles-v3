@@ -28,7 +28,6 @@ from color_scheme_generator.domain.models import (
     GeneratorConfig,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 
 
@@ -44,10 +43,6 @@ def _make_settings(
         generation=GenerationSettings(
             backend=Backend.CUSTOM,
             default_params={},
-        ),
-        template=TemplateSettings(
-            templates_dir=Path("/templates"),
-            custom_templates_dir=None,
         ),
         runtime=RuntimeSettings(
             mode=runtime_mode,

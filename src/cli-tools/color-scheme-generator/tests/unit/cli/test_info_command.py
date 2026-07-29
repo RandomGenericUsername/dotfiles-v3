@@ -16,7 +16,6 @@ from color_scheme_generator.domain.models import (
     GenerationSettings,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.factory import CliDependencies
 
@@ -32,7 +31,6 @@ def mock_config_resolver() -> MagicMock:
     mock.resolve.return_value = AppSettings(
         output=OutputSettings(directory=Path("/tmp"), default_formats=(), overwrite=False),
         generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
-        template=TemplateSettings(templates_dir=None, custom_templates_dir=None),
         runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
         container=ContainerSettings(
             engine="docker",

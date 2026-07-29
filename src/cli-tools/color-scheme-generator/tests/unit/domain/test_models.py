@@ -21,7 +21,6 @@ from color_scheme_generator.domain.models import (
     GeneratorConfig,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 
 
@@ -289,21 +288,6 @@ class TestGenerationSettings:
         assert s.default_params == {}
 
 
-class TestTemplateSettings:
-    def test_with_dirs(self) -> None:
-        s = TemplateSettings(
-            templates_dir=Path("/templates"),
-            custom_templates_dir=Path("/custom"),
-        )
-        assert s.templates_dir == Path("/templates")
-        assert s.custom_templates_dir == Path("/custom")
-
-    def test_none_dirs(self) -> None:
-        s = TemplateSettings(templates_dir=None, custom_templates_dir=None)
-        assert s.templates_dir is None
-        assert s.custom_templates_dir is None
-
-
 class TestRuntimeSettings:
     def test_fields(self) -> None:
         s = RuntimeSettings(mode=RuntimeMode.LOCAL)
@@ -336,7 +320,6 @@ class TestAppSettings:
             overwrite=False,
         )
         generation = GenerationSettings(backend=Backend.CUSTOM, default_params={})
-        template = TemplateSettings(templates_dir=None, custom_templates_dir=None)
         runtime = RuntimeSettings(mode=RuntimeMode.LOCAL)
         container = ContainerSettings(
             engine="docker",
@@ -349,13 +332,11 @@ class TestAppSettings:
         settings = AppSettings(
             output=output,
             generation=generation,
-            template=template,
             runtime=runtime,
             container=container,
         )
         assert settings.output == output
         assert settings.generation == generation
-        assert settings.template == template
         assert settings.runtime == runtime
         assert settings.container == container
 

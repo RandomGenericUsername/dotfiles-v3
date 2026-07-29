@@ -40,8 +40,8 @@ def show(
         typer.echo("Warning: config resolution failed, using defaults", err=True)
         settings = default_app_settings()
 
-    if settings.template.templates_dir is not None and deps.template_renderer is not None:
-        deps.template_renderer.update_templates_dir(settings.template.templates_dir)
+    if ctx.obj.get("templates_dir") is not None and deps.template_renderer is not None:
+        deps.template_renderer.update_templates_dir(ctx.obj["templates_dir"])
 
     try:
         raw_params = parse_params(param)

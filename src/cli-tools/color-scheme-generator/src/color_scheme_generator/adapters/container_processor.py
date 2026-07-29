@@ -94,12 +94,6 @@ class ContainerProcessor:
                 lines.append(f"  \"{k}\" = \"{ev}\",")
             lines.append("}")
         lines.append("")
-        lines.append("[template]")
-        tdir = settings.template.templates_dir
-        kv("templates_dir", str(tdir) if tdir else None)
-        cdir = settings.template.custom_templates_dir
-        kv("custom_templates_dir", str(cdir) if cdir else None)
-        lines.append("")
         lines.append("[runtime]")
         kv("mode", settings.runtime.mode.value)
         lines.append("")
@@ -160,8 +154,7 @@ class ContainerProcessor:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             if self._template_dir_resolver:
-                settings_dir = settings.template.templates_dir if settings else None
-                templates_dir = self._template_dir_resolver.resolve(settings_dir=settings_dir)
+                templates_dir = self._template_dir_resolver.resolve()
             elif self._default_settings_path:
                 templates_dir = (
                     self._default_settings_path.parent / "defaults" / "templates"

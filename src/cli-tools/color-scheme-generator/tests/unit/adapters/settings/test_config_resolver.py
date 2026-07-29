@@ -25,7 +25,6 @@ from color_scheme_generator.domain.models import (
     GenerationSettings,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.ports.config_resolver import ConfigResolverPort
 
@@ -35,7 +34,6 @@ def _make_assembly_result(config: CoreSettingsSchema | None = None) -> AssemblyR
         config = CoreSettingsSchema(
             output={"directory": "/tmp/out"},
             generation={"backend": "custom"},
-            template={},
             runtime={"mode": "local"},
             container={"engine": "docker"},
         )
@@ -68,7 +66,6 @@ class TestAssembledConfigResolver:
         assert isinstance(result, AppSettings)
         assert isinstance(result.output, OutputSettings)
         assert isinstance(result.generation, GenerationSettings)
-        assert isinstance(result.template, TemplateSettings)
         assert isinstance(result.runtime, RuntimeSettings)
         assert isinstance(result.container, ContainerSettings)
         assert result.generation.backend == Backend.CUSTOM

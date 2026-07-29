@@ -56,7 +56,6 @@ class SettingsSerializer:
         sections: list[str] = []
         sections.append(_dataclass_to_toml_section(settings.output, "output"))
         sections.append(_dataclass_to_toml_section(settings.generation, "generation"))
-        sections.append(_dataclass_to_toml_section(settings.template, "template"))
         sections.append(_dataclass_to_toml_section(settings.runtime, "runtime"))
         sections.append(_dataclass_to_toml_section(settings.container, "container"))
         return "\n".join(sections)

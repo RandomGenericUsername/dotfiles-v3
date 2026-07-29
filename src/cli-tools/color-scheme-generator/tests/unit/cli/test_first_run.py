@@ -76,7 +76,6 @@ class TestFirstRunFallback:
             GenerationSettings,
             OutputSettings,
             RuntimeSettings,
-            TemplateSettings,
         )
 
         mock_config_resolver.resolve.return_value = AppSettings(
@@ -88,10 +87,6 @@ class TestFirstRunFallback:
             generation=GenerationSettings(
                 backend=Backend.CUSTOM,
                 default_params={},
-            ),
-            template=TemplateSettings(
-                templates_dir=None,
-                custom_templates_dir=None,
             ),
             runtime=RuntimeSettings(
                 mode="local",

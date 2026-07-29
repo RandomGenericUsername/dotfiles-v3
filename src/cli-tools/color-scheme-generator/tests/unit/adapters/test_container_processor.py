@@ -24,7 +24,6 @@ from color_scheme_generator.domain.models import (
     GeneratorConfig,
     OutputSettings,
     RuntimeSettings,
-    TemplateSettings,
 )
 from color_scheme_generator.ports.processor import ColorSchemeProcessorPort
 
@@ -39,10 +38,6 @@ def _make_settings(**overrides: object) -> AppSettings:
         generation=GenerationSettings(
             backend=Backend.CUSTOM,
             default_params={},
-        ),
-        template=TemplateSettings(
-            templates_dir=Path("/tmp/templates"),
-            custom_templates_dir=None,
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode.LOCAL,
