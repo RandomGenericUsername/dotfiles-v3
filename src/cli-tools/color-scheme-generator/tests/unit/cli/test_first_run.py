@@ -95,7 +95,6 @@ class TestFirstRunFallback:
             ),
             runtime=RuntimeSettings(
                 mode="local",
-                engine="docker",
             ),
             container=ContainerSettings(
                 image_prefix="csg",

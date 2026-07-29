@@ -38,7 +38,6 @@ def _default_app_settings(**overrides: object) -> AppSettings:
         ),
         runtime=RuntimeSettings(
             mode=overrides.get("runtime_mode", "local"),  # type: ignore[arg-type]
-            engine=overrides.get("container_engine", "docker"),  # type: ignore[arg-type]
         ),
         container=ContainerSettings(
             image_prefix="csg",
@@ -111,7 +110,7 @@ class TestCliGenerate:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_output_adapter",
-            lambda _fmt: mock_output,
+            lambda _fmt, **kwargs: mock_output,
         )
         from color_scheme_generator.cli.main import app
 
@@ -134,7 +133,7 @@ class TestCliGenerate:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_output_adapter",
-            lambda _fmt: mock_output,
+            lambda _fmt, **kwargs: mock_output,
         )
         from color_scheme_generator.cli.main import app
 

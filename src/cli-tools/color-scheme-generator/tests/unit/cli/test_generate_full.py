@@ -43,7 +43,6 @@ def _default_app_settings(**overrides: object) -> AppSettings:
         ),
         runtime=RuntimeSettings(
             mode=overrides.get("runtime_mode", "local"),  # type: ignore[arg-type]
-            engine=overrides.get("container_engine", "docker"),  # type: ignore[arg-type]
         ),
         container=ContainerSettings(
             image_prefix="csg",
@@ -154,7 +153,7 @@ def _invoke(runner, deps, output_mock, args, monkeypatch):
     monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: deps)
     monkeypatch.setattr(
         "color_scheme_generator.cli.main.create_output_adapter",
-        lambda _fmt: output_mock,
+        lambda _fmt, **kwargs: output_mock,
     )
     from color_scheme_generator.cli.main import app
     return runner.invoke(app, args)
@@ -198,7 +197,6 @@ class TestGenerateBackendFlag:
             ),
             runtime=RuntimeSettings(
                 mode="local",  # type: ignore[arg-type]
-                engine="docker",  # type: ignore[arg-type]
             ),
             container=ContainerSettings(
                 image_prefix="csg",
@@ -293,7 +291,6 @@ class TestGenerateFormatFlag:
             ),
             runtime=RuntimeSettings(
                 mode="local",  # type: ignore[arg-type]
-                engine="docker",  # type: ignore[arg-type]
             ),
             container=ContainerSettings(
                 image_prefix="csg",
@@ -349,7 +346,6 @@ class TestGenerateOutputDirFlag:
             ),
             runtime=RuntimeSettings(
                 mode="local",  # type: ignore[arg-type]
-                engine="docker",  # type: ignore[arg-type]
             ),
             container=ContainerSettings(
                 image_prefix="csg",

@@ -52,7 +52,6 @@ def _default_app_settings(**overrides: object) -> AppSettings:
         ),
         runtime=RuntimeSettings(
             mode=overrides.get("runtime_mode", "local"),  # type: ignore[arg-type]
-            engine=overrides.get("container_engine", "docker"),  # type: ignore[arg-type]
         ),
         container=ContainerSettings(
             image_prefix="csg",
