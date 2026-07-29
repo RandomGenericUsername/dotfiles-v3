@@ -6,11 +6,13 @@ from importlib.resources import files as pkg_files
 from pathlib import Path
 
 import typer
+from oci_runtime import engine_qualified_image
 
 from color_scheme_generator.adapters.output.json_output import JsonOutput
 from color_scheme_generator.adapters.output.plain_output import PlainOutput
 from color_scheme_generator.adapters.output.rich_output import RichOutput
 from color_scheme_generator.cli._helpers import build_image_name
+from color_scheme_generator.cli.options import ENGINE_OPT
 from color_scheme_generator.domain.enums import Backend, ContainerEngine
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.factory import CliDependencies, create_container_engine
@@ -40,19 +42,24 @@ def _find_project_root(docker_dir: Path) -> Path | None:
 
 def install(
     ctx: typer.Context,
-    backend: list[Backend] = typer.Option([], "--backend", help="Backends to build"),  # noqa: B008
-    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without building"),  # noqa: B008
+    container_engine: ContainerEngine | None = ENGINE_OPT,
+    backend: list[Backend] = typer.Option([], "--backend", help="Backends to build"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without building"),
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
         settings = deps.config_resolver.resolve()
-        engine = ctx.obj.get("container_engine") or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
+        engine = container_engine or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
+        engine_value = engine.value
         container_engine = create_container_engine(engine)
         target_backends = list(dict.fromkeys(backend or list(Backend)))
 
         docker_dir = _resolve_dockerfile(list(Backend)[0]).parent
         project_root = _find_project_root(docker_dir)
-        base_image = "color-scheme-base:latest"
+        prefix = settings.container.image_prefix
+        base_image = engine_qualified_image(
+            f"{prefix}-base", engine_value, settings.container.image_tag
+        )
 
         results: list[dict[str, str]] = []
 
@@ -73,7 +80,7 @@ def install(
                 })
 
         for b in target_backends:
-            image = build_image_name(settings, b)
+            image = build_image_name(settings, b, engine_value)
             if dry_run:
                 results.append({
                     "backend": b.value,
@@ -89,6 +96,7 @@ def install(
                 kwargs = {"build_file_path": dockerfile}
                 if project_root is not None:
                     kwargs["context_path"] = project_root
+                kwargs["build_args"] = {"BASE_IMAGE": base_image}
                 context = BuildContext(**kwargs)
                 container_engine.build_image(context, image, backend=b)
                 results.append({

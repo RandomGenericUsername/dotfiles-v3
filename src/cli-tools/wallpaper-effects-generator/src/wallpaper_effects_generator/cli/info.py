@@ -15,9 +15,11 @@ def info_command(
     config_resolver: ConfigResolverPort,
     effect_loader: EffectLoaderPort,
     catalog_cache: CatalogCache | None = None,
+    cli_overrides: dict[str, str] | None = None,
 ) -> None:
     settings = config_resolver.resolve(
         explicit_path=Path(config_path) if config_path else None,
+        cli_overrides=cli_overrides,
     )
     settings_source = config_resolver.get_resolved_path()
 

@@ -31,10 +31,10 @@ class TestBuildImage:
         from oci_runtime.domain.types import BuildContext
 
         context = BuildContext(build_file_path=Path("/tmp/Dockerfile.test"))
-        result = adapter.build_image(context, "test-image:latest", timeout=600)
+        result = adapter.build_image(context, "test-image-docker:latest", timeout=600)
 
         mock_oci_engine.images.build.assert_called_once_with(
-            context, "test-image:latest", 600
+            context, "test-image-docker:latest", 600
         )
         assert result == "sha256:abc123"
 
@@ -51,9 +51,9 @@ class TestBuildImage:
         context = BuildContext(build_file_path=Path("/tmp/Dockerfile.test"))
 
         with pytest.raises(ImageBuildError) as exc_info:
-            adapter.build_image(context, "test-image:latest")
+            adapter.build_image(context, "test-image-docker:latest")
 
-        assert "test-image:latest" in str(exc_info.value)
+        assert "test-image-docker:latest" in str(exc_info.value)
         assert "build failure" in str(exc_info.value)
 
     def test_default_timeout_is_600(
@@ -64,7 +64,7 @@ class TestBuildImage:
         from oci_runtime.domain.types import BuildContext
 
         context = BuildContext(build_file_path=Path("/tmp/Dockerfile.test"))
-        adapter.build_image(context, "test-image:latest")
+        adapter.build_image(context, "test-image-docker:latest")
 
         _, _, timeout = mock_oci_engine.images.build.call_args[0]
         assert timeout == 600
@@ -76,10 +76,10 @@ class TestRemoveImage:
         adapter: OciContainerRuntimeAdapter,
         mock_oci_engine: MagicMock,
     ) -> None:
-        adapter.remove_image("test-image:latest", force=False)
+        adapter.remove_image("test-image-docker:latest", force=False)
 
         mock_oci_engine.images.remove.assert_called_once_with(
-            "test-image:latest", force=False
+            "test-image-docker:latest", force=False
         )
 
     def test_force_flag_forwarded(
@@ -87,10 +87,10 @@ class TestRemoveImage:
         adapter: OciContainerRuntimeAdapter,
         mock_oci_engine: MagicMock,
     ) -> None:
-        adapter.remove_image("test-image:latest", force=True)
+        adapter.remove_image("test-image-docker:latest", force=True)
 
         mock_oci_engine.images.remove.assert_called_once_with(
-            "test-image:latest", force=True
+            "test-image-docker:latest", force=True
         )
 
     def test_oci_runtime_negative_timeout(
@@ -123,9 +123,9 @@ class TestRemoveImage:
         mock_oci_engine.images.remove.side_effect = ImageError("remove failure")
 
         with pytest.raises(ImageRemoveError) as exc_info:
-            adapter.remove_image("test-image:latest")
+            adapter.remove_image("test-image-docker:latest")
 
-        assert "test-image:latest" in str(exc_info.value)
+        assert "test-image-docker:latest" in str(exc_info.value)
         assert "remove failure" in str(exc_info.value)
 
 

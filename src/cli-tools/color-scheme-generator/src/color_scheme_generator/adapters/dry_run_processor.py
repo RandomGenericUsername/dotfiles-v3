@@ -5,6 +5,8 @@ import shlex
 import time
 from typing import TYPE_CHECKING
 
+from oci_runtime import engine_qualified_image
+
 from color_scheme_generator.domain.enums import RuntimeMode
 from color_scheme_generator.domain.exceptions import (
     BackendNotRegisteredError,
@@ -50,7 +52,9 @@ class DryRunProcessor:
     def _build_image_name(self, settings: AppSettings, backend_value: str) -> str:
         prefix = settings.container.image_prefix
         tag = settings.container.image_tag
-        return f"{prefix}color-scheme-{backend_value}:{tag}"
+        engine = settings.container.engine
+        base = f"{prefix}-{backend_value}"
+        return engine_qualified_image(base, engine, tag)
 
     def _pre_flight_generate(
         self, request: GenerationRequest, settings: AppSettings

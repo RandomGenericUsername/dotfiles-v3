@@ -125,15 +125,24 @@ def test_cli_callback_flags(tmp_path: Path):
             str(effects_file),
             "--output-format",
             "json",
-            "--runtime",
-            "container",
-            "--quiet",
-            "--verbose",
             "info",
         ],
     )
 
     assert result.exit_code == 0
+
+    # verify --runtime at root is now rejected
+    result = runner.invoke(
+        app,
+        [
+            "--config",
+            str(config_file),
+            "--runtime",
+            "container",
+            "info",
+        ],
+    )
+    assert result.exit_code != 0
 
 
 def test_show_effects_command(tmp_path: Path):
@@ -296,7 +305,7 @@ image_registry = "ghcr.io"
 """)
 
     mock_result = subprocess.CompletedProcess(
-        args=["docker", "pull", "ghcr.io/weg-managed:latest"],
+        args=["docker", "pull", "ghcr.io/weg-managed-docker:latest"],
         returncode=0,
         stdout="",
         stderr="",
@@ -352,9 +361,9 @@ image_registry = "ghcr.io"
 """)
 
     mock_result = subprocess.CompletedProcess(
-        args=["docker", "rmi", "ghcr.io/weg-managed:latest"],
+        args=["docker", "rmi", "ghcr.io/weg-managed-docker:latest"],
         returncode=0,
-        stdout="Untagged: ghcr.io/weg-managed:latest\n",
+        stdout="Untagged: ghcr.io/weg-managed-docker:latest\n",
         stderr="",
     )
 
@@ -386,10 +395,10 @@ image_registry = "ghcr.io"
 """)
 
     mock_result = subprocess.CompletedProcess(
-        args=["docker", "rmi", "ghcr.io/weg-managed:latest"],
+        args=["docker", "rmi", "ghcr.io/weg-managed-docker:latest"],
         returncode=1,
         stdout="",
-        stderr="No such image: ghcr.io/weg-managed:latest",
+        stderr="No such image: ghcr.io/weg-managed-docker:latest",
     )
 
     with (

@@ -147,7 +147,7 @@ class TestUninstallCommand:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         mock_container_engine.remove_image.side_effect = ImageRemoveError(
-            image="csg-color-scheme-custom:latest",
+            image="csg-custom-docker:latest",
             reason="remove failed",
         )
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)

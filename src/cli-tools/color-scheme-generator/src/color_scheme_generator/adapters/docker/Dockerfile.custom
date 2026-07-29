@@ -1,3 +1,4 @@
-FROM color-scheme-base:latest
+ARG BASE_IMAGE=csg-base-docker:latest
+FROM ${BASE_IMAGE}
 
 RUN pip install --no-cache-dir pillow numpy scikit-learn

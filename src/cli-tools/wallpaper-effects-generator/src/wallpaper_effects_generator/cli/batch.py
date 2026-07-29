@@ -4,8 +4,9 @@ from pathlib import Path
 
 import typer
 
+from wallpaper_effects_generator.cli.options import ENGINE_OPT, RUNTIME_OPT
 from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
-from wallpaper_effects_generator.domain.enums import ItemType, OutputFormat
+from wallpaper_effects_generator.domain.enums import ContainerEngine, ItemType, OutputFormat, RuntimeMode
 from wallpaper_effects_generator.domain.models import BatchRequest
 from wallpaper_effects_generator.factory import create_batch_processor, create_output_adapter
 from wallpaper_effects_generator.ports.output import OutputPort
@@ -18,6 +19,17 @@ batch_app = typer.Typer(
     name="batch",
     help="Batch process effects, composites, presets, or all at once",
 )
+
+
+@batch_app.callback()
+def batch_callback(
+    ctx: typer.Context,
+    runtime: RuntimeMode | None = RUNTIME_OPT,
+    container_engine: ContainerEngine | None = ENGINE_OPT,
+) -> None:
+    ctx.ensure_object(dict)
+    ctx.obj["runtime"] = runtime
+    ctx.obj["container_engine"] = container_engine
 
 
 def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat.JSON) -> OutputPort:

@@ -4,17 +4,16 @@ from pathlib import Path
 
 import typer
 
-from wallpaper_effects_generator.domain.enums import OutputFormat, RuntimeMode
+from wallpaper_effects_generator.cli.options import ENGINE_OPT, RUNTIME_OPT
+from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, RuntimeMode
 from wallpaper_effects_generator.domain.exceptions import (
     ConfigResolutionError,
     EffectsLoadError,
 )
 from wallpaper_effects_generator.domain.models import (
     AppSettings,
-    ContainerSettings,
     EffectsCatalog,
     ProcessingRequest,
-    RuntimeSettings,
 )
 from wallpaper_effects_generator.factory import (
     create_command_runner,
@@ -32,6 +31,17 @@ process_app = typer.Typer(
     name="process",
     help="Apply effects to wallpapers",
 )
+
+
+@process_app.callback()
+def process_callback(
+    ctx: typer.Context,
+    runtime: RuntimeMode | None = RUNTIME_OPT,
+    container_engine: ContainerEngine | None = ENGINE_OPT,
+) -> None:
+    ctx.ensure_object(dict)
+    ctx.obj["runtime"] = runtime
+    ctx.obj["container_engine"] = container_engine
 
 
 def _parse_params(param: list[str]) -> dict[str, str]:
@@ -52,38 +62,17 @@ def _resolve_context(ctx: typer.Context, input_path: Path) -> tuple[AppSettings,
     try:
         config_resolver = ctx.obj["deps"].config_resolver
         effect_loader = ctx.obj["deps"].effect_loader
-        settings = config_resolver.resolve(
-            explicit_path=Path(ctx.obj["config"]) if ctx.obj.get("config") else None
-        )
+        cli_overrides: dict[str, str] = {}
         runtime_override = ctx.obj.get("runtime")
-        engine_override = ctx.obj.get("container_engine")
-        container = settings.container
-        if engine_override is not None:
-            container = ContainerSettings(
-                engine=engine_override.value,
-                image_tag=container.image_tag,
-                image_registry=container.image_registry,
-            )
         if runtime_override is not None:
-            settings = AppSettings(
-                version=settings.version,
-                execution=settings.execution,
-                output=settings.output,
-                processing=settings.processing,
-                backend=settings.backend,
-                runtime=RuntimeSettings(mode=runtime_override),
-                container=container,
-            )
-        elif engine_override is not None:
-            settings = AppSettings(
-                version=settings.version,
-                execution=settings.execution,
-                output=settings.output,
-                processing=settings.processing,
-                backend=settings.backend,
-                runtime=settings.runtime,
-                container=container,
-            )
+            cli_overrides["runtime.mode"] = runtime_override.value
+        engine_override = ctx.obj.get("container_engine")
+        if engine_override is not None:
+            cli_overrides["container.engine"] = engine_override.value
+        settings = config_resolver.resolve(
+            explicit_path=Path(ctx.obj["config"]) if ctx.obj.get("config") else None,
+            cli_overrides=cli_overrides or None,
+        )
         catalog = effect_loader.load(
             path=Path(ctx.obj["effects"]) if ctx.obj.get("effects") else None
         )
@@ -140,12 +129,8 @@ def effect(
     param: list[str] = typer.Option(
         [], "--param", help="Parameter overrides (key=value)"
     ),
-    effect_name: str | None = typer.Option(
-        None, "-e", "--effect", help="Effect name (overrides positional)"
-    ),
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
-    name = effect_name or name
     settings, catalog = _resolve_context(ctx, input)
     output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
     params = _parse_params(param)
@@ -175,12 +160,8 @@ def composite(
     param: list[str] = typer.Option(
         [], "--param", help="Parameter overrides (key=value)"
     ),
-    composite_name: str | None = typer.Option(
-        None, "-c", "--composite", help="Composite name (overrides positional)"
-    ),
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
-    name = composite_name or name
     settings, catalog = _resolve_context(ctx, input)
     output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
     params = _parse_params(param)
@@ -210,12 +191,8 @@ def preset(
     param: list[str] = typer.Option(
         [], "--param", help="Parameter overrides (key=value)"
     ),
-    preset_name: str | None = typer.Option(
-        None, "-p", "--preset", help="Preset name (overrides positional)"
-    ),
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
-    name = preset_name or name
     settings, catalog = _resolve_context(ctx, input)
     output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
     params = _parse_params(param)

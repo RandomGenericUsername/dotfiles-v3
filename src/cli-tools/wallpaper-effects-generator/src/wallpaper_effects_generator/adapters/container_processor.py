@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from oci_runtime import RunConfig, VolumeMount, VolumeMountType
+from oci_runtime import RunConfig, VolumeMount, engine_qualified_image
 
 from wallpaper_effects_generator.adapters.serializer.effects_serializer import (
     EffectsSerializer,
@@ -19,7 +19,6 @@ from wallpaper_effects_generator.domain.exceptions import (
     CommandExecutionError,
     CompositeNotFoundError,
     ContainerImageNotFoundError,
-    ContainerTimeoutError,
     EffectNotFoundError,
     PresetNotFoundError,
 )
@@ -249,12 +248,9 @@ class ContainerProcessor(EffectProcessorPort):
 
     def _resolve_image(self) -> str:
         cs = self._container_settings
-        registry = (cs.image_registry or "").rstrip("/")
-        name = cs.image_name
-        tag = cs.image_tag
-        if registry:
-            return f"{registry}/{name}:{tag}"
-        return f"{name}:{tag}"
+        return engine_qualified_image(
+            cs.image_name, cs.engine, cs.image_tag, cs.image_registry
+        )
 
     def _lookup_effect(self, name: str) -> EffectDefinition:
         for effect in self._catalog.effects:

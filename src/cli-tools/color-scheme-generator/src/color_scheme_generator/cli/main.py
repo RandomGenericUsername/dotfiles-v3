@@ -6,18 +6,17 @@ from pathlib import Path
 
 import typer
 
-from color_scheme_generator.adapters.local_processor import LocalProcessor
 from color_scheme_generator.cli._helpers import (
     default_app_settings,
     parse_params,
     resolve_backend_params,
-    resolve_processor,
 )
 from color_scheme_generator.cli.dump_config_cmd import dump_config
 from color_scheme_generator.cli.dump_templates_cmd import dump_templates
 from color_scheme_generator.cli.info_cmd import info
 from color_scheme_generator.cli.install_cmd import install
 from color_scheme_generator.cli.list_backends_cmd import list_backends
+from color_scheme_generator.cli.options import ENGINE_OPT, RUNTIME_OPT
 from color_scheme_generator.cli.show import show
 from color_scheme_generator.cli.uninstall_cmd import uninstall
 from color_scheme_generator.cli.version_cmd import version
@@ -39,6 +38,9 @@ from color_scheme_generator.factory import (
     create_backend_catalog_loader,
     create_backend_registry,
     create_config_resolver,
+    create_container_engine,
+    create_container_processor,
+    create_local_processor,
     create_output_adapter,
     create_template_dir_resolver,
     create_template_renderer,
@@ -77,7 +79,6 @@ def build_deps() -> CliDependencies:
         backend_registry=registry,
         backend_catalog_loader=create_backend_catalog_loader(),
         config_resolver=create_config_resolver(),
-        processor=LocalProcessor(registry, renderer),
         template_dir_resolver=create_template_dir_resolver(),
         template_renderer=renderer,
     )
@@ -90,18 +91,6 @@ def main_callback(
         OutputFormat.JSON,
         "--output-format",
         help="Output format for command results",
-        case_sensitive=False,
-    ),
-    runtime: RuntimeMode | None = typer.Option(  # noqa: B008
-        None,
-        "--runtime",
-        help="Execution runtime mode",
-        case_sensitive=False,
-    ),
-    container_engine: ContainerEngine | None = typer.Option(  # noqa: B008
-        None,
-        "--container-engine",
-        help="Container engine to use (only for container runtime)",
         case_sensitive=False,
     ),
     config_path: Path | None = typer.Option(  # noqa: B008
@@ -150,19 +139,14 @@ def main_callback(
         verbosity = None  # use TOML default
 
     cli_overrides = {}
-    if runtime is not None:
-        cli_overrides["runtime.mode"] = runtime.value
     if templates_dir is not None:
         cli_overrides["template.templates_dir"] = str(templates_dir)
     if verbosity is not None:
         cli_overrides["output.verbosity"] = str(verbosity.value)
-    if container_engine is not None:
-        cli_overrides["container.engine"] = container_engine.value
 
     ctx.obj = {
         "deps": deps,
         "config_path": str(config_path) if config_path else None,
-        "container_engine": container_engine,
         "cli_overrides": cli_overrides,
         "verbosity": verbosity,
     }
@@ -185,13 +169,15 @@ def main_callback(
 @app.command(help="Extract a color palette from an image")
 def generate(
     ctx: typer.Context,
-    image_path: Path = typer.Argument(..., help="Path to the input image file"),  # noqa: B008
-    backend: Backend | None = typer.Option(None, "--backend", help="Extraction backend"),  # noqa: B008
-    param: list[str] = typer.Option([], "--param", help="Backend parameter overrides"),  # noqa: B008
-    formats: list[ColorFormat] | None = typer.Option(  # noqa: B008
+    image_path: Path = typer.Argument(..., help="Path to the input image file"),
+    runtime: RuntimeMode | None = RUNTIME_OPT,
+    container_engine: ContainerEngine | None = ENGINE_OPT,
+    backend: Backend | None = typer.Option(None, "--backend", help="Extraction backend"),
+    param: list[str] = typer.Option([], "--param", help="Backend parameter overrides"),
+    formats: list[ColorFormat] | None = typer.Option(
         None, "--format", "-f", help="Output formats"
     ),
-    output_dir: Path | None = typer.Option(  # noqa: B008
+    output_dir: Path | None = typer.Option(
         None, "--output-dir", "-o", help="Output directory"
     ),
 ) -> None:
@@ -199,6 +185,10 @@ def generate(
     try:
         config_path = ctx.obj.get("config_path")
         cli_overrides = ctx.obj.get("cli_overrides", {})
+        if runtime is not None:
+            cli_overrides["runtime.mode"] = runtime.value
+        if container_engine is not None:
+            cli_overrides["container.engine"] = container_engine.value
         settings = (
             deps.config_resolver.resolve(
                 explicit_path=config_path, cli_overrides=cli_overrides
@@ -252,7 +242,18 @@ def generate(
             output_dir=resolved_output_dir,
         )
         request = GenerationRequest(image_path=image_path, config=config)
-        processor = resolve_processor(settings, deps)
+        effective_runtime = runtime or settings.runtime.mode
+        if effective_runtime == RuntimeMode.CONTAINER:
+            engine_value = container_engine or settings.container.engine or ContainerEngine.DOCKER
+            engine_obj = ContainerEngine(engine_value) if isinstance(engine_value, str) else engine_value
+            container_runtime = create_container_engine(engine=engine_obj)
+            processor = create_container_processor(
+                container_runtime,
+                template_dir_resolver=deps.template_dir_resolver,
+                engine_value=engine_obj.value,
+            )
+        else:
+            processor = create_local_processor(deps.backend_registry, deps.template_renderer)
         result = processor.process_generate(request, settings)
         deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:

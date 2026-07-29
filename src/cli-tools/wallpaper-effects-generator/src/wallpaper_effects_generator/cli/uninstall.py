@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from oci_runtime import engine_qualified_image
+
 from wallpaper_effects_generator.domain.enums import ContainerEngine
 from wallpaper_effects_generator.domain.exceptions import (
     ContainerRuntimeUnavailableError,
@@ -49,10 +51,8 @@ def uninstall_command(
 
 
 def _build_image_name(container_settings: object) -> str:
-    registry = getattr(container_settings, "image_registry", "") or ""
     name = getattr(container_settings, "image_name", "weg")
+    engine = getattr(container_settings, "engine", "docker")
     tag = getattr(container_settings, "image_tag", "latest")
-    registry = registry.rstrip("/")
-    if registry:
-        return f"{registry}/{name}:{tag}"
-    return f"{name}:{tag}"
+    registry = getattr(container_settings, "image_registry", "") or None
+    return engine_qualified_image(name, engine, tag, registry)

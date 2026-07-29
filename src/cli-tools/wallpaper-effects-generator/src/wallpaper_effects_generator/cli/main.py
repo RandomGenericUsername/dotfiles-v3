@@ -11,6 +11,7 @@ from wallpaper_effects_generator.cli.dump_config import dump_config_command
 from wallpaper_effects_generator.cli.dump_effects import dump_effects_command
 from wallpaper_effects_generator.cli.info import info_command
 from wallpaper_effects_generator.cli.install import install_command
+from wallpaper_effects_generator.cli.options import ENGINE_OPT
 from wallpaper_effects_generator.cli.process import process_app
 from wallpaper_effects_generator.cli.show import show_app
 from wallpaper_effects_generator.cli.uninstall import uninstall_command
@@ -23,7 +24,7 @@ from wallpaper_effects_generator.constants import (
     EFFECTS_TRAVERSAL_DEPTH,
     EFFECTS_XDG_SUBDIR,
 )
-from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, RuntimeMode, Verbosity
+from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, Verbosity
 from wallpaper_effects_generator.factory import (
     CliDependencies,
     create_config_resolver,
@@ -84,19 +85,6 @@ def main(
         readable=True,
         resolve_path=True,
     ),
-    runtime: RuntimeMode | None = typer.Option(
-        None,
-        "--runtime",
-        "-r",
-        help="Execution runtime mode",
-        case_sensitive=False,
-    ),
-    container_engine: ContainerEngine | None = typer.Option(
-        None,
-        "--container-engine",
-        help="Container engine to use (only for container runtime)",
-        case_sensitive=False,
-    ),
     output_format: OutputFormat = typer.Option(
         OutputFormat.JSON,
         "--output-format",
@@ -120,8 +108,6 @@ def main(
     ctx.ensure_object(dict)
     ctx.obj["config"] = str(config) if config else None
     ctx.obj["effects"] = str(effects) if effects else None
-    ctx.obj["runtime"] = runtime
-    ctx.obj["container_engine"] = container_engine
     ctx.obj["output_format"] = output_format
     if quiet:
         ctx.obj["verbosity"] = Verbosity.QUIET
@@ -163,6 +149,7 @@ def info(ctx: typer.Context) -> None:
         config_resolver=deps.config_resolver,
         effect_loader=deps.effect_loader,
         catalog_cache=deps.catalog_cache,
+        cli_overrides=None,
     )
 
 
@@ -199,6 +186,7 @@ def version(ctx: typer.Context) -> None:
 @app.command(help="Build and install the container image")
 def install(
     ctx: typer.Context,
+    container_engine: ContainerEngine | None = ENGINE_OPT,
     dump_config: bool = typer.Option(False, "--dump-config", help="Write default settings.toml"),
     dump_effects: bool = typer.Option(False, "--dump-effects", help="Write default effects.yaml"),
 ) -> None:
@@ -209,18 +197,21 @@ def install(
         config_path=ctx.obj.get("config"),
         dump_config=dump_config,
         dump_effects=dump_effects,
-        container_engine=ctx.obj.get("container_engine"),
+        container_engine=container_engine,
     )
 
 
 @app.command(help="Remove the installed container image")
-def uninstall(ctx: typer.Context) -> None:
+def uninstall(
+    ctx: typer.Context,
+    container_engine: ContainerEngine | None = ENGINE_OPT,
+) -> None:
     deps = ctx.obj["deps"]
     uninstall_command(
         config_resolver=deps.config_resolver,
         output_adapter=_get_output_adapter(ctx),
         config_path=ctx.obj.get("config"),
-        container_engine=ctx.obj.get("container_engine"),
+        container_engine=container_engine,
     )
 
 

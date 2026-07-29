@@ -8,6 +8,10 @@ from wallpaper_effects_generator.domain.models import AppSettings
 
 @runtime_checkable
 class ConfigResolverPort(Protocol):
-    def resolve(self, explicit_path: Path | None = None) -> AppSettings: ...
+    def resolve(
+        self,
+        explicit_path: Path | None = None,
+        cli_overrides: dict[str, str] | None = None,
+    ) -> AppSettings: ...
 
     def get_resolved_path(self) -> Path | None: ...

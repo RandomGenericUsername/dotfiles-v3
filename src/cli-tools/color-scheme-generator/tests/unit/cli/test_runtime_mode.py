@@ -74,7 +74,31 @@ class TestRuntimeFlags:
         ):
             yield
 
-    def test_runtime_local_flag_accepted(
+    def test_runtime_flag_shown_on_generate_help(
+        self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.build_deps", lambda: mock_deps
+        )
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, ["generate", "--help"])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert "--runtime" in result.stdout
+        assert "--container-engine" in result.stdout
+
+    def test_runtime_flag_rejected_on_version(
+        self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.build_deps", lambda: mock_deps
+        )
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, ["version", "--runtime", "local"])
+        assert result.exit_code != 0
+
+    def test_runtime_flag_rejected_before_version(
         self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
@@ -83,9 +107,9 @@ class TestRuntimeFlags:
         from color_scheme_generator.cli.main import app
 
         result = runner.invoke(app, ["--runtime", "local", "version"])
-        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert result.exit_code != 0
 
-    def test_runtime_container_flag_accepted(
+    def test_container_engine_flag_shown_on_install_help(
         self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
@@ -93,43 +117,10 @@ class TestRuntimeFlags:
         )
         from color_scheme_generator.cli.main import app
 
-        result = runner.invoke(app, ["--runtime", "container", "version"])
+        result = runner.invoke(app, ["install", "--help"])
         assert result.exit_code == 0, f"stderr={result.stderr}"
-
-    def test_container_engine_docker_flag_accepted(
-        self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "color_scheme_generator.cli.main.build_deps", lambda: mock_deps
-        )
-        from color_scheme_generator.cli.main import app
-
-        result = runner.invoke(app, ["--container-engine", "docker", "version"])
-        assert result.exit_code == 0, f"stderr={result.stderr}"
-
-    def test_container_engine_podman_flag_accepted(
-        self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "color_scheme_generator.cli.main.build_deps", lambda: mock_deps
-        )
-        from color_scheme_generator.cli.main import app
-
-        result = runner.invoke(app, ["--container-engine", "podman", "version"])
-        assert result.exit_code == 0, f"stderr={result.stderr}"
-
-    def test_runtime_and_container_engine_flags_together(
-        self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            "color_scheme_generator.cli.main.build_deps", lambda: mock_deps
-        )
-        from color_scheme_generator.cli.main import app
-
-        result = runner.invoke(
-            app, ["--runtime", "container", "--container-engine", "podman", "version"]
-        )
-        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert "--container-engine" in result.stdout
+        assert "--runtime" not in result.stdout
 
     def test_runtime_defaults_to_local(
         self, runner: CliRunner, mock_deps: CliDependencies, monkeypatch: pytest.MonkeyPatch

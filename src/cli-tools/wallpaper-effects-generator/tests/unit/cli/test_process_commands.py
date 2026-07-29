@@ -201,9 +201,9 @@ class TestContainerEngineFlag:
             result = runner.invoke(
                 app,
                 [
+                    "process",
                     "--container-engine",
                     "docker",
-                    "process",
                     "effect",
                     "blur",
                     "/tmp/test.png",
@@ -227,9 +227,9 @@ class TestContainerEngineFlag:
             result = runner.invoke(
                 app,
                 [
+                    "process",
                     "--container-engine",
                     "podman",
-                    "process",
                     "effect",
                     "blur",
                     "/tmp/test.png",
@@ -241,9 +241,9 @@ class TestContainerEngineFlag:
         result = runner.invoke(
             app,
             [
+                "process",
                 "--container-engine",
                 "invalid",
-                "process",
                 "effect",
                 "blur",
                 "/tmp/test.png",
@@ -257,9 +257,9 @@ class TestContainerEngineFlag:
         result = runner.invoke(
             app,
             [
+                "process",
                 "--runtime",
                 "invalid",
-                "process",
                 "effect",
                 "blur",
                 "/tmp/test.png",
@@ -285,11 +285,11 @@ class TestContainerEngineFlag:
             result = runner.invoke(
                 app,
                 [
+                    "process",
                     "--runtime",
                     "local",
                     "--container-engine",
                     "docker",
-                    "process",
                     "effect",
                     "blur",
                     "/tmp/test.png",

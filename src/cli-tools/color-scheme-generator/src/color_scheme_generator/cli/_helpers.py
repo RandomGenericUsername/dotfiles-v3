@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from oci_runtime import engine_qualified_image
+
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
@@ -121,20 +123,25 @@ def resolve_backend_params(
     return {}
 
 
-def build_image_name(settings: AppSettings, backend: Backend) -> str:
+def build_image_name(settings: AppSettings, backend: Backend, engine: str = "docker") -> str:
     prefix = settings.container.image_prefix
-    return f"{prefix}color-scheme-{backend.image_suffix}:{settings.container.image_tag}"
+    base = f"{prefix}-{backend.image_suffix}"
+    return engine_qualified_image(base, engine, settings.container.image_tag)
 
 
 def resolve_processor(
     settings: AppSettings,
     deps: CliDependencies,
+    engine_override: str | None = None,
 ) -> ColorSchemeProcessorPort:
     if settings.runtime.mode == RuntimeMode.CONTAINER:
-        engine = ContainerEngine(settings.container.engine)
+        engine_value = engine_override or settings.container.engine
+        engine = ContainerEngine(engine_value)
         container_runtime = create_container_engine(engine=engine)
         return create_container_processor(
-            container_runtime, template_dir_resolver=deps.template_dir_resolver
+            container_runtime,
+            template_dir_resolver=deps.template_dir_resolver,
+            engine_value=engine_value,
         )
     return create_local_processor(deps.backend_registry, deps.template_renderer)
 

@@ -108,6 +108,7 @@ def create_container_processor(
     container_engine: ContainerRuntimePort,
     template_dir_resolver: TemplateDirResolver | None = None,
     default_settings_path: Path | None = None,
+    engine_value: str | None = None,
 ) -> ColorSchemeProcessorPort:
     from color_scheme_generator.adapters.container_processor import ContainerProcessor
 
@@ -115,6 +116,7 @@ def create_container_processor(
         container_engine,
         template_dir_resolver=template_dir_resolver,
         default_settings_path=default_settings_path,
+        engine_value=engine_value,
     )
 
 

@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
+from oci_runtime import engine_qualified_image
+
 from color_scheme_generator.domain.enums import Backend, ColorFormat
 from color_scheme_generator.domain.exceptions import (
     ContainerImageNotFoundError,
@@ -47,15 +49,19 @@ class ContainerProcessor:
         container_runtime: ContainerRuntimePort,
         template_dir_resolver: TemplateDirResolver | None = None,
         default_settings_path: Path | None = None,
+        engine_value: str | None = None,
     ) -> None:
         self._container_runtime = container_runtime
         self._template_dir_resolver = template_dir_resolver
         self._default_settings_path = default_settings_path
+        self._engine_value = engine_value
 
     def _select_image(self, settings: AppSettings, backend_value: str) -> str:
         prefix = settings.container.image_prefix
         tag = settings.container.image_tag
-        return f"{prefix}color-scheme-{backend_value}:{tag}"
+        engine = self._engine_value or settings.container.engine
+        base = f"{prefix}-{backend_value}"
+        return engine_qualified_image(base, engine, tag)
 
     def _serialize_settings(self, settings: AppSettings) -> str:
         lines: list[str] = []

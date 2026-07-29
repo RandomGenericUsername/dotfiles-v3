@@ -9,6 +9,7 @@ from color_scheme_generator.adapters.output.json_output import JsonOutput
 from color_scheme_generator.adapters.output.plain_output import PlainOutput
 from color_scheme_generator.adapters.output.rich_output import RichOutput
 from color_scheme_generator.cli._helpers import build_image_name
+from color_scheme_generator.cli.options import ENGINE_OPT
 from color_scheme_generator.domain.enums import Backend, ContainerEngine
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.factory import CliDependencies, create_container_engine
@@ -18,15 +19,17 @@ log = logging.getLogger(__name__)
 
 def uninstall(
     ctx: typer.Context,
-    backend: list[Backend] = typer.Option([], "--backend", help="Backends to remove"),  # noqa: B008
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),  # noqa: B008
-    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without removing"),  # noqa: B008
-    force: bool = typer.Option(False, "--force", "-f", help="Force image removal even if in use"),  # noqa: B008
+    container_engine: ContainerEngine | None = ENGINE_OPT,
+    backend: list[Backend] = typer.Option([], "--backend", help="Backends to remove"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without removing"),
+    force: bool = typer.Option(False, "--force", "-f", help="Force image removal even if in use"),
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
         settings = deps.config_resolver.resolve()
-        engine = ctx.obj.get("container_engine") or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
+        engine = container_engine or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
+        engine_value = engine.value
         container_engine = create_container_engine(engine)
         target_backends = list(dict.fromkeys(backend or list(Backend)))
         if not yes:
@@ -36,7 +39,7 @@ def uninstall(
             )
         results: list[dict[str, str]] = []
         for b in target_backends:
-            image = build_image_name(settings, b)
+            image = build_image_name(settings, b, engine_value)
             if dry_run:
                 results.append({
                     "backend": b.value,

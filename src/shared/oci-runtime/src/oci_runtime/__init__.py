@@ -69,6 +69,7 @@ from oci_runtime.ports.output_stream import OutputStream  # noqa: F401
 from oci_runtime.ports.discovery import RuntimeDiscovery  # noqa: F401
 from oci_runtime.ports.provider import RuntimeProvider  # noqa: F401
 from oci_runtime.ports.pty_transport import PtyTransport  # noqa: F401
+from oci_runtime.domain.naming import engine_qualified_image  # noqa: F401
 from oci_runtime.factory import RuntimeFactory, RuntimeFactoryConfig  # noqa: F401
 
 __all__ = sorted(
@@ -86,6 +87,7 @@ __all__ = sorted(
         "ContainerRuntimeError",
         "ContainerState",
         "DeadlineCancellationToken",
+        "engine_qualified_image",
         "ExecResult",
         "ImageError",
         "ImageInfo",

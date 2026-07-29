@@ -106,11 +106,16 @@ class AssembledConfigResolver:
         )
         self._resolved_path: Path | None = None
 
-    def resolve(self, explicit_path: Path | None = None) -> AppSettings:
+    def resolve(
+        self,
+        explicit_path: Path | None = None,
+        cli_overrides: dict[str, str] | None = None,
+    ) -> AppSettings:
         result = self._assembler.execute(
             policy=ResolutionPolicy(env_prefix="WALLPAPER"),
             rules=_OVERRIDE_RULES,
             schema=CoreSettingsSchema,
+            cli_overrides=cli_overrides,
             explicit_path=str(explicit_path) if explicit_path else None,
         )
         self._resolved_path = result.resolved_path.path
