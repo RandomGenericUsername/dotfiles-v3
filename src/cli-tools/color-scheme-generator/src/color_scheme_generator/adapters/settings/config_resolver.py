@@ -23,7 +23,7 @@ from config_assembler_engine.domain.models import (
 from config_assembler_engine.errors import ConfigParseError, PathResolutionError
 
 from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode, Verbosity
+from color_scheme_generator.domain.enums import Backend, RuntimeMode, Verbosity
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import (
     AppliedOverride,
@@ -55,9 +55,9 @@ def _convert_to_app_settings(validated: CoreSettingsSchema) -> AppSettings:
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode(validated.runtime.mode),
-            engine=ContainerEngine(validated.container.engine),
         ),
         container=ContainerSettings(
+            engine=validated.container.engine,
             image_prefix=validated.container.image_prefix,
             image_tag=validated.container.image_tag,
             timeout_seconds=validated.container.timeout_seconds,

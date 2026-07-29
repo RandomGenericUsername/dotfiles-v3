@@ -5,7 +5,7 @@ from pathlib import Path, PurePosixPath
 
 import pytest
 
-from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, ColorFormat, RuntimeMode
 from color_scheme_generator.domain.models import (
     AppSettings,
     BackendDefinition,
@@ -306,20 +306,21 @@ class TestTemplateSettings:
 
 class TestRuntimeSettings:
     def test_fields(self) -> None:
-        s = RuntimeSettings(mode=RuntimeMode.LOCAL, engine=ContainerEngine.DOCKER)
+        s = RuntimeSettings(mode=RuntimeMode.LOCAL)
         assert s.mode == RuntimeMode.LOCAL
-        assert s.engine == ContainerEngine.DOCKER
 
 
 class TestContainerSettings:
     def test_fields(self) -> None:
         s = ContainerSettings(
+            engine="docker",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=300,
             memory_limit="512m",
             mount_timeout_seconds=30,
         )
+        assert s.engine == "docker"
         assert s.image_prefix == "csg"
         assert s.image_tag == "latest"
         assert s.timeout_seconds == 300
@@ -336,8 +337,9 @@ class TestAppSettings:
         )
         generation = GenerationSettings(backend=Backend.CUSTOM, default_params={})
         template = TemplateSettings(templates_dir=None, custom_templates_dir=None)
-        runtime = RuntimeSettings(mode=RuntimeMode.LOCAL, engine=ContainerEngine.DOCKER)
+        runtime = RuntimeSettings(mode=RuntimeMode.LOCAL)
         container = ContainerSettings(
+            engine="docker",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=300,

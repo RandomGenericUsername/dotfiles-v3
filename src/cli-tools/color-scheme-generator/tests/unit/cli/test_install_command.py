@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from typer.testing import CliRunner
 
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, RuntimeMode
 from color_scheme_generator.domain.exceptions import ImageBuildError
 from color_scheme_generator.domain.models import (
     AppSettings,
@@ -30,8 +30,9 @@ def mock_config_resolver() -> MagicMock:
         output=OutputSettings(directory="/tmp/out", default_formats=(), overwrite=False),
         generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
         template=TemplateSettings(templates_dir=None, custom_templates_dir=None),
-        runtime=RuntimeSettings(mode=RuntimeMode.LOCAL, engine=ContainerEngine.DOCKER),
+        runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
         container=ContainerSettings(
+            engine="docker",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=60,

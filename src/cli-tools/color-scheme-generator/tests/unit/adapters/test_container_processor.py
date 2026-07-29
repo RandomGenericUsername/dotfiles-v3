@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from color_scheme_generator.adapters.container_processor import ContainerProcessor, _CONTAINER_ENV
-from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, ColorFormat, RuntimeMode
 from color_scheme_generator.domain.exceptions import (
     ContainerImageNotFoundError,
     ContainerTimeoutError,
@@ -46,9 +46,9 @@ def _make_settings(**overrides: object) -> AppSettings:
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode.LOCAL,
-            engine=ContainerEngine.DOCKER,
         ),
         container=ContainerSettings(
+            engine="docker",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=60,

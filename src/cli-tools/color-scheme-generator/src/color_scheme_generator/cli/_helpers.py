@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import ColorSchemeError, ConfigResolutionError
@@ -35,9 +36,9 @@ def default_app_settings() -> AppSettings:
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode.LOCAL,
-            engine=ContainerEngine.DOCKER,
         ),
         container=ContainerSettings(
+            engine="docker",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=300,
@@ -116,3 +117,22 @@ def resolve_backend_params(
 def build_image_name(settings: AppSettings, backend: Backend) -> str:
     prefix = settings.container.image_prefix
     return f"{prefix}color-scheme-{backend.image_suffix}:{settings.container.image_tag}"
+
+
+def resolve_container_engine(
+    container_engine: ContainerEngine | None,
+    config_resolver: AssembledConfigResolver | None,
+    config_path: str | None,
+    cli_overrides: dict[str, str],
+) -> ContainerEngine:
+    if container_engine is not None:
+        return container_engine
+    if config_resolver is not None:
+        try:
+            settings = config_resolver.resolve(
+                explicit_path=config_path, cli_overrides=cli_overrides
+            )
+            return ContainerEngine(settings.container.engine)
+        except Exception:
+            pass
+    return ContainerEngine.DOCKER

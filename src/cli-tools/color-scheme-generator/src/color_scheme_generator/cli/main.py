@@ -11,6 +11,7 @@ from color_scheme_generator.cli._helpers import (
     default_app_settings,
     parse_params,
     resolve_backend_params,
+    resolve_container_engine,
 )
 from color_scheme_generator.cli.dump_config_cmd import dump_config
 from color_scheme_generator.cli.dump_templates_cmd import dump_templates
@@ -100,8 +101,8 @@ def main_callback(
         help="Execution runtime mode",
         case_sensitive=False,
     ),
-    container_engine: ContainerEngine = typer.Option(  # noqa: B008
-        ContainerEngine.DOCKER,
+    container_engine: ContainerEngine | None = typer.Option(  # noqa: B008
+        None,
         "--container-engine",
         help="Container engine to use (only for container runtime)",
         case_sensitive=False,
@@ -162,7 +163,8 @@ def main_callback(
     if runtime is RuntimeMode.LOCAL and deps.processor is None:
         deps.processor = create_local_processor(deps.backend_registry, deps.template_renderer)
     elif runtime is RuntimeMode.CONTAINER:
-        container_runtime = create_container_engine(engine=container_engine)
+        engine = resolve_container_engine(container_engine, deps.config_resolver, config_path, cli_overrides)
+        container_runtime = create_container_engine(engine=engine)
         deps.container_engine = container_runtime
         deps.processor = create_container_processor(
             container_runtime, template_dir_resolver=deps.template_dir_resolver
@@ -191,7 +193,7 @@ def main_callback(
     )
 
 
-@app.command()
+@app.command(help="Extract a color palette from an image")
 def generate(
     ctx: typer.Context,
     image_path: Path = typer.Argument(..., help="Path to the input image file"),  # noqa: B008
@@ -273,11 +275,11 @@ def generate(
         raise typer.Exit(code=1) from None
 
 
-app.command()(info)
-app.command()(dump_config)
-app.command()(dump_templates)
-app.command()(install)
-app.command()(list_backends)
-app.command()(show)
-app.command()(uninstall)
-app.command()(version)
+app.command(help="Show system configuration, backends, and sources")(info)
+app.command(help="Print or save current settings to a TOML file")(dump_config)
+app.command(help="Copy bundled Jinja2 templates to a local directory")(dump_templates)
+app.command(help="Build container images for extraction backends")(install)
+app.command(help="List available extraction backends and their status")(list_backends)
+app.command(help="Display a color palette preview in the terminal")(show)
+app.command(help="Remove container images for extraction backends")(uninstall)
+app.command(help="Show the installed package version")(version)

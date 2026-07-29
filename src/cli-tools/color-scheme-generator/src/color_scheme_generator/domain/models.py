@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
-from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode, Verbosity
+from color_scheme_generator.domain.enums import Backend, ColorFormat, RuntimeMode, Verbosity
 
 _UNSET = object()
 
@@ -125,16 +125,16 @@ class TemplateSettings:
 @dataclass(frozen=True)
 class RuntimeSettings:
     mode: RuntimeMode
-    engine: ContainerEngine
 
 
 @dataclass(frozen=True)
 class ContainerSettings:
-    image_prefix: str
-    image_tag: str
-    timeout_seconds: int
-    memory_limit: str
-    mount_timeout_seconds: int
+    engine: str = "docker"
+    image_prefix: str = "csg"
+    image_tag: str = "latest"
+    timeout_seconds: int = 300
+    memory_limit: str = "512m"
+    mount_timeout_seconds: int = 30
 
 
 @dataclass(frozen=True)

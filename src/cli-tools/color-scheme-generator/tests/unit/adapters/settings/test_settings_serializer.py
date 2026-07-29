@@ -8,7 +8,7 @@ from color_scheme_generator.adapters.settings.settings_serializer import (
     SettingsSerializer,
     _value_to_toml,
 )
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, RuntimeMode
 from color_scheme_generator.domain.models import (
     AppSettings,
     ContainerSettings,
@@ -37,9 +37,9 @@ def _make_full_settings() -> AppSettings:
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode.LOCAL,
-            engine=ContainerEngine.DOCKER,
         ),
         container=ContainerSettings(
+            engine="docker",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=60,
@@ -105,8 +105,9 @@ class TestSettingsSerializer:
             output=OutputSettings(directory=Path("/tmp"), default_formats=(), overwrite=False),
             generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
             template=TemplateSettings(templates_dir=None, custom_templates_dir=None),
-            runtime=RuntimeSettings(mode=RuntimeMode.LOCAL, engine=ContainerEngine.DOCKER),
+            runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
             container=ContainerSettings(
+                engine="docker",
                 image_prefix="csg",
                 image_tag="latest",
                 timeout_seconds=60,

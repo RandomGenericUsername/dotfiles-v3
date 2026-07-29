@@ -9,7 +9,6 @@ from color_scheme_generator.adapters.dry_run_processor import DryRunProcessor
 from color_scheme_generator.domain.enums import (
     Backend,
     ColorFormat,
-    ContainerEngine,
     RuntimeMode,
 )
 from color_scheme_generator.domain.exceptions import (
@@ -52,9 +51,9 @@ def _make_settings(
         ),
         runtime=RuntimeSettings(
             mode=runtime_mode,
-            engine=ContainerEngine.DOCKER,
         ),
         container=ContainerSettings(
+            engine="docker",
             image_prefix="ghcr.io/user/",
             image_tag="latest",
             timeout_seconds=120,

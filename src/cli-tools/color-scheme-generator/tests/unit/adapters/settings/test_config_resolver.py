@@ -15,7 +15,7 @@ from config_assembler_engine.domain.models import (
 
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.settings.schema import CoreSettingsSchema
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, RuntimeMode
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
 from color_scheme_generator.domain.models import AppliedOverride as DomainAppliedOverride
 from color_scheme_generator.domain.models import (
@@ -73,7 +73,7 @@ class TestAssembledConfigResolver:
         assert isinstance(result.container, ContainerSettings)
         assert result.generation.backend == Backend.CUSTOM
         assert result.runtime.mode == RuntimeMode.LOCAL
-        assert result.runtime.engine == ContainerEngine.DOCKER
+        assert result.container.engine == "docker"
 
     def test_resolve_stores_last_result(self) -> None:
         mock_assembler = create_autospec(AssembleConfiguration, instance=True)
