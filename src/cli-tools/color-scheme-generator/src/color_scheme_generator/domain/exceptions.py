@@ -99,6 +99,11 @@ class ImagePullAccessError(ColorSchemeError):
         super().__init__(f"Access denied pulling image '{image}' from registry '{registry}'")
 
 
+class TemplatesValidationError(ColorSchemeError):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 class ContainerTimeoutError(ColorSchemeError):
     pass
 

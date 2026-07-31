@@ -8,6 +8,7 @@ from color_scheme_generator.adapters.backends.pywal_generator import PywalGenera
 from color_scheme_generator.adapters.backends.wallust_generator import WallustGenerator
 from color_scheme_generator.adapters.jinja_template_renderer import JinjaTemplateRenderer
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
+from color_scheme_generator.adapters.template_catalog_loader import DirectoryTemplateCatalogLoader
 from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
 from color_scheme_generator.domain.enums import Backend, ContainerEngine, OutputFormat, Verbosity
@@ -15,6 +16,7 @@ from color_scheme_generator.ports.container_runtime import ContainerRuntimePort
 from color_scheme_generator.ports.output import OutputPort
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
 from color_scheme_generator.ports.processor import ColorSchemeProcessorPort
+from color_scheme_generator.ports.template_catalog_loader import TemplateCatalogLoaderPort
 from color_scheme_generator.ports.template_renderer import TemplateRendererPort
 
 if TYPE_CHECKING:
@@ -33,6 +35,7 @@ class CliDependencies:
     container_engine: ContainerRuntimePort | None = None
     output_adapter: OutputPort | None = None
     processor: ColorSchemeProcessorPort | None = None
+    template_catalog_loader: TemplateCatalogLoaderPort | None = None
     template_dir_resolver: TemplateDirResolver | None = None
     template_renderer: TemplateRendererPort | None = None
 
@@ -51,6 +54,10 @@ def create_backend_catalog_loader() -> YamlBackendCatalogLoader:
 
 def create_template_dir_resolver() -> TemplateDirResolver:
     return TemplateDirResolver()
+
+
+def create_template_catalog_loader() -> TemplateCatalogLoaderPort:
+    return DirectoryTemplateCatalogLoader(create_template_dir_resolver())
 
 
 def create_template_renderer() -> TemplateRendererPort:

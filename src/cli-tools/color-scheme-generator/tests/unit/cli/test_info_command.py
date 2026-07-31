@@ -63,6 +63,23 @@ def mock_template_resolver() -> MagicMock:
 
 
 @pytest.fixture
+def mock_template_catalog_loader() -> MagicMock:
+    from color_scheme_generator.domain.enums import ColorFormat
+    from color_scheme_generator.domain.models import ColorSchemeTemplate, TemplateCatalog
+
+    mock = MagicMock()
+    mock.load.return_value = TemplateCatalog(
+        templates=(
+            ColorSchemeTemplate(name="colors.json.j2", format=ColorFormat.JSON),
+            ColorSchemeTemplate(name="colors.sh.j2", format=ColorFormat.SH),
+        ),
+        source_dir=Path("/home/user/.config/color-scheme/templates"),
+    )
+    mock.get_resolved_path.return_value = Path("/home/user/.config/color-scheme/templates")
+    return mock
+
+
+@pytest.fixture
 def mock_backend_catalog() -> MagicMock:
     mock = MagicMock()
     mock.load.return_value = {}
@@ -85,6 +102,7 @@ def mock_output() -> MagicMock:
 def mock_deps(
     mock_config_resolver: MagicMock,
     mock_template_resolver: MagicMock,
+    mock_template_catalog_loader: MagicMock,
     mock_backend_catalog: MagicMock,
     mock_backend_registry: dict[Backend, MagicMock],
     mock_output: MagicMock,
@@ -94,6 +112,7 @@ def mock_deps(
         backend_catalog_loader=mock_backend_catalog,
         config_resolver=mock_config_resolver,
         output_adapter=mock_output,
+        template_catalog_loader=mock_template_catalog_loader,
         template_dir_resolver=mock_template_resolver,
     )
 
@@ -115,6 +134,7 @@ class TestInfoCommand:
         payload = json.loads(result.stdout)
         assert "settings" in payload
         assert "backends" in payload
+        assert "templates" in payload
         assert "sources" in payload
 
     def test_info_shows_config_path(
@@ -186,6 +206,10 @@ class TestInfoCommand:
         payload = json.loads(result.stdout)
         sources = payload.get("sources", [])
         assert any("templates" in s for s in sources)
+        templates = payload.get("templates", {})
+        assert templates.get("templates_count") == 2
+        assert "json" in templates.get("formats", [])
+        assert "sh" in templates.get("formats", [])
 
     def test_info_shows_backend_availability(
         self,

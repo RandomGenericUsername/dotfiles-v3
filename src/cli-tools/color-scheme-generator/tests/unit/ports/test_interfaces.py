@@ -21,6 +21,7 @@ from color_scheme_generator.ports.output import OutputPort
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
 from color_scheme_generator.ports.processor import ColorSchemeProcessorPort
 from color_scheme_generator.ports.settings_serializer import SettingsSerializerPort
+from color_scheme_generator.ports.template_catalog_loader import TemplateCatalogLoaderPort
 from color_scheme_generator.ports.template_dir_resolver import TemplateDirResolverPort
 from color_scheme_generator.ports.template_renderer import TemplateRendererPort
 from color_scheme_generator.ports.version_provider import VersionProviderPort
@@ -121,6 +122,11 @@ class TestOutputPort:
                 pass
 
             def message(self, msg: str) -> None:
+                pass
+
+            def config_info(
+                self, settings: object, backends: dict, sources: list[str], templates: object = None
+            ) -> None:
                 pass
 
         assert isinstance(MockOutput(), OutputPort)
@@ -290,3 +296,33 @@ class TestContainerRuntimePort:
                 return True
 
         assert not isinstance(MissingPullImage(), ContainerRuntimePort)
+
+
+class TestTemplateCatalogLoaderPort:
+    def test_valid_implementation_passes_isinstance(self) -> None:
+        from color_scheme_generator.domain.enums import ColorFormat
+        from color_scheme_generator.domain.models import ColorSchemeTemplate, TemplateCatalog
+
+        tpl = ColorSchemeTemplate(name="colors.json.j2", format=ColorFormat.JSON)
+
+        class MockLoader:
+            def load(self, explicit_dir: Path | None = None) -> TemplateCatalog:
+                return TemplateCatalog(templates=(tpl,))
+
+            def get_resolved_path(self) -> Path | None:
+                return None
+
+        assert isinstance(MockLoader(), TemplateCatalogLoaderPort)
+
+    def test_invalid_implementation_fails_isinstance(self) -> None:
+        class MissingAll:
+            pass
+
+        assert not isinstance(MissingAll(), TemplateCatalogLoaderPort)
+
+    def test_partial_implementation_missing_get_resolved_path_fails_isinstance(self) -> None:
+        class MissingGetResolvedPath:
+            def load(self, explicit_dir: Path | None = None) -> object:
+                return object()
+
+        assert not isinstance(MissingGetResolvedPath(), TemplateCatalogLoaderPort)

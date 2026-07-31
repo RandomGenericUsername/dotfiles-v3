@@ -7,6 +7,7 @@ from color_scheme_generator.ports.output import OutputPort
 from color_scheme_generator.ports.palette_generator import PaletteGeneratorPort
 from color_scheme_generator.ports.processor import ColorSchemeProcessorPort
 from color_scheme_generator.ports.settings_serializer import SettingsSerializerPort
+from color_scheme_generator.ports.template_catalog_loader import TemplateCatalogLoaderPort
 from color_scheme_generator.ports.template_dir_resolver import TemplateDirResolverPort
 from color_scheme_generator.ports.template_renderer import TemplateRendererPort
 from color_scheme_generator.ports.version_provider import VersionProviderPort
@@ -19,6 +20,7 @@ __all__ = [
     "OutputPort",
     "PaletteGeneratorPort",
     "SettingsSerializerPort",
+    "TemplateCatalogLoaderPort",
     "TemplateDirResolverPort",
     "TemplateRendererPort",
     "VersionProviderPort",

@@ -5,6 +5,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.exceptions import (
     BackendNotAvailableError,
     ColorExtractionError,
@@ -16,7 +17,6 @@ from color_scheme_generator.domain.exceptions import (
     TemplateNotFoundError,
     TemplateRenderError,
 )
-from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.models import ColorScheme, GenerationResult
 
 
@@ -82,14 +82,14 @@ class RichOutput:
         settings: object,
         backends: dict,
         sources: list[str],
-        catalog: object,
+        templates: object = None,
     ) -> None:
         table = Table(title="Configuration", box=None)
         table.add_column("Property", style="cyan")
         table.add_column("Value")
 
         if settings:
-            for section, fields in settings.__dataclass_fields__.items():
+            for section, _fields in settings.__dataclass_fields__.items():
                 section_val = getattr(settings, section)
                 if hasattr(section_val, "__dataclass_fields__"):
                     for field in section_val.__dataclass_fields__:
@@ -107,6 +107,17 @@ class RichOutput:
                 src_table.add_row(s)
             self._console.print(src_table)
             self._console.print()
+
+        tpl_table = Table(title="Templates", box=None)
+        tpl_table.add_column("Format", style="cyan")
+        tpl_table.add_column("File")
+        if templates and templates.templates:  # type: ignore[union-attr]
+            for t in templates.templates:  # type: ignore[union-attr]
+                tpl_table.add_row(t.format.value, t.name)
+        else:
+            tpl_table.add_row("(none)", "")
+        self._console.print(tpl_table)
+        self._console.print()
 
         bk_table = Table(title="Backends", box=None)
         bk_table.add_column("Backend", style="cyan")

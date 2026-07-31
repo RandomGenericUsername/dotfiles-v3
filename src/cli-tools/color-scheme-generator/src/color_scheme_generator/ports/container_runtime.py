@@ -18,6 +18,7 @@ class ContainerRuntimePort(Protocol):
         command: list[str],
         mounts: list[ContainerMount],
         timeout: int,
+        environment: dict[str, str] | None = None,
     ) -> ContainerResult:
         ...
 

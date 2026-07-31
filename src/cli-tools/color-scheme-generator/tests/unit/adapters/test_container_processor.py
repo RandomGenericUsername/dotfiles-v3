@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from color_scheme_generator.adapters.container_processor import ContainerProcessor, _CONTAINER_ENV
+from color_scheme_generator.adapters.container_processor import _CONTAINER_ENV, ContainerProcessor
 from color_scheme_generator.domain.enums import Backend, ColorFormat, RuntimeMode
 from color_scheme_generator.domain.exceptions import (
     ContainerImageNotFoundError,
@@ -212,7 +212,7 @@ class TestContainerProcessorGenerate:
             mounts = args[2] if len(args) > 2 else []
         assert len(mounts) == 4
 
-    def test_inner_command_contains_runtime_local(self, tmp_path: Path) -> None:
+    def test_inner_command_has_no_runtime_flag(self, tmp_path: Path) -> None:
         templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()
         request = GenerationRequest(
@@ -229,10 +229,9 @@ class TestContainerProcessorGenerate:
 
         call_args = processor._container_runtime.run.call_args
         command = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("command", [])
-        assert "--runtime" in command
-        local_idx = command.index("--runtime")
-        assert local_idx + 1 < len(command)
-        assert command[local_idx + 1] == "local"
+        assert "--runtime" not in command
+        assert command[0] == "csg"
+        assert command[1] == "generate"
 
     def test_params_forwarded_verbatim(self, tmp_path: Path) -> None:
         templates_dir, output_dir, processor = _setup_test_env(tmp_path)
@@ -349,6 +348,48 @@ class TestContainerProcessorGenerate:
         env = call_kwargs.get("environment", {})
         assert env == _CONTAINER_ENV
 
+    def test_inner_command_argv_is_accepted_by_cli(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from typer.testing import CliRunner
+        from color_scheme_generator.cli.main import app
+
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
+        settings = _make_settings()
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        mock_processor = MagicMock()
+        mock_processor.process_generate.return_value = MagicMock(success=True)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_local_processor",
+            lambda *a, **kw: mock_processor,
+        )
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_container_processor",
+            lambda *a, **kw: mock_processor,
+        )
+
+        processor.process_generate(request, settings)
+
+        call_args = processor._container_runtime.run.call_args
+        command = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("command", [])
+        cli_argv = command[1:]
+
+        runner = CliRunner()
+        result = runner.invoke(app, cli_argv)
+
+        assert result.exit_code == 0, (
+            f"Adapter argv rejected by live CLI\n"
+            f"  argv: {cli_argv}\n"
+            f"  stderr: {result.stderr}"
+        )
+
     def test_returns_generation_result_with_same_contract_as_local_processor(
         self, tmp_path: Path
     ) -> None:
@@ -430,10 +471,10 @@ class TestContainerProcessorShow:
         call_args = mock_runtime.run.call_args
         command = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("command", [])
         cmd_str = " ".join(command)
-        assert cmd_str.startswith("csg --runtime local show") or cmd_str.startswith("csg show")
+        assert cmd_str.startswith("csg show")
         assert "-o" not in cmd_str.replace("-o ", "")
 
-    def test_show_inner_command_has_runtime_local(self, tmp_path: Path) -> None:
+    def test_show_inner_command_has_no_runtime_flag(self, tmp_path: Path) -> None:
         tdir = tmp_path / "templates"
         tdir.mkdir()
         img = tmp_path / "img.png"
@@ -466,8 +507,9 @@ class TestContainerProcessorShow:
 
         call_args = mock_runtime.run.call_args
         command = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("command", [])
-        assert "--runtime" in command
-        assert command[command.index("--runtime") + 1] == "local"
+        assert "--runtime" not in command
+        assert command[0] == "csg"
+        assert command[1] == "show"
 
     def test_passes_expected_environment(self, tmp_path: Path) -> None:
         tdir = tmp_path / "templates"

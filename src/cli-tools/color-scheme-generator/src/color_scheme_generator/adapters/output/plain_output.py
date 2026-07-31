@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.exceptions import (
     BackendNotAvailableError,
     ColorExtractionError,
@@ -11,7 +12,6 @@ from color_scheme_generator.domain.exceptions import (
     TemplateNotFoundError,
     TemplateRenderError,
 )
-from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.models import ColorScheme, GenerationResult
 
 
@@ -49,10 +49,10 @@ class PlainOutput:
         settings: object,
         backends: dict,
         sources: list[str],
-        catalog: object,
+        templates: object = None,
     ) -> None:
         if settings:
-            for section, fields in settings.__dataclass_fields__.items():
+            for section, _fields in settings.__dataclass_fields__.items():
                 section_val = getattr(settings, section)
                 if hasattr(section_val, "__dataclass_fields__"):
                     for field in section_val.__dataclass_fields__:
@@ -63,6 +63,13 @@ class PlainOutput:
             print("Sources:")
             for s in sources:
                 print(f"  {s}")
+        print()
+        print("Templates:")
+        if templates and templates.templates:  # type: ignore[union-attr]
+            print(f"  count: {len(templates.templates)}")  # type: ignore[union-attr]
+            print(f"  formats: {', '.join(t.format.value for t in templates.templates)}")  # type: ignore[union-attr]
+        else:
+            print("  count: 0")
         print()
         print("Backends:")
         for name, info in backends.items():

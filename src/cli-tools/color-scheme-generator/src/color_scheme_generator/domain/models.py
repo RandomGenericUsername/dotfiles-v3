@@ -146,6 +146,18 @@ class ConfigResolverResult:
 
 
 @dataclass(frozen=True)
+class ColorSchemeTemplate:
+    name: str
+    format: ColorFormat
+
+
+@dataclass(frozen=True)
+class TemplateCatalog:
+    templates: tuple[ColorSchemeTemplate, ...] = ()
+    source_dir: Path | None = None
+
+
+@dataclass(frozen=True)
 class AppSettings:
     output: OutputSettings
     generation: GenerationSettings

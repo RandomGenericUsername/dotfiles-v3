@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 
+from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.exceptions import (
     BackendNotAvailableError,
     ColorExtractionError,
@@ -12,7 +13,6 @@ from color_scheme_generator.domain.exceptions import (
     OutputWriteError,
     PaletteGenerationError,
 )
-from color_scheme_generator.domain.enums import Verbosity
 from color_scheme_generator.domain.models import Color, ColorScheme, GenerationResult
 
 
@@ -56,11 +56,19 @@ class JsonOutput:
         settings: object,
         backends: dict,
         sources: list[str],
-        catalog: object,
+        templates: object = None,
     ) -> None:
         data = {
             "settings": self._serialize_settings(settings) if settings else {},
             "backends": backends,
+            "templates": (
+                {
+                    "templates_count": len(templates.templates),  # type: ignore[union-attr]
+                    "formats": [t.format.value for t in templates.templates],  # type: ignore[union-attr]
+                }
+                if templates
+                else {"templates_count": 0, "formats": []}
+            ),
             "sources": sources,
         }
         sys.stdout.write(json.dumps(data, indent=2, default=str) + "\n")

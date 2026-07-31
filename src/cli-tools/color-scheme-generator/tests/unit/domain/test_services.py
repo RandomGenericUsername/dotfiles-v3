@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from color_scheme_generator.domain.exceptions import ConfigResolutionError
@@ -171,3 +173,47 @@ class TestParameterResolutionService:
             params, {"colors": 8, "backend": "wal"}
         )
         assert result == {"colors": 8, "backend": "wal"}
+
+
+class TestTemplateCatalogService:
+    from color_scheme_generator.domain.services import TemplateCatalogService
+
+    def test_derive_from_real_bundled_templates(self) -> None:
+        from pathlib import Path
+
+        from color_scheme_generator.domain.enums import ColorFormat
+
+        pkg_dir = Path(__file__).resolve().parent.parent.parent.parent
+        defaults_dir = pkg_dir / "src" / "color_scheme_generator" / "defaults" / "templates"
+        catalog = self.TemplateCatalogService().derive(defaults_dir)
+        fmts = {t.format for t in catalog.templates}
+        assert ColorFormat.JSON in fmts
+        assert ColorFormat.SH in fmts
+        assert ColorFormat.CSS in fmts
+        assert len(catalog.templates) >= 8
+
+    def test_derive_unknown_format_raises(self, tmp_path: Path) -> None:
+        (tmp_path / "colors.json.j2").write_text("x")
+        (tmp_path / "colors.unknown.j2").write_text("x")
+        from color_scheme_generator.domain.exceptions import TemplatesValidationError
+
+        with pytest.raises(TemplatesValidationError):
+            self.TemplateCatalogService().derive(tmp_path)
+
+    def test_derive_ignores_non_j2_files(self, tmp_path: Path) -> None:
+        (tmp_path / "colors.json.j2").write_text("x")
+        (tmp_path / "README.md").write_text("x")
+        catalog = self.TemplateCatalogService().derive(tmp_path)
+        assert len(catalog.templates) == 1
+
+    def test_derive_empty_dir_returns_empty_catalog(self, tmp_path: Path) -> None:
+        catalog = self.TemplateCatalogService().derive(tmp_path)
+        assert len(catalog.templates) == 0
+
+    def test_derive_nonexistent_dir_raises(self) -> None:
+        from pathlib import Path
+
+        from color_scheme_generator.domain.exceptions import ConfigResolutionError
+
+        with pytest.raises(ConfigResolutionError):
+            self.TemplateCatalogService().derive(Path("/nonexistent/zzz"))

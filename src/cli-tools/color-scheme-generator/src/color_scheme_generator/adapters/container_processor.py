@@ -32,6 +32,7 @@ _CONTAINER_ENV = {
     "XDG_CACHE_HOME": "/tmp/.cache",
     "COLORSCHEME_CONFIG_FILE_PATH": "/csg-config/settings.toml",
     "COLORSCHEME_TEMPLATES_TEMPLATES_DIR": "/templates",
+    "COLORSCHEME__RUNTIME__MODE": "local",
 }
 
 if TYPE_CHECKING:
@@ -204,8 +205,6 @@ class ContainerProcessor:
 
             inner_command = [
                 "csg",
-                "--runtime",
-                "local",
                 "generate",
                 f"/input/{request.image_path.name}",
                 "--backend",
@@ -363,8 +362,6 @@ class ContainerProcessor:
 
             inner_command = [
                 "csg",
-                "--runtime",
-                "local",
                 "show",
                 f"/input/{request.image_path.name}",
                 "--backend",

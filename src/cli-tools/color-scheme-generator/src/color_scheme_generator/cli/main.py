@@ -16,7 +16,12 @@ from color_scheme_generator.cli.dump_templates_cmd import dump_templates
 from color_scheme_generator.cli.info_cmd import info
 from color_scheme_generator.cli.install_cmd import install
 from color_scheme_generator.cli.list_backends_cmd import list_backends
-from color_scheme_generator.cli.options import CONFIG_OPT, ENGINE_OPT, RUNTIME_OPT, TEMPLATES_DIR_OPT
+from color_scheme_generator.cli.options import (
+    CONFIG_OPT,
+    ENGINE_OPT,
+    RUNTIME_OPT,
+    TEMPLATES_DIR_OPT,
+)
 from color_scheme_generator.cli.show import show
 from color_scheme_generator.cli.uninstall_cmd import uninstall
 from color_scheme_generator.cli.version_cmd import version
@@ -42,6 +47,7 @@ from color_scheme_generator.factory import (
     create_container_processor,
     create_local_processor,
     create_output_adapter,
+    create_template_catalog_loader,
     create_template_dir_resolver,
     create_template_renderer,
 )
@@ -76,6 +82,7 @@ def build_deps() -> CliDependencies:
         backend_registry=registry,
         backend_catalog_loader=create_backend_catalog_loader(),
         config_resolver=create_config_resolver(),
+        template_catalog_loader=create_template_catalog_loader(),
         template_dir_resolver=create_template_dir_resolver(),
         template_renderer=renderer,
     )

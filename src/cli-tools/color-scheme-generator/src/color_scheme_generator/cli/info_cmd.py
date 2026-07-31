@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from pathlib import Path
 
 import typer
 
-from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
-from color_scheme_generator.adapters.template_dir_resolver import TemplateDirResolver
-from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
 from color_scheme_generator.cli.options import CONFIG_OPT, TEMPLATES_DIR_OPT
 from color_scheme_generator.domain.enums import Backend
-from color_scheme_generator.domain.exceptions import ConfigResolutionError
-from color_scheme_generator.domain.models import AppSettings
+from color_scheme_generator.domain.exceptions import ColorSchemeError, ConfigResolutionError
 from color_scheme_generator.factory import CliDependencies
 
 
@@ -32,11 +27,11 @@ def info(
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
 
-    config_resolver: AssembledConfigResolver | None = deps.config_resolver
-    template_dir_resolver: TemplateDirResolver | None = deps.template_dir_resolver
-    backend_catalog_loader: YamlBackendCatalogLoader | None = deps.backend_catalog_loader
+    config_resolver = deps.config_resolver
+    backend_catalog_loader = deps.backend_catalog_loader
+    template_catalog_loader = deps.template_catalog_loader
 
-    settings: AppSettings | None = None
+    settings: object = None
     sources: list[str] = []
 
     if config_resolver is not None:
@@ -52,14 +47,6 @@ def info(
             sources.append(
                 f"settings: {config_resolver.last_result.resolved_path}"
             )
-
-    if template_dir_resolver is not None:
-        try:
-            sources.append(
-                f"templates: {template_dir_resolver.resolve(settings_dir=templates_dir)}"
-            )
-        except ConfigResolutionError:
-            pass
 
     if backend_catalog_loader is not None:
         try:
@@ -88,5 +75,14 @@ def info(
         except ConfigResolutionError:
             pass
 
-    adapter = deps.output_adapter
-    adapter.config_info(settings, backends, sources, catalog if backend_catalog_loader else None)
+    templates: object = None
+    if template_catalog_loader is not None:
+        try:
+            templates = template_catalog_loader.load(explicit_dir=templates_dir)
+            resolved = template_catalog_loader.get_resolved_path()
+            if resolved is not None:
+                sources.append(f"templates: {resolved}")
+        except ColorSchemeError as exc:
+            typer.echo(f"Warning: templates directory — {exc}", err=True)
+
+    deps.output_adapter.config_info(settings, backends, sources, templates)
