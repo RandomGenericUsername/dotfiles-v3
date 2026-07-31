@@ -5,15 +5,11 @@ custom:
     - key: saturation
       param_type: float
       default: 1.0
-      min: 0.0
-      max: 2.0
-      description: "Saturation adjustment factor (0.0–2.0)"
+      description: "Saturation adjustment factor"
       required: false
     - key: n_clusters
       param_type: int
       default: 16
-      min: 1
-      max: 32
       description: "Number of color clusters to extract"
       required: false
     - key: algorithm
@@ -31,9 +27,7 @@ pywal:
     - key: saturation
       param_type: float
       default: 1.0
-      min: 0.0
-      max: 2.0
-      description: "Saturation adjustment factor (0.0–2.0)"
+      description: "Saturation adjustment factor"
       required: false
     - key: algorithm
       param_type: str
@@ -55,9 +49,7 @@ wallust:
     - key: saturation
       param_type: float
       default: 1.0
-      min: 0.0
-      max: 2.0
-      description: "Saturation adjustment factor (0.0–2.0)"
+      description: "Saturation adjustment factor"
       required: false
     - key: algorithm
       param_type: str

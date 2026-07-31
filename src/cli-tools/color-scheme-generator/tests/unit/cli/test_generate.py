@@ -1,151 +1,116 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from typer.testing import CliRunner
 
-from color_scheme_generator.adapters.local_processor import LocalProcessor
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.exceptions import InvalidImageError
-from color_scheme_generator.domain.models import (
-    AppSettings,
-    ContainerSettings,
-    GenerationResult,
-    GenerationSettings,
-    OutputSettings,
-    RuntimeSettings,
-)
 from color_scheme_generator.factory import CliDependencies
+from tests.conftest import FakeProcessor
 
 
-def _default_app_settings(**overrides: object) -> AppSettings:
-    return AppSettings(
-        output=OutputSettings(
-            directory=Path("/tmp/color-scheme"),
-            default_formats=(),
-            overwrite=False,
-        ),
-        generation=GenerationSettings(
-            backend=Backend.CUSTOM,
-            default_params={},
-        ),
-        runtime=RuntimeSettings(
-            mode=overrides.get("runtime_mode", "local"),  # type: ignore[arg-type]
-        ),
-        container=ContainerSettings(
-            image_prefix="csg",
-            image_tag="latest",
-            timeout_seconds=60,
-            memory_limit="512m",
-            mount_timeout_seconds=30,
-        ),
-    )
+def _invoke(
+    runner: CliRunner,
+    deps: CliDependencies,
+    args: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: deps)
+    from color_scheme_generator.cli.main import app
 
-
-@pytest.fixture
-def runner() -> CliRunner:
-    return CliRunner()
-
-
-@pytest.fixture
-def mock_processor() -> MagicMock:
-    mock = MagicMock(spec=LocalProcessor)
-    mock.process_generate.return_value = GenerationResult(
-        success=True,
-        color_scheme=None,
-        output_files=(),
-        backend=Backend.CUSTOM,
-        stderr="",
-        return_code=0,
-        duration=0.5,
-    )
-    return mock
-
-
-@pytest.fixture
-def mock_output() -> MagicMock:
-    return MagicMock()
-
-
-@pytest.fixture
-def mock_config_resolver() -> MagicMock:
-    mock = MagicMock()
-    mock.resolve.return_value = _default_app_settings()
-    return mock
-
-
-@pytest.fixture
-def mock_backend_catalog_loader() -> MagicMock:
-    return MagicMock()
+    return runner.invoke(app, args)
 
 
 class TestCliGenerate:
-    @pytest.fixture
-    def mock_deps(
-        self, mock_output, mock_config_resolver, mock_backend_catalog_loader
-    ) -> CliDependencies:
-        return CliDependencies(
-            backend_registry=MagicMock(),
-            backend_catalog_loader=mock_backend_catalog_loader,
-            config_resolver=mock_config_resolver,
-            output_adapter=mock_output,
-        )
-
-    def _patch_processor(self, monkeypatch: pytest.MonkeyPatch, mock_processor: MagicMock) -> None:
-        monkeypatch.setattr(
-            "color_scheme_generator.cli.main.create_local_processor",
-            lambda *a, **kw: mock_processor,
-        )
-        monkeypatch.setattr(
-            "color_scheme_generator.cli.main.create_container_processor",
-            lambda *a, **kw: mock_processor,
-        )
-
-    def test_successful_generate_exit_code_0(
+    def test_generate_smoke_writes_dummy_files(
         self,
         runner: CliRunner,
-        mock_deps: CliDependencies,
-        mock_processor: MagicMock,
-        mock_output: MagicMock,
+        cli_deps_with_processor: CliDependencies,
+        fake_processor: FakeProcessor,
+        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        self._patch_processor(monkeypatch, mock_processor)
-        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
-        monkeypatch.setattr(
-            "color_scheme_generator.cli.main.create_output_adapter",
-            lambda _fmt, **kwargs: mock_output,
+        output_dir = tmp_path / "out"
+        result = _invoke(
+            runner,
+            cli_deps_with_processor,
+            [
+                "generate",
+                "/tmp/test.png",
+                "--backend",
+                "custom",
+                "--param",
+                "saturation=0.5",
+                "--format",
+                "json",
+                "-o",
+                str(output_dir),
+            ],
+            monkeypatch,
         )
-        from color_scheme_generator.cli.main import app
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert len(fake_processor.calls) == 1
+        call = fake_processor.calls[0]
+        assert call["command"] == "process_generate"
+        request = call["request"]
+        config = request.config
+        assert config.backend is Backend.CUSTOM
+        assert config.params.get("saturation") == "0.5"
+        assert config.output_dir == output_dir
+        assert (output_dir / "colors.json").exists()
+        assert (output_dir / "colors.json").read_text() == "dummy"
 
-        result = runner.invoke(app, ["generate", "/tmp/test.jpg"])
-        assert result.exit_code == 0
-        mock_processor.process_generate.assert_called_once()
-        mock_output.process_result.assert_called_once()
-
-    def test_invalid_image_path_exits_with_code_1(
+    def test_generate_outputs_valid_json(
         self,
         runner: CliRunner,
-        mock_deps: CliDependencies,
-        mock_processor: MagicMock,
-        mock_output: MagicMock,
+        cli_deps_with_processor: CliDependencies,
+        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        self._patch_processor(monkeypatch, mock_processor)
-        mock_processor.process_generate.side_effect = InvalidImageError(
+        result = _invoke(
+            runner,
+            cli_deps_with_processor,
+            [
+                "generate",
+                "/tmp/test.png",
+                "-f",
+                "json",
+                "-o",
+                str(tmp_path),
+            ],
+            monkeypatch,
+        )
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        payload = json.loads(result.stdout)
+        assert payload["success"] is True
+        assert payload["backend"] == "custom"
+        assert payload["color_scheme"]["colors"] is not None
+
+    def test_generate_invalid_image_exits_with_code_1(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor: CliDependencies,
+        fake_processor: FakeProcessor,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        fake_processor.error = InvalidImageError(
             image_path=Path("/nonexistent.jpg"), reason="file not found"
         )
-        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
-        monkeypatch.setattr(
-            "color_scheme_generator.cli.main.create_output_adapter",
-            lambda _fmt, **kwargs: mock_output,
+        result = _invoke(
+            runner,
+            cli_deps_with_processor,
+            ["generate", "/nonexistent.jpg", "-o", str(tmp_path)],
+            monkeypatch,
         )
-        from color_scheme_generator.cli.main import app
-
-        result = runner.invoke(app, ["generate", "/nonexistent.jpg"])
         assert result.exit_code == 1
-        mock_output.error.assert_called_once()
+        error_payload = json.loads(result.stderr)
+        assert error_payload["success"] is False
+        assert error_payload["error"]["type"] == "InvalidImageError"
+        assert "nonexistent.jpg" in error_payload["error"]["message"]
 
     def test_help_output_shows_expected_usage(self, runner: CliRunner) -> None:
         from color_scheme_generator.cli.main import app

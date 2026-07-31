@@ -115,6 +115,63 @@ class TestPlainOutput:
 
         assert isinstance(PlainOutput(), OutputPort)
 
+    def test_config_info_renders_settings_sources_templates_backends(self, capsys):
+        from color_scheme_generator.adapters.output.plain_output import PlainOutput
+        from color_scheme_generator.domain.enums import ColorFormat, RuntimeMode
+        from color_scheme_generator.domain.models import (
+            AppSettings,
+            ColorSchemeTemplate,
+            ContainerSettings,
+            GenerationSettings,
+            OutputSettings,
+            RuntimeSettings,
+            TemplateCatalog,
+        )
+
+        settings = AppSettings(
+            output=OutputSettings(
+                directory=Path("/tmp/csg-out"),
+                default_formats=(ColorFormat.JSON,),
+                overwrite=True,
+            ),
+            generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
+            runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
+            container=ContainerSettings(engine="docker"),
+        )
+        backends = {"custom": {"available": True, "description": "Custom extractor"}}
+        sources = ["/cfg/settings.toml"]
+        templates = TemplateCatalog(
+            templates=(ColorSchemeTemplate(name="colors.json", format=ColorFormat.JSON),)
+        )
+
+        output = PlainOutput()
+        output.config_info(settings, backends, sources, templates)
+        captured = capsys.readouterr().out
+
+        assert "output.directory: /tmp/csg-out" in captured
+        assert "output.overwrite: True" in captured
+        assert "generation.backend: Backend.CUSTOM" in captured
+        assert "runtime.mode: RuntimeMode.LOCAL" in captured
+        assert "Sources:" in captured
+        assert "/cfg/settings.toml" in captured
+        assert "Templates:" in captured
+        assert "count: 1" in captured
+        assert "formats: json" in captured
+        assert "Backends:" in captured
+        assert "custom: available" in captured
+        assert "description: Custom extractor" in captured
+
+    def test_config_info_without_settings_or_templates(self, capsys):
+        from color_scheme_generator.adapters.output.plain_output import PlainOutput
+
+        output = PlainOutput()
+        output.config_info(None, {"custom": {"available": False}}, [], None)
+        captured = capsys.readouterr().out
+
+        assert "Sources:" not in captured
+        assert "count: 0" in captured
+        assert "custom: not available" in captured
+
     def test_plain_output_never_raises(self):
         from color_scheme_generator.adapters.output.plain_output import PlainOutput
 

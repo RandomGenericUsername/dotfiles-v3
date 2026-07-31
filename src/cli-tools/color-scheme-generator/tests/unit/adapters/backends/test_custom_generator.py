@@ -295,6 +295,65 @@ class TestCustomGenerator:
 
         assert len(scheme.colors) == 16
 
+    def test_generate_with_saturation_greater_than_one_clamped_to_1(self):
+        modules, mock_pil, mock_numpy, mock_sklearn = _install_mock_modules()
+
+        from color_scheme_generator.adapters.backends.custom_generator import (
+            CustomGenerator,
+        )
+        from color_scheme_generator.domain.services import (
+            ColorAdjustmentService,
+        )
+
+        gen = CustomGenerator()
+        centers = [
+            [255, 0, 0],
+            [255, 80, 0],
+            [255, 160, 0],
+            [255, 240, 0],
+            [200, 255, 0],
+            [80, 255, 0],
+            [0, 255, 80],
+            [0, 255, 200],
+            [0, 160, 255],
+            [0, 60, 255],
+            [80, 0, 255],
+            [200, 0, 255],
+            [255, 0, 200],
+            [255, 0, 80],
+            [120, 120, 255],
+            [255, 120, 120],
+        ]
+        with patch.object(gen, "is_available", return_value=True):
+            with patch.dict("sys.modules", modules):
+                mock_img = MagicMock()
+                mock_img.convert.return_value = mock_img
+                mock_img.resize.return_value = mock_img
+                mock_pil.Image.open.return_value = mock_img
+                mock_numpy.array.return_value = _make_array_like(centers)
+                mock_kmeans_instance = MagicMock()
+                mock_kmeans_instance.cluster_centers_ = _make_array_like(centers)
+                mock_kmeans_instance.fit.return_value = None
+                mock_sklearn.cluster.KMeans.return_value = mock_kmeans_instance
+
+                cfg = GeneratorConfig(
+                    backend=Backend.CUSTOM,
+                    params={"saturation": 99.0},
+                    formats=(ColorFormat.JSON,),
+                    output_dir=Path("/tmp/output"),
+                )
+                scheme = gen.generate(Path("/tmp/test.png"), cfg)
+
+        expected = [
+            ColorAdjustmentService.adjust_saturation(
+                Color(f"#{int(c[0]):02x}{int(c[1]):02x}{int(c[2]):02x}", (c[0], c[1], c[2])),
+                1.0,
+            )
+            for c in centers
+        ]
+        expected.sort(key=lambda c: sum(c.rgb))
+        assert [c.rgb for c in scheme.colors] == [c.rgb for c in expected]
+
     def test_structural_subtyping(self):
         from color_scheme_generator.adapters.backends.custom_generator import (
             CustomGenerator,

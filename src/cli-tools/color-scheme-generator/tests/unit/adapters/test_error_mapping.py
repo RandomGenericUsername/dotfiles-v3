@@ -105,6 +105,12 @@ class TestErrorMapping:
         assert isinstance(domain_error, ColorSchemeError)
         assert "unexpected" in str(domain_error)
 
+    def test_color_scheme_error_passes_through_unmodified(self) -> None:
+        original = ContainerImageNotFoundError(image="csg-custom:latest", backend=Backend.CUSTOM)
+        domain_error = map_oci_error(original)
+
+        assert domain_error is original
+
 
 class TestErrorMappingJsonSerialization:
     def test_mapped_exception_serializes_to_json(self, capsys) -> None:

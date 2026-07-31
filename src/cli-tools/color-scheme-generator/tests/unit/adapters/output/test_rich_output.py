@@ -97,6 +97,61 @@ class TestRichOutput:
 
         assert isinstance(RichOutput(), OutputPort)
 
+    def test_config_info_renders_settings_sources_templates_backends(self, capsys):
+        from color_scheme_generator.adapters.output.rich_output import RichOutput
+        from color_scheme_generator.domain.enums import ColorFormat, RuntimeMode
+        from color_scheme_generator.domain.models import (
+            AppSettings,
+            ColorSchemeTemplate,
+            ContainerSettings,
+            GenerationSettings,
+            OutputSettings,
+            RuntimeSettings,
+            TemplateCatalog,
+        )
+
+        settings = AppSettings(
+            output=OutputSettings(
+                directory=Path("/tmp/csg-out"),
+                default_formats=(ColorFormat.JSON,),
+                overwrite=False,
+            ),
+            generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
+            runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
+            container=ContainerSettings(engine="docker"),
+        )
+        backends = {"custom": {"available": True, "description": "Custom extractor"}}
+        sources = ["/cfg/settings.toml"]
+        templates = TemplateCatalog(
+            templates=(ColorSchemeTemplate(name="colors.json", format=ColorFormat.JSON),)
+        )
+
+        output = RichOutput()
+        output.config_info(settings, backends, sources, templates)
+        captured = capsys.readouterr().out
+
+        assert "Configuration" in captured
+        assert "output.directory" in captured
+        assert "/tmp/csg-out" in captured
+        assert "Sources" in captured
+        assert "/cfg/settings.toml" in captured
+        assert "Templates" in captured
+        assert "json" in captured
+        assert "Backends" in captured
+        assert "custom" in captured
+        assert "yes" in captured
+
+    def test_config_info_without_settings_or_templates(self, capsys):
+        from color_scheme_generator.adapters.output.rich_output import RichOutput
+
+        output = RichOutput()
+        output.config_info(None, {"custom": {"available": False}}, [], None)
+        captured = capsys.readouterr().out
+
+        assert "(none)" in captured
+        assert "custom" in captured
+        assert "no" in captured
+
     def test_process_result_with_none_color_scheme(self, capsys):
         from color_scheme_generator.adapters.output.rich_output import RichOutput
 

@@ -225,7 +225,9 @@ def generate(
         )
         request = GenerationRequest(image_path=image_path, config=config)
         effective_runtime = runtime or settings.runtime.mode
-        if effective_runtime == RuntimeMode.CONTAINER:
+        if deps.processor is not None:
+            processor = deps.processor
+        elif effective_runtime == RuntimeMode.CONTAINER:
             engine_value = container_engine or settings.container.engine or ContainerEngine.DOCKER
             engine_obj = ContainerEngine(engine_value) if isinstance(engine_value, str) else engine_value
             container_runtime = create_container_engine(engine=engine_obj)

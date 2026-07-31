@@ -253,6 +253,21 @@ class TestInfoCommand:
         assert call_kwargs.get("explicit_path") is not None
         assert str(call_kwargs["explicit_path"]).endswith("settings.toml")
 
+    def test_info_missing_config_file_exits_nonzero(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(
+            app,
+            ["info", "--config", str(tmp_path / "nonexistent.toml")],
+        )
+        assert result.exit_code != 0
+        assert "does not exist" in (result.stdout + result.stderr)
+
     def test_info_handles_config_resolution_error(
         self,
         runner: CliRunner,

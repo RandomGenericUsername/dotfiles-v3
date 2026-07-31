@@ -129,6 +129,8 @@ def resolve_processor(
     deps: CliDependencies,
     engine_override: str | None = None,
 ) -> ColorSchemeProcessorPort:
+    if deps.processor is not None:
+        return deps.processor
     if settings.runtime.mode == RuntimeMode.CONTAINER:
         engine_value = engine_override or settings.container.engine
         engine = ContainerEngine(engine_value)

@@ -215,6 +215,75 @@ class TestJsonOutput:
 
         assert isinstance(JsonOutput(), OutputPort)
 
+    def test_config_info_outputs_json(self, capsys):
+        from color_scheme_generator.adapters.output.json_output import JsonOutput
+        from color_scheme_generator.domain.enums import ColorFormat, RuntimeMode
+        from color_scheme_generator.domain.models import (
+            AppSettings,
+            ColorSchemeTemplate,
+            ContainerSettings,
+            GenerationSettings,
+            OutputSettings,
+            RuntimeSettings,
+            TemplateCatalog,
+        )
+
+        settings = AppSettings(
+            output=OutputSettings(
+                directory=Path("/tmp/csg-out"),
+                default_formats=(ColorFormat.JSON,),
+                overwrite=False,
+            ),
+            generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
+            runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
+            container=ContainerSettings(engine="docker"),
+        )
+        backends = {"custom": {"available": True, "description": "Custom extractor"}}
+        sources = ["/cfg/settings.toml"]
+        templates = TemplateCatalog(
+            templates=(ColorSchemeTemplate(name="colors.json", format=ColorFormat.JSON),)
+        )
+
+        output = JsonOutput()
+        output.config_info(settings, backends, sources, templates)
+        captured = capsys.readouterr().out
+        data = json.loads(captured)
+
+        assert data["sources"] == ["/cfg/settings.toml"]
+        assert data["settings"]["output"]["directory"] == "/tmp/csg-out"
+        assert data["settings"]["generation"]["backend"] == "custom"
+        assert data["settings"]["runtime"]["mode"] == "local"
+        assert data["backends"]["custom"]["available"] is True
+        assert data["templates"]["templates_count"] == 1
+        assert data["templates"]["formats"] == ["json"]
+
+    def test_config_info_without_templates_lists_zero(self, capsys):
+        from color_scheme_generator.adapters.output.json_output import JsonOutput
+        from color_scheme_generator.domain.enums import RuntimeMode
+        from color_scheme_generator.domain.models import (
+            AppSettings,
+            ContainerSettings,
+            GenerationSettings,
+            OutputSettings,
+            RuntimeSettings,
+        )
+
+        settings = AppSettings(
+            output=OutputSettings(directory=Path("/tmp/out"), default_formats=(), overwrite=False),
+            generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
+            runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
+            container=ContainerSettings(engine="docker"),
+        )
+
+        output = JsonOutput()
+        output.config_info(settings, {}, [], None)
+        captured = capsys.readouterr().out
+        data = json.loads(captured)
+
+        assert data["sources"] == []
+        assert data["backends"] == {}
+        assert data["templates"] == {"templates_count": 0, "formats": []}
+
     def test_all_error_outputs_have_success_false(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
 

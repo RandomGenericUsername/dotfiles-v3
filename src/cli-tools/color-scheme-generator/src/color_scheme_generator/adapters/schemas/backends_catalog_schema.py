@@ -11,8 +11,6 @@ class BackendParameterSchema(BaseModel):
     key: str
     param_type: str
     default: Any = None
-    min: float | int | None = None
-    max: float | int | None = None
     choices: list[str] | None = None
     description: str = ""
     required: bool = False

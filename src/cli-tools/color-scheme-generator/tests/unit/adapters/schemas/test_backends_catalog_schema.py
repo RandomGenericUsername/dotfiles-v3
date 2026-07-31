@@ -21,8 +21,6 @@ class TestBackendsCatalogSchema:
                         "key": "saturation",
                         "param_type": "float",
                         "default": 1.0,
-                        "min": 0.0,
-                        "max": 2.0,
                         "description": "Saturation factor",
                         "required": False,
                     },
@@ -76,8 +74,6 @@ class TestBackendsCatalogSchema:
                         "key": "test_param",
                         "param_type": "int",
                         "default": 42,
-                        "min": 0,
-                        "max": 100,
                         "choices": None,
                         "description": "A test parameter",
                         "required": True,
@@ -91,11 +87,31 @@ class TestBackendsCatalogSchema:
         assert param.key == "test_param"
         assert param.param_type == "int"
         assert param.default == 42
-        assert param.min == 0
-        assert param.max == 100
         assert param.choices is None
         assert param.description == "A test parameter"
         assert param.required is True
+
+    def test_min_max_no_longer_accepted(self) -> None:
+        data = {
+            "test_backend": {
+                "parameters": [
+                    {
+                        "key": "saturation",
+                        "param_type": "float",
+                        "default": 1.0,
+                        "min": 0.0,
+                        "max": 2.0,
+                    },
+                ],
+            },
+        }
+        schema = BackendsCatalogSchema.model_validate(data)
+        param = schema.root["test_backend"].parameters[0]
+        assert not hasattr(param, "min")
+        assert not hasattr(param, "max")
+        assert param.key == "saturation"
+        assert param.param_type == "float"
+        assert param.default == 1.0
 
 
 class TestBackendParameterSchema:
@@ -119,8 +135,6 @@ class TestBackendParameterSchema:
     def test_default_values(self) -> None:
         schema = BackendParameterSchema(key="p", param_type="str")
         assert schema.default is None
-        assert schema.min is None
-        assert schema.max is None
         assert schema.choices is None
         assert schema.description == ""
         assert schema.required is False

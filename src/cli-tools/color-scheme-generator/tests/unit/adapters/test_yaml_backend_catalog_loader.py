@@ -179,3 +179,24 @@ wallust:
         assert custom.backend == Backend.CUSTOM
         assert len(custom.parameters) == 2
         assert custom.parameters[0].name == "saturation"
+
+
+class TestKnownBugsXfail:
+    @pytest.mark.xfail(
+        reason="BackendDefinition.min_version is hardcoded to '0.0.0' regardless of YAML",
+        strict=False,
+    )
+    def test_min_version_round_trips_when_declared(self, tmp_path: Path) -> None:
+        backends_yaml = tmp_path / "backends.yaml"
+        backends_yaml.write_text("""\
+custom:
+  description: Custom backend
+  display_name: Custom
+  min_version: "1.2.3"
+  parameters: []
+""")
+
+        loader = YamlBackendCatalogLoader()
+        result = loader.load(explicit_path=str(backends_yaml))
+
+        assert result[Backend.CUSTOM].min_version == "1.2.3"
