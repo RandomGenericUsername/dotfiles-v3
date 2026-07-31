@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import os
-import subprocess
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -304,7 +301,7 @@ def test_operational_no_processing_dependency(tmp_path: Path):
     assert result.exit_code == 0
 
 
-def test_install_command(tmp_path: Path):
+def test_install_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text("""
 version = "1.0"
@@ -316,21 +313,17 @@ image_tag = "latest"
 image_registry = "ghcr.io"
 """)
 
-    mock_result = subprocess.CompletedProcess(
-        args=["docker", "pull", "ghcr.io/weg-managed-docker:latest"],
-        returncode=0,
-        stdout="",
-        stderr="",
-    )
+    from tests.conftest import FakeEngine
 
-    with (
-        patch("shutil.which", return_value="/usr/bin/docker"),
-        patch("subprocess.run", return_value=mock_result),
-    ):
-        result = runner.invoke(
-            app,
-            ["install", "--config", str(config_file)],
-        )
+    fake_engine = FakeEngine()
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.install.create_container_engine",
+        lambda settings: fake_engine,
+    )
+    result = runner.invoke(
+        app,
+        ["install", "--config", str(config_file)],
+    )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
     objects = _parse_ndjson(result.stdout)
@@ -338,7 +331,7 @@ image_registry = "ghcr.io"
     assert "installed" in data["message"]
 
 
-def test_install_command_runtime_unavailable(tmp_path: Path):
+def test_install_command_runtime_unavailable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text("""
 version = "1.0"
@@ -350,16 +343,22 @@ image_tag = "latest"
 image_registry = "ghcr.io"
 """)
 
-    with patch("shutil.which", return_value=None):
-        result = runner.invoke(
-            app,
-            ["install", "--config", str(config_file)],
-        )
+    from tests.conftest import FakeEngine
+
+    fake_engine = FakeEngine(available=False)
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.install.create_container_engine",
+        lambda settings: fake_engine,
+    )
+    result = runner.invoke(
+        app,
+        ["install", "--config", str(config_file)],
+    )
 
     assert result.exit_code != 0
 
 
-def test_uninstall_command(tmp_path: Path):
+def test_uninstall_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text("""
 version = "1.0"
@@ -371,21 +370,17 @@ image_tag = "latest"
 image_registry = "ghcr.io"
 """)
 
-    mock_result = subprocess.CompletedProcess(
-        args=["docker", "rmi", "ghcr.io/weg-managed-docker:latest"],
-        returncode=0,
-        stdout="Untagged: ghcr.io/weg-managed-docker:latest\n",
-        stderr="",
-    )
+    from tests.conftest import FakeEngine
 
-    with (
-        patch("shutil.which", return_value="/usr/bin/docker"),
-        patch("subprocess.run", return_value=mock_result),
-    ):
-        result = runner.invoke(
-            app,
-            ["uninstall", "--config", str(config_file)],
-        )
+    fake_engine = FakeEngine(image_exists=True)
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.uninstall.create_container_engine",
+        lambda settings: fake_engine,
+    )
+    result = runner.invoke(
+        app,
+        ["uninstall", "--config", str(config_file)],
+    )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
     import json
@@ -394,7 +389,7 @@ image_registry = "ghcr.io"
     assert "removed" in data["message"]
 
 
-def test_uninstall_command_no_image(tmp_path: Path):
+def test_uninstall_command_no_image(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text("""
 version = "1.0"
@@ -406,21 +401,17 @@ image_tag = "latest"
 image_registry = "ghcr.io"
 """)
 
-    mock_result = subprocess.CompletedProcess(
-        args=["docker", "rmi", "ghcr.io/weg-managed-docker:latest"],
-        returncode=1,
-        stdout="",
-        stderr="No such image: ghcr.io/weg-managed-docker:latest",
-    )
+    from tests.conftest import FakeEngine
 
-    with (
-        patch("shutil.which", return_value="/usr/bin/docker"),
-        patch("subprocess.run", return_value=mock_result),
-    ):
-        result = runner.invoke(
-            app,
-            ["uninstall", "--config", str(config_file)],
-        )
+    fake_engine = FakeEngine(image_exists=False)
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.uninstall.create_container_engine",
+        lambda settings: fake_engine,
+    )
+    result = runner.invoke(
+        app,
+        ["uninstall", "--config", str(config_file)],
+    )
 
     assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
     import json
@@ -608,7 +599,7 @@ def test_show_invalid_effects_file(tmp_path: Path):
 
 
 # 4.9 Replace test.sh characterization with batch all --dry-run test
-def test_batch_all_dry_run_characterization(tmp_path: Path):
+def test_batch_all_dry_run_characterization(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text(
         'version = "1.0"\n[execution]\n[output]\n[runtime]\nmode = "local"\n[container]\nengine = "docker"\n'
@@ -648,14 +639,12 @@ presets:
 """)
     input_file = tmp_path / "input.png"
     input_file.write_text("dummy")
-    os.environ["WEG_TEST_DEPS"] = "1"
     from tests.conftest import FakeProcessor
-    from wallpaper_effects_generator.cli.main import set_test_deps
     from wallpaper_effects_generator.factory import CliDependencies
 
     fp = FakeProcessor()
     deps = CliDependencies(processor=fp)
-    set_test_deps(deps)
+    monkeypatch.setattr("wallpaper_effects_generator.cli.main.build_deps", lambda: deps)
     result = runner.invoke(
         app,
         [
@@ -682,7 +671,7 @@ presets:
 @pytest.mark.xfail(
     reason="process.py _parse_params silently drops no-equals params instead of rejecting them"
 )
-def test_process_malformed_param_silent_drop(tmp_path: Path):
+def test_process_malformed_param_silent_drop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text(
         'version = "1.0"\n[execution]\n[output]\n[runtime]\nmode = "local"\n[container]\n'
@@ -693,14 +682,12 @@ def test_process_malformed_param_silent_drop(tmp_path: Path):
     )
     input_file = tmp_path / "input.png"
     input_file.write_text("dummy")
-    os.environ["WEG_TEST_DEPS"] = "1"
     from tests.conftest import FakeProcessor
-    from wallpaper_effects_generator.cli.main import set_test_deps
     from wallpaper_effects_generator.factory import CliDependencies
 
     fp = FakeProcessor()
     deps = CliDependencies(processor=fp)
-    set_test_deps(deps)
+    monkeypatch.setattr("wallpaper_effects_generator.cli.main.build_deps", lambda: deps)
     result = runner.invoke(
         app,
         [
@@ -753,7 +740,7 @@ def test_batch_malformed_param_raises(tmp_path: Path):
 
 
 # 8.3 explicit_output=True without -o is treated as False
-def test_explicit_output_without_output_flag(tmp_path: Path):
+def test_explicit_output_without_output_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text(
         'version = "1.0"\n[execution]\n[output]\n[runtime]\nmode = "local"\n[container]\n'
@@ -764,14 +751,12 @@ def test_explicit_output_without_output_flag(tmp_path: Path):
     )
     input_file = tmp_path / "input.png"
     input_file.write_text("dummy")
-    os.environ["WEG_TEST_DEPS"] = "1"
     from tests.conftest import FakeProcessor
-    from wallpaper_effects_generator.cli.main import set_test_deps
     from wallpaper_effects_generator.factory import CliDependencies
 
     fp = FakeProcessor()
     deps = CliDependencies(processor=fp)
-    set_test_deps(deps)
+    monkeypatch.setattr("wallpaper_effects_generator.cli.main.build_deps", lambda: deps)
     result = runner.invoke(
         app,
         [

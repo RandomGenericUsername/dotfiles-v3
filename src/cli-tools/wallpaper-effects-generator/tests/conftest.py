@@ -6,7 +6,6 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from wallpaper_effects_generator.cli.main import set_test_deps
 from wallpaper_effects_generator.domain.models import (
     BatchRequest,
     BatchResult,
@@ -107,6 +106,43 @@ class FakeProcessor:
         )
 
 
+class FakeImageManager:
+    def __init__(self, engine: FakeEngine):
+        self._engine = engine
+
+    def build(
+        self,
+        context: Any,
+        image_name: str,
+        timeout: float | None = 600.0,
+    ) -> str:
+        self._engine.builds.append((image_name, context))
+        return "deadbeef"
+
+    def exists(self, image: str) -> bool:
+        self._engine.exist_checks.append(image)
+        return self._engine.image_exists
+
+    def remove(self, image: str, force: bool = False) -> None:
+        self._engine.removals.append(image)
+
+
+@dataclass
+class FakeEngine:
+    image_exists: bool = True
+    available: bool = True
+    builds: list[tuple] = field(default_factory=list)
+    exist_checks: list[str] = field(default_factory=list)
+    removals: list[str] = field(default_factory=list)
+
+    @property
+    def images(self) -> FakeImageManager:
+        return FakeImageManager(self)
+
+    def is_available(self) -> bool:
+        return self.available
+
+
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()
@@ -118,7 +154,9 @@ def fake_processor() -> FakeProcessor:
 
 
 @pytest.fixture
-def cli_deps_with_processor(fake_processor: FakeProcessor) -> CliDependencies:
+def cli_deps_with_processor(
+    fake_processor: FakeProcessor, monkeypatch: pytest.MonkeyPatch
+) -> CliDependencies:
     deps = CliDependencies(processor=fake_processor)
-    set_test_deps(deps)
+    monkeypatch.setattr("wallpaper_effects_generator.cli.main.build_deps", lambda: deps)
     return deps

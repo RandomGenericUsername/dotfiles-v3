@@ -229,3 +229,27 @@ class TestProcessPresetCommand:
         assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
         assert len(fake_processor.calls) == 1
         assert fake_processor.calls[0]["command"] == "process_preset"
+
+
+class TestCliDependencies:
+    def test_build_deps_returns_proper_cli_dependencies(self) -> None:
+        from wallpaper_effects_generator.cli.main import build_deps
+        from wallpaper_effects_generator.factory import (
+            AssembledConfigResolver,
+            CliDependencies,
+            YamlEffectLoader,
+        )
+
+        deps = build_deps()
+        assert isinstance(deps, CliDependencies)
+        assert isinstance(deps.config_resolver, AssembledConfigResolver)
+        assert isinstance(deps.effect_loader, YamlEffectLoader)
+        assert deps.processor is None
+        assert deps.output_adapter is None
+
+    def test_cli_main_has_no_legacy_test_seam(self) -> None:
+        from wallpaper_effects_generator.cli import main as cli_main
+
+        assert hasattr(cli_main, "build_deps")
+        assert not hasattr(cli_main, "set_test_deps")
+        assert not hasattr(cli_main, "_test_deps")

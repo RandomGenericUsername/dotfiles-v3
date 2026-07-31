@@ -9,15 +9,15 @@ This spec defines the contract for `CliRunner`-based integration tests that driv
 ## ADDED Requirements
 
 ### Requirement: Command integration tests drive the real Typer app
-Command integration tests SHALL invoke commands through `typer.testing.CliRunner` against the real `weg` `app` from `cli.main`, with test dependencies injected via the `WEG_TEST_DEPS` env-var seam.
+Command integration tests SHALL invoke commands through `typer.testing.CliRunner` against the real `weg` `app` from `cli.main`, with test dependencies injected via a `monkeypatch.setattr("wallpaper_effects_generator.cli.main.build_deps", ...)` seam. (Supersedes the original `WEG_TEST_DEPS` env-var seam, removed by `weg-test-seam-cleanup`.)
 
 #### Scenario: Real app is used, not a mock
 - **WHEN** a test imports `app` from `wallpaper_effects_generator.cli.main` and invokes it via `CliRunner`
 - **THEN** the real Typer parser, callback, option definitions, and `ctx.obj` wiring are exercised
 
 #### Scenario: Fake processor is injected for process/batch commands
-- **WHEN** `WEG_TEST_DEPS` env var is set before invoking the app
-- **THEN** the callback replaces `CliDependencies.processor` with a test-supplied fake `EffectProcessorPort`
+- **WHEN** a test monkeypatches `build_deps` to return `CliDependencies(processor=<fake>)` before invoking the app
+- **THEN** the callback uses the test-supplied `CliDependencies` with the fake `EffectProcessorPort`
 - **AND** each `process_effect`/`process_composite`/`process_preset`/`process_batch` call is recorded (arguments captured)
 - **AND** a dummy output file is created at `request.output_path` (or batch output paths)
 - **AND** the fake is the only processor present — no real `LocalProcessor` or `ContainerProcessor` is created

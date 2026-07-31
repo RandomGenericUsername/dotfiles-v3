@@ -34,8 +34,6 @@ from wallpaper_effects_generator.factory import (
 )
 from wallpaper_effects_generator.ports.output import OutputPort
 
-_test_deps: CliDependencies | None = None
-
 _xdg_config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
 _xdg_settings_path = Path(_xdg_config_home) / CONFIG_XDG_SUBDIR / CONFIG_FILENAME
 _xdg_effects_path = Path(_xdg_config_home) / EFFECTS_XDG_SUBDIR / EFFECTS_FILENAME
@@ -58,6 +56,16 @@ app = typer.Typer(
         f"ENV overrides: WALLPAPER__SECTION__KEY=value (double underscore = nesting)"
     ),
 )
+
+
+def build_deps() -> CliDependencies:
+    defaults_dir = package_files("wallpaper_effects_generator") / "defaults"
+    return CliDependencies(
+        config_resolver=create_config_resolver(
+            default_settings_path=defaults_dir / "settings.toml"
+        ),
+        effect_loader=create_effect_loader(default_effects_path=defaults_dir / "effects.yaml"),
+    )
 
 
 @app.callback()
@@ -95,23 +103,9 @@ def main(
                 ctx.obj["verbosity"] = Verbosity.VERBOSE
             case _:
                 ctx.obj["verbosity"] = Verbosity.DEBUG
-    defaults_dir = package_files("wallpaper_effects_generator") / "defaults"
-    deps = CliDependencies(
-        config_resolver=create_config_resolver(
-            default_settings_path=defaults_dir / "settings.toml"
-        ),
-        effect_loader=create_effect_loader(default_effects_path=defaults_dir / "effects.yaml"),
-    )
+    deps = build_deps()
     deps.output_adapter = create_output_adapter(output_format)
-    if os.environ.get("WEG_TEST_DEPS") and _test_deps is not None:
-        deps = _test_deps
     ctx.obj["deps"] = deps
-
-
-def set_test_deps(deps: CliDependencies) -> None:
-    global _test_deps
-    _test_deps = deps
-    os.environ["WEG_TEST_DEPS"] = "1"
 
 
 def _get_output_adapter(
