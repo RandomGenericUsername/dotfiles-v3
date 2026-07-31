@@ -42,6 +42,15 @@ from wallpaper_effects_generator.ports.context_validator import (
 )
 from wallpaper_effects_generator.ports.processor import EffectProcessorPort
 
+_CONTAINER_ENV: dict[str, str] = {
+    "HOME": "/tmp",
+    "XDG_CONFIG_HOME": "/tmp/.config",
+    "XDG_CACHE_HOME": "/tmp/.cache",
+    "WALLPAPER_CONFIG_FILE_PATH": "/weg-config/settings.toml",
+    "WALLPAPER_EFFECTS_CONFIG_FILE_PATH": "/weg-effects/effects.yaml",
+    "WALLPAPER__RUNTIME__MODE": "local",
+}
+
 
 class ContainerProcessor(EffectProcessorPort):
     def __init__(
@@ -74,6 +83,7 @@ class ContainerProcessor(EffectProcessorPort):
     def _get_engine(self) -> object:
         if self._engine is None:
             from wallpaper_effects_generator.factory import create_container_engine as _make_engine
+
             self._engine = _make_engine(self._container_settings)
         return self._engine
 
@@ -88,7 +98,11 @@ class ContainerProcessor(EffectProcessorPort):
         )
         if not result.valid:
             return ProcessingResult(
-                success=False, command="", stdout="", stderr="; ".join(result.errors), return_code=-1,
+                success=False,
+                command="",
+                stdout="",
+                stderr="; ".join(result.errors),
+                return_code=-1,
             )
         return None
 
@@ -99,7 +113,10 @@ class ContainerProcessor(EffectProcessorPort):
         return image
 
     def process_effect(
-        self, name: str, request: ProcessingRequest, params: dict[str, Any] | None = None,
+        self,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
     ) -> ProcessingResult:
         pre = self._pre_flight(request)
         if pre is not None:
@@ -108,11 +125,16 @@ class ContainerProcessor(EffectProcessorPort):
         self._param_resolver.resolve_all(effect.parameters, params or request.params)
         return self._run_in_container(
             self._build_weg_command("effect", name, request, params or request.params),
-            request, name, ItemType.EFFECT,
+            request,
+            name,
+            ItemType.EFFECT,
         )
 
     def process_composite(
-        self, name: str, request: ProcessingRequest, params: dict[str, Any] | None = None,
+        self,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
     ) -> ProcessingResult:
         pre = self._pre_flight(request)
         if pre is not None:
@@ -120,15 +142,24 @@ class ContainerProcessor(EffectProcessorPort):
         composite = self._lookup_composite(name)
         if not composite.steps:
             return ProcessingResult(
-                success=False, command="", stdout="", stderr=f"Composite '{name}' has no steps defined", return_code=-1,
+                success=False,
+                command="",
+                stdout="",
+                stderr=f"Composite '{name}' has no steps defined",
+                return_code=-1,
             )
         return self._run_in_container(
             self._build_weg_command("composite", name, request, params or request.params),
-            request, name, ItemType.COMPOSITE,
+            request,
+            name,
+            ItemType.COMPOSITE,
         )
 
     def process_preset(
-        self, name: str, request: ProcessingRequest, params: dict[str, Any] | None = None,
+        self,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
     ) -> ProcessingResult:
         pre = self._pre_flight(request)
         if pre is not None:
@@ -136,28 +167,38 @@ class ContainerProcessor(EffectProcessorPort):
         preset = self._lookup_preset(name)
         if not preset.effects:
             return ProcessingResult(
-                success=False, command="", stdout="", stderr=f"Preset '{name}' has no effects defined", return_code=-1,
+                success=False,
+                command="",
+                stdout="",
+                stderr=f"Preset '{name}' has no effects defined",
+                return_code=-1,
             )
         return self._run_in_container(
             self._build_weg_command("preset", name, request, params or request.params),
-            request, name, ItemType.PRESET,
+            request,
+            name,
+            ItemType.PRESET,
         )
 
     def process_batch(self, request: Any) -> Any:
         raise NotImplementedError("Batch processing deferred to Epic 3")
 
     def _build_weg_command(
-        self, subcommand: str, name: str, request: ProcessingRequest, params: dict[str, Any] | None = None,
+        self,
+        subcommand: str,
+        name: str,
+        request: ProcessingRequest,
+        params: dict[str, Any] | None = None,
     ) -> list[str]:
         input_name = Path(request.input_path).name
-        output_name = Path(request.output_path).name
         cmd = [
             "weg",
-            "--config", "/weg-config/settings.toml",
-            "--effects", "/weg-effects/effects.yaml",
-            "process", subcommand, name,
+            "process",
+            subcommand,
+            name,
             f"/input/{input_name}",
-            "-o", "/output",
+            "-o",
+            "/output",
         ]
         if params:
             for key, value in params.items():
@@ -165,8 +206,11 @@ class ContainerProcessor(EffectProcessorPort):
         return cmd
 
     def _run_in_container(
-        self, container_args: list[str], request: ProcessingRequest,
-        effect_name: str, item_type: ItemType = ItemType.EFFECT,
+        self,
+        container_args: list[str],
+        request: ProcessingRequest,
+        effect_name: str,
+        item_type: ItemType = ItemType.EFFECT,
     ) -> ProcessingResult:
         settings_toml: Path | None = None
         effects_yaml: Path | None = None
@@ -176,20 +220,32 @@ class ContainerProcessor(EffectProcessorPort):
             settings_toml, effects_yaml = self._serialize_artifacts()
             input_parent = request.input_path.parent.resolve()
             output_path = request.output_path or self._output_path_svc.resolve(
-                request.input_path, self._output_dir, item_type,
+                request.input_path,
+                self._output_dir,
+                item_type,
             )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             temp_out = Path(tempfile.mkdtemp(dir=output_path.parent, prefix=".weg-container-"))
             caps = self._get_engine().capabilities
             run_flags = list(caps.default_run_flags) if caps is not None else []
             run_config = RunConfig(
-                image=image, command=tuple(container_args), detach=False, remove=True,
+                image=image,
+                command=tuple(container_args),
+                detach=False,
+                remove=True,
                 volumes=(
-                    VolumeMount(source=str(settings_toml), target="/weg-config/settings.toml", read_only=True),
-                    VolumeMount(source=str(effects_yaml), target="/weg-effects/effects.yaml", read_only=True),
+                    VolumeMount(
+                        source=str(settings_toml),
+                        target="/weg-config/settings.toml",
+                        read_only=True,
+                    ),
+                    VolumeMount(
+                        source=str(effects_yaml), target="/weg-effects/effects.yaml", read_only=True
+                    ),
                     VolumeMount(source=str(input_parent), target="/input", read_only=True),
                     VolumeMount(source=str(temp_out), target="/output", read_only=False),
                 ),
+                environment=_CONTAINER_ENV,
                 runtime_flags=tuple(run_flags),
             )
             start = time.monotonic()
@@ -200,15 +256,23 @@ class ContainerProcessor(EffectProcessorPort):
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(container_out), str(output_path))
             return ProcessingResult(
-                success=True, command=" ".join(container_args),
-                stdout="", stderr="", return_code=0, output_path=output_path,
+                success=True,
+                command=" ".join(container_args),
+                stdout="",
+                stderr="",
+                return_code=0,
+                output_path=output_path,
                 duration=duration,
             )
         except CommandExecutionError as e:
             command_str = " ".join(container_args)
             return ProcessingResult(
-                success=False, command=command_str, stdout="", stderr=str(e),
-                return_code=e.return_code, output_path=output_path,
+                success=False,
+                command=command_str,
+                stdout="",
+                stderr=str(e),
+                return_code=e.return_code,
+                output_path=output_path,
             )
         finally:
             self._cleanup_artifacts(settings_toml, effects_yaml)
@@ -248,9 +312,7 @@ class ContainerProcessor(EffectProcessorPort):
 
     def _resolve_image(self) -> str:
         cs = self._container_settings
-        return engine_qualified_image(
-            cs.image_name, cs.engine, cs.image_tag, cs.image_registry
-        )
+        return engine_qualified_image(cs.image_name, cs.engine, cs.image_tag, cs.image_registry)
 
     def _lookup_effect(self, name: str) -> EffectDefinition:
         for effect in self._catalog.effects:

@@ -3,7 +3,6 @@ from __future__ import annotations
 import signal
 import threading
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from pathlib import Path
 from typing import Any
 
 from wallpaper_effects_generator.domain.enums import ItemType
@@ -23,7 +22,6 @@ from wallpaper_effects_generator.domain.models import (
 )
 from wallpaper_effects_generator.domain.services import OutputPathService
 from wallpaper_effects_generator.ports.processor import EffectProcessorPort
-
 
 _ALL_EXPANSION: tuple[ItemType, ...] = (ItemType.EFFECT, ItemType.COMPOSITE, ItemType.PRESET)
 
@@ -47,7 +45,12 @@ class BatchProcessor:
         items = self._enumerate_items(request.item_types)
         if not items:
             return BatchResult(
-                total=0, succeeded=0, failed=0, attempted=0, results=(), output_dir=request.output_dir
+                total=0,
+                succeeded=0,
+                failed=0,
+                attempted=0,
+                results=(),
+                output_dir=request.output_dir,
             )
 
         output_dir = self._output_path_service.batch_output_dir(

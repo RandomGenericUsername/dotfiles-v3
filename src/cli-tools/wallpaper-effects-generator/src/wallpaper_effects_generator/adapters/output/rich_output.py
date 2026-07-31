@@ -111,7 +111,9 @@ class RichOutputAdapter:
 
     def _render_preset_table(self, presets: tuple) -> None:
         for p in presets:
-            self._console.print(f"[bold]{escape(p.name)}[/bold]: {', '.join(escape(e) for e in p.effects)}")
+            self._console.print(
+                f"[bold]{escape(p.name)}[/bold]: {', '.join(escape(e) for e in p.effects)}"
+            )
 
     def _render_full_catalog(self, catalog: EffectsCatalog) -> None:
         self._render_effect_table(catalog.effects)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -15,7 +14,6 @@ from wallpaper_effects_generator.domain.models import (
     EffectsCatalog,
     ProcessingResult,
 )
-from wallpaper_effects_generator.domain.services import OutputPathService
 
 
 def _make_success_processor() -> MagicMock:
@@ -50,7 +48,9 @@ def _make_success_processor() -> MagicMock:
 def _make_partial_processor() -> MagicMock:
     mock = MagicMock()
 
-    def effect_side_effect(name: str, request: object, params: dict | None = None) -> ProcessingResult:
+    def effect_side_effect(
+        name: str, request: object, params: dict | None = None
+    ) -> ProcessingResult:
         if name == "blur":
             return ProcessingResult(
                 success=True,
@@ -128,12 +128,8 @@ def _make_full_catalog() -> EffectsCatalog:
             _make_mock_with_name("blur"),
             _make_mock_with_name("sharpen"),
         ),
-        composites=(
-            _make_mock_with_name("blur-resize"),
-        ),
-        presets=(
-            _make_mock_with_name("social"),
-        ),
+        composites=(_make_mock_with_name("blur-resize"),),
+        presets=(_make_mock_with_name("social"),),
     )
 
 
@@ -420,9 +416,7 @@ class TestBatchProcessor:
         input_file.write_text("dummy")
 
         mock_processor = _make_success_processor()
-        bp = self._make_batch_processor(
-            processor=mock_processor, catalog=_make_empty_catalog()
-        )
+        bp = self._make_batch_processor(processor=mock_processor, catalog=_make_empty_catalog())
 
         request = BatchRequest(
             input_path=input_file,

@@ -48,9 +48,8 @@ def install_command(
     if not engine.is_available():
         raise ContainerRuntimeUnavailableError(runtime=settings.container.engine)
 
-    df_path = (
-        resource_files("wallpaper_effects_generator.adapters.docker")
-        .joinpath("Dockerfile.imagemagick")
+    df_path = resource_files("wallpaper_effects_generator.adapters.docker").joinpath(
+        "Dockerfile.imagemagick"
     )
     repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
 
@@ -82,9 +81,7 @@ def _xdg_config_dir() -> Path:
 
 def _dump_default_config(output_adapter: OutputPort) -> None:
     content = (
-        resource_files("wallpaper_effects_generator.defaults")
-        .joinpath("settings.toml")
-        .read_text()
+        resource_files("wallpaper_effects_generator.defaults").joinpath("settings.toml").read_text()
     )
     path = _xdg_config_dir() / "settings.toml"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,9 +91,7 @@ def _dump_default_config(output_adapter: OutputPort) -> None:
 
 def _dump_default_effects(output_adapter: OutputPort) -> None:
     content = (
-        resource_files("wallpaper_effects_generator.defaults")
-        .joinpath("effects.yaml")
-        .read_text()
+        resource_files("wallpaper_effects_generator.defaults").joinpath("effects.yaml").read_text()
     )
     path = _xdg_config_dir() / "effects.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)

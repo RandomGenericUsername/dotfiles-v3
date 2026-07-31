@@ -26,9 +26,14 @@ def _catalog_to_dict(catalog: EffectsCatalog) -> dict[str, Any]:
                 "item_type": e.item_type.value,
                 "parameters": {
                     p.key: {
-                        "type": str(type(p.default).__name__) if p.default is not None else "string",
+                        "type": str(type(p.default).__name__)
+                        if p.default is not None
+                        else "string",
                         "default": p.default,
                         "description": p.description,
+                        "required": p.required,
+                        "min": p.min,
+                        "max": p.max,
                     }
                     for p in e.parameters
                 },
@@ -76,6 +81,9 @@ def _dict_to_catalog(data: dict[str, Any]) -> EffectsCatalog:
                     key=k,
                     description=v.get("description", ""),
                     default=v.get("default"),
+                    required=v.get("required", False),
+                    min=v.get("min"),
+                    max=v.get("max"),
                 )
                 for k, v in e.get("parameters", {}).items()
             ),

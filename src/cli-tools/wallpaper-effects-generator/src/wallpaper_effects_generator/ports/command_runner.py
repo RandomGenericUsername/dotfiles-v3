@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable, Union
+from typing import Protocol, runtime_checkable
 
 from wallpaper_effects_generator.domain.models import CommandResult
 
@@ -11,4 +11,4 @@ class CommandRunnerPort(Protocol):
 
     def get_binary(self) -> str: ...
 
-    def execute(self, command: Union[str, list[str]], timeout: int | None = None) -> CommandResult: ...
+    def execute(self, command: str | list[str], timeout: int | None = None) -> CommandResult: ...

@@ -29,7 +29,7 @@ from wallpaper_effects_generator.adapters.subprocess_runner import (
     SubprocessCommandRunner,
 )
 from wallpaper_effects_generator.adapters.yaml_effect_loader import YamlEffectLoader
-from wallpaper_effects_generator.domain.enums import OutputFormat, RuntimeMode
+from wallpaper_effects_generator.domain.enums import OutputFormat
 from wallpaper_effects_generator.domain.models import (
     AppSettings,
     ContainerSettings,
@@ -55,6 +55,7 @@ class CliDependencies:
     context_validator: ContextValidatorPort | None = None
     command_runner: CommandRunnerPort | None = None
     container_engine: object | None = None
+    processor: EffectProcessorPort | None = None
 
     def __post_init__(self) -> None:
         if self.catalog_cache is None:

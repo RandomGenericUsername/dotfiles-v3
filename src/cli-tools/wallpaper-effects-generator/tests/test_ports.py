@@ -5,8 +5,8 @@ from typing import Protocol
 
 from wallpaper_effects_generator.ports.command_runner import CommandRunnerPort
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
+from wallpaper_effects_generator.ports.context_validator import ContextValidatorPort
 from wallpaper_effects_generator.ports.effect_loader import EffectLoaderPort
-from wallpaper_effects_generator.ports.image_manager import ImageManagerPort
 from wallpaper_effects_generator.ports.output import OutputPort
 from wallpaper_effects_generator.ports.processor import EffectProcessorPort
 from wallpaper_effects_generator.ports.serializers import (
@@ -36,7 +36,11 @@ class TestPortProtocols:
 
     def test_config_resolver_protocol(self) -> None:
         class StubResolver:
-            def resolve(self, explicit_path: Path | None = None) -> object:
+            def resolve(
+                self,
+                explicit_path: Path | None = None,
+                cli_overrides: dict[str, str] | None = None,
+            ) -> object:
                 return object()
 
             def get_resolved_path(self) -> Path | None:
@@ -52,45 +56,32 @@ class TestPortProtocols:
             def get_binary(self) -> str:
                 return "magick"
 
-            def execute(self, command: str, timeout: int | None = None) -> object:
+            def execute(self, command: str | list[str], timeout: int | None = None) -> object:
                 return object()
 
         assert _verify_protocol(CommandRunnerPort, StubRunner())
 
     def test_effect_processor_protocol(self) -> None:
         class StubProcessor:
-            def process_effect(self, name: str, request: object) -> object:
+            def process_effect(
+                self, name: str, request: object, params: dict | None = None
+            ) -> object:
                 return object()
 
-            def process_composite(self, name: str, request: object) -> object:
+            def process_composite(
+                self, name: str, request: object, params: dict | None = None
+            ) -> object:
                 return object()
 
-            def process_preset(self, name: str, request: object) -> object:
+            def process_preset(
+                self, name: str, request: object, params: dict | None = None
+            ) -> object:
                 return object()
 
             def process_batch(self, request: object) -> object:
                 return object()
 
         assert _verify_protocol(EffectProcessorPort, StubProcessor())
-
-    def test_image_manager_protocol(self) -> None:
-        class StubManager:
-            def pull(self, image: str) -> None:
-                pass
-
-            def exists(self, image: str) -> bool:
-                return False
-
-            def remove(self, image: str) -> None:
-                pass
-
-            def list(self) -> list[str]:
-                return []
-
-            def get_default_registry(self) -> str:
-                return "ghcr.io"
-
-        assert _verify_protocol(ImageManagerPort, StubManager())
 
     def test_output_protocol(self) -> None:
         class StubOutput:
@@ -146,3 +137,20 @@ class TestPortProtocols:
                 return object()
 
         assert _verify_protocol(EffectsSerializerPort, StubSerializer())
+
+    def test_context_validator_protocol(self) -> None:
+        class StubValidator:
+            def validate(
+                self,
+                input_path: Path | None = None,
+                settings: object | None = None,
+                catalog: object | None = None,
+                output_dir: Path | None = None,
+            ) -> object:
+                from wallpaper_effects_generator.ports.context_validator import (
+                    ContextValidationResult,
+                )
+
+                return ContextValidationResult()
+
+        assert _verify_protocol(ContextValidatorPort, StubValidator())

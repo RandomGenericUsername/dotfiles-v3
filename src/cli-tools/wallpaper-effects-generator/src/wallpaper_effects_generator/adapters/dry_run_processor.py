@@ -79,9 +79,7 @@ class DryRunProcessor(EffectProcessorPort):
         for i, step in enumerate(composite.steps):
             effect = self._lookup_effect(step.effect_name)
             merged_params = {**step.parameters, **(params or {})}
-            resolved_params = self._param_resolver.resolve_all(
-                effect.parameters, merged_params
-            )
+            resolved_params = self._param_resolver.resolve_all(effect.parameters, merged_params)
             if i < len(composite.steps) - 1:
                 step_output = Path(f"temp_step_{i}")
             else:
@@ -93,9 +91,7 @@ class DryRunProcessor(EffectProcessorPort):
                 output_path=step_output,
                 params=request.params,
             )
-            rendered = self._subst.substitute(
-                effect.command, resolved_params, step_request
-            )
+            rendered = self._subst.substitute(effect.command, resolved_params, step_request)
             commands.append(rendered)
             current_input = step_output
         return ProcessingResult(
@@ -119,7 +115,12 @@ class DryRunProcessor(EffectProcessorPort):
         preset = self._lookup_preset(name)
         if not preset.effects:
             return ProcessingResult(
-                success=False, command="", stdout="", stderr="", return_code=-1, duration=0.0,
+                success=False,
+                command="",
+                stdout="",
+                stderr="",
+                return_code=-1,
+                duration=0.0,
             )
         commands: list[str] = []
         current_input = request.input_path
@@ -134,9 +135,7 @@ class DryRunProcessor(EffectProcessorPort):
                 output_path=output_path,
                 params=request.params,
             )
-            rendered = self._subst.substitute(
-                effect.command, resolved_params, step_request
-            )
+            rendered = self._subst.substitute(effect.command, resolved_params, step_request)
             commands.append(rendered)
             current_input = output_path
         return ProcessingResult(
@@ -186,5 +185,9 @@ class DryRunProcessor(EffectProcessorPort):
                 return_code=-1,
             )
         return ProcessingResult(
-            success=True, command="", stdout="", stderr="", return_code=0,
+            success=True,
+            command="",
+            stdout="",
+            stderr="",
+            return_code=0,
         )

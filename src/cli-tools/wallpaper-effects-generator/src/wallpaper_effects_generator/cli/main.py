@@ -34,6 +34,8 @@ from wallpaper_effects_generator.factory import (
 )
 from wallpaper_effects_generator.ports.output import OutputPort
 
+_test_deps: CliDependencies | None = None
+
 _xdg_config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
 _xdg_settings_path = Path(_xdg_config_home) / CONFIG_XDG_SUBDIR / CONFIG_FILENAME
 _xdg_effects_path = Path(_xdg_config_home) / EFFECTS_XDG_SUBDIR / EFFECTS_FILENAME
@@ -87,23 +89,34 @@ def main(
         ctx.obj["verbosity"] = Verbosity.QUIET
     else:
         match verbose:
-            case 0: ctx.obj["verbosity"] = Verbosity.NORMAL
-            case 1: ctx.obj["verbosity"] = Verbosity.VERBOSE
-            case _: ctx.obj["verbosity"] = Verbosity.DEBUG
+            case 0:
+                ctx.obj["verbosity"] = Verbosity.NORMAL
+            case 1:
+                ctx.obj["verbosity"] = Verbosity.VERBOSE
+            case _:
+                ctx.obj["verbosity"] = Verbosity.DEBUG
     defaults_dir = package_files("wallpaper_effects_generator") / "defaults"
     deps = CliDependencies(
         config_resolver=create_config_resolver(
             default_settings_path=defaults_dir / "settings.toml"
         ),
-        effect_loader=create_effect_loader(
-            default_effects_path=defaults_dir / "effects.yaml"
-        ),
+        effect_loader=create_effect_loader(default_effects_path=defaults_dir / "effects.yaml"),
     )
     deps.output_adapter = create_output_adapter(output_format)
+    if os.environ.get("WEG_TEST_DEPS") and _test_deps is not None:
+        deps = _test_deps
     ctx.obj["deps"] = deps
 
 
-def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat.JSON) -> OutputPort:
+def set_test_deps(deps: CliDependencies) -> None:
+    global _test_deps
+    _test_deps = deps
+    os.environ["WEG_TEST_DEPS"] = "1"
+
+
+def _get_output_adapter(
+    ctx: typer.Context, default: OutputFormat = OutputFormat.JSON
+) -> OutputPort:
     deps = ctx.obj["deps"]
     if deps.output_adapter is not None:
         return deps.output_adapter

@@ -1,94 +1,82 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from wallpaper_effects_generator.cli.main import app
-from wallpaper_effects_generator.domain.enums import CatalogQuery
-from wallpaper_effects_generator.domain.models import EffectsCatalog
-
-runner = CliRunner()
 
 
-def _make_mock_catalog() -> EffectsCatalog:
-    return EffectsCatalog()
+@pytest.fixture
+def effects_file(tmp_path: Path) -> Path:
+    path = tmp_path / "effects.yaml"
+    path.write_text("""version: '1.0'
+effects:
+  - name: blur
+    description: Gaussian blur
+    command: magick {{input}} -blur {{radius}} {{output}}
+    parameters:
+      radius:
+        type: string
+        default: "0x8"
+composites:
+  - name: blur-resize
+    description: Blur then resize
+    steps:
+      - effect_name: blur
+        parameters:
+          radius: "0x4"
+presets:
+  - name: social
+    description: Social media preset
+    effects:
+      - blur
+""")
+    return path
 
 
 class TestShowCommand:
-    def test_show_effects(self) -> None:
-        mock_adapter = MagicMock()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.show._get_output_adapter",
-                return_value=mock_adapter,
-            ),
-            patch(
-                "wallpaper_effects_generator.adapters.catalog_cache.CatalogCache.get",
-                return_value=_make_mock_catalog(),
-            ),
-        ):
-            result = runner.invoke(app, ["show", "effects"])
-            assert result.exit_code == 0
-            mock_adapter.catalog_list.assert_called_once()
-            args = mock_adapter.catalog_list.call_args[0]
-            assert args[1] == CatalogQuery.EFFECT
+    def test_show_effects(self, runner: CliRunner, effects_file: Path) -> None:
+        result = runner.invoke(app, ["show", "--effects", str(effects_file), "effects"])
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        import json
 
-    def test_show_composites(self) -> None:
-        mock_adapter = MagicMock()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.show._get_output_adapter",
-                return_value=mock_adapter,
-            ),
-            patch(
-                "wallpaper_effects_generator.adapters.catalog_cache.CatalogCache.get",
-                return_value=_make_mock_catalog(),
-            ),
-        ):
-            result = runner.invoke(app, ["show", "composites"])
-            assert result.exit_code == 0
-            mock_adapter.catalog_list.assert_called_once()
-            args = mock_adapter.catalog_list.call_args[0]
-            assert args[1] == CatalogQuery.COMPOSITE
+        data = json.loads(result.stdout)
+        assert data["count"] == 1
+        assert data["items"][0]["name"] == "blur"
 
-    def test_show_presets(self) -> None:
-        mock_adapter = MagicMock()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.show._get_output_adapter",
-                return_value=mock_adapter,
-            ),
-            patch(
-                "wallpaper_effects_generator.adapters.catalog_cache.CatalogCache.get",
-                return_value=_make_mock_catalog(),
-            ),
-        ):
-            result = runner.invoke(app, ["show", "presets"])
-            assert result.exit_code == 0
-            mock_adapter.catalog_list.assert_called_once()
-            args = mock_adapter.catalog_list.call_args[0]
-            assert args[1] == CatalogQuery.PRESET
+    def test_show_composites(self, runner: CliRunner, effects_file: Path) -> None:
+        result = runner.invoke(app, ["show", "--effects", str(effects_file), "composites"])
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        import json
 
-    def test_show_rejects_config_flag(self) -> None:
-        result = runner.invoke(app, ["show", "effects", "--config", "/x"])
+        data = json.loads(result.stdout)
+        assert data["count"] == 1
+        assert data["items"][0]["name"] == "blur-resize"
+
+    def test_show_presets(self, runner: CliRunner, effects_file: Path) -> None:
+        result = runner.invoke(app, ["show", "--effects", str(effects_file), "presets"])
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        import json
+
+        data = json.loads(result.stdout)
+        assert data["count"] == 1
+        assert data["items"][0]["name"] == "social"
+
+    def test_show_all(self, runner: CliRunner, effects_file: Path) -> None:
+        result = runner.invoke(app, ["show", "--effects", str(effects_file), "all"])
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        import json
+
+        data = json.loads(result.stdout)
+        assert "effects" in data
+        assert "composites" in data
+        assert "presets" in data
+
+    def test_show_rejects_config_flag(self, runner: CliRunner, effects_file: Path) -> None:
+        result = runner.invoke(
+            app, ["show", "--effects", str(effects_file), "effects", "--config", "/x"]
+        )
         assert result.exit_code != 0
         assert "no such option" in (result.stdout + result.stderr).lower()
-
-    def test_show_all(self) -> None:
-        mock_adapter = MagicMock()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.show._get_output_adapter",
-                return_value=mock_adapter,
-            ),
-            patch(
-                "wallpaper_effects_generator.adapters.catalog_cache.CatalogCache.get",
-                return_value=_make_mock_catalog(),
-            ),
-        ):
-            result = runner.invoke(app, ["show", "all"])
-            assert result.exit_code == 0
-            mock_adapter.catalog_list.assert_called_once()
-            args = mock_adapter.catalog_list.call_args[0]
-            assert args[1] == CatalogQuery.ALL

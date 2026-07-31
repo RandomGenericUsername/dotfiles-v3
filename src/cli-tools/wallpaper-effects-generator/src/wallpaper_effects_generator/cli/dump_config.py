@@ -12,9 +12,7 @@ def dump_config_command(
     message_adapter: OutputPort | None = None,
 ) -> None:
     content = (
-        resource_files("wallpaper_effects_generator.defaults")
-        .joinpath("settings.toml")
-        .read_text()
+        resource_files("wallpaper_effects_generator.defaults").joinpath("settings.toml").read_text()
     )
     if output_path:
         if output_path.suffix != ".toml":

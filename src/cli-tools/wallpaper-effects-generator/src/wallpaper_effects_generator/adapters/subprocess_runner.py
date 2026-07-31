@@ -3,7 +3,6 @@ from __future__ import annotations
 import shutil
 import subprocess
 import time
-from typing import Union
 
 from wallpaper_effects_generator.domain.exceptions import (
     BinaryNotFoundError,
@@ -16,7 +15,9 @@ _BINARY_CANDIDATES = ["magick", "convert"]
 
 
 class SubprocessCommandRunner:
-    def __init__(self, binary: str | None = None, sanitizer: CommandSanitizer | None = None) -> None:
+    def __init__(
+        self, binary: str | None = None, sanitizer: CommandSanitizer | None = None
+    ) -> None:
         self._sanitizer = sanitizer or CommandSanitizer()
         self._binary = binary or self._detect_binary()
         if not self.is_available(self._binary):
@@ -28,7 +29,7 @@ class SubprocessCommandRunner:
     def get_binary(self) -> str:
         return self._binary
 
-    def execute(self, command: Union[str, list[str]], timeout: int | None = None) -> CommandResult:
+    def execute(self, command: str | list[str], timeout: int | None = None) -> CommandResult:
         start = time.monotonic()
         try:
             args = command if isinstance(command, list) else self._sanitizer.split(command)

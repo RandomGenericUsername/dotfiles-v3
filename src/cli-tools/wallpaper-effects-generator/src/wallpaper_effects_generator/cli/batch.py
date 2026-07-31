@@ -6,7 +6,12 @@ import typer
 
 from wallpaper_effects_generator.cli.options import CONFIG_OPT, EFFECTS_OPT, ENGINE_OPT, RUNTIME_OPT
 from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
-from wallpaper_effects_generator.domain.enums import ContainerEngine, ItemType, OutputFormat, RuntimeMode
+from wallpaper_effects_generator.domain.enums import (
+    ContainerEngine,
+    ItemType,
+    OutputFormat,
+    RuntimeMode,
+)
 from wallpaper_effects_generator.domain.models import BatchRequest
 from wallpaper_effects_generator.factory import create_batch_processor, create_output_adapter
 from wallpaper_effects_generator.ports.output import OutputPort
@@ -36,7 +41,9 @@ def batch_callback(
     ctx.obj["container_engine"] = container_engine
 
 
-def _get_output_adapter(ctx: typer.Context, default: OutputFormat = OutputFormat.JSON) -> OutputPort:
+def _get_output_adapter(
+    ctx: typer.Context, default: OutputFormat = OutputFormat.JSON
+) -> OutputPort:
     fmt = ctx.obj.get("output_format")
     return create_output_adapter(fmt if fmt is not None else default)
 
@@ -65,8 +72,10 @@ def _run_batch(
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
+    if explicit_output and output is None:
+        explicit_output = False
     output_dir = output or settings.output.directory or _DEFAULT_OUTPUT_DIR
-    processor = _resolve_processor(settings, catalog, output_dir)
+    processor = _resolve_processor(settings, catalog, output_dir, deps=ctx.obj.get("deps"))
     batch_processor = create_batch_processor(processor, catalog)
 
     request = BatchRequest(
@@ -90,13 +99,30 @@ def effects(
     input: Path = typer.Argument(..., help="Input image or directory path"),
     output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
     flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
-    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    explicit_output: bool = typer.Option(
+        False, "--explicit-output", help="Write directly to output dir"
+    ),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    parallel: bool = typer.Option(
+        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    ),
+    max_workers: int = typer.Option(
+        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.EFFECT,), params=_parse_params(param))
+    _run_batch(
+        ctx,
+        input,
+        output,
+        flat,
+        explicit_output,
+        strict,
+        parallel,
+        max_workers,
+        (ItemType.EFFECT,),
+        params=_parse_params(param),
+    )
 
 
 @batch_app.command()
@@ -105,13 +131,30 @@ def composites(
     input: Path = typer.Argument(..., help="Input image or directory path"),
     output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
     flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
-    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    explicit_output: bool = typer.Option(
+        False, "--explicit-output", help="Write directly to output dir"
+    ),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    parallel: bool = typer.Option(
+        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    ),
+    max_workers: int = typer.Option(
+        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.COMPOSITE,), params=_parse_params(param))
+    _run_batch(
+        ctx,
+        input,
+        output,
+        flat,
+        explicit_output,
+        strict,
+        parallel,
+        max_workers,
+        (ItemType.COMPOSITE,),
+        params=_parse_params(param),
+    )
 
 
 @batch_app.command()
@@ -120,13 +163,30 @@ def presets(
     input: Path = typer.Argument(..., help="Input image or directory path"),
     output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
     flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
-    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    explicit_output: bool = typer.Option(
+        False, "--explicit-output", help="Write directly to output dir"
+    ),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    parallel: bool = typer.Option(
+        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    ),
+    max_workers: int = typer.Option(
+        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.PRESET,), params=_parse_params(param))
+    _run_batch(
+        ctx,
+        input,
+        output,
+        flat,
+        explicit_output,
+        strict,
+        parallel,
+        max_workers,
+        (ItemType.PRESET,),
+        params=_parse_params(param),
+    )
 
 
 @batch_app.command(name="all")
@@ -135,10 +195,27 @@ def run_all(
     input: Path = typer.Argument(..., help="Input image or directory path"),
     output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
     flat: bool = typer.Option(False, "--flat", help="Flatten output directory structure"),
-    explicit_output: bool = typer.Option(False, "--explicit-output", help="Write directly to output dir"),
+    explicit_output: bool = typer.Option(
+        False, "--explicit-output", help="Write directly to output dir"
+    ),
     strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(True, "--parallel/--no-parallel", help="Enable parallel execution"),
-    max_workers: int = typer.Option(MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"),
+    parallel: bool = typer.Option(
+        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    ),
+    max_workers: int = typer.Option(
+        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
-    _run_batch(ctx, input, output, flat, explicit_output, strict, parallel, max_workers, (ItemType.ALL,), params=_parse_params(param))
+    _run_batch(
+        ctx,
+        input,
+        output,
+        flat,
+        explicit_output,
+        strict,
+        parallel,
+        max_workers,
+        (ItemType.ALL,),
+        params=_parse_params(param),
+    )

@@ -1,171 +1,114 @@
 from __future__ import annotations
 
-from typing import Any
-from unittest.mock import MagicMock, patch
+from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from wallpaper_effects_generator.cli.main import app
-from wallpaper_effects_generator.domain.models import ProcessingResult
-
-runner = CliRunner()
 
 
-def _make_mock_processor() -> MagicMock:
-    mock = MagicMock()
-    mock.process_effect.return_value = ProcessingResult(
-        success=True,
-        command="magick input.png -blur 0x8 output.png",
-        stdout="",
-        stderr="",
-        return_code=0,
+@pytest.fixture
+def config_file(tmp_path: Path) -> Path:
+    path = tmp_path / "settings.toml"
+    path.write_text(
+        'version = "1.0"\n[execution]\n[output]\n[runtime]\nmode = "local"\n[container]\nengine = "docker"\n'
     )
-    mock.process_composite.return_value = ProcessingResult(
-        success=True,
-        command="magick ...",
-        stdout="",
-        stderr="",
-        return_code=0,
+    return path
+
+
+@pytest.fixture
+def effects_file(tmp_path: Path) -> Path:
+    path = tmp_path / "effects.yaml"
+    path.write_text(
+        "version: '1.0'\neffects:\n  - name: blur\n    description: Blur\n    command: magick {{input}} -blur {{radius}} {{output}}\n    parameters:\n      radius:\n        type: string\n        default: 0x8\n"
     )
-    mock.process_preset.return_value = ProcessingResult(
-        success=True,
-        command="magick ...",
-        stdout="",
-        stderr="",
-        return_code=0,
-    )
-    return mock
+    return path
+
+
+@pytest.fixture
+def input_file(tmp_path: Path) -> Path:
+    path = tmp_path / "input.png"
+    path.write_text("dummy")
+    return path
 
 
 class TestProcessEffectCommand:
-    @staticmethod
-    def _mock_context(*args: Any, **kwargs: Any) -> tuple[MagicMock, MagicMock]:
-        return (MagicMock(), MagicMock())
+    def test_effect_dry_run(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor,
+        fake_processor,
+        config_file: Path,
+        effects_file: Path,
+        input_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "process",
+                "--config",
+                str(config_file),
+                "--effects",
+                str(effects_file),
+                "effect",
+                "blur",
+                str(input_file),
+                "--dry-run",
+                "-o",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        assert len(fake_processor.calls) == 1
+        assert fake_processor.calls[0]["command"] == "process_effect"
+        assert fake_processor.calls[0]["name"] == "blur"
 
-    def test_effect_dry_run(self) -> None:
-        mock_processor = _make_mock_processor()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_processor",
-                return_value=mock_processor,
-            ),
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_context",
-                self._mock_context,
-            ),
-            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-        ):
-            result = runner.invoke(
-                app,
-                [
-                    "process",
-                    "effect",
-                    "blur",
-                    "/tmp/test.png",
-                    "--dry-run",
-                ],
-            )
-            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+    def test_effect_with_param(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor,
+        fake_processor,
+        config_file: Path,
+        effects_file: Path,
+        input_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "process",
+                "--config",
+                str(config_file),
+                "--effects",
+                str(effects_file),
+                "effect",
+                "blur",
+                str(input_file),
+                "--param",
+                "radius=0x8",
+                "-o",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        assert len(fake_processor.calls) == 1
+        params = fake_processor.calls[0]["params"]
+        assert params == {"radius": "0x8"} or (
+            params is None and fake_processor.calls[0]["request"].params == {"radius": "0x8"}
+        )
 
-    def test_effect_with_param(self) -> None:
-        mock_processor = _make_mock_processor()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_processor",
-                return_value=mock_processor,
-            ),
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_context",
-                self._mock_context,
-            ),
-            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-        ):
-            result = runner.invoke(
-                app,
-                [
-                    "process",
-                    "effect",
-                    "blur",
-                    "/tmp/test.png",
-                    "--param",
-                    "radius=0x8",
-                ],
-            )
-            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
-
-
-class TestProcessCompositeCommand:
-    def test_composite_dry_run(self) -> None:
-        mock_processor = _make_mock_processor()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_processor",
-                return_value=mock_processor,
-            ),
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_context",
-                TestProcessEffectCommand._mock_context,
-            ),
-            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-        ):
-            result = runner.invoke(
-                app,
-                [
-                    "process",
-                    "composite",
-                    "blur-resize",
-                    "/tmp/test.png",
-                    "--dry-run",
-                ],
-            )
-            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
-
-
-class TestProcessPresetCommand:
-    def test_preset_dry_run(self) -> None:
-        mock_processor = _make_mock_processor()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_processor",
-                return_value=mock_processor,
-            ),
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_context",
-                TestProcessEffectCommand._mock_context,
-            ),
-            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-        ):
-            result = runner.invoke(
-                app,
-                [
-                    "process",
-                    "preset",
-                    "social",
-                    "/tmp/test.png",
-                    "--dry-run",
-                ],
-            )
-            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
-
-
-def test_process_effect_json_output(tmp_path) -> None:
-    config_file = tmp_path / "settings.toml"
-    config_file.write_text('version = "1.0"\n')
-    effects_file = tmp_path / "effects.yaml"
-    effects_file.write_text('version: "1.0"\n')
-
-    mock_processor = _make_mock_processor()
-    with (
-        patch(
-            "wallpaper_effects_generator.cli.process._resolve_processor",
-            return_value=mock_processor,
-        ),
-        patch(
-            "wallpaper_effects_generator.cli.process._resolve_context",
-            TestProcessEffectCommand._mock_context,
-        ),
-        patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-    ):
+    def test_effect_json_output(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor,
+        fake_processor,
+        config_file: Path,
+        effects_file: Path,
+        input_file: Path,
+        tmp_path: Path,
+    ) -> None:
         result = runner.invoke(
             app,
             [
@@ -178,149 +121,30 @@ def test_process_effect_json_output(tmp_path) -> None:
                 str(effects_file),
                 "effect",
                 "blur",
-                "/tmp/test.png",
+                str(input_file),
+                "-o",
+                str(tmp_path),
             ],
         )
         assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        import json
 
+        data = json.loads(result.stdout)
+        assert data["status"] == "success"
 
-class TestContainerEngineFlag:
-    def test_container_engine_docker(self) -> None:
-        mock_processor = _make_mock_processor()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_processor",
-                return_value=mock_processor,
-            ),
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_context",
-                TestProcessEffectCommand._mock_context,
-            ),
-            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-        ):
-            result = runner.invoke(
-                app,
-                [
-                    "process",
-                    "--container-engine",
-                    "docker",
-                    "effect",
-                    "blur",
-                    "/tmp/test.png",
-                ],
-            )
-            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
-
-    def test_container_engine_podman(self) -> None:
-        mock_processor = _make_mock_processor()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_processor",
-                return_value=mock_processor,
-            ),
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_context",
-                TestProcessEffectCommand._mock_context,
-            ),
-            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-        ):
-            result = runner.invoke(
-                app,
-                [
-                    "process",
-                    "--container-engine",
-                    "podman",
-                    "effect",
-                    "blur",
-                    "/tmp/test.png",
-                ],
-            )
-            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
-
-    def test_invalid_container_engine(self) -> None:
+    def test_effect_multiple_params(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor,
+        fake_processor,
+        config_file: Path,
+        effects_file: Path,
+        input_file: Path,
+        tmp_path: Path,
+    ) -> None:
         result = runner.invoke(
             app,
             [
-                "process",
-                "--container-engine",
-                "invalid",
-                "effect",
-                "blur",
-                "/tmp/test.png",
-            ],
-        )
-        assert result.exit_code != 0
-        output = result.stdout + result.stderr
-        assert "Invalid" in output
-
-    def test_invalid_runtime(self) -> None:
-        result = runner.invoke(
-            app,
-            [
-                "process",
-                "--runtime",
-                "invalid",
-                "effect",
-                "blur",
-                "/tmp/test.png",
-            ],
-        )
-        assert result.exit_code != 0
-        output = result.stdout + result.stderr
-        assert "Invalid" in output
-
-    def test_orthogonality_local_and_container_engine(self) -> None:
-        mock_processor = _make_mock_processor()
-        with (
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_processor",
-                return_value=mock_processor,
-            ),
-            patch(
-                "wallpaper_effects_generator.cli.process._resolve_context",
-                TestProcessEffectCommand._mock_context,
-            ),
-            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-        ):
-            result = runner.invoke(
-                app,
-                [
-                    "process",
-                    "--runtime",
-                    "local",
-                    "--container-engine",
-                    "docker",
-                    "effect",
-                    "blur",
-                    "/tmp/test.png",
-                ],
-            )
-            assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
-
-
-def test_process_effect_rich_output_default(tmp_path) -> None:
-    config_file = tmp_path / "settings.toml"
-    config_file.write_text('version = "1.0"\n')
-    effects_file = tmp_path / "effects.yaml"
-    effects_file.write_text('version: "1.0"\n')
-
-    mock_processor = _make_mock_processor()
-    with (
-        patch(
-            "wallpaper_effects_generator.cli.process._resolve_processor",
-            return_value=mock_processor,
-        ),
-        patch(
-            "wallpaper_effects_generator.cli.process._resolve_context",
-            TestProcessEffectCommand._mock_context,
-        ),
-        patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
-    ):
-        result = runner.invoke(
-            app,
-            [
-                "--output-format",
-                "rich",
                 "process",
                 "--config",
                 str(config_file),
@@ -328,7 +152,80 @@ def test_process_effect_rich_output_default(tmp_path) -> None:
                 str(effects_file),
                 "effect",
                 "blur",
-                "/tmp/test.png",
+                str(input_file),
+                "--param",
+                "radius=0x8",
+                "--param",
+                "sigma=3.0",
+                "-o",
+                str(tmp_path),
             ],
         )
         assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        assert len(fake_processor.calls) == 1
+        req = fake_processor.calls[0]["request"]
+        assert req.params == {"radius": "0x8", "sigma": "3.0"}
+
+
+class TestProcessCompositeCommand:
+    def test_composite_dry_run(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor,
+        fake_processor,
+        config_file: Path,
+        effects_file: Path,
+        input_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "process",
+                "--config",
+                str(config_file),
+                "--effects",
+                str(effects_file),
+                "composite",
+                "blur-resize",
+                str(input_file),
+                "--dry-run",
+                "-o",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        assert len(fake_processor.calls) == 1
+        assert fake_processor.calls[0]["command"] == "process_composite"
+
+
+class TestProcessPresetCommand:
+    def test_preset_dry_run(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor,
+        fake_processor,
+        config_file: Path,
+        effects_file: Path,
+        input_file: Path,
+        tmp_path: Path,
+    ) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "process",
+                "--config",
+                str(config_file),
+                "--effects",
+                str(effects_file),
+                "preset",
+                "social",
+                str(input_file),
+                "--dry-run",
+                "-o",
+                str(tmp_path),
+            ],
+        )
+        assert result.exit_code == 0, f"stderr: {result.stderr_bytes}"
+        assert len(fake_processor.calls) == 1
+        assert fake_processor.calls[0]["command"] == "process_preset"

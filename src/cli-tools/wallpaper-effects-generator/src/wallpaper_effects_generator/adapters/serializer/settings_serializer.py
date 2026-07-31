@@ -44,13 +44,13 @@ def _dataclass_to_toml(obj: Any, prefix: str = "") -> str:
             lines.append(f"\n[{table_name}]")
             lines.append(_dataclass_to_toml(val, prefix="  "))
         elif isinstance(val, Enum):
-            lines.append(f"{prefix}{key} = \"{val.value}\"")
+            lines.append(f'{prefix}{key} = "{val.value}"')
         elif isinstance(val, bool):
             lines.append(f"{prefix}{key} = {str(val).lower()}")
         elif isinstance(val, int | float):
             lines.append(f"{prefix}{key} = {val}")
         else:
-            lines.append(f"{prefix}{key} = \"{val}\"")
+            lines.append(f'{prefix}{key} = "{val}"')
     return "\n".join(lines)
 
 

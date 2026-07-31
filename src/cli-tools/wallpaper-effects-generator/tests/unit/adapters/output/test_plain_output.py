@@ -91,7 +91,7 @@ class TestPlainOutputAdapter:
         assert captured.out == "hello\n"
 
     def test_dump_config_template(self, adapter: PlainOutputAdapter, capsys) -> None:
-        content = "version = \"1.0\"\n[execution]\n"
+        content = 'version = "1.0"\n[execution]\n'
         adapter.dump_config_template(content)
         captured = capsys.readouterr()
         assert captured.out == content

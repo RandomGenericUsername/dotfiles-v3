@@ -21,9 +21,7 @@ from wallpaper_effects_generator.domain.models import (
 @pytest.fixture
 def mock_runner() -> Mock:
     runner = Mock()
-    runner.execute.return_value = CommandResult(
-        stdout="ok", stderr="", return_code=0, duration=0.1
-    )
+    runner.execute.return_value = CommandResult(stdout="ok", stderr="", return_code=0, duration=0.1)
     return runner
 
 
@@ -102,9 +100,7 @@ class TestLocalProcessor:
         with pytest.raises(EffectNotFoundError):
             processor.process_effect("nonexistent", request)
 
-    def test_process_composite_success(
-        self, processor: LocalProcessor, mock_runner: Mock
-    ) -> None:
+    def test_process_composite_success(self, processor: LocalProcessor, mock_runner: Mock) -> None:
         request = ProcessingRequest(
             input_path=Path("/in/img.png"),
             output_path=Path("/out/img.png"),

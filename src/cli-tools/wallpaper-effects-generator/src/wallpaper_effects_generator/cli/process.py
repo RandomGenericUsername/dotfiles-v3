@@ -16,11 +16,11 @@ from wallpaper_effects_generator.domain.models import (
     ProcessingRequest,
 )
 from wallpaper_effects_generator.factory import (
+    CliDependencies,
     create_command_runner,
     create_container_engine,
     create_container_processor,
     create_context_validator,
-    create_dry_run_processor,
     create_local_processor,
     create_output_adapter,
 )
@@ -90,17 +90,13 @@ def _resolve_processor(
     catalog: EffectsCatalog,
     output_dir: Path,
     dry_run: bool = False,
+    deps: CliDependencies | None = None,
 ) -> EffectProcessorPort:
+    if deps is not None and deps.processor is not None:
+        return deps.processor
     if dry_run:
-        runner = create_command_runner(settings)
-        return create_dry_run_processor(
-            command_runner=runner, catalog=catalog, output_dir=output_dir
-        )
-    if settings.runtime.mode == RuntimeMode.CONTAINER:
         engine = create_container_engine(settings.container)
-        context_validator = create_context_validator(
-            command_runner=engine
-        )
+        context_validator = create_context_validator(command_runner=engine)
         return create_container_processor(
             command_runner=engine,
             catalog=catalog,
@@ -111,9 +107,7 @@ def _resolve_processor(
             context_validator=context_validator,
         )
     runner = create_command_runner(settings)
-    return create_local_processor(
-        command_runner=runner, catalog=catalog, output_dir=output_dir
-    )
+    return create_local_processor(command_runner=runner, catalog=catalog, output_dir=output_dir)
 
 
 def _get_output_adapter(ctx: typer.Context) -> OutputPort:
@@ -126,13 +120,9 @@ def effect(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Effect name"),
     input: Path = typer.Argument(..., help="Input image path"),
-    output: Path | None = typer.Option(
-        None, "-o", "--output", help="Output directory"
-    ),
+    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview commands only"),
-    param: list[str] = typer.Option(
-        [], "--param", help="Parameter overrides (key=value)"
-    ),
+    param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
@@ -145,7 +135,7 @@ def effect(
         output_path=output_path,
         params=params,
     )
-    processor = _resolve_processor(settings, catalog, output_dir, dry_run)
+    processor = _resolve_processor(settings, catalog, output_dir, dry_run, deps=ctx.obj.get("deps"))
     if dry_run:
         output_adapter.message("Dry run mode")
     result = processor.process_effect(name, request, params=request.params)
@@ -157,13 +147,9 @@ def composite(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Composite name"),
     input: Path = typer.Argument(..., help="Input image path"),
-    output: Path | None = typer.Option(
-        None, "-o", "--output", help="Output directory"
-    ),
+    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview commands only"),
-    param: list[str] = typer.Option(
-        [], "--param", help="Parameter overrides (key=value)"
-    ),
+    param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
@@ -176,7 +162,7 @@ def composite(
         output_path=output_path,
         params=params,
     )
-    processor = _resolve_processor(settings, catalog, output_dir, dry_run)
+    processor = _resolve_processor(settings, catalog, output_dir, dry_run, deps=ctx.obj.get("deps"))
     if dry_run:
         output_adapter.message("Dry run mode")
     result = processor.process_composite(name, request, params=request.params)
@@ -188,13 +174,9 @@ def preset(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Preset name"),
     input: Path = typer.Argument(..., help="Input image path"),
-    output: Path | None = typer.Option(
-        None, "-o", "--output", help="Output directory"
-    ),
+    output: Path | None = typer.Option(None, "-o", "--output", help="Output directory"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview commands only"),
-    param: list[str] = typer.Option(
-        [], "--param", help="Parameter overrides (key=value)"
-    ),
+    param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
@@ -207,7 +189,7 @@ def preset(
         output_path=output_path,
         params=params,
     )
-    processor = _resolve_processor(settings, catalog, output_dir, dry_run)
+    processor = _resolve_processor(settings, catalog, output_dir, dry_run, deps=ctx.obj.get("deps"))
     if dry_run:
         output_adapter.message("Dry run mode")
     result = processor.process_preset(name, request, params=request.params)

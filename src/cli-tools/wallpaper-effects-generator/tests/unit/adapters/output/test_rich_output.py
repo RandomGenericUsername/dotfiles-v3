@@ -6,9 +6,17 @@ import pytest
 from rich.console import Console
 
 from wallpaper_effects_generator.adapters.output.rich_output import RichOutputAdapter
+from wallpaper_effects_generator.domain.enums import CatalogQuery
 from wallpaper_effects_generator.domain.models import (
+    AppSettings,
+    BackendSettings,
     BatchResult,
+    ContainerSettings,
+    EffectsCatalog,
+    ExecutionSettings,
+    OutputSettings,
     ProcessingResult,
+    RuntimeSettings,
 )
 from wallpaper_effects_generator.ports.output import OutputPort
 
@@ -88,3 +96,66 @@ class TestRichOutputAdapter:
         adapter.dump_effects_template(content)
         captured = capsys.readouterr()
         assert captured.out == content
+
+    def test_catalog_list_effects(self, adapter: RichOutputAdapter, capsys) -> None:
+        from wallpaper_effects_generator.domain.models import (
+            EffectDefinition,
+            ParameterDefinition,
+        )
+
+        catalog = EffectsCatalog(
+            effects=(
+                EffectDefinition(
+                    name="blur",
+                    description="Blur effect",
+                    command="magick {{input}} -blur {{radius}} {{output}}",
+                    parameters=(
+                        ParameterDefinition(key="radius", description="Radius", default="0x8"),
+                    ),
+                ),
+            ),
+        )
+        adapter.catalog_list(catalog, CatalogQuery.EFFECT)
+        captured = capsys.readouterr()
+        assert "blur" in captured.out
+
+    def test_catalog_list_composites(self, adapter: RichOutputAdapter, capsys) -> None:
+        from wallpaper_effects_generator.domain.models import (
+            ChainStep,
+            CompositeDefinition,
+        )
+
+        catalog = EffectsCatalog(
+            composites=(
+                CompositeDefinition(
+                    name="blur-resize",
+                    description="Blur then resize",
+                    steps=(ChainStep(effect_name="blur", parameters={"radius": "0x4"}),),
+                ),
+            ),
+        )
+        adapter.catalog_list(catalog, CatalogQuery.COMPOSITE)
+        captured = capsys.readouterr()
+        assert "blur-resize" in captured.out
+
+    def test_catalog_list_all(self, adapter: RichOutputAdapter, capsys) -> None:
+        catalog = EffectsCatalog()
+        adapter.catalog_list(catalog, CatalogQuery.ALL)
+        captured = capsys.readouterr()
+        assert "Catalog" in captured.out
+
+    def test_config_info(self, adapter: RichOutputAdapter, capsys) -> None:
+        settings = AppSettings(
+            version="1.0",
+            execution=ExecutionSettings(parallel=True),
+            output=OutputSettings(),
+            backend=BackendSettings(binary="magick"),
+            runtime=RuntimeSettings(),
+            container=ContainerSettings(engine="docker"),
+        )
+        catalog = EffectsCatalog()
+        sources = ["/custom/path/settings.toml", "/custom/path/effects.yaml"]
+        adapter.config_info(settings, catalog, sources)
+        captured = capsys.readouterr()
+        assert "Configuration Info" in captured.out
+        assert "Runtime Mode" in captured.out

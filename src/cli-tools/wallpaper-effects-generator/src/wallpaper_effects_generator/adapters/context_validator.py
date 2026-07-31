@@ -36,9 +36,7 @@ class InputContextValidator(ContextValidatorPort):
         if settings.runtime.mode == RuntimeMode.CONTAINER:
             engine = settings.container.engine
             if shutil.which(engine) is None:
-                errors.append(
-                    f"Container runtime '{engine}' not found on PATH"
-                )
+                errors.append(f"Container runtime '{engine}' not found on PATH")
         if errors:
             return ContextValidationResult(valid=False, errors=errors)
         return ContextValidationResult(valid=True)

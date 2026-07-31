@@ -118,9 +118,7 @@ class TestDryRunProcessor:
         assert result.success
         assert ";" in result.command
 
-    def test_process_composite_not_found(
-        self, processor: DryRunProcessor, tmp_path: Path
-    ) -> None:
+    def test_process_composite_not_found(self, processor: DryRunProcessor, tmp_path: Path) -> None:
         input_file = tmp_path / "img.png"
         input_file.write_text("dummy")
         request = ProcessingRequest(
@@ -143,9 +141,7 @@ class TestDryRunProcessor:
         assert result.success
         assert "magick" in result.command
 
-    def test_process_preset_not_found(
-        self, processor: DryRunProcessor, tmp_path: Path
-    ) -> None:
+    def test_process_preset_not_found(self, processor: DryRunProcessor, tmp_path: Path) -> None:
         input_file = tmp_path / "img.png"
         input_file.write_text("dummy")
         request = ProcessingRequest(
@@ -155,9 +151,7 @@ class TestDryRunProcessor:
         with pytest.raises(PresetNotFoundError):
             processor.process_preset("nonexistent", request)
 
-    def test_pre_flight_input_not_found(
-        self, processor: DryRunProcessor, tmp_path: Path
-    ) -> None:
+    def test_pre_flight_input_not_found(self, processor: DryRunProcessor, tmp_path: Path) -> None:
         request = ProcessingRequest(
             input_path=tmp_path / "nonexistent.png",
             output_path=tmp_path / "out.png",

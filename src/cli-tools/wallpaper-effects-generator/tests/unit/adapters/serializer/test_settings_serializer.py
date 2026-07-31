@@ -39,7 +39,9 @@ class TestSettingsSerializer:
             output=OutputSettings(verbosity=Verbosity.VERBOSE, directory=Path("/out")),
             backend=BackendSettings(binary="convert"),
             runtime=RuntimeSettings(mode=RuntimeMode.CONTAINER),
-            container=ContainerSettings(engine="podman", image_tag="v2", image_registry="docker.io"),
+            container=ContainerSettings(
+                engine="podman", image_tag="v2", image_registry="docker.io"
+            ),
         )
         path = tmp_path / "settings.toml"
         serializer = SettingsSerializer()
@@ -62,7 +64,7 @@ class TestSettingsSerializer:
         serializer.serialize(AppSettings(), path)
         assert path.exists()
         content = path.read_text()
-        assert "version = \"0.1.0\"" in content
+        assert 'version = "0.1.0"' in content
         assert "[execution]" in content
 
     def test_deserialize_missing_file(self, tmp_path: Path) -> None:
