@@ -30,6 +30,7 @@ class BackendDefinitionSchema(BaseModel):
     description: str = ""
     parameters: list[BackendParameterSchema] = []
     display_name: str = ""
+    min_version: str = "0.0.0"
 
 
 class BackendsCatalogSchema(RootModel[dict[str, BackendDefinitionSchema]]):

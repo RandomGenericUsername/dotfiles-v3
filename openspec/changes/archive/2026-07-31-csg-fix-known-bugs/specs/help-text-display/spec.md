@@ -1,8 +1,11 @@
-# help-text-display Specification
+# Help Text Display — Delta
 
-## Purpose
-Every csg command has a one-line description in help output, and `csg --help` lists all 5 config-discovery strategies in the same order and count as the real resolver chain.
-## Requirements
+## Why
+
+The hand-written `csg --help` settings-discovery list advertised 4 config strategies while the resolver chain actually has 5 — the `--config` flag (`CliPathStrategy`) was first in priority but absent from the help text. This delta pins the corrected contract.
+
+## MODIFIED Requirements
+
 ### Requirement: Every csg command has a one-line description in help output
 Each of the 9 `csg` commands — `generate`, `info`, `dump-config`, `dump-templates`, `install`, `list-backends`, `show`, `uninstall`, `version` — SHALL carry a short, one-line description that SHALL appear in the Commands table of `csg --help` and below the Usage line of `csg <command> --help`.
 
@@ -21,4 +24,3 @@ Each of the 9 `csg` commands — `generate`, `info`, `dump-config`, `dump-templa
 - **WHEN** the user runs `csg --help`
 - **THEN** the Settings discovery list contains `1. --config flag` as its first numbered step
 - **AND** the list contains exactly 5 numbered steps ending with `5. Package-bundled defaults`
-

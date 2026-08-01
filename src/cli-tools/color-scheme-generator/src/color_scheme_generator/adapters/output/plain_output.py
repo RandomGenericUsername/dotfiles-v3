@@ -87,6 +87,35 @@ class PlainOutput:
         print(f"Colors: {hex_values}")
         print()
 
+    def install_result(self, results: list[dict]) -> None:
+        for r in results:
+            print(f"{r['backend']}: {r['image']} [{r['status']}]")
+
+    def uninstall_result(self, results: list[dict]) -> None:
+        for r in results:
+            print(f"{r['backend']}: {r['image']} [{r['status']}]")
+
+    def version_info(self, version: str) -> None:
+        print(f"color-scheme-generator {version}")
+
+    def backends_catalog(self, backends: list[dict], hint: str = "") -> None:
+        for b in backends:
+            desc = b.get("description", "")
+            avail = "yes" if b["available"] else "no"
+            print(f"{b['name']} - {desc}")
+            print(f"  Available: {avail}")
+            print("  Image: not implemented")
+            if b.get("parameters"):
+                print("  Parameters:")
+                for p in b["parameters"]:
+                    choices = f", choices: {', '.join(p['choices'])}" if p.get("choices") else ""
+                    print(
+                        f"    {p['name']} ({p['type']}, default: {p.get('default', '')}{choices})"
+                    )
+        if hint:
+            print()
+            print(f"Tip: {hint}")
+
     def _format_error_details(self, exc: ColorSchemeError) -> dict[str, str]:
         details: dict[str, str] = {}
 

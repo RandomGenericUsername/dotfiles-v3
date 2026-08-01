@@ -39,6 +39,18 @@ class _RecordingOutputAdapter:
     ) -> None:
         self.config_info_calls.append((settings, backends, sources, templates))
 
+    def install_result(self, results: list[dict]) -> None:
+        self.process_result_calls.append(results)
+
+    def uninstall_result(self, results: list[dict]) -> None:
+        self.process_result_calls.append(results)
+
+    def version_info(self, version: str) -> None:
+        self.process_result_calls.append(version)
+
+    def backends_catalog(self, backends: list[dict], hint: str = "") -> None:
+        self.process_result_calls.append((backends, hint))
+
 
 @pytest.fixture
 def recording_adapter(
@@ -52,24 +64,14 @@ def recording_adapter(
     return adapter
 
 
-class TestHelpConfigStrategyXfail:
-    @pytest.mark.xfail(
-        reason=(
-            "--help text omits the CLI --config priority step (lists 4 strategies, resolver has 5)"
-        ),
-        strict=False,
-    )
+class TestHelpConfigStrategy:
     def test_help_reflects_all_five_config_strategies(self) -> None:
         result = CliRunner().invoke(app, ["--help"])
         assert result.exit_code == 0
         assert "1. --config" in result.output
 
 
-class TestCommandsRouteThroughOutputPortXfail:
-    @pytest.mark.xfail(
-        reason="install uses isinstance dispatch on concrete adapters, bypassing OutputPort",
-        strict=False,
-    )
+class TestCommandsRouteThroughOutputPort:
     def test_install_routes_through_output_port(
         self, recording_adapter: _RecordingOutputAdapter
     ) -> None:
@@ -77,10 +79,6 @@ class TestCommandsRouteThroughOutputPortXfail:
         assert result.exit_code == 0
         assert recording_adapter.messages or recording_adapter.process_result_calls
 
-    @pytest.mark.xfail(
-        reason="uninstall uses isinstance dispatch on concrete adapters, bypassing OutputPort",
-        strict=False,
-    )
     def test_uninstall_routes_through_output_port(
         self, recording_adapter: _RecordingOutputAdapter
     ) -> None:
@@ -91,10 +89,6 @@ class TestCommandsRouteThroughOutputPortXfail:
         assert result.exit_code == 0
         assert recording_adapter.messages or recording_adapter.process_result_calls
 
-    @pytest.mark.xfail(
-        reason="version uses isinstance dispatch on concrete adapters, bypassing OutputPort",
-        strict=False,
-    )
     def test_version_routes_through_output_port(
         self, recording_adapter: _RecordingOutputAdapter
     ) -> None:
@@ -102,10 +96,6 @@ class TestCommandsRouteThroughOutputPortXfail:
         assert result.exit_code == 0
         assert recording_adapter.messages or recording_adapter.process_result_calls
 
-    @pytest.mark.xfail(
-        reason="list-backends uses isinstance dispatch on concrete adapters, bypassing OutputPort",
-        strict=False,
-    )
     def test_list_backends_routes_through_output_port(
         self, recording_adapter: _RecordingOutputAdapter
     ) -> None:

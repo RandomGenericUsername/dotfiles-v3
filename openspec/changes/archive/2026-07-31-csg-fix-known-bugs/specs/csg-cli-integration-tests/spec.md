@@ -1,8 +1,11 @@
-# csg-cli-integration-tests Specification
+# CSG CLI Integration Tests — Delta
 
-## Purpose
-Characterize the real csg CLI end-to-end via `typer.testing.CliRunner` with fakes at port boundaries — observable output assertions for all 9 commands, global flags, config options, error paths, and OutputPort routing for install/uninstall/version/list-backends.
-## Requirements
+## Why
+
+The archived `csg-test-characterization` change characterized the CLI via CliRunner fakes, but `install`/`uninstall`/`version`/`list-backends` reached the user through `isinstance(adapter, ...)` dispatch on concrete output adapters, bypassing the `OutputPort` abstraction. This delta pins the corrected contract: those 4 commands SHALL route their results through `OutputPort` methods.
+
+## MODIFIED Requirements
+
 ### Requirement: Command integration tests drive the real Typer app
 Command tests SHALL invoke the real `app` via `typer.testing.CliRunner` with a `FakeProcessor` injected through `CliDependencies(processor=...)`. The fake SHALL record each call with its arguments and write a dummy file at the requested output paths. Assertions SHALL target observable output — exit codes, files under `tmp_path`, JSON stdout structure — not mock call counts.
 
@@ -145,4 +148,3 @@ Tests SHALL flag (assert) that processor construction is lazy — the processor 
 #### Scenario: Container runtime flag selects container processor
 - **WHEN** `csg generate <input> --runtime container` is invoked
 - **THEN** the container processor path is exercised
-

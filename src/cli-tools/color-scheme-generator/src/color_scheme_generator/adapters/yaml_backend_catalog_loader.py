@@ -54,7 +54,7 @@ def _schema_to_domain(schema: BackendsCatalogSchema) -> dict[Backend, BackendDef
             display_name=display_name,
             description=def_schema.description,
             parameters=params,
-            min_version="0.0.0",
+            min_version=def_schema.min_version,
         )
     return result
 

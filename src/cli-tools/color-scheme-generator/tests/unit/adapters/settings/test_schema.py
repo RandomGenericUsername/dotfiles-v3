@@ -160,21 +160,13 @@ class TestNestedCompositePropagation:
             CoreSettingsSchema.model_validate(data)
 
 
-class TestKnownBugsXfail:
-    @pytest.mark.xfail(
-        reason="schema accepts arbitrary default_formats strings without validation",
-        strict=False,
-    )
+class TestDefaultFormatsValidation:
     def test_default_formats_rejects_invalid_color_format(self) -> None:
         from color_scheme_generator.adapters.settings.schema import OutputSettingsSchema
 
         with pytest.raises(ValidationError):
             OutputSettingsSchema(directory="/out", default_formats=["weird"])
 
-    @pytest.mark.xfail(
-        reason="schema accepts arbitrary default_formats strings without validation",
-        strict=False,
-    )
     def test_core_settings_rejects_invalid_default_formats(self) -> None:
         data = {
             "output": {"directory": "/out", "default_formats": ["not-a-format"]},

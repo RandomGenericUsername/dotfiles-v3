@@ -33,6 +33,7 @@ packages = ["src/color_scheme_generator"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+addopts = ["--strict-markers", "-rxX"]
 
 [tool.uv.sources]
 config-assembler-engine = { path = "../../shared/config-assembler-engine", editable = true }

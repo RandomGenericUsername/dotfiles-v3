@@ -6,9 +6,11 @@ from typing import Any
 
 from pydantic import BaseModel, field_validator
 
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
 
 _MEMORY_LIMIT_PATTERN = re.compile(r"^\d+[kKmMgGtT]?$")
+
+_VALID_FORMATS = {m.value for m in ColorFormat}
 
 
 class OutputSettingsSchema(BaseModel):
@@ -22,6 +24,18 @@ class OutputSettingsSchema(BaseModel):
     def _validate_directory_not_empty(cls, v: object) -> object:
         if isinstance(v, str) and not v.strip():
             raise ValueError("directory must not be empty")
+        return v
+
+    @field_validator("default_formats")
+    @classmethod
+    def _validate_default_formats(cls, v: list[str]) -> list[str]:
+        invalid = [f for f in v if f not in _VALID_FORMATS]
+        if invalid:
+            raise ValueError(
+                "Invalid default format(s) "
+                f"{', '.join(repr(f) for f in invalid)} — must be one of: "
+                f"{', '.join(sorted(_VALID_FORMATS))}"
+            )
         return v
 
 

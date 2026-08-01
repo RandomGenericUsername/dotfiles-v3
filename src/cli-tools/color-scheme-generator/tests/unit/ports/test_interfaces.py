@@ -129,6 +129,18 @@ class TestOutputPort:
             ) -> None:
                 pass
 
+            def install_result(self, results: list[dict]) -> None:
+                pass
+
+            def uninstall_result(self, results: list[dict]) -> None:
+                pass
+
+            def version_info(self, version: str) -> None:
+                pass
+
+            def backends_catalog(self, backends: list[dict], hint: str = "") -> None:
+                pass
+
         assert isinstance(MockOutput(), OutputPort)
 
     def test_invalid_implementation_fails_isinstance(self) -> None:

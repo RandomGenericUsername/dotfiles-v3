@@ -181,11 +181,7 @@ wallust:
         assert custom.parameters[0].name == "saturation"
 
 
-class TestKnownBugsXfail:
-    @pytest.mark.xfail(
-        reason="BackendDefinition.min_version is hardcoded to '0.0.0' regardless of YAML",
-        strict=False,
-    )
+class TestMinVersionRoundTrip:
     def test_min_version_round_trips_when_declared(self, tmp_path: Path) -> None:
         backends_yaml = tmp_path / "backends.yaml"
         backends_yaml.write_text("""\

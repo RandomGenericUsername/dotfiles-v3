@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
 import typer
 
-from color_scheme_generator.adapters.output.json_output import JsonOutput
-from color_scheme_generator.adapters.output.plain_output import PlainOutput
-from color_scheme_generator.adapters.output.rich_output import RichOutput
 from color_scheme_generator.cli._helpers import build_image_name
 from color_scheme_generator.cli.options import CONFIG_OPT, ENGINE_OPT
 from color_scheme_generator.domain.enums import Backend, ContainerEngine
@@ -56,22 +52,7 @@ def uninstall(
                     "status": "removed",
                 })
 
-        adapter = deps.output_adapter
-        if isinstance(adapter, JsonOutput):
-            print(json.dumps({"uninstall": results}, indent=2))
-        elif isinstance(adapter, RichOutput):
-            from rich.table import Table
-
-            table = Table(title="Uninstall Results", box=None)
-            table.add_column("Backend", style="cyan")
-            table.add_column("Image")
-            table.add_column("Status")
-            for r in results:
-                table.add_row(r["backend"], r["image"], r["status"])
-            adapter.print_table(table)
-        elif isinstance(adapter, PlainOutput):
-            for r in results:
-                print(f"{r['backend']}: {r['image']} [{r['status']}]")
+        deps.output_adapter.uninstall_result(results)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)
         raise typer.Exit(code=1) from None

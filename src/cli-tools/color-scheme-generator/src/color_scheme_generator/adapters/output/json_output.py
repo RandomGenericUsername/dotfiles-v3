@@ -73,6 +73,21 @@ class JsonOutput:
         }
         sys.stdout.write(json.dumps(data, indent=2, default=str) + "\n")
 
+    def install_result(self, results: list[dict]) -> None:
+        print(json.dumps({"install": results}, indent=2))
+
+    def uninstall_result(self, results: list[dict]) -> None:
+        print(json.dumps({"uninstall": results}, indent=2))
+
+    def version_info(self, version: str) -> None:
+        print(json.dumps({"version": version}))
+
+    def backends_catalog(self, backends: list[dict], hint: str = "") -> None:
+        payload: dict = {"backends": backends}
+        if hint:
+            payload["hint"] = hint
+        print(json.dumps(payload, indent=2))
+
     @staticmethod
     def _serialize_settings(settings: object) -> dict:
         from dataclasses import fields

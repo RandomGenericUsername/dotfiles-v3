@@ -157,6 +157,58 @@ class RichOutput:
         self._console.print(table)
         self._console.print()
 
+    def install_result(self, results: list[dict]) -> None:
+        table = Table(title="Install Results", box=None)
+        table.add_column("Backend", style="cyan")
+        table.add_column("Image")
+        table.add_column("Status")
+        for r in results:
+            table.add_row(r["backend"], r["image"], r["status"])
+        self.print_table(table)
+
+    def uninstall_result(self, results: list[dict]) -> None:
+        table = Table(title="Uninstall Results", box=None)
+        table.add_column("Backend", style="cyan")
+        table.add_column("Image")
+        table.add_column("Status")
+        for r in results:
+            table.add_row(r["backend"], r["image"], r["status"])
+        self.print_table(table)
+
+    def version_info(self, version: str) -> None:
+        self._console.print(f"[bold]color-scheme-generator[/bold] v{version}")
+
+    def backends_catalog(self, backends: list[dict], hint: str = "") -> None:
+        for b in backends:
+            table = Table(title=b.get("display_name", b["name"]), box=None)
+            table.add_column("Property", style="cyan")
+            table.add_column("Value")
+
+            table.add_row("Name", b["name"])
+            table.add_row("Description", b.get("description", ""))
+            table.add_row("Available", "yes" if b["available"] else "no")
+            img = "not implemented" if b["image_available"] is None else str(b["image_available"])
+            table.add_row("Image", img)
+
+            if b.get("parameters"):
+                params_table = Table(title="Parameters", box=None)
+                params_table.add_column("Name", style="cyan")
+                params_table.add_column("Type")
+                params_table.add_column("Default")
+                params_table.add_column("Choices")
+                for p in b["parameters"]:
+                    choices = ", ".join(p["choices"]) if p.get("choices") else ""
+                    default = p.get("default", "")
+                    params_table.add_row(p["name"], p["type"], str(default), choices)
+                self._console.print(params_table)
+                self._console.print()
+
+            self._console.print(table)
+            self._console.print()
+        if hint:
+            self._console.print(Panel(hint, title="Tip", border_style="yellow"))
+            self._console.print()
+
     def _format_error_details(self, exc: ColorSchemeError) -> dict[str, str]:
         details: dict[str, str] = {}
 

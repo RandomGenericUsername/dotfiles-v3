@@ -1,0 +1,3 @@
+# CSG Fix Known Bugs
+
+Resolve the 8 xfails flagged by `csg-test-characterization` by fixing the four underlying defects: validate `default_formats` against the `ColorFormat` enum, thread `min_version` through the backend catalog schema, list all 5 config-discovery strategies in `--help`, and route `install`/`uninstall`/`version`/`list-backends` through the `OutputPort` abstraction. Remove the 8 xfail markers and add `--strict-markers -rxX` so future xfail misuse trips CI.
