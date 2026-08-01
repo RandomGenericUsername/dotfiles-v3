@@ -8,12 +8,14 @@ WORKDIR /app
 
 COPY src/shared/config-assembler-engine /app/shared/config-assembler-engine
 COPY src/shared/oci-runtime /app/shared/oci-runtime
+COPY src/shared/cli-output /app/shared/cli-output
 COPY src/cli-tools/wallpaper-effects-generator /app/wallpaper-effects-generator
 
 RUN pip install --no-cache-dir \
     typer pyyaml rich pydantic \
     /app/shared/config-assembler-engine \
     /app/shared/oci-runtime \
+    /app/shared/cli-output \
     /app/wallpaper-effects-generator
 
 RUN mkdir -p /input /output && \
