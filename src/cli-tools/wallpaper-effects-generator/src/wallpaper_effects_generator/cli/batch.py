@@ -4,6 +4,12 @@ from pathlib import Path
 
 import typer
 
+from wallpaper_effects_generator.cli._params import (
+    assert_params_known,
+    batch_scope_label,
+    build_scope_units,
+    parse_params,
+)
 from wallpaper_effects_generator.cli.options import CONFIG_OPT, EFFECTS_OPT, ENGINE_OPT, RUNTIME_OPT
 from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
 from wallpaper_effects_generator.domain.enums import (
@@ -12,6 +18,7 @@ from wallpaper_effects_generator.domain.enums import (
     OutputFormat,
     RuntimeMode,
 )
+from wallpaper_effects_generator.domain.exceptions import UnknownParamError
 from wallpaper_effects_generator.domain.models import BatchRequest
 from wallpaper_effects_generator.factory import create_batch_processor, create_output_adapter
 from wallpaper_effects_generator.ports.output import OutputPort
@@ -48,16 +55,6 @@ def _get_output_adapter(
     return create_output_adapter(fmt if fmt is not None else default)
 
 
-def _parse_params(raw: list[str]) -> dict[str, str]:
-    params: dict[str, str] = {}
-    for item in raw:
-        if "=" not in item:
-            raise typer.BadParameter(f"Invalid param format '{item}', expected key=value")
-        key, value = item.split("=", 1)
-        params[key] = value
-    return params
-
-
 def _run_batch(
     ctx: typer.Context,
     input: Path,
@@ -73,7 +70,16 @@ def _run_batch(
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
     if explicit_output and output is None:
-        explicit_output = False
+        raise typer.BadParameter("--explicit-output requires -o/--output")
+    if params:
+        try:
+            assert_params_known(
+                params,
+                build_scope_units(catalog, item_types),
+                f"batch {batch_scope_label(item_types)}",
+            )
+        except UnknownParamError as e:
+            raise typer.BadParameter(str(e)) from e
     output_dir = output or settings.output.directory or _DEFAULT_OUTPUT_DIR
     processor = _resolve_processor(settings, catalog, output_dir, deps=ctx.obj.get("deps"))
     batch_processor = create_batch_processor(processor, catalog)
@@ -121,7 +127,7 @@ def effects(
         parallel,
         max_workers,
         (ItemType.EFFECT,),
-        params=_parse_params(param),
+        params=parse_params(param),
     )
 
 
@@ -153,7 +159,7 @@ def composites(
         parallel,
         max_workers,
         (ItemType.COMPOSITE,),
-        params=_parse_params(param),
+        params=parse_params(param),
     )
 
 
@@ -185,7 +191,7 @@ def presets(
         parallel,
         max_workers,
         (ItemType.PRESET,),
-        params=_parse_params(param),
+        params=parse_params(param),
     )
 
 
@@ -217,5 +223,5 @@ def run_all(
         parallel,
         max_workers,
         (ItemType.ALL,),
-        params=_parse_params(param),
+        params=parse_params(param),
     )

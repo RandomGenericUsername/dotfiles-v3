@@ -84,6 +84,18 @@ class TestParameterResolutionService:
         resolved = svc.resolve_all(params, {"b": "3"})
         assert resolved == {"a": "1", "b": "3"}
 
+    def test_resolve_all_ignores_unknown_keys(self) -> None:
+        svc = ParameterResolutionService()
+        params = (ParameterDefinition(key="a", description="A", default="1"),)
+        resolved = svc.resolve_all(params, {"a": "2", "x": "9", "bliur": "0x15"})
+        assert resolved == {"a": "2"}
+
+    def test_resolve_all_accepts_empty_overrides(self) -> None:
+        svc = ParameterResolutionService()
+        params = (ParameterDefinition(key="a", description="A", default="1"),)
+        assert svc.resolve_all(params) == {"a": "1"}
+        assert svc.resolve_all(params, {}) == {"a": "1"}
+
 
 class TestOutputPathService:
     def test_nested_path(self) -> None:

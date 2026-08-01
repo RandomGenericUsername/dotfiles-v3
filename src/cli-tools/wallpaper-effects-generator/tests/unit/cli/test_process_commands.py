@@ -21,7 +21,18 @@ def config_file(tmp_path: Path) -> Path:
 def effects_file(tmp_path: Path) -> Path:
     path = tmp_path / "effects.yaml"
     path.write_text(
-        "version: '1.0'\neffects:\n  - name: blur\n    description: Blur\n    command: magick {{input}} -blur {{radius}} {{output}}\n    parameters:\n      radius:\n        type: string\n        default: 0x8\n"
+        "version: '1.0'\n"
+        "effects:\n"
+        "  - name: blur\n"
+        "    description: Blur\n"
+        "    command: magick {{input}} -blur {{radius}} {{output}}\n"
+        "    parameters:\n"
+        "      radius:\n"
+        "        type: string\n"
+        "        default: 0x8\n"
+        "      sigma:\n"
+        "        type: string\n"
+        "        default: 3.0\n"
     )
     return path
 

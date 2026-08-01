@@ -667,11 +667,12 @@ presets:
     assert data["succeeded"] == data["total"]
 
 
-# 8.1 xfail: process.py _parse_params silently drops malformed --param (should reject)
-@pytest.mark.xfail(
-    reason="process.py _parse_params silently drops no-equals params instead of rejecting them"
-)
-def test_process_malformed_param_silent_drop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+# 8.1 Malformed --param rejected consistently across process and batch
+@pytest.mark.parametrize("command_kind", ["process", "batch"])
+@pytest.mark.parametrize("badparam", ["badparam", "=5", "  =5"])
+def test_rejects_malformed_param(
+    command_kind: str, badparam: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     config_file = tmp_path / "settings.toml"
     config_file.write_text(
         'version = "1.0"\n[execution]\n[output]\n[runtime]\nmode = "local"\n[container]\n'
@@ -688,58 +689,28 @@ def test_process_malformed_param_silent_drop(tmp_path: Path, monkeypatch: pytest
     fp = FakeProcessor()
     deps = CliDependencies(processor=fp)
     monkeypatch.setattr("wallpaper_effects_generator.cli.main.build_deps", lambda: deps)
-    result = runner.invoke(
-        app,
-        [
-            "--output-format",
-            "json",
-            "process",
-            "--config",
-            str(config_file),
-            "--effects",
-            str(effects_file),
-            "effect",
-            "blur",
-            str(input_file),
-            "--param",
-            "badparam",
-        ],
-    )
-    # Desired: malformed param should be rejected
+    args = [
+        "--output-format",
+        "json",
+        command_kind,
+        "--config",
+        str(config_file),
+        "--effects",
+        str(effects_file),
+    ]
+    if command_kind == "process":
+        args += ["effect", "blur", str(input_file)]
+    else:
+        args += ["effects", str(input_file)]
+    args += ["--param", badparam]
+    result = runner.invoke(app, args)
     assert result.exit_code != 0
-
-
-# 8.2 batch.py _parse_params raises on malformed (different from process.py)
-def test_batch_malformed_param_raises(tmp_path: Path):
-    config_file = tmp_path / "settings.toml"
-    config_file.write_text(
-        'version = "1.0"\n[execution]\n[output]\n[runtime]\nmode = "local"\n[container]\n'
+    assert "Invalid param format" in result.output or "Invalid param format" in (
+        result.stderr or ""
     )
-    effects_file = tmp_path / "effects.yaml"
-    effects_file.write_text(
-        'version: "1.0"\neffects:\n  - name: blur\n    description: Blur\n    command: "magick"\n'
-    )
-    input_file = tmp_path / "input.png"
-    input_file.write_text("dummy")
-    result = runner.invoke(
-        app,
-        [
-            "batch",
-            "--config",
-            str(config_file),
-            "--effects",
-            str(effects_file),
-            "effects",
-            str(input_file),
-            "--param",
-            "badparam",
-        ],
-    )
-    # Current behavior: raises BadParameter for no-equals in batch.py
-    assert result.exit_code != 0
 
 
-# 8.3 explicit_output=True without -o is treated as False
+# 8.3 --explicit-output without -o is rejected
 def test_explicit_output_without_output_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "settings.toml"
     config_file.write_text(
@@ -770,10 +741,46 @@ def test_explicit_output_without_output_flag(tmp_path: Path, monkeypatch: pytest
             "--explicit-output",
         ],
     )
-    assert result.exit_code == 0, (
-        f"exit_code: {result.exit_code}\n"
-        f"stderr: {result.stderr}"
+    assert result.exit_code != 0
+    assert "--explicit-output requires" in (result.stderr or result.output)
+
+
+# 8.3+ --explicit-output with -o succeeds
+def test_explicit_output_with_output_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    config_file = tmp_path / "settings.toml"
+    config_file.write_text(
+        'version = "1.0"\n[execution]\n[output]\n[runtime]\nmode = "local"\n[container]\n'
     )
+    effects_file = tmp_path / "effects.yaml"
+    effects_file.write_text(
+        'version: "1.0"\neffects:\n  - name: blur\n    description: Blur\n    command: "magick"\n'
+    )
+    input_file = tmp_path / "input.png"
+    input_file.write_text("dummy")
+    from tests.conftest import FakeProcessor
+    from wallpaper_effects_generator.factory import CliDependencies
+
+    fp = FakeProcessor()
+    deps = CliDependencies(processor=fp)
+    monkeypatch.setattr("wallpaper_effects_generator.cli.main.build_deps", lambda: deps)
+    output_dir = tmp_path / "output"
+    result = runner.invoke(
+        app,
+        [
+            "batch",
+            "--config",
+            str(config_file),
+            "--effects",
+            str(effects_file),
+            "effects",
+            str(input_file),
+            "--explicit-output",
+            "-o",
+            str(output_dir),
+        ],
+    )
+    assert result.exit_code == 0, f"exit_code: {result.exit_code}\nstderr: {result.stderr}"
+    assert output_dir.exists()
 
 
 # 8.4 info command respects cli_overrides

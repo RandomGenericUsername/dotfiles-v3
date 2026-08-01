@@ -10,6 +10,7 @@ from wallpaper_effects_generator.domain.enums import (
     RuntimeMode,
     Verbosity,
 )
+from wallpaper_effects_generator.domain.exceptions import EffectNotFoundError
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,12 @@ class EffectsCatalog:
     effects: tuple[EffectDefinition, ...] = ()
     composites: tuple[CompositeDefinition, ...] = ()
     presets: tuple[PresetDefinition, ...] = ()
+
+    def find_effect(self, name: str) -> EffectDefinition:
+        for effect in self.effects:
+            if effect.name == name:
+                return effect
+        raise EffectNotFoundError(name)
 
 
 @dataclass(frozen=True)

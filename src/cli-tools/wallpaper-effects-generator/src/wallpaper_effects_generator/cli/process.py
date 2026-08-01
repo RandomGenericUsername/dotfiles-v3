@@ -4,14 +4,21 @@ from pathlib import Path
 
 import typer
 
+from wallpaper_effects_generator.cli._params import (
+    assert_params_known,
+    parse_params,
+)
 from wallpaper_effects_generator.cli.options import CONFIG_OPT, EFFECTS_OPT, ENGINE_OPT, RUNTIME_OPT
 from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, RuntimeMode
 from wallpaper_effects_generator.domain.exceptions import (
     ConfigResolutionError,
+    EffectNotFoundError,
     EffectsLoadError,
+    UnknownParamError,
 )
 from wallpaper_effects_generator.domain.models import (
     AppSettings,
+    EffectDefinition,
     EffectsCatalog,
     ProcessingRequest,
 )
@@ -48,16 +55,38 @@ def process_callback(
     ctx.obj["container_engine"] = container_engine
 
 
-def _parse_params(param: list[str]) -> dict[str, str]:
-    params: dict[str, str] = {}
-    for p in param:
-        if "=" not in p:
-            continue
-        k, v = p.split("=", 1)
-        key = k.strip()
-        if key:
-            params[key] = v
-    return params
+def _scope_units_for_effect(catalog: EffectsCatalog, name: str) -> list[EffectDefinition]:
+    try:
+        return [catalog.find_effect(name)]
+    except EffectNotFoundError:
+        return []
+
+
+def _scope_units_for_composite(catalog: EffectsCatalog, name: str) -> list[EffectDefinition]:
+    composite = next((c for c in catalog.composites if c.name == name), None)
+    if composite is None:
+        return []
+    return [catalog.find_effect(step.effect_name) for step in composite.steps]
+
+
+def _scope_units_for_preset(catalog: EffectsCatalog, name: str) -> list[EffectDefinition]:
+    preset = next((p for p in catalog.presets if p.name == name), None)
+    if preset is None:
+        return []
+    return [catalog.find_effect(effect_name) for effect_name in preset.effects]
+
+
+def _validate_params(
+    params: dict[str, str],
+    scope_units: list[EffectDefinition],
+    scope_label: str,
+) -> None:
+    if not params or not scope_units:
+        return
+    try:
+        assert_params_known(params, scope_units, scope_label)
+    except UnknownParamError as e:
+        raise typer.BadParameter(str(e)) from e
 
 
 def _resolve_context(ctx: typer.Context, input_path: Path) -> tuple[AppSettings, EffectsCatalog]:
@@ -127,7 +156,8 @@ def effect(
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
     output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
-    params = _parse_params(param)
+    params = parse_params(param)
+    _validate_params(params, _scope_units_for_effect(catalog, name), f"effect '{name}'")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = (output_dir / input.name).resolve()
     request = ProcessingRequest(
@@ -154,7 +184,8 @@ def composite(
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
     output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
-    params = _parse_params(param)
+    params = parse_params(param)
+    _validate_params(params, _scope_units_for_composite(catalog, name), f"composite '{name}'")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = (output_dir / input.name).resolve()
     request = ProcessingRequest(
@@ -181,7 +212,8 @@ def preset(
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
     output_dir = output or settings.output.directory or Path("/tmp/wallpaper-effects")
-    params = _parse_params(param)
+    params = parse_params(param)
+    _validate_params(params, _scope_units_for_preset(catalog, name), f"preset '{name}'")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = (output_dir / input.name).resolve()
     request = ProcessingRequest(

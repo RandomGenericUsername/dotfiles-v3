@@ -235,8 +235,13 @@ class TestContainerProcessor:
         ],
     )
     def test_build_weg_command_argv_is_accepted_by_cli(
-        self, processor: ContainerProcessor, tmp_path: Path,
-        subcommand: str, name: str, params: dict[str, str] | None,
+        self,
+        processor: ContainerProcessor,
+        catalog: EffectsCatalog,
+        tmp_path: Path,
+        subcommand: str,
+        name: str,
+        params: dict[str, str] | None,
     ) -> None:
         from typer.testing import CliRunner
         from wallpaper_effects_generator.cli.main import app
@@ -251,28 +256,31 @@ class TestContainerProcessor:
         mock_processor = MagicMock()
         for attr in ("process_effect", "process_composite", "process_preset"):
             getattr(mock_processor, attr).return_value = ProcessingResult(
-                success=True, command="", stdout="", stderr="", return_code=0,
+                success=True,
+                command="",
+                stdout="",
+                stderr="",
+                return_code=0,
             )
 
         runner = CliRunner()
         with (
-            patch("wallpaper_effects_generator.cli.process._resolve_processor",
-                  return_value=mock_processor),
-            patch("wallpaper_effects_generator.cli.process._resolve_context",
-                  return_value=(MagicMock(), MagicMock())),
-            patch("wallpaper_effects_generator.cli.process.Path.exists",
-                  return_value=True),
-            patch("wallpaper_effects_generator.cli.process.Path.is_file",
-                  return_value=True),
-            patch("wallpaper_effects_generator.cli.process.Path.mkdir",
-                  return_value=None),
+            patch(
+                "wallpaper_effects_generator.cli.process._resolve_processor",
+                return_value=mock_processor,
+            ),
+            patch(
+                "wallpaper_effects_generator.cli.process._resolve_context",
+                return_value=(MagicMock(), catalog),
+            ),
+            patch("wallpaper_effects_generator.cli.process.Path.exists", return_value=True),
+            patch("wallpaper_effects_generator.cli.process.Path.is_file", return_value=True),
+            patch("wallpaper_effects_generator.cli.process.Path.mkdir", return_value=None),
         ):
             result = runner.invoke(app, cli_argv)
 
         assert result.exit_code == 0, (
-            f"Adapter argv rejected by live CLI\n"
-            f"  argv: {cli_argv}\n"
-            f"  stderr: {result.stderr}"
+            f"Adapter argv rejected by live CLI\n  argv: {cli_argv}\n  stderr: {result.stderr}"
         )
 
     def test_uses_oci_command_runner(

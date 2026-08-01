@@ -96,6 +96,22 @@ class BatchProcessingError(WallpaperEffectsError):
         super().__init__(message)
 
 
+class UnknownParamError(WallpaperEffectsError):
+    def __init__(
+        self,
+        unknown_keys: list[str],
+        scope_label: str,
+        valid_keys: list[str],
+    ) -> None:
+        self.unknown_keys = sorted(unknown_keys)
+        self.scope_label = scope_label
+        self.valid_keys = sorted(valid_keys)
+        valid = ", ".join(self.valid_keys) if self.valid_keys else "(none declared)"
+        super().__init__(
+            f"Unknown parameter(s) {self.unknown_keys} for {scope_label}. Valid: {valid}."
+        )
+
+
 __all__ = [
     "WallpaperEffectsError",
     "EffectsLoadError",
@@ -113,4 +129,5 @@ __all__ = [
     "ConfigResolutionError",
     "NoInputFilesError",
     "BatchProcessingError",
+    "UnknownParamError",
 ]
