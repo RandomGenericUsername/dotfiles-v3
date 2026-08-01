@@ -368,7 +368,7 @@ csg
   generate <image_path>
     [-o, --output-dir DIR]                        default: settings.output.directory
     [-b, --backend custom|pywal|wallust]           default: settings.generation.backend
-    [-f, --format ...] (repeatable)                default: settings.generation.default_formats
+    [-f, --format ...] (repeatable)                default: settings.output.default_formats; empty => all loaded templates
     [--param key=value] (repeatable)                per-backend runtime parameter overrides (D11)
     [--no-summary]                                suppress post-run summary (auto-on in container)
     [--dry-run/-n]                                pre-flight + render command, no exec

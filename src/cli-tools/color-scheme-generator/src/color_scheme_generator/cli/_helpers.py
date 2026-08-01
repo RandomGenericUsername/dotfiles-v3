@@ -8,7 +8,7 @@ from oci_runtime import engine_qualified_image
 
 from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
-from color_scheme_generator.domain.enums import Backend, ContainerEngine, RuntimeMode
+from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import ColorSchemeError, ConfigResolutionError
 from color_scheme_generator.domain.models import (
     AppSettings,
@@ -31,7 +31,7 @@ def default_app_settings() -> AppSettings:
     return AppSettings(
         output=OutputSettings(
             directory=Path("/tmp/color-scheme"),
-            default_formats=(),
+            default_formats=(ColorFormat.JSON, ColorFormat.SH),
             overwrite=False,
         ),
         generation=GenerationSettings(

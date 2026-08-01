@@ -3,6 +3,7 @@ version = "1.0"
 [output]
 verbosity = 1
 directory = "/tmp/color-scheme"
+# Leave empty [] to render every template found in the templates directory.
 default_formats = ["json", "sh"]
 overwrite = false
 

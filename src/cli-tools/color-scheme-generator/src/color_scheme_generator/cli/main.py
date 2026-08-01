@@ -211,9 +211,13 @@ def generate(
                 ColorFormat(f) if isinstance(f, str) else f for f in formats
             )
         else:
+            default_formats = settings.output.default_formats
+            if not default_formats and deps.template_catalog_loader is not None:
+                catalog = deps.template_catalog_loader.load(explicit_dir=templates_dir)
+                default_formats = tuple(t.format for t in catalog.templates)
             resolved_formats = tuple(
                 ColorFormat(f) if isinstance(f, str) else f
-                for f in settings.output.default_formats
+                for f in default_formats
             )
 
         resolved_output_dir = output_dir or settings.output.directory

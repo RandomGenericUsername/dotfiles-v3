@@ -55,6 +55,20 @@ def _deps_with_settings(fake_processor: FakeProcessor, settings: AppSettings) ->
     )
 
 
+def _deps_with_loader(
+    fake_processor: FakeProcessor,
+    settings: AppSettings,
+    catalog_formats: tuple[ColorFormat, ...] = (),
+) -> CliDependencies:
+    deps = _deps_with_settings(fake_processor, settings)
+    loader = MagicMock()
+    loader.load.return_value = MagicMock(
+        templates=tuple(MagicMock(format=f) for f in catalog_formats)
+    )
+    deps.template_catalog_loader = loader
+    return deps
+
+
 def _invoke(
     runner: CliRunner,
     deps: CliDependencies,
@@ -192,18 +206,106 @@ class TestGenerateFormatFlag:
         assert result.exit_code == 2
 
 
-class TestGenerateOutputDirFlag:
-    def test_output_dir_flag_writes_there(
-        self, runner, cli_deps_with_processor, fake_processor, monkeypatch
+class TestGenerateEmptyDefaultFormats:
+    def test_empty_default_formats_expands_to_all_catalog_formats(
+        self, runner, fake_processor, monkeypatch
     ) -> None:
+        deps = _deps_with_loader(
+            fake_processor,
+            _default_app_settings(),
+            catalog_formats=(ColorFormat.JSON, ColorFormat.SH, ColorFormat.CSS),
+        )
+        result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert _recorded_config(fake_processor).formats == (
+            ColorFormat.JSON,
+            ColorFormat.SH,
+            ColorFormat.CSS,
+        )
+
+    def test_explicit_format_flag_bypasses_expansion(
+        self, runner, fake_processor, monkeypatch
+    ) -> None:
+        deps = _deps_with_loader(
+            fake_processor,
+            _default_app_settings(),
+            catalog_formats=(ColorFormat.JSON, ColorFormat.SH),
+        )
+        result = _invoke(runner, deps, ["generate", "-f", "css", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert _recorded_config(fake_processor).formats == (ColorFormat.CSS,)
+        deps.template_catalog_loader.load.assert_not_called()
+
+    def test_non_empty_default_formats_wins_over_catalog(
+        self, runner, fake_processor, monkeypatch
+    ) -> None:
+        deps = _deps_with_loader(
+            fake_processor,
+            _default_app_settings(default_formats=(ColorFormat.JSON,)),
+            catalog_formats=(ColorFormat.JSON, ColorFormat.SH),
+        )
+        result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert _recorded_config(fake_processor).formats == (ColorFormat.JSON,)
+        deps.template_catalog_loader.load.assert_not_called()
+
+    def test_empty_default_formats_without_loader_stays_empty(
+        self, runner, fake_processor, monkeypatch
+    ) -> None:
+        deps = _deps_with_settings(fake_processor, _default_app_settings())
+        assert deps.template_catalog_loader is None
+        result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert _recorded_config(fake_processor).formats == ()
+
+    def test_catalog_load_failure_exits_1_with_typed_error(
+        self, runner, fake_processor, monkeypatch
+    ) -> None:
+        from color_scheme_generator.domain.exceptions import TemplatesValidationError
+
+        deps = _deps_with_loader(fake_processor, _default_app_settings())
+        deps.template_catalog_loader.load.side_effect = TemplatesValidationError(
+            "Unknown template format(s)"
+        )
+        result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 1
+        error_payload = json.loads(result.stderr)
+        assert error_payload["error"]["type"] == "TemplatesValidationError"
+
+    def test_empty_default_formats_uses_templates_dir_for_expansion(
+        self, runner, fake_processor, monkeypatch, tmp_path
+    ) -> None:
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        deps = _deps_with_loader(
+            fake_processor,
+            _default_app_settings(),
+            catalog_formats=(ColorFormat.JSON,),
+        )
         result = _invoke(
             runner,
-            cli_deps_with_processor,
-            ["generate", "-o", "/custom/output", "/tmp/test.jpg"],
+            deps,
+            ["generate", "--templates-dir", str(templates_dir), "/tmp/test.jpg"],
             monkeypatch,
         )
         assert result.exit_code == 0, f"stderr={result.stderr}"
-        assert _recorded_config(fake_processor).output_dir == Path("/custom/output")
+        deps.template_catalog_loader.load.assert_called_once_with(explicit_dir=templates_dir)
+        assert _recorded_config(fake_processor).formats == (ColorFormat.JSON,)
+
+
+class TestGenerateOutputDirFlag:
+    def test_output_dir_flag_writes_there(
+        self, runner, cli_deps_with_processor, fake_processor, monkeypatch, tmp_path
+    ) -> None:
+        output_dir = tmp_path / "out"
+        result = _invoke(
+            runner,
+            cli_deps_with_processor,
+            ["generate", "-o", str(output_dir), "/tmp/test.jpg"],
+            monkeypatch,
+        )
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert _recorded_config(fake_processor).output_dir == output_dir
 
     def test_output_dir_omitted_uses_settings(self, runner, fake_processor, monkeypatch) -> None:
         deps = _deps_with_settings(
