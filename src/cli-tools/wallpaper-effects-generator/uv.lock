@@ -21,6 +21,20 @@ wheels = [
 ]
 
 [[package]]
+name = "cli-output"
+version = "0.1.0"
+source = { editable = "../../shared/cli-output" }
+dependencies = [
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "rich", specifier = ">=13.0" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.15.17" }]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -444,6 +458,7 @@ name = "wallpaper-effects-generator"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cli-output" },
     { name = "config-assembler-engine" },
     { name = "oci-runtime" },
     { name = "pydantic" },
@@ -461,6 +476,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cli-output", editable = "../../shared/cli-output" },
     { name = "config-assembler-engine", editable = "../../shared/config-assembler-engine" },
     { name = "oci-runtime", editable = "../../shared/oci-runtime" },
     { name = "pydantic", specifier = ">=2.0" },

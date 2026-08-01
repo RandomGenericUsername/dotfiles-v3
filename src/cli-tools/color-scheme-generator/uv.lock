@@ -21,10 +21,25 @@ wheels = [
 ]
 
 [[package]]
+name = "cli-output"
+version = "0.1.0"
+source = { editable = "../../shared/cli-output" }
+dependencies = [
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "rich", specifier = ">=13.0" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.15.17" }]
+
+[[package]]
 name = "color-scheme-generator"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cli-output" },
     { name = "config-assembler-engine" },
     { name = "jinja2" },
     { name = "oci-runtime" },
@@ -47,6 +62,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cli-output", editable = "../../shared/cli-output" },
     { name = "config-assembler-engine", editable = "../../shared/config-assembler-engine" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "numpy", marker = "extra == 'custom'", specifier = ">=2" },

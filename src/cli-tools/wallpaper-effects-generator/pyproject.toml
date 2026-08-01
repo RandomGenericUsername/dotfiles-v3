@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Wallpaper effects generator with hexagonal architecture"
 requires-python = ">=3.12"
 dependencies = [
+    "cli-output>=0.1.0",
     "config-assembler-engine>=0.1.0",
     "oci-runtime>=0.3.0",
     "pydantic>=2.0",
@@ -23,6 +24,7 @@ packages = ["src/wallpaper_effects_generator"]
 weg = "wallpaper_effects_generator.cli.main:app"
 
 [tool.uv.sources]
+cli-output = { path = "../../shared/cli-output", editable = true }
 config-assembler-engine = { path = "../../shared/config-assembler-engine", editable = true }
 oci-runtime = { path = "../../shared/oci-runtime", editable = true }
 
