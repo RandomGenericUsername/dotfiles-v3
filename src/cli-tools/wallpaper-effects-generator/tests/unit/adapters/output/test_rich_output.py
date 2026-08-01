@@ -43,9 +43,8 @@ class TestRichOutputAdapter:
         captured = capsys.readouterr()
         assert "Success" in captured.out
         assert "magick in.png out.png" in captured.out
-        assert "Output" in captured.out
         assert "/out/img.png" in captured.out
-        assert "Duration" in captured.out
+        assert "duration" in captured.out
 
     def test_process_result_failure(self, adapter: RichOutputAdapter, capsys) -> None:
         result = ProcessingResult(
@@ -57,8 +56,7 @@ class TestRichOutputAdapter:
         )
         adapter.process_result(result)
         captured = capsys.readouterr()
-        assert "Failed" in captured.out
-        assert "stderr" in captured.out
+        assert "Failure" in captured.out
         assert "error occurred" in captured.out
 
     def test_batch_result_all_success(self, adapter: RichOutputAdapter, capsys) -> None:
@@ -76,9 +74,9 @@ class TestRichOutputAdapter:
         exc = ValueError("bad value")
         adapter.error(exc)
         captured = capsys.readouterr()
-        assert "Error" in captured.out
-        assert "ValueError" in captured.out
-        assert "bad value" in captured.out
+        assert "Error" in captured.err
+        assert "ValueError" in captured.err
+        assert "bad value" in captured.err
 
     def test_message(self, adapter: RichOutputAdapter, capsys) -> None:
         adapter.message("hello world")

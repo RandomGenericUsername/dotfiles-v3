@@ -153,7 +153,7 @@ class TestGenerateParamFlag:
         )
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
-        assert error_payload["error"]["type"] == "ConfigResolutionError"
+        assert error_payload["kind"] == "ConfigResolutionError"
 
     def test_param_no_equals_dropped(
         self, runner, cli_deps_with_processor, fake_processor, monkeypatch
@@ -270,7 +270,7 @@ class TestGenerateEmptyDefaultFormats:
         result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
-        assert error_payload["error"]["type"] == "TemplatesValidationError"
+        assert error_payload["kind"] == "TemplatesValidationError"
 
     def test_empty_default_formats_uses_templates_dir_for_expansion(
         self, runner, fake_processor, monkeypatch, tmp_path
@@ -385,7 +385,7 @@ class TestGenerateLazyProcessor:
         )
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
-        assert error_payload["error"]["type"] == "ContainerRuntimeUnavailableError"
+        assert error_payload["kind"] == "ContainerRuntimeUnavailableError"
 
 
 class TestGenerateConfigResolution:
@@ -413,7 +413,7 @@ class TestGenerateConfigResolution:
         )
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
-        assert error_payload["error"]["type"] == "ConfigResolutionError"
+        assert error_payload["kind"] == "ConfigResolutionError"
 
 
 class TestCliErrorPaths:
@@ -488,4 +488,4 @@ class TestShowFlags:
         )
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
-        assert error_payload["error"]["type"] == "BackendNotAvailableError"
+        assert error_payload["kind"] == "BackendNotAvailableError"

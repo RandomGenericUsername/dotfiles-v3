@@ -24,7 +24,7 @@ class _CustomEncoder(json.JSONEncoder):
             return str(o)
         if isinstance(o, Enum):
             return o.value
-        return super().default(o)
+        return str(o)
 
 
 class JsonRenderer:

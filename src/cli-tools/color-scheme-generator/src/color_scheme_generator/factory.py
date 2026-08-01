@@ -72,15 +72,19 @@ def create_output_adapter(
     fmt: OutputFormat,
     verbosity: Verbosity = Verbosity.NORMAL,
 ) -> OutputPort:
+    from cli_output.adapters.factory import create_renderer
+    from cli_output.domain.enums import OutputFormat as SharedOutputFormat
+
     from color_scheme_generator.adapters.output.json_output import JsonOutput
     from color_scheme_generator.adapters.output.plain_output import PlainOutput
     from color_scheme_generator.adapters.output.rich_output import RichOutput
 
+    renderer = create_renderer(SharedOutputFormat(fmt.value))
     if fmt is OutputFormat.RICH:
-        return RichOutput(verbosity=verbosity)
+        return RichOutput(verbosity=verbosity, renderer=renderer)
     if fmt is OutputFormat.PLAIN:
-        return PlainOutput(verbosity=verbosity)
-    return JsonOutput(verbosity=verbosity)
+        return PlainOutput(verbosity=verbosity, renderer=renderer)
+    return JsonOutput(verbosity=verbosity, renderer=renderer)
 
 
 def create_local_processor(

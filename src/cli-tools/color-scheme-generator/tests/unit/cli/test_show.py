@@ -62,8 +62,8 @@ class TestCliShow:
         )
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
-        assert error_payload["error"]["type"] == "InvalidImageError"
-        assert "nonexistent.jpg" in error_payload["error"]["message"]
+        assert error_payload["kind"] == "InvalidImageError"
+        assert "nonexistent.jpg" in error_payload["message"]
 
     def test_show_renders_via_process_result(
         self,

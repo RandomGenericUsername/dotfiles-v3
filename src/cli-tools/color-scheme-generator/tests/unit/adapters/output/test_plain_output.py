@@ -71,12 +71,12 @@ class TestPlainOutput:
         exc = InvalidImageError(image_path=Path("/bad.jpg"), reason="corrupt header")
         output = PlainOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
-        assert "Error: InvalidImageError" in captured
+        assert "error: InvalidImageError" in captured
         assert "corrupt header" in captured
-        assert "Image path: /bad.jpg" in captured
-        assert "Reason: corrupt header" in captured
+        assert "image_path: /bad.jpg" in captured
+        assert "reason: corrupt header" in captured
 
     def test_palette_display_outputs_hex_values(self, capsys):
         from color_scheme_generator.adapters.output.plain_output import PlainOutput
@@ -217,9 +217,9 @@ class TestPlainOutput:
 
         output = PlainOutput()
         output.error(UnexpectedError())
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
-        assert "Error: UnexpectedError" in captured
+        assert "error: UnexpectedError" in captured
 
     def test_error_with_color_extraction_error(self, capsys):
         from color_scheme_generator.adapters.output.plain_output import PlainOutput
@@ -231,10 +231,10 @@ class TestPlainOutput:
         )
         output = PlainOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
-        assert "Error: ColorExtractionError" in captured
-        assert "Stderr: kmeans error" in captured
+        assert "error: ColorExtractionError" in captured
+        assert "stderr: kmeans error" in captured
 
     def test_error_with_backend_not_available_error(self, capsys):
         from color_scheme_generator.adapters.output.plain_output import PlainOutput
@@ -245,10 +245,10 @@ class TestPlainOutput:
         )
         output = PlainOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
-        assert "Error: BackendNotAvailableError" in captured
-        assert "Hint: install wallust" in captured
+        assert "error: BackendNotAvailableError" in captured
+        assert "hint: install wallust" in captured
 
     def test_error_with_output_write_error(self, capsys):
         from color_scheme_generator.adapters.output.plain_output import PlainOutput
@@ -256,11 +256,11 @@ class TestPlainOutput:
         exc = OutputWriteError(path=Path("/out/file.json"), reason="permission denied")
         output = PlainOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
-        assert "Error: OutputWriteError" in captured
-        assert "Path: /out/file.json" in captured
-        assert "Reason: permission denied" in captured
+        assert "error: OutputWriteError" in captured
+        assert "path: /out/file.json" in captured
+        assert "reason: permission denied" in captured
 
     def test_error_with_palette_generation_error(self, capsys):
         from color_scheme_generator.adapters.output.plain_output import PlainOutput
@@ -268,9 +268,9 @@ class TestPlainOutput:
         exc = PaletteGenerationError(message="oom", backend=Backend.CUSTOM)
         output = PlainOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
-        assert "Error: PaletteGenerationError" in captured
+        assert "error: PaletteGenerationError" in captured
 
     def test_palette_display_hex_only_no_ansi(self, capsys):
         from color_scheme_generator.adapters.output.plain_output import PlainOutput

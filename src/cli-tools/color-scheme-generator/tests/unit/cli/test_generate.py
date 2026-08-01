@@ -108,9 +108,8 @@ class TestCliGenerate:
         )
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
-        assert error_payload["success"] is False
-        assert error_payload["error"]["type"] == "InvalidImageError"
-        assert "nonexistent.jpg" in error_payload["error"]["message"]
+        assert error_payload["kind"] == "InvalidImageError"
+        assert "nonexistent.jpg" in error_payload["message"]
 
     def test_help_output_shows_expected_usage(self, runner: CliRunner) -> None:
         from color_scheme_generator.cli.main import app

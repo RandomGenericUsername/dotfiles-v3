@@ -71,7 +71,7 @@ class TestRichOutput:
         exc = InvalidImageError(image_path=Path("/bad.jpg"), reason="corrupt header")
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "Error" in captured
         assert "InvalidImageError" in captured
@@ -205,7 +205,7 @@ class TestRichOutput:
 
         output = RichOutput()
         output.error(UnexpectedError())
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "UnexpectedError" in captured
 
@@ -219,7 +219,7 @@ class TestRichOutput:
         )
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "ColorExtractionError" in captured
         assert "kmeans error" in captured
@@ -233,7 +233,7 @@ class TestRichOutput:
         )
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "BackendNotAvailableError" in captured
         assert "install wallust" in captured
@@ -244,7 +244,7 @@ class TestRichOutput:
         exc = OutputWriteError(path=Path("/out/file.json"), reason="permission denied")
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "OutputWriteError" in captured
         assert "permission denied" in captured
@@ -255,7 +255,7 @@ class TestRichOutput:
         exc = ConfigResolutionError(key="backend", reason="not found")
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "ConfigResolutionError" in captured
 
@@ -265,7 +265,7 @@ class TestRichOutput:
         exc = PaletteGenerationError(message="oom", backend=Backend.CUSTOM)
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "PaletteGenerationError" in captured
 
@@ -275,7 +275,7 @@ class TestRichOutput:
         exc = TemplateNotFoundError("colors.j2", (Path("/templates"),))
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "TemplateNotFoundError" in captured
 
@@ -285,6 +285,6 @@ class TestRichOutput:
         exc = TemplateRenderError("colors.j2", "syntax error")
         output = RichOutput()
         output.error(exc)
-        captured = capsys.readouterr().out
+        captured = capsys.readouterr().err
 
         assert "TemplateRenderError" in captured

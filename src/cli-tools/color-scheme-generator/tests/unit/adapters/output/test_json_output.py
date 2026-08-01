@@ -105,11 +105,10 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["success"] is False
-        assert data["error"]["type"] == "InvalidImageError"
-        assert data["error"]["message"] == "Invalid image /bad.jpg: corrupt header"
-        assert data["error"]["image_path"] == "/bad.jpg"
-        assert data["error"]["reason"] == "corrupt header"
+        assert data["kind"] == "InvalidImageError"
+        assert data["message"] == "Invalid image /bad.jpg: corrupt header"
+        assert data["details"]["image_path"] == "/bad.jpg"
+        assert data["details"]["reason"] == "corrupt header"
 
     def test_error_with_color_extraction_error(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -124,9 +123,9 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["error"]["type"] == "ColorExtractionError"
-        assert data["error"]["backend"] == "pywal"
-        assert data["error"]["stderr"] == "kmeans error"
+        assert data["kind"] == "ColorExtractionError"
+        assert data["details"]["backend"] == "pywal"
+        assert data["details"]["stderr"] == "kmeans error"
 
     def test_error_with_backend_not_available_error(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -140,9 +139,9 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["error"]["type"] == "BackendNotAvailableError"
-        assert data["error"]["backend"] == "wallust"
-        assert data["error"]["hint"] == "install wallust"
+        assert data["kind"] == "BackendNotAvailableError"
+        assert data["details"]["backend"] == "wallust"
+        assert data["details"]["hint"] == "install wallust"
 
     def test_error_with_output_write_error(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -153,9 +152,9 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["error"]["type"] == "OutputWriteError"
-        assert data["error"]["path"] == "/out/file.json"
-        assert data["error"]["reason"] == "permission denied"
+        assert data["kind"] == "OutputWriteError"
+        assert data["details"]["path"] == "/out/file.json"
+        assert data["details"]["reason"] == "permission denied"
 
     def test_error_with_config_resolution_error(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -166,9 +165,9 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["error"]["type"] == "ConfigResolutionError"
-        assert data["error"]["key"] == "backend"
-        assert data["error"]["reason"] == "not found"
+        assert data["kind"] == "ConfigResolutionError"
+        assert data["details"]["key"] == "backend"
+        assert data["details"]["reason"] == "not found"
 
     def test_error_with_palette_generation_error(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -179,8 +178,8 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["error"]["type"] == "PaletteGenerationError"
-        assert data["error"]["backend"] == "custom"
+        assert data["kind"] == "PaletteGenerationError"
+        assert data["details"]["backend"] == "custom"
 
     def test_error_with_palette_generation_error_no_backend(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -191,8 +190,8 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["error"]["type"] == "PaletteGenerationError"
-        assert "backend" not in data["error"]
+        assert data["kind"] == "PaletteGenerationError"
+        assert "details" not in data
 
     def test_palette_display_outputs_color_scheme_as_json(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -284,7 +283,7 @@ class TestJsonOutput:
         assert data["backends"] == {}
         assert data["templates"] == {"templates_count": 0, "formats": []}
 
-    def test_all_error_outputs_have_success_false(self, capsys):
+    def test_all_error_outputs_have_kind(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
 
         output = JsonOutput()
@@ -303,7 +302,7 @@ class TestJsonOutput:
             output.error(exc)
             captured = capsys.readouterr().err
             data = json.loads(captured)
-            assert data["success"] is False, f"failed for {type(exc).__name__}"
+            assert data["kind"] == type(exc).__name__, f"failed for {type(exc).__name__}"
 
     def test_error_handles_unexpected_exception_type(self, capsys):
         from color_scheme_generator.adapters.output.json_output import JsonOutput
@@ -318,8 +317,7 @@ class TestJsonOutput:
         captured = capsys.readouterr().err
         data = json.loads(captured)
 
-        assert data["success"] is False
-        assert data["error"]["type"] == "UnexpectedError"
+        assert data["kind"] == "UnexpectedError"
 
     def test_error_serialization_never_raises(self):
         from color_scheme_generator.adapters.output.json_output import JsonOutput

@@ -141,7 +141,7 @@ class TestProcessEffectCommand:
         import json
 
         data = json.loads(result.stdout)
-        assert data["status"] == "success"
+        assert data["success"] is True
 
     def test_effect_multiple_params(
         self,

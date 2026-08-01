@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cli_output.adapters.factory import create_renderer as create_shared_renderer
+from cli_output.domain.enums import OutputFormat as SharedOutputFormat
 from oci_runtime import RuntimeFactory, RuntimeKind, RuntimePreference
 from rich.console import Console
 
@@ -134,12 +136,13 @@ def create_output_adapter(
     output_format: OutputFormat,
     console: Console | None = None,
 ) -> OutputPort:
+    renderer = create_shared_renderer(SharedOutputFormat(output_format.value), console=console)
     if output_format == OutputFormat.JSON:
-        return JsonOutputAdapter()
+        return JsonOutputAdapter(renderer=renderer)
     if output_format == OutputFormat.RICH:
-        return RichOutputAdapter(console=console)
+        return RichOutputAdapter(renderer=renderer)
     if output_format == OutputFormat.PLAIN:
-        return PlainOutputAdapter()
+        return PlainOutputAdapter(renderer=renderer)
     raise ValueError(f"Unsupported output format: {output_format}")
 
 

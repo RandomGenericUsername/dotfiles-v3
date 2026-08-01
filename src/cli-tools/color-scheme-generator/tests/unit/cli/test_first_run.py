@@ -66,17 +66,43 @@ class TestFirstRunFallback:
     @pytest.fixture
     def mock_deps(self) -> CliDependencies:
         mock_processor = MagicMock()
-        mock_output = MagicMock()
-        mock_config_resolver = MagicMock()
+        from datetime import datetime
         from pathlib import Path
 
         from color_scheme_generator.domain.models import (
             AppSettings,
+            Color,
+            ColorScheme,
             ContainerSettings,
+            GenerationResult,
             GenerationSettings,
             OutputSettings,
             RuntimeSettings,
         )
+
+        scheme = ColorScheme(
+            background=Color("#000000", (0, 0, 0)),
+            foreground=Color("#ffffff", (255, 255, 255)),
+            cursor=Color("#ff0000", (255, 0, 0)),
+            colors=tuple(
+                Color(f"#{i * 17:02x}{i * 17:02x}{i * 17:02x}", (i * 17, i * 17, i * 17))
+                for i in range(16)
+            ),
+            source_image=Path("/tmp/test.jpg"),
+            backend=Backend.CUSTOM,
+            generated_at=datetime(2026, 7, 15, 12, 0, 0),
+        )
+        mock_processor.process_generate.return_value = GenerationResult(
+            success=True,
+            color_scheme=scheme,
+            output_files=(),
+            backend=Backend.CUSTOM,
+            stderr="",
+            return_code=0,
+            duration=0.3,
+        )
+        mock_output = MagicMock()
+        mock_config_resolver = MagicMock()
 
         mock_config_resolver.resolve.return_value = AppSettings(
             output=OutputSettings(

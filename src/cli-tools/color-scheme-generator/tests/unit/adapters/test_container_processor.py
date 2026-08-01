@@ -116,6 +116,18 @@ def _make_settings(**overrides: object) -> AppSettings:
     )
 
 
+def _make_result() -> GenerationResult:
+    return GenerationResult(
+        success=True,
+        color_scheme=None,
+        output_files=(),
+        backend=Backend.CUSTOM,
+        stderr="",
+        return_code=0,
+        duration=0.3,
+    )
+
+
 def _make_request(
     backend: Backend = Backend.CUSTOM,
     params: dict[str, str] | None = None,
@@ -469,7 +481,7 @@ class TestContainerProcessorGenerate:
         )
 
         mock_processor = MagicMock()
-        mock_processor.process_generate.return_value = MagicMock(success=True)
+        mock_processor.process_generate.return_value = _make_result()
         monkeypatch.setattr(
             "color_scheme_generator.cli.main.create_local_processor",
             lambda *a, **kw: mock_processor,
@@ -662,7 +674,7 @@ class TestContainerProcessorShow:
         )
 
         mock_processor = MagicMock()
-        mock_processor.process_show.return_value = MagicMock(success=True)
+        mock_processor.process_show.return_value = _make_result()
         monkeypatch.setattr(
             "color_scheme_generator.cli._helpers.create_local_processor",
             lambda *a, **kw: mock_processor,

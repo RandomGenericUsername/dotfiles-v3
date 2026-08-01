@@ -37,7 +37,7 @@ class TestJsonOutputAdapter:
         adapter.process_result(result)
         captured = capsys.readouterr()
         data = json.loads(captured.out)
-        assert data["status"] == "success"
+        assert data["success"] is True
         assert data["command"] == "magick input.png output.png"
         assert data["return_code"] == 0
         assert data["duration"] == 1.5
@@ -55,7 +55,7 @@ class TestJsonOutputAdapter:
         adapter.process_result(result)
         captured = capsys.readouterr()
         data = json.loads(captured.out)
-        assert data["status"] == "failure"
+        assert data["success"] is False
         assert data["stderr"] == "error occurred"
 
     def test_batch_result(self, adapter: JsonOutputAdapter, capsys) -> None:
@@ -94,8 +94,8 @@ class TestJsonOutputAdapter:
         adapter.error(exc)
         captured = capsys.readouterr()
         data = json.loads(captured.err)
-        assert data["error"]["type"] == "ValueError"
-        assert data["error"]["message"] == "bad value"
+        assert data["kind"] == "ValueError"
+        assert data["message"] == "bad value"
 
     def test_message(self, adapter: JsonOutputAdapter, capsys) -> None:
         adapter.message("hello")

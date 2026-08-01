@@ -34,11 +34,11 @@ class TestPlainOutputAdapter:
         )
         adapter.process_result(result)
         captured = capsys.readouterr()
-        assert "status: success" in captured.out
+        assert "success: true" in captured.out
         assert "command: magick in.png out.png" in captured.out
         assert "stdout: ok" in captured.out
         assert "output_path: /out/img.png" in captured.out
-        assert "duration: 1.50s" in captured.out
+        assert "duration: 1.5" in captured.out
         assert captured.err == ""
 
     def test_process_result_failure(self, adapter: PlainOutputAdapter, capsys) -> None:
@@ -51,7 +51,7 @@ class TestPlainOutputAdapter:
         )
         adapter.process_result(result)
         captured = capsys.readouterr()
-        assert "status: failure" in captured.out
+        assert "success: false" in captured.out
         assert "stderr: error occurred" in captured.out
         assert "return_code: 1" in captured.out
 

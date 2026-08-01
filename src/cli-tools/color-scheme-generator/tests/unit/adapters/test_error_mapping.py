@@ -123,6 +123,5 @@ class TestErrorMappingJsonSerialization:
         captured = capsys.readouterr()
         data = json.loads(captured.err)
 
-        assert data["success"] is False
-        assert data["error"]["type"] == "ContainerImageNotFoundError"
-        assert "test-image:latest" in data["error"]["message"]
+        assert data["kind"] == "ContainerImageNotFoundError"
+        assert "test-image:latest" in data["message"]
