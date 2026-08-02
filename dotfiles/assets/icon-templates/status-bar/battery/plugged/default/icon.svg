@@ -1,0 +1,12 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Power plug icon for AC power / no battery -->
+<!-- Two prongs at top -->
+<rect x="340" y="150" width="80" height="200" rx="15" fill="{{COLOR_FOREGROUND}}"/>
+<rect x="604" y="150" width="80" height="200" rx="15" fill="{{COLOR_FOREGROUND}}"/>
+<!-- Plug body -->
+<path d="M280 350H744C771.614 350 794 372.386 794 400V550C794 577.614 771.614 600 744 600H280C252.386 600 230 577.614 230 550V400C230 372.386 252.386 350 280 350Z" fill="{{COLOR_FOREGROUND}}"/>
+<!-- Cable connector -->
+<path d="M430 600H594V680C594 707.614 571.614 730 544 730H480C452.386 730 430 707.614 430 680V600Z" fill="{{COLOR_FOREGROUND}}"/>
+<!-- Cable -->
+<rect x="472" y="730" width="80" height="150" rx="10" fill="{{COLOR_FOREGROUND}}"/>
+</svg>

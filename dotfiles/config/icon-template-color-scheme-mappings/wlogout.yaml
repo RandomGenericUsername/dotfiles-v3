@@ -1,0 +1,24 @@
+wlogout:
+  color_scheme: ~
+  template_dir: .
+  output_dir: .
+  color_mappings: {}
+  variants:
+    - name: hibernate
+      template: wlogout/hibernate/default/icon.svg
+      output: hibernate.svg
+    - name: lock
+      template: wlogout/lock/default/icon.svg
+      output: lock.svg
+    - name: logout
+      template: wlogout/logout/default/icon.svg
+      output: logout.svg
+    - name: reboot
+      template: wlogout/reboot/default/icon.svg
+      output: reboot.svg
+    - name: shutdown
+      template: wlogout/shutdown/default/icon.svg
+      output: shutdown.svg
+    - name: suspend
+      template: wlogout/suspend/default/icon.svg
+      output: suspend.svg

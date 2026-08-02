@@ -1,0 +1,40 @@
+battery:
+  color_scheme: ~
+  template_dir: .
+  output_dir: .
+  color_mappings:
+    COLOR_ACCENT: color12
+  variants:
+    - name: battery-0
+      template: status-bar/battery/battery-0/default/icon.svg
+      output: battery-0.svg
+    - name: battery-25
+      template: status-bar/battery/battery-25/default/icon.svg
+      output: battery-25.svg
+    - name: battery-50
+      template: status-bar/battery/battery-50/default/icon.svg
+      output: battery-50.svg
+    - name: battery-75
+      template: status-bar/battery/battery-75/default/icon.svg
+      output: battery-75.svg
+    - name: battery-100
+      template: status-bar/battery/battery-100/default/icon.svg
+      output: battery-100.svg
+    - name: battery-0-charging
+      template: status-bar/battery/battery-0-charging/default/icon.svg
+      output: battery-0-charging.svg
+    - name: battery-25-charging
+      template: status-bar/battery/battery-25-charging/default/icon.svg
+      output: battery-25-charging.svg
+    - name: battery-50-charging
+      template: status-bar/battery/battery-50-charging/default/icon.svg
+      output: battery-50-charging.svg
+    - name: battery-75-charging
+      template: status-bar/battery/battery-75-charging/default/icon.svg
+      output: battery-75-charging.svg
+    - name: battery-100-charging
+      template: status-bar/battery/battery-100-charging/default/icon.svg
+      output: battery-100-charging.svg
+    - name: plugged
+      template: status-bar/battery/plugged/default/icon.svg
+      output: plugged.svg

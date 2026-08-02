@@ -1,0 +1,7 @@
+# icon-templates-renderer Settings
+# Project-level configuration. Keys are namespaced per section.
+# See docs/ for architecture reference.
+
+# Override defaults here:
+# [output]
+# verbosity = "normal"

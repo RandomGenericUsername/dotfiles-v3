@@ -1,0 +1,69 @@
+network:
+  color_scheme: ~
+  template_dir: .
+  output_dir: .
+  color_mappings: {}
+  variants:
+    - name: ethernet-default
+      template: status-bar/network/ethernet/default/icon.svg
+      output: ethernet-default.svg
+    - name: ethernet-rounded
+      template: status-bar/network/ethernet/rounded/icon.svg
+      output: ethernet-rounded.svg
+    - name: ethernet-sharp
+      template: status-bar/network/ethernet/sharp/icon.svg
+      output: ethernet-sharp.svg
+    - name: ethernet-no-internet-default
+      template: status-bar/network/ethernet-no-internet/default/icon.svg
+      output: ethernet-no-internet-default.svg
+    - name: ethernet-no-internet-rounded
+      template: status-bar/network/ethernet-no-internet/rounded/icon.svg
+      output: ethernet-no-internet-rounded.svg
+    - name: ethernet-no-internet-sharp
+      template: status-bar/network/ethernet-no-internet/sharp/icon.svg
+      output: ethernet-no-internet-sharp.svg
+    - name: wifi-low-default
+      template: status-bar/network/wifi-low/default/icon.svg
+      output: wifi-low-default.svg
+    - name: wifi-low-rounded
+      template: status-bar/network/wifi-low/rounded/icon.svg
+      output: wifi-low-rounded.svg
+    - name: wifi-low-sharp
+      template: status-bar/network/wifi-low/sharp/icon.svg
+      output: wifi-low-sharp.svg
+    - name: wifi-medium-default
+      template: status-bar/network/wifi-medium/default/icon.svg
+      output: wifi-medium-default.svg
+    - name: wifi-medium-rounded
+      template: status-bar/network/wifi-medium/rounded/icon.svg
+      output: wifi-medium-rounded.svg
+    - name: wifi-medium-sharp
+      template: status-bar/network/wifi-medium/sharp/icon.svg
+      output: wifi-medium-sharp.svg
+    - name: wifi-high-default
+      template: status-bar/network/wifi-high/default/icon.svg
+      output: wifi-high-default.svg
+    - name: wifi-high-rounded
+      template: status-bar/network/wifi-high/rounded/icon.svg
+      output: wifi-high-rounded.svg
+    - name: wifi-high-sharp
+      template: status-bar/network/wifi-high/sharp/icon.svg
+      output: wifi-high-sharp.svg
+    - name: wifi-disabled-default
+      template: status-bar/network/wifi-disabled/default/icon.svg
+      output: wifi-disabled-default.svg
+    - name: wifi-disabled-rounded
+      template: status-bar/network/wifi-disabled/rounded/icon.svg
+      output: wifi-disabled-rounded.svg
+    - name: wifi-disabled-sharp
+      template: status-bar/network/wifi-disabled/sharp/icon.svg
+      output: wifi-disabled-sharp.svg
+    - name: wifi-no-internet-default
+      template: status-bar/network/wifi-no-internet/default/icon.svg
+      output: wifi-no-internet-default.svg
+    - name: wifi-no-internet-rounded
+      template: status-bar/network/wifi-no-internet/rounded/icon.svg
+      output: wifi-no-internet-rounded.svg
+    - name: wifi-no-internet-sharp
+      template: status-bar/network/wifi-no-internet/sharp/icon.svg
+      output: wifi-no-internet-sharp.svg

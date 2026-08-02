@@ -1,0 +1,18 @@
+power-menu:
+  color_scheme: ~
+  template_dir: .
+  output_dir: .
+  color_mappings:
+    COLOR_BACKGROUND: background
+    COLOR_SECONDARY: color1
+    COLOR_ACCENT: color12
+  variants:
+    - name: power-menu-default
+      template: status-bar/power-menu/default/icon.svg
+      output: power-menu-default.svg
+    - name: power-menu-modern-gradient
+      template: status-bar/power-menu/modern/gradient.svg
+      output: power-menu-modern-gradient.svg
+    - name: power-menu-modern-with-background
+      template: status-bar/power-menu/modern/with-background.svg
+      output: power-menu-modern-with-background.svg

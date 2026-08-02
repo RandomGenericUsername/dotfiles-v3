@@ -1,0 +1,18 @@
+# defaults.yaml
+#
+# Default color scheme token mappings for the standard COLOR_* placeholder vocabulary.
+#
+# These are defaults, not a closed list. Any {{PLACEHOLDER}} name is valid in an SVG
+# as long as it is mapped — either here (for the four standard names) or in the icon's
+# own color_mappings block.
+#
+# Priority (lowest to highest):
+#   1. This file (vocabulary defaults)
+#   2. IconGroup.color_mappings (per-icon group override)
+#   3. Variant.color_mappings (per-variant override, highest priority)
+
+defaults:
+  COLOR_FOREGROUND: foreground
+  COLOR_BACKGROUND: surface
+  COLOR_SECONDARY: accent
+  COLOR_ACCENT: accent-muted

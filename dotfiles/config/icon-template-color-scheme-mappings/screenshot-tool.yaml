@@ -1,0 +1,21 @@
+screenshot-tool:
+  color_scheme: ~
+  template_dir: .
+  output_dir: .
+  color_mappings: {}
+  variants:
+    - name: all-screen-selection
+      template: screenshot-tool/all-screen-selection/default/all-screen-selection.svg
+      output: all-screen-selection.svg
+    - name: cursor
+      template: screenshot-tool/cursor/default/cursor.svg
+      output: cursor.svg
+    - name: delay
+      template: screenshot-tool/delay/default/delay.svg
+      output: delay.svg
+    - name: region-screen-selection
+      template: screenshot-tool/region-screen-selection/default/region-selection.svg
+      output: region-selection.svg
+    - name: take-screenshot
+      template: screenshot-tool/take-screenshot/default/take-screenshot.svg
+      output: take-screenshot.svg
