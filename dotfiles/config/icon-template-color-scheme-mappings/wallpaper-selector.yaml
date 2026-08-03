@@ -1,7 +1,4 @@
 wallpaper-selector:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings: {}
   variants:
     - name: wallpaper-selector

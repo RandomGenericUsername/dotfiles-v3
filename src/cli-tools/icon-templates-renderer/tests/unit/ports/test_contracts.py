@@ -3,20 +3,24 @@ from __future__ import annotations
 import pytest
 
 from icon_templates_renderer.adapters.assembled_config_resolver import AssembledConfigResolver
+from icon_templates_renderer.adapters.color_scheme_resolver import ColorSchemeResolver
 from icon_templates_renderer.adapters.file_color_scheme_loader import FileColorSchemeLoader
 from icon_templates_renderer.adapters.file_svg_renderer import FileSvgRenderer
 from icon_templates_renderer.adapters.icon_renderer import IconRenderer
+from icon_templates_renderer.adapters.template_dir_resolver import TemplateDirResolver
 from icon_templates_renderer.adapters.yaml_icon_config_loader import YamlIconConfigLoader
 from icon_templates_renderer.adapters.yaml_vocabulary_loader import YamlVocabularyLoader
 from icon_templates_renderer.domain.enums import OutputFormat, Verbosity
-from icon_templates_renderer.domain.models import PathOverrides
+from icon_templates_renderer.domain.models import ResolvedRoots
 from icon_templates_renderer.factory import create_output_adapter
 from icon_templates_renderer.ports.color_scheme_loader import ColorSchemeLoaderPort
+from icon_templates_renderer.ports.color_scheme_resolver import ColorSchemeResolverPort
 from icon_templates_renderer.ports.config_resolver import ConfigResolverPort
 from icon_templates_renderer.ports.icon_config_loader import IconConfigLoaderPort
 from icon_templates_renderer.ports.icon_renderer import IconRendererPort
 from icon_templates_renderer.ports.output import OutputPort
 from icon_templates_renderer.ports.svg_renderer import SvgRendererPort
+from icon_templates_renderer.ports.template_dir_resolver import TemplateDirResolverPort
 from icon_templates_renderer.ports.vocabulary_loader import VocabularyLoaderPort
 from tests.unit.ports.conftest import (
     assert_interface_method_count,
@@ -26,10 +30,10 @@ from tests.unit.ports.conftest import (
 
 
 class _StubLoader:
-    def load(self, yaml_path, overrides=None):
+    def load(self, yaml_path, roots=None):
         return None
 
-    def load_one(self, yaml_path, icon, overrides=None):
+    def load_one(self, yaml_path, icon, roots=None):
         return None
 
     def get_resolved_path(self):
@@ -67,6 +71,8 @@ CONFIG_PAIRS = [
         IconRendererPort,
     ),
     (AssembledConfigResolver(), ConfigResolverPort),
+    (TemplateDirResolver(), TemplateDirResolverPort),
+    (ColorSchemeResolver(), ColorSchemeResolverPort),
     (
         create_output_adapter(OutputFormat.PLAIN, Verbosity.NORMAL),
         OutputPort,
@@ -93,4 +99,4 @@ class TestAdapterContracts:
             FileSvgRenderer(),
         )
         assert_isinstance(renderer, IconRendererPort)
-        assert PathOverrides() is not None
+        assert ResolvedRoots() is not None

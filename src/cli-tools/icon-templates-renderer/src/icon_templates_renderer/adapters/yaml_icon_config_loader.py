@@ -10,10 +10,15 @@ from icon_templates_renderer.adapters.schemas.icons_config_schema import (
     VariantSchema,
 )
 from icon_templates_renderer.domain.exceptions import IconNotFoundError, InvalidYamlError
-from icon_templates_renderer.domain.models import IconConfig, IconGroup, PathOverrides, Variant
+from icon_templates_renderer.domain.models import (
+    IconConfig,
+    IconGroup,
+    ResolvedRoots,
+    Variant,
+)
 from icon_templates_renderer.domain.services import PathResolutionService
 
-_REQUIRED_GROUP_FIELDS = ("color_scheme", "template_dir", "output_dir", "variants")
+_REQUIRED_GROUP_FIELDS = ("variants",)
 _REQUIRED_VARIANT_FIELDS = ("name", "template", "output")
 
 
@@ -22,7 +27,7 @@ class YamlIconConfigLoader:
         self._path_service = path_resolution_service or PathResolutionService()
         self._resolved_path: Path | None = None
 
-    def load(self, yaml_path: Path, overrides: PathOverrides | None = None) -> IconConfig:
+    def load(self, yaml_path: Path, roots: ResolvedRoots | None = None) -> IconConfig:
         if not yaml_path.exists():
             raise InvalidYamlError(f"YAML file not found: {yaml_path}")
 
@@ -35,44 +40,14 @@ class YamlIconConfigLoader:
         if not isinstance(data, dict):
             raise InvalidYamlError("YAML root must be a mapping of icon group keys")
 
-        overrides = overrides or PathOverrides()
-
-        templates_root_raw = data.pop("templates_root", None)
-        templates_root: Path | None = None
-        if templates_root_raw is not None:
-            templates_root = Path(str(templates_root_raw)).expanduser().resolve()
-
-        color_scheme_raw = data.pop("color_scheme", None)
-        color_scheme_global: Path | None = None
-        if color_scheme_raw is not None:
-            color_scheme_global = Path(str(color_scheme_raw)).expanduser().resolve()
-
-        outputs_root_raw = data.pop("outputs_root", None)
-        outputs_root: Path | None = None
-        if outputs_root_raw is not None:
-            outputs_root = Path(str(outputs_root_raw)).expanduser().resolve()
-
-        base_dir = yaml_path.parent
+        roots = roots or ResolvedRoots()
         self._resolved_path = yaml_path
 
-        groups = tuple(
-            self._parse_group(
-                name,
-                config,
-                base_dir,
-                overrides,
-                templates_root,
-                color_scheme_global,
-                outputs_root,
-            )
-            for name, config in data.items()
-        )
+        groups = tuple(self._parse_group(name, config, roots) for name, config in data.items())
         return IconConfig(groups=groups)
 
-    def load_one(
-        self, yaml_path: Path, icon: str, overrides: PathOverrides | None = None
-    ) -> IconGroup:
-        config = self.load(yaml_path, overrides)
+    def load_one(self, yaml_path: Path, icon: str, roots: ResolvedRoots | None = None) -> IconGroup:
+        config = self.load(yaml_path, roots)
         for group in config.groups:
             if group.name == icon:
                 return group
@@ -85,11 +60,7 @@ class YamlIconConfigLoader:
         self,
         name: str,
         config: dict[str, Any],
-        base_dir: Path,
-        overrides: PathOverrides,
-        templates_root: Path | None,
-        color_scheme_global: Path | None,
-        outputs_root: Path | None,
+        roots: ResolvedRoots,
     ) -> IconGroup:
         for field in _REQUIRED_GROUP_FIELDS:
             if field not in config:
@@ -104,15 +75,8 @@ class YamlIconConfigLoader:
 
         group_schema = IconGroupSchema(**config)
 
-        color_scheme = self._path_service.resolve_color_scheme(
-            base_dir, group_schema.color_scheme, overrides, color_scheme_global
-        )
-        template_dir = self._path_service.resolve_template_dir(
-            base_dir, group_schema.template_dir, overrides, templates_root
-        )
-        output_dir = self._path_service.resolve_output_dir(
-            base_dir, group_schema.output_dir, overrides, outputs_root
-        )
+        template_dir = self._path_service.resolve(roots.template_root, group_schema.template_dir)
+        output_dir = self._path_service.resolve(roots.output_root, group_schema.output_dir)
 
         variants = tuple(
             self._parse_variant(name, v, template_dir, output_dir) for v in group_schema.variants
@@ -120,7 +84,6 @@ class YamlIconConfigLoader:
 
         return IconGroup(
             name=name,
-            color_scheme=color_scheme,
             template_dir=template_dir,
             output_dir=output_dir,
             unsafe=group_schema.unsafe,
@@ -132,12 +95,14 @@ class YamlIconConfigLoader:
         self,
         group_name: str,
         variant_schema: VariantSchema,
-        template_dir: Path,
-        output_dir: Path,
+        template_dir: Path | None,
+        output_dir: Path | None,
     ) -> Variant:
+        template = self._path_service.resolve(template_dir, variant_schema.template)
+        output = self._path_service.resolve(output_dir, variant_schema.output)
         return Variant(
             name=variant_schema.name,
-            template=self._path_service.resolve(template_dir, variant_schema.template),
-            output=self._path_service.resolve(output_dir, variant_schema.output),
+            template=template if template is not None else Path(variant_schema.template),
+            output=output if output is not None else Path(variant_schema.output),
             color_mappings=dict(variant_schema.color_mappings),
         )

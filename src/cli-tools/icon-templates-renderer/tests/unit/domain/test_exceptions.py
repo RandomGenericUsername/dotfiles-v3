@@ -5,6 +5,7 @@ from pathlib import Path
 from icon_templates_renderer.domain.exceptions import (
     ColorSchemeKeyNotFoundError,
     ColorSchemeNotFoundError,
+    ConfigResolutionError,
     IconNotFoundError,
     IconRendererError,
     InvalidYamlError,
@@ -21,6 +22,7 @@ def test_hierarchy() -> None:
         ColorSchemeNotFoundError("x"),
         MissingMappingError("k"),
         ColorSchemeKeyNotFoundError("k", "v"),
+        ConfigResolutionError("templates_dir", ("--template-dir",)),
     ):
         assert isinstance(exc, IconRendererError)
 
@@ -51,3 +53,21 @@ def test_color_scheme_key_not_found_message() -> None:
 
 def test_invalid_yaml_message() -> None:
     assert str(InvalidYamlError("YAML file not found: /x")) == "YAML file not found: /x"
+
+
+def test_config_resolution_error_message() -> None:
+    exc = ConfigResolutionError(
+        "color_scheme",
+        ("--color-scheme", "ICON_RENDERER__COLOR_SCHEME__PATH", "discovery"),
+    )
+    msg = str(exc)
+    assert "color_scheme" in msg
+    assert "--color-scheme" in msg
+    assert "ICON_RENDERER__COLOR_SCHEME__PATH" in msg
+    assert "discovery" in msg
+
+
+def test_config_resolution_error_attributes() -> None:
+    exc = ConfigResolutionError("templates_dir", ("--template-dir", "discovery"))
+    assert exc.name == "templates_dir"
+    assert exc.levers == ("--template-dir", "discovery")

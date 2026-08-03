@@ -7,6 +7,9 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
+from icon_templates_renderer.adapters.assembled_config_resolver import AssembledConfigResolver
+from icon_templates_renderer.adapters.color_scheme_resolver import ColorSchemeResolver
+from icon_templates_renderer.adapters.template_dir_resolver import TemplateDirResolver
 from icon_templates_renderer.domain.models import (
     ListRequest,
     ListResult,
@@ -59,8 +62,16 @@ def cli_deps_with_renderer(
     monkeypatch: pytest.MonkeyPatch,
     fake_icon_renderer: FakeIconRenderer,
 ) -> CliDependencies:
-    deps = CliDependencies(icon_renderer=fake_icon_renderer)
+    deps = CliDependencies(
+        icon_renderer=fake_icon_renderer,
+        config_resolver=AssembledConfigResolver(),
+        template_dir_resolver=TemplateDirResolver(),
+        color_scheme_resolver=ColorSchemeResolver(),
+    )
     monkeypatch.setattr("icon_templates_renderer.cli.main.build_deps", lambda: deps)
+    monkeypatch.setenv("ICON_RENDERER__TEMPLATES__DIR", "/tmp/cli-templates")
+    monkeypatch.setenv("ICON_RENDERER__COLOR_SCHEME__PATH", "/tmp/cli-colors.yaml")
+    monkeypatch.setenv("ICON_RENDERER__OUTPUT__OUTPUT_DIR", "/tmp/cli-out")
     return deps
 
 
@@ -104,7 +115,6 @@ def icons_yaml(tmp_path: Path, colors_yaml: Path, svg_template: Path) -> Path:
     path = tmp_path / "icons.yaml"
     path.write_text(
         "battery:\n"
-        f"  color_scheme: {colors_yaml}\n"
         "  template_dir: templates/\n"
         "  output_dir: out/battery/\n"
         "  color_mappings:\n"

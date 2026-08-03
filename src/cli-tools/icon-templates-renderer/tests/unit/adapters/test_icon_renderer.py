@@ -8,6 +8,7 @@ import pytest
 from icon_templates_renderer.adapters.icon_renderer import IconRenderer
 from icon_templates_renderer.domain.exceptions import (
     ColorSchemeNotFoundError,
+    ConfigResolutionError,
     IconNotFoundError,
     TemplateNotFoundError,
 )
@@ -16,8 +17,8 @@ from icon_templates_renderer.domain.models import (
     IconConfig,
     IconGroup,
     ListRequest,
-    PathOverrides,
     RenderRequest,
+    ResolvedRoots,
     ValidateRequest,
     Variant,
     Vocabulary,
@@ -29,12 +30,10 @@ class FakeConfigLoader:
     config: IconConfig
     error: Exception | None = None
 
-    def load(self, yaml_path: Path, overrides: PathOverrides | None = None) -> IconConfig:
+    def load(self, yaml_path: Path, roots: ResolvedRoots | None = None) -> IconConfig:
         return self.config
 
-    def load_one(
-        self, yaml_path: Path, icon: str, overrides: PathOverrides | None = None
-    ) -> IconGroup:
+    def load_one(self, yaml_path: Path, icon: str, roots: ResolvedRoots | None = None) -> IconGroup:
         if self.error is not None:
             raise self.error
         for group in self.config.groups:
@@ -90,18 +89,25 @@ class FakeSvgRenderer:
         return svg_body
 
 
-def _group(unsafe: bool = False) -> IconGroup:
-    return IconGroup(
-        name="battery",
+def _roots() -> ResolvedRoots:
+    return ResolvedRoots(
+        template_root=Path("/templates"),
         color_scheme=Path("/colors.yaml"),
+        output_root=Path("/tmp/out"),
+    )
+
+
+def _group(unsafe: bool = False, name: str = "battery") -> IconGroup:
+    return IconGroup(
+        name=name,
         template_dir=Path("/templates"),
-        output_dir=Path("/tmp/out/battery"),
+        output_dir=Path(f"/tmp/out/{name}"),
         unsafe=unsafe,
         variants=(
             Variant(
                 name="battery-0",
                 template=Path("/templates/battery-0.svg"),
-                output=Path("/tmp/out/battery/battery-0.svg"),
+                output=Path(f"/tmp/out/{name}/battery-0.svg"),
             ),
         ),
     )
@@ -110,20 +116,7 @@ def _group(unsafe: bool = False) -> IconGroup:
 class TestIconRenderer:
     def test_render_produces_output_paths_in_order(self, tmp_path: Path) -> None:
         group1 = _group()
-        group2 = _group()
-        group2 = IconGroup(
-            name="network",
-            color_scheme=Path("/colors.yaml"),
-            template_dir=Path("/templates"),
-            output_dir=Path("/tmp/out/network"),
-            variants=(
-                Variant(
-                    name="wifi",
-                    template=Path("/templates/wifi.svg"),
-                    output=Path("/tmp/out/network/wifi.svg"),
-                ),
-            ),
-        )
+        group2 = _group(name="network")
         svg = FakeSvgRenderer()
         renderer = IconRenderer(
             FakeConfigLoader(IconConfig(groups=(group1, group2))),
@@ -131,9 +124,9 @@ class TestIconRenderer:
             FakeVocabLoader(),
             svg,
         )
-        result = renderer.render(RenderRequest(yaml_path=Path("/icons.yaml")))
+        result = renderer.render(RenderRequest(yaml_path=Path("/icons.yaml"), roots=_roots()))
         assert result.success
-        assert [r.variant_name for r in result.rendered] == ["battery-0", "wifi"]
+        assert [r.variant_name for r in result.rendered] == ["battery-0", "battery-0"]
         assert [r.group_name for r in result.rendered] == ["battery", "network"]
 
     def test_render_icon_processes_only_named_group(self) -> None:
@@ -145,7 +138,9 @@ class TestIconRenderer:
             FakeVocabLoader(),
             svg,
         )
-        result = renderer.render(RenderRequest(yaml_path=Path("/icons.yaml"), icon="battery"))
+        result = renderer.render(
+            RenderRequest(yaml_path=Path("/icons.yaml"), icon="battery", roots=_roots())
+        )
         assert [r.variant_name for r in result.rendered] == ["battery-0"]
 
     def test_effective_unsafe_uses_request_value(self) -> None:
@@ -157,7 +152,7 @@ class TestIconRenderer:
             FakeVocabLoader(),
             svg,
         )
-        renderer.render(RenderRequest(yaml_path=Path("/icons.yaml"), unsafe=True))
+        renderer.render(RenderRequest(yaml_path=Path("/icons.yaml"), unsafe=True, roots=_roots()))
         assert svg.calls[0][2] is True
 
     def test_effective_unsafe_falls_back_to_group(self) -> None:
@@ -169,7 +164,7 @@ class TestIconRenderer:
             FakeVocabLoader(),
             svg,
         )
-        renderer.render(RenderRequest(yaml_path=Path("/icons.yaml"), unsafe=None))
+        renderer.render(RenderRequest(yaml_path=Path("/icons.yaml"), unsafe=None, roots=_roots()))
         assert svg.calls[0][2] is True
 
     def test_vocab_default_path_is_yaml_dir_defaults(self) -> None:
@@ -181,7 +176,7 @@ class TestIconRenderer:
             vocab,
             FakeSvgRenderer(),
         )
-        renderer.render(RenderRequest(yaml_path=Path("/dir/icons.yaml")))
+        renderer.render(RenderRequest(yaml_path=Path("/dir/icons.yaml"), roots=_roots()))
         assert vocab.calls[0] == Path("/dir/defaults.yaml")
 
     def test_list_single_icon(self) -> None:
@@ -196,15 +191,33 @@ class TestIconRenderer:
         assert result.single is True
         assert result.groups == (("battery", ("battery-0",)),)
 
+    def test_list_tolerates_none_roots(self) -> None:
+        group = _group()
+        renderer = IconRenderer(
+            FakeConfigLoader(IconConfig(groups=(group,))),
+            FakeColorLoader(ColorScheme.from_dict({})),
+            FakeVocabLoader(),
+            FakeSvgRenderer(),
+        )
+        result = renderer.list(ListRequest(yaml_path=Path("/icons.yaml")))
+        assert result.groups == (("battery", ("battery-0",)),)
+
     def test_validate_passes(self, tmp_path: Path) -> None:
         scheme_file = tmp_path / "c.yaml"
         scheme_file.write_text("special: {}\ncolors: []\n")
+        template_file = tmp_path / "t.svg"
+        template_file.write_text("<svg/>")
         group = IconGroup(
             name="battery",
-            color_scheme=scheme_file,
-            template_dir=Path("/tmp/t"),
-            output_dir=Path("/tmp/o"),
-            variants=(),
+            template_dir=tmp_path,
+            output_dir=tmp_path / "o",
+            variants=(
+                Variant(
+                    name="battery-0",
+                    template=template_file,
+                    output=tmp_path / "o" / "battery-0.svg",
+                ),
+            ),
         )
         renderer = IconRenderer(
             FakeConfigLoader(IconConfig(groups=(group,))),
@@ -212,34 +225,37 @@ class TestIconRenderer:
             FakeVocabLoader(),
             FakeSvgRenderer(),
         )
-        result = renderer.validate(ValidateRequest(yaml_path=Path("/icons.yaml")))
+        roots = ResolvedRoots(
+            template_root=tmp_path,
+            color_scheme=scheme_file,
+            output_root=tmp_path / "o",
+        )
+        result = renderer.validate(ValidateRequest(yaml_path=Path("/icons.yaml"), roots=roots))
         assert result.ok is True
 
     def test_validate_missing_color_scheme_raises(self, tmp_path: Path) -> None:
-        group = IconGroup(
-            name="battery",
-            color_scheme=tmp_path / "missing.yaml",
-            template_dir=Path("/tmp/t"),
-            output_dir=Path("/tmp/o"),
-            variants=(),
-        )
+        group = _group()
         renderer = IconRenderer(
             FakeConfigLoader(IconConfig(groups=(group,))),
             FakeColorLoader(ColorScheme.from_dict({})),
             FakeVocabLoader(),
             FakeSvgRenderer(),
         )
+        roots = ResolvedRoots(
+            template_root=tmp_path,
+            color_scheme=tmp_path / "missing.yaml",
+            output_root=tmp_path,
+        )
         with pytest.raises(ColorSchemeNotFoundError):
-            renderer.validate(ValidateRequest(yaml_path=Path("/icons.yaml")))
+            renderer.validate(ValidateRequest(yaml_path=Path("/icons.yaml"), roots=roots))
 
     def test_validate_missing_template_raises(self, tmp_path: Path) -> None:
         scheme_file = tmp_path / "c.yaml"
         scheme_file.write_text("special: {}\ncolors: []\n")
         group = IconGroup(
             name="battery",
-            color_scheme=scheme_file,
-            template_dir=Path("/tmp/t"),
-            output_dir=Path("/tmp/o"),
+            template_dir=tmp_path,
+            output_dir=tmp_path / "o",
             variants=(
                 Variant(
                     name="battery-0",
@@ -254,5 +270,34 @@ class TestIconRenderer:
             FakeVocabLoader(),
             FakeSvgRenderer(),
         )
+        roots = ResolvedRoots(
+            template_root=tmp_path,
+            color_scheme=scheme_file,
+            output_root=tmp_path / "o",
+        )
         with pytest.raises(TemplateNotFoundError):
+            renderer.validate(ValidateRequest(yaml_path=Path("/icons.yaml"), roots=roots))
+
+    def test_render_requires_roots(self) -> None:
+        group = _group()
+        renderer = IconRenderer(
+            FakeConfigLoader(IconConfig(groups=(group,))),
+            FakeColorLoader(ColorScheme.from_dict({})),
+            FakeVocabLoader(),
+            FakeSvgRenderer(),
+        )
+        with pytest.raises(ConfigResolutionError) as excinfo:
+            renderer.render(RenderRequest(yaml_path=Path("/icons.yaml")))
+        assert excinfo.value.name == "templates_dir"
+
+    def test_validate_requires_roots(self) -> None:
+        group = _group()
+        renderer = IconRenderer(
+            FakeConfigLoader(IconConfig(groups=(group,))),
+            FakeColorLoader(ColorScheme.from_dict({})),
+            FakeVocabLoader(),
+            FakeSvgRenderer(),
+        )
+        with pytest.raises(ConfigResolutionError) as excinfo:
             renderer.validate(ValidateRequest(yaml_path=Path("/icons.yaml")))
+        assert excinfo.value.name == "templates_dir"

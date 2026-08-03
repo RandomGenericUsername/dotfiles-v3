@@ -4,14 +4,15 @@ from pathlib import Path
 
 import typer
 
-from icon_templates_renderer.cli._helpers import build_overrides
+from icon_templates_renderer.cli._helpers import resolve_roots
 from icon_templates_renderer.cli.options import (
     COLOR_SCHEME_OPT,
+    CONFIG_OPT,
     ICON_OPT,
     TEMPLATE_DIR_OPT,
 )
 from icon_templates_renderer.domain.exceptions import IconRendererError
-from icon_templates_renderer.domain.models import PathOverrides, ValidateRequest
+from icon_templates_renderer.domain.models import ResolvedRoots, ValidateRequest
 from icon_templates_renderer.factory import CliDependencies
 
 
@@ -21,16 +22,24 @@ def validate_command(
     icon: str | None = ICON_OPT,
     template_dir: Path | None = TEMPLATE_DIR_OPT,
     color_scheme: Path | None = COLOR_SCHEME_OPT,
+    config: Path | None = CONFIG_OPT,
 ) -> None:
     """Validate the YAML and all referenced files without rendering."""
     deps: CliDependencies = ctx.obj["deps"]
-    overrides: PathOverrides = build_overrides(template_dir, color_scheme, None)
-    request = ValidateRequest(
-        yaml_path=Path(yaml_file).resolve(),
-        icon=icon,
-        overrides=overrides,
-    )
     try:
+        roots: ResolvedRoots = resolve_roots(
+            deps,
+            config,
+            template_dir,
+            color_scheme,
+            None,
+            required=True,
+        )
+        request = ValidateRequest(
+            yaml_path=Path(yaml_file).resolve(),
+            icon=icon,
+            roots=roots,
+        )
         result = deps.icon_renderer.validate(request)
         deps.output_adapter.validate_result(result)
     except IconRendererError as exc:

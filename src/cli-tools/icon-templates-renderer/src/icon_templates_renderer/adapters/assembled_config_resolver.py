@@ -28,7 +28,12 @@ from icon_templates_renderer.constants import (
     CONFIG_XDG_SUBDIR,
 )
 from icon_templates_renderer.domain.enums import Verbosity
-from icon_templates_renderer.domain.models import AppSettings, OutputSettings
+from icon_templates_renderer.domain.models import (
+    AppSettings,
+    ColorSchemeSettings,
+    OutputSettings,
+    TemplatesSettings,
+)
 
 
 class AssembledConfigResolver:
@@ -60,7 +65,10 @@ class AssembledConfigResolver:
         )
         self._policy = ResolutionPolicy(env_prefix="ICON_RENDERER")
         self._rules = [
+            OverrideRule("output.output_dir", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("output.verbosity", {OverrideSource.CLI, OverrideSource.ENV}),
+            OverrideRule("templates.dir", {OverrideSource.CLI, OverrideSource.ENV}),
+            OverrideRule("color_scheme.path", {OverrideSource.CLI, OverrideSource.ENV}),
         ]
         self._resolved_path: Path | None = None
 
@@ -78,10 +86,14 @@ class AssembledConfigResolver:
             explicit_path=explicit_path,
         )
         self._resolved_path = result.resolved_path.path
+        output = result.config.output
         return AppSettings(
             output=OutputSettings(
-                verbosity=Verbosity(result.config.output.verbosity),
+                output_dir=output.output_dir,
+                verbosity=Verbosity(output.verbosity),
             ),
+            templates=TemplatesSettings(dir=result.config.templates.dir),
+            color_scheme=ColorSchemeSettings(path=result.config.color_scheme.path),
         )
 
     def get_resolved_path(self) -> Path | None:

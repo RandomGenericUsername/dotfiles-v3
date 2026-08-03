@@ -23,7 +23,6 @@ class TestIconGroupResolveMappings:
         vocab = Vocabulary.from_dict({"k": "v0", "x": "x0"})
         group = IconGroup(
             name="battery",
-            color_scheme=Path("/c.yaml"),
             template_dir=Path("/t"),
             output_dir=Path("/o"),
             color_mappings={"k": "v1"},
@@ -43,7 +42,6 @@ class TestIconGroupResolveMappings:
     def test_vocab_defaults_none(self) -> None:
         group = IconGroup(
             name="battery",
-            color_scheme=Path("/c.yaml"),
             template_dir=Path("/t"),
             output_dir=Path("/o"),
             color_mappings={"k": "v1"},

@@ -1,7 +1,4 @@
 battery:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings:
     COLOR_ACCENT: color12
   variants:

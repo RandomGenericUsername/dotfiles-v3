@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from icon_templates_renderer.cli.main import app
 from icon_templates_renderer.domain.exceptions import InvalidYamlError
-from icon_templates_renderer.domain.models import PathOverrides
+from icon_templates_renderer.domain.models import ResolvedRoots
 
 
 class TestRenderCommand:
@@ -40,10 +40,19 @@ class TestRenderCommand:
         request = fake_icon_renderer.calls[0]["request"]
         assert request.icon == "battery"
         assert request.unsafe is True
-        overrides: PathOverrides = request.overrides
-        assert overrides.template_dir == (tmp_path / "tpls").resolve()
-        assert overrides.color_scheme == (tmp_path / "colors.yaml").resolve()
-        assert overrides.output_dir == (tmp_path / "out").resolve()
+        roots: ResolvedRoots = request.roots
+        assert roots.template_root == (tmp_path / "tpls").resolve()
+        assert roots.color_scheme == (tmp_path / "colors.yaml").resolve()
+        assert roots.output_root == (tmp_path / "out").resolve()
+
+    def test_render_config_flag_threads_settings_path(
+        self, runner, cli_deps_with_renderer, fake_icon_renderer, tmp_path
+    ) -> None:
+        icons_yaml = tmp_path / "icons.yaml"
+        icons_yaml.write_text("battery: {}\n")
+        runner.invoke(app, ["render", str(icons_yaml), "--config", str(tmp_path / "s.toml")])
+        request = fake_icon_renderer.calls[0]["request"]
+        assert request.roots.output_root is not None
 
     def test_render_error_exits_non_zero(
         self, runner, cli_deps_with_renderer, fake_icon_renderer, tmp_path
@@ -71,6 +80,14 @@ class TestListCommand:
         icons_yaml.write_text("battery: {}\n")
         runner.invoke(app, ["list", str(icons_yaml), "--icon", "battery"])
         assert fake_icon_renderer.calls[0]["request"].icon == "battery"
+
+    def test_list_roots_are_optional(
+        self, runner, cli_deps_with_renderer, fake_icon_renderer, tmp_path
+    ) -> None:
+        icons_yaml = tmp_path / "icons.yaml"
+        icons_yaml.write_text("battery: {}\n")
+        result = runner.invoke(app, ["list", str(icons_yaml)])
+        assert result.exit_code == 0, result.stderr
 
 
 class TestValidateCommand:

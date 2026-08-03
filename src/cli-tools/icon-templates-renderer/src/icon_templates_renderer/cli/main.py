@@ -8,15 +8,24 @@ from icon_templates_renderer.cli.list_cmd import list_command
 from icon_templates_renderer.cli.render import render_command
 from icon_templates_renderer.cli.validate import validate_command
 from icon_templates_renderer.domain.enums import OutputFormat, Verbosity
-from icon_templates_renderer.factory import CliDependencies, create_output_adapter
+from icon_templates_renderer.factory import build_deps, create_output_adapter
 
-app = typer.Typer(help="Render SVG icon templates with color scheme values")
-
-
-def build_deps() -> CliDependencies:
-    deps = CliDependencies()
-    deps.config_resolver = None
-    return deps
+app = typer.Typer(
+    help=(
+        "Render SVG icon templates with color scheme values.\n\n"
+        "Paths resolve in this order: CLI flag > ICON_RENDERER__<SECTION>__<KEY> env "
+        "override > settings.toml field > discovery.\n\n"
+        "Templates discovery: ./templates/ dirs (up to 3 levels) then "
+        "XDG ~/.config/itr/templates.\n"
+        "Color scheme discovery: ./colors.yaml (up to 3 levels) then "
+        "XDG ~/.config/itr/colors.yaml.\n"
+        "Settings discovery: ./settings.toml (up to 2 levels), XDG ~/.config/itr/settings.toml, "
+        "then bundled defaults. Use --config to select a settings.toml explicitly.\n"
+        "Env overrides: ICON_RENDERER__OUTPUT__OUTPUT_DIR, ICON_RENDERER__OUTPUT__VERBOSITY, "
+        "ICON_RENDERER__TEMPLATES__DIR, ICON_RENDERER__COLOR_SCHEME__PATH, "
+        "ICON_RENDERER_CONFIG_FILE_PATH."
+    )
+)
 
 
 @app.callback()

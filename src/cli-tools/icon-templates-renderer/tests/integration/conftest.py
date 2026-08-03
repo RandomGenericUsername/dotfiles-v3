@@ -4,13 +4,30 @@ from pathlib import Path
 
 import pytest
 
-from icon_templates_renderer.factory import CliDependencies
+from icon_templates_renderer.factory import build_deps
 from tests.conftest import FakeIconRenderer
 
 
 @pytest.fixture
+def integration_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, str]:
+    """Point the three path roots at tmp_path via env (single-env axis)."""
+    env = {
+        "ICON_RENDERER__TEMPLATES__DIR": str(tmp_path),
+        "ICON_RENDERER__COLOR_SCHEME__PATH": str(tmp_path / "colors.yaml"),
+        "ICON_RENDERER__OUTPUT__OUTPUT_DIR": str(tmp_path),
+    }
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    return env
+
+
+@pytest.fixture
 def integration_icons_yaml(tmp_path: Path) -> Path:
-    """battery + network groups with real templates/colors in tmp_path."""
+    """battery + network groups with real templates/colors in tmp_path.
+
+    Uses the simplified YAML shape: relative dirs default under the global roots;
+    no per-group color_scheme and no top-level roots.
+    """
     colors = tmp_path / "colors.yaml"
     colors.write_text(
         "metadata:\n"
@@ -40,7 +57,7 @@ def integration_icons_yaml(tmp_path: Path) -> Path:
         '  - "#e0e0e0"\n'
     )
 
-    battery_dir = tmp_path / "templates" / "battery"
+    battery_dir = tmp_path / "battery"
     battery_dir.mkdir(parents=True)
     (battery_dir / "battery-0.svg").write_text(
         '<svg width="24" height="24"><path fill="{{background}}" stroke="{{foreground}}"/></svg>'
@@ -49,7 +66,7 @@ def integration_icons_yaml(tmp_path: Path) -> Path:
         '<svg width="24" height="24"><path fill="{{foreground}}" stroke="{{background}}"/></svg>'
     )
 
-    network_dir = tmp_path / "templates" / "network"
+    network_dir = tmp_path / "network"
     network_dir.mkdir(parents=True)
     (network_dir / "wifi.svg").write_text(
         '<svg width="24" height="24"><path fill="{{color0}}" stroke="{{foreground}}"/></svg>'
@@ -58,8 +75,7 @@ def integration_icons_yaml(tmp_path: Path) -> Path:
     icons = tmp_path / "icons.yaml"
     icons.write_text(
         "battery:\n"
-        f"  color_scheme: {colors}\n"
-        "  template_dir: templates/battery/\n"
+        "  template_dir: battery/\n"
         "  output_dir: out/battery/\n"
         "  color_mappings:\n"
         "    background: background\n"
@@ -72,8 +88,7 @@ def integration_icons_yaml(tmp_path: Path) -> Path:
         "      template: battery-100.svg\n"
         "      output: battery-100.svg\n"
         "network:\n"
-        f"  color_scheme: {colors}\n"
-        "  template_dir: templates/network/\n"
+        "  template_dir: network/\n"
         "  output_dir: out/network/\n"
         "  color_mappings:\n"
         "    color0: color0\n"
@@ -92,8 +107,8 @@ def fake_icon_renderer_integration() -> FakeIconRenderer:
 
 
 @pytest.fixture
-def cli_deps_integration(monkeypatch: pytest.MonkeyPatch) -> CliDependencies:
-    deps = CliDependencies()
+def cli_deps_integration(monkeypatch: pytest.MonkeyPatch) -> object:
+    deps = build_deps()
     monkeypatch.setattr("icon_templates_renderer.cli.main.build_deps", lambda: deps)
     return deps
 

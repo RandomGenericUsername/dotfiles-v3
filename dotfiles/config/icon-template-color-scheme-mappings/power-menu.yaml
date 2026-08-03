@@ -1,7 +1,4 @@
 power-menu:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings:
     COLOR_BACKGROUND: background
     COLOR_SECONDARY: color1

@@ -5,71 +5,28 @@ from pathlib import Path
 
 from icon_templates_renderer.domain.exceptions import (
     ColorSchemeKeyNotFoundError,
-    InvalidYamlError,
     MissingMappingError,
 )
-from icon_templates_renderer.domain.models import ColorScheme, PathOverrides
+from icon_templates_renderer.domain.models import ColorScheme
 
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
 
 
 class PathResolutionService:
-    """Pure path-resolution logic (v2 yaml_loader._resolve_*).
+    """Pure path-joiner.
 
-    Precedence per kind: CLI override > YAML top-level root > YAML-relative.
-    ``template_dir`` and ``output_dir`` overrides join the YAML-declared string;
-    a ``color_scheme`` override replaces the whole path.
+    Joins a relative ``sub`` path under ``root`` then resolves the result;
+    absolute ``sub`` paths pass through. Returns ``None`` when ``root`` is
+    ``None`` (no resolution possible — caller decides whether that is fatal).
     """
 
-    def resolve_template_dir(
-        self,
-        base_dir: Path,
-        template_dir_str: str,
-        overrides: PathOverrides,
-        templates_root: Path | None,
-    ) -> Path:
-        if overrides.template_dir is not None:
-            return (overrides.template_dir / template_dir_str).resolve()
-        if templates_root is not None:
-            return (templates_root / template_dir_str).resolve()
-        return self.resolve(base_dir, template_dir_str)
-
-    def resolve_output_dir(
-        self,
-        base_dir: Path,
-        output_dir_str: str,
-        overrides: PathOverrides,
-        outputs_root: Path | None,
-    ) -> Path:
-        if overrides.output_dir is not None:
-            return (overrides.output_dir / output_dir_str).resolve()
-        if outputs_root is not None:
-            return (outputs_root / output_dir_str).resolve()
-        return self.resolve(base_dir, output_dir_str)
-
-    def resolve_color_scheme(
-        self,
-        base_dir: Path,
-        color_scheme_str: str | None,
-        overrides: PathOverrides,
-        color_scheme_global: Path | None,
-    ) -> Path:
-        if overrides.color_scheme is not None:
-            return overrides.color_scheme
-        if color_scheme_global is not None:
-            return color_scheme_global
-        if color_scheme_str is None:
-            raise InvalidYamlError(
-                "No color scheme configured: group declares `color_scheme: ~` "
-                "and no --color-scheme or top-level color_scheme was provided"
-            )
-        return self.resolve(base_dir, color_scheme_str)
-
-    def resolve(self, base: Path, path_str: str) -> Path:
-        path = Path(path_str)
+    def resolve(self, root: Path | None, sub: str) -> Path | None:
+        if root is None:
+            return None
+        path = Path(sub)
         if path.is_absolute():
             return path
-        return (base / path).resolve()
+        return (root / path).resolve()
 
 
 class MappingResolutionService:

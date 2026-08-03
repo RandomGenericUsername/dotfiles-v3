@@ -1,7 +1,4 @@
 battery:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings:
     COLOR_ACCENT: color12
   variants:
@@ -40,9 +37,6 @@ battery:
       output: plugged.svg
 
 network:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings: {}
   variants:
     - name: ethernet-default
@@ -110,9 +104,6 @@ network:
       output: wifi-no-internet-sharp.svg
 
 wlogout:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings: {}
   variants:
     - name: hibernate
@@ -135,9 +126,6 @@ wlogout:
       output: suspend.svg
 
 power-menu:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings:
     COLOR_BACKGROUND: background
     COLOR_SECONDARY: color1
@@ -154,9 +142,6 @@ power-menu:
       output: power-menu-modern-with-background.svg
 
 screenshot-tool:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings: {}
   variants:
     - name: all-screen-selection
@@ -176,9 +161,6 @@ screenshot-tool:
       output: take-screenshot.svg
 
 email-client:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings: {}
   variants:
     - name: email-client
@@ -186,9 +168,6 @@ email-client:
       output: email-client.svg
 
 wallpaper-selector:
-  color_scheme: ~
-  template_dir: .
-  output_dir: .
   color_mappings: {}
   variants:
     - name: wallpaper-selector

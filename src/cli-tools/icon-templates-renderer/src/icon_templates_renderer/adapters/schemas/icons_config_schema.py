@@ -11,9 +11,8 @@ class VariantSchema(BaseModel):
 
 
 class IconGroupSchema(BaseModel):
-    color_scheme: str | None = None
-    template_dir: str
-    output_dir: str
+    template_dir: str = "."
+    output_dir: str = "."
     unsafe: bool = False
     color_mappings: dict[str, str] = {}
     variants: list[VariantSchema]

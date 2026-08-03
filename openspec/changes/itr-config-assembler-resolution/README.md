@@ -1,0 +1,3 @@
+# itr-config-assembler-resolution
+
+Make the icon-templates-renderer resolve `templates_dir`, `color_scheme`, and `output_dir` through config-assembler-engine the way WEG/CSG do: each is a settings.toml field (top priority), overridable by env and CLI via OverrideRules, falling back to a discovery chain (traversal + XDG) for `templates_dir` and `color_scheme` when the settings field is absent. Real (no longer inert) `AssembledConfigResolver`; new `TemplateDirResolver` and `ColorSchemeResolver` ports; icons YAML simplified (no top-level roots, no per-group `color_scheme`, per-group dirs become relative subpaths with default `.`). No workarounds; clean wiring.

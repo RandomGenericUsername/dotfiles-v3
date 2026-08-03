@@ -53,9 +53,25 @@ class ColorSchemeKeyNotFoundError(IconRendererError):
         )
 
 
+class ConfigResolutionError(IconRendererError):
+    """A required root could not be resolved by the orchestrator.
+
+    ``name`` is the human-friendly lever name (e.g. ``templates_dir``); ``levers``
+    is the ordered list of ways the user may provide it, formatted into the
+    final message as the actionable hint.
+    """
+
+    def __init__(self, name: str, levers: tuple[str, ...]) -> None:
+        self.name = name
+        self.levers = levers
+        hint = " or ".join(levers) if levers else "(no levers available)"
+        super().__init__(f"Could not resolve required root '{name}'. Set it via {hint}.")
+
+
 __all__ = [
     "ColorSchemeKeyNotFoundError",
     "ColorSchemeNotFoundError",
+    "ConfigResolutionError",
     "IconNotFoundError",
     "IconRendererError",
     "InvalidYamlError",

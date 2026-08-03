@@ -34,9 +34,8 @@ class Variant:
 @dataclass(frozen=True)
 class IconGroup:
     name: str
-    color_scheme: Path
-    template_dir: Path
-    output_dir: Path
+    template_dir: Path | None = None
+    output_dir: Path | None = None
     unsafe: bool = False
     variants: tuple[Variant, ...] = ()
     color_mappings: MappingProxyType[str, str] = field(default_factory=lambda: MappingProxyType({}))
@@ -72,10 +71,16 @@ class Vocabulary:
 
 
 @dataclass(frozen=True)
-class PathOverrides:
-    template_dir: Path | None = None
+class ResolvedRoots:
+    """Resolved path roots shared across all groups of a single render.
+
+    Populated by the CLI orchestrator from settings/env/flags + discovery.
+    Individual fields may be ``None`` (e.g. for ``list`` which needs no roots).
+    """
+
+    template_root: Path | None = None
     color_scheme: Path | None = None
-    output_dir: Path | None = None
+    output_root: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -83,7 +88,7 @@ class RenderRequest:
     yaml_path: Path
     icon: str | None = None
     unsafe: bool | None = None
-    overrides: PathOverrides = field(default_factory=PathOverrides)
+    roots: ResolvedRoots = field(default_factory=ResolvedRoots)
     vocabulary_path: Path | None = None
 
 
@@ -104,7 +109,7 @@ class RenderResult:
 class ListRequest:
     yaml_path: Path
     icon: str | None = None
-    overrides: PathOverrides = field(default_factory=PathOverrides)
+    roots: ResolvedRoots = field(default_factory=ResolvedRoots)
 
 
 @dataclass(frozen=True)
@@ -117,7 +122,7 @@ class ListResult:
 class ValidateRequest:
     yaml_path: Path
     icon: str | None = None
-    overrides: PathOverrides = field(default_factory=PathOverrides)
+    roots: ResolvedRoots = field(default_factory=ResolvedRoots)
 
 
 @dataclass(frozen=True)
@@ -129,9 +134,22 @@ class ValidateResult:
 
 @dataclass(frozen=True)
 class OutputSettings:
+    output_dir: Path | None = None
     verbosity: Verbosity = Verbosity.NORMAL
+
+
+@dataclass(frozen=True)
+class TemplatesSettings:
+    dir: Path | None = None
+
+
+@dataclass(frozen=True)
+class ColorSchemeSettings:
+    path: Path | None = None
 
 
 @dataclass(frozen=True)
 class AppSettings:
     output: OutputSettings = field(default_factory=OutputSettings)
+    templates: TemplatesSettings = field(default_factory=TemplatesSettings)
+    color_scheme: ColorSchemeSettings = field(default_factory=ColorSchemeSettings)

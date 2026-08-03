@@ -33,3 +33,9 @@ OUTPUT_DIR_OPT: Path | None = typer.Option(
     "--output-dir",
     help="Override output root directory for all groups",
 )
+
+CONFIG_OPT: Path | None = typer.Option(
+    None,
+    "--config",
+    help="Path to the settings.toml file (defaults to discovery + bundled defaults)",
+)

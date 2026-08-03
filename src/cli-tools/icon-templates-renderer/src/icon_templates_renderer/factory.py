@@ -3,18 +3,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from icon_templates_renderer.adapters.assembled_config_resolver import AssembledConfigResolver
+from icon_templates_renderer.adapters.color_scheme_resolver import ColorSchemeResolver
 from icon_templates_renderer.adapters.file_color_scheme_loader import FileColorSchemeLoader
 from icon_templates_renderer.adapters.file_svg_renderer import FileSvgRenderer
 from icon_templates_renderer.adapters.icon_renderer import IconRenderer
+from icon_templates_renderer.adapters.template_dir_resolver import TemplateDirResolver
 from icon_templates_renderer.adapters.yaml_icon_config_loader import YamlIconConfigLoader
 from icon_templates_renderer.adapters.yaml_vocabulary_loader import YamlVocabularyLoader
 from icon_templates_renderer.domain.enums import OutputFormat, Verbosity
 from icon_templates_renderer.ports.color_scheme_loader import ColorSchemeLoaderPort
+from icon_templates_renderer.ports.color_scheme_resolver import ColorSchemeResolverPort
 from icon_templates_renderer.ports.config_resolver import ConfigResolverPort
 from icon_templates_renderer.ports.icon_config_loader import IconConfigLoaderPort
 from icon_templates_renderer.ports.icon_renderer import IconRendererPort
 from icon_templates_renderer.ports.output import OutputPort
 from icon_templates_renderer.ports.svg_renderer import SvgRendererPort
+from icon_templates_renderer.ports.template_dir_resolver import TemplateDirResolverPort
 from icon_templates_renderer.ports.vocabulary_loader import VocabularyLoaderPort
 
 
@@ -26,6 +30,8 @@ class CliDependencies:
     svg_renderer: SvgRendererPort = field(default_factory=FileSvgRenderer)
     icon_renderer: IconRendererPort | None = None
     config_resolver: ConfigResolverPort | None = None
+    template_dir_resolver: TemplateDirResolverPort | None = None
+    color_scheme_resolver: ColorSchemeResolverPort | None = None
     output_adapter: OutputPort | None = None
 
     def __post_init__(self) -> None:
@@ -58,6 +64,14 @@ def create_config_resolver() -> AssembledConfigResolver:
     return AssembledConfigResolver()
 
 
+def create_template_dir_resolver() -> TemplateDirResolver:
+    return TemplateDirResolver()
+
+
+def create_color_scheme_resolver() -> ColorSchemeResolver:
+    return ColorSchemeResolver()
+
+
 def create_output_adapter(
     fmt: OutputFormat,
     verbosity: Verbosity = Verbosity.NORMAL,
@@ -75,3 +89,11 @@ def create_output_adapter(
     if fmt is OutputFormat.PLAIN:
         return PlainOutput(verbosity=verbosity, renderer=renderer)
     return JsonOutput(verbosity=verbosity, renderer=renderer)
+
+
+def build_deps() -> CliDependencies:
+    return CliDependencies(
+        config_resolver=create_config_resolver(),
+        template_dir_resolver=create_template_dir_resolver(),
+        color_scheme_resolver=create_color_scheme_resolver(),
+    )
