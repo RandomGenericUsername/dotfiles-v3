@@ -7,14 +7,14 @@ TBD - created by archiving change csg-templates-info-catalog. Update Purpose aft
 
 `csg info` SHALL emit a `templates` block in JSON output, a `Templates:` section in plain output, and a Templates table in rich output — analogous to WEG's `catalog` block.
 
-The templates catalog SHALL be derived by scanning the resolved templates directory and parsing the naming convention `colors.<fmt>.j2`, mapping `<fmt>` to the `ColorFormat` enum.
+The templates catalog SHALL be derived by scanning the resolved templates directory and parsing the naming convention `colors.<fmt>.j2`, mapping `<fmt>` to the `ColorFormat` enum. The bundled template count SHALL be 9 (was 8) and `templates.formats` SHALL include `"conf"` in addition to the existing `"json"`, `"sh"`, `"css"`, and other standard entries.
 
 #### Scenario: info shows templates block with count and formats
 
 - **WHEN** `csg info` is run
 - **THEN** the JSON output contains a `templates` key
-- **THEN** `templates.templates_count` is a positive integer (e.g. 8 for bundled templates)
-- **THEN** `templates.formats` is a list of strings (e.g. {"json", "sh", "css"})
+- **THEN** `templates.templates_count` is a positive integer (e.g. 9 for bundled templates)
+- **THEN** `templates.formats` is a list of strings (e.g. {"json", "sh", "css", "conf"})
 - **THEN** `templates.source_dir` is a string path to the resolved templates directory
 
 #### Scenario: plain output shows Templates section
@@ -33,6 +33,12 @@ The templates catalog SHALL be derived by scanning the resolved templates direct
 - **WHEN** `csg info --templates-dir /custom/path` is run
 - **THEN** the templates catalog is derived from `/custom/path` (not the auto-resolved path)
 - **THEN** `templates.source_dir` equals `/custom/path`
+
+#### Scenario: derive from bundled templates
+
+- **WHEN** derive is called on the bundled `defaults/templates/` directory
+- **THEN** all 9 standard format entries are present
+- **AND** each entry has a valid `ColorFormat`
 
 ### Requirement: OutputPort protocol declares config_info
 
@@ -89,7 +95,7 @@ The single adapter `DirectoryTemplateCatalogLoader` SHALL wrap the existing `Tem
 #### Scenario: derive from bundled templates
 
 - **WHEN** derive is called on the bundled `defaults/templates/` directory
-- **THEN** all 8 standard format entries are present
+- **THEN** all 9 standard format entries are present
 - **THEN** each entry has a valid `ColorFormat`
 
 #### Scenario: derive rejects unknown formats

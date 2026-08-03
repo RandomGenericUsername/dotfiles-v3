@@ -29,7 +29,7 @@
 |-------|---------|
 | `Backend` enum | `CUSTOM` / `PYWAL` / `WALLUST`; `image_suffix` property → `"custom"`, `"pywal"`, `"wallust"`. **No `AUTO` member** (D10) |
 | `ColorAlgorithm` enum | Per-backend algorithm selectors (KMEANS / THIEF / SOLARIZED / etc.) — informational; actual valid values are enforced by `BackendParameterDefinition.choices` |
-| `ColorFormat` enum | JSON / SH / CSS / GTK_CSS / YAML / RASI / SCSS / SEQUENCES — output file formats the user can request via `-f` |
+| `ColorFormat` enum | JSON / SH / CSS / GTK_CSS / YAML / RASI / SCSS / SEQUENCES / HYPRLAND (`"conf"`) — output file formats the user can request via `-f` |
 | `RuntimeMode` enum | LOCAL / CONTAINER |
 | `ContainerEngine` enum | DOCKER / PODMAN |
 | `OutputFormat` enum | JSON / RICH / PLAIN (default: JSON) — CLI status rendering format |
@@ -491,6 +491,7 @@ color-scheme-generator/
         │   ├── backends.yaml
         │   └── templates/
         │       ├── colors.css.j2
+        │       ├── colors.conf.j2
         │       ├── colors.gtk.css.j2
         │       ├── colors.json.j2
         │       ├── colors.rasi.j2
@@ -670,7 +671,7 @@ wallust:
 
 ### `defaults/templates/*.j2` (package defaults)
 
-8 Jinja2 templates ported verbatim from v2 `packages/core/src/color_scheme/templates/`: `colors.{css,gtk.css,json,rasi,scss,sequences,sh,yaml}.j2`. Render context: `source_image`, `backend`, `generated_at`, `background`/`foreground`/`cursor` (`Color` with `.hex`/`.rgb`), `colors` (16-tuple of `Color`). The `sequences` format gets binary post-processing in `JinjaTemplateRenderer`.
+9 Jinja2 templates ported verbatim from v2 `packages/core/src/color_scheme/templates/` (plus `colors.conf.j2` for the Hyprland format): `colors.{conf,css,gtk.css,json,rasi,scss,sequences,sh,yaml}.j2`. Render context: `source_image`, `backend`, `generated_at`, `background`/`foreground`/`cursor` (`Color` with `.hex`/`.rgb`), `colors` (16-tuple of `Color`). The `sequences` format gets binary post-processing in `JinjaTemplateRenderer`.
 
 ---
 

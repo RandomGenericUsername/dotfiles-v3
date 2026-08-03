@@ -1,0 +1,7 @@
+$background = rgb({{ background.hex[1:] }})
+$foreground = rgb({{ foreground.hex[1:] }})
+$cursor = rgb({{ cursor.hex[1:] }})
+$accent = rgb({{ colors[1].hex[1:] }})
+{% for i in range(16) %}
+$color{{ i }} = rgb({{ colors[i].hex[1:] }})
+{% endfor %}

@@ -29,6 +29,7 @@ class TestColorFormat:
         assert ColorFormat.SEQUENCES.value == "sequences"
         assert ColorFormat.RASI.value == "rasi"
         assert ColorFormat.SCSS.value == "scss"
+        assert ColorFormat.HYPRLAND.value == "conf"
 
 
 class TestOutputFormat:
