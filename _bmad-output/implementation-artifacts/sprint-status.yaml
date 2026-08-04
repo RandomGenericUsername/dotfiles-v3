@@ -5,73 +5,80 @@
 #   - in-progress: Epic actively being worked on
 #   - done: All stories in epic completed
 #
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
 # Story Status:
 #   - backlog: Story only exists in epic file
 #   - ready-for-dev: Story file created in stories folder
 #   - in-progress: Developer actively working on implementation
-#   - review: Ready for code review
+#   - review: Ready for code review (via Dev's code-review workflow)
 #   - done: Story completed
 #
 # Retrospective Status:
 #   - optional: Can be completed but not required
 #   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
-generated: 2026-07-16
-last_updated: 2026-07-22
-# Story 4.3 completed and moved to review on 2026-07-22
+# generated: 2026-08-03
+# last_updated: 2026-08-03
+# project: dotfiles-repo-v3
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
 
-# Review completed by bmad-code-review on 2026-07-22
-
-# Story 4.2 created by bmad-create-story on 2026-07-22
-
-
-
-# Story 3.1 created by bmad-create-story on 2026-07-19
-
-
-
+generated: 2026-08-03
+last_updated: 2026-08-03
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
 story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
 
 development_status:
-  # ── Epic 1: Extract Your First Palette ──
-  epic-1: done
-  1-1-domain-foundation: done
-  1-2-core-ports-minimal: done
-  1-3-custom-backend-adapter: done
-  1-4-json-output-adapter: done
-  1-5-local-processor-generation-service: done
-  1-6-cli-generate-command: done
-  1-7-cli-show-version-commands: done
-  epic-1-retrospective: done
+  # ── Epic 1: Provisioning Orchestrator ──
+  epic-1: in-progress
+  1-1-scaffold-the-provisioning-package: review
+  1-2-domain-models-and-enums: backlog
+  1-3-hexagonal-boundary-lock: backlog
+  1-4-ports: backlog
+  1-5-adapters: backlog
+  1-6-provision-use-case: backlog
+  1-7-verify-and-bootstrap-use-cases: backlog
+  1-8-typer-cli: backlog
+  epic-1-retrospective: optional
 
-  # ── Epic 2: Configure & Extend ──
-  epic-2: in-progress
-  2-1-full-domain-and-remaining-ports: done
-  2-2-settings-config-resolution-pipeline: done
-  2-3-backend-yaml-catalog-resolution: done
-  2-4-pywal-backend-adapter: done
-  2-5-wallust-backend-adapter: done
-  2-6-template-rendering: done
-  2-7-rich-and-plain-output-adapters: done
-  2-8-operational-commands: done
-  2-9-full-generate-show-with-config: done
-  2-10-shell-completion-and-first-run: done
+  # ── Epic 2: Machine Provisioning Content ──
+  epic-2: backlog
+  2-1-declarative-manifests: backlog
+  2-2-ansible-scaffold: backlog
+  2-3-packages-role: backlog
+  2-4-cli-tools-role: backlog
+  2-5-filesystem-role: backlog
+  2-6-assets-role: backlog
+  2-7-default-palette-role: backlog
+  2-8-compositor-skeleton-configs: backlog
+  2-9-compositor-configs-role: backlog
+  2-10-symlinks-role: backlog
+  2-11-settings-role: backlog
+  2-12-verify-role-and-aggregate-bootstrap-playbook: backlog
   epic-2-retrospective: optional
 
-  # ── Epic 3: Container Execution ──
-  epic-3: in-progress
-  3-1-runtime-mode-wiring-and-composition-root: done
-  3-2-container-processor: done
-  3-3-install-uninstall-commands: done
-  3-4-error-mapping-oci-runtime-to-domain: done
+  # ── Epic 3: Reproducible Bootstrap & Verified Install ──
+  epic-3: backlog
+  3-1-fresh-machine-bootstrap-script: backlog
+  3-2-playbook-dry-run-integration-tests: backlog
+  3-3-settings-parity-and-default-palette-integration-tests: backlog
   epic-3-retrospective: optional
-
-  # ── Epic 4: Production Polish ──
-  epic-4: in-progress
-  4-1-dry-run-processor: done
-  4-2-edge-case-hardening: done
-   4-3-port-contract-tests: done
-  epic-4-retrospective: optional

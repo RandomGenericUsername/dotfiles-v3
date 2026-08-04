@@ -1,0 +1,51 @@
+[project]
+name = "dotfiles-provision"
+version = "0.1.0"
+description = "Machine provisioning orchestrator for the dotfiles system (plan/apply/verify/bootstrap via Ansible)"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "pydantic>=2.0",
+    "cli-output",
+    "ansible-core>=2.16",
+]
+
+[project.scripts]
+dotfiles-provision = "provisioning.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/provisioning"]
+
+[tool.uv.sources]
+cli-output = { path = "../shared/cli-output", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B"]
+ignore = ["B905"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disable_error_code = ["import-untyped"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.15.17",
+    "mypy>=1.10",
+]

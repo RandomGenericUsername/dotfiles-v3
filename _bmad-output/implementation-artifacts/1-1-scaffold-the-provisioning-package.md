@@ -1,8 +1,14 @@
+---
+baseline_commit: 2028d51a46fc8837a9330a4d7108bcc51f5fece0
+---
+
 # Story 1.1: Scaffold the Provisioning Package
 
-Status: ready-for-dev
+Status: review
 
-<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+## Change Log
+
+- 2026-08-03: Story implemented — `src/provisioning` uv package scaffolded, stub CLI with `version` command rendering via `cli-output`, 4 tests passing, `uv lock` resolved, ruff/mypy clean. Status → review.
 
 ## Story
 
@@ -20,20 +26,20 @@ so that the provisioning tool can be built, installed, and extended incrementall
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/pyproject.toml` (AC: 1, 2)
-  - [ ] `[project]` name = `dotfiles-provision`, version, description, `requires-python`
-  - [ ] Runtime deps: `typer`, `pydantic`, `cli-output`, `ansible-core`
-  - [ ] `[project.scripts]` → `dotfiles-provision = "provisioning.cli.main:app"`
-  - [ ] Dev deps (`[dependency-groups]`): `pytest`, `ruff`, `mypy`
-  - [ ] `[tool.hatch.build.targets.wheel]` packages = `["src/provisioning"]`
-  - [ ] `[tool.uv.sources]` → `cli-output = { path = "../../shared/cli-output", editable = true }`
-  - [ ] `[tool.pytest.ini_options]`, `[tool.ruff]` matching repo convention
-- [ ] Create package skeleton `src/provisioning/src/provisioning/` (AC: 4)
-  - [ ] `__init__.py` with `__version__`
-  - [ ] `cli/main.py` — stub Typer app with a `version` command rendering via `cli-output`
-- [ ] Create `src/provisioning/tests/` with a stub CLI test (AC: 4)
-- [ ] Run `uv lock` in `src/provisioning/` and confirm it resolves (AC: 5)
-- [ ] Run the stub CLI and confirm exit 0 (AC: 3)
+- [x] Create `src/provisioning/pyproject.toml` (AC: 1, 2)
+  - [x] `[project]` name = `dotfiles-provision`, version, description, `requires-python`
+  - [x] Runtime deps: `typer`, `pydantic`, `cli-output`, `ansible-core`
+  - [x] `[project.scripts]` → `dotfiles-provision = "provisioning.cli.main:app"`
+  - [x] Dev deps (`[dependency-groups]`): `pytest`, `ruff`, `mypy`
+  - [x] `[tool.hatch.build.targets.wheel]` packages = `["src/provisioning"]`
+  - [x] `[tool.uv.sources]` → `cli-output = { path = "../shared/cli-output", editable = true }`
+  - [x] `[tool.pytest.ini_options]`, `[tool.ruff]` matching repo convention
+- [x] Create package skeleton `src/provisioning/src/provisioning/` (AC: 4)
+  - [x] `__init__.py` with `__version__`
+  - [x] `cli/main.py` — stub Typer app with a `version` command rendering via `cli-output`
+- [x] Create `src/provisioning/tests/` with a stub CLI test (AC: 4)
+- [x] Run `uv lock` in `src/provisioning/` and confirm it resolves (AC: 5)
+- [x] Run the stub CLI and confirm exit 0 (AC: 3)
 
 ## Dev Notes
 
@@ -134,8 +140,25 @@ opencode-go/deepseek-v4-flash
 
 ### Debug Log References
 
+- `uv lock` initially failed with "Distribution not found at: .../shared/cli-output" — the `uv.sources` relative path was `../../shared/cli-output` (copied from the CSG pattern at `src/cli-tools/`), but provisioning lives at `src/provisioning/` so the correct path is `../shared/cli-output`. Fixed.
+- mypy reported `import-untyped` for the local `cli-output` package (no `py.typed` marker). Out of scope for this story to add the marker to the shared package; `disable_error_code = ["import-untyped"]` keeps strict mode for provisioning code.
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- Scaffolded `src/provisioning` uv package: pyproject.toml (name `dotfiles-provision`, entry point `provisioning.cli.main:app`, deps `typer`/`pydantic`/`cli-output`/`ansible-core`, dev `pytest`/`ruff`/`mypy`), src package skeleton, stub Typer CLI with a `version` command rendering through `cli-output`, README, uv.lock.
+- Stub CLI renders JSON `{"version": "0.1.0"}` and exits 0; renders via `cli-output` `CustomView`.
+- Tests: 4 pass (`test_cli.py`) — version renders version string, non-zero exit when package missing, Typer app assertions.
+- `uv lock` resolves 33 packages; ruff check + format clean; mypy clean (strict, `import-untyped` disabled).
+- §11 boundary respected: only cross-package dep is `cli-output`; no domain/ports/adapters/application folders created (later stories).
+- Validated against all 5 ACs; no regressions (new package, no existing code touched).
 
 ### File List
+
+- `src/provisioning/pyproject.toml` (new)
+- `src/provisioning/uv.lock` (new)
+- `src/provisioning/README.md` (new)
+- `src/provisioning/src/provisioning/__init__.py` (new)
+- `src/provisioning/src/provisioning/cli/__init__.py` (new)
+- `src/provisioning/src/provisioning/cli/main.py` (new)
+- `src/provisioning/tests/test_cli.py` (new)
+- `src/provisioning/.python-version` (new)
