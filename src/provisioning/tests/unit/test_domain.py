@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from provisioning.domain.enums import AssetKind, BinaryCapability, Distro
+import pytest
+
+from provisioning.domain.enums import AssetKind, Capability, CapabilityKind, Distro
 from provisioning.domain.models import (
     MachineState,
     ProvisionManifest,
@@ -22,18 +24,31 @@ class TestDistro:
         assert Distro("arch") is Distro.ARCH
         assert Distro("debian-family") is Distro.DEBIAN_FAMILY
 
+    def test_invalid_value_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            Distro("fedora")
 
-class TestBinaryCapability:
+
+class TestCapability:
     def test_members(self) -> None:
-        assert BinaryCapability.HYPRLAND.value == "Hyprland"
-        assert BinaryCapability.HYPRPAPER.value == "Hyprpaper"
-        assert BinaryCapability.WAYBAR.value == "Waybar"
-        assert BinaryCapability.CSG.value == "csg"
-        assert BinaryCapability.WEG.value == "weg"
-        assert BinaryCapability.ICON_RENDERER.value == "icon-renderer"
+        assert Capability.HYPRLAND.value == "Hyprland"
+        assert Capability.HYPRPAPER.value == "hyprpaper"
+        assert Capability.WAYBAR.value == "waybar"
+        assert Capability.CSG.value == "csg"
+        assert Capability.WEG.value == "weg"
+        assert Capability.ICON_RENDERER.value == "itr"
+        assert Capability.FONTS.value == "fonts"
 
-    def test_fonts_covered(self) -> None:
-        assert BinaryCapability.FONTS.value == "fonts"
+    def test_kind_binary(self) -> None:
+        assert Capability.HYPRLAND.kind() is CapabilityKind.BINARY
+        assert Capability.HYPRPAPER.kind() is CapabilityKind.BINARY
+        assert Capability.WAYBAR.kind() is CapabilityKind.BINARY
+        assert Capability.CSG.kind() is CapabilityKind.BINARY
+        assert Capability.WEG.kind() is CapabilityKind.BINARY
+        assert Capability.ICON_RENDERER.kind() is CapabilityKind.BINARY
+
+    def test_kind_package_group(self) -> None:
+        assert Capability.FONTS.kind() is CapabilityKind.PACKAGE_GROUP
 
 
 class TestAssetKind:
@@ -51,14 +66,14 @@ class TestSpec:
         assert spec.name == "hyprland"
         assert spec.version == "0.1.0"
 
+    def test_missing_required_field_rejected(self) -> None:
+        with pytest.raises(TypeError):
+            Spec()  # type: ignore[call-arg]
+
     def test_frozen(self) -> None:
         spec = Spec(name="hyprland", version="0.1.0")
-        try:
+        with pytest.raises(AttributeError):
             spec.name = "waybar"  # type: ignore[misc]
-        except AttributeError:
-            pass
-        else:
-            raise AssertionError("Spec must be frozen")
 
     def test_equality(self) -> None:
         assert Spec(name="hyprland", version="0.1.0") == Spec(name="hyprland", version="0.1.0")
@@ -73,12 +88,8 @@ class TestMachineState:
 
     def test_frozen(self) -> None:
         state = MachineState(distro=Distro.ARCH, install_dir="/x")
-        try:
+        with pytest.raises(AttributeError):
             state.install_dir = "/y"  # type: ignore[misc]
-        except AttributeError:
-            pass
-        else:
-            raise AssertionError("MachineState must be frozen")
 
     def test_equality(self) -> None:
         assert MachineState(distro=Distro.ARCH, install_dir="/x") == MachineState(
@@ -91,46 +102,57 @@ class TestMachineState:
 
 class TestProvisionManifest:
     def test_constructs_with_all_fields(self) -> None:
-        manifest = ProvisionManifest(kind="packages", entries=[Spec(name="hyprland", version=None)])
+        manifest = ProvisionManifest(
+            kind="packages", entries=(Spec(name="hyprland", version=None),)
+        )
         assert manifest.kind == "packages"
         assert len(manifest.entries) == 1
 
     def test_frozen(self) -> None:
-        manifest = ProvisionManifest(kind="packages", entries=[])
-        try:
+        manifest = ProvisionManifest(kind="packages", entries=())
+        with pytest.raises(AttributeError):
             manifest.kind = "assets"  # type: ignore[misc]
-        except AttributeError:
-            pass
-        else:
-            raise AssertionError("ProvisionManifest must be frozen")
+
+    def test_hashable(self) -> None:
+        manifest = ProvisionManifest(kind="packages", entries=())
+        assert isinstance(hash(manifest), int)
+
+    def test_default_entries_are_independent(self) -> None:
+        manifest_a = ProvisionManifest(kind="packages")
+        manifest_b = ProvisionManifest(kind="packages")
+        assert manifest_a.entries == ()
+        assert manifest_b.entries == ()
+        assert hash(manifest_a) == hash(manifest_b)
 
     def test_equality(self) -> None:
-        entries = [Spec(name="hyprland", version=None)]
-        assert ProvisionManifest(kind="packages", entries=entries) == ProvisionManifest(
-            kind="packages", entries=entries
+        entries_a = (Spec(name="hyprland", version=None),)
+        entries_b = (Spec(name="hyprland", version=None),)
+        assert entries_a is not entries_b
+        assert ProvisionManifest(kind="packages", entries=entries_a) == ProvisionManifest(
+            kind="packages", entries=entries_b
         )
-        assert ProvisionManifest(kind="packages", entries=entries) != ProvisionManifest(
-            kind="assets", entries=entries
+        assert ProvisionManifest(kind="packages", entries=entries_a) != ProvisionManifest(
+            kind="assets", entries=entries_a
         )
 
 
 class TestProvisionResult:
     def test_constructs_with_all_fields(self) -> None:
-        result = ProvisionResult(success=True, tasks=[("packages", "ok")])
+        result = ProvisionResult(success=True, tasks=(("packages", "ok"),))
         assert result.success is True
-        assert result.tasks == [("packages", "ok")]
+        assert result.tasks == (("packages", "ok"),)
 
     def test_frozen(self) -> None:
-        result = ProvisionResult(success=True, tasks=[])
-        try:
+        result = ProvisionResult(success=True, tasks=())
+        with pytest.raises(AttributeError):
             result.success = False  # type: ignore[misc]
-        except AttributeError:
-            pass
-        else:
-            raise AssertionError("ProvisionResult must be frozen")
+
+    def test_hashable(self) -> None:
+        result = ProvisionResult(success=True, tasks=())
+        assert isinstance(hash(result), int)
 
     def test_equality(self) -> None:
-        assert ProvisionResult(success=True, tasks=[("packages", "ok")]) == ProvisionResult(
-            success=True, tasks=[("packages", "ok")]
+        assert ProvisionResult(success=True, tasks=(("packages", "ok"),)) == ProvisionResult(
+            success=True, tasks=(("packages", "ok"),)
         )
-        assert ProvisionResult(success=True, tasks=[]) != ProvisionResult(success=False, tasks=[])
+        assert ProvisionResult(success=True, tasks=()) != ProvisionResult(success=False, tasks=())

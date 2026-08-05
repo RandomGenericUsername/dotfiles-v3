@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from provisioning.domain.enums import AssetKind, BinaryCapability, Distro
+from provisioning.domain.enums import Distro
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ class ProvisionManifest:
     """A parsed declarative manifest (``dotfiles/provisioning/*.yaml``)."""
 
     kind: str
-    entries: list[Spec] = field(default_factory=list)
+    entries: tuple[Spec, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -41,13 +41,10 @@ class ProvisionResult:
     """The outcome of a provisioning run, surfaced per task."""
 
     success: bool
-    tasks: list[tuple[str, str]] = field(default_factory=list)
+    tasks: tuple[tuple[str, str], ...] = field(default_factory=tuple)
 
 
 __all__ = [
-    "AssetKind",
-    "BinaryCapability",
-    "Distro",
     "MachineState",
     "ProvisionManifest",
     "ProvisionResult",

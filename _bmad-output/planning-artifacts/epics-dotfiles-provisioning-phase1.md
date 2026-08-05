@@ -25,7 +25,7 @@ FR-3: Verify Command — `dotfiles-provision verify` asserts all ten done-criter
 FR-4: Bootstrap Command — `dotfiles-provision bootstrap` runs the aggregate `bootstrap.yaml` end-to-end.
 FR-5: Fresh-Machine Bootstrap — `scripts/bootstrap.sh` pre-seeds Python+uv if absent, then runs `uv run --directory ./src/provisioning dotfiles-provision bootstrap`; a fresh Arch or Debian-family machine is fully provisioned from `git clone` + one command (CAP-4).
 FR-6: Provisioning Package Scaffold — `src/provisioning` is a standalone uv package with entry point `dotfiles-provision`; deps: `typer`, `pydantic`, `cli-output` (via `uv.sources`), `ansible-core`; dev: `pytest`, `ruff`, `mypy`.
-FR-7: Domain Models and Enums — Pure, zero-I/O domain: `MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec` dataclasses and `Distro`, `BinaryCapability`, `AssetKind` enums.
+FR-7: Domain Models and Enums — Pure, zero-I/O domain: `MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec` dataclasses and `Distro`, `Capability`, `CapabilityKind`, `AssetKind` enums.
 FR-8: Ports — `IProvisionExecutor` (abstracts `ansible-playbook`, `check: bool`), `IManifestReader`, `IFactReader.os_family()` (thin: selects `group_vars`, never inspects packages).
 FR-9: Use Cases — `ProvisionMachineUseCase` (plan=check:True / apply=check:False), `VerifyCapabilityUseCase`, `BootstrapUseCase` wiring ports → use cases.
 FR-10: Adapters — `ansible_executor.py` (shells to `ansible-playbook` with `-i`, `--tags`, `--check`, `--extra-vars`; surfaces per-task changed/ok), `yaml_manifest_reader.py` (reads `dotfiles/provisioning/*.yaml`), `ansible_fact_reader.py` (parses `ansible -m setup` for `ansible_os_family`).
@@ -176,7 +176,7 @@ So that provisioning logic is testable in isolation without touching the filesys
 **Given** the domain module under `src/provisioning/domain/`
 **When** I implement `models.py` and `enums.py`
 **Then** `MachineState`, `ProvisionManifest`, `ProvisionResult`, and `Spec` are defined as frozen dataclasses with typed fields
-**And** `Distro`, `BinaryCapability`, and `AssetKind` are defined as `StrEnum` enums
+**And** `Distro`, `Capability`, `CapabilityKind`, and `AssetKind` are defined as `StrEnum` enums
 **And** no domain module imports `os`, `subprocess`, `shutil`, `pathlib`, or any I/O library
 **And** unit tests exercise construction, validation, and equality with zero fixtures or temp files (FR-7, NFR-5)
 

@@ -4,7 +4,7 @@ baseline_commit: c25dbec63e352ff1d46a269ddb02e44473fa04cd
 
 # Story 1.2: Domain Models and Enums
 
-Status: review
+Status: done
 
 ## Change Log
 
@@ -19,7 +19,7 @@ so that provisioning logic is testable in isolation without touching the filesys
 ## Acceptance Criteria
 
 1. `MachineState`, `ProvisionManifest`, `ProvisionResult`, and `Spec` are defined as frozen dataclasses with typed fields under `src/provisioning/domain/models.py` (AC 1, FR-7)
-2. `Distro`, `BinaryCapability`, and `AssetKind` are defined as `StrEnum` enums under `src/provisioning/domain/enums.py` (AC 2, FR-7)
+2. `Distro`, `Capability`, `CapabilityKind`, and `AssetKind` are defined as `StrEnum` enums under `src/provisioning/domain/enums.py` (AC 2, FR-7)
 3. No domain module imports `os`, `subprocess`, `shutil`, `pathlib`, or any I/O library (AC 3, FR-7, NFR-5)
 4. Unit tests exercise construction, validation, and equality with zero fixtures or temp files (AC 4, FR-7, NFR-5)
 
@@ -28,7 +28,7 @@ so that provisioning logic is testable in isolation without touching the filesys
 - [x] Create `src/provisioning/src/provisioning/domain/__init__.py` (AC: 1, 2)
 - [x] Create `src/provisioning/src/provisioning/domain/enums.py` (AC: 2)
   - [x] `Distro` StrEnum — Arch, DebianFamily (matching `group_vars/{arch,debian-family}.yml` seam contract)
-  - [x] `BinaryCapability` StrEnum — system binaries (Hyprland, Hyprpaper, Waybar, fonts), CLI tools (csg, weg, icon-renderer)
+  - [x] `Capability` StrEnum + `CapabilityKind` — values are real on-PATH names (Hyprland, hyprpaper, waybar, csg, weg, itr) or package-group key (fonts); `Capability.kind()` maps each member to BINARY/PACKAGE_GROUP for the verify port
   - [x] `AssetKind` StrEnum — wallpaper, icon-template, icon-mapping, csg-template, weg-effects
 - [x] Create `src/provisioning/src/provisioning/domain/models.py` (AC: 1, 3)
   - [x] `MachineState` frozen dataclass with typed fields
@@ -41,6 +41,22 @@ so that provisioning logic is testable in isolation without touching the filesys
   - [x] Equality tests — equal/unequal instances compare correctly
   - [x] Zero fixtures, zero temp files
 - [x] Run tests, ruff, mypy, format (AC: 4)
+
+### Review Findings
+
+- [x] [Review][Decision] `FONTS = "fonts"` sat in `BinaryCapability` but is a package group, not a binary on PATH — resolved by modeling capability verification: `BinaryCapability` renamed to `Capability` and paired with a `CapabilityKind` enum (BINARY / PACKAGE_GROUP) plus a domain mapping `Capability.kind()`, so the verify port dispatches on kind and future kinds extend the mapping without touching ports
+- [x] [Review][Patch] `ICON_RENDERER = "icon-renderer"` did not match the real on-PATH binary `itr` — fixed value to `"itr"` [enums.py:31]
+- [x] [Review][Patch] `HYPRPAPER`/`WAYBAR` used PascalCase but the on-PATH binaries are lowercase — fixed values to `"hyprpaper"`/`"waybar"` [enums.py:26-27]
+- [x] [Review][Patch] AC 4 validation tests marked `[x]` but none existed — added negative tests (`Distro("fedora")` → ValueError, `Spec()` → TypeError) [test_domain.py]
+- [x] [Review][Patch] `ProvisionManifest.entries`/`ProvisionResult.tasks` used `list` → unhashable and shallowly mutable despite `frozen=True` — switched to `tuple[...]` fields with `default_factory=tuple`; added hashability + default-independence tests [models.py:36,44]
+- [x] [Review][Patch] `models.py.__all__` re-exported the enums, duplicating `__init__.py` — removed the redundant enum re-exports and unused imports [models.py]
+- [x] [Review][Patch] `Distro` docstring conflated raw `ansible_os_family` values (`Debian`/`Archlinux`) with the group_vars filename `debian-family` — clarified docstring: values match the group_vars filenames; the mapping from raw fact to `Distro` is a later adapter concern [enums.py:8-16]
+- [x] [Review][Patch] `test_frozen` used hand-rolled try/except instead of `pytest.raises` — converted to `pytest.raises` [test_domain.py]
+- [x] [Review][Patch] `TestProvisionManifest.test_equality` reused the same list object for both operands — now uses two separately-constructed-but-equal tuples [test_domain.py]
+- [x] [Review][Patch] Default-factory instance independence untested — added `test_default_entries_are_independent` [test_domain.py]
+- [x] [Review][Defer] `ProvisionResult.tasks` is an anonymous `tuple[str, str]` with no status enum — real shape arrives with adapters (Story 1.5) [models.py:44] — deferred, pre-existing
+- [x] [Review][Defer] `ProvisionManifest.kind` is a free-form `str` overlapping `AssetKind` semantics — concrete kinds arrive with manifests (Story 2.1) [models.py:35] — deferred, pre-existing
+- [x] [Review][Defer] `AssetKind` values may not match future install-spine path segments (`icon-mapping` vs `icon-mappings`) — resolved in adapter story [enums.py:34-38] — deferred, pre-existing
 
 ## Dev Notes
 
@@ -107,11 +123,13 @@ opencode-go/deepseek-v4-flash
 
 ### Completion Notes List
 
-- Created pure zero-I/O domain layer under `src/provisioning/src/provisioning/domain/`: `enums.py` (`Distro`, `BinaryCapability`, `AssetKind` StrEnums) and `models.py` (`MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec` frozen dataclasses with typed fields).
+- Created pure zero-I/O domain layer under `src/provisioning/src/provisioning/domain/`: `enums.py` (`Distro`, `Capability`, `CapabilityKind`, `AssetKind` StrEnums) and `models.py` (`MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec` frozen dataclasses with typed fields).
+- `Capability` values are the real on-PATH names (`Hyprland`, `hyprpaper`, `waybar`, `csg`, `weg`, `itr`) plus the `fonts` package group; `Capability.kind()` maps each member to `CapabilityKind` (BINARY / PACKAGE_GROUP) so the verify port dispatches on kind.
 - `Distro` values match the `group_vars/{arch,debian-family}.yml` seam contract (`Distro.ARCH = "arch"`, `Distro.DEBIAN_FAMILY = "debian-family"`) so `IFactReader.os_family()` maps directly.
+- `ProvisionManifest.entries` and `ProvisionResult.tasks` are `tuple`-typed so the frozen dataclasses are hashable and deeply immutable.
 - Verified zero-I/O mechanically: AST scan of all domain modules shows no `os`/`subprocess`/`shutil`/`pathlib` imports (AC 3, NFR-5).
-- Tests: 18 new domain tests + 4 existing CLI = 22 pass. Construction, frozen-ness, equality, and enum members covered — zero fixtures, zero temp files (AC 4, NFR-5).
-- ruff check + format clean; mypy strict clean (8 source files).
+- Tests: 28 pass (24 domain + 4 existing CLI). Construction, validation (ValueError/TypeError), frozen-ness, hashability, equality, and enum members covered — zero fixtures, zero temp files (AC 4, NFR-5).
+- ruff check + format clean; mypy strict clean.
 - Scope boundary respected: only `domain/` created; no ports/adapters/application (later stories).
 
 ### File List

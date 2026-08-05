@@ -152,7 +152,7 @@ A mechanical test (`tests/architecture/test_layering.py`) enforces the in-packag
 
 #### FR-7: Domain Models and Enums
 
-Pure, zero-I/O domain under `src/provisioning/domain/`: frozen dataclasses `MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec`; `StrEnum` enums `Distro`, `BinaryCapability`, `AssetKind`.
+Pure, zero-I/O domain under `src/provisioning/domain/`: frozen dataclasses `MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec`; `StrEnum` enums `Distro`, `Capability`, `CapabilityKind`, `AssetKind`.
 
 **Consequences (testable):**
 - No domain module imports `os`, `subprocess`, `shutil`, `pathlib`, or any I/O library.

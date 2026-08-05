@@ -120,6 +120,12 @@
 - `inspect.isfunction` skips `@classmethod`/`@staticmethod` on ports [conftest.py:73-74,122-123] — all methods currently use regular functions
 - AC 8 uses test stub instead of production VersionProvider adapter — no production adapter exists yet
 
+## Deferred from: code review of story 1-2-domain-models-and-enums (2026-08-04)
+
+- `ProvisionResult.tasks` is an anonymous `tuple[str, str]` with no status enum [models.py:44] — real shape arrives with adapters (Story 1.5)
+- `ProvisionManifest.kind` is a free-form `str` overlapping `AssetKind` semantics [models.py:35] — concrete kinds arrive with manifests (Story 2.1)
+- `AssetKind` values may not match future install-spine path segments (`icon-mapping` vs `icon-mappings`) [enums.py:34-38] — resolved in adapter story
+
 ## Deferred from: code review of story 1-1-scaffold-the-provisioning-package (2026-08-03)
 
 - Version hard-fails from bare checkout — `importlib.metadata` raises PackageNotFoundError when dist metadata absent, exiting 1 even though `__version__` exists in `__init__.py`. Matches CSG `version_cmd.py` convention; success test depends on install state.

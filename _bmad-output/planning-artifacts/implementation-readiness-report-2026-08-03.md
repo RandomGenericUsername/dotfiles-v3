@@ -62,7 +62,7 @@ FR-3: Verify Command — `dotfiles-provision verify` asserts all ten done-criter
 FR-4: Bootstrap Command — `dotfiles-provision bootstrap` runs the aggregate `bootstrap.yaml` end-to-end.
 FR-5: Fresh-Machine Bootstrap — `scripts/bootstrap.sh` pre-seeds Python+uv, then runs `uv run --directory ./src/provisioning dotfiles-provision bootstrap` (CAP-4).
 FR-6: Provisioning Package Scaffold — `src/provisioning` standalone uv package with `dotfiles-provision` entry point; deps `typer`, `pydantic`, `cli-output` (via `uv.sources`), `ansible-core`.
-FR-7: Domain Models and Enums — pure zero-I/O domain: `MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec`; `Distro`, `BinaryCapability`, `AssetKind`.
+FR-7: Domain Models and Enums — pure zero-I/O domain: `MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec`; `Distro`, `Capability`, `CapabilityKind`, `AssetKind`.
 FR-8: Ports — `IProvisionExecutor` (`check: bool`), `IManifestReader`, `IFactReader.os_family()`.
 FR-9: Use Cases — `ProvisionMachineUseCase`, `VerifyCapabilityUseCase`, `BootstrapUseCase`.
 FR-10: Adapters — `ansible_executor.py`, `yaml_manifest_reader.py`, `ansible_fact_reader.py`.

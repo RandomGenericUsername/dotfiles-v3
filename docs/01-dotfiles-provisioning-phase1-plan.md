@@ -168,7 +168,7 @@ src/provisioning/
 ├── src/provisioning/
 │   ├── domain/
 │   │   ├── models.py                    # MachineState, ProvisionManifest, ProvisionResult, Spec dataclasses
-│   │   └── enums.py                     # Distro, BinaryCapability, AssetKind
+│   │   └── enums.py                     # Distro, Capability, CapabilityKind, AssetKind
 │   ├── ports/
 │   │   ├── provision_executor.py        # IProvisionExecutor (abstracts ansible-playbook; check: bool)
 │   │   ├── manifest_reader.py           # IManifestReader
