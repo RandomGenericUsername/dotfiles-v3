@@ -1,10 +1,15 @@
+---
+baseline_commit: 3430c4055b8af65cac6c1b8377bea66692699c7b
+---
+
 # Story 1.4: Ports
 
-Status: ready-for-dev
+Status: review
 
 ## Change Log
 
 - 2026-08-05: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-05: Story implemented — `src/provisioning/src/provisioning/ports/` created with the three locked ABC contracts: `IProvisionExecutor.run(playbook, check, extra_vars) -> ProvisionResult` (seam carries `install_dir` + `os_family`), `IManifestReader.read(path) -> ProvisionManifest`, `IFactReader.os_family() -> str`; each abstract body raises `NotImplementedError`; `ports/__init__.py` re-exports all three. 15 contract tests (5 per port: ABC, abstract, cannot-instantiate, NotImplementedError, fake satisfies contract). Story 1.3 layering guard's ports tests now run (were skipped) and pass. Full suite 72 passed / 1 skipped (was 51/3), ruff + mypy strict clean, standalone `test_layering.py` exits 0 over 10 source files. Status → review.
 
 ## Story
 
@@ -22,21 +27,21 @@ So that adapters and use cases stay decoupled and testable.
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/src/provisioning/ports/` package (AC: 1, 2, 3, 4)
-  - [ ] `provision_executor.py` — `class IProvisionExecutor(ABC)` with abstract `run(playbook: Path, check: bool, extra_vars: Mapping[str, str]) -> ProvisionResult` (AC 1; `extra_vars` is the locked seam — see Dev Notes)
-  - [ ] `manifest_reader.py` — `class IManifestReader(ABC)` with abstract `read(manifest_path: Path) -> ProvisionManifest` (AC 2)
-  - [ ] `fact_reader.py` — `class IFactReader(ABC)` with abstract `os_family() -> str` (AC 3)
-  - [ ] `__init__.py` — re-export all three ports (mirror `src/shared/oci-runtime/src/oci_runtime/ports/__init__.py`)
-  - [ ] Every abstract method body is exactly `raise NotImplementedError` (AC 4)
-- [ ] Port contract unit tests (AC: 5, NFR-5)
-  - [ ] `tests/unit/ports/__init__.py`
-  - [ ] `tests/unit/ports/test_provision_executor.py` — ABC subclass, `run` abstract, cannot instantiate, calling the unimplemented method raises `NotImplementedError`, fake subclass satisfies the interface
-  - [ ] `tests/unit/ports/test_manifest_reader.py` — same shape for `IManifestReader.read`
-  - [ ] `tests/unit/ports/test_fact_reader.py` — same shape for `IFactReader.os_family`
-- [ ] Verify against layering guard + full suite
-  - [ ] `uv run pytest tests/architecture/test_layering.py` — `test_ports_files_are_abstract_only` and `test_ports_import_no_adapters` now RUN (ports/ exists; previously skipped) and pass
-  - [ ] `uv run pytest` — full suite green, no regressions
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+- [x] Create `src/provisioning/src/provisioning/ports/` package (AC: 1, 2, 3, 4)
+  - [x] `provision_executor.py` — `class IProvisionExecutor(ABC)` with abstract `run(playbook: Path, check: bool, extra_vars: Mapping[str, str]) -> ProvisionResult` (AC 1; `extra_vars` is the locked seam — see Dev Notes)
+  - [x] `manifest_reader.py` — `class IManifestReader(ABC)` with abstract `read(manifest_path: Path) -> ProvisionManifest` (AC 2)
+  - [x] `fact_reader.py` — `class IFactReader(ABC)` with abstract `os_family() -> str` (AC 3)
+  - [x] `__init__.py` — re-export all three ports (mirror `src/shared/oci-runtime/src/oci_runtime/ports/__init__.py`)
+  - [x] Every abstract method body is exactly `raise NotImplementedError` (AC 4)
+- [x] Port contract unit tests (AC: 5, NFR-5)
+  - [x] `tests/unit/ports/__init__.py`
+  - [x] `tests/unit/ports/test_provision_executor.py` — ABC subclass, `run` abstract, cannot instantiate, calling the unimplemented method raises `NotImplementedError`, fake subclass satisfies the interface
+  - [x] `tests/unit/ports/test_manifest_reader.py` — same shape for `IManifestReader.read`
+  - [x] `tests/unit/ports/test_fact_reader.py` — same shape for `IFactReader.os_family`
+- [x] Verify against layering guard + full suite
+  - [x] `uv run pytest tests/architecture/test_layering.py` — `test_ports_files_are_abstract_only` and `test_ports_import_no_adapters` now RUN (ports/ exists; previously skipped) and pass
+  - [x] `uv run pytest` — full suite green, no regressions
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
 
 ## Dev Notes
 
@@ -187,6 +192,30 @@ opencode-go/deepseek-v4-flash
 
 ### Debug Log References
 
+- RED confirmed: 3 collection errors before `provisioning/ports` existed (imports unresolved).
+- mypy strict flagged 6 errors on the contract tests: `Port.method.__isabstractmethod__` not recognized on the bound `Callable` type (`attr-defined`) and `Port()` instantiation of an abstract class (`abstract`). Resolved with targeted `# type: ignore[attr-defined]` / `# type: ignore[abstract]` comments — the standard strict-mode pattern for abstractness contract tests (same friction the oci-runtime mirror tests would hit).
+- Layering guard verified after ports/ created: `test_ports_files_are_abstract_only` + `test_ports_import_no_adapters` went from skip → pass (22→29 tests in test_layering.py; full suite 51/3 → 72/1: +15 port contract tests, +4 parametrized layering cases over the new ports files, +2 formerly-skipped ports guards).
+
 ### Completion Notes List
 
+- Created `src/provisioning/src/provisioning/ports/` with the three locked ABC contracts (mirrors `oci_runtime/ports` ABC pattern exactly):
+  - `IProvisionExecutor.run(playbook: Path, check: bool, extra_vars: Mapping[str, str]) -> ProvisionResult` — `check` is the plan/apply switch; `extra_vars` is the locked seam that Story 1.5's seam-contract test and Story 1.6's use case depend on (`install_dir` + `os_family` keys).
+  - `IManifestReader.read(manifest_path: Path) -> ProvisionManifest` — one file at a time; the use case globs `dotfiles/provisioning/*.yaml`.
+  - `IFactReader.os_family() -> str` — returns the `group_vars` basename (`arch`/`debian-family`), matching `Distro` values; never inspects packages.
+  - `ports/__init__.py` re-exports all three (mirror `oci_runtime/ports/__init__.py`).
+- AC 4 ("Protocol-compatible", raise NotImplementedError): used `class X(ABC)` + `@abstractmethod` with `raise NotImplementedError` bodies (NOT `typing.Protocol`) — matches the layering guard's ports-ABC classification and the mirror.
+- AC 5 / NFR-5: 15 contract tests (5 per port) — `issubclass(port, ABC)`, method abstract, `pytest.raises(TypeError)` on instantiation, `pytest.raises(NotImplementedError)` on the unimplemented method, and a fully-typed fake subclass satisfying the interface.
+- Layering guard activated: the two forward-compatible ports tests now execute and pass; only `test_adapters_import_no_application` remains skipped until `adapters/` exists (Story 1.5).
+- No new dependencies; scope respected — ports ABCs and their contract tests only, no adapters/use cases (later stories).
+- Tests: 72 passed / 1 skipped; `ruff check` + `ruff format --check` clean; `mypy src tests` strict clean (17 files); standalone `python tests/architecture/test_layering.py` exits 0 ("OK: 10 source files checked").
+
 ### File List
+
+- `src/provisioning/src/provisioning/ports/__init__.py` (new)
+- `src/provisioning/src/provisioning/ports/provision_executor.py` (new)
+- `src/provisioning/src/provisioning/ports/manifest_reader.py` (new)
+- `src/provisioning/src/provisioning/ports/fact_reader.py` (new)
+- `src/provisioning/tests/unit/ports/__init__.py` (new)
+- `src/provisioning/tests/unit/ports/test_provision_executor.py` (new)
+- `src/provisioning/tests/unit/ports/test_manifest_reader.py` (new)
+- `src/provisioning/tests/unit/ports/test_fact_reader.py` (new)
