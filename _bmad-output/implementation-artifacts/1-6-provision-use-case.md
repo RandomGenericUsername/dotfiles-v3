@@ -4,11 +4,12 @@ baseline_commit: 1180ee73cb16611b65d27120f245698325768e8f
 
 # Story 1.6: Provision Use Case
 
-Status: ready-for-dev
+Status: review
 
 ## Change Log
 
 - 2026-08-05: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-05: Implemented `ProvisionMachineUseCase` + `resolve_install_dir()` in `application/use_cases.py`; 7 unit tests with fake ports (plan/apply check flag, playbook passthrough, exact seam extra-vars, result passthrough, XDG_DATA_HOME/default install-dir resolution). Layering guard now scans `application/` (16 source files) with zero violations; full suite 127 passed / 0 skipped; ruff + mypy clean.
 
 ## Story
 
@@ -26,16 +27,16 @@ So that I can diff desired-vs-actual state before mutating the machine.
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/src/provisioning/application/` package (AC: 1-4)
-  - [ ] `use_cases.py` — `class ProvisionMachineUseCase` with injectable ports + `provision(check: bool) -> ProvisionResult` (AC 1, 2, 3, 4)
-  - [ ] `__init__.py` — re-export `ProvisionMachineUseCase` (mirror `ports/__init__.py` pattern)
-- [ ] Unit tests with fake ports (AC: 5, NFR-5)
-  - [ ] `tests/unit/application/__init__.py`
-  - [ ] `tests/unit/application/test_provision_machine_use_case.py` — fake executor records `(playbook, check, extra_vars)`; fake fact reader returns canned family
-- [ ] Verify against layering guard + full suite
-  - [ ] `uv run pytest tests/architecture/test_layering.py` — application/ files scanned; `application` layer may import only `domain`/`ports`/`adapters`/`application`
-  - [ ] `uv run pytest` — full suite green, no regressions (118 passing before this story)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+- [x] Create `src/provisioning/src/provisioning/application/` package (AC: 1-4)
+  - [x] `use_cases.py` — `class ProvisionMachineUseCase` with injectable ports + `provision(check: bool) -> ProvisionResult` (AC 1, 2, 3, 4)
+  - [x] `__init__.py` — re-export `ProvisionMachineUseCase` (mirror `ports/__init__.py` pattern)
+- [x] Unit tests with fake ports (AC: 5, NFR-5)
+  - [x] `tests/unit/application/__init__.py`
+  - [x] `tests/unit/application/test_provision_machine_use_case.py` — fake executor records `(playbook, check, extra_vars)`; fake fact reader returns canned family
+- [x] Verify against layering guard + full suite
+  - [x] `uv run pytest tests/architecture/test_layering.py` — application/ files scanned; `application` layer may import only `domain`/`ports`/`adapters`/`application`
+  - [x] `uv run pytest` — full suite green, no regressions (118 passing before this story)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
 
 ## Dev Notes
 
@@ -201,11 +202,24 @@ opencode-go/deepseek-v4-flash
 ### Debug Log References
 
 - 2026-08-05: Story created via create-story workflow — context loaded from PRD FR-9, SPEC, chaining-spine, plan §3/§7/§11, epics Story 1.6, prior stories 1.1–1.5, layering guard `_ALLOWED_TARGETS["application"]`.
+- 2026-08-05: RED — 7 tests written first; collection failed (`ModuleNotFoundError: No module named 'provisioning.application'`), confirming tests are valid.
+- 2026-08-05: GREEN — `application/use_cases.py` + `__init__.py` implemented; 7 tests passed.
+- 2026-08-05: mypy strict flagged 3 `no-untyped-def` on untyped `monkeypatch` params; annotated with `pytest.MonkeyPatch`. Resolved.
+- 2026-08-05: Full suite 127 passed / 0 skipped; layering guard 36 passed; standalone `python tests/architecture/test_layering.py` exits 0 (16 source files, 6 rules).
 
 ### Completion Notes List
 
-- (pending implementation)
+- ✅ Implemented `application/use_cases.py` (AC 1-4): `ProvisionMachineUseCase(executor, fact_reader, playbook)` with `provision(check: bool) -> ProvisionResult`. Reads `os_family` via `IFactReader`, resolves the install dir via `resolve_install_dir()`, and calls `IProvisionExecutor.run(playbook, check, {"install_dir": ..., "os_family": ...})` — exactly the two locked seam keys.
+- ✅ `resolve_install_dir()`: `$XDG_DATA_HOME/dotfiles/` when set, else `~/.local/share/dotfiles/` (SPEC/chaining-spine contract); absolute path.
+- ✅ `application/__init__.py` re-exports `ProvisionMachineUseCase` (mirror `ports/__init__.py`).
+- ✅ AC 5 / NFR-5: 7 unit tests with fake ports — plan (`check=True`), apply (`check=False`), playbook passthrough, exact seam extra-vars (`install_dir` + `os_family`, nothing else), result passthrough, XDG_DATA_HOME and default install-dir resolution.
+- ✅ Layering guard: `application/` now scanned (16 source files), zero violations; `_ALLOWED_TARGETS["application"]` respected (imports domain/ports only).
+- ✅ Full suite 127 passed / 0 skipped (was 118); ruff check/format + mypy strict clean.
+- Scope respected: no Verify/Bootstrap use cases (1.7), no CLI (1.8), no adapter instantiation, no manifest globbing.
 
 ### File List
 
-- (pending implementation)
+- `src/provisioning/src/provisioning/application/__init__.py` (new)
+- `src/provisioning/src/provisioning/application/use_cases.py` (new)
+- `src/provisioning/tests/unit/application/__init__.py` (new)
+- `src/provisioning/tests/unit/application/test_provision_machine_use_case.py` (new)
