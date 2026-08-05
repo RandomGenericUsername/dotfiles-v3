@@ -4,12 +4,13 @@ baseline_commit: feaf28e5f5cdd601489127e861410cf21bcd6148
 
 # Story 1.5: Adapters
 
-Status: review
+Status: done
 
 ## Change Log
 
 - 2026-08-05: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
 - 2026-08-05: Implemented all three adapters (YamlManifestReader, AnsibleFactReader, AnsibleExecutor) + 20 unit tests with injected fake runners; PyYAML>=6.0 declared in pyproject.toml; layering guard `test_adapters_import_no_application` live (no skips); full suite 97 passed / 0 skipped; ruff + mypy clean.
+- 2026-08-05: Code review hardening (14 findings resolved): `ProvisionResult` widened with `returncode`/`stderr`; `--extra-vars` JSON-encoded (space-safe, AC4 seam held); fatal/ANSI/Gathering-Facts parsing; success reconciled with parsed statuses; timeout + wrapped errors (`ProvisionTimeoutError`/`ProvisionExecutorError`); strict manifest validation (duplicate keys, unknown keys, whitespace, `version: "" → None`, UTF-8); fact-reader line-based JSON locating; payload truncation. Suite now 118 passed / 0 skipped; ruff + mypy clean.
 
 ## Story
 
@@ -193,6 +194,32 @@ Creating `adapters/` turns the **last forward-compatible skip** (`test_adapters_
 - [Source: src/provisioning/src/provisioning/ports/provision_executor.py] — `run(playbook, check, extra_vars)` locked signature
 - [Source: src/provisioning/src/provisioning/ports/manifest_reader.py] — `read(manifest_path)` locked signature
 - [Source: src/provisioning/src/provisioning/ports/fact_reader.py] — `os_family() -> str` locked signature
+
+## Review Findings
+
+### Decision Needed
+
+- [x] [Review][Decision] Subprocess failures discard stderr and have no timeout — **RESOLVED: proper fix applied in-domain + adapter.** `ProvisionResult` widened with `returncode`/`stderr`; `AnsibleExecutor`/`AnsibleFactReader` gained `timeout` param + wrapped errors (`ProvisionExecutorError`/`ProvisionTimeoutError`/`InvalidFactOutputError`). [ansible_executor.py:23-24, ansible_fact_reader.py:38-40]
+- [x] [Review][Decision] Manifest reader silently tolerates unknown keys — **RESOLVED: strictest.** Unknown top-level and entry keys are rejected with a named-key error. [yaml_manifest_reader.py:51-65]
+
+### Patch
+
+- [x] [Review][Patch] `--extra-vars` now JSON-encoded so values with spaces survive and no phantom vars are injected (AC4 seam held) [ansible_executor.py:27-28]
+- [x] [Review][Patch] Raw `FileNotFoundError`/`CalledProcessError`/`UnicodeDecodeError` now wrapped into documented domain error types; `stderr`/`returncode` surfaced on `ProvisionResult` [ansible_fact_reader.py:38-40, ansible_executor.py:23-24]
+- [x] [Review][Patch] Task status parser now matches `fatal: ... FAILED!`/`UNREACHABLE!`; `success` reconciled with parsed statuses (ignore_errors no longer reports success) [ansible_executor.py:19-20,64-77,84-87]
+- [x] [Review][Patch] ANSI escape codes stripped before task parsing; non-default colored output no longer empties the surface [ansible_executor.py:19-20]
+- [x] [Review][Patch] Fact-reader JSON located line-by-line (tolerates `{` in leading warnings); `host | SUCCESS =>` prefix test added [ansible_fact_reader.py:43-53]
+- [x] [Review][Patch] Non-UTF-8 manifest bytes now raise `ManifestReadError` (not raw `UnicodeDecodeError`) [yaml_manifest_reader.py:22-29]
+- [x] [Review][Patch] Duplicate YAML mapping keys rejected via strict `SafeLoader` (no silent last-wins) [yaml_manifest_reader.py:22-29]
+- [x] [Review][Patch] Whitespace-only `kind`/`name` now rejected via `.strip()` [yaml_manifest_reader.py:37,57]
+- [x] [Review][Patch] `version: ""` normalized to `None` (consistent with explicit `null`) [yaml_manifest_reader.py:59-65]
+- [x] [Review][Patch] Error messages embed at most 200 chars of payload instead of full ~52KB [ansible_fact_reader.py:48-49,62,67]
+- [x] [Review][Patch] Empty `tags` rejected at construction (no silent `--tags ""` no-op) [ansible_executor.py:55-63]
+- [x] [Review][Patch] "Gathering Facts" implicit task omitted; per-host status collapsed to worst-per-task [ansible_executor.py:64-77]
+
+### Defer
+
+- [x] [Review][Defer] YAML alias-expansion (billion-laughs) exhaustion via `safe_load` [yaml_manifest_reader.py:22-29] — deferred, manifests are the user's own dotfiles; hardening item, not in story scope
 
 ## Dev Agent Record
 

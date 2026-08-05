@@ -38,10 +38,17 @@ class ProvisionManifest:
 
 @dataclass(frozen=True)
 class ProvisionResult:
-    """The outcome of a provisioning run, surfaced per task."""
+    """The outcome of a provisioning run, surfaced per task.
+
+    ``returncode`` and ``stderr`` carry the raw ``ansible-playbook`` outcome so
+    the application layer can surface the cause of a failed run without
+    re-reaching into the adapter.
+    """
 
     success: bool
     tasks: tuple[tuple[str, str], ...] = field(default_factory=tuple)
+    returncode: int = 0
+    stderr: str = ""
 
 
 __all__ = [

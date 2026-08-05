@@ -34,37 +34,56 @@ _OS_FAMILY_TO_GROUP_VARS: dict[str, str] = {
 
 _SUPPORTED_FAMILIES = ", ".join(sorted(_OS_FAMILY_TO_GROUP_VARS))
 
+_EMBEDDED_PAYLOAD_LIMIT = 200
 
-def _default_runner(command: list[str]) -> str:
-    proc = subprocess.run(command, capture_output=True, text=True, check=True)
+
+def _default_runner(command: list[str], timeout: float | None = None) -> str:
+    proc = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise InvalidFactOutputError(
+            f"ansible -m setup exited with {proc.returncode}: {_truncate(proc.stderr or '')}"
+        )
     return proc.stdout
 
 
+def _truncate(text: str, limit: int = _EMBEDDED_PAYLOAD_LIMIT) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"... ({len(text) - limit} chars truncated)"
+
+
 def _extract_os_family(output: str) -> str:
-    """Parse the ``ansible -m setup`` JSON payload for ``ansible_os_family``."""
-    start = output.find("{")
-    end = output.rfind("}")
-    if start == -1 or end <= start:
-        raise InvalidFactOutputError(
-            f"ansible -m setup produced no JSON object in output: {output!r}"
-        )
-    try:
-        payload = json.loads(output[start : end + 1])
-    except json.JSONDecodeError as exc:
-        raise InvalidFactOutputError(f"ansible -m setup produced invalid JSON: {exc}") from exc
+    """Parse the ``ansible -m setup`` JSON payload for ``ansible_os_family``.
+
+    Locates the JSON object line-by-line, tolerating a leading ``host | SUCCESS
+    => `` prefix and ``[WARNING]`` lines that may themselves contain braces:
+    each candidate line is tried until one parses as a JSON object.
+    """
+    lines = output.splitlines()
+    payload: object | None = None
+    for index, line in enumerate(lines):
+        start = line.find("{")
+        if start == -1:
+            continue
+        candidate = line[start:] + "".join(lines[index + 1 :])
+        try:
+            payload = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        break
     if not isinstance(payload, dict):
         raise InvalidFactOutputError(
-            f"ansible -m setup output must be a JSON object, got {type(payload).__name__}"
+            f"ansible -m setup produced no JSON object in output: {_truncate(output)}"
         )
     facts = payload.get("ansible_facts")
     if not isinstance(facts, dict):
         raise InvalidFactOutputError(
-            f"ansible -m setup output is missing 'ansible_facts': {payload!r}"
+            f"ansible -m setup output is missing 'ansible_facts': {_truncate(str(payload))}"
         )
     family = facts.get("ansible_os_family")
     if not isinstance(family, str):
         raise InvalidFactOutputError(
-            f"ansible -m setup output is missing 'ansible_os_family': {facts!r}"
+            f"ansible -m setup output is missing 'ansible_os_family': {_truncate(str(facts))}"
         )
     return family
 
@@ -75,13 +94,27 @@ class AnsibleFactReader(IFactReader):
     def __init__(
         self,
         host: str = "localhost",
+        timeout: float | None = None,
         runner: Callable[[list[str]], str] | None = None,
     ) -> None:
         self._host = host
-        self._runner = runner if runner is not None else _default_runner
+        self._timeout = timeout
+        if runner is not None:
+            self._runner = runner
+        else:
+            self._runner = lambda command: _default_runner(command, timeout)
 
     def os_family(self) -> str:
-        output = self._runner(["ansible", "-m", "setup", self._host])
+        try:
+            output = self._runner(["ansible", "-m", "setup", self._host])
+        except subprocess.TimeoutExpired as exc:
+            raise InvalidFactOutputError(
+                f"ansible -m setup exceeded {self._timeout}s timeout for host {self._host!r}"
+            ) from exc
+        except (OSError, UnicodeDecodeError) as exc:
+            raise InvalidFactOutputError(
+                f"failed to run ansible -m setup for host {self._host!r}: {exc}"
+            ) from exc
         family = _extract_os_family(output)
         group_vars = _OS_FAMILY_TO_GROUP_VARS.get(family)
         if group_vars is None:

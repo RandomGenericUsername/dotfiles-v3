@@ -131,3 +131,7 @@
 - Version hard-fails from bare checkout — `importlib.metadata` raises PackageNotFoundError when dist metadata absent, exiting 1 even though `__version__` exists in `__init__.py`. Matches CSG `version_cmd.py` convention; success test depends on install state.
 - Duplicate version source — `__version__` in `__init__.py:6` is dead code vs `importlib.metadata.version()` used by the CLI; two `0.1.0` literals can drift. Standard library-package convention.
 - `--help` advertises not-yet-existing plan/apply/verify/bootstrap commands — forward-looking; resolved when the commands land in Story 1.8.
+
+## Deferred from: code review of 1-5-adapters (2026-08-05)
+
+- YAML alias-expansion (billion-laughs) exhaustion via `safe_load` [yaml_manifest_reader.py:22-29] — manifests are the user's own dotfiles; hardening item, not in story scope

@@ -1,18 +1,28 @@
 from __future__ import annotations
 
+import json
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
-from provisioning.adapters.ansible_executor import AnsibleExecutor
+import pytest
+
+from provisioning.adapters.ansible_executor import (
+    AnsibleExecutor,
+    ProvisionExecutorError,
+    ProvisionTimeoutError,
+)
 from provisioning.domain.models import ProvisionResult
 
 
-def _completed(returncode: int = 0, stdout: str = "") -> subprocess.CompletedProcess[str]:
+def _completed(
+    returncode: int = 0, stdout: str = "", stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess[str](
         args=["ansible-playbook"],
         returncode=returncode,
         stdout=stdout,
-        stderr="",
+        stderr=stderr,
     )
 
 
@@ -23,14 +33,21 @@ class TestAnsibleExecutor:
         *,
         returncode: int = 0,
         stdout: str = "",
+        stderr: str = "",
+        runner: Callable[[list[str]], subprocess.CompletedProcess[str]] | None = None,
+        timeout: float | None = None,
     ) -> AnsibleExecutor:
-        def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
-            commands.append(command)
-            return _completed(returncode, stdout)
+        if runner is None:
 
+            def default_runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+                commands.append(command)
+                return _completed(returncode, stdout, stderr)
+
+            runner = default_runner
         return AnsibleExecutor(
             inventory=Path("inventory/localhost.yaml"),
             tags="all",
+            timeout=timeout,
             runner=runner,
         )
 
@@ -70,8 +87,22 @@ class TestAnsibleExecutor:
         )
         command = commands[0]
         extra_vars = command[command.index("--extra-vars") + 1]
-        keys = [token.split("=", 1)[0] for token in extra_vars.split()]
-        assert keys == ["install_dir", "os_family"]
+        assert json.loads(extra_vars) == {"install_dir": "/x", "os_family": "arch"}
+
+    def test_extra_vars_values_with_spaces_survive_round_trip(self) -> None:
+        commands: list[list[str]] = []
+        executor = self._executor(commands)
+        executor.run(
+            Path("bootstrap.yaml"),
+            check=True,
+            extra_vars={"install_dir": "/home/me/My Documents", "os_family": "arch"},
+        )
+        command = commands[0]
+        extra_vars = command[command.index("--extra-vars") + 1]
+        assert json.loads(extra_vars) == {
+            "install_dir": "/home/me/My Documents",
+            "os_family": "arch",
+        }
 
     def test_parses_tasks_from_stdout(self) -> None:
         stdout = (
@@ -91,6 +122,65 @@ class TestAnsibleExecutor:
             ("packages : install waybar", "ok"),
         )
 
+    def test_fatal_failure_recorded_as_failed(self) -> None:
+        stdout = (
+            "TASK [packages : install hyprland] *************************\n"
+            'fatal: [localhost]: FAILED! => {"changed": false}\n'
+            "PLAY RECAP ***************************************************\n"
+            "localhost : ok=0 changed=0 unreachable=0 failed=1\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout, returncode=2)
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert result.tasks == (("packages : install hyprland", "failed"),)
+        assert result.success is False
+
+    def test_failed_task_with_ignore_errors_yields_success_false(self) -> None:
+        stdout = (
+            "TASK [packages : install hyprland] *************************\n"
+            "failed: [localhost]\n"
+            "PLAY RECAP ***************************************************\n"
+            "localhost : ok=0 changed=0 unreachable=0 failed=1\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout, returncode=0)
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert result.tasks == (("packages : install hyprland", "failed"),)
+        assert result.success is False
+
+    def test_gathering_facts_task_is_omitted(self) -> None:
+        stdout = (
+            "TASK [Gathering Facts] *************************************\n"
+            "ok: [localhost]\n\n"
+            "TASK [packages : install hyprland] *************************\n"
+            "changed: [localhost]\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout)
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert result.tasks == (("packages : install hyprland", "changed"),)
+
+    def test_multihost_status_collapses_to_worst_per_task(self) -> None:
+        stdout = (
+            "TASK [packages : install hyprland] *************************\n"
+            "ok: [host1]\n"
+            "changed: [host2]\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout)
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert result.tasks == (("packages : install hyprland", "changed"),)
+
+    def test_ansi_colored_output_is_parsed(self) -> None:
+        stdout = (
+            "\x1b[0;36mTASK [packages : install hyprland]\x1b[0m\n"
+            "\x1b[0;32mchanged: [localhost]\x1b[0m\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout)
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert result.tasks == (("packages : install hyprland", "changed"),)
+
     def test_zero_returncode_yields_success(self) -> None:
         commands: list[list[str]] = []
         executor = self._executor(commands, returncode=0)
@@ -98,9 +188,32 @@ class TestAnsibleExecutor:
         assert result is not None
         assert isinstance(result, ProvisionResult)
         assert result.success is True
+        assert result.returncode == 0
 
     def test_non_zero_returncode_yields_success_false(self) -> None:
         commands: list[list[str]] = []
-        executor = self._executor(commands, returncode=2)
+        executor = self._executor(commands, returncode=2, stderr="boom")
         result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
         assert result.success is False
+        assert result.returncode == 2
+        assert result.stderr == "boom"
+
+    def test_timeout_raises_provision_timeout_error(self) -> None:
+        def timing_out(command: list[str]) -> subprocess.CompletedProcess[str]:
+            raise subprocess.TimeoutExpired(command, timeout=5)
+
+        executor = self._executor([], runner=timing_out, timeout=5)
+        with pytest.raises(ProvisionTimeoutError):
+            executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+
+    def test_missing_binary_raises_provision_executor_error(self) -> None:
+        def missing_binary(command: list[str]) -> subprocess.CompletedProcess[str]:
+            raise FileNotFoundError("ansible-playbook not found")
+
+        executor = self._executor([], runner=missing_binary)
+        with pytest.raises(ProvisionExecutorError, match="failed to run"):
+            executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+
+    def test_empty_tags_rejected_at_construction(self) -> None:
+        with pytest.raises(ValueError, match="non-empty"):
+            AnsibleExecutor(inventory=Path("inventory.yaml"), tags="  ")
