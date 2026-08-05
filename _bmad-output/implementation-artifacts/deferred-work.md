@@ -119,3 +119,9 @@
 
 - `inspect.isfunction` skips `@classmethod`/`@staticmethod` on ports [conftest.py:73-74,122-123] — all methods currently use regular functions
 - AC 8 uses test stub instead of production VersionProvider adapter — no production adapter exists yet
+
+## Deferred from: code review of story 1-1-scaffold-the-provisioning-package (2026-08-03)
+
+- Version hard-fails from bare checkout — `importlib.metadata` raises PackageNotFoundError when dist metadata absent, exiting 1 even though `__version__` exists in `__init__.py`. Matches CSG `version_cmd.py` convention; success test depends on install state.
+- Duplicate version source — `__version__` in `__init__.py:6` is dead code vs `importlib.metadata.version()` used by the CLI; two `0.1.0` literals can drift. Standard library-package convention.
+- `--help` advertises not-yet-existing plan/apply/verify/bootstrap commands — forward-looking; resolved when the commands land in Story 1.8.

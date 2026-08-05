@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
-import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
 import typer
 from cli_output.adapters.factory import create_renderer
 from cli_output.domain.enums import OutputFormat
-from cli_output.domain.views import CustomView
+from cli_output.domain.views import CustomView, ErrorView
+from cli_output.ports.renderer import Renderer
 
 app = typer.Typer(
     name="dotfiles-provision",
@@ -25,7 +24,7 @@ app = typer.Typer(
 )
 
 
-def _renderer() -> object:
+def _renderer() -> Renderer:
     return create_renderer(OutputFormat.JSON)
 
 
@@ -39,8 +38,12 @@ def version(ctx: typer.Context) -> None:
     try:
         ver = _pkg_version("dotfiles-provision")
     except PackageNotFoundError:
-        msg = json.dumps({"error": "dotfiles-provision package not installed"})
-        print(msg, file=sys.stderr)
+        ctx.obj["renderer"].error(
+            ErrorView(
+                kind="PackageNotFoundError",
+                message="dotfiles-provision package not installed",
+            )
+        )
         raise typer.Exit(code=1) from None
 
     ctx.obj["renderer"].custom(CustomView(plain=ver, object={"version": ver}, rich=ver))

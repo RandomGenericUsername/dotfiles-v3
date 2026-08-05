@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
+import pytest
 import typer
 from typer.testing import CliRunner
 
@@ -17,10 +19,12 @@ class TestVersionCommand:
         data = json.loads(result.stdout)
         assert "version" in data
 
-    def test_version_exits_nonzero_when_package_not_installed(self, monkeypatch) -> None:
+    def test_version_exits_nonzero_when_package_not_installed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         import provisioning.cli.main as cli_main
 
-        def _raise(*args, **kwargs):
+        def _raise(*args: Any, **kwargs: Any) -> Any:
             from importlib.metadata import PackageNotFoundError
 
             raise PackageNotFoundError

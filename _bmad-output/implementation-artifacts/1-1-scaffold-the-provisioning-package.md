@@ -4,11 +4,12 @@ baseline_commit: 2028d51a46fc8837a9330a4d7108bcc51f5fece0
 
 # Story 1.1: Scaffold the Provisioning Package
 
-Status: review
+Status: done
 
 ## Change Log
 
 - 2026-08-03: Story implemented — `src/provisioning` uv package scaffolded, stub CLI with `version` command rendering via `cli-output`, 4 tests passing, `uv lock` resolved, ruff/mypy clean. Status → review.
+- 2026-08-03: Code review fixes applied — error path renders via `cli-output` `ErrorView` (was raw `json.dumps`+`print`); `_renderer()` typed as `Renderer` port; tests type-annotated for `mypy src tests`; removed false `.python-version` claim from File List. Status → done.
 
 ## Story
 
@@ -132,6 +133,16 @@ The stub must render a version string through `cli-output` (not print to stdout 
 - [Source: src/cli-tools/color-scheme-generator/pyproject.toml] — `uv.sources` + scripts pattern
 - [Source: _bmad-output/planning-artifacts/epics-dotfiles-provisioning-phase1.md#152-166] — Story 1.1 ACs
 
+### Review Findings
+
+- [x] [Review][Patch] Error path bypasses renderer [src/provisioning/src/provisioning/cli/main.py:42] — `PackageNotFoundError` rendered via raw `json.dumps`+`print` instead of `cli-output` `ErrorView`. Fixed: renders `{"kind","message"}` to stderr via `ctx.obj["renderer"].error(...)`.
+- [x] [Review][Patch] `_renderer()` returns `object` [src/provisioning/src/provisioning/cli/main.py:28] — erases the `Renderer` port type. Fixed: annotated `-> Renderer` from `cli_output.ports.renderer`.
+- [x] [Review][Patch] `mypy src tests` fails on untyped test params [src/provisioning/tests/test_cli.py:20,23] — `monkeypatch` untyped, `_raise` unannotated. Fixed: type annotations added; `mypy src tests` now passes (4 files).
+- [x] [Review][Patch] Story File List claims `.python-version` [story File List] — file never created. Fixed: claim removed from File List.
+- [x] [Review][Defer] Version hard-fails from bare checkout [src/provisioning/src/provisioning/cli/main.py:40] — exits 1 when dist metadata missing; success test depends on install state. Deferred, pre-existing pattern (matches CSG `version_cmd.py` convention).
+- [x] [Review][Defer] Duplicate version source [src/provisioning/src/provisioning/__init__.py:6] — `__version__` in `__init__.py` is dead code vs `importlib.metadata`. Deferred, standard library-package convention.
+- [x] [Review][Defer] `--help` advertises not-yet-existing commands [src/provisioning/src/provisioning/cli/main.py:19] — plan/apply/verify/bootstrap advertised before Story 1.8. Deferred, resolved when commands land.
+
 ## Dev Agent Record
 
 ### Agent Model Used
@@ -161,4 +172,3 @@ opencode-go/deepseek-v4-flash
 - `src/provisioning/src/provisioning/cli/__init__.py` (new)
 - `src/provisioning/src/provisioning/cli/main.py` (new)
 - `src/provisioning/tests/test_cli.py` (new)
-- `src/provisioning/.python-version` (new)
