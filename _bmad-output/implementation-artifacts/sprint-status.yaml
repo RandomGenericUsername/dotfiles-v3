@@ -55,8 +55,8 @@ development_status:
   1-3-hexagonal-boundary-lock: done
   1-4-ports: done
   1-5-adapters: done
-  1-6-provision-use-case: review
-  1-7-verify-and-bootstrap-use-cases: backlog
+  1-6-provision-use-case: done
+  1-7-verify-and-bootstrap-use-cases: ready-for-dev
   1-8-typer-cli: backlog
   epic-1-retrospective: optional
 

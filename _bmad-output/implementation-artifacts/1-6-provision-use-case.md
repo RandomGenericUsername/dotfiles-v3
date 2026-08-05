@@ -4,7 +4,7 @@ baseline_commit: 1180ee73cb16611b65d27120f245698325768e8f
 
 # Story 1.6: Provision Use Case
 
-Status: review
+Status: done
 
 ## Change Log
 
@@ -223,3 +223,12 @@ opencode-go/deepseek-v4-flash
 - `src/provisioning/src/provisioning/application/use_cases.py` (new)
 - `src/provisioning/tests/unit/application/__init__.py` (new)
 - `src/provisioning/tests/unit/application/test_provision_machine_use_case.py` (new)
+
+### Review Findings
+
+- [x] [Review][Patch] `resolve_install_dir()` returns a relative / non-canonical path when `$XDG_DATA_HOME` is relative or tilde'd — violates the SPEC/chaining-spine "absolute paths" contract and the dev-note normalization requirement (`src/provisioning/src/provisioning/application/use_cases.py:24-26`). Fix: normalize with `.expanduser().resolve()`. **FIXED 2026-08-05.**
+- [x] [Review][Patch] No test pins the absolute-path invariant: no relative `$XDG_DATA_HOME`, `~`, or `is_absolute()` assertions, so the spec violation passes CI green (`src/provisioning/tests/unit/application/test_provision_machine_use_case.py:98-105`). **FIXED 2026-08-05** — added relative + tilde + `is_absolute()` cases.
+- [x] [Review][Patch] `test_defaults_to_local_share_when_unset` is non-hermetic — asserts against the real `Path.home()` instead of mocking it (`src/provisioning/tests/unit/application/test_provision_machine_use_case.py:103-105`). **FIXED 2026-08-05** — mocked `Path.home`.
+- [x] [Review][Patch] Missing constructor default `playbook: Path = Path("bootstrap.yaml")` per the story dev note ("Default it to `Path("bootstrap.yaml")` in the constructor for convenience") (`src/provisioning/src/provisioning/application/use_cases.py:39-44`). **FIXED 2026-08-05.**
+- [x] [Review][Patch] `application/__init__.py` exports `ProvisionMachineUseCase` but not `resolve_install_dir`, while `use_cases.py` `__all__` includes both — public API inconsistency (`src/provisioning/src/provisioning/application/__init__.py:1-3` vs `use_cases.py:59`). **FIXED 2026-08-05.**
+- [x] [Review][Defer] Resolved spine path is opaque to callers: plan mode can't surface `install_dir` and apply re-resolves it from env — plan/apply can diverge. Story 1.8 CLI scope (`src/provisioning/src/provisioning/application/use_cases.py:49-56`) — deferred, design decision for the CLI story.

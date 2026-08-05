@@ -23,7 +23,7 @@ def resolve_install_dir() -> Path:
     """
     data_home = os.environ.get("XDG_DATA_HOME")
     base = Path(data_home) if data_home else Path.home() / ".local" / "share"
-    return base / "dotfiles"
+    return (base / "dotfiles").expanduser().resolve()
 
 
 class ProvisionMachineUseCase:
@@ -40,7 +40,7 @@ class ProvisionMachineUseCase:
         self,
         executor: IProvisionExecutor,
         fact_reader: IFactReader,
-        playbook: Path,
+        playbook: Path = Path("bootstrap.yaml"),
     ) -> None:
         self._executor = executor
         self._fact_reader = fact_reader

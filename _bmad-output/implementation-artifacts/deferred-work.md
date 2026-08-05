@@ -135,3 +135,7 @@
 ## Deferred from: code review of 1-5-adapters (2026-08-05)
 
 - YAML alias-expansion (billion-laughs) exhaustion via `safe_load` [yaml_manifest_reader.py:22-29] — manifests are the user's own dotfiles; hardening item, not in story scope
+
+## Deferred from: code review of story 1-6-provision-use-case (2026-08-05)
+
+- Resolved spine path is opaque to callers: plan mode can't surface `install_dir` and apply re-resolves it from env — plan/apply can diverge. Story 1.8 CLI scope [use_cases.py:49-56]

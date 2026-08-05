@@ -99,7 +99,24 @@ class TestResolveInstallDir:
     def test_uses_xdg_data_home_when_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("XDG_DATA_HOME", "/custom/data")
         assert resolve_install_dir() == Path("/custom/data/dotfiles")
+        assert resolve_install_dir().is_absolute()
+
+    def test_relative_xdg_data_home_is_normalized_absolute(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("XDG_DATA_HOME", "data/share")
+        resolved = resolve_install_dir()
+        assert resolved == Path("data/share/dotfiles").resolve()
+        assert resolved.is_absolute()
+
+    def test_tilde_xdg_data_home_is_expanded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("XDG_DATA_HOME", "~/data")
+        resolved = resolve_install_dir()
+        assert resolved == Path("~/data/dotfiles").expanduser().resolve()
+        assert resolved.is_absolute()
 
     def test_defaults_to_local_share_when_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("XDG_DATA_HOME", raising=False)
-        assert resolve_install_dir() == Path.home() / ".local" / "share" / "dotfiles"
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: Path("/home/fake")))
+        assert resolve_install_dir() == Path("/home/fake/.local/share/dotfiles")
+        assert resolve_install_dir().is_absolute()
