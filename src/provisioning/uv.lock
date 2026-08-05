@@ -247,6 +247,7 @@ dependencies = [
     { name = "ansible-core" },
     { name = "cli-output" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "typer" },
 ]
 
@@ -262,6 +263,7 @@ requires-dist = [
     { name = "ansible-core", specifier = ">=2.16" },
     { name = "cli-output", editable = "../shared/cli-output" },
     { name = "pydantic", specifier = ">=2.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12" },
 ]
 

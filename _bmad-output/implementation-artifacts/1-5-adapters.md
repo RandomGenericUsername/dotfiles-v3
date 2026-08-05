@@ -4,11 +4,12 @@ baseline_commit: feaf28e5f5cdd601489127e861410cf21bcd6148
 
 # Story 1.5: Adapters
 
-Status: ready-for-dev
+Status: review
 
 ## Change Log
 
 - 2026-08-05: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-05: Implemented all three adapters (YamlManifestReader, AnsibleFactReader, AnsibleExecutor) + 20 unit tests with injected fake runners; PyYAML>=6.0 declared in pyproject.toml; layering guard `test_adapters_import_no_application` live (no skips); full suite 97 passed / 0 skipped; ruff + mypy clean.
 
 ## Story
 
@@ -27,21 +28,21 @@ So that the orchestrator can read manifests, detect OS family, and drive `ansibl
 
 ## Tasks / Subtasks
 
-- [ ] Add `PyYAML` to `[project].dependencies` in `pyproject.toml` (see Dev Notes — REQUIRED or the layering guard fails on `yaml` imports) (AC: 1)
-- [ ] Create `src/provisioning/src/provisioning/adapters/` package (AC: 1, 2, 3)
-  - [ ] `yaml_manifest_reader.py` — `class YamlManifestReader(IManifestReader)` parsing one manifest file → `ProvisionManifest` (AC 1)
-  - [ ] `ansible_fact_reader.py` — `class AnsibleFactReader(IFactReader)` parsing `ansible -m setup` output for `ansible_os_family` → group_vars basename (AC 2, 5)
-  - [ ] `ansible_executor.py` — `class AnsibleExecutor(IProvisionExecutor)` shelling to `ansible-playbook` (AC 3, 4)
-  - [ ] `__init__.py` — re-export all three adapters (mirror `ports/__init__.py` pattern)
-- [ ] Unit tests for each adapter with fakes (AC: 6, NFR-5)
-  - [ ] `tests/unit/adapters/__init__.py`
-  - [ ] `tests/unit/adapters/test_yaml_manifest_reader.py`
-  - [ ] `tests/unit/adapters/test_ansible_fact_reader.py`
-  - [ ] `tests/unit/adapters/test_ansible_executor.py` — including the seam contract test (AC 4)
-- [ ] Verify against layering guard + full suite
-  - [ ] `uv run pytest tests/architecture/test_layering.py` — `test_adapters_import_no_application` now RUNS (adapters/ exists; previously the last remaining skip)
-  - [ ] `uv run pytest` — full suite green, no regressions (expect 72 passed / 1 skipped → all passing, adapters tests added)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+- [x] Add `PyYAML` to `[project].dependencies` in `pyproject.toml` (see Dev Notes — REQUIRED or the layering guard fails on `yaml` imports) (AC: 1)
+- [x] Create `src/provisioning/src/provisioning/adapters/` package (AC: 1, 2, 3)
+  - [x] `yaml_manifest_reader.py` — `class YamlManifestReader(IManifestReader)` parsing one manifest file → `ProvisionManifest` (AC 1)
+  - [x] `ansible_fact_reader.py` — `class AnsibleFactReader(IFactReader)` parsing `ansible -m setup` output for `ansible_os_family` → group_vars basename (AC 2, 5)
+  - [x] `ansible_executor.py` — `class AnsibleExecutor(IProvisionExecutor)` shelling to `ansible-playbook` (AC 3, 4)
+  - [x] `__init__.py` — re-export all three adapters (mirror `ports/__init__.py` pattern)
+- [x] Unit tests for each adapter with fakes (AC: 6, NFR-5)
+  - [x] `tests/unit/adapters/__init__.py`
+  - [x] `tests/unit/adapters/test_yaml_manifest_reader.py`
+  - [x] `tests/unit/adapters/test_ansible_fact_reader.py`
+  - [x] `tests/unit/adapters/test_ansible_executor.py` — including the seam contract test (AC 4)
+- [x] Verify against layering guard + full suite
+  - [x] `uv run pytest tests/architecture/test_layering.py` — `test_adapters_import_no_application` now RUNS (adapters/ exists; previously the last remaining skip) — 34 passed, no skips
+  - [x] `uv run pytest` — full suite green, no regressions (97 passed / 0 skipped; 20 new adapter tests + previously skipped guard now live)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
 
 ## Dev Notes
 
@@ -201,7 +202,22 @@ opencode-go/deepseek-v4-flash
 
 ### Debug Log References
 
+- 2026-08-05: RED — adapter tests written first (20 tests) failed on collection (`No module named 'provisioning.adapters'`), confirming test correctness.
+- 2026-08-05: GREEN — three adapters + `__init__.py` implemented; 20 adapter tests passed.
+- 2026-08-05: ruff flagged unused `Callable` import in `test_ansible_executor.py`; removed.
+- 2026-08-05: ruff format rewrote 4 files; re-run clean.
+- 2026-08-05: mypy strict caught `no-any-return` in `ansible_fact_reader._extract_os_family`; rewrote with `isinstance` narrowing to `str`; resolved.
+- 2026-08-05: Standalone `python tests/architecture/test_layering.py` exits 0 (14 source files, 6 rules).
+
 ### Completion Notes List
+
+- ✅ Implemented `YamlManifestReader` (AC 1): `yaml.safe_load`, missing/invalid `kind`/`entries`/entry `name` raise `ManifestReadError` (ValueError) naming the offending path; `version: null` → `None`; empty `entries` → `()`.
+- ✅ Implemented `AnsibleFactReader` (AC 2, 5): injectable runner (default shells `ansible -m setup <host>`); robust JSON extraction (handles `host | SUCCESS => {...}` prefix); exhaustive explicit mapping Archlinux→arch, Debian/Ubuntu→debian-family; unknown family raises `UnknownOsFamilyError` naming the value + supported set — no silent fallback.
+- ✅ Implemented `AnsibleExecutor` (AC 3, 4): command `ansible-playbook -i <inventory> --tags <tags> [--check] --extra-vars <k=v ...> <playbook>`; parses per-task changed/ok from TASK headers into `ProvisionResult.tasks`; `success` from exit code.
+- ✅ Seam contract lock (AC 4): `test_extra_vars_carry_exactly_install_dir_and_os_family` asserts `--extra-vars` carries exactly `install_dir` + `os_family` and nothing else.
+- ✅ AC 6 / NFR-5: all adapter tests use injected fake runners / `tmp_path` files — no real `ansible`/`ansible-playbook`/filesystem-side I/O.
+- ✅ Declared `PyYAML>=6.0` in `[project].dependencies`; layering guard now treats `yaml` as an allowed third-party root (dist normalization PyYAML→yaml).
+- ✅ Created `adapters/` turns `test_adapters_import_no_application` live — 34 layering tests pass, 0 skips. Full suite: 97 passed / 0 skipped. ruff check/format + mypy strict clean.
 
 ### File List
 
