@@ -4,12 +4,13 @@ baseline_commit: f104f0aa4be0a58c193e67234d9a1e6677d400ae
 
 # Story 1.3: Hexagonal Boundary Lock
 
-Status: review
+Status: done
 
 ## Change Log
 
 - 2026-08-04: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
 - 2026-08-04: Story implemented — `tests/architecture/test_layering.py` created (mirrors the oci-runtime hexagon guard): in-package layering (domain ← ports ← adapters ← application ← cli), domain stdlib allowlist + banned-stdlib, ports-ABC rule, Path-FS-method ban, and Rule 5 cross-package §11 boundary with pyproject-derived allowed roots; 19 tests green (3 forward-compatible skips), full suite 47 passed, ruff + mypy clean. Status → review.
+- 2026-08-05: Code review — adversarial review (Blind Hunter + Edge Case Hunter + Acceptance Auditor) found 10 findings (1 decision, 9 patches), all resolved. Classification rewritten to Path B (fail-closed + filesystem-resolved imports): `_layer_of_imported_module` string classifier removed, `from provisioning import <layer>` name expansion, `__init__.py` relative-import off-by-one fixed, AC-6 end-to-end enforcement self-test added, ports classifier hardened (async/alias/Protocol/nested), Path-FS scan receiver-aware, standalone `_run_standalone()` enforces all 6 rule families, `_import_root` rename map, AC 5 reworded, docstring corrected. 51 tests green (3 skips), ruff + mypy clean. Status → done.
 
 ## Story
 
@@ -23,7 +24,7 @@ so that `src/provisioning` can never silently import forbidden packages.
 2. The test asserts the domain stdlib allowlist and bans `subprocess`, `os`, `shutil`, and Path FS calls in domain (AC 2, FR-24, NFR-5)
 3. The test asserts ports are ABCs (AC 3, FR-24, NFR-5)
 4. The test asserts the Rule 5 cross-package forbidden set (`core`, `infrastructure`, `color_scheme_generator`, `wallpaper_effects_generator`, `icon_templates_renderer`, `config_assembler_engine`, `oci_runtime`) is never imported (AC 4, FR-24, NFR-4)
-5. Only `provisioning` and `cli_output` are allowed cross-package (AC 5, FR-24, NFR-4)
+5. Only `provisioning`, `cli_output`, and packages declared as dependencies in `pyproject.toml` are allowed cross-package (AC 5, FR-24, NFR-4)
 6. A deliberately-violating import fails the test (AC 6, FR-24, SM-5)
 
 ## Tasks / Subtasks
@@ -269,3 +270,16 @@ opencode-go/deepseek-v4-flash
 ### File List
 
 - `src/provisioning/tests/architecture/test_layering.py` (new)
+
+### Review Findings
+
+- [x] [Review][Decision] Unknown non-layer top-level dirs get composition-root privileges — **RESOLVED via Path B (fail-closed + filesystem-resolved imports).** `_classify_layer` now returns `"invalid"` for any top-level dir not in `_LAYERS` and for stray files at package root; `_layer_of_imported_module` (string-prefix classification) was removed entirely. Verified: a `utils/` file is flagged as non-hexagon, and a domain file importing `provisioning.utils.helpers` is flagged (target layer invalid).
+- [x] [Review][Patch] Layering bypass via `from provisioning import <layer>` — **FIXED.** `_resolve_in_package_targets` expands `from X import a, b` names to submodules whenever they resolve to a real file. `from provisioning import cli` is now caught exactly like `import provisioning.cli.main` (covered by `test_import_name_expansion_self_test` + `test_enforcement_loop_self_test`).
+- [x] [Review][Patch] Relative-import resolution is off-by-one inside `__init__.py` — **FIXED.** `_current_package` derives the package from the file's directory, so `domain/__init__.py` and `domain/models.py` resolve `from . import x` identically. Over-deep levels now emit a `<invalid-relative-level-N>` marker and fail closed (covered by `test_relative_import_resolution_self_test`).
+- [x] [Review][Patch] AC 6 self-tests exercise only helpers, not the enforcement loops — **FIXED.** `test_enforcement_loop_self_test` writes a real violating probe into `domain/` and asserts `_check_file` flags it end-to-end (with cleanup).
+- [x] [Review][Patch] Ports classifier gaps — **FIXED.** `_classify_ports_class` now takes the file's import aliases (`_import_aliases`), handles `async def` abstract methods and `Protocol` (incl. aliased imports), and only top-level classes are classified (nested helpers are skipped). Dunder-behavior smuggling (`__post_init__` doing I/O) documented as an accepted limit. Covered by expanded `test_ports_classification_self_test`.
+- [x] [Review][Patch] Path-FS method scan flags any receiver — **FIXED.** `_scan_for_banned_method_calls` skips calls to methods defined locally in the same file (a domain helper named `resolve`/`stat` never false-fails); receiver-blind net and the `f = p.stat`/`getattr` bypass documented as accepted AST limits. Covered in `test_path_method_ban_self_test`.
+- [x] [Review][Patch] Standalone `__main__` runner claims all rules but runs only the layering check — **FIXED.** Extracted `_run_standalone()` which now enforces all six rule families (layering, allowlist, banned-stdlib, path-FS-ban, ports-ABC, cross-package). Verified: a planted `domain/_probe.py` with `import os` → exit 1 with 2 FAIL lines.
+- [x] [Review][Patch] `_import_root` assumes distribution name == import root — **FIXED.** Added `_DIST_TO_IMPORT_ROOT` rename map (PyYAML→yaml, beautifulsoup4→bs4, python-dateutil→dateutil, ansible-core→ansible) + generic `types-` prefix strip + extras `[...]` strip. Covered by `test_import_root_normalization_self_test`.
+- [x] [Review][Patch] Story AC 5 text stale — **FIXED.** AC 5 reworded to match the implemented pyproject-derived behavior.
+- [x] [Review][Patch] "Zero third-party dependencies" docstring is false — **FIXED.** Module docstring now states the scanning logic is stdlib-only with pytest used only as the runner.
