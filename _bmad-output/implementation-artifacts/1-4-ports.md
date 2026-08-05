@@ -4,7 +4,7 @@ baseline_commit: 3430c4055b8af65cac6c1b8377bea66692699c7b
 
 # Story 1.4: Ports
 
-Status: review
+Status: done
 
 ## Change Log
 
@@ -42,6 +42,10 @@ So that adapters and use cases stay decoupled and testable.
   - [x] `uv run pytest tests/architecture/test_layering.py` — `test_ports_files_are_abstract_only` and `test_ports_import_no_adapters` now RUN (ports/ exists; previously skipped) and pass
   - [x] `uv run pytest` — full suite green, no regressions
   - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+
+### Review Findings
+
+- [x] [Review][Patch] FakeManifestReader doesn't round-trip manifest_path [src/provisioning/tests/unit/ports/test_manifest_reader.py:13-15] — fake accepts `manifest_path` but discards it, so the "round-trips its arguments/return through the declared signature" contract check (Testing Requirement e) is only exercised for `IProvisionExecutor`. Fix: record the path (e.g. `self.last_path`/`calls`) and assert it in `test_fake_satisfies_contract`. Applied: fake now records `self.last_path`, asserted in `test_fake_satisfies_contract`. Suite 72 passed / 1 skipped, ruff + mypy clean.
 
 ## Dev Notes
 

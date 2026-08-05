@@ -11,7 +11,11 @@ from provisioning.ports import IManifestReader
 
 
 class FakeManifestReader(IManifestReader):
+    def __init__(self) -> None:
+        self.last_path: Path | None = None
+
     def read(self, manifest_path: Path) -> ProvisionManifest:
+        self.last_path = manifest_path
         return ProvisionManifest(kind="packages", entries=())
 
 
@@ -36,3 +40,4 @@ class TestIManifestReader:
         manifest = fake.read(Path("packages.yaml"))
         assert isinstance(manifest, ProvisionManifest)
         assert manifest.kind == "packages"
+        assert fake.last_path == Path("packages.yaml")
