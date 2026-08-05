@@ -4,11 +4,12 @@ baseline_commit: f104f0aa4be0a58c193e67234d9a1e6677d400ae
 
 # Story 1.3: Hexagonal Boundary Lock
 
-Status: ready-for-dev
+Status: review
 
 ## Change Log
 
 - 2026-08-04: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-04: Story implemented — `tests/architecture/test_layering.py` created (mirrors the oci-runtime hexagon guard): in-package layering (domain ← ports ← adapters ← application ← cli), domain stdlib allowlist + banned-stdlib, ports-ABC rule, Path-FS-method ban, and Rule 5 cross-package §11 boundary with pyproject-derived allowed roots; 19 tests green (3 forward-compatible skips), full suite 47 passed, ruff + mypy clean. Status → review.
 
 ## Story
 
@@ -27,34 +28,34 @@ so that `src/provisioning` can never silently import forbidden packages.
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/tests/architecture/test_layering.py` (AC: 1)
-  - [ ] `_SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "provisioning"` (package root)
-  - [ ] `_LAYERS = ("domain", "ports", "adapters", "application", "cli")`
-  - [ ] `_ALLOWED_TARGETS` mapping — each layer may import itself + all inner layers; `cli` is the composition root and may import everything; root `__init__.py` may import everything
-  - [ ] `_classify_layer()`, `_layer_of_imported_module()`, `_extract_in_package_imports()` helpers (AST-based)
-  - [ ] `test_no_layering_violations` — parametrized over every `*.py` under `_SRC_ROOT`
-  - [ ] Layer-specific guards: `test_domain_imports_only_domain`, `test_ports_import_no_adapters`, `test_adapters_import_no_application` (and mirror the oci-runtime per-layer assertions)
-- [ ] Domain stdlib rules (AC: 2)
-  - [ ] `_DOMAIN_ALLOWED_STDLIB` — the pure, zero-I/O set (see Dev Notes — differs from oci-runtime mirror)
-  - [ ] `_DOMAIN_BANNED_STDLIB` — `subprocess`, `os`, `shutil` (+ oci-runtime extras `select`, `selectors`, `socket`)
-  - [ ] `test_domain_stdlib_imports_are_allowlisted`
-  - [ ] `test_domain_imports_no_banned_stdlib`
-  - [ ] `_BANNED_PATH_FS_METHODS` scan + `test_domain_no_path_fs_method_calls` (mirror oci-runtime's method list)
-  - [ ] Self-tests for each rule using `ast.parse("import os")` etc. (AC: 6)
-- [ ] Ports ABC rule (AC: 3)
-  - [ ] `_classify_ports_class()` — abc / dataclass-aggregate / concrete (mirror oci-runtime)
-  - [ ] `test_ports_files_are_abstract_only`
-  - [ ] Self-test for classification (AC: 6)
-- [ ] Rule 5 cross-package check (AC: 4, 5)
-  - [ ] `_FORBIDDEN_CROSS_PACKAGE = {"core", "infrastructure", "color_scheme_generator", "wallpaper_effects_generator", "icon_templates_renderer", "config_assembler_engine", "oci_runtime"}`
-  - [ ] `test_no_forbidden_cross_package_imports` — scan all source files, flag any import whose top-level root is in the set
-  - [ ] `test_only_allowed_cross_package_roots` — non-stdlib, non-`provisioning` roots must be `cli_output` or a dependency declared in `pyproject.toml` (see Dev Notes for the robust derivation)
-  - [ ] Self-tests: `import core` flagged; `import cli_output` allowed; `import provisioning.domain.models` allowed (AC: 6)
-- [ ] Verify against current tree (domain + cli exist; ports/adapters/application do NOT yet)
-  - [ ] Run `uv run pytest tests/architecture/test_layering.py` — must pass on the current tree (AC: 1-6)
-  - [ ] Run full suite `uv run pytest` — no regressions (28 tests exist today)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] Optional mirror nicety: standalone `python tests/architecture/test_layering.py` exits 0
+- [x] Create `src/provisioning/tests/architecture/test_layering.py` (AC: 1)
+  - [x] `_SRC_ROOT = Path(__file__).resolve().parents[2] / "src" / "provisioning"` (package root)
+  - [x] `_LAYERS = ("domain", "ports", "adapters", "application", "cli")`
+  - [x] `_ALLOWED_TARGETS` mapping — each layer may import itself + all inner layers; `cli` is the composition root and may import everything; root `__init__.py` may import everything
+  - [x] `_classify_layer()`, `_layer_of_imported_module()`, `_extract_import_modules()` helpers (AST-based)
+  - [x] `test_no_layering_violations` — parametrized over every `*.py` under `_SRC_ROOT`
+  - [x] Layer-specific guards: `test_domain_imports_only_domain`, `test_ports_import_no_adapters`, `test_adapters_import_no_application` (and mirror the oci-runtime per-layer assertions)
+- [x] Domain stdlib rules (AC: 2)
+  - [x] `_DOMAIN_ALLOWED_STDLIB` — the pure, zero-I/O set (see Dev Notes — differs from oci-runtime mirror)
+  - [x] `_DOMAIN_BANNED_STDLIB` — `subprocess`, `os`, `shutil` (+ oci-runtime extras `select`, `selectors`, `socket`)
+  - [x] `test_domain_stdlib_imports_are_allowlisted`
+  - [x] `test_domain_imports_no_banned_stdlib`
+  - [x] `_BANNED_PATH_FS_METHODS` scan + `test_domain_no_path_fs_method_calls` (mirror oci-runtime's method list)
+  - [x] Self-tests for each rule using `ast.parse("import os")` etc. (AC: 6)
+- [x] Ports ABC rule (AC: 3)
+  - [x] `_classify_ports_class()` — abc / dataclass-aggregate / concrete (mirror oci-runtime)
+  - [x] `test_ports_files_are_abstract_only`
+  - [x] Self-test for classification (AC: 6)
+- [x] Rule 5 cross-package check (AC: 4, 5)
+  - [x] `_FORBIDDEN_CROSS_PACKAGE = {"core", "infrastructure", "color_scheme_generator", "wallpaper_effects_generator", "icon_templates_renderer", "config_assembler_engine", "oci_runtime"}`
+  - [x] `test_no_forbidden_cross_package_imports` — scan all source files, flag any import whose top-level root is in the set
+  - [x] `test_only_allowed_cross_package_roots` — non-stdlib, non-`provisioning` roots must be `cli_output` or a dependency declared in `pyproject.toml` (see Dev Notes for the robust derivation)
+  - [x] Self-tests: `import core` flagged; `import cli_output` allowed; `import provisioning.domain.models` allowed (AC: 6)
+- [x] Verify against current tree (domain + cli exist; ports/adapters/application do NOT yet)
+  - [x] Run `uv run pytest tests/architecture/test_layering.py` — must pass on the current tree (AC: 1-6)
+  - [x] Run full suite `uv run pytest` — no regressions (28 tests exist today)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] Optional mirror nicety: standalone `python tests/architecture/test_layering.py` exits 0
 
 ## Dev Notes
 
@@ -247,15 +248,23 @@ untyped test params).
 
 ### Agent Model Used
 
-(To be filled by the dev agent.)
+opencode-go/deepseek-v4-flash
 
 ### Debug Log References
 
-(To be filled by the dev agent.)
+- First run failed 5 tests (RED): (1) `_DOMAIN_ALLOWED_STDLIB` missing `__future__` (every domain file uses `from __future__ import annotations`, which is in `sys.stdlib_module_names`); (2) per-layer tests (`test_domain_imports_only_domain` etc.) flagged `__future__` because `_extract_import_modules` returns all imports — fixed by skipping `None`-layer (non-in-package) targets; (3) `_layer_of_imported_module("provisioning")` returned `None` — added explicit bare-package → `root` handling; (4) `_import_root` didn't strip version specifiers (`typer>=0.12` stayed whole) — added `re.split(r"[\s<>=!~]+", ...)[0]`.
+- `ruff format` reformatted 1 file (line-wrapping) — re-ran; still green.
 
 ### Completion Notes List
 
-(To be filled by the dev agent.)
+- Created `src/provisioning/tests/architecture/test_layering.py` (mirrors `src/shared/oci-runtime/tests/architecture/test_layering.py`), a pure-stdlib AST guard with zero third-party deps (`ast`, `sys`, `pathlib`, `tomllib`, `re`).
+- In-package hexagon locked: `_ALLOWED_TARGETS` encodes domain ← ports ← adapters ← application ← cli (cli = composition root); parametrized `test_no_layering_violations` over every `*.py` under `_SRC_ROOT`, plus per-layer guards (domain/ports/adapters).
+- Domain purity (AC 2): minimal allowlist `{__future__, dataclasses, enum, typing, collections, collections.abc, functools, re}` — deliberately EXCLUDES pathlib/io/posixpath/tarfile/json (differs from oci-runtime mirror because the provisioning domain is zero-I/O); banned set `{subprocess, os, shutil, select, selectors, socket}`; Path-FS-method-call ban (17 methods).
+- Ports ABC rule (AC 3): `_classify_ports_class` (abc / dataclass-aggregate / concrete); `test_ports_files_are_abstract_only` is forward-compatible (skips while ports/ is empty).
+- Rule 5 cross-package (AC 4, 5): `_FORBIDDEN_CROSS_PACKAGE` = the 7 dotfiles siblings; `test_only_allowed_cross_package_roots` derives the allowed set from `pyproject.toml` deps (`_import_root` normalizes `cli-output`→`cli_output`, `ansible-core`→`ansible`, strips versions) so typer/pydantic pass and the test stays in sync with declared deps.
+- AC 6 proven by self-tests for every rule: `ast.parse("import os")`, `import core`, `import provisioning.adapters...`, `p.exists()`, ports classification, and pyproject-derivation assertions.
+- Tests: 19 new pass (3 skips = forward-compatible ports/adapters checks); full suite 47 passed (28 pre-existing + 19 new); `ruff check` + `ruff format --check` clean; `mypy src tests` clean (strict); standalone `python tests/architecture/test_layering.py` exits 0 ("OK: 6 source files checked").
+- Scope respected: only the architecture test added; no production code, no ports/adapters/application (later stories).
 
 ### File List
 

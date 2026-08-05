@@ -52,7 +52,7 @@ development_status:
   epic-1: in-progress
   1-1-scaffold-the-provisioning-package: done
   1-2-domain-models-and-enums: done
-  1-3-hexagonal-boundary-lock: ready-for-dev
+  1-3-hexagonal-boundary-lock: review
   1-4-ports: backlog
   1-5-adapters: backlog
   1-6-provision-use-case: backlog
