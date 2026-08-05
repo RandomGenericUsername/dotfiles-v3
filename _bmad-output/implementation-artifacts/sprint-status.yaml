@@ -54,7 +54,7 @@ development_status:
   1-2-domain-models-and-enums: done
   1-3-hexagonal-boundary-lock: done
   1-4-ports: done
-  1-5-adapters: backlog
+  1-5-adapters: ready-for-dev
   1-6-provision-use-case: backlog
   1-7-verify-and-bootstrap-use-cases: backlog
   1-8-typer-cli: backlog
