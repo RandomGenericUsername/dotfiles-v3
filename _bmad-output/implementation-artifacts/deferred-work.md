@@ -139,3 +139,10 @@
 ## Deferred from: code review of story 1-6-provision-use-case (2026-08-05)
 
 - Resolved spine path is opaque to callers: plan mode can't surface `install_dir` and apply re-resolves it from env — plan/apply can diverge. Story 1.8 CLI scope [use_cases.py:49-56]
+
+## Deferred from: code review of story 1-7-verify-and-bootstrap-use-cases (2026-08-05)
+
+- Overloaded `check` flag — `verify()` hardcodes `False` for "real assertions" while the port uses it for plan/apply; a named semantic or second port method would clarify [use_cases.py:87]
+- Undifferentiated `ProvisionResult` — verify-gate failure vs bootstrap failure indistinguishable at type level; Story 1.8 CLI infers meaning from which playbook ran [use_cases.py:86-108]
+- ~90% identical constructor/run bodies across three use cases; a private base/mixin would collapse duplication — design debt, not a bug [use_cases.py:52-108]
+- `os_family()` not validated against `Distro` before passing as extra-var — pre-existing port contract (IFactReader returns "arch"|"debian-family"); invalid values would select nonexistent group_vars silently [use_cases.py:38]

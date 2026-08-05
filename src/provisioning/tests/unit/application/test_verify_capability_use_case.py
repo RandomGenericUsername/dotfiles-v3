@@ -1,36 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 
 from provisioning.application import VerifyCapabilityUseCase
 from provisioning.domain.models import ProvisionResult
-from provisioning.ports import IFactReader, IProvisionExecutor
-
-
-class FakeExecutor(IProvisionExecutor):
-    def __init__(self, result: ProvisionResult) -> None:
-        self._result = result
-        self.calls: list[tuple[Path, bool, Mapping[str, str]]] = []
-
-    def run(
-        self,
-        playbook: Path,
-        check: bool,
-        extra_vars: Mapping[str, str],
-    ) -> ProvisionResult:
-        self.calls.append((playbook, check, extra_vars))
-        return self._result
-
-
-class FakeFactReader(IFactReader):
-    def __init__(self, family: str) -> None:
-        self._family = family
-
-    def os_family(self) -> str:
-        return self._family
+from tests.unit.application.conftest import FakeExecutor, FakeFactReader, RaisingExecutor
 
 
 class TestVerifyCapabilityUseCase:
@@ -42,6 +18,7 @@ class TestVerifyCapabilityUseCase:
             playbook=Path("verify.yaml"),
         )
         use_case.verify()
+        assert len(executor.calls) == 1
         assert executor.calls[0][1] is False
 
     def test_default_playbook_is_verify_yaml(self) -> None:
@@ -51,6 +28,7 @@ class TestVerifyCapabilityUseCase:
             fact_reader=FakeFactReader("arch"),
         )
         use_case.verify()
+        assert len(executor.calls) == 1
         assert executor.calls[0][0] == Path("verify.yaml")
 
     def test_injected_playbook_is_passed_through(self) -> None:
@@ -61,6 +39,7 @@ class TestVerifyCapabilityUseCase:
             playbook=Path("playbooks/verify.yaml"),
         )
         use_case.verify()
+        assert len(executor.calls) == 1
         assert executor.calls[0][0] == Path("playbooks/verify.yaml")
 
     def test_extra_vars_carry_exactly_install_dir_and_os_family(
@@ -74,6 +53,7 @@ class TestVerifyCapabilityUseCase:
             playbook=Path("verify.yaml"),
         )
         use_case.verify()
+        assert len(executor.calls) == 1
         extra_vars = executor.calls[0][2]
         assert extra_vars == {
             "install_dir": str(Path("/home/user/.local/share/dotfiles")),
@@ -83,7 +63,10 @@ class TestVerifyCapabilityUseCase:
 
     def test_result_returned_unchanged(self) -> None:
         expected = ProvisionResult(
-            success=False, tasks=(("verify : assert preconditions", "failed"),)
+            success=False,
+            tasks=(("verify : assert preconditions", "failed"),),
+            returncode=3,
+            stderr="fatal: [localhost]: FAILED!",
         )
         executor = FakeExecutor(expected)
         use_case = VerifyCapabilityUseCase(
@@ -92,4 +75,14 @@ class TestVerifyCapabilityUseCase:
             playbook=Path("verify.yaml"),
         )
         result = use_case.verify()
+        assert len(executor.calls) == 1
         assert result == expected
+
+    def test_executor_errors_propagate(self) -> None:
+        use_case = VerifyCapabilityUseCase(
+            executor=RaisingExecutor(),
+            fact_reader=FakeFactReader("arch"),
+            playbook=Path("verify.yaml"),
+        )
+        with pytest.raises(RuntimeError, match="boom"):
+            use_case.verify()

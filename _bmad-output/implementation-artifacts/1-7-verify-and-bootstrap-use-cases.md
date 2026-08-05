@@ -4,7 +4,7 @@ baseline_commit: 7b3c1aa
 
 # Story 1.7: Verify and Bootstrap Use Cases
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -43,6 +43,19 @@ So that I can assert runtime preconditions and run the full aggregate provisioni
   - [x] `uv run pytest` — full suite green (was 127 passed / 0 skipped)
   - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
   - [x] Standalone nicety: `python tests/architecture/test_layering.py` still exits 0
+
+## Review Findings
+
+- [x] [Review][Patch] Extract triplicated `FakeExecutor`/`FakeFactReader` into `tests/unit/application/conftest.py` [tests/unit/application/test_verify_capability_use_case.py:14-37, test_bootstrap_use_case.py:14-37, test_provision_machine_use_case.py:14-35]
+- [x] [Review][Patch] Add exactly-once executor-call assertion (`len(executor.calls) == 1`) in new use-case tests [tests/unit/application/test_verify_capability_use_case.py, test_bootstrap_use_case.py]
+- [x] [Review][Patch] Pin `returncode`/`stderr` in result-passthrough tests (currently only `success`+`tasks`) [tests/unit/application/test_verify_capability_use_case.py:95, test_bootstrap_use_case.py:103]
+- [x] [Review][Patch] Add exception-propagation test (raising executor surfaces through `verify()`/`bootstrap()`) [tests/unit/application/test_verify_capability_use_case.py, test_bootstrap_use_case.py]
+- [x] [Review][Patch] Assert `extra_vars` still carried when `bootstrap(check=True)` [tests/unit/application/test_bootstrap_use_case.py:35-42]
+- [x] [Review][Patch] Update `use_cases.py` module docstring to cover the three use cases, not just `ProvisionMachineUseCase` [application/use_cases.py:1-7]
+- [x] [Review][Defer] Overloaded `check` flag — `verify()` hardcodes `False` for "real assertions" while port uses it for plan/apply [application/use_cases.py:87] — deferred, needs port contract change
+- [x] [Review][Defer] Undifferentiated `ProvisionResult` — verify-gate vs bootstrap failure indistinguishable at type level; Story 1.8 CLI infers from playbook [application/use_cases.py:86-108] — deferred, pre-existing
+- [x] [Review][Defer] ~90% identical constructor/run bodies across three use cases; a private base/mixin would collapse duplication [application/use_cases.py:52-108] — deferred, design debt
+- [x] [Review][Defer] `os_family()` not validated against `Distro` before passing as extra-var [application/use_cases.py:38] — deferred, pre-existing port contract
 
 ## Dev Notes
 

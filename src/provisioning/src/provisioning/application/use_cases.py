@@ -1,9 +1,18 @@
 """Use cases for the provisioning orchestrator.
 
-The application layer wires the locked ports (Story 1.4) into a
-``ProvisionMachineUseCase`` that plans (``check=True``) or applies
-(``check=False``) machine state. It resolves the two seam extra-vars —
-``install_dir`` and ``os_family`` — and hands them to the executor.
+The application layer wires the locked ports (Story 1.4) into three use
+cases that run playbooks through ``IProvisionExecutor``:
+
+- ``ProvisionMachineUseCase`` plans (``check=True``) or applies
+  (``check=False``) machine state.
+- ``VerifyCapabilityUseCase`` asserts the §12 runtime preconditions via the
+  verify playbook (always a real check, never ``--check``).
+- ``BootstrapUseCase`` runs the aggregate bootstrap playbook end-to-end
+  (``check=True`` supports ``bootstrap --check``).
+
+All three resolve the two seam extra-vars — ``install_dir`` and
+``os_family`` — via the shared ``_seam_extra_vars`` helper and hand them to
+the executor.
 """
 
 from __future__ import annotations
