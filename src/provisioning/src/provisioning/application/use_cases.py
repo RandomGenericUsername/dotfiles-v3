@@ -26,6 +26,19 @@ def resolve_install_dir() -> Path:
     return (base / "dotfiles").expanduser().resolve()
 
 
+def _seam_extra_vars(fact_reader: IFactReader) -> dict[str, str]:
+    """Resolve the two locked seam extra-vars for a provisioning run.
+
+    Returns exactly ``install_dir`` (resolved spine root) and ``os_family``
+    (the ``group_vars`` basename) — the keys Story 1.5's seam contract test
+    pins and no others.
+    """
+    return {
+        "install_dir": str(resolve_install_dir()),
+        "os_family": fact_reader.os_family(),
+    }
+
+
 class ProvisionMachineUseCase:
     """Plan or apply machine state through the locked provisioning ports.
 
@@ -47,13 +60,57 @@ class ProvisionMachineUseCase:
         self._playbook = playbook
 
     def provision(self, check: bool) -> ProvisionResult:
-        os_family = self._fact_reader.os_family()
-        install_dir = resolve_install_dir()
-        return self._executor.run(
-            self._playbook,
-            check,
-            {"install_dir": str(install_dir), "os_family": os_family},
-        )
+        return self._executor.run(self._playbook, check, _seam_extra_vars(self._fact_reader))
 
 
-__all__ = ["ProvisionMachineUseCase", "resolve_install_dir"]
+class VerifyCapabilityUseCase:
+    """Assert the §12 runtime preconditions via the verify playbook.
+
+    The four preconditions (binaries installed, assets placed, filesystem
+    structure exists, settings files parseable) are asserted by the Ansible
+    ``verify.yaml`` playbook (Epic 2 content) — this use case is the Python
+    orchestration seam that runs it through ``IProvisionExecutor`` with a real
+    check (never ``--check``), without reaching into provisioning internals.
+    """
+
+    def __init__(
+        self,
+        executor: IProvisionExecutor,
+        fact_reader: IFactReader,
+        playbook: Path = Path("verify.yaml"),
+    ) -> None:
+        self._executor = executor
+        self._fact_reader = fact_reader
+        self._playbook = playbook
+
+    def verify(self) -> ProvisionResult:
+        return self._executor.run(self._playbook, False, _seam_extra_vars(self._fact_reader))
+
+
+class BootstrapUseCase:
+    """Run the aggregate ``bootstrap.yaml`` playbook end-to-end.
+
+    ``check=True`` supports ``dotfiles-provision bootstrap --check``; the
+    default ``check=False`` is the full end-to-end provisioning run (FR-4).
+    """
+
+    def __init__(
+        self,
+        executor: IProvisionExecutor,
+        fact_reader: IFactReader,
+        playbook: Path = Path("bootstrap.yaml"),
+    ) -> None:
+        self._executor = executor
+        self._fact_reader = fact_reader
+        self._playbook = playbook
+
+    def bootstrap(self, check: bool = False) -> ProvisionResult:
+        return self._executor.run(self._playbook, check, _seam_extra_vars(self._fact_reader))
+
+
+__all__ = [
+    "BootstrapUseCase",
+    "ProvisionMachineUseCase",
+    "VerifyCapabilityUseCase",
+    "resolve_install_dir",
+]

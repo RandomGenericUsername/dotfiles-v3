@@ -4,13 +4,14 @@ baseline_commit: 7b3c1aa
 
 # Story 1.7: Verify and Bootstrap Use Cases
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-05: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-05: Implemented `VerifyCapabilityUseCase` + `BootstrapUseCase` + `_seam_extra_vars()` in `application/use_cases.py`; 10 unit tests with fake ports (verify check=False, bootstrap check passthrough, playbook passthrough, exact seam extra-vars, result passthrough). Layering guard green (16 source files); full suite 140 passed / 0 skipped; ruff + mypy clean.
 
 ## Story
 
@@ -26,22 +27,22 @@ So that I can assert runtime preconditions and run the full aggregate provisioni
 
 ## Tasks / Subtasks
 
-- [ ] Add `VerifyCapabilityUseCase` and `BootstrapUseCase` to `application/use_cases.py` (AC: 1, 2)
-  - [ ] Constructor injection of `executor` + `fact_reader` + `playbook` (mirror `ProvisionMachineUseCase`), with sensible defaults `Path("verify.yaml")` / `Path("bootstrap.yaml")`
-  - [ ] `verify() -> ProvisionResult` — runs the verify playbook with `check=False` (a real check, never `--check`)
-  - [ ] `bootstrap(check: bool = False) -> ProvisionResult` — runs the aggregate playbook end-to-end; `check=True` supports `bootstrap --check`
-  - [ ] Both pass the **exact** seam extra-vars `install_dir` + `os_family` (shared private helper, see Dev Notes)
-  - [ ] Do NOT construct adapters, do NOT import `cli`, do NOT do filesystem checks — the executor port owns all I/O
-- [ ] Update `application/__init__.py` (AC: 1, 2)
-  - [ ] Re-export `VerifyCapabilityUseCase`, `BootstrapUseCase` (plus existing `ProvisionMachineUseCase`, `resolve_install_dir`); `__all__` must match `use_cases.py`
-- [ ] Unit tests with fake ports (AC: 3, NFR-5)
-  - [ ] `tests/unit/application/test_verify_capability_use_case.py`
-  - [ ] `tests/unit/application/test_bootstrap_use_case.py`
-- [ ] Verify against layering guard + full suite
-  - [ ] `uv run pytest tests/architecture/test_layering.py` — application/ files scanned, no violations
-  - [ ] `uv run pytest` — full suite green (was 127 passed / 0 skipped)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] Standalone nicety: `python tests/architecture/test_layering.py` still exits 0
+- [x] Add `VerifyCapabilityUseCase` and `BootstrapUseCase` to `application/use_cases.py` (AC: 1, 2)
+  - [x] Constructor injection of `executor` + `fact_reader` + `playbook` (mirror `ProvisionMachineUseCase`), with sensible defaults `Path("verify.yaml")` / `Path("bootstrap.yaml")`
+  - [x] `verify() -> ProvisionResult` — runs the verify playbook with `check=False` (a real check, never `--check`)
+  - [x] `bootstrap(check: bool = False) -> ProvisionResult` — runs the aggregate playbook end-to-end; `check=True` supports `bootstrap --check`
+  - [x] Both pass the **exact** seam extra-vars `install_dir` + `os_family` (shared private helper, see Dev Notes)
+  - [x] Do NOT construct adapters, do NOT import `cli`, do NOT do filesystem checks — the executor port owns all I/O
+- [x] Update `application/__init__.py` (AC: 1, 2)
+  - [x] Re-export `VerifyCapabilityUseCase`, `BootstrapUseCase` (plus existing `ProvisionMachineUseCase`, `resolve_install_dir`); `__all__` must match `use_cases.py`
+- [x] Unit tests with fake ports (AC: 3, NFR-5)
+  - [x] `tests/unit/application/test_verify_capability_use_case.py`
+  - [x] `tests/unit/application/test_bootstrap_use_case.py`
+- [x] Verify against layering guard + full suite
+  - [x] `uv run pytest tests/architecture/test_layering.py` — application/ files scanned, no violations
+  - [x] `uv run pytest` — full suite green (was 127 passed / 0 skipped)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] Standalone nicety: `python tests/architecture/test_layering.py` still exits 0
 
 ## Dev Notes
 
@@ -225,14 +226,23 @@ opencode-go/deepseek-v4-flash
 ### Debug Log References
 
 - 2026-08-05: Story created via create-story workflow — context loaded from epics Story 1.7 ACs, PRD FR-3/FR-4/FR-9/NFR-7, SPEC §12 preconditions + CAP-3/CAP-4, plan §7/§8/§11, prior story 1.6 (use-case pattern), seam contract from 1.5, layering guard `_ALLOWED_TARGETS["application"]`.
+- 2026-08-05: RED — 10 tests written first (5 verify + 5 bootstrap); collection failed (`ImportError: cannot import name 'BootstrapUseCase'`), confirming tests are valid.
+- 2026-08-05: GREEN — `VerifyCapabilityUseCase` + `BootstrapUseCase` + `_seam_extra_vars()` implemented in `application/use_cases.py`; `__init__.py` re-exports updated; 20 application tests passed.
+- 2026-08-05: ruff format flagged `test_bootstrap_use_case.py:95` — reformatted; full suite 140 passed / 0 skipped; layering guard 6 rules green; standalone exits 0 (16 source files); mypy strict clean.
 
 ### Completion Notes List
 
-- (Pending dev-story implementation.)
+- ✅ Implemented `application/use_cases.py` (AC 1, 2): `VerifyCapabilityUseCase(executor, fact_reader, playbook=Path("verify.yaml"))` with `verify() -> ProvisionResult` (runs the verify playbook with `check=False` — a real check, never `--check`); `BootstrapUseCase(executor, fact_reader, playbook=Path("bootstrap.yaml"))` with `bootstrap(check: bool = False) -> ProvisionResult` (end-to-end; `check=True` supports `bootstrap --check`).
+- ✅ Added `_seam_extra_vars(fact_reader)` private helper — returns exactly `{"install_dir": str(resolve_install_dir()), "os_family": fact_reader.os_family()}`; refactored `ProvisionMachineUseCase.provision()` to use it (DRY, no behavior change — 1.6 tests still pin the exact extra-vars).
+- ✅ `application/__init__.py` re-exports `BootstrapUseCase`, `ProvisionMachineUseCase`, `VerifyCapabilityUseCase`, `resolve_install_dir`; `__all__` matches `use_cases.py` (1.6 review fix kept in sync).
+- ✅ AC 3 / NFR-5: 10 unit tests with fake ports — verify (check=False, default + injected playbook, exact seam extra-vars, result passthrough) and bootstrap (default check=False, check=True passthrough, default + injected playbook, exact seam extra-vars, result passthrough).
+- ✅ Layering guard: `application/` clean (16 source files, 6 rules); standalone `python tests/architecture/test_layering.py` exits 0.
+- ✅ Full suite 140 passed / 0 skipped (was 127, +13 new); ruff check/format + mypy strict clean.
+- Scope respected: no CLI (1.8), no manifests (2.1), no Ansible content (2.12), no Python-side verification logic, no adapter instantiation, no new ports.
 
 ### File List
 
-- `src/provisioning/src/provisioning/application/use_cases.py` (update — add two classes + `_seam_extra_vars` helper)
-- `src/provisioning/src/provisioning/application/__init__.py` (update — re-export new use cases)
+- `src/provisioning/src/provisioning/application/use_cases.py` (update — add `VerifyCapabilityUseCase`, `BootstrapUseCase`, `_seam_extra_vars`; refactor `ProvisionMachineUseCase.provision()` to use helper)
+- `src/provisioning/src/provisioning/application/__init__.py` (update — re-export new use cases, `__all__` synced)
 - `src/provisioning/tests/unit/application/test_verify_capability_use_case.py` (new)
 - `src/provisioning/tests/unit/application/test_bootstrap_use_case.py` (new)

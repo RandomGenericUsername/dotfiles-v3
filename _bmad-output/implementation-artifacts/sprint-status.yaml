@@ -56,7 +56,7 @@ development_status:
   1-4-ports: done
   1-5-adapters: done
   1-6-provision-use-case: done
-  1-7-verify-and-bootstrap-use-cases: ready-for-dev
+  1-7-verify-and-bootstrap-use-cases: review
   1-8-typer-cli: backlog
   epic-1-retrospective: optional
 
