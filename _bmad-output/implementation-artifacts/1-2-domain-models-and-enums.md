@@ -1,10 +1,14 @@
 ---
-baseline_commit: ""
+baseline_commit: c25dbec63e352ff1d46a269ddb02e44473fa04cd
 ---
 
 # Story 1.2: Domain Models and Enums
 
-Status: ready-for-dev
+Status: review
+
+## Change Log
+
+- 2026-08-03: Story implemented — pure zero-I/O domain layer (`domain/models.py`, `domain/enums.py`) with `Distro`/`BinaryCapability`/`AssetKind` StrEnums and `MachineState`/`ProvisionManifest`/`ProvisionResult`/`Spec` frozen dataclasses; 18 domain tests; zero-I/O verified via AST scan; ruff/mypy clean. Status → review.
 
 ## Story
 
@@ -21,22 +25,22 @@ so that provisioning logic is testable in isolation without touching the filesys
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/src/provisioning/domain/__init__.py` (AC: 1, 2)
-- [ ] Create `src/provisioning/src/provisioning/domain/enums.py` (AC: 2)
-  - [ ] `Distro` StrEnum — Arch, DebianFamily (matching `group_vars/{arch,debian-family}.yml` seam contract)
-  - [ ] `BinaryCapability` StrEnum — system binaries (Hyprland, Hyprpaper, Waybar, fonts), CLI tools (csg, weg, icon-renderer)
-  - [ ] `AssetKind` StrEnum — wallpaper, icon-template, icon-mapping, csg-template, weg-effects
-- [ ] Create `src/provisioning/src/provisioning/domain/models.py` (AC: 1, 3)
-  - [ ] `MachineState` frozen dataclass with typed fields
-  - [ ] `ProvisionManifest` frozen dataclass with typed fields
-  - [ ] `ProvisionResult` frozen dataclass with typed fields
-  - [ ] `Spec` frozen dataclass with typed fields
-- [ ] Create `src/provisioning/tests/unit/test_domain.py` (AC: 4)
-  - [ ] Construction tests — valid instances construct
-  - [ ] Validation tests — invalid input rejected (TypeError / ValueError)
-  - [ ] Equality tests — equal/unequal instances compare correctly
-  - [ ] Zero fixtures, zero temp files
-- [ ] Run tests, ruff, mypy, format (AC: 4)
+- [x] Create `src/provisioning/src/provisioning/domain/__init__.py` (AC: 1, 2)
+- [x] Create `src/provisioning/src/provisioning/domain/enums.py` (AC: 2)
+  - [x] `Distro` StrEnum — Arch, DebianFamily (matching `group_vars/{arch,debian-family}.yml` seam contract)
+  - [x] `BinaryCapability` StrEnum — system binaries (Hyprland, Hyprpaper, Waybar, fonts), CLI tools (csg, weg, icon-renderer)
+  - [x] `AssetKind` StrEnum — wallpaper, icon-template, icon-mapping, csg-template, weg-effects
+- [x] Create `src/provisioning/src/provisioning/domain/models.py` (AC: 1, 3)
+  - [x] `MachineState` frozen dataclass with typed fields
+  - [x] `ProvisionManifest` frozen dataclass with typed fields
+  - [x] `ProvisionResult` frozen dataclass with typed fields
+  - [x] `Spec` frozen dataclass with typed fields
+- [x] Create `src/provisioning/tests/unit/test_domain.py` (AC: 4)
+  - [x] Construction tests — valid instances construct
+  - [x] Validation tests — invalid input rejected (TypeError / ValueError)
+  - [x] Equality tests — equal/unequal instances compare correctly
+  - [x] Zero fixtures, zero temp files
+- [x] Run tests, ruff, mypy, format (AC: 4)
 
 ## Dev Notes
 
@@ -99,9 +103,16 @@ opencode-go/deepseek-v4-flash
 
 ### Debug Log References
 
+- Initial test run failed with `ModuleNotFoundError: No module named 'provisioning.domain'` (RED) — expected; domain layer did not exist yet. Implemented `enums.py`, `models.py`, `domain/__init__.py`, tests turned green.
+
 ### Completion Notes List
 
-- Ultimate context engine analysis completed - comprehensive developer guide created
+- Created pure zero-I/O domain layer under `src/provisioning/src/provisioning/domain/`: `enums.py` (`Distro`, `BinaryCapability`, `AssetKind` StrEnums) and `models.py` (`MachineState`, `ProvisionManifest`, `ProvisionResult`, `Spec` frozen dataclasses with typed fields).
+- `Distro` values match the `group_vars/{arch,debian-family}.yml` seam contract (`Distro.ARCH = "arch"`, `Distro.DEBIAN_FAMILY = "debian-family"`) so `IFactReader.os_family()` maps directly.
+- Verified zero-I/O mechanically: AST scan of all domain modules shows no `os`/`subprocess`/`shutil`/`pathlib` imports (AC 3, NFR-5).
+- Tests: 18 new domain tests + 4 existing CLI = 22 pass. Construction, frozen-ness, equality, and enum members covered — zero fixtures, zero temp files (AC 4, NFR-5).
+- ruff check + format clean; mypy strict clean (8 source files).
+- Scope boundary respected: only `domain/` created; no ports/adapters/application (later stories).
 
 ### File List
 
