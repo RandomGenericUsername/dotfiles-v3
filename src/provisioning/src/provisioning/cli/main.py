@@ -117,17 +117,28 @@ def _render_run(
             ErrorView(
                 kind="ProvisionFailed",
                 message=f"{command} failed (returncode={result.returncode})",
-                details={"stderr": result.stderr},
+                details={
+                    "stderr": result.stderr,
+                    "failed_tasks": [
+                        label
+                        for label, status in result.tasks
+                        if status in ("failed", "unreachable")
+                    ],
+                },
             )
         )
         raise typer.Exit(code=1) from None
+    try:
+        install_dir = str(resolve_install_dir())
+    except (OSError, RuntimeError):
+        install_dir = "unresolved"
     renderer.result(
         ResultView(
             success=True,
             title=command,
             fields={
                 "command": command,
-                "install_dir": str(resolve_install_dir()),
+                "install_dir": install_dir,
                 "returncode": result.returncode,
                 "tasks": dict(result.tasks),
             },

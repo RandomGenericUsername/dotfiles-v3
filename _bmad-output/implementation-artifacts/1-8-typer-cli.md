@@ -4,7 +4,7 @@ baseline_commit: 4652161
 
 # Story 1.8: Typer CLI
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -346,3 +346,16 @@ opencode-go/deepseek-v4-flash
 - `src/provisioning/tests/unit/cli/conftest.py` (new — reuse `FakeExecutor`/`FakeFactReader`; CLI-local raising fake for a known error type)
 - `src/provisioning/tests/unit/cli/test_commands.py` (new)
 - `src/provisioning/tests/unit/cli/__init__.py` (new, if the tests/unit/cli dir is created)
+
+## Review Findings
+
+- [x] [Review][Defer] `version` builds the full dependency graph on every invocation [cli/main.py:96] — deferred, pre-existing pattern
+- [x] [Review][Defer] No timeout set in production composition root, so `ProvisionTimeoutError` is unreachable and a hung `ansible-playbook` blocks forever [cli/main.py:74] — deferred, product decision on timeout value needed
+- [x] [Review][Defer] Success output drops Ansible stderr (warnings lost on exit 0) [cli/main.py:124-135] — deferred, payload shape locked in story dev notes
+- [x] [Review][Defer] `dict(result.tasks)` collapses duplicate task labels; safe today only because `_parse_tasks` dedupes (adapter impl detail, not a domain invariant) [cli/main.py:132] — deferred, pre-existing
+- [x] [Review][Defer] `--output-format` non-default branches (`plain`/`rich`, `case_sensitive=False`) untested [cli/options.py:13] — deferred, cli-output owns rendering; default JSON path tested
+- [x] [Review][Patch] `resolve_install_dir()` can raise outside the `try` in the success path, producing a raw traceback after a successful run [cli/main.py:130]
+- [x] [Review][Patch] Failure path discards which task failed; `ProvisionResult.tasks` is dropped from the `ErrorView` on `success=False` [cli/main.py:115-123]
+- [x] [Review][Patch] No regression test asserts `--help` advertises plan/apply/verify/bootstrap (pins 1.1 deferred-item resolution)
+- [x] [Review][Patch] No test pins the fail-loudly boundary: a fake raising an unexpected exception must propagate as a traceback, not render a JSON `ErrorView`
+- [x] [Review][Patch] Failure tests assert `exit_code != 0` instead of the specified `typer.Exit(code=1)`; `bootstrap --check` success test omits the payload assertion [tests/unit/cli/test_commands.py]

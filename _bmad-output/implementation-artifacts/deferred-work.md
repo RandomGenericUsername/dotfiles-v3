@@ -146,3 +146,11 @@
 - Undifferentiated `ProvisionResult` — verify-gate failure vs bootstrap failure indistinguishable at type level; Story 1.8 CLI infers meaning from which playbook ran [use_cases.py:86-108]
 - ~90% identical constructor/run bodies across three use cases; a private base/mixin would collapse duplication — design debt, not a bug [use_cases.py:52-108]
 - `os_family()` not validated against `Distro` before passing as extra-var — pre-existing port contract (IFactReader returns "arch"|"debian-family"); invalid values would select nonexistent group_vars silently [use_cases.py:38]
+
+## Deferred from: code review of story 1-8-typer-cli (2026-08-08)
+
+- `version` builds the full dependency graph on every invocation — callback unconditionally calls `build_deps()`; if it ever raises, `version` breaks. Matches deferred CSG pattern (deferred-work.md#38) [cli/main.py:96]
+- No timeout set in production composition root — `AnsibleExecutor` constructed without `timeout`, so a hung `ansible-playbook` blocks the CLI forever and the handled `ProvisionTimeoutError` path can never fire. Choosing a default timeout is a product decision, not in story scope [cli/main.py:74]
+- Success output drops Ansible stderr — exit-0 warnings are discarded from the JSON success payload, unlike the error path which preserves `details.stderr`; success payload shape is locked in the 1.8 dev notes [cli/main.py:124-135]
+- `dict(result.tasks)` collapses duplicate task labels — `ProvisionResult.tasks` is `tuple[tuple[str, str], ...]` with no uniqueness guarantee in the domain contract; safe today only because `_parse_tasks` dedupes (adapter impl detail) [cli/main.py:132]
+- `--output-format` non-default branches untested — only the JSON default path is exercised; `plain`/`rich` renderings and `case_sensitive=False` variants of the callback option have no CLI-level test [cli/options.py:13]
