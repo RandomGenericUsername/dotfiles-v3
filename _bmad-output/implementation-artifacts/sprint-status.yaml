@@ -57,7 +57,7 @@ development_status:
   1-5-adapters: done
   1-6-provision-use-case: done
   1-7-verify-and-bootstrap-use-cases: done
-  1-8-typer-cli: backlog
+  1-8-typer-cli: ready-for-dev
   epic-1-retrospective: optional
 
   # ── Epic 2: Machine Provisioning Content ──
