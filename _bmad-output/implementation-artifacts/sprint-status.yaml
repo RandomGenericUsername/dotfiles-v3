@@ -34,14 +34,14 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 # generated: 2026-08-04
-# last_updated: 2026-08-05
+# last_updated: 2026-08-08
 # project: dotfiles-repo-v3
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
 
 generated: 2026-08-04
-last_updated: 2026-08-05
+last_updated: 2026-08-08
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -57,7 +57,7 @@ development_status:
   1-5-adapters: done
   1-6-provision-use-case: done
   1-7-verify-and-bootstrap-use-cases: done
-  1-8-typer-cli: ready-for-dev
+  1-8-typer-cli: review
   epic-1-retrospective: optional
 
   # ── Epic 2: Machine Provisioning Content ──

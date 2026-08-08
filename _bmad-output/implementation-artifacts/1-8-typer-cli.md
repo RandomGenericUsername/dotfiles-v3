@@ -4,13 +4,14 @@ baseline_commit: 4652161
 
 # Story 1.8: Typer CLI
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-05: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-08: Story implemented and marked ready for review. Added `cli/options.py`, composition root + four commands in `cli/main.py`, and 13 CLI tests (156 passed / 0 skipped).
 
 ## Story
 
@@ -30,29 +31,29 @@ So that I can drive provisioning from a terminal with structured output.
 
 ## Tasks / Subtasks
 
-- [ ] Create `cli/options.py` with shared option definitions (AC: 1, 6, 7)
-  - [ ] `OUTPUT_FORMAT_OPT` — `typer.Option(OutputFormat.JSON, "--output-format", help=..., case_sensitive=False)` from `cli_output.domain.enums` (mirror CSG's `output_format` global)
-  - [ ] `CHECK_OPT` — `typer.Option(False, "--check", help="Dry run: complete cleanly with no mutation")` for the `bootstrap` command (FR-4)
-- [ ] Update `cli/main.py`: wire the composition root and the four commands (AC: 1–7)
-  - [ ] Add `CliDependencies` dataclass + `build_deps()` (mirror CSG `build_deps()` pattern) — the **composition root** that Story 1.6/1.7 dev notes say must live in the CLI
-  - [ ] `build_deps()` constructs `AnsibleExecutor` + `AnsibleFactReader`, wires them into `ProvisionMachineUseCase` (plan/apply, `bootstrap.yaml`), `VerifyCapabilityUseCase` (`verify.yaml`), and `BootstrapUseCase` (`bootstrap.yaml`)
-  - [ ] Extend the existing `@app.callback()` to set `ctx.obj = {"renderer": create_renderer(output_format), "deps": build_deps()}` — **keep `version` working**
-  - [ ] **Remove the now-dead `_renderer()` helper** (superseded by `create_renderer(output_format)` in the callback)
-  - [ ] Add `plan(ctx)` → `deps.plan.provision(check=True)`
-  - [ ] Add `apply(ctx)` → `deps.apply.provision(check=False)`
-  - [ ] Add `verify(ctx)` → `deps.verify.verify()`
-  - [ ] Add `bootstrap(ctx, check: bool = CHECK_OPT)` → `deps.bootstrap.bootstrap(check=check)`
-  - [ ] Add a shared `_render_run(renderer, fn, command)` helper: run `fn()`, render success via `ResultView` (including `install_dir`), catch the four known adapter errors → `ErrorView` + `typer.Exit(code=1)`, and exit non-zero when `result.success is False`
-  - [ ] Do NOT validate playbook existence, do NOT read manifests, do NOT branch on distro, do NOT persist state
-- [ ] CLI tests with mock deps on `ctx.obj` (AC: 7, NFR-5)
-  - [ ] `tests/unit/cli/conftest.py` — `FakeDeps` holding fake use cases backed by the existing `FakeExecutor`/`FakeFactReader` pattern
-  - [ ] `tests/unit/cli/test_commands.py` — success + failure for each of plan/apply/verify/bootstrap
-  - [ ] Extend `tests/test_cli.py` only if the `version` tests need the new callback shape (they should not — keep the `ctx.obj["renderer"]` contract)
-- [ ] Verify against layering guard + full suite
-  - [ ] `uv run pytest tests/architecture/test_layering.py` — cli/ scanned (now includes `options.py`), no violations
-  - [ ] `uv run pytest` — full suite green (was 142 passed / 0 skipped)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] Standalone nicety: `python tests/architecture/test_layering.py` still exits 0
+- [x] Create `cli/options.py` with shared option definitions (AC: 1, 6, 7)
+  - [x] `OUTPUT_FORMAT_OPT` — `typer.Option(OutputFormat.JSON, "--output-format", help=..., case_sensitive=False)` from `cli_output.domain.enums` (mirror CSG's `output_format` global)
+  - [x] `CHECK_OPT` — `typer.Option(False, "--check", help="Dry run: complete cleanly with no mutation")` for the `bootstrap` command (FR-4)
+- [x] Update `cli/main.py`: wire the composition root and the four commands (AC: 1–7)
+  - [x] Add `CliDependencies` dataclass + `build_deps()` (mirror CSG `build_deps()` pattern) — the **composition root** that Story 1.6/1.7 dev notes say must live in the CLI
+  - [x] `build_deps()` constructs `AnsibleExecutor` + `AnsibleFactReader`, wires them into `ProvisionMachineUseCase` (plan/apply, `bootstrap.yaml`), `VerifyCapabilityUseCase` (`verify.yaml`), and `BootstrapUseCase` (`bootstrap.yaml`)
+  - [x] Extend the existing `@app.callback()` to set `ctx.obj = {"renderer": create_renderer(output_format), "deps": build_deps()}` — **keep `version` working**
+  - [x] **Remove the now-dead `_renderer()` helper** (superseded by `create_renderer(output_format)` in the callback)
+  - [x] Add `plan(ctx)` → `deps.plan.provision(check=True)`
+  - [x] Add `apply(ctx)` → `deps.apply.provision(check=False)`
+  - [x] Add `verify(ctx)` → `deps.verify.verify()`
+  - [x] Add `bootstrap(ctx, check: bool = CHECK_OPT)` → `deps.bootstrap.bootstrap(check=check)`
+  - [x] Add a shared `_render_run(renderer, fn, command)` helper: run `fn()`, render success via `ResultView` (including `install_dir`), catch the four known adapter errors → `ErrorView` + `typer.Exit(code=1)`, and exit non-zero when `result.success is False`
+  - [x] Do NOT validate playbook existence, do NOT read manifests, do NOT branch on distro, do NOT persist state
+- [x] CLI tests with mock deps on `ctx.obj` (AC: 7, NFR-5)
+  - [x] `tests/unit/cli/conftest.py` — `FakeDeps` holding fake use cases backed by the existing `FakeExecutor`/`FakeFactReader` pattern
+  - [x] `tests/unit/cli/test_commands.py` — success + failure for each of plan/apply/verify/bootstrap
+  - [x] Extend `tests/test_cli.py` only if the `version` tests need the new callback shape (they should not — keep the `ctx.obj["renderer"]` contract)
+- [x] Verify against layering guard + full suite
+  - [x] `uv run pytest tests/architecture/test_layering.py` — cli/ scanned (now includes `options.py`), no violations
+  - [x] `uv run pytest` — full suite green (was 142 passed / 0 skipped)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] Standalone nicety: `python tests/architecture/test_layering.py` still exits 0
 
 ## Dev Notes
 
@@ -331,10 +332,12 @@ opencode-go/deepseek-v4-flash
 ### Debug Log References
 
 - 2026-08-05: Story created via create-story workflow — context loaded from epics Story 1.8 ACs, PRD FR-1..FR-4/FR-11/NFR-2/NFR-5, SPEC CAP-1..CAP-4 + §11, plan §6/§7/§11, prior stories 1.6/1.7 (use-case signatures, deferred items now in scope), adapters 1.5 (constructor signatures + error types), cli-output API (views/renderer/enums), layering guard `_ALLOWED_TARGETS["cli"]`, CSG `build_deps` + `_invoke` test pattern.
+- 2026-08-08: Implemented story 1.8. RED: wrote 13 failing CLI tests (build_deps missing). GREEN: added `cli/options.py` + rewrote `cli/main.py`. Validation: 37 layering tests, 156 full-suite tests, ruff check/format clean, mypy clean (38 files), standalone layering OK. Noted typer vendors click — used `typer.testing.Result` (not `click.testing.Result`) for the `_invoke` return type.
 
 ### Completion Notes List
 
 - Story 1.8 created with `Status: ready-for-dev`. Tasks, dev notes, testing requirements, and references cover: `options.py` (`OUTPUT_FORMAT_OPT`, `CHECK_OPT`), `main.py` composition root (`CliDependencies` + `build_deps()` wiring AnsibleExecutor/AnsibleFactReader into the three use cases), four commands with the locked plan/apply/verify/bootstrap → playbook → check mapping, shared `_render_run` (ResultView on success incl. `install_dir`; ErrorView + non-zero exit on adapter errors or `success=False`), preserved `version` + `ctx.obj["renderer"]` contract, CSG-style `_invoke` test helper for `CliRunner` mock deps.
+- 2026-08-08: Implemented. `cli/options.py` exports `OUTPUT_FORMAT_OPT` (JSON default, `case_sensitive=False`) and `CHECK_OPT`; `cli/main.py` gained `CliDependencies` + `build_deps()` (AnsibleExecutor inventory=`ansible/inventory/localhost.yaml` tags=`all`, AnsibleFactReader, bootstrap/verify playbook paths — no existence checks per Epic 2 contract), callback now sets `ctx.obj = {"renderer": create_renderer(output_format), "deps": build_deps()}`, dead `_renderer()` removed, `plan/apply/verify/bootstrap` commands wired via shared `_render_run` (four known errors → ErrorView + exit 1; `success=False` → contextual `{command} failed` + exit 1; success → ResultView incl. `install_dir`), `version` unchanged. Tests: `tests/unit/cli/conftest.py` (`FakeExecutor`/`FakeFactReader`/`FakeDeps`/`_invoke`; CLI-local raising fake via `error=` param — NOT `RaisingExecutor`), `tests/unit/cli/test_commands.py` (13 tests: success + adapter-error + failed-result per command, bootstrap `--check` records `check=True`). Verified: layering 37 passed, full suite 156 passed (was 142), ruff + mypy clean, `dotfiles-provision --help` advertises the four commands (resolves 1.1 deferred), `version` still renders JSON.
 
 ### File List
 
