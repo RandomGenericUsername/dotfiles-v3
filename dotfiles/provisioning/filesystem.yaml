@@ -1,0 +1,17 @@
+# Desired filesystem subtree under $XDG_DATA_HOME/dotfiles/ (plan §5 spine) plus
+# XDG config/state/cache dirs. Each entry is a node name Ansible ensures exists.
+kind: filesystem
+entries:
+  - name: config
+  - name: state
+  - name: cache
+  - name: wallpapers
+  - name: icon-templates
+  - name: icon-mappings
+  - name: csg-templates
+  - name: weg-effects.yaml
+  - name: generated
+  - name: generated/palettes
+  - name: generated/effects
+  - name: generated/icons
+  - name: generated/.weg-tmp

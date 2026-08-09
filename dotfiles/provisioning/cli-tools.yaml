@@ -1,0 +1,12 @@
+# CLI tools installed via `uv tool install` from repo source paths (plan §3).
+#
+# These are the three compute-provider CLIs. src/cli-tools/openspec/ is NOT an
+# install target and must not be listed here.
+kind: cli-tools
+entries:
+  - name: csg
+    source: src/cli-tools/color-scheme-generator
+  - name: weg
+    source: src/cli-tools/wallpaper-effects-generator
+  - name: itr
+    source: src/cli-tools/icon-templates-renderer

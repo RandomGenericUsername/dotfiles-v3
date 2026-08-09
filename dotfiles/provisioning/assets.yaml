@@ -1,0 +1,22 @@
+# Assets to deploy into the install spine (verified repo inventory, plan §5).
+#
+# Each entry is tagged with an AssetKind; `AssetKind.spine_segment()` resolves
+# the deploy target under $XDG_DATA_HOME/dotfiles/. `source` is a repo-relative
+# path Ansible copies from. Rich keys are validated by YamlManifestReader but
+# not captured into the domain view — Ansible reads the full YAML directly.
+kind: assets
+entries:
+  - name: wallpapers
+    kind: wallpaper
+    source: dotfiles/assets/wallpapers/wallpapers.tar.gz
+  - name: icon-templates
+    kind: icon-template
+    source: dotfiles/assets/icon-templates/
+  - name: icon-mappings
+    kind: icon-mapping
+    source: dotfiles/config/icon-template-color-scheme-mappings/
+  - name: csg-templates
+    kind: csg-template
+    source: src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates
+  - name: weg-effects
+    kind: weg-effects

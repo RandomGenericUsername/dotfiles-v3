@@ -123,8 +123,8 @@
 ## Deferred from: code review of story 1-2-domain-models-and-enums (2026-08-04)
 
 - `ProvisionResult.tasks` is an anonymous `tuple[str, str]` with no status enum [models.py:44] — real shape arrives with adapters (Story 1.5)
-- `ProvisionManifest.kind` is a free-form `str` overlapping `AssetKind` semantics [models.py:35] — concrete kinds arrive with manifests (Story 2.1)
-- `AssetKind` values may not match future install-spine path segments (`icon-mapping` vs `icon-mappings`) [enums.py:34-38] — resolved in adapter story
+- `ProvisionManifest.kind` is a free-form `str` overlapping `AssetKind` semantics [models.py:35] — **RESOLVED in Story 2.1**: typed as `ManifestKind` enum
+- `AssetKind` values may not match future install-spine path segments (`icon-mapping` vs `icon-mappings`) [enums.py:34-38] — **RESOLVED in Story 2.1**: `AssetKind.spine_segment()` added as single source of truth
 
 ## Deferred from: code review of story 1-1-scaffold-the-provisioning-package (2026-08-03)
 

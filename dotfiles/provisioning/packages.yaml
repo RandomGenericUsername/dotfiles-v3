@@ -1,0 +1,14 @@
+# Desired logical package set (verified, plan §2/SPEC assumption).
+#
+# The verified set is distro-agnostic: per-manager package names (pacman/apt)
+# resolve in Ansible group_vars (Story 2.2/2.3) — NFR-3 distro isolation lives
+# in Ansible, never in this manifest or bootstrap.sh.
+#
+# The csg/weg/itr CLIs are NOT packages — they install via `uv tool install`
+# and are listed in cli-tools.yaml.
+kind: packages
+entries:
+  - name: hyprland
+  - name: hyprpaper
+  - name: waybar
+  - name: fonts

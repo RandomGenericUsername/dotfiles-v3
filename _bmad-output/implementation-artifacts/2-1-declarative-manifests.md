@@ -1,12 +1,17 @@
+---
+baseline_commit: c9581e7
+---
+
 # Story 2.1: Declarative Manifests
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-08: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-08: Story implemented and marked ready for review. Added `ManifestKind` + `AssetKind.spine_segment()`, typed `ProvisionManifest.kind` as `ManifestKind`, extended `YamlManifestReader` with per-kind schemas, authored the five `dotfiles/provisioning/*.yaml` manifests, extended reader tests, and marked the Story 1.2 deferred-work items resolved (186 passed / 0 skipped; ruff + mypy + layering guard clean).
 
 ## Story
 
@@ -27,36 +32,36 @@ So that provisioning is data-driven and the orchestrator can read desired state 
 
 ## Tasks / Subtasks
 
-- [ ] Reconcile deferred domain shapes (retro AI-1) — `domain/enums.py` + `domain/models.py` (AC: 7)
-  - [ ] Add `ManifestKind` StrEnum to `domain/enums.py`: `PACKAGES`, `ASSETS`, `FILESYSTEM`, `SYMLINKS`, `CLI_TOOLS` (values: `packages`, `assets`, `filesystem`, `symlinks`, `cli-tools`)
-  - [ ] Add `AssetKind.spine_segment()` mapping — single source of truth for the install-spine deploy target (resolves the 1.2 deferred "icon-mapping vs icon-mappings" item)
-  - [ ] Type `ProvisionManifest.kind` as `ManifestKind` (was free-form `str` — resolves the 1.2 deferred "kind is free-form str" item)
-  - [ ] Verify domain stays zero-I/O (allowlist `dataclasses`, `enum` + `domain.enums` import only) — layering guard must stay green
-- [ ] Extend `YamlManifestReader` with per-kind entry schemas (AC: 7)
-  - [ ] Replace global `_ALLOWED_SPEC_KEYS = {name, version}` with a per-`ManifestKind` allowed-key map (see Dev Notes schema table)
-  - [ ] Validate `kind` against `ManifestKind` (fail-closed on unknown kinds)
-  - [ ] Validate per-kind required keys + `AssetKind` values for assets.yaml entries; keep `name`/`version` capture into `Spec`; validate-but-do-not-capture rich keys (`target`, `source`, `kind`) — Ansible is the consumer
-  - [ ] Preserve ALL existing strict behavior: duplicate-key rejection, unknown-key rejection, non-UTF-8 rejection, whitespace-only rejection, `version: "" → None`, ≤200-char error payloads
-- [ ] Author `dotfiles/provisioning/packages.yaml` (AC: 1, 2, 8)
-  - [ ] Entries: the verified logical package set — `hyprland`, `hyprpaper`, `waybar`, `fonts` (versions optional/null). Do NOT split per package manager — distro isolation lives in Ansible `group_vars` (NFR-3)
-- [ ] Author `dotfiles/provisioning/assets.yaml` (AC: 1, 3, 8)
-  - [ ] Entries tagged with `AssetKind`: wallpapers (source `dotfiles/assets/wallpapers/wallpapers.tar.gz`, incl. verified `default.png`), icon-templates (source `dotfiles/assets/icon-templates/` — status-bar, wlogout, screenshot-tool), icon-mappings (source `dotfiles/config/icon-template-color-scheme-mappings/` — 9 YAMLs), csg-templates, weg-effects
-  - [ ] Must be non-empty and match the actual repo tree (see Dev Notes verified inventory)
-- [ ] Author `dotfiles/provisioning/filesystem.yaml` (AC: 1, 4, 8)
-  - [ ] Entries for XDG config/state/cache + the full install-spine subtree (wallpapers/, icon-templates/, icon-mappings/, csg-templates/, weg-effects.yaml, generated/{palettes,effects,icons,.weg-tmp}/)
-- [ ] Author `dotfiles/provisioning/symlinks.yaml` (AC: 1, 5, 8)
-  - [ ] Entries for the EXISTING config dirs only: `nvim`, `starship`, `wlogout`, `zsh` → `~/.config/<dir>`. Do NOT list `hypr`/`hyprpaper`/`waybar` (those dirs land in Story 2.8; verify's symlink check needs every entry to resolve to a real file)
-- [ ] Author `dotfiles/provisioning/cli-tools.yaml` (AC: 1, 6, 8)
-  - [ ] Entries: `csg` (source `src/cli-tools/color-scheme-generator`), `weg` (source `src/cli-tools/wallpaper-effects-generator`), `itr` (source `src/cli-tools/icon-templates-renderer`) — the `uv tool install` targets
-- [ ] Extend manifest-reader tests (AC: 7, 8)
-  - [ ] Extend `tests/unit/adapters/test_yaml_manifest_reader.py`: parse each authored manifest against the real repo file (happy path)
-  - [ ] Add per-kind schema tests: unknown kind rejected, per-kind required-key violations rejected, unknown per-kind entry keys rejected, `AssetKind` validation in assets.yaml
-  - [ ] Update any existing test constructing `ProvisionManifest(kind=...)` or asserting on `kind` to use `ManifestKind` — three files: `tests/unit/test_domain.py`, `tests/unit/ports/test_manifest_reader.py` (FakeManifestReader `kind="packages"`), and `tests/unit/adapters/test_yaml_manifest_reader.py`
-- [ ] Verify layering guard + full suite (AC: 7)
-  - [ ] `uv run pytest tests/architecture/test_layering.py` — green (domain + adapters modified)
-  - [ ] `uv run pytest` — full suite green (was 156 passed / 0 skipped)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] Standalone nicety: `python tests/architecture/test_layering.py` exits 0
+- [x] Reconcile deferred domain shapes (retro AI-1) — `domain/enums.py` + `domain/models.py` (AC: 7)
+  - [x] Add `ManifestKind` StrEnum to `domain/enums.py`: `PACKAGES`, `ASSETS`, `FILESYSTEM`, `SYMLINKS`, `CLI_TOOLS` (values: `packages`, `assets`, `filesystem`, `symlinks`, `cli-tools`)
+  - [x] Add `AssetKind.spine_segment()` mapping — single source of truth for the install-spine deploy target (resolves the 1.2 deferred "icon-mapping vs icon-mappings" item)
+  - [x] Type `ProvisionManifest.kind` as `ManifestKind` (was free-form `str` — resolves the 1.2 deferred "kind is free-form str" item)
+  - [x] Verify domain stays zero-I/O (allowlist `dataclasses`, `enum` + `domain.enums` import only) — layering guard must stay green
+- [x] Extend `YamlManifestReader` with per-kind entry schemas (AC: 7)
+  - [x] Replace global `_ALLOWED_SPEC_KEYS = {name, version}` with a per-`ManifestKind` allowed-key map (see Dev Notes schema table)
+  - [x] Validate `kind` against `ManifestKind` (fail-closed on unknown kinds)
+  - [x] Validate per-kind required keys + `AssetKind` values for assets.yaml entries; keep `name`/`version` capture into `Spec`; validate-but-do-not-capture rich keys (`target`, `source`, `kind`) — Ansible is the consumer
+  - [x] Preserve ALL existing strict behavior: duplicate-key rejection, unknown-key rejection, non-UTF-8 rejection, whitespace-only rejection, `version: "" → None`, ≤200-char error payloads
+- [x] Author `dotfiles/provisioning/packages.yaml` (AC: 1, 2, 8)
+  - [x] Entries: the verified logical package set — `hyprland`, `hyprpaper`, `waybar`, `fonts` (versions optional/null). Do NOT split per package manager — distro isolation lives in Ansible `group_vars` (NFR-3)
+- [x] Author `dotfiles/provisioning/assets.yaml` (AC: 1, 3, 8)
+  - [x] Entries tagged with `AssetKind`: wallpapers (source `dotfiles/assets/wallpapers/wallpapers.tar.gz`, incl. verified `default.png`), icon-templates (source `dotfiles/assets/icon-templates/` — status-bar, wlogout, screenshot-tool), icon-mappings (source `dotfiles/config/icon-template-color-scheme-mappings/` — 9 YAMLs), csg-templates, weg-effects
+  - [x] Must be non-empty and match the actual repo tree (see Dev Notes verified inventory)
+- [x] Author `dotfiles/provisioning/filesystem.yaml` (AC: 1, 4, 8)
+  - [x] Entries for XDG config/state/cache + the full install-spine subtree (wallpapers/, icon-templates/, icon-mappings/, csg-templates/, weg-effects.yaml, generated/{palettes,effects,icons,.weg-tmp}/)
+- [x] Author `dotfiles/provisioning/symlinks.yaml` (AC: 1, 5, 8)
+  - [x] Entries for the EXISTING config dirs only: `nvim`, `starship`, `wlogout`, `zsh` → `~/.config/<dir>`. Do NOT list `hypr`/`hyprpaper`/`waybar` (those dirs land in Story 2.8; verify's symlink check needs every entry to resolve to a real file)
+- [x] Author `dotfiles/provisioning/cli-tools.yaml` (AC: 1, 6, 8)
+  - [x] Entries: `csg` (source `src/cli-tools/color-scheme-generator`), `weg` (source `src/cli-tools/wallpaper-effects-generator`), `itr` (source `src/cli-tools/icon-templates-renderer`) — the `uv tool install` targets
+- [x] Extend manifest-reader tests (AC: 7, 8)
+  - [x] Extend `tests/unit/adapters/test_yaml_manifest_reader.py`: parse each authored manifest against the real repo file (happy path)
+  - [x] Add per-kind schema tests: unknown kind rejected, per-kind required-key violations rejected, unknown per-kind entry keys rejected, `AssetKind` validation in assets.yaml
+  - [x] Update any existing test constructing `ProvisionManifest(kind=...)` or asserting on `kind` to use `ManifestKind` — three files: `tests/unit/test_domain.py`, `tests/unit/ports/test_manifest_reader.py` (FakeManifestReader `kind="packages"`), and `tests/unit/adapters/test_yaml_manifest_reader.py`
+- [x] Verify layering guard + full suite (AC: 7)
+  - [x] `uv run pytest tests/architecture/test_layering.py` — green (domain + adapters modified)
+  - [x] `uv run pytest` — full suite green (was 156 passed / 0 skipped)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] Standalone nicety: `python tests/architecture/test_layering.py` exits 0
 
 ## Dev Notes
 
@@ -245,4 +250,22 @@ opencode-go/deepseek-v4-flash
 
 ### Completion Notes List
 
+- Implemented retro AI-1 deferred domain reconciliation: `ManifestKind` StrEnum (5 members), `AssetKind.spine_segment()` mapping to install-spine targets (resolves `icon-mapping` vs `icon-mappings`), `ProvisionManifest.kind` typed as `ManifestKind` (domain stays zero-I/O — only `enum`/`dataclasses`/`domain.enums` imports).
+- Extended `YamlManifestReader` with a per-kind entry schema map (`_ENTRY_SCHEMAS`): allowed + required keys per kind, fail-closed on unknown `kind` values and unknown `AssetKind` values, rich keys (`target`, `source`, `kind`) validated-but-not-captured. All prior strict behaviors preserved (duplicate/unknown-key rejection, UTF-8, whitespace-only, `version: "" → None`, ≤200-char errors).
+- Authored five manifests grounded in the verified repo inventory: `packages.yaml` (4 logical packages), `assets.yaml` (5 asset entries, all sources verified to exist), `filesystem.yaml` (XDG + install-spine subtree incl. `weg-effects.yaml`), `symlinks.yaml` (4 existing config dirs only — no hypr/hyprpaper/waybar), `cli-tools.yaml` (csg/weg/itr).
+- Tests: added `TestYamlManifestReaderPerKindSchemas` (13 cases), `TestReadRealManifests` (parse the actual repo manifests, AC 7/8), `TestManifestKind`, `AssetKind.spine_segment` tests; updated `ProvisionManifest`/reader/port-fake tests to `ManifestKind`. Full suite: 186 passed / 0 skipped. Ruff + mypy + layering guard (incl. standalone runner) all clean.
+
 ### File List
+
+- `src/provisioning/src/provisioning/domain/enums.py` — added `ManifestKind`, `AssetKind.spine_segment()` + `_SPINE_SEGMENT`, updated `__all__`
+- `src/provisioning/src/provisioning/domain/models.py` — `ProvisionManifest.kind: ManifestKind`
+- `src/provisioning/src/provisioning/adapters/yaml_manifest_reader.py` — per-kind entry schemas, fail-closed kind/AssetKind validation
+- `dotfiles/provisioning/packages.yaml` — new manifest
+- `dotfiles/provisioning/assets.yaml` — new manifest
+- `dotfiles/provisioning/filesystem.yaml` — new manifest
+- `dotfiles/provisioning/symlinks.yaml` — new manifest
+- `dotfiles/provisioning/cli-tools.yaml` — new manifest
+- `src/provisioning/tests/unit/test_domain.py` — `ManifestKind` + `spine_segment` tests, `ManifestKind`-typed fixtures
+- `src/provisioning/tests/unit/ports/test_manifest_reader.py` — FakeManifestReader uses `ManifestKind`
+- `src/provisioning/tests/unit/adapters/test_yaml_manifest_reader.py` — per-kind schema tests + real-manifest parse tests
+- `_bmad-output/implementation-artifacts/deferred-work.md` — marked Story 1.2 kind/AssetKind items resolved

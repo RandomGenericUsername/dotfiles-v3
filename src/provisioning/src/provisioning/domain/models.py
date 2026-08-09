@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from provisioning.domain.enums import Distro
+from provisioning.domain.enums import Distro, ManifestKind
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class MachineState:
 class ProvisionManifest:
     """A parsed declarative manifest (``dotfiles/provisioning/*.yaml``)."""
 
-    kind: str
+    kind: ManifestKind
     entries: tuple[Spec, ...] = field(default_factory=tuple)
 
 

@@ -6,6 +6,7 @@ from typing import cast
 
 import pytest
 
+from provisioning.domain.enums import ManifestKind
 from provisioning.domain.models import ProvisionManifest
 from provisioning.ports import IManifestReader
 
@@ -16,7 +17,7 @@ class FakeManifestReader(IManifestReader):
 
     def read(self, manifest_path: Path) -> ProvisionManifest:
         self.last_path = manifest_path
-        return ProvisionManifest(kind="packages", entries=())
+        return ProvisionManifest(kind=ManifestKind.PACKAGES, entries=())
 
 
 class TestIManifestReader:
@@ -39,5 +40,5 @@ class TestIManifestReader:
         assert isinstance(fake, IManifestReader)
         manifest = fake.read(Path("packages.yaml"))
         assert isinstance(manifest, ProvisionManifest)
-        assert manifest.kind == "packages"
+        assert manifest.kind is ManifestKind.PACKAGES
         assert fake.last_path == Path("packages.yaml")

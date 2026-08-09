@@ -60,6 +60,21 @@ _KIND_BY_CAPABILITY: dict[Capability, CapabilityKind] = {
 }
 
 
+class ManifestKind(StrEnum):
+    """The concrete kinds of declarative manifests under ``dotfiles/provisioning/``.
+
+    Values are the manifest ``kind`` values; the install-spine target for
+    ``ASSETS`` entries is resolved via :meth:`AssetKind.spine_segment` (the
+    two enums serve different purposes — kind of manifest vs kind of asset).
+    """
+
+    PACKAGES = "packages"
+    ASSETS = "assets"
+    FILESYSTEM = "filesystem"
+    SYMLINKS = "symlinks"
+    CLI_TOOLS = "cli-tools"
+
+
 class AssetKind(StrEnum):
     """Kinds of assets deployed into the install spine."""
 
@@ -69,10 +84,30 @@ class AssetKind(StrEnum):
     CSG_TEMPLATE = "csg-template"
     WEG_EFFECTS = "weg-effects"
 
+    def spine_segment(self) -> str:
+        """The install-spine deploy target for this asset kind.
+
+        Single source of truth for the path segment under the install dir
+        (resolves the Story 1.2 deferred ``icon-mapping`` vs ``icon-mappings``
+        mismatch): ``WEG_EFFECTS`` is emitted as a single file, all others
+        deploy into a directory of that name.
+        """
+        return _SPINE_SEGMENT[self]
+
+
+_SPINE_SEGMENT: dict[AssetKind, str] = {
+    AssetKind.WALLPAPER: "wallpapers",
+    AssetKind.ICON_TEMPLATE: "icon-templates",
+    AssetKind.ICON_MAPPING: "icon-mappings",
+    AssetKind.CSG_TEMPLATE: "csg-templates",
+    AssetKind.WEG_EFFECTS: "weg-effects.yaml",
+}
+
 
 __all__ = [
     "AssetKind",
     "Capability",
     "CapabilityKind",
     "Distro",
+    "ManifestKind",
 ]
