@@ -9,6 +9,7 @@ keys the caller supplies are passed through — no additions, no removal (AC 4).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
@@ -22,6 +23,7 @@ _TASK_HEADER_RE = re.compile(r"^TASK \[(.+)\]")
 _RESULT_STATUS_RE = re.compile(r"^(ok|changed|failed|skipped|unreachable|ignored|rescued):")
 _FATAL_RE = re.compile(r"^fatal: \[[^\]]+\]: (FAILED!|UNREACHABLE!)")
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_LOGGER = logging.getLogger(__name__)
 _STATUS_PRIORITY = {
     "failed": 0,
     "unreachable": 1,
@@ -52,6 +54,13 @@ def _default_runner(
 def _ansible_env(config_file: Path | None) -> dict[str, str] | None:
     if config_file is None:
         return None
+    existing = os.environ.get("ANSIBLE_CONFIG")
+    if existing is not None and existing != str(config_file):
+        _LOGGER.warning(
+            "Overriding ANSIBLE_CONFIG=%r with scaffold config %r",
+            existing,
+            str(config_file),
+        )
     return {**os.environ, "ANSIBLE_CONFIG": str(config_file)}
 
 
@@ -129,7 +138,7 @@ class AnsibleExecutor(IProvisionExecutor):
             self._runner = runner
         else:
             self._runner = lambda command: _default_runner(
-                command, timeout, _ansible_env(config_file)
+                command, self._timeout, _ansible_env(self._config_file)
             )
 
     def run(

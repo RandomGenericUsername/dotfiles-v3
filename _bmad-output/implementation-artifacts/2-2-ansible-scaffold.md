@@ -4,7 +4,7 @@ baseline_commit: 2e59b7d
 
 # Story 2.2: Ansible Scaffold
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -56,6 +56,36 @@ So that playbooks can run against the local host with distro-aware group variabl
   - [x] `uv run pytest` — full suite green, nothing regresses from the 194-pass baseline
   - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
   - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+
+## Review Findings
+
+Code review (2026-08-09): 12 patch, 8 deferred, 4 dismissed as noise.
+
+### Patch
+
+- [x] [Review][Patch] P1 Default-runner env propagation untested — add test that `subprocess.run` receives `env={"ANSIBLE_CONFIG": ...}` when `config_file` set (and `env=None`/inherit when not); strengthen injected-runner test to assert env NOT forwarded [tests/unit/adapters/test_ansible_executor.py]
+- [x] [Review][Patch] P2 `build_deps()` `config_file=` wiring unasserted — add composition contract test that the built executor's config_file resolves to the real `ansible/ansible.cfg` [src/provisioning/cli/main.py:77]
+- [x] [Review][Patch] P3 `self._config_file` is dead state (stored, never read; lambda captures closure) — have the default-runner lambda read `self._config_file` (single source of truth) [src/provisioning/adapters/ansible_executor.py:127]
+- [x] [Review][Patch] P4 `requirements.yml` test gaps — assert each collection has a non-empty `version:` pin AND the exact three-collection set (no junk collection slips in) [tests/unit/test_ansible_scaffold.py:74-77]
+- [x] [Review][Patch] P5 group_vars glob only matches `*.yml` (extension inconsistency: inventory `.yaml` vs group_vars `.yml`) — match both extensions and assert exact stem set `{all, arch, debian-family}` [tests/unit/test_ansible_scaffold.py:93]
+- [x] [Review][Patch] P6 Logical package keys only checked as subset — assert `keys == {hyprland, hyprpaper, waybar, fonts}` exactly for both distros (guards supersets + inter-distro divergence, NFR-3/AC 5) [tests/unit/test_ansible_scaffold.py:103-111]
+- [x] [Review][Patch] P7 `all.yml` has no content contract — add test that it parses to a dict and contains NO `install_dir` default (guards fail-loud invariant for Story 2.11) [ansible/group_vars/all.yml]
+- [x] [Review][Patch] P8 Distro-isolation test only checks `all.children` — a top-level `arch:`/`debian-family:` group (sibling of `all`) would merge group_vars undetected; assert no top-level distro groups [tests/unit/test_ansible_scaffold.py:59-68]
+- [x] [Review][Patch] P9 `_find_ansible_dir` could match a sibling project's `ansible/inventory/localhost.yaml` in a shared workspace — anchor the walk on a repo marker (`pyproject.toml`) [tests/unit/test_ansible_scaffold.py:11-25]
+- [x] [Review][Patch] D1 `ANSIBLE_CONFIG` silently overrides operator-set value — set + warn on override (logging), preserve scaffold cfg as source of truth [src/provisioning/adapters/ansible_executor.py:52-55]
+- [x] [Review][Patch] D2 `ansible.cfg` only verified by Python `configparser`, not Ansible itself — add Ansible-invoked smoke test (via `ConfigManager`) to CI verifying paths resolve from cfg dir [tests/unit/test_ansible_scaffold.py]
+- [x] [Review][Patch] D4 `ansible_host: 127.0.0.1` is dead under `connection: local` and pinned by the test — drop the field and its assertion [ansible/inventory/localhost.yaml:16]
+
+### Deferred
+
+- [x] [Review][Defer] W1 `config_file` silently ignored when a runner is injected (env never built on that path) — deferred, no production caller combines `runner=...` + `config_file=...`; latent footgun
+- [x] [Review][Defer] W2 Env passthrough widens `_parse_tasks` stdout-callback breakage surface (`ANSIBLE_STDOUT_CALLBACK=json` → empty tasks, misleading `success=True`) — deferred, pre-existing env inheritance; consider pinning `default` callback separately
+- [x] [Review][Defer] W3 `debian-family` `hyprland`/`hyprpaper`/`waybar` names don't resolve on default apt — deferred, Story 2.3 explicitly handles PPA/repo enablement; group_vars carries logical names by design
+- [x] [Review][Defer] W4 `ansible-core` un-pinned vs collection `requires_ansible` compat — deferred, ansible-core pinning is out of scope (declared Story 1.1)
+- [x] [Review][Defer] W5 `ansible_playbook_python` magic var undefined outside playbook context — latent risk if `AnsibleFactReader` ever wired to load this inventory; no current call site loads it for `ansible -m setup`
+- [x] [Review][Defer] W6 `_ansible_env` doesn't `.resolve()` or reject empty `Path` (relative/`Path("")` → broken `ANSIBLE_CONFIG`) — deferred, only caller passes an absolute resolved path; latent hardening
+- [x] [Review][Defer] D3 `packages` map value-shape contract (scalar vs list per key) — deferred to Story 2.3 (packages role) to lock the contract; `hyprland` scalar / `fonts` list currently undocumented
+- [x] [Review][Defer] D5 Font-set parity across distros (arch 4 fonts incl. nerd font vs debian 3, no nerd equivalent) — deferred to Story 2.3 (packages role) where font availability/PPA is resolved
 
 ## Dev Notes
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 from collections.abc import Callable
@@ -239,11 +240,71 @@ class TestAnsibleEnv:
         _ansible_env(Path("ansible.cfg"))
         assert "ANSIBLE_CONFIG" not in dict(os.environ)
 
-    def test_config_file_with_injected_runner_keeps_injected_contract(self) -> None:
-        commands: list[list[str]] = []
+    def test_config_file_warns_when_overriding_existing_ansible_config(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        monkeypatch.setenv("ANSIBLE_CONFIG", "/custom/ansible.cfg")
+        with caplog.at_level(logging.WARNING, logger="provisioning.adapters.ansible_executor"):
+            env = _ansible_env(Path("ansible.cfg"))
+        assert env is not None
+        assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+        assert any("Overriding ANSIBLE_CONFIG" in record.message for record in caplog.records)
 
-        def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
-            commands.append(command)
+    def test_config_file_warns_only_when_value_differs(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        monkeypatch.setenv("ANSIBLE_CONFIG", "ansible.cfg")
+        with caplog.at_level(logging.WARNING, logger="provisioning.adapters.ansible_executor"):
+            env = _ansible_env(Path("ansible.cfg"))
+        assert env is not None
+        assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+        assert not any("Overriding ANSIBLE_CONFIG" in record.message for record in caplog.records)
+
+    def test_default_runner_forwards_ansible_config_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_run(
+            command: list[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            captured["env"] = kwargs.get("env")
+            return _completed(0, stdout="", stderr="")
+
+        monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.run", fake_run)
+        executor = AnsibleExecutor(
+            inventory=Path("inventory/localhost.yaml"),
+            tags="all",
+            config_file=Path("ansible.cfg"),
+        )
+        executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        env = captured["env"]
+        assert isinstance(env, dict)
+        assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+
+    def test_default_runner_inherits_env_without_config_file(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_run(
+            command: list[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            captured["env"] = kwargs.get("env")
+            return _completed(0, stdout="", stderr="")
+
+        monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.run", fake_run)
+        executor = AnsibleExecutor(inventory=Path("inventory/localhost.yaml"), tags="all")
+        executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert captured["env"] is None
+
+    def test_config_file_with_injected_runner_keeps_injected_contract(self) -> None:
+        calls: list[tuple[list[str], dict[str, object]]] = []
+
+        def runner(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+            calls.append((command, kwargs))
             return _completed(0, stdout="ok", stderr="")
 
         executor = AnsibleExecutor(
@@ -258,5 +319,10 @@ class TestAnsibleEnv:
             extra_vars={"install_dir": "/x", "os_family": "arch"},
         )
         assert result.success is True
-        assert commands[0][0] == "ansible-playbook"
-        assert commands[0][-1] == "bootstrap.yaml"
+        command, kwargs = calls[0]
+        assert command[0] == "ansible-playbook"
+        assert command[-1] == "bootstrap.yaml"
+        assert kwargs == {}, (
+            "injected runner must receive no env — contract stays "
+            "Callable[[list[str]], CompletedProcess]"
+        )

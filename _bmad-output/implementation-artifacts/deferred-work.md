@@ -164,3 +164,14 @@
 - Whitespace-only `version` not coerced to `None` (only `""` → None) [yaml_manifest_reader.py:150]
 - Entry-level `kind` key collides with top-level manifest `kind` for assets (misleading "unknown AssetKind" on authoring slip) [yaml_manifest_reader.py:153-168]
 - `ProvisionManifest.kind: ManifestKind` is annotation-only, unvalidated at runtime [models.py:35]
+
+## Deferred from: code review of 2-2-ansible-scaffold (2026-08-09)
+
+- `config_file` silently ignored when a runner is injected (env never built on that path) — no production caller combines `runner=...` + `config_file=...`; latent footgun [ansible_executor.py:128-133]
+- Env passthrough widens `_parse_tasks` stdout-callback breakage surface (`ANSIBLE_STDOUT_CALLBACK=json` → empty tasks, misleading `success=True`) — pre-existing env inheritance; consider pinning `default` callback separately [ansible_executor.py:52-55]
+- `debian-family` `hyprland`/`hyprpaper`/`waybar` names don't resolve on default apt — Story 2.3 explicitly handles PPA/repo enablement; group_vars carries logical names by design [group_vars/debian-family.yml:13-16]
+- `ansible-core` un-pinned vs collection `requires_ansible` compat — ansible-core pinning out of scope (declared Story 1.1) [requirements.yml:6-15]
+- `ansible_playbook_python` magic var undefined outside playbook context — latent risk if `AnsibleFactReader` ever wired to load this inventory; no current call site loads it for `ansible -m setup` [inventory/localhost.yaml:17]
+- `_ansible_env` doesn't `.resolve()` or reject empty `Path` (relative/`Path("")` → broken `ANSIBLE_CONFIG`) — only caller passes an absolute resolved path; latent hardening [ansible_executor.py:52-55]
+- `packages` map value-shape contract (scalar vs list per key) deferred to Story 2.3 (packages role) — `hyprland` scalar / `fonts` list currently undocumented [group_vars/arch.yml:8-15]
+- Font-set parity across distros (arch 4 fonts incl. nerd font vs debian 3, no nerd equivalent) deferred to Story 2.3 (packages role) [group_vars/arch.yml vs debian-family.yml]
