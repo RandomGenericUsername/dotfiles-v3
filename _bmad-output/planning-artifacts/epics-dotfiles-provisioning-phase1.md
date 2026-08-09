@@ -293,7 +293,7 @@ So that provisioning is data-driven and the orchestrator can read desired state 
 
 **Given** the `dotfiles/provisioning/` directory
 **When** I author `packages.yaml`, `assets.yaml`, `filesystem.yaml`, `symlinks.yaml`, and `cli-tools.yaml`
-**Then** `packages.yaml` lists desired packages per package manager
+**Then** `packages.yaml` lists the verified logical package set (`hyprland`, `hyprpaper`, `waybar`, `fonts`) — per-manager names resolve in Ansible `group_vars` (Story 2.2/2.3), per NFR-3 (interpretation ratified 2026-08-08)
 **And** `assets.yaml` lists wallpapers + icon templates + icon mappings to deploy
 **And** `filesystem.yaml` describes the XDG + install-dir subtree layout
 **And** `symlinks.yaml` maps repo `dotfiles/config/*` to `~/.config/*`

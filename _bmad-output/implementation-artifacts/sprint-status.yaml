@@ -43,6 +43,7 @@
 generated: 2026-08-04
 last_updated: 2026-08-08
 project: dotfiles-repo-v3
+retrospective: epic-1 done (2026-08-08)
 project_key: NOKEY
 tracking_system: file-system
 story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
@@ -58,11 +59,11 @@ development_status:
   1-6-provision-use-case: done
   1-7-verify-and-bootstrap-use-cases: done
   1-8-typer-cli: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   # ── Epic 2: Machine Provisioning Content ──
-  epic-2: backlog
-  2-1-declarative-manifests: backlog
+  epic-2: in-progress
+  2-1-declarative-manifests: ready-for-dev
   2-2-ansible-scaffold: backlog
   2-3-packages-role: backlog
   2-4-cli-tools-role: backlog
@@ -82,3 +83,25 @@ development_status:
   3-2-playbook-dry-run-integration-tests: backlog
   3-3-settings-parity-and-default-palette-integration-tests: backlog
   epic-3-retrospective: optional
+
+action_items:
+  - epic: 1
+    action: "Reconcile deferred domain shapes in Story 2.1: concrete ProvisionManifest kinds, AssetKind values aligned with install-spine path segments, ProvisionResult.tasks status enum"
+    owner: "Amelia (Developer)"
+    status: open
+  - epic: 1
+    action: "Collapse the ~90% duplicated use-case bodies (ProvisionMachine/Verify/Bootstrap) into a private base/mixin when the application layer is next touched"
+    owner: "Amelia (Developer)"
+    status: open
+  - epic: 1
+    action: "Resolve production timeout decision for AnsibleExecutor composition root so ProvisionTimeoutError is reachable and hung ansible-playbook cannot block forever"
+    owner: "Alice (Product Owner) + Charlie (Senior Dev)"
+    status: open
+  - epic: 1
+    action: "Mirror-and-adapt discipline: add an explicit 'what differs from the mirror' checklist item when copying sibling-package patterns (CSG/oci-runtime/cli-output)"
+    owner: "Amelia (Developer)"
+    status: open
+  - epic: 1
+    action: "Harden version command (avoids building full dependency graph per invocation) and add --output-format non-default branch coverage"
+    owner: "Amelia (Developer)"
+    status: open
