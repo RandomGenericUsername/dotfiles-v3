@@ -122,7 +122,12 @@ def _read_entries(data: dict[str, object], path: Path, kind: ManifestKind) -> tu
 
 
 def _parse_spec(index: int, raw: object, path: Path, kind: ManifestKind) -> Spec:
-    allowed_keys, required_keys = _ENTRY_SCHEMAS[kind]
+    schema = _ENTRY_SCHEMAS.get(kind)
+    if schema is None:
+        raise ManifestReadError(
+            f"manifest {path} entry {index} has no schema for kind {kind.value!r}"
+        )
+    allowed_keys, required_keys = schema
     if not isinstance(raw, dict):
         raise ManifestReadError(
             f"manifest {path} entry {index} must be a mapping, got {type(raw).__name__}"
@@ -151,7 +156,7 @@ def _parse_spec(index: int, raw: object, path: Path, kind: ManifestKind) -> Spec
 
 
 def _validate_rich_kind(index: int, raw: dict[str, object], path: Path, kind: ManifestKind) -> None:
-    """Validate rich per-kind keys (assets ``kind``, ``source``) without capturing them."""
+    """Validate rich per-kind keys (assets ``kind``, ``source``, ``target``)."""
     if kind is ManifestKind.ASSETS:
         asset_kind = raw.get("kind")
         if not isinstance(asset_kind, str) or not asset_kind.strip():
@@ -166,6 +171,14 @@ def _validate_rich_kind(index: int, raw: dict[str, object], path: Path, kind: Ma
                 f"manifest {path} entry {index} has unknown AssetKind "
                 f"{asset_kind.strip()!r}; supported: {supported}"
             ) from exc
+    for rich_key in ("target", "source"):
+        if rich_key not in raw:
+            continue
+        rich_value = raw[rich_key]
+        if not isinstance(rich_value, str) or not rich_value.strip():
+            raise ManifestReadError(
+                f"manifest {path} entry {index} '{rich_key}' must be a non-empty string"
+            )
 
 
 class YamlManifestReader(IManifestReader):

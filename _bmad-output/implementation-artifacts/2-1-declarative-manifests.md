@@ -4,7 +4,7 @@ baseline_commit: c9581e7
 
 # Story 2.1: Declarative Manifests
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -121,7 +121,7 @@ Keep the top-level contract `{kind, entries}`. Replace the global `_ALLOWED_SPEC
 | `packages` | `name`, `version` | `name` | unchanged from today |
 | `assets` | `name`, `version`, `kind`, `source` | `name`, `kind` | `kind` must be a valid `AssetKind` value |
 | `filesystem` | `name` | `name` | subtree node names (see layout below) |
-| `symlinks` | `name`, `target`, `version` | `name`, `target` | `name` = repo source dir, `target` = `~/.config/<dir>` |
+| `symlinks` | `name`, `target`, `version` | `name`, `target` | `name` = repo source dir, `target` = bare dir name resolved under `~/.config/<dir>` |
 | `cli-tools` | `name`, `source`, `version` | `name`, `source` | `source` = repo package path for `uv tool install` |
 
 Behavior to PRESERVE exactly (Story 1.5 review hardening — do not regress):
@@ -252,7 +252,7 @@ opencode-go/deepseek-v4-flash
 
 - Implemented retro AI-1 deferred domain reconciliation: `ManifestKind` StrEnum (5 members), `AssetKind.spine_segment()` mapping to install-spine targets (resolves `icon-mapping` vs `icon-mappings`), `ProvisionManifest.kind` typed as `ManifestKind` (domain stays zero-I/O — only `enum`/`dataclasses`/`domain.enums` imports).
 - Extended `YamlManifestReader` with a per-kind entry schema map (`_ENTRY_SCHEMAS`): allowed + required keys per kind, fail-closed on unknown `kind` values and unknown `AssetKind` values, rich keys (`target`, `source`, `kind`) validated-but-not-captured. All prior strict behaviors preserved (duplicate/unknown-key rejection, UTF-8, whitespace-only, `version: "" → None`, ≤200-char errors).
-- Authored five manifests grounded in the verified repo inventory: `packages.yaml` (4 logical packages), `assets.yaml` (5 asset entries, all sources verified to exist), `filesystem.yaml` (XDG + install-spine subtree incl. `weg-effects.yaml`), `symlinks.yaml` (4 existing config dirs only — no hypr/hyprpaper/waybar), `cli-tools.yaml` (csg/weg/itr).
+- Authored five manifests grounded in the verified repo inventory: `packages.yaml` (4 logical packages), `assets.yaml` (5 asset entries — 4 carry repo `source` paths, `weg-effects` is emitted by `weg dump-effects` and has none, correct per plan), `filesystem.yaml` (XDG + install-spine subtree incl. `weg-effects.yaml`), `symlinks.yaml` (4 existing config dirs only — no hypr/hyprpaper/waybar), `cli-tools.yaml` (csg/weg/itr).
 - Tests: added `TestYamlManifestReaderPerKindSchemas` (13 cases), `TestReadRealManifests` (parse the actual repo manifests, AC 7/8), `TestManifestKind`, `AssetKind.spine_segment` tests; updated `ProvisionManifest`/reader/port-fake tests to `ManifestKind`. Full suite: 186 passed / 0 skipped. Ruff + mypy + layering guard (incl. standalone runner) all clean.
 
 ### File List
@@ -269,3 +269,21 @@ opencode-go/deepseek-v4-flash
 - `src/provisioning/tests/unit/ports/test_manifest_reader.py` — FakeManifestReader uses `ManifestKind`
 - `src/provisioning/tests/unit/adapters/test_yaml_manifest_reader.py` — per-kind schema tests + real-manifest parse tests
 - `_bmad-output/implementation-artifacts/deferred-work.md` — marked Story 1.2 kind/AssetKind items resolved
+
+### Review Findings
+
+- [x] [Review][Patch] Symlink `target` convention — schema-table text said `target = ~/.config/<dir>` but the manifest and worked example use a bare dir name resolved under `~/.config/`; user confirmed bare-name convention. Fix the Dev Notes schema-table text [2-1-declarative-manifests.md:124]
+
+- [x] [Review][Patch] Rich keys `source`/`target` presence-checked but never value-validated [yaml_manifest_reader.py:135-168] — `_validate_rich_kind` now value-checks `source`/`target` (non-empty string) alongside the assets `kind`; added negative tests for empty/null/non-string values.
+- [x] [Review][Patch] Real-manifest tests skipif-guarded + brittle `parents[5]` [test_yaml_manifest_reader.py:13,262-265] — replaced fixed-depth `parents[5]` with a walk-up resolver that fails loudly if the manifests dir is missing; removed the skipif guard so AC 7/8 coverage cannot silently vanish.
+- [x] [Review][Patch] Duplicate entry names masked by set-equality in verified-set tests [test_yaml_manifest_reader.py:283-299] — verified-set tests now assert `len(names) == len(set(names))` before set comparison.
+- [x] [Review][Patch] Completion note overstates "all sources verified"; `weg-effects` has no `source` [dotfiles/provisioning/assets.yaml:20-21] — completion note corrected to state `weg-effects` is emitted by `weg dump-effects` and carries no source.
+- [x] [Review][Patch] ManifestKind without schema entry raises raw `KeyError` [yaml_manifest_reader.py:125] — `_ENTRY_SCHEMAS.get(kind)` now raises `ManifestReadError` for schema-less kinds.
+
+- [x] [Review][Defer] `spine_segment()` "single source of truth" unenforced; name/segment divergence [enums.py:87-104] — no check that entry `name` == `spine_segment()`; `weg-effects` name diverges (file target). Ansible (Stories 2.3-2.12) should key off `kind`+`spine_segment()`, not `name` — deferred, pre-existing
+- [x] [Review][Defer] filesystem.yaml flat `name` list can't express base (XDG vs install-spine) or node type (file vs dir) [dotfiles/provisioning/filesystem.yaml:4-16] — story-ratified minimal schema; revisit at Story 2.5 (filesystem role) — deferred, pre-existing
+- [x] [Review][Defer] Domain view drops `target`/`source`/asset `kind` [models.py:15-21] — explicit story decision ("avoid over-modeling"; Ansible is consumer); revisit when plan/verify wires manifest consumption (Story 1.6/1.7 wiring) — deferred, pre-existing
+- [x] [Review][Defer] "≤200-char error payloads" claim unenforced [yaml_manifest_reader.py:101-112] — unknown-kind message embeds full path + supported kinds and can exceed; cosmetic — deferred, pre-existing
+- [x] [Review][Defer] Whitespace-only `version` not coerced to `None` (only `""` → None) [yaml_manifest_reader.py:150] — Story 1.5 behavior, not introduced here — deferred, pre-existing
+- [x] [Review][Defer] Entry-level `kind` key collides with top-level manifest `kind` for assets (misleading "unknown AssetKind" on authoring slip) [yaml_manifest_reader.py:153-168] — fail-closed, cosmetic UX — deferred, pre-existing
+- [x] [Review][Defer] `ProvisionManifest.kind: ManifestKind` is annotation-only, unvalidated at runtime [models.py:35] — only producer is the reader; mypy enforces — deferred, pre-existing

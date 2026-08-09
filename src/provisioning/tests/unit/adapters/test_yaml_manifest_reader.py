@@ -10,8 +10,25 @@ from provisioning.domain.models import ProvisionManifest, Spec
 
 READER = YamlManifestReader()
 
-_REPO_ROOT = Path(__file__).resolve().parents[5]
-_MANIFEST_DIR = _REPO_ROOT / "dotfiles" / "provisioning"
+
+def _find_manifest_dir() -> Path:
+    """Locate the real manifests dir by walking up from this test file.
+
+    Resolves the repo root robustly (no fixed-depth assumption) and fails
+    loudly if the manifests are missing, so AC 7/8 coverage can never
+    silently disappear from the run.
+    """
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "dotfiles" / "provisioning"
+        if candidate.is_dir():
+            return candidate
+    raise FileNotFoundError(
+        "dotfiles/provisioning/ not found walking up from the test file; "
+        "AC 7/8 real-manifest coverage requires the authored manifests"
+    )
+
+
+_MANIFEST_DIR = _find_manifest_dir()
 
 
 class TestYamlManifestReader:
@@ -211,6 +228,16 @@ class TestYamlManifestReaderPerKindSchemas:
         assert manifest.kind is ManifestKind.SYMLINKS
         assert manifest.entries == (Spec(name="nvim"),)
 
+    @pytest.mark.parametrize("bad_target", ["", "   ", "42", "null"])
+    def test_symlinks_kind_empty_target_rejected(self, tmp_path: Path, bad_target: str) -> None:
+        path = tmp_path / "symlinks.yaml"
+        path.write_text(
+            f"kind: symlinks\nentries:\n  - name: nvim\n    target: {bad_target}\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ManifestReadError, match="target"):
+            READER.read(path)
+
     def test_cli_tools_kind_requires_source(self, tmp_path: Path) -> None:
         path = tmp_path / "cli-tools.yaml"
         path.write_text("kind: cli-tools\nentries:\n  - name: csg\n", encoding="utf-8")
@@ -229,6 +256,25 @@ class TestYamlManifestReaderPerKindSchemas:
         manifest = READER.read(path)
         assert manifest.kind is ManifestKind.CLI_TOOLS
         assert manifest.entries == (Spec(name="csg"),)
+
+    @pytest.mark.parametrize("bad_source", ["", "   ", "42"])
+    def test_cli_tools_kind_empty_source_rejected(self, tmp_path: Path, bad_source: str) -> None:
+        path = tmp_path / "cli-tools.yaml"
+        path.write_text(
+            f"kind: cli-tools\nentries:\n  - name: csg\n    source: {bad_source}\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ManifestReadError, match="source"):
+            READER.read(path)
+
+    def test_assets_kind_empty_source_rejected(self, tmp_path: Path) -> None:
+        path = tmp_path / "assets.yaml"
+        path.write_text(
+            "kind: assets\nentries:\n  - name: wallpapers\n    kind: wallpaper\n    source: ''\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ManifestReadError, match="source"):
+            READER.read(path)
 
     def test_filesystem_kind_allows_only_name(self, tmp_path: Path) -> None:
         path = tmp_path / "filesystem.yaml"
@@ -259,9 +305,6 @@ class TestYamlManifestReaderPerKindSchemas:
             READER.read(path)
 
 
-@pytest.mark.skipif(
-    not _MANIFEST_DIR.is_dir(), reason="dotfiles/provisioning/ manifests not present"
-)
 class TestReadRealManifests:
     """AC 7/8: every authored manifest parses into a non-empty ProvisionManifest."""
 
@@ -282,18 +325,21 @@ class TestReadRealManifests:
 
     def test_packages_manifest_has_verified_set(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "packages.yaml")
-        names = {entry.name for entry in manifest.entries}
-        assert names == {"hyprland", "hyprpaper", "waybar", "fonts"}
+        names = [entry.name for entry in manifest.entries]
+        assert len(names) == len(set(names)), f"duplicate package entries: {names}"
+        assert set(names) == {"hyprland", "hyprpaper", "waybar", "fonts"}
 
     def test_symlinks_manifest_lists_only_existing_dirs(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "symlinks.yaml")
-        names = {entry.name for entry in manifest.entries}
-        assert names == {"nvim", "starship", "wlogout", "zsh"}
+        names = [entry.name for entry in manifest.entries]
+        assert len(names) == len(set(names)), f"duplicate symlink entries: {names}"
+        assert set(names) == {"nvim", "starship", "wlogout", "zsh"}
         assert "hypr" not in names
         assert "hyprpaper" not in names
         assert "waybar" not in names
 
     def test_cli_tools_manifest_has_three_install_targets(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "cli-tools.yaml")
-        names = {entry.name for entry in manifest.entries}
-        assert names == {"csg", "weg", "itr"}
+        names = [entry.name for entry in manifest.entries]
+        assert len(names) == len(set(names)), f"duplicate cli-tool entries: {names}"
+        assert set(names) == {"csg", "weg", "itr"}

@@ -154,3 +154,13 @@
 - Success output drops Ansible stderr — exit-0 warnings are discarded from the JSON success payload, unlike the error path which preserves `details.stderr`; success payload shape is locked in the 1.8 dev notes [cli/main.py:124-135]
 - `dict(result.tasks)` collapses duplicate task labels — `ProvisionResult.tasks` is `tuple[tuple[str, str], ...]` with no uniqueness guarantee in the domain contract; safe today only because `_parse_tasks` dedupes (adapter impl detail) [cli/main.py:132]
 - `--output-format` non-default branches untested — only the JSON default path is exercised; `plain`/`rich` renderings and `case_sensitive=False` variants of the callback option have no CLI-level test [cli/options.py:13]
+
+## Deferred from: code review of 2-1-declarative-manifests (2026-08-08)
+
+- `spine_segment()` "single source of truth" unenforced — no check that entry `name` == `spine_segment()`; `weg-effects` name diverges (file target). Ansible (Stories 2.3-2.12) should key off `kind`+`spine_segment()`, not `name` [enums.py:87-104]
+- filesystem.yaml flat `name` list can't express base (XDG vs install-spine) or node type (file vs dir) — story-ratified minimal schema; revisit at Story 2.5 (filesystem role) [filesystem.yaml:4-16]
+- Domain view drops `target`/`source`/asset `kind` — explicit story decision ("avoid over-modeling"; Ansible is consumer); revisit when plan/verify wires manifest consumption [models.py:15-21]
+- "≤200-char error payloads" claim unenforced — unknown-kind message embeds full path + supported kinds and can exceed [yaml_manifest_reader.py:101-112]
+- Whitespace-only `version` not coerced to `None` (only `""` → None) [yaml_manifest_reader.py:150]
+- Entry-level `kind` key collides with top-level manifest `kind` for assets (misleading "unknown AssetKind" on authoring slip) [yaml_manifest_reader.py:153-168]
+- `ProvisionManifest.kind: ManifestKind` is annotation-only, unvalidated at runtime [models.py:35]

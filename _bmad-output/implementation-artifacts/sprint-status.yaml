@@ -63,7 +63,7 @@ development_status:
 
   # ── Epic 2: Machine Provisioning Content ──
   epic-2: in-progress
-  2-1-declarative-manifests: review
+  2-1-declarative-manifests: done
   2-2-ansible-scaffold: backlog
   2-3-packages-role: backlog
   2-4-cli-tools-role: backlog
