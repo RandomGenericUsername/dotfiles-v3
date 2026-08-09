@@ -1,0 +1,8 @@
+# Shared, distro-agnostic defaults for the packages role (Story 2.3).
+#
+# Only defaults that apply on every distro live here. Distro-specific behavior
+# lives in vars/arch.yml / vars/debian.yml (AC 4 — distro logic in vars, never
+# in tasks). No package names live here — per-manager names resolve in
+# group_vars/{arch,debian-family}.yml (NFR-3).
+packages_state: present
+aur_build_dir: /tmp/dotfiles-aur-build

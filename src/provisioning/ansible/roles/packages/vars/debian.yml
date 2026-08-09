@@ -1,0 +1,7 @@
+# Debian-family behavior for the packages role (Story 2.3).
+#
+# `ansible.builtin.package` auto-detects apt on Debian-family hosts, which
+# refreshes its cache automatically — no apt_update_cache / cache_valid_time
+# vars are authored here (no dead config). No apt package names live here —
+# names resolve in group_vars/debian-family.yml (NFR-3).
+packages_use_aur: false

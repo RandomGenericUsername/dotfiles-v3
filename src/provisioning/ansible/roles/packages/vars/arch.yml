@@ -1,0 +1,10 @@
+# Arch-specific behavior for the packages role (Story 2.3).
+#
+# All Arch-specific tasks in tasks/main.yml gate on `packages_use_aur` rather
+# than branching on ansible_os_family directly (AC 4). No pacman package names
+# live here — names resolve in group_vars/arch.yml (NFR-3).
+packages_use_aur: true
+aur_builder_user: aur_builder
+aur_builder_group: wheel
+aur_packages: []
+yay_repo: https://aur.archlinux.org/yay-bin.git

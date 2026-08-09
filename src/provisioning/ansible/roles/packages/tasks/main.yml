@@ -1,0 +1,88 @@
+# Packages role (Story 2.3) — installs the logical package set per distro.
+#
+# Distro logic lives in vars/{arch,debian}.yml (AC 4): the ONLY place
+# ansible_os_family appears is in the two include_vars tasks below. Every
+# Arch-specific task after that gates on `packages_use_aur | bool` — a var
+# loaded from vars/arch.yml — never on ansible_os_family directly.
+#
+# Package names never appear here: the group_vars `packages` map (authored in
+# Story 2.2) is flattened and handed to ansible.builtin.package, which
+# auto-detects pacman/apt (NFR-3).
+
+- name: Load Arch-specific package role vars
+  ansible.builtin.include_vars:
+    file: arch.yml
+  when: ansible_os_family == "Archlinux"
+
+- name: Load Debian-specific package role vars
+  ansible.builtin.include_vars:
+    file: debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: Assemble package list
+  ansible.builtin.set_fact:
+    packages_flat: "{{ packages.values() | list | flatten }}"
+
+- name: Install system packages
+  ansible.builtin.package:
+    name: "{{ packages_flat }}"
+    state: "{{ packages_state }}"
+  become: true
+
+- name: Install base-devel and git
+  ansible.builtin.package:
+    name: [base-devel, git]
+    state: present
+  become: true
+  when: packages_use_aur | bool
+
+- name: Create aur_builder user
+  ansible.builtin.user:
+    name: "{{ aur_builder_user }}"
+    group: "{{ aur_builder_group }}"
+    create_home: true
+  become: true
+  when: packages_use_aur | bool
+
+- name: Allow aur_builder to run pacman without password
+  ansible.builtin.lineinfile:
+    path: "/etc/sudoers.d/11-install-{{ aur_builder_user }}"
+    line: "{{ aur_builder_user }} ALL=(ALL) NOPASSWD: /usr/bin/pacman"
+    create: true
+    mode: "0644"
+    validate: "visudo -cf %s"
+  become: true
+  when: packages_use_aur | bool
+
+- name: Check for existing yay
+  ansible.builtin.command: command -v yay
+  register: yay_check
+  changed_when: false
+  failed_when: false
+  when: packages_use_aur | bool
+
+- name: Clone yay-bin PKGBUILD
+  ansible.builtin.git:
+    repo: "{{ yay_repo }}"
+    dest: "{{ aur_build_dir }}"
+  become: true
+  become_user: "{{ aur_builder_user }}"
+  when: packages_use_aur | bool and yay_check.rc != 0
+
+- name: Build and install yay-bin via makepkg
+  ansible.builtin.command: makepkg -si --noconfirm
+  args:
+    chdir: "{{ aur_build_dir }}"
+    creates: /usr/bin/yay
+  become: true
+  become_user: "{{ aur_builder_user }}"
+  when: packages_use_aur | bool and yay_check.rc != 0
+
+- name: Install AUR packages via yay
+  kewlfft.aur.aur:
+    name: "{{ aur_packages }}"
+    state: present
+    use: yay
+  become: true
+  become_user: "{{ aur_builder_user }}"
+  when: packages_use_aur | bool and aur_packages | length > 0

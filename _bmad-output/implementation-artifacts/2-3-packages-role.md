@@ -4,13 +4,14 @@ baseline_commit: 3cf656f
 
 # Story 2.3: Packages Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-09: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-09: Implemented story — authored `roles/packages/` (tasks + vars/{main,arch,debian}), `playbooks/packages.yaml`, and structural tests; all gates green (230 passed, lint/mypy/layering clean); status → review.
 
 ## Story
 
@@ -30,51 +31,51 @@ So that Hyprland, Hyprpaper, Waybar, and fonts are present on the machine.
 
 ## Tasks / Subtasks
 
-- [ ] Create the `roles/packages/` role directory tree (AC: 1)
-  - [ ] `src/provisioning/ansible/roles/packages/tasks/main.yml`
-  - [ ] `src/provisioning/ansible/roles/packages/vars/main.yml`
-  - [ ] `src/provisioning/ansible/roles/packages/vars/arch.yml`
-  - [ ] `src/provisioning/ansible/roles/packages/vars/debian.yml`
-- [ ] Author `vars/main.yml` (AC: 4)
-  - [ ] Shared defaults only: `packages_state: present`, `aur_build_dir: /tmp/dotfiles-aur-build`
-  - [ ] NO distro-specific content
-- [ ] Author `vars/arch.yml` (AC: 2, 4)
-  - [ ] `packages_use_aur: true` (the var that gates the Arch yay-bootstrap + AUR block — see Dev Notes "distro logic in vars")
-  - [ ] `aur_builder_user: aur_builder`, `aur_builder_group: wheel`
-  - [ ] `aur_packages: []` (empty for the current package set — all four logical entries resolve from official repos; kewlfft.aur.aur task is still authored and gated on non-empty)
-  - [ ] `yay_repo: https://aur.archlinux.org/yay-bin.git`
-  - [ ] NO pacman package names here — the names live in `group_vars/arch.yml` (NFR-3)
-- [ ] Author `vars/debian.yml` (AC: 3, 4)
-  - [ ] `packages_use_aur: false`
-  - [ ] NO apt package names here — the names live in `group_vars/debian-family.yml`
-  - [ ] No `apt_update_cache`/`apt_cache_valid_time` vars — `ansible.builtin.package` proxies to `apt` which refreshes its cache automatically; don't add dead config
-- [ ] Author `tasks/main.yml` (AC: 2, 3, 4, 5, 6)
-  - [ ] `include_vars` arch.yml when `ansible_os_family == "Archlinux"`, debian.yml when `ansible_os_family == "Debian"` — the ONLY `ansible_os_family` branching in tasks; everything Arch-specific after that gates on `when: packages_use_aur | bool` (a var loaded from `vars/arch.yml`, never on `ansible_os_family` directly)
-  - [ ] Flatten the `group_vars` `packages` map (scalar + list values) into one install list via `packages.values() | list | flatten`
-  - [ ] Install the flattened list with `ansible.builtin.package` `state: present` `become: true` — auto-selects pacman/apt (AC 2, 3)
-  - [ ] `when: packages_use_aur | bool`: install `base-devel` + `git` via `ansible.builtin.package` `become: true`
-  - [ ] `when: packages_use_aur | bool`: create `aur_builder` user (group `wheel`, `create_home: true`) + NOPASSWD `pacman` line in `/etc/sudoers.d/11-install-aur_builder` (kewlfft.aur requirement — makepkg/yay refuse root) — both `become: true`
-  - [ ] `when: packages_use_aur | bool`: guarded yay-bootstrap: `command -v yay` check (`changed_when: false`, `failed_when: false`), then `git clone {{ yay_repo }}` + `makepkg -si --noconfirm` run `become: true become_user: "{{ aur_builder_user }}"` with `creates: /usr/bin/yay` and `when: yay absent` — the `command` module + `creates` guard makes this dry-run-safe (AC 5) and idempotent (AC 6)
-  - [ ] `when: packages_use_aur | bool`: AUR installs via `kewlfft.aur.aur` `name: "{{ aur_packages }}"` `state: present` `use: yay`, `become: true become_user: "{{ aur_builder_user }}"`, `when: aur_packages | length > 0`
-  - [ ] `become` is scoped per-task — the play-level become context stays explicit in the playbook (see Dev Notes "Privilege context")
-- [ ] Author `playbooks/packages.yaml` (AC: 1-7, locked distro-selection pattern from Story 2.2)
-  - [ ] Lead play: `hosts: localhost`, `gather_facts: true`, task `ansible.builtin.group_by: key: "{{ os_family }}"` (creates the dynamic `arch`/`debian-family` group so `group_vars` auto-apply)
-  - [ ] Second play: `hosts: "{{ os_family }}"`, `become: true`, `roles: [packages]`
-  - [ ] `gather_facts: true` is required so `ansible.builtin.package` can auto-detect pacman/apt
-- [ ] Add structural real-file tests `tests/unit/test_packages_role.py` (AC: 1-7)
-  - [ ] Role tree exists: `tasks/main.yml`, `vars/{main,arch,debian}.yml` (walk up from test file, anchor on `pyproject.toml` — mirror `test_ansible_scaffold.py` `_find_ansible_dir()`)
-  - [ ] `tasks/main.yml` parses as a list of task dicts; each task has `name`
-  - [ ] `vars/{main,arch,debian}.yml` parse as dicts with the required keys from the tasks above
-  - [ ] `vars/arch.yml` does NOT contain any pacman package names (names live in `group_vars/arch.yml`); `vars/debian.yml` similarly
-  - [ ] `playbooks/packages.yaml` parses: first play `group_by: key: "{{ os_family }}"`, second play `roles: [packages]` + `become: true`
-  - [ ] Dry-run guard: the `makepkg` task is a `command` module with `creates` (assert the guarded bootstrap task exists) — dry-run must be dry
-  - [ ] Distro-branching contract: `tasks/main.yml` references `ansible_os_family` ONLY inside the two `include_vars` tasks; no `when: ansible_os_family` on any other task, no hardcoded `pacman`/`apt` module FQCNs (only `ansible.builtin.package`)
-  - [ ] `ansible-playbook --syntax-check` on `playbooks/packages.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0 (ansible-core is a runtime dep — available in the test env)
-  - [ ] Value-shape contract (locks deferred D3): assert every value in `group_vars/{arch,debian-family}.yml` `packages` map is either a non-empty `str` or a non-empty `list[str]`
-- [ ] Verify full suite + lint + layering guard (AC: 5)
-  - [ ] `uv run pytest` — full suite green, nothing regresses from the 217-pass baseline
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+- [x] Create the `roles/packages/` role directory tree (AC: 1)
+  - [x] `src/provisioning/ansible/roles/packages/tasks/main.yml`
+  - [x] `src/provisioning/ansible/roles/packages/vars/main.yml`
+  - [x] `src/provisioning/ansible/roles/packages/vars/arch.yml`
+  - [x] `src/provisioning/ansible/roles/packages/vars/debian.yml`
+- [x] Author `vars/main.yml` (AC: 4)
+  - [x] Shared defaults only: `packages_state: present`, `aur_build_dir: /tmp/dotfiles-aur-build`
+  - [x] NO distro-specific content
+- [x] Author `vars/arch.yml` (AC: 2, 4)
+  - [x] `packages_use_aur: true` (the var that gates the Arch yay-bootstrap + AUR block — see Dev Notes "distro logic in vars")
+  - [x] `aur_builder_user: aur_builder`, `aur_builder_group: wheel`
+  - [x] `aur_packages: []` (empty for the current package set — all four logical entries resolve from official repos; kewlfft.aur.aur task is still authored and gated on non-empty)
+  - [x] `yay_repo: https://aur.archlinux.org/yay-bin.git`
+  - [x] NO pacman package names here — the names live in `group_vars/arch.yml` (NFR-3)
+- [x] Author `vars/debian.yml` (AC: 3, 4)
+  - [x] `packages_use_aur: false`
+  - [x] NO apt package names here — the names live in `group_vars/debian-family.yml`
+  - [x] No `apt_update_cache`/`apt_cache_valid_time` vars — `ansible.builtin.package` proxies to `apt` which refreshes its cache automatically; don't add dead config
+- [x] Author `tasks/main.yml` (AC: 2, 3, 4, 5, 6)
+  - [x] `include_vars` arch.yml when `ansible_os_family == "Archlinux"`, debian.yml when `ansible_os_family == "Debian"` — the ONLY `ansible_os_family` branching in tasks; everything Arch-specific after that gates on `when: packages_use_aur | bool` (a var loaded from `vars/arch.yml`, never on `ansible_os_family` directly)
+  - [x] Flatten the `group_vars` `packages` map (scalar + list values) into one install list via `packages.values() | list | flatten`
+  - [x] Install the flattened list with `ansible.builtin.package` `state: present` `become: true` — auto-selects pacman/apt (AC 2, 3)
+  - [x] `when: packages_use_aur | bool`: install `base-devel` + `git` via `ansible.builtin.package` `become: true`
+  - [x] `when: packages_use_aur | bool`: create `aur_builder` user (group `wheel`, `create_home: true`) + NOPASSWD `pacman` line in `/etc/sudoers.d/11-install-aur_builder` (kewlfft.aur requirement — makepkg/yay refuse root) — both `become: true`
+  - [x] `when: packages_use_aur | bool`: guarded yay-bootstrap: `command -v yay` check (`changed_when: false`, `failed_when: false`), then `git clone {{ yay_repo }}` + `makepkg -si --noconfirm` run `become: true become_user: "{{ aur_builder_user }}"` with `creates: /usr/bin/yay` and `when: yay absent` — the `command` module + `creates` guard makes this dry-run-safe (AC 5) and idempotent (AC 6)
+  - [x] `when: packages_use_aur | bool`: AUR installs via `kewlfft.aur.aur` `name: "{{ aur_packages }}"` `state: present` `use: yay`, `become: true become_user: "{{ aur_builder_user }}"`, `when: aur_packages | length > 0`
+  - [x] `become` is scoped per-task — the play-level become context stays explicit in the playbook (see Dev Notes "Privilege context")
+- [x] Author `playbooks/packages.yaml` (AC: 1-7, locked distro-selection pattern from Story 2.2)
+  - [x] Lead play: `hosts: localhost`, `gather_facts: true`, task `ansible.builtin.group_by: key: "{{ os_family }}"` (creates the dynamic `arch`/`debian-family` group so `group_vars` auto-apply)
+  - [x] Second play: `hosts: "{{ os_family }}"`, `become: true`, `roles: [packages]`
+  - [x] `gather_facts: true` is required so `ansible.builtin.package` can auto-detect pacman/apt
+- [x] Add structural real-file tests `tests/unit/test_packages_role.py` (AC: 1-7)
+  - [x] Role tree exists: `tasks/main.yml`, `vars/{main,arch,debian}.yml` (walk up from test file, anchor on `pyproject.toml` — mirror `test_ansible_scaffold.py` `_find_ansible_dir()`)
+  - [x] `tasks/main.yml` parses as a list of task dicts; each task has `name`
+  - [x] `vars/{main,arch,debian}.yml` parse as dicts with the required keys from the tasks above
+  - [x] `vars/arch.yml` does NOT contain any pacman package names (names live in `group_vars/arch.yml`); `vars/debian.yml` similarly
+  - [x] `playbooks/packages.yaml` parses: first play `group_by: key: "{{ os_family }}"`, second play `roles: [packages]` + `become: true`
+  - [x] Dry-run guard: the `makepkg` task is a `command` module with `creates` (assert the guarded bootstrap task exists) — dry-run must be dry
+  - [x] Distro-branching contract: `tasks/main.yml` references `ansible_os_family` ONLY inside the two `include_vars` tasks; no `when: ansible_os_family` on any other task, no hardcoded `pacman`/`apt` module FQCNs (only `ansible.builtin.package`)
+  - [x] `ansible-playbook --syntax-check` on `playbooks/packages.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0 (ansible-core is a runtime dep — available in the test env)
+  - [x] Value-shape contract (locks deferred D3): assert every value in `group_vars/{arch,debian-family}.yml` `packages` map is either a non-empty `str` or a non-empty `list[str]`
+- [x] Verify full suite + lint + layering guard (AC: 5)
+  - [x] `uv run pytest` — full suite green, nothing regresses from the 217-pass baseline
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
 
 ## Dev Notes
 
@@ -323,8 +324,21 @@ opencode-go/deepseek-v4-flash
 
 ### Completion Notes List
 
-- (filled at implementation)
+- 2026-08-09: Implemented Story 2.3 Packages Role.
+  - Authored `roles/packages/tasks/main.yml`: two `include_vars` tasks branch on `ansible_os_family` (arch/debian) — the ONLY os-family branching in tasks; everything Arch-specific gates on `packages_use_aur | bool` (AC 4). Flattens the `group_vars` `packages` map via `packages.values() | list | flatten` and installs with `ansible.builtin.package` (auto-detects pacman/apt, NFR-3). Arch path: base-devel+git → `aur_builder` user (group wheel, create_home) + NOPASSWD pacman sudoers → guarded `command -v yay` check → `git clone` + `makepkg -si --noconfirm` (creates: /usr/bin/yay, become_user aur_builder) → `kewlfft.aur.aur` gated on non-empty (AC 2/5/6).
+  - Authored `vars/{main,arch,debian}.yml` — distro logic confined to vars; no package names in role vars (NFR-3). `vars/main.yml` has shared defaults only (`packages_state`, `aur_build_dir`); `vars/arch.yml` sets `packages_use_aur: true` + `aur_packages: []` + `yay_repo`; `vars/debian.yml` sets `packages_use_aur: false`.
+  - Authored `playbooks/packages.yaml`: locked group_by distro-selection pattern (Story 2.2) — lead play `group_by: key: "{{ os_family }}"` on localhost, second play `hosts: "{{ os_family }}"`, `become: true`, `roles: [packages]`.
+  - Authored `tests/unit/test_packages_role.py` (13 tests): role tree, tasks parse + distro-branching contract, no hardcoded pacman/apt FQCNs, makepkg dry-run guard (`command` + `creates`), vars required keys + no package names, playbook structure, `ansible-playbook --syntax-check` exit 0 for both distros, group_vars value-shape contract (locks deferred D3).
+  - Privilege context (AC 7 / OQ-1): system packages run `become: true`; makepkg/yay/AUR run `become: true become_user: aur_builder`; no user-scoped steps in this playbook (2.4/2.10 later) — no single-context conflict encountered.
+  - Dry-run/idempotency (AC 5/6): `command`/`git` never execute under `--check`; `creates` guard makes the makepkg task idempotent; `command -v yay` skip-guard prevents redundant rebuilds.
+  - Installed pinned ansible collections (requirements.yml: community.general 13.2.0, ansible.posix 2.2.2, kewlfft.aur 0.13.0) locally so `--syntax-check` resolves `kewlfft.aur.aur`.
+  - Verification: `uv run pytest` 230 passed (217 baseline + 13 new), `ruff check` + `ruff format --check` clean, `mypy src tests` clean, `python tests/architecture/test_layering.py` exit 0.
 
 ### File List
 
-- (filled at implementation)
+- NEW `src/provisioning/ansible/roles/packages/tasks/main.yml`
+- NEW `src/provisioning/ansible/roles/packages/vars/main.yml`
+- NEW `src/provisioning/ansible/roles/packages/vars/arch.yml`
+- NEW `src/provisioning/ansible/roles/packages/vars/debian.yml`
+- NEW `src/provisioning/ansible/playbooks/packages.yaml`
+- NEW `src/provisioning/tests/unit/test_packages_role.py`

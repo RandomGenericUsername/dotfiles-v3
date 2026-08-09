@@ -1,0 +1,26 @@
+# Packages playbook (Story 2.3) — one-per-role playbook; aggregation into
+# bootstrap.yaml is Story 2.12.
+#
+# Locked distro-selection mechanism (Story 2.2): group_by on the `os_family`
+# EXTRA-VAR (values arch/debian-family — the IFactReader.os_family() seam)
+# creates the dynamic group so group_vars/{arch,debian-family}.yml auto-apply.
+# The group name MUST match the group_vars filename seam, not raw
+# ansible_os_family (Archlinux/Debian).
+#
+# gather_facts: true is required so ansible.builtin.package can auto-detect
+# pacman/apt (and so the role's include_vars/when can see ansible_os_family).
+# The executor provides os_family + install_dir via --extra-vars (Story 1.5
+# seam); direct runs need `-e os_family=arch` (or debian-family).
+- name: Assign distro group
+  hosts: localhost
+  gather_facts: true
+  tasks:
+    - name: Group host by os_family seam
+      ansible.builtin.group_by:
+        key: "{{ os_family }}"
+
+- name: Provision packages
+  hosts: "{{ os_family }}"
+  become: true
+  roles:
+    - packages
