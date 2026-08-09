@@ -4,7 +4,7 @@ baseline_commit: 2e59b7d
 
 # Story 2.2: Ansible Scaffold
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
