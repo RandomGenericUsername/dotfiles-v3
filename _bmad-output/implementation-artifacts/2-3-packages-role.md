@@ -23,7 +23,7 @@ So that Hyprland, Hyprpaper, Waybar, and fonts are present on the machine.
 1. `roles/packages/` exists with `tasks/main.yml` and `vars/{main,arch,debian}.yml` (AC 1, FR-14)
 2. Arch uses `pacman` (via `ansible.builtin.package` auto-detect) and self-bootstraps `yay` — `base-devel`+`git` installed, then a guarded `makepkg -si yay-bin` that skips when `yay` is already present, then AUR installs driven via `kewlfft.aur.aur` (AC 2, FR-14, plan §3)
 3. Debian-family uses `apt` for the same logical package set (AC 3, FR-14)
-4. Distro logic lives in `vars/arch.yml`/`vars/debian.yml` only — no distro branching in `tasks/main.yml` beyond `include_vars` + `when: ansible_os_family` (AC 4, FR-14, NFR-3)
+4. Distro logic lives in `vars/arch.yml`/`vars/debian.yml` only — `tasks/main.yml` branches on `ansible_os_family` ONLY in the two `include_vars` tasks; all Arch-specific behavior after that gates on `packages_use_aur | bool` (a var loaded from `vars/arch.yml`) (AC 4, FR-14, NFR-3)
 5. A `--check` run reports would-change without ever executing `makepkg` or mutating the host (AC 5, hardening: dry-run must be dry)
 6. The role is idempotent — a re-run reports no drift (AC 6, NFR-1)
 7. Privilege context is explicitly defined: the playbook run's user has rights to run `pacman`/`apt` (via sudo `become: true`), while `makepkg`/AUR tasks run as a dedicated non-root `aur_builder` user (`become_user`); user-scoped steps (`uv tool install`, `~/.config` symlinks) belong to later stories (2.4/2.10) and are OUT of scope here — if a single run context cannot satisfy both, record it as an open question (AC 7, OQ-1)
@@ -39,21 +39,23 @@ So that Hyprland, Hyprpaper, Waybar, and fonts are present on the machine.
   - [ ] Shared defaults only: `packages_state: present`, `aur_build_dir: /tmp/dotfiles-aur-build`
   - [ ] NO distro-specific content
 - [ ] Author `vars/arch.yml` (AC: 2, 4)
+  - [ ] `packages_use_aur: true` (the var that gates the Arch yay-bootstrap + AUR block — see Dev Notes "distro logic in vars")
   - [ ] `aur_builder_user: aur_builder`, `aur_builder_group: wheel`
   - [ ] `aur_packages: []` (empty for the current package set — all four logical entries resolve from official repos; kewlfft.aur.aur task is still authored and gated on non-empty)
   - [ ] `yay_repo: https://aur.archlinux.org/yay-bin.git`
   - [ ] NO pacman package names here — the names live in `group_vars/arch.yml` (NFR-3)
 - [ ] Author `vars/debian.yml` (AC: 3, 4)
-  - [ ] `apt_update_cache: true`, `apt_cache_valid_time: 3600`
+  - [ ] `packages_use_aur: false`
   - [ ] NO apt package names here — the names live in `group_vars/debian-family.yml`
+  - [ ] No `apt_update_cache`/`apt_cache_valid_time` vars — `ansible.builtin.package` proxies to `apt` which refreshes its cache automatically; don't add dead config
 - [ ] Author `tasks/main.yml` (AC: 2, 3, 4, 5, 6)
-  - [ ] `include_vars` arch.yml when `ansible_os_family == "Archlinux"`, debian.yml when `ansible_os_family == "Debian"` (the ONLY distro branching)
+  - [ ] `include_vars` arch.yml when `ansible_os_family == "Archlinux"`, debian.yml when `ansible_os_family == "Debian"` — the ONLY `ansible_os_family` branching in tasks; everything Arch-specific after that gates on `when: packages_use_aur | bool` (a var loaded from `vars/arch.yml`, never on `ansible_os_family` directly)
   - [ ] Flatten the `group_vars` `packages` map (scalar + list values) into one install list via `packages.values() | list | flatten`
   - [ ] Install the flattened list with `ansible.builtin.package` `state: present` `become: true` — auto-selects pacman/apt (AC 2, 3)
-  - [ ] Arch: install `base-devel` + `git` via `ansible.builtin.package` `become: true`
-  - [ ] Arch: create `aur_builder` user (group `wheel`, `create_home: true`) + NOPASSWD `pacman` line in `/etc/sudoers.d/11-install-aur_builder` (kewlfft.aur requirement — makepkg/yay refuse root) — both `become: true`
-  - [ ] Arch: guarded yay-bootstrap: `command -v yay` check (`changed_when: false`, `failed_when: false`), then `git clone {{ yay_repo }}` + `makepkg -si --noconfirm` run `become: true become_user: "{{ aur_builder_user }}"` with `creates: /usr/bin/yay` and `when: yay absent` — the `command` module + `creates` guard makes this dry-run-safe (AC 5) and idempotent (AC 6)
-  - [ ] Arch: AUR installs via `kewlfft.aur.aur` `name: "{{ aur_packages }}"` `state: present` `use: yay`, `become: true become_user: "{{ aur_builder_user }}"`, `when: aur_packages | length > 0`
+  - [ ] `when: packages_use_aur | bool`: install `base-devel` + `git` via `ansible.builtin.package` `become: true`
+  - [ ] `when: packages_use_aur | bool`: create `aur_builder` user (group `wheel`, `create_home: true`) + NOPASSWD `pacman` line in `/etc/sudoers.d/11-install-aur_builder` (kewlfft.aur requirement — makepkg/yay refuse root) — both `become: true`
+  - [ ] `when: packages_use_aur | bool`: guarded yay-bootstrap: `command -v yay` check (`changed_when: false`, `failed_when: false`), then `git clone {{ yay_repo }}` + `makepkg -si --noconfirm` run `become: true become_user: "{{ aur_builder_user }}"` with `creates: /usr/bin/yay` and `when: yay absent` — the `command` module + `creates` guard makes this dry-run-safe (AC 5) and idempotent (AC 6)
+  - [ ] `when: packages_use_aur | bool`: AUR installs via `kewlfft.aur.aur` `name: "{{ aur_packages }}"` `state: present` `use: yay`, `become: true become_user: "{{ aur_builder_user }}"`, `when: aur_packages | length > 0`
   - [ ] `become` is scoped per-task — the play-level become context stays explicit in the playbook (see Dev Notes "Privilege context")
 - [ ] Author `playbooks/packages.yaml` (AC: 1-7, locked distro-selection pattern from Story 2.2)
   - [ ] Lead play: `hosts: localhost`, `gather_facts: true`, task `ansible.builtin.group_by: key: "{{ os_family }}"` (creates the dynamic `arch`/`debian-family` group so `group_vars` auto-apply)
@@ -66,7 +68,7 @@ So that Hyprland, Hyprpaper, Waybar, and fonts are present on the machine.
   - [ ] `vars/arch.yml` does NOT contain any pacman package names (names live in `group_vars/arch.yml`); `vars/debian.yml` similarly
   - [ ] `playbooks/packages.yaml` parses: first play `group_by: key: "{{ os_family }}"`, second play `roles: [packages]` + `become: true`
   - [ ] Dry-run guard: the `makepkg` task is a `command` module with `creates` (assert the guarded bootstrap task exists) — dry-run must be dry
-  - [ ] Distro-branching contract: tasks contain `when: ansible_os_family ==` only in the `include_vars` tasks (no per-package distro `when`s, no hardcoded `pacman`/`apt` module FQCNs)
+  - [ ] Distro-branching contract: `tasks/main.yml` references `ansible_os_family` ONLY inside the two `include_vars` tasks; no `when: ansible_os_family` on any other task, no hardcoded `pacman`/`apt` module FQCNs (only `ansible.builtin.package`)
   - [ ] `ansible-playbook --syntax-check` on `playbooks/packages.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0 (ansible-core is a runtime dep — available in the test env)
   - [ ] Value-shape contract (locks deferred D3): assert every value in `group_vars/{arch,debian-family}.yml` `packages` map is either a non-empty `str` or a non-empty `list[str]`
 - [ ] Verify full suite + lint + layering guard (AC: 5)
@@ -115,6 +117,7 @@ src/provisioning/ansible/
   `[hyprland, hyprpaper, waybar, [f1, f2, f3]] | flatten` → `[hyprland, hyprpaper, waybar, f1, f2, f3]`.
 - **The `packages` var is available because of the playbook's `group_by`.** `group_vars/{arch,debian-family}.yml` only auto-load for hosts in a group of that name. The playbook must create the dynamic group via the seam extra-var `os_family` (`arch`/`debian-family` — the `IFactReader.os_family()` seam). This is the locked pattern from Story 2.2 Dev Notes; do not rediscover it.
 - **`ansible.builtin.package` auto-detects the manager** (pacman on Arch, apt on Debian) — do NOT add a `pkg_manager` var and do NOT hardcode `pacman`/`apt` module calls in tasks (NFR-3: distro isolation; also enforced by the story's structural test).
+- **Distro branching in vars, not tasks.** `include_vars` is the ONLY task-level place `ansible_os_family` appears: load `vars/arch.yml` when `ansible_os_family == "Archlinux"`, `vars/debian.yml` when `== "Debian"`. Every Arch-specific task thereafter gates on `when: packages_use_aur | bool` — `true` in `vars/arch.yml`, `false` in `vars/debian.yml`. This keeps the AC-4 contract mechanically testable and keeps distro logic in vars.
 - **Debian-family availability caveat:** Hyprland/Hyprpaper are NOT in Debian stable / Ubuntu default repos. Story 2.2 explicitly deferred third-party repo / PPA enablement to this story's `packages` role concern (deferred W3/D5). Decision: author the plain `apt` path with `ansible.builtin.package`; record the Debian repo/PPA enablement as an open question if the names do not resolve in the target distro's configured repos (fail-loud beats silent skip — NFR-9). Do NOT invent PPA setup that is not verifiable in this story; note it for the integration stories (3.2/3.3) to exercise on a real Debian-family host.
 
 ### The playbook (locked distro-selection mechanism)
@@ -147,13 +150,15 @@ src/provisioning/ansible/
 The locked AUR strategy: `base-devel`+`git` → guarded `makepkg -si yay-bin` (skip if `yay` present) → `kewlfft.aur.aur` drives AUR installs. Distro logic stays in `vars/arch.yml`.
 
 ```yaml
-# Arch-only: prerequisites + aur_builder user (become: true)
+# Arch-only: prerequisites + aur_builder user (become: true).
+# Gated on `packages_use_aur` (loaded from vars/arch.yml by include_vars) so
+# tasks never branch on ansible_os_family — distro logic lives in vars.
 - name: Install base-devel and git
   ansible.builtin.package:
     name: [base-devel, git]
     state: present
   become: true
-  when: ansible_os_family == "Archlinux"
+  when: packages_use_aur | bool
 
 - name: Create aur_builder user
   ansible.builtin.user:
@@ -161,7 +166,7 @@ The locked AUR strategy: `base-devel`+`git` → guarded `makepkg -si yay-bin` (s
     group: "{{ aur_builder_group }}"
     create_home: true
   become: true
-  when: ansible_os_family == "Archlinux"
+  when: packages_use_aur | bool
 
 - name: Allow aur_builder to run pacman without password
   ansible.builtin.lineinfile:
@@ -171,7 +176,7 @@ The locked AUR strategy: `base-devel`+`git` → guarded `makepkg -si yay-bin` (s
     mode: "0644"
     validate: "visudo -cf %s"
   become: true
-  when: ansible_os_family == "Archlinux"
+  when: packages_use_aur | bool
 
 # Guarded yay-bootstrap — dry-run-safe by construction
 - name: Check for existing yay
@@ -179,7 +184,7 @@ The locked AUR strategy: `base-devel`+`git` → guarded `makepkg -si yay-bin` (s
   register: yay_check
   changed_when: false
   failed_when: false
-  when: ansible_os_family == "Archlinux"
+  when: packages_use_aur | bool
 
 - name: Clone yay-bin PKGBUILD
   ansible.builtin.git:
@@ -187,7 +192,7 @@ The locked AUR strategy: `base-devel`+`git` → guarded `makepkg -si yay-bin` (s
     dest: "{{ aur_build_dir }}"
   become: true
   become_user: "{{ aur_builder_user }}"
-  when: ansible_os_family == "Archlinux" and yay_check.rc != 0
+  when: packages_use_aur | bool and yay_check.rc != 0
 
 - name: Build and install yay-bin via makepkg
   ansible.builtin.command: makepkg -si --noconfirm
@@ -196,7 +201,7 @@ The locked AUR strategy: `base-devel`+`git` → guarded `makepkg -si yay-bin` (s
   become: true
   become_user: "{{ aur_builder_user }}"
   creates: /usr/bin/yay
-  when: ansible_os_family == "Archlinux" and yay_check.rc != 0
+  when: packages_use_aur | bool and yay_check.rc != 0
 
 # AUR installs (empty for the current set; still authored, gated on non-empty)
 - name: Install AUR packages via yay
@@ -206,7 +211,7 @@ The locked AUR strategy: `base-devel`+`git` → guarded `makepkg -si yay-bin` (s
     use: yay
   become: true
   become_user: "{{ aur_builder_user }}"
-  when: ansible_os_family == "Archlinux" and aur_packages | length > 0
+  when: packages_use_aur | bool and aur_packages | length > 0
 ```
 
 Why this is check-mode-safe (AC 5, hardening "dry-run must be dry"):
