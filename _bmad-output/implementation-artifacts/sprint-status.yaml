@@ -65,7 +65,7 @@ development_status:
   epic-2: in-progress
   2-1-declarative-manifests: done
   2-2-ansible-scaffold: done
-  2-3-packages-role: backlog
+  2-3-packages-role: ready-for-dev
   2-4-cli-tools-role: backlog
   2-5-filesystem-role: backlog
   2-6-assets-role: backlog
