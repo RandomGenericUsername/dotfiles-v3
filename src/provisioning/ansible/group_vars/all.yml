@@ -1,0 +1,13 @@
+# Shared, distro-agnostic settings for the dotfiles provisioning scaffold.
+#
+# This file is the seam for variables that apply to every host regardless of
+# OS family. Keep it MINIMAL.
+#
+# `install_dir` is deliberately NOT defaulted here: the orchestrator seam
+# always provides it via --extra-vars (use_cases `_seam_extra_vars`), and an
+# undefined `install_dir` must FAIL LOUDLY in the renders (Story 2.11) rather
+# than silently resolve to a default.
+#
+# Spine sub-path variables (e.g. spine_wallpapers_dir) are authored when the
+# filesystem/assets/settings roles land (Stories 2.5-2.11) — do not guess them
+# here.

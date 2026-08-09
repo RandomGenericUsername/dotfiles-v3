@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -11,6 +12,7 @@ from provisioning.adapters.ansible_executor import (
     AnsibleExecutor,
     ProvisionExecutorError,
     ProvisionTimeoutError,
+    _ansible_env,
 )
 from provisioning.domain.models import ProvisionResult
 
@@ -217,3 +219,44 @@ class TestAnsibleExecutor:
     def test_empty_tags_rejected_at_construction(self) -> None:
         with pytest.raises(ValueError, match="non-empty"):
             AnsibleExecutor(inventory=Path("inventory.yaml"), tags="  ")
+
+
+class TestAnsibleEnv:
+    def test_none_config_file_returns_none(self) -> None:
+        assert _ansible_env(None) is None
+
+    def test_config_file_sets_ansible_config_and_preserves_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("EXISTING_VAR", "preserved")
+        env = _ansible_env(Path("ansible.cfg"))
+        assert env is not None
+        assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+        assert env["EXISTING_VAR"] == "preserved"
+
+    def test_config_file_does_not_mutate_os_environ(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EXISTING_VAR", "preserved")
+        _ansible_env(Path("ansible.cfg"))
+        assert "ANSIBLE_CONFIG" not in dict(os.environ)
+
+    def test_config_file_with_injected_runner_keeps_injected_contract(self) -> None:
+        commands: list[list[str]] = []
+
+        def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return _completed(0, stdout="ok", stderr="")
+
+        executor = AnsibleExecutor(
+            inventory=Path("inventory/localhost.yaml"),
+            tags="all",
+            runner=runner,
+            config_file=Path("ansible.cfg"),
+        )
+        result = executor.run(
+            Path("bootstrap.yaml"),
+            check=True,
+            extra_vars={"install_dir": "/x", "os_family": "arch"},
+        )
+        assert result.success is True
+        assert commands[0][0] == "ansible-playbook"
+        assert commands[0][-1] == "bootstrap.yaml"

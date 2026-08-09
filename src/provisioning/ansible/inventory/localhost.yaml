@@ -1,0 +1,17 @@
+# Runs against the local host only (plan §6 / FR-13).
+#
+# `ansible_connection: local` — no SSH transport.
+# `ansible_python_interpreter` — run modules with the SAME interpreter that
+# executes `ansible-playbook` (the uv venv python that resolves ansible-core),
+# avoiding interpreter mismatch on the local connection.
+#
+# localhost is intentionally NOT statically placed under arch/debian-family
+# children groups: a host in two groups merges BOTH group_vars sets, which
+# would break the distro isolation seam. Distro selection happens at play time
+# via `ansible.builtin.group_by: key: "{{ os_family }}"` (Stories 2.3+).
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_host: 127.0.0.1
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"

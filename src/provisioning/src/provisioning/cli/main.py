@@ -74,6 +74,7 @@ def build_deps() -> CliDependencies:
     executor = AnsibleExecutor(
         inventory=_ANSIBLE_ROOT / "inventory" / "localhost.yaml",
         tags="all",
+        config_file=_ANSIBLE_ROOT / "ansible.cfg",
     )
     fact_reader = AnsibleFactReader()
     bootstrap_playbook = _ANSIBLE_ROOT / "playbooks" / "bootstrap.yaml"

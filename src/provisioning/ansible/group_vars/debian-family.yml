@@ -1,0 +1,17 @@
+# Debian-family (apt) — consumed by the packages role (Story 2.3).
+# Filename matches the IFactReader.os_family() seam contract ("debian-family").
+#
+# Per-manager names resolve HERE, not in the manifest and not in Python
+# (NFR-3 distro isolation). Font names verified against the Debian packages
+# archive at implementation time (2026-08-09); hyprland/hyprpaper/waybar
+# availability (not in Debian stable / Ubuntu default repos) is a Story 2.3
+# `packages` role concern (third-party repo / PPA enablement), not resolved
+# here — group_vars only carries the names.
+packages:
+  hyprland: hyprland
+  hyprpaper: hyprpaper
+  waybar: waybar
+  fonts:
+    - fonts-noto
+    - fonts-noto-cjk
+    - fonts-noto-color-emoji

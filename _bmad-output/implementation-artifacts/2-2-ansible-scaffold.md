@@ -4,13 +4,14 @@ baseline_commit: 2e59b7d
 
 # Story 2.2: Ansible Scaffold
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-08: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
+- 2026-08-09: Story implemented — scaffold authored, ANSIBLE_CONFIG wiring landed, 14 new tests, all gates green.
 
 ## Story
 
@@ -28,33 +29,33 @@ So that playbooks can run against the local host with distro-aware group variabl
 
 ## Tasks / Subtasks
 
-- [ ] Create the Ansible scaffold directory tree (AC: 1, 2, 3, 4)
-  - [ ] `src/provisioning/ansible/inventory/`
-  - [ ] `src/provisioning/ansible/group_vars/`
-  - [ ] Note: `playbooks/` and `roles/` dirs are NOT created in this story (Stories 2.3–2.12)
-- [ ] Author `inventory/localhost.yaml` (AC: 1)
-  - [ ] `all.hosts.localhost` with `ansible_connection: local`
-  - [ ] `ansible_python_interpreter: "{{ ansible_playbook_python }}"` (same interpreter that runs ansible-playbook — the uv venv python)
-  - [ ] Do NOT statically place localhost under `arch`/`debian-family` children groups (both var sets would merge — see Dev Notes distro-selection)
-- [ ] Author `requirements.yml` (AC: 2)
-  - [ ] Declare `community.general`, `ansible.posix`, `kewlfft.aur`; pin verified collection versions (resolve compatibility against installed `ansible-core` 2.21 at implementation time)
-- [ ] Author `ansible.cfg` (AC: 3)
-  - [ ] `[defaults]` with `inventory = inventory/localhost.yaml` and `roles_path = roles`
-  - [ ] Relative paths resolve relative to the cfg file's own directory (empirically verified against ansible-core 2.21 — see Dev Notes)
-- [ ] Author `group_vars/all.yml`, `group_vars/arch.yml`, `group_vars/debian-family.yml` (AC: 4)
-  - [ ] `arch.yml`/`debian-family.yml`: per-distro `packages` map covering EVERY logical entry in `dotfiles/provisioning/packages.yaml` (`hyprland`, `hyprpaper`, `waybar`, `fonts`) — non-empty, no typo'd names
-  - [ ] `all.yml`: shared distro-agnostic settings ONLY; do NOT default `install_dir` (must stay fail-loud, Story 2.11)
-- [ ] Wire `ANSIBLE_CONFIG` so the scaffold is actually consumable (AC: 3 — see Dev Notes "ansible.cfg discovery")
-  - [ ] Add `config_file: Path | None = None` param to `AnsibleExecutor` + `_ansible_env()` helper in `src/provisioning/src/provisioning/adapters/ansible_executor.py` (backward compatible — injected-runner contract unchanged)
-  - [ ] Pass `config_file=_ANSIBLE_ROOT / "ansible.cfg"` from `build_deps()` in `src/provisioning/src/provisioning/cli/main.py`
-  - [ ] Preserve ALL existing executor behavior (command shape, extra-vars seam, error mapping) — full suite must stay green
-- [ ] Add scaffold tests (AC: 1, 2, 3, 4)
-  - [ ] `tests/unit/test_ansible_scaffold.py`: real-file structural tests (exist + parse + content contracts)
-  - [ ] `tests/unit/adapters/test_ansible_executor.py`: `_ansible_env()` cases + config_file-with-injected-runner regression guard
-- [ ] Verify full suite + lint + layering guard (AC: 5)
-  - [ ] `uv run pytest` — full suite green, nothing regresses from the 194-pass baseline
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+- [x] Create the Ansible scaffold directory tree (AC: 1, 2, 3, 4)
+  - [x] `src/provisioning/ansible/inventory/`
+  - [x] `src/provisioning/ansible/group_vars/`
+  - [x] Note: `playbooks/` and `roles/` dirs are NOT created in this story (Stories 2.3–2.12)
+- [x] Author `inventory/localhost.yaml` (AC: 1)
+  - [x] `all.hosts.localhost` with `ansible_connection: local`
+  - [x] `ansible_python_interpreter: "{{ ansible_playbook_python }}"` (same interpreter that runs ansible-playbook — the uv venv python)
+  - [x] Do NOT statically place localhost under `arch`/`debian-family` children groups (both var sets would merge — see Dev Notes distro-selection)
+- [x] Author `requirements.yml` (AC: 2)
+  - [x] Declare `community.general`, `ansible.posix`, `kewlfft.aur`; pin verified collection versions (resolve compatibility against installed `ansible-core` 2.21 at implementation time)
+- [x] Author `ansible.cfg` (AC: 3)
+  - [x] `[defaults]` with `inventory = inventory/localhost.yaml` and `roles_path = roles`
+  - [x] Relative paths resolve relative to the cfg file's own directory (empirically verified against ansible-core 2.21 — see Dev Notes)
+- [x] Author `group_vars/all.yml`, `group_vars/arch.yml`, `group_vars/debian-family.yml` (AC: 4)
+  - [x] `arch.yml`/`debian-family.yml`: per-distro `packages` map covering EVERY logical entry in `dotfiles/provisioning/packages.yaml` (`hyprland`, `hyprpaper`, `waybar`, `fonts`) — non-empty, no typo'd names
+  - [x] `all.yml`: shared distro-agnostic settings ONLY; do NOT default `install_dir` (must stay fail-loud, Story 2.11)
+- [x] Wire `ANSIBLE_CONFIG` so the scaffold is actually consumable (AC: 3 — see Dev Notes "ansible.cfg discovery")
+  - [x] Add `config_file: Path | None = None` param to `AnsibleExecutor` + `_ansible_env()` helper in `src/provisioning/src/provisioning/adapters/ansible_executor.py` (backward compatible — injected-runner contract unchanged)
+  - [x] Pass `config_file=_ANSIBLE_ROOT / "ansible.cfg"` from `build_deps()` in `src/provisioning/src/provisioning/cli/main.py`
+  - [x] Preserve ALL existing executor behavior (command shape, extra-vars seam, error mapping) — full suite must stay green
+- [x] Add scaffold tests (AC: 1, 2, 3, 4)
+  - [x] `tests/unit/test_ansible_scaffold.py`: real-file structural tests (exist + parse + content contracts)
+  - [x] `tests/unit/adapters/test_ansible_executor.py`: `_ansible_env()` cases + config_file-with-injected-runner regression guard
+- [x] Verify full suite + lint + layering guard (AC: 5)
+  - [x] `uv run pytest` — full suite green, nothing regresses from the 194-pass baseline
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
 
 ## Dev Notes
 
@@ -290,6 +291,27 @@ opencode-go/deepseek-v4-flash
 
 ### Debug Log References
 
+- 2026-08-09: Resolved collection versions via Galaxy API (requires_ansible checked against installed ansible-core 2.21.2): `community.general 13.2.0` (>=2.18.0), `ansible.posix 2.2.2` (>=2.16.0), `kewlfft.aur 0.13.0` (>=2.9.10).
+- 2026-08-09: Verified package names live — `pacman -Si` for arch set (ttf-jetbrains-mono-nerd, noto-fonts, noto-fonts-cjk, ttf-nerd-fonts-symbols), Debian archive API for debian-family set (fonts-noto, fonts-noto-cjk, fonts-noto-color-emoji).
+- 2026-08-09: Smoke check `ANSIBLE_CONFIG=ansible/ansible.cfg uv run ansible-config dump --only-changed` confirmed `DEFAULT_HOST_LIST` and `DEFAULT_ROLES_PATH` resolve under `src/provisioning/ansible/` — relative paths honored from the cfg file's own directory.
+- 2026-08-09: Working tree was dirty (story-creation artifacts) at activation; user chose to commit them (`chore: create story 2.2 ansible scaffold`, eb8898f). Story `baseline_commit` 2e59b7d preserved.
+
 ### Completion Notes List
 
+- ✅ Story 2.2 complete: authored the Ansible project scaffold under `src/provisioning/ansible/` (inventory, requirements.yml, ansible.cfg, group_vars/{all,arch,debian-family}.yml) as data-only files — no `.py` under ansible/.
+- ✅ Wired `ANSIBLE_CONFIG` end-to-end: added `config_file` param + `_ansible_env()` helper to `AnsibleExecutor`, forwarded `env` to `subprocess.run`; `build_deps()` passes `config_file=_ANSIBLE_ROOT / "ansible.cfg"`. Injected-runner contract (`Callable[[list[str]], CompletedProcess]`) unchanged — all existing executor tests pass unmodified.
+- ✅ Distro isolation per AC 5: distro differences live only in `group_vars/{arch,debian-family}.yml`; localhost is NOT statically grouped; filenames match the `IFactReader.os_family()` seam exactly.
+- ✅ 14 new tests (10 scaffold real-file + 4 executor). Full suite 208 passed (194 baseline + 14). ruff check/format + mypy strict + layering guard (37 tests) all green.
+- ✅ Verified collection versions pinned in requirements.yml compatible with ansible-core 2.21.2.
+
 ### File List
+- `src/provisioning/ansible/inventory/localhost.yaml` (new)
+- `src/provisioning/ansible/requirements.yml` (new)
+- `src/provisioning/ansible/ansible.cfg` (new)
+- `src/provisioning/ansible/group_vars/all.yml` (new)
+- `src/provisioning/ansible/group_vars/arch.yml` (new)
+- `src/provisioning/ansible/group_vars/debian-family.yml` (new)
+- `src/provisioning/src/provisioning/adapters/ansible_executor.py` (modified: `os` import, `_ansible_env`, `config_file` param, env forwarding)
+- `src/provisioning/src/provisioning/cli/main.py` (modified: `build_deps()` passes `config_file`)
+- `src/provisioning/tests/unit/test_ansible_scaffold.py` (new)
+- `src/provisioning/tests/unit/adapters/test_ansible_executor.py` (modified: `_ansible_env` + config_file regression guard)

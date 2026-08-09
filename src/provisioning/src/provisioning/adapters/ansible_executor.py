@@ -9,6 +9,7 @@ keys the caller supplies are passed through — no additions, no removal (AC 4).
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from collections.abc import Callable, Mapping
@@ -41,9 +42,17 @@ class ProvisionTimeoutError(ProvisionExecutorError):
 
 
 def _default_runner(
-    command: list[str], timeout: float | None = None
+    command: list[str],
+    timeout: float | None = None,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    return subprocess.run(command, capture_output=True, text=True, timeout=timeout, env=env)
+
+
+def _ansible_env(config_file: Path | None) -> dict[str, str] | None:
+    if config_file is None:
+        return None
+    return {**os.environ, "ANSIBLE_CONFIG": str(config_file)}
 
 
 def _extra_vars_arg(extra_vars: Mapping[str, str]) -> str:
@@ -108,16 +117,20 @@ class AnsibleExecutor(IProvisionExecutor):
         tags: str,
         timeout: float | None = None,
         runner: Callable[[list[str]], subprocess.CompletedProcess[str]] | None = None,
+        config_file: Path | None = None,
     ) -> None:
         if not tags.strip():
             raise ValueError("tags must be a non-empty string")
         self._inventory = inventory
         self._tags = tags
         self._timeout = timeout
+        self._config_file = config_file
         if runner is not None:
             self._runner = runner
         else:
-            self._runner = lambda command: _default_runner(command, timeout)
+            self._runner = lambda command: _default_runner(
+                command, timeout, _ansible_env(config_file)
+            )
 
     def run(
         self,

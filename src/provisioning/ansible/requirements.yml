@@ -1,0 +1,15 @@
+---
+# External collections resolved via `ansible-galaxy collection install -r
+# requirements.yml` at bootstrap start (locked decision, plan §3). Versions are
+# pinned for reproducibility (NFR-9) and verified compatible with the installed
+# ansible-core 2.21 (requires_ansible: community.general>=2.18, ansible.posix
+# >=2.16, kewlfft.aur>=2.9).
+#
+# `ansible.builtin` is implicit and NOT declared here.
+collections:
+  - name: community.general
+    version: "13.2.0"
+  - name: ansible.posix
+    version: "2.2.2"
+  - name: kewlfft.aur
+    version: "0.13.0"
