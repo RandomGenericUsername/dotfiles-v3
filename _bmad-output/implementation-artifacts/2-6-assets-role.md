@@ -4,9 +4,13 @@ baseline_commit: 4f7f755
 
 # Story 2.6: Assets Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+
+## Change Log
+
+- 2026-08-10: Implemented story — authored `roles/assets/` (`tasks/main.yml`, `vars/main.yml`), `playbooks/assets.yaml`, and `tests/unit/test_assets_role.py` (22 tests). Full suite 287 passed (baseline 265), ruff/mypy/layering clean. Status → review.
 
 ## Story
 
@@ -35,54 +39,54 @@ So that the tools have everything they need to read from the install spine.
 
 ## Tasks / Subtasks
 
-- [ ] Create the `roles/assets/` role directory tree (AC: 1)
-  - [ ] `src/provisioning/ansible/roles/assets/tasks/main.yml`
-  - [ ] `src/provisioning/ansible/roles/assets/vars/main.yml`
-- [ ] Author `vars/main.yml` (AC: 2, 3, 4, 5, 6, 14, 15)
-  - [ ] `assets_repo_root` — `{{ playbook_dir }}/../../../..` (mirror `cli_tools_repo_root` exactly)
-  - [ ] `assets_weg_bin_dir` — `{{ ansible_facts.env.HOME }}/.local/bin` (uv default bin dir, mirror `cli_tools_bin_dir`; uses `ansible_facts.env`, F4)
-  - [ ] `assets_deploy_dirs` — the four spine segments this role deploys into: `wallpapers`, `icon-templates`, `icon-mappings`, `csg-templates` (AC 9)
-  - [ ] `assets_wallpapers_tarball` — `dotfiles/assets/wallpapers/wallpapers.tar.gz` (bare manifest value; repo root is prefixed in the task)
-  - [ ] `assets_wallpapers_dest` — `{{ install_dir | trim }}/wallpapers` (trim lock: matches the `install_dir` assert's validated value)
-  - [ ] `assets_copies` — the three directory-based asset kinds as `(name, kind, source, target)` mirroring the manifest; each `source` ENDS WITH `/` (contents semantics); `target` is the spine segment:
+- [x] Create the `roles/assets/` role directory tree (AC: 1)
+  - [x] `src/provisioning/ansible/roles/assets/tasks/main.yml`
+  - [x] `src/provisioning/ansible/roles/assets/vars/main.yml`
+- [x] Author `vars/main.yml` (AC: 2, 3, 4, 5, 6, 14, 15)
+  - [x] `assets_repo_root` — `{{ playbook_dir }}/../../../..` (mirror `cli_tools_repo_root` exactly)
+  - [x] `assets_weg_bin_dir` — `{{ ansible_facts.env.HOME }}/.local/bin` (uv default bin dir, mirror `cli_tools_bin_dir`; uses `ansible_facts.env`, F4)
+  - [x] `assets_deploy_dirs` — the four spine segments this role deploys into: `wallpapers`, `icon-templates`, `icon-mappings`, `csg-templates` (AC 9)
+  - [x] `assets_wallpapers_tarball` — `dotfiles/assets/wallpapers/wallpapers.tar.gz` (bare manifest value; repo root is prefixed in the task)
+  - [x] `assets_wallpapers_dest` — `{{ install_dir | trim }}/wallpapers` (trim lock: matches the `install_dir` assert's validated value)
+  - [x] `assets_copies` — the three directory-based asset kinds as `(name, kind, source, target)` mirroring the manifest; each `source` ENDS WITH `/` (contents semantics); `target` is the spine segment:
     - `{ name: icon-templates, kind: icon-template, source: dotfiles/assets/icon-templates/, target: icon-templates }`
     - `{ name: icon-mappings, kind: icon-mapping, source: dotfiles/config/icon-template-color-scheme-mappings/, target: icon-mappings }`
     - `{ name: csg-templates, kind: csg-template, source: src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates/, target: csg-templates }` (trailing `/` ADDED here; the manifest source has none — the parity test normalizes with `rstrip("/")`)
-  - [ ] `assets_weg_effects_target` — `{{ install_dir | trim }}/weg-effects.yaml` (trim lock)
-- [ ] Author `tasks/main.yml` (AC: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
-  - [ ] Fail-loud seam guard: `ansible.builtin.assert` that `install_dir is defined and install_dir | trim | length > 0` — the FIRST task, exact copy of the 2.5 filesystem assert (AC 8)
-  - [ ] Ensure deploy targets exist: `ansible.builtin.file` `state: directory`, `path: "{{ install_dir | trim }}/{{ item }}"`, looping `assets_deploy_dirs` (AC 9 — unarchive's `dest` must pre-exist; idempotent; check-safe)
-  - [ ] Unpack wallpapers: `ansible.builtin.unarchive` `src: "{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}"`, `dest: "{{ assets_wallpapers_dest }}"`, `remote_src: true` — NO `creates:` (AC 2, AC 10)
-  - [ ] Deploy directory kinds: `ansible.builtin.copy` `src: "{{ assets_repo_root }}/{{ item.source }}"`, `dest: "{{ install_dir | trim }}/{{ item.target }}"`, `remote_src: true`, looping `{{ assets_copies }}` (AC 3, 4, 5, 13)
-  - [ ] Assert `default.png` unpacked: `ansible.builtin.stat` on `{{ install_dir | trim }}/wallpapers/default.png` (register a var), then `ansible.builtin.assert` that the registered var's `stat.exists` is true — an `assert` alone CANNOT check file existence (it only evaluates a condition), the `stat` is mandatory; both tasks gated `when: not ansible_check_mode` (AC 11)
-  - [ ] Emit WEG effects: `ansible.builtin.command` `weg dump-effects --output {{ install_dir | trim }}/weg-effects.yaml`, `args.creates: "{{ install_dir | trim }}/weg-effects.yaml"`, `environment.PATH: "{{ assets_weg_bin_dir }}:{{ ansible_facts.env.PATH }}"` (AC 6, AC 14)
-  - [ ] No `become:` anywhere (AC 12)
-- [ ] Author `playbooks/assets.yaml` (AC: 16)
-  - [ ] `hosts: localhost`, `gather_facts: true`, `roles: [assets]`
-  - [ ] NO `become: true`
-  - [ ] NO `group_by` — asset deployment is distro-agnostic (NFR-3); do not cargo-cult the packages pattern
-  - [ ] `gather_facts: true` REQUIRED — vars read `ansible_facts.env.*` (PATH, HOME)
-- [ ] Add structural real-file tests `tests/unit/test_assets_role.py` (AC: 1-16; mirror `test_filesystem_role.py`/`test_cli_tools_role.py` conventions)
-  - [ ] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file anchored on `pyproject.toml` — mirror `_find_ansible_dir()`)
-  - [ ] `tasks/main.yml` parses as a list of named task dicts
-  - [ ] First task is the fail-loud `install_dir` assert (AC 8)
-  - [ ] A `file` `state: directory` task creates exactly the four deploy targets under `install_dir` (AC 9)
-  - [ ] An `ansible.builtin.unarchive` task unpacks `wallpapers.tar.gz` into `{{ install_dir }}/wallpapers` with `remote_src: true` (AC 2)
-  - [ ] The unarchive task carries NO `creates:` (AC 10 — FR-18 regenerate semantics)
-  - [ ] Exactly one `ansible.builtin.copy` task loops `{{ assets_copies }}`, `remote_src: true`, src `{{ assets_repo_root }}/{{ item.source }}`, dest `{{ install_dir }}/{{ item.target }}` (AC 3-5)
-  - [ ] Every copy `source` ends with `/` (contents-into-dest semantics, AC 13)
-  - [ ] An `ansible.builtin.command` task runs `weg dump-effects --output {{ install_dir }}/weg-effects.yaml` with `creates: "{{ install_dir }}/weg-effects.yaml"` and PATH prepending `{{ assets_weg_bin_dir }}` (AC 6, AC 14)
-  - [ ] A `ansible.builtin.stat` task targets `{{ install_dir }}/wallpapers/default.png`, and an `ansible.builtin.assert` checks the registered var's `stat.exists`, both gated `when: not ansible_check_mode` (AC 11)
-  - [ ] No `become`/`become_user` anywhere in the role (AC 12)
-  - [ ] No absolute repo paths hardcoded — all sources interpolated via `{{ assets_repo_root }}/` (AC 13)
-  - [ ] `vars/main.yml` uses `ansible_facts.env`, never `{{ ansible_env.` (F4 lock)
-  - [ ] Parity: `assets_copies` names ∪ `{wallpapers, weg-effects}` == manifest `entries` names; copies match the manifest by `(name, kind, source.rstrip("/"))`; every copy `target` equals the kind→spine-segment mapping `{icon-template: icon-templates, icon-mapping: icon-mappings, csg-template: csg-templates}` (the deferred #164 "key off spine_segment(), not name" lock); the wallpaper tarball var equals the manifest wallpapers `source`; the manifest `weg-effects` entry has kind `weg-effects` and no `source` (AC 15)
-  - [ ] `playbooks/assets.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [assets]`, no `become`
-  - [ ] `ansible-playbook --syntax-check` on `assets.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0 (skip-guard when `ansible-playbook` absent — mirror 2.4 F6)
-- [ ] Verify full suite + lint + layering guard (AC: 7)
-  - [ ] `uv run pytest` — full suite green, nothing regresses from the 265-pass baseline (Story 2.5)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+  - [x] `assets_weg_effects_target` — `{{ install_dir | trim }}/weg-effects.yaml` (trim lock)
+- [x] Author `tasks/main.yml` (AC: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
+  - [x] Fail-loud seam guard: `ansible.builtin.assert` that `install_dir is defined and install_dir | trim | length > 0` — the FIRST task, exact copy of the 2.5 filesystem assert (AC 8)
+  - [x] Ensure deploy targets exist: `ansible.builtin.file` `state: directory`, `path: "{{ install_dir | trim }}/{{ item }}"`, looping `assets_deploy_dirs` (AC 9 — unarchive's `dest` must pre-exist; idempotent; check-safe)
+  - [x] Unpack wallpapers: `ansible.builtin.unarchive` `src: "{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}"`, `dest: "{{ assets_wallpapers_dest }}"`, `remote_src: true` — NO `creates:` (AC 2, AC 10)
+  - [x] Deploy directory kinds: `ansible.builtin.copy` `src: "{{ assets_repo_root }}/{{ item.source }}"`, `dest: "{{ install_dir | trim }}/{{ item.target }}"`, `remote_src: true`, looping `{{ assets_copies }}` (AC 3, 4, 5, 13)
+  - [x] Assert `default.png` unpacked: `ansible.builtin.stat` on `{{ install_dir | trim }}/wallpapers/default.png` (register a var), then `ansible.builtin.assert` that the registered var's `stat.exists` is true — an `assert` alone CANNOT check file existence (it only evaluates a condition), the `stat` is mandatory; both tasks gated `when: not ansible_check_mode` (AC 11)
+  - [x] Emit WEG effects: `ansible.builtin.command` `weg dump-effects --output {{ install_dir | trim }}/weg-effects.yaml`, `args.creates: "{{ install_dir | trim }}/weg-effects.yaml"`, `environment.PATH: "{{ assets_weg_bin_dir }}:{{ ansible_facts.env.PATH }}"` (AC 6, AC 14)
+  - [x] No `become:` anywhere (AC 12)
+- [x] Author `playbooks/assets.yaml` (AC: 16)
+  - [x] `hosts: localhost`, `gather_facts: true`, `roles: [assets]`
+  - [x] NO `become: true`
+  - [x] NO `group_by` — asset deployment is distro-agnostic (NFR-3); do not cargo-cult the packages pattern
+  - [x] `gather_facts: true` REQUIRED — vars read `ansible_facts.env.*` (PATH, HOME)
+- [x] Add structural real-file tests `tests/unit/test_assets_role.py` (AC: 1-16; mirror `test_filesystem_role.py`/`test_cli_tools_role.py` conventions)
+  - [x] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file anchored on `pyproject.toml` — mirror `_find_ansible_dir()`)
+  - [x] `tasks/main.yml` parses as a list of named task dicts
+  - [x] First task is the fail-loud `install_dir` assert (AC 8)
+  - [x] A `file` `state: directory` task creates exactly the four deploy targets under `install_dir` (AC 9)
+  - [x] An `ansible.builtin.unarchive` task unpacks `wallpapers.tar.gz` into `{{ install_dir }}/wallpapers` with `remote_src: true` (AC 2)
+  - [x] The unarchive task carries NO `creates:` (AC 10 — FR-18 regenerate semantics)
+  - [x] Exactly one `ansible.builtin.copy` task loops `{{ assets_copies }}`, `remote_src: true`, src `{{ assets_repo_root }}/{{ item.source }}`, dest `{{ install_dir }}/{{ item.target }}` (AC 3-5)
+  - [x] Every copy `source` ends with `/` (contents-into-dest semantics, AC 13)
+  - [x] An `ansible.builtin.command` task runs `weg dump-effects --output {{ install_dir }}/weg-effects.yaml` with `creates: "{{ install_dir }}/weg-effects.yaml"` and PATH prepending `{{ assets_weg_bin_dir }}` (AC 6, AC 14)
+  - [x] A `ansible.builtin.stat` task targets `{{ install_dir }}/wallpapers/default.png`, and an `ansible.builtin.assert` checks the registered var's `stat.exists`, both gated `when: not ansible_check_mode` (AC 11)
+  - [x] No `become`/`become_user` anywhere in the role (AC 12)
+  - [x] No absolute repo paths hardcoded — all sources interpolated via `{{ assets_repo_root }}/` (AC 13)
+  - [x] `vars/main.yml` uses `ansible_facts.env`, never `{{ ansible_env.` (F4 lock)
+  - [x] Parity: `assets_copies` names ∪ `{wallpapers, weg-effects}` == manifest `entries` names; copies match the manifest by `(name, kind, source.rstrip("/"))`; every copy `target` equals the kind→spine-segment mapping `{icon-template: icon-templates, icon-mapping: icon-mappings, csg-template: csg-templates}` (the deferred #164 "key off spine_segment(), not name" lock); the wallpaper tarball var equals the manifest wallpapers `source`; the manifest `weg-effects` entry has kind `weg-effects` and no `source` (AC 15)
+  - [x] `playbooks/assets.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [assets]`, no `become`
+  - [x] `ansible-playbook --syntax-check` on `assets.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0 (skip-guard when `ansible-playbook` absent — mirror 2.4 F6)
+- [x] Verify full suite + lint + layering guard (AC: 7)
+  - [x] `uv run pytest` — full suite green, nothing regresses from the 265-pass baseline (Story 2.5)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
 
 ## Dev Notes
 
@@ -293,8 +297,25 @@ Recent commit pattern (follow the same flow): `chore: create story X` (this stor
 
 ### Agent Model Used
 
+opencode (deepseek-v4-flash)
+
 ### Debug Log References
+
+- Red phase: structural tests authored first; `test_no_group_by_distro_selection` initially failed because the playbook's own comment contained the literal word `group_by` (raw-text assert) — reworked to parse the play YAML and assert no `group_by`/`groups` key in the parsed play instead.
+- `ruff format --check` reformatted 3 multi-line assert blocks; `mypy` flagged `.get("path")`/`.get("that")` on `object` in two list comprehensions — switched to the `_module()` helper (already used by sibling tests).
 
 ### Completion Notes List
 
+- Implemented Story 2.6 Assets Role: `roles/assets/{tasks,vars}/main.yml`, `playbooks/assets.yaml`, `tests/unit/test_assets_role.py`.
+- Role deploys all five manifest asset kinds into the 2.5 install spine: unarchive (wallpapers tarball, NO creates for FR-18), copy loop (icon-templates / icon-mappings / csg-templates), command emit (weg dump-effects with creates + PATH prepend).
+- First task is the verbatim 2.5 fail-loud install_dir assert; `{{ install_dir | trim }}` trim lock applied across path-bearing vars/tasks.
+- default.png presence guarded by stat+assert pair, both gated `when: not ansible_check_mode`.
+- Parity test resolves deferred-work.md#164: assets_copies names ∪ {wallpapers, weg-effects} == manifest names; copies match by (name, kind, source.rstrip("/")); every target equals the kind→spine-segment mapping.
+- Full suite: 287 passed (265 baseline + 22 new). ruff check/format + mypy clean; layering guard OK.
+
 ### File List
+
+- `src/provisioning/ansible/roles/assets/tasks/main.yml` (NEW)
+- `src/provisioning/ansible/roles/assets/vars/main.yml` (NEW)
+- `src/provisioning/ansible/playbooks/assets.yaml` (NEW)
+- `src/provisioning/tests/unit/test_assets_role.py` (NEW)

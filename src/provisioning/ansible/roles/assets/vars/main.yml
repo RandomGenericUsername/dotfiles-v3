@@ -1,0 +1,59 @@
+# Assets role vars (Story 2.6).
+#
+# The role deploys the five asset kinds from the repo into the install spine
+# that the filesystem role (2.5) created (FR-17, chaining-spine.md): the
+# wallpaper tarball (unarchive), the three directory-based kinds
+# (icon-templates / icon-mappings / csg-templates via copy), and the
+# weg-effects catalog (command emit).
+#
+# The desired asset list lives in dotfiles/provisioning/assets.yaml (Story
+# 2.1): five {name, kind, source} entries, the `weg-effects` entry having NO
+# source (it is emitted, not copied). Ansible does NOT read manifests — the
+# role mirrors the manifest here and a structural test locks parity (resolves
+# the Story 2.1 deferred item: key off `kind` + `spine_segment()`, not `name`).
+
+# assets_repo_root: repo root derived from this playbook's location.
+#   assets.yaml lives at <repo>/src/provisioning/ansible/playbooks/, so
+#   <repo> = {{ playbook_dir }}/../../../.. (mirror cli_tools_repo_root
+#   exactly).
+assets_repo_root: "{{ playbook_dir }}/../../../.."
+
+# assets_weg_bin_dir: uv's executable directory where the cli_tools role (2.4)
+#   installs `weg` via `uv tool install` (default $HOME/.local/bin). Prepend to
+#   PATH in the emit task so `weg` resolves in the playbook run context.
+#   Uses ansible_facts.env (NOT the deprecated top-level ansible_env fact).
+assets_weg_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
+
+# assets_deploy_dirs: the four install-spine segments this role deploys into.
+#   Re-ensured as directories before the unarchive task (unarchive does NOT
+#   create its `dest`); the filesystem role (2.5) already created them on the
+#   bootstrap chain, this keeps the role self-contained on a direct run.
+assets_deploy_dirs:
+  - wallpapers
+  - icon-templates
+  - icon-mappings
+  - csg-templates
+
+# assets_wallpapers_tarball: the bare manifest source value (the repo root is
+#   prefixed in the task as {{ assets_repo_root }}/...).
+assets_wallpapers_tarball: dotfiles/assets/wallpapers/wallpapers.tar.gz
+
+# assets_wallpapers_dest: the unarchive dest. Trim lock: consumes the same
+#   validated `{{ install_dir | trim }}` value the fail-loud assert enforces.
+assets_wallpapers_dest: "{{ install_dir | trim }}/wallpapers"
+
+# assets_copies: the three directory-based asset kinds as (name, kind, source,
+#   target) mirroring the manifest. Every `source` ENDS WITH `/` so copy's
+#   contents-into-dest semantics land the files directly in the target (no
+#   accidental nested dir). `target` IS the AssetKind.spine_segment() of the
+#   kind — parity-locked by the structural test. The csg-templates source has a
+#   trailing `/` ADDED here (the manifest source has none); the parity test
+#   normalizes with rstrip("/").
+assets_copies:
+  - { name: icon-templates, kind: icon-template, source: dotfiles/assets/icon-templates/, target: icon-templates }
+  - { name: icon-mappings, kind: icon-mapping, source: dotfiles/config/icon-template-color-scheme-mappings/, target: icon-mappings }
+  - { name: csg-templates, kind: csg-template, source: src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates/, target: csg-templates }
+
+# assets_weg_effects_target: the weg dump-effects emit target — a FILE, not a
+#   dir; never a member of assets_deploy_dirs or assets_copies. Trim lock.
+assets_weg_effects_target: "{{ install_dir | trim }}/weg-effects.yaml"

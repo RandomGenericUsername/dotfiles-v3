@@ -1,0 +1,20 @@
+# Assets playbook (Story 2.6) — one-per-role playbook; aggregation into
+# bootstrap.yaml is Story 2.12.
+#
+# User-scoped playbook: NO become (everything the role writes lives under the
+# user's install_dir; running as root would diverge from the intended user's
+# layout).
+#
+# Distro-agnostic: asset deployment is identical on Arch and Debian-family and
+# the role consumes no group_vars — so unlike packages.yaml there is NO group_by
+# distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives assets_weg_bin_dir
+# from {{ ansible_facts.env.HOME }} and the emit task reads
+# {{ ansible_facts.env.PATH }}, which are only populated after the fact-gathering
+# setup module runs.
+- name: Deploy machine asset kinds
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - assets

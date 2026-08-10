@@ -1,0 +1,86 @@
+# Assets role (Story 2.6) — deploys the five asset kinds from the repo into the
+# install spine that the filesystem role (2.5) created (FR-17, chaining-spine.md):
+# the wallpaper tarball, the icon-template / icon-mapping / csg-template
+# directories, and the weg-effects catalog.
+#
+# Design (locked in Story 2.6 Dev Notes):
+# - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
+#   from the filesystem role (AC 8): install_dir is deliberately never defaulted
+#   (group_vars/all.yml), so an undefined spine root must abort with a friendly
+#   message before any task evaluates. Do NOT alias install_dir into a var —
+#   lazy evaluation could surface a raw undefined-var error instead.
+# - THREE different module idempotency shapes live in one role (do NOT
+#   cargo-cult a single pattern):
+#   1. ansible.builtin.file `state: directory` (AC 9) owns idempotency +
+#      check-mode natively. Exists because unarchive does NOT create its
+#      `dest` ("The given path must exist. Base directory is not created by
+#      this module") — the four deploy targets are re-ensured here so the role
+#      is self-contained on a direct assets.yaml run.
+#   2. ansible.builtin.unarchive (AC 2) with remote_src: true (the tarball is
+#      already on the target — the repo is local). DELIBERATELY NO `creates:`
+#      (AC 10, FR-18): replacing wallpapers.tar.gz must cause the next apply to
+#      re-extract so Story 2.7 can regenerate the palette. Idempotency comes
+#      from unarchive's natural re-extract-when-changed behavior.
+#      Check-mode caveat: partial support for .tar.gz — the task is skipped
+#      under --check; that keeps "dry-run must be dry" satisfied.
+#   3. ansible.builtin.copy (AC 3-5) loops the directory kinds with remote_src:
+#      true; idempotent via checksums; check-mode full. Every `source` ends
+#      with `/` (contents-into-dest semantics, no accidental nested dir).
+#   4. ansible.builtin.command `weg dump-effects` (AC 6) is the 2.4
+#      command+`creates:` pattern verbatim — the ONLY idempotency/dry-run
+#      mechanism on command modules (filesystem check, not a registered rc).
+# - default.png presence (AC 11) is a stat + assert PAIR, both gated
+#   `when: not ansible_check_mode` (under --check the unarchive is skipped so
+#   the file is not yet present; an assert alone cannot check file existence).
+# - User-scoped privilege context: NO become/become_user anywhere (AC 12).
+# - No absolute repo paths: every source is {{ assets_repo_root }}/... (AC 13).
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the assets role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure asset deploy targets exist
+  ansible.builtin.file:
+    path: "{{ install_dir | trim }}/{{ item }}"
+    state: directory
+  loop: "{{ assets_deploy_dirs }}"
+
+- name: Unpack wallpapers tarball
+  ansible.builtin.unarchive:
+    src: "{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}"
+    dest: "{{ assets_wallpapers_dest }}"
+    remote_src: true
+
+- name: Deploy directory asset kinds
+  ansible.builtin.copy:
+    src: "{{ assets_repo_root }}/{{ item.source }}"
+    dest: "{{ install_dir | trim }}/{{ item.target }}"
+    remote_src: true
+  loop: "{{ assets_copies }}"
+
+- name: Check default.png was unpacked
+  ansible.builtin.stat:
+    path: "{{ install_dir | trim }}/wallpapers/default.png"
+  register: assets_default_png
+  when: not ansible_check_mode
+
+- name: Assert default.png is present
+  ansible.builtin.assert:
+    that: assets_default_png.stat.exists
+    fail_msg: >-
+      {{ install_dir | trim }}/wallpapers/default.png was not unpacked — the
+      wallpapers tarball may have regressed (FR-18 regenerate semantics depend
+      on it; Story 2.7 re-asserts the same presence)
+  when: not ansible_check_mode
+
+- name: Emit WEG effects catalog
+  ansible.builtin.command: >-
+    weg dump-effects --output {{ install_dir | trim }}/weg-effects.yaml
+  args:
+    creates: "{{ install_dir | trim }}/weg-effects.yaml"
+  environment:
+    PATH: "{{ assets_weg_bin_dir }}:{{ ansible_facts.env.PATH }}"
