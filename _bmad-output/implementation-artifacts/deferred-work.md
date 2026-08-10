@@ -165,6 +165,12 @@
 - Entry-level `kind` key collides with top-level manifest `kind` for assets (misleading "unknown AssetKind" on authoring slip) [yaml_manifest_reader.py:153-168]
 - `ProvisionManifest.kind: ManifestKind` is annotation-only, unvalidated at runtime [models.py:35]
 
+## Deferred from: code review of 2-3-packages-role (2026-08-09)
+
+- Debian-family `hyprland`/`hyprpaper`/`waybar` don't resolve in default apt repos — AC3 "packages present" unreachable on stock Debian/Ubuntu via the plain `ansible.builtin.package` path; PPA/repo enablement is the spec's acknowledged open question, deferred to integration stories 3.2/3.3 [group_vars/debian-family.yml:11-16]
+- Pre-existing `aur_builder` user with non-login shell or missing `wheel` group breaks makepkg — the `ansible.builtin.user` task never sets `shell`, and forcing `packages_use_aur=true` on a non-Arch host errors "group wheel does not exist"; deployment path is fresh-machine bootstrap where the user does not pre-exist [tasks/main.yml:39-45]
+- `creates: /usr/bin/yay` means the role never upgrades yay; stale/broken binary not rebound — accepted as by-design (yay is a bootstrap that self-updates; kewlfft.aur fails loudly on a broken binary, NFR-9) [tasks/main.yml:72-79]
+
 ## Deferred from: code review of 2-2-ansible-scaffold (2026-08-09)
 
 - `config_file` silently ignored when a runner is injected (env never built on that path) — no production caller combines `runner=...` + `config_file=...`; latent footgun [ansible_executor.py:128-133]

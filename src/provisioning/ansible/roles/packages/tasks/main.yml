@@ -21,7 +21,7 @@
 
 - name: Assemble package list
   ansible.builtin.set_fact:
-    packages_flat: "{{ packages.values() | list | flatten }}"
+    packages_flat: "{{ packages.values() | list | flatten | reject('equalto', '') | list }}"
 
 - name: Install system packages
   ansible.builtin.package:
@@ -48,8 +48,9 @@
   ansible.builtin.lineinfile:
     path: "/etc/sudoers.d/11-install-{{ aur_builder_user }}"
     line: "{{ aur_builder_user }} ALL=(ALL) NOPASSWD: /usr/bin/pacman"
+    regexp: "^{{ aur_builder_user }} "
     create: true
-    mode: "0644"
+    mode: "0440"
     validate: "visudo -cf %s"
   become: true
   when: packages_use_aur | bool
@@ -65,6 +66,7 @@
   ansible.builtin.git:
     repo: "{{ yay_repo }}"
     dest: "{{ aur_build_dir }}"
+    force: true
   become: true
   become_user: "{{ aur_builder_user }}"
   when: packages_use_aur | bool and yay_check.rc != 0
@@ -76,7 +78,7 @@
     creates: /usr/bin/yay
   become: true
   become_user: "{{ aur_builder_user }}"
-  when: packages_use_aur | bool and yay_check.rc != 0
+  when: packages_use_aur | bool
 
 - name: Install AUR packages via yay
   kewlfft.aur.aur:

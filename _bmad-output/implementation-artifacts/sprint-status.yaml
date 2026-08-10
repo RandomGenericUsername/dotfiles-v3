@@ -41,7 +41,7 @@
 # story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
 
 generated: 2026-08-04
-last_updated: 2026-08-09
+last_updated: 2026-08-10
 project: dotfiles-repo-v3
 retrospective: epic-1 done (2026-08-08)
 project_key: NOKEY
@@ -65,7 +65,7 @@ development_status:
   epic-2: in-progress
   2-1-declarative-manifests: done
   2-2-ansible-scaffold: done
-  2-3-packages-role: review
+  2-3-packages-role: done
   2-4-cli-tools-role: backlog
   2-5-filesystem-role: backlog
   2-6-assets-role: backlog

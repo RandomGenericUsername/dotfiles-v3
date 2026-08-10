@@ -4,7 +4,7 @@ baseline_commit: 3cf656f
 
 # Story 2.3: Packages Role
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -12,6 +12,7 @@ Status: review
 
 - 2026-08-09: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
 - 2026-08-09: Implemented story — authored `roles/packages/` (tasks + vars/{main,arch,debian}), `playbooks/packages.yaml`, and structural tests; all gates green (230 passed, lint/mypy/layering clean); status → review.
+- 2026-08-10: Applied 6 code-review findings — os_family seam guard (assert vs ansible_os_family), makepkg `when` no longer gated on `yay_check.rc` (AC5 would-change), git clone `force: true`, `reject('equalto', '')` on flatten, shared `aur_packages: []` default, sudoers `mode: 0440` + `regexp`; 2 new locking tests (232 passed); status → done.
 
 ## Story
 
@@ -342,3 +343,24 @@ opencode-go/deepseek-v4-flash
 - NEW `src/provisioning/ansible/roles/packages/vars/debian.yml`
 - NEW `src/provisioning/ansible/playbooks/packages.yaml`
 - NEW `src/provisioning/tests/unit/test_packages_role.py`
+
+### Review Findings
+
+- [x] [Review][Patch] `os_family` seam not validated against `ansible_os_family` — wrong-distro run loads wrong group_vars [playbooks/packages.yaml:20-23, tasks/main.yml:12-24]
+  The playbook groups by the `os_family` EXTRA-VAR seam while the role branches on `ansible_os_family`. A manual `-e os_family=arch` on a Debian host (or `debian-family` on Arch) silently loads the wrong `group_vars` `packages` map and hands the wrong names to the auto-detected package manager (partial installs before a hard fail; AUR path silently disabled). Decision (resolved 2026-08-10): add a guard task in the first play asserting the seam maps to the fact (`arch`↔`Archlinux`, `debian-family`↔`Debian`), failing loudly on mismatch (NFR-9).
+- [x] [Review][Patch] Check-mode silently skips clone + makepkg — AC5 "reports would-change" under-reported [tasks/main.yml:57-79]
+  In `--check`, the `command -v yay` task is skipped, and a skipped command registers `rc: 0` (verified empirically: ansible-playbook 2.20). The `when: ... and yay_check.rc != 0` guard then evaluates false, so the git clone and makepkg tasks report `skipped` instead of `would-change` — the check preview does not surface the pending yay build. Dry-run stays dry (makepkg never executes), but AC5's "reports would-change" is not met and the yay build is invisible in the preview. Fix: drop `and yay_check.rc != 0` from the makepkg task's `when` (the `creates: /usr/bin/yay` guard already makes it idempotent AND makes check mode report would-change); keep the guard on the git clone task. Add a structural check-mode assertion (e.g. verify the makepkg task's `when` contains no `yay_check.rc` reference, or run `ansible-playbook --check` under a mock) so this contract is locked.
+- [x] [Review][Patch] Git clone dest collision on interrupted-run retry [tasks/main.yml:64-70]
+  If a first run fails mid-clone (network drop, timeout), `/tmp/dotfiles-aur-build` is left as a non-empty non-git directory; the retry `ansible.builtin.git` task errors ("destination path already exists and is not a git repository") because `force` is unset. `/tmp` purge mitigates across reboots but not within a session. Fix: add `force: true` to the git task (or a pre-task removing a stale non-repo dest). Note: `force: true` also rebinds a valid clone from a different repo URL (e.g. yay vs yay-bin).
+- [x] [Review][Patch] Empty-string package values leak to the package manager [tasks/main.yml:22-30]
+  `packages.values() | list | flatten` drops empty lists but passes blank strings through to `ansible.builtin.package`. The D3 value-shape contract test locks today's group_vars, but the role itself offers no defense if a future group_vars edit introduces `""`. Fix: `packages.values() | list | flatten | reject('equalto', '') | list`.
+- [x] [Review][Patch] `aur_packages` undefined on non-Arch — fragile Jinja short-circuit [vars/main.yml, tasks/main.yml:81-88]
+  `aur_packages` is only defined by `include_vars` of `vars/arch.yml`. The AUR task works today only because `packages_use_aur | bool` short-circuits on Debian. Any reordering (or a future `packages_use_aur: true` default) becomes an UndefinedError. Fix: add `aur_packages: []` as a shared default in `vars/main.yml` (a distro-agnostic default, consistent with the spec's "shared defaults only" intent).
+- [x] [Review][Patch] sudoers.d file mode 0644 and `lineinfile` without `regexp` — non-conformant mode, stale/duplicate lines accumulate [tasks/main.yml:47-55]
+  `sudoers` man page mandates 0440 for `/etc/sudoers.d` files; 0644 functions (sudo only rejects group/other *write*) but is non-conformant and leaks the rule. `lineinfile` without `regexp` appends rather than replacing an existing stale line for the same user. Fix: `mode: "0440"` and add `regexp: "^{{ aur_builder_user }} "` so the exact rule is replaced idempotently.
+- [x] [Review][Defer] Debian-family `hyprland`/`hyprpaper`/`waybar` don't resolve in default apt repos — AC3 unreachable on stock Debian/Ubuntu [group_vars/debian-family.yml:11-16]
+  `ansible.builtin.package` → apt fails ("Unable to locate package") on an unmodified Debian/Ubuntu host, so the AC3 goal ("packages present on the machine") cannot be met for the three Hyprland-family entries. This is the spec's explicitly acknowledged open question ("third-party repo / PPA enablement ... not resolved here", Dev Notes "Debian-family availability caveat"; fail-loud beats silent skip — NFR-9). The role matches spec intent (plain apt path, fail-loud); PPA/repo enablement is deferred to the integration stories (3.2/3.3) — deferred, pre-existing spec decision.
+- [x] [Review][Defer] Pre-existing `aur_builder` user with non-login shell or missing `wheel` group breaks makepkg [tasks/main.yml:39-45]
+  The `ansible.builtin.user` task sets group/home but never `shell`; if `aur_builder` pre-exists with `/usr/sbin/nologin`, `makepkg`/`yay` fail. On Arch `wheel` always exists; forcing `packages_use_aur=true` on a non-Arch host errors "group wheel does not exist". The deployment path is a fresh-machine bootstrap where the user does not pre-exist — deferred, pre-existing assumption.
+- [x] [Review][Defer] `creates: /usr/bin/yay` means the role never upgrades yay; stale/broken binary not rebound [tasks/main.yml:72-79]
+  Once `/usr/bin/yay` exists the makepkg task is permanently `creates`-skipped, so yay is never updated by this role even when the PKGBUILD changes. Accept: yay is a bootstrap that self-updates via `yay`; the `kewlfft.aur.aur` task fails loudly if the binary is broken (NFR-9). Deferred, by-design.

@@ -30,7 +30,7 @@ _ANSIBLE_DIR = _find_ansible_dir()
 _ROLES_DIR = _ANSIBLE_DIR / "roles" / "packages"
 
 _VARS_REQUIRED_KEYS = {
-    "main.yml": {"packages_state", "aur_build_dir"},
+    "main.yml": {"packages_state", "aur_build_dir", "aur_packages"},
     "arch.yml": {
         "packages_use_aur",
         "aur_builder_user",
@@ -171,6 +171,19 @@ class TestPackagesTasks:
         assert args["creates"] == "/usr/bin/yay"
         assert "{{ aur_build_dir }}" in str(args.get("chdir", ""))
 
+    def test_makepkg_when_not_gated_on_yay_check_rc(self) -> None:
+        """Locks AC5: under --check a skipped command registers rc=0, so gating
+        the makepkg task on yay_check.rc would make it report `skipped` instead
+        of would-change. The `creates: /usr/bin/yay` guard must be the only
+        idempotency mechanism on the makepkg task."""
+        tasks = _load_tasks()
+        makepkg = next(t for t in tasks if "makepkg" in str(t.get("name", "")))
+        when = str(makepkg.get("when", ""))
+        assert "yay_check" not in when, (
+            "makepkg task must not gate on yay_check.rc (skipped command under "
+            "--check registers rc=0, silently skipping the would-change report)"
+        )
+
 
 class TestPackagesVars:
     def test_vars_parse_with_required_keys(self) -> None:
@@ -211,8 +224,9 @@ class TestPackagesPlaybook:
         first, second = plays
         assert first["hosts"] == "localhost"
         assert first["gather_facts"] is True
-        group_by = first["tasks"][0]
-        assert "group_by" in str(next(iter(group_by))) or "ansible.builtin.group_by" in group_by
+        group_by = next(
+            t for t in first["tasks"] if "ansible.builtin.group_by" in t or "group_by" in t
+        )
         assert (
             group_by.get("ansible.builtin.group_by", group_by.get("group_by"))["key"]
             == "{{ os_family }}"
@@ -220,6 +234,14 @@ class TestPackagesPlaybook:
         assert second["hosts"] == "{{ os_family }}"
         assert second["become"] is True
         assert second["roles"] == ["packages"]
+
+    def test_guard_asserts_os_family_seam_matches_fact(self) -> None:
+        plays = yaml.safe_load(self._PATH.read_text())
+        first = plays[0]
+        guard = next(t for t in first["tasks"] if "ansible.builtin.assert" in t)
+        that = guard["ansible.builtin.assert"]["that"]
+        assert "arch" in str(that) and "Archlinux" in str(that)
+        assert "debian-family" in str(that) and "Debian" in str(that)
 
     def test_syntax_check_exits_zero(self) -> None:
         env = dict(os.environ)

@@ -6,3 +6,4 @@
 # group_vars/{arch,debian-family}.yml (NFR-3).
 packages_state: present
 aur_build_dir: /tmp/dotfiles-aur-build
+aur_packages: []
