@@ -67,7 +67,7 @@ development_status:
   2-2-ansible-scaffold: done
   2-3-packages-role: done
   2-4-cli-tools-role: done
-  2-5-filesystem-role: ready-for-dev
+  2-5-filesystem-role: review
   2-6-assets-role: backlog
   2-7-default-palette-role: backlog
   2-8-compositor-skeleton-configs: backlog

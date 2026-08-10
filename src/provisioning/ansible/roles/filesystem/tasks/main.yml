@@ -1,0 +1,51 @@
+# Filesystem role (Story 2.5) — creates the machine layout: the XDG base dirs
+# (AC 2), the compositor config dirs under the XDG config home (AC 3), and the
+# install-spine subtree under install_dir (AC 4). It deploys NOTHING.
+#
+# Design (locked in Story 2.5 Dev Notes):
+# - The FIRST task is a fail-loud assert on the install_dir seam extra-var
+#   (AC 6): install_dir is deliberately never defaulted (group_vars/all.yml),
+#   so an undefined spine root must abort with a friendly message before any
+#   dir task evaluates. Do NOT alias install_dir into a var — lazy evaluation
+#   could surface a raw undefined-var error instead of this assert message.
+# - ansible.builtin.file `state: directory` owns idempotency (AC 5 — only
+#   missing dirs are created) and check-mode safety natively. NO `creates`,
+#   NO presence-check rc, NO `when:` gates (unlike command-module roles
+#   2.3/2.4 — do not cargo-cult that pattern here).
+# - The spine task's `{{ install_dir }}/{{ item }}` auto-creates the
+#   <install_dir> root and all missing ancestors, including the parent of the
+#   weg-effects.yaml file node (AC 4 "location").
+# - User-scoped privilege context: NO become/become_user anywhere. Running as
+#   root would create ~-paths under /root/... and silently diverge from the
+#   intended user's layout.
+# - No `mode`/`owner`/`group` — user-home + install dir with default umask is
+#   correct for this role.
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined — the filesystem role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Create XDG base dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - "{{ filesystem_xdg_config_home }}"
+    - "{{ filesystem_xdg_state_home }}"
+    - "{{ filesystem_xdg_cache_home }}"
+
+- name: Create compositor config dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop: "{{ filesystem_compositor_dirs }}"
+
+- name: Create install spine dirs
+  ansible.builtin.file:
+    path: "{{ install_dir }}/{{ item }}"
+    state: directory
+  loop: "{{ filesystem_spine_dirs }}"

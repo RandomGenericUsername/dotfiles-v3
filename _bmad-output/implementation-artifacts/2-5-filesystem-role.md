@@ -4,7 +4,7 @@ baseline_commit: ec95944
 
 # Story 2.5: Filesystem Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -26,43 +26,43 @@ So that XDG dirs and the install-spine subtree exist before assets land.
 
 ## Tasks / Subtasks
 
-- [ ] Create the `roles/filesystem/` role directory tree (AC: 1)
-  - [ ] `src/provisioning/ansible/roles/filesystem/tasks/main.yml`
-  - [ ] `src/provisioning/ansible/roles/filesystem/vars/main.yml`
-- [ ] Author `vars/main.yml` (AC: 2, 3, 4, 7)
-  - [ ] `filesystem_xdg_config_home` / `filesystem_xdg_state_home` / `filesystem_xdg_cache_home` — honor `ansible_facts.env.XDG_{CONFIG,STATE,CACHE}_HOME` with XDG-base-dir defaults (`~/.config`, `~/.local/state`, `~/.cache`) (AC 2)
-  - [ ] `filesystem_compositor_dirs` — three entries under `filesystem_xdg_config_home`: `hypr`, `hyprpaper`, `waybar` (AC 3)
-  - [ ] `filesystem_spine_dirs` — the install-spine dirs relative to `install_dir`: `wallpapers`, `icon-templates`, `icon-mappings`, `csg-templates`, `generated`, `generated/palettes`, `generated/effects`, `generated/icons`, `generated/.weg-tmp` (AC 4, parity-locked to the manifest)
-  - [ ] `filesystem_file_nodes` — `weg-effects.yaml` (a FILE node whose parent must exist here; the file itself is the assets role's job in Story 2.6) (AC 4, parity-locked)
-- [ ] Author `tasks/main.yml` (AC: 2, 3, 4, 5, 6)
-  - [ ] Fail-loud seam guard: `ansible.builtin.assert` that `install_dir is defined and install_dir | trim | length > 0` — the FIRST task, so the role never runs against an undefined spine root (AC 6)
-  - [ ] XDG base dirs: `ansible.builtin.file` `state: directory` looping over `filesystem_xdg_config_home`/`state_home`/`cache_home` (AC 2)
-  - [ ] Compositor dirs: `ansible.builtin.file` `state: directory` looping over `filesystem_compositor_dirs` (AC 3)
-  - [ ] Spine dirs: `ansible.builtin.file` `state: directory` with `path: "{{ install_dir }}/{{ item }}"` looping over `filesystem_spine_dirs` (AC 4)
-  - [ ] NO task ever creates `weg-effects.yaml` itself (parent-only guarantee — AC 4 "location", see Dev Notes "The weg-effects.yaml file node")
-  - [ ] No `become:` anywhere in the role or playbook (user-scoped — everything lives under the user's home + install dir; AC 2-4)
-- [ ] Author `playbooks/filesystem.yaml` (AC: 1-6)
-  - [ ] Simple playbook: `hosts: localhost`, `gather_facts: true`, `roles: [filesystem]`
-  - [ ] NO `become: true` (user-scoped)
-  - [ ] NO `group_by` distro-selection mechanism — filesystem creation is distro-agnostic (NFR-3); do not cargo-cult the packages pattern
-  - [ ] `gather_facts: true` is REQUIRED — `vars/main.yml` reads `ansible_facts.env.*` (HOME, XDG_*), which only exist after the setup module runs (same rule as cli-tools.yaml)
-- [ ] Add structural real-file tests `tests/unit/test_filesystem_role.py` (AC: 1-7)
-  - [ ] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file, anchor on `pyproject.toml` — mirror `test_cli_tools_role.py` `_find_ansible_dir()`)
-  - [ ] `tasks/main.yml` parses as a list of named task dicts
-  - [ ] A fail-loud `assert` task requiring `install_dir` is present (locks AC 6 / group_vars/all.yml discipline)
-  - [ ] XDG base dirs are created via `ansible.builtin.file` `state: directory` (AC 2)
-  - [ ] Compositor dirs are created via `ansible.builtin.file` `state: directory`, exactly `hypr`/`hyprpaper`/`waybar` under the XDG config home (AC 3)
-  - [ ] Install spine dirs are created via `ansible.builtin.file` `state: directory` with `path` = `{{ install_dir }}/{{ item }}` looping `filesystem_spine_dirs` (AC 4)
-  - [ ] No task touches `weg-effects.yaml` (no `state: touch`, no `path` ending in `weg-effects.yaml`) (AC 4 parent-only)
-  - [ ] No `become`/`become_user` anywhere in the role (user-scoped privilege context)
-  - [ ] `vars/main.yml` `filesystem_spine_dirs` + `filesystem_file_nodes` + XDG names exactly cover the manifest `filesystem.yaml` entry names — the union equals the manifest set (AC 7 parity lock)
-  - [ ] XDG homes honor `ansible_facts.env.XDG_*` with `| default(...)` — never a hardcoded `~/.config` literal; uses `ansible_facts.env` not deprecated `ansible_env` (F4 lock)
-  - [ ] `playbooks/filesystem.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [filesystem]`, no `become`
-  - [ ] `ansible-playbook --syntax-check` on `filesystem.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0 (guard when `ansible-playbook` absent — mirror 2.4)
-- [ ] Verify full suite + lint + layering guard (AC: 5)
-  - [ ] `uv run pytest` — full suite green, nothing regresses from the 247-pass baseline
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+- [x] Create the `roles/filesystem/` role directory tree (AC: 1)
+  - [x] `src/provisioning/ansible/roles/filesystem/tasks/main.yml`
+  - [x] `src/provisioning/ansible/roles/filesystem/vars/main.yml`
+- [x] Author `vars/main.yml` (AC: 2, 3, 4, 7)
+  - [x] `filesystem_xdg_config_home` / `filesystem_xdg_state_home` / `filesystem_xdg_cache_home` — honor `ansible_facts.env.XDG_{CONFIG,STATE,CACHE}_HOME` with XDG-base-dir defaults (`~/.config`, `~/.local/state`, `~/.cache`) (AC 2)
+  - [x] `filesystem_compositor_dirs` — three entries under `filesystem_xdg_config_home`: `hypr`, `hyprpaper`, `waybar` (AC 3)
+  - [x] `filesystem_spine_dirs` — the install-spine dirs relative to `install_dir`: `wallpapers`, `icon-templates`, `icon-mappings`, `csg-templates`, `generated`, `generated/palettes`, `generated/effects`, `generated/icons`, `generated/.weg-tmp` (AC 4, parity-locked to the manifest)
+  - [x] `filesystem_file_nodes` — `weg-effects.yaml` (a FILE node whose parent must exist here; the file itself is the assets role's job in Story 2.6) (AC 4, parity-locked)
+- [x] Author `tasks/main.yml` (AC: 2, 3, 4, 5, 6)
+  - [x] Fail-loud seam guard: `ansible.builtin.assert` that `install_dir is defined and install_dir | trim | length > 0` — the FIRST task, so the role never runs against an undefined spine root (AC 6)
+  - [x] XDG base dirs: `ansible.builtin.file` `state: directory` looping over `filesystem_xdg_config_home`/`state_home`/`cache_home` (AC 2)
+  - [x] Compositor dirs: `ansible.builtin.file` `state: directory` looping over `filesystem_compositor_dirs` (AC 3)
+  - [x] Spine dirs: `ansible.builtin.file` `state: directory` with `path: "{{ install_dir }}/{{ item }}"` looping over `filesystem_spine_dirs` (AC 4)
+  - [x] NO task ever creates `weg-effects.yaml` itself (parent-only guarantee — AC 4 "location", see Dev Notes "The weg-effects.yaml file node")
+  - [x] No `become:` anywhere in the role or playbook (user-scoped — everything lives under the user's home + install dir; AC 2-4)
+- [x] Author `playbooks/filesystem.yaml` (AC: 1-6)
+  - [x] Simple playbook: `hosts: localhost`, `gather_facts: true`, `roles: [filesystem]`
+  - [x] NO `become: true` (user-scoped)
+  - [x] NO `group_by` distro-selection mechanism — filesystem creation is distro-agnostic (NFR-3); do not cargo-cult the packages pattern
+  - [x] `gather_facts: true` is REQUIRED — `vars/main.yml` reads `ansible_facts.env.*` (HOME, XDG_*), which only exist after the setup module runs (same rule as cli-tools.yaml)
+- [x] Add structural real-file tests `tests/unit/test_filesystem_role.py` (AC: 1-7)
+  - [x] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file, anchor on `pyproject.toml` — mirror `test_cli_tools_role.py` `_find_ansible_dir()`)
+  - [x] `tasks/main.yml` parses as a list of named task dicts
+  - [x] A fail-loud `assert` task requiring `install_dir` is present (locks AC 6 / group_vars/all.yml discipline)
+  - [x] XDG base dirs are created via `ansible.builtin.file` `state: directory` (AC 2)
+  - [x] Compositor dirs are created via `ansible.builtin.file` `state: directory`, exactly `hypr`/`hyprpaper`/`waybar` under the XDG config home (AC 3)
+  - [x] Install spine dirs are created via `ansible.builtin.file` `state: directory` with `path` = `{{ install_dir }}/{{ item }}` looping `filesystem_spine_dirs` (AC 4)
+  - [x] No task touches `weg-effects.yaml` (no `state: touch`, no `path` ending in `weg-effects.yaml`) (AC 4 parent-only)
+  - [x] No `become`/`become_user` anywhere in the role (user-scoped privilege context)
+  - [x] `vars/main.yml` `filesystem_spine_dirs` + `filesystem_file_nodes` + XDG names exactly cover the manifest `filesystem.yaml` entry names — the union equals the manifest set (AC 7 parity lock)
+  - [x] XDG homes honor `ansible_facts.env.XDG_*` with `| default(...)` — never a hardcoded `~/.config` literal; uses `ansible_facts.env` not deprecated `ansible_env` (F4 lock)
+  - [x] `playbooks/filesystem.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [filesystem]`, no `become`
+  - [x] `ansible-playbook --syntax-check` on `filesystem.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0 (guard when `ansible-playbook` absent — mirror 2.4)
+- [x] Verify full suite + lint + layering guard (AC: 5)
+  - [x] `uv run pytest` — full suite green, nothing regresses from the 247-pass baseline
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
 
 ## Dev Notes
 
@@ -296,10 +296,13 @@ opencode-go/deepseek-v4-flash
 - 2026-08-10: Confirmed `ansible.builtin.file` `state: directory` natively satisfies idempotency (AC 5) and check-mode dry-run (reports would-change) — no `creates` needed, unlike command-module roles 2.3/2.4.
 - 2026-08-10: Confirmed `weg-effects.yaml` is a file emitted by the assets role (2.6); this role guarantees only its parent `<install_dir>/` (chaining-spine.md:14, enums.py:103).
 - 2026-08-10: Baseline verified: `uv run pytest` 247 passed (HEAD `ec95944`); `ansible-playbook` 2.20.3 present for the syntax-check test.
+- 2026-08-10: Implemented the role with exactly three `ansible.builtin.file` `state: directory` loop tasks (XDG base dirs, compositor dirs, spine dirs) preceded by the fail-loud `install_dir` assert; the spine task's `{{ install_dir }}/{{ item }}` path auto-creates the `<install_dir>` root and the `weg-effects.yaml` parent. Parity test locks spine ∪ files ∪ {config,state,cache} == manifest entries.
 
 ### Completion Notes List
 
 - 2026-08-10: Story created — ultimate context engine analysis completed; comprehensive developer guide created. Status → ready-for-dev.
+- 2026-08-10: Implemented the filesystem role. `roles/filesystem/{tasks,vars}/main.yml` create the XDG base dirs (AC 2, env-honoring with spec defaults via `ansible_facts.env.*`), the compositor dirs `~/.config/{hypr,hyprpaper,waybar}` (AC 3), and the install-spine subtree under `install_dir` (AC 4) via `ansible.builtin.file` `state: directory` loops. First task is the fail-loud `install_dir` assert (AC 6). Idempotency (AC 5) and check-mode safety are native to the file module — no `creates`, no `when:` gates. No `become` anywhere (user-scoped). `playbooks/filesystem.yaml` is a simple `hosts: localhost` / `gather_facts: true` / `roles: [filesystem]` playbook with no `group_by` (distro-agnostic). Resolved the Story 2.1 deferred item: vars partition the flat `filesystem.yaml` list into XDG base dirs / spine dirs / the `weg-effects.yaml` file node (parent-only — never created here), locked by the parity test.
+- 2026-08-10: Authored `tests/unit/test_filesystem_role.py` (18 tests) mirroring `test_cli_tools_role.py`: role tree, first-task assert, one file task per group, XDG/compositor/spine shape, weg-effects.yaml parent-only, no-become, manifest parity (union + base partition + file partition), XDG env-with-default + F4 (no `ansible_env`), playbook structure, and live `ansible-playbook --syntax-check` (skip-guarded). Full suite: 265 passed (247 baseline + 18 new). `ruff check` + `ruff format --check` + `mypy src tests` clean. Layering guard exits 0. Status → review.
 
 ### File List
 

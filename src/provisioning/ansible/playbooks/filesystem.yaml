@@ -1,0 +1,19 @@
+# Filesystem playbook (Story 2.5) — one-per-role playbook; aggregation into
+# bootstrap.yaml is Story 2.12.
+#
+# User-scoped playbook: NO become (everything the role creates lives under the
+# user's home + user-owned install_dir; running as root would create ~-paths
+# under /root/... and silently diverge from the intended user's layout).
+#
+# Distro-agnostic: directory creation is identical on Arch and Debian-family,
+# and the role consumes no group_vars — so unlike packages.yaml there is NO
+# group_by distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives the XDG homes from
+# {{ ansible_facts.env.* }}, and the env fact is only populated after the
+# fact-gathering setup module runs.
+- name: Create machine filesystem layout
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - filesystem

@@ -1,0 +1,53 @@
+# Filesystem role vars (Story 2.5).
+#
+# The role creates the machine layout the assets (2.6), default_palette (2.7),
+# compositor_configs (2.9), and settings (2.11) roles will write into (FR-16,
+# chaining-spine.md). It deploys NOTHING — only directories and the XDG base
+# dirs.
+#
+# The desired node list lives in dotfiles/provisioning/filesystem.yaml (Story
+# 2.1): a flat `entries` list whose `{name}`-only schema is locked by
+# yaml_manifest_reader.py. Ansible does NOT read manifests — the role mirrors
+# the manifest and a structural test locks parity (the Story 2.1 deferred
+# item, resolved here). The flat manifest names partition into three
+# semantically-typed groups:
+#
+#   - XDG base dirs (config/state/cache)  -> filesystem_xdg_{config,state,cache}_home
+#   - install-spine dirs                  -> filesystem_spine_dirs
+#   - file nodes (weg-effects.yaml)       -> filesystem_file_nodes
+
+# XDG base dirs (AC 2, XDG base-directory spec). Each honors the corresponding
+# $XDG_*_HOME env var with the spec default fallback. Uses ansible_facts.env.*
+# (NOT the deprecated top-level ansible_env fact injected via
+# INJECT_FACTS_AS_VARS, which hard-breaks on ansible-core >= 2.24).
+filesystem_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME + '/.config') }}"
+filesystem_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME + '/.local/state') }}"
+filesystem_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME + '/.cache') }}"
+
+# Compositor config dirs under the XDG config home (AC 3).
+filesystem_compositor_dirs:
+  - "{{ filesystem_xdg_config_home }}/hypr"
+  - "{{ filesystem_xdg_config_home }}/hyprpaper"
+  - "{{ filesystem_xdg_config_home }}/waybar"
+
+# Install-spine dirs relative to install_dir (AC 4, parity-locked to the
+# manifest). `generated` AND its nested leaves are both kept — the file module
+# auto-creates parents and the explicit `generated` entry is harmless and
+# idempotent; the parity test locks exact set equality with the manifest.
+filesystem_spine_dirs:
+  - wallpapers
+  - icon-templates
+  - icon-mappings
+  - csg-templates
+  - generated
+  - generated/palettes
+  - generated/effects
+  - generated/icons
+  - generated/.weg-tmp
+
+# File nodes (AC 4). weg-effects.yaml is a FILE emitted by the assets role
+# (Story 2.6) via `weg dump-effects`; this role only guarantees its parent
+# (<install_dir>/), which the spine task creates. It never creates the file
+# itself.
+filesystem_file_nodes:
+  - weg-effects.yaml
