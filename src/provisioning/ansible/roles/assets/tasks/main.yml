@@ -43,17 +43,50 @@
       install_dir seam extra-var (the orchestrator resolves
       $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
 
+- name: Check for weg
+  ansible.builtin.shell: command -v weg
+  register: assets_weg_check
+  changed_when: false
+  failed_when: false
+
+- name: Ensure weg is available
+  ansible.builtin.assert:
+    that: assets_weg_check.rc == 0 and assets_weg_check.stdout | length > 0
+    fail_msg: >-
+      weg not found on PATH — the assets role requires weg, which the
+      cli_tools role (Story 2.4) installs via uv tool install into
+      ~/.local/bin; run the cli-tools playbook first (direct-run
+      prerequisite, AC 9)
+  when: not ansible_check_mode
+
 - name: Ensure asset deploy targets exist
   ansible.builtin.file:
     path: "{{ install_dir | trim }}/{{ item }}"
     state: directory
   loop: "{{ assets_deploy_dirs }}"
 
+- name: Verify wallpapers tarball contains default.png
+  ansible.builtin.shell: "tar -tzf '{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}' | grep -qx default.png"
+  register: assets_wallpapers_tarball_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert wallpapers tarball contains default.png
+  ansible.builtin.assert:
+    that: assets_wallpapers_tarball_check.rc == 0
+    fail_msg: >-
+      default.png is missing from the wallpapers tarball — the tarball may
+      have regressed (FR-18 regenerate semantics depend on it; a stale
+      default.png on disk must not mask the omission)
+  when: not ansible_check_mode
+
 - name: Unpack wallpapers tarball
   ansible.builtin.unarchive:
     src: "{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}"
     dest: "{{ assets_wallpapers_dest }}"
     remote_src: true
+  when: not ansible_check_mode
 
 - name: Deploy directory asset kinds
   ansible.builtin.copy:
@@ -61,6 +94,7 @@
     dest: "{{ install_dir | trim }}/{{ item.target }}"
     remote_src: true
   loop: "{{ assets_copies }}"
+  when: not ansible_check_mode
 
 - name: Check default.png was unpacked
   ansible.builtin.stat:
@@ -77,10 +111,18 @@
       on it; Story 2.7 re-asserts the same presence)
   when: not ansible_check_mode
 
+- name: Check WEG effects catalog
+  ansible.builtin.stat:
+    path: "{{ assets_weg_effects_target }}"
+  register: assets_weg_catalog
+
 - name: Emit WEG effects catalog
-  ansible.builtin.command: >-
-    weg dump-effects --output {{ install_dir | trim }}/weg-effects.yaml
-  args:
-    creates: "{{ install_dir | trim }}/weg-effects.yaml"
+  ansible.builtin.command:
+    argv:
+      - weg
+      - dump-effects
+      - --output
+      - "{{ assets_weg_effects_target }}"
+  when: not assets_weg_catalog.stat.exists or assets_weg_catalog.stat.size == 0
   environment:
     PATH: "{{ assets_weg_bin_dir }}:{{ ansible_facts.env.PATH }}"

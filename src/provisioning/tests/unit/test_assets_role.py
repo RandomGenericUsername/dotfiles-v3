@@ -9,6 +9,8 @@ from typing import Any
 import pytest
 import yaml
 
+from provisioning.domain.enums import AssetKind
+
 
 def _find_ansible_dir() -> Path:
     """Locate the real ansible scaffold dir by walking up from this test file.
@@ -76,14 +78,25 @@ def _module(task: dict[str, object]) -> dict[str, object]:
     return module
 
 
+def _module_text(task: dict[str, object]) -> str:
+    """Return the module body as text for free-form tasks (string-valued
+    modules like `ansible.builtin.shell: command -v weg`)."""
+    module = task.get(_module_key(task) or "", {})
+    if isinstance(module, str):
+        return module
+    assert isinstance(module, dict)
+    return " ".join(str(value) for value in module.values())
+
+
 def _creates_value(task: dict[str, object]) -> object | None:
-    """Return the ``creates`` value whether declared top-level or in args."""
+    """Return the ``creates`` value whether declared top-level, in args, or
+    inside the module body."""
     direct = task.get("creates")
     if direct is not None:
         return direct
-    args = task.get("args")
-    if isinstance(args, dict):
-        return args.get("creates")
+    for container in (task.get("args"), _module(task)):
+        if isinstance(container, dict) and container.get("creates") is not None:
+            return container.get("creates")
     return None
 
 
@@ -136,6 +149,59 @@ class TestAssetsTasks:
         assert "install_dir is defined" in that
         assert "install_dir | trim | length > 0" in that
 
+    def test_weg_presence_fail_loud_guard(self) -> None:
+        """Direct-run prerequisite (AC 9): a `shell` `command -v weg` task
+        registers a var and an `assert` checks rc == 0, gated
+        `when: not ansible_check_mode` — mirror of the 2.4 uv guard, so a
+        direct assets.yaml run before cli_tools fails fast with a clear message
+        instead of an opaque rc=2 at the last task."""
+        shell_tasks = [
+            task
+            for task in _tasks_with_module("ansible.builtin.shell")
+            if "command -v weg" in _module_text(task)
+        ]
+        assert shell_tasks, "no `command -v weg` presence check found"
+        for task in shell_tasks:
+            assert task.get("register"), "weg check must register its result"
+            assert task.get("failed_when") is False, "weg check must not fail the play"
+
+        assert_tasks = [
+            task
+            for task in _tasks_with_module("ansible.builtin.assert")
+            if "assets_weg_check.rc == 0" in str(_module(task).get("that", ""))
+        ]
+        assert assert_tasks, "no assert locking assets_weg_check.rc == 0 found"
+        for task in assert_tasks:
+            assert task.get("when") == "not ansible_check_mode", (
+                "weg assert must be gated when: not ansible_check_mode"
+            )
+
+    def test_wallpapers_tarball_membership_asserted(self) -> None:
+        """Content-regression guard (AC 11, hardened): a `shell` tar listing of
+        the tarball registers a var, and an `assert` checks the listing shows
+        default.png — catches a regressed tarball that drops default.png even
+        when a stale copy lingers on disk (unarchive never prunes)."""
+        shell_tasks = [
+            task
+            for task in _tasks_with_module("ansible.builtin.shell")
+            if "tar -tzf" in _module_text(task)
+        ]
+        assert shell_tasks, "no tarball membership `tar -tzf` check found"
+        for task in shell_tasks:
+            assert "default.png" in _module_text(task)
+            assert task.get("register"), "tarball check must register its result"
+
+        assert_tasks = [
+            task
+            for task in _tasks_with_module("ansible.builtin.assert")
+            if "assets_wallpapers_tarball_check.rc == 0" in str(_module(task).get("that", ""))
+        ]
+        assert assert_tasks, "no assert locking tarball default.png membership found"
+        for task in assert_tasks:
+            assert task.get("when") == "not ansible_check_mode", (
+                "tarball membership assert must be gated when: not ansible_check_mode"
+            )
+
     def test_deploy_targets_ensured_via_file_directory(self) -> None:
         """AC 9: a `file` `state: directory` task loops `{{ assets_deploy_dirs }}`
         with path `{{ install_dir | trim }}/{{ item }}` — re-ensuring the four
@@ -153,16 +219,14 @@ class TestAssetsTasks:
 
     def test_deploy_targets_are_exactly_the_four_spine_segments(self) -> None:
         """AC 9: assets_deploy_dirs is exactly the four spine segments this
-        role deploys into — nothing more (wallpapers / icon-templates /
-        icon-mappings / csg-templates)."""
+        role deploys into — derived from AssetKind.spine_segment(), never a
+        hardcoded literal that could silently diverge from the domain."""
         data = _vars()
         dirs = {str(item) for item in data["assets_deploy_dirs"]}
-        assert dirs == {
-            "wallpapers",
-            "icon-templates",
-            "icon-mappings",
-            "csg-templates",
+        expected = {kind.spine_segment() for kind in AssetKind} - {
+            AssetKind.WEG_EFFECTS.spine_segment()
         }
+        assert dirs == expected
 
     def test_wallpapers_unpacked_via_unarchive(self) -> None:
         """AC 2: an `ansible.builtin.unarchive` task unpacks
@@ -205,6 +269,11 @@ class TestAssetsTasks:
         assert module["src"] == "{{ assets_repo_root }}/{{ item.source }}"
         assert module["dest"] == "{{ install_dir | trim }}/{{ item.target }}"
         assert module["remote_src"] is True
+        assert task.get("when") == "not ansible_check_mode", (
+            "copy task must be gated when: not ansible_check_mode — its dest "
+            "dir is only would-created under --check, so the module aborts on "
+            "a fresh target"
+        )
 
     def test_every_copy_source_ends_with_slash(self) -> None:
         """AC 13 contents semantics: every assets_copies source ends with `/`
@@ -218,23 +287,42 @@ class TestAssetsTasks:
                 f"copy source {entry['name']!r} must end with '/' (AC 13)"
             )
 
-    def test_weg_effects_emitted_via_command_with_creates(self) -> None:
+    def test_weg_effects_emitted_via_command_with_stat_gate(self) -> None:
         """AC 6 + AC 14: a `command` task runs
-        `weg dump-effects --output {{ install_dir }}/weg-effects.yaml` with
-        `creates: "{{ install_dir }}/weg-effects.yaml"` (check-mode-safe by
-        construction) and PATH prepending `{{ assets_weg_bin_dir }}:`."""
+        `weg dump-effects --output {{ assets_weg_effects_target }}` with PATH
+        prepending `{{ assets_weg_bin_dir }}:`, gated on a stat of the target
+        (skip when present and non-empty — FR-18-consistent regenerate on
+        absence/truncation, not a bare existence `creates:` that would freeze a
+        corrupt catalog)."""
+        stat_matches = [
+            task
+            for task in _tasks_with_module("ansible.builtin.stat")
+            if str(_module(task).get("path", "")) == "{{ assets_weg_effects_target }}"
+        ]
+        assert stat_matches, "no stat task on {{ assets_weg_effects_target }} found"
+        for task in stat_matches:
+            assert task.get("register"), "emit stat task must register its result"
+
         matches = [
             task
             for task in _tasks_with_module("ansible.builtin.command")
-            if "weg dump-effects" in str(task.get("ansible.builtin.command", ""))
+            if "weg" in _module_text(task)
         ]
         assert matches, "no `weg dump-effects` command task found"
         for task in matches:
-            command = str(task.get("ansible.builtin.command", ""))
-            assert "weg dump-effects --output {{ install_dir | trim }}/weg-effects.yaml" in command
-            assert _creates_value(task) == "{{ install_dir | trim }}/weg-effects.yaml", (
-                f"command task {task.get('name')!r} must carry creates on the emit target"
+            module = _module(task)
+            argv = module.get("argv")
+            assert isinstance(argv, list) and argv, "emit task must use argv list form"
+            assert argv[:3] == ["weg", "dump-effects", "--output"], (
+                f"emit task {task.get('name')!r} argv must run weg dump-effects --output"
             )
+            assert len(argv) == 4 and argv[3] == "{{ assets_weg_effects_target }}", (
+                "emit task must target assets_weg_effects_target"
+            )
+            when = task.get("when")
+            assert when is not None, "emit task must be gated on the catalog stat"
+            assert "assets_weg_catalog.stat.exists" in str(when)
+            assert "assets_weg_catalog.stat.size == 0" in str(when)
             env = task.get("environment")
             assert isinstance(env, dict), "emit task must set environment"
             assert env.get("PATH", "").startswith("{{ assets_weg_bin_dir }}:"), (
@@ -283,16 +371,33 @@ class TestAssetsTasks:
             assert "become_user" not in task
 
     def test_no_absolute_repo_paths_hardcoded(self) -> None:
-        """AC 13: every source is interpolated via `{{ assets_repo_root }}/`,
-        never an absolute repo path baked into the task."""
+        """AC 13: every `src`/`argv` source reference is interpolated via
+        `{{ assets_repo_root }}/`, never an absolute repo path baked into the
+        task. Checks every task's module body (not a substring scan that skips
+        tasks)."""
         for task in _load_tasks():
-            text = str(task)
-            if "assets_repo_root" not in text and "assets_wallpapers_tarball" not in text:
-                continue
-            assert "{{ assets_repo_root }}/" in text, (
-                f"task {task.get('name')!r} must interpolate sources via "
-                "'{{ assets_repo_root }}/' (AC 13)"
-            )
+            module_key = _module_key(task)
+            assert module_key is not None
+            raw = task.get(module_key)
+            if isinstance(raw, str):
+                raw = {module_key: raw}
+            assert isinstance(raw, dict)
+            src = raw.get("src")
+            argv = raw.get("argv")
+            if isinstance(argv, list):
+                argv = " ".join(str(item) for item in argv)
+            if src is not None:
+                assert str(src).startswith("{{ assets_repo_root }}/"), (
+                    f"task {task.get('name')!r} must interpolate sources via "
+                    "'{{ assets_repo_root }}/' (AC 13)"
+                )
+            if isinstance(argv, str):
+                for token in str(raw).split():
+                    if token.startswith("/") and "assets_repo_root" not in token:
+                        raise AssertionError(
+                            f"task {task.get('name')!r} argv must not hardcode "
+                            f"an absolute path: {token!r} (AC 13)"
+                        )
 
 
 class TestAssetsVars:
@@ -344,7 +449,13 @@ class TestAssetsVars:
         weg-effects entry has kind weg-effects and no source."""
         data = _vars()
         copies = [dict(item) for item in data["assets_copies"]]
-        manifest = {item["name"]: item for item in _manifest_entries()}
+        manifest_entries = _manifest_entries()
+        manifest = {item["name"]: item for item in manifest_entries}
+
+        names = [item["name"] for item in manifest_entries]
+        assert len(names) == len(set(names)), (
+            "manifest entry names must be unique — a duplicate collapses the parity lock"
+        )
 
         copy_names = {entry["name"] for entry in copies}
         assert copy_names | {"wallpapers", "weg-effects"} == set(manifest), (
@@ -353,9 +464,9 @@ class TestAssetsVars:
         )
 
         kind_to_segment = {
-            "icon-template": "icon-templates",
-            "icon-mapping": "icon-mappings",
-            "csg-template": "csg-templates",
+            kind.value: kind.spine_segment()
+            for kind in AssetKind
+            if kind is not AssetKind.WALLPAPER and kind is not AssetKind.WEG_EFFECTS
         }
         for entry in copies:
             manifest_entry = manifest[entry["name"]]
@@ -367,11 +478,14 @@ class TestAssetsVars:
             )
             assert entry["target"] == kind_to_segment[entry["kind"]], (
                 f"copy {entry['name']!r} target must equal the kind→spine-segment "
-                "mapping (deferred #164 lock)"
+                "mapping (deferred #164 lock, derived from AssetKind)"
             )
 
         assert str(data["assets_wallpapers_tarball"]) == manifest["wallpapers"]["source"]
-        assert manifest["weg-effects"]["kind"] == "weg-effects"
+        assert manifest["wallpapers"]["kind"] == AssetKind.WALLPAPER.value, (
+            "the manifest wallpapers entry kind must be the wallpaper kind"
+        )
+        assert manifest["weg-effects"]["kind"] == AssetKind.WEG_EFFECTS.value
         assert "source" not in manifest["weg-effects"], (
             "the manifest weg-effects entry must have no source (it is emitted, not copied)"
         )
@@ -388,6 +502,7 @@ class TestAssetsPlaybook:
         assert play["gather_facts"] is True
         assert play["roles"] == ["assets"]
         assert "become" not in play, "assets playbook must not use become"
+        assert "become_user" not in play, "assets playbook must not use become_user"
 
     def test_no_group_by_distro_selection(self) -> None:
         """Distro-agnostic (NFR-3): unlike packages.yaml there is NO group_by

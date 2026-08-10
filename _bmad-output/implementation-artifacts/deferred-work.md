@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: code review of 2-6-assets-role (2026-08-10)
+
+- `assets_weg_bin_dir` re-derives `~/.local/bin` instead of consuming `cli_tools_bin_dir`; both roles diverge from uv's real bin dir when UV_TOOL_BIN_DIR/XDG_BIN_HOME are set — cross-role shared-var design, not this story [src/provisioning/ansible/roles/assets/vars/main.yml:25]
+
 ## Deferred from: code review of story 2-4-cli-tools-role (2026-08-10)
 
 - `command -v yay` in the sibling packages role has the same shell-builtin defect (Story 2.3's `failed_when: false` swallows the exec error) — real but caused by Story 2.3, not this change; fix together with F1 when the packages role is next touched [src/provisioning/ansible/roles/packages/tasks/main.yml:59]

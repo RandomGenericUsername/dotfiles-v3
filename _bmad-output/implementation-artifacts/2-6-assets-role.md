@@ -4,13 +4,14 @@ baseline_commit: 4f7f755
 
 # Story 2.6: Assets Role
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-10: Implemented story — authored `roles/assets/` (`tasks/main.yml`, `vars/main.yml`), `playbooks/assets.yaml`, and `tests/unit/test_assets_role.py` (22 tests). Full suite 287 passed (baseline 265), ruff/mypy/layering clean. Status → review.
+- 2026-08-10: Code review (Blind Hunter + Edge Case Hunter + Acceptance Auditor). Resolved 4 decisions + 8 patches: gated unarchive/copy under `--check` (fresh-target abort), added `tar -tzf` default.png membership guard, replaced emit `creates:` with stat-gate (regenerate on truncation), added fail-loud `weg` presence guard, `argv:` emit form (space-safe), parity tests now derive from `AssetKind.spine_segment()`, `_creates_value` checks module body, manifest name-uniqueness locked. 24 role tests (was 22) + 289 total passed, ruff/mypy/layering clean, syntax-check + `--check` fresh-target + real run + idempotency verified empirically. Status → done.
 
 ## Story
 
@@ -87,6 +88,30 @@ So that the tools have everything they need to read from the install spine.
   - [x] `uv run pytest` — full suite green, nothing regresses from the 265-pass baseline (Story 2.5)
   - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
   - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+
+### Review Findings
+
+#### decision-needed
+
+- [x] [Review][Decision] `--check` hard-fails on a fresh install_dir — RESOLVED: unarchive AND copy tasks gated `when: not ansible_check_mode`; fresh-target `--check` now completes cleanly (verified). [src/provisioning/ansible/roles/assets/tasks/main.yml:52]
+- [x] [Review][Decision] AC 11 default.png guard is a no-op for content regression — RESOLVED: added `tar -tzf` archive-membership check + assert (locked by test) before unpack, so a regressed tarball fails loudly even when a stale default.png lingers. [src/provisioning/ansible/roles/assets/tasks/main.yml:65-78]
+- [x] [Review][Decision] `creates:` freezes a corrupt/partial weg-effects.yaml forever — RESOLVED: replaced `creates:` with a stat-gated emit (`when: not exists or size == 0`) so a truncated/partial catalog regenerates on the next apply (FR-18-consistent); verified by truncating the catalog and re-running. [src/provisioning/ansible/roles/assets/tasks/main.yml:84]
+- [x] [Review][Decision] Direct assets.yaml run without `weg` fails opaque rc=2 — RESOLVED: added the 2.4-mirror fail-loud `command -v weg` shell guard + assert (locked by test) before the deploy tasks. [src/provisioning/ansible/roles/assets/tasks/main.yml:80-86]
+
+#### patch
+
+- [x] [Review][Patch] Unquoted `--output` path breaks install_dir paths containing spaces — FIXED: emit task uses `argv:` list form (verified with a space-containing install_dir). [src/provisioning/ansible/roles/assets/tasks/main.yml:81]
+- [x] [Review][Patch] #164 lock tests a hardcoded `kind_to_segment` literal, not the domain — FIXED: parity test imports `AssetKind` and derives targets from `spine_segment()`. [src/provisioning/tests/unit/test_assets_role.py:355]
+- [x] [Review][Patch] `assets_weg_effects_target` is dead config — FIXED: emit task (argv + stat gate) now consumes the var; test asserts the task targets it. [src/provisioning/ansible/roles/assets/vars/main.yml:59]
+- [x] [Review][Patch] `test_no_absolute_repo_paths_hardcoded` is hollow — FIXED: now inspects every task's `src`/`argv` and rejects hardcoded absolute paths. [src/provisioning/tests/unit/test_assets_role.py:285]
+- [x] [Review][Patch] Parity never validates the wallpapers `kind` nor ties `assets_deploy_dirs` to `spine_segment()` — FIXED: wallpapers kind asserted; deploy dirs derived from the enum. [src/provisioning/tests/unit/test_assets_role.py:373]
+- [x] [Review][Patch] `_creates_value` misses `creates` declared inside the module dict — FIXED: helper now checks top-level, args, and module body. [src/provisioning/tests/unit/test_assets_role.py:79-87]
+- [x] [Review][Patch] Parity collapses duplicate manifest/copy names — FIXED: uniqueness asserted on manifest names. [src/provisioning/tests/unit/test_assets_role.py:347]
+- [x] [Review][Patch] Playbook `become_user` unchecked — FIXED: test now asserts `become_user` absent at play level. [src/provisioning/tests/unit/test_assets_role.py:390]
+
+#### defer
+
+- [x] [Review][Defer] `assets_weg_bin_dir` re-derives `~/.local/bin` instead of consuming `cli_tools_bin_dir`; both diverge when UV_TOOL_BIN_DIR/XDG_BIN_HOME are set — cross-role shared-var design, not this story [src/provisioning/ansible/roles/assets/vars/main.yml:25] — deferred, pre-existing
 
 ## Dev Notes
 
