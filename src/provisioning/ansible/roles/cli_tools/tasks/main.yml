@@ -5,8 +5,11 @@
 # Design (locked in Story 2.3 review):
 # - uv presence is a SEPARATE concern from install idempotency: a fail-loud
 #   assert (real-run precondition only, gated `when: not ansible_check_mode`
-#   because command modules never run under --check so uv_check.rc may be
+#   because command/shell modules never run under --check so uv_check.rc may be
 #   undefined there). The install tasks themselves have NO `when:`.
+# - `command -v` is a SHELL BUILTIN, not an executable: it must run via
+#   ansible.builtin.shell, never ansible.builtin.command (which execs argv
+#   directly and would fail with rc=2 — code review F1).
 # - The ONLY idempotency/dry-run mechanism on the install loop is `creates:`
 #   (AC 4 idempotent; AC 5 check-mode-safe by construction). Never gate on a
 #   presence-check rc — under --check a skipped `command -v` registers rc: 0
@@ -15,7 +18,7 @@
 #   root would install into /root/.local/bin and AC 3 would be silently false.
 
 - name: Check for uv
-  ansible.builtin.command: command -v uv
+  ansible.builtin.shell: command -v uv
   register: uv_check
   changed_when: false
   failed_when: false
@@ -29,14 +32,14 @@
   when: not ansible_check_mode
 
 - name: Install csg/weg/itr via uv tool install
-  ansible.builtin.command: "uv tool install {{ cli_tools_repo_root }}/{{ item.source }}"
+  ansible.builtin.command: "uv tool install '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:
     creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"
   loop: "{{ cli_tools }}"
 
 - name: Verify csg/weg/itr resolve on PATH
-  ansible.builtin.command: "command -v {{ item.name }}"
+  ansible.builtin.shell: "command -v {{ item.name }}"
   loop: "{{ cli_tools }}"
   environment:
-    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_env.PATH }}"
+    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
   changed_when: false

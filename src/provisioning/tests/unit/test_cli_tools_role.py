@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -111,15 +113,23 @@ class TestCliToolsTasks:
             assert isinstance(task, dict)
             assert task["name"], "every task must carry a name"
 
-    def test_one_install_task_covers_all_manifest_entries(self) -> None:
+    def test_install_tasks_cover_all_manifest_entries(self) -> None:
+        """Locks AC2: every manifest entry must be installed by a `uv tool
+        install` task. Accepts either a single loop task over cli_tools or the
+        spec-sanctioned three unrolled per-entry tasks."""
         install_tasks = _install_tasks()
-        assert len(install_tasks) == 1, (
-            "exactly one `uv tool install` task expected (looping over "
-            f"cli_tools), found {len(install_tasks)}"
-        )
-        task = install_tasks[0]
-        assert _module_key(task) == "ansible.builtin.command"
-        assert task.get("loop") == "{{ cli_tools }}"
+        manifest_entries = _manifest_entries()
+        if len(install_tasks) == 1:
+            task = install_tasks[0]
+            assert _module_key(task) == "ansible.builtin.command"
+            assert task.get("loop") == "{{ cli_tools }}"
+        else:
+            assert len(install_tasks) == len(manifest_entries), (
+                "expected one `uv tool install` task per manifest entry "
+                f"({len(manifest_entries)}), found {len(install_tasks)}"
+            )
+            for task in install_tasks:
+                assert _module_key(task) == "ansible.builtin.command"
 
     def test_install_task_creates_guard_is_dry_run_and_idempotent(self) -> None:
         """Locks AC5: `creates: {{ cli_tools_bin_dir }}/{{ item.name }}` is the
@@ -146,6 +156,46 @@ class TestCliToolsTasks:
                 f"install task {task.get('name')!r} must not gate on a presence-check rc"
             )
 
+    def test_uv_presence_check_is_shell_based(self) -> None:
+        """F1 lock: `command -v uv` must run via ansible.builtin.shell — the
+        command module execs argv directly and `command` is a shell builtin,
+        not a binary, so it returns rc=2 on every host and the assert below
+        would fail even when uv is installed."""
+        checks = [
+            task
+            for task in _load_tasks()
+            if "command -v uv" in str(task.get(_module_key(task) or "", ""))
+        ]
+        assert checks, "no `command -v uv` presence check task found"
+        for task in checks:
+            assert _module_key(task) == "ansible.builtin.shell", (
+                "uv presence check must use ansible.builtin.shell (command -v is a shell builtin)"
+            )
+            assert task.get("failed_when") is False
+            assert task.get("changed_when") is False
+
+    def test_verify_task_prepends_bin_dir_to_path(self) -> None:
+        """Locks AC3 + F1: a verify task resolves each binary with the uv bin
+        dir prepended to PATH in the run context. `command -v` is a shell
+        builtin (no /usr/bin/command executable), so it MUST run via
+        ansible.builtin.shell, never ansible.builtin.command."""
+        verify_tasks = [
+            task
+            for task in _load_tasks()
+            if "command -v {{ item.name }}" in str(task.get(_module_key(task) or "", ""))
+        ]
+        assert verify_tasks, "no `command -v {{ item.name }}` verify task found"
+        for task in verify_tasks:
+            assert _module_key(task) == "ansible.builtin.shell", (
+                "verify task must use ansible.builtin.shell (command -v is a shell builtin)"
+            )
+            assert task.get("changed_when") is False
+            env = task.get("environment")
+            assert isinstance(env, dict), "verify task must set environment"
+            assert env.get("PATH", "").startswith("{{ cli_tools_bin_dir }}:"), (
+                "verify task must prepend cli_tools_bin_dir to PATH (AC 3)"
+            )
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: `uv tool install` targets the
         intended user, never root (running as root would install into
@@ -163,11 +213,17 @@ class TestCliToolsTasks:
         assert install_tasks, "no uv tool install task found"
         for task in install_tasks:
             command = str(task.get("ansible.builtin.command", ""))
-            assert command.startswith("uv tool install {{ cli_tools_repo_root }}/"), (
+            assert "uv tool install" in command, (
+                f"install task {task.get('name')!r} must run `uv tool install`"
+            )
+            assert "{{ cli_tools_repo_root }}/" in command, (
                 f"install task {task.get('name')!r} must use "
                 "'{{ cli_tools_repo_root }}/{{ item.source }}'"
             )
             assert "{{ item.source }}" in command
+            assert "{{ cli_tools_repo_root }}/" in command.replace("'", ""), (
+                "repo source must be interpolated, never an absolute literal"
+            )
 
 
 class TestCliToolsVars:
@@ -189,7 +245,15 @@ class TestCliToolsVars:
 
     def test_cli_tools_bin_dir_defaults_under_home(self) -> None:
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
-        assert "{{ ansible_env.HOME }}/.local/bin" in str(data["cli_tools_bin_dir"])
+        assert "{{ ansible_facts.env.HOME }}/.local/bin" in str(data["cli_tools_bin_dir"])
+
+    def test_bin_dir_uses_non_deprecated_env_fact(self) -> None:
+        """F4 lock: use ansible_facts.env (not the deprecated top-level
+        ansible_env fact injected via INJECT_FACTS_AS_VARS), which hard-breaks
+        on ansible-core >= 2.24."""
+        data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
+        assert "ansible_facts.env.HOME" in str(data["cli_tools_bin_dir"])
+        assert "{{ ansible_env." not in str(data["cli_tools_bin_dir"])
 
 
 class TestCliToolsPlaybook:
@@ -205,11 +269,14 @@ class TestCliToolsPlaybook:
         assert "become" not in play, "cli-tools playbook must not use become"
 
     def test_syntax_check_exits_zero(self) -> None:
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping syntax-check")
         env = dict(os.environ)
         env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
         result = subprocess.run(
             [
-                "ansible-playbook",
+                ansible_playbook,
                 "--syntax-check",
                 str(self._PATH),
                 "-e",

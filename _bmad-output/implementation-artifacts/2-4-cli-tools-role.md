@@ -4,7 +4,7 @@ baseline_commit: 136f867
 
 # Story 2.4: CLI Tools Role
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -13,6 +13,7 @@ Status: review
 - 2026-08-10: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
 - 2026-08-10: Validated against checklist — fixed 3 internal bugs before finalizing: (1) `gather_facts: false` contradicted `vars/main.yml` reading `{{ ansible_env.HOME }}` (ansible_env only populated after fact gathering) → playbook now mandates `gather_facts: true`; (2) uv-absent assert task would have crashed under `--check` when the skipped `command -v uv` left `uv_check.rc` undefined → assert gated `when: not ansible_check_mode`; (3) test spec said "exactly three install tasks" while Dev Notes prescribe a single `loop: {{ cli_tools }}` task → reconciled (one loop task covering all three entries, or three unrolled tasks, tests assert one-per-entry either way).
 - 2026-08-10: Implemented story — authored `roles/cli_tools/` (`tasks/main.yml`, `vars/main.yml`), `playbooks/cli-tools.yaml`, and `tests/unit/test_cli_tools_role.py` (12 tests). Full suite 244 passed (baseline 232), ruff/mypy/layering clean. Status → review.
+- 2026-08-10: Code review (6 patch + 1 defer) — F1 CRITICAL: `command -v` via `ansible.builtin.command` can never resolve (shell builtin, no executable); fixed to `ansible.builtin.shell` (empirically verified rc=0 vs rc=2) + 3 new lock tests. Also quoted the repo-root path (F3), switched `ansible_env.*` → `ansible_facts.env.*` (F4, deprecated fact injection), loosened the one-install-task test (F5), added ansible-playbook presence guard (F6). Suite 247 passed, ruff/mypy clean. Status → done.
 
 ## Story
 
@@ -284,4 +285,10 @@ opencode-go/deepseek-v4-flash
 
 ### Review Findings
 
-(none yet — run `bmad-code-review` after implementation)
+- [x] [Review][Patch] Critical: `command -v` executed via `ansible.builtin.command` can never resolve — `command` is a shell builtin, not an executable (no `/usr/bin/command`); the uv-check task (`failed_when: false`) swallows the `rc=2`/exec error so the assert at tasks/main.yml:25 fails even when uv IS installed, and the verify loop at tasks/main.yml:38 fails every real run. Role cannot complete a non-`--check` run. Fix: `ansible.builtin.shell: command -v uv` (shell modules still skip under `--check`, preserving the locked check-mode reasoning) [src/provisioning/ansible/roles/cli_tools/tasks/main.yml:18,38]
+- [x] [Review][Patch] AC 3 verify loop has zero test coverage and the 12-test suite is purely structural — it passed green while the role was broken at runtime. Add a structural test asserting the verify task's shape (command module, `environment.PATH` prepends `cli_tools_bin_dir`, `changed_when: false`) [src/provisioning/tests/unit/test_cli_tools_role.py]
+- [x] [Review][Patch] Unquoted `{{ cli_tools_repo_root }}` in the free-form `uv tool install` command splits argv on whitespace if the repo checkout path contains spaces; quote the interpolated path [src/provisioning/ansible/roles/cli_tools/tasks/main.yml:32]
+- [x] [Review][Patch] `ansible_env.HOME`/`ansible_env.PATH` use deprecated top-level fact injection (INJECT_FACTS_AS_VARS) — deprecation warning today, hard break on ansible-core ≥ 2.24; use `ansible_facts.env.HOME`/`ansible_facts.env.PATH` [src/provisioning/ansible/roles/cli_tools/vars/main.yml:13, src/provisioning/ansible/roles/cli_tools/tasks/main.yml:41]
+- [x] [Review][Patch] `test_one_install_task_covers_all_manifest_entries` over-constrains to exactly one install task, contradicting the spec's sanctioned "three unrolled per-entry tasks" alternative; loosen to "one install task per manifest entry" [src/provisioning/tests/unit/test_cli_tools_role.py]
+- [x] [Review][Patch] `test_syntax_check_exits_zero` raises uncaught `FileNotFoundError` (fails whole suite) when `ansible-playbook` is not installed in the test env; add a presence/skip guard [src/provisioning/tests/unit/test_cli_tools_role.py]
+- [x] [Review][Defer] `command -v yay` in the sibling packages role has the same shell-builtin defect (Story 2.3's `failed_when: false` swallows the exec error) — deferred, pre-existing [src/provisioning/ansible/roles/packages/tasks/main.yml:59] — real but caused by Story 2.3, not this change; fix together with F1 when packages role is next touched

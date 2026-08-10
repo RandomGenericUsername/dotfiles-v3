@@ -43,7 +43,6 @@
 generated: 2026-08-04
 last_updated: 2026-08-10
 project: dotfiles-repo-v3
-
 retrospective: epic-1 done (2026-08-08)
 project_key: NOKEY
 tracking_system: file-system
@@ -67,7 +66,7 @@ development_status:
   2-1-declarative-manifests: done
   2-2-ansible-scaffold: done
   2-3-packages-role: done
-  2-4-cli-tools-role: review
+  2-4-cli-tools-role: done
   2-5-filesystem-role: backlog
   2-6-assets-role: backlog
   2-7-default-palette-role: backlog

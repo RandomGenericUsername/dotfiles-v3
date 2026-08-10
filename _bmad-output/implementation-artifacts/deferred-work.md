@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: code review of story 2-4-cli-tools-role (2026-08-10)
+
+- `command -v yay` in the sibling packages role has the same shell-builtin defect (Story 2.3's `failed_when: false` swallows the exec error) — real but caused by Story 2.3, not this change; fix together with F1 when the packages role is next touched [src/provisioning/ansible/roles/packages/tasks/main.yml:59]
+
 ## Deferred from: code review of 1-3-custom-backend-adapter (2026-07-15)
 
 - pyproject.toml test deps — pre-existing, not in scope for this story's ACs
