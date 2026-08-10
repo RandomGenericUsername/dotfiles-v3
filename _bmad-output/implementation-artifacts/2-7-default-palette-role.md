@@ -4,7 +4,7 @@ baseline_commit: a6a74c8
 
 # Story 2.7: Default Palette Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -12,6 +12,7 @@ Status: ready-for-dev
 
 - 2026-08-10: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-18).
 - 2026-08-10: Validation pass — verified env-override + check-mode claims against source (config_resolver.py rules, OsEnvironmentReader `__` separator, type_coercer bool map, command module's creates-only check-mode support). Applied fixes: `default_palette_formats` now LOAD-BEARING in the task (`join(' -f ')`) so the var and task cannot diverge; `command -v csg` guard prepends `default_palette_bin_dir` to PATH (avoids a false bootstrap failure when `~/.local/bin` is not on the inherited PATH); clarified guard gating (read-only shell check runs, only the assert is `--check`-gated).
+- 2026-08-10: Implemented story — authored `roles/default_palette/` (`tasks/main.yml`, `vars/main.yml`), `playbooks/default-palette.yaml`, and `tests/unit/test_default_palette_role.py` (20 structural tests). Full suite 309 passed (baseline 289), ruff/mypy/layering clean, `ansible-playbook --syntax-check` exits 0. Status → review.
 
 ## Story
 
@@ -36,45 +37,45 @@ So that first-boot colors exist and regenerate when the default wallpaper change
 
 ## Tasks / Subtasks
 
-- [ ] Create the `roles/default_palette/` role directory tree (AC: 1)
-  - [ ] `src/provisioning/ansible/roles/default_palette/tasks/main.yml`
-  - [ ] `src/provisioning/ansible/roles/default_palette/vars/main.yml`
-- [ ] Author `vars/main.yml` (AC: 2, 3, 8, 9, 11)
-  - [ ] `default_palette_bin_dir` — `{{ ansible_facts.env.HOME }}/.local/bin` (mirror `assets_weg_bin_dir`/`cli_tools_bin_dir`; `ansible_facts.env`, NOT `ansible_env` — F4 lock)
-  - [ ] `default_palette_default_image` — `{{ install_dir | trim }}/wallpapers/default.png` (trim lock)
-  - [ ] `default_palette_output_dir` — `{{ install_dir | trim }}/generated/palettes` (trim lock)
-  - [ ] `default_palette_formats` — `[conf, css, yaml]` (documented contract: `conf` → Hyprland `colors.conf`, `css` → Waybar `colors.css`, `yaml` → ITR spine chain `colors.yaml`; see Dev Notes "The format set — what 'standard formats' means")
-- [ ] Author `tasks/main.yml` (AC: 2, 3, 5, 6, 7, 8, 9, 10, 11)
-  - [ ] Fail-loud seam guard: `ansible.builtin.assert` that `install_dir is defined and install_dir | trim | length > 0` — the FIRST task, verbatim copy of the 2.5/2.6 assert (AC 8)
-  - [ ] Ensure the palette output dir exists: `ansible.builtin.file` `state: directory`, `path: "{{ default_palette_output_dir }}"` (self-contained direct-run + explicit dir contract; idempotent + check-safe; CSG would auto-create it anyway — this is belt-and-suspenders mirroring 2.6 AC 9 discipline)
-  - [ ] Fail-loud `csg` presence guard: `ansible.builtin.shell: command -v csg` (register, `changed_when: false`, `failed_when: false`, `environment.PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"` — prepend so the guard finds `csg` in the uv bin dir even when it is not on the inherited PATH) + `ansible.builtin.assert` rc==0, assert gated `when: not ansible_check_mode` (the read-only shell check may run under `--check`; only the assert needs the gate) (mirror of 2.6 "Check for weg"/"Ensure weg is available", with the PATH-prepend improvement)
-  - [ ] Fail-loud `default.png` presence guard: `ansible.builtin.stat` on `{{ default_palette_default_image }}` (register) + `ansible.builtin.assert` on `stat.exists`, both gated `when: not ansible_check_mode` (AC 6 — mirror of 2.6; 2.6's guard is the primary chain guard, this one makes a direct `default-palette.yaml` run fail loudly with a friendly message)
-  - [ ] Generate the palette: `ansible.builtin.command` `csg generate '{{ default_palette_default_image }}' -f {{ default_palette_formats | join(' -f ') }}` (formats are LOAD-BEARING from the var — renders `-f conf -f css -f yaml`) with `environment` = `COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}"`, `COLORSCHEME__OUTPUT__OVERWRITE: "true"`, `PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"`, gated `when: not ansible_check_mode` — NO `creates:` (AC 2, 3, 5, 7, 9, 11; check-mode gating keeps "dry-run must be dry" — the `command` module's check-mode support is ONLY via `creates`/`removes`, so an ungated generate would execute and WRITE under `--check`)
-  - [ ] No `become:` anywhere (AC 10)
-- [ ] Author `playbooks/default-palette.yaml` (AC: 12)
-  - [ ] `hosts: localhost`, `gather_facts: true`, `roles: [default_palette]`
-  - [ ] NO `become: true`
-  - [ ] NO `group_by` — palette generation is distro-agnostic (NFR-3); do not cargo-cult the packages pattern
-  - [ ] `gather_facts: true` REQUIRED — vars read `ansible_facts.env.*` (HOME, PATH)
-- [ ] Add structural real-file tests `tests/unit/test_default_palette_role.py` (AC: 1-12; mirror `test_assets_role.py`/`test_filesystem_role.py` conventions)
-  - [ ] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file anchored on `pyproject.toml` — reuse `_find_ansible_dir()`)
-  - [ ] `tasks/main.yml` parses as a list of named task dicts
-  - [ ] First task is the fail-loud `install_dir` assert (AC 8)
-  - [ ] A `file` `state: directory` task creates `{{ default_palette_output_dir }}` == `{{ install_dir | trim }}/generated/palettes` (AC 9 dir contract)
-  - [ ] An `ansible.builtin.command` task runs `csg generate` against `{{ default_palette_default_image }}` and its `-f`/`--format` flags EQUAL `default_palette_formats` (render the task's command string and assert each `-f <fmt>` for fmt in the var, and NO other format flags) (AC 2, AC 5, AC 9)
-  - [ ] The generate task's `environment` sets `COLORSCHEME__OUTPUT__OVERWRITE: "true"` and `COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}"` and `PATH` starts with `{{ default_palette_bin_dir }}:` (AC 3, AC 9, AC 11)
-  - [ ] The generate task carries NO `creates:` and is gated `when: not ansible_check_mode` (AC 7, dry-run-must-be-dry)
-  - [ ] A `command -v csg` shell guard exists (with `environment.PATH` starting with `{{ default_palette_bin_dir }}:`) plus an `assert` on its registered rc; the assert is gated `when: not ansible_check_mode` (AC 11)
-  - [ ] The `default.png` stat + assert exist and are gated `when: not ansible_check_mode` (AC 6)
-  - [ ] No `become`/`become_user` anywhere in the role (AC 10)
-  - [ ] `vars/main.yml` uses `ansible_facts.env`, never `{{ ansible_env.` (F4 lock)
-  - [ ] No absolute repo paths hardcoded — all paths derive from `{{ install_dir | trim }}` (trim lock)
-  - [ ] `playbooks/default-palette.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [default_palette]`, no `become`, no `group_by`
-  - [ ] `ansible-playbook --syntax-check` on `default-palette.yaml` (with `-e install_dir=/tmp/x`) exits 0 (skip-guard when `ansible-playbook` absent — mirror 2.4 F6)
-- [ ] Verify full suite + lint + layering guard (AC: 7)
-  - [ ] `uv run pytest` — full suite green, nothing regresses from the 289-pass baseline (Story 2.6)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+- [x] Create the `roles/default_palette/` role directory tree (AC: 1)
+  - [x] `src/provisioning/ansible/roles/default_palette/tasks/main.yml`
+  - [x] `src/provisioning/ansible/roles/default_palette/vars/main.yml`
+- [x] Author `vars/main.yml` (AC: 2, 3, 8, 9, 11)
+  - [x] `default_palette_bin_dir` — `{{ ansible_facts.env.HOME }}/.local/bin` (mirror `assets_weg_bin_dir`/`cli_tools_bin_dir`; `ansible_facts.env`, NOT `ansible_env` — F4 lock)
+  - [x] `default_palette_default_image` — `{{ install_dir | trim }}/wallpapers/default.png` (trim lock)
+  - [x] `default_palette_output_dir` — `{{ install_dir | trim }}/generated/palettes` (trim lock)
+  - [x] `default_palette_formats` — `[conf, css, yaml]` (documented contract: `conf` → Hyprland `colors.conf`, `css` → Waybar `colors.css`, `yaml` → ITR spine chain `colors.yaml`; see Dev Notes "The format set — what 'standard formats' means")
+- [x] Author `tasks/main.yml` (AC: 2, 3, 5, 6, 7, 8, 9, 10, 11)
+  - [x] Fail-loud seam guard: `ansible.builtin.assert` that `install_dir is defined and install_dir | trim | length > 0` — the FIRST task, verbatim copy of the 2.5/2.6 assert (AC 8)
+  - [x] Ensure the palette output dir exists: `ansible.builtin.file` `state: directory`, `path: "{{ default_palette_output_dir }}"` (self-contained direct-run + explicit dir contract; idempotent + check-safe; CSG would auto-create it anyway — this is belt-and-suspenders mirroring 2.6 AC 9 discipline)
+  - [x] Fail-loud `csg` presence guard: `ansible.builtin.shell: command -v csg` (register, `changed_when: false`, `failed_when: false`, `environment.PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"` — prepend so the guard finds `csg` in the uv bin dir even when it is not on the inherited PATH) + `ansible.builtin.assert` rc==0, assert gated `when: not ansible_check_mode` (the read-only shell check may run under `--check`; only the assert needs the gate) (mirror of 2.6 "Check for weg"/"Ensure weg is available", with the PATH-prepend improvement)
+  - [x] Fail-loud `default.png` presence guard: `ansible.builtin.stat` on `{{ default_palette_default_image }}` (register) + `ansible.builtin.assert` on `stat.exists`, both gated `when: not ansible_check_mode` (AC 6 — mirror of 2.6; 2.6's guard is the primary chain guard, this one makes a direct `default-palette.yaml` run fail loudly with a friendly message)
+  - [x] Generate the palette: `ansible.builtin.command` `csg generate '{{ default_palette_default_image }}' -f {{ default_palette_formats | join(' -f ') }}` (formats are LOAD-BEARING from the var — renders `-f conf -f css -f yaml`) with `environment` = `COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}"`, `COLORSCHEME__OUTPUT__OVERWRITE: "true"`, `PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"`, gated `when: not ansible_check_mode` — NO `creates:` (AC 2, 3, 5, 7, 9, 11; check-mode gating keeps "dry-run must be dry" — the `command` module's check-mode support is ONLY via `creates`/`removes`, so an ungated generate would execute and WRITE under `--check`)
+  - [x] No `become:` anywhere (AC 10)
+- [x] Author `playbooks/default-palette.yaml` (AC: 12)
+  - [x] `hosts: localhost`, `gather_facts: true`, `roles: [default_palette]`
+  - [x] NO `become: true`
+  - [x] NO `group_by` — palette generation is distro-agnostic (NFR-3); do not cargo-cult the packages pattern
+  - [x] `gather_facts: true` REQUIRED — vars read `ansible_facts.env.*` (HOME, PATH)
+- [x] Add structural real-file tests `tests/unit/test_default_palette_role.py` (AC: 1-12; mirror `test_assets_role.py`/`test_filesystem_role.py` conventions)
+  - [x] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file anchored on `pyproject.toml` — reuse `_find_ansible_dir()`)
+  - [x] `tasks/main.yml` parses as a list of named task dicts
+  - [x] First task is the fail-loud `install_dir` assert (AC 8)
+  - [x] A `file` `state: directory` task creates `{{ default_palette_output_dir }}` == `{{ install_dir | trim }}/generated/palettes` (AC 9 dir contract)
+  - [x] An `ansible.builtin.command` task runs `csg generate` against `{{ default_palette_default_image }}` and its `-f`/`--format` flags EQUAL `default_palette_formats` (render the task's command string and assert each `-f <fmt>` for fmt in the var, and NO other format flags) (AC 2, AC 5, AC 9)
+  - [x] The generate task's `environment` sets `COLORSCHEME__OUTPUT__OVERWRITE: "true"` and `COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}"` and `PATH` starts with `{{ default_palette_bin_dir }}:` (AC 3, AC 9, AC 11)
+  - [x] The generate task carries NO `creates:` and is gated `when: not ansible_check_mode` (AC 7, dry-run-must-be-dry)
+  - [x] A `command -v csg` shell guard exists (with `environment.PATH` starting with `{{ default_palette_bin_dir }}:`) plus an `assert` on its registered rc; the assert is gated `when: not ansible_check_mode` (AC 11)
+  - [x] The `default.png` stat + assert exist and are gated `when: not ansible_check_mode` (AC 6)
+  - [x] No `become`/`become_user` anywhere in the role (AC 10)
+  - [x] `vars/main.yml` uses `ansible_facts.env`, never `{{ ansible_env.` (F4 lock)
+  - [x] No absolute repo paths hardcoded — all paths derive from `{{ install_dir | trim }}` (trim lock)
+  - [x] `playbooks/default-palette.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [default_palette]`, no `become`, no `group_by`
+  - [x] `ansible-playbook --syntax-check` on `default-palette.yaml` (with `-e install_dir=/tmp/x`) exits 0 (skip-guard when `ansible-playbook` absent — mirror 2.4 F6)
+- [x] Verify full suite + lint + layering guard (AC: 7)
+  - [x] `uv run pytest` — full suite green, nothing regresses from the 289-pass baseline (Story 2.6)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
 
 ## Dev Notes
 
@@ -292,7 +293,14 @@ opencode (deepseek-v4-flash)
 - Created Story 2.7 Default Palette Role context: `roles/default_palette/` (`tasks/main.yml`, `vars/main.yml`), `playbooks/default-palette.yaml`, `tests/unit/test_default_palette_role.py`.
 - Locked the csg contract: env `COLORSCHEME__OUTPUT__DIRECTORY` + `COLORSCHEME__OUTPUT__OVERWRITE` scoped to the single generate task; explicit `-f conf -f css -f yaml`; NO `creates:` (FR-18 regenerate); `when: not ansible_check_mode` (dry-run must be dry).
 - Status → ready-for-dev.
+- Implemented the role: first task is the verbatim 2.5/2.6 fail-loud `install_dir` seam assert (AC 8); `file state: directory` re-ensures `{{ default_palette_output_dir }}` (AC 9, direct-run self-containment); `command -v csg` shell guard prepends `default_palette_bin_dir` to PATH (AC 11) + gated assert; `default.png` stat + assert pair both `--check`-gated (AC 6); the single `csg generate '{{ default_palette_default_image }}' -f {{ default_palette_formats | join(' -f ') }}` command task carries NO `creates:` (AC 7, FR-18 regenerate), is `--check`-gated, and sets the env contract (`COLORSCHEME__OUTPUT__DIRECTORY`, `COLORSCHEME__OUTPUT__OVERWRITE: "true"`, PATH prepend) — AC 2, 3, 5, 9. No `become` anywhere (AC 10).
+- Tests: `tests/unit/test_default_palette_role.py` (20 tests) locks role tree, first-task assert, output-dir file task, `-f` flags == `default_palette_formats` (load-bearing join, no extra flags), env contract, no-`creates` + `--check` gate, csg guard (PATH prepend + gated assert), default.png stat+assert gates, no become, no absolute paths, `ansible_facts.env` (F4), trim lock, playbook structure (localhost/gather_facts/roles, no become, no group_by), and `ansible-playbook --syntax-check` (exit 0).
+- Full suite 309 passed (baseline 289 + 20 new), `ruff check`/`ruff format --check`/`mypy` clean, `tests/architecture/test_layering.py` OK. Status → review.
 
 ### File List
 
-- `_bmad-output/implementation-artifacts/2-7-default-palette-role.md` (NEW — this story)
+- `src/provisioning/ansible/roles/default_palette/tasks/main.yml` (NEW)
+- `src/provisioning/ansible/roles/default_palette/vars/main.yml` (NEW)
+- `src/provisioning/ansible/playbooks/default-palette.yaml` (NEW)
+- `src/provisioning/tests/unit/test_default_palette_role.py` (NEW)
+- `_bmad-output/implementation-artifacts/2-7-default-palette-role.md` (this story)

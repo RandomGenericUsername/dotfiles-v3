@@ -1,0 +1,105 @@
+# Default palette role (Story 2.7) — generates the default palette from the
+# 2.6-unpacked default.png at apply time via `csg generate` (FR-18,
+# chaining-spine.md), writing conf/css/yaml into the generated/palettes/ spine
+# dir the filesystem role (2.5) created. CONSUMER of the assets role's
+# default.png; PREREQUISITE for compositor_configs (2.9) and the verify gate
+# (2.12, done-criterion 6).
+#
+# Design (locked in Story 2.7 Dev Notes):
+# - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
+#   from the filesystem/assets roles (AC 8): install_dir is deliberately never
+#   defaulted (group_vars/all.yml), so an undefined spine root must abort with
+#   a friendly message before any task evaluates. Do NOT alias install_dir into
+#   a var — lazy evaluation could surface a raw undefined-var error instead.
+# - The output dir is forced per-process via the env override
+#   COLORSCHEME__OUTPUT__DIRECTORY (NOT -o, AC 9), kept symmetric with the
+#   mandated COLORSCHEME__OUTPUT__OVERWRITE env override (AC 3). Load-bearing:
+#   at default_palette time the rendered CSG settings file does not exist yet
+#   (Story 2.11) and CSG's packaged default output dir is /tmp/color-scheme —
+#   without the override the palette silently lands in /tmp and done-criterion
+#   6 / Story 2.9 / Story 3.3 all fail. The override is scoped to the SINGLE
+#   generate task; the rendered settings file (Story 2.11) keeps overwrite =
+#   false — THIS ROLE MUST NOT AUTHOR, RENDER, OR MODIFY any settings file
+#   (AC 4).
+# - Regenerate semantics (AC 7, FR-18): the generate task carries NO
+#   `creates:` and is NOT gated on palette-file existence, so replacing
+#   wallpapers.tar.gz (re-extracted by 2.6) causes the next apply to
+#   regenerate. The task reports `changed` on every apply even when the palette
+#   content is identical — this is accepted by design (SPEC §FR-18,
+#   chaining-spine.md#23); idempotency means no STATE drift, and the verify
+#   gate (2.12) checks the output files, not Ansible changed-counts. Do NOT
+#   "fix" this with a creates:/existence gate — that was the exact mistake
+#   2.6's review called out for the tarball.
+# - Check mode (dry-run must be dry): the generate command + all assertion
+#   guards are gated `when: not ansible_check_mode`. command/shell modules DO
+#   execute under --check (their only check-mode support is creates/removes,
+#   which this role deliberately omits), so an ungated generate would actually
+#   call csg and WRITE files under --check. The read-only `command -v csg`
+#   shell check MAY run under --check (it registers rc and mutates nothing) —
+#   only its assert needs the gate.
+# - `command -v` is a SHELL BUILTIN → ansible.builtin.shell (review F1), with
+#   default_palette_bin_dir prepended to PATH so the guard finds csg in the uv
+#   bin dir even when ~/.local/bin is not on the inherited playbook PATH
+#   (otherwise the bootstrap chain would FALSE-FAIL right after cli_tools
+#   installed csg).
+# - default.png presence (AC 6) is a stat + assert PAIR, both gated
+#   `when: not ansible_check_mode` (under --check the assets unarchive is
+#   skipped so the file is absent on a fresh target; an assert alone cannot
+#   check file existence). 2.6's guard is the primary chain guard; this one
+#   makes a direct default-palette.yaml run fail loudly with a friendly message
+#   instead of a raw `csg` "file not found" traceback.
+# - User-scoped privilege context: NO become/become_user anywhere (AC 10).
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the default_palette role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure palette output dir exists
+  ansible.builtin.file:
+    path: "{{ default_palette_output_dir }}"
+    state: directory
+
+- name: Check for csg
+  ansible.builtin.shell: command -v csg
+  register: default_palette_csg_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"
+
+- name: Ensure csg is available
+  ansible.builtin.assert:
+    that: default_palette_csg_check.rc == 0 and default_palette_csg_check.stdout | length > 0
+    fail_msg: >-
+      csg not found on PATH — the default_palette role requires csg, which the
+      cli_tools role (Story 2.4) installs via uv tool install into
+      ~/.local/bin; run the cli-tools playbook first (direct-run
+      prerequisite)
+  when: not ansible_check_mode
+
+- name: Check default.png was unpacked
+  ansible.builtin.stat:
+    path: "{{ default_palette_default_image }}"
+  register: default_palette_default_png
+  when: not ansible_check_mode
+
+- name: Assert default.png is present
+  ansible.builtin.assert:
+    that: default_palette_default_png.stat.exists
+    fail_msg: >-
+      {{ default_palette_default_image }} not found — the assets role (Story
+      2.6) unpacks default.png from wallpapers.tar.gz; run the assets playbook
+      first (direct-run prerequisite, AC 6)
+  when: not ansible_check_mode
+
+- name: Generate default palette
+  ansible.builtin.command: "csg generate '{{ default_palette_default_image }}' -f {{ default_palette_formats | join(' -f ') }}"
+  environment:
+    COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}"
+    COLORSCHEME__OUTPUT__OVERWRITE: "true"
+    PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  when: not ansible_check_mode

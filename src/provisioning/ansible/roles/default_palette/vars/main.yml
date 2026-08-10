@@ -1,0 +1,71 @@
+# Default palette role vars (Story 2.7).
+#
+# The role generates the default palette from the 2.6-unpacked default.png at
+# apply time via `csg generate` (FR-18, chaining-spine.md), writing
+# conf/css/yaml into the generated/palettes/ spine dir the filesystem role
+# (2.5) created. It is the CONSUMER of the assets role's default.png and the
+# PREREQUISITE for compositor_configs (2.9) and the verify gate (2.12,
+# done-criterion 6).
+#
+# Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
+# the 2.6 assets mirror:
+#   (a) the single generate task uses `ansible.builtin.command` free-form
+#       quoting instead of argv (matches the 2.4 precedent; keeps the -f flags
+#       readable) and is gated `when: not ansible_check_mode` (2.6's emit task
+#       was stat-gated rather than check-gated — a documented 2.6 limitation
+#       this role must NOT inherit);
+#   (b) default_palette_output_dir is a directory the role re-ensures, whereas
+#       2.6's assets_weg_effects_target was a file;
+#   (c) the `command -v csg` guard prepends default_palette_bin_dir to PATH
+#       (2.6's `command -v weg` guard did not — a latent false-failure on the
+#       bootstrap chain when ~/.local/bin is not on the inherited PATH);
+#   (d) NO manifest parity test — there is no dotfiles/provisioning/
+#       default-palette.yaml; parity is replaced by locking
+#       default_palette_formats against the task's -f flags (via the
+#       load-bearing `join(' -f ')`) and the env contract.
+#
+# Decisions locked (also stated in tasks/main.yml header):
+#   1. Output dir mechanism: env COLORSCHEME__OUTPUT__DIRECTORY (not -o), kept
+#      symmetric with the mandated COLORSCHEME__OUTPUT__OVERWRITE env override.
+#      Load-bearing: without it the palette silently lands in /tmp/color-scheme
+#      (the packaged default) and every downstream consumer fails.
+#   2. Format set: conf + css + yaml (contract-driven, NOT the packaged
+#      json/sh defaults); default_palette_formats is LOAD-BEARING — the task's
+#      -f flags derive from this var via `join(' -f ')`, never hardcoded, so
+#      the var and the task cannot silently diverge.
+
+# default_palette_bin_dir: uv's executable directory where the cli_tools role
+#   (2.4) installs `csg` via `uv tool install` (default $HOME/.local/bin; uv
+#   resolves $UV_TOOL_BIN_DIR → $XDG_BIN_HOME → $HOME/.local/bin). Prepended to
+#   PATH so csg resolves in the playbook run context even when ~/.local/bin is
+#   not on the inherited PATH. Uses ansible_facts.env (NOT the deprecated
+#   top-level ansible_env fact — F4 lock).
+default_palette_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
+
+# default_palette_default_image: the default.png the assets role (2.6) unpacked
+#   from wallpapers.tar.gz. Trim lock: consumes the same validated
+#   `{{ install_dir | trim }}` value the fail-loud assert enforces.
+default_palette_default_image: "{{ install_dir | trim }}/wallpapers/default.png"
+
+# default_palette_output_dir: where csg writes the generated palette. Trim
+#   lock; the filesystem role (2.5) created generated/palettes/ in the spine —
+#   this role re-ensures it for direct-run self-containment. Forced per-process
+#   via COLORSCHEME__OUTPUT__DIRECTORY because at default_palette time the
+#   rendered settings file does not exist yet (Story 2.11) and CSG's packaged
+#   default output dir is /tmp/color-scheme.
+default_palette_output_dir: "{{ install_dir | trim }}/generated/palettes"
+
+# default_palette_formats: the contract-driven format set (AC "plus standard
+#   formats"). Phase 1 consumers fix the set to exactly three:
+#   - conf → Hyprland colors.conf (copied by 2.9; done-criterion 6; Story 3.3
+#     syntax test)
+#   - css  → Waybar colors.css (copied by 2.9)
+#   - yaml → ITR spine chain colors.yaml (FR-21, done-criterion 6)
+#   NOT the packaged json/sh defaults — no Phase 1 consumer reads
+#   colors.json/colors.sh. The generate task renders
+#   `-f {{ default_palette_formats | join(' -f ') }}`, so this var and the
+#   task's flags cannot silently diverge.
+default_palette_formats:
+  - conf
+  - css
+  - yaml
