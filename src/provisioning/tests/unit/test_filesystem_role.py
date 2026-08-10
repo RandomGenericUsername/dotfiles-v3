@@ -105,9 +105,11 @@ _XDG_HOME_VARS = {
 
 
 def _is_xdg_base_dirs_task(task: dict[str, object]) -> bool:
-    """True when the task's literal loop lists the three XDG home vars."""
+    """True when the task's literal loop is EXACTLY the three XDG home vars —
+    an extra loop item would silently create a dir absent from the manifest,
+    so equality (not subset) is required."""
     loop = task.get("loop")
-    return isinstance(loop, list) and _XDG_HOME_VARS.issubset({str(item) for item in loop})
+    return isinstance(loop, list) and {str(item) for item in loop} == _XDG_HOME_VARS
 
 
 class TestFilesystemRoleTree:
@@ -185,7 +187,7 @@ class TestFilesystemTasks:
         for task in matches:
             module = _module(task)
             assert module["state"] == "directory"
-            assert module["path"] == "{{ install_dir }}/{{ item }}"
+            assert module["path"] == "{{ install_dir | trim }}/{{ item }}"
 
     def test_no_task_creates_weg_effects_yaml(self) -> None:
         """AC 4 parent-only guarantee: the role never `state: touch`es
@@ -243,6 +245,11 @@ class TestFilesystemVars:
         )
         assert spine | files == manifest_names - _XDG_BASE_NAMES, (
             "the non-XDG manifest names must partition into spine dirs + file nodes"
+        )
+        assert spine.isdisjoint(files), (
+            "spine dirs and file nodes must be disjoint partitions — a file node "
+            "leaked into the spine dir list (or vice versa) would still satisfy "
+            "the set-equality checks above"
         )
         assert files == {"weg-effects.yaml"}, (
             "the file-node partition must be exactly weg-effects.yaml"

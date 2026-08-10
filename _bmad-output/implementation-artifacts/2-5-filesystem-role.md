@@ -4,7 +4,7 @@ baseline_commit: ec95944
 
 # Story 2.5: Filesystem Role
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -63,6 +63,15 @@ So that XDG dirs and the install-spine subtree exist before assets land.
   - [x] `uv run pytest` — full suite green, nothing regresses from the 247-pass baseline
   - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
   - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+
+### Review Findings (2026-08-10)
+
+- [x] [Review][Decision→Patch] HOME absent from env fact crashes the XDG home fallback — resolved with a nested `| default(ansible_facts.user_dir)` fallback chain; verified in sandbox (normal, `env -u HOME`, and `env -u HOME XDG_CONFIG_HOME=...` all resolve correctly). [src/provisioning/ansible/roles/filesystem/vars/main.yml:23]
+- [x] [Review][Patch] Empty `$XDG_*_HOME` env vars must fall back to the XDG default — applied `| default(..., true)` (boolean arg treats empty as unset per XDG spec); verified live. [src/provisioning/ansible/roles/filesystem/vars/main.yml:23]
+- [x] [Review][Patch] Assert validates the trimmed `install_dir` but tasks use the untrimmed value — applied `| trim` in the spine task path and the corresponding structural test. [src/provisioning/ansible/roles/filesystem/tasks/main.yml:26,49]
+- [x] [Review][Patch] Parity test cannot detect a file node leaked into `filesystem_spine_dirs` — applied a `spine.isdisjoint(files)` assertion; negative-verified (catches a leak, passes on clean). [src/provisioning/tests/unit/test_filesystem_role.py:230]
+- [x] [Review][Patch] `_is_xdg_base_dirs_task` uses `issubset` not equality — applied exact set equality. [src/provisioning/tests/unit/test_filesystem_role.py:107]
+- [x] [Review][Patch] Fail msg labels a defined-but-empty/whitespace `install_dir` as "undefined" — reworded to "undefined or empty". [src/provisioning/ansible/roles/filesystem/tasks/main.yml:27]
 
 ## Dev Notes
 

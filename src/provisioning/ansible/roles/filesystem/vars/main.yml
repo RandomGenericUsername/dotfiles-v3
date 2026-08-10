@@ -20,9 +20,9 @@
 # $XDG_*_HOME env var with the spec default fallback. Uses ansible_facts.env.*
 # (NOT the deprecated top-level ansible_env fact injected via
 # INJECT_FACTS_AS_VARS, which hard-breaks on ansible-core >= 2.24).
-filesystem_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME + '/.config') }}"
-filesystem_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME + '/.local/state') }}"
-filesystem_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME + '/.cache') }}"
+filesystem_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+filesystem_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+filesystem_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
 
 # Compositor config dirs under the XDG config home (AC 3).
 filesystem_compositor_dirs:
