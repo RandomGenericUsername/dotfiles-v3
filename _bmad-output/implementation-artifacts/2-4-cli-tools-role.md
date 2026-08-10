@@ -4,7 +4,7 @@ baseline_commit: 136f867
 
 # Story 2.4: CLI Tools Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -12,6 +12,7 @@ Status: ready-for-dev
 
 - 2026-08-10: Story created — ultimate context engine analysis completed; comprehensive developer guide created.
 - 2026-08-10: Validated against checklist — fixed 3 internal bugs before finalizing: (1) `gather_facts: false` contradicted `vars/main.yml` reading `{{ ansible_env.HOME }}` (ansible_env only populated after fact gathering) → playbook now mandates `gather_facts: true`; (2) uv-absent assert task would have crashed under `--check` when the skipped `command -v uv` left `uv_check.rc` undefined → assert gated `when: not ansible_check_mode`; (3) test spec said "exactly three install tasks" while Dev Notes prescribe a single `loop: {{ cli_tools }}` task → reconciled (one loop task covering all three entries, or three unrolled tasks, tests assert one-per-entry either way).
+- 2026-08-10: Implemented story — authored `roles/cli_tools/` (`tasks/main.yml`, `vars/main.yml`), `playbooks/cli-tools.yaml`, and `tests/unit/test_cli_tools_role.py` (12 tests). Full suite 244 passed (baseline 232), ruff/mypy/layering clean. Status → review.
 
 ## Story
 
@@ -29,41 +30,41 @@ So that `csg`, `weg`, and icon-renderer are available on PATH.
 
 ## Tasks / Subtasks
 
-- [ ] Create the `roles/cli_tools/` role directory tree (AC: 1)
-  - [ ] `src/provisioning/ansible/roles/cli_tools/tasks/main.yml`
-  - [ ] `src/provisioning/ansible/roles/cli_tools/vars/main.yml`
-- [ ] Author `vars/main.yml` (AC: 1, 2, 3)
-  - [ ] `cli_tools_repo_root` — repo root derived from `{{ playbook_dir }}` (playbooks → ansible → provisioning → src → repo root = `{{ playbook_dir }}/../../../..`), overridable
-  - [ ] `cli_tools_bin_dir` — uv executable dir, default `{{ ansible_env.HOME }}/.local/bin` (uv default when `UV_TOOL_BIN_DIR`/`XDG_BIN_HOME` unset), overridable
-  - [ ] `cli_tools` — list of `{name, source}` exactly mirroring `dotfiles/provisioning/cli-tools.yaml` entries (csg/weg/itr); the `uv tool install` targets (AC 2)
-- [ ] Author `tasks/main.yml` (AC: 2, 3, 4, 5)
-  - [ ] uv precondition (fail-loud, NOT part of install gating): `ansible.builtin.command: command -v uv` (register `uv_check`, `failed_when: false`), then a separate `ansible.builtin.assert` task gated on `when: not ansible_check_mode` that fails with a friendly message if uv is absent — the install tasks themselves have NO `when:` (NFR-9 fail-loud; see Dev Notes "tasks/main.yml" for the check-mode reason)
-  - [ ] Install task: ONE `ansible.builtin.command: uv tool install {{ cli_tools_repo_root }}/{{ item.source }}` with `loop: "{{ cli_tools }}"` (three iterations, one per manifest entry; three unrolled per-entry tasks is an acceptable alternative — see test bullet below) with:
-    - `creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"` — the ONLY idempotency guard (AC 4) AND the dry-run mechanism (AC 5: `creates` present ⇒ skip, absent ⇒ would-change under `--check`)
-    - NO `when:` gated on a presence-check rc — under `--check` a skipped `command -v` registers `rc: 0` and would make the install report `skipped` instead of would-change (locked lesson from Story 2.3 review; see Dev Notes "Why creates, not a when-guard")
-    - `changed_when`/`failed_when` left to defaults (command module)
-  - [ ] Verification loop (AC 3): for each entry, `ansible.builtin.command: command -v {{ item.name }}` run with `environment: PATH: "{{ cli_tools_bin_dir }}:{{ ansible_env.PATH }}"` so the role asserts the binary resolves on PATH in the run context; `changed_when: false`
-  - [ ] No `become:` anywhere in the role — `uv tool install` is a user-scoped step that must target the intended user, not root (OQ-1 resolution from Story 2.3; see Dev Notes "Privilege context")
-- [ ] Author `playbooks/cli-tools.yaml` (AC: 1-5)
-  - [ ] Simple playbook: `hosts: localhost`, `gather_facts: true`, `roles: [cli_tools]`
-  - [ ] NO `become: true` (user-scoped — installing as root would put binaries in `/root/.local/bin`)
-  - [ ] NO `group_by` distro-selection mechanism — this role is distro-agnostic (uv tool install works on Arch and Debian-family alike); the `group_by`+`group_vars` pattern is only required for distro-branching roles like `packages` (2.3)
-  - [ ] `gather_facts: true` is REQUIRED — `vars/main.yml` derives `cli_tools_bin_dir` from `{{ ansible_env.HOME }}`, and `ansible_env` is only populated when facts are gathered (same as the packages playbook)
-- [ ] Add structural real-file tests `tests/unit/test_cli_tools_role.py` (AC: 1-5)
-  - [ ] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file, anchor on `pyproject.toml` — mirror `test_packages_role.py` `_find_ansible_dir()`)
-  - [ ] `tasks/main.yml` parses as a list of task dicts; each task has `name`
-  - [ ] Exactly ONE install task (`uv tool install {{ cli_tools_repo_root }}/{{ item.source }}` with `loop: "{{ cli_tools }}"`), covering all three manifest entries (if the dev agent prefers three unrolled tasks instead, that is also acceptable — the tests below must still assert one install task per manifest entry either way)
-  - [ ] Install tasks are `ansible.builtin.command` with `creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"` (dry-run guard — dry-run must be dry)
-  - [ ] Install tasks are NOT gated on a presence-check rc (locks the 2.3 lesson: `command -v` skipped under `--check` registers `rc: 0`)
-  - [ ] No `become`/`become_user` on install tasks (user-scoped privilege context)
-  - [ ] `vars/main.yml` `cli_tools` list exactly matches `dotfiles/provisioning/cli-tools.yaml` entries by `(name, source)` — parity lock so the manifest and the role can never silently diverge
-  - [ ] No absolute repo paths hardcoded in tasks — every source is `{{ cli_tools_repo_root }}/...`
-  - [ ] `playbooks/cli-tools.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [cli_tools]`, no `become`
-  - [ ] `ansible-playbook --syntax-check` on `cli-tools.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0
-- [ ] Verify full suite + lint + layering guard (AC: 4, 5)
-  - [ ] `uv run pytest` — full suite green, nothing regresses from the 232-pass baseline
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+- [x] Create the `roles/cli_tools/` role directory tree (AC: 1)
+  - [x] `src/provisioning/ansible/roles/cli_tools/tasks/main.yml`
+  - [x] `src/provisioning/ansible/roles/cli_tools/vars/main.yml`
+- [x] Author `vars/main.yml` (AC: 1, 2, 3)
+  - [x] `cli_tools_repo_root` — repo root derived from `{{ playbook_dir }}` (playbooks → ansible → provisioning → src → repo root = `{{ playbook_dir }}/../../../..`), overridable
+  - [x] `cli_tools_bin_dir` — uv executable dir, default `{{ ansible_env.HOME }}/.local/bin` (uv default when `UV_TOOL_BIN_DIR`/`XDG_BIN_HOME` unset), overridable
+  - [x] `cli_tools` — list of `{name, source}` exactly mirroring `dotfiles/provisioning/cli-tools.yaml` entries (csg/weg/itr); the `uv tool install` targets (AC 2)
+- [x] Author `tasks/main.yml` (AC: 2, 3, 4, 5)
+  - [x] uv precondition (fail-loud, NOT part of install gating): `ansible.builtin.command: command -v uv` (register `uv_check`, `failed_when: false`), then a separate `ansible.builtin.assert` task gated on `when: not ansible_check_mode` that fails with a friendly message if uv is absent — the install tasks themselves have NO `when:` (NFR-9 fail-loud; see Dev Notes "tasks/main.yml" for the check-mode reason)
+  - [x] Install task: ONE `ansible.builtin.command: uv tool install {{ cli_tools_repo_root }}/{{ item.source }}` with `loop: "{{ cli_tools }}"` (three iterations, one per manifest entry; three unrolled per-entry tasks is an acceptable alternative — see test bullet below) with:
+    - [x] `creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"` — the ONLY idempotency guard (AC 4) AND the dry-run mechanism (AC 5: `creates` present ⇒ skip, absent ⇒ would-change under `--check`)
+    - [x] NO `when:` gated on a presence-check rc — under `--check` a skipped `command -v` registers `rc: 0` and would make the install report `skipped` instead of would-change (locked lesson from Story 2.3 review; see Dev Notes "Why creates, not a when-guard")
+    - [x] `changed_when`/`failed_when` left to defaults (command module)
+  - [x] Verification loop (AC 3): for each entry, `ansible.builtin.command: command -v {{ item.name }}` run with `environment: PATH: "{{ cli_tools_bin_dir }}:{{ ansible_env.PATH }}"` so the role asserts the binary resolves on PATH in the run context; `changed_when: false`
+  - [x] No `become:` anywhere in the role — `uv tool install` is a user-scoped step that must target the intended user, not root (OQ-1 resolution from Story 2.3; see Dev Notes "Privilege context")
+- [x] Author `playbooks/cli-tools.yaml` (AC: 1-5)
+  - [x] Simple playbook: `hosts: localhost`, `gather_facts: true`, `roles: [cli_tools]`
+  - [x] NO `become: true` (user-scoped — installing as root would put binaries in `/root/.local/bin`)
+  - [x] NO `group_by` distro-selection mechanism — this role is distro-agnostic (uv tool install works on Arch and Debian-family alike); the `group_by`+`group_vars` pattern is only required for distro-branching roles like `packages` (2.3)
+  - [x] `gather_facts: true` is REQUIRED — `vars/main.yml` derives `cli_tools_bin_dir` from `{{ ansible_env.HOME }}`, and `ansible_env` is only populated when facts are gathered (same as the packages playbook)
+- [x] Add structural real-file tests `tests/unit/test_cli_tools_role.py` (AC: 1-5)
+  - [x] Role tree exists: `tasks/main.yml`, `vars/main.yml` (walk up from test file, anchor on `pyproject.toml` — mirror `test_packages_role.py` `_find_ansible_dir()`)
+  - [x] `tasks/main.yml` parses as a list of task dicts; each task has `name`
+  - [x] Exactly ONE install task (`uv tool install {{ cli_tools_repo_root }}/{{ item.source }}` with `loop: "{{ cli_tools }}"`), covering all three manifest entries (if the dev agent prefers three unrolled tasks instead, that is also acceptable — the tests below must still assert one install task per manifest entry either way)
+  - [x] Install tasks are `ansible.builtin.command` with `creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"` (dry-run guard — dry-run must be dry)
+  - [x] Install tasks are NOT gated on a presence-check rc (locks the 2.3 lesson: `command -v` skipped under `--check` registers `rc: 0`)
+  - [x] No `become`/`become_user` on install tasks (user-scoped privilege context)
+  - [x] `vars/main.yml` `cli_tools` list exactly matches `dotfiles/provisioning/cli-tools.yaml` entries by `(name, source)` — parity lock so the manifest and the role can never silently diverge
+  - [x] No absolute repo paths hardcoded in tasks — every source is `{{ cli_tools_repo_root }}/...`
+  - [x] `playbooks/cli-tools.yaml` parses: `hosts: localhost`, `gather_facts: true`, `roles: [cli_tools]`, no `become`
+  - [x] `ansible-playbook --syntax-check` on `cli-tools.yaml` (with `-e os_family=arch -e install_dir=/tmp/x`) exits 0
+- [x] Verify full suite + lint + layering guard (AC: 4, 5)
+  - [x] `uv run pytest` — full suite green, nothing regresses from the 232-pass baseline
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
 
 ## Dev Notes
 
@@ -264,15 +265,22 @@ opencode-go/deepseek-v4-flash
 - 2026-08-10: Confirmed `roles_path = roles` + `ANSIBLE_CONFIG` wiring (Story 2.2) means `roles/cli_tools` resolves; `playbooks/` and `roles/cli_tools/` do not exist yet and are created in this story.
 - 2026-08-10: Confirmed manifest `cli-tools.yaml` entries (`csg`/`weg`/`itr`) match each tool's `[project.scripts]`; `itr` is the binary for "icon-renderer".
 - 2026-08-10: Story created with baseline `136f867`; suite baseline 232 passed.
+- 2026-08-10: Implemented. Real-file smoke check via `ansible-playbook --syntax-check` surfaced one Ansible shape issue: a free-form `command` module task cannot carry top-level `creates` alongside the module key ("conflicting action statements: ansible.builtin.command, creates") — moved `creates` under `args:` (same shape as 2.3's makepkg task). Syntax-check now exits 0.
+- 2026-08-10: Full gates green — `uv run pytest` 244 passed (12 new), `ruff check`/`format` clean, `mypy src tests` clean, `test_layering.py` exit 0.
 
 ### Completion Notes List
 
 - 2026-08-10: Story created — ultimate context engine analysis completed; comprehensive developer guide created. Status → ready-for-dev.
 - 2026-08-10: Validation complete (2nd pass) — verified every reference line number against source docs (epics #337-351/#36, plan #54/#149/#159/#283); tightened install-task wording to a single loop contract and aligned the playbook-structure test bullets with `gather_facts: true`; no source-document contradictions remain.
+- 2026-08-10: Implemented Story 2.4 — `roles/cli_tools/` (tasks/vars), `playbooks/cli-tools.yaml`, `tests/unit/test_cli_tools_role.py` (12 structural real-file tests). One design correction during syntax-check: `creates` moved under `args:` for the free-form command task. All 5 ACs satisfied (role tree, uv tool install from repo paths, PATH verification, idempotent `creates` guard, check-mode-safe dry-run). No `become` anywhere; `gather_facts: true`; distro-agnostic (no group_by). Full suite 244 passed, lint/mypy/layering clean. Status → review.
 
 ### File List
 
 - NEW `_bmad-output/implementation-artifacts/2-4-cli-tools-role.md` (this file)
+- NEW `src/provisioning/ansible/roles/cli_tools/tasks/main.yml`
+- NEW `src/provisioning/ansible/roles/cli_tools/vars/main.yml`
+- NEW `src/provisioning/ansible/playbooks/cli-tools.yaml`
+- NEW `src/provisioning/tests/unit/test_cli_tools_role.py`
 
 ### Review Findings
 

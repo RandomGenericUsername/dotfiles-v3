@@ -1,0 +1,42 @@
+# CLI tools role (Story 2.4) — installs csg/weg/itr via `uv tool install`
+# against the repo package paths (FR-15, plan §3), then verifies each binary
+# resolves on PATH in the run context (AC 3).
+#
+# Design (locked in Story 2.3 review):
+# - uv presence is a SEPARATE concern from install idempotency: a fail-loud
+#   assert (real-run precondition only, gated `when: not ansible_check_mode`
+#   because command modules never run under --check so uv_check.rc may be
+#   undefined there). The install tasks themselves have NO `when:`.
+# - The ONLY idempotency/dry-run mechanism on the install loop is `creates:`
+#   (AC 4 idempotent; AC 5 check-mode-safe by construction). Never gate on a
+#   presence-check rc — under --check a skipped `command -v` registers rc: 0
+#   and the task would report `skipped` instead of would-change.
+# - User-scoped privilege context: NO become/become_user anywhere. Running as
+#   root would install into /root/.local/bin and AC 3 would be silently false.
+
+- name: Check for uv
+  ansible.builtin.command: command -v uv
+  register: uv_check
+  changed_when: false
+  failed_when: false
+
+- name: Ensure uv is available
+  ansible.builtin.assert:
+    that: uv_check.rc == 0 and uv_check.stdout | length > 0
+    fail_msg: >-
+      uv not found on PATH — the cli_tools role requires uv
+      (bootstrap.sh pre-seeds it; Story 3.1)
+  when: not ansible_check_mode
+
+- name: Install csg/weg/itr via uv tool install
+  ansible.builtin.command: "uv tool install {{ cli_tools_repo_root }}/{{ item.source }}"
+  args:
+    creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"
+  loop: "{{ cli_tools }}"
+
+- name: Verify csg/weg/itr resolve on PATH
+  ansible.builtin.command: "command -v {{ item.name }}"
+  loop: "{{ cli_tools }}"
+  environment:
+    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_env.PATH }}"
+  changed_when: false

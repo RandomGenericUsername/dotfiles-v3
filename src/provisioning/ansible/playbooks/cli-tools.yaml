@@ -1,0 +1,17 @@
+# CLI tools playbook (Story 2.4) — one-per-role playbook; aggregation into
+# bootstrap.yaml is Story 2.12.
+#
+# User-scoped playbook: NO become (running as root would install into
+# /root/.local/bin and the intended user would never see the binaries — AC 3
+# would be silently false). cli_tools is distro-agnostic (uv tool install is
+# identical on Arch and Debian-family), so unlike packages.yaml there is NO
+# group_by distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives cli_tools_bin_dir
+# from {{ ansible_env.HOME }}, and ansible_env is only populated after the
+# fact-gathering setup module runs.
+- name: Install CLI tools via uv
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - cli_tools
