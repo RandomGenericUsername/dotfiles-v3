@@ -1,0 +1,57 @@
+# Symlinks role vars (Story 2.10).
+#
+# The role links the repo's EXISTING config dirs (dotfiles/config/*) into the
+# user config home (FR-20): nvim, starship, wlogout, zsh. The desired link set
+# lives in dotfiles/provisioning/symlinks.yaml (Story 2.1): a `kind: symlinks`
+# manifest with `entries: [{name, target}]`. Ansible does NOT read manifests —
+# the role mirrors the manifest into symlinks_links and a structural parity
+# test locks them together (single source of truth).
+#
+# hypr/hyprpaper/waybar are DELIBERATELY absent: those skeletons land in Story
+# 2.8 and are PLACED BY COPY in Story 2.9 (compositor_configs role), not
+# symlinked; the reader test forbids them in the manifest. The
+# icon-template-color-scheme-mappings/ dir is an ASSET deployed to
+# <install>/icon-mappings/ (Story 2.6), NOT a symlink.
+#
+# Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
+# each mirror:
+#   (a) vs 2.5 filesystem (XDG config home): 2.5 CREATES the config dirs;
+#       2.10 LINKS INTO them. Share the exact XDG derivation
+#       (ansible_facts.env, F4 lock) — do not duplicate logic with a different
+#       result.
+#   (b) vs 2.9 compositor_configs (dir-ensure + check-gating + runtime exec
+#       test): 2.9 COPIES files with force: false (transfer-only-if-absent);
+#       2.10 LINKS with force: false (fail-on-conflict). 2.9's fragment source
+#       assert is check-gated (fragments are apply-time outputs); 2.10's SOURCE
+#       assert is ungated (repo content is static); 2.10's RESOLVE assert IS
+#       check-gated (dests absent under --check).
+#   (c) vs 2.6/2.7 (install_dir assert, stat+assert pattern): 2.10 consumes NO
+#       install_dir (sources are the static repo tree; targets are under the
+#       XDG config home) — the first task is the fail-loud source stat+assert,
+#       NOT an install_dir assert. No install_dir var is aliased here.
+#   (d) vs cli_tools (manifest parity): the exact (name, target) set-equality
+#       parity test form.
+
+# symlinks_repo_root: repo root derived from this playbook's location.
+#   The link sources live at <repo>/dotfiles/config/<name>, so
+#   <repo> = {{ playbook_dir }}/../../../.. (mirror assets_repo_root /
+#   compositor_configs_repo_root exactly).
+symlinks_repo_root: "{{ playbook_dir }}/../../../.."
+
+# symlinks_xdg_config_home: the target config home the filesystem role (2.5)
+#   created. Identical derivation: honors $XDG_CONFIG_HOME with the spec
+#   default {{ ansible_facts.env.HOME }}/.config. Uses ansible_facts.env.*
+#   (NOT the deprecated top-level ansible_env fact — F4 lock, hard-breaks on
+#   ansible-core >= 2.24).
+symlinks_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+
+# symlinks_links: the link set mirroring dotfiles/provisioning/symlinks.yaml
+#   EXACTLY (parity-locked by the structural test on (name, target)). `name` is
+#   the repo source dir under dotfiles/config/; `target` is the ~/.config/
+#   component. Current data has name == target for all four — do NOT assume
+#   they must be equal, and do NOT assume they must differ.
+symlinks_links:
+  - { name: nvim, target: nvim }
+  - { name: starship, target: starship }
+  - { name: wlogout, target: wlogout }
+  - { name: zsh, target: zsh }

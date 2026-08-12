@@ -4,13 +4,14 @@ baseline_commit: fb0c979
 
 # Story 2.10: Symlinks Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-12: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-20).
+- 2026-08-12: Story implemented — `symlinks` role + playbook + 18 structural/parity/runtime tests; suite 355 → 373 green.
 
 ## Story
 
@@ -27,51 +28,51 @@ So that my dotfiles live in the repo and are referenced by the machine.
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/ansible/roles/symlinks/vars/main.yml` (AC: 1-4)
-  - [ ] Open with the standard header comment: `# Symlinks role vars (Story 2.10).` + role-description + `# Mirror-and-adapt discipline (Epic 1 retro action item)` block itemizing what differs from each mirror (mirror `compositor_configs/vars/main.yml` header shape)
-  - [ ] `symlinks_repo_root`: `{{ playbook_dir }}/../../../..` (mirror `assets_repo_root`/`compositor_configs_repo_root` exactly — see Dev Notes "Where files live")
-  - [ ] `symlinks_xdg_config_home`: same XDG-config-home derivation as the filesystem role's `filesystem_xdg_config_home` (honors `$XDG_CONFIG_HOME`, default `{{ ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config' }}`; uses `ansible_facts.env`, NOT the deprecated top-level `ansible_env` fact — F4 lock) — see Dev Notes "The `~/.config` vs XDG home decision"
-  - [ ] `symlinks_links`: list of `{name, target}` dicts mirroring `dotfiles/provisioning/symlinks.yaml` entries EXACTLY (see Dev Notes "Mirroring the locked manifest") — currently:
+- [x] Create `src/provisioning/ansible/roles/symlinks/vars/main.yml` (AC: 1-4)
+  - [x] Open with the standard header comment: `# Symlinks role vars (Story 2.10).` + role-description + `# Mirror-and-adapt discipline (Epic 1 retro action item)` block itemizing what differs from each mirror (mirror `compositor_configs/vars/main.yml` header shape)
+  - [x] `symlinks_repo_root`: `{{ playbook_dir }}/../../../..` (mirror `assets_repo_root`/`compositor_configs_repo_root` exactly — see Dev Notes "Where files live")
+  - [x] `symlinks_xdg_config_home`: same XDG-config-home derivation as the filesystem role's `filesystem_xdg_config_home` (honors `$XDG_CONFIG_HOME`, default `{{ ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config' }}`; uses `ansible_facts.env`, NOT the deprecated top-level `ansible_env` fact — F4 lock) — see Dev Notes "The `~/.config` vs XDG home decision"
+  - [x] `symlinks_links`: list of `{name, target}` dicts mirroring `dotfiles/provisioning/symlinks.yaml` entries EXACTLY (see Dev Notes "Mirroring the locked manifest") — currently:
       - `{ name: nvim, target: nvim }`
       - `{ name: starship, target: starship }`
       - `{ name: wlogout, target: wlogout }`
       - `{ name: zsh, target: zsh }`
-  - [ ] NO hardcoded absolute paths; NO install_dir-derived values (this role consumes no install_dir — see Dev Notes "Why there is NO install_dir assert")
-- [ ] Create `src/provisioning/ansible/roles/symlinks/tasks/main.yml` (AC: 1-4)
-  - [ ] FIRST task: the fail-loud SOURCE-PRESENCE stat+assert pair (NOT the install_dir assert — see Dev Notes "Why there is NO install_dir assert"), ungated (sources are static repo content):
+  - [x] NO hardcoded absolute paths; NO install_dir-derived values (this role consumes no install_dir — see Dev Notes "Why there is NO install_dir assert")
+- [x] Create `src/provisioning/ansible/roles/symlinks/tasks/main.yml` (AC: 1-4)
+  - [x] FIRST task: the fail-loud SOURCE-PRESENCE stat+assert pair (NOT the install_dir assert — see Dev Notes "Why there is NO install_dir assert"), ungated (sources are static repo content):
       - stat each `{{ symlinks_repo_root }}/dotfiles/config/{{ item.name }}` with `follow: true`, register `symlinks_source_check`
       - assert `symlinks_source_check.results | selectattr('stat.exists') | list | length == symlinks_links | length`, fail_msg naming the repo source dirs
-  - [ ] `Ensure XDG config home exists`: `ansible.builtin.file` `state: directory` on `{{ symlinks_xdg_config_home }}` (AC 2 — direct-run self-containment; file module does NOT create link-dest parents; ungated — natively check-safe; mirror 2.6/2.9 "Ensure ... dirs exist")
-  - [ ] Create symlinks: `ansible.builtin.file` `state: link`, `src: "{{ symlinks_repo_root }}/dotfiles/config/{{ item.name }}"` (ABSOLUTE path — relative srcs resolve relative to the link file), `dest: "{{ symlinks_xdg_config_home }}/{{ item.target }}"`, **`force: false`**, `loop: "{{ symlinks_links }}"` (AC 2, 3, 4 — see Dev Notes "file module `state: link` semantics"). NO `creates:`, NO `when: not ansible_check_mode` gate (native full check-mode support — verified)
-  - [ ] Resolve check stat+assert pair (AC 3, done-criterion 9 — see Dev Notes "The fail-loud layers"), BOTH gated `when: not ansible_check_mode`:
+  - [x] `Ensure XDG config home exists`: `ansible.builtin.file` `state: directory` on `{{ symlinks_xdg_config_home }}` (AC 2 — direct-run self-containment; file module does NOT create link-dest parents; ungated — natively check-safe; mirror 2.6/2.9 "Ensure ... dirs exist")
+  - [x] Create symlinks: `ansible.builtin.file` `state: link`, `src: "{{ symlinks_repo_root }}/dotfiles/config/{{ item.name }}"` (ABSOLUTE path — relative srcs resolve relative to the link file), `dest: "{{ symlinks_xdg_config_home }}/{{ item.target }}"`, **`force: false`**, `loop: "{{ symlinks_links }}"` (AC 2, 3, 4 — see Dev Notes "file module `state: link` semantics"). NO `creates:`, NO `when: not ansible_check_mode` gate (native full check-mode support — verified)
+  - [x] Resolve check stat+assert pair (AC 3, done-criterion 9 — see Dev Notes "The fail-loud layers"), BOTH gated `when: not ansible_check_mode`:
       - stat each `{{ symlinks_xdg_config_home }}/{{ item.target }}` with `follow: false`, register `symlinks_dest_check_link`; assert `... | selectattr('stat.islnk') | list | length == symlinks_links | length`
       - stat each dest with `follow: true`, register `symlinks_dest_check_resolved`; assert `... | selectattr('stat.exists') | list | length == symlinks_links | length` (a dangling link reports `exists: false` when followed)
-  - [ ] Header comment documenting the scope + the fail-loud contract (see Dev Notes "Scope")
-  - [ ] NO become/become_user anywhere (user-scoped role, mirror 2.5-2.9)
-  - [ ] NO hardcoded absolute paths (everything via `{{ symlinks_repo_root }}` and `{{ symlinks_xdg_config_home }}`)
-- [ ] Create `src/provisioning/ansible/playbooks/symlinks.yaml` (AC: 1)
-  - [ ] Open with the standard explanatory comment block (mirror `compositor-configs.yaml`): one-per-role playbook; user-scoped (NO become); distro-agnostic (NO group_by — role consumes no group_vars); why `gather_facts: true` is REQUIRED (vars derive from `ansible_facts.env.HOME`/`XDG_CONFIG_HOME`)
-  - [ ] `hosts: localhost`, `gather_facts: true`, `roles: [symlinks]`, NO become, NO group_by
-- [ ] Add structural real-file tests `src/provisioning/tests/unit/test_symlinks_role.py` (AC: 1-4)
-  - [ ] Role tree exists: `tasks/main.yml`, `vars/main.yml`
-  - [ ] Tasks parse to a list of named tasks
-  - [ ] First task is the fail-loud SOURCE stat (asserts `stat` on `dotfiles/config/`) — and explicitly NOT the install_dir assert
-  - [ ] Source stat+assert pair: both loop `symlinks_links`, assert on derived count (`selectattr('stat.exists') | list | length == symlinks_links | length`, no hardcoded literal)
-  - [ ] Symlink creation task: `ansible.builtin.file` with `state: link`, `src` prefixed `{{ symlinks_repo_root }}/dotfiles/config/`, `dest` prefixed `{{ symlinks_xdg_config_home }}/`, **`force: false`**, loop over `symlinks_links`, NO `creates:`, NOT check-gated (AC 2, 4 — the `force: false` assert locks AC 4's no-clobber contract)
-  - [ ] Resolve check pair: follow:false stat + assert `islnk`, follow:true stat + assert `exists`, all four tasks gated `when: not ansible_check_mode` (AC 3)
-  - [ ] XDG-home dir-ensure task: `state: directory`, ungated
-  - [ ] NO become/become_user anywhere
-  - [ ] No hardcoded absolute paths in module bodies (trim lock)
-  - [ ] vars test: required keys (`symlinks_repo_root`, `symlinks_xdg_config_home`, `symlinks_links`), `symlinks_repo_root` mirrors assets exactly, `symlinks_xdg_config_home` honors `$XDG_CONFIG_HOME` via `ansible_facts.env` + F4 lock (assert NO `{{ ansible_env.` present)
-  - [ ] **Parity test**: `symlinks_links` `(name, target)` pairs EXACTLY equal the parsed `dotfiles/provisioning/symlinks.yaml` `entries` (cli_tools-style set equality — see Dev Notes "Mirroring the locked manifest")
-  - [ ] Playbook test: parses, `hosts: localhost`, `gather_facts: true`, `roles: [symlinks]`, no become, no group_by
-  - [ ] `ansible-playbook --syntax-check` exits 0 (skip if ansible-playbook absent)
-  - [ ] **Runtime execution test** `test_playbook_executes_and_creates_symlinks`: temp `HOME` + `XDG_CONFIG_HOME`, run the real playbook with `ANSIBLE_CONFIG`, assert each `xdg/<target>` `os.path.islink` is True, `os.path.exists` is True (resolves), and `os.readlink` points at the real repo `dotfiles/config/<name>` (see Dev Notes "The runtime execution test")
-- [ ] Verify full suite + lint + layering guard (AC: 4)
-  - [ ] `uv run pytest` — full suite green, no regressions from the 355-pass baseline (Story 2.9 + review fixes)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (mypy baseline: 10 pre-existing errors in test_default_palette_role.py + test_cli_tools_role.py — new file must be clean)
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
-  - [ ] `git status --short` shows ONLY the new role dir, playbook, and test file
+  - [x] Header comment documenting the scope + the fail-loud contract (see Dev Notes "Scope")
+  - [x] NO become/become_user anywhere (user-scoped role, mirror 2.5-2.9)
+  - [x] NO hardcoded absolute paths (everything via `{{ symlinks_repo_root }}` and `{{ symlinks_xdg_config_home }}`)
+- [x] Create `src/provisioning/ansible/playbooks/symlinks.yaml` (AC: 1)
+  - [x] Open with the standard explanatory comment block (mirror `compositor-configs.yaml`): one-per-role playbook; user-scoped (NO become); distro-agnostic (NO group_by — role consumes no group_vars); why `gather_facts: true` is REQUIRED (vars derive from `ansible_facts.env.HOME`/`XDG_CONFIG_HOME`)
+  - [x] `hosts: localhost`, `gather_facts: true`, `roles: [symlinks]`, NO become, NO group_by
+- [x] Add structural real-file tests `src/provisioning/tests/unit/test_symlinks_role.py` (AC: 1-4)
+  - [x] Role tree exists: `tasks/main.yml`, `vars/main.yml`
+  - [x] Tasks parse to a list of named tasks
+  - [x] First task is the fail-loud SOURCE stat (asserts `stat` on `dotfiles/config/`) — and explicitly NOT the install_dir assert
+  - [x] Source stat+assert pair: both loop `symlinks_links`, assert on derived count (`selectattr('stat.exists') | list | length == symlinks_links | length`, no hardcoded literal)
+  - [x] Symlink creation task: `ansible.builtin.file` with `state: link`, `src` prefixed `{{ symlinks_repo_root }}/dotfiles/config/`, `dest` prefixed `{{ symlinks_xdg_config_home }}/`, **`force: false`**, loop over `symlinks_links`, NO `creates:`, NOT check-gated (AC 2, 4 — the `force: false` assert locks AC 4's no-clobber contract)
+  - [x] Resolve check pair: follow:false stat + assert `islnk`, follow:true stat + assert `exists`, all four tasks gated `when: not ansible_check_mode` (AC 3)
+  - [x] XDG-home dir-ensure task: `state: directory`, ungated
+  - [x] NO become/become_user anywhere
+  - [x] No hardcoded absolute paths in module bodies (trim lock)
+  - [x] vars test: required keys (`symlinks_repo_root`, `symlinks_xdg_config_home`, `symlinks_links`), `symlinks_repo_root` mirrors assets exactly, `symlinks_xdg_config_home` honors `$XDG_CONFIG_HOME` via `ansible_facts.env` + F4 lock (assert NO `{{ ansible_env.` present)
+  - [x] **Parity test**: `symlinks_links` `(name, target)` pairs EXACTLY equal the parsed `dotfiles/provisioning/symlinks.yaml` `entries` (cli_tools-style set equality — see Dev Notes "Mirroring the locked manifest")
+  - [x] Playbook test: parses, `hosts: localhost`, `gather_facts: true`, `roles: [symlinks]`, no become, no group_by
+  - [x] `ansible-playbook --syntax-check` exits 0 (skip if ansible-playbook absent)
+  - [x] **Runtime execution test** `test_playbook_executes_and_creates_symlinks`: temp `HOME` + `XDG_CONFIG_HOME`, run the real playbook with `ANSIBLE_CONFIG`, assert each `xdg/<target>` `os.path.islink` is True, `os.path.exists` is True (resolves), and `os.readlink` points at the real repo `dotfiles/config/<name>` (see Dev Notes "The runtime execution test")
+- [x] Verify full suite + lint + layering guard (AC: 4)
+  - [x] `uv run pytest` — full suite green, no regressions from the 355-pass baseline (Story 2.9 + review fixes)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (mypy baseline: 10 pre-existing errors in test_default_palette_role.py + test_cli_tools_role.py — new file must be clean)
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+  - [x] `git status --short` shows ONLY the new role dir, playbook, and test file
 
 ## Dev Notes
 
@@ -272,6 +273,10 @@ opencode (deepseek-v4-flash)
 - Locked `force: false` on the link task (AC 4 no-clobber; fail-loud on real dir/file dests — verified error messages).
 - Scope guards: no manifest edits (2.1 lock), no hypr/hyprpaper/waybar in `symlinks_links`, no install-spine linking (NFR-8), no Python hexagon changes.
 - Status → ready-for-dev.
+- Implemented Story 2.10 (2026-08-12): created `symlinks` role (vars mirror of the locked manifest + tasks: ungated source stat+assert, XDG dir-ensure, `state: link` `force: false` create, gated resolve stat+assert pair), `playbooks/symlinks.yaml`, and `test_symlinks_role.py` (18 tests: tree, tasks contract, source pair, link contract, resolve pair, vars + parity, playbook, syntax-check, runtime execution + idempotency).
+- Runtime execution test verifies real symlinks land in temp HOME/XDG, resolve, point at the real repo source, and re-run is a no-op (`changed=0`).
+- Full suite 355 → 373 passed; ruff check/format clean; mypy clean for the new file (10 pre-existing baseline errors in test_default_palette_role.py/test_cli_tools_role.py untouched); layering guard OK.
+- Status → review.
 
 ### File List
 

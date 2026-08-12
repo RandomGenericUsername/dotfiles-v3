@@ -1,0 +1,25 @@
+# Symlinks playbook (Story 2.10) — one-per-role playbook; aggregation into
+# bootstrap.yaml is Story 2.12.
+#
+# User-scoped playbook: NO become (everything the role writes lives under the
+# user's config home; running as root would diverge from the intended user's
+# layout).
+#
+# Distro-agnostic: symlink creation is identical on Arch and Debian-family and
+# the role consumes no group_vars — so unlike packages.yaml there is NO
+# group_by distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives
+# symlinks_xdg_config_home from {{ ansible_facts.env.HOME }} and
+# {{ ansible_facts.env.XDG_CONFIG_HOME }}, which are only populated after the
+# fact-gathering setup module runs.
+#
+# NOTE the name collision (intentional): dotfiles/provisioning/symlinks.yaml is
+# the declarative MANIFEST (Story 2.1 lock); this playbook is the role's entry
+# point. The role reads the manifest's contract only through the mirrored
+# symlinks_links var + parity test — it never opens the manifest at runtime.
+- name: Create symlinks into XDG config home
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - symlinks
