@@ -183,3 +183,43 @@ class ProviderNotRegisteredError(OciError):
             f"No RuntimeProvider registered for RuntimeKind: {kind}. "
             f"Registered: {list(RuntimeKind)}"
         )
+
+
+class SourceRootNotFoundError(OciError):
+    """Raised when the source repo used as a container build context cannot be located.
+
+    An installed CLI tool has no build context of its own: the source repo is
+    rediscovered from (in order) an explicit override, a ``*_SOURCE_ROOT`` env
+    var, the PEP 610 ``direct_url.json`` recorded by the installer, or a legacy
+    walk from the package location. When none resolves, building a container
+    image is impossible and the CLI must fail loudly rather than silently
+    produce a stale image.
+    """
+
+    def __init__(
+        self,
+        *,
+        package: str,
+        env_var: str | None = None,
+        flag_name: str | None = None,
+        hint: str | None = None,
+    ):
+        self.package = package
+        self.env_var = env_var
+        self.flag_name = flag_name
+        parts = [
+            f"Cannot locate the '{package}' source repo to use as a container build context.",
+        ]
+        if flag_name or env_var:
+            parts.append(
+                f"Reinstall '{package}' from a source checkout "
+                f"(uv tool install --force <repo>/src/...) "
+                f"or pass the repo root explicitly"
+            )
+            if flag_name:
+                parts.append(f"  {flag_name} <repo-root>")
+            if env_var:
+                parts.append(f"  (or set {env_var}=<repo-root>)")
+        if hint:
+            parts.append(hint)
+        super().__init__("\n".join(parts))

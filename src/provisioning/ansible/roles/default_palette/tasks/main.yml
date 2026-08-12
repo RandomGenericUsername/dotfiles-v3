@@ -21,6 +21,15 @@
 #   generate task; the rendered settings file (Story 2.11) keeps overwrite =
 #   false — THIS ROLE MUST NOT AUTHOR, RENDER, OR MODIFY any settings file
 #   (AC 4).
+# - Container mode (product decision 2026-08-12): csg runs INSIDE its container
+#   image (the host never installs pywal/imagemagick). This role forces the
+#   runtime via env COLORSCHEME__RUNTIME__MODE=container and the engine via
+#   COLORSCHEME__CONTAINER__ENGINE={{ default_palette_container_engine }}
+#   (podman, the product decision; docker is the overridable fallback), so the
+#   generate task does NOT depend on a host-side backend. Precondition: the
+#   cli_tools role's image-build task must have built csg-pywal-podman:latest.
+#   Do NOT remove these two env overrides — that silently reverts to local mode
+#   and breaks the container-mode decision (the exact defect this chain fixes).
 # - Regenerate semantics (AC 7, FR-18): the generate task carries NO
 #   `creates:` and is NOT gated on palette-file existence, so replacing
 #   wallpapers.tar.gz (re-extracted by 2.6) causes the next apply to
@@ -78,7 +87,9 @@
       csg not found on PATH — the default_palette role requires csg, which the
       cli_tools role (Story 2.4) installs via uv tool install into
       ~/.local/bin; run the cli-tools playbook first (direct-run
-      prerequisite)
+      prerequisite, AC 9). Note: container mode also requires the cli_tools
+      role's image-build task (`csg install --container-engine podman`) to have
+      run, or `csg generate` fails with a missing-container-image error.
   when: not ansible_check_mode
 
 - name: Check default.png was unpacked
@@ -99,6 +110,8 @@
 - name: Generate default palette
   ansible.builtin.command: "csg generate '{{ default_palette_default_image }}' -f {{ default_palette_formats | join(' -f ') }}"
   environment:
+    COLORSCHEME__RUNTIME__MODE: "container"
+    COLORSCHEME__CONTAINER__ENGINE: "{{ default_palette_container_engine }}"
     COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}"
     COLORSCHEME__OUTPUT__OVERWRITE: "true"
     PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"

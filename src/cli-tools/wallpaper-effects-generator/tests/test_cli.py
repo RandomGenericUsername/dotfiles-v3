@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from oci_runtime.domain.exceptions import SourceRootNotFoundError
 from wallpaper_effects_generator.cli.main import app
 
 runner = CliRunner()
@@ -356,6 +357,73 @@ image_registry = "ghcr.io"
     )
 
     assert result.exit_code != 0
+
+
+def test_install_command_uses_source_root_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    config_file = tmp_path / "settings.toml"
+    config_file.write_text("""
+version = "1.0"
+[container]
+engine = "docker"
+""")
+    repo = tmp_path / "repo"
+    (repo / "src" / "cli-tools").mkdir(parents=True)
+    (repo / "src" / "shared").mkdir(parents=True)
+
+    from tests.conftest import FakeEngine
+
+    fake_engine = FakeEngine()
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.install.create_container_engine",
+        lambda settings: fake_engine,
+    )
+    result = runner.invoke(
+        app,
+        ["install", "--config", str(config_file), "--source-root", str(repo)],
+    )
+
+    assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
+    assert fake_engine.builds, "expected at least one build recorded"
+    _, context = fake_engine.builds[0]
+    assert str(context.context_path) == str(repo)
+
+
+def test_install_command_fails_loudly_when_no_source_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Regression test for the defect: when the source repo build context cannot
+    be located, `weg install` must fail loudly instead of building against a
+    wrong directory."""
+    config_file = tmp_path / "settings.toml"
+    config_file.write_text("""
+version = "1.0"
+[container]
+engine = "docker"
+""")
+
+    from tests.conftest import FakeEngine
+
+    fake_engine = FakeEngine()
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.install.create_container_engine",
+        lambda settings: fake_engine,
+    )
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.install.resolve_source_root",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            SourceRootNotFoundError(package="wallpaper_effects_generator")
+        ),
+    )
+    result = runner.invoke(
+        app,
+        ["install", "--config", str(config_file)],
+    )
+
+    assert result.exit_code != 0
+    assert "source repo" in (result.stdout + result.stderr)
+    assert not fake_engine.builds
 
 
 def test_uninstall_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

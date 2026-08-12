@@ -239,3 +239,86 @@ class TestInstallCommand:
         result = runner.invoke(app, ["install", "--help"])
         assert result.exit_code == 0
         assert "Usage:" in result.stdout
+        assert "--source-root" in result.stdout
+
+    def test_install_fails_loudly_when_no_source_root(
+        self,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The core regression test for the defect: when the source repo build
+        context cannot be located, `csg install` must exit non-zero with a
+        clear message — it must NOT report `{"status": "built"}` and silently
+        no-op (the pre-fix behavior that produced stale images)."""
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.install_cmd.resolve_source_root",
+            lambda **_: (_ for _ in ()).throw(
+                __import__("oci_runtime").SourceRootNotFoundError(package="color_scheme_generator")
+            ),
+        )
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, ["--output-format", "json", "install"])
+        assert result.exit_code == 1
+        output = result.stdout + result.stderr
+        assert '"status": "built"' not in output
+        assert "source repo" in output
+
+    def test_install_uses_source_root_override(
+        self,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        mock_container_engine: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        root = tmp_path / "repo"
+        (root / "src" / "cli-tools").mkdir(parents=True)
+        (root / "src" / "shared").mkdir(parents=True)
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.install_cmd.create_container_engine",
+            lambda engine: mock_container_engine,
+        )
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, [
+            "--output-format", "json", "install",
+            "--container-engine", "podman",
+            "--source-root", str(root),
+        ])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert mock_container_engine.build_image.call_count == 4
+        for call in mock_container_engine.build_image.call_args_list:
+            context = call[0][0]
+            assert context.context_path == root
+
+    def test_install_uses_source_root_env_var(
+        self,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        mock_container_engine: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        root = tmp_path / "repo"
+        (root / "src" / "cli-tools").mkdir(parents=True)
+        (root / "src" / "shared").mkdir(parents=True)
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.install_cmd.create_container_engine",
+            lambda engine: mock_container_engine,
+        )
+        monkeypatch.setenv("CSG_SOURCE_ROOT", str(root))
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, [
+            "--output-format", "json", "install", "--container-engine", "podman",
+        ])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert mock_container_engine.build_image.call_count == 4
+        for call in mock_container_engine.build_image.call_args_list:
+            context = call[0][0]
+            assert context.context_path == root

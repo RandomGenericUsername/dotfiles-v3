@@ -97,6 +97,27 @@ def _install_tasks() -> list[dict[str, object]]:
     ]
 
 
+def _argv_of(task: dict[str, object]) -> list[str] | None:
+    """Return the argv list of a task, or None when the module body is not an
+    argv-form command (e.g. free-form `command: string` tasks)."""
+    module = task.get(_module_key(task) or "", {})
+    if not isinstance(module, dict):
+        return None
+    argv = module.get("argv")
+    if not isinstance(argv, list):
+        return None
+    return [str(item) for item in argv]
+
+
+def _image_build_tasks() -> list[dict[str, object]]:
+    """The tasks that build CLI container images (argv starting `csg install`)."""
+    return [
+        task
+        for task in _load_tasks()
+        if (_argv_of(task) or [])[:2] == ["csg", "install"]
+    ]
+
+
 class TestCliToolsRoleTree:
     _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml")
 
@@ -226,11 +247,87 @@ class TestCliToolsTasks:
             )
 
 
+class TestCliToolsImageBuildTasks:
+    def test_image_build_task_exists_for_csg(self) -> None:
+        """Container mode (product decision 2026-08-12) requires the cli_tools
+        role to build the csg container image — `uv tool install` only installs
+        the host-side launcher."""
+        tasks = _image_build_tasks()
+        assert tasks, "expected a `csg install` image-build task"
+        csg_tasks = [t for t in tasks if _argv_of(t)[0] == "csg"]
+        assert csg_tasks, "expected a `csg install` task"
+
+    def test_image_build_task_passes_container_engine(self) -> None:
+        tasks = _image_build_tasks()
+        assert tasks, "expected a `csg install` image-build task"
+        csg = [t for t in tasks if _argv_of(t)[0] == "csg"][0]
+        argv = _argv_of(csg)
+        assert "--container-engine" in argv
+        assert argv[argv.index("--container-engine") + 1] == "{{ cli_tools_container_engine }}", (
+            "image-build task must pass --container-engine from the engine var"
+        )
+
+    def test_image_build_task_passes_source_root(self) -> None:
+        tasks = _image_build_tasks()
+        assert tasks, "expected a `csg install` image-build task"
+        csg = [t for t in tasks if _argv_of(t)[0] == "csg"][0]
+        argv = _argv_of(csg)
+        assert "--source-root" in argv
+        assert argv[argv.index("--source-root") + 1] == "{{ cli_tools_repo_root }}", (
+            "image-build task must pass --source-root = cli_tools_repo_root "
+            "(deterministic build context on the provisioning path)"
+        )
+
+    def test_image_build_task_is_check_mode_gated(self) -> None:
+        """Command modules execute under --check, so the image build must be
+        gated `when: not ansible_check_mode` (dry-run must stay dry)."""
+        tasks = _image_build_tasks()
+        assert tasks, "expected a `csg install` image-build task"
+        for task in tasks:
+            assert "not ansible_check_mode" in str(task.get("when", "")), (
+                f"image-build task {task.get('name')!r} must be check-mode gated"
+            )
+
+    def test_image_build_task_has_no_creates_guard(self) -> None:
+        """Image EXISTENCE does not imply FRESHNESS: a `creates:` guard would
+        skip rebuilding a stale image (the exact defect this chain fixes)."""
+        tasks = _image_build_tasks()
+        assert tasks, "expected a `csg install` image-build task"
+        for task in tasks:
+            assert _creates_value(task) is None, (
+                f"image-build task {task.get('name')!r} must NOT carry creates: "
+                "(existence != freshness)"
+            )
+
+    def test_no_become_on_image_build_tasks(self) -> None:
+        tasks = _image_build_tasks()
+        for task in tasks:
+            assert "become" not in task, (
+                f"image-build task {task.get('name')!r} must not use become "
+                "(rootless podman builds into the user storage)"
+            )
+
+
 class TestCliToolsVars:
     def test_vars_parse_with_required_keys(self) -> None:
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
         assert isinstance(data, dict), "vars/main.yml must parse to a dict"
         assert {"cli_tools_repo_root", "cli_tools_bin_dir", "cli_tools"}.issubset(set(data))
+
+    def test_container_engine_defaults_to_podman(self) -> None:
+        """Product decision (2026-08-12): podman is the preferred engine;
+        docker is the supported fallback via a single overridable var."""
+        data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
+        assert data["cli_tools_container_engine"] == "podman"
+
+    def test_image_builds_list_contains_only_container_mode_clis(self) -> None:
+        """Only csg is image-built today (itr has no container mode; weg is only
+        consumed via local `dump-effects` by the assets role)."""
+        data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
+        builds = [dict(item) for item in data["cli_tools_image_builds"]]
+        assert {"name": "csg"} in builds
+        names = {b["name"] for b in builds}
+        assert names <= {"csg", "weg"}, "image builds must be container-mode CLIs only"
 
     def test_cli_tools_parity_with_manifest(self) -> None:
         """Parity lock: the role var exactly mirrors the manifest by

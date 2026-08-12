@@ -21,6 +21,7 @@ from oci_runtime.domain.exceptions import (  # noqa: F401
     ParsingError,
     ProviderNotRegisteredError,
     RuntimeNotAvailableError,
+    SourceRootNotFoundError,
     VolumeError,
     VolumeNotFoundError,
     VolumeRuntimeError,
@@ -71,6 +72,10 @@ from oci_runtime.ports.provider import RuntimeProvider  # noqa: F401
 from oci_runtime.ports.pty_transport import PtyTransport  # noqa: F401
 from oci_runtime.domain.naming import engine_qualified_image  # noqa: F401
 from oci_runtime.factory import RuntimeFactory, RuntimeFactoryConfig  # noqa: F401
+from oci_runtime.source_locator import (  # noqa: F401
+    SourceRoot,
+    resolve_source_root,
+)
 
 __all__ = sorted(
     [
@@ -123,6 +128,8 @@ __all__ = sorted(
         "RuntimeNotAvailableError",
         "RuntimePreference",
         "RuntimeProvider",
+        "SourceRoot",
+        "SourceRootNotFoundError",
         "StreamingTransport",
         "ThreadCancellationToken",
         "Transport",
@@ -136,5 +143,6 @@ __all__ = sorted(
         "VolumeParser",
         "VolumeRuntimeError",
         "compose_tokens",
+        "resolve_source_root",
     ]
 )

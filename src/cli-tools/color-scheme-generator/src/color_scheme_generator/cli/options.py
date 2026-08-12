@@ -42,3 +42,15 @@ TEMPLATES_DIR_OPT: Path | None = typer.Option(
     readable=True,
     resolve_path=True,
 )
+
+SOURCE_ROOT_OPT: Path | None = typer.Option(
+    None,
+    "--source-root",
+    envvar="CSG_SOURCE_ROOT",
+    help="Source repo root used as the container image build context. "
+    "Required when the CLI is not running from a source checkout.",
+    exists=True,
+    file_okay=False,
+    dir_okay=True,
+    resolve_path=True,
+)

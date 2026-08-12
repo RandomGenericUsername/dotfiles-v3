@@ -43,3 +43,37 @@
   environment:
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
   changed_when: false
+
+# Container image builds for the container-mode CLIs (product decision
+# 2026-08-12: csg/weg run in container mode; the host never installs backend
+# binaries). `uv tool install` above only installs the host-side launcher —
+# `csg install` builds the image that does the actual work.
+#
+# Design (locked in Story 2.8 review):
+# - `--source-root {{ cli_tools_repo_root }}` is passed EXPLICITLY so the build
+#   context does not depend on the CLI rediscovering its source via PEP 610
+#   metadata (deterministic on the provisioning path; direct_url discovery
+#   remains the fallback for ad-hoc/dev runs).
+# - NO `creates:` on these tasks: image EXISTENCE does not imply FRESHNESS.
+#   A stale image (built before the current CLI source) must be rebuilt, so the
+#   task runs every apply; podman's content-addressed cache makes an unchanged
+#   rebuild cheap and correct. This mirrors the default_palette generate task's
+#   accepted-by-design "changed on every apply" semantics (idempotency = no
+#   STATE drift, not no CHANGED report). Do NOT reintroduce an existence gate.
+# - Check mode: command modules execute under --check, so these tasks are
+#   gated `when: not ansible_check_mode` (same guard as default_palette).
+# - User-scoped privilege context: NO become — rootless podman builds into the
+#   user's storage (AC 10).
+
+- name: Build csg container images
+  ansible.builtin.command:
+    argv:
+      - csg
+      - install
+      - --container-engine
+      - "{{ cli_tools_container_engine }}"
+      - --source-root
+      - "{{ cli_tools_repo_root }}"
+  environment:
+    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  when: not ansible_check_mode

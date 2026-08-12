@@ -42,6 +42,14 @@
 #   top-level ansible_env fact — F4 lock).
 default_palette_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
 
+# default_palette_container_engine: the container engine `csg generate` runs in
+#   container mode with (env COLORSCHEME__CONTAINER__ENGINE). Podman is the
+#   product decision (2026-08-12); docker is the supported fallback. Must match
+#   the engine the cli_tools role (2.8 image-build task) used for `csg install`,
+#   so the generate-time image name resolves. Kept role-local (NOT aliased from
+#   cli_tools) per the mirror-and-adapt discipline; both default to podman.
+default_palette_container_engine: podman
+
 # default_palette_default_image: the default.png the assets role (2.6) unpacked
 #   from wallpapers.tar.gz. Trim lock: consumes the same validated
 #   `{{ install_dir | trim }}` value the fail-loud assert enforces.

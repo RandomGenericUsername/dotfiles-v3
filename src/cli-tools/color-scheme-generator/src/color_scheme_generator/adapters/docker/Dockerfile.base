@@ -1,9 +1,9 @@
 FROM python:3.14-slim
 WORKDIR /app
-COPY cli-tools/color-scheme-generator /app/csg
-COPY shared/config-assembler-engine /app/config-assembler-engine
-COPY shared/oci-runtime /app/oci-runtime
-COPY shared/cli-output /app/cli-output
+COPY src/cli-tools/color-scheme-generator /app/csg
+COPY src/shared/config-assembler-engine /app/config-assembler-engine
+COPY src/shared/oci-runtime /app/oci-runtime
+COPY src/shared/cli-output /app/cli-output
 RUN pip install --no-cache-dir /app/config-assembler-engine /app/oci-runtime /app/cli-output /app/csg && \
     mkdir -p /home/csguser && chmod 777 /home/csguser
 ENV HOME=/home/csguser

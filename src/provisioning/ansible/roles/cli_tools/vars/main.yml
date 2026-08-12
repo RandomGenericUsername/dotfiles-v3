@@ -13,6 +13,20 @@ cli_tools_repo_root: "{{ playbook_dir }}/../../../.."
 #   Uses ansible_facts.env (not the deprecated top-level ansible_env fact).
 cli_tools_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
 
+# cli_tools_container_engine: the container engine used to build the CLI
+#   container images (`csg install --container-engine ...`). Podman is the
+#   product decision (2026-08-12); docker is the supported fallback. Single
+#   switch — the same value is passed to every image-build task.
+cli_tools_container_engine: podman
+
+# cli_tools_image_builds: the container-mode CLIs whose container images this
+#   role builds after `uv tool install`. `itr` is deliberately absent (no
+#   container mode). `weg` is absent until a provisioning role runs it in
+#   container mode (the assets role only runs `weg dump-effects`, which is
+#   local). Each entry maps to the CLI's `install` command.
+cli_tools_image_builds:
+  - { name: csg }
+
 # cli_tools: install specs mirroring dotfiles/provisioning/cli-tools.yaml
 #   (csg/weg/itr -> repo source paths). The console-script name is the
 #   install target; `itr` IS the icon-renderer (no separate binary).

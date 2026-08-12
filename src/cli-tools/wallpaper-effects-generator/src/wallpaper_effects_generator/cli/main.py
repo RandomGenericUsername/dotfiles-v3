@@ -11,7 +11,12 @@ from wallpaper_effects_generator.cli.dump_config import dump_config_command
 from wallpaper_effects_generator.cli.dump_effects import dump_effects_command
 from wallpaper_effects_generator.cli.info import info_command
 from wallpaper_effects_generator.cli.install import install_command
-from wallpaper_effects_generator.cli.options import CONFIG_OPT, EFFECTS_OPT, ENGINE_OPT
+from wallpaper_effects_generator.cli.options import (
+    CONFIG_OPT,
+    EFFECTS_OPT,
+    ENGINE_OPT,
+    SOURCE_ROOT_OPT,
+)
 from wallpaper_effects_generator.cli.process import process_app
 from wallpaper_effects_generator.cli.show import show_app
 from wallpaper_effects_generator.cli.uninstall import uninstall_command
@@ -25,6 +30,7 @@ from wallpaper_effects_generator.constants import (
     EFFECTS_XDG_SUBDIR,
 )
 from wallpaper_effects_generator.domain.enums import ContainerEngine, OutputFormat, Verbosity
+from wallpaper_effects_generator.domain.exceptions import WallpaperEffectsError
 from wallpaper_effects_generator.factory import (
     CliDependencies,
     create_config_resolver,
@@ -175,16 +181,21 @@ def install(
     container_engine: ContainerEngine | None = ENGINE_OPT,
     dump_config: bool = typer.Option(False, "--dump-config", help="Write default settings.toml"),
     dump_effects: bool = typer.Option(False, "--dump-effects", help="Write default effects.yaml"),
+    source_root: Path | None = SOURCE_ROOT_OPT,
 ) -> None:
     deps = ctx.obj["deps"]
-    install_command(
-        config_resolver=deps.config_resolver,
-        output_adapter=_get_output_adapter(ctx),
-        config_path=str(config_path) if config_path else None,
-        dump_config=dump_config,
-        dump_effects=dump_effects,
-        container_engine=container_engine,
-    )
+    try:
+        install_command(
+            config_resolver=deps.config_resolver,
+            output_adapter=_get_output_adapter(ctx),
+            config_path=str(config_path) if config_path else None,
+            dump_config=dump_config,
+            dump_effects=dump_effects,
+            container_engine=container_engine,
+            source_root=str(source_root) if source_root else None,
+        )
+    except WallpaperEffectsError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 @app.command(help="Remove the installed container image")

@@ -200,13 +200,21 @@ class TestDefaultPaletteTasks:
         )
 
     def test_generate_task_env_contract(self) -> None:
-        """AC 3/9/11: the generate task's `environment` sets
+        """AC 3/9/11 + container mode (product decision 2026-08-12): the
+        generate task's `environment` sets
+        COLORSCHEME__RUNTIME__MODE: "container",
+        COLORSCHEME__CONTAINER__ENGINE: "{{ default_palette_container_engine }}",
         COLORSCHEME__OUTPUT__OVERWRITE: "true" and
         COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}" and
         PATH starting with `{{ default_palette_bin_dir }}:`."""
         task = _generate_task()
         env = task.get("environment")
         assert isinstance(env, dict), "generate task must set environment"
+        assert env.get("COLORSCHEME__RUNTIME__MODE") == "container", (
+            "generate task must run csg in CONTAINER mode (product decision "
+            "2026-08-12) — local mode would require host-side backends"
+        )
+        assert env.get("COLORSCHEME__CONTAINER__ENGINE") == "{{ default_palette_container_engine }}"
         assert env.get("COLORSCHEME__OUTPUT__DIRECTORY") == "{{ default_palette_output_dir }}"
         assert env.get("COLORSCHEME__OUTPUT__OVERWRITE") == "true"
         assert str(env.get("PATH", "")).startswith("{{ default_palette_bin_dir }}:"), (
@@ -321,6 +329,7 @@ class TestDefaultPaletteTasks:
 class TestDefaultPaletteVars:
     _REQUIRED_KEYS = {
         "default_palette_bin_dir",
+        "default_palette_container_engine",
         "default_palette_default_image",
         "default_palette_output_dir",
         "default_palette_formats",
@@ -333,6 +342,13 @@ class TestDefaultPaletteVars:
     def test_bin_dir_defaults_under_home(self) -> None:
         data = _vars()
         assert str(data["default_palette_bin_dir"]) == "{{ ansible_facts.env.HOME }}/.local/bin"
+
+    def test_container_engine_defaults_to_podman(self) -> None:
+        """Product decision (2026-08-12): podman is the preferred engine; docker
+        is the overridable fallback. Must match the engine the cli_tools role
+        used for `csg install` so the generate-time image name resolves."""
+        data = _vars()
+        assert data["default_palette_container_engine"] == "podman"
 
     def test_default_image_and_output_dir_are_trim_locked(self) -> None:
         """2.5 review lock: path-bearing vars consume the same trimmed

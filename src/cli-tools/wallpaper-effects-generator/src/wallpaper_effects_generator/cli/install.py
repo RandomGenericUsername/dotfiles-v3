@@ -4,17 +4,21 @@ import os
 from importlib.resources import files as resource_files
 from pathlib import Path
 
-from oci_runtime import BuildContext, engine_qualified_image
+from oci_runtime import BuildContext, engine_qualified_image, resolve_source_root
+from oci_runtime.domain.exceptions import SourceRootNotFoundError
 
 from wallpaper_effects_generator.constants import CONFIG_XDG_SUBDIR
 from wallpaper_effects_generator.domain.enums import ContainerEngine
 from wallpaper_effects_generator.domain.exceptions import (
     ContainerRuntimeUnavailableError,
+    WallpaperEffectsError,
 )
 from wallpaper_effects_generator.domain.models import AppSettings, ContainerSettings
 from wallpaper_effects_generator.factory import create_container_engine
 from wallpaper_effects_generator.ports.config_resolver import ConfigResolverPort
 from wallpaper_effects_generator.ports.output import OutputPort
+
+_SOURCE_ROOT_ENV = "WEG_SOURCE_ROOT"
 
 
 def install_command(
@@ -24,6 +28,7 @@ def install_command(
     dump_config: bool = False,
     dump_effects: bool = False,
     container_engine: ContainerEngine | None = None,
+    source_root: str | None = None,
 ) -> None:
     settings = config_resolver.resolve(explicit_path=Path(config_path) if config_path else None)
     if container_engine is not None:
@@ -48,10 +53,20 @@ def install_command(
     if not engine.is_available():
         raise ContainerRuntimeUnavailableError(runtime=settings.container.engine)
 
+    # The build context is the source repo. Resolve it up front so a missing
+    # context fails loudly instead of building against a wrong directory.
+    try:
+        repo_root = resolve_source_root(
+            package="wallpaper_effects_generator",
+            override=Path(source_root) if source_root else None,
+            env_var=_SOURCE_ROOT_ENV,
+        ).root
+    except SourceRootNotFoundError as exc:
+        raise WallpaperEffectsError(str(exc)) from None
+
     df_path = resource_files("wallpaper_effects_generator.adapters.docker").joinpath(
         "Dockerfile.imagemagick"
     )
-    repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
 
     output_adapter.message(f"Building container image {image_name}...")
     image_id = engine.images.build(
