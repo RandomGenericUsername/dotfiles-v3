@@ -342,6 +342,37 @@ class TestDefaultPaletteTasks:
                 "engine assert must be gated when: not ansible_check_mode"
             )
 
+    def test_generated_palette_files_verified_after_generate(self) -> None:
+        """Review finding 2026-08-12: csg exits 0 even on a silent render
+        failure, so a stat loop over colors.conf/.css/.yaml + a fail-loud assert
+        (both --check-gated) must follow the generate task."""
+        stat_tasks = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.stat"
+            and "default_palette_output_dir" in str(_module(task).get("path", ""))
+        ]
+        expected = ["colors.conf", "colors.css", "colors.yaml"]
+        verify = [task for task in stat_tasks if [str(x) for x in task.get("loop", [])] == expected]
+        assert verify, "expected a stat loop over colors.conf/.css/.yaml"
+        for task in verify:
+            assert task.get("register") == "default_palette_output_check"
+            assert task.get("when") == "not ansible_check_mode", (
+                "output-file stat must be gated when: not ansible_check_mode"
+            )
+
+        asserts = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.assert"
+            and "default_palette_output_check.results" in str(_module(task).get("that", ""))
+        ]
+        assert asserts, "expected an assert on the generated palette files"
+        for task in asserts:
+            assert task.get("when") == "not ansible_check_mode", (
+                "output-file assert must be gated when: not ansible_check_mode"
+            )
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context (AC 10): NO become/become_user anywhere
         — everything the role writes lives under the user's install_dir."""

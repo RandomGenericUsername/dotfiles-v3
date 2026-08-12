@@ -153,3 +153,31 @@
     COLORSCHEME__OUTPUT__OVERWRITE: "true"
     PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"
   when: not ansible_check_mode
+
+# Post-generate verification (review finding 2026-08-12): csg exits 0 even when
+# a template render fails silently (LocalProcessor collects render errors into
+# result.stderr and the CLI never raises), so `success` / rc 0 does NOT prove the
+# palette was written. The verify gate (Story 2.12, done-criterion 6) checks
+# these files later, but this role fails LOUD at the point of failure instead of
+# reporting `ok` with zero output files. Both tasks are --check-gated (mirror of
+# the default.png stat+assert pair).
+
+- name: Verify generated palette files exist
+  ansible.builtin.stat:
+    path: "{{ default_palette_output_dir + '/' + item }}"
+  loop:
+    - colors.conf
+    - colors.css
+    - colors.yaml
+  register: default_palette_output_check
+  when: not ansible_check_mode
+
+- name: Assert generated palette files are present
+  ansible.builtin.assert:
+    that: default_palette_output_check.results | selectattr('stat.exists') | list | length == 3
+    fail_msg: >-
+      Palette generation reported success but not all three output files are
+      present in {{ default_palette_output_dir }} (expected colors.conf,
+      colors.css, colors.yaml). csg can exit 0 on a silent render failure —
+      inspect the generate task output and the container logs, then re-apply
+  when: not ansible_check_mode
