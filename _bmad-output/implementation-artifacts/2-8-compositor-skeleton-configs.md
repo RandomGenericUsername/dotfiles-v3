@@ -4,7 +4,7 @@ baseline_commit: 521fa7d
 
 # Story 2.8: Compositor Skeleton Configs
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -53,6 +53,16 @@ So that the compositor_configs role has source files to place.
   - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
   - [x] `git status --short` shows ONLY new skeleton files + the new test file (AC 6)
 
+### Review Findings
+
+- [x] [Review][Decision] Waybar skeleton `@colorN` refs don't match the csg `colors.css` fragment — **RESOLVED 2026-08-12**: switched the Waybar fragment to CSG's `gtk.css` format (emits `@define-color color_00..15`) in the default_palette role, and re-aligned `dotfiles/config/waybar/style.css` refs to the `gtk.css` naming (`@color_00`, `@color_07`, `@color_10`, focused `@color_01` — `@color16` dropped; it exists in no csg format, the accent is `colors[1]` = `@color_01`). Target `~/.config/waybar/colors.css` name and the `@import "colors.css"` header line unchanged (2.9 copies `colors.gtk.css` → `colors.css`).
+- [x] [Review][Patch] Waybar `"workspaces"` module name invalid — [dotfiles/config/waybar/config:8,73] — **DONE 2026-08-12**: renamed to `"hyprland/workspaces"` (modules-left + config block); Waybar registers `hyprland/workspaces` for Hyprland, bare `workspaces` was silently skipped.
+- [x] [Review][Patch] `read_text()` without explicit encoding — [src/provisioning/tests/unit/test_compositor_skeleton_configs.py:55,93,101,108] — **DONE 2026-08-12**: `encoding="utf-8"` on all reads; files carry em-dashes (U+2014), ASCII-locale CI would have crashed with `UnicodeDecodeError`.
+- [x] [Review][Patch] Hyprpaper exact-line assertions use substring `in` — [src/provisioning/tests/unit/test_compositor_skeleton_configs.py:93,101] — **DONE 2026-08-12**: switched to full-line equality (`splitlines()` membership), honoring the "exact string, loud failure" contract.
+- [x] [Review][Defer] Hyprland fragment `rgb(hex)` notation only valid on Hyprland ≥0.55; no version pinned — [dotfiles/config/hypr/hyprland.conf:17-18, src/provisioning/ansible/group_vars/arch.yml:8] — deferred, pre-existing: value format is emitted by csg/Story 2.7 and version pinning is the packages role (2.3) concern, not this skeleton's.
+- [x] [Review][Defer] hyprlang syntax deprecated since Hyprland 0.55 (config moved to Lua); no migration owner — [dotfiles/config/hypr/hyprland.conf:6-44] — deferred, pre-existing: plan §6 locks hyprlang skeletons and `-f conf`; migration is a Phase-2/plan-level decision, not a 2.8 defect.
+- [x] [Review][Defer] Missing/partial palette fragment at first boot has no fallback — [dotfiles/config/hypr/hyprland.conf:7, dotfiles/config/waybar/style.css:1] — deferred, pre-existing: skeleton correctly sources a fragment only 2.9 places; ordering/verify is owned by 2.9 + 2.12 + 3.2/3.3 integration.
+
 ## Dev Notes
 
 ### Scope — what Story 2.8 is and is not
@@ -81,7 +91,7 @@ The AC says the Hyprpaper skeleton "is flat static pointing at `<install>/wallpa
 The skeletons are FIRST-BOOT MINIMAL — functional enough that Story 2.9's placement + Story 3.2/3.3's integration checks pass, but deliberately thin (Phase 2 owns rich theming). Author reasonable, idiomatic content; the ACs only pin the header lines and the Hyprpaper path, and the tests lock those. Do not gold-plate.
 
 - **`hypr/hyprland.conf`**: first line `source = ~/.config/hypr/colors.conf`, then a minimal valid Hyprland config — at minimum: a `monitor` line, a couple of `general`/`decoration` settings that consume the sourced vars (e.g. `col.active_border` referencing a `$color` var), and an `exec-once` for `hyprpaper`. Reference variables defined by `colors.conf` (the Story 2.7 fragment exposes `$background/$foreground/$cursor/$accent/$color0..15`). The sourced fragment is a SEPARATE file (copied by 2.9 to `~/.config/hypr/colors.conf`) — the skeleton only `source`s it, never inlines colors.
-- **`waybar/style.css`**: first line `@import "colors.css";`, then minimal CSS using a couple of `@colorN` variables (matching the wlogout `.tpl` variable naming idiom, e.g. `@color16`/`@color10`).
+- **`waybar/style.css`**: first line `@import "colors.css";`, then minimal CSS using a couple of `@color_0N` variables matching the csg `gtk.css` format naming (`color_00..color_15`, zero-padded — review finding 2026-08-12: the pre-2.8 `@colorN` refs matched neither the `css`-format output (browser custom props) nor the `gtk.css` naming; the fragment is now emitted as `gtk.css` and the refs use `@color_00/@color_07/@color_10` with the accent `@color_01`).
 - **`waybar/config`**: minimal Waybar JSONC (a bar with a clock + a couple of modules) — the plan §6 calls out "static config + style.css" for Waybar, so both files belong in the dir. JSONC (comments allowed) is standard Waybar.
 - **`hyprpaper/hyprpaper.conf`**: exactly two functional lines — `preload = ~/.local/share/dotfiles/wallpapers/default.png` and `wallpaper = ,~/.local/share/dotfiles/wallpapers/default.png` (empty monitor selector applies to all monitors; keep the comma). Add a short header comment explaining the baked default path and the Phase 2 re-bake note.
 
@@ -138,7 +148,7 @@ This story mirrors the Story 2.1 "repo-content" pattern (author repo files + rea
 ## Previous Story Intelligence
 
 ### Story 2.7 — Default Palette Role (the immediate predecessor; DONE 2026-08-12)
-- Emits the fragments these skeletons consume: `csg generate -f conf -f css -f yaml` → `<install>/generated/palettes/colors.conf` (Hyprland), `colors.css` (Waybar), `colors.yaml` (ITR). 2.9 copies `colors.conf` → `~/.config/hypr/colors.conf` and `colors.css` → `~/.config/waybar/colors.css`. [Source: 2-7-default-palette-role.md, roles/default_palette/tasks/main.yml]
+- Emits the fragments these skeletons consume: `csg generate -f conf -f gtk.css -f yaml` → `<install>/generated/palettes/colors.conf` (Hyprland), `colors.gtk.css` (Waybar — corrected from `css` by review finding 2026-08-12; `gtk.css` emits `@define-color` the skeleton consumes), `colors.yaml` (ITR). 2.9 copies `colors.conf` → `~/.config/hypr/colors.conf` and `colors.gtk.css` → `~/.config/waybar/colors.css`. [Source: 2-7-default-palette-role.md, roles/default_palette/tasks/main.yml]
 - `$accent == $color1` Hyprland contract — the sourced fragment exposes `$color0..15`, which the Hyprland skeleton may reference.
 - The "skeletons never change; fragments are the Phase 2 overwrite target" invariant (Story 2.9 AC) — the skeletons authored here MUST be static (2.8 ships the source), and the fragment FILES are the only overwrite candidates (2.9's job).
 
@@ -209,7 +219,7 @@ opencode (deepseek-v4-flash)
 
 ### Completion Notes List (implementation 2026-08-12)
 
-- Implemented all three skeleton dirs per Dev Notes "Skeleton content guidance": minimal-but-valid Hyprland config sourcing `colors.conf` and consuming `$color1`/`$background` (AC 1); Waybar `style.css` importing `colors.css` and using `@color0/@color7/@color10/@color16` (AC 2) + minimal JSONC bar with clock/workspaces/status modules (AC 3); Hyprpaper flat-static config with header comment explaining the baked default path and Phase 2 re-bake note (AC 4).
+- Implemented all three skeleton dirs per Dev Notes "Skeleton content guidance": minimal-but-valid Hyprland config sourcing `colors.conf` and consuming `$color1`/`$background` (AC 1); Waybar `style.css` importing `colors.css` and using `@color_00/@color_07/@color_10` + accent `@color_01` (AC 2; review finding 2026-08-12 re-aligned the refs to the csg `gtk.css` format naming — the fragment is emitted as `gtk.css`, not `css`) + minimal JSONC bar with clock/workspaces/status modules (AC 3); Hyprpaper flat-static config with header comment explaining the baked default path and Phase 2 re-bake note (AC 4).
 - Authored `test_compositor_skeleton_configs.py` with 13 tests: `_find_repo_root()` walk-up resolver anchored on `dotfiles/config/hypr/hyprland.conf` (mirrors `_find_ansible_dir()`, fails loudly at import); exact-string first-line assertions for `hyprland.conf`/`style.css`; exact-string `preload`/`wallpaper` line assertions + `<install>`-placeholder guard for `hyprpaper.conf`; waybar `config` existence; AC 5 existing-dir known-file presence checks (nvim/init.lua, starship/starship.toml, wlogout/layout + style.css.tpl, zsh/.zshrc.j2, ≥1 icon-template-color-scheme-mappings/*.yaml); no-template-suffix check + dir-naming contract.
 - Validation gates: `uv run pytest` 334 passed (no regressions from 280 baseline); `uv run ruff check .` clean; `uv run ruff format --check .` clean (47 files); `python tests/architecture/test_layering.py` → `OK: 17 source files checked across 6 architectural rules`; `git status --short` shows ONLY the 5 intended new files (AC 6).
 - Status → review.

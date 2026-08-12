@@ -5,10 +5,10 @@
     "position": "top",
     "height": 30,
     "spacing": 4,
-    "modules-left": ["workspaces"],
+    "modules-left": ["hyprland/workspaces"],
     "modules-center": ["clock"],
     "modules-right": ["pulseaudio", "network", "battery"],
-    "workspaces": {
+    "hyprland/workspaces": {
         "format": "{name}"
     },
     "clock": {

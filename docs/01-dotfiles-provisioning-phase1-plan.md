@@ -202,7 +202,7 @@ dotfiles/config/
 
 Compositor color-fragment contract:
 - Hyprland `colors.conf` — emitted by the `default_palette` role via `csg generate -f conf` into `<install>/generated/palettes/colors.conf`, then copied to `~/.config/hypr/colors.conf`. Phase 2 overwrites it on palette change; the skeleton never changes.
-- Waybar `colors.css` — comes from CSG's existing `css` format (`<install>/generated/palettes/colors.css`), copied to `~/.config/waybar/colors.css`. Phase 2 overwrites it on palette change.
+- Waybar `colors.css` — comes from CSG's `gtk.css` format (`<install>/generated/palettes/colors.gtk.css`), copied to `~/.config/waybar/colors.css`. Phase 2 overwrites it on palette change. (Review finding 2026-08-12: the `css` format emits browser CSS custom properties that GTK/Waybar cannot read; `gtk.css` emits `@define-color`, which the Waybar skeleton consumes.)
 - Hyprpaper — flat static; Phase 2 rewrites only when the wallpaper actually changes.
 
 scripts/

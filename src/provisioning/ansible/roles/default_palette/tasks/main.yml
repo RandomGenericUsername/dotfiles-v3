@@ -167,7 +167,7 @@
     path: "{{ default_palette_output_dir + '/' + item }}"
   loop:
     - colors.conf
-    - colors.css
+    - colors.gtk.css
     - colors.yaml
   register: default_palette_output_check
   when: not ansible_check_mode
@@ -178,6 +178,6 @@
     fail_msg: >-
       Palette generation reported success but not all three output files are
       present in {{ default_palette_output_dir }} (expected colors.conf,
-      colors.css, colors.yaml). csg can exit 0 on a silent render failure —
+      colors.gtk.css, colors.yaml). csg can exit 0 on a silent render failure —
       inspect the generate task output and the container logs, then re-apply
   when: not ansible_check_mode

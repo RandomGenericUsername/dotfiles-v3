@@ -6,17 +6,17 @@
 }
 
 window#waybar {
-    background-color: @color0;
-    color: @color7;
+    background-color: @color_00;
+    color: @color_07;
 }
 
 #workspaces button {
-    color: @color10;
+    color: @color_10;
     padding: 0 6px;
 }
 
 #workspaces button.focused {
-    color: @color16;
+    color: @color_01;
 }
 
 #clock,
@@ -24,5 +24,5 @@ window#waybar {
 #network,
 #pulseaudio {
     padding: 0 8px;
-    color: @color10;
+    color: @color_10;
 }

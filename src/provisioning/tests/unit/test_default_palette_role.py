@@ -344,17 +344,17 @@ class TestDefaultPaletteTasks:
 
     def test_generated_palette_files_verified_after_generate(self) -> None:
         """Review finding 2026-08-12: csg exits 0 even on a silent render
-        failure, so a stat loop over colors.conf/.css/.yaml + a fail-loud assert
-        (both --check-gated) must follow the generate task."""
+        failure, so a stat loop over colors.conf/.gtk.css/.yaml + a fail-loud
+        assert (both --check-gated) must follow the generate task."""
         stat_tasks = [
             task
             for task in _load_tasks()
             if _module_key(task) == "ansible.builtin.stat"
             and "default_palette_output_dir" in str(_module(task).get("path", ""))
         ]
-        expected = ["colors.conf", "colors.css", "colors.yaml"]
+        expected = ["colors.conf", "colors.gtk.css", "colors.yaml"]
         verify = [task for task in stat_tasks if [str(x) for x in task.get("loop", [])] == expected]
-        assert verify, "expected a stat loop over colors.conf/.css/.yaml"
+        assert verify, "expected a stat loop over colors.conf/.gtk.css/.yaml"
         for task in verify:
             assert task.get("register") == "default_palette_output_check"
             assert task.get("when") == "not ansible_check_mode", (
@@ -445,12 +445,14 @@ class TestDefaultPaletteVars:
 
     def test_formats_are_the_contract_set(self) -> None:
         """Contract-driven format set (NOT the packaged json/sh defaults): conf
-        → Hyprland colors.conf, css → Waybar colors.css, yaml → ITR spine chain
-        colors.yaml."""
+        → Hyprland colors.conf, gtk.css → Waybar colors.gtk.css (copied by 2.9
+        to ~/.config/waybar/colors.css), yaml → ITR spine chain colors.yaml.
+        Review finding 2026-08-12: `css` was the pre-2.8 format; `gtk.css` is
+        the GTK/Waybar-consumable one (`@define-color` vs browser custom props)."""
         data = _vars()
         assert [str(fmt) for fmt in data["default_palette_formats"]] == [
             "conf",
-            "css",
+            "gtk.css",
             "yaml",
         ]
 

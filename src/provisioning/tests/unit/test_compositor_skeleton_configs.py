@@ -52,7 +52,7 @@ _TEMPLATE_SUFFIXES = (".j2", ".tpl")
 
 
 def _first_line(path: Path) -> str:
-    return path.read_text().splitlines()[0]
+    return path.read_text(encoding="utf-8").splitlines()[0]
 
 
 class TestHyprlandSkeleton:
@@ -89,23 +89,24 @@ class TestHyprpaperSkeleton:
 
     def test_preload_line_exact(self) -> None:
         """AC 4: exact `preload` line pointing at the default wallpaper path.
-        Exact string, not a regex, so a future path change is a loud failure."""
-        assert _HYPRPAPER_PRELOAD in _HYPRPAPER_CONF.read_text(), (
+        Full-line equality (splitlines), not substring containment, so a future
+        path change or a malformed line with trailing junk is a loud failure."""
+        assert _HYPRPAPER_PRELOAD in _HYPRPAPER_CONF.read_text(encoding="utf-8").splitlines(), (
             f"hyprpaper.conf must contain exactly {_HYPRPAPER_PRELOAD!r}"
         )
 
     def test_wallpaper_line_exact(self) -> None:
         """AC 4: exact `wallpaper` line (empty monitor selector + default path).
-        Exact string, not a regex, so a raw `<install>` placeholder can never
-        pass."""
-        assert _HYPRPAPER_WALLPAPER in _HYPRPAPER_CONF.read_text(), (
+        Full-line equality, so a raw `<install>` placeholder or trailing-junk
+        variant can never pass."""
+        assert _HYPRPAPER_WALLPAPER in _HYPRPAPER_CONF.read_text(encoding="utf-8").splitlines(), (
             f"hyprpaper.conf must contain exactly {_HYPRPAPER_WALLPAPER!r}"
         )
 
     def test_no_literal_install_placeholder(self) -> None:
         """AC 4 guard: the config is FLAT STATIC — a raw `<install>` literal
         must never appear (it would be a broken Hyprpaper path)."""
-        assert "<install>" not in _HYPRPAPER_CONF.read_text()
+        assert "<install>" not in _HYPRPAPER_CONF.read_text(encoding="utf-8")
 
 
 class TestExistingDirsUnchanged:

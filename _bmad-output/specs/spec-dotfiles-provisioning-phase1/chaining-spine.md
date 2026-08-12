@@ -123,7 +123,7 @@ The compositor configs provisioning places are static skeletons; the colors they
 | Fragment | Source | Target |
 |---|---|---|
 | Hyprland `colors.conf` | `csg generate -f conf` → `<install>/generated/palettes/colors.conf` | `~/.config/hypr/colors.conf` (copied by `compositor_configs` role) |
-| Waybar `colors.css` | CSG `css` format → `<install>/generated/palettes/colors.css` | `~/.config/waybar/colors.css` (copied) |
+| Waybar `colors.css` | CSG `gtk.css` format → `<install>/generated/palettes/colors.gtk.css` (review finding 2026-08-12: corrected from the browser-CSS `css` format; `gtk.css` emits `@define-color` the skeleton consumes) | `~/.config/waybar/colors.css` (copied) |
 | Hyprpaper wallpaper ref | `<install>/wallpapers/default.png` | baked into flat static `hyprpaper.conf` |
 
 Skeletons: `dotfiles/config/hypr/hyprland.conf` starts with `source = ~/.config/hypr/colors.conf`; `dotfiles/config/waybar/style.css` starts with `@import "colors.css";`; `dotfiles/config/hyprpaper/hyprpaper.conf` is flat static pointing at the default wallpaper. Phase 2 overwrites only the fragment files on palette change; the skeletons provisioning placed never change.
