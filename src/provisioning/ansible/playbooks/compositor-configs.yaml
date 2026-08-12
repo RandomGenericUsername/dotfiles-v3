@@ -1,0 +1,20 @@
+# Compositor configs playbook (Story 2.9) — one-per-role playbook; aggregation
+# into bootstrap.yaml is Story 2.12.
+#
+# User-scoped playbook: NO become (everything the role writes lives under the
+# user's config dirs and install_dir; running as root would diverge from the
+# intended user's layout).
+#
+# Distro-agnostic: skeleton placement and fragment copies are identical on Arch
+# and Debian-family and the role consumes no group_vars — so unlike packages.yaml
+# there is NO group_by distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives
+# compositor_configs_xdg_config_home from {{ ansible_facts.env.HOME }} and the
+# fragment copies interpolate {{ ansible_facts.env }} paths, which are only
+# populated after the fact-gathering setup module runs.
+- name: Place compositor configs
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - compositor_configs

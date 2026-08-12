@@ -4,13 +4,14 @@ baseline_commit: 5577a71
 
 # Story 2.9: Compositor Configs Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-12: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-19).
+- 2026-08-12: Implemented — `compositor_configs` role (vars + tasks), `compositor-configs.yaml` playbook, `test_compositor_configs_role.py` (20 tests); full suite 354 passed; ruff + layering clean; mypy-clean new file (10 pre-existing baseline errors unchanged). Status → review.
 
 ## Story
 
@@ -30,40 +31,40 @@ So that Hyprland/Waybar render with first-boot colors.
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/ansible/roles/compositor_configs/vars/main.yml` (AC: 1-7)
-  - [ ] `compositor_configs_repo_root`: `{{ playbook_dir }}/../../../..` (mirror `assets_repo_root`/`cli_tools_repo_root` exactly — see Dev Notes "Where files live")
-  - [ ] `compositor_configs_xdg_config_home`: same XDG-config-home derivation as the filesystem role's `filesystem_xdg_config_home` (honors `$XDG_CONFIG_HOME`, default `{{ ansible_facts.env.HOME }}/.config`; uses `ansible_facts.env`, NOT the deprecated top-level `ansible_env` fact) — see Dev Notes "The `~/.config` vs XDG home decision"
-  - [ ] Skeleton copy list mapping the three `dotfiles/config/{hypr,hyprpaper,waybar}/` dirs → `{{ compositor_configs_xdg_config_home }}/{hypr,hyprpaper,waybar}` (AC 2)
-  - [ ] Fragment copy list mapping palette files → user-config fragment targets (AC 3, 4):
+- [x] Create `src/provisioning/ansible/roles/compositor_configs/vars/main.yml` (AC: 1-7)
+  - [x] `compositor_configs_repo_root`: `{{ playbook_dir }}/../../../..` (mirror `assets_repo_root`/`cli_tools_repo_root` exactly — see Dev Notes "Where files live")
+  - [x] `compositor_configs_xdg_config_home`: same XDG-config-home derivation as the filesystem role's `filesystem_xdg_config_home` (honors `$XDG_CONFIG_HOME`, default `{{ ansible_facts.env.HOME }}/.config`; uses `ansible_facts.env`, NOT the deprecated top-level `ansible_env` fact) — see Dev Notes "The `~/.config` vs XDG home decision"
+  - [x] Skeleton copy list mapping the three `dotfiles/config/{hypr,hyprpaper,waybar}/` dirs → `{{ compositor_configs_xdg_config_home }}/{hypr,hyprpaper,waybar}` (AC 2)
+  - [x] Fragment copy list mapping palette files → user-config fragment targets (AC 3, 4):
       - `<install>/generated/palettes/colors.conf` → `{{ compositor_configs_xdg_config_home }}/hypr/colors.conf`
       - `<install>/generated/palettes/colors.gtk.css` → `{{ compositor_configs_xdg_config_home }}/waybar/colors.css` (RENAME — see Dev Notes "The `colors.css` rename")
-  - [ ] All install-dir derived values consume the validated `{{ install_dir | trim }}` (trim lock)
-- [ ] Create `src/provisioning/ansible/roles/compositor_configs/tasks/main.yml` (AC: 1-7)
-  - [ ] FIRST task: the fail-loud install_dir seam assert, copied VERBATIM from the filesystem/assets/default_palette roles (AC: indirect, role contract)
-  - [ ] Copy skeleton dirs: `ansible.builtin.copy` with `remote_src: true`, `src` ending with `/` (contents-into-dest), `dest` the per-compositor config dir, **`force: false`** (AC 2, 5 — see Dev Notes "Copy module semantics", the "Skeletons never change" bullet)
-  - [ ] Copy fragments: `ansible.builtin.copy` `colors.conf` → hypr, `colors.gtk.css` → waybar/colors.css (AC 3, 4) — these are the ONLY overwrite candidates
-  - [ ] Header comment documenting the "skeletons never change; fragments are the Phase 2 overwrite target" invariant as load-bearing (AC 7)
-  - [ ] NO become/become_user anywhere (user-scoped role, mirror 2.5-2.8)
-  - [ ] NO hardcoded absolute paths (everything via `{{ compositor_configs_repo_root }}` and `{{ install_dir | trim }}`)
-- [ ] Create `src/provisioning/ansible/playbooks/compositor-configs.yaml` (AC: 1)
-  - [ ] `hosts: localhost`, `gather_facts: true`, `roles: [compositor_configs]`, NO become, NO group_by (distro-agnostic, mirror default-palette.yaml)
-- [ ] Add structural real-file tests `src/provisioning/tests/unit/test_compositor_configs_role.py` (AC: 1-7)
-  - [ ] Role tree exists: `tasks/main.yml`, `vars/main.yml`
-  - [ ] Tasks parse to a list of named tasks
-  - [ ] First task is the fail-loud install_dir assert (verbatim form)
-  - [ ] Skeleton copy tasks: three `ansible.builtin.copy` with `remote_src: true`, `src` ending `/`, sources prefixed `{{ compositor_configs_repo_root }}/dotfiles/config/<dir>/`, **`force: false`** (AC 2, 5)
-  - [ ] Fragment copy tasks: exactly `colors.conf` → hypr/colors.conf and `colors.gtk.css` → waybar/colors.css (AC 3, 4 — lock the RENAME)
-  - [ ] Idempotency contract: skeleton copies MUST set `force: false` and carry NO `creates:` (transfer-only-if-absent; a placed skeleton is never re-touched); fragment copies are the overwrite candidates (AC 5, 6)
-  - [ ] Invariant documented: task file header mentions "skeletons never change; fragments are the Phase 2 overwrite target" (AC 7)
-  - [ ] NO become/become_user anywhere
-  - [ ] No hardcoded absolute paths in module bodies (trim lock)
-  - [ ] vars test: required keys, XDG-config-home derivation honors `$XDG_CONFIG_HOME`, install-dir values trim-locked
-  - [ ] playbook test: parses, `hosts: localhost`, `gather_facts: true`, `roles: [compositor_configs]`, no become, no group_by
-- [ ] Verify full suite + lint + layering guard (AC: 6)
-  - [ ] `uv run pytest` — full suite green, no regressions from the 334-pass baseline (Story 2.8)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (mypy baseline: 10 pre-existing errors in test_default_palette_role.py + test_cli_tools_role.py — see Dev Agent Record in 2.8; new file must be clean)
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
-  - [ ] `git status --short` shows ONLY the new role dir, playbook, and test file (plus any pre-existing dirty working-tree files from the 2.8 review findings — see Git Intelligence)
+  - [x] All install-dir derived values consume the validated `{{ install_dir | trim }}` (trim lock)
+- [x] Create `src/provisioning/ansible/roles/compositor_configs/tasks/main.yml` (AC: 1-7)
+  - [x] FIRST task: the fail-loud install_dir seam assert, copied VERBATIM from the filesystem/assets/default_palette roles (AC: indirect, role contract)
+  - [x] Copy skeleton dirs: `ansible.builtin.copy` with `remote_src: true`, `src` ending with `/` (contents-into-dest), `dest` the per-compositor config dir, **`force: false`** (AC 2, 5 — see Dev Notes "Copy module semantics", the "Skeletons never change" bullet)
+  - [x] Copy fragments: `ansible.builtin.copy` `colors.conf` → hypr, `colors.gtk.css` → waybar/colors.css (AC 3, 4) — these are the ONLY overwrite candidates
+  - [x] Header comment documenting the "skeletons never change; fragments are the Phase 2 overwrite target" invariant as load-bearing (AC 7)
+  - [x] NO become/become_user anywhere (user-scoped role, mirror 2.5-2.8)
+  - [x] NO hardcoded absolute paths (everything via `{{ compositor_configs_repo_root }}` and `{{ install_dir | trim }}`)
+- [x] Create `src/provisioning/ansible/playbooks/compositor-configs.yaml` (AC: 1)
+  - [x] `hosts: localhost`, `gather_facts: true`, `roles: [compositor_configs]`, NO become, NO group_by (distro-agnostic, mirror default-palette.yaml)
+- [x] Add structural real-file tests `src/provisioning/tests/unit/test_compositor_configs_role.py` (AC: 1-7)
+  - [x] Role tree exists: `tasks/main.yml`, `vars/main.yml`
+  - [x] Tasks parse to a list of named tasks
+  - [x] First task is the fail-loud install_dir assert (verbatim form)
+  - [x] Skeleton copy tasks: three `ansible.builtin.copy` with `remote_src: true`, `src` ending `/`, sources prefixed `{{ compositor_configs_repo_root }}/dotfiles/config/<dir>/`, **`force: false`** (AC 2, 5)
+  - [x] Fragment copy tasks: exactly `colors.conf` → hypr/colors.conf and `colors.gtk.css` → waybar/colors.css (AC 3, 4 — lock the RENAME)
+  - [x] Idempotency contract: skeleton copies MUST set `force: false` and carry NO `creates:` (transfer-only-if-absent; a placed skeleton is never re-touched); fragment copies are the overwrite candidates (AC 5, 6)
+  - [x] Invariant documented: task file header mentions "skeletons never change; fragments are the Phase 2 overwrite target" (AC 7)
+  - [x] NO become/become_user anywhere
+  - [x] No hardcoded absolute paths in module bodies (trim lock)
+  - [x] vars test: required keys, XDG-config-home derivation honors `$XDG_CONFIG_HOME`, install-dir values trim-locked
+  - [x] playbook test: parses, `hosts: localhost`, `gather_facts: true`, `roles: [compositor_configs]`, no become, no group_by
+- [x] Verify full suite + lint + layering guard (AC: 6)
+  - [x] `uv run pytest` — full suite green, no regressions from the 334-pass baseline (Story 2.8)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (mypy baseline: 10 pre-existing errors in test_default_palette_role.py + test_cli_tools_role.py — see Dev Agent Record in 2.8; new file must be clean)
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+  - [x] `git status --short` shows ONLY the new role dir, playbook, and test file (plus any pre-existing dirty working-tree files from the 2.8 review findings — see Git Intelligence)
 
 ## Dev Notes
 
@@ -233,6 +234,11 @@ opencode (deepseek-v4-flash)
 - Locked XDG-config-home derivation mirror (2.5) for the copy destinations; `ansible_facts.env` (F4 lock).
 - Scope guards: no manifest (no sixth manifest — parity lives in the copy-list ↔ skeleton/fragment-name structural test), no Python hexagon changes, no skeleton edits, no `default_palette` changes.
 - Status → ready-for-dev.
+- **Implemented (2026-08-12):** `roles/compositor_configs/vars/main.yml` — `compositor_configs_repo_root` (mirror assets/cli_tools), `compositor_configs_xdg_config_home` (identical 2.5 XDG derivation, `ansible_facts.env`), `compositor_configs_config_dirs` (the three dirs, re-ensured for direct-run self-containment), `compositor_configs_skeleton_copies` (3 entries, trailing-`/` srcs, `compositor_configs_xdg_config_home` dests), `compositor_configs_fragment_copies` (2 entries locking the `colors.gtk.css` → `colors.css` rename; sources trim-locked). `roles/compositor_configs/tasks/main.yml` — first-task verbatim install_dir assert; `file` dir-ensure loop (NOT check-gated — `file` is natively check-safe); one skeleton copy loop task with `remote_src: true` + `force: false` (AC 5 — never re-touch a placed skeleton) and NO `creates:`; fragment source stat+assert pair (both `when: not ansible_check_mode`, fail_msg naming the default-palette playbook); one fragment copy loop task with NO `creates:` gated `when: not ansible_check_mode` (sources may be absent under --check). Header documents "skeletons never change; fragments are the Phase 2 overwrite target" (AC 7). No become, no absolute paths.
+- `playbooks/compositor-configs.yaml` — `hosts: localhost`, `gather_facts: true`, `roles: [compositor_configs]`, no become, no group_by.
+- Tests: `tests/unit/test_compositor_configs_role.py` (20 tests) locks role tree, tasks parse + named, first-task install_dir assert (verbatim form), skeleton copy task (loop over exactly the 3 dirs, `remote_src: true`, trailing-`/` src, `force: false`, no creates, dests under XDG home), fragment copy pair (rename locked: `colors.gtk.css` → `colors.css`, no creates, check-gated), fragment stat+assert pair (both check-gated), config-dir file task (directory, not check-gated), AC 7 invariant string in header, no become, no hardcoded absolute paths (trim lock), vars (required keys, repo_root mirror, XDG honors + F4 lock, fragment sources trim-locked), playbook (parses, localhost/gather_facts/roles, no become, no group_by), and `ansible-playbook --syntax-check` (exit 0).
+- Validation gates: `uv run pytest` 354 passed (no regressions from 334-pass baseline); `uv run ruff check .` clean; `uv run ruff format --check .` clean (48 files); `uv run mypy src tests` = 10 pre-existing baseline errors unchanged (new file clean: `Success: no issues found in 1 source file`); `python tests/architecture/test_layering.py` → `OK: 17 source files checked across 6 architectural rules`; `git status --short` shows ONLY the 3 intended new paths.
+- Status → review.
 
 ### File List
 

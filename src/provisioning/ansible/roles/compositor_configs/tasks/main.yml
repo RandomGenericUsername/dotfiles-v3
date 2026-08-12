@@ -1,0 +1,88 @@
+# Compositor configs role (Story 2.9) — copies the 2.8-authored static
+# skeletons from dotfiles/config/{hypr,hyprpaper,waybar}/ into the user config
+# dirs the filesystem role (2.5) created, and copies the 2.7-generated palette
+# fragments into the user config: colors.conf -> ~/.config/hypr/colors.conf and
+# colors.gtk.css -> ~/.config/waybar/colors.css (FR-19, chaining-spine.md).
+#
+# Design (locked in Story 2.9 Dev Notes):
+# - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
+#   from the filesystem/assets/default_palette roles: install_dir is
+#   deliberately never defaulted (group_vars/all.yml), so an undefined spine
+#   root must abort with a friendly message before any task evaluates.
+# - "skeletons never change; fragments are the Phase 2 overwrite target"
+#   (AC 5, 7): the skeleton copies carry `force: false` — copy transfers only
+#   if the destination does not exist, so a placed skeleton is NEVER re-touched
+#   on any re-run (copy's default `force: true` would clobber a user's hand
+#   edits). The fragment copies are the ONLY overwrite candidates (AC 5, 7):
+#   copy's default `force: true` means a regenerated palette (FR-18, no
+#   `creates:` in 2.7) propagates on the next apply. NO `creates:` on either —
+#   not needed on skeletons (force: false already guarantees no re-transfer)
+#   and forbidden on fragments (a gate would freeze a stale fragment).
+# - copy module check-mode support is FULL (action plugin predicts changed
+#   without writing) — the skeleton copies need NO `not ansible_check_mode`
+#   gate. The fragment copies ARE gated `when: not ansible_check_mode`: under
+#   --check the default_palette generate is skipped, so the fragment sources
+#   are legitimately absent on a fresh target (dry-run must be dry, 2.7/2.8
+#   discipline).
+# - Fragment sources must exist before the copy (fail-loud direct-run
+#   prerequisite): a stat + assert PAIR on the two fragment sources, both gated
+#   `when: not ansible_check_mode` (an assert alone cannot check file
+#   existence), with a fail_msg naming the default-palette playbook. The
+#   fragment ordering/verify guarantee is owned by 2.9 + 2.12 + 3.2/3.3; the
+#   deferred "default colors fallback" is a Phase 2 concern, NOT added here.
+# - copy does NOT create dest parents for file sources — the config dirs are
+#   re-ensured first (mirror of the 2.6 "Ensure asset deploy targets exist"
+#   pattern) so a direct compositor-configs.yaml run is self-contained.
+# - No manifest parity: there is NO dotfiles/provisioning/compositor-configs.yaml
+#   manifest — the five manifests are locked in Story 2.1; the compositor
+#   content contract lives in the skeleton files (2.8) + fragment names (2.7)
+#   and is locked by the structural test.
+# - User-scoped privilege context: NO become/become_user anywhere.
+# - No absolute repo paths: every source is {{ compositor_configs_repo_root }}/...
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the compositor_configs role requires
+      the install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure compositor config dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop: "{{ compositor_configs_config_dirs }}"
+
+- name: Place compositor skeleton dirs
+  ansible.builtin.copy:
+    src: "{{ compositor_configs_repo_root }}/{{ item.source }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+    force: false
+  loop: "{{ compositor_configs_skeleton_copies }}"
+
+- name: Check palette fragment sources exist
+  ansible.builtin.stat:
+    path: "{{ item.source }}"
+  loop: "{{ compositor_configs_fragment_copies }}"
+  register: compositor_configs_fragment_check
+  when: not ansible_check_mode
+
+- name: Assert palette fragment sources are present
+  ansible.builtin.assert:
+    that: compositor_configs_fragment_check.results | selectattr('stat.exists') | list | length == 2
+    fail_msg: >-
+      palette fragments missing from {{ install_dir | trim }}/generated/palettes/
+      (expected colors.conf and colors.gtk.css) — the default_palette role
+      (Story 2.7) generates them at apply time; run the default-palette
+      playbook first (direct-run prerequisite, AC 3/4)
+  when: not ansible_check_mode
+
+- name: Place palette color fragments
+  ansible.builtin.copy:
+    src: "{{ item.source }}"
+    dest: "{{ item.dest }}"
+    remote_src: true
+  loop: "{{ compositor_configs_fragment_copies }}"
+  when: not ansible_check_mode
