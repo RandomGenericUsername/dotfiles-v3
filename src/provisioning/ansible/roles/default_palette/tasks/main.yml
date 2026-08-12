@@ -24,12 +24,14 @@
 # - Container mode (product decision 2026-08-12): csg runs INSIDE its container
 #   image (the host never installs pywal/imagemagick). This role forces the
 #   runtime via env COLORSCHEME__RUNTIME__MODE=container and the engine via
-#   COLORSCHEME__CONTAINER__ENGINE={{ default_palette_container_engine }}
-#   (podman, the product decision; docker is the overridable fallback), so the
-#   generate task does NOT depend on a host-side backend. Precondition: the
-#   cli_tools role's image-build task must have built csg-pywal-podman:latest.
-#   Do NOT remove these two env overrides — that silently reverts to local mode
-#   and breaks the container-mode decision (the exact defect this chain fixes).
+#   COLORSCHEME__CONTAINER__ENGINE=<detected engine>, so the generate task does
+#   NOT depend on a host-side backend. The engine is DETECTED at runtime
+#   (podman preferred, then docker, then FAIL LOUD — see the engine tasks below);
+#   podman/docker are DOCUMENTED DEPENDENCIES, not installed by this chain.
+#   Precondition: the cli_tools role's image-build task must have built the
+#   matching csg-<backend>-<engine> image. Do NOT remove these two env overrides
+#   — that silently reverts to local mode and breaks the container-mode
+#   decision (the exact defect this chain fixes).
 # - Regenerate semantics (AC 7, FR-18): the generate task carries NO
 #   `creates:` and is NOT gated on palette-file existence, so replacing
 #   wallpapers.tar.gz (re-extracted by 2.6) causes the next apply to
@@ -40,12 +42,12 @@
 #   "fix" this with a creates:/existence gate — that was the exact mistake
 #   2.6's review called out for the tarball.
 # - Check mode (dry-run must be dry): the generate command + all assertion
-#   guards are gated `when: not ansible_check_mode`. command/shell modules DO
-#   execute under --check (their only check-mode support is creates/removes,
-#   which this role deliberately omits), so an ungated generate would actually
-#   call csg and WRITE files under --check. The read-only `command -v csg`
-#   shell check MAY run under --check (it registers rc and mutates nothing) —
-#   only its assert needs the gate.
+#   guards are gated `when: not ansible_check_mode`. command/shell tasks are
+#   skipped under --check in current ansible-core (verified 2.20.3), so the
+#   ungated generate would NOT write under --check today — but the gate is kept
+#   as the locked contract (version-proof + test-locked), NOT removed. The
+#   read-only `command -v csg` shell check is likewise skipped under --check; its
+#   assert is gated so a dry-run never fails on host-state preconditions.
 # - `command -v` is a SHELL BUILTIN → ansible.builtin.shell (review F1), with
 #   default_palette_bin_dir prepended to PATH so the guard finds csg in the uv
 #   bin dir even when ~/.local/bin is not on the inherited playbook PATH
@@ -88,8 +90,8 @@
       cli_tools role (Story 2.4) installs via uv tool install into
       ~/.local/bin; run the cli-tools playbook first (direct-run
       prerequisite, AC 9). Note: container mode also requires the cli_tools
-      role's image-build task (`csg install --container-engine podman`) to have
-      run, or `csg generate` fails with a missing-container-image error.
+      role's image-build task to have run, or `csg generate` fails with a
+      missing-container-image error.
   when: not ansible_check_mode
 
 - name: Check default.png was unpacked
@@ -105,6 +107,41 @@
       {{ default_palette_default_image }} not found — the assets role (Story
       2.6) unpacks default.png from wallpapers.tar.gz; run the assets playbook
       first (direct-run prerequisite, AC 6)
+  when: not ansible_check_mode
+
+# Container engine detection (podman preferred, then docker, then FAIL LOUD).
+# podman/docker are DOCUMENTED DEPENDENCIES — the generate task's
+# COLORSCHEME__CONTAINER__ENGINE must match the engine the cli_tools role
+# detected when it built the image, so the generate-time image name resolves.
+# The probe is a read-only shell task; under --check command/shell tasks do not
+# run (so the set_fact falls back to "none") and the assert is additionally
+# gated `when: not ansible_check_mode` (mirror of the csg/weg guard pattern).
+# A non-empty default_palette_container_engine_override skips the probe and
+# forces the engine (still validated by the assert).
+
+- name: Detect container engine (podman, then docker)
+  ansible.builtin.shell: "command -v podman >/dev/null 2>&1 && printf podman || { command -v docker >/dev/null 2>&1 && printf docker || printf none; }"
+  register: default_palette_engine_check
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "{{ default_palette_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  when: not default_palette_container_engine_override | default("", true)
+
+- name: Resolve container engine
+  ansible.builtin.set_fact:
+    default_palette_container_engine: "{{ default_palette_container_engine_override | default('') or default_palette_engine_check.stdout | trim | default('none', true) }}"
+
+- name: Ensure a container engine is available
+  ansible.builtin.assert:
+    that: default_palette_container_engine in ["podman", "docker"]
+    fail_msg: >-
+      No usable container engine — resolved '{{ default_palette_container_engine }}'.
+      csg generate must run in container mode (product decision 2026-08-12) but
+      neither podman nor docker is available. podman/docker are DOCUMENTED
+      DEPENDENCIES (not installed by this chain); install one and re-run, or set
+      default_palette_container_engine_override to the engine the cli_tools
+      role used to build the image
   when: not ansible_check_mode
 
 - name: Generate default palette

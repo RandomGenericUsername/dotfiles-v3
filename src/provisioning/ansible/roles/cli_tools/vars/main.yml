@@ -13,11 +13,20 @@ cli_tools_repo_root: "{{ playbook_dir }}/../../../.."
 #   Uses ansible_facts.env (not the deprecated top-level ansible_env fact).
 cli_tools_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
 
-# cli_tools_container_engine: the container engine used to build the CLI
-#   container images (`csg install --container-engine ...`). Podman is the
-#   product decision (2026-08-12); docker is the supported fallback. Single
-#   switch — the same value is passed to every image-build task.
-cli_tools_container_engine: podman
+# CONTAINER ENGINE — DOCUMENTED DEPENDENCY (not installed by this chain):
+# the image-build task runs `csg install --container-engine <engine>`, and the
+# engine is DETECTED AT RUNTIME (podman preferred, then docker, then fail loud)
+# in tasks/main.yml — it is NOT pinned here. podman and docker are both
+# documented external dependencies; the packages role (2.3) / fresh-machine
+# bootstrap (3.1) is where one of them should be installed.
+#
+# cli_tools_container_engine_override: OPTIONAL escape hatch. Empty (default) =
+# auto-detect at runtime. Set it (e.g. extra-var/group_vars
+# `cli_tools_container_engine_override: docker`) to FORCE an engine on a machine
+# where auto-detection picks a broken one. The forced value is still validated
+# by the fail-loud assert (must be podman|docker). The RESOLVED engine is never
+# a vars value — it is set_fact'd from override-or-detection.
+cli_tools_container_engine_override: ""
 
 # cli_tools_image_builds: the container-mode CLIs whose container images this
 #   role builds after `uv tool install`. `itr` is deliberately absent (no

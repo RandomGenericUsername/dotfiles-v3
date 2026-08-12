@@ -42,13 +42,22 @@
 #   top-level ansible_env fact — F4 lock).
 default_palette_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
 
-# default_palette_container_engine: the container engine `csg generate` runs in
-#   container mode with (env COLORSCHEME__CONTAINER__ENGINE). Podman is the
-#   product decision (2026-08-12); docker is the supported fallback. Must match
-#   the engine the cli_tools role (2.8 image-build task) used for `csg install`,
-#   so the generate-time image name resolves. Kept role-local (NOT aliased from
-#   cli_tools) per the mirror-and-adapt discipline; both default to podman.
-default_palette_container_engine: podman
+# CONTAINER ENGINE — DOCUMENTED DEPENDENCY (not installed by this chain):
+# `csg generate` runs in container mode with env COLORSCHEME__CONTAINER__ENGINE,
+# and the engine is DETECTED AT RUNTIME in tasks/main.yml (podman preferred,
+# then docker, then fail loud) — it is NOT pinned here. Must match the engine
+# the cli_tools role's image-build task detected for `csg install`, so the
+# generate-time image name resolves (both roles probe the same PATH, so they
+# agree). podman/docker are documented external dependencies; installing one is
+# the packages role (2.3) / bootstrap (3.1) concern.
+#
+# default_palette_container_engine_override: OPTIONAL escape hatch. Empty
+# (default) = auto-detect at runtime. Set it (e.g. extra-var/group_vars
+# `default_palette_container_engine_override: docker`) to FORCE an engine on a
+# machine where auto-detection picks a broken one; must match the engine used by
+# `csg install`. The RESOLVED engine is never a vars value — it is set_fact'd
+# from override-or-detection.
+default_palette_container_engine_override: ""
 
 # default_palette_default_image: the default.png the assets role (2.6) unpacked
 #   from wallpapers.tar.gz. Trim lock: consumes the same validated

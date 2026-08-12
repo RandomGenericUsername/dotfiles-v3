@@ -111,11 +111,7 @@ def _argv_of(task: dict[str, object]) -> list[str] | None:
 
 def _image_build_tasks() -> list[dict[str, object]]:
     """The tasks that build CLI container images (argv starting `csg install`)."""
-    return [
-        task
-        for task in _load_tasks()
-        if (_argv_of(task) or [])[:2] == ["csg", "install"]
-    ]
+    return [task for task in _load_tasks() if (_argv_of(task) or [])[:2] == ["csg", "install"]]
 
 
 class TestCliToolsRoleTree:
@@ -263,9 +259,53 @@ class TestCliToolsImageBuildTasks:
         csg = [t for t in tasks if _argv_of(t)[0] == "csg"][0]
         argv = _argv_of(csg)
         assert "--container-engine" in argv
-        assert argv[argv.index("--container-engine") + 1] == "{{ cli_tools_container_engine }}", (
-            "image-build task must pass --container-engine from the engine var"
+        resolved = "{{ cli_tools_container_engine }}"
+        assert argv[argv.index("--container-engine") + 1] == resolved, (
+            "image-build task must pass --container-engine from the RESOLVED "
+            "engine (override-or-detection, podman preferred, then docker) — "
+            "never a hardcoded engine"
         )
+
+    def test_container_engine_detected_with_fail_loud_assert(self) -> None:
+        """Engine detection (podman → docker → fail) is a read-only probe
+        (skipped when the override escape hatch is set); a set_fact resolves the
+        engine from override-or-probe (trimmed), and a gated assert fails loud
+        when neither is usable."""
+        probes = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.shell"
+            and "command -v podman" in str(task.get("ansible.builtin.shell", ""))
+            and "command -v docker" in str(task.get("ansible.builtin.shell", ""))
+        ]
+        assert probes, "expected a podman/docker detection probe"
+        for task in probes:
+            assert task.get("register") == "cli_tools_engine_check"
+            assert task.get("failed_when") is False
+            assert task.get("changed_when") is False
+            assert "cli_tools_container_engine_override" in str(task.get("when", "")), (
+                "probe must be skipped when the engine override is set"
+            )
+
+        set_facts = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.set_fact"
+            and "cli_tools_container_engine" in str(task.get("ansible.builtin.set_fact", {}))
+        ]
+        assert set_facts, "expected a set_fact resolving cli_tools_container_engine"
+
+        asserts = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.assert"
+            and "cli_tools_container_engine" in str(task.get("ansible.builtin.assert", {}))
+        ]
+        assert asserts, "expected an assert on the resolved engine"
+        for task in asserts:
+            assert task.get("when") == "not ansible_check_mode", (
+                "engine assert must be gated when: not ansible_check_mode"
+            )
 
     def test_image_build_task_passes_source_root(self) -> None:
         tasks = _image_build_tasks()
@@ -314,11 +354,20 @@ class TestCliToolsVars:
         assert isinstance(data, dict), "vars/main.yml must parse to a dict"
         assert {"cli_tools_repo_root", "cli_tools_bin_dir", "cli_tools"}.issubset(set(data))
 
-    def test_container_engine_defaults_to_podman(self) -> None:
-        """Product decision (2026-08-12): podman is the preferred engine;
-        docker is the supported fallback via a single overridable var."""
+    def test_container_engine_detected_at_runtime_not_pinned(self) -> None:
+        """podman/docker are DOCUMENTED DEPENDENCIES: the engine is resolved at
+        runtime (override-or-detection, podman preferred, then docker, then fail
+        loud) — the RESOLVED engine is never a vars value, and the override
+        escape hatch defaults to empty (auto-detect). A machine with only docker
+        must not false-fail on a hardcoded podman."""
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
-        assert data["cli_tools_container_engine"] == "podman"
+        assert "cli_tools_container_engine" not in data, (
+            "the resolved engine must come from set_fact (override-or-detection), "
+            "never pinned in vars"
+        )
+        assert data.get("cli_tools_container_engine_override") == "", (
+            "the override escape hatch must default to empty (auto-detect)"
+        )
 
     def test_image_builds_list_contains_only_container_mode_clis(self) -> None:
         """Only csg is image-built today (itr has no container mode; weg is only

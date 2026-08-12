@@ -11,3 +11,13 @@
 # Spine sub-path variables (e.g. spine_wallpapers_dir) are authored when the
 # filesystem/assets/settings roles land (Stories 2.5-2.11) — do not guess them
 # here.
+#
+# DOCUMENTED RUNTIME DEPENDENCIES (not installed by this chain):
+# - podman OR docker — required by the container-mode CLIs. The cli_tools role
+#   builds the csg image via `csg install` and the default_palette role runs
+#   `csg generate` in container mode; both DETECT the engine at runtime
+#   (podman preferred, then docker, then fail loud). Installing one is OUT OF
+#   SCOPE for these roles — address it in the packages role (Story 2.3) /
+#   fresh-machine bootstrap (Story 3.1) when dependency provisioning is done.
+# - uv — required by the cli_tools role (`uv tool install`); pre-seeded by
+#   bootstrap.sh (Story 3.1).

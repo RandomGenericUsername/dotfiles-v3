@@ -203,7 +203,8 @@ class TestDefaultPaletteTasks:
         """AC 3/9/11 + container mode (product decision 2026-08-12): the
         generate task's `environment` sets
         COLORSCHEME__RUNTIME__MODE: "container",
-        COLORSCHEME__CONTAINER__ENGINE: "{{ default_palette_container_engine }}",
+        COLORSCHEME__CONTAINER__ENGINE: "{{ default_palette_container_engine }}"
+        (resolved at runtime from override-or-detection, never a pinned var),
         COLORSCHEME__OUTPUT__OVERWRITE: "true" and
         COLORSCHEME__OUTPUT__DIRECTORY: "{{ default_palette_output_dir }}" and
         PATH starting with `{{ default_palette_bin_dir }}:`."""
@@ -214,7 +215,11 @@ class TestDefaultPaletteTasks:
             "generate task must run csg in CONTAINER mode (product decision "
             "2026-08-12) — local mode would require host-side backends"
         )
-        assert env.get("COLORSCHEME__CONTAINER__ENGINE") == "{{ default_palette_container_engine }}"
+        detected = "{{ default_palette_container_engine }}"
+        assert env.get("COLORSCHEME__CONTAINER__ENGINE") == detected, (
+            "generate task must pass the RESOLVED engine (override-or-detection, "
+            "podman preferred, then docker) — never a hardcoded engine"
+        )
         assert env.get("COLORSCHEME__OUTPUT__DIRECTORY") == "{{ default_palette_output_dir }}"
         assert env.get("COLORSCHEME__OUTPUT__OVERWRITE") == "true"
         assert str(env.get("PATH", "")).startswith("{{ default_palette_bin_dir }}:"), (
@@ -298,6 +303,45 @@ class TestDefaultPaletteTasks:
                 "default.png assert must be gated when: not ansible_check_mode"
             )
 
+    def test_container_engine_detected_with_fail_loud_assert(self) -> None:
+        """Container engine is a DOCUMENTED DEPENDENCY: a read-only probe
+        detects podman then docker (register + changed_when/failed_when false),
+        a set_fact resolves the engine from override-or-probe (trimmed), and a
+        gated assert fails loud when neither is present — mirror of the
+        cli_tools role detection."""
+        probes = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.shell"
+            and "command -v podman" in _module_text(task)
+            and "command -v docker" in _module_text(task)
+        ]
+        assert probes, "expected a podman/docker detection probe"
+        for task in probes:
+            assert task.get("register") == "default_palette_engine_check"
+            assert task.get("failed_when") is False
+            assert task.get("changed_when") is False
+
+        set_facts = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.set_fact"
+            and "default_palette_container_engine" in str(task.get("ansible.builtin.set_fact", {}))
+        ]
+        assert set_facts, "expected a set_fact resolving default_palette_container_engine"
+
+        asserts = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.assert"
+            and "default_palette_container_engine" in str(_module(task).get("that", ""))
+        ]
+        assert asserts, "expected an assert on the resolved engine"
+        for task in asserts:
+            assert task.get("when") == "not ansible_check_mode", (
+                "engine assert must be gated when: not ansible_check_mode"
+            )
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context (AC 10): NO become/become_user anywhere
         — everything the role writes lives under the user's install_dir."""
@@ -329,7 +373,6 @@ class TestDefaultPaletteTasks:
 class TestDefaultPaletteVars:
     _REQUIRED_KEYS = {
         "default_palette_bin_dir",
-        "default_palette_container_engine",
         "default_palette_default_image",
         "default_palette_output_dir",
         "default_palette_formats",
@@ -343,12 +386,19 @@ class TestDefaultPaletteVars:
         data = _vars()
         assert str(data["default_palette_bin_dir"]) == "{{ ansible_facts.env.HOME }}/.local/bin"
 
-    def test_container_engine_defaults_to_podman(self) -> None:
-        """Product decision (2026-08-12): podman is the preferred engine; docker
-        is the overridable fallback. Must match the engine the cli_tools role
-        used for `csg install` so the generate-time image name resolves."""
+    def test_container_engine_not_pinned_in_vars(self) -> None:
+        """podman/docker are DOCUMENTED DEPENDENCIES: the engine is resolved at
+        runtime (override-or-detection, podman preferred, then docker, then fail
+        loud) — the RESOLVED engine is never a vars value, and the override
+        escape hatch defaults to empty (auto-detect)."""
         data = _vars()
-        assert data["default_palette_container_engine"] == "podman"
+        assert "default_palette_container_engine" not in data, (
+            "the resolved engine must come from set_fact (override-or-detection), "
+            "never pinned in vars"
+        )
+        assert data.get("default_palette_container_engine_override") == "", (
+            "the override escape hatch must default to empty (auto-detect)"
+        )
 
     def test_default_image_and_output_dir_are_trim_locked(self) -> None:
         """2.5 review lock: path-bearing vars consume the same trimmed
