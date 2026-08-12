@@ -1,0 +1,30 @@
+// Waybar skeleton config (Story 2.8) — FIRST-BOOT MINIMAL JSONC bar.
+// Styling lives in style.css, which imports the colors.css fragment (2.7/2.9).
+{
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "spacing": 4,
+    "modules-left": ["workspaces"],
+    "modules-center": ["clock"],
+    "modules-right": ["pulseaudio", "network", "battery"],
+    "workspaces": {
+        "format": "{name}"
+    },
+    "clock": {
+        "format": "{:%H:%M}"
+    },
+    "battery": {
+        "format": "{capacity}%",
+        "states": {
+            "warning": 20
+        }
+    },
+    "network": {
+        "format": "{essid}",
+        "format-disconnected": "disconnected"
+    },
+    "pulseaudio": {
+        "format": "{volume}%"
+    }
+}
