@@ -41,7 +41,7 @@
 # story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
 
 generated: 2026-08-04
-last_updated: 2026-08-12 (story 2.7 done — container-mode + engine detection + post-generate verify complete)
+last_updated: 2026-08-12 (story 2.8 created — compositor skeleton configs ready for dev)
 project: dotfiles-repo-v3
 retrospective: epic-1 done (2026-08-08)
 project_key: NOKEY
@@ -70,7 +70,7 @@ development_status:
   2-5-filesystem-role: done
   2-6-assets-role: done
   2-7-default-palette-role: done
-  2-8-compositor-skeleton-configs: backlog
+  2-8-compositor-skeleton-configs: ready-for-dev
   2-9-compositor-configs-role: backlog
   2-10-symlinks-role: backlog
   2-11-settings-role: backlog
