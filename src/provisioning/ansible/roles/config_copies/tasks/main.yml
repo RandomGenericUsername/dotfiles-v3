@@ -1,0 +1,120 @@
+# Config copies role (Story 2.10, pivot 2026-08-12) — COPIES the repo's
+# EXISTING config dirs (dotfiles/config/{nvim,starship,wlogout,zsh}) into the
+# user config home the filesystem role (2.5) created (FR-20, chaining-spine.md).
+# The copy set is mirrored from dotfiles/provisioning/config-copies.yaml
+# (Story 2.1) via the config_copies_entries var; a structural parity test locks
+# them together.
+#
+# Runtime independence (pivot): configs are COPIED, not symlinked — nothing in
+# the repo is referenced at runtime, so the machine keeps working after the
+# repo is deleted. The repo is only ever the SOURCE for a provision run.
+#
+# Design (locked in Story 2.10 Dev Notes):
+# - There is NO install_dir seam assert: this role consumes no install_dir (its
+#   sources are the static repo tree, its targets are under the XDG config
+#   home). The FIRST task is instead the fail-loud fact-gathering assert (the
+#   vars derive from {{ ansible_facts.env }} — without gather_facts: true the
+#   run would die with an opaque traceback instead of a friendly message).
+# - A non-empty guard on config_copies_entries: all count asserts derive from
+#   `config_copies_entries | length`, so an empty list would make every guard
+#   vacuously pass (0 == 0) and silently disable the role — the assert makes a
+#   manifest desync / runtime override fail loudly.
+# - AC 3 "broken or missing targets are reported as failures" is made concrete
+#   by three independent guards:
+#     1. Missing/non-directory repo source — the ungated source stat+assert
+#        (fails the run before any copy): checks `stat.exists` AND `stat.isdir`
+#        so a regular file at a source path is caught, not silently copied.
+#     2. The `copy` module fails loudly on an unreadable/missing source.
+#     3. Missing, non-directory, or SYMLINK dest after apply — the resolve
+#        stat+assert, gated `when: not ansible_check_mode` (dests are absent on
+#        a fresh target under --check). The stat uses `follow: false` and
+#        asserts `stat.isdir`: a real copied directory reports isdir: true,
+#        while a symlink (e.g. an accidentally restored link back into the
+#        repo) reports islnk: true / isdir: false — the runtime-independence
+#        guarantee is that every dest is a REAL directory, not a repo
+#        reference. Both asserts use the derived `| length` count, never a
+#        hardcoded literal.
+# - Directory copies use `ansible.builtin.copy` with the default `force: true`
+#   and a trailing-`/` src (contents-into-dest). NOT force: false — a
+#   directory src + force: false + a pre-existing dest dir is a SILENT NO-OP
+#   (review finding 2026-08-12, mirrored from 2.9). Idempotency comes from
+#   copy's checksums: unchanged content reports ok / changed: false. Ansible is
+#   the state authority (NFR-1): a changed source propagates on the next apply.
+#   NO `creates:` — a gate would freeze a stale copy.
+# - The copy task needs NO `when: not ansible_check_mode` gate: the copy module
+#   has FULL check-mode support (predicts changed, writes nothing) — verified
+#   against ansible-core 2.20.3.
+# - copy does NOT create dest parents for the top-level dest dir — the target
+#   dirs are re-ensured first (mirror of the 2.6/2.9 "Ensure ... dirs exist"
+#   pattern) so a direct config-copies.yaml run is self-contained.
+# - User-scoped privilege context: NO become/become_user anywhere (mirror of
+#   2.5-2.9).
+# - No absolute repo paths: every source is {{ config_copies_repo_root }}/...
+
+- name: Assert fact-gathering provided HOME
+  ansible.builtin.assert:
+    that: ansible_facts.env.HOME is defined and ansible_facts.env.HOME | trim | length > 0
+    fail_msg: >-
+      ansible_facts.env.HOME is undefined — the config_copies role derives its
+      targets from gathered facts; the playbook must run with gather_facts: true
+      (vars/main.yml reads ansible_facts.env.XDG_CONFIG_HOME and HOME)
+
+- name: Assert config copy list is not empty
+  ansible.builtin.assert:
+    that: config_copies_entries | length > 0
+    fail_msg: >-
+      config_copies_entries is empty — the manifest parity/desync or a runtime
+      override silently disabled the role; nothing would be copied and every
+      count assert would vacuously pass
+
+- name: Check repo config sources exist
+  ansible.builtin.stat:
+    path: "{{ config_copies_repo_root }}/dotfiles/config/{{ item.name }}"
+    follow: true
+  loop: "{{ config_copies_entries }}"
+  register: config_copies_source_check
+
+- name: Assert repo config sources are present and are directories
+  ansible.builtin.assert:
+    that: config_copies_source_check.results | selectattr('stat.exists') | selectattr('stat.isdir') | list | length == config_copies_entries | length
+    fail_msg: >-
+      one or more config sources missing or not a directory under
+      {{ config_copies_repo_root }}/dotfiles/config/ (expected a directory per
+      entry in dotfiles/provisioning/config-copies.yaml) — the repo config tree
+      is incomplete; refusing to place partial configs
+
+- name: Ensure XDG config home exists
+  ansible.builtin.file:
+    path: "{{ config_copies_xdg_config_home }}"
+    state: directory
+
+- name: Ensure target config dirs exist
+  ansible.builtin.file:
+    path: "{{ config_copies_xdg_config_home }}/{{ item.target }}"
+    state: directory
+  loop: "{{ config_copies_entries }}"
+
+- name: Copy configs into XDG config home
+  ansible.builtin.copy:
+    src: "{{ config_copies_repo_root }}/dotfiles/config/{{ item.name }}/"
+    dest: "{{ config_copies_xdg_config_home }}/{{ item.target }}/"
+    remote_src: true
+  loop: "{{ config_copies_entries }}"
+
+- name: Check config copies are real directories
+  ansible.builtin.stat:
+    path: "{{ config_copies_xdg_config_home }}/{{ item.target }}"
+    follow: false
+  loop: "{{ config_copies_entries }}"
+  register: config_copies_dest_check
+  when: not ansible_check_mode
+
+- name: Assert config copies are real directories
+  ansible.builtin.assert:
+    that: config_copies_dest_check.results | selectattr('stat.isdir') | list | length == config_copies_entries | length
+    fail_msg: >-
+      not every dest under {{ config_copies_xdg_config_home }} is a real
+      directory (expected one per dotfiles/provisioning/config-copies.yaml
+      entry) — a missing copy or a symlink back into the repo breaks runtime
+      independence: the machine must work after the repo is deleted
+  when: not ansible_check_mode

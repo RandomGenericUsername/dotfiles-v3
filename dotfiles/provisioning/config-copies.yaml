@@ -1,0 +1,20 @@
+# Copies from repo dotfiles/config/* to ~/.config/*.
+#
+# Runtime independence (pivot 2026-08-12): configs are COPIED, not symlinked —
+# nothing in the repo is referenced at runtime, so the machine keeps working
+# after the repo is deleted. The repo is only ever the SOURCE for a provision
+# run, never a runtime dependency.
+#
+# Only EXISTING config dirs (verified, plan §2): nvim, starship, wlogout, zsh.
+# hypr/hyprpaper/waybar are NOT listed — those dirs land in Story 2.8 and are
+# placed by copy in Story 2.9 (compositor_configs role).
+kind: config-copies
+entries:
+  - name: nvim
+    target: nvim
+  - name: starship
+    target: starship
+  - name: wlogout
+    target: wlogout
+  - name: zsh
+    target: zsh

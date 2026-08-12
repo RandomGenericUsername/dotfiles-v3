@@ -71,7 +71,7 @@ class ManifestKind(StrEnum):
     PACKAGES = "packages"
     ASSETS = "assets"
     FILESYSTEM = "filesystem"
-    SYMLINKS = "symlinks"
+    CONFIG_COPIES = "config-copies"
     CLI_TOOLS = "cli-tools"
 
 

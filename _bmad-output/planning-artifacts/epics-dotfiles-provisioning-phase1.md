@@ -21,7 +21,7 @@ This document provides the complete epic and story breakdown for the dotfiles-re
 
 FR-1: Plan Command — `dotfiles-provision plan` diffs desired machine state against actual state before any mutation, making no system changes. The diff is Ansible's native `--check` mode; the Python side reads only `ansible_os_family` via `IFactReader` to select `group_vars/{arch,debian-family}.yml` and never inspects packages itself.
 FR-2: Apply Command — `dotfiles-provision apply` runs the Ansible playbooks (check=False) idempotently and re-runnably; a re-run produces no drift. Ansible is the state authority — no `provisioning-state.json` is persisted.
-FR-3: Verify Command — `dotfiles-provision verify` asserts all ten done-criteria (install dir, system binaries, CLI tools, assets, settings parse, default palette, compositor configs, filesystem structure, symlinks, §12 preconditions) via `VerifyCapabilityUseCase` without reaching into provisioning internals.
+FR-3: Verify Command — `dotfiles-provision verify` asserts all ten done-criteria (install dir, system binaries, CLI tools, assets, settings parse, default palette, compositor configs, filesystem structure, config copies, §12 preconditions) via `VerifyCapabilityUseCase` without reaching into provisioning internals.
 FR-4: Bootstrap Command — `dotfiles-provision bootstrap` runs the aggregate `bootstrap.yaml` end-to-end.
 FR-5: Fresh-Machine Bootstrap — `scripts/bootstrap.sh` pre-seeds Python+uv if absent, then runs `uv run --directory ./src/provisioning dotfiles-provision bootstrap`; a fresh Arch or Debian-family machine is fully provisioned from `git clone` + one command (CAP-4).
 FR-6: Provisioning Package Scaffold — `src/provisioning` is a standalone uv package with entry point `dotfiles-provision`; deps: `typer`, `pydantic`, `cli-output` (via `uv.sources`), `ansible-core`; dev: `pytest`, `ruff`, `mypy`.
@@ -30,7 +30,7 @@ FR-8: Ports — `IProvisionExecutor` (abstracts `ansible-playbook`, `check: bool
 FR-9: Use Cases — `ProvisionMachineUseCase` (plan=check:True / apply=check:False), `VerifyCapabilityUseCase`, `BootstrapUseCase` wiring ports → use cases.
 FR-10: Adapters — `ansible_executor.py` (shells to `ansible-playbook` with `-i`, `--tags`, `--check`, `--extra-vars`; surfaces per-task changed/ok), `yaml_manifest_reader.py` (reads `dotfiles/provisioning/*.yaml`), `ansible_fact_reader.py` (parses `ansible -m setup` for `ansible_os_family`).
 FR-11: CLI — Typer app `dotfiles-provision {plan,apply,verify,bootstrap}` in `cli/main.py` + `options.py`, rendering via `cli-output`.
-FR-12: Declarative Manifests — `dotfiles/provisioning/{packages,assets,filesystem,symlinks,cli-tools}.yaml` describe desired machine state (packages per manager, assets to deploy, XDG + install-dir subtree, symlink map, csg/weg/itr install specs).
+FR-12: Declarative Manifests — `dotfiles/provisioning/{packages,assets,filesystem,config-copies,cli-tools}.yaml` describe desired machine state (packages per manager, assets to deploy, XDG + install-dir subtree, config-copy map, csg/weg/itr install specs).
 FR-13: Ansible Scaffold — `ansible/inventory/localhost.yaml`, `requirements.yml` (community.general, ansible.posix, kewlfft.aur), `ansible.cfg`, `group_vars/{all,arch,debian-family}.yml`.
 FR-14: Packages Role — installs system packages (Hyprland, Hyprpaper, Waybar, fonts) per distro; Arch self-bootstraps `yay` (`base-devel`+`git` → guarded `makepkg -si yay-bin`) then uses `kewlfft.aur.aur` for AUR installs; distro logic stays in `vars/arch.yml`.
 FR-15: CLI Tools Role — installs `csg`, `weg`, icon-renderer on PATH via `uv tool install` against repo paths.
@@ -38,7 +38,7 @@ FR-16: Filesystem Role — creates XDG config/state/cache dirs, hypr/hyprpaper/w
 FR-17: Assets Role — unpacks `dotfiles/assets/wallpapers/wallpapers.tar.gz` → `<install>/wallpapers/`, deploys SVG icon templates → `<install>/icon-templates/`, icon color-mapping YAMLs → `<install>/icon-mappings/`, CSG bundled templates → `<install>/csg-templates/`, and emits `weg-effects.yaml` via `weg dump-effects --output`.
 FR-18: Default Palette Role — invokes `csg generate <install>/wallpapers/default.png -f conf` (plus standard formats) writing `<install>/generated/palettes/` at apply time; `overwrite=true` scoped to that one task via `environment: COLORSCHEME__OUTPUT__OVERWRITE: "true"`, never written into the rendered settings file.
 FR-19: Compositor Configs Role — places Hyprland/Waybar/Hyprpaper static skeletons and copies the default palette color fragments: `colors.conf` (Hyprland) and `colors.css` (Waybar) from the palette dir into `~/.config/{hypr,waybar}/`.
-FR-20: Symlinks Role — links every entry in `dotfiles/provisioning/symlinks.yaml` (repo `dotfiles/config/*` → `~/.config/*`).
+FR-20: Config Copies Role — copies every entry in `dotfiles/provisioning/config-copies.yaml` (repo `dotfiles/config/*` → `~/.config/*`) as REAL directories, NOT symlinks: nothing in the repo is referenced at runtime, so the machine keeps working after the repo is deleted.
 FR-21: Settings Role — renders the three per-tool `settings.toml` files from Jinja templates pointing at the install dir: CSG `output.directory` → `<install>/generated/palettes`, WEG `output.directory` + `processing.temp_dir`, ITR `output.output_dir` + `templates.dir` + `color_scheme.path`.
 FR-22: Verify Role — asserts all §12 preconditions and the ten done-criteria.
 FR-23: Compositor Skeleton Configs — adds `dotfiles/config/{hypr,hyprpaper,waybar}/`: Hyprland skeleton starts with `source = ~/.config/hypr/colors.conf`; Waybar `style.css` starts with `@import "colors.css";`; Hyprpaper flat static pointing at `<install>/wallpapers/default.png`.
@@ -94,7 +94,7 @@ FR-16: Epic 2 — filesystem role
 FR-17: Epic 2 — assets role
 FR-18: Epic 2 — default_palette role
 FR-19: Epic 2 — compositor_configs role
-FR-20: Epic 2 — symlinks role
+FR-20: Epic 2 — config_copies role
 FR-21: Epic 2 — settings role
 FR-22: Epic 2 — verify role
 FR-23: Epic 2 — compositor skeleton configs
@@ -111,7 +111,7 @@ You can run `dotfiles-provision {plan, apply, verify, bootstrap}` as a hexagonal
 
 ### Epic 2: Machine Provisioning Content
 
-You can provision a real machine: distro-aware packages (incl. AUR via self-bootstrapped `yay`), `csg`/`weg`/`itr` CLI installs, filesystem + install spine, assets (wallpapers, icon templates/mappings, CSG templates, WEG effects), default palette, compositor skeletons + color fragments, symlinks, and the three rendered `settings.toml` files.
+You can provision a real machine: distro-aware packages (incl. AUR via self-bootstrapped `yay`), `csg`/`weg`/`itr` CLI installs, filesystem + install spine, assets (wallpapers, icon templates/mappings, CSG templates, WEG effects), default palette, compositor skeletons + color fragments, config copies, and the three rendered `settings.toml` files.
 
 **FRs covered:** FR-12, FR-13, FR-14, FR-15, FR-16, FR-17, FR-18, FR-19, FR-20, FR-21, FR-22, FR-23
 
@@ -279,7 +279,7 @@ So that I can drive provisioning from a terminal with structured output.
 
 ## Epic 2: Machine Provisioning Content
 
-You can provision a real machine: distro-aware packages (incl. AUR via self-bootstrapped `yay`), `csg`/`weg`/`itr` CLI installs, filesystem + install spine, assets (wallpapers, icon templates/mappings, CSG templates, WEG effects), default palette, compositor skeletons + color fragments, symlinks, and the three rendered `settings.toml` files.
+You can provision a real machine: distro-aware packages (incl. AUR via self-bootstrapped `yay`), `csg`/`weg`/`itr` CLI installs, filesystem + install spine, assets (wallpapers, icon templates/mappings, CSG templates, WEG effects), default palette, compositor skeletons + color fragments, config copies, and the three rendered `settings.toml` files.
 
 **FRs covered:** FR-12, FR-13, FR-14, FR-15, FR-16, FR-17, FR-18, FR-19, FR-20, FR-21, FR-22, FR-23
 
@@ -292,11 +292,11 @@ So that provisioning is data-driven and the orchestrator can read desired state 
 **Acceptance Criteria:**
 
 **Given** the `dotfiles/provisioning/` directory
-**When** I author `packages.yaml`, `assets.yaml`, `filesystem.yaml`, `symlinks.yaml`, and `cli-tools.yaml`
+**When** I author `packages.yaml`, `assets.yaml`, `filesystem.yaml`, `config-copies.yaml`, and `cli-tools.yaml`
 **Then** `packages.yaml` lists the verified logical package set (`hyprland`, `hyprpaper`, `waybar`, `fonts`) — per-manager names resolve in Ansible `group_vars` (Story 2.2/2.3), per NFR-3 (interpretation ratified 2026-08-08)
 **And** `assets.yaml` lists wallpapers + icon templates + icon mappings to deploy
 **And** `filesystem.yaml` describes the XDG + install-dir subtree layout
-**And** `symlinks.yaml` maps repo `dotfiles/config/*` to `~/.config/*`
+**And** `config-copies.yaml` copies repo `dotfiles/config/*` to `~/.config/*` (real directories, NOT symlinks — the runtime must work without the repo)
 **And** `cli-tools.yaml` specifies csg/weg/itr install specs (`uv tool install` targets)
 **And** every manifest parses with `YamlManifestReader` (Story 1.5) into domain `ProvisionManifest` objects
 **And** manifest content matches the verified package set and existing assets from the plan (§4/§6) — no empty or typo'd package/asset lists (FR-12)
@@ -332,7 +332,7 @@ So that Hyprland, Hyprpaper, Waybar, and fonts are present on the machine.
 **And** distro logic lives in `vars/arch.yml`/`vars/debian.yml` only
 **And** a `--check` run reports would-change without ever executing `makepkg` or mutating the host (hardening: dry-run must be dry)
 **And** the role is idempotent — a re-run reports no drift
-**And** the privilege context is explicitly defined: the playbook run's user has the rights to run `makepkg -si` and `pacman`/`apt`, while user-scoped steps (`uv tool install`, `~/.config` symlinks) target the intended user — or, if a single run context cannot satisfy both, this is recorded as an open question for the run-as-user decision (FR-14, NFR-1)
+**And** the privilege context is explicitly defined: the playbook run's user has the rights to run `makepkg -si` and `pacman`/`apt`, while user-scoped steps (`uv tool install`, `~/.config` config copies) target the intended user — or, if a single run context cannot satisfy both, this is recorded as an open question for the run-as-user decision (FR-14, NFR-1)
 
 ### Story 2.4: CLI Tools Role
 
@@ -430,19 +430,19 @@ So that Hyprland/Waybar render with first-boot colors.
 **And** all tasks are idempotent
 **And** the "skeletons never change; fragments are the Phase 2 overwrite target" invariant is documented as load-bearing for Phase 2 (FR-19)
 
-### Story 2.10: Symlinks Role
+### Story 2.10: Config Copies Role
 
 As an operator,
-I want a `symlinks` role that links repo configs into `~/.config/`,
-So that my dotfiles live in the repo and are referenced by the machine.
+I want a `config_copies` role that copies repo configs into `~/.config/`,
+So that my configs live in the repo as the SOURCE and the machine works after the repo is deleted (runtime independence).
 
 **Acceptance Criteria:**
 
-**Given** the `roles/symlinks/` role
+**Given** the `roles/config_copies/` role
 **When** I implement `tasks/main.yml`
-**Then** every entry in `dotfiles/provisioning/symlinks.yaml` is created as a symlink from repo `dotfiles/config/*` to `~/.config/*`
-**And** broken or missing targets are reported as failures
-**And** re-runs are idempotent (existing symlinks are left unchanged) (FR-20)
+**Then** every entry in `dotfiles/provisioning/config-copies.yaml` is copied from repo `dotfiles/config/*` to `~/.config/*` as a REAL directory (NOT a symlink — nothing in the repo is referenced at runtime)
+**And** broken, missing, or non-directory sources/targets are reported as failures
+**And** re-runs are idempotent (unchanged configs are left alone) (FR-20)
 
 ### Story 2.11: Settings Role
 
@@ -472,10 +472,10 @@ So that all preconditions and done-criteria are assertable in one run.
 
 **Given** the `roles/verify/` role and playbooks
 **When** I implement `tasks/main.yml`, `verify.yaml`, and the aggregate `bootstrap.yaml`
-**Then** `verify.yaml` asserts the ten done-criteria including: install-dir subtree, system binaries on PATH, `csg`/`weg`/icon-renderer on PATH, assets deployed, per-tool settings parse, default palette files present, compositor configs + fragments placed, filesystem structure, symlinks resolved, and §12 preconditions
+**Then** `verify.yaml` asserts the ten done-criteria including: install-dir subtree, system binaries on PATH, `csg`/`weg`/icon-renderer on PATH, assets deployed, per-tool settings parse, default palette files present, compositor configs + fragments placed, filesystem structure, config copies present (real dirs, not symlinks), and §12 preconditions
 **And** verification asserts against provisioned locations (`~/.config/...`, install dir), not the repo checkout (hardening: machine, not repo)
 **And** the ITR settings-parse gate uses `itr list <install>/icon-mappings/icons.yaml --config ~/.config/itr/settings.toml` (not `defaults.yaml`)
-**And** `bootstrap.yaml` aggregates all role playbooks in dependency order (`packages` → `cli_tools` → `filesystem` → `assets` → `default_palette` → `compositor_configs` → `symlinks` → `settings` → `verify`)
+**And** `bootstrap.yaml` aggregates all role playbooks in dependency order (`packages` → `cli_tools` → `filesystem` → `assets` → `default_palette` → `compositor_configs` → `config_copies` → `settings` → `verify`)
 **And** `bootstrap.yaml --check` completes cleanly without mutation (FR-22, FR-3, hardening: dry-run must be dry)
 
 ## Epic 3: Reproducible Bootstrap & Verified Install

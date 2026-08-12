@@ -212,27 +212,29 @@ class TestYamlManifestReaderPerKindSchemas:
         with pytest.raises(ManifestReadError, match="bogus"):
             READER.read(path)
 
-    def test_symlinks_kind_requires_target(self, tmp_path: Path) -> None:
-        path = tmp_path / "symlinks.yaml"
-        path.write_text("kind: symlinks\nentries:\n  - name: nvim\n", encoding="utf-8")
+    def test_config_copies_kind_requires_target(self, tmp_path: Path) -> None:
+        path = tmp_path / "config-copies.yaml"
+        path.write_text("kind: config-copies\nentries:\n  - name: nvim\n", encoding="utf-8")
         with pytest.raises(ManifestReadError, match="target"):
             READER.read(path)
 
-    def test_symlinks_kind_parses_target(self, tmp_path: Path) -> None:
-        path = tmp_path / "symlinks.yaml"
+    def test_config_copies_kind_parses_target(self, tmp_path: Path) -> None:
+        path = tmp_path / "config-copies.yaml"
         path.write_text(
-            "kind: symlinks\nentries:\n  - name: nvim\n    target: nvim\n",
+            "kind: config-copies\nentries:\n  - name: nvim\n    target: nvim\n",
             encoding="utf-8",
         )
         manifest = READER.read(path)
-        assert manifest.kind is ManifestKind.SYMLINKS
+        assert manifest.kind is ManifestKind.CONFIG_COPIES
         assert manifest.entries == (Spec(name="nvim"),)
 
     @pytest.mark.parametrize("bad_target", ["", "   ", "42", "null"])
-    def test_symlinks_kind_empty_target_rejected(self, tmp_path: Path, bad_target: str) -> None:
-        path = tmp_path / "symlinks.yaml"
+    def test_config_copies_kind_empty_target_rejected(
+        self, tmp_path: Path, bad_target: str
+    ) -> None:
+        path = tmp_path / "config-copies.yaml"
         path.write_text(
-            f"kind: symlinks\nentries:\n  - name: nvim\n    target: {bad_target}\n",
+            f"kind: config-copies\nentries:\n  - name: nvim\n    target: {bad_target}\n",
             encoding="utf-8",
         )
         with pytest.raises(ManifestReadError, match="target"):
@@ -314,7 +316,7 @@ class TestReadRealManifests:
             ("packages.yaml", ManifestKind.PACKAGES),
             ("assets.yaml", ManifestKind.ASSETS),
             ("filesystem.yaml", ManifestKind.FILESYSTEM),
-            ("symlinks.yaml", ManifestKind.SYMLINKS),
+            ("config-copies.yaml", ManifestKind.CONFIG_COPIES),
             ("cli-tools.yaml", ManifestKind.CLI_TOOLS),
         ],
     )
@@ -329,10 +331,10 @@ class TestReadRealManifests:
         assert len(names) == len(set(names)), f"duplicate package entries: {names}"
         assert set(names) == {"hyprland", "hyprpaper", "waybar", "fonts"}
 
-    def test_symlinks_manifest_lists_only_existing_dirs(self) -> None:
-        manifest = READER.read(_MANIFEST_DIR / "symlinks.yaml")
+    def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:
+        manifest = READER.read(_MANIFEST_DIR / "config-copies.yaml")
         names = [entry.name for entry in manifest.entries]
-        assert len(names) == len(set(names)), f"duplicate symlink entries: {names}"
+        assert len(names) == len(set(names)), f"duplicate config-copy entries: {names}"
         assert set(names) == {"nvim", "starship", "wlogout", "zsh"}
         assert "hypr" not in names
         assert "hyprpaper" not in names

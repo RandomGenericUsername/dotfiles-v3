@@ -207,3 +207,10 @@
 - Hyprland fragment `rgb(hex)` notation only valid on Hyprland ≥0.55; no version pinned — value format is emitted by csg/Story 2.7 and version pinning is the packages role (2.3) concern [dotfiles/config/hypr/hyprland.conf:17-18, src/provisioning/ansible/group_vars/arch.yml:8]
 - hyprlang syntax deprecated since Hyprland 0.55 (config moved to Lua); no migration owner — plan §6 locks hyprlang skeletons and `-f conf`; migration is a Phase-2/plan-level decision [dotfiles/config/hypr/hyprland.conf:6-44]
 - Missing/partial palette fragment at first boot has no fallback — skeleton correctly sources a fragment only 2.9 places; ordering/verify is owned by 2.9 + 2.12 + 3.2/3.3 integration [dotfiles/config/hypr/hyprland.conf:7, dotfiles/config/waybar/style.css:1]
+
+## Deferred from: code review of 2-10-config-copies-role (2026-08-12)
+
+- `config_copies_repo_root: "{{ playbook_dir }}/../../../.."` resolves against the calling playbook's dir — a 2.12 aggregator at a different depth than `playbooks/` would silently mis-resolve or fail misleadingly; shared pattern across assets/compositor_configs [src/provisioning/ansible/roles/config_copies/vars/main.yml:28]
+- Live-playbook tests `pytest.skip` when `ansible-playbook` is absent and `assert "changed=0" in second.stdout` is brittle across ansible-core recap formats — suite can be green with runtime behavior unverified [src/provisioning/tests/unit/test_config_copies_role.py:481-501]
+- Nested `name`/`target` manifest entries would fail with an opaque ENOENT (no dest parent creation; only the config home is ensured) — latent; manifest is locked flat [src/provisioning/ansible/roles/config_copies/tasks/main.yml:67-73]
+- Relative `XDG_CONFIG_HOME` accepted unvalidated — shared spec-mandated derivation with the filesystem role; any fix belongs to both roles [src/provisioning/ansible/roles/config_copies/vars/main.yml:46]

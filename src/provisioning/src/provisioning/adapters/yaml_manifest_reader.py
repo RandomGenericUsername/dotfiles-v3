@@ -34,7 +34,7 @@ _ENTRY_SCHEMAS: dict[ManifestKind, _EntrySchema] = {
         frozenset({"name", "kind"}),
     ),
     ManifestKind.FILESYSTEM: (frozenset({"name"}), frozenset({"name"})),
-    ManifestKind.SYMLINKS: (
+    ManifestKind.CONFIG_COPIES: (
         frozenset({"name", "target", "version"}),
         frozenset({"name", "target"}),
     ),

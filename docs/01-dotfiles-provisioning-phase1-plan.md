@@ -151,7 +151,7 @@ src/provisioning/
 │   │   ├── assets.yaml
 │   │   ├── default-palette.yaml
 │   │   ├── compositor-configs.yaml
-│   │   ├── symlinks.yaml
+│   │   ├── config-copies.yaml
 │   │   ├── settings.yaml                # renders the three settings.toml templates
 │   │   └── verify.yaml                  # asserts §12 preconditions
 │   ├── roles/
@@ -161,7 +161,7 @@ src/provisioning/
 │   │   ├── default_palette/ (tasks/main.yml — `csg generate <install>/wallpapers/default.png -f conf`; env-scoped overwrite)
 │   │   ├── compositor_configs/ (tasks/main.yml — deploys Hyprland/Waybar/Hyprpaper skeletons + color fragments)
 │   │   ├── filesystem/ (tasks/main.yml)
-│   │   ├── symlinks/   (tasks/main.yml)
+│   │   ├── config_copies/ (tasks/main.yml)
 │   │   ├── settings/   (tasks/main.yml, templates/{csg,weg,itr}-settings.toml.j2, vars/main.yml)
 │   │   └── verify/     (tasks/main.yml)
 │   └── ansible.cfg
@@ -191,7 +191,7 @@ dotfiles/provisioning/                   # declarative desired-machine-state man
 ├── packages.yaml                        # desired packages per package manager
 ├── assets.yaml                          # wallpapers + icon templates + icon mappings to deploy
 ├── filesystem.yaml                      # XDG + install dir subtree layout
-├── symlinks.yaml                        # repo dotfiles/config/* → ~/.config/*
+├── config-copies.yaml                    # copies repo dotfiles/config/* → ~/.config/* (real dirs, not symlinks)
 └── cli-tools.yaml                       # csg/weg/itr install specs (uv tool install targets)
 
 dotfiles/config/
@@ -243,9 +243,9 @@ Phase 1 is finished when `dotfiles-provision verify` and `dotfiles-provision boo
    - `~/.config/itr/settings.toml` parses; `output.output_dir` → `<install>/generated/icons/`; `templates.dir` → `<install>/icon-templates/`; `color_scheme.path` → `<install>/generated/palettes/colors.yaml`
    - Verified by invoking `csg info --config <path>`, `weg info --config <path>`, `itr list <install>/icon-mappings/icons.yaml --config <path>` — all exit 0. (Avoid `defaults.yaml` as the `itr list` target — it is a shared-defaults file without a `variants` field and is not listable.)
 6. **Default palette generated** — `<install>/generated/palettes/colors.conf` + `colors.yaml` exist and parse; `$accent` equals `$color1` in the Hyprland fragment; the rendered `~/.config/color-scheme-generator/settings.toml` keeps `overwrite = false`.
-7. **Compositor configs placed** — `~/.config/{hypr,hyprpaper,waybar}/` symlinked from `dotfiles/config/{hypr,hyprpaper,waybar}/`; `~/.config/hypr/colors.conf` and `~/.config/waybar/colors.css` present.
+7. **Compositor configs placed** — `~/.config/{hypr,hyprpaper,waybar}/` copied from `dotfiles/config/{hypr,hyprpaper,waybar}/`; `~/.config/hypr/colors.conf` and `~/.config/waybar/colors.css` present.
 8. **Filesystem structure exists** — XDG config/state/cache dirs, hypr/hyprpaper/waybar dirs, install dir subtree.
-9. **Symlinks resolved** — every entry in `dotfiles/provisioning/symlinks.yaml` resolves to a real file.
+9. **Config copies present** — every entry in `dotfiles/provisioning/config-copies.yaml` is copied to `~/.config/<target>` as a REAL directory (not a symlink): nothing in the repo is referenced at runtime, so the machine keeps working after the repo is deleted.
 10. **§12 capability preconditions** — the four runtime assumptions (binaries installed, assets placed, filesystem structure exists, settings files parseable) are assertable via `VerifyCapabilityUseCase` without reaching into provisioning internals.
 
 ---
@@ -262,7 +262,7 @@ Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine
 
 ## 10. What You Get After Implementing This Phase
 
-- **Reproduce any machine from scratch:** `git clone <repo> && ./scripts/bootstrap.sh` → Python+uv bootstrapped → `dotfiles-provision` installed → drives Ansible to install Hyprland/Waybar/Hyprpaper/fonts, install `csg`/`weg`/icon-renderer, deploy assets, create the filesystem, symlink configs, render the three settings files, verify everything.
+- **Reproduce any machine from scratch:** `git clone <repo> && ./scripts/bootstrap.sh` → Python+uv bootstrapped → `dotfiles-provision` installed → drives Ansible to install Hyprland/Waybar/Hyprpaper/fonts, install `csg`/`weg`/icon-renderer, deploy assets, create the filesystem, copy configs, render the three settings files, verify everything.
 - **Machine state as data:** `dotfiles-provision plan` shows desired-vs-actual diff before any mutation (Ansible `--check`); `apply` is idempotent and re-runnable (Ansible is the state authority — no state file).
 - **A verified, tool-ready install layout:** the chaining spine (wallpapers / icon-templates / icon-mappings / generated palettes / effects / icons / temp) with all three tools' settings files pointing at it — the first `csg generate <img>` or `itr render --config ...` already knows where to read/write, with no path flags, no `/tmp` leaks, and ITR's color scheme chaining straight to CSG's palette output.
 - **A hard verify gate:** `dotfiles-provision verify` green is the contract Phase 2 may assume; also a drift regression check.
@@ -280,7 +280,7 @@ Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine
 4. `application/use_cases.py` wiring ports → use cases (`ProvisionMachineUseCase` with `check` flag, `VerifyCapabilityUseCase`, `BootstrapUseCase`); unit tests with fakes.
 5. `cli/main.py` (Typer) — `plan`, `apply`, `verify`, `bootstrap`; uses `cli-output` for rendering.
 6. `dotfiles/provisioning/*.yaml` manifests (populated from the actual package set + existing assets).
-7. Ansible content: `inventory`, `requirements.yml`, `group_vars/{all,arch,debian-family}.yml`, then roles in install order — `packages` → `cli_tools` → `filesystem` → `assets` → `default_palette` → `compositor_configs` → `symlinks` → `settings` → `verify`; one playbook per role plus the aggregate `bootstrap.yaml`. (`default_palette` needs `csg` installed by `cli_tools` and wallpapers unpacked by `assets`; `compositor_configs` needs the palette generated by `default_palette`.)
+7. Ansible content: `inventory`, `requirements.yml`, `group_vars/{all,arch,debian-family}.yml`, then roles in install order — `packages` → `cli_tools` → `filesystem` → `assets` → `default_palette` → `compositor_configs` → `config_copies` → `settings` → `verify`; one playbook per role plus the aggregate `bootstrap.yaml`. (`default_palette` needs `csg` installed by `cli_tools` and wallpapers unpacked by `assets`; `compositor_configs` needs the palette generated by `default_palette`.)
 8. The three Jinja settings templates under `roles/settings/templates/`.
 9. Add `dotfiles/config/{hypr,hyprpaper,waybar}/`: Hyprland skeleton (`source = ~/.config/hypr/colors.conf`), Waybar skeleton (`@import "colors.css";`), flat static Hyprpaper (points at `<install>/wallpapers/default.png`).
 10. `scripts/bootstrap.sh` (pre-seed Python+uv, then `uv run --directory ./src/provisioning dotfiles-provision bootstrap`).

@@ -56,7 +56,7 @@ class TestManifestKind:
         assert ManifestKind.PACKAGES.value == "packages"
         assert ManifestKind.ASSETS.value == "assets"
         assert ManifestKind.FILESYSTEM.value == "filesystem"
-        assert ManifestKind.SYMLINKS.value == "symlinks"
+        assert ManifestKind.CONFIG_COPIES.value == "config-copies"
         assert ManifestKind.CLI_TOOLS.value == "cli-tools"
 
     def test_str_returns_value(self) -> None:

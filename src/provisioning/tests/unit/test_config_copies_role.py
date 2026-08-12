@@ -29,9 +29,9 @@ def _find_ansible_dir() -> Path:
 
 
 _ANSIBLE_DIR = _find_ansible_dir()
-_ROLES_DIR = _ANSIBLE_DIR / "roles" / "symlinks"
+_ROLES_DIR = _ANSIBLE_DIR / "roles" / "config_copies"
 _REPO_ROOT = _ANSIBLE_DIR.parents[2]
-_MANIFEST_PATH = _REPO_ROOT / "dotfiles" / "provisioning" / "symlinks.yaml"
+_MANIFEST_PATH = _REPO_ROOT / "dotfiles" / "provisioning" / "config-copies.yaml"
 
 _TASK_KEYWORDS = {
     "name",
@@ -125,6 +125,10 @@ def _tasks_with_module(module: str) -> list[dict[str, object]]:
     return [task for task in _load_tasks() if _module_key(task) == module]
 
 
+def _assert_tasks() -> list[dict[str, object]]:
+    return _tasks_with_module("ansible.builtin.assert")
+
+
 def _manifest_entries() -> list[dict[str, str]]:
     data = yaml.safe_load(_MANIFEST_PATH.read_text())
     assert isinstance(data, dict)
@@ -133,67 +137,99 @@ def _manifest_entries() -> list[dict[str, str]]:
     return [dict(item) for item in entries]
 
 
+def _fact_gathering_assert_task() -> dict[str, object]:
+    """The fail-loud fact-gathering guard: the FIRST task, an assert on
+    ansible_facts.env.HOME with a gather_facts fail_msg."""
+    tasks = _load_tasks()
+    assert tasks, "tasks/main.yml must not be empty"
+    first = tasks[0]
+    assert _module_key(first) == "ansible.builtin.assert", (
+        "the first task must be the fail-loud fact-gathering assert "
+        "(role contract — vars derive from ansible_facts.env)"
+    )
+    return first
+
+
+def _non_empty_guard_task() -> dict[str, object]:
+    """The non-empty guard on config_copies_entries (prevents vacuous 0 == 0)."""
+    matches = [
+        task
+        for task in _assert_tasks()
+        if "config_copies_entries | length > 0" in str(_module(task).get("that", ""))
+    ]
+    assert len(matches) == 1, f"expected exactly one non-empty guard assert; found {len(matches)}"
+    return matches[0]
+
+
 def _source_stat_tasks() -> list[dict[str, object]]:
     """The source-presence stat loop: stat on `dotfiles/config/`, looping
-    {{ symlinks_links }}, registering symlinks_source_check."""
+    {{ config_copies_entries }}, registering config_copies_source_check."""
     return [
         task
         for task in _tasks_with_module("ansible.builtin.stat")
-        if "symlinks_source_check" == str(task.get("register"))
+        if "config_copies_source_check" == str(task.get("register"))
     ]
 
 
 def _source_assert_tasks() -> list[dict[str, object]]:
-    """The source-presence assert consuming symlinks_source_check."""
+    """The source-presence assert consuming config_copies_source_check."""
     return [
         task
-        for task in _tasks_with_module("ansible.builtin.assert")
-        if "symlinks_source_check" in str(_module(task).get("that", ""))
+        for task in _assert_tasks()
+        if "config_copies_source_check" in str(_module(task).get("that", ""))
     ]
 
 
-def _link_create_task() -> dict[str, object]:
-    """The single symlink creation task: `state: link`, `force: false`,
-    looping {{ symlinks_links }}."""
-    matches = [
-        task
-        for task in _tasks_with_module("ansible.builtin.file")
-        if str(_module(task).get("state")) == "link"
-    ]
-    assert len(matches) == 1, f"expected exactly one state: link task; found {len(matches)}"
+def _copy_task() -> dict[str, object]:
+    """The single directory-copy task."""
+    matches = _tasks_with_module("ansible.builtin.copy")
+    assert len(matches) == 1, f"expected exactly one copy task; found {len(matches)}"
     return matches[0]
 
 
-def _dir_ensure_tasks() -> list[dict[str, object]]:
+def _xdg_home_dir_ensure_tasks() -> list[dict[str, object]]:
     """The XDG config home dir-ensure task: `state: directory` on
-    {{ symlinks_xdg_config_home }} (no loop — the home is a single path)."""
+    {{ config_copies_xdg_config_home }} (no loop — the home is a single path)."""
     return [
         task
         for task in _tasks_with_module("ansible.builtin.file")
         if str(_module(task).get("state")) == "directory"
+        and str(_module(task).get("path")) == "{{ config_copies_xdg_config_home }}"
+    ]
+
+
+def _target_dir_ensure_tasks() -> list[dict[str, object]]:
+    """The per-target dir-ensure tasks: `state: directory` on
+    {{ config_copies_xdg_config_home }}/<target>, looping config_copies_entries."""
+    return [
+        task
+        for task in _tasks_with_module("ansible.builtin.file")
+        if str(_module(task).get("state")) == "directory"
+        and "{{ config_copies_xdg_config_home }}/" in str(_module(task).get("path", ""))
+        and str(_module(task).get("path")) != "{{ config_copies_xdg_config_home }}"
     ]
 
 
 def _resolve_stat_tasks() -> list[dict[str, object]]:
-    """The resolve-check stat loops: stat on `{{ symlinks_xdg_config_home }}/`,
-    looping {{ symlinks_links }}."""
+    """The resolve-check stat loops: stat on `{{ config_copies_xdg_config_home }}/`,
+    looping {{ config_copies_entries }}."""
     return [
         task
         for task in _tasks_with_module("ansible.builtin.stat")
-        if "{{ symlinks_xdg_config_home }}/" in str(_module(task).get("path", ""))
+        if "config_copies_dest_check" == str(task.get("register"))
     ]
 
 
 def _resolve_assert_tasks() -> list[dict[str, object]]:
-    """The resolve-check asserts consuming symlinks_dest_check_*."""
+    """The resolve-check asserts consuming config_copies_dest_check."""
     return [
         task
-        for task in _tasks_with_module("ansible.builtin.assert")
-        if "symlinks_dest_check_" in str(_module(task).get("that", ""))
+        for task in _assert_tasks()
+        if "config_copies_dest_check" in str(_module(task).get("that", ""))
     ]
 
 
-class TestSymlinksRoleTree:
+class TestConfigCopiesRoleTree:
     _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml")
 
     def test_role_tree_exists(self) -> None:
@@ -201,7 +237,7 @@ class TestSymlinksRoleTree:
             assert (_ROLES_DIR / relative).is_file(), f"missing {relative}"
 
 
-class TestSymlinksTasks:
+class TestConfigCopiesTasks:
     def test_tasks_parse_to_list_of_named_tasks(self) -> None:
         tasks = _load_tasks()
         assert tasks, "tasks/main.yml must not be empty"
@@ -209,133 +245,159 @@ class TestSymlinksTasks:
             assert isinstance(task, dict)
             assert task["name"], "every task must carry a name"
 
-    def test_first_task_is_fail_loud_source_stat(self) -> None:
-        """Role contract: the FIRST task is the fail-loud SOURCE-presence stat
-        (stat on dotfiles/config/) — and explicitly NOT the install_dir assert
-        this role deliberately omits (it consumes no install_dir)."""
-        tasks = _load_tasks()
-        assert tasks, "tasks/main.yml must not be empty"
-        first = tasks[0]
-        assert _module_key(first) == "ansible.builtin.stat", (
-            "the first task must be the fail-loud source-presence stat "
-            "(role contract — NOT an install_dir assert, which this role omits)"
-        )
+    def test_first_task_is_fail_loud_fact_gathering_assert(self) -> None:
+        """Role contract: the FIRST task is the fail-loud fact-gathering guard —
+        NOT an install_dir assert (this role consumes no install_dir) and NOT
+        the source stat. Without gather_facts: true the XDG derivation dies
+        with an opaque traceback, so the friendly guard comes first."""
+        first = _fact_gathering_assert_task()
         module = _module(first)
-        assert "dotfiles/config/" in str(module.get("path", "")), (
-            "the source stat must check a dotfiles/config/ source"
+        that = str(module.get("that", ""))
+        assert "ansible_facts.env.HOME is defined" in that, (
+            "the guard must assert ansible_facts.env.HOME is defined"
         )
-        assert module.get("follow") is True, (
-            "the source stat must pass follow: true explicitly "
-            "(stat does not resolve links by default)"
+        fail_msg = str(module.get("fail_msg", ""))
+        assert "gather_facts" in fail_msg, (
+            "the guard's fail_msg must name the gather_facts: true requirement"
         )
 
-    def test_source_stat_pair_loops_symlinks_links(self) -> None:
+    def test_non_empty_guard_prevents_vacuous_passes(self) -> None:
+        """All count asserts derive from `config_copies_entries | length`, so an
+        empty list would pass every guard (0 == 0) and silently disable the
+        role — a non-empty assert makes the desync fail loudly."""
+        task = _non_empty_guard_task()
+        assert task.get("when") is None, "the non-empty guard must be ungated"
+
+    def test_source_stat_pair_loops_config_copies_entries(self) -> None:
         """Fail-loud direct-run prerequisite: the source stat loop registers
-        symlinks_source_check and the assert checks the registered results —
-        both derive their count from symlinks_links | length, never a hardcoded
-        literal, and both are UNGATED (repo content is static — a missing
-        source must abort even under --check)."""
+        config_copies_source_check and the assert checks the registered results —
+        both derive their count from config_copies_entries | length, never a
+        hardcoded literal, and both are UNGATED (repo content is static — a
+        missing source must abort even under --check)."""
         stat_tasks = _source_stat_tasks()
         assert stat_tasks, "no source-presence stat loop task found"
         for task in stat_tasks:
-            assert "{{ symlinks_links }}" in str(task.get("loop", ""))
-            assert task.get("register") == "symlinks_source_check"
+            assert "{{ config_copies_entries }}" in str(task.get("loop", ""))
+            assert task.get("register") == "config_copies_source_check"
             assert task.get("when") is None, (
                 "source stat must be ungated (static repo content — abort under --check too)"
+            )
+            assert _module(task).get("follow") is True, (
+                "source stat must pass follow: true explicitly"
             )
 
         assert_tasks = _source_assert_tasks()
         assert assert_tasks, "no source-presence assert task found"
         for task in assert_tasks:
             that = str(_module(task).get("that", ""))
-            assert "symlinks_links | length" in that, (
-                "source assert must derive its count from symlinks_links | length, "
+            assert "config_copies_entries | length" in that, (
+                "source assert must derive its count from config_copies_entries | length, "
                 "not a hardcoded literal"
             )
-            assert "symlinks_source_check" in that
+            assert "config_copies_source_check" in that
+            assert "stat.isdir" in that, (
+                "source assert must check stat.isdir — a regular file at a "
+                "source path must fail loudly, not be silently copied"
+            )
             assert task.get("when") is None, "source assert must be ungated (static repo content)"
 
-    def test_link_create_task_contract(self) -> None:
-        """AC 2 + 4: the link task is `ansible.builtin.file` `state: link` with
-        an ABSOLUTE `src` prefixed {{ symlinks_repo_root }}/dotfiles/config/
-        (relative srcs resolve relative to the link file), a `dest` prefixed
-        {{ symlinks_xdg_config_home }}/, `force: false` (the AC 4 no-clobber
-        lock — a real dir/file at the dest fails loudly instead of converting),
-        a loop over symlinks_links, NO `creates:`, and NO check-mode gate (the
-        file module has FULL check-mode support)."""
-        task = _link_create_task()
+    def test_copy_task_contract(self) -> None:
+        """AC 2 + 4: the copy task is `ansible.builtin.copy` with a trailing-`/`
+        `src` prefixed {{ config_copies_repo_root }}/dotfiles/config/ (contents-
+        into-dest semantics), a trailing-`/` `dest` prefixed
+        {{ config_copies_xdg_config_home }}/, `remote_src: true` (localhost
+        mirror of the assets role), a loop over config_copies_entries, NO
+        `creates:`, and NO check-mode gate (the copy module has FULL check-mode
+        support). NOT `force: false` — a directory src + force: false + a
+        pre-existing dest dir is a silent no-op (2.9 review finding); the
+        default force: true + checksums is the idempotency mechanism."""
+        task = _copy_task()
         module = _module(task)
-        assert module.get("force") is False, (
-            "link task must set force: false (AC 4 — never clobber a real dir/file)"
+        assert module.get("force") is not False, (
+            "copy task must NOT set force: false (directory src + force: false + "
+            "pre-existing dest dir is a silent no-op — 2.9 review finding); the "
+            "default force: true + checksums is the idempotency mechanism"
         )
-        assert str(module.get("src", "")).startswith("{{ symlinks_repo_root }}/dotfiles/config/"), (
-            "link src must derive from symlinks_repo_root/dotfiles/config/"
+        src = str(module.get("src", ""))
+        assert src.startswith("{{ config_copies_repo_root }}/dotfiles/config/"), (
+            "copy src must derive from config_copies_repo_root/dotfiles/config/"
         )
-        assert str(module.get("dest", "")).startswith("{{ symlinks_xdg_config_home }}/"), (
-            "link dest must derive from symlinks_xdg_config_home"
+        assert src.endswith("/"), (
+            "copy src must end with '/' (contents-into-dest semantics — no accidental nested dir)"
         )
-        assert "{{ symlinks_links }}" in str(task.get("loop", ""))
+        dest = str(module.get("dest", ""))
+        assert dest.startswith("{{ config_copies_xdg_config_home }}/"), (
+            "copy dest must derive from config_copies_xdg_config_home"
+        )
+        assert dest.endswith("/"), "copy dest must end with '/'"
+        assert module.get("remote_src") is True, (
+            "copy must set remote_src: true (localhost mirror of the assets role)"
+        )
+        assert "{{ config_copies_entries }}" in str(task.get("loop", ""))
         assert _creates_value(task) is None, (
-            "link task must not carry creates: (state: link is module-level idempotent)"
+            "copy task must not carry creates: (a gate would freeze a stale copy)"
         )
         assert task.get("when") is None, (
-            "link task must NOT be --check-gated (file state: link has full "
-            "check-mode support — verified)"
+            "copy task must NOT be --check-gated (copy has full check-mode support — verified)"
         )
 
     def test_resolve_check_pair_all_gated(self) -> None:
-        """AC 3 done-criterion 9: TWO stat loops (follow: false then follow:
-        true) + TWO asserts (islnk then exists), ALL FOUR gated
-        `when: not ansible_check_mode` (dests are absent on a fresh target
-        under --check)."""
+        """AC 3 + runtime independence (pivot): ONE stat loop with follow: false
+        + ONE assert on stat.isdir, both gated `when: not ansible_check_mode`
+        (dests are absent on a fresh target under --check). follow: false makes
+        a symlink report islnk: true / isdir: false, so the isdir count proves
+        every dest is a REAL directory — not a copy and not a link back into
+        the repo."""
         stat_tasks = _resolve_stat_tasks()
-        assert len(stat_tasks) == 2, (
-            f"expected exactly 2 resolve-check stat loops (follow false + true); "
-            f"found {len(stat_tasks)}"
+        assert len(stat_tasks) == 1, (
+            f"expected exactly 1 resolve-check stat loop (follow: false); found {len(stat_tasks)}"
         )
-        by_follow: dict[bool, list[dict[str, object]]] = {True: [], False: []}
         for task in stat_tasks:
             assert task.get("when") == "not ansible_check_mode", (
                 "resolve-check stat must be gated when: not ansible_check_mode"
             )
-            assert "{{ symlinks_links }}" in str(task.get("loop", ""))
-            follow = _module(task).get("follow")
-            assert isinstance(follow, bool)
-            by_follow[follow].append(task)
-        assert len(by_follow[True]) == 1, "exactly one follow: true stat loop"
-        assert len(by_follow[False]) == 1, "exactly one follow: false stat loop"
+            assert "{{ config_copies_entries }}" in str(task.get("loop", ""))
+            assert _module(task).get("follow") is False, (
+                "resolve stat must pass follow: false (a symlink reports islnk: true "
+                "/ isdir: false — only real directories pass)"
+            )
 
         assert_tasks = _resolve_assert_tasks()
-        assert len(assert_tasks) == 2, (
-            f"expected exactly 2 resolve-check asserts (islnk + exists); found {len(assert_tasks)}"
+        assert len(assert_tasks) == 1, (
+            f"expected exactly 1 resolve-check assert; found {len(assert_tasks)}"
         )
-        thats = [str(_module(t).get("that", "")) for t in assert_tasks]
-        for task, that in zip(assert_tasks, thats):
+        for task in assert_tasks:
+            that = str(_module(task).get("that", ""))
             assert task.get("when") == "not ansible_check_mode", (
                 "resolve-check assert must be gated when: not ansible_check_mode"
             )
-            assert "symlinks_links | length" in that, (
-                "resolve-check assert must derive its count from symlinks_links | length"
+            assert "config_copies_entries | length" in that, (
+                "resolve-check assert must derive its count from config_copies_entries | length"
             )
-        assert any("stat.islnk" in t for t in thats), (
-            "the follow: false assert must check stat.islnk (proves it is a symlink, not a copy)"
-        )
-        assert any("stat.exists" in t for t in thats), (
-            "the follow: true assert must check stat.exists (proves it resolves — "
-            "a dangling link reports exists: false when followed)"
-        )
+            assert "stat.isdir" in that, (
+                "resolve-check assert must check stat.isdir (real dirs, not symlinks)"
+            )
 
-    def test_xdg_config_home_dir_ensure_ungated(self) -> None:
-        """AC 2 direct-run self-containment: a `file` `state: directory` task
-        re-ensures {{ symlinks_xdg_config_home }} (the file module does NOT
-        create link-dest parents; the filesystem role created it on the
-        bootstrap chain). Natively check-safe — must NOT be --check-gated."""
-        dir_tasks = _dir_ensure_tasks()
-        assert dir_tasks, "no XDG config home dir-ensure task found"
-        for task in dir_tasks:
-            assert str(_module(task).get("path", "")) == "{{ symlinks_xdg_config_home }}"
+    def test_dir_ensure_tasks_ungated(self) -> None:
+        """AC 2 direct-run self-containment: `file` `state: directory` re-ensures
+        {{ config_copies_xdg_config_home }} AND each target dir (copy does NOT
+        create the top-level dest parent). Natively check-safe — must NOT be
+        --check-gated."""
+        home_tasks = _xdg_home_dir_ensure_tasks()
+        assert home_tasks, "no XDG config home dir-ensure task found"
+        for task in home_tasks:
             assert task.get("when") is None, (
                 "XDG dir ensure is check-safe natively — must NOT be --check-gated"
+            )
+
+        target_tasks = _target_dir_ensure_tasks()
+        assert target_tasks, "no per-target dir-ensure task found"
+        for task in target_tasks:
+            assert "{{ config_copies_entries }}" in str(task.get("loop", "")), (
+                "target dir-ensure must loop config_copies_entries"
+            )
+            assert task.get("when") is None, (
+                "target dir ensure is check-safe natively — must NOT be --check-gated"
             )
 
     def test_no_become_anywhere_in_role(self) -> None:
@@ -349,12 +411,12 @@ class TestSymlinksTasks:
 
     def test_no_absolute_paths_hardcoded(self) -> None:
         """Trim lock: every path-bearing reference derives from the role vars
-        (`{{ symlinks_repo_root }}`, `{{ symlinks_xdg_config_home }}`,
+        (`{{ config_copies_repo_root }}`, `{{ config_copies_xdg_config_home }}`,
         `ansible_facts.env`) — no literal absolute path is baked into any
         task's module body OR into vars/main.yml."""
         safe_vars = (
-            "symlinks_repo_root",
-            "symlinks_xdg_config_home",
+            "config_copies_repo_root",
+            "config_copies_xdg_config_home",
             "ansible_facts.env",
         )
         for source_name, source_data in (
@@ -369,11 +431,11 @@ class TestSymlinksTasks:
                     )
 
 
-class TestSymlinksVars:
+class TestConfigCopiesVars:
     _REQUIRED_KEYS = {
-        "symlinks_repo_root",
-        "symlinks_xdg_config_home",
-        "symlinks_links",
+        "config_copies_repo_root",
+        "config_copies_xdg_config_home",
+        "config_copies_entries",
     }
 
     def test_vars_parse_with_required_keys(self) -> None:
@@ -382,23 +444,23 @@ class TestSymlinksVars:
 
     def test_repo_root_mirrors_assets_repo_root(self) -> None:
         data = _vars()
-        assert str(data["symlinks_repo_root"]) == "{{ playbook_dir }}/../../../.."
+        assert str(data["config_copies_repo_root"]) == "{{ playbook_dir }}/../../../.."
 
     def test_xdg_config_home_honors_xdg_and_defaults_to_home(self) -> None:
-        """The link destinations must resolve to the SAME location the filesystem
+        """The copy destinations must resolve to the SAME location the filesystem
         role (2.5) created: honors $XDG_CONFIG_HOME with the spec default
         `{{ ansible_facts.env.HOME }}/.config` via ansible_facts.env (F4 lock)."""
         data = _vars()
-        value = str(data["symlinks_xdg_config_home"])
+        value = str(data["config_copies_xdg_config_home"])
         assert "ansible_facts.env.XDG_CONFIG_HOME" in value
         assert "ansible_facts.env.HOME" in value
         assert "{{ ansible_env." not in value, "F4 lock: never the top-level ansible_env fact"
 
-    def test_symlinks_links_parity_with_manifest(self) -> None:
+    def test_config_copies_entries_parity_with_manifest(self) -> None:
         """Parity lock: the role var exactly mirrors the manifest by
         (name, target) so they can never silently diverge (AC 2)."""
         data = _vars()
-        role_entries = [dict(item) for item in data["symlinks_links"]]
+        role_entries = [dict(item) for item in data["config_copies_entries"]]
         manifest_entries = _manifest_entries()
         assert len(role_entries) == len(manifest_entries)
         assert {tuple(e.items()) for e in role_entries} == {
@@ -415,8 +477,8 @@ class TestSymlinksVars:
         assert "{{ ansible_env." not in text
 
 
-class TestSymlinksPlaybook:
-    _PATH = _ANSIBLE_DIR / "playbooks" / "symlinks.yaml"
+class TestConfigCopiesPlaybook:
+    _PATH = _ANSIBLE_DIR / "playbooks" / "config-copies.yaml"
 
     def test_parses_with_simple_localhost_structure(self) -> None:
         plays = yaml.safe_load(self._PATH.read_text())
@@ -424,18 +486,18 @@ class TestSymlinksPlaybook:
         play = plays[0]
         assert play["hosts"] == "localhost"
         assert play["gather_facts"] is True
-        assert play["roles"] == ["symlinks"]
-        assert "become" not in play, "symlinks playbook must not use become"
-        assert "become_user" not in play, "symlinks playbook must not use become_user"
+        assert play["roles"] == ["config_copies"]
+        assert "become" not in play, "config-copies playbook must not use become"
+        assert "become_user" not in play, "config-copies playbook must not use become_user"
 
     def test_no_group_by_distro_selection(self) -> None:
         """Distro-agnostic (NFR-3): unlike packages.yaml there is NO group_by
-        distro-selection mechanism in the symlinks playbook."""
+        distro-selection mechanism in the config-copies playbook."""
         plays = yaml.safe_load(self._PATH.read_text())
         assert isinstance(plays, list) and len(plays) == 1
         play = plays[0]
-        assert "group_by" not in play, "symlinks playbook must not use group_by"
-        assert "groups" not in play, "symlinks playbook must not group hosts"
+        assert "group_by" not in play, "config-copies playbook must not use group_by"
+        assert "groups" not in play, "config-copies playbook must not group hosts"
 
     def test_syntax_check_exits_zero(self) -> None:
         ansible_playbook = shutil.which("ansible-playbook")
@@ -451,12 +513,13 @@ class TestSymlinksPlaybook:
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
-    def test_playbook_executes_and_creates_symlinks(self) -> None:
+    def test_playbook_executes_and_creates_config_copies(self) -> None:
         """Regression guard (review finding 2026-08-12 discipline): the role
-        must ACTUALLY create symlinks — structural tests alone could not catch a
+        must ACTUALLY copy configs — structural tests alone could not catch a
         silent no-op. Run the real playbook against a temp HOME/XDG home and
-        assert every link lands, resolves, and points at the real repo source;
-        re-running must be a no-op (AC 4 idempotency at runtime)."""
+        assert every dest is a REAL directory (not a symlink — runtime
+        independence), contains the repo source's entries, and re-running is a
+        no-op (AC 4 idempotency at runtime)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -485,17 +548,18 @@ class TestSymlinksPlaybook:
             for entry in _manifest_entries():
                 target = xdg / entry["target"]
                 source = _REPO_ROOT / "dotfiles" / "config" / entry["name"]
-                assert target.is_symlink(), f"{target} was never linked (silent no-op?)"
-                assert target.exists(), (
-                    f"{target} is a dangling link — the repo source {source} is missing?"
+                assert target.is_dir(), f"{target} was never copied (silent no-op?)"
+                assert not target.is_symlink(), (
+                    f"{target} must be a REAL directory, not a symlink (runtime "
+                    "independence — the machine must work after the repo is deleted)"
                 )
-                assert Path(os.readlink(target)).resolve() == source.resolve(), (
-                    f"{target} must point at the real repo source {source}"
+                assert set(os.listdir(target)) == set(os.listdir(source)), (
+                    f"{target} contents do not match the repo source {source}"
                 )
 
             second = run()
             assert second.returncode == 0, second.stdout + second.stderr
             assert "changed=0" in second.stdout, (
-                "re-running the playbook must be a no-op (AC 4 — existing "
-                "symlinks left unchanged); recap:\n" + second.stdout
+                "re-running the playbook must be a no-op (AC 4 — unchanged "
+                "configs left alone); recap:\n" + second.stdout
             )
