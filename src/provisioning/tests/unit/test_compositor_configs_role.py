@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,16 @@ _TASK_KEYWORDS = {
     "ignore_errors",
     "notify",
     "check_mode",
+    "block",
+    "rescue",
+    "always",
+    "delegate_to",
+    "run_once",
+    "no_log",
+    "include_tasks",
+    "import_tasks",
+    "include_role",
+    "meta",
 }
 
 
@@ -116,18 +127,19 @@ def _copy_tasks() -> list[dict[str, object]]:
     return _tasks_with_module("ansible.builtin.copy")
 
 
-def _skeleton_copy_task() -> dict[str, object]:
-    """The single skeleton copy task: the copy carrying `force: false` (the
-    AC 5 marker), looping over {{ compositor_configs_skeleton_copies }}."""
+def _skeleton_task() -> dict[str, object]:
+    """The single skeleton placement task: the `template` task carrying
+    `force: false` (the AC 5 marker), looping over
+    {{ compositor_configs_skeleton_files }}."""
     matches = [
         task
-        for task in _copy_tasks()
+        for task in _tasks_with_module("ansible.builtin.template")
         if str(_module(task).get("force")) == "False"
-        and "compositor_configs_skeleton_copies" in str(task.get("loop", ""))
+        and "compositor_configs_skeleton_files" in str(task.get("loop", ""))
     ]
     assert len(matches) == 1, (
-        f"expected exactly one skeleton copy task looping over "
-        f"compositor_configs_skeleton_copies; found {len(matches)}"
+        f"expected exactly one skeleton placement task looping over "
+        f"compositor_configs_skeleton_files; found {len(matches)}"
     )
     return matches[0]
 
@@ -179,49 +191,51 @@ class TestCompositorConfigsTasks:
         assert "install_dir is defined" in that
         assert "install_dir | trim | length > 0" in that
 
-    def test_three_skeleton_copy_dirs_with_force_false(self) -> None:
-        """AC 2 + 5: the skeleton copy task loops over exactly the three
-        compositor dirs (2.6 `assets_copies` pattern), each entry a `src`
-        prefixed `{{ compositor_configs_repo_root }}/dotfiles/config/<dir>/`
-        with trailing `/` (contents-into-dest), and the task sets
-        `remote_src: true` + `force: false` — the marker that locks AC 5,
-        without which a dev could silently fall back to copy's default
-        force: true and clobber a user's edits."""
-        task = _skeleton_copy_task()
+    def test_skeleton_files_templated_per_file_with_force_false(self) -> None:
+        """AC 2 + 5: the skeleton placement task loops over exactly the four
+        skeleton FILES (per-file entries — a directory `copy` + `force: false`
+        + pre-existing dest is a silent no-op, review finding 2026-08-12), each
+        entry a `source` prefixed `{{ compositor_configs_repo_root }}/dotfiles/
+        config/<dir>/<file>` and a `dest` under the XDG config home, and the
+        task renders via `ansible.builtin.template` with `force: false` — the
+        marker that locks AC 5, without which a dev could silently fall back to
+        template's default force: true and clobber a user's edits. The template
+        module also renders the hyprland.conf first line from the resolved
+        config home (P1 decision)."""
+        task = _skeleton_task()
         module = _module(task)
-        assert module.get("remote_src") is True, (
-            "skeleton copies must use remote_src: true (repo content is on the target)"
-        )
         assert module.get("force") is False, (
-            "skeleton copies must set force: false (AC 5 — never re-touch a placed skeleton)"
+            "skeleton placements must set force: false (AC 5 — never re-touch a placed skeleton)"
         )
-        assert "compositor_configs_skeleton_copies" in str(task.get("loop", ""))
+        assert "compositor_configs_skeleton_files" in str(task.get("loop", ""))
 
         data = _vars()
-        copies = list(data["compositor_configs_skeleton_copies"])
-        assert len(copies) == 3, (
-            f"expected exactly 3 skeleton copies (hypr/hyprpaper/waybar); found {len(copies)}"
+        files = list(data["compositor_configs_skeleton_files"])
+        assert len(files) == 4, (
+            f"expected exactly 4 skeleton files "
+            f"(hyprland.conf/hyprpaper.conf/waybar config/style.css); found {len(files)}"
         )
-        sources = sorted(str(c["source"]) for c in copies)
+        sources = sorted(str(f["source"]) for f in files)
         expected = [
-            "dotfiles/config/hypr/",
-            "dotfiles/config/hyprpaper/",
-            "dotfiles/config/waybar/",
+            "dotfiles/config/hypr/hyprland.conf",
+            "dotfiles/config/hyprpaper/hyprpaper.conf",
+            "dotfiles/config/waybar/config",
+            "dotfiles/config/waybar/style.css",
         ]
-        assert sources == expected, f"skeleton copy sources must be exactly {expected}"
-        for copy_ in copies:
-            assert str(copy_["source"]).endswith("/"), (
-                "skeleton copy src must end with '/' for contents-into-dest semantics"
+        assert sources == expected, f"skeleton file sources must be exactly {expected}"
+        for file_ in files:
+            assert str(file_["source"]).startswith("dotfiles/config/"), (
+                "skeleton file source must live under dotfiles/config/"
             )
-            assert str(copy_["dest"]).startswith("{{ compositor_configs_xdg_config_home }}/"), (
-                "skeleton copy dest must derive from compositor_configs_xdg_config_home"
+            assert str(file_["dest"]).startswith("{{ compositor_configs_xdg_config_home }}/"), (
+                "skeleton file dest must derive from compositor_configs_xdg_config_home"
             )
 
-    def test_skeleton_copy_carries_no_creates(self) -> None:
+    def test_skeleton_placements_carry_no_creates(self) -> None:
         """AC 5/6 idempotency: `force: false` already guarantees no re-transfer
         when the file exists — a `creates:` would be redundant and confusing."""
-        assert _creates_value(_skeleton_copy_task()) is None, (
-            "skeleton copy task must not carry creates: "
+        assert _creates_value(_skeleton_task()) is None, (
+            "skeleton placement task must not carry creates: "
             "(force: false already guarantees no re-transfer)"
         )
 
@@ -295,6 +309,15 @@ class TestCompositorConfigsTasks:
             assert task.get("when") == "not ansible_check_mode", (
                 "fragment-source assert must be gated when: not ansible_check_mode"
             )
+            that = str(_module(task).get("that", ""))
+            assert "stat.isreg" in that, (
+                "fragment assert must check stat.isreg (a directory at a fragment "
+                "source must fail the fail-loud guard, not pass a bare .exists check)"
+            )
+            assert "compositor_configs_fragment_copies | length" in that, (
+                "fragment assert must derive its count from "
+                "compositor_configs_fragment_copies | length, not a hardcoded literal"
+            )
 
     def test_config_dirs_ensured_via_file_directory(self) -> None:
         """Direct-run self-containment: a `file` `state: directory` task re-ensures
@@ -337,26 +360,22 @@ class TestCompositorConfigsTasks:
         """Trim lock: every path-bearing reference derives from the role vars
         (`{{ compositor_configs_repo_root }}`, `{{ install_dir | trim }}`,
         `{{ compositor_configs_xdg_config_home }}`) — no literal absolute path
-        is baked into any task's module body."""
+        is baked into any task's module body OR into vars/main.yml."""
         safe_vars = (
             "compositor_configs_repo_root",
             "compositor_configs_xdg_config_home",
             "install_dir",
             "ansible_facts.env",
-            "item.",
         )
-        for task in _load_tasks():
-            module_key = _module_key(task)
-            assert module_key is not None
-            raw = task.get(module_key)
-            if isinstance(raw, str):
-                raw = {module_key: raw}
-            assert isinstance(raw, dict)
-            for token in str(raw).split():
+        for source_name, source_data in (
+            ("tasks", _load_tasks()),
+            ("vars", _vars()),
+        ):
+            text = str(source_data)
+            for token in text.split():
                 if token.startswith("/") and not any(var in token for var in safe_vars):
                     raise AssertionError(
-                        f"task {task.get('name')!r} hardcodes an absolute path: "
-                        f"{token!r} (trim lock)"
+                        f"{source_name}/main.yml hardcodes an absolute path: {token!r} (trim lock)"
                     )
 
 
@@ -365,7 +384,7 @@ class TestCompositorConfigsVars:
         "compositor_configs_repo_root",
         "compositor_configs_xdg_config_home",
         "compositor_configs_config_dirs",
-        "compositor_configs_skeleton_copies",
+        "compositor_configs_skeleton_files",
         "compositor_configs_fragment_copies",
     }
 
@@ -447,3 +466,58 @@ class TestCompositorConfigsPlaybook:
             env=env,
         )
         assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_playbook_executes_and_places_skeletons_and_fragments(self) -> None:
+        """Regression guard (review finding 2026-08-12): the role must ACTUALLY
+        place the skeleton files — a directory-source `copy` + `force: false` +
+        pre-existing dest dir is a silent no-op, which the structural tests
+        could not catch. Run the real playbook against a temp HOME/XDG home and
+        install_dir, create the two palette fragments, and assert every skeleton
+        file and fragment lands on disk."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+            palettes = install / "generated" / "palettes"
+            palettes.mkdir(parents=True)
+            (palettes / "colors.conf").write_text("$background = 0x000000\n")
+            (palettes / "colors.gtk.css").write_text("@define-color color_00 #000000;\n")
+
+            env = dict(os.environ)
+            env["HOME"] = str(home)
+            env["XDG_CONFIG_HOME"] = str(xdg)
+            env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(self._PATH),
+                    "-e",
+                    f"install_dir={install}",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+
+            expected_skeletons = [
+                xdg / "hypr" / "hyprland.conf",
+                xdg / "hyprpaper" / "hyprpaper.conf",
+                xdg / "waybar" / "config",
+                xdg / "waybar" / "style.css",
+            ]
+            for path in expected_skeletons:
+                assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"
+            assert (xdg / "hypr" / "colors.conf").is_file(), "colors.conf fragment missing"
+            assert (xdg / "waybar" / "colors.css").is_file(), "colors.css fragment missing"
+
+            hypr = (xdg / "hypr" / "hyprland.conf").read_text().splitlines()[0]
+            assert hypr == f"source = {xdg}/hypr/colors.conf", (
+                "hyprland.conf first line must render the resolved XDG config home (P1)"
+            )

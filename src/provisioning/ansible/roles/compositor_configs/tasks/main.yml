@@ -10,16 +10,25 @@
 #   deliberately never defaulted (group_vars/all.yml), so an undefined spine
 #   root must abort with a friendly message before any task evaluates.
 # - "skeletons never change; fragments are the Phase 2 overwrite target"
-#   (AC 5, 7): the skeleton copies carry `force: false` — copy transfers only
-#   if the destination does not exist, so a placed skeleton is NEVER re-touched
-#   on any re-run (copy's default `force: true` would clobber a user's hand
-#   edits). The fragment copies are the ONLY overwrite candidates (AC 5, 7):
-#   copy's default `force: true` means a regenerated palette (FR-18, no
-#   `creates:` in 2.7) propagates on the next apply. NO `creates:` on either —
-#   not needed on skeletons (force: false already guarantees no re-transfer)
-#   and forbidden on fragments (a gate would freeze a stale fragment).
-# - copy module check-mode support is FULL (action plugin predicts changed
-#   without writing) — the skeleton copies need NO `not ansible_check_mode`
+#   (AC 5, 7): the skeleton placements carry `force: false` — a file is
+#   transferred only if the destination does not exist, so a placed skeleton is
+#   NEVER re-touched on any re-run (the template module's default `force: true`
+#   would clobber a user's hand edits). The fragment copies are the ONLY
+#   overwrite candidates (AC 5, 7): copy's default `force: true` means a
+#   regenerated palette (FR-18, no `creates:` in 2.7) propagates on the next
+#   apply. NO `creates:` on either — not needed on skeletons (force: false
+#   already guarantees no re-transfer) and forbidden on fragments (a gate would
+#   freeze a stale fragment).
+# - Skeleton placement uses `ansible.builtin.template` with PER-FILE entries
+#   (compositor_configs_skeleton_files), NOT a directory source: review finding
+#   2026-08-12 proved `copy` with a directory `src` + `force: false` + a
+#   pre-existing dest dir is a SILENT NO-OP (nothing is ever placed). Per-file
+#   copy is the only shape where force: false means "transfer if absent".
+#   Templating also renders the hyprland.conf first line from the resolved
+#   compositor_configs_xdg_config_home (P1 decision) so the fragment reference
+#   stays correct when $XDG_CONFIG_HOME is set.
+# - template module check-mode support is FULL (action plugin predicts changed
+#   without writing) — the skeleton placements need NO `not ansible_check_mode`
 #   gate. The fragment copies ARE gated `when: not ansible_check_mode`: under
 #   --check the default_palette generate is skipped, so the fragment sources
 #   are legitimately absent on a fresh target (dry-run must be dry, 2.7/2.8
@@ -54,13 +63,12 @@
     state: directory
   loop: "{{ compositor_configs_config_dirs }}"
 
-- name: Place compositor skeleton dirs
-  ansible.builtin.copy:
+- name: Place compositor skeleton files
+  ansible.builtin.template:
     src: "{{ compositor_configs_repo_root }}/{{ item.source }}"
     dest: "{{ item.dest }}"
-    remote_src: true
     force: false
-  loop: "{{ compositor_configs_skeleton_copies }}"
+  loop: "{{ compositor_configs_skeleton_files }}"
 
 - name: Check palette fragment sources exist
   ansible.builtin.stat:
@@ -71,7 +79,7 @@
 
 - name: Assert palette fragment sources are present
   ansible.builtin.assert:
-    that: compositor_configs_fragment_check.results | selectattr('stat.exists') | list | length == 2
+    that: compositor_configs_fragment_check.results | selectattr('stat.isreg') | list | length == compositor_configs_fragment_copies | length
     fail_msg: >-
       palette fragments missing from {{ install_dir | trim }}/generated/palettes/
       (expected colors.conf and colors.gtk.css) — the default_palette role

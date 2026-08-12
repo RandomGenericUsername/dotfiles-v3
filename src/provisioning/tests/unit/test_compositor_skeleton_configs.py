@@ -36,7 +36,7 @@ _WAYBAR_CSS = _CONFIG_DIR / "waybar" / "style.css"
 _WAYBAR_CONFIG = _CONFIG_DIR / "waybar" / "config"
 _HYPRPAPER_CONF = _CONFIG_DIR / "hyprpaper" / "hyprpaper.conf"
 
-_HYPR_HEADER = "source = ~/.config/hypr/colors.conf"
+_HYPR_HEADER = "source = {{ compositor_configs_xdg_config_home }}/hypr/colors.conf"
 _WAYBAR_CSS_HEADER = '@import "colors.css";'
 _HYPRPAPER_PRELOAD = "preload = ~/.local/share/dotfiles/wallpapers/default.png"
 _HYPRPAPER_WALLPAPER = "wallpaper = ,~/.local/share/dotfiles/wallpapers/default.png"
@@ -61,8 +61,13 @@ class TestHyprlandSkeleton:
         assert _HYPR_CONF.is_file(), "dotfiles/config/hypr/hyprland.conf missing"
 
     def test_first_line_sources_colors_conf(self) -> None:
-        """AC 1: FIRST line is verbatim `source = ~/.config/hypr/colors.conf` —
-        the fragment target Story 2.7/2.9 copies to ~/.config/hypr/colors.conf."""
+        """AC 1: FIRST line is `source = {{ compositor_configs_xdg_config_home
+        }}/hypr/colors.conf` — the fragment target Story 2.7/2.9 copies to the
+        resolved XDG config home. Review decision 2026-08-12: the skeleton
+        first line is templated so it stays correct when $XDG_CONFIG_HOME is
+        set (the old verbatim `~/.config` reference diverged from the role's
+        XDG-aware fragment dest); Story 2.9 renders it via the template module
+        with `force: false` (AC 5 — a placed skeleton is never re-touched)."""
         assert _first_line(_HYPR_CONF) == _HYPR_HEADER
 
 

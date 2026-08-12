@@ -4,7 +4,7 @@ baseline_commit: 5577a71
 
 # Story 2.9: Compositor Configs Role
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -12,6 +12,7 @@ Status: review
 
 - 2026-08-12: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-19).
 - 2026-08-12: Implemented — `compositor_configs` role (vars + tasks), `compositor-configs.yaml` playbook, `test_compositor_configs_role.py` (20 tests); full suite 354 passed; ruff + layering clean; mypy-clean new file (10 pre-existing baseline errors unchanged). Status → review.
+- 2026-08-12: Code review — 7 findings fixed (decision: template hypr skeleton source path; CRITICAL skeleton no-op fixed via per-file template placements; isreg fragment guard; derived fragment count; trim-lock vars scan; _TASK_KEYWORDS; runtime execution test). Suite 295+34 passed; ruff clean; layering OK. Status → done.
 
 ## Story
 
@@ -138,6 +139,15 @@ This role mirrors several siblings. "What differs from each mirror":
 - "Missing/partial palette fragment at first boot has no fallback — ordering/verify is owned by 2.9 + 2.12 + 3.2/3.3" — 2.9 OWNS the fail-loud fragment-presence guard (stat+assert above); the eventual runtime fallback is a Phase 2 concern. Do not add a "default colors fallback" beyond the fail-loud assert.
 - Hyprland `rgb(hex)` format / version pinning, hyprlang deprecation: deferred, NOT this role's concern (value format is emitted by 2.7/csg; version pinning is the 2.3 packages role).
 
+### Review Findings
+
+- [x] [Review][Decision] XDG config home vs. hardcoded `~/.config` skeleton source mismatch — **RESOLVED (2026-08-12): template the skeleton source path** so skeletons derive the fragment path from the resolved `compositor_configs_xdg_config_home`. When `$XDG_CONFIG_HOME` is set, the role writes fragments to `$XDG/hypr/colors.conf` and `$XDG/waybar/colors.css`, but the 2.8 skeletons source `~/.config/hypr/colors.conf` / `@import "colors.css"` literally; Hyprland/Waybar would silently miss the fragment. [vars/main.yml:40, 73-74; dotfiles/config/hypr/hyprland.conf:1]
+- [x] [Review][Patch] Skeleton copies are a silent no-op (CRITICAL) [tasks/main.yml:57-63] — FIXED: per-file `template` placements with `force: false` (directory `copy` + `force: false` + existing dest was a silent no-op)
+- [x] [Review][Patch] No runtime test executes the role; structural test enshrines the broken `force: false` dir-copy [test_compositor_configs_role.py:388-424] — FIXED: added `test_playbook_executes_and_places_skeletons_and_fragments` (runs the real playbook against temp dirs)
+- [x] [Review][Patch] Fragment presence assert checks `stat.exists`, not `stat.isreg` [tasks/main.yml:72-80] — FIXED: now `selectattr('stat.isreg')`
+- [x] [Review][Patch] Fragment assert hardcodes `length == 2` instead of `compositor_configs_fragment_copies | length` [tasks/main.yml:74] — FIXED
+- [x] [Review][Patch] Trim-lock test scans only task bodies, never vars, and substring matching false-passes [test_compositor_configs_role.py:542-566] — FIXED: scans vars too, dropped `item.` whitelist substring
+- [x] [Review][Patch] `_TASK_KEYWORDS` omits common action keywords (`block`, `delegate_to`, etc.) — latent `_module_key` misparse [test_compositor_configs_role.py:239-261] — FIXED
 ## Project Structure Notes
 
 - `src/provisioning/ansible/roles/compositor_configs/tasks/main.yml` — NEW role tasks (copy skeletons + fragments + dirs + guards).
