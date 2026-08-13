@@ -4,13 +4,14 @@ baseline_commit: f3530b3
 
 # Story 2.11: Settings Role
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-12: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-21).
+- 2026-08-12: Implemented — settings role, three templates, playbook, and structural+template-content+runtime tests landed; full suite 396 pass (374 baseline + 22 new); status → review.
 
 ## Story
 
@@ -294,6 +295,12 @@ opencode (deepseek-v4-flash)
 - The `settings` role does NOT exist at baseline (verified 2026-08-12): no `roles/settings/`, no `playbooks/settings.yaml`, no `test_settings_role.py` — fully greenfield.
 - Tool settings schemas verified against the actual defaults files + CLI command surface 2026-08-12 (`csg info`, `weg info`, `itr list` all exist with `--config`).
 - Pre-existing mypy baseline: `uv run mypy src tests` reports 10 errors in `tests/unit/test_default_palette_role.py` and `tests/unit/test_cli_tools_role.py` — present at baseline, NOT introduced by this story. The new `test_settings_role.py` must be mypy-clean.
+- Implementation verified 2026-08-12: `uv run pytest` = 396 passed (374 baseline + 22 new); `uv run ruff check .` clean; `uv run ruff format --check .` clean; `uv run mypy src tests` = the same 10 pre-existing errors, none in `test_settings_role.py`; `python tests/architecture/test_layering.py` = OK (17 files, 6 rules). `git status --short` shows only the new role dir, playbook, test file, and story/status artifacts.
+
+### Completion Notes List
+
+- IMPLEMENTED (2026-08-12): settings role landed per the story spec — `roles/settings/{tasks,vars}/main.yml`, three `.j2` templates, `playbooks/settings.yaml`, `tests/unit/test_settings_role.py`. Full suite 396 passed (374 baseline + 22 new), lint/format clean, new test file mypy-clean, layering guard OK.
+- Render contract verified at runtime: real `ansible-playbook settings.yaml` into temp HOME/XDG/install_dir renders the three `settings.toml` files; each parses via `tomllib`; spine paths resolve to the install-dir-derived absolute paths (CSG palettes, WEG effects + .weg-tmp, ITR icons + icon-templates + colors.yaml); `overwrite = false` and WEG `strict = false` locked; re-run reports `changed=0` (content-compare idempotency).
 
 ### Completion Notes List
 

@@ -1,0 +1,24 @@
+# Settings playbook (Story 2.11) — one-per-role playbook; aggregation into
+# bootstrap.yaml is Story 2.12.
+#
+# User-scoped playbook: NO become (everything the role writes lives under the
+# user's config home and install_dir; running as root would diverge from the
+# intended user's layout).
+#
+# Distro-agnostic: rendering the three settings files is identical on Arch and
+# Debian-family and the role consumes no group_vars — so unlike packages.yaml
+# there is NO group_by distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives
+# settings_xdg_config_home from {{ ansible_facts.env.HOME }} and
+# {{ ansible_facts.env.XDG_CONFIG_HOME }}, which are only populated after the
+# fact-gathering setup module runs.
+#
+# install_dir seam contract: the role renders absolute install-spine paths from
+# the install_dir seam extra-var. The FIRST role task asserts it is provided
+# and non-empty; direct runs pass -e install_dir=...
+- name: Render per-tool settings files
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - settings

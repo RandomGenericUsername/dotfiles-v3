@@ -1,0 +1,59 @@
+# Settings role vars (Story 2.11).
+#
+# The role renders the three per-tool settings.toml files from role-authored
+# Jinja templates into the user config home (FR-21, chaining-spine.md) — CSG,
+# WEG, and ITR — baking the absolute install-spine paths from the install_dir
+# seam extra-var (AC 5, NFR-6). It is the ONLY authoring surface for these
+# files: default_palette (2.7), compositor_configs (2.9), and config_copies
+# (2.10) must NEVER author/modify a settings file.
+#
+# Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
+# each mirror:
+#   (a) vs 2.5 filesystem / 2.9 compositor_configs / 2.10 config_copies (XDG
+#       config home): share the EXACT XDG derivation (ansible_facts.env, F4
+#       lock) — do not duplicate logic with a different result.
+#   (b) vs 2.9 compositor_configs (first-task install_dir assert + template
+#       check-mode + runtime exec test): 2.9 COPIES repo files via `template`
+#       with `force: false` (transfer-once skeletons); 2.11 RENDERS
+#       role-internal templates with the default `force: true` (content-compare
+#       idempotent — the rendered settings files ARE the overwrite candidates,
+#       not transfer-once skeletons). 2.9's fragment copies are check-gated
+#       (apply-time sources); 2.11's render is ungated (no external source
+#       dependency).
+#   (c) vs 2.7 default_palette (settings-file NEGATIVE guard): 2.7 GENERATES
+#       the palette and MUST NOT author/modify settings; 2.11 is the ONLY
+#       settings author. The `overwrite = false` in the CSG template + 2.7's
+#       per-task COLORSCHEME__OUTPUT__OVERWRITE env override are a two-sided
+#       contract — do not change one side.
+#   (d) vs config_copies/assets/compositor_configs (repo_root + parity test):
+#       2.11 has NO repo_root and NO manifest parity (no settings manifest
+#       exists) — the templates + structural locks ARE the contract. Do not
+#       cargo-cult a repo_root var.
+
+# settings_xdg_config_home: the target config home the filesystem role (2.5)
+#   created. IDENTICAL derivation to filesystem/compositor_configs/config_copies:
+#   honors $XDG_CONFIG_HOME with the spec default {{ ansible_facts.env.HOME }}/.config.
+#   Uses ansible_facts.env.* (NOT the deprecated top-level ansible_env fact — F4
+#   lock, hard-breaks on ansible-core >= 2.24).
+settings_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+
+# settings_config_dirs: the three per-tool config subdirs under the XDG config
+#   home. The filesystem role (2.5) created only the XDG home itself + the
+#   compositor dirs; the template module does NOT create dest parents, so this
+#   role ensures these three subdirs first (ungated — `file state: directory`
+#   is natively check-safe) to make a direct settings.yaml run self-contained.
+settings_config_dirs:
+  - "{{ settings_xdg_config_home }}/color-scheme-generator"
+  - "{{ settings_xdg_config_home }}/weg"
+  - "{{ settings_xdg_config_home }}/itr"
+
+# settings_files: the three rendered settings files, one entry per tool.
+#   `template` is the .j2 filename resolved by the template module relative to
+#   roles/settings/templates/ (templates live INSIDE the role — no repo_root);
+#   `dest` derives from settings_xdg_config_home. Trim lock: every install-spine
+#   value in the templates consumes the same validated `{{ install_dir | trim }}`
+#   value the fail-loud first-task assert enforces.
+settings_files:
+  - { name: csg, template: csg-settings.toml.j2, dest: "{{ settings_xdg_config_home }}/color-scheme-generator/settings.toml" }
+  - { name: weg, template: weg-settings.toml.j2, dest: "{{ settings_xdg_config_home }}/weg/settings.toml" }
+  - { name: itr, template: itr-settings.toml.j2, dest: "{{ settings_xdg_config_home }}/itr/settings.toml" }

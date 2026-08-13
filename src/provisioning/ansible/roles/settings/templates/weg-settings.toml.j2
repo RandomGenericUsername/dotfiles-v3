@@ -1,0 +1,25 @@
+version = "1.0"
+
+[execution]
+parallel = true
+strict = false
+max_workers = 0
+
+[output]
+verbosity = 1
+directory = "{{ install_dir | trim }}/generated/effects"
+
+[processing]
+temp_dir = "{{ install_dir | trim }}/generated/.weg-tmp"
+
+[backend]
+binary = "magick"
+
+[runtime]
+mode = "local"
+
+[container]
+engine = "docker"
+image_name = "weg"
+image_tag = "latest"
+image_registry = ""

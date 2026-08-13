@@ -1,0 +1,53 @@
+# Settings role tasks (Story 2.11) — renders the three per-tool settings.toml
+# files (CSG/WEG/ITR) from role-authored Jinja templates into the user config
+# home the filesystem role (2.5) created (FR-21, chaining-spine.md), baking the
+# absolute install-spine paths from the install_dir seam extra-var (AC 5, NFR-6).
+#
+# Design (locked in Story 2.11 Dev Notes):
+# - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
+#   from the filesystem/assets/default_palette/compositor_configs roles (AC 6 —
+#   the pre-render validation): install_dir is deliberately never defaulted
+#   (group_vars/all.yml), so an undefined/empty spine root must abort with a
+#   friendly message before any template evaluates. Do NOT alias install_dir
+#   into a var — lazy evaluation could surface a raw undefined-var error.
+# - The template module does NOT create dest parents (2.6/2.9 verified fact), so
+#   the per-tool config subdirs (color-scheme-generator/weg/itr) are ensured
+#   first (the filesystem role created only the XDG home + compositor dirs).
+#   Ungated — `file state: directory` is natively check-safe.
+# - The render loop uses ansible.builtin.template with `src: "{{ item.template }}"`
+#   (resolved relative to roles/settings/templates/) and `dest: "{{ item.dest }}"`
+#   (from settings_files). Default `force: true` = content-compare idempotent
+#   (NFR-1) — a template change propagates on re-apply. NO `creates:` (a gate
+#   would freeze a stale path; mirror of the 2.7/2.9 no-creates discipline). NO
+#   `when: not ansible_check_mode` gate — the template module has FULL check-mode
+#   support (action plugin predicts changed without writing; 2.9-verified
+#   pattern).
+# - The rendered settings files are the ONLY settings authoring surface: the
+#   default_palette role (2.7) MUST NOT author/modify settings (its overwrite
+#   override is scoped to the single generate task via env), and
+#   compositor_configs (2.9) / config_copies (2.10) never touch them. The
+#   dump-* commands (csg dump-config / weg dump-config) are user-facing only and
+#   are NOT used by provisioning (AC 7).
+# - User-scoped privilege context: NO become/become_user anywhere.
+# - No absolute repo paths: every install-spine value is {{ install_dir | trim }}
+#   (trim lock) and every dest derives from {{ settings_xdg_config_home }}.
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the settings role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure per-tool config dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop: "{{ settings_config_dirs }}"
+
+- name: Render settings files
+  ansible.builtin.template:
+    src: "{{ item.template }}"
+    dest: "{{ item.dest }}"
+  loop: "{{ settings_files }}"
