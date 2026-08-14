@@ -4,7 +4,7 @@ baseline_commit: e29e603
 
 # Story 3.1: Fresh-Machine Bootstrap Script
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -12,6 +12,7 @@ Status: ready-for-dev
 
 - 2026-08-13: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-5, NFR-9, CAP-4).
 - 2026-08-13: Container-engine check LOCKED as Option A (fail-loud on missing podman/docker, no distro install in script) — product owner confirmation.
+- 2026-08-13: Story 3.1 implemented — `scripts/bootstrap.sh` (uv preseed → collections loud-abort → aggregate bootstrap → trailing verify hard gate, early container-engine check) + `test_bootstrap_script.py` (16 tests incl. runtime smoke); full suite 453 green; status → review.
 
 ## Story
 
@@ -30,39 +31,39 @@ So that any fresh machine can be fully provisioned in one command.
 
 ## Tasks / Subtasks
 
-- [ ] Create `scripts/bootstrap.sh` (AC: 1-5)
-  - [ ] `#!/usr/bin/env bash` + `set -euo pipefail` (fail-fast on any error — a partially-provisioned machine is worse than a failed bootstrap)
-  - [ ] Derive `ROOT` from the script's own location — `ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"` — NOT `git rev-parse --show-toplevel` (the script must work even if the repo checkout isn't a git worktree or the command fails; `git clone <repo> && ./scripts/bootstrap.sh` makes the script location authoritative)
-  - [ ] **uv preseed (AC 1):** if `command -v uv` fails, install via the official standalone installer: `curl -LsSf https://astral.sh/uv/install.sh | sh` (fall back to `wget -qO- ... | sh` if `curl` is absent — the standalone installer supports both); then add `~/.local/bin` to `PATH` for the rest of the script (`export PATH="$HOME/.local/bin:$PATH"` — the installer places `uv`/`uvx` there; also the `cli_tools` role's `uv tool install` binaries land here). Keep the install failure loud (`set -e` aborts; print a helpful message with the failing step name)
-  - [ ] **Python preseed (AC 1):** the project's `requires-python = ">=3.12"` is satisfied by `uv run` automatically (uv downloads a managed Python if no compatible interpreter exists). Do NOT hand-roll a `python3` detection/install — uv owns Python provisioning. Optionally emit an informational line stating uv will manage the interpreter
-  - [ ] **Collection resolution (AC 2):** BEFORE running the provisioner, run `uv run --directory "$ROOT/src/provisioning" ansible-galaxy collection install -r "$ROOT/src/provisioning/ansible/requirements.yml"` — the first `uv run` syncs the project env from `uv.lock` (installing `ansible-core`), making `ansible-galaxy` available; collections install to the default user path `~/.ansible/collections` (verified present on the dev host)
-  - [ ] **Loud abort on resolution failure (AC 2):** wrap the galaxy install so a failure (missing network, version pin unresolvable) prints a loud, helpful error naming the exact `requirements.yml` path and the likely cause (no network → collections cannot resolve; the provisioner will NOT run with missing modules) then exits non-zero — never continue into `bootstrap` with missing collections
-  - [ ] **Provision (AC 3):** run `uv run --directory "$ROOT/src/provisioning" dotfiles-provision bootstrap` (the aggregate `bootstrap.yaml` — Story 2.12 — runs the whole chain `packages → cli_tools → filesystem → assets → default_palette → compositor_configs → config_copies → settings → verify`; `BootstrapUseCase` already passes the `install_dir` + `os_family` seam extra-vars)
-  - [ ] **Verify green (AC 4):** after the aggregate completes, run `uv run --directory "$ROOT/src/provisioning" dotfiles-provision verify` as the final hard gate — `VerifyCapabilityUseCase` runs `verify.yaml` with a REAL check (never `--check`) asserting all ten done-criteria against provisioned locations. The aggregate's final `verify` import already runs verify, but the explicit trailing `verify` is the literal CAP-4 success signal ("completes `dotfiles-provision bootstrap` with verify green") and the authoritative gate
-  - [ ] On any failure, exit non-zero and print the failing stage (preseed / collections / bootstrap / verify) with the return code — no silent success
-  - [ ] Header comment block: what the script is (CAP-4 fresh-machine entry point), the chicken-and-egg it solves (plan §3), the stage order (uv preseed → collections → bootstrap → verify), the NFR-3 no-distro-branching invariant, and the container-engine note (see Dev Notes "Container engine")
-  - [ ] **Container engine check (AC 4 runtime reality):** the `cli_tools` role builds the `csg` container image and the `default_palette` role runs `csg generate` in container mode — both DETECT podman/docker at runtime and fail loud if absent (group_vars/all.yml). A truly fresh machine has neither. **LOCKED DECISION (Option A):** bootstrap.sh checks for a container engine (`podman` OR `docker` on PATH, podman preferred) EARLY in the script and, if absent, fails loud with a helpful message naming the engine requirement and the reason (the container-mode chain needs one; install podman or docker, then re-run) — exit non-zero BEFORE the long aggregate run. Do NOT install one (distro-specific install would violate NFR-3); do NOT silently proceed (the aggregate would fail 40 minutes in at `default_palette`)
-  - [ ] NO distro branching anywhere (`pacman`, `apt-get`/`apt`, `yum`, `dnf` MUST NOT appear in the script — NFR-3: distro logic lives in `group_vars` only; the test scans for these tokens)
-  - [ ] NO hardcoded absolute paths (everything derives from `ROOT`, `$HOME`, `$XDG_*`)
-  - [ ] Make it executable (`chmod +x scripts/bootstrap.sh`)
+- [x] Create `scripts/bootstrap.sh` (AC: 1-5)
+  - [x] `#!/usr/bin/env bash` + `set -euo pipefail` (fail-fast on any error — a partially-provisioned machine is worse than a failed bootstrap)
+  - [x] Derive `ROOT` from the script's own location — `ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"` — NOT `git rev-parse --show-toplevel` (the script must work even if the repo checkout isn't a git worktree or the command fails; `git clone <repo> && ./scripts/bootstrap.sh` makes the script location authoritative)
+  - [x] **uv preseed (AC 1):** if `command -v uv` fails, install via the official standalone installer: `curl -LsSf https://astral.sh/uv/install.sh | sh` (fall back to `wget -qO- ... | sh` if `curl` is absent — the standalone installer supports both); then add `~/.local/bin` to `PATH` for the rest of the script (`export PATH="$HOME/.local/bin:$PATH"` — the installer places `uv`/`uvx` there; also the `cli_tools` role's `uv tool install` binaries land here). Keep the install failure loud (`set -e` aborts; print a helpful message with the failing step name)
+  - [x] **Python preseed (AC 1):** the project's `requires-python = ">=3.12"` is satisfied by `uv run` automatically (uv downloads a managed Python if no compatible interpreter exists). Do NOT hand-roll a `python3` detection/install — uv owns Python provisioning. Optionally emit an informational line stating uv will manage the interpreter
+  - [x] **Collection resolution (AC 2):** BEFORE running the provisioner, run `uv run --directory "$ROOT/src/provisioning" ansible-galaxy collection install -r "$ROOT/src/provisioning/ansible/requirements.yml"` — the first `uv run` syncs the project env from `uv.lock` (installing `ansible-core`), making `ansible-galaxy` available; collections install to the default user path `~/.ansible/collections` (verified present on the dev host)
+  - [x] **Loud abort on resolution failure (AC 2):** wrap the galaxy install so a failure (missing network, version pin unresolvable) prints a loud, helpful error naming the exact `requirements.yml` path and the likely cause (no network → collections cannot resolve; the provisioner will NOT run with missing modules) then exits non-zero — never continue into `bootstrap` with missing collections
+  - [x] **Provision (AC 3):** run `uv run --directory "$ROOT/src/provisioning" dotfiles-provision bootstrap` (the aggregate `bootstrap.yaml` — Story 2.12 — runs the whole chain `packages → cli_tools → filesystem → assets → default_palette → compositor_configs → config_copies → settings → verify`; `BootstrapUseCase` already passes the `install_dir` + `os_family` seam extra-vars)
+  - [x] **Verify green (AC 4):** after the aggregate completes, run `uv run --directory "$ROOT/src/provisioning" dotfiles-provision verify` as the final hard gate — `VerifyCapabilityUseCase` runs `verify.yaml` with a REAL check (never `--check`) asserting all ten done-criteria against provisioned locations. The aggregate's final `verify` import already runs verify, but the explicit trailing `verify` is the literal CAP-4 success signal ("completes `dotfiles-provision bootstrap` with verify green") and the authoritative gate
+  - [x] On any failure, exit non-zero and print the failing stage (preseed / collections / bootstrap / verify) with the return code — no silent success
+  - [x] Header comment block: what the script is (CAP-4 fresh-machine entry point), the chicken-and-egg it solves (plan §3), the stage order (uv preseed → collections → bootstrap → verify), the NFR-3 no-distro-branching invariant, and the container-engine note (see Dev Notes "Container engine")
+  - [x] **Container engine check (AC 4 runtime reality):** the `cli_tools` role builds the `csg` container image and the `default_palette` role runs `csg generate` in container mode — both DETECT podman/docker at runtime and fail loud if absent (group_vars/all.yml). A truly fresh machine has neither. **LOCKED DECISION (Option A):** bootstrap.sh checks for a container engine (`podman` OR `docker` on PATH, podman preferred) EARLY in the script and, if absent, fails loud with a helpful message naming the engine requirement and the reason (the container-mode chain needs one; install podman or docker, then re-run) — exit non-zero BEFORE the long aggregate run. Do NOT install one (distro-specific install would violate NFR-3); do NOT silently proceed (the aggregate would fail 40 minutes in at `default_palette`)
+  - [x] NO distro branching anywhere (`pacman`, `apt-get`/`apt`, `yum`, `dnf` MUST NOT appear in the script — NFR-3: distro logic lives in `group_vars` only; the test scans for these tokens)
+  - [x] NO hardcoded absolute paths (everything derives from `ROOT`, `$HOME`, `$XDG_*`)
+  - [x] Make it executable (`chmod +x scripts/bootstrap.sh`)
 
-- [ ] Add structural test `src/provisioning/tests/unit/test_bootstrap_script.py` (AC: 1-5)
-  - [ ] Locate the script via a walk-up resolver from the test file (copy the `_find_ansible_dir()`-style helper or derive `<repo root>/scripts/bootstrap.sh` — reuse the repo's accepted duplicated-helper convention)
-  - [ ] Assert the file exists, is executable, and starts with `#!/usr/bin/env bash` + `set -euo pipefail`
-  - [ ] Assert the uv preseed logic: a `command -v uv` presence check and the `astral.sh/uv/install.sh` standalone installer (curl or wget form) for the absent case
-  - [ ] Assert the collection-resolution command: `ansible-galaxy collection install -r` referencing `requirements.yml`, run through `uv run --directory`
-  - [ ] Assert the loud-abort-on-failure path exists (the galaxy install is not allowed to silently continue — check for a guard/error-exit around it)
-  - [ ] Assert the `dotfiles-provision bootstrap` and trailing `dotfiles-provision verify` invocations both appear, in that order (bootstrap before verify), via `uv run --directory`
-  - [ ] Assert NO distro-branching tokens: regex scan for `pacman|apt-get|apt |yum|dnf` returns no matches (NFR-3 — the test locks the invariant so a future edit cannot sneak distro logic in)
-  - [ ] Assert the LOCKED container-engine check: the script references `podman` (preferred) and `docker`, and there is a fail-loud abort (non-zero exit / `||` guard with a helpful message) when neither is on PATH — this is the Option A decision locked on 2026-08-13
-  - [ ] `bash -n scripts/bootstrap.sh` syntax-check exits 0 (skip if `bash` absent)
-  - [ ] Optional runtime smoke test: stub `uv`/`ansible-galaxy`/`dotfiles-provision` with a temp `PATH` and assert the script invokes them in the correct order (mirror the 2.10/2.11/2.12 runtime-execution discipline — structural tests alone can miss a silent no-op). Skip if the harness is fragile on the CI host
+- [x] Add structural test `src/provisioning/tests/unit/test_bootstrap_script.py` (AC: 1-5)
+  - [x] Locate the script via a walk-up resolver from the test file (copy the `_find_ansible_dir()`-style helper or derive `<repo root>/scripts/bootstrap.sh` — reuse the repo's accepted duplicated-helper convention)
+  - [x] Assert the file exists, is executable, and starts with `#!/usr/bin/env bash` + `set -euo pipefail`
+  - [x] Assert the uv preseed logic: a `command -v uv` presence check and the `astral.sh/uv/install.sh` standalone installer (curl or wget form) for the absent case
+  - [x] Assert the collection-resolution command: `ansible-galaxy collection install -r` referencing `requirements.yml`, run through `uv run --directory`
+  - [x] Assert the loud-abort-on-failure path exists (the galaxy install is not allowed to silently continue — check for a guard/error-exit around it)
+  - [x] Assert the `dotfiles-provision bootstrap` and trailing `dotfiles-provision verify` invocations both appear, in that order (bootstrap before verify), via `uv run --directory`
+  - [x] Assert NO distro-branching tokens: regex scan for `pacman|apt-get|apt |yum|dnf` returns no matches (NFR-3 — the test locks the invariant so a future edit cannot sneak distro logic in)
+  - [x] Assert the LOCKED container-engine check: the script references `podman` (preferred) and `docker`, and there is a fail-loud abort (non-zero exit / `||` guard with a helpful message) when neither is on PATH — this is the Option A decision locked on 2026-08-13
+  - [x] `bash -n scripts/bootstrap.sh` syntax-check exits 0 (skip if `bash` absent)
+  - [x] Optional runtime smoke test: stub `uv`/`ansible-galaxy`/`dotfiles-provision` with a temp `PATH` and assert the script invokes them in the correct order (mirror the 2.10/2.11/2.12 runtime-execution discipline — structural tests alone can miss a silent no-op). Skip if the harness is fragile on the CI host
 
-- [ ] Verify full suite + lint + layering guard (AC: 1-5)
-  - [ ] `uv run pytest` — full suite green, no regressions from the 433-pass baseline (Story 2.12)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (new test file must be mypy-clean; 10 pre-existing baseline errors in test_default_palette_role.py/test_cli_tools_role.py — do NOT chase them)
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
-  - [ ] `git status --short` shows ONLY `scripts/bootstrap.sh`, the new test file, and the story/status artifacts
+- [x] Verify full suite + lint + layering guard (AC: 1-5)
+  - [x] `uv run pytest` — full suite green, no regressions from the 433-pass baseline (Story 2.12)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (new test file must be mypy-clean; 10 pre-existing baseline errors in test_default_palette_role.py/test_cli_tools_role.py — do NOT chase them)
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+  - [x] `git status --short` shows ONLY `scripts/bootstrap.sh`, the new test file, and the story/status artifacts
 
 ## Dev Notes
 
@@ -206,3 +207,17 @@ opencode (deepseek-v4-flash)
 ### Debug Log References
 
 - Baseline `e29e603`; working tree DIRTY with the uncommitted 2.12 review fixes (verify role + tests + artifacts) — build on the current tree, don't revert. 433 tests pass. Container-engine check LOCKED as Option A (fail-loud on missing podman/docker) — see Dev Notes.
+- At dev start the dirty tree was committed (`fb83e64 feat: apply code review findings for story 2.12 verify role`); tree clean; HEAD `fb83e64`.
+- Runtime smoke test required a `dirname` symlink in the stub PATH: the script's ROOT derivation runs `dirname` (external), so an isolated stub-only PATH broke it (`cd ""/..` → ROOT=/). Resolved by symlinking the real `dirname` into the stub dir.
+- The NFR-3 no-distro-token scan caught my own header comment naming `pacman/apt/yum/dnf` — removed the literal tokens from the script so the invariant lock holds.
+
+### Completion Notes List
+
+- 2026-08-13: Story 3.1 implemented and marked for review. Created `scripts/bootstrap.sh` — the CAP-4 fresh-machine entry point: ROOT from BASH_SOURCE (not the git top-level), `set -euo pipefail`, early fail-loud container-engine check (podman preferred → docker → abort naming the requirement, per the locked Option A decision; no install), uv preseed via the official astral standalone installer (curl with wget fallback, `~/.local/bin` prepended to PATH, uv owns Python provisioning), `ansible-galaxy collection install -r requirements.yml` through `uv run --directory` with a loud abort on resolution failure (names the requirements path + no-network cause), `uv run dotfiles-provision bootstrap` (aggregate, Story 2.12), and the trailing `uv run dotfiles-provision verify` hard gate (real check, never --check). Zero distro tokens (NFR-3 invariant), zero hardcoded absolute paths. Added `test_bootstrap_script.py` — 16 tests: file/executable/shebang/fail-fast, ROOT-from-BASH_SOURCE, uv preseed (curl+wget), collection resolution through uv run, loud-abort guard, bootstrap-before-verify order, no-distro-token regex lock, container-engine check (podman preferred + fail-loud), no-hardcoded-paths, header block, stage-failure-with-rc, `bash -n` syntax, plus two runtime smoke tests (stub podman/uv/ansible-galaxy/dotfiles-provision on an isolated PATH asserting exact stage invocation order, and a fail-loud-no-engine run). Gates: full suite 453 passed (433 baseline + new tests, no regressions), ruff check + format clean, new test file mypy-clean (10 pre-existing baseline errors in test_default_palette_role/test_cli_tools_role NOT chased), layering guard OK, `git status` shows only the intended files.
+
+### File List
+
+- `scripts/bootstrap.sh` (NEW, executable)
+- `src/provisioning/tests/unit/test_bootstrap_script.py` (NEW)
+- `_bmad-output/implementation-artifacts/3-1-fresh-machine-bootstrap-script.md` (this story)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (story status → ready-for-dev → in-progress → review)
