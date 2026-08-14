@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -72,6 +73,24 @@ _EXPECTED_TEMPLATES = {
     "weg": "weg-settings.toml.j2",
     "itr": "itr-settings.toml.j2",
 }
+
+# Trim lock (review finding 2026-08-12): detect hardcoded absolute paths even
+# when they are quoted (`"/home/user/x"`) or glued after a Jinja expression
+# (`}}/home/user/generated`) — the old token `startswith("/")` scan missed
+# both. A fragment is hardcoded unless a seam var (install_dir / the XDG home
+# var / ansible_facts.env) appears within 80 chars before it.
+_ABSOLUTE_PATH_RE = re.compile(r"(?<![\w.])/(?:[A-Za-z0-9._~/-]+)")
+
+
+def _hardcoded_absolute_path(text: str, seam_vars: tuple[str, ...]) -> str | None:
+    """Return the first absolute-path fragment in ``text`` not derived from a
+    seam var, or None if every `/` path is seam-derived (trim lock)."""
+    for match in _ABSOLUTE_PATH_RE.finditer(text):
+        window = text[max(0, match.start() - 80) : match.start()]
+        if any(var in window for var in seam_vars):
+            continue
+        return match.group(0)
+    return None
 
 
 def _load_tasks() -> list[dict[str, object]]:
@@ -264,8 +283,11 @@ class TestSettingsTasks:
         """Trim lock: every path-bearing reference derives from the role vars
         (`{{ settings_xdg_config_home }}`, `{{ install_dir | trim }}`,
         `ansible_facts.env`) — no literal absolute path is baked into any
-        task's module body OR into vars/main.yml."""
-        safe_vars = (
+        task's module body OR into vars/main.yml. Hardened (review finding
+        2026-08-12): the scan catches quoted literals (`"/home/user/x"`) and
+        paths glued after a Jinja `}}` that the old `startswith("/")` token
+        check missed."""
+        seam_vars = (
             "settings_xdg_config_home",
             "settings_config_dirs",
             "settings_files",
@@ -276,12 +298,10 @@ class TestSettingsTasks:
             ("tasks", _load_tasks()),
             ("vars", _vars()),
         ):
-            text = str(source_data)
-            for token in text.split():
-                if token.startswith("/") and not any(var in token for var in safe_vars):
-                    raise AssertionError(
-                        f"{source_name}/main.yml hardcodes an absolute path: {token!r} (trim lock)"
-                    )
+            hit = _hardcoded_absolute_path(str(source_data), seam_vars)
+            assert hit is None, (
+                f"{source_name}/main.yml hardcodes an absolute path: {hit!r} (trim lock)"
+            )
 
 
 class TestSettingsVars:
@@ -343,6 +363,22 @@ class TestSettingsVars:
             )
             assert dest.endswith("settings.toml")
 
+    def test_every_dest_parent_is_ensured_in_config_dirs(self) -> None:
+        """Self-containment (review finding 2026-08-12): the template module
+        does NOT create dest parents, so every settings_files dest's parent
+        must be one of the ensured settings_config_dirs. The two lists are
+        otherwise unlinked — a 4th tool without a matching dir would fail only
+        at runtime with a raw "destination directory does not exist"."""
+        data = _vars()
+        ensured = {str(d) for d in data["settings_config_dirs"]}
+        for file_ in data["settings_files"]:
+            dest = str(file_["dest"])
+            parent = dest.rsplit("/", 1)[0]
+            assert parent in ensured, (
+                f"{file_['name']} dest parent {parent!r} is not in "
+                f"settings_config_dirs (template module does not create dest parents)"
+            )
+
     def test_vars_use_non_deprecated_env_fact(self) -> None:
         """F4 lock: vars read ansible_facts.env, never the deprecated top-level
         ansible_env fact (INJECT_FACTS_AS_VARS injection that hard-breaks on
@@ -356,15 +392,16 @@ class TestSettingsVars:
 class TestSettingsTemplates:
     def test_each_template_derives_spine_paths_from_install_dir_trim(self) -> None:
         """AC 5 + trim lock: every spine-path value in each .j2 consumes
-        `{{ install_dir | trim }}` — never a literal absolute path."""
+        `{{ install_dir | trim }}` — never a literal absolute path. Hardened
+        (review finding 2026-08-12): quoted/glued hardcodes are caught, not
+        just bare `/`-prefixed tokens."""
         for _name, filename in _EXPECTED_TEMPLATES.items():
             text = (_TEMPLATES_DIR / filename).read_text()
-            for token in text.split():
-                if token.startswith("/") and "{{ install_dir | trim }}" not in token:
-                    raise AssertionError(
-                        f"{filename} hardcodes a path fragment not derived from "
-                        f"{{{{ install_dir | trim }}}}: {token!r} (trim lock)"
-                    )
+            hit = _hardcoded_absolute_path(text, ("install_dir | trim",))
+            assert hit is None, (
+                f"{filename} hardcodes a path fragment not derived from "
+                f"{{{{ install_dir | trim }}}}: {hit!r} (trim lock)"
+            )
 
     def test_no_default_fallback_on_install_dir(self) -> None:
         """AC 6: a `default()` fallback on install_dir would silently render an
@@ -450,8 +487,7 @@ class TestSettingsPlaybook:
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping syntax-check")
-        env = dict(os.environ)
-        env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+        env = _test_env(ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"))
         result = subprocess.run(
             [
                 ansible_playbook,
@@ -463,6 +499,7 @@ class TestSettingsPlaybook:
             capture_output=True,
             text=True,
             env=env,
+            timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
@@ -472,8 +509,9 @@ class TestSettingsPlaybook:
         could not catch a silent no-op. Run the real playbook against a temp
         HOME + XDG_CONFIG_HOME + install_dir, assert each settings.toml exists,
         parses as valid TOML, and its spine paths equal the install_dir-derived
-        absolute paths; re-running is a no-op (AC 4 idempotency); no
-        None/empty-path values render (AC 6)."""
+        absolute paths; a --check run writes nothing and reports no failures;
+        re-running is a no-op (AC 4 idempotency); no None/empty-path values
+        render (AC 6)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -485,52 +523,65 @@ class TestSettingsPlaybook:
             xdg.mkdir()
             install.mkdir()
 
-            env = dict(os.environ)
-            env["HOME"] = str(home)
-            env["XDG_CONFIG_HOME"] = str(xdg)
-            env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+            )
 
-            def run() -> subprocess.CompletedProcess[str]:
+            def run(*extra: str) -> subprocess.CompletedProcess[str]:
                 return subprocess.run(
                     [
                         ansible_playbook,
                         str(self._PATH),
+                        *extra,
                         "-e",
                         f"install_dir={install}",
                     ],
                     capture_output=True,
                     text=True,
                     env=env,
+                    timeout=120,
+                )
+
+            check = run("--check")
+            assert check.returncode == 0, check.stdout + check.stderr
+            assert "failed=0" in check.stdout, (
+                "--check must report no failures (template/file are check-safe "
+                "natively); recap:\n" + check.stdout
+            )
+            for name, path in _expected_files(xdg).items():
+                assert not path.exists(), (
+                    f"--check wrote {name} settings.toml {path} — check mode must not write"
                 )
 
             first = run()
             assert first.returncode == 0, first.stdout + first.stderr
 
-            expected_files = {
-                "csg": xdg / "color-scheme-generator" / "settings.toml",
-                "weg": xdg / "weg" / "settings.toml",
-                "itr": xdg / "itr" / "settings.toml",
-            }
-            for name, path in expected_files.items():
+            for name, path in _expected_files(xdg).items():
                 assert path.is_file(), f"{name} settings.toml {path} was never rendered"
 
-            csg = tomllib.loads(expected_files["csg"].read_text())
+            csg = tomllib.loads(_expected_files(xdg)["csg"].read_text())
             assert str(csg["output"]["directory"]) == str(install / "generated" / "palettes")
             assert csg["output"]["overwrite"] is False, (
                 "rendered CSG file must keep overwrite = false (2.7 owns the env override)"
             )
-            weg = tomllib.loads(expected_files["weg"].read_text())
+            assert csg["output"]["default_formats"] == ["conf", "gtk.css", "yaml"], (
+                "rendered CSG default_formats must match the chain formats (review "
+                "finding 2026-08-12 — json/sh has no Phase 1 consumer)"
+            )
+            weg = tomllib.loads(_expected_files(xdg)["weg"].read_text())
             assert str(weg["output"]["directory"]) == str(install / "generated" / "effects")
             assert str(weg["processing"]["temp_dir"]) == str(install / "generated" / ".weg-tmp")
             assert weg["execution"]["strict"] is False
-            itr = tomllib.loads(expected_files["itr"].read_text())
+            itr = tomllib.loads(_expected_files(xdg)["itr"].read_text())
             assert str(itr["output"]["output_dir"]) == str(install / "generated" / "icons")
             assert str(itr["templates"]["dir"]) == str(install / "icon-templates")
             assert str(itr["color_scheme"]["path"]) == str(
                 install / "generated" / "palettes" / "colors.yaml"
             )
 
-            for name, path in expected_files.items():
+            for name, path in _expected_files(xdg).items():
                 text = path.read_text()
                 assert "None/generated" not in text and "/None" not in text, (
                     f"{name} settings.toml renders a None path (AC 6)"
@@ -553,14 +604,56 @@ class TestSettingsPlaybook:
                 "idempotency — NFR-1); recap:\n" + second.stdout
             )
 
+    def test_playbook_renders_into_home_config_without_xdg(self) -> None:
+        """The real-world default (review finding 2026-08-12): when
+        XDG_CONFIG_HOME is unset, settings_xdg_config_home must fall back to
+        HOME/.config. Both other exec paths set XDG_CONFIG_HOME, so this
+        fallback branch was never rendered at runtime until now."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            install = Path(tmp) / "install"
+            home.mkdir()
+            install.mkdir()
+
+            env = _test_env(
+                HOME=str(home),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+            )
+            env.pop("XDG_CONFIG_HOME", None)
+
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(self._PATH),
+                    "-e",
+                    f"install_dir={install}",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+
+            config_home = home / ".config"
+            for name, path in _expected_files(config_home).items():
+                assert path.is_file(), (
+                    f"{name} settings.toml {path} was never rendered under HOME/.config "
+                    "(XDG_CONFIG_HOME fallback)"
+                )
+
     def test_runtime_gate_with_cli_tools(self) -> None:
-        """AC 8 (optional): if the CLIs are on PATH, invoke the --config gate
-        against the rendered files. A temp HOME won't find uv-installed tools,
-        so this is skipped when the CLIs are absent — the authoritative gate is
-        Story 2.12 (verify) + Story 3.3 (settings-parity integration)."""
+        """AC 8 (optional): if a CLI is on PATH, invoke its --config gate
+        against the rendered files — per-tool (review finding 2026-08-12), so
+        a machine with only one CLI still gates that half. A temp HOME won't
+        find uv-installed tools, so absent CLIs are skipped — the authoritative
+        gate is Story 2.12 (verify) + Story 3.3 (settings-parity)."""
         csg = shutil.which("csg")
         weg = shutil.which("weg")
-        if csg is None or weg is None:
+        if csg is None and weg is None:
             pytest.skip("csg/weg not installed; skipping runtime gate (owned by 2.12/3.3)")
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
@@ -573,10 +666,11 @@ class TestSettingsPlaybook:
             xdg.mkdir()
             install.mkdir()
 
-            env = dict(os.environ)
-            env["HOME"] = str(home)
-            env["XDG_CONFIG_HOME"] = str(xdg)
-            env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+            )
             result = subprocess.run(
                 [
                     ansible_playbook,
@@ -587,18 +681,24 @@ class TestSettingsPlaybook:
                 capture_output=True,
                 text=True,
                 env=env,
+                timeout=120,
             )
             assert result.returncode == 0, result.stdout + result.stderr
 
-            for cmd, config in (
-                ([csg, "info", "--config"], xdg / "color-scheme-generator" / "settings.toml"),
-                ([weg, "info", "--config"], xdg / "weg" / "settings.toml"),
-            ):
+            gates: list[tuple[list[str], Path]] = []
+            if csg is not None:
+                gates.append(
+                    ([csg, "info", "--config"], xdg / "color-scheme-generator" / "settings.toml")
+                )
+            if weg is not None:
+                gates.append(([weg, "info", "--config"], xdg / "weg" / "settings.toml"))
+            for cmd, config in gates:
                 gate = subprocess.run(
                     [*cmd, str(config)],
                     capture_output=True,
                     text=True,
                     env=env,
+                    timeout=120,
                 )
                 assert gate.returncode == 0, (
                     f"{' '.join(cmd)} <rendered> must exit 0 (AC 8); stdout:\n"
@@ -606,6 +706,24 @@ class TestSettingsPlaybook:
                     + "\nstderr:\n"
                     + gate.stderr
                 )
+
+
+def _test_env(**overrides: str) -> dict[str, str]:
+    """A scrubbed env for playbook subprocesses (review finding 2026-08-12):
+    drop ambient ANSIBLE_* vars — a developer's ANSIBLE_INVENTORY /
+    ANSIBLE_ROLES_PATH / etc. would otherwise silently override ansible.cfg —
+    then apply the explicit HOME/XDG_CONFIG_HOME/ANSIBLE_CONFIG."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("ANSIBLE_")}
+    env.update(overrides)
+    return env
+
+
+def _expected_files(config_home: Path) -> dict[str, Path]:
+    return {
+        "csg": config_home / "color-scheme-generator" / "settings.toml",
+        "weg": config_home / "weg" / "settings.toml",
+        "itr": config_home / "itr" / "settings.toml",
+    }
 
 
 def _flatten_strings(value: object) -> list[str]:

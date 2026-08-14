@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of 2-11-settings-role (2026-08-12)
+
+- No fail-loud fact-gathering guard for `ansible_facts.env` — config_copies leads with an `ansible_facts.env.HOME is defined` assert; settings asserts only `install_dir`. A future 2.12 aggregator (bootstrap.yaml) that forgets `gather_facts: true` dies with an opaque undefined-var error; the settings playbook always sets `gather_facts: true`, so not reachable today — flag at 2.12 build time [src/provisioning/ansible/roles/settings/tasks/main.yml:35-41]
+- `csg info --config` gate is vacuous — csg's `info` swallows ConfigResolutionError and exits 0 even on a parse-broken file; the WEG half can actually fail. Authoritative AC 8 gate owned by 2.12 (verify) + 3.3 (settings-parity) [src/provisioning/tests/unit/test_settings_role.py:562-614, src/cli-tools/color-scheme-generator/src/color_scheme_generator/cli/info_cmd.py:43-44]
+- No schema-parity coverage tying rendered files to the tool schemas — literal string asserts can't catch a new required schema field; 3.3 settings-parity invokes the CLIs as the schema gate [src/provisioning/tests/unit/test_settings_role.py:362-430]
+- `HOME=""` (XDG unset) resolves to `/.config` at the filesystem root — inner `default()` lacks `boolean=true`, empty HOME passes through; identical derivation shared verbatim with filesystem/compositor_configs/config_copies, so the fix must land chain-wide [src/provisioning/ansible/roles/settings/vars/main.yml:38]
+
 ## Deferred from: code review of 2-6-assets-role (2026-08-10)
 
 - `assets_weg_bin_dir` re-derives `~/.local/bin` instead of consuming `cli_tools_bin_dir`; both roles diverge from uv's real bin dir when UV_TOOL_BIN_DIR/XDG_BIN_HOME are set — cross-role shared-var design, not this story [src/provisioning/ansible/roles/assets/vars/main.yml:25]
