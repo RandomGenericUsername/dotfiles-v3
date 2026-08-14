@@ -1,0 +1,313 @@
+# Verify role tasks (Story 2.12) — asserts the ten done-criteria (plan §8,
+# SPEC.md CAP-3) against PROVISIONED locations only (the user config home via
+# verify_xdg_config_home and the install spine via {{ install_dir | trim }}).
+# It is a read-only gate: it renders nothing, copies nothing, and needs NO
+# become/become_user — everything it checks lives under the user's config home
+# and install_dir (user-scoped privilege context, mirror of 2.5-2.11).
+#
+# The ten done-criteria map to the tasks below:
+#   1. install dir established      → install-dir subtree stat+assert (nine
+#      spine dirs + weg-effects.yaml)
+#   2. system binaries on PATH      → command -v hyprland/hyprpaper/waybar
+#   3. CLI tools on PATH            → command -v csg/weg/itr (with
+#      verify_cli_bin_dir on PATH)
+#   4. assets deployed              → default.png + icon-templates/ +
+#      icon-mappings/ + csg-templates/ + weg-effects.yaml
+#   5. settings render and parse    → settings files exist AND spine targets
+#      resolve AND csg/weg/itr gates exit 0
+#   6. default palette generated    → generated/palettes/{colors.conf,
+#      colors.yaml, colors.gtk.css}
+#   7. compositor configs placed    → skeletons + hypr/colors.conf +
+#      waybar/colors.css
+#   8. filesystem structure exists  → XDG config/state/cache dirs
+#   9. config copies present        → nvim/starship/wlogout/zsh REAL dirs
+#      (follow: false isdir — NOT symlinks)
+#   10. §12 preconditions           → criteria 2/3 + 4 + 8 + 5 — the whole role;
+#       exposed by VerifyCapabilityUseCase (use_cases.py) running verify.yaml
+#       with a REAL check, never --check.
+#
+# Machine, not repo (the core invariant): NOTHING here references the repo
+# checkout (no playbook_dir / repo-root var). The gate must never go green
+# because the repo still exists while the machine is unprovisioned.
+#
+# Check-mode gating rationale: `dotfiles-provision verify` runs verify.yaml
+# with check=False — that is the authoritative gate. But verify is ALSO the
+# last import of bootstrap.yaml, and bootstrap.yaml --check must "complete
+# cleanly without mutation" (AC 5). Under --check: stat tasks run and report
+# honestly (no mutation — fine ungated); command/shell tasks are SKIPPED by
+# ansible-core 2.20.3; so every existence/isdir/rc ASSERT is gated
+# `when: not ansible_check_mode` to keep the dry run clean on a
+# partially-provisioned host. The authoritative gate is the real
+# `dotfiles-provision verify`. Do NOT remove the gates "to make verify
+# stricter" — that breaks bootstrap.yaml --check.
+#
+# The csg-info vacuity note (deferred-work 2026-08-12, Story 2.11 review):
+# csg's `info` swallows ConfigResolutionError and exits 0 even on a
+# parse-broken file (info_cmd.py:43-44), so the csg parse-gate task is a
+# DOCUMENTED WEAK gate. The authoritative CSG parse proof is the spine-target
+# resolution assert + Story 3.3's settings-parity. The WEG half can actually
+# fail and stays a real gate; the ITR list gate pins icons.yaml (SPEC.md#51).
+#
+# Config-copies real-dir check (criterion 9): `stat` with `follow: false` then
+# assert `.isdir` — a symlink back into the repo reports islnk: true /
+# isdir: false, so the isdir count proves every target is a REAL directory
+# (runtime independence — mirror of config_copies dest-check).
+#
+# No hardcoded absolute paths: every install-spine value is
+# {{ install_dir | trim }} (trim lock) and every config target derives from
+# {{ verify_xdg_config_home }}.
+
+- name: Assert fact-gathering provided HOME
+  ansible.builtin.assert:
+    that: ansible_facts.env.HOME is defined and ansible_facts.env.HOME | trim | length > 0
+    fail_msg: >-
+      ansible_facts.env.HOME is undefined — the verify role derives its targets
+      from gathered facts; the playbook must run with gather_facts: true
+      (vars/main.yml reads ansible_facts.env.XDG_CONFIG_HOME and HOME)
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that:
+      - install_dir is defined
+      - install_dir is not none
+      - install_dir is string
+      - install_dir | trim | length > 0
+      - install_dir | trim | regex_search('^/') is not none
+    fail_msg: >-
+      install_dir is undefined, null, or not an absolute path — the verify
+      role gates rendered files and requires the install_dir seam extra-var as
+      an absolute, non-empty path (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Check system binaries on PATH
+  ansible.builtin.shell: "command -v {{ item }}"
+  loop: "{{ verify_system_binaries }}"
+  register: verify_system_binary_checks
+  changed_when: false
+  failed_when: false
+
+- name: Assert system binaries are on PATH
+  ansible.builtin.assert:
+    that:
+      - verify_system_binary_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_system_binaries | length
+      - verify_system_binary_checks.results | map(attribute='stdout') | reject('equalto', '') | list | length == verify_system_binaries | length
+    fail_msg: >-
+      not every system binary is on PATH (expected hyprland, hyprpaper, waybar
+      — done-criterion 2). The packages role (Story 2.3) installs them via the
+      group_vars package list; run the packages playbook first (direct-run
+      prerequisite). Fonts are NOT checked here — fonts are fontconfig files,
+      not PATH binaries
+  when: not ansible_check_mode
+
+- name: Check CLI tools on PATH
+  ansible.builtin.shell: "command -v {{ item }}"
+  loop: "{{ verify_cli_tools }}"
+  register: verify_cli_tool_checks
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
+
+- name: Assert CLI tools are on PATH
+  ansible.builtin.assert:
+    that:
+      - verify_cli_tool_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_cli_tools | length
+      - verify_cli_tool_checks.results | map(attribute='stdout') | reject('equalto', '') | list | length == verify_cli_tools | length
+    fail_msg: >-
+      not every CLI tool is on PATH (expected csg, weg, itr — done-criterion
+      3). The cli_tools role (Story 2.4) installs them via uv tool install
+      into {{ verify_cli_bin_dir }}; the check prepends that dir to PATH. Run
+      the cli-tools playbook first (direct-run prerequisite)
+  when: not ansible_check_mode
+
+- name: Check install-dir subtree exists
+  ansible.builtin.stat:
+    path: "{{ install_dir | trim }}/{{ item }}"
+  loop: "{{ verify_install_spine_dirs + verify_install_spine_files }}"
+  register: verify_spine_checks
+
+- name: Assert install-dir subtree exists
+  ansible.builtin.assert:
+    that: verify_spine_checks.results | selectattr('stat.exists') | list | length == (verify_install_spine_dirs | length + verify_install_spine_files | length)
+    fail_msg: >-
+      not every install-spine path exists under {{ install_dir | trim }}
+      (expected the nine spine dirs + weg-effects.yaml — done-criterion 1).
+      The filesystem role (2.5) creates the dirs and the assets role (2.6)
+      emits weg-effects.yaml; run the filesystem and assets playbooks first
+  when: not ansible_check_mode
+
+- name: Check assets deployed
+  ansible.builtin.stat:
+    path: "{{ install_dir | trim }}/{{ item }}"
+  loop:
+    - wallpapers/default.png
+    - icon-templates
+    - icon-mappings
+    - csg-templates
+    - weg-effects.yaml
+  register: verify_asset_checks
+
+- name: Assert assets deployed
+  ansible.builtin.assert:
+    that: verify_asset_checks.results | selectattr('stat.exists') | list | length == 5
+    fail_msg: >-
+      not every asset outcome is present under {{ install_dir | trim }}
+      (expected wallpapers/default.png, icon-templates/, icon-mappings/,
+      csg-templates/, weg-effects.yaml — done-criterion 4). The assets role
+      (Story 2.6) deploys them; run the assets playbook first
+  when: not ansible_check_mode
+
+- name: Check default palette files exist
+  ansible.builtin.stat:
+    path: "{{ install_dir | trim }}/generated/palettes/{{ item }}"
+  loop: "{{ verify_palette_files }}"
+  register: verify_palette_checks
+
+- name: Assert default palette files are present
+  ansible.builtin.assert:
+    that: verify_palette_checks.results | selectattr('stat.exists') | list | length == verify_palette_files | length
+    fail_msg: >-
+      not every default palette file is present under
+      {{ install_dir | trim }}/generated/palettes/ (expected colors.conf,
+      colors.yaml, colors.gtk.css — done-criterion 6). The default_palette
+      role (Story 2.7) generates them; note csg can exit 0 on a silent render
+      failure, so run the default-palette playbook and re-apply
+  when: not ansible_check_mode
+
+- name: Check settings files exist
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+  loop: "{{ verify_settings_files }}"
+  register: verify_settings_file_checks
+
+- name: Assert settings files exist
+  ansible.builtin.assert:
+    that: verify_settings_file_checks.results | selectattr('stat.exists') | list | length == verify_settings_files | length
+    fail_msg: >-
+      not every rendered settings file exists under {{ verify_xdg_config_home }}
+      (expected color-scheme-generator/weg/itr settings.toml — done-criterion 5
+      part 1). The settings role (Story 2.11) renders them; run the settings
+      playbook first
+  when: not ansible_check_mode
+
+- name: Check settings spine targets resolve
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_settings_spine_targets }}"
+  register: verify_settings_target_checks
+
+- name: Assert settings spine targets resolve
+  ansible.builtin.assert:
+    that: verify_settings_target_checks.results | selectattr('stat.exists') | list | length == verify_settings_spine_targets | length
+    fail_msg: >-
+      not every settings spine target resolves to an existing path (done-
+      criterion 5 part 2 — parse ≠ works: a rendered settings file pointing at
+      a MISSING directory must fail verify even if the file itself parses).
+      Expected: generated/palettes, generated/effects, generated/.weg-tmp,
+      generated/icons, icon-templates, generated/palettes/colors.yaml — created
+      by the filesystem (2.5) and default_palette (2.7) roles
+  when: not ansible_check_mode
+
+# Settings parse gate (AC 3, done-criterion 5): the three CLI gates over the
+# rendered settings files. NOTE the deferred-work finding (Story 2.11 review):
+# csg's `info` swallows ConfigResolutionError and exits 0 even on a
+# parse-broken file (info_cmd.py:43-44) — the csg gate below is therefore a
+# DOCUMENTED WEAK gate; the authoritative CSG parse proof is the spine-target
+# resolution assert above + Story 3.3's settings-parity. The WEG half can
+# actually fail and stays a real gate. The ITR list gate pins icons.yaml
+# (SPEC.md#51 — NOT defaults.yaml). All three command tasks AND their assert
+# are gated `when: not ansible_check_mode` (command tasks are skipped under
+# --check in ansible-core 2.20.3; the assert would otherwise fail a
+# bootstrap.yaml --check on a partially-provisioned host).
+
+- name: Gate csg settings parse
+  ansible.builtin.command: "csg info --config {{ verify_xdg_config_home }}/color-scheme-generator/settings.toml"
+  environment:
+    PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  register: verify_csg_gate
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Gate weg settings parse
+  ansible.builtin.command: "weg info --config {{ verify_xdg_config_home }}/weg/settings.toml"
+  environment:
+    PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  register: verify_weg_gate
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Gate itr list against icons.yaml
+  ansible.builtin.command: "itr list {{ verify_itr_list_target }} --config {{ verify_xdg_config_home }}/itr/settings.toml"
+  environment:
+    PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  register: verify_itr_gate
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert settings parse gates exited cleanly
+  ansible.builtin.assert:
+    that:
+      - verify_csg_gate.rc == 0
+      - verify_weg_gate.rc == 0
+      - verify_itr_gate.rc == 0
+    fail_msg: >-
+      one of the rendered settings parse gates failed (csg info / weg info /
+      itr list icons.yaml) — done-criterion 5. Inspect the registered
+      verify_csg_gate/verify_weg_gate/verify_itr_gate results; note the csg
+      half is a documented weak gate (see the comment block above)
+  when: not ansible_check_mode
+
+- name: Check compositor configs, skeletons and fragments
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_compositor_config_dirs + verify_compositor_skeleton_files + verify_compositor_fragments }}"
+  register: verify_compositor_checks
+
+- name: Assert compositor configs, skeletons and fragments are present
+  ansible.builtin.assert:
+    that: verify_compositor_checks.results | selectattr('stat.exists') | list | length == (verify_compositor_config_dirs | length + verify_compositor_skeleton_files | length + verify_compositor_fragments | length)
+    fail_msg: >-
+      not every compositor config dir, skeleton, or fragment is present under
+      {{ verify_xdg_config_home }} (done-criterion 7 — the three config dirs,
+      the four skeleton files, and hypr/colors.conf + waybar/colors.css). The
+      filesystem (2.5) and compositor_configs (2.9) roles place them; run
+      those playbooks first
+  when: not ansible_check_mode
+
+- name: Check XDG base dirs exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_xdg_dirs }}"
+  register: verify_xdg_dir_checks
+
+- name: Assert XDG base dirs exist
+  ansible.builtin.assert:
+    that: verify_xdg_dir_checks.results | selectattr('stat.exists') | list | length == verify_xdg_dirs | length
+    fail_msg: >-
+      not every XDG base dir exists (expected the config/state/cache homes —
+      done-criterion 8). The filesystem role (Story 2.5) creates them; run the
+      filesystem playbook first
+  when: not ansible_check_mode
+
+- name: Check config copies are real directories
+  ansible.builtin.stat:
+    path: "{{ verify_xdg_config_home }}/{{ item }}"
+    follow: false
+  loop: "{{ verify_config_copies_targets }}"
+  register: verify_config_copy_checks
+  when: not ansible_check_mode
+
+- name: Assert config copies are real directories
+  ansible.builtin.assert:
+    that: verify_config_copy_checks.results | selectattr('stat.isdir') | list | length == verify_config_copies_targets | length
+    fail_msg: >-
+      not every config-copy target under {{ verify_xdg_config_home }} is a
+      REAL directory (expected one per dotfiles/provisioning/config-copies.yaml:
+      nvim, starship, wlogout, zsh — done-criterion 9). A missing copy or a
+      symlink back into the repo breaks runtime independence: the machine must
+      work after the repo is deleted. The config_copies role (Story 2.10)
+      places them; run the config-copies playbook first
+  when: not ansible_check_mode

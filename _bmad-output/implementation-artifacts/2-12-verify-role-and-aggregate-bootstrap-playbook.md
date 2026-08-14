@@ -4,13 +4,14 @@ baseline_commit: 555eafe
 
 # Story 2.12: Verify Role and Aggregate Bootstrap Playbook
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-13: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-22, FR-4, FR-3).
+- 2026-08-13: Story 2.12 implemented — verify role, verify.yaml, bootstrap.yaml, test_verify_role.py, test_bootstrap_playbook.py; 433 tests pass; status → review.
 
 ## Story
 
@@ -38,53 +39,53 @@ So that all preconditions and done-criteria are assertable in one run.
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/provisioning/ansible/roles/verify/vars/main.yml` (AC: 1, 2)
-  - [ ] Open with the standard header comment: `# Verify role vars (Story 2.12).` + role-description + `# Mirror-and-adapt discipline (Epic 1 retro action item)` block itemizing what differs from each mirror
-  - [ ] `verify_xdg_config_home`: the EXACT derivation used by filesystem/compositor_configs/config_copies/settings — `{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}` (honors `$XDG_CONFIG_HOME`, defaults to `~/.config`; uses `ansible_facts.env`, NOT the deprecated top-level `ansible_env` fact — F4 lock)
-  - [ ] `verify_install_spine_dirs`: mirror `filesystem_spine_dirs` EXACTLY — the nine install-spine dirs under `install_dir`: `wallpapers`, `icon-templates`, `icon-mappings`, `csg-templates`, `generated`, `generated/palettes`, `generated/effects`, `generated/icons`, `generated/.weg-tmp` (parity-lock with `filesystem/vars/main.yml` in the test — if the spine changes, verify must change)
-  - [ ] `verify_install_spine_files`: the file node(s) that must exist IN the spine root: `weg-effects.yaml` (mirror `filesystem_file_nodes`; emitted by the assets role 2.6)
-  - [ ] `verify_system_binaries`: the compositor/OS binaries on PATH — `[hyprland, hyprpaper, waybar]` (criterion 2; do NOT attempt to check fonts "on PATH" — fonts are files, not binaries; the fonts decision is documented in Dev Notes "Fonts in done-criterion 2")
-  - [ ] `verify_cli_tools`: the uv-tool-installed CLIs on PATH — `[csg, weg, itr]` (criterion 3; `itr` IS the icon-renderer console script)
-  - [ ] `verify_cli_bin_dir`: the uv bin dir to prepend to PATH — mirror `cli_tools_bin_dir` exactly: `{{ ansible_facts.env.HOME }}/.local/bin` (the CLIs land here via `uv tool install`; without the prepend the bootstrap chain would FALSE-FAIL right after cli_tools installed them — mirror of the default_palette/assets PATH-prepend pattern)
-  - [ ] `verify_settings_files`: the three rendered settings DEST paths — mirror `settings_files` dests exactly: `{{ verify_xdg_config_home }}/color-scheme-generator/settings.toml`, `{{ verify_xdg_config_home }}/weg/settings.toml`, `{{ verify_xdg_config_home }}/itr/settings.toml` (parity-lock with `settings/vars/main.yml` in the test)
-  - [ ] `verify_settings_spine_targets`: the spine-path TARGETS the rendered settings must resolve to (the parse ≠ works hardening — criterion 5 checks the target of each path, not just parseability): `<install>/generated/palettes` (CSG output.directory), `<install>/generated/effects` (WEG output.directory), `<install>/generated/.weg-tmp` (WEG processing.temp_dir), `<install>/generated/icons` (ITR output.output_dir), `<install>/icon-templates` (ITR templates.dir), `<install>/generated/palettes/colors.yaml` (ITR color_scheme.path). Each as `{{ install_dir | trim }}/...` — trim lock, NO hardcoded absolute paths
-  - [ ] `verify_palette_files`: the default-palette outputs that must be present under `{{ install_dir | trim }}/generated/palettes/` — `[colors.conf, colors.yaml, colors.gtk.css]` (mirror `default_palette_formats` — conf/gtk.css/yaml; NOT json/sh)
-  - [ ] `verify_compositor_config_dirs`: the three compositor config dirs under the XDG config home: `{{ verify_xdg_config_home }}/hypr`, `{{ verify_xdg_config_home }}/hyprpaper`, `{{ verify_xdg_config_home }}/waybar` (mirror `filesystem_compositor_dirs` / `compositor_configs_config_dirs`)
-  - [ ] `verify_compositor_skeleton_files`: the skeleton files that must be present — `{{ verify_xdg_config_home }}/hypr/hyprland.conf`, `{{ verify_xdg_config_home }}/hyprpaper/hyprpaper.conf`, `{{ verify_xdg_config_home }}/waybar/config`, `{{ verify_xdg_config_home }}/waybar/style.css` (mirror `compositor_configs_skeleton_files` dests)
-  - [ ] `verify_compositor_fragments`: the palette fragments copied into the config dirs — `{{ verify_xdg_config_home }}/hypr/colors.conf` and `{{ verify_xdg_config_home }}/waybar/colors.css` (mirror `compositor_configs_fragment_copies` dests; note the Waybar source is `colors.gtk.css` renamed to `colors.css` on copy)
-  - [ ] `verify_xdg_dirs`: the XDG base dirs that must exist — mirror `filesystem_xdg_{config,state,cache}_home` derivations verbatim (three separate vars, or a list with the three derivations; the test must assert NO hardcoded absolute path and F4 lock)
-  - [ ] `verify_config_copies_targets`: mirror the config-copies.yaml entries EXACTLY — `[nvim, starship, wlogout, zsh]` (parity-lock with `dotfiles/provisioning/config-copies.yaml`; each must be a REAL directory at `{{ verify_xdg_config_home }}/<target>`, not a symlink — runtime independence)
-  - [ ] `verify_itr_list_target`: `{{ install_dir | trim }}/icon-mappings/icons.yaml` (the pinned ITR list gate arg — NOT `defaults.yaml`; the deployed icon-mappings dir contains `icons.yaml`, verified)
-  - [ ] NO hardcoded absolute paths anywhere (every path derives from `{{ install_dir | trim }}` and `{{ verify_xdg_config_home }}` — trim lock; the test scans vars)
+- [x] Create `src/provisioning/ansible/roles/verify/vars/main.yml` (AC: 1, 2)
+  - [x] Open with the standard header comment: `# Verify role vars (Story 2.12).` + role-description + `# Mirror-and-adapt discipline (Epic 1 retro action item)` block itemizing what differs from each mirror
+  - [x] `verify_xdg_config_home`: the EXACT derivation used by filesystem/compositor_configs/config_copies/settings — `{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}` (honors `$XDG_CONFIG_HOME`, defaults to `~/.config`; uses `ansible_facts.env`, NOT the deprecated top-level `ansible_env` fact — F4 lock)
+  - [x] `verify_install_spine_dirs`: mirror `filesystem_spine_dirs` EXACTLY — the nine install-spine dirs under `install_dir`: `wallpapers`, `icon-templates`, `icon-mappings`, `csg-templates`, `generated`, `generated/palettes`, `generated/effects`, `generated/icons`, `generated/.weg-tmp` (parity-lock with `filesystem/vars/main.yml` in the test — if the spine changes, verify must change)
+  - [x] `verify_install_spine_files`: the file node(s) that must exist IN the spine root: `weg-effects.yaml` (mirror `filesystem_file_nodes`; emitted by the assets role 2.6)
+  - [x] `verify_system_binaries`: the compositor/OS binaries on PATH — `[hyprland, hyprpaper, waybar]` (criterion 2; do NOT attempt to check fonts "on PATH" — fonts are files, not binaries; the fonts decision is documented in Dev Notes "Fonts in done-criterion 2")
+  - [x] `verify_cli_tools`: the uv-tool-installed CLIs on PATH — `[csg, weg, itr]` (criterion 3; `itr` IS the icon-renderer console script)
+  - [x] `verify_cli_bin_dir`: the uv bin dir to prepend to PATH — mirror `cli_tools_bin_dir` exactly: `{{ ansible_facts.env.HOME }}/.local/bin` (the CLIs land here via `uv tool install`; without the prepend the bootstrap chain would FALSE-FAIL right after cli_tools installed them — mirror of the default_palette/assets PATH-prepend pattern)
+  - [x] `verify_settings_files`: the three rendered settings DEST paths — mirror `settings_files` dests exactly: `{{ verify_xdg_config_home }}/color-scheme-generator/settings.toml`, `{{ verify_xdg_config_home }}/weg/settings.toml`, `{{ verify_xdg_config_home }}/itr/settings.toml` (parity-lock with `settings/vars/main.yml` in the test)
+  - [x] `verify_settings_spine_targets`: the spine-path TARGETS the rendered settings must resolve to (the parse ≠ works hardening — criterion 5 checks the target of each path, not just parseability): `<install>/generated/palettes` (CSG output.directory), `<install>/generated/effects` (WEG output.directory), `<install>/generated/.weg-tmp` (WEG processing.temp_dir), `<install>/generated/icons` (ITR output.output_dir), `<install>/icon-templates` (ITR templates.dir), `<install>/generated/palettes/colors.yaml` (ITR color_scheme.path). Each as `{{ install_dir | trim }}/...` — trim lock, NO hardcoded absolute paths
+  - [x] `verify_palette_files`: the default-palette outputs that must be present under `{{ install_dir | trim }}/generated/palettes/` — `[colors.conf, colors.yaml, colors.gtk.css]` (mirror `default_palette_formats` — conf/gtk.css/yaml; NOT json/sh)
+  - [x] `verify_compositor_config_dirs`: the three compositor config dirs under the XDG config home: `{{ verify_xdg_config_home }}/hypr`, `{{ verify_xdg_config_home }}/hyprpaper`, `{{ verify_xdg_config_home }}/waybar` (mirror `filesystem_compositor_dirs` / `compositor_configs_config_dirs`)
+  - [x] `verify_compositor_skeleton_files`: the skeleton files that must be present — `{{ verify_xdg_config_home }}/hypr/hyprland.conf`, `{{ verify_xdg_config_home }}/hyprpaper/hyprpaper.conf`, `{{ verify_xdg_config_home }}/waybar/config`, `{{ verify_xdg_config_home }}/waybar/style.css` (mirror `compositor_configs_skeleton_files` dests)
+  - [x] `verify_compositor_fragments`: the palette fragments copied into the config dirs — `{{ verify_xdg_config_home }}/hypr/colors.conf` and `{{ verify_xdg_config_home }}/waybar/colors.css` (mirror `compositor_configs_fragment_copies` dests; note the Waybar source is `colors.gtk.css` renamed to `colors.css` on copy)
+  - [x] `verify_xdg_dirs`: the XDG base dirs that must exist — mirror `filesystem_xdg_{config,state,cache}_home` derivations verbatim (three separate vars, or a list with the three derivations; the test must assert NO hardcoded absolute path and F4 lock)
+  - [x] `verify_config_copies_targets`: mirror the config-copies.yaml entries EXACTLY — `[nvim, starship, wlogout, zsh]` (parity-lock with `dotfiles/provisioning/config-copies.yaml`; each must be a REAL directory at `{{ verify_xdg_config_home }}/<target>`, not a symlink — runtime independence)
+  - [x] `verify_itr_list_target`: `{{ install_dir | trim }}/icon-mappings/icons.yaml` (the pinned ITR list gate arg — NOT `defaults.yaml`; the deployed icon-mappings dir contains `icons.yaml`, verified)
+  - [x] NO hardcoded absolute paths anywhere (every path derives from `{{ install_dir | trim }}` and `{{ verify_xdg_config_home }}` — trim lock; the test scans vars)
 
-- [ ] Create `src/provisioning/ansible/roles/verify/tasks/main.yml` (AC: 1-3)
-  - [ ] FIRST task: fail-loud fact-gathering assert — mirror config_copies verbatim: `ansible_facts.env.HOME is defined and ansible_facts.env.HOME | trim | length > 0` (the vars derive from `ansible_facts.env`; a bootstrap aggregator that forgets `gather_facts: true` must die with a friendly message, not an opaque undefined-var traceback — resolves the 2.11 deferred-work flag) [config_copies/tasks/main.yml:54-60]
-  - [ ] SECOND task: fail-loud install_dir seam assert — use the HARDENED five-condition form from settings 2.11 (this role gates rendered files, so it inherits the hardened assert): `install_dir is defined`, `install_dir is not none`, `install_dir is string`, `install_dir | trim | length > 0`, `install_dir | trim | regex_search('^/') is not none` — reject `None`/relative/trailing-slash values before any stat evaluates [settings/tasks/main.yml:42-54]
-  - [ ] Check system binaries on PATH: for each of `{{ verify_system_binaries }}`, `ansible.builtin.shell: command -v <name>` registered, `changed_when: false`, `failed_when: false` (NO `become`), followed by an assert that every rc == 0 with non-empty stdout — the assert gated `when: not ansible_check_mode` (command/shell tasks are skipped under --check in ansible-core 2.20.3; the gate keeps `bootstrap.yaml --check` clean — mirror of the default_palette/assets "Check for weg/Ensure csg available" pair) [default_palette/tasks/main.yml:77-95]
-  - [ ] Check CLI tools on PATH: same shell+assert pair for `{{ verify_cli_tools }}`, with `environment: PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"` so uv-installed tools are found (mirror default_palette_bin_dir) — assert gated `when: not ansible_check_mode`
-  - [ ] Assert install-dir subtree: `ansible.builtin.stat` loop over `{{ verify_install_spine_dirs }}` under `{{ install_dir | trim }}` and the file node(s) `{{ verify_install_spine_files }}`, then assert every stat `.exists` (gated `when: not ansible_check_mode` — stats run, but the assert must not fail a `bootstrap.yaml --check` on a partially-provisioned host)
-  - [ ] Assert assets deployed: stat+assert pair for `{{ install_dir | trim }}/wallpapers/default.png`, `{{ install_dir | trim }}/icon-templates/`, `{{ install_dir | trim }}/icon-mappings/`, `{{ install_dir | trim }}/csg-templates/`, `{{ install_dir | trim }}/weg-effects.yaml` (criterion 4) — assert gated `when: not ansible_check_mode`
-  - [ ] Assert default palette files: stat+assert pair for each `{{ verify_palette_files }}` under `{{ install_dir | trim }}/generated/palettes/` (criterion 6) — assert gated `when: not ansible_check_mode`
-  - [ ] Assert settings files exist: stat+assert pair for each `{{ verify_settings_files }}` (criterion 5 part 1) — assert gated `when: not ansible_check_mode`
-  - [ ] Assert settings spine targets resolve: stat+assert pair for each `{{ verify_settings_spine_targets }}` (criterion 5 part 2 — parse ≠ works: the rendered file pointing at a MISSING directory must fail verify even if the file itself parses) — assert gated `when: not ansible_check_mode`
-  - [ ] Settings parse gate (AC 3): three command tasks + asserts, all gated `when: not ansible_check_mode`, with `verify_cli_bin_dir` on PATH:
+- [x] Create `src/provisioning/ansible/roles/verify/tasks/main.yml` (AC: 1-3)
+  - [x] FIRST task: fail-loud fact-gathering assert — mirror config_copies verbatim: `ansible_facts.env.HOME is defined and ansible_facts.env.HOME | trim | length > 0` (the vars derive from `ansible_facts.env`; a bootstrap aggregator that forgets `gather_facts: true` must die with a friendly message, not an opaque undefined-var traceback — resolves the 2.11 deferred-work flag) [config_copies/tasks/main.yml:54-60]
+  - [x] SECOND task: fail-loud install_dir seam assert — use the HARDENED five-condition form from settings 2.11 (this role gates rendered files, so it inherits the hardened assert): `install_dir is defined`, `install_dir is not none`, `install_dir is string`, `install_dir | trim | length > 0`, `install_dir | trim | regex_search('^/') is not none` — reject `None`/relative/trailing-slash values before any stat evaluates [settings/tasks/main.yml:42-54]
+  - [x] Check system binaries on PATH: for each of `{{ verify_system_binaries }}`, `ansible.builtin.shell: command -v <name>` registered, `changed_when: false`, `failed_when: false` (NO `become`), followed by an assert that every rc == 0 with non-empty stdout — the assert gated `when: not ansible_check_mode` (command/shell tasks are skipped under --check in ansible-core 2.20.3; the gate keeps `bootstrap.yaml --check` clean — mirror of the default_palette/assets "Check for weg/Ensure csg available" pair) [default_palette/tasks/main.yml:77-95]
+  - [x] Check CLI tools on PATH: same shell+assert pair for `{{ verify_cli_tools }}`, with `environment: PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"` so uv-installed tools are found (mirror default_palette_bin_dir) — assert gated `when: not ansible_check_mode`
+  - [x] Assert install-dir subtree: `ansible.builtin.stat` loop over `{{ verify_install_spine_dirs }}` under `{{ install_dir | trim }}` and the file node(s) `{{ verify_install_spine_files }}`, then assert every stat `.exists` (gated `when: not ansible_check_mode` — stats run, but the assert must not fail a `bootstrap.yaml --check` on a partially-provisioned host)
+  - [x] Assert assets deployed: stat+assert pair for `{{ install_dir | trim }}/wallpapers/default.png`, `{{ install_dir | trim }}/icon-templates/`, `{{ install_dir | trim }}/icon-mappings/`, `{{ install_dir | trim }}/csg-templates/`, `{{ install_dir | trim }}/weg-effects.yaml` (criterion 4) — assert gated `when: not ansible_check_mode`
+  - [x] Assert default palette files: stat+assert pair for each `{{ verify_palette_files }}` under `{{ install_dir | trim }}/generated/palettes/` (criterion 6) — assert gated `when: not ansible_check_mode`
+  - [x] Assert settings files exist: stat+assert pair for each `{{ verify_settings_files }}` (criterion 5 part 1) — assert gated `when: not ansible_check_mode`
+  - [x] Assert settings spine targets resolve: stat+assert pair for each `{{ verify_settings_spine_targets }}` (criterion 5 part 2 — parse ≠ works: the rendered file pointing at a MISSING directory must fail verify even if the file itself parses) — assert gated `when: not ansible_check_mode`
+  - [x] Settings parse gate (AC 3): three command tasks + asserts, all gated `when: not ansible_check_mode`, with `verify_cli_bin_dir` on PATH:
     - `csg info --config <csg settings.toml>` — NOTE the deferred-work finding: csg's `info` swallows ConfigResolutionError and exits 0 even on a parse-broken file, so this task is a documented WEAK gate; the authoritative CSG parse proof is the spine-target resolution assert above + Story 3.3's schema-parity. Keep the task (it exercises the CLI + is the done-criterion wording) but document the vacuity in a comment
     - `weg info --config <weg settings.toml>` — this half CAN actually fail (per the 2.11 review finding); keep it as a real gate
     - `itr list {{ verify_itr_list_target }} --config <itr settings.toml>` — the pinned icons.yaml gate (SPEC.md#51, done-criterion 5)
     - After the three command tasks, assert each registered rc == 0 (gated `when: not ansible_check_mode`)
-  - [ ] Assert compositor configs + fragments: stat+assert pairs for `{{ verify_compositor_config_dirs }}`, `{{ verify_compositor_skeleton_files }}`, `{{ verify_compositor_fragments }}` (criterion 7) — asserts gated `when: not ansible_check_mode`
-  - [ ] Assert filesystem structure: stat+assert pairs for `{{ verify_xdg_dirs }}` (criterion 8) — assert gated `when: not ansible_check_mode`
-  - [ ] Assert config copies are real directories (criterion 9): stat loop over `{{ verify_xdg_config_home }}/{{ item }}` for each `{{ verify_config_copies_targets }}` with `follow: false`, then assert every stat `.isdir` (a symlink back into the repo reports islnk: true / isdir: false — the runtime-independence guarantee) — mirror config_copies dest-check exactly [config_copies/tasks/main.yml:104-120]; both stat and assert gated `when: not ansible_check_mode`
-  - [ ] Header comment documenting: scope (ten done-criteria), the machine-not-repo invariant (asserts against provisioned locations only), the check-mode gating rationale (a real `verify` is check=False via `VerifyCapabilityUseCase`; under `bootstrap.yaml --check` all state-asserts are skipped so the dry run stays clean and mutation-free — the authoritative gate is the real `dotfiles-provision verify`), the csg-info vacuity note, the config-copies real-dir check, NO become/become_user, no hardcoded absolute paths
-  - [ ] NO become/become_user anywhere (user-scoped role — everything checked lives under the user's config home and install dir; mirror 2.5-2.11)
-  - [ ] NO hardcoded absolute paths (everything via `{{ install_dir | trim }}` and `{{ verify_xdg_config_home }}`)
+  - [x] Assert compositor configs + fragments: stat+assert pairs for `{{ verify_compositor_config_dirs }}`, `{{ verify_compositor_skeleton_files }}`, `{{ verify_compositor_fragments }}` (criterion 7) — asserts gated `when: not ansible_check_mode`
+  - [x] Assert filesystem structure: stat+assert pairs for `{{ verify_xdg_dirs }}` (criterion 8) — assert gated `when: not ansible_check_mode`
+  - [x] Assert config copies are real directories (criterion 9): stat loop over `{{ verify_xdg_config_home }}/{{ item }}` for each `{{ verify_config_copies_targets }}` with `follow: false`, then assert every stat `.isdir` (a symlink back into the repo reports islnk: true / isdir: false — the runtime-independence guarantee) — mirror config_copies dest-check exactly [config_copies/tasks/main.yml:104-120]; both stat and assert gated `when: not ansible_check_mode`
+  - [x] Header comment documenting: scope (ten done-criteria), the machine-not-repo invariant (asserts against provisioned locations only), the check-mode gating rationale (a real `verify` is check=False via `VerifyCapabilityUseCase`; under `bootstrap.yaml --check` all state-asserts are skipped so the dry run stays clean and mutation-free — the authoritative gate is the real `dotfiles-provision verify`), the csg-info vacuity note, the config-copies real-dir check, NO become/become_user, no hardcoded absolute paths
+  - [x] NO become/become_user anywhere (user-scoped role — everything checked lives under the user's config home and install dir; mirror 2.5-2.11)
+  - [x] NO hardcoded absolute paths (everything via `{{ install_dir | trim }}` and `{{ verify_xdg_config_home }}`)
 
-- [ ] Create `src/provisioning/ansible/playbooks/verify.yaml` (AC: 1-3)
-  - [ ] Open with the standard explanatory comment block (mirror `settings.yaml`/`config-copies.yaml`): one-per-role playbook; user-scoped (NO become); distro-agnostic (NO group_by — the role consumes no group_vars); why `gather_facts: true` is REQUIRED (vars derive from `ansible_facts.env.XDG_CONFIG_HOME`/`HOME`); the install_dir seam contract; the real-verify vs `--check` gating semantics
-  - [ ] `hosts: localhost`, `gather_facts: true`, `roles: [verify]`, NO become, NO group_by
+- [x] Create `src/provisioning/ansible/playbooks/verify.yaml` (AC: 1-3)
+  - [x] Open with the standard explanatory comment block (mirror `settings.yaml`/`config-copies.yaml`): one-per-role playbook; user-scoped (NO become); distro-agnostic (NO group_by — the role consumes no group_vars); why `gather_facts: true` is REQUIRED (vars derive from `ansible_facts.env.XDG_CONFIG_HOME`/`HOME`); the install_dir seam contract; the real-verify vs `--check` gating semantics
+  - [x] `hosts: localhost`, `gather_facts: true`, `roles: [verify]`, NO become, NO group_by
 
-- [ ] Create `src/provisioning/ansible/playbooks/bootstrap.yaml` (AC: 4, 5)
-  - [ ] AGGREGATE via `import_playbook` statements in the EXACT dependency order (plan §11 step 7, story 2.12 AC 4):
+- [x] Create `src/provisioning/ansible/playbooks/bootstrap.yaml` (AC: 4, 5)
+  - [x] AGGREGATE via `import_playbook` statements in the EXACT dependency order (plan §11 step 7, story 2.12 AC 4):
     ```
     - import_playbook: packages.yaml
     - import_playbook: cli-tools.yaml
@@ -97,13 +98,13 @@ So that all preconditions and done-criteria are assertable in one run.
     - import_playbook: verify.yaml
     ```
     (Each per-role playbook keeps its OWN hosts/become/gather_facts/group_by — importing preserves the packages.yaml distro `group_by` mechanism and the become:true packages play, so the single bootstrap aggregate runs the whole chain correctly. Do NOT flatten into one play — mixing become (packages) with user-scoped roles in one play breaks the privilege contract.)
-  - [ ] Leading comment block documenting: what bootstrap.yaml is (the aggregate run — FR-4); the dependency order rationale (`packages` first, `verify` last); that it is `--check`-clean (dry-run must be dry — every command/shell task in the chain is check-gated or auto-skipped); the seam extra-vars a direct run must pass (`-e install_dir=...` and `-e os_family=arch|debian-family` — the orchestrator provides them via `--extra-vars`, per use_cases `_seam_extra_vars`; `os_family` is REQUIRED because packages.yaml group_by's on it)
-  - [ ] NO `hosts:`/`roles:`/`tasks:` at the top level — only the nine `import_playbook` entries (Ansible top-level list of imports)
+  - [x] Leading comment block documenting: what bootstrap.yaml is (the aggregate run — FR-4); the dependency order rationale (`packages` first, `verify` last); that it is `--check`-clean (dry-run must be dry — every command/shell task in the chain is check-gated or auto-skipped); the seam extra-vars a direct run must pass (`-e install_dir=...` and `-e os_family=arch|debian-family` — the orchestrator provides them via `--extra-vars`, per use_cases `_seam_extra_vars`; `os_family` is REQUIRED because packages.yaml group_by's on it)
+  - [x] NO `hosts:`/`roles:`/`tasks:` at the top level — only the nine `import_playbook` entries (Ansible top-level list of imports)
 
-- [ ] Add structural real-file tests `src/provisioning/tests/unit/test_verify_role.py` (AC: 1-3)
-  - [ ] Copy the FULL helper suite verbatim from `test_settings_role.py` / `test_config_copies_role.py` (`_find_ansible_dir()` walk-up resolver, `_TASK_KEYWORDS`, `_module_key`/`_module`/`_module_text`/`_creates_value`, `_vars()`, `_tasks_with_module()`) — the duplicated-helper pattern is the accepted repo convention (no shared conftest)
-  - [ ] `TestVerifyRoleTree`: role tree exists (`tasks/main.yml`, `vars/main.yml`); tasks parse to a list of named tasks
-  - [ ] `TestVerifyTasks`:
+- [x] Add structural real-file tests `src/provisioning/tests/unit/test_verify_role.py` (AC: 1-3)
+  - [x] Copy the FULL helper suite verbatim from `test_settings_role.py` / `test_config_copies_role.py` (`_find_ansible_dir()` walk-up resolver, `_TASK_KEYWORDS`, `_module_key`/`_module`/`_module_text`/`_creates_value`, `_vars()`, `_tasks_with_module()`) — the duplicated-helper pattern is the accepted repo convention (no shared conftest)
+  - [x] `TestVerifyRoleTree`: role tree exists (`tasks/main.yml`, `vars/main.yml`); tasks parse to a list of named tasks
+  - [x] `TestVerifyTasks`:
     - first task is the fail-loud fact-gathering assert (`ansible_facts.env.HOME is defined`)
     - second task is the hardened install_dir seam assert (five conditions: `is defined`, `is not none`, `is string`, `| trim | length > 0`, `regex_search('^/')`)
     - system-binary + cli-tool shell checks: `shell` module with `command -v`, `changed_when: false`, `failed_when: false`, and their asserts gated `when: not ansible_check_mode`; cli-tool tasks set `environment.PATH` containing `verify_cli_bin_dir`
@@ -112,9 +113,9 @@ So that all preconditions and done-criteria are assertable in one run.
     - `itr list` target contains `icon-mappings/icons.yaml` and the `--config` flag references the ITR settings dest (NOT `defaults.yaml`)
     - config-copies dest check uses `stat` with `follow: false` and asserts `.isdir` (real dirs, not symlinks)
     - NO become/become_user anywhere
-  - [ ] `TestVerifyVars`: required keys present; `verify_xdg_config_home` honors + F4 lock (no `{{ ansible_env.`); `verify_install_spine_dirs` parity-EXACT with `filesystem_spine_dirs`; `verify_settings_files` parity-EXACT with `settings_files` dests; `verify_config_copies_targets` parity-EXACT with `dotfiles/provisioning/config-copies.yaml` entries; `verify_palette_files` == `[colors.conf, colors.yaml, colors.gtk.css]`; `verify_cli_tools` == `[csg, weg, itr]`; `verify_system_binaries` == `[hyprland, hyprpaper, waybar]`; NO hardcoded absolute paths (trim lock — scan vars with the `_hardcoded_absolute_path()` regex helper from test_settings_role.py)
-  - [ ] `TestVerifyPlaybook`: verify.yaml parses, `hosts: localhost`, `gather_facts: true`, `roles: [verify]`, no become, no group_by; `--syntax-check` exits 0 (skip if ansible-playbook absent)
-  - [ ] **Runtime execution test** `test_verify_passes_on_a_provisioned_machine`: build a minimal provisioned "machine" in a `tempfile.TemporaryDirectory()`:
+  - [x] `TestVerifyVars`: required keys present; `verify_xdg_config_home` honors + F4 lock (no `{{ ansible_env.`); `verify_install_spine_dirs` parity-EXACT with `filesystem_spine_dirs`; `verify_settings_files` parity-EXACT with `settings_files` dests; `verify_config_copies_targets` parity-EXACT with `dotfiles/provisioning/config-copies.yaml` entries; `verify_palette_files` == `[colors.conf, colors.yaml, colors.gtk.css]`; `verify_cli_tools` == `[csg, weg, itr]`; `verify_system_binaries` == `[hyprland, hyprpaper, waybar]`; NO hardcoded absolute paths (trim lock — scan vars with the `_hardcoded_absolute_path()` regex helper from test_settings_role.py)
+  - [x] `TestVerifyPlaybook`: verify.yaml parses, `hosts: localhost`, `gather_facts: true`, `roles: [verify]`, no become, no group_by; `--syntax-check` exits 0 (skip if ansible-playbook absent)
+  - [x] **Runtime execution test** `test_verify_passes_on_a_provisioned_machine`: build a minimal provisioned "machine" in a `tempfile.TemporaryDirectory()`:
     - `home`, `xdg` (= `home/.config`), `install` roots; `env["HOME"]`, `env["XDG_CONFIG_HOME"]`, `env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")`
     - create the install spine dirs + `weg-effects.yaml`; place `wallpapers/default.png`, `icon-templates/`, `icon-mappings/icons.yaml`, `csg-templates/`, `generated/palettes/{colors.conf, colors.yaml, colors.gtk.css}`
     - create the three config dirs + the three rendered `settings.toml` files pointing at the spine targets (valid TOML with the spine paths)
@@ -123,22 +124,22 @@ So that all preconditions and done-criteria are assertable in one run.
     - stub binaries `hyprland`/`hyprpaper`/`waybar`/`csg`/`weg`/`itr` as executable `#!/bin/sh` scripts in `home/.local/bin/` that `exit 0` (so `command -v` + the parse gates pass without real CLIs)
     - run the real `ansible-playbook playbooks/verify.yaml -e install_dir=<install>` and assert `failed` is absent / the run completes with zero failed tasks
     - then DELETE one criterion element (e.g. remove `generated/palettes/colors.conf`) and assert the re-run FAILS loudly (negative lock: verify is not vacuous)
-  - [ ] **Negative runtime test** `test_verify_fails_when_not_provisioned`: run `verify.yaml` against a bare temp HOME/XDG/install (no spine, no configs, no binaries) and assert the run FAILS (the gate cannot go green on an unprovisioned machine — hardening: machine, not repo)
-  - [ ] Optional: skip the runtime tests if `ansible-playbook` is absent (mirror the settings test gate pattern — the suite must not hard-depend on the CLI)
-  - [ ] A structural test asserting `verify.yaml` runs the FULL chain in order (a regression check that the aggregate actually contains verify LAST)
+  - [x] **Negative runtime test** `test_verify_fails_when_not_provisioned`: run `verify.yaml` against a bare temp HOME/XDG/install (no spine, no configs, no binaries) and assert the run FAILS (the gate cannot go green on an unprovisioned machine — hardening: machine, not repo)
+  - [x] Optional: skip the runtime tests if `ansible-playbook` is absent (mirror the settings test gate pattern — the suite must not hard-depend on the CLI)
+  - [x] A structural test asserting `verify.yaml` runs the FULL chain in order (a regression check that the aggregate actually contains verify LAST)
 
-- [ ] Add structural test `src/provisioning/tests/unit/test_bootstrap_playbook.py` (AC: 4, 5)
-  - [ ] Copy the helper suite (or a minimal subset) for playbook parsing: bootstrap.yaml parses as a list of `import_playbook` entries
-  - [ ] Assert the NINE imports in the EXACT dependency order: packages → cli-tools → filesystem → assets → default-palette → compositor-configs → config-copies → settings → verify (use `import_playbook` keys; assert each referenced playbook file exists under `playbooks/`)
-  - [ ] Assert NO top-level `hosts:`/`roles:`/`tasks:` keys (the aggregate is imports-only)
-  - [ ] `--syntax-check` exits 0 (skip if ansible-playbook absent)
-  - [ ] NOTE: do NOT run a full `bootstrap.yaml --check` in this story — the end-to-end dry-run integration tests (every playbook under `--check`) are Story 3.2 (`test_ansible_dryrun.py`); here we lock structure + syntax only
+- [x] Add structural test `src/provisioning/tests/unit/test_bootstrap_playbook.py` (AC: 4, 5)
+  - [x] Copy the helper suite (or a minimal subset) for playbook parsing: bootstrap.yaml parses as a list of `import_playbook` entries
+  - [x] Assert the NINE imports in the EXACT dependency order: packages → cli-tools → filesystem → assets → default-palette → compositor-configs → config-copies → settings → verify (use `import_playbook` keys; assert each referenced playbook file exists under `playbooks/`)
+  - [x] Assert NO top-level `hosts:`/`roles:`/`tasks:` keys (the aggregate is imports-only)
+  - [x] `--syntax-check` exits 0 (skip if ansible-playbook absent)
+  - [x] NOTE: do NOT run a full `bootstrap.yaml --check` in this story — the end-to-end dry-run integration tests (every playbook under `--check`) are Story 3.2 (`test_ansible_dryrun.py`); here we lock structure + syntax only
 
-- [ ] Verify full suite + lint + layering guard (AC: 1-5)
-  - [ ] `uv run pytest` — full suite green, no regressions from the 396-pass baseline (Story 2.11 + review fixes — see Git Intelligence)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (mypy baseline: 10 pre-existing errors in test_default_palette_role.py + test_cli_tools_role.py — new files must be clean)
-  - [ ] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
-  - [ ] `git status --short` shows ONLY the new role dir, the two playbooks, the two test files, and the story/status artifacts
+- [x] Verify full suite + lint + layering guard (AC: 1-5)
+  - [x] `uv run pytest` — full suite green, no regressions from the 396-pass baseline (Story 2.11 + review fixes — see Git Intelligence)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` + `uv run mypy src tests` clean (mypy baseline: 10 pre-existing errors in test_default_palette_role.py + test_cli_tools_role.py — new files must be clean)
+  - [x] `python tests/architecture/test_layering.py` exits 0 (standalone nicety)
+  - [x] `git status --short` shows ONLY the new role dir, the two playbooks, the two test files, and the story/status artifacts
 
 ### Review Findings
 
@@ -337,7 +338,7 @@ opencode (deepseek-v4-flash)
 
 ### Completion Notes List
 
-(none yet — populated by the dev pass)
+- 2026-08-13: Story 2.12 implemented and marked for review. Created the `verify` role (tasks + vars), the `verify.yaml` playbook, and the aggregate `bootstrap.yaml`, plus `test_verify_role.py` (32 tests) and `test_bootstrap_playbook.py` (3 tests). The verify role asserts the ten done-criteria against provisioned locations only (machine, not repo — no repo-root var), leads with the config_copies fact-gathering assert (resolves the 2.11 deferred flag), inherits the hardened five-condition install_dir assert from settings 2.11, gates every state assert `when: not ansible_check_mode` (bootstrap --check stays dry), pins the ITR list gate to `icon-mappings/icons.yaml` (SPEC.md#51), checks config-copy targets as REAL dirs via `stat follow: false` + `isdir` (runtime independence), and documents the csg-info vacuity. `bootstrap.yaml` is imports-only with the nine playbooks in exact dependency order (packages → ... → verify last). Gates: full suite 433 passed (396 baseline + 37 new, no regressions); ruff check + format clean; mypy clean on all new files (only the 10 documented pre-existing baseline errors remain in test_default_palette_role.py/test_cli_tools_role.py); layering guard OK. Runtime tests prove verify passes on a provisioned temp machine and FAILS on a bare one (and after deleting one criterion element — the gate is not vacuous).
 
 ### File List
 
@@ -348,4 +349,4 @@ opencode (deepseek-v4-flash)
 - `src/provisioning/tests/unit/test_verify_role.py` (NEW)
 - `src/provisioning/tests/unit/test_bootstrap_playbook.py` (NEW)
 - `_bmad-output/implementation-artifacts/2-12-verify-role-and-aggregate-bootstrap-playbook.md` (this story)
-- `_bmad-output/implementation-artifacts/sprint-status.yaml` (story status → ready-for-dev)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (story status → ready-for-dev → review)

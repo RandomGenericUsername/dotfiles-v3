@@ -1,0 +1,44 @@
+# Bootstrap playbook (Story 2.12) — the AGGREGATE run (FR-4): imports every
+# per-role playbook in dependency order so one `ansible-playbook bootstrap.yaml`
+# (or `dotfiles-provision bootstrap`) provisions the whole machine, then
+# verifies it (done-criteria 1-10).
+#
+# Dependency order rationale (plan §11 step 7, story 2.12 AC 4):
+#   packages → cli_tools → filesystem → assets → default_palette →
+#   compositor_configs → config_copies → settings → verify
+# `packages` first (it installs the system packages everything else assumes),
+# `verify` last (it asserts every done-criterion after all roles placed their
+# outputs). The chain's seams are consumed in order: filesystem creates the
+# layout, assets/default_palette populate the spine, compositor_configs +
+# config_copies place user configs, settings renders the per-tool files, verify
+# re-checks all of it.
+#
+# import_playbook semantics: each imported playbook keeps its OWN
+# hosts/become/gather_facts/group_by — packages.yaml's two-play structure
+# (group_by on the `os_family` seam, then a become:true packages play) works
+# unmodified when imported; the user-scoped roles keep NO become. Do NOT
+# flatten into one play — mixing become (packages) with user-scoped roles in a
+# single play breaks the locked privilege contract.
+#
+# --check cleanliness (dry-run must be dry): packages' `package` module reports
+# would-change (no mutation); cli_tools/assets use command/creates tasks
+# skipped under --check; default_palette/compositor_configs/config_copies gate
+# their state-touching tasks; settings' template has full check-mode support;
+# verify's state asserts are check-gated. The aggregate therefore completes
+# cleanly without mutation.
+#
+# Seam extra-vars a direct run must pass (`-e install_dir=...` and
+# `-e os_family=arch|debian-family`): the orchestrator provides both via
+# --extra-vars (use_cases `_seam_extra_vars`). `os_family` is REQUIRED because
+# packages.yaml group_by's on it and its guard asserts the value matches the
+# host fact. NOTE: this file is imports-only — every top-level entry below is
+# an `import_playbook` statement; there is no play (no hosts/roles/tasks).
+- import_playbook: packages.yaml
+- import_playbook: cli-tools.yaml
+- import_playbook: filesystem.yaml
+- import_playbook: assets.yaml
+- import_playbook: default-palette.yaml
+- import_playbook: compositor-configs.yaml
+- import_playbook: config-copies.yaml
+- import_playbook: settings.yaml
+- import_playbook: verify.yaml

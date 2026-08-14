@@ -1,0 +1,169 @@
+# Verify role vars (Story 2.12).
+#
+# The role asserts the ten done-criteria (plan §8, SPEC.md CAP-3) against
+# PROVISIONED locations — the user config home (~/.config/... via
+# verify_xdg_config_home) and the install spine (via install_dir) — so a single
+# `verify` run / the aggregate `bootstrap.yaml` can assert all preconditions and
+# done-criteria (FR-22, FR-4). It renders NOTHING and writes NOTHING: it is a
+# read-only gate.
+#
+# Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
+# each mirror:
+#   (a) vs 2.10 config_copies (fact-gathering assert + real-dir dest check):
+#       2.10 COPIES and then verifies its own copies; verify re-checks the SAME
+#       targets read-only. verify inherits the fact assert verbatim (the first
+#       task) and the `follow: false` + isdir dest check verbatim (criterion 9).
+#   (b) vs 2.7 default_palette (command -v + bin-dir PATH-prepend + check-gated
+#       assert): verify reuses the pattern for BOTH system binaries (criterion
+#       2) and CLI tools (criterion 3); unlike 2.7 it has no csg presence
+#       REQUIREMENT per se — the whole point is asserting what provisioning
+#       placed.
+#   (c) vs 2.11 settings (hardened install_dir assert + spine-target contract):
+#       verify consumes the SAME spine targets the settings role renders (the
+#       six verify_settings_spine_targets) and inherits the hardened five-
+#       condition install_dir assert; verify does NOT render anything.
+#   (d) vs 2.5 filesystem (XDG derivations + spine dirs): verify mirrors
+#       filesystem_spine_dirs and the three XDG home derivations EXACTLY — a
+#       divergence would make verify check the wrong layout. The parity tests
+#       lock them.
+#   (e) vs 2.6 assets (asset kind → spine-segment mapping): verify re-checks
+#       the five deployed asset outcomes (default.png, icon-templates/,
+#       icon-mappings/, csg-templates/, weg-effects.yaml) read-only.
+#   (f) vs 2.9 compositor_configs (skeleton/fragment target map): verify
+#       re-checks the placed skeletons + fragments read-only; the Waybar
+#       fragment is colors.css (renamed from colors.gtk.css on copy).
+#
+# Trim lock: every install-spine path derives from {{ install_dir | trim }} and
+# every config target derives from {{ verify_xdg_config_home }} — NO hardcoded
+# absolute paths anywhere (the test scans vars with the _hardcoded_absolute_path
+# regex helper).
+
+# verify_xdg_config_home: the target config home the filesystem role (2.5)
+#   created. IDENTICAL derivation to filesystem/compositor_configs/
+#   config_copies/settings: honors $XDG_CONFIG_HOME with the spec default
+#   {{ ansible_facts.env.HOME }}/.config. Uses ansible_facts.env.* (NOT the
+#   deprecated top-level ansible_env fact — F4 lock, hard-breaks on
+#   ansible-core >= 2.24).
+verify_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+verify_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+verify_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
+
+# verify_xdg_dirs: the three XDG base dirs criterion 8 asserts exist (mirror of
+#   filesystem_xdg_{config,state,cache}_home derivations above).
+verify_xdg_dirs:
+  - "{{ verify_xdg_config_home }}"
+  - "{{ verify_xdg_state_home }}"
+  - "{{ verify_xdg_cache_home }}"
+
+# verify_install_spine_dirs: the nine install-spine dirs under install_dir
+#   (criterion 1). Parity-EXACT with filesystem_spine_dirs — if the spine
+#   changes, verify must change (the test locks the exact set equality).
+verify_install_spine_dirs:
+  - wallpapers
+  - icon-templates
+  - icon-mappings
+  - csg-templates
+  - generated
+  - generated/palettes
+  - generated/effects
+  - generated/icons
+  - generated/.weg-tmp
+
+# verify_install_spine_files: the file node(s) that must exist IN the spine
+#   root (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets
+#   role (2.6) via `weg dump-effects` (mirror of filesystem_file_nodes).
+verify_install_spine_files:
+  - weg-effects.yaml
+
+# verify_system_binaries: the compositor/OS binaries on PATH (criterion 2).
+#   Fonts are deliberately NOT checked "on PATH" — fonts are fontconfig files,
+#   not binaries (see Dev Notes "Fonts in done-criterion 2"); font presence is
+#   the packages role's idempotent install concern.
+verify_system_binaries:
+  - hyprland
+  - hyprpaper
+  - waybar
+
+# verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
+#   the icon-renderer console script (no separate binary), mirror of
+#   cli_tools.cli_tools.
+verify_cli_tools:
+  - csg
+  - weg
+  - itr
+
+# verify_cli_bin_dir: the uv bin dir to prepend to PATH — mirror of
+#   cli_tools_bin_dir exactly. The CLIs land here via `uv tool install`
+#   ($UV_TOOL_BIN_DIR -> $XDG_BIN_HOME -> $HOME/.local/bin); without the
+#   prepend the bootstrap chain would FALSE-FAIL right after cli_tools
+#   installed them (mirror of the default_palette/assets PATH-prepend pattern).
+verify_cli_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
+
+# verify_settings_files: the three rendered settings DEST paths (criterion 5
+#   part 1). Parity-EXACT with settings_files dests (the test locks it).
+verify_settings_files:
+  - { name: csg, dest: "{{ verify_xdg_config_home }}/color-scheme-generator/settings.toml" }
+  - { name: weg, dest: "{{ verify_xdg_config_home }}/weg/settings.toml" }
+  - { name: itr, dest: "{{ verify_xdg_config_home }}/itr/settings.toml" }
+
+# verify_settings_spine_targets: the spine-path TARGETS the rendered settings
+#   must resolve to (criterion 5 part 2 — the parse ≠ works hardening: a
+#   rendered file pointing at a MISSING directory must fail verify even if the
+#   file itself parses). Mirrors the six paths the settings role (2.11) bakes
+#   into the three settings.toml files. Each derives from
+#   {{ install_dir | trim }} — trim lock.
+verify_settings_spine_targets:
+  - "{{ install_dir | trim }}/generated/palettes"
+  - "{{ install_dir | trim }}/generated/effects"
+  - "{{ install_dir | trim }}/generated/.weg-tmp"
+  - "{{ install_dir | trim }}/generated/icons"
+  - "{{ install_dir | trim }}/icon-templates"
+  - "{{ install_dir | trim }}/generated/palettes/colors.yaml"
+
+# verify_palette_files: the default-palette outputs that must be present under
+#   {{ install_dir | trim }}/generated/palettes/ (criterion 6). Mirror of
+#   default_palette_formats — conf/gtk.css/yaml; NOT json/sh.
+verify_palette_files:
+  - colors.conf
+  - colors.yaml
+  - colors.gtk.css
+
+# verify_compositor_config_dirs: the three compositor config dirs under the XDG
+#   config home (criterion 7), mirror of filesystem_compositor_dirs /
+#   compositor_configs_config_dirs.
+verify_compositor_config_dirs:
+  - "{{ verify_xdg_config_home }}/hypr"
+  - "{{ verify_xdg_config_home }}/hyprpaper"
+  - "{{ verify_xdg_config_home }}/waybar"
+
+# verify_compositor_skeleton_files: the skeleton files that must be present
+#   (criterion 7), mirror of compositor_configs_skeleton_files dests.
+verify_compositor_skeleton_files:
+  - "{{ verify_xdg_config_home }}/hypr/hyprland.conf"
+  - "{{ verify_xdg_config_home }}/hyprpaper/hyprpaper.conf"
+  - "{{ verify_xdg_config_home }}/waybar/config"
+  - "{{ verify_xdg_config_home }}/waybar/style.css"
+
+# verify_compositor_fragments: the palette fragments copied into the config
+#   dirs (criterion 7), mirror of compositor_configs_fragment_copies dests.
+#   The Waybar fragment is colors.css (the colors.gtk.css source is renamed to
+#   colors.css on copy — the 2.8 skeleton imports colors.css).
+verify_compositor_fragments:
+  - "{{ verify_xdg_config_home }}/hypr/colors.conf"
+  - "{{ verify_xdg_config_home }}/waybar/colors.css"
+
+# verify_config_copies_targets: mirror of the config-copies.yaml entries EXACTLY
+#   (criterion 9). Each must be a REAL directory at
+#   {{ verify_xdg_config_home }}/<target>, not a symlink — runtime independence
+#   (the test locks parity with dotfiles/provisioning/config-copies.yaml).
+verify_config_copies_targets:
+  - nvim
+  - starship
+  - wlogout
+  - zsh
+
+# verify_itr_list_target: the pinned ITR list gate arg (SPEC.md#51, done-
+#   criterion 5) — NOT defaults.yaml (which lacks a `variants` field and is not
+#   listable); the deployed icon-mappings/ dir contains icons.yaml (verified).
+#   Trim lock.
+verify_itr_list_target: "{{ install_dir | trim }}/icon-mappings/icons.yaml"
