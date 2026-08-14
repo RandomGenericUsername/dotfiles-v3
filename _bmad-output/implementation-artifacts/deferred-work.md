@@ -221,3 +221,8 @@
 - Live-playbook tests `pytest.skip` when `ansible-playbook` is absent and `assert "changed=0" in second.stdout` is brittle across ansible-core recap formats — suite can be green with runtime behavior unverified [src/provisioning/tests/unit/test_config_copies_role.py:481-501]
 - Nested `name`/`target` manifest entries would fail with an opaque ENOENT (no dest parent creation; only the config home is ensured) — latent; manifest is locked flat [src/provisioning/ansible/roles/config_copies/tasks/main.yml:67-73]
 - Relative `XDG_CONFIG_HOME` accepted unvalidated — shared spec-mandated derivation with the filesystem role; any fix belongs to both roles [src/provisioning/ansible/roles/config_copies/vars/main.yml:46]
+
+## Deferred from: code review of 2-12-verify-role-and-aggregate-bootstrap-playbook (2026-08-13)
+
+- `verify_cli_bin_dir` hardcodes `$HOME/.local/bin`, ignoring `UV_TOOL_BIN_DIR`/`XDG_BIN_HOME` — criterion 3 false-fails after a cli_tools install to a customized bin dir; pre-existing in cli_tools (which documents the env overrides but hardcodes the same default); verify mirrors it exactly [src/provisioning/ansible/roles/verify/vars/main.yml:100, src/provisioning/ansible/roles/cli_tools/vars/main.yml:10-14]
+- System-binary/CLI shell checks rely on the ansible-core 2.20.3 auto-skip of command/shell under `--check` for dry-run cleanliness — if a future ansible-core changes skip behavior, `bootstrap.yaml --check` breaks; the convention is documented, mirrored, and empirically verified but not test-locked against a version [src/provisioning/ansible/roles/verify/tasks/main.yml:82-87, 102-109]

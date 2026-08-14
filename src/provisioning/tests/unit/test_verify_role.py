@@ -114,11 +114,14 @@ def _module(task: dict[str, object]) -> dict[str, object]:
 
 def _module_text(task: dict[str, object]) -> str:
     """Return the module body as text for free-form tasks (string-valued
-    modules)."""
+    modules). For argv-form `command` tasks, join the argv list with spaces so
+    `command -v` / `itr list ...` style assertions read naturally."""
     module = task.get(_module_key(task) or "", {})
     if isinstance(module, str):
         return module
     assert isinstance(module, dict)
+    if "argv" in module:
+        return " ".join(str(part) for part in module["argv"])
     return " ".join(str(value) for value in module.values())
 
 
@@ -310,6 +313,7 @@ class TestVerifyTasks:
             "install_dir is string",
             "install_dir | trim | length > 0",
             "regex_search('^/')",
+            "regex_search('/$') is none",
         ):
             assert condition in that, f"hardened assert must include {condition!r}"
         assert second.get("when") is None, "the seam assert must be ungated"
@@ -358,9 +362,19 @@ class TestVerifyTasks:
         """Check-mode discipline: every ASSERT on state existence/isdir/rc is
         gated `when: not ansible_check_mode` so bootstrap.yaml --check stays
         clean on a partially-provisioned host (the real dotfiles-provision
-        verify is the authoritative gate). Only the two leading seam asserts
-        (fact + install_dir) are ungated."""
-        for task in _load_tasks()[2:]:
+        verify is the authoritative gate). The leading CONFIG seam asserts
+        (fact, install_dir, list-not-empty, name-safety) are ungated — they
+        check variables/configuration, not host state, and must fail under
+        --check too."""
+        ungated_seam_asserts = {
+            "Assert fact-gathering provided HOME",
+            "Assert install_dir seam is provided",
+            "Assert verify list vars are not empty",
+            "Assert binary and tool names are safe identifiers",
+        }
+        for task in _load_tasks():
+            if task.get("name") in ungated_seam_asserts:
+                continue
             if _module_key(task) == "ansible.builtin.assert":
                 assert task.get("when") == "not ansible_check_mode", (
                     f"state assert {task.get('name')!r} must be gated when: not "
@@ -395,6 +409,66 @@ class TestVerifyTasks:
             f"expected exactly one parse-gate assert; found {len(parse_asserts)}"
         )
         assert parse_asserts[0].get("when") == "not ansible_check_mode"
+
+    def test_settings_spine_extraction_is_dynamic_and_check_gated(self) -> None:
+        """Criterion 5 part 2 (review finding 2026-08-13): the spine-target
+        gate READS each rendered settings.toml and stats the paths it actually
+        references (parse ≠ works) — it must not be a static list. The
+        extraction task is an `ansible.builtin.command` (argv form — no shell
+        splitting), check-gated, and consumes verify_settings_files +
+        verify_settings_spine_keys."""
+        extraction = next(
+            (
+                task
+                for task in _command_tasks()
+                if "Extract spine paths referenced by rendered settings" == str(task.get("name"))
+            ),
+            None,
+        )
+        assert extraction is not None, (
+            "expected an extraction command task reading the rendered settings"
+        )
+        assert extraction.get("when") == "not ansible_check_mode", (
+            "the extraction command must be check-gated (command tasks skip under --check)"
+        )
+        argv = str(_module(extraction).get("argv", ""))
+        assert "verify_settings_files" in str(extraction.get("loop", ""))
+        assert "verify_settings_spine_keys" in argv
+        assert "tomllib" in argv, (
+            "the extraction must parse TOML (tomllib) to read the rendered paths"
+        )
+        assert "ansible_python_interpreter" in argv, (
+            "the extraction must run with the ansible python (tomllib is "
+            "stdlib >= 3.12, the project floor)"
+        )
+        stat = next(
+            (
+                task
+                for task in _stat_tasks()
+                if "verify_settings_referenced_targets" in str(task.get("loop", ""))
+            ),
+            None,
+        )
+        assert stat is not None, "expected a stat loop over the extracted referenced targets"
+        assert stat.get("when") == "not ansible_check_mode"
+        assert_task = next(
+            (
+                task
+                for task in _assert_tasks()
+                if "verify_settings_target_checks" in str(_module(task).get("that", ""))
+            ),
+            None,
+        )
+        assert assert_task is not None, "expected an assert consuming verify_settings_target_checks"
+        that = str(_module(assert_task).get("that", ""))
+        assert "verify_settings_extracted.results | selectattr('rc', 'equalto', 0)" in that, (
+            "the assert must fail loudly when an extraction command failed "
+            "(missing/unparseable settings file, renamed key)"
+        )
+        assert "verify_settings_referenced_targets | length > 0" in that, (
+            "the assert must be non-vacuous (empty extraction must fail)"
+        )
+        assert assert_task.get("when") == "not ansible_check_mode"
 
     def test_itr_list_task_pins_icons_yaml_not_defaults(self) -> None:
         """AC 3 / SPEC.md#51: the ITR gate is `itr list <install>/
@@ -465,7 +539,7 @@ class TestVerifyTasks:
             "verify_install_spine_dirs",
             "verify_install_spine_files",
             "verify_settings_files",
-            "verify_settings_spine_targets",
+            "verify_settings_spine_keys",
             "verify_itr_list_target",
             "install_dir",
             "ansible_facts.env",
@@ -485,11 +559,13 @@ class TestVerifyVars:
         "verify_xdg_dirs",
         "verify_install_spine_dirs",
         "verify_install_spine_files",
+        "verify_asset_dirs",
+        "verify_asset_files",
         "verify_system_binaries",
         "verify_cli_tools",
         "verify_cli_bin_dir",
         "verify_settings_files",
-        "verify_settings_spine_targets",
+        "verify_settings_spine_keys",
         "verify_palette_files",
         "verify_compositor_config_dirs",
         "verify_compositor_skeleton_files",
@@ -527,34 +603,77 @@ class TestVerifyVars:
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
         settings_files dests EXACTLY — verify must check the SAME rendered
-        files settings renders."""
+        files settings renders. The per-role home var prefix
+        (verify_xdg_config_home vs settings_xdg_config_home) resolves to the
+        SAME location, so the parity contract is the full relative layout
+        after the Jinja var expression — NOT just the tail after the first
+        '/' (review finding 2026-08-13: a root change like /etc/... would have
+        slipped through a tail-only comparison)."""
         data = _vars()
         verify_dests = [str(f["dest"]) for f in data["verify_settings_files"]]
         settings_dests = [str(f["dest"]) for f in _sibling_vars("settings")["settings_files"]]
 
         def relative_path(dest: str) -> str:
-            """Strip the per-role home var prefix (settings_xdg_config_home vs
-            verify_xdg_config_home resolve to the SAME location) and compare the
-            relative dest path — the parity contract is the relative layout."""
-            return dest.split("/", 1)[1]
+            """Strip the `{{ <role>_xdg_config_home }}` var expression and
+            compare the full remainder — a divergence in the sub-layout
+            (root, tool dir, or filename) fails the parity."""
+            assert "}}" in dest, f"dest {dest!r} must be Jinja-var-prefixed"
+            return dest.split("}}", 1)[1].lstrip("/")
 
         assert [relative_path(d) for d in verify_dests] == [
             relative_path(d) for d in settings_dests
         ], (
             "verify_settings_files dests must be parity-EXACT with the settings "
-            "role's settings_files dests (same relative layout under the XDG "
-            "config home)"
+            "role's settings_files dests (same full relative layout under the "
+            "XDG config home)"
         )
 
-    def test_settings_spine_targets_are_absolute_trim_derived(self) -> None:
-        """Every spine target must derive from {{ install_dir | trim }} (trim
-        lock) — never a relative path or a literal absolute path."""
+    def test_settings_spine_keys_parity_with_settings_templates(self) -> None:
+        """Parity lock (review finding 2026-08-13): each dotted key in
+        verify_settings_spine_keys must appear as a path-bearing assignment in
+        the matching settings template — if the settings role (2.11) renames a
+        spine key, the verify gate must change in lockstep (the extraction
+        task would otherwise silently read the wrong key). The dotted key is
+        the TOML section + key name (e.g. [output] directory → output.directory)."""
         data = _vars()
-        for target in data["verify_settings_spine_targets"]:
-            value = str(target)
-            assert value.startswith("{{ install_dir | trim }}/"), (
-                f"settings spine target {value!r} must derive from {{{{ install_dir | trim }}}}"
+        keys = data["verify_settings_spine_keys"]
+        assert set(keys) == {"csg", "weg", "itr"}
+        for name, dotted_keys in keys.items():
+            template = (
+                _ANSIBLE_DIR / "roles" / "settings" / "templates" / f"{name}-settings.toml.j2"
             )
+            assert template.is_file(), f"missing settings template {template}"
+            dotted = {str(k) for k in dotted_keys}
+
+            section = ""
+            assigned: set[str] = set()
+            for line in template.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("[") and line.endswith("]"):
+                    section = line[1:-1].strip()
+                    continue
+                if "=" in line:
+                    key = line.split("=", 1)[0].strip()
+                    if "install_dir" in line:
+                        assigned.add(f"{section}.{key}")
+
+            assert dotted <= assigned, (
+                f"verify_settings_spine_keys[{name}] {dotted - assigned} not found "
+                f"as path-bearing assignments in {template.name}; found {assigned}"
+            )
+
+    def test_settings_spine_keys_values_are_dotted_toml_paths(self) -> None:
+        """The extraction keys must be dotted TOML key paths (section.key), not
+        raw paths — the extraction task walks them into the parsed settings
+        dict."""
+        data = _vars()
+        for name, dotted_keys in data["verify_settings_spine_keys"].items():
+            for dotted in dotted_keys:
+                value = str(dotted)
+                assert "." in value and not value.startswith("{{"), (
+                    f"verify_settings_spine_keys[{name}] entry {value!r} must be a "
+                    "dotted TOML key path, not a rendered path"
+                )
 
     def test_config_copies_targets_parity_with_manifest(self) -> None:
         """Parity lock: verify_config_copies_targets mirrors the config-copies
@@ -614,7 +733,7 @@ class TestVerifyVars:
             "verify_install_spine_dirs",
             "verify_install_spine_files",
             "verify_settings_files",
-            "verify_settings_spine_targets",
+            "verify_settings_spine_keys",
             "verify_itr_list_target",
             "install_dir",
             "ansible_facts.env",
@@ -725,6 +844,108 @@ class TestVerifyRuntime:
                 "(negative lock — the gate is not vacuous); recap:\n" + second.stdout
             )
 
+    def test_verify_fails_when_parse_gate_binary_fails(self) -> None:
+        """Negative lock for the settings parse gates (review finding
+        2026-08-13): a stub CLI that exits NON-ZERO must make verify FAIL —
+        the parse gates are real gates, not stubbed-green. Previously the
+        stubs exited 0 unconditionally, so a broken gate (or wrong --config
+        path) would go green; this proves the weg/itr/csg rc asserts bite."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+
+            bin_dir = _write_stub_binaries(home)
+            _build_provisioned_layout(home, xdg, install)
+
+            # Make the WEG stub fail (itr/csg stay green — only the WEG gate
+            # is tripped, proving that specific rc assert is a real gate).
+            (bin_dir / "weg").write_text("#!/bin/sh\nexit 1\n")
+
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+            )
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(self._PATH),
+                    "-e",
+                    f"install_dir={install}",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, (
+                "verify must FAIL when a parse-gate CLI exits non-zero (the "
+                "rc asserts are real gates, not stubbed green); recap:\n" + result.stdout
+            )
+            assert (
+                "verify_weg_gate" in result.stdout
+                or "one of the rendered settings" in result.stdout
+            ), "the failure must be the settings parse-gate assert"
+
+    def test_verify_fails_when_settings_reference_missing_dir(self) -> None:
+        """Negative lock for the dynamic spine-target gate (review finding
+        2026-08-13): a rendered settings.toml whose spine path points at a
+        MISSING directory must FAIL verify — even though the file parses and
+        every static target exists. This is the parse ≠ works proof: the gate
+        reads the rendered files, it cannot go green on a wrong render."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+
+            bin_dir = _write_stub_binaries(home)
+            _build_provisioned_layout(home, xdg, install)
+
+            # Mis-render the CSG settings to point at a directory that does
+            # NOT exist (still valid TOML — the file parses fine).
+            (xdg / "color-scheme-generator" / "settings.toml").write_text(
+                f'[output]\ndirectory = "{install}/generated/missing-dir"\n'
+                'overwrite = false\ndefault_formats = ["conf", "gtk.css", "yaml"]\n'
+            )
+
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+            )
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(self._PATH),
+                    "-e",
+                    f"install_dir={install}",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, (
+                "verify must FAIL when a rendered settings file references a "
+                "MISSING spine path (parse ≠ works — the gate reads the "
+                "rendered files, not a static list); recap:\n" + result.stdout
+            )
+
     def test_verify_fails_when_not_provisioned(self) -> None:
         """Hardening: machine, not repo. Run verify.yaml against a bare temp
         HOME/XDG/install (no spine, no configs, no binaries) and assert the run
@@ -765,11 +986,15 @@ class TestVerifyRuntime:
 
 
 def _test_env(**overrides: str) -> dict[str, str]:
-    """A scrubbed env for playbook subprocesses (review finding 2026-08-12):
-    drop ambient ANSIBLE_* vars — a developer's ANSIBLE_INVENTORY /
-    ANSIBLE_ROLES_PATH / etc. would otherwise silently override ansible.cfg —
-    then apply the explicit HOME/XDG_CONFIG_HOME/ANSIBLE_CONFIG."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("ANSIBLE_")}
+    """A scrubbed env for playbook subprocesses (review findings 2026-08-12 and
+    2026-08-13): drop ambient ANSIBLE_* vars (a developer's ANSIBLE_INVENTORY /
+    ANSIBLE_ROLES_PATH / etc. would otherwise silently override ansible.cfg)
+    AND ambient XDG_STATE_HOME/XDG_CACHE_HOME/XDG_BIN_HOME/UV_TOOL_BIN_DIR (a
+    developer's real XDG state/cache/bin dirs would make verify_xdg_* resolve
+    against the HOST instead of the temp machine, and the CLI-tool PATH prepend
+    would target the wrong bin dir) — then apply the explicit overrides."""
+    drop_prefixes = ("ANSIBLE_", "XDG_", "UV_TOOL_")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(drop_prefixes)}
     env.update(overrides)
     return env
 

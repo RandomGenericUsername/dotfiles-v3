@@ -44,9 +44,11 @@
 # The csg-info vacuity note (deferred-work 2026-08-12, Story 2.11 review):
 # csg's `info` swallows ConfigResolutionError and exits 0 even on a
 # parse-broken file (info_cmd.py:43-44), so the csg parse-gate task is a
-# DOCUMENTED WEAK gate. The authoritative CSG parse proof is the spine-target
-# resolution assert + Story 3.3's settings-parity. The WEG half can actually
-# fail and stays a real gate; the ITR list gate pins icons.yaml (SPEC.md#51).
+# DOCUMENTED WEAK gate. The authoritative CSG parse proof is the dynamic
+# spine-target extraction below (reads the RENDERED settings.toml and asserts
+# every spine path it references resolves) + Story 3.3's settings-parity. The
+# WEG half can actually fail and stays a real gate; the ITR list gate pins
+# icons.yaml (SPEC.md#51).
 #
 # Config-copies real-dir check (criterion 9): `stat` with `follow: false` then
 # assert `.isdir` — a symlink back into the repo reports islnk: true /
@@ -73,11 +75,47 @@
       - install_dir is string
       - install_dir | trim | length > 0
       - install_dir | trim | regex_search('^/') is not none
+      - install_dir | trim | regex_search('/$') is none
     fail_msg: >-
-      install_dir is undefined, null, or not an absolute path — the verify
-      role gates rendered files and requires the install_dir seam extra-var as
-      an absolute, non-empty path (the orchestrator resolves
-      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+      install_dir is undefined, null, relative, empty, or ends in a trailing
+      slash — the verify role gates rendered files and requires the install_dir
+      seam extra-var as an absolute, non-empty path without a trailing slash
+      (the orchestrator resolves $XDG_DATA_HOME/dotfiles/; direct runs pass
+      -e install_dir=...; the trailing-slash rejection keeps the
+      {{ install_dir | trim }}/<child> derivations single-slash)
+
+- name: Assert verify list vars are not empty
+  ansible.builtin.assert:
+    that:
+      - verify_system_binaries | length > 0
+      - verify_cli_tools | length > 0
+      - verify_install_spine_dirs | length > 0
+      - verify_install_spine_files | length > 0
+      - verify_palette_files | length > 0
+      - verify_settings_files | length > 0
+      - verify_compositor_config_dirs | length > 0
+      - verify_compositor_skeleton_files | length > 0
+      - verify_compositor_fragments | length > 0
+      - verify_xdg_dirs | length > 0
+      - verify_config_copies_targets | length > 0
+    fail_msg: >-
+      a verify list var is empty — a runtime override or a manifest desync
+      silently disabled a criterion: every count assert is
+      `selectattr(...) | length == <list> | length`, so an emptied list passes
+      0 == 0 and the gate goes green on an unprovisioned machine (mirror of the
+      config_copies empty-list guard)
+  run_once: true
+
+- name: Assert binary and tool names are safe identifiers
+  ansible.builtin.assert:
+    that:
+      - verify_system_binaries | map('regex_search', '^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$') | reject('none') | list | length == verify_system_binaries | length
+      - verify_cli_tools | map('regex_search', '^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$') | reject('none') | list | length == verify_cli_tools | length
+    fail_msg: >-
+      a system-binary or CLI-tool name contains shell metacharacters — the
+      `command -v <name>` check interpolates each name into a shell string;
+      names must match ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ (defense against a
+      metacharacter-bearing override executing in the shell)
 
 - name: Check system binaries on PATH
   ansible.builtin.shell: "command -v {{ item }}"
@@ -126,35 +164,36 @@
   loop: "{{ verify_install_spine_dirs + verify_install_spine_files }}"
   register: verify_spine_checks
 
-- name: Assert install-dir subtree exists
+- name: Assert install-dir subtree exists with correct types
   ansible.builtin.assert:
-    that: verify_spine_checks.results | selectattr('stat.exists') | list | length == (verify_install_spine_dirs | length + verify_install_spine_files | length)
+    that:
+      - verify_spine_checks.results | selectattr('stat.isdir') | list | length == verify_install_spine_dirs | length
+      - verify_spine_checks.results | selectattr('stat.isreg') | list | length == verify_install_spine_files | length
     fail_msg: >-
-      not every install-spine path exists under {{ install_dir | trim }}
-      (expected the nine spine dirs + weg-effects.yaml — done-criterion 1).
-      The filesystem role (2.5) creates the dirs and the assets role (2.6)
-      emits weg-effects.yaml; run the filesystem and assets playbooks first
+      not every install-spine path exists with the right inode type under
+      {{ install_dir | trim }} (expected the nine spine DIRS + weg-effects.yaml
+      as a regular FILE — done-criterion 1). The filesystem role (2.5) creates
+      the dirs and the assets role (2.6) emits weg-effects.yaml; run the
+      filesystem and assets playbooks first
   when: not ansible_check_mode
 
 - name: Check assets deployed
   ansible.builtin.stat:
     path: "{{ install_dir | trim }}/{{ item }}"
-  loop:
-    - wallpapers/default.png
-    - icon-templates
-    - icon-mappings
-    - csg-templates
-    - weg-effects.yaml
+  loop: "{{ verify_asset_dirs + verify_asset_files }}"
   register: verify_asset_checks
 
-- name: Assert assets deployed
+- name: Assert assets deployed with correct types
   ansible.builtin.assert:
-    that: verify_asset_checks.results | selectattr('stat.exists') | list | length == 5
+    that:
+      - verify_asset_checks.results | selectattr('stat.isdir') | list | length == verify_asset_dirs | length
+      - verify_asset_checks.results | selectattr('stat.isreg') | list | length == verify_asset_files | length
     fail_msg: >-
-      not every asset outcome is present under {{ install_dir | trim }}
-      (expected wallpapers/default.png, icon-templates/, icon-mappings/,
-      csg-templates/, weg-effects.yaml — done-criterion 4). The assets role
-      (Story 2.6) deploys them; run the assets playbook first
+      not every asset outcome is present with the right inode type under
+      {{ install_dir | trim }} (expected icon-templates/, icon-mappings/,
+      csg-templates/ as DIRS and wallpapers/default.png + weg-effects.yaml as
+      regular FILES — done-criterion 4). The assets role (Story 2.6) deploys
+      them; run the assets playbook first
   when: not ansible_check_mode
 
 - name: Check default palette files exist
@@ -165,9 +204,9 @@
 
 - name: Assert default palette files are present
   ansible.builtin.assert:
-    that: verify_palette_checks.results | selectattr('stat.exists') | list | length == verify_palette_files | length
+    that: verify_palette_checks.results | selectattr('stat.isreg') | list | length == verify_palette_files | length
     fail_msg: >-
-      not every default palette file is present under
+      not every default palette file is present as a regular file under
       {{ install_dir | trim }}/generated/palettes/ (expected colors.conf,
       colors.yaml, colors.gtk.css — done-criterion 6). The default_palette
       role (Story 2.7) generates them; note csg can exit 0 on a silent render
@@ -182,7 +221,7 @@
 
 - name: Assert settings files exist
   ansible.builtin.assert:
-    that: verify_settings_file_checks.results | selectattr('stat.exists') | list | length == verify_settings_files | length
+    that: verify_settings_file_checks.results | selectattr('stat.isreg') | list | length == verify_settings_files | length
     fail_msg: >-
       not every rendered settings file exists under {{ verify_xdg_config_home }}
       (expected color-scheme-generator/weg/itr settings.toml — done-criterion 5
@@ -190,22 +229,70 @@
       playbook first
   when: not ansible_check_mode
 
-- name: Check settings spine targets resolve
+# Criterion 5 part 2 — the parse ≠ works gate (review finding 2026-08-13):
+# verify READS each rendered settings.toml and asserts every spine path it
+# REFERENCES resolves. A static list of expected targets would go green when a
+# settings file is mis-rendered to point at a wrong-but-existing (or wrong-and-
+# missing) directory; the extraction below pulls the ACTUAL paths from the
+# rendered files. tomllib is stdlib (python >= 3.12, the project floor).
+# All three extraction commands must succeed (rc == 0): a missing/unparseable
+# file or a renamed spine key fails loudly instead of silently dropping paths.
+
+- name: Extract spine paths referenced by rendered settings
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_python_interpreter | default('python3') }}"
+      - -c
+      - |
+        import sys, tomllib
+
+        def dig(node, dotted):
+            for part in dotted.split("."):
+                node = node[part]
+            return node
+
+        with open(sys.argv[1], "rb") as fh:
+            data = tomllib.load(fh)
+        for dotted in sys.argv[2].split(","):
+            value = dig(data, dotted.strip())
+            if isinstance(value, str):
+                print(value)
+      - "{{ item.dest }}"
+      - "{{ verify_settings_spine_keys[item.name] | join(',') }}"
+  loop: "{{ verify_settings_files }}"
+  register: verify_settings_extracted
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Collect spine paths referenced by rendered settings
+  ansible.builtin.set_fact:
+    verify_settings_referenced_targets: >-
+      {{ verify_settings_extracted.results
+         | map(attribute='stdout_lines') | flatten | unique }}
+  when: not ansible_check_mode
+
+- name: Check settings-referenced spine paths resolve
   ansible.builtin.stat:
     path: "{{ item }}"
-  loop: "{{ verify_settings_spine_targets }}"
+  loop: "{{ verify_settings_referenced_targets }}"
   register: verify_settings_target_checks
+  when: not ansible_check_mode
 
-- name: Assert settings spine targets resolve
+- name: Assert settings-referenced spine paths resolve
   ansible.builtin.assert:
-    that: verify_settings_target_checks.results | selectattr('stat.exists') | list | length == verify_settings_spine_targets | length
+    that:
+      - verify_settings_extracted.results | selectattr('rc', 'equalto', 0) | list | length == verify_settings_files | length
+      - verify_settings_referenced_targets | length > 0
+      - verify_settings_target_checks.results | selectattr('stat.exists') | list | length == verify_settings_referenced_targets | length
     fail_msg: >-
-      not every settings spine target resolves to an existing path (done-
-      criterion 5 part 2 — parse ≠ works: a rendered settings file pointing at
-      a MISSING directory must fail verify even if the file itself parses).
-      Expected: generated/palettes, generated/effects, generated/.weg-tmp,
-      generated/icons, icon-templates, generated/palettes/colors.yaml — created
-      by the filesystem (2.5) and default_palette (2.7) roles
+      a rendered settings file is missing/unparseable, or references a spine
+      path that does NOT resolve (done-criterion 5 part 2 — parse ≠ works:
+      verify reads each rendered settings.toml and asserts every spine path it
+      references exists). Expected the six spine targets (generated/palettes,
+      generated/effects, generated/.weg-tmp, generated/icons, icon-templates,
+      generated/palettes/colors.yaml) — created by the filesystem (2.5) and
+      default_palette (2.7) roles
   when: not ansible_check_mode
 
 # Settings parse gate (AC 3, done-criterion 5): the three CLI gates over the
@@ -221,7 +308,12 @@
 # bootstrap.yaml --check on a partially-provisioned host).
 
 - name: Gate csg settings parse
-  ansible.builtin.command: "csg info --config {{ verify_xdg_config_home }}/color-scheme-generator/settings.toml"
+  ansible.builtin.command:
+    argv:
+      - csg
+      - info
+      - --config
+      - "{{ verify_xdg_config_home }}/color-scheme-generator/settings.toml"
   environment:
     PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
   register: verify_csg_gate
@@ -230,7 +322,12 @@
   when: not ansible_check_mode
 
 - name: Gate weg settings parse
-  ansible.builtin.command: "weg info --config {{ verify_xdg_config_home }}/weg/settings.toml"
+  ansible.builtin.command:
+    argv:
+      - weg
+      - info
+      - --config
+      - "{{ verify_xdg_config_home }}/weg/settings.toml"
   environment:
     PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
   register: verify_weg_gate
@@ -239,7 +336,13 @@
   when: not ansible_check_mode
 
 - name: Gate itr list against icons.yaml
-  ansible.builtin.command: "itr list {{ verify_itr_list_target }} --config {{ verify_xdg_config_home }}/itr/settings.toml"
+  ansible.builtin.command:
+    argv:
+      - itr
+      - list
+      - "{{ verify_itr_list_target }}"
+      - --config
+      - "{{ verify_xdg_config_home }}/itr/settings.toml"
   environment:
     PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
   register: verify_itr_gate
@@ -266,15 +369,17 @@
   loop: "{{ verify_compositor_config_dirs + verify_compositor_skeleton_files + verify_compositor_fragments }}"
   register: verify_compositor_checks
 
-- name: Assert compositor configs, skeletons and fragments are present
+- name: Assert compositor configs, skeletons and fragments are present with correct types
   ansible.builtin.assert:
-    that: verify_compositor_checks.results | selectattr('stat.exists') | list | length == (verify_compositor_config_dirs | length + verify_compositor_skeleton_files | length + verify_compositor_fragments | length)
+    that:
+      - verify_compositor_checks.results[:verify_compositor_config_dirs | length] | selectattr('stat.isdir') | list | length == verify_compositor_config_dirs | length
+      - verify_compositor_checks.results[verify_compositor_config_dirs | length:] | selectattr('stat.isreg') | list | length == (verify_compositor_skeleton_files | length + verify_compositor_fragments | length)
     fail_msg: >-
-      not every compositor config dir, skeleton, or fragment is present under
-      {{ verify_xdg_config_home }} (done-criterion 7 — the three config dirs,
-      the four skeleton files, and hypr/colors.conf + waybar/colors.css). The
-      filesystem (2.5) and compositor_configs (2.9) roles place them; run
-      those playbooks first
+      not every compositor config dir, skeleton, or fragment is present with the
+      right inode type under {{ verify_xdg_config_home }} (done-criterion 7 —
+      the three config DIRS, the four skeleton FILES, and hypr/colors.conf +
+      waybar/colors.css as regular FILES). The filesystem (2.5) and
+      compositor_configs (2.9) roles place them; run those playbooks first
   when: not ansible_check_mode
 
 - name: Check XDG base dirs exist
@@ -285,11 +390,11 @@
 
 - name: Assert XDG base dirs exist
   ansible.builtin.assert:
-    that: verify_xdg_dir_checks.results | selectattr('stat.exists') | list | length == verify_xdg_dirs | length
+    that: verify_xdg_dir_checks.results | selectattr('stat.isdir') | list | length == verify_xdg_dirs | length
     fail_msg: >-
-      not every XDG base dir exists (expected the config/state/cache homes —
-      done-criterion 8). The filesystem role (Story 2.5) creates them; run the
-      filesystem playbook first
+      not every XDG base dir exists as a directory (expected the config/state/
+      cache homes — done-criterion 8). The filesystem role (Story 2.5) creates
+      them; run the filesystem playbook first
   when: not ansible_check_mode
 
 - name: Check config copies are real directories

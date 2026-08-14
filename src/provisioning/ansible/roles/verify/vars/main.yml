@@ -106,19 +106,37 @@ verify_settings_files:
   - { name: weg, dest: "{{ verify_xdg_config_home }}/weg/settings.toml" }
   - { name: itr, dest: "{{ verify_xdg_config_home }}/itr/settings.toml" }
 
-# verify_settings_spine_targets: the spine-path TARGETS the rendered settings
-#   must resolve to (criterion 5 part 2 — the parse ≠ works hardening: a
-#   rendered file pointing at a MISSING directory must fail verify even if the
-#   file itself parses). Mirrors the six paths the settings role (2.11) bakes
-#   into the three settings.toml files. Each derives from
-#   {{ install_dir | trim }} — trim lock.
-verify_settings_spine_targets:
-  - "{{ install_dir | trim }}/generated/palettes"
-  - "{{ install_dir | trim }}/generated/effects"
-  - "{{ install_dir | trim }}/generated/.weg-tmp"
-  - "{{ install_dir | trim }}/generated/icons"
-  - "{{ install_dir | trim }}/icon-templates"
-  - "{{ install_dir | trim }}/generated/palettes/colors.yaml"
+# verify_settings_spine_keys: the TOML keys inside each rendered settings file
+#   whose values ARE the spine paths the tool writes through (criterion 5 part
+#   2 — the parse ≠ works hardening). The extraction task reads each rendered
+#   settings.toml, pulls the value of every listed key, and stats THOSE paths
+#   — so a settings file mis-rendered to point at a WRONG-but-existing (or
+#   MISSING) path FAILS verify even if the file itself parses. Parity with the
+#   settings templates is locked by test (each dotted key must exist as a
+#   path-bearing assignment in the matching settings/templates/*.j2).
+verify_settings_spine_keys:
+  csg:
+    - output.directory
+  weg:
+    - output.directory
+    - processing.temp_dir
+  itr:
+    - output.output_dir
+    - templates.dir
+    - color_scheme.path
+
+# verify_asset_dirs / verify_asset_files: the five deployed asset outcomes
+#   (criterion 4), split by inode type so the assert can check isdir/isreg
+#   (review finding 2026-08-13: an exists-only check let a regular FILE satisfy
+#   a required DIRECTORY). weg-effects.yaml is ALSO in verify_install_spine_files
+#   (criterion 1 + 4 — the spine root file node), so it is listed in both.
+verify_asset_dirs:
+  - icon-templates
+  - icon-mappings
+  - csg-templates
+verify_asset_files:
+  - wallpapers/default.png
+  - weg-effects.yaml
 
 # verify_palette_files: the default-palette outputs that must be present under
 #   {{ install_dir | trim }}/generated/palettes/ (criterion 6). Mirror of
