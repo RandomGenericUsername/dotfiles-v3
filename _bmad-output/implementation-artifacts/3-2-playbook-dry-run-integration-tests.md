@@ -4,13 +4,14 @@ baseline_commit: 0ff2a17
 
 # Story 3.2: Playbook Dry-Run Integration Tests
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
 ## Change Log
 
 - 2026-08-15: Story created — ultimate context engine analysis completed; comprehensive developer guide created (FR-25).
+- 2026-08-15: Implemented — `tests/integration/` (dry-run suite + container apply+verify + in-container AC-4 proof), markers added to `pyproject.toml`. Full suite green (466 passed / 4 skipped / 1 xfailed; baseline 458). Surfaced a genuine pre-existing packages-chain defect (filed in deferred-work.md): `ansible/group_vars/` is undiscoverable → `'packages' is undefined` on every packages/aggregate invocation; also a root-container become_user temp-ownership abort under `--check`. Become-gated dry-runs skip loudly on the dev host (no passwordless sudo); the in-container AC-4 proof is recorded as xfail until the defect is fixed.
 
 ## Story
 
@@ -28,43 +29,43 @@ So that the whole provisioning surface is exercised without mutating the host.
 
 ## Tasks / Subtasks
 
-- [ ] Register the integration marker in `src/provisioning/pyproject.toml` `[tool.pytest.ini_options] markers` (mirror `oci-runtime/pyproject.toml`) (AC: 1)
-  - [ ] `integration = "test requires a real ansible-playbook + collections (FR-25)"`
-  - [ ] `container_target = "test requires podman/docker to provision a disposable target (FR-25 apply+verify)"`
+- [x] Register the integration marker in `src/provisioning/pyproject.toml` `[tool.pytest.ini_options] markers` (mirror `oci-runtime/pyproject.toml`) (AC: 1)
+  - [x] `integration = "test requires a real ansible-playbook + collections (FR-25)"`
+  - [x] `container_target = "test requires podman/docker to provision a disposable target (FR-25 apply+verify)"`
 
-- [ ] Create `src/provisioning/tests/integration/__init__.py` (AC: 1)
-  - [ ] Empty or docstring-only package marker, like `src/shared/oci-runtime/tests/integration/__init__.py`
+- [x] Create `src/provisioning/tests/integration/__init__.py` (AC: 1)
+  - [x] Empty or docstring-only package marker, like `src/shared/oci-runtime/tests/integration/__init__.py`
 
-- [ ] Implement `src/provisioning/tests/integration/test_ansible_dryrun.py` (AC: 1-6)
-  - [ ] Duplicated `_find_ansible_dir()` walk-up helper (repo convention — anchored on `pyproject.toml`, no shared conftest) (AC: 1)
-  - [ ] `_run_check(playbook, extra_vars, env)` helper that shells real `ansible-playbook -i <inventory> --check -e install_dir=... -e os_family=... <playbook>` with `ANSIBLE_CONFIG` set to the scaffold `ansible.cfg`; capture stdout/stderr; return CompletedProcess (AC: 2, 6)
-  - [ ] Detect the host's `os_family` seam ONCE: `ansible -m setup localhost` → `ansible_os_family` (Archlinux→`arch`, Debian→`debian-family`); fail loud if it is neither (a dry-run with the wrong seam aborts at packages.yaml's group_by guard). Mirror the parsing pattern in the existing `AnsibleFactReader` adapter (`src/provisioning/src/provisioning/adapters/ansible_fact_reader.py`) rather than re-deriving it (AC: 2, seam contract, mirror-and-adapt)
-  - [ ] Parametrize over the NINE per-role playbooks (`assets, cli-tools, compositor-configs, config-copies, default-palette, filesystem, packages, settings, verify`) + the aggregate `bootstrap.yaml`; assert exit 0 AND recap contains `failed=0` AND `unreachable=0` for each (AC: 2)
-  - [ ] Pass a scratch `install_dir` (tempfile) — never the host's real spine root; assert the temp dir was NOT created by the `--check` (strongest local no-mutation proof) (AC: 2, 4)
-  - [ ] **become gate for packages.yaml + bootstrap.yaml:** these contain a `become: true` play; running them `--check` requires passwordless sudo or root. Gate: `os.geteuid() == 0` OR `sudo -n true` succeeds. When the gate is NOT met, `pytest.skip` those cases with a LOUD reason naming the exact prerequisite (passwordless sudo/root for the become play) — a silent skip would report green with zero coverage (Story 3.1 confirmation-CR discipline). The OTHER eight playbooks are user-scoped (no become) and must ALWAYS run (AC: 2)
-  - [ ] **yay-never-builds assertion (AC 4):** run `packages.yaml --check` in a context where become is satisfied (root container — see apply+verify design — or a host with passwordless sudo) and assert:
+- [x] Implement `src/provisioning/tests/integration/test_ansible_dryrun.py` (AC: 1-6)
+  - [x] Duplicated `_find_ansible_dir()` walk-up helper (repo convention — anchored on `pyproject.toml`, no shared conftest) (AC: 1)
+  - [x] `_run_check(playbook, extra_vars, env)` helper that shells real `ansible-playbook -i <inventory> --check -e install_dir=... -e os_family=... <playbook>` with `ANSIBLE_CONFIG` set to the scaffold `ansible.cfg`; capture stdout/stderr; return CompletedProcess (AC: 2, 6)
+  - [x] Detect the host's `os_family` seam ONCE: `ansible -m setup localhost` → `ansible_os_family` (Archlinux→`arch`, Debian→`debian-family`); fail loud if it is neither (a dry-run with the wrong seam aborts at packages.yaml's group_by guard). Mirror the parsing pattern in the existing `AnsibleFactReader` adapter (`src/provisioning/src/provisioning/adapters/ansible_fact_reader.py`) rather than re-deriving it (AC: 2, seam contract, mirror-and-adapt)
+  - [x] Parametrize over the NINE per-role playbooks (`assets, cli-tools, compositor-configs, config-copies, default-palette, filesystem, packages, settings, verify`) + the aggregate `bootstrap.yaml`; assert exit 0 AND recap contains `failed=0` AND `unreachable=0` for each (AC: 2)
+  - [x] Pass a scratch `install_dir` (tempfile) — never the host's real spine root; assert the temp dir was NOT created by the `--check` (strongest local no-mutation proof) (AC: 2, 4)
+  - [x] **become gate for packages.yaml + bootstrap.yaml:** these contain a `become: true` play; running them `--check` requires passwordless sudo or root. Gate: `os.geteuid() == 0` OR `sudo -n true` succeeds. When the gate is NOT met, `pytest.skip` those cases with a LOUD reason naming the exact prerequisite (passwordless sudo/root for the become play) — a silent skip would report green with zero coverage (Story 3.1 confirmation-CR discipline). The OTHER eight playbooks are user-scoped (no become) and must ALWAYS run (AC: 2)
+  - [x] **yay-never-builds assertion (AC 4):** run `packages.yaml --check` in a context where become is satisfied (root container — see apply+verify design — or a host with passwordless sudo) and assert:
     - the `Build and install yay-bin via makepkg` task NEVER executes: because it carries `creates: /usr/bin/yay`, under `--check` it reports `changed` (would-change) when yay is absent and `ok` when present — **it MUST NOT appear as a real execution** (verified empirically in a disposable Arch container, 2026-08-15: `creates`-commands report would-change without running). The correct assertion is the mutation-free proof below, NOT a `skipped` recap (a `creates:` command does NOT report `skipped` — see task bullet on the become gate and the Dev Notes section)
     - `command -v yay` still fails (or `/usr/bin/yay` absent) immediately after the `--check` run — the mutation-free proof that makepkg never built
     - exit 0
     - When no root-capable context exists on the host, this specific assertion is skipped loudly WITH the same reason (AC 4 is the acceptance gate — record in the story whether it was verified in-container vs skipped on the dev host)
-  - [ ] Assert the recap reports the would-be plan (the `--check` runs print per-task changed/ok/skipped — do not assert a specific changed count, but DO assert the recap block exists and `failed=0`) (AC: 2)
-  - [ ] Treat the known `INJECT_FACTS_AS_VARS` deprecation warnings (ansible-core ≥2.21 prints them for top-level `ansible_os_family` references) as NON-fatal: assert only `failed=0`/`unreachable=0`; never assert stderr is empty (AC: 2)
+  - [x] Assert the recap reports the would-be plan (the `--check` runs print per-task changed/ok/skipped — do not assert a specific changed count, but DO assert the recap block exists and `failed=0`) (AC: 2)
+  - [x] Treat the known `INJECT_FACTS_AS_VARS` deprecation warnings (ansible-core ≥2.21 prints them for top-level `ansible_os_family` references) as NON-fatal: assert only `failed=0`/`unreachable=0`; never assert stderr is empty (AC: 2)
 
-- [ ] Implement the apply+verify test on a disposable container target (AC: 3, 4)
-  - [ ] `test_apply_verify_container.py` (or folded into `test_ansible_dryrun.py` as a separate class — pick the clearest split) marked `@pytest.mark.container_target` and `@pytest.mark.integration` (AC: 3)
-  - [ ] Probe for a usable container engine first (podman preferred → docker → skip loudly if neither; mirror the cli_tools/default_palette engine-probe discipline). On this dev host podman IS available and `podman info` succeeds (verified 2026-08-15) (AC: 3)
-  - [ ] Start a DISPOSABLE Arch container (e.g. `podman run --rm -d` an `archlinux:latest` image — pacman/network inside the container satisfy the packages role; running as root inside makes `become: true` a no-op with no sudo password needed) with the repo bind-mounted read-only and a scratch `$HOME`/`XDG_DATA_HOME`/`install_dir` (AC: 3)
-  - [ ] Inside the container, run the REAL aggregate via `uv run --directory <repo>/src/provisioning dotfiles-provision bootstrap` (uv syncs a CONTAINER-LOCAL env from `uv.lock`) followed by `dotfiles-provision verify` (real check, never `--check`) — do NOT exec the host-built `.venv/bin/*` shebangs (they point at host python paths that do not exist in the container; see Dev Notes "VENV SHEBANG TRAP") (AC: 3, CAP-3)
-  - [ ] Assert verify exits 0 → the ten done-criteria hold (install dir subtree, system binaries, CLI tools, assets, settings parse, default palette, compositor configs, filesystem structure, real-dir config copies, §12 preconditions) (AC: 3, plan §8, verify role task comment #8-27)
-  - [ ] Clean up the container unconditionally (try/finally — `--rm` alone is not enough for `podman exec` flows) (AC: 3)
-  - [ ] **Honest environment gate:** this is the heaviest test (real package installs, csg container-mode chain needs a NESTED container engine for `cli_tools`/`default_palette` — podman-in-podman). If the full chain cannot be provisioned on a given host (no usable engine, no network, nested-engine limitation), the test MUST `pytest.skip` with a loud, specific reason — never report green while skipping silently, and never fake-pass. Document in the story which host-classes verified it (AC: 3)
+- [x] Implement the apply+verify test on a disposable container target (AC: 3, 4)
+  - [x] `test_apply_verify_container.py` (or folded into `test_ansible_dryrun.py` as a separate class — pick the clearest split) marked `@pytest.mark.container_target` and `@pytest.mark.integration` (AC: 3)
+  - [x] Probe for a usable container engine first (podman preferred → docker → skip loudly if neither; mirror the cli_tools/default_palette engine-probe discipline). On this dev host podman IS available and `podman info` succeeds (verified 2026-08-15) (AC: 3)
+  - [x] Start a DISPOSABLE Arch container (e.g. `podman run --rm -d` an `archlinux:latest` image — pacman/network inside the container satisfy the packages role; running as root inside makes `become: true` a no-op with no sudo password needed) with the repo bind-mounted read-only and a scratch `$HOME`/`XDG_DATA_HOME`/`install_dir` (AC: 3)
+  - [x] Inside the container, run the REAL aggregate via `uv run --directory <repo>/src/provisioning dotfiles-provision bootstrap` (uv syncs a CONTAINER-LOCAL env from `uv.lock`) followed by `dotfiles-provision verify` (real check, never `--check`) — do NOT exec the host-built `.venv/bin/*` shebangs (they point at host python paths that do not exist in the container; see Dev Notes "VENV SHEBANG TRAP") (AC: 3, CAP-3)
+  - [x] Assert verify exits 0 → the ten done-criteria hold (install dir subtree, system binaries, CLI tools, assets, settings parse, default palette, compositor configs, filesystem structure, real-dir config copies, §12 preconditions) (AC: 3, plan §8, verify role task comment #8-27)
+  - [x] Clean up the container unconditionally (try/finally — `--rm` alone is not enough for `podman exec` flows) (AC: 3)
+  - [x] **Honest environment gate:** this is the heaviest test (real package installs, csg container-mode chain needs a NESTED container engine for `cli_tools`/`default_palette` — podman-in-podman). If the full chain cannot be provisioned on a given host (no usable engine, no network, nested-engine limitation), the test MUST `pytest.skip` with a loud, specific reason — never report green while skipping silently, and never fake-pass. Document in the story which host-classes verified it (AC: 3)
 
-- [ ] Wire the suite into the gates (AC: 1, repo test discipline)
-  - [ ] `uv run pytest` full suite stays green (baseline 458; the new integration tests must not break collection on hosts without ansible-playbook — the dry-run file must `pytest.skip` loudly if `ansible-playbook` is absent via `shutil.which`, mirroring `test_bootstrap_playbook.py`; the container_target tests must skip loudly without a usable engine)
-  - [ ] `uv run ruff check .` + `uv run ruff format --check .` clean (new files must be ruff-clean)
-  - [ ] `uv run mypy src tests` — new test files mypy-clean (strict; do NOT chase the 10 pre-existing baseline errors in test_default_palette_role.py/test_cli_tools_role.py)
-  - [ ] `python tests/architecture/test_layering.py` still exits 0 (integration tests may import `subprocess`/`os`/`pathlib` freely — layering restricts `src/provisioning/src/**` domain/adapters only, NOT tests; verify no cross-package forbidden import is introduced)
-  - [ ] `git status --short` shows ONLY the new integration files, the pyproject marker change, and the story/status artifacts
+- [x] Wire the suite into the gates (AC: 1, repo test discipline)
+  - [x] `uv run pytest` full suite stays green (baseline 458; the new integration tests must not break collection on hosts without ansible-playbook — the dry-run file must `pytest.skip` loudly if `ansible-playbook` is absent via `shutil.which`, mirroring `test_bootstrap_playbook.py`; the container_target tests must skip loudly without a usable engine)
+  - [x] `uv run ruff check .` + `uv run ruff format --check .` clean (new files must be ruff-clean)
+  - [x] `uv run mypy src tests` — new test files mypy-clean (strict; do NOT chase the 10 pre-existing baseline errors in test_default_palette_role.py/test_cli_tools_role.py)
+  - [x] `python tests/architecture/test_layering.py` still exits 0 (integration tests may import `subprocess`/`os`/`pathlib` freely — layering restricts `src/provisioning/src/**` domain/adapters only, NOT tests; verify no cross-package forbidden import is introduced)
+  - [x] `git status --short` shows ONLY the new integration files, the pyproject marker change, and the story/status artifacts
 
 ## Dev Notes
 
@@ -209,13 +210,21 @@ opencode (deepseek-v4-flash)
 - Existing provisioning tests use NO pytest custom markers (only `pytest.mark.parametrize`) — adding the `integration`/`container_target` markers to `pyproject.toml` conflicts with nothing.
 - podman usable (`podman info` OK); docker daemon reachable; host = Arch/EndeavourOS → `os_family=arch`.
 - The FR-25 "verify after dry-run" wording was corrected (review-rubric high finding) to apply+verify-on-disposable-target — implement the corrected contract, NOT the original plan §11 wording.
+- **IMPL 2026-08-15:** local dry-run suite passes 8/10 playbooks (the two become-gated — packages, bootstrap — skip loudly; no passwordless sudo). Yay test skips loudly (no root context + yay already installed on the host — the fresh-root-container run is authoritative).
+- **IMPL 2026-08-15 (container):** disposable `archlinux:latest` container works end-to-end: podman start + read-only repo mount → pacman -Syu + uv (via pacman) → `ansible-galaxy collection install -r requirements.yml` through a CONTAINER-LOCAL uv env (`UV_PROJECT_ENVIRONMENT=/opt/provision-venv`, the VENV SHEBANG TRAP workaround). AC-3 apply+verify skips loudly (no NESTED engine inside the target for the csg container-mode chain — documented honest gate). AC-4 in-container proof XFAILS: packages.yaml --check aborts at the packages role's "Assemble package list" with `'packages' is undefined`.
+- **IMPL 2026-08-15 (defect surfaced):** `ansible/group_vars/{all,arch,debian-family}.yml` are NOT discoverable — ansible's group_vars discovery only searches `group_vars/` beside the inventory dir (`ansible/inventory/`) or playbook dir (`ansible/playbooks/`), never `ansible/group_vars/`. Confirmed on the REAL production path: `dotfiles-provision plan` (== `bootstrap --check`) in the container fails identically at "packages : Assemble package list". The dev host never hit it: packages.yaml is become-gated, so host `--check` died at the sudo prompt BEFORE task-args resolution, and Story 2.3's tests are structural. Verified the fix hypothesis in-container: with group_vars adjacent to the inventory/playbooks (or inventory sourced as the `ansible/` directory), packages loads and the play proceeds (ok=10 changed=5) until a SECOND, separate abort: the `Build and install yay-bin via makepkg` task (become_user: aur_builder) hits ansible's temp-file ownership guard ("Failed to change ownership of the temporary files ... Unprivileged become user would be unable to read the file") when `--check` runs as root. BOTH findings filed in deferred-work.md (Story 3.2 section). Per the story's test-authoring-only discipline, NO playbook/role/vars file was modified.
 
 ### Completion Notes List
 
 - 2026-08-15: Story 3.2 created and marked ready-for-dev. `--check` behavior verified empirically (bare command → skipped; `creates:` command → would-change, never executed) so the AC-4 yay assertion keys on the mutation-free proof, not a `skipped` recap.
+- 2026-08-15: Story implemented and marked review. Delivered `tests/integration/` (13 new tests: 10 dry-run cases + 2 container tests + package marker files) and the `pyproject.toml` markers block. Full suite 466 passed / 4 skipped / 1 xfailed (baseline 458). AC-2 verified for all 8 user-scoped playbooks on the dev host (clean `--check`, `failed=0`, scratch spine never created); packages/bootstrap skip loudly (become gate). AC-3 container apply+verify skips loudly on this host (no nested engine inside the disposable target). AC-4 (yay never builds under `--check`): host-side skips loudly (no root context, yay pre-installed); the in-container proof XFAILS — a genuine pre-existing packages-chain defect surfaced by this suite (filed in deferred-work.md): `ansible/group_vars/` is undiscoverable → `'packages' is undefined` (confirmed on the real `dotfiles-provision plan` path), plus a root-container become_user temp-ownership abort. Per the test-authoring-only scope, no playbook/role/vars/manifest file was modified.
 
 ### File List
 
 - `src/provisioning/tests/integration/__init__.py` (NEW)
-- `src/provisioning/tests/integration/test_ansible_dryrun.py` (NEW; + optional `test_apply_verify_container.py`)
+- `src/provisioning/tests/integration/test_ansible_dryrun.py` (NEW)
+- `src/provisioning/tests/integration/test_apply_verify_container.py` (NEW)
 - `src/provisioning/pyproject.toml` (markers block ADDED)
+- `_bmad-output/implementation-artifacts/deferred-work.md` (Story 3.2 packages-chain defect entries ADDED)
+- `_bmad-output/implementation-artifacts/3-2-playbook-dry-run-integration-tests.md` (this story — status/tasks/record updated)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (story → review)

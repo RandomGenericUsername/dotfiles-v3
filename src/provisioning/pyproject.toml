@@ -27,6 +27,10 @@ cli-output = { path = "../shared/cli-output", editable = true }
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+markers = [
+    "integration: test requires a real ansible-playbook + collections (FR-25)",
+    "container_target: test requires podman/docker to provision a disposable target (FR-25 apply+verify)",
+]
 
 [tool.ruff]
 target-version = "py312"
