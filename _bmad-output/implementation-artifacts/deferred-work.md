@@ -226,3 +226,8 @@
 
 - `verify_cli_bin_dir` hardcodes `$HOME/.local/bin`, ignoring `UV_TOOL_BIN_DIR`/`XDG_BIN_HOME` — criterion 3 false-fails after a cli_tools install to a customized bin dir; pre-existing in cli_tools (which documents the env overrides but hardcodes the same default); verify mirrors it exactly [src/provisioning/ansible/roles/verify/vars/main.yml:100, src/provisioning/ansible/roles/cli_tools/vars/main.yml:10-14]
 - System-binary/CLI shell checks rely on the ansible-core 2.20.3 auto-skip of command/shell under `--check` for dry-run cleanliness — if a future ansible-core changes skip behavior, `bootstrap.yaml --check` breaks; the convention is documented, mirrored, and empirically verified but not test-locked against a version [src/provisioning/ansible/roles/verify/tasks/main.yml:82-87, 102-109]
+
+## Deferred from: code review of 3-1-fresh-machine-bootstrap-script (2026-08-15)
+
+- AC 5 (Arch + Debian-family) verified only by the NFR-3 token-absence scan in `test_no_distro_branching_tokens` — no test exercises the script under a second distro or any distro-specific behavior; real dual-distro runs are Story 3.2/3.3 integration territory (in-scope boundary) [src/provisioning/tests/unit/test_bootstrap_script.py:131-141]
+- Full-suite "455 green" claim not reproducible from the repo root in this environment — `uv run pytest -q` aborts with 70 collection errors in unrelated `src/shared/oci-runtime`/`config-assembler-engine` modules; not caused by this change, the 18 new tests pass in isolation (pre-existing test-harness context)

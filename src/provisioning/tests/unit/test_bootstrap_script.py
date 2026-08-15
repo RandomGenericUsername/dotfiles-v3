@@ -31,7 +31,7 @@ _TEXT = _SCRIPT.read_text()
 
 _DISTRO_TOKENS_RE = re.compile(r"\b(?:pacman|apt-get|apt|yum|dnf)\b", re.IGNORECASE)
 
-_ABSOLUTE_PATH_RE = re.compile(r"(?<![\w:./!#-])/\w+/\w+")
+_ABSOLUTE_PATH_RE = re.compile(r"(?<![\w:./!#\}-])/\w+(?:/\w+)*")
 
 
 class TestBootstrapScriptFile:
@@ -109,7 +109,10 @@ class TestBootstrapScriptFile:
             "the failure message must name the exact requirements.yml path"
         )
         assert "no network" in _TEXT, "the failure message must name the likely cause (no network)"
-        assert "exit 1" in _TEXT, "the loud abort must exit non-zero"
+        assert 'exit "$galaxy_rc"' in _TEXT, (
+            "the loud abort must exit with ansible-galaxy's TRUE exit code "
+            "(not a hardcoded 1), so the failure code propagates"
+        )
 
     def test_bootstrap_and_verify_invoked_in_order_through_uv_run(self) -> None:
         """AC 3 + AC 4: `dotfiles-provision bootstrap` and the trailing
@@ -163,27 +166,26 @@ class TestBootstrapScriptFile:
             "the abort must carry a helpful message naming the engine requirement"
         )
 
-    def test_container_engine_override_env_honored(self) -> None:
-        """BOOTSTRAP_CONTAINER_ENGINE (env override) is checked BEFORE the
-        default podman/docker probe — a working engine at a custom location
-        must not be blocked by the default probe (mirror of the roles'
-        cli_tools_container_engine_override)."""
-        assert "BOOTSTRAP_CONTAINER_ENGINE" in _TEXT, (
-            "the script must support a BOOTSTRAP_CONTAINER_ENGINE env override"
-        )
-        assert _TEXT.index("BOOTSTRAP_CONTAINER_ENGINE") < _TEXT.index("engine_usable podman"), (
-            "the override must be honored BEFORE the default podman/docker probe"
-        )
-        assert "Unset it or fix the value" in _TEXT, (
-            "an unresolvable override must fail loud with a helpful message"
+    def test_no_bootstrap_container_engine_override(self) -> None:
+        """Confirmation CR (2026-08-15): the script must NOT define a
+        BOOTSTRAP_CONTAINER_ENGINE override — the roles' own
+        cli_tools_container_engine_override / default_palette_container_engine_override
+        are the sanctioned escape hatches. A second source of truth let the gate
+        and the roles diverge (an off-PATH engine passed the gate then died
+        mid-chain); this lock prevents the dead-var from returning."""
+        assert "BOOTSTRAP_CONTAINER_ENGINE" not in _TEXT, (
+            "bootstrap.sh must not carry its own engine override — the roles' "
+            "override vars are the single escape hatch (confirmation CR 2026-08-15)"
         )
 
     def test_no_hardcoded_absolute_paths(self) -> None:
         """Everything derives from ROOT / $HOME — no hardcoded absolute paths.
 
-        Scans for ANY /dir/dir pattern (not just /home/ and /root/), so a
-        hardcoded /usr/local or /opt cannot pass. The shebang line and the
-        environment-independent /dev/null redirect device are tolerated.
+        Scans for ANY /dir(/dir...) pattern — multi-segment (/usr/local, /opt/x)
+        AND single-segment (/tmp, /opt, /bin) — so no absolute path class can
+        pass. The shebang line and the environment-independent /dev/null
+        redirect device are tolerated. Word/variable fragments that merely END
+        in /name (e.g. ${UV_TARGET}/uv) are excluded by the lookbehind.
         """
         for i, line in enumerate(_TEXT.splitlines(), 1):
             if line.startswith("#!"):
@@ -249,17 +251,36 @@ def _echo_stub(name: str, tail: str) -> str:
     return f'#!/bin/sh\necho "{name} $*" >> "$BOOTSTRAP_TEST_LOG"\n{tail}\n'
 
 
+def _uv_passthrough_stub(version: str = "0.9.22") -> str:
+    """A uv stub that logs `uv $*` to $BOOTSTRAP_TEST_LOG, answers the pinned
+    --version assert (P4), then passes `uv run --directory ...` through by
+    shifting the `run --directory <dir>` prefix and exec-ing the rest."""
+    return (
+        "#!/bin/sh\n"
+        'if [ "$1" = "--version" ]; then\n'
+        f'  echo "uv {version}"\n'
+        "  exit 0\n"
+        "fi\n"
+        'echo "uv $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+        "shift 3\n"
+        'exec "$@"\n'
+    )
+
+
 def _scrubbed_env(**overrides: str) -> dict[str, str]:
     """A controlled env for bootstrap subprocesses: drop ambient ANSIBLE_/XDG_/UV_
     vars so nothing from the dev host leaks into the smoke run, and scrub
     BASH_ENV/ENV/PROMPT_COMMAND so no init file from the dev host is sourced.
-    The host PATH is retained (so dirname/readlink/timeout/mktemp/sed resolve
-    naturally) with the stub dir PREPENDED so stubs shadow any host binaries."""
+    Also drops the script's own documented overrides and bash behavioral vars
+    (BOOTSTRAP_CONTAINER_ENGINE, IFS, POSIXLY_CORRECT) so a dev host exporting
+    any of them cannot change the script's semantics under test (confirmation CR
+    2026-08-15). The host PATH is retained (so dirname/readlink/timeout/mktemp/sed
+    resolve naturally) with the stub dir PREPENDED so stubs shadow host binaries."""
     env = {
         k: v
         for k, v in os.environ.items()
-        if not k.startswith(("ANSIBLE_", "XDG_", "UV_"))
-        and k not in ("BASH_ENV", "ENV", "PROMPT_COMMAND")
+        if not k.startswith(("ANSIBLE_", "XDG_", "UV_", "BOOTSTRAP_CONTAINER_"))
+        and k not in ("BASH_ENV", "ENV", "PROMPT_COMMAND", "IFS", "POSIXLY_CORRECT")
     }
     env.update(overrides)
     return env
@@ -283,10 +304,18 @@ class TestBootstrapScriptRuntime:
 
             _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
             for name in ("uv", "ansible-galaxy", "dotfiles-provision"):
-                _make_stub(
-                    bin_dir / name,
-                    _echo_stub(name, 'shift 3\nexec "$@"' if name == "uv" else "exit 0"),
-                )
+                if name == "ansible-galaxy":
+                    _make_stub(
+                        bin_dir / name,
+                        '#!/bin/sh\necho "ansible-galaxy $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+                        'mkdir -p "$HOME/.ansible/collections/ansible_collections"\n'
+                        'touch "$HOME/.ansible/collections/ansible_collections/.stub"\n'
+                        "exit 0\n",
+                    )
+                elif name == "uv":
+                    _make_stub(bin_dir / name, _uv_passthrough_stub())
+                else:
+                    _make_stub(bin_dir / name, _echo_stub(name, "exit 0"))
 
             env = _scrubbed_env(
                 PATH=f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
@@ -379,7 +408,7 @@ class TestBootstrapScriptRuntime:
             home.mkdir()
 
             _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
-            _make_stub(bin_dir / "uv", _echo_stub("uv", 'shift 3\nexec "$@"'))
+            _make_stub(bin_dir / "uv", _uv_passthrough_stub())
             _make_stub(
                 bin_dir / "ansible-galaxy",
                 "#!/bin/sh\n"
@@ -413,4 +442,163 @@ class TestBootstrapScriptRuntime:
             log_lines = log.read_text().splitlines()
             assert not any(line.startswith("dotfiles-provision") for line in log_lines), (
                 "no bootstrap stage may run after a collections failure"
+            )
+
+    def test_uv_preseed_installs_when_absent(self) -> None:
+        """P2 (confirmation CR 2026-08-15): the ENTIRE uv-preseed install branch
+        (platform case, download, checksum pipeline, extract, pinned --version
+        assert) previously had ZERO behavioral coverage — all runtime tests
+        stubbed uv as present. Here uv is ABSENT and uname/mktemp/curl/
+        sha256sum/tar are stubbed so the install branch actually executes and
+        the script then proceeds through collections → bootstrap → verify."""
+        bash = _require_bash()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            bin_dir = tmp_path / "bin"
+            home = tmp_path / "home"
+            log = tmp_path / "invocations.log"
+            bin_dir.mkdir()
+            home.mkdir()
+
+            _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
+            _make_stub(
+                bin_dir / "uname",
+                '#!/bin/sh\ncase "$1" in\n'
+                "  -s) echo Linux ;;\n  -m) echo x86_64 ;;\n  *) exit 1 ;;\nesac\n",
+            )
+            _make_stub(
+                bin_dir / "mktemp",
+                '#!/bin/sh\nf="${TMPDIR:-/tmp}/bootstrap-stub.$$"\n: > "$f"\necho "$f"\n',
+            )
+            _make_stub(
+                bin_dir / "curl",
+                '#!/bin/sh\nout=""; prev=""\n'
+                'for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done\n'
+                'printf "stub tarball\\n" > "$out"\nexit 0\n',
+            )
+            _make_stub(bin_dir / "sha256sum", "#!/bin/sh\ncat >/dev/null\nexit 0\n")
+            _make_stub(
+                bin_dir / "tar",
+                "#!/bin/sh\n"
+                'cat > "$HOME/.local/bin/uv" <<"STUB"\n' + _uv_passthrough_stub() + "STUB\n"
+                'printf "#!/bin/sh\\nexit 0\\n" > "$HOME/.local/bin/uvx"\n'
+                'chmod +x "$HOME/.local/bin/uv" "$HOME/.local/bin/uvx"\n'
+                "exit 0\n",
+            )
+            _make_stub(
+                bin_dir / "ansible-galaxy",
+                '#!/bin/sh\necho "ansible-galaxy $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+                'mkdir -p "$HOME/.ansible/collections/ansible_collections"\n'
+                'touch "$HOME/.ansible/collections/ansible_collections/.stub"\n'
+                "exit 0\n",
+            )
+            _make_stub(bin_dir / "dotfiles-provision", _echo_stub("dotfiles-provision", "exit 0"))
+
+            env = _scrubbed_env(
+                PATH=f"{bin_dir}:/usr/bin:/bin",
+                HOME=str(home),
+                TMPDIR=str(tmp_path),
+                BOOTSTRAP_TEST_LOG=str(log),
+            )
+            result = subprocess.run(
+                [bash, str(_SCRIPT)],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert "stage preseed: installing uv 0.9.22" in result.stdout, (
+                "the absent-uv preseed branch must run the pinned install; "
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            )
+
+            prov_dir = str(_SCRIPT.parent.parent / "src" / "provisioning")
+            req = str(
+                _SCRIPT.parent.parent / "src" / "provisioning" / "ansible" / "requirements.yml"
+            )
+            expected = [
+                "podman info",
+                f"uv run --directory {prov_dir} ansible-galaxy collection install -r {req}",
+                f"ansible-galaxy collection install -r {req}",
+                f"uv run --directory {prov_dir} dotfiles-provision bootstrap",
+                "dotfiles-provision bootstrap",
+                f"uv run --directory {prov_dir} dotfiles-provision verify",
+                "dotfiles-provision verify",
+            ]
+            actual = [line for line in log.read_text().splitlines() if line.strip()]
+            assert actual == expected, (
+                "after the uv preseed, the stages must run in order "
+                "collections → bootstrap → verify; got:\n" + "\n".join(actual)
+            )
+
+    def test_fails_loud_when_running_as_root(self) -> None:
+        """P5 (confirmation CR 2026-08-15): a root/EUID-0 invocation must abort
+        loud BEFORE anything runs — provisioning as root would write the wrong
+        home and verify could pass green against it."""
+        bash = _require_bash()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            bin_dir = tmp_path / "bin"
+            home = tmp_path / "home"
+            log = tmp_path / "invocations.log"
+            bin_dir.mkdir()
+            home.mkdir()
+
+            _make_stub(bin_dir / "id", '#!/bin/sh\nif [ "$1" = "-u" ]; then echo 0; fi\n')
+            _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
+
+            env = _scrubbed_env(
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+                HOME=str(home),
+                BOOTSTRAP_TEST_LOG=str(log),
+            )
+            result = subprocess.run(
+                [bash, str(_SCRIPT)],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, "script must fail loud when running as root"
+            output = result.stdout + result.stderr
+            assert "running as root" in output, output
+            log_lines = log.read_text().splitlines() if log.exists() else []
+            assert log_lines == [], (
+                "no engine probe or stage may run before the root abort; "
+                "got:\n" + "\n".join(log_lines)
+            )
+
+    def test_fails_loud_when_home_unset(self) -> None:
+        """P5 (confirmation CR 2026-08-15): a $HOME-unset context (cron/systemd/
+        sudo -H) must abort loud with a helpful message — no cryptic set -u
+        error, no `/.local/bin` PATH pollution."""
+        bash = _require_bash()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            bin_dir = tmp_path / "bin"
+            log = tmp_path / "invocations.log"
+            bin_dir.mkdir()
+
+            _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
+
+            env = _scrubbed_env(
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+                HOME="",
+                BOOTSTRAP_TEST_LOG=str(log),
+            )
+            result = subprocess.run(
+                [bash, str(_SCRIPT)],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, "script must fail loud when $HOME is unset"
+            output = result.stdout + result.stderr
+            assert "HOME is unset" in output, output
+            log_lines = log.read_text().splitlines() if log.exists() else []
+            assert log_lines == [], (
+                "no engine probe or stage may run before the HOME abort; "
+                "got:\n" + "\n".join(log_lines)
             )

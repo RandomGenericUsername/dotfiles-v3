@@ -31,18 +31,27 @@ set -euo pipefail
 # needs podman OR docker at runtime. Neither role installs one, so this script
 # fails loud EARLY if no USABLE engine exists — a presence-only probe would let
 # a stopped docker daemon through and die ~40 minutes in. Usability is probed
-# via `engine info` (bounded by a 15s timeout); BOOTSTRAP_CONTAINER_ENGINE may
-# pin an override. Install podman (preferred) or docker, then re-run. This
-# script NEVER installs an engine: a distro-specific install here would violate
-# NFR-3.
+# via `engine info` (bounded by a 15s timeout). Install podman (preferred) or
+# docker, then re-run. This script NEVER installs an engine: a distro-specific
+# install here would violate NFR-3. Engine forcing is the roles' own concern
+# (cli_tools_container_engine_override / default_palette_container_engine_override),
+# NOT a bootstrap.sh override — a second source of truth would let the gate and
+# the roles diverge (confirmation CR 2026-08-15).
 # ─────────────────────────────────────────────────────────────────────────
 
 # ROOT derives from the script's own location (BASH_SOURCE), never from the
 # git top-level — the script must work even if the checkout isn't a git
 # worktree or that command fails. Symlinked invocations are resolved to the
 # REAL path first (readlink -f, with a fallback) so a symlink into
-# ~/.local/bin cannot point ROOT at the wrong tree.
+# ~/.local/bin cannot point ROOT at the wrong tree. A bare invocation (script
+# found via PATH, no `./` or absolute path) is resolved through the PATH
+# lookup first — otherwise BASH_SOURCE[0] has no slash and dirname collapses
+# to the cwd's parent instead of the repo (confirmation CR 2026-08-15).
 SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+case "$SCRIPT_SOURCE" in
+  */*) ;;
+  *) SCRIPT_SOURCE="$(command -v "$SCRIPT_SOURCE" 2>/dev/null || printf '%s' "$SCRIPT_SOURCE")" ;;
+esac
 if command -v readlink >/dev/null 2>&1; then
   SCRIPT_SOURCE="$(readlink -f "$SCRIPT_SOURCE" 2>/dev/null || printf '%s' "$SCRIPT_SOURCE")"
 fi
@@ -94,53 +103,39 @@ fi
 
 # ── Preflight: non-root ─────────────────────────────────────────────────
 # `sudo ./scripts/bootstrap.sh` is a natural fresh-machine reflex, but a root
-# run provisions /root — and verify can pass green against the wrong home (the
-# cli_tools role explicitly warns a root run makes AC 3 silently false). The
-# packages role escalates via become, so a normal user run is all that is
-# needed.
+# run provisions the root home — and verify can pass green against the wrong
+# home (the cli_tools role explicitly warns a root run makes AC 3 silently
+# false). The packages role escalates via become, so a normal user run is all
+# that is needed.
 if [ "$(id -u)" -eq 0 ]; then
-  red "ERROR: running as root (EUID 0) would provision /root — the wrong home."
+  red "ERROR: running as root (EUID 0) would provision the root user's home — the wrong home."
   red "Run $0 as a regular user; the packages role escalates via become when needed."
   exit 1
 fi
 
 # ── Preflight: container engine (LOCKED Option A, 2026-08-13) ────────────
 # Fail loud BEFORE the long aggregate run if no USABLE engine is available.
-# The operator may pin one via BOOTSTRAP_CONTAINER_ENGINE (env override) —
-# useful when a working engine lives off-PATH or the user wants to force one
-# the roles' runtime detection would not pick (mirror of
-# cli_tools_container_engine_override). Usability is probed with `engine info`
-# (bounded by a 15s timeout): a presence-only `command -v` gate would let a
-# stopped docker daemon through and die ~40 minutes in — exactly what this
-# gate exists to prevent. We do NOT install an engine (distro-specific install
-# would violate NFR-3) and do NOT silently proceed (the aggregate would fail
-# deep in cli_tools/default_palette with an opaque engine error). No engine
-# name is stored as a script variable — the roles re-detect at runtime and
-# must not diverge from a second source of truth.
+# Usability is probed with `engine info` (bounded by a 15s timeout): a
+# presence-only `command -v` gate would let a stopped docker daemon through and
+# die ~40 minutes in — exactly what this gate exists to prevent. We do NOT
+# install an engine (distro-specific install would violate NFR-3) and do NOT
+# silently proceed (the aggregate would fail deep in cli_tools/default_palette
+# with an opaque engine error). No engine name is stored as a script variable —
+# the roles re-detect at runtime via their OWN detection/override vars and must
+# not diverge from a second source of truth (confirmation CR 2026-08-15).
 engine_usable() {
   local bin="$1"
   command -v "$bin" >/dev/null 2>&1 || return 1
-  if command -v timeout >/dev/null 2>&1; then
-    timeout 15 "$bin" info >/dev/null 2>&1
-  else
-    "$bin" info >/dev/null 2>&1
+  if ! command -v timeout >/dev/null 2>&1; then
+    red "WARNING: 'timeout' is not on PATH — cannot bound the engine usability"
+    red "probe, so '${bin}' is treated as unusable (a hung engine must not block"
+    red "the bootstrap). Install coreutils/timeout, then re-run $0."
+    return 1
   fi
+  timeout 15 "$bin" info >/dev/null 2>&1
 }
 
-if [ -n "${BOOTSTRAP_CONTAINER_ENGINE:-}" ]; then
-  if engine_usable "$BOOTSTRAP_CONTAINER_ENGINE"; then
-    green "container engine detected: ${BOOTSTRAP_CONTAINER_ENGINE} (BOOTSTRAP_CONTAINER_ENGINE override)"
-  else
-    red "ERROR: BOOTSTRAP_CONTAINER_ENGINE is set to '${BOOTSTRAP_CONTAINER_ENGINE}'"
-    if command -v "$BOOTSTRAP_CONTAINER_ENGINE" >/dev/null 2>&1; then
-      red "but '${BOOTSTRAP_CONTAINER_ENGINE} info' failed — the engine is present but not usable (daemon down?)."
-    else
-      red "but no such command is on PATH."
-    fi
-    red "Unset it or fix the value, then re-run $0."
-    exit 1
-  fi
-elif engine_usable podman; then
+if engine_usable podman; then
   green "container engine detected: podman"
 elif engine_usable docker; then
   green "container engine detected: docker"
@@ -224,6 +219,19 @@ export PATH="$HOME/.local/bin:$PATH"
 # failure in the collections stage.
 command -v uv >/dev/null 2>&1 || stage_failed "preseed (uv verify)" 127
 
+# The pinned-version guarantee (NFR-9) must also hold for a PRE-EXISTING uv —
+# a stale distro-packaged uv or a stale ~/.local/bin/uv that cannot `uv run
+# --directory` would otherwise skip the preseed and fail later misattributed to
+# network. Warn loudly on mismatch; the freshly-installed branch already
+# hard-asserts the pinned version (confirmation CR 2026-08-15).
+uv_path="$(command -v uv)"
+uv_version="$("$uv_path" --version 2>/dev/null || echo "unknown")"
+if [ "$uv_version" != "uv ${UV_VERSION}" ]; then
+  red "WARNING: uv at '${uv_path}' reports '${uv_version}' — bootstrap expects"
+  red "exactly 'uv ${UV_VERSION}' (NFR-9 reproducibility). A stale uv may break"
+  red "the collections/bootstrap stages; upgrade uv if they fail."
+fi
+
 # uv owns Python provisioning: `uv run` downloads a managed interpreter
 # satisfying requires-python >=3.12 when none exists. Informational only.
 echo "uv: $(command -v uv) — uv will manage the Python interpreter as needed."
@@ -244,7 +252,13 @@ if [ "$galaxy_rc" -ne 0 ]; then
   red "Requirements file: ${REQUIREMENTS_YML}"
   if [ -s "$galaxy_log" ]; then
     red "ansible-galaxy output (verbatim):"
-    sed 's/^/  /' "$galaxy_log"
+    if command -v sed >/dev/null 2>&1; then
+      sed 's/^/  /' "$galaxy_log"
+    else
+      # No sed on an ultra-minimal host: indent with a plain while loop so the
+      # TRUE galaxy exit code still propagates (set -e must not swallow it).
+      while IFS= read -r line; do printf '  %s\n' "$line"; done < "$galaxy_log"
+    fi
   fi
   red "Possible causes:"
   red "  - no network access — collections cannot be resolved"
@@ -252,6 +266,20 @@ if [ "$galaxy_rc" -ne 0 ]; then
   red "  - unwritable ~/.ansible, or pre-existing conflicting collections"
   red "The provisioner will NOT run with missing modules. Fix the cause, then re-run $0."
   exit "$galaxy_rc"
+fi
+
+# Post-collections verification (confirmation CR 2026-08-15): the preseed stage
+# got a `command -v uv` verify; the collections stage gets the same treatment.
+# ansible-galaxy can exit 0 having installed NOTHING (empty/typo'd
+# requirements.yml, collections landing in a non-default path) — proceeding
+# would violate the "never run bootstrap with missing modules" contract and
+# fail deep in the aggregate instead of at the gate.
+collections_dir="$HOME/.ansible/collections/ansible_collections"
+if [ ! -d "$collections_dir" ] || [ -z "$(ls -A "$collections_dir" 2>/dev/null || true)" ]; then
+  red "ERROR: ansible-galaxy exited 0 but no collections were installed under"
+  red "${collections_dir} — the requirements file or install path is wrong."
+  red "The provisioner will NOT run with missing modules. Fix the cause, then re-run $0."
+  exit 1
 fi
 
 # ── Stage 3: aggregate bootstrap (AC 3) ──────────────────────────────────
