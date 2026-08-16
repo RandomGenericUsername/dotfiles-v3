@@ -47,10 +47,10 @@ overwrite = false
 backend = "pywal"
 
 [runtime]
-mode = "local"
+mode = "container"
 
 [container]
-engine = "docker"
+engine = "podman"
 image_prefix = "csg"
 image_tag = "latest"
 timeout_seconds = 300
@@ -85,10 +85,10 @@ temp_dir = "<install>/generated/.weg-tmp"
 binary = "magick"
 
 [runtime]
-mode = "local"
+mode = "container"
 
 [container]
-engine = "docker"
+engine = "podman"
 image_name = "weg"
 image_tag = "latest"
 image_registry = ""

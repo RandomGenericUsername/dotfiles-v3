@@ -8,10 +8,10 @@ overwrite = false
 backend = "pywal"
 
 [runtime]
-mode = "local"
+mode = "container"
 
 [container]
-engine = "docker"
+engine = "podman"
 image_prefix = "csg"
 image_tag = "latest"
 timeout_seconds = 300

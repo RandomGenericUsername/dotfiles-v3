@@ -16,10 +16,10 @@ temp_dir = "{{ install_dir | trim }}/generated/.weg-tmp"
 binary = "magick"
 
 [runtime]
-mode = "local"
+mode = "container"
 
 [container]
-engine = "docker"
+engine = "podman"
 image_name = "weg"
 image_tag = "latest"
 image_registry = ""
