@@ -21,7 +21,7 @@ class TestTemplateDirResolver:
 
     def test_resolve_falls_back_to_xdg(self, tmp_path: Path) -> None:
         xdg_config = tmp_path / "xdg-config"
-        templates_dir = xdg_config / "color-scheme" / "templates"
+        templates_dir = xdg_config / "color-scheme-generator" / "templates"
         templates_dir.mkdir(parents=True)
 
         with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(xdg_config)}):

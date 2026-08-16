@@ -32,11 +32,9 @@ def dump_templates(
         try:
             target_dir = template_dir_resolver.resolve()
         except ConfigResolutionError:
-            from pathlib import Path
-            target_dir = Path.home() / ".config" / "color-scheme" / "templates"
+            target_dir = Path.home() / ".config" / "color-scheme-generator" / "templates"
     else:
-        from pathlib import Path
-        target_dir = Path.home() / ".config" / "color-scheme" / "templates"
+        target_dir = Path.home() / ".config" / "color-scheme-generator" / "templates"
 
     try:
         bundled = resource_files("color_scheme_generator.defaults").joinpath(

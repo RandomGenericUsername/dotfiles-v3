@@ -24,7 +24,7 @@ class TemplateDirResolver:
             CliDirStrategy(),
             EnvDirStrategy(var="TEMPLATES_DIR"),
             DirTraversalStrategy(dirname="templates", max_levels=3),
-            XdgDirStrategy(xdg_subdir="color-scheme", dirname="templates"),
+            XdgDirStrategy(xdg_subdir="color-scheme-generator", dirname="templates"),
             DefaultDirStrategy(path=_DEFAULT_TEMPLATES_DIR),
         ]
         self._resolver = CompositePathResolver(strategies)

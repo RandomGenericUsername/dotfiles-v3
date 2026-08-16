@@ -58,7 +58,7 @@ memory_limit = "512m"
 mount_timeout_seconds = 30
 ```
 
-Templates dir is **not** a settings field — separate resolver chain (CLI `--templates-dir` → env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → traversal `templates/` → XDG `~/.config/color-scheme/templates/` → bundled). Decision: provisioning deploys the bundled templates to `<install>/csg-templates/` and the Phase 2 runtime invokes CSG with `--templates-dir <install>/csg-templates/`.
+Templates dir is **not** a settings field — separate resolver chain (CLI `--templates-dir` → env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → traversal `templates/` → XDG `~/.config/color-scheme-generator/templates/` → bundled). Decision: provisioning deploys the bundled templates to `<install>/csg-templates/` and the Phase 2 runtime invokes CSG with `--templates-dir <install>/csg-templates/`. The XDG stop is `color-scheme-generator/templates/` — unified with the settings subdir (one config dir per tool; the earlier `~/.config/color-scheme/templates` split was a flaw, resolved 2026-08-15).
 
 The rendered settings file keeps `overwrite = false` (CSG's safe default). The `default_palette` role's single `csg generate` call overrides it per-task via `environment: COLORSCHEME__OUTPUT__OVERWRITE: "true"` — the override exists only for that one process and never mutates this file.
 

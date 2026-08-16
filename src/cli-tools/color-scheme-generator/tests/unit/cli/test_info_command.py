@@ -58,7 +58,7 @@ def mock_config_resolver() -> MagicMock:
 @pytest.fixture
 def mock_template_resolver() -> MagicMock:
     mock = MagicMock()
-    mock.resolve.return_value = Path("/home/user/.config/color-scheme/templates")
+    mock.resolve.return_value = Path("/home/user/.config/color-scheme-generator/templates")
     return mock
 
 
@@ -73,9 +73,11 @@ def mock_template_catalog_loader() -> MagicMock:
             ColorSchemeTemplate(name="colors.json.j2", format=ColorFormat.JSON),
             ColorSchemeTemplate(name="colors.sh.j2", format=ColorFormat.SH),
         ),
-        source_dir=Path("/home/user/.config/color-scheme/templates"),
+        source_dir=Path("/home/user/.config/color-scheme-generator/templates"),
     )
-    mock.get_resolved_path.return_value = Path("/home/user/.config/color-scheme/templates")
+    mock.get_resolved_path.return_value = Path(
+        "/home/user/.config/color-scheme-generator/templates"
+    )
     return mock
 
 
@@ -131,6 +133,7 @@ class TestInfoCommand:
         assert result.exit_code == 0, f"stderr={result.stderr}"
 
         import json
+
         payload = json.loads(result.stdout)
         assert "settings" in payload
         assert "backends" in payload
@@ -151,6 +154,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
 
         import json
+
         payload = json.loads(result.stdout)
         sources = [s for s in payload.get("sources", []) if "settings" in s]
         assert any("settings.toml" in s for s in sources)
@@ -168,6 +172,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
 
         import json
+
         payload = json.loads(result.stdout)
         settings = payload.get("settings", {})
         assert settings.get("runtime", {}).get("mode") == "local"
@@ -185,6 +190,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
 
         import json
+
         payload = json.loads(result.stdout)
         settings = payload.get("settings", {})
         assert settings.get("runtime", {}).get("mode") == "local"
@@ -203,6 +209,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
 
         import json
+
         payload = json.loads(result.stdout)
         sources = payload.get("sources", [])
         assert any("templates" in s for s in sources)
@@ -224,6 +231,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
 
         import json
+
         payload = json.loads(result.stdout)
         backends = payload.get("backends", {})
         assert "custom" in backends
@@ -243,10 +251,16 @@ class TestInfoCommand:
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         from color_scheme_generator.cli.main import app
 
-        result = runner.invoke(app, [
-            "--output-format", "json", "info",
-            "--config", str(config_file),
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--output-format",
+                "json",
+                "info",
+                "--config",
+                str(config_file),
+            ],
+        )
         assert result.exit_code == 0, f"stderr={result.stderr}"
         mock_config_resolver.resolve.assert_called_once()
         call_kwargs = mock_config_resolver.resolve.call_args[1]
@@ -286,6 +300,7 @@ class TestInfoCommand:
         assert result.exit_code == 0
 
         import json
+
         payload = json.loads(result.stdout)
         assert "settings" in payload
 
