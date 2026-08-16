@@ -69,6 +69,8 @@
     force: true
   become: true
   become_user: "{{ aur_builder_user }}"
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
   when: packages_use_aur | bool and yay_check.rc != 0
 
 - name: Build and install yay-bin via makepkg
@@ -78,6 +80,8 @@
     creates: /usr/bin/yay
   become: true
   become_user: "{{ aur_builder_user }}"
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
   when: packages_use_aur | bool
 
 - name: Install AUR packages via yay
@@ -87,4 +91,6 @@
     use: yay
   become: true
   become_user: "{{ aur_builder_user }}"
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
   when: packages_use_aur | bool and aur_packages | length > 0
