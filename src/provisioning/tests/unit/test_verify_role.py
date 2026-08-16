@@ -410,6 +410,25 @@ class TestVerifyTasks:
         )
         assert parse_asserts[0].get("when") == "not ansible_check_mode"
 
+    def test_weg_gate_points_effects_at_the_spine_catalog(self) -> None:
+        """The WEG parse gate must read the effects catalog the assets role
+        emitted at <install>/weg-effects.yaml (spec chaining-spine.md: env
+        WALLPAPER_EFFECTS_CONFIG_FILE_PATH), NOT the XDG
+        ~/.config/weg/effects.yaml fallback the installer never writes."""
+        task = next(
+            (t for t in _command_tasks() if str(t.get("name")) == "Gate weg settings parse"),
+            None,
+        )
+        assert task is not None, "missing 'Gate weg settings parse' task"
+        env = task.get("environment")
+        assert isinstance(env, dict), "weg gate must set environment"
+        assert env.get("WALLPAPER_EFFECTS_CONFIG_FILE_PATH") == ("{{ verify_weg_effects_path }}"), (
+            "weg gate must wire WALLPAPER_EFFECTS_CONFIG_FILE_PATH to the spine catalog"
+        )
+        assert str(_vars().get("verify_weg_effects_path")) == (
+            "{{ install_dir | trim }}/weg-effects.yaml"
+        ), "verify_weg_effects_path must be the trim-locked spine weg-effects.yaml"
+
     def test_settings_spine_extraction_is_dynamic_and_check_gated(self) -> None:
         """Criterion 5 part 2 (review finding 2026-08-13): the spine-target
         gate READS each rendered settings.toml and stats the paths it actually

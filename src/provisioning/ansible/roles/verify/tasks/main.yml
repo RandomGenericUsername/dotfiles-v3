@@ -329,6 +329,7 @@
       - --config
       - "{{ verify_xdg_config_home }}/weg/settings.toml"
   environment:
+    WALLPAPER_EFFECTS_CONFIG_FILE_PATH: "{{ verify_weg_effects_path }}"
     PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
   register: verify_weg_gate
   changed_when: false

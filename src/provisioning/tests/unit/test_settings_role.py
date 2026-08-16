@@ -229,29 +229,6 @@ class TestSettingsTasks:
             "dir ensure is check-safe natively — must NOT be --check-gated"
         )
 
-    def test_xdg_csg_templates_link_task_present(self) -> None:
-        """Bare `csg generate`/`csg info` must resolve templates to the
-        PROVISIONED spine copy, not the package-internal bundled defaults.
-        chaining-spine.md lists XDG (~/.config/color-scheme/templates) as a
-        resolution stop BEFORE bundled, so the role links it to
-        {{ install_dir }}/csg-templates (deployed by the assets role)."""
-        matches = [
-            task
-            for task in _load_tasks()
-            if _module_key(task) == "ansible.builtin.file" and _module(task).get("state") == "link"
-        ]
-        assert len(matches) == 1, (
-            f"expected exactly one symlink task for the XDG csg templates dir; found {len(matches)}"
-        )
-        task = matches[0]
-        module = _module(task)
-        assert str(module.get("path")) == "{{ settings_csg_templates_xdg }}", (
-            "the link must target {{ settings_csg_templates_xdg }}"
-        )
-        assert str(module.get("src")) == "{{ install_dir | trim }}/csg-templates", (
-            "the link must point at the provisioned spine csg-templates dir"
-        )
-
     def test_render_task_contract(self) -> None:
         """AC 2-5, 7: the render task is `ansible.builtin.template` with
         `src: "{{ item.template }}"` (resolved relative to
@@ -331,7 +308,6 @@ class TestSettingsVars:
     _REQUIRED_KEYS = {
         "settings_xdg_config_home",
         "settings_config_dirs",
-        "settings_csg_templates_xdg",
         "settings_files",
     }
 

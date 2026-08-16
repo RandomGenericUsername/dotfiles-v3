@@ -75,6 +75,14 @@ verify_install_spine_dirs:
 verify_install_spine_files:
   - weg-effects.yaml
 
+# verify_weg_effects_path: the spine effects catalog the WEG gate must read.
+#   The assets role (2.6) emits it via `weg dump-effects --output` to
+#   <install>/weg-effects.yaml, and the spec (chaining-spine.md) wires the WEG
+#   chain to it via env WALLPAPER_EFFECTS_CONFIG_FILE_PATH — NOT the XDG
+#   ~/.config/weg/effects.yaml fallback (which the installer never writes).
+#   Trim lock, mirror of assets_weg_effects_target.
+verify_weg_effects_path: "{{ install_dir | trim }}/weg-effects.yaml"
+
 # verify_system_binaries: the compositor/OS binaries on PATH (criterion 2).
 #   Fonts are deliberately NOT checked "on PATH" — fonts are fontconfig files,
 #   not binaries (see Dev Notes "Fonts in done-criterion 2"); font presence is
