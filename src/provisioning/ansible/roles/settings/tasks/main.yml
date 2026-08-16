@@ -59,6 +59,14 @@
     state: directory
   loop: "{{ settings_config_dirs }}"
 
+- name: Link XDG csg templates dir to the spine copy
+  ansible.builtin.file:
+    path: "{{ settings_csg_templates_xdg }}"
+    state: link
+    src: "{{ install_dir | trim }}/csg-templates"
+    force: true
+  when: not ansible_check_mode
+
 - name: Render settings files
   ansible.builtin.template:
     src: "{{ item.template }}"
