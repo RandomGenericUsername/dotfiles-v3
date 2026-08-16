@@ -129,6 +129,25 @@ class TestRemoveImage:
         assert "remove failure" in str(exc_info.value)
 
 
+class TestRunConfig:
+    def test_palette_container_runs_without_network(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        adapter.run(
+            image="test:latest",
+            command=["csg-inner"],
+            mounts=[],
+            timeout=30,
+        )
+        from oci_runtime.domain.enums import NetworkMode
+
+        config = mock_oci_engine.containers.run.call_args[0][0]
+        assert config is not None
+        assert config.network is NetworkMode.NONE
+
+
 class TestRunErrorMapping:
     def test_run_raises_image_not_found_maps_to_container_image_not_found(
         self,
@@ -137,9 +156,7 @@ class TestRunErrorMapping:
     ) -> None:
         from oci_runtime.domain.exceptions import ImageNotFoundError
 
-        mock_oci_engine.containers.run.side_effect = ImageNotFoundError(
-            image_name="missing:latest"
-        )
+        mock_oci_engine.containers.run.side_effect = ImageNotFoundError(image_name="missing:latest")
 
         from color_scheme_generator.domain.exceptions import ContainerImageNotFoundError
 
@@ -202,9 +219,7 @@ class TestRunErrorMapping:
     ) -> None:
         from oci_runtime.domain.exceptions import ImageNotFoundError
 
-        mock_oci_engine.images.exists.side_effect = ImageNotFoundError(
-            image_name="missing:latest"
-        )
+        mock_oci_engine.images.exists.side_effect = ImageNotFoundError(image_name="missing:latest")
 
         from color_scheme_generator.domain.exceptions import ContainerImageNotFoundError
 

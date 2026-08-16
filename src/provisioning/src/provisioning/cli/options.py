@@ -23,3 +23,10 @@ CHECK_OPT: bool = typer.Option(
     "--check",
     help="Dry run: complete cleanly with no mutation",
 )
+
+BECOME_PASSWORD_OPT: str | None = typer.Option(
+    None,
+    "--become-password",
+    help="Sudo password for become:true plays (packages/bootstrap); input is hidden",
+    hide_input=True,
+)

@@ -27,7 +27,7 @@ class OciContainerRuntimeAdapter:
         if timeout <= 0:
             raise ValueError(f"Invalid timeout: {timeout}")
 
-        from oci_runtime.domain.enums import VolumeMountType
+        from oci_runtime.domain.enums import NetworkMode, VolumeMountType
         from oci_runtime.domain.types import RunConfig, VolumeMount
 
         volumes = tuple(
@@ -49,6 +49,7 @@ class OciContainerRuntimeAdapter:
             remove=False,
             environment=environment or {},
             user=host_user,
+            network=NetworkMode.NONE,
         )
         from color_scheme_generator.adapters.error_mapping import map_oci_error
 

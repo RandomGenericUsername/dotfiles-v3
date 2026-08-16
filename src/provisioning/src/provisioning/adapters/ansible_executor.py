@@ -51,7 +51,10 @@ def _default_runner(
     return subprocess.run(command, capture_output=True, text=True, timeout=timeout, env=env)
 
 
-def _ansible_env(config_file: Path | None) -> dict[str, str] | None:
+def _ansible_env(
+    config_file: Path | None,
+    become_password: str | None = None,
+) -> dict[str, str] | None:
     if config_file is None:
         return None
     existing = os.environ.get("ANSIBLE_CONFIG")
@@ -61,7 +64,10 @@ def _ansible_env(config_file: Path | None) -> dict[str, str] | None:
             existing,
             str(config_file),
         )
-    return {**os.environ, "ANSIBLE_CONFIG": str(config_file)}
+    env = {**os.environ, "ANSIBLE_CONFIG": str(config_file)}
+    if become_password is not None:
+        env["ANSIBLE_SUDO_PASS"] = become_password
+    return env
 
 
 def _extra_vars_arg(extra_vars: Mapping[str, str]) -> str:
@@ -127,6 +133,7 @@ class AnsibleExecutor(IProvisionExecutor):
         timeout: float | None = None,
         runner: Callable[[list[str]], subprocess.CompletedProcess[str]] | None = None,
         config_file: Path | None = None,
+        become_password: str | None = None,
     ) -> None:
         if not tags.strip():
             raise ValueError("tags must be a non-empty string")
@@ -134,11 +141,14 @@ class AnsibleExecutor(IProvisionExecutor):
         self._tags = tags
         self._timeout = timeout
         self._config_file = config_file
+        self._become_password = become_password
         if runner is not None:
             self._runner = runner
         else:
             self._runner = lambda command: _default_runner(
-                command, self._timeout, _ansible_env(self._config_file)
+                command,
+                self._timeout,
+                _ansible_env(self._config_file, become_password=self._become_password),
             )
 
     def run(

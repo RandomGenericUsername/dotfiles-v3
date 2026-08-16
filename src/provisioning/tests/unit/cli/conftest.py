@@ -79,7 +79,7 @@ def _invoke(
     args: list[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> Result:
-    monkeypatch.setattr("provisioning.cli.main.build_deps", lambda: deps)
+    monkeypatch.setattr("provisioning.cli.main.build_deps", lambda become_password=None: deps)
     from provisioning.cli.main import app
 
     return runner.invoke(app, args)

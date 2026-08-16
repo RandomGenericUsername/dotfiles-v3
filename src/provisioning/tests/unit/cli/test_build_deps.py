@@ -32,6 +32,20 @@ def test_build_deps_wires_scaffold_config_file() -> None:
     assert executor._config_file.is_file()
 
 
+def test_build_deps_forwards_become_password_to_executor() -> None:
+    deps = build_deps(become_password="secret")
+    executor = deps.plan._executor
+    assert isinstance(executor, AnsibleExecutor)
+    assert executor._become_password == "secret"
+
+
+def test_build_deps_defaults_become_password_to_none() -> None:
+    deps = build_deps()
+    executor = deps.plan._executor
+    assert isinstance(executor, AnsibleExecutor)
+    assert executor._become_password is None
+
+
 def test_build_deps_executor_forwards_scaffold_ansible_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

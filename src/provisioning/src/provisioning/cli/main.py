@@ -39,7 +39,7 @@ from provisioning.application import (
     VerifyCapabilityUseCase,
     resolve_install_dir,
 )
-from provisioning.cli.options import CHECK_OPT, OUTPUT_FORMAT_OPT
+from provisioning.cli.options import BECOME_PASSWORD_OPT, CHECK_OPT, OUTPUT_FORMAT_OPT
 from provisioning.domain.models import ProvisionResult
 
 app = typer.Typer(
@@ -70,11 +70,12 @@ class CliDependencies:
 _ANSIBLE_ROOT = Path(__file__).resolve().parents[3] / "ansible"
 
 
-def build_deps() -> CliDependencies:
+def build_deps(become_password: str | None = None) -> CliDependencies:
     executor = AnsibleExecutor(
         inventory=_ANSIBLE_ROOT / "inventory" / "localhost.yaml",
         tags="all",
         config_file=_ANSIBLE_ROOT / "ansible.cfg",
+        become_password=become_password,
     )
     fact_reader = AnsibleFactReader()
     bootstrap_playbook = _ANSIBLE_ROOT / "playbooks" / "bootstrap.yaml"
@@ -148,15 +149,21 @@ def _render_run(
 
 
 @app.command(help="Diff desired machine state against actual state (Ansible --check)")
-def plan(ctx: typer.Context) -> None:
-    deps: CliDependencies = ctx.obj["deps"]
+def plan(
+    ctx: typer.Context,
+    become_password: str | None = BECOME_PASSWORD_OPT,
+) -> None:
+    deps: CliDependencies = build_deps(become_password=become_password)
     renderer: Renderer = ctx.obj["renderer"]
     _render_run(renderer, lambda: deps.plan.provision(check=True), "plan")
 
 
 @app.command(help="Apply provisioning idempotently")
-def apply(ctx: typer.Context) -> None:
-    deps: CliDependencies = ctx.obj["deps"]
+def apply(
+    ctx: typer.Context,
+    become_password: str | None = BECOME_PASSWORD_OPT,
+) -> None:
+    deps: CliDependencies = build_deps(become_password=become_password)
     renderer: Renderer = ctx.obj["renderer"]
     _render_run(renderer, lambda: deps.apply.provision(check=False), "apply")
 
@@ -172,8 +179,9 @@ def verify(ctx: typer.Context) -> None:
 def bootstrap(
     ctx: typer.Context,
     check: bool = CHECK_OPT,
+    become_password: str | None = BECOME_PASSWORD_OPT,
 ) -> None:
-    deps: CliDependencies = ctx.obj["deps"]
+    deps: CliDependencies = build_deps(become_password=become_password)
     renderer: Renderer = ctx.obj["renderer"]
     _render_run(renderer, lambda: deps.bootstrap.bootstrap(check=check), "bootstrap")
 

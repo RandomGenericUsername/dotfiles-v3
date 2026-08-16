@@ -235,6 +235,19 @@ class TestAnsibleEnv:
         assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
         assert env["EXISTING_VAR"] == "preserved"
 
+    def test_become_password_injected_as_ansible_sudo_pass(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        env = _ansible_env(Path("ansible.cfg"), become_password="secret")
+        assert env is not None
+        assert env["ANSIBLE_SUDO_PASS"] == "secret"
+        assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+
+    def test_no_become_password_means_no_sudo_pass_env(self) -> None:
+        env = _ansible_env(Path("ansible.cfg"))
+        assert env is not None
+        assert "ANSIBLE_SUDO_PASS" not in env
+
     def test_config_file_does_not_mutate_os_environ(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("EXISTING_VAR", "preserved")
         _ansible_env(Path("ansible.cfg"))
@@ -282,6 +295,31 @@ class TestAnsibleEnv:
         env = captured["env"]
         assert isinstance(env, dict)
         assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+
+    def test_default_runner_forwards_become_password_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_run(
+            command: list[str],
+            **kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            captured["env"] = kwargs.get("env")
+            return _completed(0, stdout="", stderr="")
+
+        monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.run", fake_run)
+        executor = AnsibleExecutor(
+            inventory=Path("inventory/localhost.yaml"),
+            tags="all",
+            config_file=Path("ansible.cfg"),
+            become_password="secret",
+        )
+        executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        env = captured["env"]
+        assert isinstance(env, dict)
+        assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+        assert env["ANSIBLE_SUDO_PASS"] == "secret"
 
     def test_default_runner_inherits_env_without_config_file(
         self, monkeypatch: pytest.MonkeyPatch
