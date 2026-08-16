@@ -199,6 +199,19 @@ class TestDefaultPaletteTasks:
             "exactly, with no extra format flags"
         )
 
+    def test_generate_task_passes_provisioned_templates_dir(self) -> None:
+        """The generate task must pass `--templates-dir {{ default_palette_templates_dir }}`
+        (single-quoted) so the container mounts the PROVISIONED spine templates
+        (<install>/csg-templates/, deployed by the assets role) rather than the
+        bundled defaults inside the installed csg package — chaining-spine.md
+        'the Phase 2 runtime invokes CSG with --templates-dir'."""
+        task = _generate_task()
+        command = _module_text(task)
+        assert "--templates-dir '{{ default_palette_templates_dir }}'" in command, (
+            "generate task must pass --templates-dir pointing at the provisioned "
+            "spine templates ({{ default_palette_templates_dir }})"
+        )
+
     def test_generate_task_env_contract(self) -> None:
         """AC 3/9/11 + container mode (product decision 2026-08-12): the
         generate task's `environment` sets
@@ -405,6 +418,7 @@ class TestDefaultPaletteVars:
     _REQUIRED_KEYS = {
         "default_palette_bin_dir",
         "default_palette_default_image",
+        "default_palette_templates_dir",
         "default_palette_output_dir",
         "default_palette_formats",
     }
@@ -441,6 +455,9 @@ class TestDefaultPaletteVars:
         )
         assert (
             str(data["default_palette_output_dir"]) == "{{ install_dir | trim }}/generated/palettes"
+        )
+        assert (
+            str(data["default_palette_templates_dir"]) == "{{ install_dir | trim }}/csg-templates"
         )
 
     def test_formats_are_the_contract_set(self) -> None:

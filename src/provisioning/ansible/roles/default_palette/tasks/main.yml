@@ -145,7 +145,7 @@
   when: not ansible_check_mode
 
 - name: Generate default palette
-  ansible.builtin.command: "csg generate '{{ default_palette_default_image }}' -f {{ default_palette_formats | join(' -f ') }}"
+  ansible.builtin.command: "csg generate '{{ default_palette_default_image }}' --templates-dir '{{ default_palette_templates_dir }}' -f {{ default_palette_formats | join(' -f ') }}"
   environment:
     COLORSCHEME__RUNTIME__MODE: "container"
     COLORSCHEME__CONTAINER__ENGINE: "{{ default_palette_container_engine }}"
