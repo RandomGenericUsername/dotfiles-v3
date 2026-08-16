@@ -39,7 +39,12 @@ from provisioning.application import (
     VerifyCapabilityUseCase,
     resolve_install_dir,
 )
-from provisioning.cli.options import BECOME_PASSWORD_OPT, CHECK_OPT, OUTPUT_FORMAT_OPT
+from provisioning.cli.options import (
+    ASK_BECOME_PASS_OPT,
+    BECOME_PASSWORD_OPT,
+    CHECK_OPT,
+    OUTPUT_FORMAT_OPT,
+)
 from provisioning.domain.models import ProvisionResult
 
 app = typer.Typer(
@@ -148,12 +153,28 @@ def _render_run(
     )
 
 
+def _resolve_become_password(ask_become_pass: bool, become_password: str | None) -> str | None:
+    """Resolve the become password: ``--ask-become-pass`` prompts interactively
+    (hidden input, like ``ansible-playbook -K``); ``--become-password`` takes it
+    as an argument. An explicit argument wins over the prompt."""
+    if become_password is not None:
+        return become_password
+    if ask_become_pass:
+        import getpass
+
+        return getpass.getpass("BECOME password: ")
+    return None
+
+
 @app.command(help="Diff desired machine state against actual state (Ansible --check)")
 def plan(
     ctx: typer.Context,
+    ask_become_pass: bool = ASK_BECOME_PASS_OPT,
     become_password: str | None = BECOME_PASSWORD_OPT,
 ) -> None:
-    deps: CliDependencies = build_deps(become_password=become_password)
+    deps: CliDependencies = build_deps(
+        become_password=_resolve_become_password(ask_become_pass, become_password)
+    )
     renderer: Renderer = ctx.obj["renderer"]
     _render_run(renderer, lambda: deps.plan.provision(check=True), "plan")
 
@@ -161,9 +182,12 @@ def plan(
 @app.command(help="Apply provisioning idempotently")
 def apply(
     ctx: typer.Context,
+    ask_become_pass: bool = ASK_BECOME_PASS_OPT,
     become_password: str | None = BECOME_PASSWORD_OPT,
 ) -> None:
-    deps: CliDependencies = build_deps(become_password=become_password)
+    deps: CliDependencies = build_deps(
+        become_password=_resolve_become_password(ask_become_pass, become_password)
+    )
     renderer: Renderer = ctx.obj["renderer"]
     _render_run(renderer, lambda: deps.apply.provision(check=False), "apply")
 
@@ -179,9 +203,12 @@ def verify(ctx: typer.Context) -> None:
 def bootstrap(
     ctx: typer.Context,
     check: bool = CHECK_OPT,
+    ask_become_pass: bool = ASK_BECOME_PASS_OPT,
     become_password: str | None = BECOME_PASSWORD_OPT,
 ) -> None:
-    deps: CliDependencies = build_deps(become_password=become_password)
+    deps: CliDependencies = build_deps(
+        become_password=_resolve_become_password(ask_become_pass, become_password)
+    )
     renderer: Renderer = ctx.obj["renderer"]
     _render_run(renderer, lambda: deps.bootstrap.bootstrap(check=check), "bootstrap")
 

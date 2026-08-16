@@ -9,7 +9,93 @@ from typer.testing import CliRunner, Result
 from provisioning.adapters.ansible_executor import ProvisionExecutorError
 from provisioning.application import resolve_install_dir
 from provisioning.domain.models import ProvisionResult
-from tests.unit.cli.conftest import FakeDeps, _invoke
+from tests.unit.cli.conftest import FakeDeps, FakeFactReader, _invoke
+
+
+class TestBecomePasswordResolution:
+    def test_no_flag_returns_none(self) -> None:
+        from provisioning.cli.main import _resolve_become_password
+
+        assert _resolve_become_password(ask_become_pass=False, become_password=None) is None
+
+    def test_explicit_password_wins_without_prompting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import getpass
+
+        monkeypatch.setattr(getpass, "getpass", lambda prompt: "prompted")
+        from provisioning.cli.main import _resolve_become_password
+
+        assert (
+            _resolve_become_password(ask_become_pass=True, become_password="explicit") == "explicit"
+        )
+
+    def test_ask_become_pass_prompts_interactively(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import getpass
+
+        captured: dict[str, str] = {}
+
+        def fake_getpass(prompt: str) -> str:
+            captured["prompt"] = prompt
+            return "typed"
+
+        monkeypatch.setattr(getpass, "getpass", fake_getpass)
+        from provisioning.cli.main import _resolve_become_password
+
+        assert _resolve_become_password(ask_become_pass=True, become_password=None) == "typed"
+        assert captured["prompt"] == "BECOME password: "
+
+    def test_apply_ask_become_pass_forwards_prompted_password_to_build_deps(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import getpass
+
+        monkeypatch.setattr(getpass, "getpass", lambda prompt: "typed")
+        recorded: dict[str, object] = {}
+
+        def fake_build_deps(become_password: str | None = None) -> object:
+            recorded["become_password"] = become_password
+            from provisioning.domain.models import ProvisionResult
+            from provisioning.ports import IProvisionExecutor
+
+            class _Exec(IProvisionExecutor):
+                def __init__(self) -> None:
+                    self.calls: list[tuple[Path, bool, object]] = []
+
+                def run(
+                    self,
+                    playbook: Path,
+                    check: bool,
+                    extra_vars: object,
+                ) -> ProvisionResult:
+                    self.calls.append((playbook, check, extra_vars))
+                    return ProvisionResult(success=True, tasks=(), returncode=0, stderr="")
+
+            ex = _Exec()
+            fact_reader = FakeFactReader()
+            from provisioning.application import (
+                BootstrapUseCase,
+                ProvisionMachineUseCase,
+                VerifyCapabilityUseCase,
+            )
+
+            return type(
+                "Deps",
+                (),
+                {
+                    "plan": ProvisionMachineUseCase(ex, fact_reader, Path("bootstrap.yaml")),
+                    "apply": ProvisionMachineUseCase(ex, fact_reader, Path("bootstrap.yaml")),
+                    "verify": VerifyCapabilityUseCase(ex, fact_reader, Path("verify.yaml")),
+                    "bootstrap": BootstrapUseCase(ex, fact_reader, Path("bootstrap.yaml")),
+                },
+            )()
+
+        monkeypatch.setattr("provisioning.cli.main.build_deps", fake_build_deps)
+        from provisioning.cli.main import app
+
+        result = runner.invoke(app, ["apply", "--ask-become-pass"])
+        assert result.exit_code == 0, result.stderr
+        assert recorded["become_password"] == "typed"
 
 
 def _raise(*args: object, **kwargs: object) -> None:

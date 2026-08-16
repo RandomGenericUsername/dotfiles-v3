@@ -30,3 +30,10 @@ BECOME_PASSWORD_OPT: str | None = typer.Option(
     help="Sudo password for become:true plays (packages/bootstrap); input is hidden",
     hide_input=True,
 )
+
+ASK_BECOME_PASS_OPT: bool = typer.Option(
+    False,
+    "--ask-become-pass",
+    help="Prompt interactively for the sudo become password (hidden input, "
+    "like ansible-playbook -K)",
+)
