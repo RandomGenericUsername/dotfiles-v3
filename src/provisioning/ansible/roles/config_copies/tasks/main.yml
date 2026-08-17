@@ -1,20 +1,22 @@
-# Config copies role (Story 2.10, pivot 2026-08-12) — COPIES the repo's
-# EXISTING config dirs (dotfiles/config/{nvim,starship,wlogout,zsh}) into the
-# user config home the filesystem role (2.5) created (FR-20, chaining-spine.md).
-# The copy set is mirrored from dotfiles/provisioning/config-copies.yaml
-# (Story 2.1) via the config_copies_entries var; a structural parity test locks
-# them together.
+# Config copies role (Story 2.10, pivot 2026-08-12, config-in-spine 2026-08-16)
+# — COPIES the repo's EXISTING config dirs (dotfiles/config/{nvim,starship,
+# wlogout,zsh}) into the config-in-spine home <install>/config/ (FR-20,
+# chaining-spine.md). The config-links role then symlinks each
+# ~/.config/<target> -> <install>/config/<target>, so the machine sees them at
+# their native XDG locations while the spine is the single home. The copy set
+# is mirrored from dotfiles/provisioning/config-copies.yaml (Story 2.1) via the
+# config_copies_entries var; a structural parity test locks them together.
 #
-# Runtime independence (pivot): configs are COPIED, not symlinked — nothing in
-# the repo is referenced at runtime, so the machine keeps working after the
-# repo is deleted. The repo is only ever the SOURCE for a provision run.
+# Runtime independence (pivot): configs are COPIED into the spine, not
+# symlinked to the repo — nothing references the repo at runtime, so the
+# machine keeps working after the repo is deleted. The repo is only ever the
+# SOURCE for a provision run.
 #
-# Design (locked in Story 2.10 Dev Notes):
-# - There is NO install_dir seam assert: this role consumes no install_dir (its
-#   sources are the static repo tree, its targets are under the XDG config
-#   home). The FIRST task is instead the fail-loud fact-gathering assert (the
-#   vars derive from {{ ansible_facts.env }} — without gather_facts: true the
-#   run would die with an opaque traceback instead of a friendly message).
+# Design (locked in Story 2.10 Dev Notes, updated for config-in-spine):
+# - install_dir seam assert: this role now CONSUMES install_dir (its targets
+#   live at <install>/config/), so the first task is the fail-loud install_dir
+#   assert verbatim from the sibling roles, followed by the fact-gathering
+#   assert (vars still derive {{ ansible_facts.env }}).
 # - A non-empty guard on config_copies_entries: all count asserts derive from
 #   `config_copies_entries | length`, so an empty list would make every guard
 #   vacuously pass (0 == 0) and silently disable the role — the assert makes a
@@ -25,15 +27,15 @@
 #        (fails the run before any copy): checks `stat.exists` AND `stat.isdir`
 #        so a regular file at a source path is caught, not silently copied.
 #     2. The `copy` module fails loudly on an unreadable/missing source.
-#     3. Missing, non-directory, or SYMLINK dest after apply — the resolve
+#     3. Missing or non-directory dest in the SPINE after apply — the resolve
 #        stat+assert, gated `when: not ansible_check_mode` (dests are absent on
 #        a fresh target under --check). The stat uses `follow: false` and
 #        asserts `stat.isdir`: a real copied directory reports isdir: true,
-#        while a symlink (e.g. an accidentally restored link back into the
-#        repo) reports islnk: true / isdir: false — the runtime-independence
-#        guarantee is that every dest is a REAL directory, not a repo
-#        reference. Both asserts use the derived `| length` count, never a
-#        hardcoded literal.
+#        while a symlink reports islnk: true / isdir: false. The
+#        runtime-independence guarantee is that every SPINE dest is a REAL
+#        directory; the ~/.config symlink itself is owned by config_links and
+#        checked by verify criterion 9. Both asserts use the derived `| length`
+#        count, never a hardcoded literal.
 # - Directory copies use `ansible.builtin.copy` with the default `force: true`
 #   and a trailing-`/` src (contents-into-dest). NOT force: false — a
 #   directory src + force: false + a pre-existing dest dir is a SILENT NO-OP
@@ -50,6 +52,14 @@
 # - User-scoped privilege context: NO become/become_user anywhere (mirror of
 #   2.5-2.9).
 # - No absolute repo paths: every source is {{ config_copies_repo_root }}/...
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the config_copies role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
 
 - name: Assert fact-gathering provided HOME
   ansible.builtin.assert:
@@ -83,38 +93,40 @@
       entry in dotfiles/provisioning/config-copies.yaml) — the repo config tree
       is incomplete; refusing to place partial configs
 
-- name: Ensure XDG config home exists
+- name: Ensure config-in-spine config dir exists
   ansible.builtin.file:
-    path: "{{ config_copies_xdg_config_home }}"
+    path: "{{ config_copies_spine_config_dir }}"
     state: directory
 
-- name: Ensure target config dirs exist
+- name: Ensure target config dirs exist in the spine
   ansible.builtin.file:
-    path: "{{ config_copies_xdg_config_home }}/{{ item.target }}"
+    path: "{{ config_copies_spine_config_dir }}/{{ item.target }}"
     state: directory
   loop: "{{ config_copies_entries }}"
 
-- name: Copy configs into XDG config home
+- name: Copy configs into the config-in-spine home
   ansible.builtin.copy:
     src: "{{ config_copies_repo_root }}/dotfiles/config/{{ item.name }}/"
-    dest: "{{ config_copies_xdg_config_home }}/{{ item.target }}/"
+    dest: "{{ config_copies_spine_config_dir }}/{{ item.target }}/"
     remote_src: true
   loop: "{{ config_copies_entries }}"
 
-- name: Check config copies are real directories
+- name: Check config copies are real directories in the spine
   ansible.builtin.stat:
-    path: "{{ config_copies_xdg_config_home }}/{{ item.target }}"
+    path: "{{ config_copies_spine_config_dir }}/{{ item.target }}"
     follow: false
   loop: "{{ config_copies_entries }}"
   register: config_copies_dest_check
   when: not ansible_check_mode
 
-- name: Assert config copies are real directories
+- name: Assert config copies are real directories in the spine
   ansible.builtin.assert:
     that: config_copies_dest_check.results | selectattr('stat.isdir') | list | length == config_copies_entries | length
     fail_msg: >-
-      not every dest under {{ config_copies_xdg_config_home }} is a real
+      not every dest under {{ config_copies_spine_config_dir }} is a real
       directory (expected one per dotfiles/provisioning/config-copies.yaml
       entry) — a missing copy or a symlink back into the repo breaks runtime
-      independence: the machine must work after the repo is deleted
+      independence: the machine must work after the repo is deleted. The
+      ~/.config/<target> symlink into this spine dir is owned by the
+      config_links role
   when: not ansible_check_mode

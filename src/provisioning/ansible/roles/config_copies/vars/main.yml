@@ -51,6 +51,14 @@ config_copies_repo_root: "{{ playbook_dir }}/../../../.."
 #   ansible-core >= 2.24).
 config_copies_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
 
+# config_copies_spine_config_dir: the config-in-spine destination root
+#   (<install>/config/). The config-links role symlinks each
+#   ~/.config/<target> -> <install>/config/<target>, so the machine sees the
+#   configs at their native XDG locations while the spine is the single home.
+#   Trim lock: consumes the same validated {{ install_dir | trim }} value the
+#   fail-loud assert enforces.
+config_copies_spine_config_dir: "{{ install_dir | trim }}/config"
+
 # config_copies_entries: the copy set mirroring
 #   dotfiles/provisioning/config-copies.yaml EXACTLY (parity-locked by the
 #   structural test on (name, target)). `name` is the repo source dir under

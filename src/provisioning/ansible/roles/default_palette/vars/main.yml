@@ -65,15 +65,15 @@ default_palette_container_engine_override: ""
 default_palette_default_image: "{{ install_dir | trim }}/wallpapers/default.png"
 
 # default_palette_templates_dir: the csg Jinja templates the assets role (2.6)
-#   deployed to the spine (<install>/csg-templates/). Passed explicitly via
-#   `--templates-dir` so the container mounts the PROVISIONED templates, not
-#   the bundled defaults inside the installed csg package (chaining-spine.md:
-#   "provisioning deploys the bundled templates to <install>/csg-templates/ and
-#   the Phase 2 runtime invokes CSG with --templates-dir"). Load-bearing: the
-#   spine copy and the bundled copy are identical today, but the chain must
-#   consume what it deploys so a future divergence is caught at apply time.
-#   Trim lock, matching the sibling spine vars.
-default_palette_templates_dir: "{{ install_dir | trim }}/csg-templates"
+#   deployed to the config-in-spine home (<install>/config/color-scheme-generator/
+#   templates). Passed explicitly via `--templates-dir` so the container mounts
+#   the PROVISIONED templates, not the bundled defaults inside the installed
+#   csg package (chaining-spine.md: "provisioning deploys the bundled templates
+#   to <install>/... and the Phase 2 runtime invokes CSG with --templates-dir").
+#   Load-bearing: the spine copy and the bundled copy are identical today, but
+#   the chain must consume what it deploys so a future divergence is caught at
+#   apply time. Trim lock, matching the sibling spine vars.
+default_palette_templates_dir: "{{ install_dir | trim }}/config/color-scheme-generator/templates"
 
 # default_palette_output_dir: where csg writes the generated palette. Trim
 #   lock; the filesystem role (2.5) created generated/palettes/ in the spine —

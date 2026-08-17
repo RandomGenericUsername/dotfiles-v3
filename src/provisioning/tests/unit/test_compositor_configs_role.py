@@ -196,12 +196,14 @@ class TestCompositorConfigsTasks:
         skeleton FILES (per-file entries — a directory `copy` + `force: false`
         + pre-existing dest is a silent no-op, review finding 2026-08-12), each
         entry a `source` prefixed `{{ compositor_configs_repo_root }}/dotfiles/
-        config/<dir>/<file>` and a `dest` under the XDG config home, and the
-        task renders via `ansible.builtin.template` with `force: false` — the
-        marker that locks AC 5, without which a dev could silently fall back to
-        template's default force: true and clobber a user's edits. The template
-        module also renders the hyprland.conf first line from the resolved
-        config home (P1 decision)."""
+        config/<dir>/<file>` and a `dest` under the config-in-spine home
+        ({{ compositor_configs_spine_config_dir }}, config-in-spine
+        2026-08-16), and the task renders via `ansible.builtin.template` with
+        `force: false` — the marker that locks AC 5, without which a dev could
+        silently fall back to template's default force: true and clobber a
+        user's edits. The template module also renders the hyprland.conf first
+        line from the resolved XDG config home (P1 decision — the ~/.config
+        symlink makes the reference resolve into the spine)."""
         task = _skeleton_task()
         module = _module(task)
         assert module.get("force") is False, (
@@ -227,8 +229,8 @@ class TestCompositorConfigsTasks:
             assert str(file_["source"]).startswith("dotfiles/config/"), (
                 "skeleton file source must live under dotfiles/config/"
             )
-            assert str(file_["dest"]).startswith("{{ compositor_configs_xdg_config_home }}/"), (
-                "skeleton file dest must derive from compositor_configs_xdg_config_home"
+            assert str(file_["dest"]).startswith("{{ compositor_configs_spine_config_dir }}/"), (
+                "skeleton file dest must derive from compositor_configs_spine_config_dir"
             )
 
     def test_skeleton_placements_carry_no_creates(self) -> None:
@@ -383,6 +385,7 @@ class TestCompositorConfigsVars:
     _REQUIRED_KEYS = {
         "compositor_configs_repo_root",
         "compositor_configs_xdg_config_home",
+        "compositor_configs_spine_config_dir",
         "compositor_configs_config_dirs",
         "compositor_configs_skeleton_files",
         "compositor_configs_fragment_copies",
@@ -473,7 +476,8 @@ class TestCompositorConfigsPlaybook:
         pre-existing dest dir is a silent no-op, which the structural tests
         could not catch. Run the real playbook against a temp HOME/XDG home and
         install_dir, create the two palette fragments, and assert every skeleton
-        file and fragment lands on disk."""
+        file and fragment lands in the config-in-spine home
+        (<install>/config/{hypr,hyprpaper,waybar}/)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -507,17 +511,22 @@ class TestCompositorConfigsPlaybook:
             assert result.returncode == 0, result.stdout + result.stderr
 
             expected_skeletons = [
-                xdg / "hypr" / "hyprland.conf",
-                xdg / "hyprpaper" / "hyprpaper.conf",
-                xdg / "waybar" / "config",
-                xdg / "waybar" / "style.css",
+                install / "config" / "hypr" / "hyprland.conf",
+                install / "config" / "hyprpaper" / "hyprpaper.conf",
+                install / "config" / "waybar" / "config",
+                install / "config" / "waybar" / "style.css",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"
-            assert (xdg / "hypr" / "colors.conf").is_file(), "colors.conf fragment missing"
-            assert (xdg / "waybar" / "colors.css").is_file(), "colors.css fragment missing"
+            assert (install / "config" / "hypr" / "colors.conf").is_file(), (
+                "colors.conf fragment missing from the spine"
+            )
+            assert (install / "config" / "waybar" / "colors.css").is_file(), (
+                "colors.css fragment missing from the spine"
+            )
 
-            hypr = (xdg / "hypr" / "hyprland.conf").read_text().splitlines()[0]
+            hypr = (install / "config" / "hypr" / "hyprland.conf").read_text().splitlines()[0]
             assert hypr == f"source = {xdg}/hypr/colors.conf", (
-                "hyprland.conf first line must render the resolved XDG config home (P1)"
+                "hyprland.conf first line must render the resolved XDG config home "
+                "through which the ~/.config symlink resolves into the spine (P1)"
             )

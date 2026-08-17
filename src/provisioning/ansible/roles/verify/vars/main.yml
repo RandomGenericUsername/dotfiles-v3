@@ -55,14 +55,27 @@ verify_xdg_dirs:
   - "{{ verify_xdg_state_home }}"
   - "{{ verify_xdg_cache_home }}"
 
-# verify_install_spine_dirs: the nine install-spine dirs under install_dir
+# verify_install_spine_dirs: the install-spine dirs under install_dir
 #   (criterion 1). Parity-EXACT with filesystem_spine_dirs — if the spine
 #   changes, verify must change (the test locks the exact set equality).
+#   config-in-spine (2026-08-16): the `config/` subtree hosts all managed
+#   configs; csg-templates live at config/color-scheme-generator/templates.
 verify_install_spine_dirs:
   - wallpapers
   - icon-templates
   - icon-mappings
-  - csg-templates
+  - config
+  - config/color-scheme-generator
+  - config/color-scheme-generator/templates
+  - config/hypr
+  - config/hyprpaper
+  - config/waybar
+  - config/nvim
+  - config/starship
+  - config/wlogout
+  - config/zsh
+  - config/weg
+  - config/itr
   - generated
   - generated/palettes
   - generated/effects
@@ -70,18 +83,19 @@ verify_install_spine_dirs:
   - generated/.weg-tmp
 
 # verify_install_spine_files: the file node(s) that must exist IN the spine
-#   root (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets
-#   role (2.6) via `weg dump-effects` (mirror of filesystem_file_nodes).
+#   (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets role
+#   (2.6) via `weg dump-effects` into the config-in-spine home
+#   (mirror of filesystem_file_nodes).
 verify_install_spine_files:
-  - weg-effects.yaml
+  - config/weg/effects.yaml
 
 # verify_weg_effects_path: the spine effects catalog the WEG gate must read.
 #   The assets role (2.6) emits it via `weg dump-effects --output` to
-#   <install>/weg-effects.yaml, and the spec (chaining-spine.md) wires the WEG
-#   chain to it via env WALLPAPER_EFFECTS_CONFIG_FILE_PATH — NOT the XDG
-#   ~/.config/weg/effects.yaml fallback (which the installer never writes).
+#   <install>/config/weg/effects.yaml, and the spec (chaining-spine.md) wires
+#   the WEG chain to it via env WALLPAPER_EFFECTS_CONFIG_FILE_PATH — NOT the
+#   XDG ~/.config/weg/effects.yaml fallback (which the installer never writes).
 #   Trim lock, mirror of assets_weg_effects_target.
-verify_weg_effects_path: "{{ install_dir | trim }}/weg-effects.yaml"
+verify_weg_effects_path: "{{ install_dir | trim }}/config/weg/effects.yaml"
 
 # verify_system_binaries: the compositor/OS binaries on PATH (criterion 2).
 #   Fonts are deliberately NOT checked "on PATH" — fonts are fontconfig files,
@@ -108,11 +122,15 @@ verify_cli_tools:
 verify_cli_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
 
 # verify_settings_files: the three rendered settings DEST paths (criterion 5
-#   part 1). Parity-EXACT with settings_files dests (the test locks it).
+#   part 1). config-in-spine (2026-08-16): the files are rendered into the
+#   spine at <install>/config/<tool>/settings.toml; verify checks the SPINE
+#   paths (authoritative), and the parse gates (below) read them THROUGH the
+#   ~/.config/<tool> symlink — exercising the link too. Parity-EXACT with
+#   settings_files dests (the test locks it).
 verify_settings_files:
-  - { name: csg, dest: "{{ verify_xdg_config_home }}/color-scheme-generator/settings.toml" }
-  - { name: weg, dest: "{{ verify_xdg_config_home }}/weg/settings.toml" }
-  - { name: itr, dest: "{{ verify_xdg_config_home }}/itr/settings.toml" }
+  - { name: csg, dest: "{{ install_dir | trim }}/config/color-scheme-generator/settings.toml" }
+  - { name: weg, dest: "{{ install_dir | trim }}/config/weg/settings.toml" }
+  - { name: itr, dest: "{{ install_dir | trim }}/config/itr/settings.toml" }
 
 # verify_settings_spine_keys: the TOML keys inside each rendered settings file
 #   whose values ARE the spine paths the tool writes through (criterion 5 part
@@ -136,15 +154,16 @@ verify_settings_spine_keys:
 # verify_asset_dirs / verify_asset_files: the five deployed asset outcomes
 #   (criterion 4), split by inode type so the assert can check isdir/isreg
 #   (review finding 2026-08-13: an exists-only check let a regular FILE satisfy
-#   a required DIRECTORY). weg-effects.yaml is ALSO in verify_install_spine_files
-#   (criterion 1 + 4 — the spine root file node), so it is listed in both.
+#   a required DIRECTORY). config-in-spine (2026-08-16): csg-templates live at
+#   config/color-scheme-generator/templates; weg-effects.yaml at
+#   config/weg/effects.yaml (also in verify_install_spine_files).
 verify_asset_dirs:
   - icon-templates
   - icon-mappings
-  - csg-templates
+  - config/color-scheme-generator/templates
 verify_asset_files:
   - wallpapers/default.png
-  - weg-effects.yaml
+  - config/weg/effects.yaml
 
 # verify_palette_files: the default-palette outputs that must be present under
 #   {{ install_dir | trim }}/generated/palettes/ (criterion 6). Mirror of
@@ -155,38 +174,79 @@ verify_palette_files:
   - colors.gtk.css
 
 # verify_compositor_config_dirs: the three compositor config dirs under the XDG
-#   config home (criterion 7), mirror of filesystem_compositor_dirs /
-#   compositor_configs_config_dirs.
+#   config home (criterion 7). config-in-spine (2026-08-16): these are now
+#   SYMLINKS into the spine (~/.config/hypr -> <install>/config/hypr etc.,
+#   created by the config-links role) — the 5-layer symlink check applies
+#   (criterion 9 machinery). Mirror of compositor_configs_config_dirs.
 verify_compositor_config_dirs:
   - "{{ verify_xdg_config_home }}/hypr"
   - "{{ verify_xdg_config_home }}/hyprpaper"
   - "{{ verify_xdg_config_home }}/waybar"
 
 # verify_compositor_skeleton_files: the skeleton files that must be present
-#   (criterion 7), mirror of compositor_configs_skeleton_files dests.
+#   THROUGH the compositor config symlinks (criterion 7), mirror of
+#   compositor_configs_skeleton_files dests (which now target the spine).
 verify_compositor_skeleton_files:
-  - "{{ verify_xdg_config_home }}/hypr/hyprland.conf"
-  - "{{ verify_xdg_config_home }}/hyprpaper/hyprpaper.conf"
-  - "{{ verify_xdg_config_home }}/waybar/config"
-  - "{{ verify_xdg_config_home }}/waybar/style.css"
+  - "{{ install_dir | trim }}/config/hypr/hyprland.conf"
+  - "{{ install_dir | trim }}/config/hyprpaper/hyprpaper.conf"
+  - "{{ install_dir | trim }}/config/waybar/config"
+  - "{{ install_dir | trim }}/config/waybar/style.css"
 
 # verify_compositor_fragments: the palette fragments copied into the config
 #   dirs (criterion 7), mirror of compositor_configs_fragment_copies dests.
 #   The Waybar fragment is colors.css (the colors.gtk.css source is renamed to
 #   colors.css on copy — the 2.8 skeleton imports colors.css).
 verify_compositor_fragments:
-  - "{{ verify_xdg_config_home }}/hypr/colors.conf"
-  - "{{ verify_xdg_config_home }}/waybar/colors.css"
+  - "{{ install_dir | trim }}/config/hypr/colors.conf"
+  - "{{ install_dir | trim }}/config/waybar/colors.css"
 
 # verify_config_copies_targets: mirror of the config-copies.yaml entries EXACTLY
-#   (criterion 9). Each must be a REAL directory at
-#   {{ verify_xdg_config_home }}/<target>, not a symlink — runtime independence
-#   (the test locks parity with dotfiles/provisioning/config-copies.yaml).
+#   (criterion 9). config-in-spine (2026-08-16): each is now a SYMLINK at
+#   {{ verify_xdg_config_home }}/<target> pointing at <install>/config/<target>
+#   (created by the config-links role) — the 5-layer symlink check applies:
+#   islnk AND exact-target AND resolves AND content-through-link. The test locks
+#   parity with dotfiles/provisioning/config-copies.yaml.
 verify_config_copies_targets:
   - nvim
   - starship
   - wlogout
   - zsh
+
+# verify_config_copy_content: a representative CONTENT FILE inside each config
+#   copy (criterion 9, layer 4 — content-through-link). Verified through the
+#   ~/.config/<name> symlink so a link to an empty/wrong spine dir fails even
+#   though the link itself is valid. Mirrors the repo source files (the exact
+#   filename per config copy — the first file under dotfiles/config/<name>).
+#   NOTE: zsh's source is .zshrc.j2 (the .zshrc in the legacy home was a
+#   user-placed file, not installer content — it survives in the migration
+#   backup, not in the managed config).
+verify_config_copy_content:
+  - "{{ verify_xdg_config_home }}/nvim/init.lua"
+  - "{{ verify_xdg_config_home }}/starship/starship.toml"
+  - "{{ verify_xdg_config_home }}/wlogout/layout"
+  - "{{ verify_xdg_config_home }}/zsh/.zshrc.j2"
+
+# verify_managed_link_dirs: the FULL set of managed config dirs symlinked by the
+#   config-links role (criterion 9 — the 5-layer symlink check). Union of
+#   config-copies, compositor, and per-tool config dirs. Parity with
+#   config_links_managed_dirs is locked by test.
+verify_managed_link_dirs:
+  - hypr
+  - hyprpaper
+  - waybar
+  - nvim
+  - starship
+  - wlogout
+  - zsh
+  - color-scheme-generator
+  - weg
+  - itr
+
+# verify_managed_link_spine_prefix: the regex prefix each managed symlink target
+#   must match (criterion 9, layer 2 — exact-target). Derived from the same
+#   {{ install_dir | trim }}/config root the config-links role uses, so a link
+#   to the repo, a moved location, or a wrong spine path fails. Trim lock.
+verify_managed_link_spine_prefix: "{{ install_dir | trim }}/config"
 
 # verify_itr_list_target: the pinned ITR list gate arg (SPEC.md#51, done-
 #   criterion 5) — NOT defaults.yaml (which lacks a `variants` field and is not

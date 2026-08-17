@@ -114,6 +114,25 @@ def _manifest_entries() -> list[dict[str, str]]:
     return [dict(item) for item in entries]
 
 
+# config-in-spine (2026-08-16): the assets role relocated its TOOL-CONFIG
+# outputs under <install>/config/. The domain AssetKind.spine_segment() still
+# returns the pre-relocation segments (csg-templates / weg-effects.yaml — the
+# manifest is the pre-refactor layout), so the deploy-target derivation applies
+# these relocations on top of the domain mapping.
+_CONFIG_IN_SPINE_RELOCATIONS = {
+    AssetKind.CSG_TEMPLATE.spine_segment(): "config/color-scheme-generator/templates",
+    AssetKind.WEG_EFFECTS.spine_segment(): "config/weg",
+}
+
+
+def _deploy_segment(kind: AssetKind) -> str:
+    """The config-in-spine deploy target for an asset kind: the domain
+    spine_segment(), with TOOL-CONFIG kinds relocated under <install>/config/.
+    For WEG_EFFECTS this is the PARENT DIRECTORY (config/weg) the emitted
+    effects.yaml file lands in — not the file itself."""
+    return _CONFIG_IN_SPINE_RELOCATIONS.get(kind.spine_segment(), kind.spine_segment())
+
+
 def _tasks_with_module(module: str) -> list[dict[str, object]]:
     return [task for task in _load_tasks() if _module_key(task) == module]
 
@@ -217,15 +236,15 @@ class TestAssetsTasks:
             assert module["state"] == "directory"
             assert module["path"] == "{{ install_dir | trim }}/{{ item }}"
 
-    def test_deploy_targets_are_exactly_the_four_spine_segments(self) -> None:
-        """AC 9: assets_deploy_dirs is exactly the four spine segments this
-        role deploys into — derived from AssetKind.spine_segment(), never a
-        hardcoded literal that could silently diverge from the domain."""
+    def test_deploy_targets_are_exactly_the_five_spine_segments(self) -> None:
+        """AC 9: assets_deploy_dirs is exactly the five segments this role
+        deploys into (config-in-spine 2026-08-16: the two TOOL-CONFIG kinds
+        relocated under <install>/config/) — derived from
+        AssetKind (via the config-in-spine relocation map), never a hardcoded
+        literal that could silently diverge from the domain."""
         data = _vars()
         dirs = {str(item) for item in data["assets_deploy_dirs"]}
-        expected = {kind.spine_segment() for kind in AssetKind} - {
-            AssetKind.WEG_EFFECTS.spine_segment()
-        }
+        expected = {_deploy_segment(kind) for kind in AssetKind}
         assert dirs == expected
 
     def test_wallpapers_unpacked_via_unarchive(self) -> None:
@@ -437,16 +456,20 @@ class TestAssetsVars:
         `{{ install_dir | trim }}` value the fail-loud assert validates."""
         data = _vars()
         assert str(data["assets_wallpapers_dest"]) == "{{ install_dir | trim }}/wallpapers"
-        assert str(data["assets_weg_effects_target"]) == "{{ install_dir | trim }}/weg-effects.yaml"
+        assert str(data["assets_weg_effects_target"]) == (
+            "{{ install_dir | trim }}/config/weg/effects.yaml"
+        )
 
     def test_parity_with_manifest(self) -> None:
         """AC 15 parity lock (resolves deferred #164 — key off kind +
         spine_segment(), not name): the role's partition exactly mirrors the
         manifest. assets_copies names ∪ {wallpapers, weg-effects} == manifest
         entry names; copies match by (name, kind, source.rstrip("/")); every
-        copy target equals the kind→spine-segment mapping; the wallpaper
-        tarball var equals the manifest wallpapers source; the manifest
-        weg-effects entry has kind weg-effects and no source."""
+        copy target equals the kind→spine-segment mapping (with the
+        config-in-spine relocation: csg-templates → config/color-scheme-
+        generator/templates); the wallpaper tarball var equals the manifest
+        wallpapers source; the manifest weg-effects entry has kind weg-effects
+        and no source."""
         data = _vars()
         copies = [dict(item) for item in data["assets_copies"]]
         manifest_entries = _manifest_entries()
@@ -464,7 +487,7 @@ class TestAssetsVars:
         )
 
         kind_to_segment = {
-            kind.value: kind.spine_segment()
+            kind.value: _deploy_segment(kind)
             for kind in AssetKind
             if kind is not AssetKind.WALLPAPER and kind is not AssetKind.WEG_EFFECTS
         }
@@ -478,7 +501,8 @@ class TestAssetsVars:
             )
             assert entry["target"] == kind_to_segment[entry["kind"]], (
                 f"copy {entry['name']!r} target must equal the kind→spine-segment "
-                "mapping (deferred #164 lock, derived from AssetKind)"
+                "mapping (deferred #164 lock, derived from AssetKind with the "
+                "config-in-spine relocation for csg-templates)"
             )
 
         assert str(data["assets_wallpapers_tarball"]) == manifest["wallpapers"]["source"]

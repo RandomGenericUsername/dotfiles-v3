@@ -1,0 +1,82 @@
+# Per-target link logic (included by main.yml).
+#
+# For one managed dir `config_link_name`:
+#   1. Stat the current ~/.config/<name> (follow: false — we need the link
+#      metadata, not the resolved dir).
+#   2. If it is ALREADY our spine symlink → no-op (idempotent re-run).
+#   3. If it exists as a real dir / real file / foreign symlink → back it up
+#      (move aside to a timestamped dir) then create the link.
+#   4. If absent → create the link.
+#
+# The spine source <install>/config/<name> is guaranteed present by the
+# writing roles that run before this one in bootstrap order.
+
+- name: "config_links : Ensure backup root exists"
+  ansible.builtin.file:
+    path: "{{ config_links_backup_root }}"
+    state: directory
+
+- name: "config_links : Check current state of ~/.config/{{ config_link_name }}"
+  ansible.builtin.stat:
+    path: "{{ config_links_xdg_config_home }}/{{ config_link_name }}"
+    follow: false
+  register: config_links_existing
+
+- name: "config_links : Resolve expected spine target for {{ config_link_name }}"
+  ansible.builtin.set_fact:
+    config_links_spine_target: "{{ install_dir | trim }}/config/{{ config_link_name }}"
+
+- name: "config_links : Determine backup timestamp for {{ config_link_name }}"
+  ansible.builtin.set_fact:
+    config_links_backup_ts: "{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}"
+
+# is-correct-link = exists AND is a symlink AND points at our exact spine path.
+- name: "config_links : Classify ~/.config/{{ config_link_name }}"
+  ansible.builtin.set_fact:
+    config_links_is_correct_link: >-
+      {{ config_links_existing.stat.exists
+         and config_links_existing.stat.islnk
+         and config_links_existing.stat.lnk_target | default('') == config_links_spine_target }}
+
+- name: "config_links : Skip {{ config_link_name }} (already linked to the spine)"
+  ansible.builtin.debug:
+    msg: "~/.config/{{ config_link_name }} already points at {{ config_links_spine_target }} — no-op"
+  when: config_links_is_correct_link
+
+# ── Migration guard: back up any pre-existing non-spine target ───────────────
+# A real dir / real file / foreign symlink at ~/.config/<name> is moved aside
+# (atomic rename) to a timestamped backup dir BEFORE the link replaces it. The
+# original is preserved verbatim — recoverable, never destroyed. Prompting is
+# policy-gated (ask = pause; auto = proceed silently). Everything is
+# --check-gated so a dry run never moves or links.
+- name: "config_links : Confirm backup of pre-existing ~/.config/{{ config_link_name }}"
+  ansible.builtin.pause:
+    prompt: >-
+      ~/.config/{{ config_link_name }} already exists and is NOT the managed
+      spine link. It will be backed up to
+      {{ config_links_backup_root }}/{{ config_link_name }}-{{ config_links_backup_ts }}
+      then replaced by a symlink to {{ config_links_spine_target }}. Continue?
+  when:
+    - not config_links_is_correct_link
+    - config_links_existing.stat.exists
+    - config_links_backup_policy | default('auto') == 'ask'
+    - not ansible_check_mode
+
+- name: "config_links : Back up pre-existing ~/.config/{{ config_link_name }}"
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ config_links_xdg_config_home }}/{{ config_link_name }}"
+      - "{{ config_links_backup_root }}/{{ config_link_name }}-{{ config_links_backup_ts }}"
+  when:
+    - not config_links_is_correct_link
+    - config_links_existing.stat.exists
+    - not ansible_check_mode
+
+- name: "config_links : Symlink ~/.config/{{ config_link_name }} -> spine"
+  ansible.builtin.file:
+    path: "{{ config_links_xdg_config_home }}/{{ config_link_name }}"
+    src: "{{ config_links_spine_target }}"
+    state: link
+    force: true
+  when: not config_links_is_correct_link

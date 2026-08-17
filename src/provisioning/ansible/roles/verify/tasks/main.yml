@@ -367,6 +367,7 @@
 - name: Check compositor configs, skeletons and fragments
   ansible.builtin.stat:
     path: "{{ item }}"
+    follow: true
   loop: "{{ verify_compositor_config_dirs + verify_compositor_skeleton_files + verify_compositor_fragments }}"
   register: verify_compositor_checks
 
@@ -398,22 +399,94 @@
       them; run the filesystem playbook first
   when: not ansible_check_mode
 
-- name: Check config copies are real directories
+- name: Check managed config dirs are symlinks into the spine
   ansible.builtin.stat:
     path: "{{ verify_xdg_config_home }}/{{ item }}"
     follow: false
+  loop: "{{ verify_managed_link_dirs }}"
+  register: verify_managed_link_checks
+  when: not ansible_check_mode
+
+- name: Assert managed config dirs are symlinks with the exact spine target
+  ansible.builtin.assert:
+    that: >-
+      verify_managed_link_checks.results
+      | selectattr('stat.islnk') | list | length == verify_managed_link_dirs | length
+    fail_msg: >-
+      not every managed config dir under {{ verify_xdg_config_home }} is a
+      symlink (expected {{ verify_managed_link_dirs | join(', ') }} —
+      done-criterion 9, config-in-spine pattern). Each must point at
+      <install>/config/<name>; the config-links role creates them. Run the
+      config-links playbook first
+  when: not ansible_check_mode
+
+- name: Assert managed config symlinks point at the exact spine target
+  ansible.builtin.assert:
+    that: >-
+      verify_managed_link_checks.results
+      | rejectattr('stat.lnk_target', 'search', '^' + verify_managed_link_spine_prefix)
+      | list | length == 0
+    fail_msg: >-
+      a managed config symlink under {{ verify_xdg_config_home }} points at a
+      target OUTSIDE the spine — done-criterion 9, config-in-spine. Every link
+      must target <install>/config/<name> ({{ verify_managed_link_spine_prefix }}/);
+      a link to the repo, a moved location, or a wrong spine path fails. Re-run
+      the config-links playbook
+  when: not ansible_check_mode
+
+- name: Check managed config symlinks resolve through the spine
+  ansible.builtin.stat:
+    path: "{{ verify_xdg_config_home }}/{{ item }}"
+    follow: true
+  loop: "{{ verify_managed_link_dirs }}"
+  register: verify_managed_link_resolve_checks
+  when: not ansible_check_mode
+
+- name: Assert managed config symlinks resolve into the spine
+  ansible.builtin.assert:
+    that: >-
+      verify_managed_link_resolve_checks.results
+      | selectattr('stat.isdir') | list | length == verify_managed_link_dirs | length
+    fail_msg: >-
+      a managed config symlink under {{ verify_xdg_config_home }} is BROKEN or
+      its spine target is not a directory — done-criterion 9 (config-in-spine).
+      A broken link means the spine was wiped (unprovisioned). Re-run apply
+  when: not ansible_check_mode
+
+- name: Check config copies resolve through their symlinks
+  ansible.builtin.stat:
+    path: "{{ verify_xdg_config_home }}/{{ item }}"
+    follow: true
   loop: "{{ verify_config_copies_targets }}"
   register: verify_config_copy_checks
   when: not ansible_check_mode
 
-- name: Assert config copies are real directories
+- name: Assert config copies resolve as directories through the symlinks
   ansible.builtin.assert:
     that: verify_config_copy_checks.results | selectattr('stat.isdir') | list | length == verify_config_copies_targets | length
     fail_msg: >-
-      not every config-copy target under {{ verify_xdg_config_home }} is a
-      REAL directory (expected one per dotfiles/provisioning/config-copies.yaml:
-      nvim, starship, wlogout, zsh — done-criterion 9). A missing copy or a
-      symlink back into the repo breaks runtime independence: the machine must
-      work after the repo is deleted. The config_copies role (Story 2.10)
-      places them; run the config-copies playbook first
+      not every config-copy target under {{ verify_xdg_config_home }} resolves
+      to a real directory (expected one per dotfiles/provisioning/config-copies.yaml:
+      nvim, starship, wlogout, zsh — done-criterion 9). A symlink whose spine
+      target is missing/wrong breaks runtime independence. The config_copies
+      (Story 2.10) + config_links roles place them; run those playbooks first
+  when: not ansible_check_mode
+
+- name: Check config copy content is reachable through the symlinks
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+  loop: "{{ verify_config_copy_content }}"
+  register: verify_config_copy_content_checks
+  when: not ansible_check_mode
+
+- name: Assert config copy content files are present through the symlinks
+  ansible.builtin.assert:
+    that: verify_config_copy_content_checks.results | selectattr('stat.isreg') | list | length == verify_config_copy_content | length
+    fail_msg: >-
+      not every config-copy content file resolves through its
+      {{ verify_xdg_config_home }} symlink into the spine (done-criterion 9,
+      layer 4 — content-through-link). The spine copy is missing or the link
+      points at an empty/wrong dir. Re-run the config_copies + config_links
+      playbooks
   when: not ansible_check_mode

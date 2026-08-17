@@ -54,7 +54,7 @@ NFR-4: §11 Package Boundary — `src/provisioning` imports `cli-output` only; n
 NFR-5: Testability — domain logic is pure with zero I/O; ports are ABCs; adapters testable with fakes; use cases testable with fake ports.
 NFR-6: Deterministic Settings — rendered settings files parse exactly with absolute paths baked into the install dir; each tool parses its rendered settings via its `--config` gate.
 NFR-7: Verify-Gate Contract — the four §12 runtime preconditions (binaries installed, assets placed, filesystem structure exists, settings files parseable) assertable via `VerifyCapabilityUseCase` without reaching into provisioning internals.
-NFR-8: Spine Containment — the install dir is the single place tools read from; wiping `$XDG_DATA_HOME/dotfiles/` leaves nothing orphaned in the XDG config tree.
+NFR-8: Spine Containment — the install dir is the single home for ALL managed config + data (config-in-spine pattern, 2026-08-16); `~/.config` is an alias layer whose entries are symlinks into the spine. Removing the spine leaves the `~/.config` symlinks broken (a machine is considered unprovisioned). Nothing references the repo checkout.
 NFR-9: Bootstrap Reproducibility — from a fresh Arch or Debian-family machine, `git clone && ./scripts/bootstrap.sh` completes with verify green.
 
 ### Additional Requirements

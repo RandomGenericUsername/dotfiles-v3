@@ -6,13 +6,19 @@ Load-bearing companion to `SPEC.md` (CAP-5, Constraints). Holds the install-dir 
 
 `$XDG_DATA_HOME/dotfiles/` (default `~/.local/share/dotfiles/`). Provisioning resolves it at plan time and bakes absolute paths into the rendered settings files.
 
+**Config-in-spine (2026-08-16):** ALL managed configs live under `<install>/config/` and are exposed at their native XDG locations via symlinks (`~/.config/<name>` → `<install>/config/<name>`, created by the `config_links` role). The spine is the single home; `~/.config` is an alias layer.
+
 ```
 $XDG_DATA_HOME/dotfiles/
+├── config/                              # ALL managed configs (symlinked into ~/.config)
+│   ├── hypr/  waybar/  hyprpaper/       # compositor skeletons + palette fragments
+│   ├── nvim/  starship/  wlogout/  zsh/ # config copies (real dirs in the spine)
+│   ├── color-scheme-generator/          # settings.toml + templates/
+│   ├── weg/                             # settings.toml + effects.yaml
+│   └── itr/                             # settings.toml
 ├── wallpapers/                          # unpacked from dotfiles/assets/wallpapers/wallpapers.tar.gz (default.png included)
 ├── icon-templates/                      # deployed from dotfiles/assets/icon-templates/
 ├── icon-mappings/*.yaml                # deployed from dotfiles/config/icon-template-color-scheme-mappings/
-├── csg-templates/                       # bundled CSG Jinja templates (from CSG defaults/templates)
-├── weg-effects.yaml                     # deployed via `weg dump-effects --output`
 └── generated/
     ├── palettes/                        # CSG writes colors.yaml + colors.conf + formats here
     ├── effects/                         # WEG writes effect images here
@@ -24,8 +30,8 @@ $XDG_DATA_HOME/dotfiles/
 
 ## Data-flow chain
 
-- CSG: reads wallpaper (positional CLI arg) → writes palette to `<install>/generated/palettes/` (`output.directory`). Reads Jinja templates from `<install>/csg-templates/` via `--templates-dir` (Phase 2 runtime passes it per invocation). Emits Hyprland `colors.conf` via the `conf` format.
-- WEG: reads wallpaper (positional CLI arg) → writes effects to `<install>/generated/effects/` (`output.directory`), temps to `<install>/generated/.weg-tmp/` (`processing.temp_dir`). Reads its effects catalog from the deployed `<install>/weg-effects.yaml`.
+- CSG: reads wallpaper (positional CLI arg) → writes palette to `<install>/generated/palettes/` (`output.directory`). Reads Jinja templates from `<install>/config/color-scheme-generator/templates/` via `--templates-dir` (Phase 2 runtime passes it per invocation; the config-links symlink also makes `~/.config/color-scheme-generator/templates` resolve there). Emits Hyprland `colors.conf` via the `conf` format.
+- WEG: reads wallpaper (positional CLI arg) → writes effects to `<install>/generated/effects/` (`output.directory`), temps to `<install>/generated/.weg-tmp/` (`processing.temp_dir`). Reads its effects catalog from the deployed `<install>/config/weg/effects.yaml`.
 - ITR: reads SVG templates from `<install>/icon-templates/` (`templates.dir`), reads color scheme from `<install>/generated/palettes/colors.yaml` (`color_scheme.path` — **chains to CSG output**), writes rendered SVGs to `<install>/generated/icons/` (`output.output_dir`).
 
 ## Settings files provisioning renders
@@ -58,13 +64,13 @@ memory_limit = "512m"
 mount_timeout_seconds = 30
 ```
 
-Templates dir is **not** a settings field — separate resolver chain (CLI `--templates-dir` → env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → traversal `templates/` → XDG `~/.config/color-scheme-generator/templates/` → bundled). Decision: provisioning deploys the bundled templates to `<install>/csg-templates/` and the Phase 2 runtime invokes CSG with `--templates-dir <install>/csg-templates/`. The XDG stop is `color-scheme-generator/templates/` — unified with the settings subdir (one config dir per tool; the earlier `~/.config/color-scheme/templates` split was a flaw, resolved 2026-08-15).
+Templates dir is **not** a settings field — separate resolver chain (CLI `--templates-dir` → env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → traversal `templates/` → XDG `~/.config/color-scheme-generator/templates/` → bundled). Decision: provisioning deploys the bundled templates to `<install>/config/color-scheme-generator/templates/` and the Phase 2 runtime invokes CSG with `--templates-dir <install>/config/color-scheme-generator/templates/`. The XDG stop is `color-scheme-generator/templates/` — unified with the settings subdir (one config dir per tool; the earlier `~/.config/color-scheme/templates` split was a flaw, resolved 2026-08-15).
 
 The rendered settings file keeps `overwrite = false` (CSG's safe default). The `default_palette` role's single `csg generate` call overrides it per-task via `environment: COLORSCHEME__OUTPUT__OVERWRITE: "true"` — the override exists only for that one process and never mutates this file.
 
 ### WEG — `~/.config/weg/settings.toml`
 
-Env prefix `WALLPAPER`; config file env `WALLPAPER_CONFIG_FILE_PATH`. A custom effects catalog **is** deployed to `<install>/weg-effects.yaml` (emitted via `weg dump-effects --output`), and the WEG effects chain points at it (env `WALLPAPER_EFFECTS_CONFIG_FILE_PATH` or `--effects`).
+Env prefix `WALLPAPER`; config file env `WALLPAPER_CONFIG_FILE_PATH`. A custom effects catalog **is** deployed to `<install>/config/weg/effects.yaml` (emitted via `weg dump-effects --output`), and the WEG effects chain points at it (env `WALLPAPER_EFFECTS_CONFIG_FILE_PATH` or `--effects`).
 
 ```toml
 version = "1.0"

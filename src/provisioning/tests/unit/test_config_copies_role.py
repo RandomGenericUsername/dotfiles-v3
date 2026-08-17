@@ -137,17 +137,35 @@ def _manifest_entries() -> list[dict[str, str]]:
     return [dict(item) for item in entries]
 
 
-def _fact_gathering_assert_task() -> dict[str, object]:
-    """The fail-loud fact-gathering guard: the FIRST task, an assert on
-    ansible_facts.env.HOME with a gather_facts fail_msg."""
+def _install_dir_assert_task() -> dict[str, object]:
+    """The fail-loud install_dir seam assert: the FIRST task (config-in-spine
+    2026-08-16 — the role now consumes install_dir; dests live at
+    <install>/config/)."""
     tasks = _load_tasks()
     assert tasks, "tasks/main.yml must not be empty"
     first = tasks[0]
     assert _module_key(first) == "ansible.builtin.assert", (
-        "the first task must be the fail-loud fact-gathering assert "
-        "(role contract — vars derive from ansible_facts.env)"
+        "the first task must be the fail-loud install_dir assert (role contract)"
     )
     return first
+
+
+def _fact_gathering_assert_task() -> dict[str, object]:
+    """The fail-loud fact-gathering guard: an assert on ansible_facts.env.HOME
+    with a gather_facts fail_msg (the SECOND task — vars still derive from
+    ansible_facts.env)."""
+    tasks = _load_tasks()
+    assert tasks, "tasks/main.yml must not be empty"
+    assert _module_key(tasks[0]) == "ansible.builtin.assert", (
+        "the first task must be the fail-loud install_dir assert (role contract)"
+    )
+    matches = [
+        task
+        for task in _assert_tasks()
+        if "ansible_facts.env.HOME is defined" in str(_module(task).get("that", ""))
+    ]
+    assert len(matches) == 1, "expected exactly one fact-gathering assert on ansible_facts.env.HOME"
+    return matches[0]
 
 
 def _non_empty_guard_task() -> dict[str, object]:
@@ -187,26 +205,27 @@ def _copy_task() -> dict[str, object]:
     return matches[0]
 
 
-def _xdg_home_dir_ensure_tasks() -> list[dict[str, object]]:
-    """The XDG config home dir-ensure task: `state: directory` on
-    {{ config_copies_xdg_config_home }} (no loop — the home is a single path)."""
+def _spine_home_dir_ensure_tasks() -> list[dict[str, object]]:
+    """The config-in-spine home dir-ensure task: `state: directory` on
+    {{ config_copies_spine_config_dir }} (no loop — the spine root is a single
+    path)."""
     return [
         task
         for task in _tasks_with_module("ansible.builtin.file")
         if str(_module(task).get("state")) == "directory"
-        and str(_module(task).get("path")) == "{{ config_copies_xdg_config_home }}"
+        and str(_module(task).get("path")) == "{{ config_copies_spine_config_dir }}"
     ]
 
 
 def _target_dir_ensure_tasks() -> list[dict[str, object]]:
     """The per-target dir-ensure tasks: `state: directory` on
-    {{ config_copies_xdg_config_home }}/<target>, looping config_copies_entries."""
+    {{ config_copies_spine_config_dir }}/<target>, looping config_copies_entries."""
     return [
         task
         for task in _tasks_with_module("ansible.builtin.file")
         if str(_module(task).get("state")) == "directory"
-        and "{{ config_copies_xdg_config_home }}/" in str(_module(task).get("path", ""))
-        and str(_module(task).get("path")) != "{{ config_copies_xdg_config_home }}"
+        and "{{ config_copies_spine_config_dir }}/" in str(_module(task).get("path", ""))
+        and str(_module(task).get("path")) != "{{ config_copies_spine_config_dir }}"
     ]
 
 
@@ -245,13 +264,24 @@ class TestConfigCopiesTasks:
             assert isinstance(task, dict)
             assert task["name"], "every task must carry a name"
 
-    def test_first_task_is_fail_loud_fact_gathering_assert(self) -> None:
-        """Role contract: the FIRST task is the fail-loud fact-gathering guard —
-        NOT an install_dir assert (this role consumes no install_dir) and NOT
-        the source stat. Without gather_facts: true the XDG derivation dies
-        with an opaque traceback, so the friendly guard comes first."""
-        first = _fact_gathering_assert_task()
+    def test_first_task_is_fail_loud_install_dir_assert(self) -> None:
+        """Role contract (config-in-spine 2026-08-16): the FIRST task is the
+        fail-loud install_dir seam assert, verbatim from the sibling roles —
+        this role now CONSUMES install_dir (destinations live at
+        <install>/config/), so an undefined spine root aborts first."""
+        first = _install_dir_assert_task()
         module = _module(first)
+        that = str(module.get("that", ""))
+        assert "install_dir is defined" in that, "the first task must assert install_dir is defined"
+        assert "install_dir | trim | length > 0" in that
+
+    def test_second_task_is_fail_loud_fact_gathering_assert(self) -> None:
+        """Role contract: the SECOND task is the fail-loud fact-gathering guard
+        (vars still derive from ansible_facts.env HOME/XDG derivations) — NOT an
+        install_dir-only role. Without gather_facts: true the XDG derivation
+        dies with an opaque traceback, so the friendly guard stays early."""
+        second = _fact_gathering_assert_task()
+        module = _module(second)
         that = str(module.get("that", ""))
         assert "ansible_facts.env.HOME is defined" in that, (
             "the guard must assert ansible_facts.env.HOME is defined"
@@ -305,11 +335,12 @@ class TestConfigCopiesTasks:
         """AC 2 + 4: the copy task is `ansible.builtin.copy` with a trailing-`/`
         `src` prefixed {{ config_copies_repo_root }}/dotfiles/config/ (contents-
         into-dest semantics), a trailing-`/` `dest` prefixed
-        {{ config_copies_xdg_config_home }}/, `remote_src: true` (localhost
-        mirror of the assets role), a loop over config_copies_entries, NO
-        `creates:`, and NO check-mode gate (the copy module has FULL check-mode
-        support). NOT `force: false` — a directory src + force: false + a
-        pre-existing dest dir is a silent no-op (2.9 review finding); the
+        {{ config_copies_spine_config_dir }}/ (config-in-spine 2026-08-16 —
+        dests land at <install>/config/<target>), `remote_src: true`
+        (localhost mirror of the assets role), a loop over config_copies_entries,
+        NO `creates:`, and NO check-mode gate (the copy module has FULL
+        check-mode support). NOT `force: false` — a directory src + force: false
+        + a pre-existing dest dir is a silent no-op (2.9 review finding); the
         default force: true + checksums is the idempotency mechanism."""
         task = _copy_task()
         module = _module(task)
@@ -326,8 +357,8 @@ class TestConfigCopiesTasks:
             "copy src must end with '/' (contents-into-dest semantics — no accidental nested dir)"
         )
         dest = str(module.get("dest", ""))
-        assert dest.startswith("{{ config_copies_xdg_config_home }}/"), (
-            "copy dest must derive from config_copies_xdg_config_home"
+        assert dest.startswith("{{ config_copies_spine_config_dir }}/"), (
+            "copy dest must derive from config_copies_spine_config_dir"
         )
         assert dest.endswith("/"), "copy dest must end with '/'"
         assert module.get("remote_src") is True, (
@@ -380,14 +411,14 @@ class TestConfigCopiesTasks:
 
     def test_dir_ensure_tasks_ungated(self) -> None:
         """AC 2 direct-run self-containment: `file` `state: directory` re-ensures
-        {{ config_copies_xdg_config_home }} AND each target dir (copy does NOT
-        create the top-level dest parent). Natively check-safe — must NOT be
-        --check-gated."""
-        home_tasks = _xdg_home_dir_ensure_tasks()
-        assert home_tasks, "no XDG config home dir-ensure task found"
+        {{ config_copies_spine_config_dir }} AND each target dir under the
+        config-in-spine home (copy does NOT create the top-level dest parent).
+        Natively check-safe — must NOT be --check-gated."""
+        home_tasks = _spine_home_dir_ensure_tasks()
+        assert home_tasks, "no config-in-spine home dir-ensure task found"
         for task in home_tasks:
             assert task.get("when") is None, (
-                "XDG dir ensure is check-safe natively — must NOT be --check-gated"
+                "spine home dir ensure is check-safe natively — must NOT be --check-gated"
             )
 
         target_tasks = _target_dir_ensure_tasks()
@@ -417,6 +448,9 @@ class TestConfigCopiesTasks:
         safe_vars = (
             "config_copies_repo_root",
             "config_copies_xdg_config_home",
+            "config_copies_spine_config_dir",
+            "config_copies_entries",
+            "install_dir",
             "ansible_facts.env",
         )
         for source_name, source_data in (
@@ -435,6 +469,7 @@ class TestConfigCopiesVars:
     _REQUIRED_KEYS = {
         "config_copies_repo_root",
         "config_copies_xdg_config_home",
+        "config_copies_spine_config_dir",
         "config_copies_entries",
     }
 
@@ -517,17 +552,20 @@ class TestConfigCopiesPlaybook:
         """Regression guard (review finding 2026-08-12 discipline): the role
         must ACTUALLY copy configs — structural tests alone could not catch a
         silent no-op. Run the real playbook against a temp HOME/XDG home and
-        assert every dest is a REAL directory (not a symlink — runtime
-        independence), contains the repo source's entries, and re-running is a
-        no-op (AC 4 idempotency at runtime)."""
+        install_dir and assert every dest is a REAL directory in the
+        config-in-spine home (<install>/config/<target> — not a symlink; the
+        runtime-independence guarantee), contains the repo source's entries,
+        and re-running is a no-op (AC 4 idempotency at runtime)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
             home.mkdir()
             xdg.mkdir()
+            install.mkdir()
 
             env = dict(os.environ)
             env["HOME"] = str(home)
@@ -536,7 +574,12 @@ class TestConfigCopiesPlaybook:
 
             def run() -> subprocess.CompletedProcess[str]:
                 return subprocess.run(
-                    [ansible_playbook, str(self._PATH)],
+                    [
+                        ansible_playbook,
+                        str(self._PATH),
+                        "-e",
+                        f"install_dir={install}",
+                    ],
                     capture_output=True,
                     text=True,
                     env=env,
@@ -546,7 +589,7 @@ class TestConfigCopiesPlaybook:
             assert first.returncode == 0, first.stdout + first.stderr
 
             for entry in _manifest_entries():
-                target = xdg / entry["target"]
+                target = install / "config" / entry["target"]
                 source = _REPO_ROOT / "dotfiles" / "config" / entry["name"]
                 assert target.is_dir(), f"{target} was never copied (silent no-op?)"
                 assert not target.is_symlink(), (

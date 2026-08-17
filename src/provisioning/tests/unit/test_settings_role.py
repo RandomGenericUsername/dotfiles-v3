@@ -233,7 +233,7 @@ class TestSettingsTasks:
         """AC 2-5, 7: the render task is `ansible.builtin.template` with
         `src: "{{ item.template }}"` (resolved relative to
         roles/settings/templates/) and `dest` derived from
-        {{ settings_xdg_config_home }}/ ending in settings.toml, looping over
+        {{ settings_spine_config_dir }}/ ending in settings.toml, looping over
         {{ settings_files }}. Default `force: true` (content-compare idempotent
         — a template edit propagates on re-apply). NO `creates:` and NOT
         check-gated (template module has FULL check-mode support — 2.9-verified
@@ -251,12 +251,12 @@ class TestSettingsTasks:
         )
         assert str(module.get("dest")) == "{{ item.dest }}", (
             "render dest must be {{ item.dest }} (the per-tool dest derives from "
-            "settings_xdg_config_home in vars/main.yml)"
+            "settings_spine_config_dir in vars/main.yml)"
         )
         for file_ in _vars()["settings_files"]:
             dest = str(file_["dest"])
-            assert dest.startswith("{{ settings_xdg_config_home }}/"), (
-                "settings_files dest must derive from settings_xdg_config_home"
+            assert dest.startswith("{{ settings_spine_config_dir }}/"), (
+                "settings_files dest must derive from settings_spine_config_dir"
             )
             assert dest.endswith("settings.toml"), "settings_files dest must end with settings.toml"
         assert "settings_files" in str(task.get("loop", ""))
@@ -281,14 +281,15 @@ class TestSettingsTasks:
 
     def test_no_absolute_paths_hardcoded(self) -> None:
         """Trim lock: every path-bearing reference derives from the role vars
-        (`{{ settings_xdg_config_home }}`, `{{ install_dir | trim }}`,
-        `ansible_facts.env`) — no literal absolute path is baked into any
-        task's module body OR into vars/main.yml. Hardened (review finding
-        2026-08-12): the scan catches quoted literals (`"/home/user/x"`) and
-        paths glued after a Jinja `}}` that the old `startswith("/")` token
-        check missed."""
+        (`{{ settings_spine_config_dir }}`, `{{ settings_xdg_config_home }}`,
+        `{{ install_dir | trim }}`, `ansible_facts.env`) — no literal absolute
+        path is baked into any task's module body OR into vars/main.yml.
+        Hardened (review finding 2026-08-12): the scan catches quoted literals
+        (`"/home/user/x"`) and paths glued after a Jinja `}}` that the old
+        `startswith("/")` token check missed."""
         seam_vars = (
             "settings_xdg_config_home",
+            "settings_spine_config_dir",
             "settings_config_dirs",
             "settings_files",
             "install_dir",
@@ -307,6 +308,7 @@ class TestSettingsTasks:
 class TestSettingsVars:
     _REQUIRED_KEYS = {
         "settings_xdg_config_home",
+        "settings_spine_config_dir",
         "settings_config_dirs",
         "settings_files",
     }
@@ -358,8 +360,8 @@ class TestSettingsVars:
                 f"template {template} missing from roles/settings/templates/"
             )
             dest = str(file_["dest"])
-            assert dest.startswith("{{ settings_xdg_config_home }}/"), (
-                "settings_files dest must derive from settings_xdg_config_home"
+            assert dest.startswith("{{ settings_spine_config_dir }}/"), (
+                "settings_files dest must derive from settings_spine_config_dir"
             )
             assert dest.endswith("settings.toml")
 
@@ -507,11 +509,11 @@ class TestSettingsPlaybook:
         """Regression guard (review finding 2026-08-12 discipline): the role
         must ACTUALLY render the three settings files — structural tests alone
         could not catch a silent no-op. Run the real playbook against a temp
-        HOME + XDG_CONFIG_HOME + install_dir, assert each settings.toml exists,
-        parses as valid TOML, and its spine paths equal the install_dir-derived
-        absolute paths; a --check run writes nothing and reports no failures;
-        re-running is a no-op (AC 4 idempotency); no None/empty-path values
-        render (AC 6)."""
+        HOME + XDG_CONFIG_HOME + install_dir, assert each settings.toml exists
+        under the config-in-spine home <install>/config/, parses as valid TOML,
+        and its spine paths equal the install_dir-derived absolute paths; a
+        --check run writes nothing and reports no failures; re-running is a
+        no-op (AC 4 idempotency); no None/empty-path values render (AC 6)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -550,7 +552,7 @@ class TestSettingsPlaybook:
                 "--check must report no failures (template/file are check-safe "
                 "natively); recap:\n" + check.stdout
             )
-            for name, path in _expected_files(xdg).items():
+            for name, path in _expected_files(install).items():
                 assert not path.exists(), (
                     f"--check wrote {name} settings.toml {path} — check mode must not write"
                 )
@@ -558,10 +560,10 @@ class TestSettingsPlaybook:
             first = run()
             assert first.returncode == 0, first.stdout + first.stderr
 
-            for name, path in _expected_files(xdg).items():
+            for name, path in _expected_files(install).items():
                 assert path.is_file(), f"{name} settings.toml {path} was never rendered"
 
-            csg = tomllib.loads(_expected_files(xdg)["csg"].read_text())
+            csg = tomllib.loads(_expected_files(install)["csg"].read_text())
             assert str(csg["output"]["directory"]) == str(install / "generated" / "palettes")
             assert csg["output"]["overwrite"] is False, (
                 "rendered CSG file must keep overwrite = false (2.7 owns the env override)"
@@ -570,18 +572,18 @@ class TestSettingsPlaybook:
                 "rendered CSG default_formats must match the chain formats (review "
                 "finding 2026-08-12 — json/sh has no Phase 1 consumer)"
             )
-            weg = tomllib.loads(_expected_files(xdg)["weg"].read_text())
+            weg = tomllib.loads(_expected_files(install)["weg"].read_text())
             assert str(weg["output"]["directory"]) == str(install / "generated" / "effects")
             assert str(weg["processing"]["temp_dir"]) == str(install / "generated" / ".weg-tmp")
             assert weg["execution"]["strict"] is False
-            itr = tomllib.loads(_expected_files(xdg)["itr"].read_text())
+            itr = tomllib.loads(_expected_files(install)["itr"].read_text())
             assert str(itr["output"]["output_dir"]) == str(install / "generated" / "icons")
             assert str(itr["templates"]["dir"]) == str(install / "icon-templates")
             assert str(itr["color_scheme"]["path"]) == str(
                 install / "generated" / "palettes" / "colors.yaml"
             )
 
-            for name, path in _expected_files(xdg).items():
+            for name, path in _expected_files(install).items():
                 text = path.read_text()
                 assert "None/generated" not in text and "/None" not in text, (
                     f"{name} settings.toml renders a None path (AC 6)"
@@ -605,10 +607,12 @@ class TestSettingsPlaybook:
             )
 
     def test_playbook_renders_into_home_config_without_xdg(self) -> None:
-        """The real-world default (review finding 2026-08-12): when
-        XDG_CONFIG_HOME is unset, settings_xdg_config_home must fall back to
-        HOME/.config. Both other exec paths set XDG_CONFIG_HOME, so this
-        fallback branch was never rendered at runtime until now."""
+        """The real-world default (config-in-spine 2026-08-16): the render
+        destination is <install>/config/ REGARDLESS of XDG_CONFIG_HOME — the
+        settings role no longer renders into the XDG config home (the
+        config-links role symlinks ~/.config/<tool> -> <install>/config/<tool>).
+        This test proves the playbook renders without XDG_CONFIG_HOME set (and
+        the settings_xdg_config_home fallback var still resolves harmlessly)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -638,11 +642,10 @@ class TestSettingsPlaybook:
             )
             assert result.returncode == 0, result.stdout + result.stderr
 
-            config_home = home / ".config"
-            for name, path in _expected_files(config_home).items():
+            for name, path in _expected_files(install).items():
                 assert path.is_file(), (
-                    f"{name} settings.toml {path} was never rendered under HOME/.config "
-                    "(XDG_CONFIG_HOME fallback)"
+                    f"{name} settings.toml {path} was never rendered under "
+                    "install/config (config-in-spine home)"
                 )
 
     def test_runtime_gate_with_cli_tools(self) -> None:
@@ -688,10 +691,15 @@ class TestSettingsPlaybook:
             gates: list[tuple[list[str], Path]] = []
             if csg is not None:
                 gates.append(
-                    ([csg, "info", "--config"], xdg / "color-scheme-generator" / "settings.toml")
+                    (
+                        [csg, "info", "--config"],
+                        install / "config" / "color-scheme-generator" / "settings.toml",
+                    )
                 )
             if weg is not None:
-                gates.append(([weg, "info", "--config"], xdg / "weg" / "settings.toml"))
+                gates.append(
+                    ([weg, "info", "--config"], install / "config" / "weg" / "settings.toml")
+                )
             for cmd, config in gates:
                 gate = subprocess.run(
                     [*cmd, str(config)],
@@ -718,11 +726,14 @@ def _test_env(**overrides: str) -> dict[str, str]:
     return env
 
 
-def _expected_files(config_home: Path) -> dict[str, Path]:
+def _expected_files(install: Path) -> dict[str, Path]:
+    """The rendered settings files, now under the config-in-spine home
+    <install>/config/ (NOT the XDG config home — settings renders into the
+    spine; the config-links role symlinks ~/.config/<tool> -> the spine)."""
     return {
-        "csg": config_home / "color-scheme-generator" / "settings.toml",
-        "weg": config_home / "weg" / "settings.toml",
-        "itr": config_home / "itr" / "settings.toml",
+        "csg": install / "config" / "color-scheme-generator" / "settings.toml",
+        "weg": install / "config" / "weg" / "settings.toml",
+        "itr": install / "config" / "itr" / "settings.toml",
     }
 
 

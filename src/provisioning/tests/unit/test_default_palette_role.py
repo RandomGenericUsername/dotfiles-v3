@@ -457,7 +457,8 @@ class TestDefaultPaletteVars:
             str(data["default_palette_output_dir"]) == "{{ install_dir | trim }}/generated/palettes"
         )
         assert (
-            str(data["default_palette_templates_dir"]) == "{{ install_dir | trim }}/csg-templates"
+            str(data["default_palette_templates_dir"])
+            == "{{ install_dir | trim }}/config/color-scheme-generator/templates"
         )
 
     def test_formats_are_the_contract_set(self) -> None:

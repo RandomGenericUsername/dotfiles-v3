@@ -34,11 +34,28 @@ filesystem_compositor_dirs:
 # manifest). `generated` AND its nested leaves are both kept — the file module
 # auto-creates parents and the explicit `generated` entry is harmless and
 # idempotent; the parity test locks exact set equality with the manifest.
+#
+# config-in-spine (2026-08-16): the `config/` subtree hosts ALL managed
+# configs (tool dirs + the csg-templates/effects relocations); the
+# config-links role symlinks each ~/.config/<name> -> <install>/config/<name>.
+# csg-templates moved to config/color-scheme-generator/templates (CSG tool
+# config); weg-effects.yaml moved to config/weg/effects.yaml (WEG tool config).
 filesystem_spine_dirs:
   - wallpapers
   - icon-templates
   - icon-mappings
-  - csg-templates
+  - config
+  - config/color-scheme-generator
+  - config/color-scheme-generator/templates
+  - config/hypr
+  - config/hyprpaper
+  - config/waybar
+  - config/nvim
+  - config/starship
+  - config/wlogout
+  - config/zsh
+  - config/weg
+  - config/itr
   - generated
   - generated/palettes
   - generated/effects
@@ -46,8 +63,9 @@ filesystem_spine_dirs:
   - generated/.weg-tmp
 
 # File nodes (AC 4). weg-effects.yaml is a FILE emitted by the assets role
-# (Story 2.6) via `weg dump-effects`; this role only guarantees its parent
-# (<install_dir>/), which the spine task creates. It never creates the file
+# (Story 2.6) via `weg dump-effects` into the config-in-spine home
+# (<install>/config/weg/effects.yaml); this role only guarantees its parent
+# (config/weg), which the spine task creates. It never creates the file
 # itself.
 filesystem_file_nodes:
   - weg-effects.yaml

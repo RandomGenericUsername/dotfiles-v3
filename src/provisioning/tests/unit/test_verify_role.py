@@ -243,21 +243,122 @@ def _stat_assert_pairs() -> list[tuple[dict[str, object], dict[str, object]]]:
     return pairs
 
 
-def _config_copy_stat_task() -> dict[str, object]:
+def _managed_link_stat_task() -> dict[str, object]:
+    """The layer-1 stat: `stat` with `follow: false` over
+    {{ verify_managed_link_dirs }}, registering verify_managed_link_checks."""
     matches = [
-        task for task in _stat_tasks() if "verify_config_copy_checks" == str(task.get("register"))
+        task for task in _stat_tasks() if "verify_managed_link_checks" == str(task.get("register"))
     ]
-    assert len(matches) == 1, f"expected exactly one config-copy dest stat; found {len(matches)}"
+    assert len(matches) == 1, f"expected exactly one managed-link stat; found {len(matches)}"
     return matches[0]
 
 
-def _config_copy_assert_task() -> dict[str, object]:
+def _managed_link_islnk_assert_task() -> dict[str, object]:
+    """The layer-1 assert: consumes verify_managed_link_checks checking
+    stat.islnk for every managed dir."""
+    matches = [
+        task
+        for task in _assert_tasks()
+        if "verify_managed_link_checks" in str(_module(task).get("that", ""))
+        and "stat.islnk" in str(_module(task).get("that", ""))
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one islnk assert over verify_managed_link_checks; found {len(matches)}"
+    )
+    return matches[0]
+
+
+def _managed_link_target_assert_task() -> dict[str, object]:
+    """The layer-2 assert: consumes verify_managed_link_checks asserting no
+    broken/wrong lnk_target (every link resolves into the spine)."""
+    matches = [
+        task
+        for task in _assert_tasks()
+        if "verify_managed_link_checks" in str(_module(task).get("that", ""))
+        and "stat.lnk_target" in str(_module(task).get("that", ""))
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one lnk_target assert over verify_managed_link_checks; "
+        f"found {len(matches)}"
+    )
+    return matches[0]
+
+
+def _managed_link_resolve_stat_task() -> dict[str, object]:
+    """The layer-3 stat: `stat` with `follow: true` over
+    {{ verify_managed_link_dirs }}, registering verify_managed_link_resolve_checks."""
+    matches = [
+        task
+        for task in _stat_tasks()
+        if "verify_managed_link_resolve_checks" == str(task.get("register"))
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one managed-link resolve stat; found {len(matches)}"
+    )
+    return matches[0]
+
+
+def _managed_link_resolve_assert_task() -> dict[str, object]:
+    """The layer-3 assert: consumes verify_managed_link_resolve_checks asserting
+    stat.isdir for every managed dir (the link resolves to a real dir)."""
+    matches = [
+        task
+        for task in _assert_tasks()
+        if "verify_managed_link_resolve_checks" in str(_module(task).get("that", ""))
+        and "stat.isdir" in str(_module(task).get("that", ""))
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one managed-link resolve assert; found {len(matches)}"
+    )
+    return matches[0]
+
+
+def _config_copy_follow_stat_task() -> dict[str, object]:
+    """The layer-3 stat: `stat` with `follow: true` over
+    {{ verify_config_copies_targets }}, registering verify_config_copy_checks."""
+    matches = [
+        task for task in _stat_tasks() if "verify_config_copy_checks" == str(task.get("register"))
+    ]
+    assert len(matches) == 1, f"expected exactly one config-copy follow stat; found {len(matches)}"
+    return matches[0]
+
+
+def _config_copy_follow_assert_task() -> dict[str, object]:
+    """The layer-3 assert: consumes verify_config_copy_checks checking
+    stat.isdir for every config-copy target."""
     matches = [
         task
         for task in _assert_tasks()
         if "verify_config_copy_checks" in str(_module(task).get("that", ""))
     ]
-    assert len(matches) == 1, f"expected exactly one config-copy dest assert; found {len(matches)}"
+    assert len(matches) == 1, (
+        f"expected exactly one config-copy resolve assert; found {len(matches)}"
+    )
+    return matches[0]
+
+
+def _config_content_stat_task() -> dict[str, object]:
+    """The layer-4 stat: `stat` with `follow: true` over
+    {{ verify_config_copy_content }}, registering
+    verify_config_copy_content_checks."""
+    matches = [
+        task
+        for task in _stat_tasks()
+        if "verify_config_copy_content_checks" == str(task.get("register"))
+    ]
+    assert len(matches) == 1, f"expected exactly one config-content stat; found {len(matches)}"
+    return matches[0]
+
+
+def _config_content_assert_task() -> dict[str, object]:
+    """The layer-4 assert: consumes verify_config_copy_content_checks checking
+    stat.isreg through the symlink."""
+    matches = [
+        task
+        for task in _assert_tasks()
+        if "verify_config_copy_content_checks" in str(_module(task).get("that", ""))
+    ]
+    assert len(matches) == 1, f"expected exactly one config-content assert; found {len(matches)}"
     return matches[0]
 
 
@@ -412,7 +513,8 @@ class TestVerifyTasks:
 
     def test_weg_gate_points_effects_at_the_spine_catalog(self) -> None:
         """The WEG parse gate must read the effects catalog the assets role
-        emitted at <install>/weg-effects.yaml (spec chaining-spine.md: env
+        emitted at <install>/config/weg/effects.yaml (config-in-spine
+        2026-08-16; spec chaining-spine.md: env
         WALLPAPER_EFFECTS_CONFIG_FILE_PATH), NOT the XDG
         ~/.config/weg/effects.yaml fallback the installer never writes."""
         task = next(
@@ -426,8 +528,8 @@ class TestVerifyTasks:
             "weg gate must wire WALLPAPER_EFFECTS_CONFIG_FILE_PATH to the spine catalog"
         )
         assert str(_vars().get("verify_weg_effects_path")) == (
-            "{{ install_dir | trim }}/weg-effects.yaml"
-        ), "verify_weg_effects_path must be the trim-locked spine weg-effects.yaml"
+            "{{ install_dir | trim }}/config/weg/effects.yaml"
+        ), "verify_weg_effects_path must be the trim-locked spine config/weg/effects.yaml"
 
     def test_settings_spine_extraction_is_dynamic_and_check_gated(self) -> None:
         """Criterion 5 part 2 (review finding 2026-08-13): the spine-target
@@ -514,26 +616,95 @@ class TestVerifyTasks:
             "verify_itr_list_target must NOT reference defaults.yaml (SPEC.md#51)"
         )
 
-    def test_config_copies_dest_check_uses_follow_false_and_isdir(self) -> None:
-        """Criterion 9 (runtime independence): the config-copy dest check is a
-        `stat` with `follow: false` + an assert on `stat.isdir` — a symlink
-        back into the repo reports islnk: true / isdir: false, so only REAL
-        directories pass. Both tasks gated (mirror of config_copies)."""
-        stat = _config_copy_stat_task()
+    def test_managed_config_dirs_are_symlinks_into_the_spine(self) -> None:
+        """Criterion 9 (config-in-spine 2026-08-16): the managed config dirs
+        are SYMLINKS into the spine (~/.config/<name> -> <install>/config/<name>),
+        so the real-dir check is REPLACED by the 5-layer symlink check
+        (docs/02-config-in-spine-pattern.md):
+          layer 1 — a `stat` with `follow: false` over verify_managed_link_dirs
+                    asserts `stat.islnk` for every managed dir (it IS a link);
+          layer 2 — an assert on `stat.lnk_target` proves no link is broken and
+                    every target resolves in the spine (exact-target is locked by
+                    config_links; here the no-broken-link assert guards the
+                    unprovisioned case);
+          layer 3 — a `stat` with `follow: true` over verify_config_copies_targets
+                    asserts `stat.isdir` (the link resolves to a real dir);
+          layer 4 — a `stat` over verify_config_copy_content asserts
+                    `stat.isreg` THROUGH the link (content reachable);
+          layer 5 — the parse gates (csg/weg/itr info --config) read the
+                    settings THROUGH the link — covered by
+                    test_settings_parse_gate_tasks_exist_and_are_check_gated.
+        All tasks gated `when: not ansible_check_mode`."""
+        stat = _managed_link_stat_task()
         assert _module(stat).get("follow") is False, (
-            "config-copy stat must pass follow: false (a symlink reports "
-            "islnk: true / isdir: false)"
+            "layer-1 stat must pass follow: false (a real dir reports "
+            "islnk: false — only symlinks pass the islnk count)"
         )
-        assert "{{ verify_config_copies_targets }}" in str(stat.get("loop", ""))
+        assert "{{ verify_managed_link_dirs }}" in str(stat.get("loop", ""))
         assert stat.get("when") == "not ansible_check_mode"
 
-        assert_task = _config_copy_assert_task()
-        that = str(_module(assert_task).get("that", ""))
-        assert "stat.isdir" in that, (
-            "config-copy assert must check stat.isdir (real dirs, not symlinks)"
+        islnk_assert = _managed_link_islnk_assert_task()
+        that = str(_module(islnk_assert).get("that", ""))
+        assert "stat.islnk" in that
+        assert "verify_managed_link_dirs | length" in that
+        assert islnk_assert.get("when") == "not ansible_check_mode"
+
+        target_assert = _managed_link_target_assert_task()
+        that = str(_module(target_assert).get("that", ""))
+        assert "stat.lnk_target" in that
+        assert target_assert.get("when") == "not ansible_check_mode"
+
+        resolve_stat = _managed_link_resolve_stat_task()
+        assert _module(resolve_stat).get("follow") is True, (
+            "layer-3 stat must pass follow: true (resolve the link target)"
         )
+        assert "{{ verify_managed_link_dirs }}" in str(resolve_stat.get("loop", ""))
+        assert resolve_stat.get("when") == "not ansible_check_mode"
+
+        resolve_assert = _managed_link_resolve_assert_task()
+        that = str(_module(resolve_assert).get("that", ""))
+        assert "stat.isdir" in that
+        assert "verify_managed_link_dirs | length" in that
+        assert resolve_assert.get("when") == "not ansible_check_mode"
+
+        follow_stat = _config_copy_follow_stat_task()
+        assert _module(follow_stat).get("follow") is True, (
+            "layer-3 stat must pass follow: true (resolve through the link)"
+        )
+        assert "{{ verify_config_copies_targets }}" in str(follow_stat.get("loop", ""))
+        assert follow_stat.get("when") == "not ansible_check_mode"
+
+        follow_assert = _config_copy_follow_assert_task()
+        that = str(_module(follow_assert).get("that", ""))
+        assert "stat.isdir" in that
         assert "verify_config_copies_targets | length" in that
-        assert assert_task.get("when") == "not ansible_check_mode"
+        assert follow_assert.get("when") == "not ansible_check_mode"
+
+        content_stat = _config_content_stat_task()
+        assert _module(content_stat).get("follow") is True, (
+            "layer-4 stat must pass follow: true (content read through the link)"
+        )
+        assert "{{ verify_config_copy_content }}" in str(content_stat.get("loop", ""))
+        assert content_stat.get("when") == "not ansible_check_mode"
+
+        content_assert = _config_content_assert_task()
+        that = str(_module(content_assert).get("that", ""))
+        assert "stat.isreg" in that
+        assert "verify_config_copy_content | length" in that
+        assert content_assert.get("when") == "not ansible_check_mode"
+
+    def test_managed_link_dirs_parity_with_config_links(self) -> None:
+        """Parity lock: verify_managed_link_dirs mirrors the config_links
+        role's managed dir set EXACTLY — the symlink check must cover every
+        dir the config-links role creates (a new managed dir not in verify
+        would silently skip its symlink assertion)."""
+        data = _vars()
+        verify_links = list(data["verify_managed_link_dirs"])
+        config_links = list(_sibling_vars("config_links")["config_links_managed_dirs"])
+        assert verify_links == config_links, (
+            "verify_managed_link_dirs must be parity-EXACT with "
+            "config_links_managed_dirs (every managed link is asserted)"
+        )
 
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere —
@@ -560,6 +731,9 @@ class TestVerifyTasks:
             "verify_settings_files",
             "verify_settings_spine_keys",
             "verify_itr_list_target",
+            "verify_config_copy_content",
+            "verify_managed_link_dirs",
+            "<install>",
             "install_dir",
             "ansible_facts.env",
         )
@@ -578,6 +752,7 @@ class TestVerifyVars:
         "verify_xdg_dirs",
         "verify_install_spine_dirs",
         "verify_install_spine_files",
+        "verify_weg_effects_path",
         "verify_asset_dirs",
         "verify_asset_files",
         "verify_system_binaries",
@@ -590,6 +765,8 @@ class TestVerifyVars:
         "verify_compositor_skeleton_files",
         "verify_compositor_fragments",
         "verify_config_copies_targets",
+        "verify_config_copy_content",
+        "verify_managed_link_dirs",
         "verify_itr_list_target",
     }
 
@@ -622,29 +799,36 @@ class TestVerifyVars:
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
         settings_files dests EXACTLY — verify must check the SAME rendered
-        files settings renders. The per-role home var prefix
-        (verify_xdg_config_home vs settings_xdg_config_home) resolves to the
-        SAME location, so the parity contract is the full relative layout
-        after the Jinja var expression — NOT just the tail after the first
-        '/' (review finding 2026-08-13: a root change like /etc/... would have
-        slipped through a tail-only comparison)."""
+        files settings renders. config-in-spine (2026-08-16): both roles
+        render into <install>/config/<tool>/settings.toml, but verify spells
+        the seam as {{ install_dir | trim }}/config/... while settings reaches
+        the same place via {{ settings_spine_config_dir }} (which IS
+        install_dir/config). The parity contract is therefore the full relative
+        layout after the Jinja var expression AND the leading config/ root —
+        NOT just the tool-dir tail (review finding 2026-08-13: a root change
+        like /etc/... would slip through a tail-only comparison)."""
         data = _vars()
         verify_dests = [str(f["dest"]) for f in data["verify_settings_files"]]
         settings_dests = [str(f["dest"]) for f in _sibling_vars("settings")["settings_files"]]
 
         def relative_path(dest: str) -> str:
-            """Strip the `{{ <role>_xdg_config_home }}` var expression and
-            compare the full remainder — a divergence in the sub-layout
-            (root, tool dir, or filename) fails the parity."""
+            """Strip the `{{ <role>_<var> }}` seam expression and the leading
+            `config/` root (verify reaches it as install_dir/config/<tool>,
+            settings as settings_spine_config_dir/<tool>) and compare the full
+            remainder — a divergence in the sub-layout (tool dir or filename)
+            fails the parity."""
             assert "}}" in dest, f"dest {dest!r} must be Jinja-var-prefixed"
-            return dest.split("}}", 1)[1].lstrip("/")
+            rest = dest.split("}}", 1)[1].lstrip("/")
+            if rest.startswith("config/"):
+                rest = rest[len("config/") :]
+            return rest
 
         assert [relative_path(d) for d in verify_dests] == [
             relative_path(d) for d in settings_dests
         ], (
             "verify_settings_files dests must be parity-EXACT with the settings "
-            "role's settings_files dests (same full relative layout under the "
-            "XDG config home)"
+            "role's settings_files dests (same full relative layout under "
+            "<install>/config/)"
         )
 
     def test_settings_spine_keys_parity_with_settings_templates(self) -> None:
@@ -754,6 +938,8 @@ class TestVerifyVars:
             "verify_settings_files",
             "verify_settings_spine_keys",
             "verify_itr_list_target",
+            "verify_config_copy_content",
+            "verify_managed_link_dirs",
             "install_dir",
             "ansible_facts.env",
         )
@@ -810,8 +996,9 @@ class TestVerifyRuntime:
     def test_verify_passes_on_a_provisioned_machine(self) -> None:
         """Regression guard (2.10/2.11 discipline): structural tests alone
         cannot prove verify isn't vacuous. Build a minimal provisioned
-        "machine" (spine, assets, palette, settings + spine targets, compositor
-        configs, config-copy real dirs, stub binaries) and assert the real
+        "machine" (spine incl. config/ subtree, assets, palette, settings +
+        spine targets in the spine, compositor configs, config copies, the
+        ~/.config symlinks into the spine, stub binaries) and assert the real
         verify.yaml run passes; then DELETE one criterion element and assert
         the re-run FAILS loudly (negative lock: verify is not vacuous)."""
         ansible_playbook = shutil.which("ansible-playbook")
@@ -935,8 +1122,10 @@ class TestVerifyRuntime:
             _build_provisioned_layout(home, xdg, install)
 
             # Mis-render the CSG settings to point at a directory that does
-            # NOT exist (still valid TOML — the file parses fine).
-            (xdg / "color-scheme-generator" / "settings.toml").write_text(
+            # NOT exist (still valid TOML — the file parses fine). The file
+            # lives in the SPINE (config-in-spine); the ~/.config symlink
+            # exposes it to the tools.
+            (install / "config" / "color-scheme-generator" / "settings.toml").write_text(
                 f'[output]\ndirectory = "{install}/generated/missing-dir"\n'
                 'overwrite = false\ndefault_formats = ["conf", "gtk.css", "yaml"]\n'
             )
@@ -1032,24 +1221,39 @@ def _write_stub_binaries(home: Path) -> Path:
 
 
 def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
-    """Create the minimal provisioned "machine" verify.yaml asserts against:
-    install spine + weg-effects.yaml, the five asset outcomes, the three
-    palette files, the three rendered settings.toml files pointing at the
-    spine targets, compositor configs + skeletons + fragments, the XDG
-    state/cache homes, and the four config-copy targets as REAL directories."""
-    for rel in (
+    """Create the minimal provisioned "machine" verify.yaml asserts against
+    (config-in-spine 2026-08-16): the full install-spine subtree (including
+    config/ and its managed tool subdirs), the five asset outcomes, the three
+    palette files, the three rendered settings.toml files in the SPINE, the
+    compositor skeletons + fragments in the spine, the config copies in the
+    spine, the XDG state/cache homes, and the ~/.config/<name> -> spine
+    symlinks the config-links role creates. The spine is the home; every
+    ~/.config managed dir is a symlink into it."""
+    spine_dirs = (
         "wallpapers",
         "icon-templates",
         "icon-mappings",
-        "csg-templates",
+        "config",
+        "config/color-scheme-generator",
+        "config/color-scheme-generator/templates",
+        "config/hypr",
+        "config/hyprpaper",
+        "config/waybar",
+        "config/nvim",
+        "config/starship",
+        "config/wlogout",
+        "config/zsh",
+        "config/weg",
+        "config/itr",
         "generated",
         "generated/palettes",
         "generated/effects",
         "generated/icons",
         "generated/.weg-tmp",
-    ):
+    )
+    for rel in spine_dirs:
         (install / rel).mkdir(parents=True, exist_ok=True)
-    (install / "weg-effects.yaml").write_text("{}\n")
+    (install / "config" / "weg" / "effects.yaml").write_text("{}\n")
 
     (home / ".local" / "state").mkdir(parents=True, exist_ok=True)
     (home / ".cache").mkdir(parents=True, exist_ok=True)
@@ -1059,32 +1263,43 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     for name in ("colors.conf", "colors.yaml", "colors.gtk.css"):
         (install / "generated" / "palettes" / name).write_text("")
 
-    (xdg / "color-scheme-generator").mkdir(parents=True, exist_ok=True)
-    (xdg / "weg").mkdir(parents=True, exist_ok=True)
-    (xdg / "itr").mkdir(parents=True, exist_ok=True)
-    (xdg / "color-scheme-generator" / "settings.toml").write_text(
+    (install / "config" / "color-scheme-generator" / "settings.toml").write_text(
         f'[output]\ndirectory = "{install}/generated/palettes"\n'
         'overwrite = false\ndefault_formats = ["conf", "gtk.css", "yaml"]\n'
     )
-    (xdg / "weg" / "settings.toml").write_text(
+    (install / "config" / "weg" / "settings.toml").write_text(
         f'[output]\ndirectory = "{install}/generated/effects"\n'
         f'[processing]\ntemp_dir = "{install}/generated/.weg-tmp"\n'
         "[execution]\nstrict = false\n"
     )
-    (xdg / "itr" / "settings.toml").write_text(
+    (install / "config" / "itr" / "settings.toml").write_text(
         f'[output]\noutput_dir = "{install}/generated/icons"\n'
         f'[templates]\ndir = "{install}/icon-templates"\n'
         f'[color_scheme]\npath = "{install}/generated/palettes/colors.yaml"\n'
     )
 
-    for name in ("hypr", "hyprpaper", "waybar"):
-        (xdg / name).mkdir(parents=True, exist_ok=True)
-    (xdg / "hypr" / "hyprland.conf").write_text("")
-    (xdg / "hyprpaper" / "hyprpaper.conf").write_text("")
-    (xdg / "waybar" / "config").write_text("")
-    (xdg / "waybar" / "style.css").write_text("")
-    (xdg / "hypr" / "colors.conf").write_text("")
-    (xdg / "waybar" / "colors.css").write_text("")
+    (install / "config" / "hypr" / "hyprland.conf").write_text("")
+    (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
+    (install / "config" / "waybar" / "config").write_text("")
+    (install / "config" / "waybar" / "style.css").write_text("")
+    (install / "config" / "hypr" / "colors.conf").write_text("")
+    (install / "config" / "waybar" / "colors.css").write_text("")
 
-    for target in ("nvim", "starship", "wlogout", "zsh"):
-        (xdg / target).mkdir(parents=True, exist_ok=True)
+    (install / "config" / "nvim" / "init.lua").write_text("")
+    (install / "config" / "starship" / "starship.toml").write_text("")
+    (install / "config" / "wlogout" / "layout").write_text("")
+    (install / "config" / "zsh" / ".zshrc").write_text("")
+
+    for name in (
+        "hypr",
+        "hyprpaper",
+        "waybar",
+        "nvim",
+        "starship",
+        "wlogout",
+        "zsh",
+        "color-scheme-generator",
+        "weg",
+        "itr",
+    ):
+        (xdg / name).symlink_to(install / "config" / name, target_is_directory=True)

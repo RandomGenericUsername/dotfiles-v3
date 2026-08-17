@@ -1,0 +1,66 @@
+# Config-links role vars (Story 3.4 / config-in-spine pattern).
+#
+# The role exposes every managed config dir at its native XDG location as a
+# symlink into the install spine: ~/.config/<name> -> <install>/config/<name>.
+# The WRITING roles (assets, compositor_configs, config_copies, settings)
+# populate <install>/config/<name>; this role ONLY creates the symlinks + the
+# backup/migration guard. See docs/02-config-in-spine-pattern.md.
+#
+# Mirror-and-adapt discipline (Epic 1 retro action item):
+#   (a) vs the writing roles: they place CONTENT, this role places the LINK.
+#       It shares their install_dir seam assert, user-scoped (NO become), and
+#       check-gating discipline — but it must run AFTER every writing role in
+#       bootstrap order (the links point at content the writers created).
+#   (b) vs 2.10 config_copies (real-dir contract): config_copies guarantees
+#       REAL dirs on the machine; this role REPLACES that contract with the
+#       symlink-into-spine mechanism (design decision 2026-08-16). verify
+#       criterion 9 flips to the symlink assertion.
+#
+# Decisions locked (docs/02-config-in-spine-pattern.md):
+#   1. Backup safety: any pre-existing target that is NOT already our spine
+#      symlink is COPIED aside to a timestamped backup dir before the symlink
+#      replaces it. NEVER rm -rf. A link already pointing at the correct spine
+#      target is a no-op (idempotent re-run).
+#   2. Prompting: TTY-aware. Interactive context (TTY present) prompts per
+#      conflicting target; non-interactive (bootstrap.sh/CI/--check) auto-backs
+#      up and proceeds — never hangs.
+#   3. Whole-directory backup, always (managed dirs can hold write-back files
+#      like nvim/lazy-lock.json and user additions; a file-set backup risks
+#      dropping them).
+
+# config_links_xdg_config_home: the target config home the filesystem role
+#   (2.5) created. Identical derivation to the sibling roles: honors
+#   $XDG_CONFIG_HOME with the spec default {{ ansible_facts.env.HOME }}/.config.
+#   Uses ansible_facts.env.* (F4 lock).
+config_links_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+
+# config_links_backup_root: where pre-existing targets are copied before the
+#   symlink replaces them. Nested under the XDG config home; a fixed subpath so
+#   a second run never clobbers the first (each backup dir carries a timestamp).
+config_links_backup_root: "{{ config_links_xdg_config_home }}/.dotfiles-backups"
+
+# config_links_backup_policy: how the migration guard handles a pre-existing
+#   non-spine target at ~/.config/<name>:
+#     auto (default) — non-interactive safe: move aside + symlink, no prompt.
+#     ask            — pause per conflicting target for confirmation (requires
+#                      an interactive run; --check never prompts).
+config_links_backup_policy: auto
+
+# config_links_managed_dirs: the complete set of config dirs this role
+#   symlinks. Mirrors the union of what the writing roles place:
+#   - assets       → color-scheme-generator (templates/), weg (effects.yaml)
+#   - compositor_configs → hypr, hyprpaper, waybar
+#   - config_copies → nvim, starship, wlogout, zsh
+#   - settings     → color-scheme-generator, weg, itr
+#   Parity with the writing roles is locked by a structural test.
+config_links_managed_dirs:
+  - hypr
+  - hyprpaper
+  - waybar
+  - nvim
+  - starship
+  - wlogout
+  - zsh
+  - color-scheme-generator
+  - weg
+  - itr

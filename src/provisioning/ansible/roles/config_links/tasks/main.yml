@@ -1,0 +1,41 @@
+# Config-links role (Story 3.4 / config-in-spine pattern) — exposes every
+# managed config dir at its native XDG location as a symlink into the spine:
+# ~/.config/<name> -> <install>/config/<name>.
+#
+# Runs AFTER the writing roles (assets, compositor_configs, config_copies,
+# settings) in bootstrap order — the links point at content the writers placed
+# into <install>/config/. See docs/02-config-in-spine-pattern.md.
+#
+# Design (locked):
+# - FIRST task is the fail-loud install_dir seam assert, verbatim from the
+#   sibling roles (an undefined spine root aborts before anything evaluates).
+# - BACKUP SAFETY (the migration guard): a pre-existing target that is NOT
+#   already our spine symlink is MOVED ASIDE (atomic rename) to a timestamped
+#   backup dir BEFORE the symlink replaces it — the original is preserved
+#   verbatim at the backup path, recoverable. NEVER deletes anything without
+#   preserving it. A link already pointing at the correct spine target is a
+#   no-op (idempotent re-run).
+# - PROMPTING (TTY-aware): policy `config_links_backup_policy`:
+#     auto (default) — non-interactive safe: move aside + symlink, no prompt.
+#     ask            — pause per conflicting target for confirmation (requires
+#                      an interactive run; --check never prompts).
+# - CHECK MODE (dry-run must be dry): the move/backup command is gated
+#   `when: not ansible_check_mode`; the link task is a `file state: link`
+#   (check-safe — reports would-change without writing). Under --check the
+#   role completes cleanly with no mutation.
+# - User-scoped: NO become/become_user anywhere (links live under the user's
+#   config home; running as root would link the wrong home).
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the config_links role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Link each managed config dir into the XDG config home
+  ansible.builtin.include_tasks: _link_one.yml
+  loop: "{{ config_links_managed_dirs }}"
+  loop_control:
+    loop_var: config_link_name

@@ -37,23 +37,32 @@
 #   lock, hard-breaks on ansible-core >= 2.24).
 settings_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
 
-# settings_config_dirs: the three per-tool config subdirs under the XDG config
-#   home. The filesystem role (2.5) created only the XDG home itself + the
-#   compositor dirs; the template module does NOT create dest parents, so this
-#   role ensures these three subdirs first (ungated — `file state: directory`
-#   is natively check-safe) to make a direct settings.yaml run self-contained.
+# settings_spine_config_dir: the config-in-spine destination root
+#   (<install>/config/). The settings files are rendered into
+#   <install>/config/<tool>/settings.toml; the config-links role symlinks each
+#   ~/.config/<tool> -> <install>/config/<tool>, so the tools' native XDG
+#   discovery finds the rendered files through the link. Trim lock: consumes
+#   the same validated {{ install_dir | trim }} value the fail-loud first-task
+#   assert enforces.
+settings_spine_config_dir: "{{ install_dir | trim }}/config"
+
+# settings_config_dirs: the three per-tool config subdirs under the
+#   config-in-spine home. The template module does NOT create dest parents, so
+#   this role ensures these three subdirs first (ungated — `file state:
+#   directory` is natively check-safe) to make a direct settings.yaml run
+#   self-contained.
 settings_config_dirs:
-  - "{{ settings_xdg_config_home }}/color-scheme-generator"
-  - "{{ settings_xdg_config_home }}/weg"
-  - "{{ settings_xdg_config_home }}/itr"
+  - "{{ settings_spine_config_dir }}/color-scheme-generator"
+  - "{{ settings_spine_config_dir }}/weg"
+  - "{{ settings_spine_config_dir }}/itr"
 
 # settings_files: the three rendered settings files, one entry per tool.
 #   `template` is the .j2 filename resolved by the template module relative to
 #   roles/settings/templates/ (templates live INSIDE the role — no repo_root);
-#   `dest` derives from settings_xdg_config_home. Trim lock: every install-spine
-#   value in the templates consumes the same validated `{{ install_dir | trim }}`
-#   value the fail-loud first-task assert enforces.
+#   `dest` derives from settings_spine_config_dir. Trim lock: every
+#   install-spine value in the templates consumes the same validated
+#   `{{ install_dir | trim }}` value the fail-loud first-task assert enforces.
 settings_files:
-  - { name: csg, template: csg-settings.toml.j2, dest: "{{ settings_xdg_config_home }}/color-scheme-generator/settings.toml" }
-  - { name: weg, template: weg-settings.toml.j2, dest: "{{ settings_xdg_config_home }}/weg/settings.toml" }
-  - { name: itr, template: itr-settings.toml.j2, dest: "{{ settings_xdg_config_home }}/itr/settings.toml" }
+  - { name: csg, template: csg-settings.toml.j2, dest: "{{ settings_spine_config_dir }}/color-scheme-generator/settings.toml" }
+  - { name: weg, template: weg-settings.toml.j2, dest: "{{ settings_spine_config_dir }}/weg/settings.toml" }
+  - { name: itr, template: itr-settings.toml.j2, dest: "{{ settings_spine_config_dir }}/itr/settings.toml" }
