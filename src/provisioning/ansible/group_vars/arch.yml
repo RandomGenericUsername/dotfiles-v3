@@ -13,3 +13,14 @@ packages:
     - noto-fonts
     - noto-fonts-cjk
     - ttf-nerd-fonts-symbols
+  # Zsh shell plugins (consumed by the packages role; the zsh_config role
+  # resolves the per-distro plugin FILE paths). exa/bat/starship are the
+  # shell aliases + prompt the rendered .zshrc wires.
+  zsh:
+    - zsh-syntax-highlighting
+    - zsh-autosuggestions
+    - zsh-history-substring-search
+    - fzf
+    - exa
+    - bat
+    - starship

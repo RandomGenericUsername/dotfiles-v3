@@ -1,0 +1,60 @@
+# Zsh-config role (Story 3.4 / shell wiring) — renders the user's .zshrc from
+# the authored Jinja template (dotfiles/config/zsh/.zshrc.j2) into the
+# config-in-spine home <install>/config/zsh/.zshrc, resolving every template
+# variable to the actual provisioned path.
+#
+# Previously the .zshrc.j2 was COPIED VERBATIM by config_copies, so zsh (via
+# ZDOTDIR=~/.config/zsh) found no .zshrc and nothing loaded — no starship, no
+# color scheme, no plugins. This role renders it (the settings-role `template`
+# pattern) AFTER the plugin packages (packages role) and clone tools (zsh_tools
+# role) are present.
+#
+# Design:
+# - Runs AFTER packages + zsh_tools (plugins + clone tools exist) and BEFORE
+#   config_links (so the rendered .zshrc is in the spine when ~/.config/zsh is
+#   symlinked). Needs the palette (settings/default_palette) for
+#   COLOR_SCHEME_OUTPUT_DIR.
+# - Distro-specific plugin FILE paths resolve in vars/main.yml via the
+#   ansible_os_family fact (Arch vs Debian differ) — mirror of the NFR-3
+#   distro isolation discipline: group_vars carries package NAMES, this role
+#   resolves the installed FILE locations. The template's `{% if %}` blocks are
+#   fed the resolved path or empty, so absent plugins are omitted (clean
+#   only-what's-real output).
+# - The `template` module has full check-mode support (predicts changed without
+#   writing) — no `when: not ansible_check_mode` gate needed.
+# - User-scoped: NO become.
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the zsh_config role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure zsh config dir exists in the spine
+  ansible.builtin.file:
+    path: "{{ zsh_config_spine_dir }}"
+    state: directory
+
+- name: Check pyenv is present (PYENV_CONFIGURED)
+  ansible.builtin.stat:
+    path: "{{ shell.pyenv_dir }}"
+  register: zsh_config_pyenv_check
+
+- name: Render .zshrc
+  ansible.builtin.template:
+    src: "{{ zsh_config_template_root }}/dotfiles/config/zsh/.zshrc.j2"
+    dest: "{{ zsh_config_spine_dir }}/.zshrc"
+  vars:
+    STARSHIP_CONFIG: "{{ install_dir | trim }}/config/starship/starship.toml"
+    COLOR_SCHEME_OUTPUT_DIR: "{{ install_dir | trim }}/generated/palettes"
+    OH_MY_ZSH_DIR: "{{ shell.oh_my_zsh_dir }}"
+    NVM_DIR: "{{ shell.nvm_dir }}"
+    PYENV_DIR: "{{ shell.pyenv_dir }}"
+    PYENV_CONFIGURED: "{{ zsh_config_pyenv_check.stat.exists | default(false) }}"
+    ZSH_SYNTAX_HIGHLIGHTING: "{{ zsh_config_plugin_paths.syntax_highlighting }}"
+    ZSH_AUTOSUGGESTIONS: "{{ zsh_config_plugin_paths.autosuggestions }}"
+    ZSH_HISTORY_SUBSTRING_SEARCH: "{{ zsh_config_plugin_paths.history_substring_search }}"
+    FZF_KEY_BINDINGS: "{{ zsh_config_plugin_paths.fzf_key_bindings }}"
+    FZF_COMPLETION: "{{ zsh_config_plugin_paths.fzf_completion }}"

@@ -1,0 +1,6 @@
+# Zsh-tools role vars (Story 3.4 / shell wiring).
+#
+# No role-specific vars: the clone targets derive entirely from the tunable
+# `shell.*` block in group_vars/all.yml (oh_my_zsh_dir / pyenv_dir / nvm_dir /
+# *_repo). This file exists so the role has an explicit vars surface (mirror of
+# the sibling roles) and to document that fact.

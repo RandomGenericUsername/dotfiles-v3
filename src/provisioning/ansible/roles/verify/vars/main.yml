@@ -223,16 +223,17 @@ verify_config_copies_targets:
 # verify_config_copy_content: a representative CONTENT FILE inside each config
 #   copy (criterion 9, layer 4 — content-through-link). Verified through the
 #   ~/.config/<name> symlink so a link to an empty/wrong spine dir fails even
-#   though the link itself is valid. Mirrors the repo source files (the exact
-#   filename per config copy — the first file under dotfiles/config/<name>).
-#   NOTE: zsh's source is .zshrc.j2 (the .zshrc in the legacy home was a
-#   user-placed file, not installer content — it survives in the migration
-#   backup, not in the managed config).
+#   though the link itself is valid.
+#   NOTE: zsh's managed content is the RENDERED .zshrc (the zsh_config role
+#   renders .zshrc.j2 → .zshrc; the .j2 is the source template, not runtime
+#   config). wlogout's managed content is the RENDERED style.css (wlogout_config
+#   renders style.css.tpl → style.css).
 verify_config_copy_content:
   - "{{ verify_xdg_config_home }}/nvim/init.lua"
   - "{{ verify_xdg_config_home }}/starship/starship.toml"
   - "{{ verify_xdg_config_home }}/wlogout/layout"
-  - "{{ verify_xdg_config_home }}/zsh/.zshrc.j2"
+  - "{{ verify_xdg_config_home }}/wlogout/style.css"
+  - "{{ verify_xdg_config_home }}/zsh/.zshrc"
 
 # verify_managed_link_dirs: the FULL set of managed config dirs symlinked by the
 #   config-links role (criterion 9 — the 5-layer symlink check). Union of

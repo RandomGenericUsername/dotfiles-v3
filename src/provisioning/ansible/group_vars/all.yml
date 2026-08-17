@@ -21,3 +21,20 @@
 #   fresh-machine bootstrap (Story 3.1) when dependency provisioning is done.
 # - uv — required by the cli_tools role (`uv tool install`); pre-seeded by
 #   bootstrap.sh (Story 3.1).
+
+# ── Shell / zsh tunables (consumed by the zsh_config + wlogout_config roles) ──
+# Overridable via extra-var/group_vars without touching role or template code.
+shell:
+  # Font family + size used by the wlogout stylesheet (and available to zsh
+  # aliases). Tunable — never hardcoded in the template.
+  font_family: "JetBrains Mono Nerd Font, sans-serif"
+  font_size_px: 14
+  # Tool home dirs the zsh_config role provisions (git clone) and the rendered
+  # .zshrc sources. Override to relocate (e.g. NVM_DIR=/opt/nvm).
+  oh_my_zsh_dir: "{{ ansible_facts.env.HOME }}/.oh-my-zsh"
+  pyenv_dir: "{{ ansible_facts.env.HOME }}/.pyenv"
+  nvm_dir: "{{ ansible_facts.env.HOME }}/.nvm"
+  # Repo URLs for the git-cloned tools (oh-my-zsh / pyenv / nvm).
+  oh_my_zsh_repo: https://github.com/ohmyzsh/ohmyzsh.git
+  pyenv_repo: https://github.com/pyenv/pyenv.git
+  nvm_repo: https://github.com/nvm-sh/nvm.git

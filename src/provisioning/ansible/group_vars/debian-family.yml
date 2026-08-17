@@ -15,3 +15,13 @@ packages:
     - fonts-noto
     - fonts-noto-cjk
     - fonts-noto-color-emoji
+  # Zsh shell plugins (Debian names; the zsh_config role resolves the
+  # per-distro plugin FILE paths, which differ from Arch).
+  zsh:
+    - zsh-syntax-highlighting
+    - zsh-autosuggestions
+    - zsh-history-substring-search
+    - fzf
+    - exa
+    - bat
+    - starship

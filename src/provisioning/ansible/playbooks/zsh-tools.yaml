@@ -1,0 +1,14 @@
+# Zsh-tools playbook (Story 3.4 / shell wiring) — one-per-role playbook.
+#
+# Provisions the git-cloned shell tools the rendered .zshrc sources:
+# oh-my-zsh, pyenv, nvm (the distro-packaged zsh plugins are the packages
+# role's concern via group_vars).
+#
+# User-scoped: NO become (clones land under the user's home).
+# Distro-agnostic: git clone is identical on Arch and Debian-family.
+# gather_facts: true REQUIRED — vars derive {{ ansible_facts.env.HOME }}.
+- name: Provision zsh shell tools
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - zsh_tools

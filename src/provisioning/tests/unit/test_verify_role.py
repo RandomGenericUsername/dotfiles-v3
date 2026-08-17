@@ -1288,7 +1288,15 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     (install / "config" / "nvim" / "init.lua").write_text("")
     (install / "config" / "starship" / "starship.toml").write_text("")
     (install / "config" / "wlogout" / "layout").write_text("")
-    (install / "config" / "zsh" / ".zshrc.j2").write_text("")
+    # Rendered shell configs (zsh_config + wlogout_config roles): verify checks
+    # the FINAL .zshrc / style.css, not the .j2/.tpl sources.
+    (install / "config" / "zsh" / ".zshrc").write_text(
+        'command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"\n'
+        '(cat "<INSTALL>/generated/palettes/colors.sequences" &)\n'
+    )
+    (install / "config" / "wlogout" / "style.css").write_text(
+        '@import url("<INSTALL>/config/waybar/colors.css");\nbutton { color: @color_15; }\n'
+    )
 
     # Rendered icons (icons role — done-criterion: generated/icons populated).
     (install / "generated" / "icons" / "battery-0.svg").write_text(

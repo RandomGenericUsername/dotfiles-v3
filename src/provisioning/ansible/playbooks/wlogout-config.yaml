@@ -1,0 +1,14 @@
+# Wlogout-config playbook (Story 3.4 / shell wiring) — one-per-role playbook.
+#
+# Renders the wlogout stylesheet from dotfiles/config/wlogout/style.css.tpl
+# into <install>/config/wlogout/style.css, resolving template vars to the
+# provisioned paths. Runs AFTER assets + default_palette (icons + wallpaper +
+# colors.css exist) and BEFORE config_links.
+#
+# User-scoped: NO become. Distro-agnostic.
+# gather_facts: true REQUIRED — vars derive ansible_facts + the seam.
+- name: Render wlogout config
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - wlogout_config

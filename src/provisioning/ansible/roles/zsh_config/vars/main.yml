@@ -1,0 +1,39 @@
+# Zsh-config role vars (Story 3.4 / shell wiring).
+#
+# Resolves every variable the .zshrc.j2 template consumes to a real path.
+# Distro-specific plugin FILE locations are resolved here via the
+# `ansible_os_family` fact (Arch vs Debian differ), mirroring the NFR-3
+# isolation discipline: group_vars/all.yml carries the tunable shell dirs +
+# fonts, group_vars/{arch,debian-family}.yml carries the package NAMES, and
+# THIS role resolves the installed plugin file paths.
+
+# zsh_config_spine_dir: where the rendered .zshrc lands (config-in-spine home).
+#   Trim lock: consumes the same validated {{ install_dir | trim }} value the
+#   fail-loud first-task assert enforces.
+zsh_config_spine_dir: "{{ install_dir | trim }}/config/zsh"
+
+# zsh_config_template_root: where the .zshrc.j2 source lives. It is a
+#   REPO-CONFIG template (dotfiles/config/zsh/.zshrc.j2), not a role-internal
+#   one (unlike the settings-role templates) — mirror of the config_copies
+#   repo-root pattern.
+zsh_config_template_root: "{{ playbook_dir }}/../../../.."
+
+# ── Plugin file paths (distro-resolved) ─────────────────────────────────────
+# Each is the FILE the .zshrc.j2 `{% if VAR %}` block sources. Empty string =
+# plugin absent → block omitted. Arch paths verified 2026-08-16.
+_zsh_config_arch:
+  syntax_highlighting: /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+  autosuggestions: /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+  history_substring_search: /usr/share/zsh/plugins/zsh-history-substring-search/zsh-history-substring-search.zsh
+  fzf_key_bindings: /usr/share/fzf/key-bindings.zsh
+  fzf_completion: /usr/share/fzf/completion.zsh
+
+_zsh_config_debian:
+  syntax_highlighting: /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+  autosuggestions: /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+  history_substring_search: /usr/share/zsh-history-substring-search/zsh-history-substring-search.zsh
+  fzf_key_bindings: /usr/share/doc/fzf/examples/key-bindings.zsh
+  fzf_completion: /usr/share/doc/fzf/examples/completion.zsh
+
+# Resolved for the running distro.
+zsh_config_plugin_paths: "{{ _zsh_config_arch if ansible_os_family == 'Archlinux' else _zsh_config_debian }}"

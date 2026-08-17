@@ -1,0 +1,10 @@
+# Wlogout-config role vars (Story 3.4 / shell wiring).
+
+# wlogout_config_spine_dir: where the rendered style.css lands
+#   (config-in-spine home). Trim lock.
+wlogout_config_spine_dir: "{{ install_dir | trim }}/config/wlogout"
+
+# wlogout_config_template_root: where the style.css.tpl source lives — a
+#   REPO-CONFIG template (dotfiles/config/wlogout/style.css.tpl), mirror of the
+#   config_copies repo-root pattern.
+wlogout_config_template_root: "{{ playbook_dir }}/../../../.."

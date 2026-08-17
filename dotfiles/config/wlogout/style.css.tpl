@@ -17,7 +17,7 @@ window {
 }
 
 button {
-    color: @color16;
+    color: @color_15;
     border-radius: 1em;
 	border: 0em;
     padding: 0.5em;
@@ -31,10 +31,10 @@ button {
 }
 
 button:focus, button:hover {
-    background-color: @color10;
+    background-color: @color_12;
 	opacity: 0.8;
     background-size: 30%;
-    box-shadow: 0 0 0.9em @color7;
+    box-shadow: 0 0 0.9em @color_07;
 }
 
 button span {

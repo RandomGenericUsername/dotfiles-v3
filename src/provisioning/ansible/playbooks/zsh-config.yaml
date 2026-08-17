@@ -1,0 +1,15 @@
+# Zsh-config playbook (Story 3.4 / shell wiring) — one-per-role playbook.
+#
+# Renders the user's .zshrc from dotfiles/config/zsh/.zshrc.j2 into
+# <install>/config/zsh/.zshrc, resolving every template variable to the
+# provisioned path. Runs AFTER packages + zsh_tools (plugins + clone tools
+# exist) and BEFORE config_links (which symlinks ~/.config/zsh).
+#
+# User-scoped: NO become. Distro-agnostic at the play level (plugin paths
+# resolve inside the role via ansible_os_family).
+# gather_facts: true REQUIRED — vars derive ansible_facts + the seam.
+- name: Render user zsh config
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - zsh_config

@@ -1,0 +1,66 @@
+# Zsh-tools role (Story 3.4 / shell wiring) — provisions the git-cloned shell
+# tools the rendered .zshrc sources: oh-my-zsh, pyenv, nvm.
+#
+# These are NOT packages — they are git clones (oh-my-zsh and pyenv ship no
+# distro package; nvm is a git repo + install script). The packages role covers
+# the distro-packaged zsh plugins (zsh-syntax-highlighting, autosuggestions,
+# history-substring-search, fzf, exa, bat, starship) via group_vars; THIS role
+# owns the clone-based tools so it is explicit what gets installed and where.
+#
+# Design (dedicated role — single responsibility: provision the clone tools):
+# - Each clone is presence-guarded: a `stat` on the target dir registers
+#   existence, and the git clone runs `when: not exists and not
+#   ansible_check_mode`. The git module does NOT accept `creates:` (command-only
+#   keyword — "conflicting action statements"), so the stat guard is the
+#   idempotency mechanism. Git itself is also idempotent (a clone into an
+#   existing repo updates it), but the guard avoids re-cloning a present tool.
+# - oh-my-zsh and nvm use `depth: 1` (shallow); pyenv a full clone.
+# - Runs AFTER packages (needs git; zsh plugins installed) and BEFORE
+#   zsh_config (which renders the .zshrc that sources these). In bootstrap
+#   order: packages → ... → zsh_tools → zsh_config → wlogout_config →
+#   config_links → icons → verify.
+# - User-scoped: NO become (everything lands under the user's home).
+# - Distro-agnostic: git clone is identical on Arch and Debian-family.
+
+- name: Assert fact-gathering provided HOME
+  ansible.builtin.assert:
+    that: ansible_facts.env.HOME is defined and ansible_facts.env.HOME | trim | length > 0
+    fail_msg: >-
+      ansible_facts.env.HOME is undefined — the zsh_tools role derives its
+      clone targets from gathered facts; the playbook must run with
+      gather_facts: true
+
+- name: Check shell tool dirs exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ shell.oh_my_zsh_dir }}"
+    - "{{ shell.pyenv_dir }}"
+    - "{{ shell.nvm_dir }}"
+  register: zsh_tools_dir_checks
+
+- name: Clone oh-my-zsh
+  ansible.builtin.git:
+    repo: "{{ shell.oh_my_zsh_repo }}"
+    dest: "{{ shell.oh_my_zsh_dir }}"
+    depth: 1
+  when:
+    - not ansible_check_mode
+    - not zsh_tools_dir_checks.results[0].stat.exists
+
+- name: Clone pyenv
+  ansible.builtin.git:
+    repo: "{{ shell.pyenv_repo }}"
+    dest: "{{ shell.pyenv_dir }}"
+  when:
+    - not ansible_check_mode
+    - not zsh_tools_dir_checks.results[1].stat.exists
+
+- name: Clone nvm
+  ansible.builtin.git:
+    repo: "{{ shell.nvm_repo }}"
+    dest: "{{ shell.nvm_dir }}"
+    depth: 1
+  when:
+    - not ansible_check_mode
+    - not zsh_tools_dir_checks.results[2].stat.exists

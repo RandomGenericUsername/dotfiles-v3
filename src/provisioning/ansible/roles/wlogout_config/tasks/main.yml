@@ -1,0 +1,43 @@
+# Wlogout-config role (Story 3.4 / shell wiring) — renders the wlogout
+# stylesheet from its Jinja template (dotfiles/config/wlogout/style.css.tpl)
+# into the config-in-spine home <install>/config/wlogout/style.css.
+#
+# Previously the .tpl was COPIED VERBATIM by config_copies, so wlogout loaded a
+# template with unresolved {{VARS}} and nonexistent @color16/@color10/@color7
+# names. This role renders it with vars resolved to the actual provisioned
+# paths, and the template now consumes the palette's real @color_00..@color_15
+# names (fixed 2026-08-16 — the palette defines 0-15, not a 16th color).
+#
+# Design:
+# - Runs AFTER assets (icons + wallpaper exist) + default_palette (colors.css
+#   fragment in config/waybar) and BEFORE config_links.
+# - Vars resolve: COLORS_FILE_PATH → <install>/config/waybar/colors.css (the
+#   rendered @define-color file wlogout imports); ICONS_DIR → <install>/
+#   generated/icons; CURRENT_WALLPAPER_SYMLINK → <install>/wallpapers/default.png;
+#   font from the tunable shell vars (group_vars/all.yml).
+# - The `template` module has full check-mode support — no --check gate.
+# - User-scoped: NO become.
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the wlogout_config role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure wlogout config dir exists in the spine
+  ansible.builtin.file:
+    path: "{{ wlogout_config_spine_dir }}"
+    state: directory
+
+- name: Render wlogout style.css
+  ansible.builtin.template:
+    src: "{{ wlogout_config_template_root }}/dotfiles/config/wlogout/style.css.tpl"
+    dest: "{{ wlogout_config_spine_dir }}/style.css"
+  vars:
+    COLORS_FILE_PATH: "{{ install_dir | trim }}/config/waybar/colors.css"
+    ICONS_DIR: "{{ install_dir | trim }}/generated/icons"
+    CURRENT_WALLPAPER_SYMLINK: "{{ install_dir | trim }}/wallpapers/default.png"
+    SYSTEM_FONT_FAMILY: "{{ shell.font_family }}"
+    FONT_SIZE_PX: "{{ shell.font_size_px }}"

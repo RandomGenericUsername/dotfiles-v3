@@ -508,3 +508,47 @@
       points at an empty/wrong dir. Re-run the config_copies + config_links
       playbooks
   when: not ansible_check_mode
+
+- name: Check rendered zshrc wires starship and the color scheme
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -E
+      - "starship init|colors.sequences"
+      - "{{ verify_xdg_config_home }}/zsh/.zshrc"
+  register: verify_zshrc_wiring
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert rendered zshrc wires starship and the color scheme
+  ansible.builtin.assert:
+    that: verify_zshrc_wiring.rc == 0
+    fail_msg: >-
+      the rendered .zshrc does not wire starship and the color scheme
+      (expected both `starship init` and `colors.sequences` — done-criterion,
+      shell wiring). The zsh_config role renders .zshrc.j2 → .zshrc; run the
+      zsh-config playbook (needs packages + zsh_tools first)
+  when: not ansible_check_mode
+
+- name: Check rendered wlogout style.css imports the palette colors
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -E
+      - "@import url|@color_1[0-5]"
+      - "{{ verify_xdg_config_home }}/wlogout/style.css"
+  register: verify_wlogout_wiring
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert rendered wlogout style.css imports the palette colors
+  ansible.builtin.assert:
+    that: verify_wlogout_wiring.rc == 0
+    fail_msg: >-
+      the rendered wlogout style.css does not import the palette colors
+      (expected `@import url(...)` and an @color_1x usage — done-criterion,
+      shell wiring). The wlogout_config role renders style.css.tpl → style.css;
+      run the wlogout-config playbook (needs assets + default_palette first)
+  when: not ansible_check_mode

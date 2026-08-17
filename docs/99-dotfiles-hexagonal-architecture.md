@@ -276,6 +276,94 @@ collections, runs `dotfiles-provision bootstrap`, then a hard `verify` gate.
 
 ---
 
+# Domain 1 — Locked Decisions (operational contract)
+
+Consolidated from the former provisioning plan (previously `docs/01`) so the
+single reference keeps the load-bearing choices.
+
+| Decision | Choice | Notes |
+|---|---|---|
+| **Provisioning backend** | **Ansible** | Python orchestrates; Ansible owns every side effect |
+| **Distro support** | Arch (pacman + AUR) + Debian family (apt) | Branching is Ansible-native (`group_vars/{arch,debian-family}.yml`); Python stays distro-agnostic |
+| **CLI tool install** | Ansible `cli_tools` role: `uv tool install` against repo paths | csg/weg/itr |
+| **Bootstrap** | `scripts/bootstrap.sh` pre-seeds Python+uv → `uv run --directory ./src/provisioning dotfiles-provision bootstrap` | Solves the chicken-and-egg |
+| **Ansible install** | `ansible-core` is a runtime dep of `src/provisioning` | Collections in `ansible/requirements.yml`, installed via `ansible-galaxy` at bootstrap |
+| **AUR helper (Arch)** | `packages` role self-bootstraps `yay` (base-devel+git → guarded `makepkg -si yay-bin` → `kewlfft.aur.aur`) | Distro logic in `vars/arch.yml` only |
+| **Install dir** | `$XDG_DATA_HOME/dotfiles/` (default `~/.local/share/dotfiles/`) | Baked absolute into rendered settings |
+| **Settings authoring** | Provisioning-authored Jinja templates rendered by Ansible `template` | The tools' `dump-*` commands are user-facing only |
+| **Persistence** | **None in Phase 1** | Ansible is the state authority; `verify` re-derives on demand |
+| **§11 boundary** | `src/provisioning` is its own uv package importing `cli-output` only | Enforced by `tests/architecture/test_layering.py` |
+
+---
+
+# Domain 1 — Per-Tool Settings Contract
+
+All three tools resolve `settings.toml` through the shared
+`config-assembler-engine`. Precedence: **CLI `--config` > ENV path var >
+traversal > XDG > bundled default**. Env prefix `<PREFIX>__SECTION__KEY`.
+
+| Tool | Env prefix | XDG subdir | Path keys provisioning sets |
+|---|---|---|---|
+| CSG | `COLORSCHEME` | `color-scheme-generator` | `[output] directory` → `<install>/generated/palettes` |
+| WEG | `WALLPAPER` | `weg` | `[output] directory` → `<install>/generated/effects`; `[processing] temp_dir` → `<install>/generated/.weg-tmp` |
+| ITR | `ICON_RENDERER` | `itr` | `[output] output_dir` → `<install>/generated/icons`; `[templates] dir` → `<install>/icon-templates`; `[color_scheme] path` → `<install>/generated/palettes/colors.yaml` |
+
+**CSG templates dir is NOT a settings field** — separate resolver chain
+(`--templates-dir` → env → traversal → XDG `~/.config/color-scheme-generator/templates` → bundled). Provisioning deploys the templates to
+`<install>/config/color-scheme-generator/templates/` and the runtime passes
+`--templates-dir` there. **WEG effects** is a second chain: emitted via `weg
+dump-effects --output <install>/config/weg/effects.yaml`, consumed via
+`WALLPAPER_EFFECTS_CONFIG_FILE_PATH`. **ITR has no dump command** — provisioning
+writes its settings.toml directly (4 keys).
+
+**CSG `default_formats = []`** (empty = all catalog formats on interactive
+generate); the chain passes explicit `-f conf -f gtk.css -f yaml`.
+
+---
+
+# Domain 1 — Config-in-Spine Safety Layer
+
+Consolidated from the former config-in-spine design (previously `docs/02`).
+
+## Backup / migration guard
+
+Purpose: never destroy user-owned content when a symlink replaces an existing
+`~/.config/<name>`.
+
+- **Exists-state classification:** already-our-symlink → no-op (idempotent
+  re-run); real dir / real file / foreign symlink → **backup then symlink**;
+  absent → symlink.
+- **Whole-directory backup, always** (managed dirs can hold write-back files
+  like `nvim/lazy-lock.json` and user additions).
+- **Destination:** `~/.config/.dotfiles-backups/<name>-<timestamp>/`
+  (`%Y%m%dT%H%M%S`) — never a fixed path, so a re-run never clobbers a backup.
+- **Prompting (TTY-aware):** interactive → ask per conflicting target; no TTY
+  (bootstrap/CI/`--check`) → auto-backup and proceed, never hangs.
+- **Safety guarantees:** never `rm -rf`; the pre-existing target is preserved as
+  a backup before the symlink replaces it; never prompts without a TTY; a link
+  already pointing at the correct spine target is never touched.
+
+## Verify criterion 9 — the 5-layer symlink check
+
+1. **islnk** — `stat` `follow:false` → `islnk` for every managed dir
+2. **target** — `lnk_target` matches the spine prefix (exact-target)
+3. **resolves** — `stat` `follow:true` → `isdir` (not broken)
+4. **content** — representative file through the link (`~/.config/<x>/...` isreg)
+5. **function** — the parse gates (`csg/weg/itr info --config`) resolve through
+   the link
+
+## Risks & mitigations
+
+| Risk | Mitigation |
+|---|---|
+| nvim lazy-lock.json write-back through link | lands in spine (expected); regenerates; backup captures it on migration |
+| broken links after spine wipe | verify layer 3 fails loudly; NFR-8 treats this as unprovisioned |
+| migration destroys user dirs | backup guard copies before replacing; never rm -rf |
+| wlogout style.css is a user symlink inside the managed dir | whole-dir backup captures it; survives in the spine copy |
+| XDG semantic violation | documented + NFR-8 reworded (deliberate tradeoff) |
+
+---
+
 # 5. Why The Domain Separation Matters
 
 This separation is critically important.
