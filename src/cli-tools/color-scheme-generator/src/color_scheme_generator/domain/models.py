@@ -105,6 +105,9 @@ class OutputSettings:
     default_formats: tuple[ColorFormat, ...]
     overwrite: bool
     verbosity: Verbosity = Verbosity.NORMAL
+    # apply_to_terminal: apply the generated colors.sequences to the terminal
+    # after a successful generate (only when sequences was produced + a TTY).
+    apply_to_terminal: bool = True
 
 
 @dataclass(frozen=True)

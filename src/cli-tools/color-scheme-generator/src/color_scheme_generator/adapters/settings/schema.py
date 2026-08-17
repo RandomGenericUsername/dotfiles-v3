@@ -18,6 +18,13 @@ class OutputSettingsSchema(BaseModel):
     default_formats: list[str] = []
     overwrite: bool = False
     verbosity: int = 1
+    # apply_to_terminal: after a successful generate, apply the freshly-written
+    # colors.sequences to the controlling terminal — but only when (a) the
+    # `sequences` format was produced this run and (b) stdout is a real TTY.
+    # Default true; a --apply-to-terminal / --no-apply-to-terminal CLI flag
+    # overrides it. The provisioning chain (no TTY, formats conf/gtk.css/yaml)
+    # is unaffected.
+    apply_to_terminal: bool = True
 
     @field_validator("directory", mode="before")
     @classmethod

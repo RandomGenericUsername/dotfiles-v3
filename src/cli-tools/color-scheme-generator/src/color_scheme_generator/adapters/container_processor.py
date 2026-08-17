@@ -85,6 +85,7 @@ class ContainerProcessor:
         )
         lines.append(f"default_formats = [{fmt_list}]")
         kv("overwrite", settings.output.overwrite)
+        kv("apply_to_terminal", settings.output.apply_to_terminal)
         lines.append("")
         lines.append("[generation]")
         kv("backend", settings.generation.backend.value)

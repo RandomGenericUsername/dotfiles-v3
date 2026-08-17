@@ -43,6 +43,7 @@ def _convert_to_app_settings(validated: CoreSettingsSchema) -> AppSettings:
             default_formats=tuple(validated.output.default_formats),
             overwrite=validated.output.overwrite,
             verbosity=Verbosity(validated.output.verbosity),
+            apply_to_terminal=validated.output.apply_to_terminal,
         ),
         generation=GenerationSettings(
             backend=Backend(validated.generation.backend),

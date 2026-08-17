@@ -244,6 +244,14 @@ def generate(
         else:
             processor = create_local_processor(deps.backend_registry, deps.template_renderer)
         result = processor.process_generate(request, settings)
+        # Apply the generated sequences to the live terminal (event-driven, no
+        # shell polling): controlled by the apply_to_terminal SETTING (default
+        # true). No CLI flag — the terminal_applier guards enforce the other
+        # conditions (sequences produced this run + stdout is a TTY).
+        if result.output_files and result.success and settings.output.apply_to_terminal:
+            from color_scheme_generator.adapters.terminal_applier import apply_to_terminal as _apply
+
+            _apply(result.output_files, True)
         deps.output_adapter.process_result(result)
     except ColorSchemeError as exc:
         deps.output_adapter.error(exc)
