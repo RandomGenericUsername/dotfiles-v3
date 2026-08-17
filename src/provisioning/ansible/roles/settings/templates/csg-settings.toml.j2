@@ -1,7 +1,12 @@
 [output]
 directory = "{{ install_dir | trim }}/generated/palettes"
 verbosity = 1
-default_formats = ["conf", "gtk.css", "yaml"]
+# Empty default_formats = "all formats": csg resolves every format present in
+# the provisioned template catalog (csg generate falls back to the catalog when
+# default_formats is empty). The provisioning CHAIN is unaffected — the
+# default_palette role passes explicit -f conf -f gtk.css -f yaml (its contract
+# set), so the chain still emits exactly the three consumed formats.
+default_formats = []
 overwrite = false
 
 [generation]

@@ -568,9 +568,11 @@ class TestSettingsPlaybook:
             assert csg["output"]["overwrite"] is False, (
                 "rendered CSG file must keep overwrite = false (2.7 owns the env override)"
             )
-            assert csg["output"]["default_formats"] == ["conf", "gtk.css", "yaml"], (
-                "rendered CSG default_formats must match the chain formats (review "
-                "finding 2026-08-12 — json/sh has no Phase 1 consumer)"
+            assert csg["output"]["default_formats"] == [], (
+                "rendered CSG default_formats must be EMPTY (= all formats from "
+                "the template catalog on interactive csg generate); the chain "
+                "passes explicit -f flags, so the rendered file stays the "
+                "interactive-only surface"
             )
             weg = tomllib.loads(_expected_files(install)["weg"].read_text())
             assert str(weg["output"]["directory"]) == str(install / "generated" / "effects")

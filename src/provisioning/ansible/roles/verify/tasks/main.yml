@@ -213,6 +213,24 @@
       failure, so run the default-palette playbook and re-apply
   when: not ansible_check_mode
 
+- name: Check rendered icons exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ verify_icons_dir }}"
+    - "{{ verify_icons_sample }}"
+  register: verify_icons_checks
+
+- name: Assert rendered icons exist
+  ansible.builtin.assert:
+    that: verify_icons_checks.results | selectattr('stat.exists') | list | length == 2
+    fail_msg: >-
+      the icons render output is missing: expected {{ verify_icons_dir }} as a
+      directory with at least {{ verify_icons_sample }} present (done-criterion —
+      generated icons). The icons role (Story 3.4) runs `itr render`; run the
+      icons playbook (needs assets + default_palette + settings first)
+  when: not ansible_check_mode
+
 - name: Check settings files exist
   ansible.builtin.stat:
     path: "{{ item.dest }}"

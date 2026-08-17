@@ -173,6 +173,14 @@ verify_palette_files:
   - colors.yaml
   - colors.gtk.css
 
+# verify_icons_dir / verify_icons_sample: the icons render output the icons
+#   role produces via `itr render` (criterion — generated/icons populated).
+#   The dir must exist and hold at least one rendered SVG; the sample is a
+#   known variant from icons.yaml (battery-0) so verify proves a REAL render
+#   happened, not just an empty dir. Trim lock.
+verify_icons_dir: "{{ install_dir | trim }}/generated/icons"
+verify_icons_sample: "{{ install_dir | trim }}/generated/icons/battery-0.svg"
+
 # verify_compositor_config_dirs: the three compositor config dirs under the XDG
 #   config home (criterion 7). config-in-spine (2026-08-16): these are now
 #   SYMLINKS into the spine (~/.config/hypr -> <install>/config/hypr etc.,

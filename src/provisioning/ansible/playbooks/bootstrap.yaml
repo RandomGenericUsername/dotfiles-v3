@@ -5,14 +5,15 @@
 #
 # Dependency order rationale (plan §11 step 7, story 2.12 AC 4):
 #   packages → cli_tools → filesystem → assets → default_palette →
-#   compositor_configs → config_copies → settings → config_links → verify
+#   compositor_configs → config_copies → settings → config_links → icons →
+#   verify
 # `packages` first (it installs the system packages everything else assumes),
 # `verify` last (it asserts every done-criterion after all roles placed their
 # outputs). The chain's seams are consumed in order: filesystem creates the
 # layout, assets/default_palette populate the spine, compositor_configs +
 # config_copies place configs, settings renders the per-tool files, config_links
 # symlinks the managed configs into the XDG home (config-in-spine pattern),
-# verify re-checks all of it.
+# icons renders the resolved SVGs (itr), verify re-checks all of it.
 #
 # import_playbook semantics: each imported playbook keeps its OWN
 # hosts/become/gather_facts/group_by — packages.yaml's two-play structure
@@ -43,4 +44,5 @@
 - import_playbook: config-copies.yaml
 - import_playbook: settings.yaml
 - import_playbook: config-links.yaml
+- import_playbook: icons.yaml
 - import_playbook: verify.yaml

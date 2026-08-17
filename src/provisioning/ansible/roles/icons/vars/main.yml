@@ -1,0 +1,32 @@
+# Icons role vars (Story 3.4 / ITR wiring).
+#
+# The role renders the resolved SVG icons from the deployed icon mappings +
+# templates using the CSG-generated color scheme (see tasks/main.yml header).
+
+# icons_itr_bin_dir: uv's executable directory where the cli_tools role (2.4)
+#   installs `itr` via `uv tool install`. Prepended to PATH so itr resolves in
+#   the playbook run context even when ~/.local/bin is not on the inherited
+#   PATH (mirror of the assets/default_palette PATH-prepend pattern). Uses
+#   ansible_facts.env (F4 lock).
+icons_itr_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
+
+# icons_mappings_file: the icons group/variant definitions the assets role
+#   deployed to the spine (dotfiles/config/icon-template-color-scheme-mappings/
+#   → <install>/icon-mappings/icons.yaml). This is the `itr render` input.
+#   Trim lock.
+icons_mappings_file: "{{ install_dir | trim }}/icon-mappings/icons.yaml"
+
+# icons_itr_settings: the rendered itr settings.toml in the config-in-spine
+#   home (points templates.dir at <install>/icon-templates and color_scheme.path
+#   at <install>/generated/palettes/colors.yaml). Read directly from the spine
+#   (authoritative); the ~/.config/itr symlink (config_links) also resolves it.
+#   Trim lock.
+icons_itr_settings: "{{ install_dir | trim }}/config/itr/settings.toml"
+
+# icons_inputs: the four inputs the render command needs, used by the stat +
+#   assert direct-run prerequisite guard.
+icons_inputs:
+  - "{{ icons_mappings_file }}"
+  - "{{ install_dir | trim }}/icon-templates"
+  - "{{ install_dir | trim }}/generated/palettes/colors.yaml"
+  - "{{ icons_itr_settings }}"

@@ -1,0 +1,23 @@
+# Icons playbook (Story 3.4 / ITR wiring) — one-per-role playbook; aggregation
+# into bootstrap.yaml is Story 2.12.
+#
+# Renders the resolved SVG icons via `itr render` into <install>/generated/icons/.
+# Runs AFTER assets, default_palette, settings, config_links (right before
+# verify) — it consumes icons.yaml + icon-templates + colors.yaml + itr
+# settings.toml.
+#
+# User-scoped playbook: NO become (everything lives under the user's install
+# spine; running as root would diverge from the intended user's layout).
+#
+# Distro-agnostic: icon rendering is identical on Arch and Debian-family and
+# the role consumes no group_vars — so unlike packages.yaml there is NO group_by
+# distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives icons_itr_bin_dir from
+# {{ ansible_facts.env.HOME }}, which is only populated after the fact-gathering
+# setup module runs.
+- name: Render resolved SVG icons
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - icons

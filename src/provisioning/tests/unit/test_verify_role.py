@@ -1288,7 +1288,12 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     (install / "config" / "nvim" / "init.lua").write_text("")
     (install / "config" / "starship" / "starship.toml").write_text("")
     (install / "config" / "wlogout" / "layout").write_text("")
-    (install / "config" / "zsh" / ".zshrc").write_text("")
+    (install / "config" / "zsh" / ".zshrc.j2").write_text("")
+
+    # Rendered icons (icons role — done-criterion: generated/icons populated).
+    (install / "generated" / "icons" / "battery-0.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+    )
 
     for name in (
         "hypr",
