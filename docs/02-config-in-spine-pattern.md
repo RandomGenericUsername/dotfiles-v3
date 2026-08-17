@@ -59,7 +59,7 @@ $XDG_DATA_HOME/dotfiles/                          ← install target
 │   ├── nvim/                    (repo dotfiles/config/nvim copy)
 │   ├── starship/                starship.toml
 │   ├── wlogout/                 layout, style.css.tpl
-│   ├── zsh/                     .zshrc, .zshrc.j2
+│   ├── zsh/                     .zshrc.j2 (the legacy .zshrc was user-placed, not managed)
 │   ├── color-scheme-generator/  settings.toml + templates/
 │   ├── weg/                     settings.toml + effects.yaml
 │   └── itr/                     settings.toml
@@ -158,10 +158,11 @@ Purpose: never destroy user-owned content when replacing an existing target.
 | **assets** | WEG effects → `config/weg/effects.yaml`; CSG templates → `config/color-scheme-generator/templates/` (was `<install>/weg-effects.yaml`, `<install>/csg-templates/`) |
 | **compositor_configs** | writes skeletons/fragments into `spine/config/{hypr,waybar,hyprpaper}/` (was `~/.config/...`) |
 | **config_copies** | copies repo dirs → `spine/config/{nvim,starship,wlogout,zsh}/` (was `~/.config/...`) |
-| **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`) |
+| **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`); CSG `default_formats = []` (interactive = all catalog formats) |
 | **default_palette** | `--templates-dir <install>/config/color-scheme-generator/templates` |
 | **config_links (NEW)** | backup guard + symlink step for all managed dirs |
-| **verify** | criterion 9 flips to symlink assertion (below) |
+| **icons (NEW)** | invokes `itr render <install>/icon-mappings/icons.yaml --config <install>/config/itr/settings.toml` → `generated/icons/` (the chain previously never rendered icons) |
+| **verify** | criterion 9 flips to symlink assertion (below); new done-criterion: `generated/icons/` populated |
 
 ## Verify gate changes (criterion 9 — bulletproof symlink check)
 
@@ -210,3 +211,5 @@ described the copy mechanism and is obsolete.
 5. Flip verify criterion 9 + add the relocated-catalog asserts.
 6. Update NFR-8 + chaining-spine wording.
 7. Full suite + a live migration re-apply on this host.
+8. (Follow-up) CSG `default_formats = []` + the icons render role — see
+   commit `a91bfae`.

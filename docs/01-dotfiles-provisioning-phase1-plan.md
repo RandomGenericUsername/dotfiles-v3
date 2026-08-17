@@ -72,8 +72,8 @@ All three tools resolve a `settings.toml` through the shared `config-assembler-e
 - **Path settings provisioning must set:**
   - `[output] directory` — where palettes/formats are written. Default `/tmp/color-scheme`.
 - Other relevant settings: `output.default_formats`, `output.overwrite`, `output.verbosity`, `generation.backend`, `runtime.mode`, `container.*`.
-- **Templates dir is NOT a settings field** — separate resolver chain: CLI `--templates-dir` → env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → directory traversal `templates/` → XDG `~/.config/color-scheme/templates/` → bundled `<pkg>/defaults/templates`. **Locked: provisioning deploys the bundled templates to `<install>/csg-templates/`; Phase 2 runtime invokes CSG with `--templates-dir <install>/csg-templates/`** (see §9).
-- **Hyprland format exists** — CSG now ships a 9th format `conf` (`colors.conf.j2` → `colors.conf`), emitted via `-f conf` or `default_formats = ["conf"]` (verified working). Provisioning's `default_palette` role uses it to emit the Hyprland `colors.conf` directly — no compositor-format template needed in provisioning.
+- **Templates dir is NOT a settings field** — separate resolver chain: CLI `--templates-dir` → env `COLORSCHEME_TEMPLATES_TEMPLATES_DIR` → directory traversal `templates/` → XDG `~/.config/color-scheme-generator/templates/` → bundled `<pkg>/defaults/templates`. **Locked (config-in-spine 2026-08-16): provisioning deploys the bundled templates to `<install>/config/color-scheme-generator/templates/`; Phase 2 runtime invokes CSG with `--templates-dir <install>/config/color-scheme-generator/templates/`** (see §9). The XDG stop is `color-scheme-generator/templates/` — unified with the settings subdir (one config dir per tool; the earlier `~/.config/color-scheme/templates` split was a flaw, resolved 2026-08-15).
+- **Hyprland format exists** — CSG now ships a 9th format `conf` (`colors.conf.j2` → `colors.conf`), emitted via `-f conf` (verified working). Provisioning's `default_palette` role uses it to emit the Hyprland `colors.conf` directly — no compositor-format template needed in provisioning. The rendered `default_formats = []` means interactive `csg generate` emits ALL catalog formats; the chain passes explicit `-f conf -f gtk.css -f yaml`.
 - Wallpaper input is always a positional CLI arg (no setting).
 - Dump commands: `csg dump-config` (bundled default settings.toml, stdout or `--output`), `csg dump-templates` (copies bundled `.j2` templates to a dir, `--output`, `--overwrite`).
 
@@ -84,7 +84,7 @@ All three tools resolve a `settings.toml` through the shared `config-assembler-e
   - `[output] directory` — where effect images are written. Default `/tmp/wallpaper-effects`.
   - `[processing] temp_dir` — temp dir for intermediate work. Default `/tmp/.wallpaper-effects-tmp`. No CLI flag — only reachable via settings/env.
 - Other relevant settings: `version`, `execution.*`, `output.verbosity`, `backend.binary`, `runtime.mode`, `container.*`.
-- **Second chain:** `effects.yaml` at `~/.config/weg/effects.yaml` (env `WALLPAPER_EFFECTS_CONFIG_FILE_PATH`, CLI `--effects`). Defines the effect catalog — no paths to override. **Locked: provisioning emits a custom effects catalog via `weg dump-effects --output <install>/weg-effects.yaml` and the WEG effects chain points at it** (`WALLPAPER_EFFECTS_CONFIG_FILE_PATH` or `--effects`); the file lives in the spine, not in XDG config.
+- **Second chain:** `effects.yaml` at `~/.config/weg/effects.yaml` (env `WALLPAPER_EFFECTS_CONFIG_FILE_PATH`, CLI `--effects`). Defines the effect catalog — no paths to override. **Locked (config-in-spine 2026-08-16): provisioning emits a custom effects catalog via `weg dump-effects --output <install>/config/weg/effects.yaml` and the WEG effects chain points at it** (`WALLPAPER_EFFECTS_CONFIG_FILE_PATH` or `--effects`); the file lives in the spine under the tool's config dir, and the `~/.config/weg` symlink makes the XDG stop resolve there too.
 - Wallpaper input is a positional CLI arg.
 - Dump commands: `weg dump-config` (bundled default settings.toml), `weg dump-effects` (bundled default effects.yaml). Both stdout or `--output`.
 
@@ -109,11 +109,15 @@ Provisioning creates `$XDG_DATA_HOME/dotfiles/` with this subtree. It is the dat
 
 ```
 $XDG_DATA_HOME/dotfiles/
+├── config/                              # config-in-spine: ALL managed configs (symlinked into ~/.config)
+│   ├── hypr/  waybar/  hyprpaper/       # compositor skeletons + palette fragments
+│   ├── nvim/  starship/  wlogout/  zsh/ # config copies (real dirs in the spine)
+│   ├── color-scheme-generator/          # settings.toml + templates/ (CSG tool config)
+│   ├── weg/                             # settings.toml + effects.yaml (WEG tool config)
+│   └── itr/                             # settings.toml (ITR tool config)
 ├── wallpapers/                          # unpacked from dotfiles/assets/wallpapers/wallpapers.tar.gz (default.png included)
 ├── icon-templates/                      # deployed from dotfiles/assets/icon-templates/
 ├── icon-mappings/*.yaml                # deployed from dotfiles/config/icon-template-color-scheme-mappings/
-├── csg-templates/                       # bundled CSG Jinja templates (deployed; Phase 2 passes --templates-dir)
-├── weg-effects.yaml                     # emitted via `weg dump-effects --output` (WEG effects chain points at it)
 └── generated/
     ├── palettes/                        # CSG writes colors.yaml + colors.conf + formats here ([output] directory)
     ├── effects/                         # WEG writes effect images here ([output] directory)
@@ -122,11 +126,11 @@ $XDG_DATA_HOME/dotfiles/
 ```
 
 The tools chain through it:
-- CSG: reads wallpaper (CLI arg) → writes palette to `<install>/generated/palettes/`
-- WEG: reads wallpaper (CLI arg) → writes effects to `<install>/generated/effects/`, temps to `<install>/generated/.weg-tmp/`
-- ITR: reads SVG templates from `<install>/icon-templates/` → reads color scheme from `<install>/generated/palettes/colors.yaml` (**chains to CSG output**) → writes rendered SVGs to `<install>/generated/icons/`
+- CSG: reads wallpaper (CLI arg) → writes palette to `<install>/generated/palettes/`; reads templates from `<install>/config/color-scheme-generator/templates/` via `--templates-dir` (the config-links symlink also makes `~/.config/color-scheme-generator/templates` resolve there)
+- WEG: reads wallpaper (CLI arg) → writes effects to `<install>/generated/effects/`, temps to `<install>/generated/.weg-tmp/`; reads its effects catalog from `<install>/config/weg/effects.yaml`
+- ITR: reads SVG templates from `<install>/icon-templates/` → reads color scheme from `<install>/generated/palettes/colors.yaml` (**chains to CSG output**) → writes rendered SVGs to `<install>/generated/icons/` (invoked by the icons role at apply time)
 
-**Default palette (sync invariant):** the `default_palette` role invokes `csg generate <install>/wallpapers/default.png` (`-f conf` + standard formats) at apply time, writing to `<install>/generated/palettes/`. Replacing `wallpapers.tar.gz` in the repo → next `apply` regenerates the palette from the new default. The `overwrite=true` semantic is scoped to that one task via `environment: COLORSCHEME__OUTPUT__OVERWRITE: "true"` — it is **never** written into the rendered `~/.config/color-scheme-generator/settings.toml` (which keeps `overwrite = false`).
+**Default palette (sync invariant):** the `default_palette` role invokes `csg generate <install>/wallpapers/default.png` (`-f conf` + standard formats) at apply time, writing to `<install>/generated/palettes/`. Replacing `wallpapers.tar.gz` in the repo → next `apply` regenerates the palette from the new default. The `overwrite=true` semantic is scoped to that one task via `environment: COLORSCHEME__OUTPUT__OVERWRITE: "true"` — it is **never** written into the rendered `<install>/config/color-scheme-generator/settings.toml` (which keeps `overwrite = false`).
 
 Phase 2's reconciler invokes the tools with `--config <provisioned-settings>` and they read/write against this spine without per-invocation path flags.
 
@@ -161,8 +165,10 @@ src/provisioning/
 │   │   ├── default_palette/ (tasks/main.yml — `csg generate <install>/wallpapers/default.png -f conf`; env-scoped overwrite)
 │   │   ├── compositor_configs/ (tasks/main.yml — deploys Hyprland/Waybar/Hyprpaper skeletons + color fragments)
 │   │   ├── filesystem/ (tasks/main.yml)
-│   │   ├── config_copies/ (tasks/main.yml)
+│   │   ├── config_copies/ (tasks/main.yml — copies repo dotfiles/config/* → <install>/config/)
 │   │   ├── settings/   (tasks/main.yml, templates/{csg,weg,itr}-settings.toml.j2, vars/main.yml)
+│   │   ├── config_links/ (tasks/main.yml — symlinks ~/.config/<name> → <install>/config/<name>; backup guard)
+│   │   ├── icons/      (tasks/main.yml — `itr render` resolved SVGs into generated/icons/)
 │   │   └── verify/     (tasks/main.yml)
 │   └── ansible.cfg
 ├── src/provisioning/
@@ -191,7 +197,7 @@ dotfiles/provisioning/                   # declarative desired-machine-state man
 ├── packages.yaml                        # desired packages per package manager
 ├── assets.yaml                          # wallpapers + icon templates + icon mappings to deploy
 ├── filesystem.yaml                      # XDG + install dir subtree layout
-├── config-copies.yaml                    # copies repo dotfiles/config/* → ~/.config/* (real dirs, not symlinks)
+├── config-copies.yaml                    # copies repo dotfiles/config/* → <install>/config/* (symlinked into ~/.config by config_links)
 └── cli-tools.yaml                       # csg/weg/itr install specs (uv tool install targets)
 
 dotfiles/config/
@@ -233,20 +239,21 @@ Matches §17's desired → actual → diff → plan → execute loop, applied to
 
 Phase 1 is finished when `dotfiles-provision verify` and `dotfiles-provision bootstrap --check` are clean, asserting each of:
 
-1. **Install dir established** — `$XDG_DATA_HOME/dotfiles/` exists with the full subtree (`wallpapers/`, `icon-templates/`, `icon-mappings/`, `csg-templates/`, `weg-effects.yaml`, `generated/{palettes,effects,icons,.weg-tmp}/`).
+1. **Install dir established** — `$XDG_DATA_HOME/dotfiles/` exists with the full subtree (`wallpapers/`, `icon-templates/`, `icon-mappings/`, `config/` (+ tool subdirs), `generated/{palettes,effects,icons,.weg-tmp}/`).
 2. **System binaries installed** — Hyprland, Hyprpaper, Waybar, fonts on PATH.
 3. **Dotfiles CLI tools installed** — `csg`, `weg`, icon-renderer on PATH (via `uv tool install`).
-4. **Assets deployed** — `wallpapers.tar.gz` unpacked → `<install>/wallpapers/` (incl. `default.png`); SVG **icon templates** in `<install>/icon-templates/`; icon **color mappings** (the YAMLs) in `<install>/icon-mappings/`; CSG bundled templates in `<install>/csg-templates/`; `weg-effects.yaml` emitted via `weg dump-effects --output`.
-5. **Per-tool settings files render and parse**:
+4. **Assets deployed** — `wallpapers.tar.gz` unpacked → `<install>/wallpapers/` (incl. `default.png`); SVG **icon templates** in `<install>/icon-templates/`; icon **color mappings** (the YAMLs) in `<install>/icon-mappings/`; CSG bundled templates in `<install>/config/color-scheme-generator/templates/`; `weg-effects.yaml` emitted via `weg dump-effects --output` to `<install>/config/weg/effects.yaml`.
+5. **Per-tool settings files render and parse** (in the config-in-spine home, exposed via `~/.config/<tool>` symlinks):
    - `~/.config/color-scheme-generator/settings.toml` parses; `output.directory` → `<install>/generated/palettes/`
    - `~/.config/weg/settings.toml` parses; `output.directory` → `<install>/generated/effects/`; `processing.temp_dir` → `<install>/generated/.weg-tmp/`
    - `~/.config/itr/settings.toml` parses; `output.output_dir` → `<install>/generated/icons/`; `templates.dir` → `<install>/icon-templates/`; `color_scheme.path` → `<install>/generated/palettes/colors.yaml`
    - Verified by invoking `csg info --config <path>`, `weg info --config <path>`, `itr list <install>/icon-mappings/icons.yaml --config <path>` — all exit 0. (Avoid `defaults.yaml` as the `itr list` target — it is a shared-defaults file without a `variants` field and is not listable.)
-6. **Default palette generated** — `<install>/generated/palettes/colors.conf` + `colors.yaml` exist and parse; `$accent` equals `$color1` in the Hyprland fragment; the rendered `~/.config/color-scheme-generator/settings.toml` keeps `overwrite = false`.
-7. **Compositor configs placed** — `~/.config/{hypr,hyprpaper,waybar}/` copied from `dotfiles/config/{hypr,hyprpaper,waybar}/`; `~/.config/hypr/colors.conf` and `~/.config/waybar/colors.css` present.
+6. **Default palette generated** — `<install>/generated/palettes/colors.conf` + `colors.yaml` exist and parse; `$accent` equals `$color1` in the Hyprland fragment; the rendered `<install>/config/color-scheme-generator/settings.toml` keeps `overwrite = false`.
+7. **Compositor configs placed** — skeletons + palette fragments written into `<install>/config/{hypr,hyprpaper,waybar}/` (exposed via the `~/.config/{hypr,hyprpaper,waybar}` symlinks); `hypr/colors.conf` and `waybar/colors.css` present.
 8. **Filesystem structure exists** — XDG config/state/cache dirs, hypr/hyprpaper/waybar dirs, install dir subtree.
-9. **Config copies present** — every entry in `dotfiles/provisioning/config-copies.yaml` is copied to `~/.config/<target>` as a REAL directory (not a symlink): nothing in the repo is referenced at runtime, so the machine keeps working after the repo is deleted.
-10. **§12 capability preconditions** — the four runtime assumptions (binaries installed, assets placed, filesystem structure exists, settings files parseable) are assertable via `VerifyCapabilityUseCase` without reaching into provisioning internals.
+9. **Config copies present as spine symlinks** — every entry in `dotfiles/provisioning/config-copies.yaml` is a symlink at `~/.config/<target>` → `<install>/config/<target>` (5-layer check: islnk, exact target in the spine, resolves, content-through-link, functional parse). Nothing in the repo is referenced at runtime, so the machine keeps working after the repo is deleted.
+10. **Icons rendered** — `<install>/generated/icons/` holds the resolved SVGs (the icons role invokes `itr render`); at least one known variant present (e.g. `battery-0.svg`).
+11. **§12 capability preconditions** — the four runtime assumptions (binaries installed, assets placed, filesystem structure exists, settings files parseable) are assertable via `VerifyCapabilityUseCase` without reaching into provisioning internals.
 
 ---
 
@@ -254,9 +261,9 @@ Phase 1 is finished when `dotfiles-provision verify` and `dotfiles-provision boo
 
 **CSG templates dir placement** (templates dir is *not* a settings.toml field):
 
-- **Option B (LOCKED):** deploy CSG's bundled templates to `<install>/csg-templates/`; Phase 2 runtime passes `--templates-dir <install>/csg-templates/` per invocation.
+- **Option B (LOCKED, config-in-spine 2026-08-16):** deploy CSG's bundled templates to `<install>/config/color-scheme-generator/templates/`; Phase 2 runtime passes `--templates-dir <install>/config/color-scheme-generator/templates/` per invocation.
 
-Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine containment — the install dir is the single place the tools read from, so wiping `$XDG_DATA_HOME/dotfiles/` leaves nothing orphaned in the XDG config tree. Consistent with the WEG effects catalog also living in the spine (`<install>/weg-effects.yaml`). Matches the SPEC in `_bmad-output/specs/spec-dotfiles-provisioning-phase1/`.
+Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine containment — the install dir is the single place the tools read from. Consistent with the WEG effects catalog also living in the spine (`<install>/config/weg/effects.yaml`) and with the config-in-spine pattern (docs/02-config-in-spine-pattern.md): ALL managed configs live under `<install>/config/` and `~/.config` is an alias layer of symlinks. Matches the SPEC in `_bmad-output/specs/spec-dotfiles-provisioning-phase1/`.
 
 ---
 
@@ -264,7 +271,7 @@ Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine
 
 - **Reproduce any machine from scratch:** `git clone <repo> && ./scripts/bootstrap.sh` → Python+uv bootstrapped → `dotfiles-provision` installed → drives Ansible to install Hyprland/Waybar/Hyprpaper/fonts, install `csg`/`weg`/icon-renderer, deploy assets, create the filesystem, copy configs, render the three settings files, verify everything.
 - **Machine state as data:** `dotfiles-provision plan` shows desired-vs-actual diff before any mutation (Ansible `--check`); `apply` is idempotent and re-runnable (Ansible is the state authority — no state file).
-- **A verified, tool-ready install layout:** the chaining spine (wallpapers / icon-templates / icon-mappings / generated palettes / effects / icons / temp) with all three tools' settings files pointing at it — the first `csg generate <img>` or `itr render --config ...` already knows where to read/write, with no path flags, no `/tmp` leaks, and ITR's color scheme chaining straight to CSG's palette output.
+- **A verified, tool-ready install layout:** the chaining spine (wallpapers / icon-templates / icon-mappings / config (managed configs) / generated palettes / effects / icons / temp) with all three tools' settings files pointing at it — the first `csg generate <img>` or `itr render --config ...` already knows where to read/write, with no path flags, no `/tmp` leaks, and ITR's color scheme chaining straight to CSG's palette output.
 - **A hard verify gate:** `dotfiles-provision verify` green is the contract Phase 2 may assume; also a drift regression check.
 - **Multi-distro portability:** same playbooks on Arch (pacman + AUR) or Debian-family (apt); distro differences isolated to `group_vars`.
 
@@ -280,7 +287,7 @@ Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine
 4. `application/use_cases.py` wiring ports → use cases (`ProvisionMachineUseCase` with `check` flag, `VerifyCapabilityUseCase`, `BootstrapUseCase`); unit tests with fakes.
 5. `cli/main.py` (Typer) — `plan`, `apply`, `verify`, `bootstrap`; uses `cli-output` for rendering.
 6. `dotfiles/provisioning/*.yaml` manifests (populated from the actual package set + existing assets).
-7. Ansible content: `inventory`, `requirements.yml`, `group_vars/{all,arch,debian-family}.yml`, then roles in install order — `packages` → `cli_tools` → `filesystem` → `assets` → `default_palette` → `compositor_configs` → `config_copies` → `settings` → `verify`; one playbook per role plus the aggregate `bootstrap.yaml`. (`default_palette` needs `csg` installed by `cli_tools` and wallpapers unpacked by `assets`; `compositor_configs` needs the palette generated by `default_palette`.)
+7. Ansible content: `inventory`, `requirements.yml`, `group_vars/{all,arch,debian-family}.yml`, then roles in install order — `packages` → `cli_tools` → `filesystem` → `assets` → `default_palette` → `compositor_configs` → `config_copies` → `settings` → `config_links` → `icons` → `verify`; one playbook per role plus the aggregate `bootstrap.yaml`. (`default_palette` needs `csg` installed by `cli_tools` and wallpapers unpacked by `assets`; `compositor_configs` needs the palette generated by `default_palette`; `config_links` symlinks the managed configs into `~/.config` (config-in-spine); `icons` renders the resolved SVGs via `itr render`; `verify` re-checks all of it.)
 8. The three Jinja settings templates under `roles/settings/templates/`.
 9. Add `dotfiles/config/{hypr,hyprpaper,waybar}/`: Hyprland skeleton (`source = ~/.config/hypr/colors.conf`), Waybar skeleton (`@import "colors.css";`), flat static Hyprpaper (points at `<install>/wallpapers/default.png`).
 10. `scripts/bootstrap.sh` (pre-seed Python+uv, then `uv run --directory ./src/provisioning dotfiles-provision bootstrap`).
