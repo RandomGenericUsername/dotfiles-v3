@@ -181,6 +181,101 @@ Desktop Runtime State Reconciliation
 
 ---
 
+# Domain 1 As-Built (reference)
+
+What provisioning actually does today, end to end. The machine is
+provisioned by a **hexagonal Python orchestrator** (`src/provisioning`) that
+drives **Ansible** (the state authority). It never mutates via Python —
+Ansible playbooks own every side effect; Python selects the playbook, the
+distro seam, and the install spine, then renders results.
+
+## The orchestrator CLI
+
+`dotfiles-provision` (Typer app, `src/provisioning/src/provisioning/cli/`):
+
+| Command | What it does |
+|---|---|
+| `plan` | Ansible `--check` dry-run of the aggregate — diffs desired vs actual, no mutation |
+| `apply` | Runs the aggregate `bootstrap.yaml` (11 roles) idempotently |
+| `verify` | Asserts the eleven done-criteria against provisioned locations |
+| `bootstrap` | Aggregate end-to-end (`--check` supported) |
+| `version` | Installed package version |
+
+`--ask-become-pass` prompts for the sudo password interactively (hidden);
+`--become-password` takes it non-interactively. Both inject
+`ANSIBLE_SUDO_PASS` so `become: true` plays (packages) run without
+passwordless sudo.
+
+## The 11 roles (in dependency order)
+
+| # | Role | Responsibility |
+|---|---|---|
+| 1 | `packages` | system packages via pacman/apt; AUR yay self-bootstrap (become) |
+| 2 | `cli_tools` | `uv tool install` csg/weg/itr + container-image builds (csg) |
+| 3 | `filesystem` | XDG config/state/cache dirs + the full install spine |
+| 4 | `assets` | wallpapers, icon-templates, icon-mappings, csg templates, weg effects |
+| 5 | `default_palette` | `csg generate` (container mode) → `generated/palettes/` |
+| 6 | `compositor_configs` | hypr/waybar/hyprpaper skeletons + palette fragments |
+| 7 | `config_copies` | repo `dotfiles/config/*` → spine `config/` |
+| 8 | `settings` | renders csg/weg/itr `settings.toml` (Jinja) |
+| 9 | `config_links` | `~/.config/<name>` → spine symlinks + backup guard |
+| 10 | `icons` | `itr render` resolved SVGs → `generated/icons/` |
+| 11 | `verify` | the eleven done-criteria gate |
+
+## Compute providers (the CLIs provisioning installs and drives)
+
+| Tool | Package | Role in the chain |
+|---|---|---|
+| `csg` | `color-scheme-generator` | wallpaper → palette; **runs in container mode** (podman/docker) via `src/shared/oci-runtime` |
+| `weg` | `wallpaper-effects-generator` | emits the effects catalog at install time |
+| `itr` | `icon-templates-renderer` | SVG templates + color scheme → resolved icons (pure Python, local) |
+
+## The install spine (config-in-spine)
+
+`$XDG_DATA_HOME/dotfiles/` (default `~/.local/share/dotfiles/`) is the single
+home for ALL managed config + data:
+
+```
+dotfiles/
+├── config/                     # managed configs (symlinked into ~/.config)
+│   ├── hypr/ waybar/ hyprpaper/
+│   ├── nvim/ starship/ wlogout/ zsh/
+│   ├── color-scheme-generator/ # settings.toml + templates/
+│   ├── weg/                    # settings.toml + effects.yaml
+│   └── itr/                    # settings.toml
+├── wallpapers/ icon-templates/ icon-mappings/
+└── generated/ palettes/ effects/ icons/ .weg-tmp/
+```
+
+`~/.config/<name>` is a **symlink** into `config/` (the config-links role), so
+each tool's native XDG discovery works while the spine stays the single home.
+A backup/migration guard moves any pre-existing user config aside (timestamped
+backup) before a symlink replaces it.
+
+## The eleven done-criteria (verify)
+
+1. install spine exists (dirs + file nodes)
+2. system binaries on PATH (hyprland, hyprpaper, waybar)
+3. CLI tools on PATH (csg, weg, itr)
+4. assets deployed (wallpapers, icon dirs, csg templates, effects)
+5. settings files render + parse (`csg info`, `weg info`, `itr list`)
+6. default palette present
+7. compositor configs + fragments present with correct types
+8. XDG base dirs exist
+9. config copies are symlinks into the spine (5-layer check)
+10. icons rendered (`generated/icons/` populated)
+11. §12 capability preconditions
+
+`verify` checks **provisioned locations only** — never the repo — so the
+machine keeps working after the repo is deleted.
+
+## Fresh-machine entry
+
+`scripts/bootstrap.sh` pre-seeds Python+uv, installs the pinned ansible
+collections, runs `dotfiles-provision bootstrap`, then a hard `verify` gate.
+
+---
+
 # 5. Why The Domain Separation Matters
 
 This separation is critically important.
@@ -247,17 +342,21 @@ The project therefore becomes a layered architecture.
 ┌────────────────────────────────┐
 │  Provisioning Layer            │
 │  (Machine Reconciliation)      │
+│  [IMPLEMENTED]                │
 │                                │
 │  - packages                    │
 │  - binaries                    │
 │  - assets                      │
 │  - filesystem                  │
-│  - symlinks                    │
-│  - dependencies                │
+│  - config-in-spine symlinks    │
+│  - per-tool settings           │
+│  - icon rendering              │
+│  - verify gate (11 criteria)   │
 └────────────────────────────────┘
                 ↓
 ┌────────────────────────────────┐
 │  Runtime Reconciliation Layer  │
+│  (Phase 2+ — planned)          │
 │                                │
 │  - desktop state               │
 │  - invalidation                │
@@ -760,6 +859,11 @@ Examples:
 | `IStateRepository` | SQLite repository |
 | `IDesktopReloader` | Hyprland reload adapter |
 
+> **Implemented today (provisioning side):** `src/shared/oci-runtime` already
+> provides the container-mode runtime adapter (`podman`/`docker`, netavark
+> engine detection, image build/run managers) used by `csg` for palette
+> generation. The runtime-core adapters above remain Phase 2+.
+
 ---
 
 # 21. CLI Tool Integration Strategy
@@ -786,6 +890,12 @@ CLI tools should:
 - produce deterministic outputs
 - remain standalone
 - avoid runtime core dependencies
+
+> **Implemented compute providers:** `csg` (color-scheme-generator), `weg`
+> (wallpaper-effects-generator), `itr` (icon-templates-renderer). Provisioning
+> installs them via `uv tool install` and invokes them at apply time — `csg
+> generate` (container mode) and `itr render` (local) are real provisioning
+> steps, not future work. They stay standalone packages under `src/cli-tools/`.
 
 ---
 
@@ -887,6 +997,9 @@ else:
 # 25. Provisioning Execution Model
 
 Provisioning operates independently from runtime orchestration.
+
+> **Reference:** the "Domain 1 As-Built" section (after §4) holds the concise
+> end-to-end view; this section details the execution model.
 
 ---
 
