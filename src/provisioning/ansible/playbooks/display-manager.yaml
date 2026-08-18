@@ -1,0 +1,16 @@
+# Display-manager playbook (Story 3.4 / working Hyprland login) — one-per-role
+# playbook.
+#
+# Provisions greetd + tuigreet (X11-free login) so a fresh machine boots into
+# Hyprland + the AGS bar without the X11-greeter GPU freeze. Runs AFTER
+# packages/cli_tools (greetd + Hyprland installed) and near the end, before
+# verify.
+#
+# This role IS become-root (installs/configured system services /etc/greetd),
+# unlike the user-space roles. distro-agnostic.
+- name: Provision the display manager
+  hosts: localhost
+  gather_facts: true
+  become: true
+  roles:
+    - display_manager

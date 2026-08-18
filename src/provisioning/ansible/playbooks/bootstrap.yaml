@@ -6,7 +6,7 @@
 # Dependency order rationale (plan §11 step 7, story 2.12 AC 4):
 #   packages → cli_tools → filesystem → assets → default_palette →
 #   compositor_configs → config_copies → settings → zsh_tools → zsh_config →
-#   wlogout_config → config_links → icons → verify
+#   wlogout_config → config_links → icons → display_manager → verify
 # `packages` first (it installs the system packages everything else assumes),
 # `verify` last (it asserts every done-criterion after all roles placed their
 # outputs). The chain's seams are consumed in order: filesystem creates the
@@ -15,7 +15,8 @@
 # provisions the shell clone-tools, zsh_config + wlogout_config RENDER the
 # shell templates (zsh .zshrc, wlogout style.css), config_links symlinks the
 # managed configs into the XDG home (config-in-spine pattern), icons renders
-# the resolved SVGs (itr), verify re-checks all of it.
+# the resolved SVGs (itr), display_manager provisions the Wayland-friendly
+# greetd login (X11-free, no GPU conflict), verify re-checks all of it.
 #
 # import_playbook semantics: each imported playbook keeps its OWN
 # hosts/become/gather_facts/group_by — packages.yaml's two-play structure
@@ -50,4 +51,5 @@
 - import_playbook: wlogout-config.yaml
 - import_playbook: config-links.yaml
 - import_playbook: icons.yaml
+- import_playbook: display-manager.yaml
 - import_playbook: verify.yaml

@@ -3,14 +3,15 @@
 #
 # Per-manager names resolve HERE, not in the manifest and not in Python
 # (NFR-3 distro isolation). Font names verified against the Debian packages
-# archive at implementation time (2026-08-09); hyprland/hyprpaper/waybar
-# availability (not in Debian stable / Ubuntu default repos) is a Story 2.3
-# `packages` role concern (third-party repo / PPA enablement), not resolved
-# here — group_vars only carries the names.
+# archive at implementation time (2026-08-09); hyprland/hyprpaper availability
+# (not in Debian stable / Ubuntu default repos) is a packages role concern
+# (third-party repo / PPA enablement), not resolved here — group_vars only
+# carries the names. AGS is AUR-only (no Debian package): it must be built
+# from source on Debian (packages role concern, deferred; same as hyprland).
 packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
-  waybar: waybar
+  ags: aylurs-gtk-shell-git
   fonts:
     - fonts-noto
     - fonts-noto-cjk
@@ -25,3 +26,9 @@ packages:
     - exa
     - bat
     - starship
+  # Display manager (greetd + TUI greeter) — same rationale as Arch: X11
+  # greeters conflict with Hyprland's Wayland session; greetd is a minimal
+  # session daemon with no Xorg/GPU grab.
+  display_manager:
+    - greetd
+    - greetd-tuigreet

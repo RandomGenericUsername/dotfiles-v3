@@ -39,7 +39,7 @@ _REQUIRED_FILES = (
 )
 
 # Every logical entry in dotfiles/provisioning/packages.yaml (Story 2.1).
-_LOGICAL_PACKAGE_KEYS = ("hyprland", "hyprpaper", "waybar", "fonts", "zsh")
+_LOGICAL_PACKAGE_KEYS = ("hyprland", "hyprpaper", "ags", "fonts", "zsh", "display_manager")
 
 
 class TestAnsibleScaffoldFilesExist:

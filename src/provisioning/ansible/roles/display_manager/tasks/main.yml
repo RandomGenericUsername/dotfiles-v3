@@ -1,0 +1,89 @@
+# Display-manager role (Story 3.4 / working Hyprland login) — provisions a
+# Wayland-friendly login manager so a fresh machine boots into Hyprland + the
+# AGS bar without an X11-greeter GPU conflict.
+#
+# Why greetd + tuigreet (2026-08-18 decision):
+#   X11 greeters (lightdm, sddm's built-in greeter) launch an Xorg server that
+#   GRABS the DRM/GPU. Starting Hyprland (Wayland) on that same GPU afterwards
+#   causes modeset contention and a hard freeze (observed: lightdm session
+#   froze, TTY-launched Hyprland worked). greetd is a minimal session daemon
+#   with NO built-in GUI/GPU grab; tuigreet is a text (TUI) greeter. Neither
+#   touches Xorg, so the freeze is eliminated. This is the community-standard
+#   Wayland/Hyprland login path.
+#
+# Role responsibilities (machine-level, become):
+#   1. Ensure the greetd "greeter" user exists (greetd requirement).
+#   2. Render /etc/greetd/config.toml -> default_session = greeter user running
+#      tuigreet --cmd (launches Hyprland as the logged-in user after auth).
+#   3. Render the /usr/local/bin/hypr-session wrapper (dbus-run-session ->
+#      Hyprland) so greetd launches a proper Wayland session.
+#   4. Enable greetd.service and disable the X11 greeter it replaces
+#      (lightdm; a prior default can be overridden via display_manager_disable).
+#
+# Distro-agnostic at the task level: greetd/greetd-tuigreet are the package
+# NAMES in group_vars; the role pins no distro-specific binary. Runs AFTER
+# packages/cli_tools (greetd + Hyprland installed) and LAST (before verify) so
+# the whole desktop is provisioned. User install-dirs are handled by the other
+# roles; this role only manages the system login.
+
+- name: Assert fact-gathering provided HOME
+  ansible.builtin.assert:
+    that: ansible_facts.env.HOME is defined and ansible_facts.env.HOME | trim | length > 0
+    fail_msg: >-
+      ansible_facts.env.HOME is undefined — the display_manager role derives
+      nothing from it directly but runs as root; gather_facts must be true
+
+- name: Ensure greetd + TUI greeter are installed
+  ansible.builtin.package:
+    name: "{{ display_manager_packages }}"
+    state: present
+  become: true
+
+- name: Ensure the greetd greeter user exists
+  ansible.builtin.user:
+    name: "{{ display_manager_greeter_user }}"
+    shell: "{{ display_manager_greeter_shell }}"
+    create_home: true
+  become: true
+
+- name: Ensure greetd config directory exists
+  ansible.builtin.file:
+    path: /etc/greetd
+    state: directory
+  become: true
+
+- name: Render greetd session wrapper
+  ansible.builtin.template:
+    src: hypr-session.j2
+    dest: /usr/local/bin/hypr-session
+    mode: "0755"
+  become: true
+
+- name: Render greetd config
+  ansible.builtin.template:
+    src: config.toml.j2
+    dest: /etc/greetd/config.toml
+    mode: "0644"
+  become: true
+
+- name: Remove the old display-manager.service alias
+  ansible.builtin.file:
+    path: /etc/systemd/system/display-manager.service
+    state: absent
+  become: true
+  failed_when: false
+
+- name: Enable greetd service
+  ansible.builtin.systemd:
+    name: greetd
+    enabled: true
+    daemon_reload: true
+  become: true
+
+- name: Disable the superseded X11 display manager
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+  loop: "{{ display_manager_disable_services }}"
+  become: true
+  failed_when: false

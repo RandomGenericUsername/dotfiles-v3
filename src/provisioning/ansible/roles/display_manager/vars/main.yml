@@ -1,0 +1,27 @@
+# Display-manager role vars (Story 3.4 / working Hyprland login).
+
+# display_manager_packages: the greetd session daemon + TUI greeter install.
+#   Self-contained (the role installs them, not a silent dependency on the
+#   packages role), which keeps the role independently re-runnable and the
+#   bootstrap truly one-command. Distro-agnostic names live here; both exist on
+#   Arch (extra) and Debian-family (main).
+display_manager_packages:
+  - greetd
+  - greetd-tuigreet
+
+# display_manager_greeter_user: the system user greetd runs its greeter as.
+#   greetd requires this user to exist; the default 'greeter' is standard.
+display_manager_greeter_user: greeter
+
+# display_manager_greeter_shell: the greeter user's login shell. Musigreet/
+#   greetd docs use /usr/bin/false (it never gets an interactive login — the
+#   greeter launches the session as the LOGGED-IN user, not as 'greeter').
+display_manager_greeter_shell: /usr/bin/false
+
+# display_manager_disable_services: X11 display managers that greetd replaces
+#   and that this role disables (they grab the GPU and cause the Hyprland
+#   freeze). Failed_when: false on the disable so an absent service is a no-op
+#   (e.g. a fresh machine that never had lightdm).
+display_manager_disable_services:
+  - lightdm
+  - sddm

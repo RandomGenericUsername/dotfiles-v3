@@ -7,7 +7,10 @@
 packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
-  waybar: waybar
+  # AGS (Aylur's GTK Shell v2) is AUR-only on Arch (correct-course 2026-08-18):
+  # the AUR package name resolves here; the packages role routes it through the
+  # aur_packages channel (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
+  ags: aylurs-gtk-shell-git
   fonts:
     - ttf-jetbrains-mono-nerd
     - noto-fonts
@@ -24,3 +27,9 @@ packages:
     - exa
     - bat
     - starship
+  # Display manager (greetd + Kegland-friendly TUI greeter). X11 greeters
+  # (lightdm/sddm) grab the GPU and conflict with Hyprland's Wayland session;
+  # greetd is a minimal session daemon + a TUI greeter with no Xorg/GPU grab.
+  display_manager:
+    - greetd
+    - greetd-tuigreet

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Hyprland session launcher (greetd/tuigreet --cmd target).
+#
+# Runs the Hyprland Wayland session inside a fresh D-Bus session (matching the
+# standard Wayland session environment that TTY-launched Hyprland gets). The
+# AGS bar + hyprpaper autostart via the provisioned Hyprland config's
+# exec-once lines.
+exec dbus-run-session -- Hyprland
