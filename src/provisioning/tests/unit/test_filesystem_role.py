@@ -35,34 +35,13 @@ _XDG_BASE_NAMES = {"config", "state", "cache"}
 
 
 def _rebase_filesystem_manifest(manifest_names: set[str]) -> set[str]:
-    """Rebase the pre-config-in-spine flat manifest names onto the layout the
-    filesystem role now creates (config-in-spine 2026-08-16). The manifest
-    (Story 2.1) still carries the pre-refactor flat list: ``csg-templates``
-    (dir) relocates to ``config/color-scheme-generator/templates`` with its
-    parent, the ``weg-effects.yaml`` file node keeps its manifest name (the
-    role's file-node partition still names it) while its parent ``config/weg``
-    joins the spine, and the newly managed tool/compositor config subdirs under
-    ``config/`` are added. This keeps the parity lock EXACT against the
-    manifest without touching the (still-old) manifest."""
-    names = set(manifest_names)
-    names.discard("csg-templates")
-    names.update(
-        {
-            "config",
-            "config/color-scheme-generator",
-            "config/color-scheme-generator/templates",
-            "config/weg",
-            "config/hypr",
-            "config/hyprpaper",
-            "config/waybar",
-            "config/nvim",
-            "config/starship",
-            "config/wlogout",
-            "config/zsh",
-            "config/itr",
-        }
-    )
-    return names
+    """The config-in-spine manifest (dotfiles/provisioning/filesystem.yaml) is
+    now the real layout (2026-08-16 pivot applied to the manifest itself): it
+    carries the XDG base names (state/cache), the full install-spine subtree
+    (config/ + managed tool subdirs + generated leaves), and the weg-effects.yaml
+    file node. So the parity lock is IDENTITY against the manifest — no
+    relocations remain. Kept as a thin named wrapper for readability only."""
+    return set(manifest_names)
 
 
 _TASK_KEYWORDS = {
@@ -266,11 +245,10 @@ class TestFilesystemVars:
         node map partitions the manifest's flat name list exactly — the XDG
         base dirs (config/state/cache) + install-spine dirs + file nodes
         union to the manifest entries, with disjoint base and file partitions.
-        config-in-spine (2026-08-16): the manifest still carries the
-        pre-refactor flat list, so the expected union is the manifest REBASED
-        through the config-in-spine relocations (_rebase_filesystem_manifest).
-        The manifest ``config`` name is DUAL-USE — the XDG base dir AND the
-        config-in-spine root — so the non-XDG partition keeps the spine
+        config-in-spine (2026-08-16): the manifest itself now carries the
+        real layout, so the expected union is the manifest as-is (identity
+        rebase). The manifest ``config`` name is DUAL-USE — the XDG base dir
+        AND the config-in-spine root — so the non-XDG partition keeps the spine
         ``config`` root."""
         data = _vars()
         spine = set(str(item) for item in data["filesystem_spine_dirs"])

@@ -1,12 +1,12 @@
-# Verify role tasks (Story 2.12) — asserts the ten done-criteria (plan §8,
+# Verify role tasks (Story 2.12) — asserts the fourteen done-criteria (plan §8,
 # SPEC.md CAP-3) against PROVISIONED locations only (the user config home via
 # verify_xdg_config_home and the install spine via {{ install_dir | trim }}).
 # It is a read-only gate: it renders nothing, copies nothing, and needs NO
 # become/become_user — everything it checks lives under the user's config home
 # and install_dir (user-scoped privilege context, mirror of 2.5-2.11).
 #
-# The ten done-criteria map to the tasks below:
-#   1. install dir established      → install-dir subtree stat+assert (nine
+# The fourteen done-criteria map to the tasks below:
+#   1. install dir established      → install-dir subtree stat+assert (twenty
 #      spine dirs + weg-effects.yaml)
 #   2. system binaries on PATH      → command -v hyprland/hyprpaper/waybar
 #   3. CLI tools on PATH            → command -v csg/weg/itr (with
@@ -20,9 +20,17 @@
 #   7. compositor configs placed    → skeletons + hypr/colors.conf +
 #      waybar/colors.css
 #   8. filesystem structure exists  → XDG config/state/cache dirs
-#   9. config copies present        → nvim/starship/wlogout/zsh REAL dirs
-#      (follow: false isdir — NOT symlinks)
-#   10. §12 preconditions           → criteria 2/3 + 4 + 8 + 5 — the whole role;
+#   9. config copies present        → every managed ~/.config/<name> is a
+#      symlink into the spine (5-layer check: islnk, exact target, resolves,
+#      content-through-link, functional parse)
+#   10. icons rendered              → generated/icons/ populated (battery-0.svg)
+#   11. shell tools cloned          → ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist
+#       (zsh_tools role)
+#   12. zsh config rendered+wired   → .zshrc wires starship + colors.sequences
+#       (zsh_config role)
+#   13. wlogout config rendered+wired → style.css imports the palette
+#       (wlogout_config role)
+#   14. §12 preconditions           → criteria 2/3 + 4 + 8 + 5 — the whole role;
 #       exposed by VerifyCapabilityUseCase (use_cases.py) running verify.yaml
 #       with a REAL check, never --check.
 #
@@ -50,10 +58,12 @@
 # WEG half can actually fail and stays a real gate; the ITR list gate pins
 # icons.yaml (SPEC.md#51).
 #
-# Config-copies real-dir check (criterion 9): `stat` with `follow: false` then
-# assert `.isdir` — a symlink back into the repo reports islnk: true /
-# isdir: false, so the isdir count proves every target is a REAL directory
-# (runtime independence — mirror of config_copies dest-check).
+# Config-copies symlink check (criterion 9, config-in-spine 2026-08-16): each
+# managed ~/.config/<name> must be a symlink into the spine. The 5-layer check
+# (islnk → exact spine target → resolves-to-dir → content-through-link →
+# functional parse) runs below via layered stat + asserts; a real dir / foreign
+# symlink / broken link fails loudly (runtime independence — mirror of
+# config_links dest-check).
 #
 # No hardcoded absolute paths: every install-spine value is
 # {{ install_dir | trim }} (trim lock) and every config target derives from
@@ -526,8 +536,8 @@
     that: verify_zshrc_wiring.rc == 0
     fail_msg: >-
       the rendered .zshrc does not wire starship and the color scheme
-      (expected both `starship init` and `colors.sequences` — done-criterion,
-      shell wiring). The zsh_config role renders .zshrc.j2 → .zshrc; run the
+      (expected both `starship init` and `colors.sequences` — done-criterion
+      12, shell wiring). The zsh_config role renders .zshrc.j2 → .zshrc; run the
       zsh-config playbook (needs packages + zsh_tools first)
   when: not ansible_check_mode
 
@@ -548,7 +558,34 @@
     that: verify_wlogout_wiring.rc == 0
     fail_msg: >-
       the rendered wlogout style.css does not import the palette colors
-      (expected `@import url(...)` and an @color_1x usage — done-criterion,
+      (expected `@import url(...)` and an @color_1x usage — done-criterion 13,
       shell wiring). The wlogout_config role renders style.css.tpl → style.css;
       run the wlogout-config playbook (needs assets + default_palette first)
+  when: not ansible_check_mode
+
+- name: Stat shell-tools clone dirs (zsh_tools)
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ shell.oh_my_zsh_dir }}"
+    - "{{ shell.pyenv_dir }}"
+    - "{{ shell.nvm_dir }}"
+  register: verify_shell_tool_dirs
+  when: not ansible_check_mode
+
+- name: Assert shell-tools clones exist (zsh_tools)
+  ansible.builtin.assert:
+    that:
+      - verify_shell_tool_dirs.results | length == 3
+      - verify_shell_tool_dirs.results[0].stat.exists
+      - verify_shell_tool_dirs.results[1].stat.exists
+      - verify_shell_tool_dirs.results[2].stat.exists
+      - verify_shell_tool_dirs.results[0].stat.isdir
+      - verify_shell_tool_dirs.results[1].stat.isdir
+      - verify_shell_tool_dirs.results[2].stat.isdir
+    fail_msg: >-
+      at least one shell-tool clone is missing (expected
+      {{ shell.oh_my_zsh_dir }}, {{ shell.pyenv_dir }},
+      {{ shell.nvm_dir }} — done-criterion 11). The zsh_tools role git-clones
+      them presence-guarded; run the zsh-tools playbook (needs packages first)
   when: not ansible_check_mode

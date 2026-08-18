@@ -196,8 +196,8 @@ distro seam, and the install spine, then renders results.
 | Command | What it does |
 |---|---|
 | `plan` | Ansible `--check` dry-run of the aggregate — diffs desired vs actual, no mutation |
-| `apply` | Runs the aggregate `bootstrap.yaml` (11 roles) idempotently |
-| `verify` | Asserts the eleven done-criteria against provisioned locations |
+| `apply` | Runs the aggregate `bootstrap.yaml` (14 roles) idempotently |
+| `verify` | Asserts the fourteen done-criteria against provisioned locations |
 | `bootstrap` | Aggregate end-to-end (`--check` supported) |
 | `version` | Installed package version |
 
@@ -206,7 +206,7 @@ distro seam, and the install spine, then renders results.
 `ANSIBLE_SUDO_PASS` so `become: true` plays (packages) run without
 passwordless sudo.
 
-## The 11 roles (in dependency order)
+## The 14 roles (in dependency order)
 
 | # | Role | Responsibility |
 |---|---|---|
@@ -218,9 +218,12 @@ passwordless sudo.
 | 6 | `compositor_configs` | hypr/waybar/hyprpaper skeletons + palette fragments |
 | 7 | `config_copies` | repo `dotfiles/config/*` → spine `config/` |
 | 8 | `settings` | renders csg/weg/itr `settings.toml` (Jinja) |
-| 9 | `config_links` | `~/.config/<name>` → spine symlinks + backup guard |
-| 10 | `icons` | `itr render` resolved SVGs → `generated/icons/` |
-| 11 | `verify` | the eleven done-criteria gate |
+| 9 | `zsh_tools` | git-clones oh-my-zsh/pyenv/nvm (`~/.oh-my-zsh`, `~/.pyenv`, `~/.nvm`) |
+| 10 | `zsh_config` | renders `.zshrc.j2` → spine `config/zsh/.zshrc` (starship, plugins, colors) |
+| 11 | `wlogout_config` | renders `style.css.tpl` → spine `config/wlogout/style.css` (palette import) |
+| 12 | `config_links` | `~/.config/<name>` → spine symlinks + backup guard |
+| 13 | `icons` | `itr render` resolved SVGs → `generated/icons/` |
+| 14 | `verify` | the fourteen done-criteria gate |
 
 ## Compute providers (the CLIs provisioning installs and drives)
 
@@ -252,7 +255,7 @@ each tool's native XDG discovery works while the spine stays the single home.
 A backup/migration guard moves any pre-existing user config aside (timestamped
 backup) before a symlink replaces it.
 
-## The eleven done-criteria (verify)
+## The fourteen done-criteria (verify)
 
 1. install spine exists (dirs + file nodes)
 2. system binaries on PATH (hyprland, hyprpaper, waybar)
@@ -264,7 +267,10 @@ backup) before a symlink replaces it.
 8. XDG base dirs exist
 9. config copies are symlinks into the spine (5-layer check)
 10. icons rendered (`generated/icons/` populated)
-11. §12 capability preconditions
+11. shell tools cloned (`~/.oh-my-zsh`, `~/.pyenv`, `~/.nvm`)
+12. zsh config rendered and wired (`.zshrc` → starship, color scheme, plugins)
+13. wlogout config rendered and wired (`style.css` imports the palette)
+14. §12 capability preconditions
 
 `verify` checks **provisioned locations only** — never the repo — so the
 machine keeps working after the repo is deleted.
@@ -479,7 +485,7 @@ The runtime system assumes the operational environment already exists.
 This is a VALID architectural assumption because provisioning guarantees it.
 
 > **Implemented guarantee:** `dotfiles-provision verify` (Ansible `verify`
-> role) asserts the eleven done-criteria against **provisioned locations only**
+> role) asserts the fourteen done-criteria against **provisioned locations only**
 > — never the repo — so "the environment exists" is a mechanically-checked
 > contract, not a hope. The runtime may assume `verify` green.
 
@@ -1106,7 +1112,7 @@ Provisioning is responsible for (all IMPLEMENTED):
 - config-in-spine symlinks (Ansible `config_links`: `~/.config/<name>` → spine, with backup guard)
 - icon rendering (Ansible `icons`: `itr render` resolved SVGs)
 - environment preparation
-- verification (Ansible `verify`: the eleven done-criteria)
+- verification (Ansible `verify`: the fourteen done-criteria)
 
 ---
 
@@ -1116,12 +1122,12 @@ Provisioning is responsible for (all IMPLEMENTED):
 scripts/bootstrap.sh            ← fresh-machine one-shot (uv preseed → collections → bootstrap → verify)
     ↓
 dotfiles-provision plan         ← Ansible --check dry-run (no mutation)
-dotfiles-provision apply        ← aggregate bootstrap.yaml, 11 roles in dependency order
+dotfiles-provision apply        ← aggregate bootstrap.yaml, 14 roles in dependency order
     ↓
 packages → cli_tools → filesystem → assets → default_palette →
 compositor_configs → config_copies → settings → config_links → icons → verify
     ↓
-dotfiles-provision verify       ← asserts the eleven done-criteria against provisioned locations
+dotfiles-provision verify       ← asserts the fourteen done-criteria against provisioned locations
 ```
 
 ---
@@ -1186,7 +1192,7 @@ Establish operational environment.
 - [x] config-in-spine symlink management
 - [x] per-tool settings rendering
 - [x] icon rendering (`itr render` at apply time)
-- [x] verify gate (eleven done-criteria)
+- [x] verify gate (fourteen done-criteria)
 
 > Implemented as `src/provisioning` (hexagonal Python driving Ansible) +
 > `scripts/bootstrap.sh`; see `docs/01` and `docs/02`.
@@ -1363,7 +1369,7 @@ Improve scalability.
 - [x] Config-in-spine symlink management (backup guard)
 - [x] Per-tool settings rendering
 - [x] Icon rendering (`itr render`)
-- [x] Verify gate (eleven done-criteria)
+- [x] Verify gate (fourteen done-criteria)
 
 ---
 

@@ -616,6 +616,37 @@ class TestVerifyTasks:
             "verify_itr_list_target must NOT reference defaults.yaml (SPEC.md#51)"
         )
 
+    def test_shell_tools_clone_check_exists_and_is_check_gated(self) -> None:
+        """Criterion 11 (zsh_tools): verify asserts the shell-tool clones
+        (~/.oh-my-zsh, ~/.pyenv, ~/.nvm) exist as dirs. The stat task must loop
+        over the shell.* dirs (the same source of truth zsh_tools uses) and the
+        assert must be check-gated like every other state assert."""
+        stat_task = None
+        for task in _stat_tasks():
+            if "verify_shell_tool_dirs" in str(task.get("register", "")):
+                stat_task = task
+                break
+        assert stat_task is not None, "expected a verify_shell_tool_dirs stat task"
+        loop = stat_task.get("loop", [])
+        text = str(loop)
+        assert "shell.oh_my_zsh_dir" in text
+        assert "shell.pyenv_dir" in text
+        assert "shell.nvm_dir" in text
+
+        assert_tasks = [
+            task
+            for task in _assert_tasks()
+            if "verify_shell_tool_dirs" in str(_module(task).get("that", ""))
+        ]
+        assert len(assert_tasks) == 1, (
+            f"expected exactly one shell-tools assert; found {len(assert_tasks)}"
+        )
+        that = str(_module(assert_tasks[0]).get("that", ""))
+        assert ".stat.exists" in that and ".stat.isdir" in that, (
+            "shell-tools assert must check exists AND isdir"
+        )
+        assert assert_tasks[0].get("when") == "not ansible_check_mode"
+
     def test_managed_config_dirs_are_symlinks_into_the_spine(self) -> None:
         """Criterion 9 (config-in-spine 2026-08-16): the managed config dirs
         are SYMLINKS into the spine (~/.config/<name> -> <install>/config/<name>),
@@ -1297,6 +1328,12 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     (install / "config" / "wlogout" / "style.css").write_text(
         '@import url("<INSTALL>/config/waybar/colors.css");\nbutton { color: @color_15; }\n'
     )
+
+    # Shell-tools clones (zsh_tools role — done-criterion 11): verify checks
+    # ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist as dirs (in the HOME the playbook
+    # runs as, which the shell.* block reads from group_vars/all.yml).
+    for clone in ("oh-my-zsh", "pyenv", "nvm"):
+        (home / f".{clone}").mkdir(parents=True, exist_ok=True)
 
     # Rendered icons (icons role — done-criterion: generated/icons populated).
     (install / "generated" / "icons" / "battery-0.svg").write_text(

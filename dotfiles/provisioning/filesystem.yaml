@@ -1,17 +1,38 @@
 # Desired filesystem subtree under $XDG_DATA_HOME/dotfiles/ (plan §5 spine) plus
 # XDG config/state/cache dirs. Each entry is a node name Ansible ensures exists.
+#
+# config-in-spine (2026-08-16): the `config/` subtree hosts ALL managed configs
+# (tool dirs + the csg-templates/effects relocations); `config` is DUAL-USE —
+# the XDG config base dir AND the spine's managed-config root. The csg-templates
+# live at config/color-scheme-generator/templates and the weg effects catalog at
+# config/weg/effects.yaml (the `weg-effects.yaml` file node maps there; its
+# parent `config/weg` is the spine dir). Parity-locked with
+# roles/filesystem/vars/main.yml (filesystem_spine_dirs / file_nodes).
 kind: filesystem
 entries:
-  - name: config
+  # XDG base dirs (config is shared with the spine root below)
   - name: state
   - name: cache
+  # Install-spine dirs (relative to install_dir)
   - name: wallpapers
   - name: icon-templates
   - name: icon-mappings
-  - name: csg-templates
-  - name: weg-effects.yaml
+  - name: config
+  - name: config/color-scheme-generator
+  - name: config/color-scheme-generator/templates
+  - name: config/hypr
+  - name: config/hyprpaper
+  - name: config/waybar
+  - name: config/nvim
+  - name: config/starship
+  - name: config/wlogout
+  - name: config/zsh
+  - name: config/weg
+  - name: config/itr
   - name: generated
   - name: generated/palettes
   - name: generated/effects
   - name: generated/icons
   - name: generated/.weg-tmp
+  # File node (emitted by the assets role into config/weg/effects.yaml)
+  - name: weg-effects.yaml

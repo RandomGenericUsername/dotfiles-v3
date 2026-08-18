@@ -292,7 +292,7 @@ run_stage "bootstrap" uv run --directory "$PROVISION_DIR" dotfiles-provision boo
 # ── Stage 4: verify hard gate (AC 4) ─────────────────────────────────────
 # The aggregate's internal verify import is plan-gated (check mode); this
 # explicit trailing verify is a REAL check (VerifyCapabilityUseCase runs with
-# check=False) asserting all ten done-criteria — the CAP-4 success signal.
+# check=False) asserting all fourteen done-criteria — the CAP-4 success signal.
 run_stage "verify" uv run --directory "$PROVISION_DIR" dotfiles-provision verify
 
 green "Bootstrap complete: uv preseed → collections → bootstrap → verify all green."
