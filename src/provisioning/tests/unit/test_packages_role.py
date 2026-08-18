@@ -37,6 +37,7 @@ _VARS_REQUIRED_KEYS = {
         "aur_builder_group",
         "aur_packages",
         "yay_repo",
+        "aur_conflict_probe_paths",
     },
     "debian.yml": {"packages_use_aur"},
 }
@@ -46,7 +47,7 @@ _VARS_REQUIRED_KEYS = {
 _ARCH_PACKAGE_NAMES = (
     "hyprland",
     "hyprpaper",
-    "waybar",
+    "aylurs-gtk-shell-git",
     "ttf-jetbrains-mono-nerd",
     "noto-fonts",
     "noto-fonts-cjk",
@@ -55,7 +56,7 @@ _ARCH_PACKAGE_NAMES = (
 _DEBIAN_PACKAGE_NAMES = (
     "hyprland",
     "hyprpaper",
-    "waybar",
+    "aylurs-gtk-shell-git",
     "fonts-noto",
     "fonts-noto-cjk",
     "fonts-noto-color-emoji",
@@ -184,6 +185,39 @@ class TestPackagesTasks:
             "--check registers rc=0, silently skipping the would-change report)"
         )
 
+    def test_aur_conflict_probe_runs_before_the_aur_install(self) -> None:
+        """Hardening (2026-08-18): a pre-flight `pacman -Qo` probe + assert must
+        run BEFORE the kewlfft.aur.aur install, so stray non-pacman python files
+        (a past pip install into system python) fail loud with a clear message
+        instead of dying deep inside a yay run with 'conflicting files'."""
+        tasks = _load_tasks()
+        probe = next(t for t in tasks if "Check for foreign files" in str(t.get("name", "")))
+        assert_ = next(t for t in tasks if "Assert no foreign files" in str(t.get("name", "")))
+        install_idx = tasks.index(next(t for t in tasks if _module_key(t) == "kewlfft.aur.aur"))
+        assert tasks.index(probe) < install_idx, "probe must run before the AUR install"
+        assert tasks.index(assert_) < install_idx, "assert must run before the AUR install"
+
+    def test_aur_conflict_assert_is_fail_loud_and_check_gated(self) -> None:
+        tasks = _load_tasks()
+        assert_ = next(t for t in tasks if "Assert no foreign files" in str(t.get("name", "")))
+        body = assert_.get(_module_key(assert_) or "", {})
+        assert isinstance(body, dict), "assert task must have a module body"
+        that = str(body.get("that", ""))
+        assert "FOREIGN" in that, "the assert must detect FOREIGN probe results"
+        assert "packages_use_aur" in str(assert_.get("when", ""))
+        assert "not ansible_check_mode" in str(assert_.get("when", "")), (
+            "the foreign-file probe/assert must be --check-gated (dry-run must not run pacman -Qo)"
+        )
+
+    def test_aur_conflict_probe_paths_are_non_empty(self) -> None:
+        """The probe path list must be non-empty on Arch (it is the collision
+        surface the check guards against)."""
+        data = yaml.safe_load((_ROLES_DIR / "vars" / "arch.yml").read_text())
+        paths = data.get("aur_conflict_probe_paths", [])
+        assert isinstance(paths, list) and paths, (
+            "aur_conflict_probe_paths must be a non-empty list"
+        )
+
 
 class TestPackagesVars:
     def test_vars_parse_with_required_keys(self) -> None:
@@ -205,7 +239,15 @@ class TestPackagesVars:
     def test_vars_do_not_carry_package_names(self) -> None:
         arch_text = (_ROLES_DIR / "vars" / "arch.yml").read_text()
         debian_text = (_ROLES_DIR / "vars" / "debian.yml").read_text()
+        # AUR-routed packages (correct-course 2026-08-18: AGS = aylurs-gtk-shell-git)
+        # are the EXCEPTION — their AUR names are AUR-channel routing config in
+        # vars/arch.yml aur_packages, NOT pacman names (NFR-3 still holds for the
+        # pacman/apt names below). The pacman-installable names must stay in
+        # group_vars.
+        arch_aur = ("aylurs-gtk-shell-git",)
         for name in _ARCH_PACKAGE_NAMES:
+            if name in arch_aur:
+                continue
             assert name not in arch_text, (
                 f"package name {name!r} must live in group_vars, not vars/arch.yml"
             )

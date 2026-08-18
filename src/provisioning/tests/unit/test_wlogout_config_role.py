@@ -180,12 +180,10 @@ class TestWlogoutConfigPlaybook:
             root = Path(tmp)
             install = root / "install"
             wlogout_dir = install / "config" / "wlogout"
-            (install / "config" / "waybar").mkdir(parents=True)
+            (install / "config" / "ags").mkdir(parents=True)
             (install / "generated" / "icons").mkdir(parents=True)
             (install / "wallpapers").mkdir(parents=True)
-            (install / "config" / "waybar" / "colors.css").write_text(
-                "@define-color color_15 #fff;\n"
-            )
+            (install / "config" / "ags" / "colors.css").write_text("@define-color color_15 #fff;\n")
             (install / "generated" / "icons" / "lock.svg").write_text("")
             (install / "wallpapers" / "default.png").write_bytes(b"\x89PNG")
 

@@ -19,9 +19,15 @@
     file: debian.yml
   when: ansible_os_family == "Debian"
 
+# - Assemble package list: flatten the group_vars `packages` map, EXCLUDING
+#   AUR-only names (correct-course 2026-08-18: AGS = aylurs-gtk-shell-git has no
+#   pacman package). `aur_packages` (vars/arch.yml) lists the AUR-only names;
+#   they are removed from the pacman/apt install and handed to the
+#   kewlfft.aur.aur task below. On Debian-family packages_use_aur is false so
+#   the subtraction is a no-op.
 - name: Assemble package list
   ansible.builtin.set_fact:
-    packages_flat: "{{ packages.values() | list | flatten | reject('equalto', '') | list }}"
+    packages_flat: "{{ packages.values() | list | flatten | reject('equalto', '') | difference(aur_packages) | list }}"
 
 - name: Install system packages
   ansible.builtin.package:
@@ -83,6 +89,32 @@
   vars:
     ansible_python_interpreter: /usr/bin/python3
   when: packages_use_aur | bool
+
+- name: Check for foreign files that would block the AUR install
+  ansible.builtin.shell: "pacman -Qo '{{ item }}' >/dev/null 2>&1 && echo owned || echo FOREIGN"
+  loop: "{{ aur_conflict_probe_paths }}"
+  register: packages_aur_probe
+  changed_when: false
+  failed_when: false
+  when:
+    - packages_use_aur | bool
+    - aur_packages | length > 0
+    - not ansible_check_mode
+
+- name: Assert no foreign files block the AUR install
+  ansible.builtin.assert:
+    that: packages_aur_probe.results | selectattr('stdout', 'search', 'FOREIGN') | list | length == 0
+    fail_msg: >-
+      foreign (non-pacman-owned) files were found that will make the AUR
+      install fail with 'conflicting files'. These are stray artifacts (e.g. a
+      past `pip install` into the system python) that block pacman deps. Remove
+      them with `sudo rm -rf <path>` then re-run. Foreign paths detected:
+      {% for r in packages_aur_probe.results if 'FOREIGN' in r.stdout %}{{ r.item }} {% endfor %}
+      (configurable via aur_conflict_probe_paths)
+  when:
+    - packages_use_aur | bool
+    - aur_packages | length > 0
+    - not ansible_check_mode
 
 - name: Install AUR packages via yay
   kewlfft.aur.aur:

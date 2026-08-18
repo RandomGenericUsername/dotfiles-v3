@@ -6,5 +6,18 @@
 packages_use_aur: true
 aur_builder_user: aur_builder
 aur_builder_group: wheel
-aur_packages: []
+aur_packages: [aylurs-gtk-shell-git]
 yay_repo: https://aur.archlinux.org/yay-bin.git
+
+# aur_conflict_probe_paths: system python site-packages paths that AUR/repo
+# deps may claim during the AUR install (yay runs `pacman -S` for transitive
+# repo deps). If a path here is NOT owned by any pacman package, it is a
+# FOREIGN artifact (e.g. a past pip install into the system python) that will
+# make pacman abort with "conflicting files". The pre-flight task below checks
+# these and, if any are unowned, fails loud with instructions instead of dying
+# deep inside a yay run. This is the repo's fail-loud-with-a-clear-message
+# discipline, applied to the package-install surface (2026-08-18 hardening).
+# The set is the known collision-prone python dirs; extend as needed.
+aur_conflict_probe_paths:
+  - /usr/lib/python3.14/site-packages/pygments
+  - /usr/lib/python3.14/site-packages/pygments-2.20.0.dist-info
