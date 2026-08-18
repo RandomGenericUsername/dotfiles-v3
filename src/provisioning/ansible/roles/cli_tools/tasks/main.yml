@@ -32,7 +32,7 @@
   when: not ansible_check_mode
 
 - name: Install csg/weg/itr via uv tool install
-  ansible.builtin.command: "uv tool install '{{ cli_tools_repo_root }}/{{ item.source }}'"
+  ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:
     creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"
   loop: "{{ cli_tools }}"
