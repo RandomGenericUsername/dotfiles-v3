@@ -1,0 +1,18 @@
+window#bar {
+  background-color: transparent;
+  color: @color_foreground;
+  font-weight: bold;
+  /* Fixed bar height so it renders as a consistent statusbar strip, not a
+     content-dependent window. Top-anchored + exclusive in app.tsx. */
+  min-height: 48px;
+}
+
+window#bar > centerbox {
+  background-color: @color_00;
+  border-radius: 10px;
+  margin: 8px;
+}
+
+window#bar label {
+  padding: 0 12px;
+}
