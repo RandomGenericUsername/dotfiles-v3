@@ -1,0 +1,41 @@
+# regreet graphical greeter config (rendered by the display_manager role).
+#
+# Themed to match the dotfiles color palette: dark background, a wallpaper
+# background image, accent colors, and a modern GTK stylesheet (regreet.css).
+# See regreet.sample.toml for the full option surface.
+
+# Pre-select the last user/session (skips the username/session prompt on a
+# second login after the first).
+skip_selection = false
+
+[background]
+# Background image for the greeter. This is a COPY of a dotfiles wallpaper
+# placed at a path readable by the greeter user (regreet renders it fullscreen).
+path = "{{ display_manager_greeter_background }}"
+# Cover the screen (no letterboxing).
+fit = "Cover"
+
+[GTK]
+# Dark theme (matches the dotfiles palette).
+application_prefer_dark_theme = true
+# Cursor theme (present on the base install).
+cursor_theme_name = "Adwaita"
+cursor_blink = true
+# Font + size for the greeter UI.
+font_name = "{{ display_manager_greeter_font }}"
+# Icon/GTK theme — keep Adwaita (broadly available) unless a themed one is
+# provisioned; the regreet.css overrides most visuals anyway.
+icon_theme_name = "Adwaita"
+theme_name = "Adwaita"
+
+[commands]
+reboot = [ "systemctl", "reboot" ]
+poweroff = [ "systemctl", "poweroff" ]
+
+[appearance]
+# Greeting shown on the login card.
+greeting_msg = "{{ display_manager_greeter_greeting }}"
+
+[widget.clock]
+# Clock format (strftime).
+format = "%a %H:%M"

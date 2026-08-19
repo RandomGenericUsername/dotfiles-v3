@@ -1,0 +1,100 @@
+/* regreet GTK4 stylesheet — themed to the dotfiles color palette.
+ * Rendered by the display_manager role. Loaded by regreet from
+ * /etc/greetd/regreet.css (the greetd config dir is the default CSS path).
+ * Palette: bg #0b0b1a, fg #c2c2c5, accent gold #dbab67, blue #549ec8.
+ * Selectors target regreet's actual GTK widget classes (src/gui/templates.rs):
+ * the login card + clock are frames with class "background"; login button is
+ * "suggested-action"; reboot/poweroff are "destructive-action"; entries are
+ * gtk.Entry / PasswordEntry / ComboBoxText.
+ */
+
+/* Window base: dark, so the background image cover looks cohesive */
+window {
+  background-color: #0b0b1a;
+}
+
+/* The login card + the top clock (both use class "background") */
+frame.background {
+  background-color: rgba(11, 11, 26, 0.88);
+  border-radius: 18px;
+  border: 1px solid rgba(219, 171, 103, 0.28);
+}
+
+/* Login card labels ("User:", "Session:", system messages) */
+label {
+  color: #c2c2c5;
+}
+
+/* Entry fields (username, password, manual session) */
+entry {
+  background-color: rgba(44, 44, 66, 0.55);
+  color: #c2c2c5;
+  border-radius: 10px;
+  border: 1px solid rgba(84, 158, 200, 0.45);
+  padding: 8px 12px;
+  caret-color: #dbab67;
+}
+entry:focus {
+  border-color: #549ec8;
+  background-color: rgba(54, 54, 82, 0.8);
+}
+
+/* Session/usernames dropdown */
+combobox {
+  background-color: rgba(44, 44, 66, 0.55);
+  color: #c2c2c5;
+  border-radius: 10px;
+  border: 1px solid rgba(84, 158, 200, 0.45);
+}
+combobox button {
+  color: #c2c2c5;
+  background: none;
+  border: none;
+}
+combobox button:hover {
+  background-color: rgba(84, 158, 200, 0.15);
+}
+
+/* Generic buttons */
+button {
+  background-color: #2d6596;
+  color: #ffffff;
+  border-radius: 10px;
+  border: none;
+  padding: 8px 18px;
+  font-weight: bold;
+}
+button:hover {
+  background-color: #3a7db8;
+}
+button:active {
+  background-color: #22507a;
+}
+
+/* Login button */
+button.suggested-action {
+  background-color: #dbab67;
+  color: #1a1a2e;
+}
+button.suggested-action:hover {
+  background-color: #e6bb7d;
+}
+
+/* Message/notification bar */
+.infobar {
+  background-color: rgba(219, 171, 103, 0.18);
+  border-radius: 10px;
+  color: #c2c2c5;
+}
+
+/* Toggle buttons (manual user/session edit) */
+togglebutton {
+  color: #c2c2c5;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  padding: 6px;
+}
+togglebutton:hover {
+  background-color: rgba(84, 158, 200, 0.15);
+}

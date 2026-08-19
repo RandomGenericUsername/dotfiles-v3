@@ -46,3 +46,19 @@ display_manager_greeter_shell: /usr/bin/false
 display_manager_disable_services:
   - lightdm
   - sddm
+
+# ── regreet greeter theming (only used when greeter_type == regreet) ─────────
+
+# display_manager_greeter_background: a wallpaper the greeter shows fullscreen.
+#   The greeter runs as the 'greeter' user, so the source (a dotfiles spine
+#   wallpaper) is COPIED to a path readable by that user. Falls back gracefully
+#   if the source is absent (regreet just shows the solid background).
+display_manager_greeter_background_src: "{{ install_dir | trim }}/wallpapers/aurora.jpg"
+display_manager_greeter_background_dst: /usr/share/greetd/greeter.jpg
+display_manager_greeter_background: "{{ display_manager_greeter_background_dst }}"
+
+# display_manager_greeter_font: the GTK font for the greeter UI.
+display_manager_greeter_font: "Cantarell 16"
+
+# display_manager_greeter_greeting: the text shown on the login card.
+display_manager_greeter_greeting: "Welcome back"

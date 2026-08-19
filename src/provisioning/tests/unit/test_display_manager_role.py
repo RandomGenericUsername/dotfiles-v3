@@ -71,6 +71,8 @@ class TestDisplayManagerRoleTree:
         "vars/main.yml",
         "templates/config.toml.j2",
         "templates/hypr-session.j2",
+        "templates/regreet.toml.j2",
+        "templates/regreet.css.j2",
     )
 
     def test_role_tree_exists(self) -> None:
@@ -181,6 +183,26 @@ class TestDisplayManagerTemplates:
         body = (_ROLES_DIR / "templates" / "hypr-session.j2").read_text()
         assert "dbus-run-session" in body
         assert "Hyprland" in body
+
+    def test_regreet_toml_is_themeable(self) -> None:
+        """regreet.toml must expose the documented theming options so the
+        greeter is NOT the stock '95's html' look: dark theme, background,
+        font, greeting, clock."""
+        body = (_ROLES_DIR / "templates" / "regreet.toml.j2").read_text()
+        assert "application_prefer_dark_theme = true" in body
+        assert "background" in body
+        assert 'fit = "Cover"' in body
+        assert "greeting_msg" in body
+        assert "widget.clock" in body
+
+    def test_regreet_css_targets_regreet_widgets(self) -> None:
+        """regreet.css must target regreet's ACTUAL GTK classes (from
+        src/gui/templates.rs): .background card, suggested-action login,
+        destructive-action end buttons, entries."""
+        body = (_ROLES_DIR / "templates" / "regreet.css.j2").read_text()
+        assert "frame.background" in body, "must style the login card (.background)"
+        assert "suggested-action" in body, "must style the login button"
+        assert "entry" in body
 
 
 class TestDisplayManagerVars:

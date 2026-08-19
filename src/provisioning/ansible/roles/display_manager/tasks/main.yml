@@ -64,6 +64,38 @@
   become: true
   when: display_manager_greeter_type == 'regreet'
 
+- name: Ensure greeter background directory exists
+  ansible.builtin.file:
+    path: "{{ (display_manager_greeter_background_dst | dirname) }}"
+    state: directory
+  become: true
+  when: display_manager_greeter_type == 'regreet'
+
+- name: Provision the greeter background wallpaper
+  ansible.builtin.copy:
+    src: "{{ display_manager_greeter_background_src }}"
+    dest: "{{ display_manager_greeter_background }}"
+    remote_src: true
+    mode: "0644"
+  become: true
+  when: display_manager_greeter_type == 'regreet'
+
+- name: Render regreet theme (regreet.toml)
+  ansible.builtin.template:
+    src: regreet.toml.j2
+    dest: /etc/greetd/regreet.toml
+    mode: "0644"
+  become: true
+  when: display_manager_greeter_type == 'regreet'
+
+- name: Render regreet stylesheet (regreet.css)
+  ansible.builtin.template:
+    src: regreet.css.j2
+    dest: /etc/greetd/regreet.css
+    mode: "0644"
+  become: true
+  when: display_manager_greeter_type == 'regreet'
+
 - name: Render greetd session launcher (tuigreet fallback)
   ansible.builtin.template:
     src: hypr-session.j2
