@@ -9,6 +9,19 @@
 > sections below describing the runtime core (state model, hashing,
 > reconciliation, persistence, reactive runtime, phases 2–6) are the roadmap
 > for Phase 2+; `src/core/` and `src/infrastructure/` do not exist yet.
+>
+> **Reconciliation note (2026-08-19):** this document's provisioning prose was
+> reconciled (waybar → **AGS** bar shell) and the provisioning-role table
+> updated to include the **display_manager** role (SDDM + Pixie theme, Wayland
+> greeter). Two provisioning capabilities are present and task/file-verified in
+> a fresh container but **pending full end-to-end hardware confirmation via a
+> QEMU VM** (the container host cannot build the `csg` container image nor run
+> `systemctl enable sddm` without a real PID1): (1) **AGS bar** install +
+> `~/.config/ags` symlink + `app.tsx`/`style.css` landing + runtime
+> `apply_css`; (2) **SDDM + Pixie** login manager (binary install, theme fetch,
+> sddm.conf.d render, service enable/disable). The `cli_tools` PATH resolution
+> bug (uv CLIs under a custom XDG layout) is fixed. See the Phase 2 runtime
+> planning artifacts (`_bmad-output/...`) for the story breakdown.
 
 ---
 
@@ -55,7 +68,7 @@ run pywal
     ↓
 rewrite configs
     ↓
-reload waybar
+reload the bar (AGS)
     ↓
 regenerate icons
 ```
@@ -215,7 +228,7 @@ passwordless sudo.
 | 3 | `filesystem` | XDG config/state/cache dirs + the full install spine |
 | 4 | `assets` | wallpapers, icon-templates, icon-mappings, csg templates, weg effects |
 | 5 | `default_palette` | `csg generate` (container mode) → `generated/palettes/` |
-| 6 | `compositor_configs` | hypr/waybar/hyprpaper skeletons + palette fragments |
+| 6 | `compositor_configs` | hypr/ags/hyprpaper skeletons + palette fragments |
 | 7 | `config_copies` | repo `dotfiles/config/*` → spine `config/` |
 | 8 | `settings` | renders csg/weg/itr `settings.toml` (Jinja) |
 | 9 | `zsh_tools` | git-clones oh-my-zsh/pyenv/nvm (`~/.oh-my-zsh`, `~/.pyenv`, `~/.nvm`) |
@@ -223,7 +236,8 @@ passwordless sudo.
 | 11 | `wlogout_config` | renders `style.css.tpl` → spine `config/wlogout/style.css` (palette import) |
 | 12 | `config_links` | `~/.config/<name>` → spine symlinks + backup guard |
 | 13 | `icons` | `itr render` resolved SVGs → `generated/icons/` |
-| 14 | `verify` | the fourteen done-criteria gate |
+| 14 | `display_manager` | **SDDM + Pixie theme** (Wayland greeter, no X11 GPU grab) → `/etc/sddm.conf.d/`; enables sddm, disables greetd/lightdm |
+| 15 | `verify` | the fourteen done-criteria gate |
 
 ## Compute providers (the CLIs provisioning installs and drives)
 
@@ -241,7 +255,7 @@ home for ALL managed config + data:
 ```
 dotfiles/
 ├── config/                     # managed configs (symlinked into ~/.config)
-│   ├── hypr/ waybar/ hyprpaper/
+│   ├── hypr/ ags/ hyprpaper/
 │   ├── nvim/ starship/ wlogout/ zsh/
 │   ├── color-scheme-generator/ # settings.toml + templates/
 │   ├── weg/                    # settings.toml + effects.yaml
@@ -258,7 +272,7 @@ backup) before a symlink replaces it.
 ## The fourteen done-criteria (verify)
 
 1. install spine exists (dirs + file nodes)
-2. system binaries on PATH (hyprland, hyprpaper, waybar)
+2. system binaries on PATH (hyprland, hyprpaper, ags)
 3. CLI tools on PATH (csg, weg, itr)
 4. assets deployed (wallpapers, icon dirs, csg templates, effects)
 5. settings files render + parse (`csg info`, `weg info`, `itr list`)

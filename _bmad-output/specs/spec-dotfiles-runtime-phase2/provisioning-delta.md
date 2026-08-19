@@ -49,3 +49,20 @@ Runtime never writes under the install spine after seeding (AD-11). Provisioning
 ## Verify gate interplay
 
 `dotfiles-provision verify` continues to assert provisioning done-criteria against provisioned locations only. Criterion 6 is the one that must tolerate a post-runtime machine. The other thirteen are unaffected.
+
+## Display manager: SDDM + Pixie (2026-08-19)
+
+Provisioning's **display_manager** role provisions **SDDM + the Pixie theme** with a **Wayland greeter** (`DisplayServer=wayland`, no X11/GPU grab — avoids the hard-freeze Hyprland suffered with X11 greeters). Cross-domain relevance to the runtime: the login manager is the entry point that boots into Hyprland + the AGS bar.
+
+- `packages.yaml` group_vars: `display_manager: [sddm, qt6-declarative, qt6-svg]` (also installed by the packages role in the aggregate).
+- `display_manager` role: install sddm+Qt6, git-fetch the Pixie theme → `/usr/share/sddm/themes/pixie`, render `/etc/sddm.conf.d/10-dotfiles.conf` (theme=pixie, `DisplayServer=wayland`), enable `sddm`, disable `greetd`/`lightdm`, remove the legacy `display-manager.service` alias.
+- Retained fallback: `display_manager_type: greetd-regreet` keeps the prior greetd+tugreet/regreet path switchable.
+- This is a provisioning-side capability (domain 1); the runtime treats it as an external entry point, not a managed consumer of `current/`.
+
+## cli_tools PATH resolution fix (2026-08-19)
+
+The `cli_tools` role's `cli_tools_bin_dir` now resolves exactly as `uv` does (`$UV_TOOL_BIN_DIR → $XDG_BIN_HOME → $HOME/.local/bin`) and the install task pins `UV_TOOL_BIN_DIR` to it. Previously it hardcoded `$HOME/.local/bin`, which under this project's custom XDG layout pointed at a dir uv never wrote — so `csg`/`weg`/`itr` failed to resolve on PATH after a successful `uv tool install`, blocking the `default_palette` → `compositor_configs colors.css` chain and any manual tool use. `~/.local/bin` is also added (guarded) to the rendered `.zshrc`.
+
+## Fresh-machine verification status (2026-08-19)
+
+Both the **AGS bar** bundle (install via AUR → `~/.config/ags` symlink → `app.tsx`/`style.css` → runtime `apply_css`) and the **SDDM + Pixie** login manager are **task/file-verified in a fresh container** (proven: `ags` binary installs, bar project lands, sddm binary installs, Pixie theme fetch + sddm.conf render). **Pending end-to-end hardware confirmation via a QEMU VM:** the container host cannot (a) build the `csg` container image (needs a non-nested engine) so the palette `colors.css` step is unproven end-to-end, and (b) run `systemctl enable sddm` (needs a real PID1/systemd) so the SDDM boot-to-login is unproven. See epic stories 1.4 (CSG determinism), 1.9/2.x (palette), and the display-manager role for the concrete steps.
