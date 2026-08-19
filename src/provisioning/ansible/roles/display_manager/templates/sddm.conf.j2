@@ -1,0 +1,12 @@
+# SDDM config (rendered by the display_manager role).
+#
+# Enables the Pixie theme and a WAYLAND greeter. DisplayServer=wayland runs the
+# greeter under a Wayland compositor (no X11/GPU grab), which is what avoids
+# the hard-freeze that affected X11 greeters running Hyprland.
+[General]
+DisplayServer={{ display_manager_sddm_display_server }}
+GreeterEnvironment=QT_QPA_PLATFORM=wayland
+
+[Theme]
+Current=pixie
+CursorTheme=Adwaita

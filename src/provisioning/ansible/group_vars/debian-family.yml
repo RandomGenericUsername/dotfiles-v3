@@ -26,9 +26,10 @@ packages:
     - exa
     - bat
     - starship
-  # Display manager (greetd + TUI greeter) — same rationale as Arch: X11
-  # greeters conflict with Hyprland's Wayland session; greetd is a minimal
-  # session daemon with no Xorg/GPU grab.
+  # Display manager — SDDM + Qt6 (same rationale as Arch; SDDM Wayland greeter
+  # avoids the X11-greater GPU freeze with Hyprland). Pixie theme installed by
+  # the display_manager role.
   display_manager:
-    - greetd
-    - greetd-tuigreet
+    - sddm
+    - qt6-declarative
+    - qt6-svg

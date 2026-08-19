@@ -1,57 +1,72 @@
-# Display-manager role (Story 3.4 / working Hyprland login) — provisions a
-# Wayland-friendly login manager so a fresh machine boots into Hyprland + the
-# AGS bar without an X11-greeter GPU conflict.
+# Display-manager role (provisioning a working Hyprland login).
 #
-# Why greetd (2026-08-18 decision):
-#   X11 greeters (lightdm, sddm's built-in greeter) launch an Xorg server that
-#   GRABS the DRM/GPU. Starting Hyprland (Wayland) on that same GPU afterwards
-#   causes modeset contention and a hard freeze (observed: lightdm session
-#   froze, TTY-launched Hyprland worked). greetd is a minimal session daemon
-#   with NO built-in GUI/GPU grab. Combined with an X11-free greeter (regreet,
-#   a GTK4 Wayland greeter, or tuigreet, a TUI greeter), the freeze is gone.
-#
-# Greeter selection (distro-aware, configurable):
-#   regreet  (Arch default) — graphical GTK4 greeter, hosted inside a Hyprland
-#            Wayland session (hyprland-greeter.conf runs regreet then exits).
-#   tuigreet (Debian default) — text/TUI greeter; regreet is experimental-only
-#            there, so TUI is the reliable mainstream fallback.
+# Proviison SDDM + the Pixie theme with a WAYLAND greeter. SDDM's Wayland
+# greeter avoids the X11/GPU-grab that hard-froze Hyprland with X11 greeters
+# (lightdm / sddm-X11) — it's the Hyprland-recommended and user-approved login.
 #
 # Role responsibilities (machine-level, become):
-#   1. Install greetd + the selected greeter.
-#   2. Ensure the greetd "greeter" user exists.
-#   3. Render /etc/greetd/config.toml (greeter session per display_manager_
-#      greeter_type) + the regreet Hyprland host config when regreet is used.
-#   4. Enable greetd + disable the X11 greeters it replaces (lightdm/sddm).
-#
-# The user-facing session (real login -> Hyprland + AGS bar) is launched by the
-# greeter after auth: regreet via accountsservice + the wayland-sessions dir,
-# tuigreet via /usr/local/bin/hypr-session (dbus-run-session -> Hyprland).
+#   SDDM + Pixie (default):
+#     1. Install sddm + Qt6 deps.
+#     2. Fetch the Pixie theme (Qt6 main branch) -> /usr/share/sddm/themes/pixie.
+#     3. Write /etc/sddm.conf.d/10-dotfiles.conf (theme=pixie,
+#        DisplayServer=wayland, cursor theme).
+#     4. Enable sddm; disable other DMs (greetd, lightdm).
+#   greetd + regreet (fallback, retained): the old templates/tasks remain but
+#     are gated on display_manager_type == 'greetd-regreet' so a user can
+#     switch back without losing the working config.
 
 - name: Assert fact-gathering provided HOME
   ansible.builtin.assert:
     that: ansible_facts.env.HOME is defined and ansible_facts.env.HOME | trim | length > 0
     fail_msg: >-
-      ansible_facts.env.HOME is undefined — the display_manager role derives
-      nothing from it directly but runs as root; gather_facts must be true
+      ansible_facts.env.HOME is undefined — the display_manager role runs as
+      root but relies on gather_facts; ensure gather_facts: true
 
+# ── SDDM + Pixie (default) ────────────────────────────────────────────────────
+- name: Install SDDM + Qt6 dependencies
+  ansible.builtin.package:
+    name: "{{ display_manager_sddm_packages }}"
+    state: present
+  become: true
+  when: display_manager_type == 'sddm-pixie'
+
+- name: Fetch the Pixie theme (Qt6)
+  ansible.builtin.git:
+    repo: "{{ display_manager_pixie_repo }}"
+    dest: "{{ display_manager_pixie_themedir }}"
+    version: "{{ display_manager_pixie_repo_ref }}"
+  become: true
+  when: display_manager_type == 'sddm-pixie'
+
+- name: Ensure sddm config directory exists
+  ansible.builtin.file:
+    path: "{{ (display_manager_sddm_conf | dirname) }}"
+    state: directory
+  become: true
+  when: display_manager_type == 'sddm-pixie'
+
+- name: Render SDDM config (Pixie theme, Wayland greeter)
+  ansible.builtin.template:
+    src: sddm.conf.j2
+    dest: "{{ display_manager_sddm_conf }}"
+    mode: "0644"
+  become: true
+  when: display_manager_type == 'sddm-pixie'
+
+# ── greetd + regreet fallback (retained) ──────────────────────────────────────
 - name: Ensure greetd + the selected greeter are installed
   ansible.builtin.package:
     name: "{{ display_manager_packages }}"
     state: present
   become: true
-
-- name: Ensure the greetd greeter user exists
-  ansible.builtin.user:
-    name: "{{ display_manager_greeter_user }}"
-    shell: "{{ display_manager_greeter_shell }}"
-    create_home: true
-  become: true
+  when: display_manager_type == 'greetd-regreet'
 
 - name: Ensure greetd config directory exists
   ansible.builtin.file:
     path: /etc/greetd
     state: directory
   become: true
+  when: display_manager_type == 'greetd-regreet'
 
 - name: Ensure regreet state/log dirs exist
   ansible.builtin.file:
@@ -62,55 +77,17 @@
     - /var/lib/regreet
     - /var/log/regreet
   become: true
-  when: display_manager_greeter_type == 'regreet'
+  when: display_manager_type == 'greetd-regreet'
 
-- name: Ensure greeter background directory exists
-  ansible.builtin.file:
-    path: "{{ (display_manager_greeter_background_dst | dirname) }}"
-    state: directory
-  become: true
-  when: display_manager_greeter_type == 'regreet'
-
-- name: Provision the greeter background wallpaper
-  ansible.builtin.copy:
-    src: "{{ display_manager_greeter_background_src }}"
-    dest: "{{ display_manager_greeter_background }}"
-    remote_src: true
-    mode: "0644"
-  become: true
-  when: display_manager_greeter_type == 'regreet'
-
-- name: Render regreet theme (regreet.toml)
-  ansible.builtin.template:
-    src: regreet.toml.j2
-    dest: /etc/greetd/regreet.toml
-    mode: "0644"
-  become: true
-  when: display_manager_greeter_type == 'regreet'
-
-- name: Render regreet stylesheet (regreet.css)
-  ansible.builtin.template:
-    src: regreet.css.j2
-    dest: /etc/greetd/regreet.css
-    mode: "0644"
-  become: true
-  when: display_manager_greeter_type == 'regreet'
-
-- name: Render greetd session launcher (tuigreet fallback)
-  ansible.builtin.template:
-    src: hypr-session.j2
-    dest: /usr/local/bin/hypr-session
-    mode: "0755"
-  become: true
-  when: display_manager_greeter_type == 'tuigreet'
-
-- name: Render greetd config
+- name: Render greetd config (Cage + regreet)
   ansible.builtin.template:
     src: config.toml.j2
     dest: /etc/greetd/config.toml
     mode: "0644"
   become: true
+  when: display_manager_type == 'greetd-regreet'
 
+# ── Common: enable the chosen DM, disable the rest ───────────────────────────
 - name: Remove the old display-manager.service alias
   ansible.builtin.file:
     path: /etc/systemd/system/display-manager.service
@@ -118,14 +95,14 @@
   become: true
   failed_when: false
 
-- name: Enable greetd service
+- name: Enable the display manager
   ansible.builtin.systemd:
-    name: greetd
+    name: "{{ display_manager_enable_service }}"
     enabled: true
     daemon_reload: true
   become: true
 
-- name: Disable the superseded X11 display manager
+- name: Disable the other display managers
   ansible.builtin.systemd:
     name: "{{ item }}"
     enabled: false

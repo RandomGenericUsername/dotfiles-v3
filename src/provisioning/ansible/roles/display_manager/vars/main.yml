@@ -1,24 +1,66 @@
-# Display-manager role vars (Story 3.4 / working Hyprland login).
+# Display-manager role vars (working Hyprland login).
 #
-# Greeter selection (2026-08-18):
-#   regreet — graphical GTK4 greeter (Arch `extra` package greetd-regreet),
-#             hosted inside Cage, a minimal Wayland compositor purpose-built to
-#             hold a single fullscreen app. Cage + regreet is the standard,
-#             reliable greetd graphical-login path (regreet's PRIMARY mode).
-#   tuigreet — TUI/text greeter (greetd-tuigreet). Fallback for distros where
-#              regreet is unavailable (e.g. Debian main only ships
-#              greetd-tuigreet; regreet is experimental-only there).
-# The role ships settings for both and a distro-aware default.
+# DM type (2026-08-19): the provisioned login manager is SDDM + the Pixie
+# theme, enabled for a Wayland greeter.
+#   SDDM + Pixie — the current, user-approved login. Pixie is a clean
+#     Material-Design-3 / Google-Pixel theme. SDDM is configured with a
+#     WAYLAND greeter (DisplayServer=wayland) so no X11/GPU grab happens —
+#     this avoids the hard-freeze we hit with X11 greeters (lightdm/sddm
+#     X11 greeter grabbing the GPU before Hyprland). Hyprland recommends SDDM
+#     with its Wayland greeter.
+#   greetd + regreet — retained as a fallback path (the previous approach),
+#     still fully configured via the regreet templates so a user can switch
+#     back by re-enabling greetd.
+#
+# Distro note: SDDM + Pixie works on Arch (sddm + qt6 in repos; Pixie from
+# GitHub main, Qt6 branch). On Debian-family SDDM is available too; the Pixie
+# theme is installed the same way. The role keeps the pieces data-driven so
+# a distro override can pick the greetd fallback if needed.
 
-# display_manager_greeter_type: the configured greeter engine. Auto-selects
-#   regreet on Arch, tuigreet elsewhere. Overrideable via extra-var/group_vars
-#   (e.g. to force tuigreet everywhere).
+# display_manager_type: "sddm-pixie" (default) or "greetd-regreet".
+display_manager_type: sddm-pixie
+
+# display_manager_enable_service: the systemd service to enable for the chosen
+#   DM type (sddm, or greetd for the fallback).
+display_manager_enable_service: "{{ 'sddm' if display_manager_type == 'sddm-pixie' else 'greetd' }}"
+
+# ── SDDM + Pixie (default) ───────────────────────────────────────────────────
+
+# display_manager_sddm_packages: SDDM (Qt6-capable) + the Qt6 modules Pixie
+#   needs (QtQuick.Effects comes from qt6-declarative; qt6-svg for icons).
+#   Name-compatible with Debian-family (sddm, qt6-declarative, qt6-svg).
+display_manager_sddm_packages:
+  - sddm
+  - qt6-declarative
+  - qt6-svg
+
+# display_manager_pixie_repo: the Pixie SDDM theme (Qt6 main branch) source.
+display_manager_pixie_repo: https://github.com/xCaptaiN09/pixie-sddm.git
+display_manager_pixie_repo_ref: main
+
+# display_manager_pixie_themedir: where the theme is installed for SDDM.
+display_manager_pixie_themedir: /usr/share/sddm/themes/pixie
+
+# display_manager_sddm_conf: the theme/engine config SDDM reads.
+display_manager_sddm_conf: /etc/sddm.conf.d/10-dotfiles.conf
+
+# display_manager_sddm_display_server: "wayland" (greeter under a Wayland
+#   compositor — no X11 GPU grab, the freeze fix) or "x11" (legacy).
+display_manager_sddm_display_server: wayland
+
+# display_manager_disable_services: display managers this role disables so
+#   SDDM is the single active login (they would grab the GPU / conflict).
+#   Includes the greetd fallback path's services.
+display_manager_disable_services:
+  - greetd
+  - lightdm
+
+# ── greetd + regreet fallback (only used when type == 'greetd-regreet') ──────
+
+# display_manager_greeter_type: the greetd greeter engine (regreet graphical
+#   or tuigreet TUI). Distro-aware default; overridable.
 display_manager_greeter_type: "{{ 'regreet' if ansible_os_family == 'Archlinux' else 'tuigreet' }}"
 
-# display_manager_packages: the greetd session daemon + chosen greeter + (for
-#   regreet) Cage, the Wayland compositor that hosts the graphical greeter.
-#   Arch: greetd-regreet + cage are in extra. Debian: greetd-tuigreet is in
-#   main (regreet/cage are experimental-ish), so use the TUI greeter there.
 display_manager_packages_regreet:
   - greetd
   - greetd-regreet
@@ -27,38 +69,8 @@ display_manager_packages_tuigreet:
   - greetd
   - greetd-tuigreet
 
-# Resolved install list based on the selected greeter.
 display_manager_packages: >-
   {{ display_manager_packages_regreet if display_manager_greeter_type == 'regreet' else display_manager_packages_tuigreet }}
 
-# display_manager_greeter_user: the system user greetd runs its greeter as.
-#   greetd requires this user to exist; the default 'greeter' is standard.
 display_manager_greeter_user: greeter
-
-# display_manager_greeter_shell: the greeter user's login shell. The greeter
-#   never gets an interactive login (the greeter launches the session as the
-#   LOGGED-IN user, not as 'greeter').
 display_manager_greeter_shell: /usr/bin/false
-
-# display_manager_disable_services: X11 display managers that greetd replaces
-#   and that this role disables (they grab the GPU and cause the Hyprland
-#   freeze). Failed_when: false on the disable so an absent service is a no-op.
-display_manager_disable_services:
-  - lightdm
-  - sddm
-
-# ── regreet greeter theming (only used when greeter_type == regreet) ─────────
-
-# display_manager_greeter_background: a wallpaper the greeter shows fullscreen.
-#   The greeter runs as the 'greeter' user, so the source (a dotfiles spine
-#   wallpaper) is COPIED to a path readable by that user. Falls back gracefully
-#   if the source is absent (regreet just shows the solid background).
-display_manager_greeter_background_src: "{{ install_dir | trim }}/wallpapers/aurora.jpg"
-display_manager_greeter_background_dst: /usr/share/greetd/greeter.jpg
-display_manager_greeter_background: "{{ display_manager_greeter_background_dst }}"
-
-# display_manager_greeter_font: the GTK font for the greeter UI.
-display_manager_greeter_font: "Cantarell 16"
-
-# display_manager_greeter_greeting: the text shown on the login card.
-display_manager_greeter_greeting: "Welcome back"

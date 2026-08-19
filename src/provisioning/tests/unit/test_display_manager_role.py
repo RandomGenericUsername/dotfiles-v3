@@ -69,10 +69,11 @@ class TestDisplayManagerRoleTree:
     _REQUIRED_FILES = (
         "tasks/main.yml",
         "vars/main.yml",
+        "templates/sddm.conf.j2",
         "templates/config.toml.j2",
-        "templates/hypr-session.j2",
         "templates/regreet.toml.j2",
         "templates/regreet.css.j2",
+        "templates/hypr-session.j2",
     )
 
     def test_role_tree_exists(self) -> None:
@@ -85,7 +86,7 @@ class TestDisplayManagerRoleTree:
         )
 
 
-class TestDisplayManagerTasks:
+class TestSddmPixieTasks:
     def test_tasks_parse_to_list_of_named_tasks(self) -> None:
         tasks = _load_tasks()
         assert tasks, "tasks/main.yml must not be empty"
@@ -93,155 +94,104 @@ class TestDisplayManagerTasks:
             assert isinstance(task, dict)
             assert task["name"], "every task must carry a name"
 
-    def test_installs_greetd_packages(self) -> None:
-        """The role is self-contained: it installs greetd + the selected
-        greeter (not a silent dependency on the packages role)."""
+    def test_installs_sddm_packages(self) -> None:
+        """The role installs sddm + Qt6 deps for the SDDM+Pixie path."""
         tasks = _load_tasks()
         pkg = next((t for t in tasks if _module_key(t) == "ansible.builtin.package"), None)
-        assert pkg is not None, "missing greetd package install task"
+        assert pkg is not None, "missing package install task"
         module = pkg.get("ansible.builtin.package")
         assert isinstance(module, dict)
-        assert module["name"] == "{{ display_manager_packages }}"
+        assert module["name"] == "{{ display_manager_sddm_packages }}"
 
-    def test_regreet_uses_cage_host_in_config(self) -> None:
-        """regreet (graphical) is hosted inside CAGE — the minimal Wayland
-        compositor purpose-built to hold the greeter (regreet's primary,
-        reliable mode), not nested inside Hyprland."""
-        body = (_ROLES_DIR / "templates" / "config.toml.j2").read_text()
-        assert "cage" in body, "regreet path must host regreet inside cage"
-        assert "-s" in body, "cage must enable VT switching (-s) so the user is not locked out"
-        assert "-- regreet" in body, "cage must launch regreet"
-
-    def test_tuigreet_session_launcher_gated(self) -> None:
-        """hypr-session (dbus-run-session -> Hyprland) is the tuigreet fallback
-        path; gated on greeter_type == tuigreet."""
+    def test_fetches_pixie_theme(self) -> None:
+        """The Pixie theme (Qt6) is fetched via git into the sddm themes dir."""
         tasks = _load_tasks()
-        session = next(
-            (t for t in tasks if "Render greetd session launcher" in str(t.get("name", ""))),
-            None,
-        )
-        assert session is not None, "missing hypr-session render task"
-        assert "display_manager_greeter_type == 'tuigreet'" in str(session.get("when", "")), (
-            "hypr-session must gate on greeter_type == tuigreet"
-        )
-
-    def test_regreet_state_log_dirs_gated(self) -> None:
-        """regreet's state/log dirs are created only for the regreet greeter."""
-        tasks = _load_tasks()
-        dirs = next(
-            (t for t in tasks if "Ensure regreet state/log dirs" in str(t.get("name", ""))), None
-        )
-        assert dirs is not None, "missing regreet state/log dirs task"
-        assert "display_manager_greeter_type == 'regreet'" in str(dirs.get("when", "")), (
-            "regreet state/log dirs must gate on greeter_type == regreet"
-        )
-
-    def test_enables_greetd_service(self) -> None:
-        tasks = _load_tasks()
-        sysd = [t for t in tasks if _module_key(t) == "ansible.builtin.systemd"]
-        enable = next((t for t in sysd if str(t.get("name", "")).startswith("Enable greetd")), None)
-        assert enable is not None, "missing 'Enable greetd service' task"
-        module = enable.get("ansible.builtin.systemd")
+        git = next((t for t in tasks if _module_key(t) == "ansible.builtin.git"), None)
+        assert git is not None, "missing Pixie theme fetch (git) task"
+        module = git.get("ansible.builtin.git")
         assert isinstance(module, dict)
-        assert module["name"] == "greetd"
-        assert module["enabled"] is True
+        assert module["dest"] == "{{ display_manager_pixie_themedir }}"
 
-    def test_disables_x11_display_managers(self) -> None:
-        """greetd (X11-free) must replace the X11 greeters that grab the GPU and
-        freeze Hyprland — the role disables lightdm and sddm."""
+    def test_renders_sddm_config(self) -> None:
+        """The role renders /etc/sddm.conf.d with the Pixie theme + Wayland
+        greeter."""
         tasks = _load_tasks()
-        sysd = [t for t in tasks if _module_key(t) == "ansible.builtin.systemd"]
-        disable = next(
-            (t for t in sysd if "Disable the superseded X11" in str(t.get("name", ""))), None
-        )
-        assert disable is not None, "missing 'Disable the superseded X11 display manager' task"
-        assert "{{ display_manager_disable_services }}" in str(disable.get("loop", ""))
+        tmpl = next((t for t in tasks if "Render SDDM config" in str(t.get("name", ""))), None)
+        assert tmpl is not None, "missing SDDM config render task"
+        body = tmpl.get("ansible.builtin.template")
+        assert isinstance(body, dict)
+        assert body["dest"] == "{{ display_manager_sddm_conf }}"
 
-    def test_greetd_user_created(self) -> None:
+    def test_sddm_tasks_gated_on_type(self) -> None:
+        """The SDDM+Pixie install/config tasks must gate on
+        display_manager_type == 'sddm-pixie'."""
         tasks = _load_tasks()
-        user_task = next((t for t in tasks if _module_key(t) == "ansible.builtin.user"), None)
-        assert user_task is not None, "missing greetd user creation task"
-        module = user_task.get("ansible.builtin.user")
-        assert isinstance(module, dict)
-        assert module["name"] == "{{ display_manager_greeter_user }}"
+        sddm_tasks = [
+            t
+            for t in tasks
+            if "SDDM" in str(t.get("name", ""))
+            or "Pixie" in str(t.get("name", ""))
+            or "sddm config" in str(t.get("name", "")).lower()
+        ]
+        assert sddm_tasks, "expected SDDM+Pixie tasks"
+        for t in sddm_tasks:
+            assert "display_manager_type == 'sddm-pixie'" in str(t.get("when", "")), (
+                f"SDDM task {t.get('name')!r} must gate on display_manager_type == sddm-pixie"
+            )
 
-
-class TestDisplayManagerTemplates:
-    def test_config_toml_branches_by_greeter(self) -> None:
-        """config.toml must launch regreet (inside Cage, via the graphical
-        path) OR tuigreet (--cmd hypr-session) depending on
-        display_manager_greeter_type."""
-        body = (_ROLES_DIR / "templates" / "config.toml.j2").read_text()
-        assert "display_manager_greeter_type" in body
-        assert "cage" in body, "regreet path must host regreet inside Cage"
-        assert "tuigreet" in body, "fallback path must use tuigreet"
-        assert "/usr/local/bin/hypr-session" in body
-
-    def test_hypr_session_wrapper_runs_dbus_wayland(self) -> None:
-        """The session wrapper must launch Hyprland inside dbus-run-session —
-        no X11, matching a clean Wayland login (the freeze fix)."""
-        body = (_ROLES_DIR / "templates" / "hypr-session.j2").read_text()
-        assert "dbus-run-session" in body
-        assert "Hyprland" in body
-
-    def test_regreet_toml_is_themeable(self) -> None:
-        """regreet.toml must expose the documented theming options so the
-        greeter is NOT the stock '95's html' look: dark theme, background,
-        font, greeting, clock."""
-        body = (_ROLES_DIR / "templates" / "regreet.toml.j2").read_text()
-        assert "application_prefer_dark_theme = true" in body
-        assert "background" in body
-        assert 'fit = "Cover"' in body
-        assert "greeting_msg" in body
-        assert "widget.clock" in body
-
-    def test_regreet_css_targets_regreet_widgets(self) -> None:
-        """regreet.css must target regreet's ACTUAL GTK classes (from
-        src/gui/templates.rs): .background card, suggested-action login,
-        destructive-action end buttons, entries."""
-        body = (_ROLES_DIR / "templates" / "regreet.css.j2").read_text()
-        assert "frame.background" in body, "must style the login card (.background)"
-        assert "suggested-action" in body, "must style the login button"
-        assert "entry" in body
-
-
-class TestDisplayManagerVars:
-    _REQUIRED_KEYS = {
-        "display_manager_greeter_type",
-        "display_manager_packages",
-        "display_manager_packages_regreet",
-        "display_manager_packages_tuigreet",
-        "display_manager_greeter_user",
-        "display_manager_greeter_shell",
-        "display_manager_disable_services",
-    }
-
-    def test_vars_parse_with_required_keys(self) -> None:
+    def test_enables_sddm_used_to_derive_service(self) -> None:
         data = _vars()
-        assert self._REQUIRED_KEYS.issubset(set(data))
-
-    def test_regreet_defaults_on_arch(self) -> None:
-        data = _vars()
-        assert "Archlinux" in str(data["display_manager_greeter_type"]), (
-            "greeter_type must default to regreet on Arch"
-        )
-        assert "regreet" in str(data["display_manager_greeter_type"])
-
-    def test_package_sets_per_greeter(self) -> None:
-        data = _vars()
-        assert "greetd-regreet" in data["display_manager_packages_regreet"]
-        assert "greetd-tuigreet" in data["display_manager_packages_tuigreet"]
-        assert "greetd" in data["display_manager_packages_regreet"]
-        assert "greetd" in data["display_manager_packages_tuigreet"]
-        assert "cage" in data["display_manager_packages_regreet"], (
-            "regreet must be hosted inside Cage (the minimal fullscreen Wayland "
-            "compositor that holds the graphical greeter)"
+        assert "sddm" in str(data["display_manager_enable_service"]), (
+            "default enable_service must be sddm"
         )
 
-    def test_disables_lightdm_and_sddm(self) -> None:
+
+class TestSddmConfigTemplate:
+    def test_uses_pixie_theme_and_wayland_greeter(self) -> None:
+        """The sddm.conf must enable the Pixie theme and a Wayland greeter (the
+        no-X11-GPU-grab freeze fix)."""
+        body = (_ROLES_DIR / "templates" / "sddm.conf.j2").read_text()
+        assert "Current=pixie" in body
+        assert "DisplayServer={{ display_manager_sddm_display_server }}" in body
+        assert "wayland" in body.lower() or "QT_QPA_PLATFORM=wayland" in body
+
+
+class TestSddmVars:
+    def test_packages_include_sddm_and_qt6(self) -> None:
         data = _vars()
+        pkgs = data["display_manager_sddm_packages"]
+        assert "sddm" in pkgs
+        assert "qt6-declarative" in pkgs
+        assert "qt6-svg" in pkgs
+
+    def test_pixie_repo_and_theme_dir(self) -> None:
+        data = _vars()
+        assert "github.com/xCaptaiN09/pixie-sddm" in str(data["display_manager_pixie_repo"])
+        assert "pixie" in str(data["display_manager_pixie_themedir"])
+
+    def test_default_type_is_sddm_pixie(self) -> None:
+        data = _vars()
+        assert data["display_manager_type"] == "sddm-pixie"
+
+    def test_disables_greetd_and_lightdm(self) -> None:
+        data = _vars()
+        assert "greetd" in data["display_manager_disable_services"]
         assert "lightdm" in data["display_manager_disable_services"]
-        assert "sddm" in data["display_manager_disable_services"]
+
+
+class TestGreetdFallbackRetained:
+    def test_greetd_regreet_config_still_rendered(self) -> None:
+        """The greetd+regreet templates remain so a user can fall back by
+        setting display_manager_type == 'greetd-regreet'."""
+        assert (_ROLES_DIR / "templates" / "config.toml.j2").is_file()
+        for t in _load_tasks():
+            if "greetd" in str(t.get("name", "")).lower():
+                assert "display_manager_type == 'greetd-regreet'" in str(t.get("when", "")), (
+                    f"greetd task {t.get('name')!r} must gate on greetd-regreet type"
+                )
+
+    def test_hypr_session_wrapper_retained(self) -> None:
+        assert (_ROLES_DIR / "templates" / "hypr-session.j2").is_file()
 
 
 class TestDisplayManagerPlaybook:
