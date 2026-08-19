@@ -2,6 +2,8 @@
 stepsCompleted:
   - step-01-validate-prerequisites
   - step-02-design-epics
+  - step-03-create-stories
+  - step-04-final-validation
 inputDocuments:
   - _bmad-output/specs/spec-dotfiles-runtime-phase2/SPEC.md
   - _bmad-output/planning-artifacts/architecture/architecture-dotfiles-repo-v3-2026-08-18/ARCHITECTURE-SPINE.md
@@ -306,3 +308,170 @@ minimal AGS project FIRST, so the runtime has a proven bar to converge later. Do
 native hot-reload (verified `cli/cmd/run.go:145`) — the Epic 2 reload adapter must
 restart the process. The palette fragment repoint to `current/colors.gtk.css` works
 because AGS applies `colors.css` at runtime.
+
+---
+
+## Epic 2: Desktop Convergence
+
+User's desktop visually converges to the new wallpaper's colors — Hyprland, AGS bar,
+Hyprpaper, terminal — via atomic `current/` symlink swap + reload, resilient to crashes
+and repairable on next run from the state recorded in Epic 1.
+**FRs covered:** FR-3, FR-6
+**CAPs covered:** CAP-3, CAP-6
+
+### Story 2.1: Atomic `current/` symlink repoint and swap sequencing
+
+As a user,
+I want a wallpaper swap to converge the desktop by repointing the `current/` symlinks only,
+So that all consumers atomically see the new state with no file copying.
+
+**Acceptance Criteria:**
+
+**Given** a completed derivation (wallpaper/palette/effects/icons cached, `current.json` written in Epic 1)
+**When** the ReconcileDesktopStateUseCase performs a swap
+**Then** it repoints only the `current/` symlinks (Hyprland `colors.conf`, AGS `colors.gtk.css`, Hyprpaper `wallpaper.png`, ITR `colors.yaml`) — the shared-data-contract swap sequence exactly, symlinks lead, `current.json` follows (AR-8, AD-7/NFR-7)
+**And** no file is copied during the swap
+**And** the swap is ordered as a discrete step so a later, single non-atomic point is identifiable for crash recovery (the recovery story builds on this ordering)
+**And** the ReconcileDesktopStateUseCase is callable as an independently-invoked command (`dotfiles-runtime reconcile`), and the full-pipeline orchestration (derive → cache → swap → reload) is owned by a later capstone story
+
+### Story 2.2: Crash-mid-swap recovery to last-good state
+
+As a user,
+I want the desktop to stay consistent if a swap or reload is interrupted,
+So that the next run repairs the state instead of leaving a partial swap.
+
+**Acceptance Criteria:**
+
+**Given** a swap is interrupted mid-sequence (crash, killed process, reload failure)
+**When** the next run starts
+**Then** it detects the incomplete swap from the persisted `current.json` + `current/` symlink comparison and reverts the stray `current/` repoints to the last-good `current.json` (FR-3, R5)
+**And** re-running the interrupted reconcile is a cache hit (no tool re-invocation)
+**And** a reload-failure is reported (known Phase 2 limitation — no daemon/watcher; the command surfaces which consumer failed to reload and exits non-zero) (R5)
+
+### Story 2.3: Hyprland reload adapter
+
+As a user,
+I want Hyprland to pick up the new colors.conf after a swap,
+So that the compositor's borders/decoration match the new palette.
+
+**Acceptance Criteria:**
+
+**Given** a swap repointed `current/colors.conf` (through the `~/.config/hypr` spine symlink)
+**When** the Hyprland reload adapter runs
+**Then** it invokes `hyprctl reload` (FR-6)
+**And** it verifies the reload outcome and reports success/failure (R5 reload-failure handling)
+
+### Story 2.4: AGS restart-based reload adapter
+
+As a user,
+I want the AGS bar to re-read its palette fragment after a swap,
+So that the bar converges to the new colors.
+
+**Acceptance Criteria:**
+
+**Given** a swap repointed `current/colors.gtk.css` (through the `~/.config/ags` spine symlink to `colors.css`, applied at runtime via `app.apply_css`)
+**When** the AGS reload adapter runs
+**Then** it restarts the AGS process (`ags quit` then `ags run`) — AGS has NO native hot-reload (verified), so a restart is the reload channel (FR-6)
+**And** it verifies the restart succeeded and reports failure if the process fails to come back (R5)
+
+### Story 2.5: Hyprpaper channel verification and reload adapter
+
+As a user,
+I want the wallpaper to visually change after a swap,
+So that the desktop shows the new wallpaper.
+
+**Acceptance Criteria:**
+
+**Given** a swap repointed `current/wallpaper.png` (through the Hyprpaper config spine path)
+**When** the Hyprpaper adapter runs
+**Then** it uses the HYPAPER reload mechanism VERIFIED against the installed Hyprpaper version — reload-after-symlink-repoint vs `hyprctl hyprpaper wallpaper <monitor> <path>` IPC — and the chosen channel is recorded in the code + docs (FR-6)
+**And** the unverified-to-verified transition (from the opening fact list) is closed with the evidence of which channel works
+**And** it reports failure if the wallpaper does not update (R5)
+
+### Story 2.6: Terminal palette applier
+
+As a user,
+I want the terminal to apply the new palette after a swap,
+So that shell/terminal colors match the wallpaper.
+
+**Acceptance Criteria:**
+
+**Given** a swap produced `current/colors.yaml` (and the derived palette)
+**When** the terminal palette applier runs
+**Then** it applies the palette to the terminal consumers wired in Epic 1/seeding (starship/zsh per the consumer-wiring chain, AD-17/AR-8) (FR-6)
+**And** it reports failure if the terminal cannot be re-themed (R5)
+
+### Story 2.7: Full `wallpaper set` end-to-end capstone
+
+As a user,
+I want `dotfiles-runtime wallpaper set <img>` to converge the entire desktop in one command,
+So that changing a wallpaper is a single synchronous step that derives, caches, swaps, reloads, and persists.
+
+**Acceptance Criteria:**
+
+**Given** the pipeline components from Epic 1 (derive/cache/persist) and Epic 2 (swap + reload adapters 2.3–2.6)
+**When** `dotfiles-runtime wallpaper set <img>` runs
+**Then** it derives + caches (cache hit on repeat), performs the atomic swap (2.1), reloads all consumers (2.3–2.6), and persists `current.json` + appends `history.jsonl` (FR-1)
+**And** on crash, the next run repairs via 2.2
+**And** on reload failure, the command reports which consumer failed and exits non-zero (R5)
+
+---
+
+## Epic 3: State Inspection & History
+
+User can inspect the current runtime state, view an append-only history of desktop state transitions, and list the layered cache.
+**FRs covered:** FR-4, FR-7
+**CAPs covered:** CAP-4, CAP-7
+
+### Story 3.1: history.jsonl must-not-lose persistence
+
+As a user,
+I want every desktop state transition recorded in an append-only, never-lost history,
+So that I can audit what changed and when, even across restarts.
+
+**Acceptance Criteria:**
+
+**Given** a reconcile completes (Epic 1/2 pipeline)
+**When** the state transitions
+**Then** a history.jsonl line is appended ATOMICALLY, one line per reconcile, in the pinned schema (shared-data-contract), AFTER the swap and BEFORE reload is considered complete (AR-3, AD-4/NFR-5)
+**And** history.jsonl is never overwritten or rewritten — only appended (must-not-lose)
+**And** the store survives restart: history persists across process runs (FR-4)
+**And** `current.json` (written in Epic 1) + `history.jsonl` together form the full persisted state (index + history; filesystem/current/ remains the authority, NFR-3)
+
+### Story 3.2: inspect status command
+
+As a user,
+I want to see the current desktop state,
+So that I know what wallpaper/palette/effects/icons are active.
+
+**Acceptance Criteria:**
+
+**Given** `dotfiles-runtime inspect status` runs
+**Then** it prints the current wallpaper, palette, effects, and icons derived from `current.json` + the `current/` symlink targets (FR-7, CAP-7)
+**And** it reflects the live `current/` symlink (filesystem authority) not just the index
+**And** it exits non-zero with a clear message if state is absent (never seeded / missing current.json)
+
+### Story 3.3: inspect history command
+
+As a user,
+I want to view the append-only desktop history,
+So that I can review past state transitions.
+
+**Acceptance Criteria:**
+
+**Given** `dotfiles-runtime inspect history` runs
+**Then** it prints the transition log from `history.jsonl`, newest-first, using the pinned line schema (FR-7, CAP-7)
+**And** it pages/limits output for large histories
+**And** it reports cleanly if history is empty
+
+### Story 3.4: inspect cache list command
+
+As a user,
+I want to inspect the layered cache,
+So that I can see what derived artifacts are cached (and by hash).
+
+**Acceptance Criteria:**
+
+**Given** `dotfiles-runtime inspect cache list` runs
+**Then** it lists each cache layer (wallpapers/palettes/effects/icons) and its entries by hash (FR-7, AR-2, CAP-7)
+**And** prune/eviction are NOT implemented in Phase 2 — list-only, eviction is a future-phase stub (AR-10, NFR-3)
