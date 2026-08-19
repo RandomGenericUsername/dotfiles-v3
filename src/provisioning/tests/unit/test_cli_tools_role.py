@@ -390,8 +390,17 @@ class TestCliToolsVars:
         }
 
     def test_cli_tools_bin_dir_defaults_under_home(self) -> None:
+        """uv's bin-dir resolution, in order: UV_TOOL_BIN_DIR -> XDG_BIN_HOME ->
+        $HOME/.local/bin. The DECLARED value must fall back to $HOME/.local/bin
+        when neither XDG/uv var is set, and must honor the XDG overrides so the
+        PATH prepend + `creates` match where uv actually installs (fixes the
+        custom-XDG-layout failure where uv wrote to $XDG_DATA_HOME/uv/tools but
+        the role looked only at $HOME/.local/bin)."""
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
-        assert "{{ ansible_facts.env.HOME }}/.local/bin" in str(data["cli_tools_bin_dir"])
+        value = str(data["cli_tools_bin_dir"])
+        assert "UV_TOOL_BIN_DIR" in value
+        assert "XDG_BIN_HOME" in value
+        assert "ansible_facts.env.HOME + '/.local/bin'" in value
 
     def test_bin_dir_uses_non_deprecated_env_fact(self) -> None:
         """F4 lock: use ansible_facts.env (not the deprecated top-level

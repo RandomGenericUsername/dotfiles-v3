@@ -35,6 +35,13 @@
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:
     creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"
+  environment:
+    # Pin UV_TOOL_BIN_DIR to the same cli_tools_bin_dir the `creates` guard and
+    # the verify PATH prepend use. Without this, uv resolves the bin dir from
+    # $XDG_DATA_HOME / $UV_TOOL_DIR (this project sets a custom XDG layout), so
+    # the binary can land somewhere cli_tools_bin_dir never points and the
+    # verify task fails after a successful install (fixed 2026-08-19).
+    UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
   loop: "{{ cli_tools }}"
 
 - name: Verify csg/weg/itr resolve on PATH

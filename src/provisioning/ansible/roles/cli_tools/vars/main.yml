@@ -7,11 +7,18 @@
 #   playbooks from a relocated repo.
 cli_tools_repo_root: "{{ playbook_dir }}/../../../.."
 
-# cli_tools_bin_dir: uv's executable directory. uv resolves it as
-#   $UV_TOOL_BIN_DIR -> $XDG_BIN_HOME -> $HOME/.local/bin (Linux default).
-#   Overridable when either env var is set or a custom dir is wanted.
-#   Uses ansible_facts.env (not the deprecated top-level ansible_env fact).
-cli_tools_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
+# cli_tools_bin_dir: uv's executable directory, resolved EXACTLY as uv does,
+#   so the PATH prepend + `creates` guard match where `uv tool install` actually
+#   drops the binary. Resolution order (uv docs): $UV_TOOL_BIN_DIR ->
+#   $XDG_BIN_HOME -> $HOME/.local/bin. The previous value hardcoded
+#   $HOME/.local/bin, which under a custom XDG layout ($XDG_DATA_HOME or
+#   $XDG_BIN_HOME set — as this project's own provisioning does) pointed at a
+#   dir uv never writes, so "Verify csg/weg/itr resolve on PATH" failed after a
+#   successful install. Uses ansible_facts.env (not the deprecated top-level
+#   ansible_env fact).
+cli_tools_bin_dir: >-
+  {{ ansible_facts.env.UV_TOOL_BIN_DIR
+     | default(ansible_facts.env.XDG_BIN_HOME | default(ansible_facts.env.HOME + '/.local/bin', true), true) }}
 
 # CONTAINER ENGINE — DOCUMENTED DEPENDENCY (not installed by this chain):
 # the image-build task runs `csg install --container-engine <engine>`, and the

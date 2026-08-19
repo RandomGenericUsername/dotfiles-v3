@@ -1,3 +1,11 @@
+# Put uv / pipx user tool binaries (~/.local/bin) on PATH so CLI tools
+# provisioned via `uv tool install` (csg, weg, itr) resolve in any fresh
+# login. Purely additive + guarded — never clobbers an existing PATH entry.
+case ":${PATH}:" in
+    *:"$HOME/.local/bin":*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
 # Set the path to the Starship config file
 export STARSHIP_CONFIG="{{STARSHIP_CONFIG}}"
 
