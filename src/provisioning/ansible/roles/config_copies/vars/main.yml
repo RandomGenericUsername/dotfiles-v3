@@ -11,7 +11,7 @@
 # the repo is referenced at runtime, so the machine keeps working after the
 # repo is deleted. The repo is only ever the SOURCE for a provision run.
 #
-# hypr/hyprpaper/waybar are DELIBERATELY absent: those skeletons land in Story
+# hypr/hyprpaper/ags are DELIBERATELY absent: those skeletons land in Story
 # 2.8 and are PLACED BY COPY in Story 2.9 (compositor_configs role). The
 # icon-template-color-scheme-mappings/ dir is an ASSET deployed to
 # <install>/icon-mappings/ (Story 2.6).

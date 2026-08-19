@@ -32,12 +32,12 @@ _REPO_ROOT = _find_repo_root()
 _CONFIG_DIR = _REPO_ROOT / "dotfiles" / "config"
 
 _HYPR_CONF = _CONFIG_DIR / "hypr" / "hyprland.conf"
-_WAYBAR_CSS = _CONFIG_DIR / "waybar" / "style.css"
-_WAYBAR_CONFIG = _CONFIG_DIR / "waybar" / "config"
+_AGS_APP = _CONFIG_DIR / "ags" / "app.tsx"
+_AGS_CSS = _CONFIG_DIR / "ags" / "style.css"
 _HYPRPAPER_CONF = _CONFIG_DIR / "hyprpaper" / "hyprpaper.conf"
 
 _HYPR_HEADER = "source = {{ compositor_configs_xdg_config_home }}/hypr/colors.conf"
-_WAYBAR_CSS_HEADER = '@import "colors.css";'
+_AGS_PALETTE_LOAD = "app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)"
 _HYPRPAPER_PRELOAD = "preload = ~/.local/share/dotfiles/wallpapers/default.png"
 _HYPRPAPER_WALLPAPER = "wallpaper = ,~/.local/share/dotfiles/wallpapers/default.png"
 
@@ -71,20 +71,24 @@ class TestHyprlandSkeleton:
         assert _first_line(_HYPR_CONF) == _HYPR_HEADER
 
 
-class TestWaybarSkeleton:
+class TestAgsSkeleton:
+    def test_app_tsx_exists(self) -> None:
+        """AC 2: dotfiles/config/ags/app.tsx exists."""
+        assert _AGS_APP.is_file(), "dotfiles/config/ags/app.tsx missing"
+
+    def test_loads_palette_at_runtime(self) -> None:
+        """AC 2: the skeleton applies the Story 2.7-emitted AGS palette fragment
+        (colors.gtk.css) at RUNTIME via app.apply_css() — NOT bundled at build
+        time — so the Phase 2 runtime can repoint ~/.config/ags/colors.css ->
+        current/colors.gtk.css and take effect on the next `ags run` restart."""
+        assert _AGS_PALETTE_LOAD in _AGS_APP.read_text(encoding="utf-8"), (
+            "app.tsx must apply the palette fragment colors.css at runtime"
+        )
+
     def test_style_css_exists(self) -> None:
-        """AC 2: dotfiles/config/waybar/style.css exists."""
-        assert _WAYBAR_CSS.is_file(), "dotfiles/config/waybar/style.css missing"
-
-    def test_first_line_imports_colors_css(self) -> None:
-        """AC 2: FIRST line is verbatim `@import "colors.css";` — imports the
-        Story 2.7-emitted Waybar fragment copied by 2.9."""
-        assert _first_line(_WAYBAR_CSS) == _WAYBAR_CSS_HEADER
-
-    def test_config_exists(self) -> None:
-        """AC 3: dotfiles/config/waybar/config exists — the plan's static
-        config + style.css for Waybar."""
-        assert _WAYBAR_CONFIG.is_file(), "dotfiles/config/waybar/config missing"
+        """AC 2: dotfiles/config/ags/style.css exists — the AGS bar stylesheet
+        referencing the palette @color_00..@color_15 variables."""
+        assert _AGS_CSS.is_file(), "dotfiles/config/ags/style.css missing"
 
 
 class TestHyprpaperSkeleton:
@@ -141,16 +145,16 @@ class TestSkeletonsAreStatic:
         """AC 1-4 guard: the three new skeleton files are STATIC — unlike the
         zsh `.zshrc.j2` and wlogout `style.css.tpl` templates, they must NOT
         carry a template suffix."""
-        new_files = (_HYPR_CONF, _WAYBAR_CSS, _WAYBAR_CONFIG, _HYPRPAPER_CONF)
+        new_files = (_HYPR_CONF, _AGS_APP, _AGS_CSS, _HYPRPAPER_CONF)
         for path in new_files:
             assert not path.name.endswith(_TEMPLATE_SUFFIXES), (
                 f"{path.name} must not use a template suffix ({_TEMPLATE_SUFFIXES})"
             )
 
     def test_skeleton_dirs_have_no_dash_and_no_config_suffix(self) -> None:
-        """Naming contract: skeleton dirs are exactly hypr / waybar /
+        """Naming contract: skeleton dirs are exactly hypr / ags /
         hyprpaper (no dash, no `.config` suffix) — they mirror the
-        ~/.config/{hypr,waybar,hyprpaper} targets Story 2.9 copies to."""
+        ~/.config/{hypr,ags,hyprpaper} targets Story 2.9 copies to."""
         assert (_CONFIG_DIR / "hypr").is_dir()
-        assert (_CONFIG_DIR / "waybar").is_dir()
+        assert (_CONFIG_DIR / "ags").is_dir()
         assert (_CONFIG_DIR / "hyprpaper").is_dir()

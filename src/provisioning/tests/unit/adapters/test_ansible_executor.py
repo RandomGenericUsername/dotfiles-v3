@@ -112,7 +112,7 @@ class TestAnsibleExecutor:
             "PLAY [Provision localhost]\n\n"
             "TASK [packages : install hyprland] *************************\n"
             "changed: [localhost]\n\n"
-            "TASK [packages : install waybar] ****************************\n"
+            "TASK [packages : install ags] ****************************\n"
             "ok: [localhost]\n\n"
             "PLAY RECAP ***************************************************\n"
             "localhost : ok=1 changed=1 unreachable=0 failed=0\n"
@@ -122,7 +122,7 @@ class TestAnsibleExecutor:
         result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
         assert result.tasks == (
             ("packages : install hyprland", "changed"),
-            ("packages : install waybar", "ok"),
+            ("packages : install ags", "ok"),
         )
 
     def test_fatal_failure_recorded_as_failed(self) -> None:

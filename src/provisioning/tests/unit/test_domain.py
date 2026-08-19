@@ -33,7 +33,7 @@ class TestCapability:
     def test_members(self) -> None:
         assert Capability.HYPRLAND.value == "Hyprland"
         assert Capability.HYPRPAPER.value == "hyprpaper"
-        assert Capability.WAYBAR.value == "waybar"
+        assert Capability.AGS.value == "ags"
         assert Capability.CSG.value == "csg"
         assert Capability.WEG.value == "weg"
         assert Capability.ICON_RENDERER.value == "itr"
@@ -42,7 +42,7 @@ class TestCapability:
     def test_kind_binary(self) -> None:
         assert Capability.HYPRLAND.kind() is CapabilityKind.BINARY
         assert Capability.HYPRPAPER.kind() is CapabilityKind.BINARY
-        assert Capability.WAYBAR.kind() is CapabilityKind.BINARY
+        assert Capability.AGS.kind() is CapabilityKind.BINARY
         assert Capability.CSG.kind() is CapabilityKind.BINARY
         assert Capability.WEG.kind() is CapabilityKind.BINARY
         assert Capability.ICON_RENDERER.kind() is CapabilityKind.BINARY

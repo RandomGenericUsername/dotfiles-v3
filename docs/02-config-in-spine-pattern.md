@@ -28,7 +28,7 @@ uses one config subdir named after itself:
 | CSG | `color-scheme-generator/` (settings.toml + templates/) |
 | WEG | `weg/` (settings.toml + effects.yaml) |
 | ITR | `itr/` (settings.toml) |
-| compositors | `hypr/`, `waybar/`, `hyprpaper/` |
+| compositors | `hypr/`, `ags/`, `hyprpaper/` |
 | dotfiles | `nvim/`, `starship/`, `wlogout/`, `zsh/` |
 
 ## Core invariant (unchanged, reworded)
@@ -54,7 +54,7 @@ mechanism.
 $XDG_DATA_HOME/dotfiles/                          ← install target
 ├── config/                                       ← ALL managed configs
 │   ├── hypr/                    hyprland.conf + colors.conf (fragment)
-│   ├── waybar/                  config, style.css + colors.css (fragment)
+│   ├── ags/                     app.tsx, style.css + colors.css (fragment)
 │   ├── hyprpaper/               hyprpaper.conf
 │   ├── nvim/                    (repo dotfiles/config/nvim copy)
 │   ├── starship/                starship.toml
@@ -75,7 +75,7 @@ Every managed dir is symlinked at its native XDG location:
 
 ```
 ~/.config/hypr                → <install>/config/hypr
-~/.config/waybar              → <install>/config/waybar
+~/.config/ags                 → <install>/config/ags
 ~/.config/hyprpaper           → <install>/config/hyprpaper
 ~/.config/nvim                → <install>/config/nvim
 ~/.config/starship            → <install>/config/starship
@@ -156,7 +156,7 @@ Purpose: never destroy user-owned content when replacing an existing target.
 |---|---|
 | **filesystem** | creates `<install>/config/` and the tool subdirs (was: XDG dirs only) |
 | **assets** | WEG effects → `config/weg/effects.yaml`; CSG templates → `config/color-scheme-generator/templates/` (was `<install>/weg-effects.yaml`, `<install>/csg-templates/`) |
-| **compositor_configs** | writes skeletons/fragments into `spine/config/{hypr,waybar,hyprpaper}/` (was `~/.config/...`) |
+| **compositor_configs** | writes skeletons/fragments into `spine/config/{hypr,ags,hyprpaper}/` (was `~/.config/...`) |
 | **config_copies** | copies repo dirs → `spine/config/{nvim,starship,wlogout,zsh}/` (was `~/.config/...`) |
 | **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`); CSG `default_formats = []` (interactive = all catalog formats) |
 | **default_palette** | `--templates-dir <install>/config/color-scheme-generator/templates` |

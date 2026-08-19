@@ -463,10 +463,10 @@ class TestDefaultPaletteVars:
 
     def test_formats_are_the_contract_set(self) -> None:
         """Contract-driven format set (NOT the packaged json/sh defaults): conf
-        → Hyprland colors.conf, gtk.css → Waybar colors.gtk.css (copied by 2.9
-        to ~/.config/waybar/colors.css), yaml → ITR spine chain colors.yaml.
+        → Hyprland colors.conf, gtk.css → AGS colors.gtk.css (copied by 2.9
+        to ~/.config/ags/colors.css), yaml → ITR spine chain colors.yaml.
         Review finding 2026-08-12: `css` was the pre-2.8 format; `gtk.css` is
-        the GTK/Waybar-consumable one (`@define-color` vs browser custom props)."""
+        the GTK/AGS-consumable one (`@define-color` vs browser custom props)."""
         data = _vars()
         assert [str(fmt) for fmt in data["default_palette_formats"]] == [
             "conf",

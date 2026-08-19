@@ -215,14 +215,14 @@ class TestCompositorConfigsTasks:
         files = list(data["compositor_configs_skeleton_files"])
         assert len(files) == 4, (
             f"expected exactly 4 skeleton files "
-            f"(hyprland.conf/hyprpaper.conf/waybar config/style.css); found {len(files)}"
+            f"(hyprland.conf/hyprpaper.conf/ags app.tsx+style.css); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
+            "dotfiles/config/ags/app.tsx",
+            "dotfiles/config/ags/style.css",
             "dotfiles/config/hypr/hyprland.conf",
             "dotfiles/config/hyprpaper/hyprpaper.conf",
-            "dotfiles/config/waybar/config",
-            "dotfiles/config/waybar/style.css",
         ]
         assert sources == expected, f"skeleton file sources must be exactly {expected}"
         for file_ in files:
@@ -244,7 +244,7 @@ class TestCompositorConfigsTasks:
     def test_fragment_copy_pair_locks_the_rename(self) -> None:
         """AC 3 + 4: the fragment copy task loops over exactly the two fragment
         copies — colors.conf -> hypr/colors.conf and colors.gtk.css ->
-        waybar/colors.css (the rename). The AC's literal `colors.css` source is
+        ags/colors.css (the rename). The AC's literal `colors.css` source is
         a stale reference; locking source `colors.gtk.css` / dest basename
         `colors.css` is load-bearing."""
         task = _fragment_copy_task()
@@ -477,7 +477,7 @@ class TestCompositorConfigsPlaybook:
         could not catch. Run the real playbook against a temp HOME/XDG home and
         install_dir, create the two palette fragments, and assert every skeleton
         file and fragment lands in the config-in-spine home
-        (<install>/config/{hypr,hyprpaper,waybar}/)."""
+        (<install>/config/{hypr,hyprpaper,ags}/)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -513,15 +513,15 @@ class TestCompositorConfigsPlaybook:
             expected_skeletons = [
                 install / "config" / "hypr" / "hyprland.conf",
                 install / "config" / "hyprpaper" / "hyprpaper.conf",
-                install / "config" / "waybar" / "config",
-                install / "config" / "waybar" / "style.css",
+                install / "config" / "ags" / "app.tsx",
+                install / "config" / "ags" / "style.css",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"
             assert (install / "config" / "hypr" / "colors.conf").is_file(), (
                 "colors.conf fragment missing from the spine"
             )
-            assert (install / "config" / "waybar" / "colors.css").is_file(), (
+            assert (install / "config" / "ags" / "colors.css").is_file(), (
                 "colors.css fragment missing from the spine"
             )
 

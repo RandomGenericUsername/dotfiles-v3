@@ -292,14 +292,14 @@ class TestFilesystemVars:
         assert nested.issubset(spine)
 
     def test_compositor_dirs_exactly_three_under_xdg_config_home(self) -> None:
-        """AC 3: the compositor dirs are exactly hypr/hyprpaper/waybar under
+        """AC 3: the compositor dirs are exactly hypr/hyprpaper/ags under
         the XDG config home — nothing more."""
         data = _vars()
         compositor = [str(item) for item in data["filesystem_compositor_dirs"]]
         assert compositor == [
             "{{ filesystem_xdg_config_home }}/hypr",
             "{{ filesystem_xdg_config_home }}/hyprpaper",
-            "{{ filesystem_xdg_config_home }}/waybar",
+            "{{ filesystem_xdg_config_home }}/ags",
         ]
 
     def test_xdg_homes_honor_env_with_default(self) -> None:

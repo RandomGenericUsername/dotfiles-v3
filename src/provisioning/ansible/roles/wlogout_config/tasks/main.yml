@@ -10,8 +10,8 @@
 #
 # Design:
 # - Runs AFTER assets (icons + wallpaper exist) + default_palette (colors.css
-#   fragment in config/waybar) and BEFORE config_links.
-# - Vars resolve: COLORS_FILE_PATH → <install>/config/waybar/colors.css (the
+#   fragment in config/ags) and BEFORE config_links.
+# - Vars resolve: COLORS_FILE_PATH → <install>/config/ags/colors.css (the
 #   rendered @define-color file wlogout imports); ICONS_DIR → <install>/
 #   generated/icons; CURRENT_WALLPAPER_SYMLINK → <install>/wallpapers/default.png;
 #   font from the tunable shell vars (group_vars/all.yml).
@@ -36,7 +36,7 @@
     src: "{{ wlogout_config_template_root }}/dotfiles/config/wlogout/style.css.tpl"
     dest: "{{ wlogout_config_spine_dir }}/style.css"
   vars:
-    COLORS_FILE_PATH: "{{ install_dir | trim }}/config/waybar/colors.css"
+    COLORS_FILE_PATH: "{{ install_dir | trim }}/config/ags/colors.css"
     ICONS_DIR: "{{ install_dir | trim }}/generated/icons"
     CURRENT_WALLPAPER_SYMLINK: "{{ install_dir | trim }}/wallpapers/default.png"
     SYSTEM_FONT_FAMILY: "{{ shell.font_family }}"

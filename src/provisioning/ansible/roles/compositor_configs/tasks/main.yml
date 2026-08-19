@@ -1,8 +1,8 @@
-# Compositor configs role (Story 2.9) — copies the 2.8-authored static
-# skeletons from dotfiles/config/{hypr,hyprpaper,waybar}/ into the user config
-# dirs the filesystem role (2.5) created, and copies the 2.7-generated palette
-# fragments into the user config: colors.conf -> ~/.config/hypr/colors.conf and
-# colors.gtk.css -> ~/.config/waybar/colors.css (FR-19, chaining-spine.md).
+# Compositor configs role (Story 2.9 / AGS-for-Waybar swap 2026-08-18) —
+# copies the static skeletons from dotfiles/config/{hypr,hyprpaper,ags}/ into
+# the user config dirs the filesystem role (2.5) created, and copies the
+# palette fragments into the user config: colors.conf -> ~/.config/hypr/colors.conf and
+# colors.gtk.css -> ~/.config/ags/colors.css (FR-19, chaining-spine.md).
 #
 # Design (locked in Story 2.9 Dev Notes):
 # - The FIRST task is the fail-loud install_dir seam assert, copied verbatim

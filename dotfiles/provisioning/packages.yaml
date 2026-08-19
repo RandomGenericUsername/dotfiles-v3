@@ -10,5 +10,5 @@ kind: packages
 entries:
   - name: hyprland
   - name: hyprpaper
-  - name: waybar
+  - name: ags
   - name: fonts

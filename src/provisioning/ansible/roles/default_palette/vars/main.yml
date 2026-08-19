@@ -87,10 +87,10 @@ default_palette_output_dir: "{{ install_dir | trim }}/generated/palettes"
 #   formats"). Phase 1 consumers fix the set to exactly three:
 #   - conf    → Hyprland colors.conf (copied by 2.9; done-criterion 6; Story
 #     3.3 syntax test)
-#   - gtk.css → Waybar colors.gtk.css (copied by 2.9 to
-#     ~/.config/waybar/colors.css — review finding 2026-08-12: the `css`
-#     format emits browser CSS custom properties that GTK/Waybar cannot read;
-#     `gtk.css` emits `@define-color` which the Waybar skeleton consumes)
+#   - gtk.css → AGS colors.gtk.css (copied by 2.9 to
+#     ~/.config/ags/colors.css — review finding 2026-08-12: the `css`
+#     format emits browser CSS custom properties that GTK/AGS cannot read;
+#     `gtk.css` emits `@define-color` which the AGS skeleton consumes)
 #   - yaml    → ITR spine chain colors.yaml (FR-21, done-criterion 6)
 #   NOT the packaged json/sh defaults — no Phase 1 consumer reads
 #   colors.json/colors.sh. The generate task renders

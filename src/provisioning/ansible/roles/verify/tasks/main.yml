@@ -8,7 +8,7 @@
 # The fourteen done-criteria map to the tasks below:
 #   1. install dir established      → install-dir subtree stat+assert (twenty
 #      spine dirs + weg-effects.yaml)
-#   2. system binaries on PATH      → command -v hyprland/hyprpaper/waybar
+#   2. system binaries on PATH      → command -v hyprland/hyprpaper/ags
 #   3. CLI tools on PATH            → command -v csg/weg/itr (with
 #      verify_cli_bin_dir on PATH)
 #   4. assets deployed              → default.png + icon-templates/ +
@@ -18,7 +18,7 @@
 #   6. default palette generated    → generated/palettes/{colors.conf,
 #      colors.yaml, colors.gtk.css}
 #   7. compositor configs placed    → skeletons + hypr/colors.conf +
-#      waybar/colors.css
+#      ags/colors.css
 #   8. filesystem structure exists  → XDG config/state/cache dirs
 #   9. config copies present        → every managed ~/.config/<name> is a
 #      symlink into the spine (5-layer check: islnk, exact target, resolves,
@@ -140,7 +140,7 @@
       - verify_system_binary_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_system_binaries | length
       - verify_system_binary_checks.results | map(attribute='stdout') | reject('equalto', '') | list | length == verify_system_binaries | length
     fail_msg: >-
-      not every system binary is on PATH (expected hyprland, hyprpaper, waybar
+      not every system binary is on PATH (expected hyprland, hyprpaper, ags
       — done-criterion 2). The packages role (Story 2.3) installs them via the
       group_vars package list; run the packages playbook first (direct-run
       prerequisite). Fonts are NOT checked here — fonts are fontconfig files,
@@ -408,7 +408,7 @@
       not every compositor config dir, skeleton, or fragment is present with the
       right inode type under {{ verify_xdg_config_home }} (done-criterion 7 —
       the three config DIRS, the four skeleton FILES, and hypr/colors.conf +
-      waybar/colors.css as regular FILES). The filesystem (2.5) and
+      ags/colors.css as regular FILES). The filesystem (2.5) and
       compositor_configs (2.9) roles place them; run those playbooks first
   when: not ansible_check_mode
 

@@ -49,14 +49,14 @@ config_links_backup_policy: auto
 # config_links_managed_dirs: the complete set of config dirs this role
 #   symlinks. Mirrors the union of what the writing roles place:
 #   - assets       → color-scheme-generator (templates/), weg (effects.yaml)
-#   - compositor_configs → hypr, hyprpaper, waybar
+#   - compositor_configs → hypr, hyprpaper, ags
 #   - config_copies → nvim, starship, wlogout, zsh
 #   - settings     → color-scheme-generator, weg, itr
 #   Parity with the writing roles is locked by a structural test.
 config_links_managed_dirs:
   - hypr
   - hyprpaper
-  - waybar
+  - ags
   - nvim
   - starship
   - wlogout

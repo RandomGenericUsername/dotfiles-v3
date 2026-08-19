@@ -28,7 +28,7 @@ filesystem_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansibl
 filesystem_compositor_dirs:
   - "{{ filesystem_xdg_config_home }}/hypr"
   - "{{ filesystem_xdg_config_home }}/hyprpaper"
-  - "{{ filesystem_xdg_config_home }}/waybar"
+  - "{{ filesystem_xdg_config_home }}/ags"
 
 # Install-spine dirs relative to install_dir (AC 4, parity-locked to the
 # manifest). `generated` AND its nested leaves are both kept — the file module
@@ -49,7 +49,7 @@ filesystem_spine_dirs:
   - config/color-scheme-generator/templates
   - config/hypr
   - config/hyprpaper
-  - config/waybar
+  - config/ags
   - config/nvim
   - config/starship
   - config/wlogout

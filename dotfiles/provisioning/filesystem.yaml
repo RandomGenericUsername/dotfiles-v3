@@ -22,7 +22,7 @@ entries:
   - name: config/color-scheme-generator/templates
   - name: config/hypr
   - name: config/hyprpaper
-  - name: config/waybar
+  - name: config/ags
   - name: config/nvim
   - name: config/starship
   - name: config/wlogout

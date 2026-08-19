@@ -6,7 +6,7 @@
 # run, never a runtime dependency.
 #
 # Only EXISTING config dirs (verified, plan §2): nvim, starship, wlogout, zsh.
-# hypr/hyprpaper/waybar are NOT listed — those dirs land in Story 2.8 and are
+# hypr/hyprpaper/ags are NOT listed — those dirs land in Story 2.8 and are
 # placed by copy in Story 2.9 (compositor_configs role).
 kind: config-copies
 entries:

@@ -329,7 +329,7 @@ class TestReadRealManifests:
         manifest = READER.read(_MANIFEST_DIR / "packages.yaml")
         names = [entry.name for entry in manifest.entries]
         assert len(names) == len(set(names)), f"duplicate package entries: {names}"
-        assert set(names) == {"hyprland", "hyprpaper", "waybar", "fonts"}
+        assert set(names) == {"hyprland", "hyprpaper", "ags", "fonts"}
 
     def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "config-copies.yaml")
@@ -338,7 +338,7 @@ class TestReadRealManifests:
         assert set(names) == {"nvim", "starship", "wlogout", "zsh"}
         assert "hypr" not in names
         assert "hyprpaper" not in names
-        assert "waybar" not in names
+        assert "ags" not in names
 
     def test_cli_tools_manifest_has_three_install_targets(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "cli-tools.yaml")

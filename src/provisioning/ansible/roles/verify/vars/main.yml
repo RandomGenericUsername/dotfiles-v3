@@ -30,7 +30,7 @@
 #       the five deployed asset outcomes (default.png, icon-templates/,
 #       icon-mappings/, csg-templates/, weg-effects.yaml) read-only.
 #   (f) vs 2.9 compositor_configs (skeleton/fragment target map): verify
-#       re-checks the placed skeletons + fragments read-only; the Waybar
+#       re-checks the placed skeletons + fragments read-only; the AGS
 #       fragment is colors.css (renamed from colors.gtk.css on copy).
 #
 # Trim lock: every install-spine path derives from {{ install_dir | trim }} and
@@ -69,7 +69,7 @@ verify_install_spine_dirs:
   - config/color-scheme-generator/templates
   - config/hypr
   - config/hyprpaper
-  - config/waybar
+  - config/ags
   - config/nvim
   - config/starship
   - config/wlogout
@@ -104,7 +104,7 @@ verify_weg_effects_path: "{{ install_dir | trim }}/config/weg/effects.yaml"
 verify_system_binaries:
   - hyprland
   - hyprpaper
-  - waybar
+  - ags
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of
@@ -189,7 +189,7 @@ verify_icons_sample: "{{ install_dir | trim }}/generated/icons/battery-0.svg"
 verify_compositor_config_dirs:
   - "{{ verify_xdg_config_home }}/hypr"
   - "{{ verify_xdg_config_home }}/hyprpaper"
-  - "{{ verify_xdg_config_home }}/waybar"
+  - "{{ verify_xdg_config_home }}/ags"
 
 # verify_compositor_skeleton_files: the skeleton files that must be present
 #   THROUGH the compositor config symlinks (criterion 7), mirror of
@@ -197,16 +197,16 @@ verify_compositor_config_dirs:
 verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/hypr/hyprland.conf"
   - "{{ install_dir | trim }}/config/hyprpaper/hyprpaper.conf"
-  - "{{ install_dir | trim }}/config/waybar/config"
-  - "{{ install_dir | trim }}/config/waybar/style.css"
+  - "{{ install_dir | trim }}/config/ags/app.tsx"
+  - "{{ install_dir | trim }}/config/ags/style.css"
 
 # verify_compositor_fragments: the palette fragments copied into the config
 #   dirs (criterion 7), mirror of compositor_configs_fragment_copies dests.
-#   The Waybar fragment is colors.css (the colors.gtk.css source is renamed to
-#   colors.css on copy — the 2.8 skeleton imports colors.css).
+#   The AGS fragment is colors.css (the colors.gtk.css source is renamed to
+#   colors.css on copy — the skeleton loads colors.css at runtime).
 verify_compositor_fragments:
   - "{{ install_dir | trim }}/config/hypr/colors.conf"
-  - "{{ install_dir | trim }}/config/waybar/colors.css"
+  - "{{ install_dir | trim }}/config/ags/colors.css"
 
 # verify_config_copies_targets: mirror of the config-copies.yaml entries EXACTLY
 #   (criterion 9). config-in-spine (2026-08-16): each is now a SYMLINK at
@@ -242,7 +242,7 @@ verify_config_copy_content:
 verify_managed_link_dirs:
   - hypr
   - hyprpaper
-  - waybar
+  - ags
   - nvim
   - starship
   - wlogout

@@ -91,7 +91,7 @@
   when: packages_use_aur | bool
 
 - name: Check for foreign files that would block the AUR install
-  ansible.builtin.shell: "pacman -Qo '{{ item }}' >/dev/null 2>&1 && echo owned || echo FOREIGN"
+  ansible.builtin.shell: "test -e '{{ item }}' || { echo ABSENT; exit 0; }; pacman -Qo '{{ item }}' >/dev/null 2>&1 && echo owned || echo FOREIGN"
   loop: "{{ aur_conflict_probe_paths }}"
   register: packages_aur_probe
   changed_when: false

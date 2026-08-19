@@ -38,7 +38,7 @@ class Capability(StrEnum):
 
     HYPRLAND = "Hyprland"
     HYPRPAPER = "hyprpaper"
-    WAYBAR = "waybar"
+    AGS = "ags"
     FONTS = "fonts"
     CSG = "csg"
     WEG = "weg"
@@ -52,7 +52,7 @@ class Capability(StrEnum):
 _KIND_BY_CAPABILITY: dict[Capability, CapabilityKind] = {
     Capability.HYPRLAND: CapabilityKind.BINARY,
     Capability.HYPRPAPER: CapabilityKind.BINARY,
-    Capability.WAYBAR: CapabilityKind.BINARY,
+    Capability.AGS: CapabilityKind.BINARY,
     Capability.CSG: CapabilityKind.BINARY,
     Capability.WEG: CapabilityKind.BINARY,
     Capability.ICON_RENDERER: CapabilityKind.BINARY,

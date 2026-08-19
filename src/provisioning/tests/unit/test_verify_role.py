@@ -944,7 +944,7 @@ class TestVerifyVars:
         assert [str(b) for b in data["verify_system_binaries"]] == [
             "hyprland",
             "hyprpaper",
-            "waybar",
+            "ags",
         ]
 
     def test_vars_use_non_deprecated_env_fact(self) -> None:
@@ -1239,12 +1239,12 @@ def _test_env(**overrides: str) -> dict[str, str]:
 
 
 def _write_stub_binaries(home: Path) -> Path:
-    """Stub hyprland/hyprpaper/waybar/csg/weg/itr as executable `#!/bin/sh`
+    """Stub hyprland/hyprpaper/ags/csg/weg/itr as executable `#!/bin/sh`
     scripts in home/.local/bin that exit 0 — so `command -v` + the csg/weg/itr
     parse gates pass without installing real CLIs."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "waybar", "csg", "weg", "itr"):
+    for name in ("hyprland", "hyprpaper", "ags", "csg", "weg", "itr"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -1269,7 +1269,7 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
         "config/color-scheme-generator/templates",
         "config/hypr",
         "config/hyprpaper",
-        "config/waybar",
+        "config/ags",
         "config/nvim",
         "config/starship",
         "config/wlogout",
@@ -1311,10 +1311,10 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
 
     (install / "config" / "hypr" / "hyprland.conf").write_text("")
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
-    (install / "config" / "waybar" / "config").write_text("")
-    (install / "config" / "waybar" / "style.css").write_text("")
+    (install / "config" / "ags" / "app.tsx").write_text("")
+    (install / "config" / "ags" / "style.css").write_text("")
     (install / "config" / "hypr" / "colors.conf").write_text("")
-    (install / "config" / "waybar" / "colors.css").write_text("")
+    (install / "config" / "ags" / "colors.css").write_text("")
 
     (install / "config" / "nvim" / "init.lua").write_text("")
     (install / "config" / "starship" / "starship.toml").write_text("")
@@ -1326,7 +1326,7 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
         '(cat "<INSTALL>/generated/palettes/colors.sequences" &)\n'
     )
     (install / "config" / "wlogout" / "style.css").write_text(
-        '@import url("<INSTALL>/config/waybar/colors.css");\nbutton { color: @color_15; }\n'
+        '@import url("<INSTALL>/config/ags/colors.css");\nbutton { color: @color_15; }\n'
     )
 
     # Shell-tools clones (zsh_tools role — done-criterion 11): verify checks
@@ -1343,7 +1343,7 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     for name in (
         "hypr",
         "hyprpaper",
-        "waybar",
+        "ags",
         "nvim",
         "starship",
         "wlogout",
