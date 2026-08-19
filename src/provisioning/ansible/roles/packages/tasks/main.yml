@@ -29,6 +29,20 @@
   ansible.builtin.set_fact:
     packages_flat: "{{ packages.values() | list | flatten | reject('equalto', '') | difference(aur_packages) | list }}"
 
+# ansible.cfg sets remote_tmp = /tmp/dotfiles-ansible so the root/container
+# --check become_user path avoids the temp-file ownership guard (deferred-work
+# 3-2 fix). On a REAL per-user machine that dir is otherwise created root-owned
+# 0700 by the first `become: true` task, which then blocks the later
+# `become_user: aur_builder` write (Permission denied). Ensure it is sticky +
+# world-writable (01777) so BOTH the root connection user and the become_user
+# can stage module temp files (VM-verified 2026-08-19).
+- name: Ensure ansible remote_tmp is world-writable for become_user
+  ansible.builtin.file:
+    path: /tmp/dotfiles-ansible
+    state: directory
+    mode: "01777"
+  become: true
+
 - name: Install system packages
   ansible.builtin.package:
     name: "{{ packages_flat }}"

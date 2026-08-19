@@ -206,7 +206,10 @@ class TestIconsVars:
 
     def test_bin_dir_defaults_under_home(self) -> None:
         data = _vars()
-        assert str(data["icons_itr_bin_dir"]) == "{{ ansible_facts.env.HOME }}/.local/bin"
+        value = str(data["icons_itr_bin_dir"])
+        assert "UV_TOOL_BIN_DIR" in value
+        assert "XDG_BIN_HOME" in value
+        assert "ansible_facts.env.HOME + '/.local/bin'" in value
 
 
 class TestIconsPlaybook:

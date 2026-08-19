@@ -11,6 +11,15 @@ packages:
   # the AUR package name resolves here; the packages role routes it through the
   # aur_packages channel (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
   ags: aylurs-gtk-shell-git
+  # Container engine for the csg container-mode chain (cli_tools/default_palette
+  # build + run csg under podman). DOCUMENTED DEPENDENCY — must be provisioned on
+  # a fresh machine (VM-verified 2026-08-19: a fresh Arch cloud image has no
+  # engine, so the csg image build aborts). slirp4netns + fuse-overlayfs make
+  # rootless podman work out of the box.
+  container_engine:
+    - podman
+    - slirp4netns
+    - fuse-overlayfs
   fonts:
     - ttf-jetbrains-mono-nerd
     - noto-fonts

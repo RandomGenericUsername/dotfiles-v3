@@ -119,7 +119,9 @@ verify_cli_tools:
 #   ($UV_TOOL_BIN_DIR -> $XDG_BIN_HOME -> $HOME/.local/bin); without the
 #   prepend the bootstrap chain would FALSE-FAIL right after cli_tools
 #   installed them (mirror of the default_palette/assets PATH-prepend pattern).
-verify_cli_bin_dir: "{{ ansible_facts.env.HOME }}/.local/bin"
+verify_cli_bin_dir: >-
+  {{ ansible_facts.env.UV_TOOL_BIN_DIR
+     | default(ansible_facts.env.XDG_BIN_HOME | default(ansible_facts.env.HOME + '/.local/bin', true), true) }}
 
 # verify_settings_files: the three rendered settings DEST paths (criterion 5
 #   part 1). config-in-spine (2026-08-16): the files are rendered into the

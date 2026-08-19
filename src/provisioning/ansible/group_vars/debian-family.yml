@@ -12,6 +12,12 @@ packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
   ags: aylurs-gtk-shell-git
+  # Container engine for the csg container-mode chain (same rationale as Arch).
+  # Debian package names; rootless podman deps.
+  container_engine:
+    - podman
+    - slirp4netns
+    - fuse-overlayfs
   fonts:
     - fonts-noto
     - fonts-noto-cjk

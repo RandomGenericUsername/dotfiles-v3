@@ -439,8 +439,16 @@ class TestAssetsVars:
         assert str(data["assets_repo_root"]) == "{{ playbook_dir }}/../../../.."
 
     def test_weg_bin_dir_defaults_under_home(self) -> None:
+        """uv's bin-dir resolution: UV_TOOL_BIN_DIR -> XDG_BIN_HOME ->
+        $HOME/.local/bin. Falls back to $HOME/.local/bin when no XDG/uv var is
+        set, and honors the overrides in lockstep with cli_tools_bin_dir.
+        (Fixes the custom-XDG fresh-machine failure where `weg` was installed
+        elsewhere but the role looked only at $HOME/.local/bin.)"""
         data = _vars()
-        assert str(data["assets_weg_bin_dir"]) == "{{ ansible_facts.env.HOME }}/.local/bin"
+        value = str(data["assets_weg_bin_dir"])
+        assert "UV_TOOL_BIN_DIR" in value
+        assert "XDG_BIN_HOME" in value
+        assert "ansible_facts.env.HOME + '/.local/bin'" in value
 
     def test_vars_use_non_deprecated_env_fact(self) -> None:
         """F4 lock: vars read ansible_facts.env, never the deprecated top-level

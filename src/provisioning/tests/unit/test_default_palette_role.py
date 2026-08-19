@@ -429,7 +429,10 @@ class TestDefaultPaletteVars:
 
     def test_bin_dir_defaults_under_home(self) -> None:
         data = _vars()
-        assert str(data["default_palette_bin_dir"]) == "{{ ansible_facts.env.HOME }}/.local/bin"
+        value = str(data["default_palette_bin_dir"])
+        assert "UV_TOOL_BIN_DIR" in value
+        assert "XDG_BIN_HOME" in value
+        assert "ansible_facts.env.HOME + '/.local/bin'" in value
 
     def test_container_engine_not_pinned_in_vars(self) -> None:
         """podman/docker are DOCUMENTED DEPENDENCIES: the engine is resolved at
