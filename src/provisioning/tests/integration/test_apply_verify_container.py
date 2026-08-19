@@ -41,14 +41,17 @@ def _find_repo_root() -> Path:
 _REPO_ROOT = _find_repo_root()
 _PROVISION_REL = "src/provisioning"
 
-# The filed deferred-work 3-2 packages-chain defect: with group_vars at
-# ansible/group_vars/ (undiscoverable — ansible only looks beside inventory/ or
-# playbooks/), packages.yaml aborts at 'Assemble package list' with 'packages'
-# is undefined; and even with group_vars reachable, a root --check of the
-# become_user makepkg task hits ansible's temp-file ownership guard. Both are
-# recorded in deferred-work.md; until fixed the AC-4 proof xfails.
+# The filed deferred-work 3-2 packages-chain defect (2026-08-15) is now FIXED:
+# - group_vars discovery ('packages' is undefined): resolved by commit 57063f5
+#   (inventory/group_vars -> ../group_vars symlink).
+# - root --check become_user temp-file ownership guard: fixed by remote_tmp =
+#   /tmp/dotfiles-ansible in ansible.cfg AND the become_user AUR build/install
+#   tasks gated `not ansible_check_mode` in the packages role.
+# The AC-4 proof (test_packages_check_never_builds_yay_in_container) now passes.
+# The pattern below is a vestigial safety net for the heavier full-bootstrap
+# path — it is harmless if it stops matching, and can be removed once
+# test_apply_then_verify_on_disposable_container passes green.
 _FILED_DEFECT_PATTERNS = (
-    "'packages' is undefined",
     "Failed to change ownership of the temporary files",
 )
 
@@ -378,14 +381,14 @@ def test_packages_check_never_builds_yay_in_container(
     """AC 4 in-container proof: packages.yaml --check as root (become is a
     root→root no-op, no sudo password needed) on the fresh target must exit 0
     AND leave /usr/bin/yay and the install spine absent — makepkg never runs in
-    dry-run mode. Currently EXPECTED-FAIL (xfail) on this host-class because
-    the filed deferred-work 3-2 defect (ansible/group_vars/ undiscoverable)
-    aborts the play at 'Assemble package list' before the makepkg task is even
-    reached; the proof runs clean and passes once that defect is fixed."""
-    try:
-        proc = container_target.packages_check()
-    except _PackagesChainDefectError as exc:
-        pytest.xfail(f"AC-4 proof blocked by the filed packages-chain defect: {exc}")
+    dry-run mode.
+
+    The filed deferred-work 3-2 packages-chain defect is fixed: group_vars
+    discovery (inventory/group_vars symlink, commit 57063f5) and the root
+    `--check` become_user temp-file ownership guard (remote_tmp in ansible.cfg
+    + the become_user AUR build/install tasks gated `not ansible_check_mode`).
+    This test must PASS (not xfail) now."""
+    proc = container_target.packages_check()
     assert "failed=0" in (proc.stdout or ""), (
         f"packages.yaml --check recap must report failed=0 inside the target:\n{proc.stdout}"
     )

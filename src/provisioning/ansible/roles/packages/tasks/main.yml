@@ -77,8 +77,17 @@
   become_user: "{{ aur_builder_user }}"
   vars:
     ansible_python_interpreter: /usr/bin/python3
-  when: packages_use_aur | bool and yay_check.rc != 0
+  when:
+    - packages_use_aur | bool
+    - yay_check.rc != 0
+    - not ansible_check_mode
 
+# Build and install yay-bin via makepkg. Gated `when: not ansible_check_mode`
+# so a dry-run NEVER builds: under --check Ansible would otherwise stage the
+# become_user (aur_builder) temp-file wrapper and abort with the temp-file
+# ownership guard in a root/container context — even though makepkg is not
+# supposed to run in dry-run. The `creates: /usr/bin/yay` is the real-apply
+# idempotency guard (deferred-work 3-2 defect #2 fix).
 - name: Build and install yay-bin via makepkg
   ansible.builtin.command: makepkg -si --noconfirm
   args:
@@ -88,7 +97,9 @@
   become_user: "{{ aur_builder_user }}"
   vars:
     ansible_python_interpreter: /usr/bin/python3
-  when: packages_use_aur | bool
+  when:
+    - packages_use_aur | bool
+    - not ansible_check_mode
 
 - name: Check for foreign files that would block the AUR install
   ansible.builtin.shell: "test -e '{{ item }}' || { echo ABSENT; exit 0; }; pacman -Qo '{{ item }}' >/dev/null 2>&1 && echo owned || echo FOREIGN"
@@ -125,4 +136,7 @@
   become_user: "{{ aur_builder_user }}"
   vars:
     ansible_python_interpreter: /usr/bin/python3
-  when: packages_use_aur | bool and aur_packages | length > 0
+  when:
+    - packages_use_aur | bool
+    - aur_packages | length > 0
+    - not ansible_check_mode
