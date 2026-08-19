@@ -15,9 +15,15 @@ window {
 
 /* The login card + the top clock (both use class "background") */
 frame.background {
-  background-color: rgba(11, 11, 26, 0.88);
-  border-radius: 18px;
-  border: 1px solid rgba(219, 171, 103, 0.28);
+  background-color: rgba(15, 15, 32, 0.92);
+  border-radius: 16px;
+  border: 1px solid rgba(219, 171, 103, 0.22);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+/* Give the login card's inner grid roomier, cleaner spacing */
+frame.background grid {
+  padding: 28px 32px;
 }
 
 /* Login card labels ("User:", "Session:", system messages) */
@@ -27,32 +33,51 @@ label {
 
 /* Entry fields (username, password, manual session) */
 entry {
-  background-color: rgba(44, 44, 66, 0.55);
-  color: #c2c2c5;
+  background-color: rgba(30, 30, 52, 0.9);
+  color: #e8e8ec;
   border-radius: 10px;
-  border: 1px solid rgba(84, 158, 200, 0.45);
-  padding: 8px 12px;
+  border: 1px solid rgba(84, 158, 200, 0.4);
+  padding: 12px 14px;
+  font-size: 1.05em;
   caret-color: #dbab67;
+  min-height: 20px;
+}
+entry selection {
+  background-color: #dbab67;
+  color: #1a1a2e;
 }
 entry:focus {
   border-color: #549ec8;
-  background-color: rgba(54, 54, 82, 0.8);
+  background-color: rgba(40, 40, 68, 0.95);
 }
 
 /* Session/usernames dropdown */
 combobox {
-  background-color: rgba(44, 44, 66, 0.55);
-  color: #c2c2c5;
+  background-color: rgba(30, 30, 52, 0.9);
+  color: #e8e8ec;
   border-radius: 10px;
-  border: 1px solid rgba(84, 158, 200, 0.45);
+  border: 1px solid rgba(84, 158, 200, 0.4);
+  padding: 6px;
 }
 combobox button {
-  color: #c2c2c5;
+  color: #e8e8ec;
   background: none;
   border: none;
+  padding: 8px 12px;
 }
 combobox button:hover {
   background-color: rgba(84, 158, 200, 0.15);
+  border-radius: 8px;
+}
+
+/* Dropdown popup menu */
+popover > contents > list {
+  background-color: #1a1a30;
+  color: #e8e8ec;
+  border-radius: 10px;
+}
+popover > contents > list > row:hover {
+  background-color: rgba(84, 158, 200, 0.2);
 }
 
 /* Generic buttons */
@@ -61,8 +86,10 @@ button {
   color: #ffffff;
   border-radius: 10px;
   border: none;
-  padding: 8px 18px;
+  padding: 12px 26px;
   font-weight: bold;
+  font-size: 1.05em;
+  transition: 120ms ease;
 }
 button:hover {
   background-color: #3a7db8;
@@ -71,13 +98,27 @@ button:active {
   background-color: #22507a;
 }
 
-/* Login button */
+/* Login button — prominent, gold accent */
 button.suggested-action {
   background-color: #dbab67;
   color: #1a1a2e;
+  padding: 12px 34px;
 }
 button.suggested-action:hover {
-  background-color: #e6bb7d;
+  background-color: #e8c082;
+  box-shadow: 0 4px 16px rgba(219, 171, 103, 0.35);
+}
+
+/* Reboot / power-off (destructive-action frames them) */
+button.destructive-action {
+  background-color: rgba(30, 30, 52, 0.85);
+  color: #c2c2c5;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 18px;
+}
+button.destructive-action:hover {
+  background-color: rgba(84, 158, 200, 0.2);
+  color: #e8e8ec;
 }
 
 /* Message/notification bar */
