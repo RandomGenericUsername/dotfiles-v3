@@ -53,14 +53,6 @@
     state: directory
   become: true
 
-- name: Render the regreet Hyprland host config
-  ansible.builtin.template:
-    src: hyprland-greeter.conf.j2
-    dest: "{{ display_manager_hyprland_greeter_conf }}"
-    mode: "0644"
-  become: true
-  when: display_manager_greeter_type == 'regreet'
-
 - name: Ensure regreet state/log dirs exist
   ansible.builtin.file:
     path: "{{ item }}"

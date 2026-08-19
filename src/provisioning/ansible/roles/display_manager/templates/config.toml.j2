@@ -1,20 +1,22 @@
 # greetd configuration (rendered by the display_manager role).
 #
 # default_session runs the greeter as the 'greeter' user. Two modes:
-#   regreet  — graphical GTK greeter, hosted inside a Hyprland Wayland session
-#              (hyprland-greeter.conf runs regreet then exits so the real
-#              user session takes over). No X11/GPU grab -> no freeze.
+#   regreet  — graphical GTK greeter hosted inside CAGE, a minimal Wayland
+#              compositor purpose-built to hold a single fullscreen app (the
+#              standard, reliable regreet host). Cage shows regreet; on login
+#              regreet launches the real user session and Cage exits. No X11/
+#              GPU grab -> no freeze.
 #   tuigreet — text/TUI greeter (same X11-free property; fallback on distros
 #              without regreet).
-# The logged-in user's session is launched by regreet/tuigreet after
+# The logged-in user's Hyprland session is launched by regreet/tuigreet after
 # authentication (regreet uses accountsservice + the wayland-sessions dir;
-# tuigreet uses --cmd).
+# tuigreet uses --cmd /usr/local/bin/hypr-session).
 [terminal]
 vt = 1
 
 [default_session]
 {% if display_manager_greeter_type == 'regreet' %}
-command = "dbus-run-session start-hyprland -c {{ display_manager_hyprland_greeter_conf }}"
+command = "dbus-run-session cage -s -mlast -- regreet"
 {% else %}
 command = "tuigreet --time --greeting 'dotfiles' --cmd /usr/local/bin/hypr-session"
 {% endif %}

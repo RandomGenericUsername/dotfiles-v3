@@ -1,10 +1,12 @@
 # Display-manager role vars (Story 3.4 / working Hyprland login).
 #
 # Greeter selection (2026-08-18):
-#   regreet — graphical GTK4 greeter (Arch `extra` package greetd-regreet).
-#             Gives a proper graphical login. Arch-primary.
+#   regreet — graphical GTK4 greeter (Arch `extra` package greetd-regreet),
+#             hosted inside Cage, a minimal Wayland compositor purpose-built to
+#             hold a single fullscreen app. Cage + regreet is the standard,
+#             reliable greetd graphical-login path (regreet's PRIMARY mode).
 #   tuigreet — TUI/text greeter (greetd-tuigreet). Fallback for distros where
-#              regreet is unavailable (e.g. Debian main repos only ship
+#              regreet is unavailable (e.g. Debian main only ships
 #              greetd-tuigreet; regreet is experimental-only there).
 # The role ships settings for both and a distro-aware default.
 
@@ -13,12 +15,14 @@
 #   (e.g. to force tuigreet everywhere).
 display_manager_greeter_type: "{{ 'regreet' if ansible_os_family == 'Archlinux' else 'tuigreet' }}"
 
-# display_manager_packages: the greetd session daemon + chosen greeter.
-#   Arch: regreet is in extra. Debian-family: greetd-tuigreet is in main;
-#   regreet is experimental-only, so use the TUI greeter there.
+# display_manager_packages: the greetd session daemon + chosen greeter + (for
+#   regreet) Cage, the Wayland compositor that hosts the graphical greeter.
+#   Arch: greetd-regreet + cage are in extra. Debian: greetd-tuigreet is in
+#   main (regreet/cage are experimental-ish), so use the TUI greeter there.
 display_manager_packages_regreet:
   - greetd
   - greetd-regreet
+  - cage
 display_manager_packages_tuigreet:
   - greetd
   - greetd-tuigreet
@@ -42,8 +46,3 @@ display_manager_greeter_shell: /usr/bin/false
 display_manager_disable_services:
   - lightdm
   - sddm
-
-# display_manager_hyprland_greeter_conf: the Hyprland config used to host the
-#   regreet greeter (regreet runs INSIDE a Wayland compositor — Hyprland here).
-#   Per ReGreet docs: a config with exec-once = regreet; hyprctl dispatch exit.
-display_manager_hyprland_greeter_conf: /etc/greetd/hyprland.conf

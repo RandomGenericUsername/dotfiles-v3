@@ -71,7 +71,6 @@ class TestDisplayManagerRoleTree:
         "vars/main.yml",
         "templates/config.toml.j2",
         "templates/hypr-session.j2",
-        "templates/hyprland-greeter.conf.j2",
     )
 
     def test_role_tree_exists(self) -> None:
@@ -102,22 +101,14 @@ class TestDisplayManagerTasks:
         assert isinstance(module, dict)
         assert module["name"] == "{{ display_manager_packages }}"
 
-    def test_regreet_hyprland_host_config_rendered_only_for_regreet(self) -> None:
-        """The regreet Hyprland host config (exec-once = regreet; hyprctl
-        dispatch exit) is rendered ONLY when the greeter is regreet."""
-        tasks = _load_tasks()
-        host = next(
-            (
-                t
-                for t in tasks
-                if "Render the regreet Hyprland host config" in str(t.get("name", ""))
-            ),
-            None,
-        )
-        assert host is not None, "missing regreet Hyprland host config render task"
-        assert "display_manager_greeter_type == 'regreet'" in str(host.get("when", "")), (
-            "regreet host config render must gate on greeter_type == regreet"
-        )
+    def test_regreet_uses_cage_host_in_config(self) -> None:
+        """regreet (graphical) is hosted inside CAGE — the minimal Wayland
+        compositor purpose-built to hold the greeter (regreet's primary,
+        reliable mode), not nested inside Hyprland."""
+        body = (_ROLES_DIR / "templates" / "config.toml.j2").read_text()
+        assert "cage" in body, "regreet path must host regreet inside cage"
+        assert "-s" in body, "cage must enable VT switching (-s) so the user is not locked out"
+        assert "-- regreet" in body, "cage must launch regreet"
 
     def test_tuigreet_session_launcher_gated(self) -> None:
         """hypr-session (dbus-run-session -> Hyprland) is the tuigreet fallback
@@ -130,6 +121,17 @@ class TestDisplayManagerTasks:
         assert session is not None, "missing hypr-session render task"
         assert "display_manager_greeter_type == 'tuigreet'" in str(session.get("when", "")), (
             "hypr-session must gate on greeter_type == tuigreet"
+        )
+
+    def test_regreet_state_log_dirs_gated(self) -> None:
+        """regreet's state/log dirs are created only for the regreet greeter."""
+        tasks = _load_tasks()
+        dirs = next(
+            (t for t in tasks if "Ensure regreet state/log dirs" in str(t.get("name", ""))), None
+        )
+        assert dirs is not None, "missing regreet state/log dirs task"
+        assert "display_manager_greeter_type == 'regreet'" in str(dirs.get("when", "")), (
+            "regreet state/log dirs must gate on greeter_type == regreet"
         )
 
     def test_enables_greetd_service(self) -> None:
@@ -163,19 +165,13 @@ class TestDisplayManagerTasks:
 
 
 class TestDisplayManagerTemplates:
-    def test_hyprland_greeter_hosts_regreet(self) -> None:
-        """The Hyprland host config used for regreet must run regreet at
-        startup then exit Hyprland when the session launches."""
-        body = (_ROLES_DIR / "templates" / "hyprland-greeter.conf.j2").read_text()
-        assert "regreet" in body
-        assert "hyprctl dispatch exit" in body
-
     def test_config_toml_branches_by_greeter(self) -> None:
-        """config.toml must launch regreet (via Hyprland host) OR tuigreet
-        (--cmd hypr-session) depending on display_manager_greeter_type."""
+        """config.toml must launch regreet (inside Cage, via the graphical
+        path) OR tuigreet (--cmd hypr-session) depending on
+        display_manager_greeter_type."""
         body = (_ROLES_DIR / "templates" / "config.toml.j2").read_text()
         assert "display_manager_greeter_type" in body
-        assert "start-hyprland" in body, "regreet path must use start-hyprland with the host config"
+        assert "cage" in body, "regreet path must host regreet inside Cage"
         assert "tuigreet" in body, "fallback path must use tuigreet"
         assert "/usr/local/bin/hypr-session" in body
 
@@ -215,6 +211,10 @@ class TestDisplayManagerVars:
         assert "greetd-tuigreet" in data["display_manager_packages_tuigreet"]
         assert "greetd" in data["display_manager_packages_regreet"]
         assert "greetd" in data["display_manager_packages_tuigreet"]
+        assert "cage" in data["display_manager_packages_regreet"], (
+            "regreet must be hosted inside Cage (the minimal fullscreen Wayland "
+            "compositor that holds the graphical greeter)"
+        )
 
     def test_disables_lightdm_and_sddm(self) -> None:
         data = _vars()
