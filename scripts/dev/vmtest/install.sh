@@ -3,14 +3,12 @@
 # Requires sudo (installs qemu + cloud-init image tooling).
 set -euo pipefail
 
-# Read the emulated distro arch (host-independent of the guest)
-if grep -qE 'ID=(arch|endeavouros)' /etc/os-release 2>/dev/null; then
-  echo "== Installing QEMU + cloud-init tooling (Arch) =="
-  # qemu-desktop: full x86_64 emulator (our guest); cloud-image-utils: cloud-localds
-  if ! command -v qemu-system-x86_64 >/dev/null; then
+# Read the host distro; accept Arch and Arch-based derivatives (EndeavourOS,
+# CachyOS, Manjaro...) via ID or ID_LIKE=arch, since they all use pacman.
+if grep -qiE '^(ID|ID_LIKE)=(.*)?arch' /etc/os-release 2>/dev/null; then
+  echo "== Installing QEMU + cloud-init tooling (Arch-based host) =="
+  if ! command -v qemu-system-x86_64 >/dev/null || ! command -v cloud-localds >/dev/null; then
     sudo pacman -S --needed --noconfirm qemu-desktop cloud-image-utils
-  elif ! command -v cloud-localds >/dev/null; then
-    sudo pacman -S --needed --noconfirm cloud-image-utils
   fi
 else
   echo "unsupported host distro for auto-install ($(grep -E '^ID=' /etc/os-release | head -1))"

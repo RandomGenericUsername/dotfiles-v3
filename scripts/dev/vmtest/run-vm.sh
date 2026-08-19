@@ -10,8 +10,8 @@
 #     so any host edit is immediately visible in the VM (no copying).
 #
 # After boot, to provision (in another terminal):
-#   bash scripts/dev/vmtest/provision-in-vm.sh
-# and/or SSH in:  ssh -i scripts/dev/vmtest/.images/id_vm -p 2222 arch@localhost
+#   bash scripts/dev/vmtest/provision-in-vm.sh   (SSHPORT must match; run-vm prints it)
+# and/or SSH in:  ssh -i scripts/dev/vmtest/.images/id_vm -p "$SSHPORT" arch@localhost
 set -euo pipefail
 
 VMDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +23,13 @@ cd "$WORKDIR"
 IMG_URL="https://lug.mtu.edu/archlinux/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
 IMG="arch-cloud.qcow2"
 DISK="working.qcow2"
+
+# Pick the SSH host port; bump until free to avoid colliding with a previous VM.
+SSHPORT="${SSHPORT:-2222}"
+while ss -ltn | grep -q ":$SSHPORT "; do
+  echo "!! port $SSHPORT already in use, bumping"
+  SSHPORT=$((SSHPORT + 1))
+done
 
 # 1. Prereqs
 if ! command -v qemu-system-x86_64 >/dev/null || ! command -v cloud-localds >/dev/null; then
@@ -64,16 +71,16 @@ fi
 # 5. Boot a visible VM with the live repo shared read-only at /repo.
 #    -display gtk  -> native window (Wayland/X). For headless use -vnc :1 instead.
 #    virtio-9p     -> share $REPO_ROOT into the guest at /repo (read-only, live).
-#    2222:22       -> SSH port-forward.
+#    $SSHPORT:22   -> SSH port-forward (chosen free port).
 echo "== Booting dotfiles dev VM (visible window) =="
 echo "   repo shared read-only into the VM at /repo"
-echo "   SSH: ssh -i $WORKDIR/id_vm -p 2222 arch@localhost"
-echo "   To provision: bash $VMDIR/provision-in-vm.sh"
+echo "   SSH: ssh -i $WORKDIR/id_vm -p $SSHPORT arch@localhost"
+echo "   To provision (must match port): SSHPORT=$SSHPORT bash $VMDIR/provision-in-vm.sh"
 exec qemu-system-x86_64 \
   -display gtk -machine accel=kvm -cpu host -smp 2 -m 4096 \
   -drive file="$DISK",if=virtio,format=qcow2 \
   -drive file=seed.iso,if=ide,media=cdrom,readonly=on \
-  -netdev user,id=n0,hostfwd=tcp::2222-:22 -device virtio-net-pci,netdev=n0 \
+  -netdev user,id=n0,hostfwd=tcp::$SSHPORT-:22 -device virtio-net-pci,netdev=n0 \
   -device virtio-vga -vga virtio -usb -device usb-tablet \
   -virtfs local,path="$REPO_ROOT",mount_tag=repo,security_model=none,readonly=on \
   -device virtio-9p-pci,fsdev=repo,mount_tag=repo
