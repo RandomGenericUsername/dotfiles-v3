@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Provision the running dotfiles dev VM end-to-end over SSH.
 #
-# Assumes the VM was started with run-vm.sh (repo shared at /repo, SSH on :2222).
+# Assumes the VM was started with run-vm.sh (repo shared at /repo).
+# SSH port must match run-vm.sh's chosen port: set SSHPORT (default 2222).
 # Runs the REAL toolchain setup + full `dotfiles-provision bootstrap` + verify,
 # then reports the key results (AGS bar, SDDM, palette).
 set -euo pipefail
 
 VMDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KEY="$VMDIR/.images/id_vm"
-PORT="${PORT:-2222}"
+PORT="${SSHPORT:-${PORT:-2222}}"
 U=arch
 
 run() { ssh -i "$KEY" -p "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$U@localhost" "$@"; }
