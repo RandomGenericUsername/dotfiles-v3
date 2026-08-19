@@ -71,6 +71,7 @@ class TestDisplayManagerRoleTree:
         "vars/main.yml",
         "templates/config.toml.j2",
         "templates/hypr-session.j2",
+        "templates/hyprland-greeter.conf.j2",
     )
 
     def test_role_tree_exists(self) -> None:
@@ -92,14 +93,44 @@ class TestDisplayManagerTasks:
             assert task["name"], "every task must carry a name"
 
     def test_installs_greetd_packages(self) -> None:
-        """The role is self-contained: it installs greetd + the TUI greeter
-        (not a silent dependency on the packages role)."""
+        """The role is self-contained: it installs greetd + the selected
+        greeter (not a silent dependency on the packages role)."""
         tasks = _load_tasks()
         pkg = next((t for t in tasks if _module_key(t) == "ansible.builtin.package"), None)
         assert pkg is not None, "missing greetd package install task"
         module = pkg.get("ansible.builtin.package")
         assert isinstance(module, dict)
         assert module["name"] == "{{ display_manager_packages }}"
+
+    def test_regreet_hyprland_host_config_rendered_only_for_regreet(self) -> None:
+        """The regreet Hyprland host config (exec-once = regreet; hyprctl
+        dispatch exit) is rendered ONLY when the greeter is regreet."""
+        tasks = _load_tasks()
+        host = next(
+            (
+                t
+                for t in tasks
+                if "Render the regreet Hyprland host config" in str(t.get("name", ""))
+            ),
+            None,
+        )
+        assert host is not None, "missing regreet Hyprland host config render task"
+        assert "display_manager_greeter_type == 'regreet'" in str(host.get("when", "")), (
+            "regreet host config render must gate on greeter_type == regreet"
+        )
+
+    def test_tuigreet_session_launcher_gated(self) -> None:
+        """hypr-session (dbus-run-session -> Hyprland) is the tuigreet fallback
+        path; gated on greeter_type == tuigreet."""
+        tasks = _load_tasks()
+        session = next(
+            (t for t in tasks if "Render greetd session launcher" in str(t.get("name", ""))),
+            None,
+        )
+        assert session is not None, "missing hypr-session render task"
+        assert "display_manager_greeter_type == 'tuigreet'" in str(session.get("when", "")), (
+            "hypr-session must gate on greeter_type == tuigreet"
+        )
 
     def test_enables_greetd_service(self) -> None:
         tasks = _load_tasks()
@@ -130,35 +161,38 @@ class TestDisplayManagerTasks:
         assert isinstance(module, dict)
         assert module["name"] == "{{ display_manager_greeter_user }}"
 
-    def test_config_templated_from_greetd(self) -> None:
-        """The role renders /etc/greetd/config.toml and the hypr-session wrapper
-        (which launches Hyprland via dbus-run-session, the Wayland-safe way)."""
-        tasks = _load_tasks()
-        tmpl = [t for t in tasks if _module_key(t) == "ansible.builtin.template"]
-        config = next((t for t in tmpl if "Render greetd config" in str(t.get("name", ""))), None)
-        session = next((t for t in tmpl if "session wrapper" in str(t.get("name", ""))), None)
-        assert config is not None, "missing greetd config render task"
-        assert session is not None, "missing hypr-session wrapper render task"
+
+class TestDisplayManagerTemplates:
+    def test_hyprland_greeter_hosts_regreet(self) -> None:
+        """The Hyprland host config used for regreet must run regreet at
+        startup then exit Hyprland when the session launches."""
+        body = (_ROLES_DIR / "templates" / "hyprland-greeter.conf.j2").read_text()
+        assert "regreet" in body
+        assert "hyprctl dispatch exit" in body
+
+    def test_config_toml_branches_by_greeter(self) -> None:
+        """config.toml must launch regreet (via Hyprland host) OR tuigreet
+        (--cmd hypr-session) depending on display_manager_greeter_type."""
+        body = (_ROLES_DIR / "templates" / "config.toml.j2").read_text()
+        assert "display_manager_greeter_type" in body
+        assert "start-hyprland" in body, "regreet path must use start-hyprland with the host config"
+        assert "tuigreet" in body, "fallback path must use tuigreet"
+        assert "/usr/local/bin/hypr-session" in body
 
     def test_hypr_session_wrapper_runs_dbus_wayland(self) -> None:
         """The session wrapper must launch Hyprland inside dbus-run-session —
         no X11, matching a clean Wayland login (the freeze fix)."""
         body = (_ROLES_DIR / "templates" / "hypr-session.j2").read_text()
-        assert "dbus-run-session" in body, "hypr-session must use dbus-run-session"
-        assert "Hyprland" in body, "hypr-session must launch Hyprland"
-
-    def test_greetd_config_uses_tuigreet_no_x(self) -> None:
-        """The greetd config must run tuigreet (TUI, no Xorg/GPU grab) and point
-        --cmd at hypr-session."""
-        body = (_ROLES_DIR / "templates" / "config.toml.j2").read_text()
-        assert "tuigreet" in body, "greetd config must use tuigreet"
-        assert "hypr-session" in body, "greetd config must launch hypr-session via --cmd"
-        assert "user =" in body, "greetd config must set the greeter user"
+        assert "dbus-run-session" in body
+        assert "Hyprland" in body
 
 
 class TestDisplayManagerVars:
     _REQUIRED_KEYS = {
+        "display_manager_greeter_type",
         "display_manager_packages",
+        "display_manager_packages_regreet",
+        "display_manager_packages_tuigreet",
         "display_manager_greeter_user",
         "display_manager_greeter_shell",
         "display_manager_disable_services",
@@ -168,10 +202,19 @@ class TestDisplayManagerVars:
         data = _vars()
         assert self._REQUIRED_KEYS.issubset(set(data))
 
-    def test_installs_greetd_and_tuigreet(self) -> None:
+    def test_regreet_defaults_on_arch(self) -> None:
         data = _vars()
-        assert "greetd" in data["display_manager_packages"]
-        assert "greetd-tuigreet" in data["display_manager_packages"]
+        assert "Archlinux" in str(data["display_manager_greeter_type"]), (
+            "greeter_type must default to regreet on Arch"
+        )
+        assert "regreet" in str(data["display_manager_greeter_type"])
+
+    def test_package_sets_per_greeter(self) -> None:
+        data = _vars()
+        assert "greetd-regreet" in data["display_manager_packages_regreet"]
+        assert "greetd-tuigreet" in data["display_manager_packages_tuigreet"]
+        assert "greetd" in data["display_manager_packages_regreet"]
+        assert "greetd" in data["display_manager_packages_tuigreet"]
 
     def test_disables_lightdm_and_sddm(self) -> None:
         data = _vars()

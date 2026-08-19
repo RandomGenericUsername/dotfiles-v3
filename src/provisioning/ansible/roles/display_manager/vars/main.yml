@@ -1,27 +1,49 @@
 # Display-manager role vars (Story 3.4 / working Hyprland login).
+#
+# Greeter selection (2026-08-18):
+#   regreet — graphical GTK4 greeter (Arch `extra` package greetd-regreet).
+#             Gives a proper graphical login. Arch-primary.
+#   tuigreet — TUI/text greeter (greetd-tuigreet). Fallback for distros where
+#              regreet is unavailable (e.g. Debian main repos only ship
+#              greetd-tuigreet; regreet is experimental-only there).
+# The role ships settings for both and a distro-aware default.
 
-# display_manager_packages: the greetd session daemon + TUI greeter install.
-#   Self-contained (the role installs them, not a silent dependency on the
-#   packages role), which keeps the role independently re-runnable and the
-#   bootstrap truly one-command. Distro-agnostic names live here; both exist on
-#   Arch (extra) and Debian-family (main).
-display_manager_packages:
+# display_manager_greeter_type: the configured greeter engine. Auto-selects
+#   regreet on Arch, tuigreet elsewhere. Overrideable via extra-var/group_vars
+#   (e.g. to force tuigreet everywhere).
+display_manager_greeter_type: "{{ 'regreet' if ansible_os_family == 'Archlinux' else 'tuigreet' }}"
+
+# display_manager_packages: the greetd session daemon + chosen greeter.
+#   Arch: regreet is in extra. Debian-family: greetd-tuigreet is in main;
+#   regreet is experimental-only, so use the TUI greeter there.
+display_manager_packages_regreet:
+  - greetd
+  - greetd-regreet
+display_manager_packages_tuigreet:
   - greetd
   - greetd-tuigreet
+
+# Resolved install list based on the selected greeter.
+display_manager_packages: >-
+  {{ display_manager_packages_regreet if display_manager_greeter_type == 'regreet' else display_manager_packages_tuigreet }}
 
 # display_manager_greeter_user: the system user greetd runs its greeter as.
 #   greetd requires this user to exist; the default 'greeter' is standard.
 display_manager_greeter_user: greeter
 
-# display_manager_greeter_shell: the greeter user's login shell. Musigreet/
-#   greetd docs use /usr/bin/false (it never gets an interactive login — the
-#   greeter launches the session as the LOGGED-IN user, not as 'greeter').
+# display_manager_greeter_shell: the greeter user's login shell. The greeter
+#   never gets an interactive login (the greeter launches the session as the
+#   LOGGED-IN user, not as 'greeter').
 display_manager_greeter_shell: /usr/bin/false
 
 # display_manager_disable_services: X11 display managers that greetd replaces
 #   and that this role disables (they grab the GPU and cause the Hyprland
-#   freeze). Failed_when: false on the disable so an absent service is a no-op
-#   (e.g. a fresh machine that never had lightdm).
+#   freeze). Failed_when: false on the disable so an absent service is a no-op.
 display_manager_disable_services:
   - lightdm
   - sddm
+
+# display_manager_hyprland_greeter_conf: the Hyprland config used to host the
+#   regreet greeter (regreet runs INSIDE a Wayland compositor — Hyprland here).
+#   Per ReGreet docs: a config with exec-once = regreet; hyprctl dispatch exit.
+display_manager_hyprland_greeter_conf: /etc/greetd/hyprland.conf

@@ -1,13 +1,21 @@
 # greetd configuration (rendered by the display_manager role).
 #
-# default_session runs the greeter as the 'greeter' user. tuigreet prompts for
-# username/password then launches the provided --cmd (hypr-session -> dbus-run-
-# session -> Hyprland) AS THE LOGGED-IN USER. Because neither greetd nor
-# tuigreet starts an Xorg server, there is no GPU grab to conflict with
-# Hyprland's Wayland session (the freeze fix).
+# default_session runs the greeter as the 'greeter' user. Two modes:
+#   regreet  — graphical GTK greeter, hosted inside a Hyprland Wayland session
+#              (hyprland-greeter.conf runs regreet then exits so the real
+#              user session takes over). No X11/GPU grab -> no freeze.
+#   tuigreet — text/TUI greeter (same X11-free property; fallback on distros
+#              without regreet).
+# The logged-in user's session is launched by regreet/tuigreet after
+# authentication (regreet uses accountsservice + the wayland-sessions dir;
+# tuigreet uses --cmd).
 [terminal]
 vt = 1
 
 [default_session]
+{% if display_manager_greeter_type == 'regreet' %}
+command = "dbus-run-session start-hyprland -c {{ display_manager_hyprland_greeter_conf }}"
+{% else %}
 command = "tuigreet --time --greeting 'dotfiles' --cmd /usr/local/bin/hypr-session"
+{% endif %}
 user = "{{ display_manager_greeter_user }}"

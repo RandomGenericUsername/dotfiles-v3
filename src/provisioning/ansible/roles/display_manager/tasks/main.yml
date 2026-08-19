@@ -2,29 +2,30 @@
 # Wayland-friendly login manager so a fresh machine boots into Hyprland + the
 # AGS bar without an X11-greeter GPU conflict.
 #
-# Why greetd + tuigreet (2026-08-18 decision):
+# Why greetd (2026-08-18 decision):
 #   X11 greeters (lightdm, sddm's built-in greeter) launch an Xorg server that
 #   GRABS the DRM/GPU. Starting Hyprland (Wayland) on that same GPU afterwards
 #   causes modeset contention and a hard freeze (observed: lightdm session
 #   froze, TTY-launched Hyprland worked). greetd is a minimal session daemon
-#   with NO built-in GUI/GPU grab; tuigreet is a text (TUI) greeter. Neither
-#   touches Xorg, so the freeze is eliminated. This is the community-standard
-#   Wayland/Hyprland login path.
+#   with NO built-in GUI/GPU grab. Combined with an X11-free greeter (regreet,
+#   a GTK4 Wayland greeter, or tuigreet, a TUI greeter), the freeze is gone.
+#
+# Greeter selection (distro-aware, configurable):
+#   regreet  (Arch default) — graphical GTK4 greeter, hosted inside a Hyprland
+#            Wayland session (hyprland-greeter.conf runs regreet then exits).
+#   tuigreet (Debian default) — text/TUI greeter; regreet is experimental-only
+#            there, so TUI is the reliable mainstream fallback.
 #
 # Role responsibilities (machine-level, become):
-#   1. Ensure the greetd "greeter" user exists (greetd requirement).
-#   2. Render /etc/greetd/config.toml -> default_session = greeter user running
-#      tuigreet --cmd (launches Hyprland as the logged-in user after auth).
-#   3. Render the /usr/local/bin/hypr-session wrapper (dbus-run-session ->
-#      Hyprland) so greetd launches a proper Wayland session.
-#   4. Enable greetd.service and disable the X11 greeter it replaces
-#      (lightdm; a prior default can be overridden via display_manager_disable).
+#   1. Install greetd + the selected greeter.
+#   2. Ensure the greetd "greeter" user exists.
+#   3. Render /etc/greetd/config.toml (greeter session per display_manager_
+#      greeter_type) + the regreet Hyprland host config when regreet is used.
+#   4. Enable greetd + disable the X11 greeters it replaces (lightdm/sddm).
 #
-# Distro-agnostic at the task level: greetd/greetd-tuigreet are the package
-# NAMES in group_vars; the role pins no distro-specific binary. Runs AFTER
-# packages/cli_tools (greetd + Hyprland installed) and LAST (before verify) so
-# the whole desktop is provisioned. User install-dirs are handled by the other
-# roles; this role only manages the system login.
+# The user-facing session (real login -> Hyprland + AGS bar) is launched by the
+# greeter after auth: regreet via accountsservice + the wayland-sessions dir,
+# tuigreet via /usr/local/bin/hypr-session (dbus-run-session -> Hyprland).
 
 - name: Assert fact-gathering provided HOME
   ansible.builtin.assert:
@@ -33,7 +34,7 @@
       ansible_facts.env.HOME is undefined — the display_manager role derives
       nothing from it directly but runs as root; gather_facts must be true
 
-- name: Ensure greetd + TUI greeter are installed
+- name: Ensure greetd + the selected greeter are installed
   ansible.builtin.package:
     name: "{{ display_manager_packages }}"
     state: present
@@ -52,12 +53,32 @@
     state: directory
   become: true
 
-- name: Render greetd session wrapper
+- name: Render the regreet Hyprland host config
+  ansible.builtin.template:
+    src: hyprland-greeter.conf.j2
+    dest: "{{ display_manager_hyprland_greeter_conf }}"
+    mode: "0644"
+  become: true
+  when: display_manager_greeter_type == 'regreet'
+
+- name: Ensure regreet state/log dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /var/lib/regreet
+    - /var/log/regreet
+  become: true
+  when: display_manager_greeter_type == 'regreet'
+
+- name: Render greetd session launcher (tuigreet fallback)
   ansible.builtin.template:
     src: hypr-session.j2
     dest: /usr/local/bin/hypr-session
     mode: "0755"
   become: true
+  when: display_manager_greeter_type == 'tuigreet'
 
 - name: Render greetd config
   ansible.builtin.template:
