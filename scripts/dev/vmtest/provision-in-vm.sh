@@ -12,12 +12,18 @@ KEY="$VMDIR/.images/id_vm"
 PORT="${SSHPORT:-${PORT:-2222}}"
 U=arch
 
-run() { ssh -i "$KEY" -p "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$U@localhost" "$@"; }
+run() { ssh -i "$KEY" -p "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 "$U@localhost" "$@"; }
 
-echo "== wait for SSH =="
-for i in $(seq 1 60); do
-  if run true 2>/dev/null; then echo "SSH_UP"; break; fi
-  [ "$i" = 60 ] && { echo "SSH never came up"; exit 1; }
+echo "== wait for SSH (banner exchange may take minutes on slow first boot) =="
+SSH_UP=0
+for i in $(seq 1 120); do   # up to ~8 min (2x120s)
+  if run true 2>&1; then
+    SSH_UP=1
+    echo "SSH_UP (after ${i}x2s)"
+    break
+  fi
+  # show the actual error once so a real problem isn't masked
+  [ "$i" = 120 ] && { echo "SSH never came up — last error:"; run true 2>&1 | tail -5; exit 1; }
   sleep 2
 done
 
