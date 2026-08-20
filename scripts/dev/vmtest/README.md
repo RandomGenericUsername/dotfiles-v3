@@ -32,13 +32,32 @@ bash scripts/dev/vmtest/run-vm.sh
 # 2. In another terminal, provision it end-to-end (toolchain + bootstrap + verify + key checks)
 bash scripts/dev/vmtest/provision-in-vm.sh
 
-# 3. (optional) reboot the VM to see the SDDM Pixie login screen in the window
+# 3. Reboot the VM — it comes back to the SDDM Pixie greeter in the window
+ssh -i scripts/dev/vmtest/.images/id_vm -p 2222 arch@localhost 'sudo systemctl reboot'
 ```
+
+### Testing the login loop (SDDM / Pixie / Hyprland / AGS)
+After step 3 the VM boots straight to the **SDDM Pixie greeter**. Log in with
+`arch` / `arch` (override with `VMPASSWORD=...`). That drops you into
+Hyprland with the AGS bar. **Logout** returns you to the greeter — repeat as
+many login/logout cycles as you like. That's the essential graphical test:
+real SDDM + Pixie theming + session start, on a real systemd/PID1.
+
+The `/repo` mount is persisted in the VM's fstab (9p, read-only, `nofail`),
+so any host edit is live in the guest even after reboots — edit → provision →
+reboot → login is a tight loop.
+
+VM facts:
+- user `arch`, sudo `NOPASSWD` via SSH key
+- greeter/console login: `arch` / `arch` (env `VMPASSWORD` to change)
+- provisioning switches the boot target to `graphical.target` (SDDM)
 
 ### Manual access
 ```bash
-ssh -i scripts/dev/vmtest/.images/id_vm -p 2222 arch@localhost
+ssh -i scripts/dev/vmtest/.images/id_vm -p 2222 arch@localhost   # SSH key, no password
 ```
+If `run-vm.sh` picked a different port (2222 busy), pass the same `SSHPORT`.
+`provision-in-vm.sh` honors `SSHPORT` too, so the port always matches.
 
 ## What gets provisioned / verified
 - Full `dotfiles-provision bootstrap` (packages incl. AGS via AUR, csg/weg/itr,

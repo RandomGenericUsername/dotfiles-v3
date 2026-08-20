@@ -11,6 +11,7 @@ VMDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KEY="$VMDIR/.images/id_vm"
 PORT="${SSHPORT:-${PORT:-2222}}"
 U=arch
+VMPASSWORD="${VMPASSWORD:-arch}"
 
 run() { ssh -i "$KEY" -p "$PORT" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 "$U@localhost" "$@"; }
 
@@ -31,6 +32,12 @@ echo "== mount the shared repo (9p) at /repo =="
 run "sudo mkdir -p /repo && sudo mount -t 9p -o trans=virtio,version=9p2000.L,ro repo /repo 2>/dev/null || echo '(already mounted or mount failed)'"
 run "test -d /repo/src/provisioning && echo REPO_MOUNTED || echo REPO_NOT_MOUNTED"
 
+echo "== persist /repo 9p mount (fstab) so it survives reboots =="
+run "grep -q 'mount_tag=repo\|repo /repo' /etc/fstab || echo 'repo /repo 9p trans=virtio,version=9p2000.L,ro,nofail,_netdev,x-systemd.automount 0 0' | sudo tee -a /etc/fstab >/dev/null && echo FSTAB_REPO_OK || echo FSTAB_REPO_SKIP"
+
+echo "== ensure greeter login password (idempotent; covers pre-password VMs) =="
+run "printf '$U:$VMPASSWORD\n' | sudo chpasswd && echo PASSWORD_OK || echo PASSWORD_FAIL"
+
 echo "== install toolchain =="
 run "sudo pacman -Syu --noconfirm --needed >/tmp/up.log 2>&1 && sudo pacman -S --noconfirm --needed uv git base-devel python python-pip >/tmp/tool.log 2>&1 && echo TOOLCHAIN_OK || { echo TOOLCHAIN_FAIL; tail -20 /tmp/tool.log; }"
 
@@ -43,6 +50,9 @@ run "export HOME=/home/$U XDG_DATA_HOME=/home/$U/.local/share XDG_CONFIG_HOME=/h
 echo "== verify =="
 run "export HOME=/home/$U; cd /repo/src/provisioning; uv run dotfiles-provision verify > /tmp/vr.log 2>&1; echo VERIFY_RC=\$?"
 
+echo "== boot into graphical.target (SDDM on next boot) =="
+run "sudo systemctl set-default graphical.target >/dev/null && echo GRAPHICAL_TARGET_SET || echo GRAPHICAL_TARGET_FAIL"
+
 echo "== key results =="
 run '
 echo "--- bootstrap ---"; grep -oE "bootstrap (succeeded|failed)" /tmp/bs.log | head -1 || head -1 /tmp/bs.log
@@ -54,4 +64,7 @@ echo "--- SDDM enabled? ---"; systemctl is-enabled sddm 2>&1
 echo "--- pixie theme ---"; test -d /usr/share/sddm/themes/pixie && echo PIXIE_PRESENT || echo PIXIE_MISSING
 echo "--- verify ---"; tail -3 /tmp/vr.log
 '
-echo "== done. See the VM window for the SDDM greeter (after reboot). =="
+echo "== done. Next: reboot the VM (sudo systemctl reboot inside, or restart qemu)."
+echo "   It will boot to the SDDM Pixie greeter in the VM window."
+echo "   Log in as arch / $VMPASSWORD -> Hyprland + AGS bar."
+echo "   Logout returns to the greeter to re-test SDDM/Pixie."

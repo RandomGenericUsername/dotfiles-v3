@@ -24,6 +24,10 @@ IMG_URL="https://lug.mtu.edu/archlinux/images/latest/Arch-Linux-x86_64-cloudimg.
 IMG="arch-cloud.qcow2"
 DISK="working.qcow2"
 
+# Login password for the VM's `arch` user (greeter/console). Dev-only secret —
+# plaintext is fine here; override with VMPASSWORD for a different one.
+VMPASSWORD="${VMPASSWORD:-arch}"
+
 # Pick the SSH host port; bump until free to avoid colliding with a previous VM.
 SSHPORT="${SSHPORT:-2222}"
 while ss -ltn | grep -q ":$SSHPORT "; do
@@ -63,6 +67,10 @@ users:
     shell: /bin/bash
     ssh_authorized_keys:
       - $(cat id_vm.pub)
+chpasswd:
+  expire: false
+  list: |
+    arch:$VMPASSWORD
 ssh_pwauth: true
 EOF
   cloud-localds seed.iso seed.yaml
@@ -75,9 +83,19 @@ fi
 echo "== Booting dotfiles dev VM (visible window) =="
 echo "   repo shared read-only into the VM at /repo"
 echo "   SSH: ssh -i $WORKDIR/id_vm -p $SSHPORT arch@localhost"
+echo "   greeter/console login: arch / $VMPASSWORD"
 echo "   To provision (must match port): SSHPORT=$SSHPORT bash $VMDIR/provision-in-vm.sh"
+
+# Optional debug: capture the guest boot/serial log to .images/console.log
+QEMU_ARG_EXTRA="-display gtk"   # default: visible window
+if [ "${DEBUG:-0}" = "1" ]; then
+  QEMU_ARG_EXTRA="-serial file:$WORKDIR/console.log -display none"
+  echo "   DEBUG=1: serial boot log -> $WORKDIR/console.log (no window)"
+fi
+
 exec qemu-system-x86_64 \
-  -display gtk -machine accel=kvm -cpu host -smp 2 -m 4096 \
+  ${QEMU_ARG_EXTRA:-} \
+  -machine accel=kvm -cpu host -smp 2 -m 4096 \
   -drive file="$DISK",if=virtio,format=qcow2 \
   -drive file=seed.iso,if=ide,media=cdrom,readonly=on \
   -netdev user,id=n0,hostfwd=tcp::$SSHPORT-:22 -device virtio-net-pci,netdev=n0 \
