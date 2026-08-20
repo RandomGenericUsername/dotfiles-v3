@@ -32,8 +32,10 @@ bash scripts/dev/vmtest/run-vm.sh
 # 2. In another terminal, provision it end-to-end (toolchain + bootstrap + verify + key checks)
 bash scripts/dev/vmtest/provision-in-vm.sh
 
-# 3. Reboot the VM — it comes back to the SDDM Pixie greeter in the window
-ssh -i scripts/dev/vmtest/.images/id_vm -p 2222 arch@localhost 'sudo systemctl reboot'
+# 3. Restart the VM via QEMU (an in-guest `systemctl reboot` can hang the
+#    ACPI reset with a blank screen/no SSH): close the window/Ctrl-C, then
+#    `bash scripts/dev/vmtest/run-vm.sh` again — the provisioned disk boots
+#    straight to the SDDM Pixie greeter.
 ```
 
 ### Testing the login loop (SDDM / Pixie / Hyprland / AGS)

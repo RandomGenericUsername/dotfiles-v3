@@ -64,7 +64,9 @@ echo "--- SDDM enabled? ---"; systemctl is-enabled sddm 2>&1
 echo "--- pixie theme ---"; test -d /usr/share/sddm/themes/pixie && echo PIXIE_PRESENT || echo PIXIE_MISSING
 echo "--- verify ---"; tail -3 /tmp/vr.log
 '
-echo "== done. Next: reboot the VM (sudo systemctl reboot inside, or restart qemu)."
-echo "   It will boot to the SDDM Pixie greeter in the VM window."
+echo "== done. Next: RESTART the VM with a QEMU restart (NOT 'sudo systemctl reboot')."
+echo "   In-guest reboots can hang the QEMU ACPI reset (blank screen, no SSH)."
+echo "   Close the QEMU window / Ctrl-C run-vm.sh, then run: bash $VMDIR/run-vm.sh"
+echo "   The same disk boots to the SDDM Pixie greeter (graphical.target already set)."
 echo "   Log in as arch / $VMPASSWORD -> Hyprland + AGS bar."
-echo "   Logout returns to the greeter to re-test SDDM/Pixie."
+echo "   Logout/login loops afterwards need NO reboot."
