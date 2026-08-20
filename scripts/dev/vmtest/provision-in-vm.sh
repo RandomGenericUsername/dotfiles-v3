@@ -42,13 +42,13 @@ echo "== install toolchain =="
 run "sudo pacman -Syu --noconfirm --needed >/tmp/up.log 2>&1 && sudo pacman -S --noconfirm --needed uv git base-devel python python-pip >/tmp/tool.log 2>&1 && echo TOOLCHAIN_OK || { echo TOOLCHAIN_FAIL; tail -20 /tmp/tool.log; }"
 
 echo "== install ansible collections =="
-run "export HOME=/home/$U; cd /repo/src/provisioning; uv run ansible-galaxy collection install -r ansible/requirements.yml >/tmp/gal.log 2>&1 && echo GALAXY_OK || { echo GALAXY_FAIL; tail -15 /tmp/gal.log; }"
+run "export HOME=/home/$U UV_PROJECT_ENVIRONMENT=/home/$U/.venvs/provisioning; cd /repo/src/provisioning; uv run --frozen ansible-galaxy collection install -r ansible/requirements.yml >/tmp/gal.log 2>&1 && echo GALAXY_OK || { echo GALAXY_FAIL; tail -15 /tmp/gal.log; }"
 
 echo "== full provisioning (bootstrap) — this is the real fresh-machine test =="
-run "export HOME=/home/$U XDG_DATA_HOME=/home/$U/.local/share XDG_CONFIG_HOME=/home/$U/.config XDG_STATE_HOME=/home/$U/.local/state XDG_CACHE_HOME=/home/$U/.cache; cd /repo/src/provisioning; uv run dotfiles-provision bootstrap > /tmp/bs.log 2>&1; echo BOOTSTRAP_RC=\$?"
+run "export HOME=/home/$U XDG_DATA_HOME=/home/$U/.local/share XDG_CONFIG_HOME=/home/$U/.config XDG_STATE_HOME=/home/$U/.local/state XDG_CACHE_HOME=/home/$U/.cache UV_PROJECT_ENVIRONMENT=/home/$U/.venvs/provisioning; cd /repo/src/provisioning; uv run --frozen dotfiles-provision bootstrap > /tmp/bs.log 2>&1; echo BOOTSTRAP_RC=\$?"
 
 echo "== verify =="
-run "export HOME=/home/$U; cd /repo/src/provisioning; uv run dotfiles-provision verify > /tmp/vr.log 2>&1; echo VERIFY_RC=\$?"
+run "export HOME=/home/$U UV_PROJECT_ENVIRONMENT=/home/$U/.venvs/provisioning; cd /repo/src/provisioning; uv run --frozen dotfiles-provision verify > /tmp/vr.log 2>&1; echo VERIFY_RC=\$?"
 
 echo "== boot into graphical.target (SDDM on next boot) =="
 run "sudo systemctl set-default graphical.target >/dev/null && echo GRAPHICAL_TARGET_SET || echo GRAPHICAL_TARGET_FAIL"
