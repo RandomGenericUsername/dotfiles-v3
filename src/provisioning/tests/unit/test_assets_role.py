@@ -183,6 +183,13 @@ class TestAssetsTasks:
         for task in shell_tasks:
             assert task.get("register"), "weg check must register its result"
             assert task.get("failed_when") is False, "weg check must not fail the play"
+            env = task.get("environment")
+            assert isinstance(env, dict), "weg check must set environment"
+            assert env.get("PATH", "").startswith("{{ assets_weg_bin_dir }}:"), (
+                "weg check must prepend assets_weg_bin_dir to PATH (mirror of "
+                "2.7 csg guard) so the guard finds weg even when ~/.local/bin "
+                "is not on the inherited playbook PATH (VM-verified 2026-08-19)"
+            )
 
         assert_tasks = [
             task

@@ -48,6 +48,8 @@
   register: assets_weg_check
   changed_when: false
   failed_when: false
+  environment:
+    PATH: "{{ assets_weg_bin_dir }}:{{ ansible_facts.env.PATH }}"
 
 - name: Ensure weg is available
   ansible.builtin.assert:
