@@ -41,11 +41,25 @@ if ! command -v qemu-system-x86_64 >/dev/null || ! command -v cloud-localds >/de
   exit 1
 fi
 
-# 2. Download the cloud image once
-if [ ! -f "$IMG" ]; then
+# 2. Download the cloud image once. A partial/interrupted download silently
+#    yields a broken qcow2 that churns 100% CPU at boot with no SSH — reject
+#    anything implausibly small (real image is hundreds of MB) and retry.
+MIN_IMG_SIZE=$((200 * 1024 * 1024))
+download() {
   echo "== Downloading fresh Arch cloud image (once) =="
-  curl -sL -o "$IMG" "$IMG_URL"
-fi
+  curl -fsSL -o "$IMG" "$IMG_URL"
+  local size
+  size=$(stat -c%s "$IMG")
+  if [ "$size" -lt "$MIN_IMG_SIZE" ]; then
+    echo "!! truncated download ($size bytes); removing — will retry"
+    rm -f "$IMG"
+    return 1
+  fi
+  echo "OK ($size bytes)"
+}
+while [ ! -f "$IMG" ] || [ "$(stat -c%s "$IMG")" -lt "$MIN_IMG_SIZE" ]; do
+  download || { echo "download succeeded but failed size check (again)."; exit 1; }
+done
 
 # 3. Working disk copy (never mutate the base download)
 if [ ! -f "$DISK" ]; then
