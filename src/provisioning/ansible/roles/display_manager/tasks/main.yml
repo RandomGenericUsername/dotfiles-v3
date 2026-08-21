@@ -102,6 +102,12 @@
     daemon_reload: true
   become: true
 
+- name: Set default target to graphical
+  ansible.builtin.command: systemctl set-default graphical.target
+  become: true
+  changed_when: false
+  when: display_manager_type == 'sddm-pixie'
+
 - name: Disable the other display managers
   ansible.builtin.systemd:
     name: "{{ item }}"
