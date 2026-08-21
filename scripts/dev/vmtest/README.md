@@ -45,7 +45,15 @@ sudo -E incus console dotfiles-test --type=vga
 
 Opens a SPICE window showing the VM's VGA output. Log in with `arch` / `arch`.
 
-**Note:** Must use `sudo -E` (not plain `sudo`) to preserve display env vars.
+**Keyboard grab:** Inside the SPICE window, press **Ctrl+Alt+G** to grab the
+keyboard. All keys (including Super) go to the VM. Press **Ctrl+Alt+G** again
+to release back to the host.
+
+Keybindings inside the VM (when grabbed):
+- **Super+Enter** — terminal (kitty)
+- **Super+Q** — close window
+- **Super+M** — kill active window
+- **Super+V** — toggle floating
 
 ### Shell Access
 
@@ -103,6 +111,13 @@ Canonical spine: `~/.local/share/dotfiles/`
 
 ### "cannot open display: :0"
 Use `sudo -E` instead of `sudo` to preserve Wayland/X11 env vars.
+
+### Super key doesn't work in VM
+Press **Ctrl+Alt+G** inside the SPICE window to grab the keyboard. The host's
+Hyprland intercepts Super until keyboard is grabbed.
+
+### No terminal opens with Super+Enter
+Install a terminal in the VM: `sudo pacman -S --noconfirm kitty`
 
 ### Glycin SVG crash
 The host's glycin SVG loader may crash with certain icon themes. If
