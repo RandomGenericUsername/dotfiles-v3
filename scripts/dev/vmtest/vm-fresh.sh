@@ -97,7 +97,7 @@ DNSCONF
   timeout 3 getent hosts archlinux.org >/dev/null 2>&1 || { echo 'ERROR: DNS still broken'; exit 1; }
 
   # Fast mirrors (mirrors.kernel.org is slow from some locations)
-  printf 'Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch\nServer = https://geo.mirror.pkgbuild.com/$repo/os/$arch\n' > /etc/pacman.d/mirrorlist
+  printf 'Server = https://mirror.rackspace.com/archlinux/\$repo/os/\$arch\nServer = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch\n' > /etc/pacman.d/mirrorlist
 
   # 2. Packages
   pacman -Syu --noconfirm
