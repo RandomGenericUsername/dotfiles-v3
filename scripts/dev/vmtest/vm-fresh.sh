@@ -104,9 +104,9 @@ DNSCONF
   pacman -S --noconfirm git base-devel sudo podman
 
   # 3. User setup
-  useradd -m -G wheel -s /bin/bash arch
+  id arch >/dev/null 2>&1 || useradd -m -G wheel -s /bin/bash arch
   echo 'arch:arch' | chpasswd
-  echo 'arch ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+  grep -q 'arch ALL=(ALL) NOPASSWD:ALL' /etc/sudoers || echo 'arch ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
   # 4. Podman
   systemctl enable --now podman.socket
