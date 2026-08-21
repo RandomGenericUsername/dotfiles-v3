@@ -55,7 +55,7 @@ esac
 if command -v readlink >/dev/null 2>&1; then
   SCRIPT_SOURCE="$(readlink -f "$SCRIPT_SOURCE" 2>/dev/null || printf '%s' "$SCRIPT_SOURCE")"
 fi
-ROOT="$(cd "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
+ROOT="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 
 PROVISION_DIR="$ROOT/src/provisioning"
 REQUIREMENTS_YML="$PROVISION_DIR/ansible/requirements.yml"
