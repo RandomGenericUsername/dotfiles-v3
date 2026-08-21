@@ -24,6 +24,7 @@ packages:
     - ttf-jetbrains-mono-nerd
     - noto-fonts
     - noto-fonts-cjk
+    - noto-fonts-emoji
     - ttf-nerd-fonts-symbols
   # Zsh shell plugins (consumed by the packages role; the zsh_config role
   # resolves the per-distro plugin FILE paths). exa/bat/starship are the
