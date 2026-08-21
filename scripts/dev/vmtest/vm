@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# vm — single entry point for the Incus dev VM harness.
+# Usage: vm <command>
+#   fresh     wipe + recreate + full provision
+#   up        start the VM
+#   down      stop the VM
+#   console   open SPICE graphical console
+#   shell     get a shell inside the VM
+#   destroy   delete the VM entirely
+#   status    show VM state
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VM_NAME="dotfiles-test"
+
+red()   { printf "\033[31m%s\033[0m\n" "$*"; }
+green() { printf "\033[32m%s\033[0m\n" "$*"; }
+
+usage() {
+  cat <<EOF
+Usage: vm <command>
+
+Commands:
+  fresh     Wipe and recreate the VM with full provision
+  up        Start the VM
+  down      Stop the VM
+  console   Open SPICE graphical console (Ctrl+Alt+G to grab keyboard)
+  shell     Get a shell inside the VM
+  destroy   Delete the VM entirely
+  status    Show VM state
+EOF
+  exit 1
+}
+
+cmd_fresh() {
+  bash "$SCRIPT_DIR/vm-fresh.sh" --clean
+}
+
+cmd_up() {
+  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+    red "VM '$VM_NAME' does not exist. Run 'vm fresh' first."
+    exit 1
+  fi
+  sudo incus start "$VM_NAME"
+  green "VM started."
+}
+
+cmd_down() {
+  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+    red "VM '$VM_NAME' does not exist."
+    exit 1
+  fi
+  sudo incus stop "$VM_NAME"
+  green "VM stopped."
+}
+
+cmd_console() {
+  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+    red "VM '$VM_NAME' does not exist. Run 'vm fresh' first."
+    exit 1
+  fi
+  local state
+  state=$(sudo incus info "$VM_NAME" 2>/dev/null | grep "Status:" | awk '{print $2}')
+  if [ "$state" != "RUNNING" ]; then
+    red "VM is $state. Run 'vm up' first."
+    exit 1
+  fi
+  echo "Opening SPICE console... Press Ctrl+Alt+G to grab keyboard."
+  sudo -E incus console "$VM_NAME" --type=vga
+}
+
+cmd_shell() {
+  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+    red "VM '$VM_NAME' does not exist. Run 'vm fresh' first."
+    exit 1
+  fi
+  local state
+  state=$(sudo incus info "$VM_NAME" 2>/dev/null | grep "Status:" | awk '{print $2}')
+  if [ "$state" != "RUNNING" ]; then
+    red "VM is $state. Run 'vm up' first."
+    exit 1
+  fi
+  sudo incus exec "$VM_NAME" -- su - arch
+}
+
+cmd_destroy() {
+  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+    red "VM '$VM_NAME' does not exist."
+    exit 1
+  fi
+  sudo incus delete -f "$VM_NAME"
+  green "VM destroyed."
+}
+
+cmd_status() {
+  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+    echo "VM '$VM_NAME' does not exist."
+    exit 0
+  fi
+  sudo incus info "$VM_NAME" 2>/dev/null | grep -E "Name:|Status:|IPv4:|Resources:" | head -5
+}
+
+[ $# -eq 0 ] && usage
+
+case "$1" in
+  fresh)   cmd_fresh ;;
+  up)      cmd_up ;;
+  down)    cmd_down ;;
+  console) cmd_console ;;
+  shell)   cmd_shell ;;
+  destroy) cmd_destroy ;;
+  status)  cmd_status ;;
+  *)       red "Unknown command: $1"; usage ;;
+esac
