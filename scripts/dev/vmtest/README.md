@@ -1,11 +1,9 @@
 # Dotfiles Dev VM
 
-A lightweight, graphical Arch VM for verifying dotfiles changes (provisioning,
-AGS bar, SDDM/Pixie login, palette chain) without touching a real machine.
+A graphical Arch Linux VM for verifying dotfiles changes end-to-end: provisioning,
+SDDM/Pixie login, Hyprland, AGS bar, palette chain — without touching the host.
 
-The repo is **shared live, read-only, into the VM at `/repo`** via virtio-9p —
-any host edit is immediately visible in the VM (no copying). This makes an
-edit → provision → visually-verify loop fast and repeatable for future work.
+Uses **Incus** (LXC/VM manager) for clean Wayland-native VGA console access.
 
 ## Why a VM
 
@@ -14,74 +12,119 @@ Containers can't fully validate two things this stack needs:
 - **csg container image** — the palette chain builds csg's image via podman, which
   a nested container can't do; a KVM VM (real podman) can.
 
-A KVM VM (lightweight, ~1–2s boot, 4GiB RAM) covers both.
-
-## Prereqs (one time)
+## Prerequisites (one time)
 
 ```bash
-bash scripts/dev/vmtest/install.sh
+# Install Incus
+sudo pacman -S incus
+sudo systemctl enable --now incus
+
+# Add your user to the incus-admin group (log out/in after this)
+sudo usermod -aG incus-admin inumaki
+
+# Install SPICE viewer (for graphical VGA console)
+sudo pacman -S spice-gtk
 ```
-Installs `qemu-desktop` + `cloud-image-utils` (needs sudo on this Arch host).
+
+## Quick Start
+
+```bash
+cd ~/Development/dotfiles-new-architectures/dotfiles-repo-v3
+
+# Create VM + full provision (first run takes ~5-10 min)
+bash scripts/dev/vmtest/vm-fresh.sh
+```
 
 ## Usage
 
+### Graphical Console (SDDM + Hyprland)
+
 ```bash
-# 1. Boot the VM in a visible window (downloads the Arch cloud image on first run)
-bash scripts/dev/vmtest/run-vm.sh
-
-# 2. In another terminal, provision it end-to-end (toolchain + bootstrap + verify + key checks)
-bash scripts/dev/vmtest/provision-in-vm.sh
-
-# 3. Restart the VM via QEMU (an in-guest `systemctl reboot` can hang the
-#    ACPI reset with a blank screen/no SSH): close the window/Ctrl-C, then
-#    `bash scripts/dev/vmtest/run-vm.sh` again — the provisioned disk boots
-#    straight to the SDDM Pixie greeter.
+sudo -E incus console dotfiles-test --type=vga
 ```
 
-### Testing the login loop (SDDM / Pixie / Hyprland / AGS)
-After step 3 the VM boots straight to the **SDDM Pixie greeter**. Log in with
-`arch` / `arch` (override with `VMPASSWORD=...`). That drops you into
-Hyprland with the AGS bar. **Logout** returns you to the greeter — repeat as
-many login/logout cycles as you like. That's the essential graphical test:
-real SDDM + Pixie theming + session start, on a real systemd/PID1.
+Opens a SPICE window showing the VM's VGA output. Log in with `arch` / `arch`.
 
-The `/repo` mount is persisted in the VM's fstab (9p, read-only, `nofail`),
-so any host edit is live in the guest even after reboots — edit → provision →
-reboot → login is a tight loop.
+**Note:** Must use `sudo -E` (not plain `sudo`) to preserve display env vars.
 
-VM facts:
-- user `arch`, sudo `NOPASSWD` via SSH key
-- greeter/console login: `arch` / `arch` (env `VMPASSWORD` to change)
-- provisioning switches the boot target to `graphical.target` (SDDM)
+### Shell Access
 
-### Manual access
 ```bash
-ssh -i scripts/dev/vmtest/.images/id_vm -p 2222 arch@localhost   # SSH key, no password
+sudo incus exec dotfiles-test -- su - arch
 ```
-If `run-vm.sh` picked a different port (2222 busy), pass the same `SSHPORT`.
-`provision-in-vm.sh` honors `SSHPORT` too, so the port always matches.
 
-## What gets provisioned / verified
-- Full `dotfiles-provision bootstrap` (packages incl. AGS via AUR, csg/weg/itr,
-  palette, bar config, SDDM)
-- `dotfiles-provision verify`
-- Checks AGS bar (`~/.config/ags` symlink, `colors.css`), SDDM (binary, enabled
-  service, Pixie theme)
+### VM Lifecycle
 
-## How the repo is shared
-`run-vm.sh` boots with:
+```bash
+# Start
+sudo incus start dotfiles-test
+
+# Stop
+sudo incus stop dotfiles-test
+
+# Re-provision from scratch (wipes everything)
+bash scripts/dev/vmtest/vm-fresh.sh --clean
+
+# Destroy completely
+sudo incus delete -f dotfiles-test
 ```
--virtfs local,path=$REPO_ROOT,mount_tag=repo,security_model=none,readonly=on \
--device virtio-9p-pci,fsdev=repo,mount_tag=repo
-```
-`provision-in-vm.sh` mounts it (`mount -t 9p -o trans=virtio,version=9p2000.L,ro repo /repo`).
 
-## Display backend
-`-display gtk` opens a native window (Wayland/X). For headless, edit `run-vm.sh`:
-replace `-display gtk` with `-vnc :1` and connect a VNC viewer to `localhost:5901`.
+## What Gets Provisioned
+
+Full `dotfiles-provision bootstrap` pipeline:
+- **packages** — system packages + AUR (yay) + fonts
+- **cli_tools** — csg, weg, itr via `uv tool install`
+- **assets** — wallpapers, WEG effects catalog
+- **default_palette** — palette generation via csg container
+- **compositor_configs** — Hyprland/Hyprpaper skeleton + palette fragments
+- **config_copies** — config dirs (hypr, ags, nvim, zsh, etc.)
+- **settings** — rendered csg/weg/itr settings files
+- **zsh_tools** — oh-my-zsh, pyenv, nvm
+- **zsh_config** — rendered .zshrc
+- **wlogout_config** — rendered style.css
+- **config_links** — symlinks `~/.config/*` into the spine
+- **icons** — rendered SVG icons
+- **display_manager** — SDDM + Pixie theme
+- **verify** — all gates pass
+
+Canonical spine: `~/.local/share/dotfiles/`
+
+## VM Details
+
+- **Image:** Arch Linux (latest cloud image)
+- **Resources:** 2 CPU, 4 GiB RAM, 10 GiB disk
+- **User:** `arch` (sudo NOPASSWD)
+- **Password:** `arch` (for SDDM login)
+- **Network:** Incus bridge (NAT), DHCP
+- **DNS:** Google (8.8.8.8, 8.8.4.4)
+- **Mirrors:** mirror.rackspace.com, geo.mirror.pkgbuild.com
+
+## Troubleshooting
+
+### "cannot open display: :0"
+Use `sudo -E` instead of `sudo` to preserve Wayland/X11 env vars.
+
+### Glycin SVG crash
+The host's glycin SVG loader may crash with certain icon themes. If
+`remote-viewer` crashes immediately, the icon theme's `image-missing.svg`
+triggers a glycin/bwrap seccomp bug. Fix: replace SVGs with PNGs in the
+offending theme, or remove the theme's `image-missing.svg`.
+
+### Slow pacman mirrors
+The script sets fast mirrors automatically. If downloads are slow, check
+`/etc/pacman.d/mirrorlist` inside the VM.
+
+### Disk full during bootstrap
+The VM needs ~2 GiB free for package installs. The default 10 GiB disk
+provides adequate space. If you hit this, destroy and recreate:
+```bash
+sudo incus delete -f dotfiles-test
+bash scripts/dev/vmtest/vm-fresh.sh
+```
 
 ## Files
-- `install.sh` — host prereqs (qemu, cloud-localds)
-- `run-vm.sh` — fetch image, seed, boot visible VM with repo shared
-- `provision-in-vm.sh` — SSH in, provision + verify, report key results
-- `.images/` — downloaded image, working disk, SSH key, seed (git-ignored)
+
+- `vm-fresh.sh` — main entry: creates VM, sets up network/packages, pushes repo,
+  runs full bootstrap. Use `--clean` to wipe and start fresh.
+- `vm-continue.sh` — resume an existing provisioned VM (start + shell).
+- `README.md` — this file.
