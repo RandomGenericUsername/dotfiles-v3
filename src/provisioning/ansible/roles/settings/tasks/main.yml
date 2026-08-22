@@ -67,3 +67,10 @@
     src: "{{ item.template }}"
     dest: "{{ item.dest }}"
   loop: "{{ settings_files }}"
+
+- name: Add ~/.local/bin to PATH in .bashrc
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_facts.env.HOME }}/.bashrc"
+    line: '[ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"'
+    create: true
+    mode: "0644"
