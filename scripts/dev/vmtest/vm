@@ -66,8 +66,8 @@ cmd_console() {
     red "VM is $state. Run 'vm up' first."
     exit 1
   fi
-  sudo -E incus console "$VM_NAME" --type=vga &
-  green "SPICE console opened (PID: $!). Press Ctrl+Alt+G to grab keyboard."
+  echo "Opening SPICE console... Press Ctrl+Alt+G to grab keyboard."
+  sudo -E incus console "$VM_NAME" --type=vga
 }
 
 cmd_shell() {
@@ -81,8 +81,7 @@ cmd_shell() {
     red "VM is $state. Run 'vm up' first."
     exit 1
   fi
-  sudo incus exec "$VM_NAME" -- su - arch &
-  green "Shell opened (PID: $!)."
+  sudo incus exec "$VM_NAME" -- su - arch
 }
 
 cmd_destroy() {
