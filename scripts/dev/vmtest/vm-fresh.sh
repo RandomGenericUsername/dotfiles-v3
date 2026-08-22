@@ -132,6 +132,9 @@ sudo incus exec "$VM_NAME" -- su - arch -c "
   cd ~/dotfiles-repo-v3 && ./bootstrap.sh
 "
 
+echo "== vm-fresh: starting SDDM =="
+sudo incus exec "$VM_NAME" -- systemctl start sddm 2>/dev/null || true
+
 echo "== vm-fresh: provision complete. VM ready for testing. =="
 echo "  Console:  sudo incus console $VM_NAME --type=vga"
 echo "  Shell:    sudo incus exec $VM_NAME -- su - arch"
