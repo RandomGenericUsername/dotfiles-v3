@@ -32,15 +32,27 @@ sudo pacman -S spice-gtk
 cd ~/Development/dotfiles-new-architectures/dotfiles-repo-v3
 
 # Create VM + full provision (first run takes ~5-10 min)
-bash scripts/dev/vmtest/vm-fresh.sh
+scripts/dev/vmtest/vm fresh
 ```
 
 ## Usage
 
-### Graphical Console (SDDM + Hyprland)
+All commands go through the `vm` script:
 
 ```bash
-sudo -E incus console dotfiles-test --type=vga
+vm fresh       # wipe + recreate + full provision
+vm up          # start the VM
+vm down        # stop the VM
+vm console     # open SPICE graphical console
+vm shell       # get a shell inside the VM
+vm destroy     # delete the VM entirely
+vm status      # show VM state
+```
+
+### Graphical Console
+
+```bash
+vm console
 ```
 
 Opens a SPICE window showing the VM's VGA output. Log in with `arch` / `arch`.
@@ -58,29 +70,13 @@ Keybindings inside the VM (when grabbed):
 ### Shell Access
 
 ```bash
-sudo incus exec dotfiles-test -- su - arch
-```
-
-### VM Lifecycle
-
-```bash
-# Start
-sudo incus start dotfiles-test
-
-# Stop
-sudo incus stop dotfiles-test
-
-# Re-provision from scratch (wipes everything)
-bash scripts/dev/vmtest/vm-fresh.sh --clean
-
-# Destroy completely
-sudo incus delete -f dotfiles-test
+vm shell
 ```
 
 ## What Gets Provisioned
 
 Full `dotfiles-provision bootstrap` pipeline:
-- **packages** — system packages + AUR (yay) + fonts
+- **packages** — system packages + AUR (yay) + fonts (incl. emoji)
 - **cli_tools** — csg, weg, itr via `uv tool install`
 - **assets** — wallpapers, WEG effects catalog
 - **default_palette** — palette generation via csg container
@@ -92,7 +88,7 @@ Full `dotfiles-provision bootstrap` pipeline:
 - **wlogout_config** — rendered style.css
 - **config_links** — symlinks `~/.config/*` into the spine
 - **icons** — rendered SVG icons
-- **display_manager** — SDDM + Pixie theme
+- **display_manager** — SDDM + Pixie theme + graphical.target
 - **verify** — all gates pass
 
 Canonical spine: `~/.local/share/dotfiles/`
@@ -109,15 +105,9 @@ Canonical spine: `~/.local/share/dotfiles/`
 
 ## Troubleshooting
 
-### "cannot open display: :0"
-Use `sudo -E` instead of `sudo` to preserve Wayland/X11 env vars.
-
 ### Super key doesn't work in VM
 Press **Ctrl+Alt+G** inside the SPICE window to grab the keyboard. The host's
 Hyprland intercepts Super until keyboard is grabbed.
-
-### No terminal opens with Super+Enter
-Install a terminal in the VM: `sudo pacman -S --noconfirm kitty`
 
 ### Glycin SVG crash
 The host's glycin SVG loader may crash with certain icon themes. If
@@ -125,21 +115,16 @@ The host's glycin SVG loader may crash with certain icon themes. If
 triggers a glycin/bwrap seccomp bug. Fix: replace SVGs with PNGs in the
 offending theme, or remove the theme's `image-missing.svg`.
 
-### Slow pacman mirrors
-The script sets fast mirrors automatically. If downloads are slow, check
-`/etc/pacman.d/mirrorlist` inside the VM.
-
 ### Disk full during bootstrap
-The VM needs ~2 GiB free for package installs. The default 10 GiB disk
-provides adequate space. If you hit this, destroy and recreate:
+Destroy and recreate:
 ```bash
-sudo incus delete -f dotfiles-test
-bash scripts/dev/vmtest/vm-fresh.sh
+vm destroy
+vm fresh
 ```
 
 ## Files
 
-- `vm-fresh.sh` — main entry: creates VM, sets up network/packages, pushes repo,
-  runs full bootstrap. Use `--clean` to wipe and start fresh.
-- `vm-continue.sh` — resume an existing provisioned VM (start + shell).
-- `README.md` — this file.
+- `vm` — single entry point for all VM operations
+- `vm-fresh.sh` — creates VM, sets up network/packages, pushes repo, runs bootstrap
+- `vm-continue.sh` — resume an existing provisioned VM
+- `README.md` — this file
