@@ -37,6 +37,8 @@ packages:
     - exa
     - bat
     - starship
+  terminal:
+    - kitty
   # Display manager — SDDM + Qt6 (provisioned by the display_manager role with
   # the Pixie theme and a Wayland greeter; installed here too so the packages
   # role makes them present in the aggregate). X11 greeters grabbed the GPU and
