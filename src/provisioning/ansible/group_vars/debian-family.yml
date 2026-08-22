@@ -32,6 +32,8 @@ packages:
     - exa
     - bat
     - starship
+  terminal:
+    - kitty
   # Display manager — SDDM + Qt6 (same rationale as Arch; SDDM Wayland greeter
   # avoids the X11-greater GPU freeze with Hyprland). Pixie theme installed by
   # the display_manager role.

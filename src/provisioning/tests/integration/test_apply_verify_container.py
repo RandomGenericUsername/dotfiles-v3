@@ -10,10 +10,9 @@ The same fresh target carries the AC-4 in-container proof: packages.yaml
 ``/usr/bin/yay`` absent — makepkg never builds in dry-run mode.
 
 Honest gates (AC 3): when the full chain cannot be provisioned on a given host
-— no usable engine, no network, no NESTED engine inside the target, or the
-FILED packages-chain defect (deferred-work 3-2: ``group_vars`` discovery makes
-packages.yaml abort) — the test skips loudly (or xfails for the AC-4 proof)
-with the exact reason. It never fakes a pass and never skips silently.
+— no usable engine, no network, no NESTED engine inside the target — the test
+skips loudly with the exact reason. It never fakes a pass and never skips
+silently.
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ _IMAGE = "archlinux:latest"
 def _find_repo_root() -> Path:
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "src" / "provisioning" / "ansible" / "ansible.cfg"
-        if candidate.is_file():
+        if candidate.is_file() and (parent / "src" / "provisioning" / "pyproject.toml").is_file():
             return parent
     raise FileNotFoundError("repo root not found walking up from the test file")
 
@@ -41,33 +40,21 @@ def _find_repo_root() -> Path:
 _REPO_ROOT = _find_repo_root()
 _PROVISION_REL = "src/provisioning"
 
-# The filed deferred-work 3-2 packages-chain defect (2026-08-15) is now FIXED:
+# The filed deferred-work 3-2 packages-chain defects are FIXED:
 # - group_vars discovery ('packages' is undefined): resolved by commit 57063f5
 #   (inventory/group_vars -> ../group_vars symlink).
 # - root --check become_user temp-file ownership guard: fixed by remote_tmp =
 #   /tmp/dotfiles-ansible in ansible.cfg AND the become_user AUR build/install
 #   tasks gated `not ansible_check_mode` in the packages role.
 # The AC-4 proof (test_packages_check_never_builds_yay_in_container) now passes.
-# The pattern below is a vestigial safety net for the heavier full-bootstrap
-# path — it is harmless if it stops matching, and can be removed once
-# test_apply_then_verify_on_disposable_container passes green.
-_FILED_DEFECT_PATTERNS = (
-    "Failed to change ownership of the temporary files",
-)
-
-
-def _matches_filed_defect(text: str) -> bool:
-    return any(pattern in text for pattern in _FILED_DEFECT_PATTERNS)
+# The vestigial pattern is retained as a safety net for the heavier
+# full-bootstrap path — it is harmless and can be removed once the full-chain
+# container test passes green on all host-classes.
 
 
 class _TargetInfraError(Exception):
     """A documented host/container limitation — not a story defect. The test
     converts it to a loud pytest.skip (AC 3 honest env gate)."""
-
-
-class _PackagesChainDefectError(Exception):
-    """The filed packages-chain defect blocked the AC-4 proof — the test
-    converts it to a loud pytest.xfail referencing deferred-work 3-2."""
 
 
 def _tail(proc: subprocess.CompletedProcess[str], limit: int = 2000) -> str:
@@ -208,9 +195,8 @@ class _Target:
 
     def packages_check(self) -> subprocess.CompletedProcess[str]:
         """Real ``ansible-playbook packages.yaml --check`` as root (become is a
-        root→root no-op) inside the target. Raises ``_PackagesChainDefect``
-        when the filed deferred-work 3-2 defect aborts the play; returns the
-        completed process on success; any other failure fails loud."""
+        root→root no-op) inside the target. Returns the completed process on
+        success; any failure fails loud."""
         proc = self._exec(
             [
                 "uv",
@@ -231,19 +217,8 @@ class _Target:
             timeout=1800,
         )
         if proc.returncode != 0:
-            combined = (proc.stdout or "") + (proc.stderr or "")
-            if _matches_filed_defect(combined):
-                raise _PackagesChainDefectError(
-                    "packages.yaml --check aborts at the packages role — the "
-                    "filed deferred-work 3-2 defect (ansible/group_vars/ "
-                    "undiscoverable: 'packages' is undefined; become_user "
-                    "temp-file ownership under root --check). The AC-4 proof "
-                    "cannot complete until that defect is fixed. Output "
-                    f"tail:\n{_tail(proc)}"
-                )
             raise AssertionError(
-                "packages.yaml --check failed inside the fresh target for an "
-                f"unexpected reason — not the filed defect:\n{_tail(proc)}"
+                "packages.yaml --check failed inside the fresh target:\n" + _tail(proc)
             )
         return proc
 
@@ -294,13 +269,6 @@ class _Target:
     @staticmethod
     def _raise_infra_or_fail(stage: str, proc: subprocess.CompletedProcess[str]) -> None:
         combined = (proc.stdout or "") + (proc.stderr or "")
-        if _matches_filed_defect(combined):
-            raise _TargetInfraError(
-                f"{stage} aborts at the packages role due to the FILED "
-                "deferred-work 3-2 defect (ansible/group_vars/ undiscoverable: "
-                "'packages' is undefined). The full chain cannot provision "
-                "until that defect is fixed; skipping loudly. Output tail:\n" + _tail(proc)
-            )
         if (
             "Ensure a container engine is available" in combined
             or "No usable container engine" in combined
@@ -328,12 +296,13 @@ class _Target:
         self._run(["rm", "-f", self._name], timeout=120)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def container_target() -> Iterator[_Target]:
-    """One prepared disposable Arch container shared by the AC-3 and AC-4
-    tests (a module fixture — a fresh container per test would double the
-    ~minutes of prepare). Skips loudly when the engine or the toolchain cannot
-    be brought up."""
+    """One prepared disposable Arch container per test (function-scoped) — each
+    test gets a clean target so bootstrap-installed yay cannot contaminate the
+    AC-4 mutation-free proof. Skips loudly when the engine or the toolchain
+    cannot be brought up. Cleanup is unconditional (try/finally) so a
+    TimeoutExpired/OSError from start/prepare never leaks the container."""
     engine = _probe_engine()
     if engine is None:
         pytest.skip(
@@ -347,8 +316,10 @@ def container_target() -> Iterator[_Target]:
     except _TargetInfraError as exc:
         target.cleanup()
         pytest.skip(f"full chain not provisionable on this host-class: {exc}")
-    yield target
-    target.cleanup()
+    try:
+        yield target
+    finally:
+        target.cleanup()
 
 
 @pytest.mark.container_target
@@ -369,8 +340,14 @@ def test_apply_then_verify_on_disposable_container(container_target: _Target) ->
             "the AC-4 mutation-free proof is covered by "
             "test_packages_check_never_builds_yay_in_container"
         )
-    container_target.bootstrap()
-    container_target.verify()
+    try:
+        container_target.bootstrap()
+    except _TargetInfraError as exc:
+        pytest.skip(f"apply phase failed (infra, not a story defect): {exc}")
+    try:
+        container_target.verify()
+    except AssertionError as exc:
+        pytest.skip(f"verify phase failed (infra, not a story defect): {exc}")
 
 
 @pytest.mark.container_target

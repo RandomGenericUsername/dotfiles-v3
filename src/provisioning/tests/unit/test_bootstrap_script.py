@@ -11,17 +11,17 @@ import pytest
 
 
 def _find_bootstrap_script() -> Path:
-    """Locate the real scripts/bootstrap.sh by walking up from this test file.
+    """Locate the real bootstrap.sh by walking up from this test file.
 
     Anchored on ``src/provisioning/pyproject.toml`` (the repo's provisioning
     project marker) so a sibling workspace's ``scripts/`` tree is never matched.
     """
     for parent in Path(__file__).resolve().parents:
-        script = parent / "scripts" / "bootstrap.sh"
+        script = parent / "bootstrap.sh"
         if script.is_file() and (parent / "src" / "provisioning" / "pyproject.toml").is_file():
             return script
     raise FileNotFoundError(
-        "scripts/bootstrap.sh not found walking up from the test file; "
+        "bootstrap.sh not found walking up from the test file; "
         "AC 1-5 real-script coverage requires the authored bootstrap"
     )
 
@@ -331,10 +331,8 @@ class TestBootstrapScriptRuntime:
             )
             assert result.returncode == 0, result.stdout + result.stderr
 
-            prov_dir = str(_SCRIPT.parent.parent / "src" / "provisioning")
-            req = str(
-                _SCRIPT.parent.parent / "src" / "provisioning" / "ansible" / "requirements.yml"
-            )
+            prov_dir = str(_SCRIPT.parent / "src" / "provisioning")
+            req = str(_SCRIPT.parent / "src" / "provisioning" / "ansible" / "requirements.yml")
             expected = [
                 "podman info",
                 f"uv run --directory {prov_dir} ansible-galaxy collection install -r {req}",
@@ -513,10 +511,8 @@ class TestBootstrapScriptRuntime:
                 f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             )
 
-            prov_dir = str(_SCRIPT.parent.parent / "src" / "provisioning")
-            req = str(
-                _SCRIPT.parent.parent / "src" / "provisioning" / "ansible" / "requirements.yml"
-            )
+            prov_dir = str(_SCRIPT.parent / "src" / "provisioning")
+            req = str(_SCRIPT.parent / "src" / "provisioning" / "ansible" / "requirements.yml")
             expected = [
                 "podman info",
                 f"uv run --directory {prov_dir} ansible-galaxy collection install -r {req}",

@@ -45,6 +45,7 @@ _LOGICAL_PACKAGE_KEYS = (
     "ags",
     "fonts",
     "zsh",
+    "terminal",
     "display_manager",
     "container_engine",
 )

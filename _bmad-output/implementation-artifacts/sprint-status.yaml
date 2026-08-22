@@ -34,14 +34,14 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 # generated: 2026-08-04
-# last_updated: 2026-08-15 (story 3.2 playbook-dry-run-integration-tests → review)
+# last_updated: 2026-08-22 (story 3.2 playbook-dry-run-integration-tests → done)
 # project: dotfiles-repo-v3
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
 
 generated: 2026-08-04
-last_updated: 2026-08-15 (story 3.2 playbook-dry-run-integration-tests → review)
+last_updated: 2026-08-22 (story 3.2 playbook-dry-run-integration-tests → done)
 project: dotfiles-repo-v3
 retrospective: epic-1 done (2026-08-08)
 project_key: NOKEY
@@ -80,7 +80,7 @@ development_status:
   # ── Epic 3: Reproducible Bootstrap & Verified Install ──
   epic-3: in-progress
   3-1-fresh-machine-bootstrap-script: done
-  3-2-playbook-dry-run-integration-tests: review
+  3-2-playbook-dry-run-integration-tests: done
   3-3-settings-parity-and-default-palette-integration-tests: backlog
   epic-3-retrospective: optional
 

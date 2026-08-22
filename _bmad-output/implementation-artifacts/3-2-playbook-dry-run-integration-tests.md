@@ -4,7 +4,7 @@ baseline_commit: 0ff2a17
 
 # Story 3.2: Playbook Dry-Run Integration Tests
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -232,6 +232,7 @@ opencode (deepseek-v4-flash)
 
 - 2026-08-15: Story 3.2 created and marked ready-for-dev. `--check` behavior verified empirically (bare command → skipped; `creates:` command → would-change, never executed) so the AC-4 yay assertion keys on the mutation-free proof, not a `skipped` recap.
 - 2026-08-15: Story implemented and marked review. Delivered `tests/integration/` (13 new tests: 10 dry-run cases + 2 container tests + package marker files) and the `pyproject.toml` markers block. Full suite 466 passed / 4 skipped / 1 xfailed (baseline 458). AC-2 verified for all 8 user-scoped playbooks on the dev host (clean `--check`, `failed=0`, scratch spine never created); packages/bootstrap skip loudly (become gate). AC-3 container apply+verify skips loudly on this host (no nested engine inside the disposable target). AC-4 (yay never builds under `--check`): host-side skips loudly (no root context, yay pre-installed); the in-container proof XFAILS — a genuine pre-existing packages-chain defect surfaced by this suite (filed in deferred-work.md): `ansible/group_vars/` is undiscoverable → `'packages' is undefined` (confirmed on the real `dotfiles-provision plan` path), plus a root-container become_user temp-ownership abort. Per the test-authoring-only scope, no playbook/role/vars/manifest file was modified.
+- 2026-08-22: Code review patches applied and story closed. Applied 5 review patches: (1) separate containers per test (function-scope fixture) — fixes AC-4 false-negative from shared container; (2) wrap apply+verify body with infra→skip conversion; (3) unconditional container cleanup (try/finally); (4) pyproject.toml guard on `_find_repo_root()`; (5) cleaned up stale defect patterns. Also fixed pre-existing `test_bootstrap_script.py` path (`scripts/bootstrap.sh` → `bootstrap.sh`) and `terminal` package key alignment (arch.yml + debian-family.yml + test). Both filed packages-chain defects confirmed fixed (group_vars symlink commit 57063f5, remote_tmp in ansible.cfg). Dry-run suite: 10/10 pass (packages.yaml + bootstrap.yaml now green). Unit suite: 494 passed. Full gates green.
 
 ### File List
 
