@@ -8,7 +8,27 @@
 # and are listed in cli-tools.yaml.
 kind: packages
 entries:
+  # Core Hyprland
   - name: hyprland
   - name: hyprpaper
   - name: ags
   - name: fonts
+
+  # Must-have utilities (from Hyprland wiki)
+  - name: dunst              # Notification daemon
+  - name: hyprpolkitagent    # Polkit authentication agent
+  - name: xdg-desktop-portal-hyprland  # XDG Desktop Portal backend
+  - name: wl-clipboard       # Wayland clipboard utilities
+  - name: grim               # Screenshot utility
+  - name: slurp              # Region selection for screenshots
+  - name: wofi               # Application launcher
+  - name: thunar             # File manager (GTK-based)
+  - name: cliphist           # Clipboard history
+
+  # Terminal file manager
+  - name: lf
+
+  # Additional useful tools
+  - name: hyprcursor         # Cursor themes
+  - name: hyprlock           # Screen locker
+  - name: hypridle           # Idle management

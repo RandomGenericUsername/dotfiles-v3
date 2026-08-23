@@ -24,7 +24,7 @@
 #   2026-08-12 proved `copy` with a directory `src` + `force: false` + a
 #   pre-existing dest dir is a SILENT NO-OP (nothing is ever placed). Per-file
 #   copy is the only shape where force: false means "transfer if absent".
-#   Templating also renders the hyprland.conf first line from the resolved
+#   Templating also renders the hyprland.lua source lines from the resolved
 #   compositor_configs_xdg_config_home (P1 decision) so the fragment reference
 #   stays correct when $XDG_CONFIG_HOME is set.
 # - template module check-mode support is FULL (action plugin predicts changed

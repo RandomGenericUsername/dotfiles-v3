@@ -197,7 +197,16 @@ verify_compositor_config_dirs:
 #   THROUGH the compositor config symlinks (criterion 7), mirror of
 #   compositor_configs_skeleton_files dests (which now target the spine).
 verify_compositor_skeleton_files:
-  - "{{ install_dir | trim }}/config/hypr/hyprland.conf"
+  - "{{ install_dir | trim }}/config/hypr/hyprland.lua"
+  - "{{ install_dir | trim }}/config/hypr/keybindings.lua"
+  - "{{ install_dir | trim }}/config/hypr/monitors.lua"
+  - "{{ install_dir | trim }}/config/hypr/autostart.lua"
+  - "{{ install_dir | trim }}/config/hypr/window-rules.lua"
+  - "{{ install_dir | trim }}/config/hypr/animations.lua"
+  - "{{ install_dir | trim }}/config/hypr/input.lua"
+  - "{{ install_dir | trim }}/config/hypr/decoration.lua"
+  - "{{ install_dir | trim }}/config/hypr/cursor.lua"
+  - "{{ install_dir | trim }}/config/hypr/env-variables.lua"
   - "{{ install_dir | trim }}/config/hyprpaper/hyprpaper.conf"
   - "{{ install_dir | trim }}/config/ags/app.tsx"
   - "{{ install_dir | trim }}/config/ags/style.css"

@@ -1309,7 +1309,7 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
         f'[color_scheme]\npath = "{install}/generated/palettes/colors.yaml"\n'
     )
 
-    (install / "config" / "hypr" / "hyprland.conf").write_text("")
+    (install / "config" / "hypr" / "hyprland.lua").write_text("")
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
     (install / "config" / "ags" / "app.tsx").write_text("")
     (install / "config" / "ags" / "style.css").write_text("")

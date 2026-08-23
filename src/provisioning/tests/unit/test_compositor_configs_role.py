@@ -192,16 +192,16 @@ class TestCompositorConfigsTasks:
         assert "install_dir | trim | length > 0" in that
 
     def test_skeleton_files_templated_per_file_with_force_false(self) -> None:
-        """AC 2 + 5: the skeleton placement task loops over exactly the four
-        skeleton FILES (per-file entries — a directory `copy` + `force: false`
-        + pre-existing dest is a silent no-op, review finding 2026-08-12), each
-        entry a `source` prefixed `{{ compositor_configs_repo_root }}/dotfiles/
+        """AC 2 + 5: the skeleton placement task loops over the skeleton FILES
+        (per-file entries — a directory `copy` + `force: false` + pre-existing
+        dest is a silent no-op, review finding 2026-08-12), each entry a
+        `source` prefixed `{{ compositor_configs_repo_root }}/dotfiles/
         config/<dir>/<file>` and a `dest` under the config-in-spine home
         ({{ compositor_configs_spine_config_dir }}, config-in-spine
         2026-08-16), and the task renders via `ansible.builtin.template` with
         `force: false` — the marker that locks AC 5, without which a dev could
         silently fall back to template's default force: true and clobber a
-        user's edits. The template module also renders the hyprland.conf first
+        user's edits. The template module also renders the hyprland.lua first
         line from the resolved XDG config home (P1 decision — the ~/.config
         symlink makes the reference resolve into the spine)."""
         task = _skeleton_task()
@@ -213,15 +213,24 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        assert len(files) == 4, (
-            f"expected exactly 4 skeleton files "
-            f"(hyprland.conf/hyprpaper.conf/ags app.tsx+style.css); found {len(files)}"
+        assert len(files) == 13, (
+            f"expected exactly 13 skeleton files "
+            f"(hyprland.lua + 9 hypr modules/hyprpaper.conf/ags app.tsx+style.css); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "dotfiles/config/ags/app.tsx",
             "dotfiles/config/ags/style.css",
-            "dotfiles/config/hypr/hyprland.conf",
+            "dotfiles/config/hypr/animations.lua",
+            "dotfiles/config/hypr/autostart.lua",
+            "dotfiles/config/hypr/cursor.lua",
+            "dotfiles/config/hypr/decoration.lua",
+            "dotfiles/config/hypr/env-variables.lua",
+            "dotfiles/config/hypr/hyprland.lua",
+            "dotfiles/config/hypr/input.lua",
+            "dotfiles/config/hypr/keybindings.lua",
+            "dotfiles/config/hypr/monitors.lua",
+            "dotfiles/config/hypr/window-rules.lua",
             "dotfiles/config/hyprpaper/hyprpaper.conf",
         ]
         assert sources == expected, f"skeleton file sources must be exactly {expected}"
@@ -511,7 +520,16 @@ class TestCompositorConfigsPlaybook:
             assert result.returncode == 0, result.stdout + result.stderr
 
             expected_skeletons = [
-                install / "config" / "hypr" / "hyprland.conf",
+                install / "config" / "hypr" / "hyprland.lua",
+                install / "config" / "hypr" / "keybindings.lua",
+                install / "config" / "hypr" / "monitors.lua",
+                install / "config" / "hypr" / "autostart.lua",
+                install / "config" / "hypr" / "window-rules.lua",
+                install / "config" / "hypr" / "animations.lua",
+                install / "config" / "hypr" / "input.lua",
+                install / "config" / "hypr" / "decoration.lua",
+                install / "config" / "hypr" / "cursor.lua",
+                install / "config" / "hypr" / "env-variables.lua",
                 install / "config" / "hyprpaper" / "hyprpaper.conf",
                 install / "config" / "ags" / "app.tsx",
                 install / "config" / "ags" / "style.css",
@@ -525,8 +543,15 @@ class TestCompositorConfigsPlaybook:
                 "colors.css fragment missing from the spine"
             )
 
-            hypr = (install / "config" / "hypr" / "hyprland.conf").read_text().splitlines()[0]
-            assert hypr == f"source = {xdg}/hypr/colors.conf", (
-                "hyprland.conf first line must render the resolved XDG config home "
+            hypr_content = (install / "config" / "hypr" / "hyprland.lua").read_text()
+            # Find the source line for colors.conf (not the first line which is a comment)
+            for line in hypr_content.splitlines():
+                if "source = " in line and "colors.conf" in line:
+                    hypr = line
+                    break
+            else:
+                raise AssertionError("No source line for colors.conf found in hyprland.lua")
+            assert hypr == f'source = "{xdg}/hypr/colors.conf"', (
+                "hyprland.lua source line must render the resolved XDG config home "
                 "through which the ~/.config symlink resolves into the spine (P1)"
             )
