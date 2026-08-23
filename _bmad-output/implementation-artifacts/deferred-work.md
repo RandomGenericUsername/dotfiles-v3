@@ -212,7 +212,7 @@
 ## Deferred from: code review of 2-8-compositor-skeleton-configs (2026-08-12)
 
 - Hyprland fragment `rgb(hex)` notation only valid on Hyprland ≥0.55; no version pinned — value format is emitted by csg/Story 2.7 and version pinning is the packages role (2.3) concern [dotfiles/config/hypr/hyprland.conf:17-18, src/provisioning/ansible/group_vars/arch.yml:8]
-- hyprlang syntax deprecated since Hyprland 0.55 (config moved to Lua); no migration owner — plan §6 locks hyprlang skeletons and `-f conf`; migration is a Phase-2/plan-level decision [dotfiles/config/hypr/hyprland.conf:6-44]
+- **RESOLVED (2026-08-22):** hyprlang syntax deprecated since Hyprland 0.55 (config moved to Lua) — migrated to Lua format with modular structure. See `docs/99-dotfiles-hexagonal-architecture.md` "Phase 1 Patch" section and commits `e00a677`, `87728fc`. [dotfiles/config/hypr/hyprland.lua]
 - Missing/partial palette fragment at first boot has no fallback — skeleton correctly sources a fragment only 2.9 places; ordering/verify is owned by 2.9 + 2.12 + 3.2/3.3 integration [dotfiles/config/hypr/hyprland.conf:7, dotfiles/config/waybar/style.css:1]
 
 ## Deferred from: code review of 2-10-config-copies-role (2026-08-12)

@@ -133,8 +133,9 @@ So that the core has pure, zero-I/O representations of wallpapers, palettes, eff
 **Acceptance Criteria:**
 
 **Given** the domain layer exists
-**When** `WallpaperEntry`, `PaletteEntry`, `EffectsEntry`, `IconsEntry` are defined as frozen dataclasses
+**When** `WallpaperEntry`, `PaletteEntry`, `EffectsEntry`, `IconsEntry`, `MonitorWallpaperConfig` are defined as frozen dataclasses
 **Then** each carries its input hashes and `artifact_hashes` per the shared-data-contract schemas
+**And** `MonitorWallpaperConfig` holds per-monitor backend, source_hash, fit_mode, mpv_options, ipc_socket
 **And** the domain imports only the stdlib allowlist (no os/subprocess/shutil/pathlib)
 **And** the layering test passes for domain files
 
@@ -147,9 +148,12 @@ So that adapters can be swapped without touching the core.
 **Acceptance Criteria:**
 
 **Given** the ports layer exists
-**When** `IWallpaperBackend`, `IColorSchemeGenerator`, `IEffectsGenerator`, `IIconRenderer`, `IDesktopConfigWriter`, `IDesktopReloader`, `IStateRepository` (minimal `load_current`/`save`) are defined
+**When** `IStaticWallpaperBackend`, `IVideoWallpaperBackend`, `IWallpaperBackendFactory`, `IColorSchemeGenerator`, `IEffectsGenerator`, `IIconRenderer`, `IDesktopConfigWriter`, `IDesktopReloader`, `IStateRepository` (minimal `load_current`/`save`) are defined
 **Then** all are ABCs (or Protocols) with abstract methods
 **And** any concrete class in ports/ fails the layering test
+**And** `IStaticWallpaperBackend` defines `set_image(path, monitor, fit_mode)`, `set_color(color, monitor)`, `reload()`
+**And** `IVideoWallpaperBackend` defines `set_video(path, monitor, mpv_options, ipc_socket, auto_pause, auto_stop, layer)`, `set_playlist(paths, monitor, mpv_options)`, `control(monitor, command)`
+**And** `IWallpaperBackendFactory` defines `create_static(backend_type)`, `create_video(backend_type)`, `auto_detect(source_path) -> backend_type`
 
 ### Story 1.4: CSG determinism verification
 
