@@ -17,7 +17,8 @@ entries:
   # Must-have utilities (from Hyprland wiki)
   - name: dunst              # Notification daemon
   - name: hyprpolkitagent    # Polkit authentication agent
-  - name: xdg-desktop-portal-hyprland  # XDG Desktop Portal backend
+  - name: xdg-desktop-portal-hyprland  # XDG Desktop Portal backend (XDPH)
+  - name: xdg-desktop-portal-gtk      # File picker for XDPH (XDPH lacks one)
   - name: wl-clipboard       # Wayland clipboard utilities
   - name: grim               # Screenshot utility
   - name: slurp              # Region selection for screenshots

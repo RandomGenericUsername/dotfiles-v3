@@ -14,7 +14,8 @@ exec-once = dunst
 exec-once = systemctl --user start hyprpolkitagent
 
 -- XDG Desktop Portal (for screen sharing, file picking, etc.)
-exec-once = /usr/libexec/xdg-desktop-portal-hyprland
+exec-once = systemctl --user start xdg-desktop-portal-hyprland
+exec-once = systemctl --user start xdg-desktop-portal-gtk
 
 -- Clipboard manager (wl-clipboard)
 exec-once = wl-paste --type text --watch cliphist store

@@ -21,11 +21,11 @@ companions: [shared-data-contract.md]
 
 | Layer | Namespace | Owns |
 | --- | --- | --- |
-| domain | `runtime.domain` | pure dataclasses/enums: derivation graph (WallpaperEntry, PaletteEntry, EffectsEntry, IconsEntry), hashes, no I/O |
-| ports | `runtime.ports` | ABCs/Protocols: `IWallpaperBackend`, `IColorSchemeGenerator`, `IEffectsGenerator`, `IIconRenderer`, `IDesktopConfigWriter`, `IDesktopReloader`, `IStateRepository` |
-| adapters | `runtime.adapters` | subprocess/FS/CLI wrappers, Hyprland/AGS/Hyprpaper/terminal reloaders, JSON file store, csg/weg/itr invokers, hardlink helper |
+| domain | `runtime.domain` | pure dataclasses/enums: derivation graph (WallpaperEntry, PaletteEntry, EffectsEntry, IconsEntry, MonitorWallpaperConfig), hashes, no I/O |
+| ports | `runtime.ports` | ABCs/Protocols: `IWallpaperBackend`, `IStaticWallpaperBackend`, `IVideoWallpaperBackend`, `IColorSchemeGenerator`, `IEffectsGenerator`, `IIconRenderer`, `IDesktopConfigWriter`, `IDesktopReloader`, `IStateRepository`, `IWallpaperBackendFactory` |
+| adapters | `runtime.adapters` | subprocess/FS/CLI wrappers, Hyprland/AGS/Hyprpaper/terminal reloaders, JSON file store, csg/weg/itr invokers, hardlink helper, wallpaper backends (HyprpaperBackend, SwaybgBackend, SwwwBackend, MpvpaperBackend), backend factory |
 | application | `runtime.application` | use cases: `ApplyWallpaperUseCase`, `ReconcileDesktopStateUseCase`, `SeedCacheUseCase`, `InspectStateUseCase` |
-| cli | `runtime.cli` | Typer app (root `dotfiles` or `dotfiles-runtime` — see Deferred), composition root |
+| cli | `runtime.cli` | Typer app (root `dotfiles-runtime`), composition root, wallpaper/status/history/cache commands |
 
 A **layered content-addressed cache** sits inside the hexagon's adapters/infrastructure: derived artifacts are stored once per derivation layer, keyed by the hash of all their inputs, and the desktop reads them through `current/` symlinks.
 
@@ -89,13 +89,13 @@ A **layered content-addressed cache** sits inside the hexagon's adapters/infrast
 
 - **Binds:** domain model
 - **Prevents:** flat `DesktopState` model's invalidation blind spot
-- **Rule:** `WallpaperEntry → PaletteEntry` and `EffectsEntry`; `PaletteEntry → IconsEntry`. Each node knows its input hashes and `artifact_hashes`. `DesktopState` = projection of the current derivation outputs (the `current.json` manifest).
+- **Rule:** `WallpaperEntry → PaletteEntry` and `EffectsEntry`; `PaletteEntry → IconsEntry`. Each node knows its input hashes and `artifact_hashes`. `MonitorWallpaperConfig` holds per-monitor backend selection and parameters. `DesktopState` = projection of the current derivation outputs (the `current.json` manifest).
 
 ### AD-11 — First-run self-seeding
 
 - **Binds:** bootstrap
 - **Prevents:** manual seeding; §11 violation by provisioning
-- **Rule:** when `current.json` is absent and provisioning's `<install>/generated/` output exists, runtime seeds `cache/<layer>/` entries from provisioning's default output, writes `current.json`, creates `current/` symlinks, appends history (`trigger: seed`). One-time; after it, runtime **writes** nothing under the install spine. **Post-seed regeneration still needs derivation inputs (templates, effects catalog, icon templates/mappings); runtime READS those from the provisioning-owned spine READ-ONLY on every derivation (inputs are part of the cache key, per AD-2 / shared-data-contract). Writes never; reads always allowed.**
+- **Rule:** when `current.json` is absent and provisioning's `<install>/generated/` output exists, runtime seeds `cache/<layer>/` entries from provisioning's default output, writes `current.json` with `schema_version: 2` and per-monitor config for all detected monitors (default backend `hyprpaper`, fit_mode `cover`, source_hash from `default.png`), creates `current/` symlinks, appends history (`trigger: seed`). One-time; after it, runtime **writes** nothing under the install spine. **Post-seed regeneration still needs derivation inputs (templates, effects catalog, icon templates/mappings); runtime READS those from the provisioning-owned spine READ-ONLY on every derivation (inputs are part of the cache key, per AD-2 / shared-data-contract). Writes never; reads always allowed.**
 
 ### AD-12 — Synchronous imperative Phase 2
 
@@ -131,15 +131,21 @@ A **layered content-addressed cache** sits inside the hexagon's adapters/infrast
 
 - **Binds:** provisioning delta, consumer paths
 - **Prevents:** stale copy divergence on swap
-- **Rule:** Hyprland `colors.conf` → `current/colors.conf`; AGS (bar shell) CSS palette fragment → `current/colors.gtk.css`; Hyprpaper wallpaper → `current/wallpaper.png`; ITR `color_scheme.path` → `current/colors.yaml`. **The consumer-path flip to `current/` is performed by the runtime seeder as its last step, NOT by provisioning apply** — provisioning keeps the pre-runtime copy (Phase-1 behavior), so a fresh machine never has dangling symlinks between apply and first runtime run. Provisioning's only delta: `verify` criterion 6 relaxes to "generated OR current", and `compositor_configs`/`config_copies` add a **don't-clobber guard**: colors.conf/colors.css that are already runtime symlinks are left untouched on re-apply. **The bar shell is AGS (Aylur's GTK Shell v2, a TS/JS GTK4 project), which fully replaces Waybar across provisioning and runtime — AD-17 amended 2026-08-18 (correct-course).**
+- **Rule:** Hyprland `colors.conf` → `current/colors.conf`; AGS (bar shell) CSS palette fragment → `current/colors.gtk.css`; Hyprpaper wallpaper → `current/wallpaper-<monitor>.png` (per-monitor); ITR `color_scheme.path` → `current/colors.yaml`. **The consumer-path flip to `current/` is performed by the runtime seeder as its last step, NOT by provisioning apply** — provisioning keeps the pre-runtime copy (Phase-1 behavior), so a fresh machine never has dangling symlinks between apply and first runtime run. Provisioning's only delta: `verify` criterion 6 relaxes to "generated OR current", and `compositor_configs`/`config_copies` add a **don't-clobber guard**: colors.conf/colors.css that are already runtime symlinks are left untouched on re-apply. **The bar shell is AGS (Aylur's GTK Shell v2, a TS/JS GTK4 project), which fully replaces Waybar across provisioning and runtime — AD-17 amended 2026-08-18 (correct-course).** Per-monitor wallpaper backends (hyprpaper, swaybg, swww, mpvpaper) each implement `IStaticWallpaperBackend` or `IVideoWallpaperBackend`; the seeder writes per-monitor config to `current.json.monitors` and the reconcile step invokes the appropriate backend per monitor.
 
-### AD-18 — Operational envelope
+### AD-18 — Wallpaper backend abstraction
+
+- **Binds:** wallpaper adapters
+- **Prevents:** coupling runtime core to specific wallpaper daemon (hyprpaper)
+- **Rule:** two port hierarchies: `IStaticWallpaperBackend` (hyprpaper, swaybg, swww) for images/GIFs, `IVideoWallpaperBackend` (mpvpaper) for videos. `IWallpaperBackendFactory` auto-detects backend from file extension (video → mpvpaper, GIF → swww, static → hyprpaper) and instantiates the correct adapter. Backend availability is verified at use-time; missing backend = hard error. mpvpaper IPC socket uses `$XDG_RUNTIME_DIR/mpvpaper-<monitor>.sock`. Provisioning installs all backends (hyprpaper, swaybg, swww, mpvpaper) via packages role.
+
+### AD-19 — Operational envelope
 
 - **Binds:** deployment, operations
 - **Prevents:** runtime install/update/ops falling through the cracks between phases
 - **Rule:** the runtime core is a CLI (Typer) installed via provisioning's `cli_tools` role (`uv tool install`) alongside csg/weg/itr — provisioning owns installation, PATH, and the container engine (podman/docker). Operations are CLI commands (set/status/history/cache), synchronous, no daemon in Phase 2. Logging/status output via `cli_output` (the shared lib provisioning already uses). Full reconcile is single-process; Phase 5 introduces the daemon + watchers + concurrency.
 
-### AD-19 — Separate dotfiles-runtime binary
+### AD-20 — Separate dotfiles-runtime binary
 
 - **Binds:** CLI packaging, repo structure
 - **Prevents:** umbrella-CLI coupling between the provisioning and runtime bounded contexts
@@ -166,7 +172,8 @@ flowchart LR
     P --> I[IconsEntry: hash(palette, icon templates, mappings)]
     P --> C[colors.conf -> current/]
     P --> CSS[colors.gtk.css -> current/]
-    WH --> WP[wallpaper.png -> current/]
+    WH --> MWP[MonitorWallpaperConfig per monitor]
+    MWP --> WP[wallpaper-<monitor>.png -> current/]
     E --> EF[effects/ -> current/]
     I --> IC[icons/ -> current/]
 ```
@@ -176,11 +183,14 @@ flowchart LR
 ```text
 src/runtime/                      ← new uv package (Phase 2)
   src/runtime/
-    domain/       # WallpaperEntry, PaletteEntry, EffectsEntry, IconsEntry, hash types
-    ports/        # IWallpaperBackend, IColorSchemeGenerator, IEffectsGenerator,
-                  # IIconRenderer, IDesktopConfigWriter, IDesktopReloader, IStateRepository
+    domain/       # WallpaperEntry, PaletteEntry, EffectsEntry, IconsEntry, MonitorWallpaperConfig, hash types
+    ports/        # IWallpaperBackend, IStaticWallpaperBackend, IVideoWallpaperBackend,
+                  # IColorSchemeGenerator, IEffectsGenerator, IIconRenderer,
+                  # IDesktopConfigWriter, IDesktopReloader, IStateRepository,
+                  # IWallpaperBackendFactory
     adapters/     # csg_runner, weg_runner, itr_runner, hyprland_reloader, ags_reloader,
-                  # hyprpaper_backend, terminal_color_applier, json_state_repository,
+                  # hyprpaper_backend, swaybg_backend, swww_backend, mpvpaper_backend,
+                  # wallpaper_backend_factory, terminal_color_applier, json_state_repository,
                   # cache_populator (staging-dir), hardlink_helper, seeder
     application/  # ApplyWallpaperUseCase, ReconcileDesktopStateUseCase,
                   # SeedCacheUseCase, InspectStateUseCase
@@ -193,7 +203,7 @@ $XDG_STATE_HOME/dotfiles/         ← state_root (runtime-owned)
   current.json
   history.jsonl
   current/
-    wallpaper.png -> cache/wallpapers/<wh>/wallpaper.png
+    wallpaper-<monitor>.png -> cache/wallpapers/<wh>/wallpaper.png  (per-monitor)
     colors.yaml   -> cache/palettes/<ph>/colors.yaml
     colors.conf   -> cache/palettes/<ph>/colors.conf
     colors.gtk.css-> cache/palettes/<ph>/colors.gtk.css
@@ -225,3 +235,4 @@ $XDG_STATE_HOME/dotfiles/         ← state_root (runtime-owned)
 - **Hyprpaper wallpaper channel:** the installed Hyprpaper's wallpaper-swap mechanism is unverified — the docs show a static hyprpaper.conf pointing at default.png; the real swap channel is either reload-after-symlink-repoint or `hyprctl hyprpaper wallpaper <monitor> <path>` IPC. Must be verified against the installed Hyprpaper version during Epic 2 implementation. AD-17 pins the symlink target; the reload channel is a story-level decision.
 - **AGS reload channel:** AGS v2 runs as a TS/JS GTK4 project (`ags run` or a bundled executable); its reload mechanism is **process restart — AGS has NO native hot-reload** (verified in the AGS source `cli/cmd/run.go`, where file-watching/auto-restart is an unimplemented future enhancement). The Epic 2 reload adapter must restart the process. The palette fragment feeds AGS's CSS via GTK `@define-color` (same mechanism Waybar used) and is applied at RUNTIME via `app.apply_css(path)` — confirmed compatible, so repointing `~/.config/ags/colors.css` -> `current/colors.gtk.css` takes effect on next `ags run`.
 - **docs/99 Waybar deviation note:** the completed Phase 1 provisioning (packages, `dotfiles/config/waybar/`, compositor_configs, config_links, verify, 13 tests) referenced Waybar. AGS (Aylur's GTK Shell v2) fully replaces Waybar as the bar shell across provisioning and runtime (correct-course 2026-08-18) and the swap is IMPLEMENTED (2026-08-18): minimal `dotfiles/config/ags/{app.tsx,style.css}`, AGS routed as an AUR package (`aylurs-gtk-shell-git` via the packages role `aur_packages` channel — AGS is AUR-only, no pacman/apt package), `exec-once = ags run` autostart, roles/verify/tests to `ags`. docs/99, docs/01, docs/02 reconcile the remaining historical prose.
+- **Wallpaper backend packages (provisioning):** `mpvpaper`, `swww`/`awww`, `swaybg` must be added to provisioning packages role (AUR on Arch, third-party/cargo on Debian-family) per AD-18. This is a cross-domain provisioning delta story.

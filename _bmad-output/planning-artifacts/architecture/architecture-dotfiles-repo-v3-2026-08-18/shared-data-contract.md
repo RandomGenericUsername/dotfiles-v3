@@ -6,8 +6,17 @@ Companion to `ARCHITECTURE-SPINE.md`. Pins the on-disk shapes the runtime core o
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "wallpaper": { "hash": "<sha256-hex>", "source_path": "<abs-or-empty>", "applied_at": "<ISO-8601-UTC>" },
+  "monitors": {
+    "<monitor-name>": {
+      "backend": "hyprpaper|swaybg|swww|mpvpaper",
+      "source_hash": "<sha256-hex>",
+      "fit_mode": "cover|contain|fill|tile|center|stretch",
+      "mpv_options": "<string-or-null>",
+      "ipc_socket": "<abs-path-or-null>"
+    }
+  },
   "palette":   { "hash": "<sha256-hex>", "generated_at": "<ISO-8601-UTC>" },
   "effects":   { "hash": "<sha256-hex>", "generated_at": "<ISO-8601-UTC>" },
   "icons":     { "hash": "<sha256-hex>", "generated_at": "<ISO-8601-UTC>" },
@@ -16,9 +25,17 @@ Companion to `ARCHITECTURE-SPINE.md`. Pins the on-disk shapes the runtime core o
 ```
 
 Rules:
+- `schema_version`: 2 (v1 had flat wallpaper only; v2 adds per-monitor `monitors` object).
 - `wallpaper.hash` names `cache/wallpapers/<hash>/`; `palette.hash` names `cache/palettes/<hash>/`, etc.
+- `monitors` object keys are monitor names (e.g., `DP-1`, `HDMI-1`). Each monitor config specifies its wallpaper backend and parameters.
+- `backend`: one of `hyprpaper`, `swaybg`, `swww`, `mpvpaper`. Required.
+- `source_hash`: wallpaper content hash (names `cache/wallpapers/<hash>/`). Required.
+- `fit_mode`: scaling mode for static backends. Default `cover`. Ignored by `mpvpaper`.
+- `mpv_options`: mpv passthrough options string (e.g., `"no-audio --loop-playlist"`). Only for `mpvpaper`.
+- `ipc_socket`: absolute path to mpv IPC socket (e.g., `$XDG_RUNTIME_DIR/mpvpaper-<monitor>.sock`). Only for `mpvpaper`.
 - Any of palette/effects/icons may be absent (`null`) only when that layer was never derived for the current wallpaper; wallpaper is always present once seeded.
 - Written atomically (tmp + `os.replace`).
+- Migration: on read, if `monitors` absent (v1), derive single-monitor config from legacy `wallpaper` for all detected monitors using default backend `hyprpaper`.
 
 ## history.jsonl (append-only, must-not-lose)
 
@@ -119,9 +136,15 @@ Owner: `ReconcileDesktopStateUseCase` (the only writer of the swap). `SeedCacheU
 
 Order:
 1. Ensure all cache entries exist (populate via staging-dir, AD-9).
-2. Repoint `current/` symlinks (each atomic: tmp symlink + `os.replace`). Repoint wallpaper first, then palette/colors, then effects/ dir, then icons/ dir.
+2. Repoint `current/` symlinks (each atomic: tmp symlink + `os.replace`).
+   - Repoint wallpaper symlink(s): for each monitor in `current.json.monitors`, create `current/wallpaper-<monitor>.png` → `cache/wallpapers/<hash>/wallpaper.png`.
+   - Repoint palette symlinks: `current/colors.conf`, `current/colors.gtk.css`, `current/colors.yaml` → `cache/palettes/<ph>/...`.
+   - Repoint effects dir: `current/effects/` → `cache/effects/<eh>/`.
+   - Repoint icons dir: `current/icons/` → `cache/icons/<ih>/`.
 3. Write `current.json` (atomic tmp + `os.replace`).
 4. Append `history.jsonl`.
-5. Trigger desktop reloads (Hyprland, AGS bar shell, Hyprpaper, terminal color).
+5. Trigger desktop reloads per monitor:
+   - For each monitor, invoke its backend's reload (hyprctl reload, ags restart, hyprctl hyprpaper wallpaper, mpvpaper IPC, swww img, swaybg restart).
+   - Terminal palette applied once from `current/colors.yaml`.
 
 Crash recovery: on next run, `ReconcileDesktopStateUseCase` reads `current.json` and re-derives the `current/` symlinks from it (idempotent repair). If a symlink target is missing (evicted/partial), the entry is treated as a cache miss and regenerated. The desktop is never left pointing at a half-swapped state because each symlink resolves independently to a complete write-once entry.
