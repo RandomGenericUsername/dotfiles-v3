@@ -30,6 +30,9 @@ FR-7: User can inspect runtime state: current wallpaper/palette/effects/icons (s
 FR-8: Cache-key correctness is verified before caching is trusted: CSG determinism (same wallpaper + templates -> same palette) must be confirmed. (derived from assumption audit / R4)
 FR-9: Provisioning re-apply must not clobber runtime-repointed consumer symlinks (colors.conf/colors.css); a don't-clobber guard preserves runtime ownership across re-applies. (derived from cascading failure / R3)
 FR-10: The bar shell is AGS (Aylur's GTK Shell v2), fully replacing Waybar across provisioning and runtime. (correct-course 2026-08-18)
+FR-11: Per-monitor wallpaper configuration: each monitor can have a different wallpaper source and backend (hyprpaper, swaybg, swww, mpvpaper), configured via `current.json.monitors`. Auto-detection by file extension (video→mpvpaper, GIF→swww, static→hyprpaper). (AD-18)
+FR-12: Wallpaper backend abstraction: `IStaticWallpaperBackend` (hyprpaper, swaybg, swww) and `IVideoWallpaperBackend` (mpvpaper) ports with `IWallpaperBackendFactory` for instantiation. Backend availability verified at use-time; missing backend = hard error. mpvpaper IPC socket at `$XDG_RUNTIME_DIR/mpvpaper-<monitor>.sock`. (AD-18)
+FR-13: Provisioning installs all wallpaper backends (hyprpaper, swaybg, swww/awww, mpvpaper) via packages role. (AD-18, provisioning delta)
 
 ### NonFunctional Requirements
 
@@ -69,17 +72,20 @@ FR-7: Epic 3 - Inspection commands (CAP-7)
 FR-8: Epic 1 - Cache-key correctness verification / CSG determinism (R4)
 FR-9: Epic 1 - Provisioning don't-clobber guard (R3)
 FR-10: Epic 1 - AGS bar-shell provisioning swap (correct-course 2026-08-18, replaces Waybar)
+FR-11: Epic 1 - Per-monitor wallpaper config + auto-detect (AD-18)
+FR-12: Epic 1 - Wallpaper backend ports + factory + adapters (AD-18)
+FR-13: Epic 1 - Provisioning wallpaper backend packages (AD-18, provisioning delta)
 
 ## Epic List
 
 ### Epic 1: Wallpaper & State Foundation
-User can set a wallpaper and the system derives + caches its palette/effects/icons for instant reuse, while recording the current desktop state (current.json + minimal IStateRepository) so later convergence and recovery are grounded — including on a freshly provisioned machine.
-**FRs covered:** FR-1, FR-2, FR-5, FR-8, FR-9, FR-10
+User can set a wallpaper and the system derives + caches its palette/effects/icons for instant reuse, while recording the current desktop state (current.json + minimal IStateRepository) so later convergence and recovery are grounded — including on a freshly provisioned machine. Supports per-monitor wallpaper configuration with pluggable backends (hyprpaper, swaybg, swww, mpvpaper) via auto-detection and explicit selection.
+**FRs covered:** FR-1, FR-2, FR-5, FR-8, FR-9, FR-10, FR-11, FR-12, FR-13
 **CAPs covered:** CAP-1, CAP-2, CAP-5 (+ minimal CAP-4 store)
 
 ### Epic 2: Desktop Convergence
-User's desktop visually converges to the new wallpaper's colors — Hyprland, AGS bar, Hyprpaper, terminal — via atomic symlink swap + reload, resilient to crashes and repairable on next run from the state recorded in Epic 1.
-**FRs covered:** FR-3, FR-6
+User's desktop visually converges to the new wallpaper's colors — Hyprland, AGS bar, Hyprpaper, terminal — via atomic symlink swap + reload, resilient to crashes and repairable on next run from the state recorded in Epic 1. Per-monitor convergence: each monitor's wallpaper backend (hyprpaper, swaybg, swww, mpvpaper) is invoked to apply its configured source.
+**FRs covered:** FR-3, FR-6, FR-11
 **CAPs covered:** CAP-3, CAP-6
 
 **Correct-course (2026-08-18): the bar is AGS (Aylur's GTK Shell v2), fully replacing Waybar across provisioning and runtime.** This adds cross-domain stories: an AGS provisioning swap (packages/config-in-spine/compositor_configs/config_links/verify + the 13 waybar tests → AGS) and an AGS reload-channel verification (hot-reload vs restart vs dbus). The AGS swap is a prerequisite to Epic 2's reload adapter — it must land in Epic 1 (or as a pre-Epic-2 change) so the bar exists for the runtime to converge.
