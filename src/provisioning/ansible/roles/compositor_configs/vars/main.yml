@@ -66,12 +66,21 @@ compositor_configs_config_dirs:
 #   2026-08-12), so the role copies each file individually. The tasks render
 #   these via `ansible.builtin.template` with `force: false` (AC 5) — a placed
 #   skeleton is NEVER re-touched by this role on any re-run, so a user's hand
-#   edits survive; hyprland.conf's `source = {{ compositor_configs_xdg_config_home
+#   edits survive; hyprland.lua's `source = {{ compositor_configs_xdg_config_home
 #   }}/hypr/colors.conf` first line (P1 decision) is rendered from the resolved
 #   config home so the fragment reference stays correct when $XDG_CONFIG_HOME
 #   is set.
 compositor_configs_skeleton_files:
-  - { name: hyprland-conf, source: dotfiles/config/hypr/hyprland.conf, dest: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.conf" }
+  - { name: hyprland-lua, source: dotfiles/config/hypr/hyprland.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.lua" }
+  - { name: keybindings-lua, source: dotfiles/config/hypr/keybindings.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/keybindings.lua" }
+  - { name: monitors-lua, source: dotfiles/config/hypr/monitors.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/monitors.lua" }
+  - { name: autostart-lua, source: dotfiles/config/hypr/autostart.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/autostart.lua" }
+  - { name: window-rules-lua, source: dotfiles/config/hypr/window-rules.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/window-rules.lua" }
+  - { name: animations-lua, source: dotfiles/config/hypr/animations.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/animations.lua" }
+  - { name: input-lua, source: dotfiles/config/hypr/input.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/input.lua" }
+  - { name: decoration-lua, source: dotfiles/config/hypr/decoration.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/decoration.lua" }
+  - { name: cursor-lua, source: dotfiles/config/hypr/cursor.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/cursor.lua" }
+  - { name: env-variables-lua, source: dotfiles/config/hypr/env-variables.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/env-variables.lua" }
   - { name: hyprpaper-conf, source: dotfiles/config/hyprpaper/hyprpaper.conf, dest: "{{ compositor_configs_spine_config_dir }}/hyprpaper/hyprpaper.conf" }
   - { name: ags-app-tsx, source: dotfiles/config/ags/app.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/app.tsx" }
   - { name: ags-style-css, source: dotfiles/config/ags/style.css, dest: "{{ compositor_configs_spine_config_dir }}/ags/style.css" }

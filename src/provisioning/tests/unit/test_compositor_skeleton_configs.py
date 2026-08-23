@@ -8,7 +8,7 @@ def _find_repo_root() -> Path:
     compositor skeleton marker.
 
     Mirrors ``_find_ansible_dir()`` (test_default_palette_role.py), but anchors
-    on ``dotfiles/config/hypr/hyprland.conf`` instead of ``pyproject.toml`` +
+    on ``dotfiles/config/hypr/hyprland.lua`` instead of ``pyproject.toml`` +
     ``ansible/``: the config skeletons live at the repo root, NOT under
     ``src/provisioning``, so the pyproject+ansible anchor would fail here.
 
@@ -19,7 +19,7 @@ def _find_repo_root() -> Path:
     does not exist.
     """
     for parent in Path(__file__).resolve().parents:
-        marker = parent / "dotfiles" / "config" / "hypr" / "hyprland.conf"
+        marker = parent / "dotfiles" / "config" / "hypr" / "hyprland.lua"
         if marker.is_file():
             return parent
     raise FileNotFoundError(
@@ -31,12 +31,12 @@ def _find_repo_root() -> Path:
 _REPO_ROOT = _find_repo_root()
 _CONFIG_DIR = _REPO_ROOT / "dotfiles" / "config"
 
-_HYPR_CONF = _CONFIG_DIR / "hypr" / "hyprland.conf"
+_HYPR_LUA = _CONFIG_DIR / "hypr" / "hyprland.lua"
 _AGS_APP = _CONFIG_DIR / "ags" / "app.tsx"
 _AGS_CSS = _CONFIG_DIR / "ags" / "style.css"
 _HYPRPAPER_CONF = _CONFIG_DIR / "hyprpaper" / "hyprpaper.conf"
 
-_HYPR_HEADER = "source = {{ compositor_configs_xdg_config_home }}/hypr/colors.conf"
+_HYPR_HEADER = "source = \"{{ compositor_configs_xdg_config_home }}/hypr/colors.conf\""
 _AGS_PALETTE_LOAD = "app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)"
 _HYPRPAPER_PRELOAD = "preload = ~/.local/share/dotfiles/wallpapers/default.png"
 _HYPRPAPER_WALLPAPER = "wallpaper = ,~/.local/share/dotfiles/wallpapers/default.png"
@@ -56,19 +56,24 @@ def _first_line(path: Path) -> str:
 
 
 class TestHyprlandSkeleton:
-    def test_hyprland_conf_exists(self) -> None:
-        """AC 1: dotfiles/config/hypr/hyprland.conf exists."""
-        assert _HYPR_CONF.is_file(), "dotfiles/config/hypr/hyprland.conf missing"
+    def test_hyprland_lua_exists(self) -> None:
+        """AC 1: dotfiles/config/hypr/hyprland.lua exists."""
+        assert _HYPR_LUA.is_file(), "dotfiles/config/hypr/hyprland.lua missing"
 
     def test_first_line_sources_colors_conf(self) -> None:
-        """AC 1: FIRST line is `source = {{ compositor_configs_xdg_config_home
-        }}/hypr/colors.conf` — the fragment target Story 2.7/2.9 copies to the
+        """AC 1: FIRST source line is `source = "{{ compositor_configs_xdg_config_home
+        }}/hypr/colors.conf"` — the fragment target Story 2.7/2.9 copies to the
         resolved XDG config home. Review decision 2026-08-12: the skeleton
-        first line is templated so it stays correct when $XDG_CONFIG_HOME is
+        first source line is templated so it stays correct when $XDG_CONFIG_HOME is
         set (the old verbatim `~/.config` reference diverged from the role's
         XDG-aware fragment dest); Story 2.9 renders it via the template module
         with `force: false` (AC 5 — a placed skeleton is never re-touched)."""
-        assert _first_line(_HYPR_CONF) == _HYPR_HEADER
+        # Find the source line for colors.conf (not the first line which is a comment)
+        for line in _HYPR_LUA.read_text(encoding="utf-8").splitlines():
+            if "source = " in line and "colors.conf" in line:
+                assert line == _HYPR_HEADER
+                return
+        raise AssertionError("No source line for colors.conf found in hyprland.lua")
 
 
 class TestAgsSkeleton:
@@ -145,7 +150,7 @@ class TestSkeletonsAreStatic:
         """AC 1-4 guard: the three new skeleton files are STATIC — unlike the
         zsh `.zshrc.j2` and wlogout `style.css.tpl` templates, they must NOT
         carry a template suffix."""
-        new_files = (_HYPR_CONF, _AGS_APP, _AGS_CSS, _HYPRPAPER_CONF)
+        new_files = (_HYPR_LUA, _AGS_APP, _AGS_CSS, _HYPRPAPER_CONF)
         for path in new_files:
             assert not path.name.endswith(_TEMPLATE_SUFFIXES), (
                 f"{path.name} must not use a template suffix ({_TEMPLATE_SUFFIXES})"
