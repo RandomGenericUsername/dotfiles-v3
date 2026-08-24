@@ -1241,13 +1241,24 @@ def _test_env(**overrides: str) -> dict[str, str]:
 def _write_stub_binaries(home: Path) -> Path:
     """Stub hyprland/hyprpaper/ags/csg/weg/itr as executable `#!/bin/sh`
     scripts in home/.local/bin that exit 0 — so `command -v` + the csg/weg/itr
-    parse gates pass without installing real CLIs."""
+    parse gates pass without installing real CLIs. Also stub `systemctl` so the
+    NetworkManager-active gate (criterion-2 sibling) passes on the synthetic
+    machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
     for name in ("hyprland", "hyprpaper", "ags", "csg", "weg", "itr"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
+    sysctl = bin_dir / "systemctl"
+    sysctl.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "is-active" ] && [ "$2" = "NetworkManager" ]; then\n'
+        '  echo active; exit 0\n'
+        "fi\n"
+        "exit 1\n"
+    )
+    sysctl.chmod(0o755)
     return bin_dir
 
 

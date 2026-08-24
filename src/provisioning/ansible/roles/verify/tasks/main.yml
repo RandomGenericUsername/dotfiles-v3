@@ -147,6 +147,29 @@
       not PATH binaries
   when: not ansible_check_mode
 
+# NetworkManager is the DBus backend astal-network (the AGS bar) reads. A bare
+# package install leaves no daemon running, which makes the bar report
+# "no network" and the network-click TUI exit instantly. Gate on the service
+# being active so a provisioned machine cannot silently lack it.
+- name: Check NetworkManager service is active
+  ansible.builtin.shell: systemctl is-active NetworkManager
+  register: verify_nm_service
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert NetworkManager is running
+  ansible.builtin.assert:
+    that:
+      - verify_nm_service.rc == 0
+      - verify_nm_service.stdout | trim == "active"
+    fail_msg: >-
+      NetworkManager is not running — the AGS bar's network widget (astal-network,
+      libnm) needs it to report wifi/wired and the network-click TUI (wifitui)
+      needs it to connect. The packages role enables+starts it; re-run the
+      packages playbook or start it with `systemctl start NetworkManager`
+  when: not ansible_check_mode
+
 - name: Check CLI tools on PATH
   ansible.builtin.shell: "command -v {{ item }}"
   loop: "{{ verify_cli_tools }}"

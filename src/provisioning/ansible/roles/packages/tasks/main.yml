@@ -154,3 +154,16 @@
     - packages_use_aur | bool
     - aur_packages | length > 0
     - not ansible_check_mode
+
+# NetworkManager is the runtime backend astal-network (the AGS bar) reads
+# (libnm). Installing the package alone leaves no daemon running, so the bar
+# reports "no network" and the network-click TUI (wifitui/nmtui) exits
+# instantly. Enable + start it here so the persistent provisioned state is
+# correct — mirror of the display_manager role's service-enable pattern.
+- name: Enable and start NetworkManager
+  ansible.builtin.systemd:
+    name: NetworkManager
+    enabled: true
+    state: started
+  become: true
+  when: not ansible_check_mode
