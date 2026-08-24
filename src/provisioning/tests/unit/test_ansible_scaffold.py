@@ -42,6 +42,9 @@ _REQUIRED_FILES = (
 _LOGICAL_PACKAGE_KEYS = (
     "hyprland",
     "hyprpaper",
+    "networkmanager",
+    "wifitui",
+    "wlogout",
     "ags",
     "fonts",
     "zsh",

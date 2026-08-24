@@ -426,7 +426,7 @@
   ansible.builtin.assert:
     that:
       - verify_compositor_checks.results[:verify_compositor_config_dirs | length] | selectattr('stat.isdir') | list | length == verify_compositor_config_dirs | length
-      - verify_compositor_checks.results[verify_compositor_config_dirs | length:] | selectattr('stat.isreg') | list | length == (verify_compositor_skeleton_files | length + verify_compositor_fragments | length)
+      - verify_compositor_checks.results[verify_compositor_config_dirs | length:] | map(attribute='stat') | selectattr('isreg') | list | length == (verify_compositor_skeleton_files | length + verify_compositor_fragments | length)
     fail_msg: >-
       not every compositor config dir, skeleton, or fragment is present with the
       right inode type under {{ verify_xdg_config_home }} (done-criterion 7 —
