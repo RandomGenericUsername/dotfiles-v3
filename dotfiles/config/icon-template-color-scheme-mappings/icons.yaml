@@ -36,6 +36,22 @@ battery:
       template: status-bar/battery/plugged/default/icon.svg
       output: plugged.svg
 
+  bar_mappings:
+    widget: battery
+    icon_size: 24
+    states:
+      discharging-0: battery-0
+      discharging-25: battery-25
+      discharging-50: battery-50
+      discharging-75: battery-75
+      discharging-100: battery-100
+      charging-0: battery-0-charging
+      charging-25: battery-25-charging
+      charging-50: battery-50-charging
+      charging-75: battery-75-charging
+      charging-100: battery-100-charging
+      plugged: plugged
+
 network:
   color_mappings: {}
   variants:
@@ -103,6 +119,18 @@ network:
       template: status-bar/network/wifi-no-internet/sharp/icon.svg
       output: wifi-no-internet-sharp.svg
 
+  bar_mappings:
+    widget: network
+    icon_size: 24
+    states:
+      wifi-high: wifi-high-default
+      wifi-medium: wifi-medium-default
+      wifi-low: wifi-low-default
+      wifi-disabled: wifi-disabled-default
+      wifi-no-internet: wifi-no-internet-default
+      ethernet: ethernet-default
+      ethernet-no-internet: ethernet-no-internet-default
+
 wlogout:
   color_mappings: {}
   variants:
@@ -140,6 +168,12 @@ power-menu:
     - name: power-menu-modern-with-background
       template: status-bar/power-menu/modern/with-background.svg
       output: power-menu-modern-with-background.svg
+
+  bar_mappings:
+    widget: power-menu
+    icon_size: 24
+    states:
+      default: power-menu-default
 
 screenshot-tool:
   color_mappings: {}

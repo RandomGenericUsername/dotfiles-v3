@@ -2,8 +2,6 @@ window#bar {
   background-color: transparent;
   color: @color_foreground;
   font-weight: bold;
-  /* Fixed bar height so it renders as a consistent statusbar strip, not a
-     content-dependent window. Top-anchored + exclusive in app.tsx. */
   min-height: 48px;
 }
 
@@ -15,4 +13,58 @@ window#bar > centerbox {
 
 window#bar label {
   padding: 0 12px;
+}
+
+/* Widget icon normalization — all SVGs render at consistent size
+   regardless of intrinsic viewBox (battery=1024, wifi=96, etc.) */
+.widget-icon {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.widget {
+  padding: 0 8px;
+}
+
+/* Workspace indicator */
+.workspace-indicator {
+  padding: 0 8px;
+}
+
+.workspace-indicator button {
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 8px;
+  padding: 0 4px;
+}
+
+.workspace-indicator button.workspace-btn {
+  background-color: transparent;
+  color: @color_foreground;
+}
+
+.workspace-indicator button.active {
+  background-color: @color_01;
+  color: @color_background;
+}
+
+/* Clock */
+.clock {
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+/* Battery widget */
+.battery-widget {
+  spacing: 4px;
+}
+
+/* Network widget */
+.network-widget {
+  spacing: 4px;
+}
+
+/* Power menu */
+.power-menu-widget {
+  padding: 0 8px;
 }

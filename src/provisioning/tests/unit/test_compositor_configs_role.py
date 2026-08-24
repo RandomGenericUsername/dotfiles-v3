@@ -213,13 +213,21 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        assert len(files) == 13, (
-            f"expected exactly 13 skeleton files "
-            f"(hyprland.lua + 9 hypr modules/hyprpaper.conf/ags app.tsx+style.css); found {len(files)}"
+        assert len(files) == 21, (
+            f"expected exactly 21 skeleton files "
+            f"(hyprland.lua + 9 hypr modules/hyprpaper.conf/ags app.tsx+style.css+icons.json+icon-registry+Bar.tsx+5 widgets); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "dotfiles/config/ags/app.tsx",
+            "dotfiles/config/ags/bar/Bar.tsx",
+            "dotfiles/config/ags/bar/widgets/battery.tsx",
+            "dotfiles/config/ags/bar/widgets/clock.tsx",
+            "dotfiles/config/ags/bar/widgets/network.tsx",
+            "dotfiles/config/ags/bar/widgets/power-menu.tsx",
+            "dotfiles/config/ags/bar/widgets/workspaces.tsx",
+            "dotfiles/config/ags/icons.json",
+            "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/style.css",
             "dotfiles/config/hypr/animations.lua",
             "dotfiles/config/hypr/autostart.lua",
@@ -533,6 +541,14 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "hyprpaper" / "hyprpaper.conf",
                 install / "config" / "ags" / "app.tsx",
                 install / "config" / "ags" / "style.css",
+                install / "config" / "ags" / "icons.json",
+                install / "config" / "ags" / "lib" / "icon-registry.ts",
+                install / "config" / "ags" / "bar" / "Bar.tsx",
+                install / "config" / "ags" / "bar" / "widgets" / "workspaces.tsx",
+                install / "config" / "ags" / "bar" / "widgets" / "clock.tsx",
+                install / "config" / "ags" / "bar" / "widgets" / "battery.tsx",
+                install / "config" / "ags" / "bar" / "widgets" / "network.tsx",
+                install / "config" / "ags" / "bar" / "widgets" / "power-menu.tsx",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"

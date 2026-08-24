@@ -12,6 +12,9 @@ entries:
   - name: hyprland
   - name: hyprpaper
   - name: ags
+  - name: astal-hyprland      # Hyprland IPC + workspace tracking (AGS bar)
+  - name: astal-battery       # UPower battery monitoring (AGS bar)
+  - name: astal-network       # NetworkManager wrapper (AGS bar)
   - name: fonts
 
   # Must-have utilities (from Hyprland wiki)
