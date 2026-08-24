@@ -36,7 +36,6 @@ _AGS_APP = _CONFIG_DIR / "ags" / "app.tsx"
 _AGS_CSS = _CONFIG_DIR / "ags" / "style.css"
 _HYPRPAPER_CONF = _CONFIG_DIR / "hyprpaper" / "hyprpaper.conf"
 
-_HYPR_HEADER = "source = \"{{ compositor_configs_xdg_config_home }}/hypr/colors.conf\""
 _AGS_PALETTE_LOAD = "app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)"
 _HYPRPAPER_PRELOAD = "preload = ~/.local/share/dotfiles/wallpapers/default.png"
 _HYPRPAPER_WALLPAPER = "wallpaper = ,~/.local/share/dotfiles/wallpapers/default.png"
@@ -60,20 +59,30 @@ class TestHyprlandSkeleton:
         """AC 1: dotfiles/config/hypr/hyprland.lua exists."""
         assert _HYPR_LUA.is_file(), "dotfiles/config/hypr/hyprland.lua missing"
 
-    def test_first_line_sources_colors_conf(self) -> None:
-        """AC 1: FIRST source line is `source = "{{ compositor_configs_xdg_config_home
-        }}/hypr/colors.conf"` — the fragment target Story 2.7/2.9 copies to the
-        resolved XDG config home. Review decision 2026-08-12: the skeleton
-        first source line is templated so it stays correct when $XDG_CONFIG_HOME is
-        set (the old verbatim `~/.config` reference diverged from the role's
-        XDG-aware fragment dest); Story 2.9 renders it via the template module
-        with `force: false` (AC 5 — a placed skeleton is never re-touched)."""
-        # Find the source line for colors.conf (not the first line which is a comment)
-        for line in _HYPR_LUA.read_text(encoding="utf-8").splitlines():
-            if "source = " in line and "colors.conf" in line:
-                assert line == _HYPR_HEADER
-                return
-        raise AssertionError("No source line for colors.conf found in hyprland.lua")
+    def test_includes_modules_via_dofile(self) -> None:
+        """AC 1: the main hyprland.lua includes its modular Lua modules via
+        Lua's `dofile(...)` — NOT hyprlang's `source =` directive. Hyprland
+        >= 0.55 Lua config parses only hl.* function calls; `source =` is
+        hyprlang syntax and silently loads nothing (the migrated .lua modules
+        would never apply, so no keybindings/config take effect). The module
+        include path is templated from the resolved XDG config home so it stays
+        correct when $XDG_CONFIG_HOME is set."""
+        content = _HYPR_LUA.read_text(encoding="utf-8")
+        assert "dofile(cfg .." in content, (
+            "hyprland.lua must include modules via dofile(cfg .. ...)"
+        )
+        assert 'cfg = "{{ compositor_configs_xdg_config_home }}/hypr"' in content, (
+            "hyprland.lua must resolve the module dir from "
+            "compositor_configs_xdg_config_home template"
+        )
+        for module in (
+            "env-variables.lua", "monitors.lua", "input.lua",
+            "decoration.lua", "animations.lua", "cursor.lua",
+            "keybindings.lua", "window-rules.lua", "autostart.lua",
+        ):
+            assert module in content, (
+                f"hyprland.lua must dofile ../{module}"
+            )
 
 
 class TestAgsSkeleton:

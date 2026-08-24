@@ -1,5 +1,5 @@
 import Network from "gi://AstalNetwork"
-import { createBinding } from "ags"
+import { createBinding, createComputed, createEffect } from "ags"
 import { registry } from "../../lib/icon-registry"
 
 const network = Network.get_default()
@@ -12,17 +12,14 @@ function getWifiStateKey(strength: number): string {
   return "wifi-low"
 }
 
-function getNetworkIconPath(): string | null {
+function getNetworkIconPath(w: unknown, wd: unknown): string | null {
   const mappings = registry.getBarMappings("network")
   if (!mappings) return null
 
-  const currentWifi = network.wifi
-  const currentWired = network.wired
-
   let stateKey: string
-  if (currentWifi) {
-    stateKey = getWifiStateKey(currentWifi.strength)
-  } else if (currentWired) {
+  if (w) {
+    stateKey = getWifiStateKey((w as { strength: number }).strength)
+  } else if (wd) {
     stateKey = "ethernet"
   } else {
     stateKey = "wifi-disabled"
@@ -34,12 +31,9 @@ function getNetworkIconPath(): string | null {
   return registry.resolve("network", variant)
 }
 
-function getNetworkLabel(): string {
-  const currentWifi = network.wifi
-  const currentWired = network.wired
-
-  if (currentWifi) return currentWifi.ssid ?? "Wifi"
-  if (currentWired) return "Ethernet"
+function getNetworkLabel(w: unknown, wd: unknown): string {
+  if (w) return (w as { ssid?: string }).ssid ?? "Wifi"
+  if (wd) return "Ethernet"
   return "Disconnected"
 }
 
@@ -48,9 +42,15 @@ export function NetworkStatus() {
     <box class="widget network-widget" spacing={4}>
       <image
         class="widget-icon"
-        icon={wifi(() => getNetworkIconPath() ?? "")}
+        $={(self) => {
+          createEffect(() => {
+            self.set_from_file(getNetworkIconPath(wifi(), wired()) ?? "")
+          })
+        }}
       />
-      <label label={wifi(() => getNetworkLabel())} />
+      <label
+        label={createComputed(() => getNetworkLabel(wifi(), wired()))}
+      />
     </box>
   )
 }

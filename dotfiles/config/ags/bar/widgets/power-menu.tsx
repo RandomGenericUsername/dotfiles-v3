@@ -19,7 +19,7 @@ export function PowerMenu() {
     >
       <image
         class="widget-icon"
-        icon={getPowerMenuIconPath() ?? ""}
+        $={(self) => self.set_from_file(getPowerMenuIconPath() ?? "")}
       />
     </button>
   )

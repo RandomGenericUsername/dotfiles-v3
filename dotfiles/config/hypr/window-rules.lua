@@ -1,9 +1,14 @@
--- Window rules configuration
+-- Window rules configuration (Lua API)
 -- Examples:
--- windowrule = float, ^(pavucontrol)$
--- windowrule = size 800 600, ^(pavucontrol)$
--- windowrule = center, ^(pavucontrol)$
--- windowrule = workspace 2, ^(firefox)$
--- windowrule = opacity 0.9, ^(kitty)$
+--   hl.window_rule({
+--       name  = "float-pavucontrol",
+--       match = { class = "^(pavucontrol)$" },
+--       float = true,
+--   })
+--   hl.window_rule({
+--       name  = "workspace-firefox",
+--       match = { class = "^(firefox)$" },
+--       workspace = 2,
+--   })
 
 -- Add your window rules here

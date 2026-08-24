@@ -1,33 +1,34 @@
--- Keybindings configuration
-$mod = SUPER
+-- Keybindings configuration (Lua API)
+
+local mod = "SUPER"
 
 -- Terminal
-bind = $mod, Return, exec, kitty
+hl.bind(mod .. " + Return", hl.dsp.exec_cmd("kitty"))
 
 -- Window management
-bind = $mod, Q, killactive
-bind = $mod, F, fullscreen
-bind = $mod, M, exit
+hl.bind(mod .. " + Q", hl.dsp.window.close())
+hl.bind(mod .. " + F", hl.dsp.window.fullscreen({ action = "toggle" }))
+hl.bind(mod .. " + M", hl.dsp.exit())
 
 -- Focus / move
-bind = $mod, H, movefocus, l
-bind = $mod, L, movefocus, r
-bind = $mod, K, movefocus, u
-bind = $mod, J, movefocus, d
+hl.bind(mod .. " + H", hl.dsp.focus({ direction = "left" }))
+hl.bind(mod .. " + L", hl.dsp.focus({ direction = "right" }))
+hl.bind(mod .. " + K", hl.dsp.focus({ direction = "up" }))
+hl.bind(mod .. " + J", hl.dsp.focus({ direction = "down" }))
 
 -- Workspaces
-bind = $mod, 1, workspace, 1
-bind = $mod, 2, workspace, 2
-bind = $mod, 3, workspace, 3
-bind = $mod, 4, workspace, 4
-bind = $mod, 5, workspace, 5
+hl.bind(mod .. " + 1", hl.dsp.focus({ workspace = 1 }))
+hl.bind(mod .. " + 2", hl.dsp.focus({ workspace = 2 }))
+hl.bind(mod .. " + 3", hl.dsp.focus({ workspace = 3 }))
+hl.bind(mod .. " + 4", hl.dsp.focus({ workspace = 4 }))
+hl.bind(mod .. " + 5", hl.dsp.focus({ workspace = 5 }))
 
 -- Application launcher (wofi)
-bind = $mod, D, exec, wofi --show drun
+hl.bind(mod .. " + D", hl.dsp.exec_cmd("wofi --show drun"))
 
 -- File manager (Thunar)
-bind = $mod, E, exec, thunar
+hl.bind(mod .. " + E", hl.dsp.exec_cmd("thunar"))
 
 -- Screenshot (grim + slurp)
-bind = $mod, Print, exec, grim -g "$(slurp)" - | wl-copy
-bind = $mod, Shift, Print, exec, grim - | wl-copy
+hl.bind(mod .. " + Print", hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'))
+hl.bind(mod .. " + SHIFT + Print", hl.dsp.exec_cmd("grim - | wl-copy"))

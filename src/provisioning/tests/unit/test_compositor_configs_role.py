@@ -560,14 +560,13 @@ class TestCompositorConfigsPlaybook:
             )
 
             hypr_content = (install / "config" / "hypr" / "hyprland.lua").read_text()
-            # Find the source line for colors.conf (not the first line which is a comment)
-            for line in hypr_content.splitlines():
-                if "source = " in line and "colors.conf" in line:
-                    hypr = line
-                    break
-            else:
-                raise AssertionError("No source line for colors.conf found in hyprland.lua")
-            assert hypr == f'source = "{xdg}/hypr/colors.conf"', (
-                "hyprland.lua source line must render the resolved XDG config home "
-                "through which the ~/.config symlink resolves into the spine (P1)"
+            # The module include dir must render the resolved XDG config home
+            # through which the ~/.config symlink resolves into the spine (P1).
+            expected_cfg = f'local cfg = "{xdg}/hypr"'
+            assert expected_cfg in hypr_content, (
+                "hyprland.lua cfg variable must render the resolved XDG config home "
+                "(P1)"
+            )
+            assert 'dofile(cfg .. "/keybindings.lua")' in hypr_content, (
+                "hyprland.lua must include keybindings.lua via dofile"
             )

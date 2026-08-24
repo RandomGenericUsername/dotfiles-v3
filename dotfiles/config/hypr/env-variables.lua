@@ -1,16 +1,16 @@
 -- Environment variables configuration
--- These are set for the Hyprland session
+-- Set for the Hyprland session (Lua API)
 
-env = XCURSOR_SIZE, 24
-env = XCURSOR_THEME, Adwaita
-env = GTK_THEME, Adwaita:dark
-env = QT_QPA_PLATFORMTHEME, gtk3
-env = QT_QPA_PLATFORM, wayland
-env = SDL_VIDEODRIVER, wayland
-env = CLUTTER_BACKEND, wayland
-env = ECORE_EVAS_ENGINE, wayland_egl
-env = ELM_DISPLAY, wl
-env = MOZ_ENABLE_WAYLAND, 1
-env = XDG_CURRENT_DESKTOP, Hyprland
-env = XDG_SESSION_DESKTOP, Hyprland
-env = XDG_SESSION_TYPE, wayland
+hl.env("XCURSOR_SIZE", "24")
+hl.env("XCURSOR_THEME", "Adwaita")
+hl.env("GTK_THEME", "Adwaita:dark")
+hl.env("QT_QPA_PLATFORMTHEME", "gtk3")
+hl.env("QT_QPA_PLATFORM", "wayland")
+hl.env("SDL_VIDEODRIVER", "wayland")
+hl.env("CLUTTER_BACKEND", "wayland")
+hl.env("ECORE_EVAS_ENGINE", "wayland_egl")
+hl.env("ELM_DISPLAY", "wl")
+hl.env("MOZ_ENABLE_WAYLAND", "1")
+hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
+hl.env("XDG_SESSION_DESKTOP", "Hyprland")
+hl.env("XDG_SESSION_TYPE", "wayland")

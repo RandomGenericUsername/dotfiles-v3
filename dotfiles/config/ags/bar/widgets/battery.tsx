@@ -1,5 +1,5 @@
 import Battery from "gi://AstalBattery"
-import { createBinding } from "ags"
+import { createBinding, createEffect } from "ags"
 import { registry } from "../../lib/icon-registry"
 
 const device = Battery.get_default()
@@ -42,9 +42,13 @@ export function BatteryIndicator() {
     >
       <image
         class="widget-icon"
-        icon={percentage((pct) =>
-          getBatteryIconPath(pct, device.charging) ?? ""
-        )}
+        $={(self) => {
+          createEffect(() => {
+            self.set_from_file(
+              getBatteryIconPath(percentage(), device.charging) ?? ""
+            )
+          })
+        }}
       />
       <label
         label={percentage((pct) => getBatteryLabel(pct))}

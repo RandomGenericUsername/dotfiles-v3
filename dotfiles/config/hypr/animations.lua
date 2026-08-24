@@ -1,11 +1,17 @@
--- Animations configuration
-animations {
-    enabled = true
-    bezier = myBezier, 0.05, 0.9, 0.1, 1.05
-    animation = windows, 1, 4, myBezier
-    animation = workspaces, 1, 4, default
-    animation = border, 1, 3, default
-    animation = borderangle, 1, 3, default
-    animation = fade, 1, 3, default
-    animation = workspaces, 1, 4, default
-}
+-- Animations configuration (Lua API)
+
+hl.curve("myBezier", {
+    type   = "bezier",
+    points = { {0.05, 0.9}, {0.1, 1.05} },
+})
+
+hl.config({
+    animations = {
+        enabled = true,
+    },
+})
+
+hl.animation({ leaf = "windows",    enabled = true, speed = 4, bezier = "myBezier" })
+hl.animation({ leaf = "workspaces", enabled = true, speed = 4, bezier = "default" })
+hl.animation({ leaf = "border",     enabled = true, speed = 3, bezier = "default" })
+hl.animation({ leaf = "fade",       enabled = true, speed = 3, bezier = "default" })

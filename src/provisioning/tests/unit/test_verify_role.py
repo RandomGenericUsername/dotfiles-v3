@@ -1313,6 +1313,14 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
     (install / "config" / "ags" / "app.tsx").write_text("")
     (install / "config" / "ags" / "style.css").write_text("")
+    # AGS bar skeletons (enhance-ags-bar: icons registry + Bar + widgets)
+    (install / "config" / "ags" / "icons.json").write_text("{}")
+    for rel in ("ags/lib", "ags/bar", "ags/bar/widgets"):
+        (install / "config" / rel).mkdir(parents=True, exist_ok=True)
+    (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
+    (install / "config" / "ags" / "bar" / "Bar.tsx").write_text("")
+    for widget in ("workspaces", "clock", "battery", "network", "power-menu"):
+        (install / "config" / "ags" / "bar" / "widgets" / f"{widget}.tsx").write_text("")
     (install / "config" / "hypr" / "colors.conf").write_text("")
     (install / "config" / "ags" / "colors.css").write_text("")
 

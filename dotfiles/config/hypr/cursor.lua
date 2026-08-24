@@ -1,4 +1,7 @@
--- Cursor configuration
-cursor {
-    no_hardware_cursors = true
-}
+-- Cursor configuration (Lua API)
+
+hl.config({
+    cursor = {
+        no_hardware_cursors = true,
+    },
+})

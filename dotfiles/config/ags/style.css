@@ -55,14 +55,7 @@ window#bar label {
 }
 
 /* Battery widget */
-.battery-widget {
-  spacing: 4px;
-}
-
 /* Network widget */
-.network-widget {
-  spacing: 4px;
-}
 
 /* Power menu */
 .power-menu-widget {

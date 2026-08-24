@@ -46,10 +46,10 @@ class IconRegistry {
     if (!variantEntry) return null
 
     const runtimePath = `${RUNTIME_ICONS_DIR}/${variantEntry.output}`
-    if (GLib.file_exists(runtimePath)) return runtimePath
+    if (GLib.file_test(runtimePath, GLib.FileTest.EXISTS)) return runtimePath
 
     const provisionPath = `${PROVISION_ICONS_DIR}/${variantEntry.output}`
-    if (GLib.file_exists(provisionPath)) return provisionPath
+    if (GLib.file_test(provisionPath, GLib.FileTest.EXISTS)) return provisionPath
 
     return null
   }

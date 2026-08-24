@@ -1,29 +1,24 @@
--- Autostart configuration
--- Executed once on Hyprland startup
+-- Autostart configuration (Lua API)
+-- Executed once on Hyprland startup.
 
--- Wallpaper daemon
-exec-once = hyprpaper
+hl.on("hyprland.start", function()
+    -- Wallpaper daemon
+    hl.exec_cmd("hyprpaper")
 
--- AGS (Aylur's GTK Shell) - status bar
-exec-once = ags run
+    -- AGS (Aylur's GTK Shell) - status bar
+    hl.exec_cmd("ags run")
 
--- Notification daemon (dunst)
-exec-once = dunst
+    -- Notification daemon (dunst)
+    hl.exec_cmd("dunst")
 
--- Polkit authentication agent (hyprpolkitagent)
-exec-once = systemctl --user start hyprpolkitagent
+    -- Polkit authentication agent (hyprpolkitagent)
+    hl.exec_cmd("systemctl --user start hyprpolkitagent")
 
--- XDG Desktop Portal (for screen sharing, file picking, etc.)
-exec-once = systemctl --user start xdg-desktop-portal-hyprland
-exec-once = systemctl --user start xdg-desktop-portal-gtk
+    -- XDG Desktop Portal (for screen sharing, file picking, etc.)
+    hl.exec_cmd("systemctl --user start xdg-desktop-portal-hyprland")
+    hl.exec_cmd("systemctl --user start xdg-desktop-portal-gtk")
 
--- Clipboard manager (wl-clipboard)
-exec-once = wl-paste --type text --watch cliphist store
-exec-once = wl-paste --type image --watch cliphist store
-
--- Idle management (for screen lock, DPMS)
--- exec-once = swayidle -w timeout 300 'hyprctl dispatch dpms off' resume 'hyprctl dispatch dpms on' timeout 600 'hyprctl dispatch dpms off' before-sleep 'loginctl lock-session'
-
--- GTK theme sync (if using GTK apps)
--- exec-once = gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita:dark'
--- exec-once = gsettings set org.gnome.desktop.interface icon-theme 'Adwaita'
+    -- Clipboard manager (wl-clipboard)
+    hl.exec_cmd("wl-paste --type text --watch cliphist store")
+    hl.exec_cmd("wl-paste --type image --watch cliphist store")
+end)

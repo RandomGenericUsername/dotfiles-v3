@@ -210,6 +210,14 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/hyprpaper/hyprpaper.conf"
   - "{{ install_dir | trim }}/config/ags/app.tsx"
   - "{{ install_dir | trim }}/config/ags/style.css"
+  - "{{ install_dir | trim }}/config/ags/icons.json"
+  - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
+  - "{{ install_dir | trim }}/config/ags/bar/Bar.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/workspaces.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/clock.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/battery.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/network.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/power-menu.tsx"
 
 # verify_compositor_fragments: the palette fragments copied into the config
 #   dirs (criterion 7), mirror of compositor_configs_fragment_copies dests.
