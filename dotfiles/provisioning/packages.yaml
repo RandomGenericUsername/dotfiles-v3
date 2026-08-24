@@ -15,6 +15,8 @@ entries:
   - name: astal-hyprland      # Hyprland IPC + workspace tracking (AGS bar)
   - name: astal-battery       # UPower battery monitoring (AGS bar)
   - name: astal-network       # NetworkManager wrapper (AGS bar)
+  - name: networkmanager      # Network backend for astal-network (bar) + NM stack
+  - name: wifitui             # WiFi TUI (impala-style) on NetworkManager (bar click)
   - name: fonts
 
   # Must-have utilities (from Hyprland wiki)
@@ -36,3 +38,4 @@ entries:
   - name: hyprcursor         # Cursor themes
   - name: hyprlock           # Screen locker
   - name: hypridle           # Idle management
+  - name: wlogout            # Logout menu (AGS power-menu action)

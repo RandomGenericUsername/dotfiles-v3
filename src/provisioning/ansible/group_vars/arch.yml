@@ -7,6 +7,8 @@
 packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
+  networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
+  wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   # AGS (Aylur's GTK Shell v2) is AUR-only on Arch (correct-course 2026-08-18):
   # the AUR package name resolves here; the packages role routes it through the
   # aur_packages channel (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
@@ -39,6 +41,7 @@ packages:
     - starship
   terminal:
     - kitty
+  wlogout: wlogout # Logout menu (AGS power-menu click target)
   # Display manager — SDDM + Qt6 (provisioned by the display_manager role with
   # the Pixie theme and a Wayland greeter; installed here too so the packages
   # role makes them present in the aggregate). X11 greeters grabbed the GPU and

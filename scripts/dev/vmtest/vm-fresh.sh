@@ -59,7 +59,8 @@ sudo incus exec "$VM_NAME" -- bash -c "
   systemctl disable systemd-resolved 2>/dev/null || true
   rm -f /etc/resolv.conf
 
-  # Configure networkd for DHCPv4
+  # Configure networkd for DHCPv4 (primary). Write a persistent .network file
+  # so the config survives reboot — a live \`ip addr add\` is lost on the next boot.
   cat > /etc/systemd/network/enp5s0.network << 'NETCONF'
 [Match]
 Name=enp5s0
@@ -72,11 +73,23 @@ NETCONF
   systemctl restart systemd-networkd
   sleep 5
 
-  # If DHCP failed, assign manually
+  # If DHCP failed to grant a lease, fall back to a PERSISTENT static config
+  # (same NAT subnet the incus bridge serves) so the VM has working networking
+  # on every boot, not just this provisioning run.
   if ! ip -4 addr show enp5s0 | grep -q 'scope global'; then
-    echo 'DHCP failed, assigning manually...'
-    ip addr add 10.27.121.100/24 dev enp5s0
-    ip route add default via 10.27.121.1
+    echo 'DHCP failed, assigning static config persistently...'
+    cat > /etc/systemd/network/enp5s0.network << 'NETCONF'
+[Match]
+Name=enp5s0
+
+[Network]
+Address=10.27.121.100/24
+Gateway=10.27.121.1
+DNS=8.8.8.8
+IPv6AcceptRA=yes
+NETCONF
+    systemctl restart systemd-networkd
+    sleep 5
   fi
 
   # Write static resolv.conf (real file, not symlink)
@@ -96,24 +109,102 @@ DNSCONF
   done
   timeout 3 getent hosts archlinux.org >/dev/null 2>&1 || { echo 'ERROR: DNS still broken'; exit 1; }
 
-  # Fast mirrors (mirrors.kernel.org is slow from some locations)
-  printf 'Server = https://mirror.rackspace.com/archlinux/\$repo/os/\$arch\nServer = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch\n' > /etc/pacman.d/mirrorlist
+  # Virtual Wi-Fi radios (mac80211_hwsim): the VM has no physical wireless NIC
+  # (virtio ethernet only), so astal-network/NetworkManager would always report
+  # ethernet and the AGS bar could never show Wi-Fi state. Loading the kernel
+  # module creates two software 802.11 radios (wlan0/wlan1 + p2p-dev-*), which
+  # NetworkManager detects as genuine \`wifi\` devices. Persist the load across
+  # reboots via modules-load.d (modprobe now + file for next boot) and install
+  # iw so the radios are scannable/connectable in the guest (installed in the
+  # packages step below after repo refresh).
+  modprobe mac80211_hwsim
+  echo 'mac80211_hwsim' > /etc/modules-load.d/dotfiles-vm-wifi.conf
 
   # 2. Packages
+  printf 'Server = https://mirror.rackspace.com/archlinux/\$repo/os/\$arch\nServer = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch\n' > /etc/pacman.d/mirrorlist
   pacman -Syu --noconfirm
-  pacman -S --noconfirm git base-devel sudo podman
+  pacman -S --noconfirm git base-devel sudo podman iw hostapd dnsmasq
 
-  # 3. User setup
+  # 3. Virtual AP (hostapd on wlan1) so wlan0 can associate and the bar shows a
+  #    real connected SSID. WPA2 network "DotfilesHome" served on 192.168.50.x
+  #    with DHCP (dnsmasq) + NAT out enp5s0 (the NAT uplink). A systemd unit
+  #    brings it up on every boot, not just this provisioning run.
+  cat > /etc/hostapd/hostapd-vm.conf << 'APCONF'
+interface=wlan1
+driver=nl80211
+ssid=DotfilesHome
+hw_mode=g
+channel=6
+wmm_enabled=0
+macaddr_acl=0
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=testtest
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP
+rsn_pairwise=CCMP
+APCONF
+
+  sed -i 's|^#conf-dir=/etc/dnsmasq.d|conf-dir=/etc/dnsmasq.d|' /etc/dnsmasq.conf
+  mkdir -p /etc/dnsmasq.d
+  cat > /etc/dnsmasq.d/vm-ap.conf << 'APDHCP'
+interface=wlan1
+bind-interfaces
+dhcp-range=192.168.50.100,192.168.50.200,12h
+dhcp-option=option:router,192.168.50.1
+dhcp-option=option:dns-server,8.8.8.8
+APDHCP
+
+  cat > /usr/local/sbin/dotfiles-vm-ap.sh << 'APSCRIPT'
+#!/bin/bash
+# Bring up the virtual Wi-Fi AP (hostapd on wlan1) + DHCP + NAT.
+# Runs on boot via dotfiles-vm-ap.service. Idempotent.
+set -u
+modprobe mac80211_hwsim 2>/dev/null || true
+ip link set wlan1 up 2>/dev/null || true
+ip addr flush dev wlan1 2>/dev/null || true
+ip addr add 192.168.50.1/24 dev wlan1 2>/dev/null || true
+if ! pgrep -x hostapd >/dev/null 2>&1; then
+  hostapd -B /etc/hostapd/hostapd-vm.conf || true
+fi
+systemctl start dnsmasq 2>/dev/null || true
+iptables -t nat -C POSTROUTING -s 192.168.50.0/24 -o enp5s0 -j MASQUERADE 2>/dev/null \
+  || iptables -t nat -A POSTROUTING -s 192.168.50.0/24 -o enp5s0 -j MASQUERADE
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+exit 0
+APSCRIPT
+  chmod +x /usr/local/sbin/dotfiles-vm-ap.sh
+
+  cat > /etc/systemd/system/dotfiles-vm-ap.service << 'APSVC'
+[Unit]
+Description=Virtual Wi-Fi AP (mac80211_hwsim) for the dotfiles dev VM
+After=systemd-networkd.service NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/dotfiles-vm-ap.sh
+
+[Install]
+WantedBy=multi-user.target
+APSVC
+  systemctl daemon-reload
+  systemctl enable dotfiles-vm-ap.service
+  systemctl start dotfiles-vm-ap.service || true
+
+  # 4. User setup
   id arch >/dev/null 2>&1 || useradd -m -G wheel -s /bin/bash arch
   echo 'arch:arch' | chpasswd
   grep -q 'arch ALL=(ALL) NOPASSWD:ALL' /etc/sudoers || echo 'arch ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-  # 4. Podman
+  # 5. Podman
   systemctl enable --now podman.socket
   loginctl enable-linger arch
   su - arch -c 'systemctl --user enable --now podman.socket 2>/dev/null || true'
 
-  # 5. Verify
+  # 6. Verify
   if su - arch -c 'podman info >/dev/null 2>&1'; then
     echo 'Podman OK for arch user'
   else
@@ -131,6 +222,15 @@ echo "== vm-fresh: running bootstrap (full provision) =="
 sudo incus exec "$VM_NAME" -- su - arch -c "
   cd ~/dotfiles-repo-v3 && ./bootstrap.sh
 "
+
+echo "== vm-fresh: connecting VM wifi (wlan0) to the virtual AP =="
+sudo incus exec "$VM_NAME" -- bash -c '
+  systemctl start dotfiles-vm-ap.service 2>/dev/null || true
+  sleep 3
+  ip link set wlan0 up 2>/dev/null || true
+  nmcli device wifi connect DotfilesHome password testtest 2>/dev/null \
+    || echo "  (wifi connect deferred — associate on first bar restart)"
+'
 
 echo "== vm-fresh: starting SDDM =="
 sudo incus exec "$VM_NAME" -- systemctl start sddm 2>/dev/null || true

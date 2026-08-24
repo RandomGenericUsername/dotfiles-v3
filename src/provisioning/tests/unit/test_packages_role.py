@@ -237,22 +237,29 @@ class TestPackagesVars:
         assert data["packages_use_aur"] is False
 
     def test_vars_do_not_carry_package_names(self) -> None:
+        import re
+
         arch_text = (_ROLES_DIR / "vars" / "arch.yml").read_text()
         debian_text = (_ROLES_DIR / "vars" / "debian.yml").read_text()
-        # AUR-routed packages (correct-course 2026-08-18: AGS = aylurs-gtk-shell-git)
-        # are the EXCEPTION — their AUR names are AUR-channel routing config in
-        # vars/arch.yml aur_packages, NOT pacman names (NFR-3 still holds for the
-        # pacman/apt names below). The pacman-installable names must stay in
-        # group_vars.
+        # AUR-routed packages (correct-course 2026-08-18: AGS = aylurs-gtk-shell-git;
+        # astal-* libs for the AGS bar) are the EXCEPTION — their AUR names are
+        # AUR-channel routing config in vars/arch.yml aur_packages, NOT pacman
+        # names (NFR-3 still holds for the pacman/apt names below). The
+        # pacman-installable names must stay in group_vars.
         arch_aur = ("aylurs-gtk-shell-git",)
+        # Strip the AUR routing line so `astal-hyprland` cannot satisfy a check
+        # for the pacman name `hyprland` via an adjacent-token match.
+        arch_check_text = re.sub(
+            r"aur_packages:.*", "", arch_text
+        )
         for name in _ARCH_PACKAGE_NAMES:
             if name in arch_aur:
                 continue
-            assert name not in arch_text, (
+            assert not re.search(rf"\b{re.escape(name)}\b", arch_check_text), (
                 f"package name {name!r} must live in group_vars, not vars/arch.yml"
             )
         for name in _DEBIAN_PACKAGE_NAMES:
-            assert name not in debian_text, (
+            assert not re.search(rf"\b{re.escape(name)}\b", debian_text), (
                 f"package name {name!r} must live in group_vars, not vars/debian.yml"
             )
 

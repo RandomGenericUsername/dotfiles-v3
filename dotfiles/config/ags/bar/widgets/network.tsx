@@ -1,4 +1,5 @@
 import Network from "gi://AstalNetwork"
+import { execAsync } from "ags/process"
 import { createBinding, createComputed, createEffect } from "ags"
 import { registry } from "../../lib/icon-registry"
 
@@ -18,7 +19,8 @@ function getNetworkIconPath(w: unknown, wd: unknown): string | null {
 
   let stateKey: string
   if (w) {
-    stateKey = getWifiStateKey((w as { strength: number }).strength)
+    const wifi = w as { state?: number; strength: number }
+    stateKey = getWifiStateKey(wifi.strength)
   } else if (wd) {
     stateKey = "ethernet"
   } else {
@@ -32,14 +34,17 @@ function getNetworkIconPath(w: unknown, wd: unknown): string | null {
 }
 
 function getNetworkLabel(w: unknown, wd: unknown): string {
-  if (w) return (w as { ssid?: string }).ssid ?? "Wifi"
+  if (w) return (w as { ssid?: string }).ssid ?? "WiFi"
   if (wd) return "Ethernet"
-  return "Disconnected"
+  return "No network"
 }
 
 export function NetworkStatus() {
   return (
-    <box class="widget network-widget" spacing={4}>
+    <button
+      class="widget network-widget"
+      onClicked={() => execAsync(["kitty", "--", "wifitui", "tui"])}
+    >
       <image
         class="widget-icon"
         $={(self) => {
@@ -51,6 +56,6 @@ export function NetworkStatus() {
       <label
         label={createComputed(() => getNetworkLabel(wifi(), wired()))}
       />
-    </box>
+    </button>
   )
 }

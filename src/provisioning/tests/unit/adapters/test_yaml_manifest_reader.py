@@ -329,7 +329,32 @@ class TestReadRealManifests:
         manifest = READER.read(_MANIFEST_DIR / "packages.yaml")
         names = [entry.name for entry in manifest.entries]
         assert len(names) == len(set(names)), f"duplicate package entries: {names}"
-        assert set(names) == {"hyprland", "hyprpaper", "ags", "fonts"}
+        assert set(names) == {
+            "hyprland",
+            "hyprpaper",
+            "ags",
+            "astal-hyprland",
+            "astal-battery",
+            "astal-network",
+            "networkmanager",
+            "wifitui",
+            "fonts",
+            "dunst",
+            "hyprpolkitagent",
+            "xdg-desktop-portal-hyprland",
+            "xdg-desktop-portal-gtk",
+            "wl-clipboard",
+            "grim",
+            "slurp",
+            "wofi",
+            "thunar",
+            "cliphist",
+            "lf",
+            "hyprcursor",
+            "hyprlock",
+            "hypridle",
+            "wlogout",
+        }
 
     def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "config-copies.yaml")

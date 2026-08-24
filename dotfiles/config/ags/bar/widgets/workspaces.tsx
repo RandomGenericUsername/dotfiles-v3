@@ -14,7 +14,8 @@ export function Workspaces() {
         return (
           <button
             class={focusedWorkspace((fw) => fw?.get_id() === wsId ? "workspace-btn active" : "workspace-btn")}
-            onClicked={() => hyprland.dispatch("workspace", wsId.toString())}
+            onClicked={() =>
+              hyprland.dispatch(`hl.dsp.focus({workspace=${wsId}})`, "")}
           >
             <label label={wsId.toString()} />
           </button>

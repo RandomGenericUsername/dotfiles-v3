@@ -11,6 +11,8 @@
 packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
+  networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
+  wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   ags: aylurs-gtk-shell-git
   # Container engine for the csg container-mode chain (same rationale as Arch).
   # Debian package names; rootless podman deps.
@@ -34,6 +36,7 @@ packages:
     - starship
   terminal:
     - kitty
+  wlogout: wlogout # Logout menu (AGS power-menu click target)
   # Display manager — SDDM + Qt6 (same rationale as Arch; SDDM Wayland greeter
   # avoids the X11-greater GPU freeze with Hyprland). Pixie theme installed by
   # the display_manager role.
