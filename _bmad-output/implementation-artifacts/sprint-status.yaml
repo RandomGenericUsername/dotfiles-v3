@@ -47,7 +47,7 @@ development_status:
 
   # ── Epic 1: Wallpaper & State Foundation ──
   rt-epic-1: in-progress
-  rt-1-1-nested-hexagon-scaffold: ready-for-dev
+  rt-1-1-nested-hexagon-scaffold: review
   rt-1-2-domain-model-derivation-graph: backlog
   rt-1-3-ports-domain-capabilities: backlog
   rt-1-4-csg-determinism-verification: backlog

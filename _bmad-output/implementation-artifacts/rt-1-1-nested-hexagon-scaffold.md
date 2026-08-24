@@ -1,6 +1,8 @@
 # Story 1.1: Nested-Hexagon Scaffold with Layering Test
 
-Status: ready-for-dev
+Status: review
+
+baseline_commit: 8b4ecfb5a60a03605301f4d5398498625d5053b8
 
 ## Story
 
@@ -18,29 +20,29 @@ so that Phase 2 code lands in the right layers from day one and the §11 boundar
 
 ## Tasks / Subtasks
 
-- [ ] Create `src/runtime/pyproject.toml` (AC: 1, 5)
-  - [ ] `[project]` name = `dotfiles-runtime`, version, description, `requires-python = ">=3.14"`
-  - [ ] Runtime deps: `typer`, `cli-output` (via `uv.sources`)
-  - [ ] `[project.scripts]` → `dotfiles-runtime = "runtime.cli.main:app"`
-  - [ ] Dev deps (`[dependency-groups]`): `pytest`, `ruff`, `mypy`
-  - [ ] `[tool.hatch.build.targets.wheel] packages = ["src/runtime"]`
-  - [ ] `[tool.uv.sources]` → `cli-output = { path = "../shared/cli-output", editable = true }`
-  - [ ] `[tool.pytest.ini_options] testpaths = ["tests"]`, `pythonpath = ["src", "."]`
-  - [ ] `[tool.ruff]` matching repo convention (`target-version`, `line-length = 100`, `select`, `quote-style = "double"`)
-- [ ] Create package skeleton `src/runtime/src/runtime/` (AC: 1)
-  - [ ] `__init__.py` with `__version__`
-  - [ ] `domain/__init__.py` (empty — domain models arrive in Story 1.2)
-  - [ ] `ports/__init__.py` (empty — ports arrive in Story 1.3)
-  - [ ] `adapters/__init__.py` (empty — adapters arrive later)
-  - [ ] `application/__init__.py` (empty — use cases arrive later)
-  - [ ] `cli/__init__.py` (empty)
-  - [ ] `cli/main.py` — stub Typer app with a `version` command rendering via `cli-output`
-- [ ] Create `src/runtime/tests/` (AC: 2, 3, 4)
-  - [ ] `tests/architecture/test_layering.py` — mechanical layering enforcement mirroring `src/provisioning/tests/architecture/test_layering.py`
-  - [ ] `tests/test_cli.py` — stub CLI test exercising version command via Typer `CliRunner`
-- [ ] Run `uv lock` in `src/runtime/` and confirm it resolves (AC: 5)
-- [ ] Run `uv run --directory src/runtime pytest` and confirm all tests pass (AC: 4)
-- [ ] Verify layering test catches a deliberately-violating import (AC: 3)
+- [x] Create `src/runtime/pyproject.toml` (AC: 1, 5)
+  - [x] `[project]` name = `dotfiles-runtime`, version, description, `requires-python = ">=3.14"`
+  - [x] Runtime deps: `typer`, `cli-output` (via `uv.sources`)
+  - [x] `[project.scripts]` → `dotfiles-runtime = "runtime.cli.main:app"`
+  - [x] Dev deps (`[dependency-groups]`): `pytest`, `ruff`, `mypy`
+  - [x] `[tool.hatch.build.targets.wheel] packages = ["src/runtime"]`
+  - [x] `[tool.uv.sources]` → `cli-output = { path = "../shared/cli-output", editable = true }`
+  - [x] `[tool.pytest.ini_options] testpaths = ["tests"]`, `pythonpath = ["src", "."]`
+  - [x] `[tool.ruff]` matching repo convention (`target-version`, `line-length = 100`, `select`, `quote-style = "double"`)
+- [x] Create package skeleton `src/runtime/src/runtime/` (AC: 1)
+  - [x] `__init__.py` with `__version__`
+  - [x] `domain/__init__.py` (empty — domain models arrive in Story 1.2)
+  - [x] `ports/__init__.py` (empty — ports arrive in Story 1.3)
+  - [x] `adapters/__init__.py` (empty — adapters arrive later)
+  - [x] `application/__init__.py` (empty — use cases arrive later)
+  - [x] `cli/__init__.py` (empty)
+  - [x] `cli/main.py` — stub Typer app with a `version` command rendering via `cli-output`
+- [x] Create `src/runtime/tests/` (AC: 2, 3, 4)
+  - [x] `tests/architecture/test_layering.py` — mechanical layering enforcement mirroring `src/provisioning/tests/architecture/test_layering.py`
+  - [x] `tests/test_cli.py` — stub CLI test exercising version command via Typer `CliRunner`
+- [x] Run `uv lock` in `src/runtime/` and confirm it resolves (AC: 5)
+- [x] Run `uv run --directory src/runtime pytest` and confirm all tests pass (AC: 4)
+- [x] Verify layering test catches a deliberately-violating import (AC: 3)
 
 ## Dev Notes
 
@@ -197,4 +199,23 @@ _FORBIDDEN_CROSS_PACKAGE = frozenset({
 
 ### Completion Notes List
 
+- Scaffolded `dotfiles-runtime` package as nested hexagon with all 5 layers (domain, ports, adapters, application, cli)
+- Created `pyproject.toml` matching provisioning conventions (hatchling, ruff, mypy, pytest config)
+- Stub CLI app with version command rendering via `cli-output` (OutputFormat.PLAIN)
+- Layering test mirrors provisioning's with runtime-specific forbidden set (adds "provisioning" to AD-15)
+- All 29 tests pass, standalone enforcement confirms 7 source files checked across 6 architectural rules
+- `uv lock` resolves without errors on Python 3.14
+
 ### File List
+
+- `src/runtime/pyproject.toml`
+- `src/runtime/uv.lock`
+- `src/runtime/src/runtime/__init__.py`
+- `src/runtime/src/runtime/domain/__init__.py`
+- `src/runtime/src/runtime/ports/__init__.py`
+- `src/runtime/src/runtime/adapters/__init__.py`
+- `src/runtime/src/runtime/application/__init__.py`
+- `src/runtime/src/runtime/cli/__init__.py`
+- `src/runtime/src/runtime/cli/main.py`
+- `src/runtime/tests/architecture/test_layering.py`
+- `src/runtime/tests/test_cli.py`
