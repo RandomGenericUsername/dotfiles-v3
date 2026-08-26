@@ -129,12 +129,12 @@ def _copy_tasks() -> list[dict[str, object]]:
 
 def _skeleton_task() -> dict[str, object]:
     """The single skeleton placement task: the `template` task carrying
-    `force: false` (the AC 5 marker), looping over
-    {{ compositor_configs_skeleton_files }}."""
+    `force: true` (repo-authoritative, owner decision 2026-08-26), looping
+    over {{ compositor_configs_skeleton_files }}."""
     matches = [
         task
         for task in _tasks_with_module("ansible.builtin.template")
-        if str(_module(task).get("force")) == "False"
+        if str(_module(task).get("force")) == "True"
         and "compositor_configs_skeleton_files" in str(task.get("loop", ""))
     ]
     assert len(matches) == 1, (
@@ -192,22 +192,19 @@ class TestCompositorConfigsTasks:
         assert "install_dir | trim | length > 0" in that
 
     def test_skeleton_files_templated_per_file_with_force_false(self) -> None:
-        """AC 2 + 5: the skeleton placement task loops over the skeleton FILES
-        (per-file entries — a directory `copy` + `force: false` + pre-existing
-        dest is a silent no-op, review finding 2026-08-12), each entry a
-        `source` prefixed `{{ compositor_configs_repo_root }}/dotfiles/
-        config/<dir>/<file>` and a `dest` under the config-in-spine home
-        ({{ compositor_configs_spine_config_dir }}, config-in-spine
-        2026-08-16), and the task renders via `ansible.builtin.template` with
-        `force: false` — the marker that locks AC 5, without which a dev could
-        silently fall back to template's default force: true and clobber a
-        user's edits. The template module also renders the hyprland.lua first
-        line from the resolved XDG config home (P1 decision — the ~/.config
-        symlink makes the reference resolve into the spine)."""
+        """AC 2 + repo-authoritative (owner decision 2026-08-26): the skeleton
+        placement task loops over the skeleton FILES (per-file entries — a
+        directory `copy` + `force: false` + pre-existing dest is a silent
+        no-op, review finding 2026-08-12), each entry a `source` prefixed
+        `{{ compositor_configs_repo_root }}/dotfiles/config/<dir>/<file>` and a
+        `dest` under the config-in-spine home ({{ compositor_configs_spine_config_dir }},
+        config-in-spine 2026-08-16), and the task renders via
+        `ansible.builtin.template` with `force: true` — repo-authoritative,
+        every bootstrap converges to the repo (owner decision 2026-08-26)."""
         task = _skeleton_task()
         module = _module(task)
-        assert module.get("force") is False, (
-            "skeleton placements must set force: false (AC 5 — never re-touch a placed skeleton)"
+        assert module.get("force") is True, (
+            "skeleton placements must set force: true (repo-authoritative per owner decision 2026-08-26)"
         )
         assert "compositor_configs_skeleton_files" in str(task.get("loop", ""))
 
@@ -355,14 +352,15 @@ class TestCompositorConfigsTasks:
             )
 
     def test_invariant_documented_in_task_header(self) -> None:
-        """AC 7: the task file header documents the load-bearing Phase 2
-        invariant — skeletons never change; fragments are the overwrite target."""
+        """AC 7 (updated 2026-08-26, repo-authoritative): the task file header
+        documents that skeletons are repo-authoritative (force:true) and
+        fragments are the palette overwrite target."""
         header = (_ROLES_DIR / "tasks" / "main.yml").read_text()
-        assert "skeletons never change" in header, (
-            "task header must document 'skeletons never change' (AC 7)"
+        assert "repo-authoritative" in header, (
+            "task header must document 'repo-authoritative' (owner decision 2026-08-26)"
         )
-        assert "fragments are the Phase 2 overwrite target" in header, (
-            "task header must document 'fragments are the Phase 2 overwrite target' (AC 7)"
+        assert "fragments" in header.lower() and "overwrite" in header.lower(), (
+            "task header must document fragments as overwrite target (AC 7)"
         )
 
     def test_no_become_anywhere_in_role(self) -> None:

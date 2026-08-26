@@ -4,21 +4,17 @@
 # palette fragments into the user config: colors.conf -> ~/.config/hypr/colors.conf and
 # colors.gtk.css -> ~/.config/ags/colors.css (FR-19, chaining-spine.md).
 #
-# Design (locked in Story 2.9 Dev Notes):
+# Design (locked in Story 2.9 Dev Notes — updated per owner decision
+# 2026-08-26: skeletons are repo-authoritative, force:true):
 # - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
 #   from the filesystem/assets/default_palette roles: install_dir is
 #   deliberately never defaulted (group_vars/all.yml), so an undefined spine
 #   root must abort with a friendly message before any task evaluates.
-# - "skeletons never change; fragments are the Phase 2 overwrite target"
-#   (AC 5, 7): the skeleton placements carry `force: false` — a file is
-#   transferred only if the destination does not exist, so a placed skeleton is
-#   NEVER re-touched on any re-run (the template module's default `force: true`
-#   would clobber a user's hand edits). The fragment copies are the ONLY
-#   overwrite candidates (AC 5, 7): copy's default `force: true` means a
-#   regenerated palette (FR-18, no `creates:` in 2.7) propagates on the next
-#   apply. NO `creates:` on either — not needed on skeletons (force: false
-#   already guarantees no re-transfer) and forbidden on fragments (a gate would
-#   freeze a stale fragment).
+# - Skeletons are repo-authoritative (`force: true`, idempotent): every
+#   bootstrap converges to the repo, n runs give the same result. A legacy
+#   cleanup task removes superseded same-name files (e.g. hypr/hyprland.conf
+#   → hypr/hyprland.lua). Fragments remain the palette overwrite target
+#   (AC 7, force:true). NO `creates:` on either.
 # - Skeleton placement uses `ansible.builtin.template` with PER-FILE entries
 #   (compositor_configs_skeleton_files), NOT a directory source: review finding
 #   2026-08-12 proved `copy` with a directory `src` + `force: false` + a
@@ -63,36 +59,18 @@
     state: directory
   loop: "{{ compositor_configs_config_dirs }}"
 
-# Migration: stale AGS entry-point from the original bar-shell skeleton
-# (accb434, 2026-08-18: 1757-byte app.tsx that shows the "dotfiles <star>"
-# mock). The skeleton rule is write-once (force:false) so hosts first
-# provisioned before enhance-ags-bar (a26d3e4) keep that stale entry forever;
-# the new thin entry (a26d3e4, imports Bar) has the same dest name so it
-# never gets placed. Overwrite ONLY when the dest's sha1 matches the known
-# shipped baseline — a real hand-edit (different hash) is preserved per AC 5.
-- name: Check for stale AGS entry point
-  ansible.builtin.stat:
-    path: "{{ compositor_configs_spine_config_dir }}/ags/app.tsx"
-    checksum_algorithm: sha1
-    get_checksum: true
-  register: compositor_configs_stale_app
-  when: not ansible_check_mode
-
-- name: Remove stale AGS entry point
-  ansible.builtin.file:
-    path: "{{ compositor_configs_spine_config_dir }}/ags/app.tsx"
-    state: absent
-  when:
-    - not ansible_check_mode
-    - compositor_configs_stale_app.stat.exists
-    - compositor_configs_stale_app.stat.checksum == "d9a839db629b141b3e4333c57f374a71a3c82dcb"
-
 - name: Place compositor skeleton files
   ansible.builtin.template:
     src: "{{ compositor_configs_repo_root }}/{{ item.source }}"
     dest: "{{ item.dest }}"
-    force: false
+    force: true
   loop: "{{ compositor_configs_skeleton_files }}"
+
+- name: Remove legacy hyprland.conf skeleton (superseded by hyprland.lua)
+  ansible.builtin.file:
+    path: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.conf"
+    state: absent
+  when: not ansible_check_mode
 
 - name: Check palette fragment sources exist
   ansible.builtin.stat:
