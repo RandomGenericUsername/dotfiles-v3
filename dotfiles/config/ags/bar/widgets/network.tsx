@@ -45,17 +45,19 @@ export function NetworkStatus() {
       class="widget network-widget"
       onClicked={() => execAsync(["kitty", "--", "wifitui", "tui"])}
     >
-      <image
-        class="widget-icon"
-        $={(self) => {
-          createEffect(() => {
-            self.set_from_file(getNetworkIconPath(wifi(), wired()) ?? "")
-          })
-        }}
-      />
-      <label
-        label={createComputed(() => getNetworkLabel(wifi(), wired()))}
-      />
+      <box spacing={4}>
+        <image
+          class="widget-icon"
+          $={(self) => {
+            createEffect(() => {
+              self.set_from_file(getNetworkIconPath(wifi(), wired()) ?? "")
+            })
+          }}
+        />
+        <label
+          label={createComputed(() => getNetworkLabel(wifi(), wired()))}
+        />
+      </box>
     </button>
   )
 }
