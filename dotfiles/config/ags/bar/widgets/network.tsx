@@ -55,6 +55,7 @@ export function NetworkStatus() {
           }}
         />
         <label
+          visible={createComputed(() => getNetworkLabel(wifi(), wired()) !== "")}
           label={createComputed(() => getNetworkLabel(wifi(), wired()))}
         />
       </box>
