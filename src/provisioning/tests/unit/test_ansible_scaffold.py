@@ -45,6 +45,8 @@ _LOGICAL_PACKAGE_KEYS = (
     "networkmanager",
     "wifitui",
     "wlogout",
+    "librsvg",
+    "uwsm",
     "ags",
     "fonts",
     "zsh",

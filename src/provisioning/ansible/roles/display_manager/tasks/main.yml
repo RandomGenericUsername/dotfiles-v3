@@ -35,6 +35,20 @@
     repo: "{{ display_manager_pixie_repo }}"
     dest: "{{ display_manager_pixie_themedir }}"
     version: "{{ display_manager_pixie_repo_ref }}"
+    # The theme is fully MANAGED here: the login-timeout patch below edits
+    # Main.qml after every fetch, which leaves the clone dirty and would make
+    # later runs fail checkout without force. Force-reset on each run; the
+    # patch task immediately re-applies.
+    force: true
+  become: true
+  when: display_manager_type == 'sddm-pixie'
+
+- name: Fix SDDM theme login timeout
+  ansible.builtin.lineinfile:
+    path: /usr/share/sddm/themes/pixie/Main.qml
+    regexp: '^\s*interval: 5000'
+    line: 'interval: 0'
+    state: present
   become: true
   when: display_manager_type == 'sddm-pixie'
 

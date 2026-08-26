@@ -13,6 +13,9 @@ packages:
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
+  librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
+  # uwsm: systemd-managed session launch (same rationale as Arch).
+  uwsm: uwsm
   ags: aylurs-gtk-shell-git
   # Container engine for the csg container-mode chain (same rationale as Arch).
   # Debian package names; rootless podman deps.

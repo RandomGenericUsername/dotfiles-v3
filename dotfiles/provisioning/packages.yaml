@@ -17,9 +17,11 @@ entries:
   - name: astal-network       # NetworkManager wrapper (AGS bar)
   - name: networkmanager      # Network backend for astal-network (bar) + NM stack
   - name: wifitui             # WiFi TUI (impala-style) on NetworkManager (bar click)
+  - name: uwsm                # systemd-managed Wayland session launcher (fixes SDDM session bounce race)
   - name: fonts
 
   # Must-have utilities (from Hyprland wiki)
+  - name: librsvg             # SVG rendering (gdk-pixbuf loader) for AGS bar icons
   - name: dunst              # Notification daemon
   - name: hyprpolkitagent    # Polkit authentication agent
   - name: xdg-desktop-portal-hyprland  # XDG Desktop Portal backend (XDPH)

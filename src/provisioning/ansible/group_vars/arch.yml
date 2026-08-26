@@ -9,6 +9,11 @@ packages:
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
+  librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
+  # uwsm: wraps the Hyprland session in a systemd user unit (hyprland-uwsm
+  # desktop entry, shipped by the hyprland pkg) so dead sessions can't linger
+  # and hold the DRM device — root cause of the SDDM login bounce loop.
+  uwsm: uwsm
   # AGS (Aylur's GTK Shell v2) is AUR-only on Arch (correct-course 2026-08-18):
   # the AUR package name resolves here; the packages role routes it through the
   # aur_packages channel (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
