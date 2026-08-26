@@ -38,7 +38,6 @@ export function BatteryIndicator() {
     <box
       class="widget battery-widget"
       visible={isPresent((present) => present)}
-      spacing={4}
     >
       <image
         class="widget-icon"
@@ -49,9 +48,6 @@ export function BatteryIndicator() {
             )
           })
         }}
-      />
-      <label
-        label={percentage((pct) => getBatteryLabel(pct))}
       />
     </box>
   )
