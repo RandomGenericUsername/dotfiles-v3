@@ -22,6 +22,11 @@ window#bar label {
   min-height: 24px;
 }
 
+.battery-widget .widget-icon {
+  min-width: 32px;
+  min-height: 32px;
+}
+
 
 .widget {
   padding: 0 8px;
