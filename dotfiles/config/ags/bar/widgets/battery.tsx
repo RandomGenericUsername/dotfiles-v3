@@ -44,7 +44,7 @@ export function BatteryIndicator() {
         $={(self) => {
           createEffect(() => {
             self.set_from_file(
-              getBatteryIconPath(percentage(), device.charging) ?? ""
+              getBatteryIconPath(percentage(), charging()) ?? ""
             )
           })
         }}

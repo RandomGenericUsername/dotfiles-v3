@@ -49,8 +49,25 @@ export function NetworkStatus() {
         <image
           class="widget-icon"
           $={(self) => {
+            let cleanup: (() => void) | null = null
             createEffect(() => {
-              self.set_from_file(getNetworkIconPath(wifi(), wired()) ?? "")
+              if (cleanup) {
+                cleanup()
+                cleanup = null
+              }
+              const w = wifi()
+              const update = () => self.set_from_file(getNetworkIconPath(wifi(), wired()) ?? "")
+              update()
+              if (w && (w as any).connect) {
+                const id = (w as any).connect("notify::strength", update)
+                cleanup = () => (w as any).disconnect(id)
+                return () => {
+                  if (cleanup) {
+                    cleanup()
+                    cleanup = null
+                  }
+                }
+              }
             })
           }}
         />
