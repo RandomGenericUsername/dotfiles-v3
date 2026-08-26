@@ -63,6 +63,30 @@
     state: directory
   loop: "{{ compositor_configs_config_dirs }}"
 
+# Migration: stale AGS entry-point from the original bar-shell skeleton
+# (accb434, 2026-08-18: 1757-byte app.tsx that shows the "dotfiles <star>"
+# mock). The skeleton rule is write-once (force:false) so hosts first
+# provisioned before enhance-ags-bar (a26d3e4) keep that stale entry forever;
+# the new thin entry (a26d3e4, imports Bar) has the same dest name so it
+# never gets placed. Overwrite ONLY when the dest's sha1 matches the known
+# shipped baseline — a real hand-edit (different hash) is preserved per AC 5.
+- name: Check for stale AGS entry point
+  ansible.builtin.stat:
+    path: "{{ compositor_configs_spine_config_dir }}/ags/app.tsx"
+    checksum_algorithm: sha1
+    get_checksum: true
+  register: compositor_configs_stale_app
+  when: not ansible_check_mode
+
+- name: Remove stale AGS entry point
+  ansible.builtin.file:
+    path: "{{ compositor_configs_spine_config_dir }}/ags/app.tsx"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - compositor_configs_stale_app.stat.exists
+    - compositor_configs_stale_app.stat.checksum == "d9a839db629b141b3e4333c57f374a71a3c82dcb"
+
 - name: Place compositor skeleton files
   ansible.builtin.template:
     src: "{{ compositor_configs_repo_root }}/{{ item.source }}"
