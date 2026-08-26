@@ -34,7 +34,7 @@ function getNetworkIconPath(w: unknown, wd: unknown): string | null {
 }
 
 function getNetworkLabel(w: unknown, wd: unknown): string {
-  if (w) return (w as { ssid?: string }).ssid ?? "WiFi"
+  if (w) return ""
   if (wd) return "Ethernet"
   return "No network"
 }
