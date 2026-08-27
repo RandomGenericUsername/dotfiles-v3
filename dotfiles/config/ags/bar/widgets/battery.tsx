@@ -35,11 +35,12 @@ function getBatteryLabel(pct: number): string {
 
 export function BatteryIndicator() {
   return (
-    <box
+    <button
       class="widget battery-widget"
       visible={isPresent((present) => present)}
     >
       <image
+        pixel_size={24}
         class="widget-icon"
         $={(self) => {
           createEffect(() => {
@@ -49,6 +50,6 @@ export function BatteryIndicator() {
           })
         }}
       />
-    </box>
+    </button>
   )
 }

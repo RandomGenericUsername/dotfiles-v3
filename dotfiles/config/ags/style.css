@@ -18,14 +18,10 @@ window#bar label {
 /* Widget icon normalization — all SVGs render at consistent size
    regardless of intrinsic viewBox (battery=1024, wifi=96, etc.) */
 .widget-icon {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 16px;
+  min-height: 16px;
 }
 
-.battery-widget .widget-icon {
-  min-width: 32px;
-  min-height: 32px;
-}
 
 
 .widget {
