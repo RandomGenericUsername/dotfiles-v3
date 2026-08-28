@@ -244,3 +244,13 @@
 - `_become_available()` can diverge from ansible's actual become capability — `sudo -n true` succeeds under command-scoped NOPASSWD while the become play may still need a password, producing a wrong skip/run decision [src/provisioning/tests/integration/test_ansible_dryrun.py:129-141]
 - Killed/timed-out test processes leak the disposable container — cleanup is only in-process; no external sweep for stale `dotfiles-ac3-*` containers [src/provisioning/tests/integration/test_apply_verify_container.py:324-325]
 - `uv run --directory /repo/...` against the read-only repo mount is brittle — a stale `uv.lock` or any project-dir write fails `prepare()` → skip, and the container-local venv is re-resolved on every module run rather than cached [src/provisioning/tests/integration/test_apply_verify_container.py:83-109,145-175]
+
+## Deferred from: code review of rt-1-1-nested-hexagon-scaffold (2026-08-24)
+
+- NetworkManager verify uses `shell` instead of `systemd` module — consistency improvement, not a bug; mirrors packages role's pattern but could use the more robust systemd module [src/provisioning/ansible/roles/verify/tasks/main.yml:154]
+- Version command catches only `PackageNotFoundError` — other importlib errors are rare and would show traceback; add broader catch when polishing [src/runtime/src/runtime/cli/main.py:39-48]
+- `_DIST_TO_IMPORT_ROOT` incomplete — only affects future deps with non-standard import roots (e.g., Pillow→PIL, scikit-learn→sklearn) [src/runtime/tests/architecture/test_layering.py:137-142]
+- Ansible `systemctl set-default` fails on non-systemd — outside story scope, pre-existing [src/provisioning/ansible/roles/display_manager/tasks/main.yml:106]
+- Ansible `systemd` module fails on non-systemd — outside story scope, pre-existing [src/provisioning/ansible/roles/display_manager/tasks/main.yml:99-103]
+- `display_manager_enable_service` undefined guard — outside story scope, pre-existing [src/provisioning/ansible/roles/display_manager/tasks/main.yml:100]
+- Docstring enumeration format inconsistency — documentation-only, code is correct [src/runtime/tests/architecture/test_layering.py:31-32]

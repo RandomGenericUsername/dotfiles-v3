@@ -1,6 +1,6 @@
 # Story 1.1: Nested-Hexagon Scaffold with Layering Test
 
-Status: review
+Status: done
 
 baseline_commit: 8b4ecfb5a60a03605301f4d5398498625d5053b8
 
@@ -219,3 +219,22 @@ _FORBIDDEN_CROSS_PACKAGE = frozenset({
 - `src/runtime/src/runtime/cli/main.py`
 - `src/runtime/tests/architecture/test_layering.py`
 - `src/runtime/tests/test_cli.py`
+
+### Review Findings
+
+- [x] [Review][Patch] Test temp probe files create TOCTOU race [test_layering.py:541,560] — fixed: unique names per test run
+- [x] [Review][Patch] test_cli.py doesn't validate format effect [test_cli.py:18-21] — fixed: assert JSON structure
+- [x] [Review][Patch] builtins.open() not banned in domain [test_layering.py:418-429] — fixed: added open() detection
+- [x] [Review][Patch] _DOMAIN_BANNED_STDLIB omits pathlib [test_layering.py:83-92] — fixed: added pathlib and io
+- [x] [Review][Patch] ast.parse syntax errors crash enforcement [test_layering.py:309] — fixed: try/except returns violation
+- [x] [Review][Patch] Star imports bypass name-level resolution [test_layering.py:255-262] — fixed: flagged in domain/ports
+- [x] [Review][Patch] types-* stubs allow target root [test_layering.py:448-451] — fixed: stubs excluded
+- [x] [Review][Patch] _run_standalone crashes if domain/ missing [test_layering.py:853] — fixed: dir-exists guard
+- [x] [Review][Patch] cli_output hardcoded as always-allowed [test_layering.py:435] — fixed: derived from pyproject.toml
+- [x] [Review][Defer] NetworkManager verify uses shell vs systemd [verify/tasks/main.yml:154] — deferred, consistency improvement not a bug
+- [x] [Review][Defer] Version command catches only PackageNotFoundError [cli/main.py:39-48] — deferred, other errors are rare
+- [x] [Review][Defer] _DIST_TO_IMPORT_ROOT incomplete [test_layering.py:137-142] — deferred, only affects future deps
+- [x] [Review][Defer] Ansible systemctl set-default fails on non-systemd [display_manager/tasks/main.yml:106] — deferred, outside story scope
+- [x] [Review][Defer] Ansible systemd module fails on non-systemd [display_manager/tasks/main.yml:99] — deferred, outside story scope
+- [x] [Review][Defer] display_manager_enable_service undefined guard [display_manager/tasks/main.yml:100] — deferred, outside story scope
+- [x] [Review][Defer] Docstring enumeration format inconsistency [test_layering.py:31-32] — deferred, documentation-only
