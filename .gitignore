@@ -5,3 +5,7 @@ __pycache__/
 
 # Dev VM runtime artifacts (downloaded image, working disk, SSH key, seed)
 /scripts/dev/vmtest/.images/
+
+# CSG determinism verification artifact — machine-specific (timestamp, host template hash, podman state)
+# Written by src/runtime/tests/integration/test_csg_determinism.py atomically; not for version control
+/src/runtime/tests/integration/.csg_determinism.json

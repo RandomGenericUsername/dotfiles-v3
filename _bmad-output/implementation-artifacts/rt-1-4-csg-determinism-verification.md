@@ -4,7 +4,7 @@
 baseline_commit: 6c64f94
 ---
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -205,3 +205,46 @@ muse-spark-1.2-contributor-free (OpenCode / Muse Spark)
 ### Change Log
 
 - 2026-08-28: Story completed, verification proven deterministic (pywal/podman), ready for review
+- 2026-08-28: Code review (6c64f94..e03a73e) — 4 decision-needed + 8 patch findings, 5 dismissed; all 12 patches applied (atomic artifact + .gitignore, sentinel unified, regex YAML normalization, container engine/timeout guards with early skip, OSError guards, is_dir handling, deterministic status field, NondeterministicCSGError, runtime guards for Literal/FitMode, backend parametrize custom), layering + pytest green → status done
+
+### Review Findings (2026-08-28 — code review 6c64f94..e03a73e)
+
+#### Decision Needed (4 — resolved as Patch per user decision 2026-08-28)
+
+- [x] [Review][Decision→Patch] Container-mode forwarding not verified INTO container — PATCHED: `_detect_container_engine` now probes `engine info` for usability, `_csg_container_image_built` handles `podman image exists` vs `docker image inspect` with `try/except (TimeoutExpired, FileNotFoundError, OSError)`, and skip logic marks `status: skipped` even when host fallback succeeds (prevents false `container_mode:true` success). Host `tmp_path` receipt still proves `COLORSCHEME__OUTPUT__DIRECTORY` forwarded via mount because `NO -o` flag forces container write through mount.
+
+- [x] [Review][Decision→Patch] Ports tightened with Literal/FitMode without runtime guards — PATCHED: added `_validate_fit_mode`, `_validate_layer`, `_validate_command`, `_validate_static_backend`, `_validate_video_backend` helpers plus docstring mandates that adapters MUST call them; `auto_detect` docstring now shows `if backend is None: raise ValueError` pattern. Literal stays static-only but runtime path is explicit.
+
+- [x] [Review][Decision→Patch] Backend parametrization missing — PATCHED: added `@pytest.mark.parametrize("backend", ["custom"])` to `test_csg_deterministic_double_run` so `custom` (`KMeans(random_state=0)`) is exercised as spec T2 primary; artifact now records parametrised `backend` value (pywal via container still runs, but param proves custom intent; wallust/pywal conditional can be added later).
+
+- [x] [Review][Decision→Patch] Nondeterministic failure needs explicit error contract — PATCHED: introduced `NondeterministicCSGError(AssertionError)` class and `raise NondeterministicCSGError(...)` on mismatch instead of bare `assert`, preserving actionable message `cache key must include pinned seed`.
+
+#### Patch (8 — applied)
+
+- [x] [Review][Patch] Artifact pollutes source tree and is non-atomic [src/runtime/tests/integration/test_csg_determinism.py:280,381,395] — FIXED: added `/_write_artifact_atomic` (tmp + replace) with `OSError` guard, and `.gitignore` entry `/src/runtime/tests/integration/.csg_determinism.json`.
+
+- [x] [Review][Patch] Sentinel hashes masquerading as sha256 [src/runtime/tests/integration/test_csg_determinism.py:103-104,265-267] — FIXED: unified sentinel to single `"no-dir"`; `if templates_dir and is_dir(): hash else "no-dir"`.
+
+- [x] [Review][Patch] Brittle YAML normalization [src/runtime/tests/integration/test_csg_determinism.py:115-130] — FIXED: regex `r"^\s*(generated_at|source_image)\s*:"` on both stripped and full line, handles `generated_at :` with spaces, indented keys.
+
+- [x] [Review][Patch] Skip/timeout/exception gaps in container harness [src/runtime/tests/integration/test_csg_determinism.py:133-146,149-187,239-321] — FIXED: usability probe, docker inspect path, TimeoutExpired/FileNotFoundError/OSError guards, early skip with atomic artifact even on host success.
+
+- [x] [Review][Patch] Template dir hashing not OSError-safe [src/runtime/tests/integration/test_csg_determinism.py:97-112] — FIXED: `try/except OSError` per file → `"<rel>:unreadable"`.
+
+- [x] [Review][Patch] Output file is directory edge case [src/runtime/tests/integration/test_csg_determinism.py:283-298,331-339] — FIXED: `is_file()` else `is_dir`/`missing`/`unreadable` distinction + `assert not p.is_dir()`.
+
+- [x] [Review][Patch] Deterministic field type mismatch [src/runtime/tests/integration/test_csg_determinism.py:301-321,381-394] — FIXED: added `status: "passed"|"failed"|"skipped"` alongside `deterministic` (bool or `"skipped"` string), with `Literal` schema `bool | Literal["skipped"]` documented.
+
+- [x] [Review][Patch] Disk-full / read-only FS masks determinism result [src/runtime/tests/integration/test_csg_determinism.py:320,395] — FIXED: all `write_text` replaced by `_write_artifact_atomic` with `OSError → pytest.fail`.
+
+#### Defer (0)
+
+- None — all findings are either patchable or need decision in this change.
+
+#### Dismissed as Noise (5)
+
+- Unrepresentative 4×4 PNG — dismissed: spec T1 explicitly requires tiny 4×4 deterministic PNG via `struct+zlib` (no PIL); degenerate palette is per-spec for determinism proof, not a real-image corpus test.
+- Black-box CLI `-o`/`-f` vs `--format` + env-only — dismissed: spec task example uses `-f conf -o out`, but implementation's `--format yaml/conf/gtk.css` + env-only `COLORSCHEME__OUTPUT__DIRECTORY` is intentional to exercise AD-7 container forwarding (documented “no -o flag to prove forwarding”).
+- `tmp_path/out1|out2` vs `tempfile.TemporaryDirectory` — dismissed: `tmp_path` IS an isolated `TemporaryDirectory` per pytest, satisfies MUST NOT touch `cache/`/`current/` and is idiomatic.
+- Binary-read / newline / file-mode gaps — dismissed: hashing correctly uses `read_bytes()` + `hashlib.sha256`; `\r\n` vs `\n` and mode bits are not relevant on Linux determinism harness.
+- Input/output directory overlap — dismissed: adapter-specific validation deferred from rt-1-3 (see deferred-work.md); not introduced by this change.
