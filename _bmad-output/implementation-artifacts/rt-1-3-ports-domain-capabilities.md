@@ -3,7 +3,7 @@
 ---
 baseline_commit: b44bad38c715d615b2d9f16faa2c435e8d6ce721
 ---
-Status: review
+Status: done
 
 ## Story
 
@@ -369,3 +369,21 @@ The layering test (`tests/architecture/test_layering.py`) already enforces:
 - src/runtime/src/runtime/ports/state_repository.py
 
 ### Review Findings
+
+#### Patch
+
+- [x] [Review][Patch] `fit_mode` should use `FitMode` enum [wallpaper_backend.py:8] — `fit_mode: str` should be `fit_mode: FitMode`. `FitMode` enum already exists in `runtime.domain.models`.
+- [x] [Review][Patch] `layer` parameter needs type constraint [wallpaper_backend.py:30] — `layer: str` should be `Literal["background", "bottom", "top", "overlay"]` or similar. No enum exists yet.
+- [x] [Review][Patch] `command` parameter needs type constraint [wallpaper_backend.py:44] — `command: str` should be `Literal["pause", "resume", "next", "prev", "stop"]` or a `ControlCommand` enum.
+- [x] [Review][Patch] `create_static` accepts invalid BackendType values [wallpaper_backend_factory.py:11] — Should use `Literal[BackendType.hyprpaper, BackendType.swaybg, BackendType.swww]` to prevent passing mpvpaper.
+- [x] [Review][Patch] `create_video` accepts invalid BackendType values [wallpaper_backend_factory.py:15] — Should use `Literal[BackendType.mpvpaper]` to prevent passing static-only backends.
+- [x] [Review][Patch] `auto_detect` should handle unknown extensions [wallpaper_backend_factory.py:19] — Return `BackendType | None` (None for unrecognized extensions) instead of forcing an invalid enum return.
+- [x] [Review][Patch] Docstrings leak implementation details in generators [color_scheme_generator.py:16-19, effects_generator.py:16-19] — Mentions specific filenames (colors.yaml, colors.conf, etc.). Port contract should specify *what* it produces, not *which files* it writes.
+
+#### Deferred
+
+- [x] [Review][Defer] `reload()` return type inconsistency [desktop_reloader.py:6 vs wallpaper_backend.py:16] — deferred, design choice; adapters handle bool vs None semantics
+- [x] [Review][Defer] `set_playlist` lacks parameters from `set_video` [wallpaper_backend.py:35-40] — deferred, intentional subset; no per-video control for playlist items
+- [x] [Review][Defer] `set_color` format unspecified [wallpaper_backend.py:12] — deferred, format constraint belongs in adapter docstrings
+- [x] [Review][Defer] Empty `paths` list in `set_playlist` [wallpaper_backend.py:35-40] — deferred, undefined behavior for empty list; adapter-specific
+- [x] [Review][Defer] Input/output directory overlap in generators [color_scheme_generator.py, effects_generator.py, icon_renderer.py] — deferred, could clobber input files; adapter-specific validation

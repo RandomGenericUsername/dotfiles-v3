@@ -254,3 +254,11 @@
 - Ansible `systemd` module fails on non-systemd — outside story scope, pre-existing [src/provisioning/ansible/roles/display_manager/tasks/main.yml:99-103]
 - `display_manager_enable_service` undefined guard — outside story scope, pre-existing [src/provisioning/ansible/roles/display_manager/tasks/main.yml:100]
 - Docstring enumeration format inconsistency — documentation-only, code is correct [src/runtime/tests/architecture/test_layering.py:31-32]
+
+## Deferred from: code review of rt-1-3-ports-domain-capabilities (2026-08-28)
+
+- `reload()` return type inconsistency — `IDesktopReloader.reload() -> bool` vs `IStaticWallpaperBackend.reload() -> None`; design choice, adapters handle semantics [desktop_reloader.py:6, wallpaper_backend.py:16]
+- `set_playlist` lacks parameters from `set_video` — intentional subset; no per-video control for playlist items [wallpaper_backend.py:35-40]
+- `set_color` format unspecified — format constraint belongs in adapter docstrings [wallpaper_backend.py:12]
+- Empty `paths` list in `set_playlist` — undefined behavior for empty list; adapter-specific [wallpaper_backend.py:35-40]
+- Input/output directory overlap in generators — could clobber input files; adapter-specific validation [color_scheme_generator.py, effects_generator.py, icon_renderer.py]

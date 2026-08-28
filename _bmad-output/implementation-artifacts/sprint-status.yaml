@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-08-28 (rt-1-3-ports-domain-capabilities → ready-for-dev)
+last_updated: 2026-08-28 (rt-1-4-csg-determinism-verification → ready-for-dev)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -49,8 +49,8 @@ development_status:
   rt-epic-1: in-progress
   rt-1-1-nested-hexagon-scaffold: done
   rt-1-2-domain-model-derivation-graph: done
-  rt-1-3-ports-domain-capabilities: review
-  rt-1-4-csg-determinism-verification: backlog
+  rt-1-3-ports-domain-capabilities: done
+  rt-1-4-csg-determinism-verification: ready-for-dev
   rt-1-5-content-hashing-and-cache-key: backlog
   rt-1-6-layered-cache-populator: backlog
   rt-1-7-csg-adapter-env-override: backlog
