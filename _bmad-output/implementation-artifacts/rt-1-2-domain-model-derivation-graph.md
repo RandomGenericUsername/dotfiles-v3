@@ -4,7 +4,7 @@ baseline_commit: 128542078ff198c03362f61110ab2126effc9eb9
 
 # Story 1.2: Domain model — derivation graph
 
-Status: review
+Status: done
 
 ## Story
 
@@ -223,3 +223,13 @@ src/runtime/src/runtime/domain/
 
 - `src/runtime/src/runtime/domain/models.py` (new)
 - `src/runtime/src/runtime/domain/__init__.py` (modified)
+
+### Review Findings
+
+- [x] [Review][Patch] Unused `Self` import in models.py [models.py:11]
+- [x] [Review][Patch] Use `Literal["sha256"]` for hash_algorithm fields [models.py:38,49,62,75,90]
+- [x] [Review][Patch] Use `Literal` or enum for `kind` fields instead of plain `str` [models.py:39,50,63,76]
+- [x] [Review][Patch] Use `TypedDict` or `Mapping` with allowed keys for `artifact_hashes` [models.py:54,67,81]
+- [x] [Review][Patch] Use `Literal[2]` for `schema_version` in DesktopState [models.py:100]
+- [x] [Review][Patch] ~~Add `Literal` or validator for `fit_mode` default: cover [models.py:91]~~ — dismissed, no default is intentional
+- [x] [Review][Patch] Validate mpv fields only for mpvpaper backend via `__post_init__` [models.py:92-93]
