@@ -1,6 +1,9 @@
 # Story 1.3: Ports — domain capabilities
 
-Status: ready-for-dev
+---
+baseline_commit: b44bad38c715d615b2d9f16faa2c435e8d6ce721
+---
+Status: review
 
 ## Story
 
@@ -20,57 +23,57 @@ so that adapters can be swapped without touching the core.
 
 ## Tasks / Subtasks
 
-- [ ] Define `IColorSchemeGenerator` port (AC: 1)
-  - [ ] ABC in `runtime.ports.color_scheme_generator`
-  - [ ] Abstract method: `generate(wallpaper_hash: str, template_dir: str, output_dir: str) -> PaletteEntry`
-  - [ ] Imports: `runtime.domain.models.PaletteEntry` only
-- [ ] Define `IEffectsGenerator` port (AC: 1)
-  - [ ] ABC in `runtime.ports.effects_generator`
-  - [ ] Abstract method: `generate(wallpaper_hash: str, catalog_path: str, output_dir: str) -> EffectsEntry`
-  - [ ] Imports: `runtime.domain.models.EffectsEntry` only
-- [ ] Define `IIconRenderer` port (AC: 1)
-  - [ ] ABC in `runtime.ports.icon_renderer`
-  - [ ] Abstract method: `render(palette_hash: str, templates_dir: str, mappings_path: str, output_dir: str) -> IconsEntry`
-  - [ ] Imports: `runtime.domain.models.IconsEntry` only
-- [ ] Define `IStaticWallpaperBackend` port (AC: 1, 3)
-  - [ ] ABC in `runtime.ports.wallpaper_backend`
-  - [ ] Abstract methods:
+- [x] Define `IColorSchemeGenerator` port (AC: 1)
+  - [x] ABC in `runtime.ports.color_scheme_generator`
+  - [x] Abstract method: `generate(wallpaper_hash: str, template_dir: str, output_dir: str) -> PaletteEntry`
+  - [x] Imports: `runtime.domain.models.PaletteEntry` only
+- [x] Define `IEffectsGenerator` port (AC: 1)
+  - [x] ABC in `runtime.ports.effects_generator`
+  - [x] Abstract method: `generate(wallpaper_hash: str, catalog_path: str, output_dir: str) -> EffectsEntry`
+  - [x] Imports: `runtime.domain.models.EffectsEntry` only
+- [x] Define `IIconRenderer` port (AC: 1)
+  - [x] ABC in `runtime.ports.icon_renderer`
+  - [x] Abstract method: `render(palette_hash: str, templates_dir: str, mappings_path: str, output_dir: str) -> IconsEntry`
+  - [x] Imports: `runtime.domain.models.IconsEntry` only
+- [x] Define `IStaticWallpaperBackend` port (AC: 1, 3)
+  - [x] ABC in `runtime.ports.wallpaper_backend`
+  - [x] Abstract methods:
     - `set_image(path: str, monitor: str, fit_mode: str) -> None`
     - `set_color(color: str, monitor: str) -> None`
     - `reload() -> None`
-  - [ ] Imports: stdlib only (no domain types needed — raw strings for paths/colors)
-- [ ] Define `IVideoWallpaperBackend` port (AC: 1, 4)
-  - [ ] ABC in `runtime.ports.wallpaper_backend` (same module as IStatic)
-  - [ ] Abstract methods:
+  - [x] Imports: stdlib only (no domain types needed — raw strings for paths/colors)
+- [x] Define `IVideoWallpaperBackend` port (AC: 1, 4)
+  - [x] ABC in `runtime.ports.wallpaper_backend` (same module as IStatic)
+  - [x] Abstract methods:
     - `set_video(path: str, monitor: str, mpv_options: str | None, ipc_socket: str | None, auto_pause: bool, auto_stop: bool, layer: str) -> None`
     - `set_playlist(paths: list[str], monitor: str, mpv_options: str | None) -> None`
     - `control(monitor: str, command: str) -> None`
-  - [ ] Imports: stdlib only
-- [ ] Define `IWallpaperBackendFactory` port (AC: 1, 5)
-  - [ ] ABC in `runtime.ports.wallpaper_backend_factory`
-  - [ ] Abstract methods:
+  - [x] Imports: stdlib only
+- [x] Define `IWallpaperBackendFactory` port (AC: 1, 5)
+  - [x] ABC in `runtime.ports.wallpaper_backend_factory`
+  - [x] Abstract methods:
     - `create_static(backend_type: BackendType) -> IStaticWallpaperBackend`
     - `create_video(backend_type: BackendType) -> IVideoWallpaperBackend`
     - `auto_detect(source_path: str) -> BackendType`
-  - [ ] Imports: `runtime.domain.models.BackendType`, `runtime.ports.wallpaper_backend`
-- [ ] Define `IDesktopConfigWriter` port (AC: 1)
-  - [ ] ABC in `runtime.ports.desktop_config_writer`
-  - [ ] Abstract method: `write_consumer_symlink(source_path: str, target_path: str) -> None`
-  - [ ] Purpose: repoint current/ symlinks to new cache entries
-- [ ] Define `IDesktopReloader` port (AC: 1)
-  - [ ] ABC in `runtime.ports.desktop_reloader`
-  - [ ] Abstract method: `reload() -> bool`  # returns success/failure
-  - [ ] Implementors will wrap hyprctl reload, ags restart, etc.
-- [ ] Define `IStateRepository` port (AC: 1)
-  - [ ] ABC in `runtime.ports.state_repository`
-  - [ ] Minimal interface for this story — history methods arrive in Epic 3 (Story 3.1)
-  - [ ] Abstract methods:
+  - [x] Imports: `runtime.domain.models.BackendType`, `runtime.ports.wallpaper_backend`
+- [x] Define `IDesktopConfigWriter` port (AC: 1)
+  - [x] ABC in `runtime.ports.desktop_config_writer`
+  - [x] Abstract method: `write_consumer_symlink(source_path: str, target_path: str) -> None`
+  - [x] Purpose: repoint current/ symlinks to new cache entries
+- [x] Define `IDesktopReloader` port (AC: 1)
+  - [x] ABC in `runtime.ports.desktop_reloader`
+  - [x] Abstract method: `reload() -> bool`  # returns success/failure
+  - [x] Implementors will wrap hyprctl reload, ags restart, etc.
+- [x] Define `IStateRepository` port (AC: 1)
+  - [x] ABC in `runtime.ports.state_repository`
+  - [x] Minimal interface for this story — history methods arrive in Epic 3 (Story 3.1)
+  - [x] Abstract methods:
     - `load_current() -> DesktopState | None`  # None on first run
     - `save(state: DesktopState) -> None`  # atomic write
-  - [ ] Imports: `runtime.domain.models.DesktopState` only
-- [ ] Update `src/runtime/src/runtime/ports/__init__.py` (AC: 1)
-  - [ ] Re-export all port ABCs via explicit imports (not star imports)
-  - [ ] `__all__` list:
+  - [x] Imports: `runtime.domain.models.DesktopState` only
+- [x] Update `src/runtime/src/runtime/ports/__init__.py` (AC: 1)
+  - [x] Re-export all port ABCs via explicit imports (not star imports)
+  - [x] `__all__` list:
     ```python
     __all__ = [
         "IColorSchemeGenerator",
@@ -84,13 +87,13 @@ so that adapters can be swapped without touching the core.
         "IStateRepository",
     ]
     ```
-- [ ] Verify all ports are importable (AC: 1)
-  - [ ] Run `uv run --directory src/runtime python -c "from runtime.ports import *; print(__all__)"`
-  - [ ] Confirm all 9 port ABCs are exported
-- [ ] Verify layering test passes (AC: 2, 6, 7)
-  - [ ] Run `uv run --directory src/runtime pytest`
-  - [ ] Confirm ports import only domain + stdlib allowlist
-  - [ ] Confirm any concrete class in ports/ fails layering test
+- [x] Verify all ports are importable (AC: 1)
+  - [x] Run `uv run --directory src/runtime python -c "from runtime.ports import *; print(__all__)"`
+  - [x] Confirm all 9 port ABCs are exported
+- [x] Verify layering test passes (AC: 2, 6, 7)
+  - [x] Run `uv run --directory src/runtime pytest`
+  - [x] Confirm ports import only domain + stdlib allowlist
+  - [x] Confirm any concrete class in ports/ fails layering test
 
 ## Dev Notes
 
@@ -348,6 +351,21 @@ The layering test (`tests/architecture/test_layering.py`) already enforces:
 
 ### Completion Notes List
 
+- All 9 port ABCs implemented as specified in story
+- Each port follows domain purity contract (imports only domain + stdlib)
+- `__init__.py` exports all ports via explicit imports (no star imports)
+- All 38 tests pass including layering enforcement tests
+
 ### File List
+
+- src/runtime/src/runtime/ports/__init__.py
+- src/runtime/src/runtime/ports/color_scheme_generator.py
+- src/runtime/src/runtime/ports/effects_generator.py
+- src/runtime/src/runtime/ports/icon_renderer.py
+- src/runtime/src/runtime/ports/wallpaper_backend.py
+- src/runtime/src/runtime/ports/wallpaper_backend_factory.py
+- src/runtime/src/runtime/ports/desktop_config_writer.py
+- src/runtime/src/runtime/ports/desktop_reloader.py
+- src/runtime/src/runtime/ports/state_repository.py
 
 ### Review Findings
