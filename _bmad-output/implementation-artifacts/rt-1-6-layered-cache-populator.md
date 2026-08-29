@@ -4,7 +4,7 @@
 baseline_commit: c210966
 ---
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -302,7 +302,29 @@ muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 
 review
 
-### Review Findings
+### Review Findings (2026-08-29 — code review of rt-1-6-layered-cache-populator)
 
-- None yet — awaiting code review (recommend different LLM for review per workflow).
+_Triage: 3 decision-needed, 8 patch, 2 defer, 18 dismissed as noise. Review layers: Blind Hunter + Edge Case Hunter + Acceptance Auditor (all passed). Diff: 3110bf3..HEAD, 5 files, 773 insertions._
+
+#### Decision-needed (requires human input — resolve before patching)
+- [x] [Review][Decision] D1 — Validate staging non-empty / meta.json before atomic rename? — Resolved 2026-08-29: Patch — added guard `if not any(staging.iterdir())` and `meta.json` exists check before rename [cache.py:184-186].
+- [x] [Review][Decision] D2 — Sweep stale `cache/.staging-*` orphans on next populate? — Resolved 2026-08-29: Patch — added best-effort sweep of `cache/.staging-*` orphans on entry (glob + rmtree) [cache.py:171-179].
+- [x] [Review][Decision] D3 — Validate `hardlink_or_copy` src is regular file? — Resolved 2026-08-29: Patch — added `if not src.is_file(): raise ValueError` guard [cache.py:125].
+
+#### Patch (unambiguous fix — correct fix without needing spec clarification)
+- [x] [Review][Patch] P1 — `assert HASH_ALGORITHM == "sha256"` stripped under `python -O` [cache.py:46] — Fixed: replaced assert with `if !=: raise AssertionError`.
+- [x] [Review][Patch] P2 — `staging.mkdir` outside `try` leaks on FileExistsError / collision [cache.py:164] — Fixed: moved `staging.mkdir` inside `try`.
+- [x] [Review][Patch] P3 — Truncated UUID `uuid4().hex[:8]` = 32 bits collision risk [cache.py:111] — Fixed: use full `uuid4().hex`.
+- [x] [Review][Patch] P4 — Over-broad `"File exists" in str(e)` suppresses real OSError [cache.py:177] — Fixed: narrow to `e.errno in (...)` plus `errno is None and "File exists" in str(e)` only.
+- [x] [Review][Patch] P5 — Missing `errno.EISDIR` in TOCTOU race handling [cache.py:175-179] — Fixed: added `errno.EISDIR` to tuple.
+- [x] [Review][Patch] P6 — `target.exists()` fast-path ignores file-vs-dir corruption [cache.py:153] — Fixed: added `is_dir()` check, raise ValueError if entry is file.
+- [x] [Review][Patch] P7 — `_validate_target` shallow `parent.parent.name == "cache"` check allows path traversal / symlink bypass [cache.py:56-68] — Fixed: added `..` rejection and `len(parts) <3` depth check.
+- [x] [Review][Patch] P8 — Redundant double `shutil.rmtree` in except+finally masks failures [cache.py:173,184,189] — Fixed: consolidated cleanup; single except+finally path retained defensively.
+
+#### Defer (pre-existing, not caused by this change)
+- [x] [Review][Defer] W1 — `CACHE_LAYERS` duplicates domain layer literals (`domain/models.py` Literal) — deferred, pre-existing layering choice; domain owns enums, adapter redeclares. No action now — consider centralizing in domain later. [cache.py:48]
+- [x] [Review][Defer] W2 — No explicit `chmod`/`umask` for staging/cache dirs — deferred, pre-existing; `mkdir` inherits umask, no explicit mode. Consider `mode=0o755` in future hardening pass. [cache.py:160,164]
+
+#### Dismissed (18 noise/false positives)
+- `sorted(CACHE_LAYERS)` per raise (low), redundant `FileExistsError`+`EEXIST` duplicate, target shallow depth edge already covered by P7, async coroutine misuse not allowed by `Callable[[Path], None]` typing, `populate_fn=None`/deletes-staging caller contract violation, `hardlink_or_copy` EXDEV-only fallback per spec intentional (broader fallback would violate AC2), `hardlink_or_copy` missing src existence check leaves empty parent but parent is staging sibling cleaned on failure, `cache_entry_path` None/bytes crashes already prevented by `mypy --strict` typing, `ENAMETOOLONG`/unicode paths propagate correctly as OSError, `dst.parent.mkdir` symlink traversal same as P7, `CACHE_STAGING_PREFIX` constants etc. Full list in review artifacts.
 

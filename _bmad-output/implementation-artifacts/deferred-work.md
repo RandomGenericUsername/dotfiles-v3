@@ -267,3 +267,8 @@
 
 - Very large directory OOM / unbounded `entries` list + no size cap on file read — `entries: list[tuple[str,str]]` unbounded, 1M files can OOM; 100MB wallpaper already chunked but mutating file is torn-read; FIFO `-> /dev/zero` causes infinite loop — trusted local spine (AD-11, AD-12 synchronous) makes this pre-existing out-of-scope for hashing-only story — deferred, not caused by this change — `src/runtime/src/runtime/adapters/hashing.py:119`
 - Case-insensitive FS + Unicode normalization divergence (macOS HFS/APFS NFC vs NFD, Windows casing) — `as_posix()` + lexicographic sort is case-sensitive; same logical template set hashes differently on Linux vs macOS. Provisioning is Linux-only (Arch) per phase1, so out-of-scope for this story — deferred — `src/runtime/src/runtime/adapters/hashing.py:149`
+
+## Deferred from: code review of rt-1-6-layered-cache-populator (2026-08-29)
+
+- `CACHE_LAYERS` duplicates domain layer literals (`domain/models.py` Literal) — pre-existing layering choice; domain owns enums, adapter redeclares. No action now — consider centralizing in domain later. [src/runtime/src/runtime/adapters/cache.py:48]
+- No explicit `chmod`/`umask` for staging/cache dirs — `mkdir` inherits umask, no explicit mode. Consider `mode=0o755` in future hardening pass. [src/runtime/src/runtime/adapters/cache.py:160,164]
