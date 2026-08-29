@@ -262,3 +262,8 @@
 - `set_color` format unspecified — format constraint belongs in adapter docstrings [wallpaper_backend.py:12]
 - Empty `paths` list in `set_playlist` — undefined behavior for empty list; adapter-specific [wallpaper_backend.py:35-40]
 - Input/output directory overlap in generators — could clobber input files; adapter-specific validation [color_scheme_generator.py, effects_generator.py, icon_renderer.py]
+
+## Deferred from: code review of rt-1-5-content-hashing-and-cache-key (2026-08-28)
+
+- Very large directory OOM / unbounded `entries` list + no size cap on file read — `entries: list[tuple[str,str]]` unbounded, 1M files can OOM; 100MB wallpaper already chunked but mutating file is torn-read; FIFO `-> /dev/zero` causes infinite loop — trusted local spine (AD-11, AD-12 synchronous) makes this pre-existing out-of-scope for hashing-only story — deferred, not caused by this change — `src/runtime/src/runtime/adapters/hashing.py:119`
+- Case-insensitive FS + Unicode normalization divergence (macOS HFS/APFS NFC vs NFD, Windows casing) — `as_posix()` + lexicographic sort is case-sensitive; same logical template set hashes differently on Linux vs macOS. Provisioning is Linux-only (Arch) per phase1, so out-of-scope for this story — deferred — `src/runtime/src/runtime/adapters/hashing.py:149`
