@@ -272,3 +272,8 @@
 
 - `CACHE_LAYERS` duplicates domain layer literals (`domain/models.py` Literal) — pre-existing layering choice; domain owns enums, adapter redeclares. No action now — consider centralizing in domain later. [src/runtime/src/runtime/adapters/cache.py:48]
 - No explicit `chmod`/`umask` for staging/cache dirs — `mkdir` inherits umask, no explicit mode. Consider `mode=0o755` in future hardening pass. [src/runtime/src/runtime/adapters/cache.py:160,164]
+
+## Deferred from: code review of rt-1-7-csg-adapter-env-override (2026-08-29)
+
+- Duplicated _find_default_templates_dir + permission swallowing — adapter and integration test duplicate repo walk with divergent `alt` paths; `is_dir()` returns False on PermissionError silently returning None. Low, pre-existing pattern. [src/runtime/src/runtime/adapters/csg_adapter.py:46-64]
+- Unbounded hash_file read (multi-hundred MB / sparse / FIFO DoS) — no size/time cap; large wallpaper blocks before subprocess timeout. Trusted local spine makes this out-of-scope for 1.7. [src/runtime/src/runtime/adapters/hashing.py:75-81]

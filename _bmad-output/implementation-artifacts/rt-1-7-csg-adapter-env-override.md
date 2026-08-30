@@ -4,7 +4,7 @@ baseline_commit: 054504e
 
 # Story 1.7: csg adapter with env override
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -262,4 +262,22 @@ muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 ### Change Log
 
 - 2026-08-29: Implemented CsgAdapter env override, updated port to Path signature, added 10 unit + 1 integration tests, verified layering + ruff + mypy green. Story status → review.
+
+### Review Findings (code review 2026-08-29 — 054504e..HEAD, 1 decision, 11 patch, 2 defer, 4 dismissed)
+
+- [x] [Review][Decision] Host env leak into child/container + E2BIG risk — `dict(os.environ)` copies entire host env (tokens, AWS_*, GITHUB_TOKEN) into `subprocess.run(env=)` and via `csg` container_processor into OCI RunConfig. Needs allowlist vs passthrough decision. [src/runtime/src/runtime/adapters/csg_adapter.py:146] — **RESOLVED 2026-08-29: centralized `adapters/env.py` allowlist builder (`build_env`) with BLOCKED_SUBSTRINGS + ALLOWED_PREFIXES + E2BIG guard; adapter now uses `build_env({COLORSCHEME__...})`.**
+- [x] [Review][Patch] Insufficient output_dir validation (traversal/symlink/collision/depth) — only `name.lower() != ph` checked; `..`, absolute/relative, shallow, symlink, file-collision, permission (FileExistsError/ENOTEMPTY) not handled; allows writes outside `cache/palettes`. [src/runtime/src/runtime/adapters/csg_adapter.py:138-143] — **FIXED: `_validate_output_dir` with `..` check, symlink reject, case-sensitive `!=`, length guard, mkdir FileExistsError wrapping.**
+- [x] [Review][Patch] Wallpaper path validation gaps — `exists()/is_file()` then `hash_file` TOCTOU, FIFO/socket misclassified as IsADirectoryError, `Path("")` yields `.`, 0-byte/huge/sparse/special files not bounded (hash_file blocks before timeout). [src/runtime/src/runtime/adapters/csg_adapter.py:113-120] — **FIXED: empty-path ValueError, is_dir vs is_file split, stat.S_ISREG + size 0/100MB guards, hash_file wrapped.**
+- [x] [Review][Patch] Template set hash sentinel/empty dir silently accepted — `canonical_hash_dir` can return `e3b0...` for empty dir or `*:unreadable` sentinel hash; adapter doesn't detect and computes bogus `ph` then spawns `csg`. [src/runtime/src/runtime/adapters/csg_adapter.py:134] — **FIXED: iterdir empty check + _EMPTY_DIR_HASH guard + OSError wrapping.**
+- [x] [Review][Patch] Timeout not validated — `timeout` accepts 0, negative, None, str, float; `0` instant TimeoutExpired, negative ValueError, None TypeError all escape unwrapped instead of early ValueError. [src/runtime/src/runtime/adapters/csg_adapter.py:75-77] — **FIXED: `__init__` validates `isinstance(timeout,int) and timeout>0` early ValueError.**
+- [x] [Review][Patch] csg_bin not validated — `csg_bin=""` falls back to "csg" masking error, `os.path.sep` check misses Windows `\`, non-executable file reports is_available True but spawn PermissionError → generic RuntimeError not FileNotFoundError. [src/runtime/src/runtime/adapters/csg_adapter.py:76-90] — **FIXED: `_validate_csg_bin` rejects empty/shell metachars, is_available checks os.access + Windows `\` separator.**
+- [x] [Review][Patch] Over-broad OSError handler loses structure — `except OSError` catches PermissionError/FileNotFoundError already handled, maps to generic `RuntimeError("failed to spawn")`, caller can't distinguish. [src/runtime/src/runtime/adapters/csg_adapter.py:188-190] — **FIXED: narrowed to PermissionError→FileNotFoundError, TimeoutExpired→TimeoutError (str only), E2BIG→RuntimeError, ENOENT→FileNotFoundError.**
+- [x] [Review][Patch] Artifact verification TOCTOU / hash_file not wrapped — `p.is_file()` then `hash_file(p)` can be deleted/permission-changed between checks; PermissionError/FileNotFoundError escapes instead of `RuntimeError("did not write expected artifact")`. [src/runtime/src/runtime/adapters/csg_adapter.py:199-212] — **FIXED: hash_file wrapped in try/except OSError→RuntimeError with artifact context; PaletteArtifacts constructed directly.**
+- [x] [Review][Patch] Case-insensitive output_dir compare allows duplicate cache entries — `name.lower() != ph` accepts uppercase hex, stores lowercase `ph`, creates case-variant dirs on case-sensitive FS breaking content-address invariant. [src/runtime/src/runtime/adapters/csg_adapter.py:138] — **FIXED: strict `output_dir.name != ph` exact match.**
+- [x] [Review][Patch] Dead bytes branch + signal returncode lost — `text=True` guarantees `TimeoutExpired.stderr` is str but code branches on `bytes`; negative `returncode` (killed by signal) rendered as `exit -9` not `SIGKILL`. [src/runtime/src/runtime/adapters/csg_adapter.py:176-197] — **FIXED: removed bytes branch, translate negative returncode to signal name.**
+- [x] [Review][Patch] Vacuous settings.toml test + meaningless "-o" env assertion — test creates `tmp_path/settings.toml` unrelated to adapter's real settings path, so mtime check always passes; `assert "-o" not in captured_env` checks dict not args (always true). [src/runtime/tests/unit/test_csg_adapter.py:138-151,389] — **FIXED: tests now locate real `src/cli-tools/.../defaults/settings.toml` and assert mtime/content; capture args and check `-o`/`--output` not in args.**
+- [x] [Review][Patch] cast(PaletteArtifacts) hides mypy strict typing — `dict[str,str]` + `cast` defeats strict key checking; typo `colors_yalm` would not be caught; should construct `PaletteArtifacts(...)` directly. [src/runtime/src/runtime/adapters/csg_adapter.py:208-221] — **FIXED: direct `PaletteArtifacts(colors_yaml=..., colors_conf=..., colors_gtk_css=...)` without cast.**
+- [x] [Review][Defer] Duplicated _find_default_templates_dir + permission swallowing — adapter and integration test duplicate repo walk with divergent `alt` paths; `is_dir()` returns False on PermissionError silently returning None. Low, pre-existing pattern. [src/runtime/src/runtime/adapters/csg_adapter.py:46-64]
+- [x] [Review][Defer] Unbounded hash_file read (multi-hundred MB / sparse / FIFO DoS) — no size/time cap; large wallpaper blocks before subprocess timeout. Trusted local spine makes this out-of-scope for 1.7. [src/runtime/src/runtime/adapters/hashing.py:75-81]
+
 
