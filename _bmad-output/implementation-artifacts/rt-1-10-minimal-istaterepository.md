@@ -4,7 +4,7 @@ baseline_commit: 77f1b94
 
 # Story 1.10: Minimal IStateRepository with JSON adapter
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -24,10 +24,10 @@ So that Epic 2's crash recovery is grounded in recorded state.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — Create `adapters/json_state_repository.py` implementing `IStateRepository` (AC: 1, 4)
-  - [ ] **Location MUST be `src/runtime/src/runtime/adapters/json_state_repository.py`** (mirrors `cache.py`, `csg_adapter.py`, `weg_adapter.py`, `itr_adapter.py`). **MUST be in `adapters/`**, NOT `domain/`/`ports`/`application`.
-  - [ ] Imports allowed ONLY in this file: `os`, `json`, `pathlib.Path`, `uuid`, `typing.Final/Literal`, `datetime` (`datetime.now(UTC)`), `errno`, `hashlib` only via `hashing.py`. Do NOT add `os`/`json`/`pathlib`/`uuid` to `domain/` or `ports/`.
-  - [ ] Export typed class — strict `mypy` signatures:
+- [x] Task 1 — Create `adapters/json_state_repository.py` implementing `IStateRepository` (AC: 1, 4)
+  - [x] **Location MUST be `src/runtime/src/runtime/adapters/json_state_repository.py`** (mirrors `cache.py`, `csg_adapter.py`, `weg_adapter.py`, `itr_adapter.py`). **MUST be in `adapters/`**, NOT `domain/`/`ports`/`application`.
+  - [x] Imports allowed ONLY in this file: `os`, `json`, `pathlib.Path`, `uuid`, `typing.Final/Literal`, `datetime` (`datetime.now(UTC)`), `errno`, `hashlib` only via `hashing.py`. Do NOT add `os`/`json`/`pathlib`/`uuid` to `domain/` or `ports/`.
+  - [x] Export typed class — strict `mypy` signatures:
     ```python
     from pathlib import Path
     from runtime.ports.state_repository import IStateRepository
@@ -39,13 +39,13 @@ So that Epic 2's crash recovery is grounded in recorded state.
         def save(self, state: DesktopState) -> None: ...
         # helpers (private): _state_to_dict(state) -> dict, _dict_to_state(data) -> DesktopState, _atomic_write(path, data) -> None
     ```
-  - [ ] Constructor: `state_root` defaults to `Path((os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state"))) / "dotfiles"` (AD-5) — `or` handles empty-string `XDG_STATE_HOME=""` (would otherwise yield relative `dotfiles`). If `current_json` not supplied, `self._path = self.state_root / "current.json"`. Validate `state_root` contains no `"\x00"` and `len(str(state_root)) < 4096` and no `..` traversal component (`".."` in `Path.parts` → `ValueError`). Store `self.state_root: Path`, `self._path: Path`.
-  - [ ] Keep `HASH_ALGORITHM` checked via `from runtime.adapters.hashing import HASH_ALGORITHM` guard `if HASH_ALGORITHM != "sha256": raise AssertionError(...)` fail-closed (mirrors `cache.py`, `csg_adapter.py`). Define sentinel `SENTINEL_HASH = "0" * 64  # placeholder; hydrated from cache/meta.json` for reconstructed `input_*_hash`.
-  - [ ] Adapter must NOT import `provisioning`, `color_scheme_generator`, etc. Verify `test_layering.py` cross-package forbidden set. Must NOT import `config_assembler_engine` — `state_root` is XDG only, never from `settings.toml`.
-  - [ ] Domain stays pure: `src/runtime/src/runtime/domain/models.py` already defines `DesktopState` + `WallpaperEntry` + `MonitorWallpaperConfig` + `PaletteEntry`/`EffectsEntry`/`IconsEntry` (Story 1.2 done). Do NOT modify domain models in this story — they already match shared-data-contract.
+  - [x] Constructor: `state_root` defaults to `Path((os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state"))) / "dotfiles"` (AD-5) — `or` handles empty-string `XDG_STATE_HOME=""` (would otherwise yield relative `dotfiles`). If `current_json` not supplied, `self._path = self.state_root / "current.json"`. Validate `state_root` contains no `"\x00"` and `len(str(state_root)) < 4096` and no `..` traversal component (`".."` in `Path.parts` → `ValueError`). Store `self.state_root: Path`, `self._path: Path`.
+  - [x] Keep `HASH_ALGORITHM` checked via `from runtime.adapters.hashing import HASH_ALGORITHM` guard `if HASH_ALGORITHM != "sha256": raise AssertionError(...)` fail-closed (mirrors `cache.py`, `csg_adapter.py`). Define sentinel `SENTINEL_HASH = "0" * 64  # placeholder; hydrated from cache/meta.json` for reconstructed `input_*_hash`.
+  - [x] Adapter must NOT import `provisioning`, `color_scheme_generator`, etc. Verify `test_layering.py` cross-package forbidden set. Must NOT import `config_assembler_engine` — `state_root` is XDG only, never from `settings.toml`.
+  - [x] Domain stays pure: `src/runtime/src/runtime/domain/models.py` already defines `DesktopState` + `WallpaperEntry` + `MonitorWallpaperConfig` + `PaletteEntry`/`EffectsEntry`/`IconsEntry` (Story 1.2 done). Do NOT modify domain models in this story — they already match shared-data-contract.
 
-- [ ] Task 2 — Implement `save` with atomic tmp + os.replace (AC: 1)
-  - [ ] Serialize `DesktopState` → `dict` per `shared-data-contract.md` current.json exactly:
+- [x] Task 2 — Implement `save` with atomic tmp + os.replace (AC: 1)
+  - [x] Serialize `DesktopState` → `dict` per `shared-data-contract.md` current.json exactly:
     ```python
     {
       "schema_version": 2,
@@ -58,20 +58,20 @@ So that Epic 2's crash recovery is grounded in recorded state.
     }
     ```
     Note: `wallpaper.imported_at` (domain field) maps to `wallpaper.applied_at` in JSON (`TODO: field rename is spine change per shared-data-contract disclaimer`); `applied_at` top-level is `state.applied_at`. Use `Literal[2]` for `schema_version`.
-  - [ ] Validate before write: `schema_version == 2` literal, `wallpaper.content_hash` 64-hex via `_validate_hex64`, each `MonitorWallpaperConfig.source_hash` 64-hex, `palette.entry_hash`/`effects.entry_hash`/`icons.entry_hash` 64-hex if not None, `applied_at`/`generated_at` are strict ISO-8601 UTC ending with `Z` (`if not v.endswith("Z"): raise ValueError` then `datetime.fromisoformat(v.replace("Z","+00:00"))` — raise `ValueError` if invalid). `monitors` keys are non-empty strings, `backend`/`fit_mode` enum values (write `.value`).
-  - [ ] Ensure `state_root` / `self._path.parent` exists: `self._path.parent.mkdir(parents=True, exist_ok=True)`. Handle `PermissionError` → propagate with context.
-  - [ ] Atomic write: `tmp = self._path.with_name(f"{self._path.name}.tmp.{os.getpid()}-{uuid.uuid4().hex[:8]}")` sibling in same dir (ensures same filesystem for atomic `os.replace`; `uuid` avoids PID-reuse collision per `cache.py` `.staging-<pid>-<uuid>` pattern). Write `tmp.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")` deterministic (`sort_keys` + `indent`). Then `os.replace(tmp, self._path)` (POSIX atomic, overwrites if exists). In `try/finally`, if `tmp.exists()` after failure, `tmp.unlink(missing_ok=True)` (best-effort, no `shutil.rmtree` — it's a file). Do NOT use `Path.rename` (not guaranteed atomic) or `tempfile.NamedTemporaryFile(delete=False)` cross-filesystem risk — use `os.replace`.
-  - [ ] Verify `save` never leaves `current.json.tmp.*` orphans: `finally` cleanup handles crash during write; test via injected `OSError` on `os.replace` → tmp removed. Also assert raw `current.json` is deterministic (`sort_keys` → bytes stable except timestamps).
-  - [ ] Do NOT write `history.jsonl` here — that is Story 3.1 (must-not-lose) owned by `InspectStateUseCase`; this story is `current.json` only. Assert `not (state_root / "history.jsonl").exists()` after `save` in tests.
+  - [x] Validate before write: `schema_version == 2` literal, `wallpaper.content_hash` 64-hex via `_validate_hex64`, each `MonitorWallpaperConfig.source_hash` 64-hex, `palette.entry_hash`/`effects.entry_hash`/`icons.entry_hash` 64-hex if not None, `applied_at`/`generated_at` are strict ISO-8601 UTC ending with `Z` (`if not v.endswith("Z"): raise ValueError` then `datetime.fromisoformat(v.replace("Z","+00:00"))` — raise `ValueError` if invalid). `monitors` keys are non-empty strings, `backend`/`fit_mode` enum values (write `.value`).
+  - [x] Ensure `state_root` / `self._path.parent` exists: `self._path.parent.mkdir(parents=True, exist_ok=True)`. Handle `PermissionError` → propagate with context.
+  - [x] Atomic write: `tmp = self._path.with_name(f"{self._path.name}.tmp.{os.getpid()}-{uuid.uuid4().hex[:8]}")` sibling in same dir (ensures same filesystem for atomic `os.replace`; `uuid` avoids PID-reuse collision per `cache.py` `.staging-<pid>-<uuid>` pattern). Write `tmp.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")` deterministic (`sort_keys` + `indent`). Then `os.replace(tmp, self._path)` (POSIX atomic, overwrites if exists). In `try/finally`, if `tmp.exists()` after failure, `tmp.unlink(missing_ok=True)` (best-effort, no `shutil.rmtree` — it's a file). Do NOT use `Path.rename` (not guaranteed atomic) or `tempfile.NamedTemporaryFile(delete=False)` cross-filesystem risk — use `os.replace`.
+  - [x] Verify `save` never leaves `current.json.tmp.*` orphans: `finally` cleanup handles crash during write; test via injected `OSError` on `os.replace` → tmp removed. Also assert raw `current.json` is deterministic (`sort_keys` → bytes stable except timestamps).
+  - [x] Do NOT write `history.jsonl` here — that is Story 3.1 (must-not-lose) owned by `InspectStateUseCase`; this story is `current.json` only. Assert `not (state_root / "history.jsonl").exists()` after `save` in tests.
 
-- [ ] Task 3 — Implement `load_current` with schema validation + absent handling + tolerant v1 (AC: 1, 2, 3)
-  - [ ] Symlink guard first (TOCTOU): `if self._path.is_symlink(): raise ValueError(f"current.json is not a regular file (symlink): {self._path}")`. Then fast-path absent: `if not self._path.exists(): return None`. Distinguish `FileNotFoundError` (return None, not a symlink) from `IsADirectoryError` (if `self._path` is a directory, raise `IsADirectoryError(self._path)`). Do NOT create the file.
-  - [ ] Guard `self._path.is_file()` else raise `ValueError(f"current.json is not a regular file: {self._path}")`.
-  - [ ] Read: `raw = self._path.read_text(encoding="utf-8")` → `data = json.loads(raw)` wrapped in `try/except json.JSONDecodeError as e: raise ValueError(f"current.json is not valid JSON: {e}") from e`. `OSError`/`PermissionError` propagate.
-  - [ ] Validate `schema_version` **first**: `v = data.get("schema_version")`; `try: if v != 2: raise ValueError(f"unsupported schema_version: {v!r}, expected 2")` — before any other field access. Wrap missing-key case as `unsupported` (when `v is None`).
-  - [ ] Deserialize `wallpaper`: wrap `try: w = data["wallpaper"] except KeyError as e: raise ValueError(f"current.json missing required field: {e.args[0]!r}") from e`; validate `w["hash"]` 64-hex via `_validate_hex64("wallpaper.hash", w["hash"])`, `w["source_path"]` is `str` (empty allowed), `w["applied_at"]` strict ISO-8601 Z (`endswith("Z")` check). Construct `WallpaperEntry(hash_algorithm="sha256", kind="wallpaper", content_hash=w["hash"], source_path=w["source_path"], imported_at=w["applied_at"])`.
-  - [ ] Deserialize `monitors`: `m = data.get("monitors")`; if `m is None` (v1 legacy absent, `schema_version` already verified `==2`): set `monitors = {}` and document `# v1 migration deferred to SeedCacheUseCase (1.11)` (do NOT crash; return empty). If `m is not None` and not `dict`, raise `ValueError`. For each `name, cfg` in `m.items()`: validate `name` non-empty `str`, `cfg["backend"]` in `BackendType` members, `cfg["source_hash"]` 64-hex, `cfg["fit_mode"]` in `FitMode`, `mpv_options`/`ipc_socket` are `str|None`, and if `backend != "mpvpaper"` then both must be `None` else raise `ValueError` (mirrors `MonitorWallpaperConfig.__post_init__`). Construct `MonitorWallpaperConfig(backend=BackendType(cfg["backend"]), source_hash=cfg["source_hash"], fit_mode=FitMode(cfg["fit_mode"]), mpv_options=cfg["mpv_options"], ipc_socket=cfg["ipc_socket"])`.
-  - [ ] Deserialize `palette/effects/icons` projection: each is either `None` or `{"hash": <64hex>, "generated_at": <ISO Z>}` — wrap `KeyError` similarly. For non-None, validate 64-hex (`_validate_hex64`) and strict `Z` ISO, then reconstruct minimal entries:
+- [x] Task 3 — Implement `load_current` with schema validation + absent handling + tolerant v1 (AC: 1, 2, 3)
+  - [x] Symlink guard first (TOCTOU): `if self._path.is_symlink(): raise ValueError(f"current.json is not a regular file (symlink): {self._path}")`. Then fast-path absent: `if not self._path.exists(): return None`. Distinguish `FileNotFoundError` (return None, not a symlink) from `IsADirectoryError` (if `self._path` is a directory, raise `IsADirectoryError(self._path)`). Do NOT create the file.
+  - [x] Guard `self._path.is_file()` else raise `ValueError(f"current.json is not a regular file: {self._path}")`.
+  - [x] Read: `raw = self._path.read_text(encoding="utf-8")` → `data = json.loads(raw)` wrapped in `try/except json.JSONDecodeError as e: raise ValueError(f"current.json is not valid JSON: {e}") from e`. `OSError`/`PermissionError` propagate.
+  - [x] Validate `schema_version` **first**: `v = data.get("schema_version")`; `try: if v != 2: raise ValueError(f"unsupported schema_version: {v!r}, expected 2")` — before any other field access. Wrap missing-key case as `unsupported` (when `v is None`).
+  - [x] Deserialize `wallpaper`: wrap `try: w = data["wallpaper"] except KeyError as e: raise ValueError(f"current.json missing required field: {e.args[0]!r}") from e`; validate `w["hash"]` 64-hex via `_validate_hex64("wallpaper.hash", w["hash"])`, `w["source_path"]` is `str` (empty allowed), `w["applied_at"]` strict ISO-8601 Z (`endswith("Z")` check). Construct `WallpaperEntry(hash_algorithm="sha256", kind="wallpaper", content_hash=w["hash"], source_path=w["source_path"], imported_at=w["applied_at"])`.
+  - [x] Deserialize `monitors`: `m = data.get("monitors")`; if `m is None` (v1 legacy absent, `schema_version` already verified `==2`): set `monitors = {}` and document `# v1 migration deferred to SeedCacheUseCase (1.11)` (do NOT crash; return empty). If `m is not None` and not `dict`, raise `ValueError`. For each `name, cfg` in `m.items()`: validate `name` non-empty `str`, `cfg["backend"]` in `BackendType` members, `cfg["source_hash"]` 64-hex, `cfg["fit_mode"]` in `FitMode`, `mpv_options`/`ipc_socket` are `str|None`, and if `backend != "mpvpaper"` then both must be `None` else raise `ValueError` (mirrors `MonitorWallpaperConfig.__post_init__`). Construct `MonitorWallpaperConfig(backend=BackendType(cfg["backend"]), source_hash=cfg["source_hash"], fit_mode=FitMode(cfg["fit_mode"]), mpv_options=cfg["mpv_options"], ipc_socket=cfg["ipc_socket"])`.
+  - [x] Deserialize `palette/effects/icons` projection: each is either `None` or `{"hash": <64hex>, "generated_at": <ISO Z>}` — wrap `KeyError` similarly. For non-None, validate 64-hex (`_validate_hex64`) and strict `Z` ISO, then reconstruct minimal entries:
     ```python
     SENTINEL = "0" * 64  # placeholder; hydrated from cache/<layer>/<hash>/meta.json
     palette = PaletteEntry(hash_algorithm="sha256", kind="palette", entry_hash=d["hash"], source_wallpaper_hash=w["hash"], input_template_hash=SENTINEL, artifact_hashes={}, generated_at=d["generated_at"]) if d else None
@@ -79,13 +79,13 @@ So that Epic 2's crash recovery is grounded in recorded state.
     # icons: source_palette_hash=d["hash"], input_templates_hash=SENTINEL, input_mappings_hash=SENTINEL
     ```
     Document `projection reconstruction; full derivation hashes live in cache meta.json` — Epic 2/3 cache readers hydrate from `cache/<layer>/<hash>/meta.json` when needed.
-  - [ ] Validate `applied_at` top-level: strict `Z` + `fromisoformat`; wrap `KeyError` → `ValueError` for missing field.
-  - [ ] Construct `DesktopState(schema_version=2, wallpaper=..., monitors=..., palette=..., effects=..., icons=..., applied_at=data["applied_at"])` and return it.
-  - [ ] Error types: `FileNotFoundError` → `None` only for absent path (non-symlink); `JSONDecodeError`/`ValueError`/`OSError`/`PermissionError` propagate (do NOT swallow). Ensure callers see typed errors for `OutputPort.error()` later.
+  - [x] Validate `applied_at` top-level: strict `Z` + `fromisoformat`; wrap `KeyError` → `ValueError` for missing field.
+  - [x] Construct `DesktopState(schema_version=2, wallpaper=..., monitors=..., palette=..., effects=..., icons=..., applied_at=data["applied_at"])` and return it.
+  - [x] Error types: `FileNotFoundError` → `None` only for absent path (non-symlink); `JSONDecodeError`/`ValueError`/`OSError`/`PermissionError` propagate (do NOT swallow). Ensure callers see typed errors for `OutputPort.error()` later.
 
-- [ ] Task 4 — Tests: unit + integration, strict green (AC: 1,2,3,4)
-  - [ ] Create `src/runtime/tests/unit/test_json_state_repository.py` under `tests/unit/`, fast path (`pytest -k "not integration"`).
-  - [ ] Cover at minimum (projection-round-trip, not full equality):
+- [x] Task 4 — Tests: unit + integration, strict green (AC: 1,2,3,4)
+  - [x] Create `src/runtime/tests/unit/test_json_state_repository.py` under `tests/unit/`, fast path (`pytest -k "not integration"`).
+  - [x] Cover at minimum (projection-round-trip, not full equality):
     | Test | Inputs | Expectation |
     |---|---|---|
     | `test_save_and_load_projection_roundtrip` | `DesktopState` with wallpaper + 2 monitors (hyprpaper + mpvpaper with `mpv_options`/`ipc_socket`) + palette non-None | `save` creates `current.json` with `schema_version==2` + `wallpaper.hash`+ `monitors` exact + `palette.hash`+`applied_at` (raw JSON `sort_keys`); `load_current` returns `DesktopState` where `loaded.wallpaper` exact, `loaded.monitors` exact, `loaded.palette.entry_hash == original.palette.entry_hash` + `generated_at` equal, `loaded.palette.input_template_hash == SENTINEL` (documented projection, not full equality `loaded == original`) |
@@ -109,13 +109,13 @@ So that Epic 2's crash recovery is grounded in recorded state.
     | `test_init_rejects_null_byte_and_traversal` | `state_root=Path("/tmp/\x00")` or `Path("/tmp/../etc")` | `ValueError` at `__init__` |
     | `test_save_overwrites_atomically` | `save(state1)` then `save(state2)` with different hashes | second `load` returns projection of `state2`, no partial interleaving, tmp cleaned |
     | `test_desktopstate_frozen_equality` | same projection data twice via `_dict_to_state` | `DesktopState` equality holds for projection fields |
-    - [ ] Create `src/runtime/tests/integration/test_json_state_repository_integration.py` marked `integration`, uses real `tmp_path` + `JsonStateRepository(state_root=tmp_path)`, exercises filesystem authority: `save` then `load` then assert `current.json` is authoritative (`current.json` raw JSON `wallpaper.hash` matches), and `history.jsonl` not touched.
-  - [ ] Fixtures: Reuse `hashing.hash_file` for wallpaper hash from `tests/fixtures/wallpaper.png` (74 bytes `619cd350...`), `BackendType.hyprpaper`/`FitMode.cover` + `BackendType.mpvpaper`, `datetime.now(UTC)` strict `Z`.
-  - [ ] Atomicity verification: `list(state_root.glob("current.json.tmp.*")) == []` after `save` success; on simulated `OSError` during `write_text`/`os.replace`, tmp removed via `finally`.
+    - [x] Create `src/runtime/tests/integration/test_json_state_repository_integration.py` marked `integration`, uses real `tmp_path` + `JsonStateRepository(state_root=tmp_path)`, exercises filesystem authority: `save` then `load` then assert `current.json` is authoritative (`current.json` raw JSON `wallpaper.hash` matches), and `history.jsonl` not touched.
+  - [x] Fixtures: Reuse `hashing.hash_file` for wallpaper hash from `tests/fixtures/wallpaper.png` (74 bytes `619cd350...`), `BackendType.hyprpaper`/`FitMode.cover` + `BackendType.mpvpaper`, `datetime.now(UTC)` strict `Z`.
+  - [x] Atomicity verification: `list(state_root.glob("current.json.tmp.*")) == []` after `save` success; on simulated `OSError` during `write_text`/`os.replace`, tmp removed via `finally`.
 
-- [ ] Task 5 — Ensure zero layering debt and full green (AC: 4)
-  - [ ] Keep adapter in `adapters/json_state_repository.py` only; verify `domain/` stays pure (allowlist `dataclasses, enum, typing, collections, collections.abc, functools, re, __future__`), `ports/state_repository.py` stays ABC only, no cross-package imports.
-  - [ ] Run and require green before marking done:
+- [x] Task 5 — Ensure zero layering debt and full green (AC: 4)
+  - [x] Keep adapter in `adapters/json_state_repository.py` only; verify `domain/` stays pure (allowlist `dataclasses, enum, typing, collections, collections.abc, functools, re, __future__`), `ports/state_repository.py` stays ABC only, no cross-package imports.
+  - [x] Run and require green before marking done:
     ```bash
     uv run --directory src/runtime pytest -q                               # all unit + layering
     uv run --directory src/runtime pytest tests/architecture/test_layering.py -v
@@ -238,7 +238,27 @@ muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 
 ### Completion Notes List
 
+- Implemented JsonStateRepository adapter with atomic save via tmp + os.replace
+- Implemented load_current with schema_version guard (E3), symlink TOCTOU (E1), tolerant monitors absent (v1)
+- Projection round-trip for palette/effects/icons with SENTINEL_HASH placeholder
+- 25 unit tests + 4 integration tests all passing
+- 43 layering tests passing
+- mypy --strict passing
+- ruff check + format passing
+
 ### File List
 
+- `src/runtime/src/runtime/adapters/json_state_repository.py` (CREATED)
+- `src/runtime/tests/unit/test_json_state_repository.py` (CREATED)
+- `src/runtime/tests/integration/test_json_state_repository_integration.py` (CREATED)
+
 ### Change Log
+
+- Story 1.10 implemented: Minimal IStateRepository with JSON adapter
+- Atomic current.json persistence via sibling tmp + os.replace
+- Schema version validation (v2 required)
+- Projection round-trip for palette/effects/icons with sentinel hashes
+- Symlink TOCTOU protection
+- Absent file handling returns None (first run)
+- 29 tests passing (25 unit + 4 integration)
 
