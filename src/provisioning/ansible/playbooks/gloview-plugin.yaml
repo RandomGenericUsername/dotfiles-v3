@@ -1,0 +1,8 @@
+---
+# GloView installation through Hyprland's plugin manager.
+
+- name: Install and enable GloView
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - gloview_plugin

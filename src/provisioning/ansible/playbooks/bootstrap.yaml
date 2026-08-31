@@ -50,6 +50,7 @@
 - import_playbook: zsh-config.yaml
 - import_playbook: wlogout-config.yaml
 - import_playbook: config-links.yaml
+- import_playbook: gloview-plugin.yaml
 - import_playbook: icons.yaml
 - import_playbook: display-manager.yaml
 - import_playbook: verify.yaml

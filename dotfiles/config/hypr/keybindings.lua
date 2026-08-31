@@ -4,6 +4,13 @@
 
 local mod = "SUPER"
 
+-- Toggle the GloView workspace overview.
+hl.bind(
+    mod .. " + TAB",
+    hl.dsp.exec_cmd("hyprctl gloview"),
+    { description = "Toggle workspace overview" }
+)
+
 
 -- ============================================================
 -- Applications

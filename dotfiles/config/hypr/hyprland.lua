@@ -9,6 +9,7 @@ local cfg = "{{ compositor_configs_xdg_config_home }}/hypr"
 dofile(cfg .. "/env-variables.lua")
 dofile(cfg .. "/monitors.lua")
 dofile(cfg .. "/input.lua")
+dofile(cfg .. "/gloview.lua")
 dofile(cfg .. "/decoration.lua")
 dofile(cfg .. "/animations.lua")
 dofile(cfg .. "/cursor.lua")

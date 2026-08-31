@@ -15,6 +15,16 @@ hl.config({
 
 hl.gesture({
     fingers = 3,
-    direction = "horizontal",
-    action = "workspace",
+    direction = "left",
+    action = function()
+        hl.exec_cmd("hyprctl gloviewnext")
+    end,
+})
+
+hl.gesture({
+    fingers = 3,
+    direction = "right",
+    action = function()
+        hl.exec_cmd("hyprctl gloviewprev")
+    end,
 })

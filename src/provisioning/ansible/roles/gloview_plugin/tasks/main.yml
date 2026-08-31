@@ -1,0 +1,106 @@
+---
+- name: Check for hyprpm
+  ansible.builtin.shell: command -v hyprpm
+  register: gloview_hyprpm_check
+  changed_when: false
+  failed_when: false
+
+- name: Ensure hyprpm is available
+  ansible.builtin.assert:
+    that:
+      - gloview_hyprpm_check.rc == 0
+      - gloview_hyprpm_check.stdout | length > 0
+    fail_msg: hyprpm is required to install GloView and was not found on PATH.
+  when: not ansible_check_mode
+
+- name: Remove obsolete Hyprspace repository
+  ansible.builtin.command:
+    argv:
+      - hyprpm
+      - remove
+      - Hyprspace
+  register: gloview_remove_hyprspace
+  changed_when: gloview_remove_hyprspace.rc == 0
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Remove obsolete hyprexpo repository
+  ansible.builtin.command:
+    argv:
+      - hyprpm
+      - remove
+      - hyprexpo
+  register: gloview_remove_hyprexpo
+  changed_when: gloview_remove_hyprexpo.rc == 0
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Check whether GloView is already installed
+  ansible.builtin.shell: hyprpm list 2>&1 | grep -E -q 'Repository gloview|Plugin gloview'
+  register: gloview_installed
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Add the GloView repository
+  ansible.builtin.command:
+    argv:
+      - hyprpm
+      - add
+      - "{{ gloview_repository }}"
+  register: gloview_add
+  changed_when: gloview_add.rc == 0
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - gloview_installed.rc != 0
+
+- name: Enable GloView
+  ansible.builtin.command:
+    argv:
+      - hyprpm
+      - enable
+      - gloview
+  register: gloview_enable
+  changed_when: gloview_enable.rc == 0
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Reload Hyprland plugins
+  ansible.builtin.command:
+    argv:
+      - hyprpm
+      - reload
+  register: gloview_reload
+  changed_when: gloview_reload.rc == 0
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Verify GloView is enabled
+  ansible.builtin.shell: "hyprpm list 2>&1 | grep -E -A2 'Repository gloview|Plugin gloview' | grep -q 'enabled:'"
+  register: gloview_status
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Verify GloView is loaded in Hyprland
+  ansible.builtin.shell: hyprctl plugin list 2>&1 | grep -qi gloview
+  register: gloview_loaded
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert GloView installed and loaded
+  ansible.builtin.assert:
+    that:
+      - gloview_installed.rc == 0 or gloview_add.rc == 0
+      - gloview_enable.rc == 0
+      - gloview_reload.rc == 0
+      - gloview_status.rc == 0
+      - gloview_loaded.rc == 0
+    fail_msg: >-
+      GloView did not install and load successfully.
+      add={{ gloview_add.rc | default('skipped') }},
+      enable={{ gloview_enable.rc }}, reload={{ gloview_reload.rc }},
+      status={{ gloview_status.rc }}, loaded={{ gloview_loaded.rc }}.
+  when: not ansible_check_mode
