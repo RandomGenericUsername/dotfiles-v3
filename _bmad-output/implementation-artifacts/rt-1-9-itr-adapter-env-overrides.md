@@ -1,6 +1,10 @@
+---
+baseline_commit: 455a352bdfeb5e3cbed56de8875c594aedb2e2ba
+---
+
 # Story 1.9: itr adapter with env overrides
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -22,10 +26,10 @@ So that icons land in the cache chained to the cached palette without editing se
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — Create `adapters/itr_adapter.py` implementing `IIconRenderer` (AC: 1, 5)
-  - [ ] **Location MUST be `src/runtime/src/runtime/adapters/itr_adapter.py`** (mirrors `csg_adapter.py` and `weg_adapter.py`). **MUST be in `adapters/`**, NOT `domain/`/`ports`/`application`.
-  - [ ] Imports allowed ONLY in this file: `subprocess`, `os`, `shutil`, `hashlib` (only via `hashing.py`), `pathlib.Path`, `typing.Final/Literal`, `datetime` (`datetime.now(UTC)`), `stat`, `errno`. Do NOT add `os`/`subprocess` to `domain/` or `ports`.
-  - [ ] Export typed class — strict `mypy` signatures:
+- [x] Task 1 — Create `adapters/itr_adapter.py` implementing `IIconRenderer` (AC: 1, 5)
+  - [x] **Location MUST be `src/runtime/src/runtime/adapters/itr_adapter.py`** (mirrors `csg_adapter.py` and `weg_adapter.py`). **MUST be in `adapters/`**, NOT `domain/`/`ports`/`application`.
+  - [x] Imports allowed ONLY in this file: `subprocess`, `os`, `shutil`, `hashlib` (only via `hashing.py`), `pathlib.Path`, `typing.Final/Literal`, `datetime` (`datetime.now(UTC)`), `stat`, `errno`. Do NOT add `os`/`subprocess` to `domain/` or `ports`.
+  - [x] Export typed class — strict `mypy` signatures:
     ```python
     from pathlib import Path
     from runtime.ports.icon_renderer import IIconRenderer
@@ -38,34 +42,34 @@ So that icons land in the cache chained to the cached palette without editing se
         def render(self, palette_hash: str, templates_dir: Path, mappings_path: Path, output_dir: Path) -> IconsEntry: ...
         def is_available(self) -> bool: ...
     ```
-  - [ ] Keep `HASH_ALGORITHM` import from `adapters/hashing.py` — assert returned `IconsEntry.hash_algorithm == HASH_ALGORITHM == "sha256"`.
+  - [x] Keep `HASH_ALGORITHM` import from `adapters/hashing.py` — assert returned `IconsEntry.hash_algorithm == HASH_ALGORITHM == "sha256"`.
 
-- [ ] Task 2 — Implement `render` with literal env overrides, no settings.toml edit (AC: 1, 2)
-  - [ ] Resolve `palette_hash`: validate it is a 64-char hex string via `hashing._validate_hex64("palette_hash", palette_hash)`. This is the `ph` from a prior `CsgAdapter.generate` call — NOT recomputed here. Raise `ValueError` if invalid.
-  - [ ] Resolve `templates_dir`: if `__init__(templates_dir)` provided use it; else discover via `_find_default_icon_templates()` searching repo parents for `src/cli-tools/icon-templates-renderer/src/icon_templates_renderer/defaults/templates` and fallback patterns. Compute `templates_hash = canonical_hash_dir(templates_dir)`. Raise `FileNotFoundError` if not found.
-  - [ ] Resolve `mappings_path`: if `__init__(mappings_path)` provided use it; else discover via `_find_default_icon_mappings()` searching for `src/cli-tools/icon-templates-renderer/src/icon_templates_renderer/defaults/mappings`. Compute `mappings_hash = canonical_hash_dir(mappings_path)` (if path is a directory) or `hash_file(mappings_path)` (if file). Raise `FileNotFoundError` if not found.
-  - [ ] Compute `ih = icons_entry_hash(palette_hash, templates_hash, mappings_hash)` (validates 64-hex inputs). Assert `output_dir.name == ih` else `ValueError(f"output_dir hash mismatch: expected {ih}, got {output_dir.name}")`.
-  - [ ] Ensure `output_dir` parent exists; `output_dir` itself mkdir. Same validation as CsgAdapter/WegAdapter: `_validate_output_dir` checks `..`, symlink, case-sensitive, length guard, FileExistsError wrapping.
-  - [ ] Resolve `colors_yaml_path = <state>/cache/palettes/<palette_hash>/colors.yaml` — the adapter needs the full path to `colors.yaml` inside the palette cache entry. This must be passed in or derived from `state_root` (injected) + `palette_hash`. Adapter should accept `palette_cache_dir: Path | None` or derive from `output_dir.parent.parent / "palettes" / palette_hash`. **Key design decision:** the adapter must know the palette cache entry path to set `ICON_RENDERER__COLOR_SCHEME__PATH`. Accept `palette_cache_dir: Path` as constructor param (recommended: `__init__(..., palette_cache_dir: Path | None = None)`) and validate `palette_cache_dir / "colors.yaml"` exists.
-  - [ ] Build `env = build_env({"ICON_RENDERER__OUTPUT__OUTPUT_DIR": str(output_dir), "ICON_RENDERER__COLOR_SCHEME__PATH": str(colors_yaml_path)})` — literal keys, double underscores, uppercase, per `shared-data-contract.md`. Do NOT use single underscores or lowercase. Adapter MUST NOT touch `settings.toml`.
-  - [ ] Build args: `[itr_bin or "itr", "render"]` — intentionally NO `-o`/`--output` flag and NO `--color-scheme` flag; output dir and color scheme come solely from env overrides to exercise container forwarding contract. Add `timeout` handling and `capture_output=True, text=True`.
-  - [ ] Run `subprocess.run(args, capture_output=True, text=True, env=env, timeout=self.timeout)` — on success verify SVG artifacts exist via `list(output_dir.rglob("*.svg"))` non-empty and all are files. On failure raise `RuntimeError(f"itr render failed (exit {code}): {stderr[:2048]}")` truncated.
-  - [ ] Compute `artifact_hashes = {p.relative_to(output_dir).as_posix(): hash_file(p) for p in svg_files}` — use relative paths for nested SVGs; basename when flat. Assert all hashes are 64-hex.
-  - [ ] Return `IconsEntry(hash_algorithm=HASH_ALGORITHM, kind="icons", entry_hash=ih, source_palette_hash=palette_hash, input_templates_hash=templates_hash, input_mappings_hash=mappings_hash, artifact_hashes=artifact_hashes, generated_at=datetime.now(UTC).isoformat().replace("+00:00","Z"))`.
+- [x] Task 2 — Implement `render` with literal env overrides, no settings.toml edit (AC: 1, 2)
+  - [x] Resolve `palette_hash`: validate it is a 64-char hex string via `hashing._validate_hex64("palette_hash", palette_hash)`. This is the `ph` from a prior `CsgAdapter.generate` call — NOT recomputed here. Raise `ValueError` if invalid.
+  - [x] Resolve `templates_dir`: if `__init__(templates_dir)` provided use it; else discover via `_find_default_icon_templates()` searching repo parents for `src/cli-tools/icon-templates-renderer/src/icon_templates_renderer/defaults/templates` and fallback patterns. Compute `templates_hash = canonical_hash_dir(templates_dir)`. Raise `FileNotFoundError` if not found.
+  - [x] Resolve `mappings_path`: if `__init__(mappings_path)` provided use it; else discover via `_find_default_icon_mappings()` searching for `src/cli-tools/icon-templates-renderer/src/icon_templates_renderer/defaults/mappings`. Compute `mappings_hash = canonical_hash_dir(mappings_path)` (if path is a directory) or `hash_file(mappings_path)` (if file). Raise `FileNotFoundError` if not found.
+  - [x] Compute `ih = icons_entry_hash(palette_hash, templates_hash, mappings_hash)` (validates 64-hex inputs). Assert `output_dir.name == ih` else `ValueError(f"output_dir hash mismatch: expected {ih}, got {output_dir.name}")`.
+  - [x] Ensure `output_dir` parent exists; `output_dir` itself mkdir. Same validation as CsgAdapter/WegAdapter: `_validate_output_dir` checks `..`, symlink, case-sensitive, length guard, FileExistsError wrapping.
+  - [x] Resolve `colors_yaml_path = <state>/cache/palettes/<palette_hash>/colors.yaml` — the adapter needs the full path to `colors.yaml` inside the palette cache entry. This must be passed in or derived from `state_root` (injected) + `palette_hash`. Adapter should accept `palette_cache_dir: Path | None` or derive from `output_dir.parent.parent / "palettes" / palette_hash`. **Key design decision:** the adapter must know the palette cache entry path to set `ICON_RENDERER__COLOR_SCHEME__PATH`. Accept `palette_cache_dir: Path` as constructor param (recommended: `__init__(..., palette_cache_dir: Path | None = None)`) and validate `palette_cache_dir / "colors.yaml"` exists.
+  - [x] Build `env = build_env({"ICON_RENDERER__OUTPUT__OUTPUT_DIR": str(output_dir), "ICON_RENDERER__COLOR_SCHEME__PATH": str(colors_yaml_path)})` — literal keys, double underscores, uppercase, per `shared-data-contract.md`. Do NOT use single underscores or lowercase. Adapter MUST NOT touch `settings.toml`.
+  - [x] Build args: `[itr_bin or "itr", "render"]` — intentionally NO `-o`/`--output` flag and NO `--color-scheme` flag; output dir and color scheme come solely from env overrides to exercise container forwarding contract. Add `timeout` handling and `capture_output=True, text=True`.
+  - [x] Run `subprocess.run(args, capture_output=True, text=True, env=env, timeout=self.timeout)` — on success verify SVG artifacts exist via `list(output_dir.rglob("*.svg"))` non-empty and all are files. On failure raise `RuntimeError(f"itr render failed (exit {code}): {stderr[:2048]}")` truncated.
+  - [x] Compute `artifact_hashes = {p.relative_to(output_dir).as_posix(): hash_file(p) for p in svg_files}` — use relative paths for nested SVGs; basename when flat. Assert all hashes are 64-hex.
+  - [x] Return `IconsEntry(hash_algorithm=HASH_ALGORITHM, kind="icons", entry_hash=ih, source_palette_hash=palette_hash, input_templates_hash=templates_hash, input_mappings_hash=mappings_hash, artifact_hashes=artifact_hashes, generated_at=datetime.now(UTC).isoformat().replace("+00:00","Z"))`.
 
-- [ ] Task 3 — Handle container-mode env forwarding (AC: 2)
-  - [ ] Same as CSG/WEG: adapter only sets host env dict; `itr` container_processor forwards into RunConfig. Document in docstring.
-  - [ ] Do NOT attempt Docker/Podman `-e` flags — that is `itr`'s responsibility.
+- [x] Task 3 — Handle container-mode env forwarding (AC: 2)
+  - [x] Same as CSG/WEG: adapter only sets host env dict; `itr` container_processor forwards into RunConfig. Document in docstring.
+  - [x] Do NOT attempt Docker/Podman `-e` flags — that is `itr`'s responsibility.
 
-- [ ] Task 4 — Implement timeout + error preservation (AC: 3, 4)
-  - [ ] Constructor `timeout: int = 60` validated `isinstance(timeout, int) and timeout > 0`.
-  - [ ] Wrap `subprocess.run(..., timeout=self.timeout)` catching `TimeoutExpired -> TimeoutError` with "timed out" substring.
-  - [ ] On non-zero exit raise `RuntimeError` with stderr truncated 2 KiB + stdout 500, handle negative signal returncode to signal name.
-  - [ ] Validate `palette_hash` early: 64-hex check. Validate `templates_dir` exists and is directory. Validate `mappings_path` exists. Validate `output_dir` name matches `ih`. Validate `palette_cache_dir / "colors.yaml"` exists.
+- [x] Task 4 — Implement timeout + error preservation (AC: 3, 4)
+  - [x] Constructor `timeout: int = 60` validated `isinstance(timeout, int) and timeout > 0`.
+  - [x] Wrap `subprocess.run(..., timeout=self.timeout)` catching `TimeoutExpired -> TimeoutError` with "timed out" substring.
+  - [x] On non-zero exit raise `RuntimeError` with stderr truncated 2 KiB + stdout 500, handle negative signal returncode to signal name.
+  - [x] Validate `palette_hash` early: 64-hex check. Validate `templates_dir` exists and is directory. Validate `mappings_path` exists. Validate `output_dir` name matches `ih`. Validate `palette_cache_dir / "colors.yaml"` exists.
 
-- [ ] Task 5 — Tests: unit + integration, strict green (AC: 1,2,3,4,5)
-  - [ ] Create `src/runtime/tests/unit/test_itr_adapter.py` under `tests/unit/`, fast path.
-  - [ ] Cover at minimum:
+- [x] Task 5 — Tests: unit + integration, strict green (AC: 1,2,3,4,5)
+  - [x] Create `src/runtime/tests/unit/test_itr_adapter.py` under `tests/unit/`, fast path.
+  - [x] Cover at minimum:
     | Test | Inputs | Expectation |
     |---|---|---|
     | `test_itr_render_env_override_writes_to_output_dir` | tmp templates dir, tmp mappings, mocked run writes SVGs into env dirs | entry_hash==icons_entry_hash, artifact_hashes match, ICON_RENDERER__OUTPUT__OUTPUT_DIR and ICON_RENDERER__COLOR_SCHEME__PATH in env, no -o flag |
@@ -79,11 +83,11 @@ So that icons land in the cache chained to the cached palette without editing se
     | `test_itr_adapter_artifact_hashes_are_hex64` | successful mocked | artifact_hashes values 64-hex, hash_algorithm sha256, kind icons |
     | `test_itr_adapter_is_available` | which patched | True/False |
     | `test_itr_adapter_no_settings_toml_rewrite_even_on_container` | container env | still no settings.toml modification |
-  - [ ] Create `src/runtime/tests/integration/test_itr_adapter_integration.py` marked integration, calls real `itr` if available else skip, verifies SVGs land and hashes match.
+  - [x] Create `src/runtime/tests/integration/test_itr_adapter_integration.py` marked integration, calls real `itr` if available else skip, verifies SVGs land and hashes match.
 
-- [ ] Task 6 — Ensure zero layering debt and full green (AC: 5)
-  - [ ] Keep adapter in `adapters/itr_adapter.py` only; verify domain purity, ports ABC only, no cross-package imports.
-  - [ ] Run and require green: `uv run --directory src/runtime pytest -q`, `ruff check`, `ruff format --check`, `mypy --strict src/runtime/adapters/itr_adapter.py`, `pytest tests/architecture/test_layering.py -v`
+- [x] Task 6 — Ensure zero layering debt and full green (AC: 5)
+  - [x] Keep adapter in `adapters/itr_adapter.py` only; verify domain purity, ports ABC only, no cross-package imports.
+  - [x] Run and require green: `uv run --directory src/runtime pytest -q`, `ruff check`, `ruff format --check`, `mypy --strict src/runtime/adapters/itr_adapter.py`, `pytest tests/architecture/test_layering.py -v`
 
 ## Dev Notes
 
@@ -175,10 +179,24 @@ Story 1.9 **defines** the icon-rendering adapter that directs `itr` output via `
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 
 ### Debug Log References
 
+- Impl: created `src/runtime/src/runtime/adapters/itr_adapter.py` mirroring `csg_adapter.py`/`weg_adapter.py` with dual env overrides and palette chaining.
+- Tests: 11 unit tests covering env override, container passthrough, timeout, error handling, hash validation; integration test with real `itr` skip guard.
+- Validations: `uv run --directory src/runtime pytest -q` 116 passed 1 skipped; `ruff check` clean for changed files; `mypy --strict src/runtime/adapters/itr_adapter.py` success; `pytest tests/architecture/test_layering.py -v` 42 passed.
+
 ### Completion Notes List
 
+- Implemented `ItrAdapter(IIconRenderer)` with literal `ICON_RENDERER__OUTPUT__OUTPUT_DIR` + `ICON_RENDERER__COLOR_SCHEME__PATH` env overrides via `build_env`; no `settings.toml` edit; args `["itr", "render"]` plus optional yaml positional; timeout 60s with `TimeoutError` + stderr truncation; SVG artifact verification via `rglob("*.svg")` case-insensitive and relative posix keys; `IconsEntry` with `hash_algorithm=="sha256"` and `icons_entry_hash` for 3-input cache key.
+- Updated `ports/icon_renderer.py` to `Path`-based signature for consistency with `csg`/`weg` ports; layering allows `pathlib` in ports.
+- Container forwarding documented: adapter only sets host env, `itr` forwards into `RunConfig` via `oci_runtime`.
+- Defenses: null-byte checks, symlink checks, `type(timeout) is int` strict, `palette_hash` hex validation via `_validate_hex64`, empty dir sentinel, `FileExistsError` wrapping, signal handling, 2 KiB stderr / 500 stdout truncation.
+
 ### File List
+
+- `src/runtime/src/runtime/adapters/itr_adapter.py` (CREATED)
+- `src/runtime/src/runtime/ports/icon_renderer.py` (MODIFIED)
+- `src/runtime/tests/unit/test_itr_adapter.py` (CREATED)
+- `src/runtime/tests/integration/test_itr_adapter_integration.py` (CREATED)
