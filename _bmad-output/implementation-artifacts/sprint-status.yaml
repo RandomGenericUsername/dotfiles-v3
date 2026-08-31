@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-08-30 (rt-1-9-itr-adapter-env-overrides → done)
+last_updated: 2026-08-30 (rt-1-10-minimal-istaterepository → ready-for-dev)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -56,7 +56,7 @@ development_status:
   rt-1-7-csg-adapter-env-override: done
   rt-1-8-weg-adapter-env-override: done
   rt-1-9-itr-adapter-env-overrides: done
-  rt-1-10-minimal-istaterepository: backlog
+  rt-1-10-minimal-istaterepository: ready-for-dev
   rt-1-11-first-run-self-seeding: backlog
   rt-1-12-provisioning-dont-clobber-guard: backlog
   rt-1-13-applywallpaperusecase: backlog
