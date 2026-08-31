@@ -4,7 +4,7 @@ baseline_commit: 77f1b94
 
 # Story 1.10: Minimal IStateRepository with JSON adapter
 
-Status: review
+Status: done
 
 ## Story
 
@@ -261,4 +261,21 @@ muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 - Symlink TOCTOU protection
 - Absent file handling returns None (first run)
 - 29 tests passing (25 unit + 4 integration)
+
+### Review Findings
+
+- [x] [Review][Patch] TOCTOU: `is_symlink()` + `exists()` non-atomic [json_state_repository.py:122-127]
+  - `is_symlink()` then `exists()` is non-atomic; attacker could swap path between calls. Fix: use `os.open(path, O_RDONLY | O_NOFOLLOW)` + `fstat()` to atomically verify regular file.
+- [x] [Review][Patch] `_dict_to_state`: `BackendType`/`FitMode` `ValueError` not wrapped [json_state_repository.py:292-294]
+  - `BackendType(cfg["backend"])` and `FitMode(cfg["fit_mode"])` raise unhelpful `ValueError` on invalid enum values. Fix: wrap in try/except and re-raise with descriptive message.
+- [x] [Review][Patch] `tmp.exists()` + `tmp.unlink()` TOCTOU in finally cleanup [json_state_repository.py:248-252]
+  - `tmp.exists()` then `tmp.unlink()` has a TOCTOU gap. Fix: use `tmp.unlink(missing_ok=True)` to eliminate the race.
+- [x] [Review][Patch] Missing test: `PermissionError` propagation on read [tests/unit/test_json_state_repository.py]
+  - No test verifies `PermissionError` during `read_text` surfaces as `RuntimeError`. Fix: add test with `chmod 000` on `current.json`.
+- [x] [Review][Patch] Missing test: `FileExistsError` when `state_root` is a file [tests/unit/test_json_state_repository.py]
+  - No test for `state_root` being a regular file instead of directory. Fix: add test asserting `FileExistsError` from `mkdir`.
+- [x] [Review][Defer] `_validate_save`: raw `KeyError` on dict access [json_state_repository.py:192-229] — deferred, unreachable in practice since data comes from `_state_to_dict`
+- [x] [Review][Defer] `..` traversal check bypassable via symlinked parent [json_state_repository.py:103] — deferred, state_root is trusted input (tests inject tmp_path)
+- [x] [Review][Defer] `Path.home()` can raise `RuntimeError` in containers [json_state_repository.py:94] — deferred, extreme edge case
+- [x] [Review][Defer] Extra keys in projection/monitor dicts silently accepted [json_state_repository.py:220-226,287-299] — deferred, defense-in-depth, not harmful
 

@@ -288,3 +288,10 @@
 
 - CsgAdapter silently swallows OSError on symlink check (fail-open vs ItrAdapter's fail-closed) — pre-existing, not caused by this change [src/runtime/src/runtime/adapters/csg_adapter.py:104-106]
 - Private `_validate_hex64` imported externally from itr_adapter — architectural pattern shared with CsgAdapter/WegAdapter; consider making public or inlining [src/runtime/src/runtime/adapters/itr_adapter.py:243]
+
+## Deferred from: code review of rt-1-10-minimal-istaterepository (2026-08-31)
+
+- `_validate_save` raw `KeyError` on dict access (w["hash"], entry["hash"], etc.) — unreachable in practice since data comes from `_state_to_dict` which always produces valid keys; align with `_dict_to_state` wrapping or document as developer-only check [src/runtime/src/runtime/adapters/json_state_repository.py:192-229]
+- `..` traversal check bypassable via symlinked parent — state_root is trusted input (tests inject tmp_path); production callers resolve before injection [src/runtime/src/runtime/adapters/json_state_repository.py:103]
+- `Path.home()` can raise `RuntimeError` in containers — extreme edge case, caught at constructor time [src/runtime/src/runtime/adapters/json_state_repository.py:94]
+- Extra keys in projection/monitor dicts silently accepted — defense-in-depth; not harmful since _state_to_dict produces known shapes [src/runtime/src/runtime/adapters/json_state_repository.py:220-226,287-299]
