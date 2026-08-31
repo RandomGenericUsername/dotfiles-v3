@@ -4,7 +4,7 @@ baseline_commit: 88f34c3
 
 # Story 1.8: weg adapter with env override
 
-Status: review
+Status: done
 
 ## Story
 
@@ -151,5 +151,38 @@ muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 
 - 2026-08-30: Implemented WegAdapter env override, updated port to Path signature, added 10 unit + 1 integration tests, verified layering + ruff + mypy green. Story status → review.
 
+### Review Findings (2026-08-30 code review of rt-1-8-weg-adapter-env-override.md)
+
+#### decision-needed (1) — requires human input
+
+- [x] [Review][Decision] AC1 catalog discovery omits install-spine `<install>/config/weg/effects.yaml` — Spec AC1 says `catalog_hash = hash_file(<install>/config/weg/effects.yaml)` READ-ONLY spine input with fallback to `src/cli-tools/.../defaults/effects.yaml` when absent; `_find_default_effects_catalog()` only searches repo parents and never checks `<install>` spine. Need decision: define `<install>` resolution (env `INSTALL_DIR`? `XDG_DATA_HOME`? absolute path from `domain/models`?) and priority order. Affects `weg_adapter.py:50-75` [high].
+
+#### patch (16) — fixable without human input
+
+- [x] [Review][Patch] weg_bin blocklist incomplete — `_validate_weg_bin` only rejects `;|&` + `` ` `` + `$`, allows spaces, newlines, `> < * ? ~ ! ( ) [ ] { }`, and `\n` in name; with `shell=False` risk is arg-injection not RCE but still bypasses allowlist. Fix: reject whitespace/control chars and require `shlex` safe pattern or `^[a-zA-Z0-9._/-]+$` [src/runtime/src/runtime/adapters/weg_adapter.py:78-84] [medium]
+- [x] [Review][Patch] wallpaper_path leading dash missing `--` separator — `args=[weg,"batch","all",str(wallpaper_path)]` treats `Path("-evil")` as flag; add `--` before positional or validate leading `-` [src/runtime/src/runtime/adapters/weg_adapter.py:258-263] [medium]
+- [x] [Review][Patch] output_dir symlink validation fail-open + grandparent unchecked + mkdir TOCTOU — `is_symlink()` wrapped in `except OSError: pass`, only checks direct parent not ancestors, then `mkdir(parents=True,exist_ok=True)` follows symlinks. Fix: re-validate post-mkdir or use `O_NOFOLLOW`/`resolve()` check and propagate `OSError` [src/runtime/src/runtime/adapters/weg_adapter.py:88-99,228-247] [medium]
+- [x] [Review][Patch] null byte in paths not handled — `subprocess.run` raises `ValueError: embedded null byte` not in `except (FileNotFoundError,PermissionError,TimeoutExpired,OSError)`; propagates raw. Guard `"\x00" in str(path)` early with `ValueError` [src/runtime/src/runtime/adapters/weg_adapter.py:172-263] [medium]
+- [x] [Review][Patch] catalog FIFO / device hangs `hash_file` — catalog only checks `exists/is_file/size==0`, not `S_ISREG`; `hash_file` on FIFO blocks forever bypassing `self._timeout`. Add `S_ISREG` guard for catalog and `open` timeout/size cap [src/runtime/src/runtime/adapters/weg_adapter.py:208-221] [medium]
+- [x] [Review][Patch] wallpaper symlink not rejected — symlink to `/etc/shadow` passes `exists/is_file/S_ISREG` (follows target) and is hashed/fed to `weg`; add `is_symlink()` reject for wallpaper_path like output_dir [src/runtime/src/runtime/adapters/weg_adapter.py:172-188] [medium]
+- [x] [Review][Patch] PNG detection case-sensitive + symlink escape + `relative_to` ValueError — `rglob("*.png")` misses `.PNG`, follows symlink outside `output_dir` counting external files, and `relative_to` raises `ValueError` for escaped symlink not caught. Fix: `rglob("*.png")` case-insensitive or `*.PNG` glob, resolve symlink check, catch `ValueError` in hash loop [src/runtime/src/runtime/adapters/weg_adapter.py:312,336,342] [medium]
+- [x] [Review][Patch] `UnicodeDecodeError` not handled — `subprocess.run(text=True)` can raise `UnicodeDecodeError` on binary stderr; not in spawn handler. Handle or use `errors="replace"` [src/runtime/src/runtime/adapters/weg_adapter.py:267-273] [low]
+- [x] [Review][Patch] catalog discovery only catches `PermissionError` — `is_file()` can raise `ELOOP/ENAMETOOLONG` `OSError` which escapes raw; catch `OSError` [src/runtime/src/runtime/adapters/weg_adapter.py:70-74] [low]
+- [x] [Review][Patch] `bool` timeout bypass — `isinstance(True,int)` is True, so `WegAdapter(timeout=True)` silently becomes 1s timeout; check `type(timeout) is int` [src/runtime/src/runtime/adapters/weg_adapter.py:121] [low]
+- [x] [Review][Patch] `ENOTDIR` not in mkdir errno allowlist — `NotADirectoryError (ENOTDIR 20)` falls through to generic message; add `errno.ENOTDIR` to collision handling [src/runtime/src/runtime/adapters/weg_adapter.py:232-244] [low]
+- [x] [Review][Patch] timeout handler discards stdout / bytes inconsistency — `TimeoutExpired` handler uses `str(exc.stderr or "")[:2048]` (bytes repr leaks `b''`) and drops `exc.stdout`; mirror non-zero exit path `stdout[:500]` [src/runtime/src/runtime/adapters/weg_adapter.py:278-283] [low]
+- [x] [Review][Patch] `catalog_path` type not validated — ctor stores unchecked, `AttributeError` on `str` leaks instead of `FileNotFoundError/ValueError`; validate `isinstance(Path)` [src/runtime/src/runtime/adapters/weg_adapter.py:126,201] [low]
+- [x] [Review][Patch] `mypy --strict` hidden by `type: ignore` — `artifact_hashes` `type: ignore[arg-type]` suppresses `EffectsEntry(artifact_hashes: EffectsArtifacts TypedDict total=False)` mismatch; fix `TypedDict` or Narrow type [src/runtime/src/runtime/adapters/weg_adapter.py:358] [medium]
+- [x] [Review][Patch] empty catalog raises `ValueError` not `FileNotFoundError` — spec Task2 says empty catalog → `FileNotFoundError` (like CsgAdapter); current `ValueError("WEG catalog is empty")` breaks caller error mapping [src/runtime/src/runtime/adapters/weg_adapter.py:212] [low]
+- [x] [Review][Patch] brittle test path arithmetic + CWD-dependent fixtures — `parents[3]/parents[4]` and `Path("tests/fixtures/wallpaper.png")` depend on layout/CWD; reuse `_find_default_effects_catalog()` or `Path(__file__)` only [src/runtime/tests/integration/test_weg_adapter_integration.py:26-38, src/runtime/tests/unit/test_weg_adapter.py:34-38] [low]
+
+#### defer (3) — pre-existing, not caused by this change
+
+- [x] [Review][Defer] unbounded `capture_output` buffers entire stdout/stderr in RAM — `weg` verbose catalog could OOM; no `MAX_BUFFER`. Copied from CsgAdapter, pre-existing — deferred, revisit with streaming [src/runtime/src/runtime/adapters/weg_adapter.py:267] — deferred, pre-existing
+- [x] [Review][Defer] concurrent `generate` to same `output_dir` races `mkdir→rglob→hash_file` — no file lock; but `populate_via_staging` caller owns atomicity per docstring, so out-of-scope for adapter — deferred [src/runtime/src/runtime/adapters/weg_adapter.py:228-343] — deferred, pre-existing
+- [x] [Review][Defer] copy-paste divergence from `csg_adapter.py` — 90% validation/mkdir/error logic duplicated without shared helper; drift risk but not a bug for this story — deferred as tech-debt [src/runtime/src/runtime/adapters/weg_adapter.py:88-106] — deferred, pre-existing
+
 ### Status
+
+done
 

@@ -1,10 +1,10 @@
-<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g clip-path="url(#clip0_484_36)">
-<path d="M48 24C61.32 24 73.96 28.32 84.32 36.28L48 72.68L11.68 36.28C22.04 28.32 34.68 24 48 24ZM48 16C29.24 16 12.28 23.6 0 35.92L48 84L96 35.92C83.72 23.6 66.76 16 48 16Z" fill="{{COLOR_FOREGROUND}}"/>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_1_15)">
+<path d="M662.613 744.96L512 896L361.387 744.96C399.787 706.56 453.12 682.667 512 682.667C570.88 682.667 624.213 706.56 662.613 744.96Z" fill="{{COLOR_FOREGROUND}}"/>
 </g>
 <defs>
-<clipPath id="clip0_484_36">
-<rect width="96" height="96" fill="transparent"/>
+<clipPath id="clip0_1_15">
+<rect width="1024" height="1024" fill="white"/>
 </clipPath>
 </defs>
 </svg>

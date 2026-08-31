@@ -277,3 +277,9 @@
 
 - Duplicated _find_default_templates_dir + permission swallowing — adapter and integration test duplicate repo walk with divergent `alt` paths; `is_dir()` returns False on PermissionError silently returning None. Low, pre-existing pattern. [src/runtime/src/runtime/adapters/csg_adapter.py:46-64]
 - Unbounded hash_file read (multi-hundred MB / sparse / FIFO DoS) — no size/time cap; large wallpaper blocks before subprocess timeout. Trusted local spine makes this out-of-scope for 1.7. [src/runtime/src/runtime/adapters/hashing.py:75-81]
+
+## Deferred from: code review of rt-1-8-weg-adapter-env-override (2026-08-30)
+
+- Unbounded `capture_output` buffers entire stdout/stderr in RAM — `weg` verbose catalog could OOM; no `MAX_BUFFER`. Copied from CsgAdapter, pre-existing — deferred, revisit with streaming [src/runtime/src/runtime/adapters/weg_adapter.py:267]
+- Concurrent `generate` to same `output_dir` races `mkdir→rglob→hash_file` — no file lock; but `populate_via_staging` caller owns atomicity per docstring, so out-of-scope for adapter — deferred [src/runtime/src/runtime/adapters/weg_adapter.py:228-343]
+- Copy-paste divergence from `csg_adapter.py` — 90% validation/mkdir/error logic duplicated without shared helper; drift risk but not a bug for this story — deferred as tech-debt [src/runtime/src/runtime/adapters/weg_adapter.py:88-106]
