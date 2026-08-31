@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-08-31 (rt-1-11-first-run-self-seeding → done)
+last_updated: 2026-08-31 (rt-1-12-provisioning-dont-clobber-guard → ready-for-dev)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -58,7 +58,7 @@ development_status:
   rt-1-9-itr-adapter-env-overrides: done
   rt-1-10-minimal-istaterepository: done
   rt-1-11-first-run-self-seeding: done
-  rt-1-12-provisioning-dont-clobber-guard: backlog
+  rt-1-12-provisioning-dont-clobber-guard: ready-for-dev
   rt-1-13-applywallpaperusecase: backlog
   rt-1-14-ags-bar-shell-provisioning-swap: done
   rt-epic-1-retrospective: optional
