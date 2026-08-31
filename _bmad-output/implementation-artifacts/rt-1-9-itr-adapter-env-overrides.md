@@ -4,7 +4,7 @@ baseline_commit: 455a352bdfeb5e3cbed56de8875c594aedb2e2ba
 
 # Story 1.9: itr adapter with env overrides
 
-Status: review
+Status: done
 
 ## Story
 
@@ -193,6 +193,21 @@ muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 - Updated `ports/icon_renderer.py` to `Path`-based signature for consistency with `csg`/`weg` ports; layering allows `pathlib` in ports.
 - Container forwarding documented: adapter only sets host env, `itr` forwards into `RunConfig` via `oci_runtime`.
 - Defenses: null-byte checks, symlink checks, `type(timeout) is int` strict, `palette_hash` hex validation via `_validate_hex64`, empty dir sentinel, `FileExistsError` wrapping, signal handling, 2 KiB stderr / 500 stdout truncation.
+
+### Review Findings
+
+#### Patch
+
+- [x] [Review][Patch] Palette cache dir resolution logic has overlapping heuristics and dead code [itr_adapter.py:396-439]
+- [x] [Review][Patch] Integration test source_palette_hash assertion uses OR logic — always passes [test_itr_adapter_integration.py:975]
+- [x] [Review][Patch] PermissionError from itr re-raised as FileNotFoundError — wrong error type [itr_adapter.py:509]
+- [x] [Review][Patch] Test timeout accepts both TimeoutError and RuntimeError — masks regressions [test_itr_adapter.py:1324]
+- [x] [Review][Patch] Ruff format violation in adapter file [itr_adapter.py]
+
+#### Defer
+
+- [x] [Review][Defer] CsgAdapter silently swallows OSError on symlink check — pre-existing [csg_adapter.py:104-106] — deferred, pre-existing
+- [x] [Review][Defer] Private `_validate_hex64` imported externally from itr_adapter — architectural [itr_adapter.py:243] — deferred, architectural pattern shared with CsgAdapter/WegAdapter
 
 ### File List
 

@@ -283,3 +283,8 @@
 - Unbounded `capture_output` buffers entire stdout/stderr in RAM — `weg` verbose catalog could OOM; no `MAX_BUFFER`. Copied from CsgAdapter, pre-existing — deferred, revisit with streaming [src/runtime/src/runtime/adapters/weg_adapter.py:267]
 - Concurrent `generate` to same `output_dir` races `mkdir→rglob→hash_file` — no file lock; but `populate_via_staging` caller owns atomicity per docstring, so out-of-scope for adapter — deferred [src/runtime/src/runtime/adapters/weg_adapter.py:228-343]
 - Copy-paste divergence from `csg_adapter.py` — 90% validation/mkdir/error logic duplicated without shared helper; drift risk but not a bug for this story — deferred as tech-debt [src/runtime/src/runtime/adapters/weg_adapter.py:88-106]
+
+## Deferred from: code review of rt-1-9-itr-adapter-env-overrides (2026-08-30)
+
+- CsgAdapter silently swallows OSError on symlink check (fail-open vs ItrAdapter's fail-closed) — pre-existing, not caused by this change [src/runtime/src/runtime/adapters/csg_adapter.py:104-106]
+- Private `_validate_hex64` imported externally from itr_adapter — architectural pattern shared with CsgAdapter/WegAdapter; consider making public or inlining [src/runtime/src/runtime/adapters/itr_adapter.py:243]
