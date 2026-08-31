@@ -3,7 +3,7 @@ baseline_commit: 0ee0b4689641af97b9160b11adda2010dff83ccc
 ---
 # Story 1.11: First-run self-seeding
 
-Status: review
+Status: done
 
 ## Story
 
@@ -302,3 +302,35 @@ mimo-v2.5-free
 ### Change Log
 
 - 2026-08-31: Initial implementation of first-run self-seeding (Story 1.11)
+- 2026-08-31: Code review remediation — fixed adapter staging/meta.json contract (palette/effects/icons now seed for real), palette hard-dependency policy, idempotent hardlink, real hashes end-to-end, ISeedMutex single-flight seeding, loud CLI failure surfacing, absolute path resolution, O_NOFOLLOW + full-write loop on history, tmp-symlink cleanup, contract-honest tests. Status → done.
+
+### Review Findings
+
+#### Decision Needed
+- [x] [Review][Decision→Resolved] Seeding failure policy for CSG/WEG/ITR — RESOLVED: palette is a hard dependency (fail loudly); effects/icons degrade gracefully with warning — when palette/effects/icons generation fails, seeding currently "succeeds" with `palette: null` in current.json and no consumer symlinks, silently. Decide: fail loudly (abort seed) vs degrade gracefully with a visible warning. [seed_cache.py:221-234, seeder.py:478-495]
+- [x] [Review][Decision→Resolved] Concurrent first-run seeding — RESOLVED: dedicated ISeedMutex port + FlockSeedMutex adapter (flock, crash-safe), double-checked load_current, PID-aware staging sweep — no lock exists; two simultaneous CLI invocations both observe `load_current() -> None` and both seed (duplicate history lines, racing symlinks), and `populate_via_staging`'s orphan sweep deletes live sibling staging dirs of the other process. Decide: add a lockfile now vs defer to Phase 2. [seed_cache.py:99, cache.py:173-179]
+- [x] [Review][Decision→Resolved] Corrupt/incompatible current.json blocks self-seeding — RESOLVED: fail loudly (propagate to CLI error log with repair hint) — `load_current()` raises ValueError/RuntimeError on corrupt JSON / wrong schema_version instead of returning None; seeding then never runs and the failure is swallowed at debug level. Decide: quarantine bad file + reseed vs fail loudly. [seed_cache.py:99, json_state_repository.py:117-163]
+
+#### Patch
+- [x] [Review][Patch] Real adapters reject staging dir and never write meta.json — palette/effects/icons seeding always fails in production: adapters validate `output_dir.name == expected_hash` (staging dir is `.staging-*` → ValueError, which also escapes the catch set), and `populate_via_staging` requires meta.json no adapter writes. Result: silent wallpaper-only seed. [seed_cache.py:216-320, cache.py:192-195, csg_adapter.py:109]
+- [x] [Review][Patch] Re-seed permanently blocked after partial first run — `hardlink_or_copy` raises FileExistsError when cache entry exists (crash between hardlink and save); make idempotent (verify hash, skip if match). [seeder.py:105, cache.py:136-142]
+- [x] [Review][Patch] Sentinel "0"*64 hashes persisted in current.json — real computed hashes (template_set_hash, artifact_hashes) are computed then discarded; state contradicts adjacent meta.json. Use the real values. [seed_cache.py:337-384]
+- [x] [Review][Patch] CLI swallows all seeding failures at debug level with no logging configured — plus spec-mandated pre-construction validation of default.png missing (Task 3). Log at warning+, validate before constructing. [cli/main.py:96-101]
+- [x] [Review][Patch] WallpaperEntry.source_path deviates from spec-mandated "" — machine-specific absolute path written into current.json. [seed_cache.py:131]
+- [x] [Review][Patch] CacheSeeder hard-constructed instead of injected — application layer imports concrete adapter; docstring/checkbox claim injection. [seed_cache.py:26-27,80]
+- [x] [Review][Patch] os.replace failure leaks tmp symlink — no try/finally unlink; also fails unrecoverably when target path exists as real directory. [seeder.py:49-50]
+- [x] [Review][Patch] Relative XDG_STATE_HOME / install spine → dangling symlinks and CWD-dependent template discovery — resolve both to absolute once at composition root. [cli/main.py:38-47, seed_cache.py:396-415]
+- [x] [Review][Patch] os.write partial-write not looped — torn JSONL line possible; fsync OSError unhandled. [seeder.py:538-543]
+- [x] [Review][Patch] Artifact hash maps keyed by basename — duplicate basenames in subdirs silently overwrite; key by relative_to. [seed_cache.py:260-262,309-311]
+- [x] [Review][Patch] history.jsonl append lacks O_NOFOLLOW — inconsistent with current.json symlink hardening. [seeder.py:339]
+- [x] [Review][Patch] PEP 758 unparenthesized multi-except reads as broken Python 2 — parenthesize `(FileNotFoundError, RuntimeError, OSError)`. [seed_cache.py:235,270,320]
+- [x] [Review][Patch] Spec-named tests missing/weakened — no test verifies palette cache end-to-end; "atomic" tests assert nothing atomic; symlink-target assertions only cover wallpaper. [test_seed_cache.py:1654-1693]
+- [x] [Review][Patch] Dead `factory` param satisfied by type-ignore stub — make stub faithful to the port ABC or document. [cli/main.py:1116-1128]
+- [x] [Review][Patch] Story checkboxes assert false things — "injected via constructor" [x], "validate before constructing" [x], sprint-status header comment mismatch. [story file, sprint-status.yaml]
+- [x] [Review][Patch] .csg_determinism.json test churn committed — revert tracked file; stop tests from rewriting it. [tests/integration/.csg_determinism.json]
+
+#### Deferred
+- [x] [Review][Defer] Hardlink alias to mutable provisioning file — hash-addressing invariant depends on provisioning never editing default.png in place [seeder.py:286-305] — deferred, pre-existing design
+- [x] [Review][Defer] CSG raw-output nondeterminism — colors.yaml differs between runs (normalized hash matches) [tests/integration/.csg_determinism.json] — deferred, pre-existing
+- [x] [Review][Defer] Duplicated fake adapters across unit/integration suites encode the meta.json contract violation twice [test_seed_cache.py / test_seed_cache_integration.py] — deferred, pre-existing
+- [x] [Review][Defer] Template discovery couples runtime to dev-repo layout (walks ancestors for src/cli-tools/...) — revisit when provisioning publishes templates properly [seed_cache.py:396-500] — deferred, pre-existing design

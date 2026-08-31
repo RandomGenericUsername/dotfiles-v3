@@ -295,3 +295,10 @@
 - `..` traversal check bypassable via symlinked parent — state_root is trusted input (tests inject tmp_path); production callers resolve before injection [src/runtime/src/runtime/adapters/json_state_repository.py:103]
 - `Path.home()` can raise `RuntimeError` in containers — extreme edge case, caught at constructor time [src/runtime/src/runtime/adapters/json_state_repository.py:94]
 - Extra keys in projection/monitor dicts silently accepted — defense-in-depth; not harmful since _state_to_dict produces known shapes [src/runtime/src/runtime/adapters/json_state_repository.py:220-226,287-299]
+
+## Deferred from: code review of rt-1-11-first-run-self-seeding (2026-08-31)
+
+- Hardlink alias to mutable provisioning file — cache/wallpapers/<hash>/wallpaper.png is hardlinked to install_spine/generated/default.png; if provisioning ever mutates default.png in place, the cache entry's content diverges from its directory-name hash. AD-16 mandated; relies on provisioning discipline. [src/runtime/src/runtime/adapters/seeder.py:286-305]
+- CSG raw-output nondeterminism — .csg_determinism.json records colors.yaml hashes differing between run1/run2 (normalized hash matches); any consumer relying on raw artifact hash stability across regenerations is affected. [src/runtime/tests/integration/.csg_determinism.json]
+- Duplicated fake adapters (_FakeCsg/_FakeWeg/_FakeItr/_FakeFactory) copy-pasted across unit and integration suites, encoding the meta.json-less generate contract in both. Shared conftest fixture recommended. [src/runtime/tests/unit/test_seed_cache.py, src/runtime/tests/integration/test_seed_cache_integration.py]
+- Template discovery couples runtime to dev-repo layout — walks install_spine ancestors for src/cli-tools/... (never exists in production XDG layout); silently binds dev behavior to whatever checkout sits in an ancestor dir. [src/runtime/src/runtime/application/seed_cache.py:396-500]
