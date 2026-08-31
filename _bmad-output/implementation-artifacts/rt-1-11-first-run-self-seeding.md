@@ -1,6 +1,9 @@
+---
+baseline_commit: 0ee0b4689641af97b9160b11adda2010dff83ccc
+---
 # Story 1.11: First-run self-seeding
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -22,9 +25,9 @@ so that I never perform manual seeding steps.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — Create `application/seed_cache.py` SeedCacheUseCase (AC: 1, 2, 3, 4, 5)
-  - [ ] **Location: `src/runtime/src/runtime/application/seed_cache.py`** (use-case layer, mirrors `ApplyWallpaperUseCase` location per AD-13)
-  - [ ] Class `SeedCacheUseCase` with constructor receiving ports:
+- [x] Task 1 — Create `application/seed_cache.py` SeedCacheUseCase (AC: 1, 2, 3, 4, 5)
+  - [x] **Location: `src/runtime/src/runtime/application/seed_cache.py`** (use-case layer, mirrors `ApplyWallpaperUseCase` location per AD-13)
+  - [x] Class `SeedCacheUseCase` with constructor receiving ports:
     ```python
     from runtime.ports.state_repository import IStateRepository
     from runtime.ports.color_scheme_generator import IColorSchemeGenerator
@@ -44,7 +47,7 @@ so that I never perform manual seeding steps.
             state_root: Path,          # XDG_STATE_HOME/dotfiles
         ) -> None: ...
     ```
-  - [ ] Method `run() -> None`:
+  - [x] Method `run() -> None`:
     1. Call `self.state_repo.load_current()` — if returns non-None `DesktopState`, return early (AC 4: no-op on non-first-run)
     2. Verify `install_spine / "generated"` exists; raise `RuntimeError("provisioning output not found")` if absent
     3. Find `default.png` in `install_spine / "generated"` — hash it via `hashing.hash_file()` to get `wallpaper_hash`
@@ -61,13 +64,13 @@ so that I never perform manual seeding steps.
     10. Perform swap sequence (AD-6): repoint `current/` symlinks → save via `state_repo.save(state)` → append `history.jsonl` with `trigger: seed`
     11. **Never** write under `install_spine` after seeding (AD-11)
 
-  - [ ] `history.jsonl` append logic (AD-4, AR-3):
+  - [x] `history.jsonl` append logic (AD-4, AR-3):
     - Open `state_root / "history.jsonl"` with `open(..., "a", encoding="utf-8")`
     - Write one JSON line: `{"ts": <ISO Z>, "trigger": "seed", "wallpaper": <wh>, "palette": <ph|null>, "effects": <eh|null>, "icons": <ih|null>, "source_path": ""}`
     - Call `os.fsync(file.fileno())` before close to guarantee persistence
     - Atomic append via `O_APPEND` — never truncate/rewrite
 
-  - [ ] Swap sequence (AD-6, shared-data-contract):
+  - [x] Swap sequence (AD-6, shared-data-contract):
     1. Ensure all cache entries exist (via `populate_via_staging`)
     2. Repoint `current/` symlinks — each atomic (tmp symlink + `os.replace`):
        - `current/wallpaper-<monitor>.png` → `cache/wallpapers/<wh>/wallpaper.png`
@@ -80,17 +83,17 @@ so that I never perform manual seeding steps.
     4. Append `history.jsonl` (atomic O_APPEND + fsync)
     5. Trigger desktop reloads — terminal palette applier (Hyprland/AGS/Hyprpaper reload adapters deferred to Epic 2)
 
-  - [ ] Domain purity: `SeedCacheUseCase` lives in `application/` — allowed to import `ports/` and `domain/models.py`. Must NOT import `os`/`json`/`pathlib` directly (use injected `Path` objects). Adapter I/O delegated to injected ports.
+  - [x] Domain purity: `SeedCacheUseCase` lives in `application/` — allowed to import `ports/` and `domain/models.py`. Must NOT import `os`/`json`/`pathlib` directly (use injected `Path` objects). Adapter I/O delegated to injected ports.
 
-- [ ] Task 2 — Create `adapters/seeder.py` concrete seeding adapter (AC: 1, 2)
-  - [ ] **Location: `src/runtime/src/runtime/adapters/seeder.py`** (adapter layer, handles filesystem I/O for seeding)
-  - [ ] Class `CacheSeeder` responsible for:
+- [x] Task 2 — Create `adapters/seeder.py` concrete seeding adapter (AC: 1, 2)
+  - [x] **Location: `src/runtime/src/runtime/adapters/seeder.py`** (adapter layer, handles filesystem I/O for seeding)
+  - [x] Class `CacheSeeder` responsible for:
     - Copying `install_spine/generated/default.png` into `cache/wallpapers/<wh>/wallpaper.png` via `hardlink_or_copy` (AD-16)
     - Creating `current/` directory and symlinks (atomic tmp + `os.replace`)
     - Populating cache entries by invoking CSG/WEG/ITR adapters with correct env overrides (AD-7)
     - Writing `meta.json` in each cache entry with `hash_algorithm: "sha256"` and per-layer fields (shared-data-contract)
 
-  - [ ] Symlink repoint pattern (AD-6):
+  - [x] Symlink repoint pattern (AD-6):
     ```python
     def _repoint_symlink(current_path: Path, target: Path) -> None:
         """Atomic symlink repoint: create tmp symlink, os.replace."""
@@ -99,23 +102,23 @@ so that I never perform manual seeding steps.
         os.replace(str(tmp), str(current_path))
     ```
 
-  - [ ] `meta.json` schemas (shared-data-contract):
+  - [x] `meta.json` schemas (shared-data-contract):
     - `cache/wallpapers/<wh>/meta.json`: `{hash_algorithm, kind: "wallpaper", content_hash, source_path, imported_at}`
     - `cache/palettes/<ph>/meta.json`: `{hash_algorithm, kind: "palette", entry_hash, source_wallpaper_hash, input_template_hash, artifact_hashes: {colors.yaml, colors.conf, colors.gtk.css}, generated_at}`
     - `cache/effects/<eh>/meta.json`: `{hash_algorithm, kind: "effects", entry_hash, source_wallpaper_hash, input_catalog_hash, artifact_hashes: {<filename>.png}, generated_at}`
     - `cache/icons/<ih>/meta.json`: `{hash_algorithm, kind: "icons", entry_hash, source_palette_hash, input_templates_hash, input_mappings_hash, artifact_hashes: {<name>.svg}, generated_at}`
 
-- [ ] Task 3 — Wire into CLI composition root (AC: 1)
-  - [ ] Add seeding hook to `cli/main.py`: on app startup (before any command), instantiate `SeedCacheUseCase` and call `run()` if needed
-  - [ ] Implement `_resolve_install_spine() -> Path` in `cli/main.py`:
+- [x] Task 3 — Wire into CLI composition root (AC: 1)
+  - [x] Add seeding hook to `cli/main.py`: on app startup (before any command), instantiate `SeedCacheUseCase` and call `run()` if needed
+  - [x] Implement `_resolve_install_spine() -> Path` in `cli/main.py`:
     1. Check `$DOTFILES_INSTALL_SPINE` env var (explicit override)
     2. Fallback: `$XDG_DATA_HOME/dotfiles` (default `~/.local/share/dotfiles`)
     3. Validate `install_spine / "generated" / "default.png"` exists before constructing `SeedCacheUseCase`
-  - [ ] Composition root pattern: inject all ports/adapters via constructor; no `import os` in domain
-  - [ ] Seeding runs in a `@app.callback()` or before-command hook so it fires on any CLI invocation
+  - [x] Composition root pattern: inject all ports/adapters via constructor; no `import os` in domain
+  - [x] Seeding runs in a `@app.callback()` or before-command hook so it fires on any CLI invocation
 
-- [ ] Task 4 — Tests: unit + integration (AC: 1, 2, 3, 4, 5)
-  - [ ] **Unit tests** (`tests/unit/test_seed_cache.py`):
+- [x] Task 4 — Tests: unit + integration (AC: 1, 2, 3, 4, 5)
+  - [x] **Unit tests** (`tests/unit/test_seed_cache.py`):
     | Test | Inputs | Expectation |
     |---|---|---|
     | `test_seeding_skipped_when_current_exists` | `load_current()` returns non-None `DesktopState` | `run()` returns early, no cache writes, no history append |
@@ -128,14 +131,14 @@ so that I never perform manual seeding steps.
     | `test_nothing_written_to_install_spine` | Seeding completes | `install/generated/` unmodified (no write under install spine) |
     | `test_idempotent_second_run` | Run `seed.run()` twice | Second run is no-op (current.json exists), no duplicate cache entries |
 
-  - [ ] **Integration tests** (`tests/integration/test_seed_cache_integration.py`):
+  - [x] **Integration tests** (`tests/integration/test_seed_cache_integration.py`):
     - Real filesystem with `tmp_path`, real `JsonStateRepository`, mock CSG/WEG/ITR adapters
     - End-to-end: absent `current.json` → `seed.run()` → verify `current.json` written + `current/` symlinks resolve + `history.jsonl` has seed line
 
-  - [ ] Fixtures: reuse `tests/fixtures/wallpaper.png` (74 bytes `619cd350...`), `hashing.hash_file` for wallpaper hash, `BackendType.hyprpaper`, `FitMode.cover`, `datetime.now(UTC)` strict `Z`
+  - [x] Fixtures: reuse `tests/fixtures/wallpaper.png` (74 bytes `619cd350...`), `hashing.hash_file` for wallpaper hash, `BackendType.hyprpaper`, `FitMode.cover`, `datetime.now(UTC)` strict `Z`
 
-- [ ] Task 5 — Ensure zero layering debt and full green (AC: 5)
-  - [ ] Run and require green:
+- [x] Task 5 — Ensure zero layering debt and full green (AC: 5)
+  - [x] Run and require green:
     ```bash
     uv run --directory src/runtime pytest -q
     uv run --directory src/runtime pytest tests/architecture/test_layering.py -v
@@ -146,8 +149,8 @@ so that I never perform manual seeding steps.
     uv run --directory src/runtime mypy --strict src/runtime/application/seed_cache.py
     uv run --directory src/runtime mypy --strict src/runtime/adapters/seeder.py
     ```
-  - [ ] Domain stays pure: `application/seed_cache.py` imports only `ports/` and `domain/models.py`; no `os`/`json`/`pathlib` I/O in domain
-  - [ ] Cross-package boundary: no imports from `provisioning`, `core`, `config_assembler_engine`, etc. (AD-15)
+  - [x] Domain stays pure: `application/seed_cache.py` imports only `ports/` and `domain/models.py`; no `os`/`json`/`pathlib` I/O in domain
+  - [x] Cross-package boundary: no imports from `provisioning`, `core`, `config_assembler_engine`, etc. (AD-15)
 
 ## Dev Notes
 
@@ -270,8 +273,32 @@ def _resolve_install_spine() -> Path:
 
 ### Agent Model Used
 
+mimo-v2.5-free
+
 ### Debug Log References
+
+- All 171 tests pass (21 new tests added)
+- Lint: ruff check passes on new files
+- Typecheck: mypy --strict passes on new files
+- Layering: all 45 layering tests pass
 
 ### Completion Notes List
 
+- Created `adapters/seeder.py` (CacheSeeder): hardlink_wallpaper, write_*_meta, repoint_current_symlinks, append_history
+- Created `application/seed_cache.py` (SeedCacheUseCase): orchestrates first-run seeding via ports
+- Updated `cli/main.py`: added _resolve_install_spine(), _run_seed_if_needed() in callback
+- Created `tests/unit/test_seed_cache.py`: 18 unit tests covering AC 1-5
+- Created `tests/integration/test_seed_cache_integration.py`: 3 integration tests
+- All acceptance criteria satisfied
+
 ### File List
+
+- src/runtime/src/runtime/application/seed_cache.py (NEW)
+- src/runtime/src/runtime/adapters/seeder.py (NEW)
+- src/runtime/src/runtime/cli/main.py (MODIFIED)
+- src/runtime/tests/unit/test_seed_cache.py (NEW)
+- src/runtime/tests/integration/test_seed_cache_integration.py (NEW)
+
+### Change Log
+
+- 2026-08-31: Initial implementation of first-run self-seeding (Story 1.11)
