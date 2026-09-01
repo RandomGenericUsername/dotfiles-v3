@@ -1,5 +1,6 @@
 import GLib from "gi://GLib?version=2.0"
 import { createState } from "ags"
+import { Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 
@@ -54,6 +55,8 @@ export function RecordingIndicator() {
         <image
           pixel_size={16}
           class="recording-icon"
+          halign={Gtk.Align.CENTER}
+          valign={Gtk.Align.CENTER}
           $={(self) => {
             state((value) => self.set_from_file(iconPath(value === "recording" ? "pause" : "play")))
           }}
@@ -67,6 +70,8 @@ export function RecordingIndicator() {
         <image
           pixel_size={16}
           class="recording-icon"
+          halign={Gtk.Align.CENTER}
+          valign={Gtk.Align.CENTER}
           $={(self) => self.set_from_file(iconPath("stop"))}
         />
       </button>

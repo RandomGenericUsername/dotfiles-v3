@@ -145,18 +145,20 @@ window#capture-window > box {
 }
 
 .recording-widget {
-  padding: 0 12px;
-  border-radius: 999px;
-  background-color: @color_01;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
   color: @color_foreground;
 }
 
 .recording-widget.paused {
-  background-color: @color_02;
+  background-color: transparent;
 }
 
 .recording-widget.recording {
-  background-color: alpha(@color_03, 0.8);
+  background-color: transparent;
 }
 
 .recording-controls {
@@ -174,5 +176,5 @@ window#capture-window > box {
 }
 
 .recording-widget.stop {
-  background-color: @color_02;
+  background-color: transparent;
 }
