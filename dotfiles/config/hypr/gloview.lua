@@ -33,4 +33,11 @@ if gloview_loaded then
             hl.plugin.gloview.toggle()
         end,
     })
+
+    -- Three-finger swipe down dismisses an open overview; otherwise it is a no-op.
+    hl.gesture({
+        fingers = 3,
+        direction = "down",
+        action = hl.plugin.gloview.close,
+    })
 end
