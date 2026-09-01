@@ -16,7 +16,10 @@
 #   5. settings render and parse    → settings files exist AND spine targets
 #      resolve AND csg/weg/itr gates exit 0
 #   6. default palette generated    → generated/palettes/{colors.conf,
-#      colors.yaml, colors.gtk.css}
+#      colors.yaml, colors.gtk.css} OR the runtime-consumed palette at
+#      <state>/dotfiles/current/<file> (generated OR current — Story 1.12
+#      relaxes criterion 6 so verify no longer hard-fails on a post-runtime
+#      machine; a dangling runtime symlink still fails)
 #   7. compositor configs placed    → skeletons + hypr/colors.conf +
 #      ags/colors.css
 #   8. filesystem structure exists  → XDG config/state/cache dirs
@@ -229,21 +232,37 @@
       them; run the assets playbook first
   when: not ansible_check_mode
 
-- name: Check default palette files exist
+- name: Check default palette files exist under generated/palettes
   ansible.builtin.stat:
     path: "{{ install_dir | trim }}/generated/palettes/{{ item }}"
   loop: "{{ verify_palette_files }}"
   register: verify_palette_checks
 
-- name: Assert default palette files are present
+- name: Check default palette files exist under the runtime current dir
+  ansible.builtin.stat:
+    path: "{{ verify_state_current_dir }}/{{ item }}"
+    follow: true
+  loop: "{{ verify_palette_files }}"
+  register: verify_palette_current_checks
+
+- name: Assert default palette files are present (generated OR current)
   ansible.builtin.assert:
-    that: verify_palette_checks.results | selectattr('stat.isreg') | list | length == verify_palette_files | length
+    that:
+      - verify_palette_checks.results | length == verify_palette_files | length
+      - verify_palette_current_checks.results | length == verify_palette_files | length
+      - (verify_palette_checks.results | map(attribute='stat.isreg', default=false) | list)
+        | zip(verify_palette_current_checks.results | map(attribute='stat.isreg', default=false) | list)
+        | map('max') | select | list | length == verify_palette_files | length
     fail_msg: >-
-      not every default palette file is present as a regular file under
-      {{ install_dir | trim }}/generated/palettes/ (expected colors.conf,
-      colors.yaml, colors.gtk.css — done-criterion 6). The default_palette
-      role (Story 2.7) generates them; note csg can exit 0 on a silent render
-      failure, so run the default-palette playbook and re-apply
+      not every default palette file is present as a regular file in EITHER
+      accepted location — each of colors.conf, colors.yaml, colors.gtk.css must
+      exist under {{ install_dir | trim }}/generated/palettes/ (pre-runtime;
+      the default_palette role, Story 2.7 generates them) OR under
+      {{ verify_state_current_dir }}/ (post-runtime; the runtime-consumed
+      palette, done-criterion 6 relaxed to generated OR current — Story 1.12).
+      A dangling runtime symlink (broken cache entry) also fails — the
+      filesystem is authority. Run the default-palette playbook or investigate
+      the broken runtime cache entry
   when: not ansible_check_mode
 
 - name: Check rendered icons exist

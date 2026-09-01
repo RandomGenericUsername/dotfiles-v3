@@ -40,6 +40,24 @@ compositor_configs_repo_root: "{{ playbook_dir }}/../../../.."
 #   ansible-core >= 2.24).
 compositor_configs_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
 
+# compositor_configs_xdg_state_home: the XDG state home the runtime seeder
+#   (Story 1.11) owns ($XDG_STATE_HOME, spec default ~/.local/state). The
+#   don't-clobber guard (Story 1.12) READS it for classification ONLY —
+#   provisioning never writes under $XDG_STATE_HOME/dotfiles/ (AD-5). Identical
+#   non-deprecated env-fact derivation to verify_xdg_state_home
+#   (roles/verify/vars/main.yml) / filesystem_xdg_state_home. Uses
+#   ansible_facts.env.* (NOT the deprecated top-level ansible_env fact — F4
+#   lock, hard-breaks on ansible-core >= 2.24).
+compositor_configs_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+
+# compositor_configs_state_current_dir: the runtime-owned current dir
+#   (<state>/dotfiles/current/, AD-5) whose consumer symlinks the guard
+#   protects — a fragment dest whose symlink target starts with this path (or
+#   contains /current/, covering seeder-written relative targets) is a runtime
+#   symlink and must be left untouched. Trim lock: XDG values may carry stray
+#   whitespace (Story 1.11 lesson).
+compositor_configs_state_current_dir: "{{ compositor_configs_xdg_state_home | trim }}/dotfiles/current"
+
 # compositor_configs_spine_config_dir: the config-in-spine destination root
 #   (<install>/config/). The skeletons + fragments are placed into
 #   <install>/config/{hypr,hyprpaper,ags}/; the config-links role symlinks

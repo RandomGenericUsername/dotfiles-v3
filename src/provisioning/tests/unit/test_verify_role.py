@@ -482,6 +482,72 @@ class TestVerifyTasks:
                     "ansible_check_mode (bootstrap --check cleanliness)"
                 )
 
+    def test_criterion_6_accepts_generated_or_current(self) -> None:
+        """Criterion 6 (Story 1.12 AC 4): the palette gate stats BOTH candidate
+        locations per file — generated/palettes/<file> (pre-runtime) AND
+        {{ verify_state_current_dir }}/<file> (post-runtime) — and one
+        check-gated assert accepts the OR per file. The current-dir stat sets
+        `follow: true` EXPLICITLY: the installed ansible-core's stat module
+        defaults follow to FALSE (verified against the argument spec — the
+        story's Dev Notes assumed otherwise), so only an explicit follow
+        resolves a healthy runtime symlink chain
+        (current/colors.conf -> cache/palettes/<ph>/colors.conf) to isreg,
+        while a DANGLING runtime symlink correctly fails (filesystem is
+        authority, NFR-3)."""
+        gen = next(
+            (t for t in _stat_tasks() if t.get("register") == "verify_palette_checks"),
+            None,
+        )
+        cur = next(
+            (t for t in _stat_tasks() if t.get("register") == "verify_palette_current_checks"),
+            None,
+        )
+        assert gen is not None, "missing the generated/palettes stat loop (criterion 6)"
+        assert cur is not None, (
+            "missing the runtime current-dir stat loop (criterion 6 OR-leg, Story 1.12)"
+        )
+        assert "generated/palettes" in str(_module(gen).get("path", ""))
+        assert "{{ verify_palette_files }}" in str(gen.get("loop", ""))
+        assert "{{ verify_state_current_dir }}" in str(_module(cur).get("path", "")), (
+            "the OR-leg must stat {{ verify_state_current_dir }}/<file>"
+        )
+        assert "{{ verify_palette_files }}" in str(cur.get("loop", ""))
+        assert _module(cur).get("follow") is True, (
+            "the current-dir stat must pass follow: true EXPLICITLY (the stat "
+            "module defaults follow to False in the installed ansible-core — a "
+            "healthy runtime symlink chain must resolve to isreg; a dangling "
+            "link must fail)"
+        )
+
+        assert_task = next(
+            (
+                t
+                for t in _assert_tasks()
+                if "verify_palette_checks" in str(_module(t).get("that", ""))
+                and "verify_palette_current_checks" in str(_module(t).get("that", ""))
+            ),
+            None,
+        )
+        assert assert_task is not None, (
+            "expected ONE assert consuming BOTH criterion-6 registers (the per-file OR)"
+        )
+        that = str(_module(assert_task).get("that", ""))
+        assert "zip" in that, (
+            "the assert must pair the two per-file result lists (zip) so the OR "
+            "is evaluated per file, not across the whole set"
+        )
+        assert "map(attribute='stat.isreg', default=false)" in that, (
+            "the assert must map stat.isreg with a default (absent on missing "
+            "paths — a bare selectattr would break the pairing)"
+        )
+        assert assert_task.get("when") == "not ansible_check_mode", (
+            "the criterion-6 assert must be check-gated (state assert discipline)"
+        )
+        fail_msg = str(_module(assert_task).get("fail_msg", ""))
+        assert "generated/palettes" in fail_msg and "verify_state_current_dir" in fail_msg, (
+            "fail_msg must enumerate BOTH accepted locations"
+        )
+
     def test_settings_parse_gate_tasks_exist_and_are_check_gated(self) -> None:
         """AC 3: the three settings parse-gate command tasks (csg info / weg
         info / itr list) exist, are `ansible.builtin.command`, and are gated
@@ -755,6 +821,7 @@ class TestVerifyTasks:
         seam_vars = (
             "verify_xdg_config_home",
             "verify_xdg_state_home",
+            "verify_state_current_dir",
             "verify_xdg_cache_home",
             "verify_xdg_dirs",
             "verify_install_spine_dirs",
@@ -792,6 +859,7 @@ class TestVerifyVars:
         "verify_settings_files",
         "verify_settings_spine_keys",
         "verify_palette_files",
+        "verify_state_current_dir",
         "verify_compositor_config_dirs",
         "verify_compositor_skeleton_files",
         "verify_compositor_fragments",
@@ -922,8 +990,11 @@ class TestVerifyVars:
         )
 
     def test_palette_files_match_chain_formats(self) -> None:
-        """Criterion 6: the palette files check is exactly the three chain
-        formats (conf/gtk.css/yaml) — NOT json/sh (no Phase 1 consumer)."""
+        """Criterion 6 (Story 1.12 relaxed to generated OR current): the
+        palette files check is exactly the three chain formats
+        (conf/gtk.css/yaml) — NOT json/sh (no Phase 1 consumer). The list is
+        shared by BOTH criterion-6 candidate locations (generated/palettes/
+        and the runtime current dir)."""
         data = _vars()
         assert [str(f) for f in data["verify_palette_files"]] == [
             "colors.conf",
@@ -934,6 +1005,18 @@ class TestVerifyVars:
         assert {str(f"colors.{fmt}") for fmt in palette_formats} == {
             str(f) for f in data["verify_palette_files"]
         }, "verify_palette_files must match default_palette_formats (conf/gtk.css/yaml) as a set"
+
+    def test_state_current_dir_derived_from_verify_xdg_state_home(self) -> None:
+        """Story 1.12 AC 4: verify_state_current_dir is <state>/dotfiles/
+        current (AD-5) DERIVED from the existing verify_xdg_state_home var —
+        no duplicate XDG resolution may be introduced."""
+        data = _vars()
+        value = str(data["verify_state_current_dir"])
+        assert value == "{{ verify_xdg_state_home | trim }}/dotfiles/current", (
+            "verify_state_current_dir must derive from verify_xdg_state_home "
+            "(trim lock) — never a second ansible_facts.env.XDG_STATE_HOME read"
+        )
+        assert "ansible_facts.env.XDG_STATE_HOME" not in value
 
     def test_cli_tools_are_csg_weg_itr(self) -> None:
         data = _vars()
@@ -962,6 +1045,7 @@ class TestVerifyVars:
         seam_vars = (
             "verify_xdg_config_home",
             "verify_xdg_state_home",
+            "verify_state_current_dir",
             "verify_xdg_cache_home",
             "verify_xdg_dirs",
             "verify_install_spine_dirs",
@@ -1183,6 +1267,73 @@ class TestVerifyRuntime:
                 "verify must FAIL when a rendered settings file references a "
                 "MISSING spine path (parse ≠ works — the gate reads the "
                 "rendered files, not a static list); recap:\n" + result.stdout
+            )
+
+    def test_verify_criterion_6_accepts_runtime_current_palette(self) -> None:
+        """Story 1.12 AC 4: on a post-runtime machine where the palette was
+        consumed into $XDG_STATE_HOME/dotfiles/current/ (a runtime symlink
+        chain into the cache), criterion 6 must PASS via the current/ leg even
+        with generated/palettes/colors.conf gone — and must FAIL again when
+        NEITHER location holds the file (negative lock: the gate is not
+        vacuous). The current/ file is created as a SYMLINK chain through the
+        state cache so the explicit follow: true resolution is exercised."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+
+            bin_dir = _write_stub_binaries(home)
+            _build_provisioned_layout(home, xdg, install)
+
+            state_root = home / ".local" / "state" / "dotfiles"
+            cache_palette = state_root / "cache" / "palettes" / "abc123"
+            cache_palette.mkdir(parents=True)
+            (cache_palette / "colors.conf").write_text("$background = 0x000000\n")
+            state_current = state_root / "current"
+            state_current.mkdir(parents=True)
+            (state_current / "colors.conf").symlink_to(cache_palette / "colors.conf")
+            (install / "generated" / "palettes" / "colors.conf").unlink()
+
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+            )
+
+            def run() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [
+                        ansible_playbook,
+                        str(self._PATH),
+                        "-e",
+                        f"install_dir={install}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=120,
+                )
+
+            post_runtime = run()
+            assert post_runtime.returncode == 0, (
+                "verify must PASS on a post-runtime machine where the palette "
+                "was consumed into state_root/current (criterion 6 generated OR "
+                "current, Story 1.12); recap:\n" + post_runtime.stdout
+            )
+
+            (state_current / "colors.conf").unlink()
+            no_palette = run()
+            assert no_palette.returncode != 0, (
+                "verify must FAIL when a palette file exists in NEITHER "
+                "generated/palettes/ nor state_root/current/ (negative lock — "
+                "the OR-relaxation is not vacuous); recap:\n" + no_palette.stdout
             )
 
     def test_verify_fails_when_not_provisioned(self) -> None:

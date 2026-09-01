@@ -43,6 +43,15 @@
 #   copy's checksums: unchanged content reports ok / changed: false. Ansible is
 #   the state authority (NFR-1): a changed source propagates on the next apply.
 #   NO `creates:` — a gate would freeze a stale copy.
+# - Don't-clobber tripwire (Story 1.12): a dir-copy cannot skip individual
+#   files and excluding a whole dir would freeze a stale copy, so before the
+#   copy an UNGATED `find` scan (file_type: link, recurse: true) looks for
+#   palette-format symlinks (config_copies_guard_patterns) inside each managed
+#   dest and a check-gated assert FAILS LOUD on any hit. Provisioning never
+#   creates such links (the runtime consumer flips target compositor_configs
+#   paths only), so any hit is drift that the recursive copy would clobber.
+#   The runtime consumer targets compositor_configs paths; this tripwire is
+#   the invariant guard for the dirs it does NOT manage.
 # - The copy task needs NO `when: not ansible_check_mode` gate: the copy module
 #   has FULL check-mode support (predicts changed, writes nothing) — verified
 #   against ansible-core 2.20.3.
@@ -103,6 +112,26 @@
     path: "{{ config_copies_spine_config_dir }}/{{ item.target }}"
     state: directory
   loop: "{{ config_copies_entries }}"
+
+- name: Find palette-format symlinks inside managed copy destinations
+  ansible.builtin.find:
+    paths: "{{ config_copies_spine_config_dir }}/{{ item.target }}"
+    file_type: link
+    recurse: true
+    patterns: "{{ config_copies_guard_patterns }}"
+  loop: "{{ config_copies_entries }}"
+  register: config_copies_runtime_link_scan
+
+- name: Assert no palette symlinks would be clobbered
+  ansible.builtin.assert:
+    that:
+      - config_copies_runtime_link_scan.results | length == config_copies_entries | length
+      - config_copies_runtime_link_scan.results | map(attribute='files', default=[]) | flatten | length == 0
+    fail_msg: >-
+      palette-format symlink(s) found inside config_copies managed destinations —
+      the recursive copy (force: true) would clobber them. Runtime consumer flips
+      target compositor_configs paths only; investigate before re-applying.
+  when: not ansible_check_mode
 
 - name: Copy configs into the config-in-spine home
   ansible.builtin.copy:

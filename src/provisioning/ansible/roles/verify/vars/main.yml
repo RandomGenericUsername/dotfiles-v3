@@ -46,6 +46,14 @@
 #   ansible-core >= 2.24).
 verify_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
 verify_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+
+# verify_state_current_dir: the runtime-owned current dir (AD-5:
+#   <state>/dotfiles/current/) — done-criterion 6 (Story 1.12) accepts each
+#   palette file under generated/palettes/ (pre-runtime) OR here (post-runtime,
+#   the runtime-consumed palette). Derived from verify_xdg_state_home — NO
+#   second XDG resolution is introduced. Trim lock (stray-whitespace XDG
+#   values bit Story 1.11).
+verify_state_current_dir: "{{ verify_xdg_state_home | trim }}/dotfiles/current"
 verify_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
 
 # verify_xdg_dirs: the three XDG base dirs criterion 8 asserts exist (mirror of

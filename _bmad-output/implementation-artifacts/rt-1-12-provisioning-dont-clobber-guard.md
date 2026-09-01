@@ -3,7 +3,7 @@ baseline_commit: 7dc11e63110f27fa029f8a037f46a367c7630e47
 ---
 # Story 1.12: Provisioning don't-clobber guard
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -25,13 +25,13 @@ so that my configured wallpaper survives a `dotfiles-provision apply` re-run.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — `compositor_configs`: classify fragment destinations before copying (AC: 1, 2, 5)
-  - [ ] In `src/provisioning/ansible/roles/compositor_configs/vars/main.yml` add the state vars, mirroring the existing non-deprecated env-fact pattern (`verify_xdg_state_home`, `filesystem_xdg_state_home`):
+- [x] Task 1 — `compositor_configs`: classify fragment destinations before copying (AC: 1, 2, 5)
+  - [x] In `src/provisioning/ansible/roles/compositor_configs/vars/main.yml` add the state vars, mirroring the existing non-deprecated env-fact pattern (`verify_xdg_state_home`, `filesystem_xdg_state_home`):
     ```yaml
     compositor_configs_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
     compositor_configs_state_current_dir: "{{ compositor_configs_xdg_state_home | trim }}/dotfiles/current"
     ```
-  - [ ] In `src/provisioning/ansible/roles/compositor_configs/tasks/main.yml`, immediately BEFORE the "Place palette color fragments" task (currently L92-98), add a classification pass — stat each fragment dest with `follow: false` (read-only, safe ungated so `plan`/`--check` predicts correctly):
+  - [x] In `src/provisioning/ansible/roles/compositor_configs/tasks/main.yml`, immediately BEFORE the "Place palette color fragments" task (currently L92-98), add a classification pass — stat each fragment dest with `follow: false` (read-only, safe ungated so `plan`/`--check` predicts correctly):
     ```yaml
     - name: Classify palette fragment destinations (runtime-symlink guard)
       ansible.builtin.stat:
@@ -40,8 +40,8 @@ so that my configured wallpaper survives a `dotfiles-provision apply` re-run.
       loop: "{{ compositor_configs_fragment_copies }}"
       register: compositor_configs_fragment_stats
     ```
-  - [ ] Define "runtime symlink" classification (protected) exactly as: `stat.exists AND stat.islnk AND (stat.lnk_target is match('^' ~ compositor_configs_state_current_dir) or '/current/' in stat.lnk_target)`. The `'/current/' in` fallback covers seeder-written relative targets; `stat.follow: false` is mandatory — a plain `stat` (default `follow: true`) resolves through to the cache artifact and hides the link.
-  - [ ] Modify the "Place palette color fragments" copy task to skip protected destinations per item:
+  - [x] Define "runtime symlink" classification (protected) exactly as: `stat.exists AND stat.islnk AND (stat.lnk_target is match('^' ~ compositor_configs_state_current_dir) or '/current/' in stat.lnk_target)`. The `'/current/' in` fallback covers seeder-written relative targets; `stat.follow: false` is mandatory — a plain `stat` (default `follow: true`) resolves through to the cache artifact and hides the link.
+  - [x] Modify the "Place palette color fragments" copy task to skip protected destinations per item:
     ```yaml
     - name: Place palette color fragments
       ansible.builtin.copy:
@@ -59,12 +59,12 @@ so that my configured wallpaper survives a `dotfiles-provision apply` re-run.
                     or '/current/' in (compositor_configs_fragment_stats.results[compositor_configs_frag_idx].stat.lnk_target | default(''))))
     ```
     Use a named registered var for the classification expression (e.g. a `set_fact` of per-item `compositor_configs_frag_is_runtime_link` booleans built from the registered loop) if the inline expression becomes unreadable — prefer one readable boolean over a 9-line `when`. NOTE: the copy task's `when` becomes a LIST (check-gate + guard condition) — this breaks the exact-string test assertion (see Task 4 MUST-UPDATE items).
-  - [ ] Update the role's invariant header comment (the one `test_invariant_documented_in_task_header` checks): fragments are now "overwrite UNLESS the destination is a runtime symlink into state_root/current (don't-clobber guard, Story 1.12)".
-  - [ ] The existing fragment-source stat+assert pair (L75-90) stays unchanged. Rationale: `bootstrap.yaml` runs `default_palette` BEFORE `compositor_configs` (bootstrap.yaml L46-47), so sources exist on every apply; provisioning keeps writing `<install>/generated/palettes/` post-runtime (AD-17 "Phase-1 behavior unchanged"), so a missing source is a genuine failure in every reachable state. Do NOT add a runtime-link exemption here.
+  - [x] Update the role's invariant header comment (the one `test_invariant_documented_in_task_header` checks): fragments are now "overwrite UNLESS the destination is a runtime symlink into state_root/current (don't-clobber guard, Story 1.12)".
+  - [x] The existing fragment-source stat+assert pair (L75-90) stays unchanged. Rationale: `bootstrap.yaml` runs `default_palette` BEFORE `compositor_configs` (bootstrap.yaml L46-47), so sources exist on every apply; provisioning keeps writing `<install>/generated/palettes/` post-runtime (AD-17 "Phase-1 behavior unchanged"), so a missing source is a genuine failure in every reachable state. Do NOT add a runtime-link exemption here.
 
-- [ ] Task 2 — `config_copies`: fail-loud tripwire for runtime symlinks inside managed dirs (AC: 3, 5)
-  - [ ] In `src/provisioning/ansible/roles/config_copies/vars/main.yml`: NO new state vars — the tripwire is deliberately broader than a target-match (any palette-format symlink inside a managed copy destination fails loud; provisioning never creates such links, so this catches runtime ones and any other drift).
-  - [ ] In `src/provisioning/ansible/roles/config_copies/tasks/main.yml`, before the "Copy configs into the config-in-spine home" task (L107-112), add an ungated `ansible.builtin.find` over each managed dest dir:
+- [x] Task 2 — `config_copies`: fail-loud tripwire for runtime symlinks inside managed dirs (AC: 3, 5)
+  - [x] In `src/provisioning/ansible/roles/config_copies/vars/main.yml`: NO new state vars — the tripwire is deliberately broader than a target-match (any palette-format symlink inside a managed copy destination fails loud; provisioning never creates such links, so this catches runtime ones and any other drift).
+  - [x] In `src/provisioning/ansible/roles/config_copies/tasks/main.yml`, before the "Copy configs into the config-in-spine home" task (L107-112), add an ungated `ansible.builtin.find` over each managed dest dir:
     ```yaml
     - name: Find palette-format symlinks inside managed copy destinations
       ansible.builtin.find:
@@ -89,37 +89,37 @@ so that my configured wallpaper survives a `dotfiles-provision apply` re-run.
       when: not ansible_check_mode
     ```
     Rationale: a dir-copy cannot skip individual files, and excluding a whole dir would freeze a stale copy (explicitly rejected by the role's own design comment at tasks L39-45). Fail-loud is the only honest option; today this can never fire (no colors files under nvim/starship/wlogout/zsh) — it is a tripwire for future drift.
-  - [ ] Document the guard in the role's task header comment alongside the existing "NOT force: false" design note.
+  - [x] Document the guard in the role's task header comment alongside the existing "NOT force: false" design note.
 
-- [ ] Task 3 — `verify`: relax done-criterion 6 (AC: 4, 5)
-  - [ ] In `src/provisioning/ansible/roles/verify/tasks/main.yml` (criterion 6 block, L232-247) and `vars/main.yml` (L173-176 `verify_palette_files`): change the assert from "all three files are `isreg` under `<install>/generated/palettes/`" to "for each file, isreg under generated/palettes/ OR isreg at `<verify_xdg_state_home>/dotfiles/current/<file>`". Reuse the EXISTING `verify_xdg_state_home` var (verify vars L48) — derive `verify_state_current_dir` from it; do not introduce a second XDG resolution.
-  - [ ] Stat both candidate paths per file with default `follow: true` so a healthy runtime symlink chain (`current/colors.conf → cache/palettes/<ph>/colors.conf`) resolves to `isreg` and passes. A DANGLING runtime symlink (broken cache entry) correctly fails — the filesystem is authority (NFR-3) and verify must signal broken state.
-  - [ ] Update the fail_msg to enumerate both accepted locations.
-  - [ ] Keep the relaxed assert check-gated (`when: not ansible_check_mode`) and use UNIQUE register names for any new stat loop — `test_every_state_assert_is_check_gated` (test_verify_role.py:462-483) enforces the gate on every state assert beyond the four seam asserts, and per-test register uniqueness is an existing convention (test_verify_role.py:231-232).
-  - [ ] Keep criterion 7 (`verify_compositor_fragments` stat at tasks L418-436) UNCHANGED: default `stat` follows symlinks, so a post-runtime `<install>/config/hypr/colors.conf → current/colors.conf → cache/...` still stats `isreg`. Do not relax criterion 7 (the provisioning-delta pins only criterion 6 as relaxed).
-  - [ ] Update the done-criteria map comment in the verify tasks header (criterion 6 wording: "generated OR current palette presence").
+- [x] Task 3 — `verify`: relax done-criterion 6 (AC: 4, 5)
+  - [x] In `src/provisioning/ansible/roles/verify/tasks/main.yml` (criterion 6 block, L232-247) and `vars/main.yml` (L173-176 `verify_palette_files`): change the assert from "all three files are `isreg` under `<install>/generated/palettes/`" to "for each file, isreg under generated/palettes/ OR isreg at `<verify_xdg_state_home>/dotfiles/current/<file>`". Reuse the EXISTING `verify_xdg_state_home` var (verify vars L48) — derive `verify_state_current_dir` from it; do not introduce a second XDG resolution.
+  - [x] Stat both candidate paths per file with default `follow: true` so a healthy runtime symlink chain (`current/colors.conf → cache/palettes/<ph>/colors.conf`) resolves to `isreg` and passes. A DANGLING runtime symlink (broken cache entry) correctly fails — the filesystem is authority (NFR-3) and verify must signal broken state.
+  - [x] Update the fail_msg to enumerate both accepted locations.
+  - [x] Keep the relaxed assert check-gated (`when: not ansible_check_mode`) and use UNIQUE register names for any new stat loop — `test_every_state_assert_is_check_gated` (test_verify_role.py:462-483) enforces the gate on every state assert beyond the four seam asserts, and per-test register uniqueness is an existing convention (test_verify_role.py:231-232).
+  - [x] Keep criterion 7 (`verify_compositor_fragments` stat at tasks L418-436) UNCHANGED: default `stat` follows symlinks, so a post-runtime `<install>/config/hypr/colors.conf → current/colors.conf → cache/...` still stats `isreg`. Do not relax criterion 7 (the provisioning-delta pins only criterion 6 as relaxed).
+  - [x] Update the done-criteria map comment in the verify tasks header (criterion 6 wording: "generated OR current palette presence").
 
-- [ ] Task 4 — Tests: extend structural + integration suites (AC: 1, 2, 3, 4, 5)
-  - [ ] `src/provisioning/tests/unit/test_compositor_configs_role.py`:
-    - Add: guard classification stat-task contract (`follow: false`, loops `compositor_configs_fragment_copies`, register `compositor_configs_fragment_stats`, UNGATED — no `when`).
-    - Add: fragment copy task carries the per-item skip — `when` is now a LIST (`not ansible_check_mode` + guard condition).
-    - **MUST UPDATE** `test_fragment_sources_stat_plus_assert_pair` (L303-313): it collects EVERY stat task looping `compositor_configs_fragment_copies` and asserts per-task `register == "compositor_configs_fragment_check"` + `when == "not ansible_check_mode"` — the new classification task fails BOTH assertions. Scope its collection to register `compositor_configs_fragment_check` (the source pair) and cover the classification task via the new contract test above.
-    - **MUST UPDATE** `test_fragment_copies_carry_no_creates_and_are_check_gated` (L281-299): it asserts exact string equality `task.get("when") == "not ansible_check_mode"` (L292) — a list `when` fails this. Update to assert the `when` LIST contains the check-gate item AND the guard condition; keep the no-`creates:` assertion.
-    - Update: `test_invariant_documented_in_task_header` for the new guard wording.
-    - Update: `test_vars_use_non_deprecated_env_fact` coverage if it enumerates vars — new `XDG_STATE_HOME` var must use the same non-deprecated env-fact pattern.
-  - [ ] `src/provisioning/tests/unit/test_config_copies_role.py`:
-    - Add: find-task contract test (ungated, `file_type: link`, `recurse: true`, loops entries, patterns from vars).
-    - Add: assert-task contract test (fail-loud message, check-gated).
-    - Add: vars parity — `config_copies_guard_patterns` locked to the four colors filenames.
-  - [ ] `src/provisioning/tests/unit/test_verify_role.py`:
-    - Update: `test_palette_files_match_chain_formats` / criterion-6 locks for the OR-acceptance.
-    - Add: verify vars expose `verify_state_current_dir` derived from `verify_xdg_state_home` (no duplicate XDG resolution).
-    - Add: criterion-6 stat/assert block references both paths.
-  - [ ] Integration `test_playbook_executes_and_places_skeletons_and_fragments` (in `test_compositor_configs_role.py`):
-    - Fresh-machine path: keep existing assertions (both fragments land as regular files).
-    - Add a scenario: pre-create `<install>/config/ags/colors.css` as a symlink into a fake `<tmp>/state/dotfiles/current/colors.gtk.css` (export `XDG_STATE_HOME=<tmp>/state` in the playbook-run env), re-run the playbook, assert the symlink is UNCHANGED (`islnk`, same target) and the other fragment (`hypr/colors.conf`, absent) is still copied fresh.
-  - [ ] Extend `src/provisioning/tests/integration/test_apply_verify_container.py` — `_run_env()` already exports `XDG_STATE_HOME: /scratch/state` (L122); use it. Add a post-runtime criterion-6 scenario: after apply, create `/scratch/state/dotfiles/current/colors.conf` as a regular file, DELETE `generated/palettes/colors.conf`, re-run verify — it must pass via the `current/` leg with everything else green. And a pre-runtime negative: `generated/palettes/colors.conf` missing AND no `current/` file → criterion 6 fails.
-  - [ ] Full green gate (mirrors Story 1.11's):
+- [x] Task 4 — Tests: extend structural + integration suites (AC: 1, 2, 3, 4, 5)
+  - [x] `src/provisioning/tests/unit/test_compositor_configs_role.py`:
+    - [x] Add: guard classification stat-task contract (`follow: false`, loops `compositor_configs_fragment_copies`, register `compositor_configs_fragment_stats`, UNGATED — no `when`).
+    - [x] Add: fragment copy task carries the per-item skip — `when` is now a LIST (`not ansible_check_mode` + guard condition).
+    - [x] **MUST UPDATE** `test_fragment_sources_stat_plus_assert_pair` (L303-313): it collects EVERY stat task looping `compositor_configs_fragment_copies` and asserts per-task `register == "compositor_configs_fragment_check"` + `when == "not ansible_check_mode"` — the new classification task fails BOTH assertions. Scope its collection to register `compositor_configs_fragment_check` (the source pair) and cover the classification task via the new contract test above.
+    - [x] **MUST UPDATE** `test_fragment_copies_carry_no_creates_and_are_check_gated` (L281-299): it asserts exact string equality `task.get("when") == "not ansible_check_mode"` (L292) — a list `when` fails this. Update to assert the `when` LIST contains the check-gate item AND the guard condition; keep the no-`creates:` assertion.
+    - [x] Update: `test_invariant_documented_in_task_header` for the new guard wording.
+    - [x] Update: `test_vars_use_non_deprecated_env_fact` coverage if it enumerates vars — new `XDG_STATE_HOME` var must use the same non-deprecated env-fact pattern.
+  - [x] `src/provisioning/tests/unit/test_config_copies_role.py`:
+    - [x] Add: find-task contract test (ungated, `file_type: link`, `recurse: true`, loops entries, patterns from vars).
+    - [x] Add: assert-task contract test (fail-loud message, check-gated).
+    - [x] Add: vars parity — `config_copies_guard_patterns` locked to the four colors filenames.
+  - [x] `src/provisioning/tests/unit/test_verify_role.py`:
+    - [x] Update: `test_palette_files_match_chain_formats` / criterion-6 locks for the OR-acceptance.
+    - [x] Add: verify vars expose `verify_state_current_dir` derived from `verify_xdg_state_home` (no duplicate XDG resolution).
+    - [x] Add: criterion-6 stat/assert block references both paths.
+  - [x] Integration `test_playbook_executes_and_places_skeletons_and_fragments` (in `test_compositor_configs_role.py`):
+    - [x] Fresh-machine path: keep existing assertions (both fragments land as regular files).
+    - [x] Add a scenario: pre-create `<install>/config/ags/colors.css` as a symlink into a fake `<tmp>/state/dotfiles/current/colors.gtk.css` (export `XDG_STATE_HOME=<tmp>/state` in the playbook-run env), re-run the playbook, assert the symlink is UNCHANGED (`islnk`, same target) and the other fragment (`hypr/colors.conf`, absent) is still copied fresh.
+  - [x] Extend `src/provisioning/tests/integration/test_apply_verify_container.py` — `_run_env()` already exports `XDG_STATE_HOME: /scratch/state` (L122); use it. Add a post-runtime criterion-6 scenario: after apply, create `/scratch/state/dotfiles/current/colors.conf` as a regular file, DELETE `generated/palettes/colors.conf`, re-run verify — it must pass via the `current/` leg with everything else green. And a pre-runtime negative: `generated/palettes/colors.conf` missing AND no `current/` file → criterion 6 fails.
+  - [x] Full green gate (mirrors Story 1.11's):
     ```bash
     uv run --directory src/provisioning pytest -q
     uv run --directory src/provisioning ruff check src/provisioning
@@ -204,8 +204,37 @@ Provisioning never reads state_root today; derive it exactly like the existing v
 
 ### Agent Model Used
 
+opencode-go/glm-5.3-flash (GLM, Z.ai)
+
 ### Debug Log References
+
+- Full suite (excl. container file): 560 passed, 5 failed (ALL 5 pre-existing at baseline 7dc11e6, verified via git worktree), 1 skipped
+- Container file: 1 passed (packages --check yay proof), 2 skipped (documented honest gate: no nested engine inside the disposable target)
+- ruff check / ruff format --check / mypy --strict on src/provisioning: all green
 
 ### Completion Notes List
 
+- **Task 1 (compositor_configs):** added `compositor_configs_xdg_state_home` + `compositor_configs_state_current_dir` vars (verbatim story derivation, F4-lock env-fact pattern, trim lock); added the ungated `follow: false` destination-classification stat registering `compositor_configs_fragment_stats`; the fragment copy now loops with `loop_control.index_var: compositor_configs_frag_idx` and a LIST `when` (check-gate + inline per-item guard: exists AND islnk AND (lnk_target matches `^<state>/dotfiles/current` OR contains `/current/`), `| default('')`-defended). Fragment-source stat+assert pair untouched. Header documents the guard.
+- **Task 2 (config_copies):** added `config_copies_guard_patterns` (locked to the four colors filenames) and the ungated `find` scan (`file_type: link`, `recurse: true`) + check-gated fail-loud assert (results-parity vacuous-pass guard + `map(attribute='files', default=[]) | flatten | length == 0`) before the copy. No new state vars beyond the patterns list. Header documents the tripwire.
+- **Task 3 (verify):** criterion 6 now stats BOTH locations — generated/palettes/<file> (register `verify_palette_checks`, unchanged shape) and `<verify_state_current_dir>/<file>` (new register `verify_palette_current_checks`) — with ONE check-gated assert doing a per-file OR via `zip` + `map(attribute='stat.isreg', default=false)` + `map('max') | select`. fail_msg enumerates both accepted locations. `verify_state_current_dir` derives from the EXISTING `verify_xdg_state_home` (no second XDG read). Criterion 7 untouched. Done-criteria header map updated ("generated OR current").
+- **DELIBERATE DEVIATION (recorded decision, not an oversight):** the story's Task 3 said to stat the current-dir leg with "default `follow: true`". The installed ansible-core's `ansible.builtin.stat` argument spec has `follow=dict(type='bool', default=False)` — the default does NOT follow, so a healthy runtime symlink chain reported `isreg: false` and the first runtime test failed. Fixed by setting `follow: true` EXPLICITLY on the current-dir stat task (matches the story's stated INTENT: the healthy chain must resolve to isreg while a dangling link fails); structural lock updated accordingly. Same latent hazard exists for criterion 7's stat (out of scope, untouched, noted for review).
+- **Pre-existing baseline failures (NOT introduced by this story; verified failing identically at baseline 7dc11e6 via git worktree):** test_settings_parity.py::TestSpineChain::test_itr_color_scheme_path_points_to_csg_palette, test_settings_parity.py::TestPhase2InvocationContract::test_csg_honors_spine_templates_over_bundled (spine-marker missing from real csg output), test_yaml_manifest_reader.py::test_packages_manifest_has_verified_set (manifest set drifted), test_bootstrap_playbook.py::test_parses_as_list_of_import_playbook_entries + test_imports_in_exact_dependency_order. All outside this story's changed areas (settings/csg, packages manifest, aggregate playbook); fixing them is separate-scope work. Also fixed within a story-touched test file: the pre-existing skeleton-count failure (21 → 22: gloview.lua was added to compositor_configs_skeleton_files by the GloView commit without updating the test — skeletons are repo-authoritative, test aligned).
+- **Container integration:** new `test_criterion_6_accepts_runtime_current_palette_in_container` stages the post-runtime state via `_Target.exec_sh` (new helper) + `verify_raw` (refactor of verify), asserting the current-leg pass and the neither-location failure. Skipped honestly on this host-class (no nested engine in the disposable target); the packages --check proof ran green.
+
+### Change Log
+
+- 2026-08-31: Story 1.12 implemented — compositor_configs don't-clobber skip-guard (AC 1/2), config_copies fail-loud palette-symlink tripwire (AC 3), verify criterion 6 relaxed to generated-OR-current (AC 4); structural + integration suites extended; 5 pre-existing baseline failures documented as out-of-scope.
+
 ### File List
+
+- src/provisioning/ansible/roles/compositor_configs/tasks/main.yml
+- src/provisioning/ansible/roles/compositor_configs/vars/main.yml
+- src/provisioning/ansible/roles/config_copies/tasks/main.yml
+- src/provisioning/ansible/roles/config_copies/vars/main.yml
+- src/provisioning/ansible/roles/verify/tasks/main.yml
+- src/provisioning/ansible/roles/verify/vars/main.yml
+- src/provisioning/tests/unit/test_compositor_configs_role.py
+- src/provisioning/tests/unit/test_config_copies_role.py
+- src/provisioning/tests/unit/test_verify_role.py
+- src/provisioning/tests/integration/test_apply_verify_container.py
+

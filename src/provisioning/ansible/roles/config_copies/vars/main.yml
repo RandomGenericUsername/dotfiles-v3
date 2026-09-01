@@ -70,3 +70,17 @@ config_copies_entries:
   - { name: starship, target: starship }
   - { name: wlogout, target: wlogout }
   - { name: zsh, target: zsh }
+
+# config_copies_guard_patterns: the palette-format filenames the Story 1.12
+#   don't-clobber tripwire scans for inside managed copy destinations
+#   (tasks/main.yml find+assert pair before the copy). Deliberately BROADER
+#   than a runtime-target match: provisioning never creates palette-format
+#   symlinks under <install>/config/{nvim,starship,wlogout,zsh}/ — the runtime
+#   consumer flips target compositor_configs paths only — so ANY hit is drift
+#   (runtime link or otherwise) and must fail loud rather than be silently
+#   clobbered by the recursive copy (force: true).
+config_copies_guard_patterns:
+  - colors.conf
+  - colors.css
+  - colors.gtk.css
+  - colors.yaml

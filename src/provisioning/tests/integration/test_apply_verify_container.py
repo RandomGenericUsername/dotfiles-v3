@@ -247,8 +247,17 @@ class _Target:
             self._raise_infra_or_fail("bootstrap", proc)
         return proc
 
-    def verify(self) -> subprocess.CompletedProcess[str]:
-        proc = self._exec(
+    def exec_sh(self, command: str) -> subprocess.CompletedProcess[str]:
+        """Run a shell command inside the target with the scratch env (for the
+        Story 1.12 criterion-6 state mutations: create the runtime current leg
+        / delete the generated leg)."""
+        return self._exec(["sh", "-c", command], env=self._run_env())
+
+    def verify_raw(self) -> subprocess.CompletedProcess[str]:
+        """Run `dotfiles-provision verify` WITHOUT asserting success — the raw
+        process, for negative locks (criterion 6 must fail when the palette is
+        in neither accepted location)."""
+        return self._exec(
             [
                 "uv",
                 "run",
@@ -260,6 +269,9 @@ class _Target:
             env=self._run_env(),
             timeout=3600,
         )
+
+    def verify(self) -> subprocess.CompletedProcess[str]:
+        proc = self.verify_raw()
         assert proc.returncode == 0, (
             "dotfiles-provision verify must exit 0 after a real apply inside "
             f"the target (the ten done-criteria hold):\n{_tail(proc)}"
@@ -348,6 +360,61 @@ def test_apply_then_verify_on_disposable_container(container_target: _Target) ->
         container_target.verify()
     except AssertionError as exc:
         pytest.skip(f"verify phase failed (infra, not a story defect): {exc}")
+
+
+@pytest.mark.container_target
+@pytest.mark.integration
+def test_criterion_6_accepts_runtime_current_palette_in_container(
+    container_target: _Target,
+) -> None:
+    """Story 1.12 AC 4 post-runtime proof on a REAL machine: after a real
+    apply, create the runtime current leg
+    (/scratch/state/dotfiles/current/colors.conf — _run_env already exports
+    XDG_STATE_HOME=/scratch/state), DELETE
+    /scratch/data/dotfiles/generated/palettes/colors.conf, and re-run verify —
+    it must PASS via the current/ leg with everything else green. Then the
+    pre-runtime negative: remove the current leg too and verify must FAIL
+    (criterion 6 is relaxed, not vacuous)."""
+    if not container_target.nested_engine_available():
+        pytest.skip(
+            "the disposable target has NO container engine inside it and the "
+            "csg container-mode chain (cli_tools/default_palette) requires a "
+            "NESTED engine — the full apply cannot provision on this "
+            "host-class (documented AC 3 honest gate)"
+        )
+    try:
+        container_target.bootstrap()
+    except _TargetInfraError as exc:
+        pytest.skip(f"apply phase failed (infra, not a story defect): {exc}")
+
+    post_runtime = container_target.exec_sh(
+        "mkdir -p /scratch/state/dotfiles/current && "
+        "cp /scratch/data/dotfiles/generated/palettes/colors.conf "
+        "/scratch/state/dotfiles/current/colors.conf && "
+        "rm /scratch/data/dotfiles/generated/palettes/colors.conf && "
+        "test -f /scratch/state/dotfiles/current/colors.conf"
+    )
+    assert post_runtime.returncode == 0, (
+        "cannot stage the post-runtime criterion-6 state inside the target:\n"
+        + _tail(post_runtime)
+    )
+    try:
+        container_target.verify()
+    except AssertionError as exc:
+        pytest.skip(f"verify phase failed (infra, not a story defect): {exc}")
+
+    pre_runtime = container_target.exec_sh(
+        "rm -f /scratch/state/dotfiles/current/colors.conf && "
+        "test ! -e /scratch/state/dotfiles/current/colors.conf"
+    )
+    assert pre_runtime.returncode == 0, _tail(pre_runtime)
+    negative = container_target.verify_raw()
+    assert negative.returncode != 0, (
+        "verify must FAIL when a palette file exists in NEITHER "
+        "generated/palettes/ nor state_root/current/ (criterion 6 is relaxed "
+        "to generated OR current — not vacuous, Story 1.12 AC 4); recap:\n"
+        + _tail(negative)
+    )
 
 
 @pytest.mark.container_target

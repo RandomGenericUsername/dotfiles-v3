@@ -210,9 +210,9 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        assert len(files) == 21, (
-            f"expected exactly 21 skeleton files "
-            f"(hyprland.lua + 9 hypr modules/hyprpaper.conf/ags app.tsx+style.css+icons.json+icon-registry+Bar.tsx+5 widgets); found {len(files)}"
+        assert len(files) == 22, (
+            f"expected exactly 22 skeleton files "
+            f"(hyprland.lua + gloview.lua + 8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+icons.json+icon-registry+Bar.tsx+5 widgets); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -231,6 +231,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/hypr/cursor.lua",
             "dotfiles/config/hypr/decoration.lua",
             "dotfiles/config/hypr/env-variables.lua",
+            "dotfiles/config/hypr/gloview.lua",
             "dotfiles/config/hypr/hyprland.lua",
             "dotfiles/config/hypr/input.lua",
             "dotfiles/config/hypr/keybindings.lua",
@@ -281,29 +282,96 @@ class TestCompositorConfigsTasks:
     def test_fragment_copies_carry_no_creates_and_are_check_gated(self) -> None:
         """AC 5/6 + dry-run-must-be-dry: the fragment copy task carries NO
         `creates:` (a gate would freeze a stale fragment and break the Phase 2
-        overwrite contract) and is gated `when: not ansible_check_mode` (under
-        --check the default_palette generate is skipped so the sources may be
-        absent)."""
+        overwrite contract) and its `when` is a LIST of exactly the check-gate
+        item AND the don't-clobber guard condition (Story 1.12): under --check
+        the default_palette generate is skipped so the sources may be absent,
+        and a runtime-owned symlink destination must be skipped per item."""
         task = _fragment_copy_task()
         assert _creates_value(task) is None, (
             f"fragment copy task {task.get('name')!r} must not carry creates: "
             "(AC 5 — fragments are the overwrite candidates)"
         )
-        assert task.get("when") == "not ansible_check_mode", (
-            "fragment copies must be gated when: not ansible_check_mode "
-            "(sources may be absent under --check)"
+        when = task.get("when")
+        assert isinstance(when, list) and len(when) == 2, (
+            "fragment copy when must be a LIST of [check-gate, guard condition] "
+            "(Story 1.12 don't-clobber guard)"
+        )
+        assert when[0] == "not ansible_check_mode", (
+            "first when item must be the check-gate (sources may be absent under --check)"
+        )
+        guard = str(when[1])
+        assert "compositor_configs_fragment_stats" in guard, (
+            "guard condition must consume the classification register"
+        )
+        assert "stat.exists" in guard and "stat.islnk" in guard, (
+            "guard condition must classify on exists AND islnk"
+        )
+        assert "lnk_target" in guard, (
+            "guard condition must match the raw symlink target"
+        )
+        assert "compositor_configs_state_current_dir" in guard, (
+            "guard condition must match targets into state_root/current"
+        )
+        assert "'/current/'" in guard, (
+            "guard condition must keep the '/current/' substring fallback "
+            "(seeder-written relative targets)"
+        )
+        loop_control = task.get("loop_control")
+        assert isinstance(loop_control, dict), (
+            "fragment copy must set loop_control (per-item index for the guard)"
+        )
+        assert loop_control.get("index_var") == "compositor_configs_frag_idx", (
+            "fragment copy must expose the loop index as compositor_configs_frag_idx"
+        )
+
+    def test_fragment_dest_classification_stat_contract(self) -> None:
+        """Story 1.12 AC 1/5 (don't-clobber guard): a read-only stat pass
+        classifies each fragment DESTINATION before the copy — `follow: false`
+        (a plain stat defaults to follow: true, which resolves through a
+        runtime symlink to the cache artifact and hides the link),
+        `path: {{ item.dest }}`, looping {{ compositor_configs_fragment_copies }},
+        registering compositor_configs_fragment_stats, and UNGATED (stat is
+        check-safe; the copy gate indexes the results, so --check must still
+        predict correctly)."""
+        matches = [
+            task
+            for task in _tasks_with_module("ansible.builtin.stat")
+            if task.get("register") == "compositor_configs_fragment_stats"
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one destination-classification stat task; found {len(matches)}"
+        )
+        task = matches[0]
+        assert "compositor_configs_fragment_copies" in str(task.get("loop", "")), (
+            "classification must loop the fragment copies (per-destination)"
+        )
+        module = _module(task)
+        assert module.get("follow") is False, (
+            "classification stat must pass follow: false (islnk is ALWAYS false "
+            "on a default follow: true stat)"
+        )
+        assert module.get("path") == "{{ item.dest }}", (
+            "classification must stat the DESTINATION, not the source"
+        )
+        assert task.get("when") is None, (
+            "classification is read-only and check-safe — must be ungated so "
+            "--check predicts the guard correctly"
         )
 
     def test_fragment_sources_stat_plus_assert_pair(self) -> None:
         """Fail-loud direct-run prerequisite: a `stat` loop over the fragment
-        sources registers a var, and an `assert` checks the registered results
-        — both gated `when: not ansible_check_mode` (under --check the
-        default_palette generate is skipped so the files are absent on a fresh
-        target; an assert alone cannot check file existence)."""
+        SOURCES registers compositor_configs_fragment_check, and an `assert`
+        checks the registered results — both gated
+        `when: not ansible_check_mode` (under --check the default_palette
+        generate is skipped so the files are absent on a fresh target; an
+        assert alone cannot check file existence). Story 1.12: the collection
+        is scoped to that register — the destination-classification pass (a
+        second stat over the same loop var) is locked separately by
+        test_fragment_dest_classification_stat_contract."""
         stat_tasks = [
             task
             for task in _tasks_with_module("ansible.builtin.stat")
-            if "compositor_configs_fragment_copies" in str(task.get("loop", ""))
+            if task.get("register") == "compositor_configs_fragment_check"
         ]
         assert stat_tasks, "no fragment-source stat loop task found"
         for task in stat_tasks:
@@ -352,9 +420,11 @@ class TestCompositorConfigsTasks:
             )
 
     def test_invariant_documented_in_task_header(self) -> None:
-        """AC 7 (updated 2026-08-26, repo-authoritative): the task file header
-        documents that skeletons are repo-authoritative (force:true) and
-        fragments are the palette overwrite target."""
+        """AC 7 (updated 2026-08-26, repo-authoritative; updated Story 1.12):
+        the task file header documents that skeletons are repo-authoritative
+        (force:true) and fragments are the palette overwrite target — with the
+        Story 1.12 don't-clobber guard: overwrite UNLESS the destination is a
+        runtime symlink into state_root/current."""
         header = (_ROLES_DIR / "tasks" / "main.yml").read_text()
         assert "repo-authoritative" in header, (
             "task header must document 'repo-authoritative' (owner decision 2026-08-26)"
@@ -362,6 +432,14 @@ class TestCompositorConfigsTasks:
         assert "fragments" in header.lower() and "overwrite" in header.lower(), (
             "task header must document fragments as overwrite target (AC 7)"
         )
+        assert "runtime symlink" in header.lower(), (
+            "task header must document the runtime-symlink classification "
+            "(Story 1.12 don't-clobber guard)"
+        )
+        assert "don't-clobber guard" in header.lower() or "don't-clobber" in header.lower(), (
+            "task header must document the don't-clobber guard (Story 1.12)"
+        )
+        assert "1.12" in header, "task header must cite Story 1.12 for the guard"
 
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere —
@@ -400,6 +478,8 @@ class TestCompositorConfigsVars:
     _REQUIRED_KEYS = {
         "compositor_configs_repo_root",
         "compositor_configs_xdg_config_home",
+        "compositor_configs_xdg_state_home",
+        "compositor_configs_state_current_dir",
         "compositor_configs_spine_config_dir",
         "compositor_configs_config_dirs",
         "compositor_configs_skeleton_files",
@@ -409,6 +489,26 @@ class TestCompositorConfigsVars:
     def test_vars_parse_with_required_keys(self) -> None:
         data = _vars()
         assert self._REQUIRED_KEYS.issubset(set(data))
+
+    def test_xdg_state_home_mirrors_verify_derivation(self) -> None:
+        """Story 1.12 (don't-clobber guard): the state root derives EXACTLY
+        like the existing non-deprecated env-fact precedents
+        (verify_xdg_state_home / filesystem_xdg_state_home): honors
+        $XDG_STATE_HOME with the spec default ~/.local/state via
+        ansible_facts.env (F4 lock) — and state_current_dir derives from it
+        with the trim lock (stray-whitespace XDG values bit Story 1.11). NO
+        second XDG resolution is introduced."""
+        data = _vars()
+        value = str(data["compositor_configs_xdg_state_home"])
+        assert "ansible_facts.env.XDG_STATE_HOME" in value
+        assert "ansible_facts.env.HOME" in value
+        assert "'/.local/state'" in value
+        assert "{{ ansible_env." not in value, "F4 lock: never the top-level ansible_env fact"
+        current = str(data["compositor_configs_state_current_dir"])
+        assert current == "{{ compositor_configs_xdg_state_home | trim }}/dotfiles/current", (
+            "state_current_dir must derive from compositor_configs_xdg_state_home "
+            "(trim-locked, AD-5: state root is ALWAYS <XDG_STATE_HOME>/dotfiles/)"
+        )
 
     def test_repo_root_mirrors_assets_repo_root(self) -> None:
         data = _vars()
@@ -568,3 +668,72 @@ class TestCompositorConfigsPlaybook:
             assert 'dofile(cfg .. "/keybindings.lua")' in hypr_content, (
                 "hyprland.lua must include keybindings.lua via dofile"
             )
+
+    def test_playbook_leaves_runtime_symlink_dest_untouched(self) -> None:
+        """Story 1.12 AC 1 + AC 2: on a machine where the runtime consumed the
+        palette, <install>/config/ags/colors.css is a runtime symlink resolving
+        into $XDG_STATE_HOME/dotfiles/current/ — a re-run must leave that
+        symlink UNCHANGED (islnk, same target, no file written over it) while
+        the OTHER fragment (hypr/colors.conf, still absent) is copied fresh and
+        provisioning keeps writing generated/palettes/ (Phase-1 behavior for
+        every non-runtime-owned destination unchanged, AD-17)."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            state = Path(tmp) / "state"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+            palettes = install / "generated" / "palettes"
+            palettes.mkdir(parents=True)
+            (palettes / "colors.conf").write_text("$background = 0x000000\n")
+            (palettes / "colors.gtk.css").write_text("@define-color color_00 #000000;\n")
+
+            current = state / "dotfiles" / "current"
+            current.mkdir(parents=True)
+            (current / "colors.gtk.css").write_text("@define-color color_00 #111111;\n")
+            ags_colors = install / "config" / "ags" / "colors.css"
+            ags_colors.parent.mkdir(parents=True)
+            runtime_target = current / "colors.gtk.css"
+            ags_colors.symlink_to(runtime_target)
+
+            env = dict(os.environ)
+            env["HOME"] = str(home)
+            env["XDG_CONFIG_HOME"] = str(xdg)
+            env["XDG_STATE_HOME"] = str(state)
+            env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(self._PATH),
+                    "-e",
+                    f"install_dir={install}",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+
+            assert ags_colors.is_symlink(), (
+                "the runtime symlink must NOT be replaced by a plain copy "
+                "(don't-clobber guard, Story 1.12 AC 1)"
+            )
+            assert not ags_colors.is_file() or ags_colors.is_symlink(), (
+                "the runtime symlink must not have been overwritten"
+            )
+            assert os.readlink(ags_colors) == str(runtime_target), (
+                "the runtime symlink target must be unchanged after re-provisioning"
+            )
+            assert (current / "colors.gtk.css").read_text() == (
+                "@define-color color_00 #111111;\n"
+            ), "the state-owned palette file must be untouched (provisioning never writes under state_root)"
+            hypr_colors = install / "config" / "hypr" / "colors.conf"
+            assert hypr_colors.is_file() and not hypr_colors.is_symlink(), (
+                "the non-runtime-owned fragment dest must still be copied fresh (AC 2)"
+            )
+            assert "$background = 0x000000" in hypr_colors.read_text()

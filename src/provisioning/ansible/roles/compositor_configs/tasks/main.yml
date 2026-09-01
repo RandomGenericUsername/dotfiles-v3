@@ -35,6 +35,20 @@
 #   existence), with a fail_msg naming the default-palette playbook. The
 #   fragment ordering/verify guarantee is owned by 2.9 + 2.12 + 3.2/3.3; the
 #   deferred "default colors fallback" is a Phase 2 concern, NOT added here.
+# - Don't-clobber guard (Story 1.12): fragments remain the palette overwrite
+#   target — overwrite UNLESS the destination is a runtime symlink into
+#   state_root/current (don't-clobber guard, Story 1.12). A read-only
+#   classification stat pass (`follow: false` — a plain stat resolves through
+#   the link and hides it) runs UNGATED immediately before the copy so
+#   plan/--check predicts correctly, and the copy skips per-item any dest that
+#   exists as a symlink whose raw target starts with
+#   compositor_configs_state_current_dir (or contains /current/, covering
+#   seeder-written relative targets). Provisioning READS state_root for
+#   classification only — zero writes under $XDG_STATE_HOME/dotfiles/ (AD-5).
+#   The fragment-source stat+assert pair stays unchanged: bootstrap.yaml runs
+#   default_palette BEFORE compositor_configs, and provisioning keeps writing
+#   generated/palettes/ post-runtime, so a missing source is a genuine failure
+#   in every reachable state.
 # - copy does NOT create dest parents for file sources — the config dirs are
 #   re-ensured first (mirror of the 2.6 "Ensure asset deploy targets exist"
 #   pattern) so a direct compositor-configs.yaml run is self-contained.
@@ -89,10 +103,24 @@
       playbook first (direct-run prerequisite, AC 3/4)
   when: not ansible_check_mode
 
+- name: Classify palette fragment destinations (runtime-symlink guard)
+  ansible.builtin.stat:
+    path: "{{ item.dest }}"
+    follow: false
+  loop: "{{ compositor_configs_fragment_copies }}"
+  register: compositor_configs_fragment_stats
+
 - name: Place palette color fragments
   ansible.builtin.copy:
     src: "{{ item.source }}"
     dest: "{{ item.dest }}"
     remote_src: true
   loop: "{{ compositor_configs_fragment_copies }}"
-  when: not ansible_check_mode
+  loop_control:
+    index_var: compositor_configs_frag_idx
+  when:
+    - not ansible_check_mode
+    - not (compositor_configs_fragment_stats.results[compositor_configs_frag_idx].stat.exists
+           and compositor_configs_fragment_stats.results[compositor_configs_frag_idx].stat.islnk
+           and (compositor_configs_fragment_stats.results[compositor_configs_frag_idx].stat.lnk_target | default('') is match('^' ~ compositor_configs_state_current_dir)
+                or '/current/' in (compositor_configs_fragment_stats.results[compositor_configs_frag_idx].stat.lnk_target | default(''))))

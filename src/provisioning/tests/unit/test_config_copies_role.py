@@ -431,6 +431,93 @@ class TestConfigCopiesTasks:
                 "target dir ensure is check-safe natively — must NOT be --check-gated"
             )
 
+    def test_palette_symlink_tripwire_find_task_contract(self) -> None:
+        """Story 1.12 AC 3/5: an UNGATED `ansible.builtin.find` scan runs over
+        each managed dest dir BEFORE the copy — `file_type: link`,
+        `recurse: true`, patterns from the `config_copies_guard_patterns` var,
+        looping {{ config_copies_entries }}, registering
+        config_copies_runtime_link_scan. Ungated: find is read-only and
+        check-safe, and a dir-copy cannot skip individual files, so the scan
+        must always run for the assert to be meaningful."""
+        matches = [
+            task
+            for task in _tasks_with_module("ansible.builtin.find")
+            if task.get("register") == "config_copies_runtime_link_scan"
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one palette-symlink find task; found {len(matches)}"
+        )
+        task = matches[0]
+        module = _module(task)
+        assert module.get("file_type") == "link", (
+            "the scan must report symlinks only (file_type: link)"
+        )
+        assert module.get("recurse") is True, (
+            "the scan must recurse (a top-level-only scan would miss nested "
+            "runtime symlinks — config_links' backup guard is blind to them)"
+        )
+        assert module.get("paths") == "{{ config_copies_spine_config_dir }}/{{ item.target }}", (
+            "the scan must cover each managed copy destination in the spine"
+        )
+        assert module.get("patterns") == "{{ config_copies_guard_patterns }}", (
+            "the scan must consume the palette-format patterns var"
+        )
+        assert "{{ config_copies_entries }}" in str(task.get("loop", ""))
+        assert task.get("when") is None, "the find scan must be ungated (read-only, check-safe)"
+
+    def test_palette_symlink_tripwire_assert_is_fail_loud_and_check_gated(self) -> None:
+        """Story 1.12 AC 3/5: the tripwire assert is check-gated (a fresh
+        target has no dest dirs under --check) and FAILS LOUD on any hit —
+        two `that` items: results-length parity (vacuous-pass guard so
+        skipped/empty results can't fake a pass) and a flattened zero-hit
+        count derived with `map(attribute='files', default=[])` (missing
+        default= breaks on skipped/empty results)."""
+        matches = [
+            task
+            for task in _assert_tasks()
+            if "config_copies_runtime_link_scan" in str(_module(task).get("that", ""))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one tripwire assert; found {len(matches)}"
+        )
+        task = matches[0]
+        assert task.get("when") == "not ansible_check_mode", (
+            "the tripwire assert must be check-gated (dests absent on a fresh "
+            "target under --check)"
+        )
+        that = _module(task).get("that")
+        assert isinstance(that, list) and len(that) == 2, (
+            "the tripwire assert must carry exactly two conditions"
+        )
+        assert "config_copies_runtime_link_scan.results | length == config_copies_entries | length" in str(that[0]), (
+            "condition 1 must be the vacuous-pass guard (results parity)"
+        )
+        second = str(that[1])
+        assert "map(attribute='files', default=[])" in second, (
+            "condition 2 must flatten registered files with a default= "
+            "(missing default breaks on skipped/empty results)"
+        )
+        assert "flatten" in second and "length == 0" in second, (
+            "condition 2 must require a zero hit-count"
+        )
+        fail_msg = str(_module(task).get("fail_msg", ""))
+        assert "clobber" in fail_msg, (
+            "fail_msg must explain the clobber hazard (fail-loud house style)"
+        )
+        assert "Runtime consumer" in fail_msg, (
+            "fail_msg must point at the runtime consumer as the expected source "
+            "of the symlink"
+        )
+
+    def test_guard_documented_in_task_header(self) -> None:
+        """Story 1.12 AC 5: the task header documents the tripwire alongside
+        the existing NOT-force-false design note."""
+        header = (_ROLES_DIR / "tasks" / "main.yml").read_text()
+        assert "clobber" in header.lower(), (
+            "task header must document the don't-clobber tripwire (Story 1.12)"
+        )
+        assert "1.12" in header, "task header must cite Story 1.12"
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere —
         everything the role writes lives under the user's config home."""
@@ -471,11 +558,27 @@ class TestConfigCopiesVars:
         "config_copies_xdg_config_home",
         "config_copies_spine_config_dir",
         "config_copies_entries",
+        "config_copies_guard_patterns",
     }
 
     def test_vars_parse_with_required_keys(self) -> None:
         data = _vars()
         assert self._REQUIRED_KEYS.issubset(set(data))
+
+    def test_guard_patterns_lock_the_four_colors_filenames(self) -> None:
+        """Story 1.12 AC 3: the tripwire patterns are locked to exactly the
+        four palette-format filenames (colors.conf / colors.css /
+        colors.gtk.css / colors.yaml). Deliberately broader than a
+        target-match: provisioning never creates such links, so ANY
+        palette-format symlink inside a managed dest is drift worth failing
+        on. No new state vars are added to this role for the guard."""
+        data = _vars()
+        assert [str(p) for p in data["config_copies_guard_patterns"]] == [
+            "colors.conf",
+            "colors.css",
+            "colors.gtk.css",
+            "colors.yaml",
+        ]
 
     def test_repo_root_mirrors_assets_repo_root(self) -> None:
         data = _vars()
