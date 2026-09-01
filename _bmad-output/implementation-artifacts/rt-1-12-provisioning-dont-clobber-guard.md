@@ -3,7 +3,7 @@ baseline_commit: 7dc11e63110f27fa029f8a037f46a367c7630e47
 ---
 # Story 1.12: Provisioning don't-clobber guard
 
-Status: review
+Status: done
 
 ## Story
 
