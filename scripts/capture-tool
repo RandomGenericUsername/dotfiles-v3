@@ -101,6 +101,9 @@ def resolve_target(target):
             boxes.append(f"{x},{y} {width}x{height} {title}")
         if not boxes:
             raise RuntimeError("no visible windows available for selection")
+        if len(boxes) == 1:
+            position, dimensions, _ = boxes[0].split(maxsplit=2)
+            return f"{position} {dimensions}"
         result = subprocess.run(
             ["slurp", "-r", "-f", "%x,%y %wx%h"],
             input="\n".join(boxes) + "\n",
