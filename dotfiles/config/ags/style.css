@@ -72,6 +72,24 @@ window#capture-window > box {
   min-width: 135px;
 }
 
+.capture-options {
+  min-height: 32px;
+}
+
+.capture-options button.selected,
+.capture-targets button.selected {
+  background-color: @color_01;
+  color: @color_background;
+}
+
+.capture-primary {
+  min-height: 42px;
+  margin-top: 8px;
+  background-color: @color_01;
+  color: @color_background;
+  font-weight: bold;
+}
+
 .capture-hint {
   color: alpha(@color_foreground, 0.7);
   font-size: 12px;

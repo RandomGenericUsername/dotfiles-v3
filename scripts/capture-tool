@@ -142,8 +142,12 @@ def resolve_window_geometry():
 
 
 def screenshot(args):
+    if args.delay:
+        time.sleep(args.delay)
     output = str(Path(args.output).expanduser()) if args.output else None
     command = ["grim"]
+    if args.format:
+        command.extend(["-t", args.format])
     if args.target != "screen":
         geometry = resolve_target(args.target)
         if args.target == "region":
@@ -307,6 +311,8 @@ def parse_args():
     shot = subparsers.add_parser("screenshot", help="capture a screenshot")
     shot.add_argument("--target", choices=["region", "screen", "window"], default="region")
     shot.add_argument("--output", default=None)
+    shot.add_argument("--delay", type=int, default=0)
+    shot.add_argument("--format", choices=["png", "jpeg"], default="png")
     shot.set_defaults(func=screenshot)
 
     stop = subparsers.add_parser("stop", help="cancel/stop the active recording")
