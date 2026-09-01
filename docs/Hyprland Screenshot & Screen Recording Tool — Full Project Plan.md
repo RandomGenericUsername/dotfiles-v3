@@ -1,7 +1,7 @@
 # Hyprland Screenshot & Screen Recording Tool — Full Project Plan
 
 **Status:** Design and technical investigation  
-**Target environment:** Arch Linux / EndeavourOS, Hyprland, Wayland, AGS v3/Astal, Waybar  
+**Target environment:** Arch Linux / EndeavourOS, Hyprland, Wayland, AGS v3/Astal
 **Date:** August 28, 2026
 
 ---
@@ -502,14 +502,26 @@ pid
 
 The user specifically wants a persistent indicator in the system bar while recording.
 
+This is a mandatory UX requirement:
+
+- The recording indicator and its controls must be hidden when no recording is
+  active.
+- No idle label, idle icon, or placeholder control may be displayed in the bar.
+- The bar may show recording controls only while the recorder is in the
+  `recording` or `paused` state.
+- Controls must be represented as compact tray/bar icons rather than a
+  permanently visible text widget.
+- The controls must remain available after the capture window closes and while
+  the user changes workspace or interacts with other applications.
+
 Desired behavior:
 
 ```text
-Normal desktop:
+Normal desktop (no active recording):
 
-Waybar
+AGS bar
 ──────────────────────────────────────
-          ...       🔴
+          ...
 ```
 
 Clicking the indicator should expose recording controls.
@@ -556,23 +568,11 @@ Applications register their StatusNotifierItem on D-Bus.
 
 Therefore, if the desired icon is literally a traditional **system tray item**, we should not assume that `AstalTray` itself is the correct API for creating our own indicator.
 
-There are two better implementation options.
+For this project, AGS remains both the bar and the recording-control surface.
 
-## Preferred option for this setup: Waybar custom module
-
-Because the desktop already uses Waybar, the simplest solution is to add a custom Waybar module dedicated to recording state.
-
-Waybar custom modules support:
-
-- scripts;
-- JSON output;
-- dynamic text/icon;
-- CSS classes;
-- click actions;
-- tooltips;
-- signals/updates.
-
-This is directly supported by the current Waybar custom-module interface.
+The recording indicator is an AGS widget rendered in the bar's end/tray area.
+It is conditionally visible only while the controller reports `recording` or
+`paused`, and it owns the pause/resume/stop actions directly.
 
 Conceptually:
 
@@ -584,7 +584,7 @@ Recording Controller
         └── state = recording
                 │
                 ↓
-          Waybar custom module
+          AGS recording widget
                 │
                 ↓
              🔴 00:37
@@ -593,24 +593,16 @@ Recording Controller
 Click:
 
 ```text
-Waybar
+AGS bar
  ↓
 recording-control command
  ↓
 pause / resume / stop
 ```
 
-This is simpler and more reliable than implementing an SNI producer purely to get an icon into a tray that already belongs to Waybar.
-
-## Alternative: actual StatusNotifierItem
-
-If we specifically want a real SNI item rather than a Waybar custom module, the application can implement/register a StatusNotifierItem through D-Bus.
-
-This is technically possible according to the StatusNotifier specification, but it adds unnecessary infrastructure for this project.
-
-Therefore:
-
-**Recommended:** use a Waybar custom module for the recording indicator.
+The term "tray" here describes the compact recording-control area in the AGS
+bar. A separate StatusNotifierItem/D-Bus producer remains unnecessary for the
+intended AGS-only design.
 
 ---
 
@@ -1195,7 +1187,7 @@ AGS application
 recording-state IPC / state file / socket
        │
        ↓
-Waybar custom module
+AGS recording widget
 ```
 
 The exact communication mechanism should be selected during implementation.
@@ -1211,7 +1203,7 @@ AGS
  ↕
 Unix socket
  ↕
-Waybar module
+AGS recording widget
 ```
 
 ### State file
@@ -1222,7 +1214,7 @@ Simpler initial implementation:
 ~/.cache/<application>/recording-state.json
 ```
 
-Waybar reads it.
+AGS reads it.
 
 ### Dedicated local CLI
 
@@ -1235,7 +1227,7 @@ capture-tool resume
 capture-tool stop
 ```
 
-Waybar calls the CLI.
+AGS calls the CLI.
 
 This is particularly attractive because it also gives the user a command-line interface.
 
@@ -1251,7 +1243,7 @@ capture-tool
 └── status
 ```
 
-AGS and Waybar then become clients of the same controller.
+AGS is the client of the shared controller.
 
 ---
 
@@ -1268,7 +1260,7 @@ The strongest architecture is actually:
               │                     │
        ┌──────┴──────┐       ┌──────┴──────┐
        │             │       │             │
-      AGS         Waybar   Screenshot   Recording
+      AGS                   Screenshot   Recording
        │                       │             │
        │                      grim      recorder
        │
@@ -1346,7 +1338,7 @@ configuration UI closes
        ↓
 recording continues in background
        ↓
-Waybar recording indicator appears
+AGS recording indicator appears
        ↓
 user clicks indicator
        ↓
@@ -1366,7 +1358,7 @@ The tray indicator should have at least three states.
 ## Idle
 
 ```text
-No recording icon
+No recording icon, label, or controls
 ```
 
 or the module is hidden.
@@ -1724,7 +1716,7 @@ Test abnormal cases:
 ```text
 recorder crashes
 AGS crashes
-Waybar restarts
+AGS restarts
 user closes UI
 Hyprland reloads
 output directory disappears
@@ -1736,17 +1728,17 @@ The recorder should not silently leave stale state behind.
 
 ---
 
-# 46. Phase 8 — Waybar Integration
+# 46. Phase 8 — AGS Recording Indicator Integration
 
 Implement:
 
 ```text
-custom/recording
+bar/widgets/recording.tsx
 ```
 
 with a JSON-returning state provider.
 
-Waybar custom modules support JSON output containing fields such as:
+The AGS recording widget consumes controller state containing fields such as:
 
 ```text
 text
@@ -1756,7 +1748,7 @@ class
 percentage
 ```
 
-and support click handlers.
+and exposes click handlers.
 
 The module can therefore display:
 
@@ -1782,7 +1774,7 @@ with:
 class = paused
 ```
 
-This also allows the existing Waybar CSS to style the indicator.
+The AGS stylesheet styles the indicator.
 
 ---
 
@@ -2041,7 +2033,7 @@ Hyprland
 +
 AGS
 +
-Waybar
+AGS bar
 +
 grim
 +
@@ -2115,9 +2107,9 @@ and persistent recording control integrated into the existing desktop shell.
                                   process                │
                                                          ↓
                                                    ┌──────────┐
-                                                   │ Waybar   │
-                                                   │ custom   │
-                                                   │ module   │
+                                                   │ AGS      │
+                                                   │ recording│
+                                                   │ widget   │
                                                    └──────────┘
 ```
 
@@ -2145,7 +2137,7 @@ AGS/Astal provides:
 - Hyprland IPC integration;
 - system integration libraries.
 
-Waybar provides the required dynamic custom-module mechanism for a persistent recording indicator.
+AGS provides the persistent recording indicator and its controls in the existing bar.
 
 GPU Screen Recorder provides the particularly important recording controls:
 
@@ -2192,7 +2184,7 @@ There are no fundamental blockers, but these items must be experimentally valida
 8. Multi-monitor geometry.
 9. Hardware encoder availability.
 10. Failure/recovery behavior.
-11. Waybar state synchronization.
+11. AGS state synchronization.
 
 ---
 
@@ -2211,7 +2203,7 @@ The project should be implemented in this order:
        ↓
 5. Pause/resume lifecycle
        ↓
-6. Waybar recording indicator
+6. AGS recording indicator
        ↓
 7. Capture controller
        ↓
@@ -2291,7 +2283,7 @@ Version 1 is complete when the user can:
 - select duration;
 - start recording;
 - close the capture UI;
-- see a recording indicator in Waybar;
+- see a recording indicator in the AGS bar;
 - pause;
 - resume;
 - stop;
@@ -2308,7 +2300,7 @@ The application must also correctly handle:
 - unavailable audio source;
 - recorder crash;
 - invalid output directory;
-- Waybar restart;
+- AGS restart;
 - AGS restart;
 - Hyprland reload;
 - recording termination.
@@ -2321,7 +2313,7 @@ The application must also correctly handle:
 |---|---|
 | Desktop | Hyprland / Wayland |
 | UI framework | AGS v3 / Astal |
-| Bar | Existing Waybar |
+| Bar | Existing AGS bar |
 | Screenshot | `grim` |
 | Region selection | `slurp` |
 | Clipboard | `wl-copy` |
@@ -2335,7 +2327,7 @@ The application must also correctly handle:
 | Recording audio | None / System / Mic |
 | Recording quality | Low / Medium / High |
 | Recording duration | Infinite / 10s / 30s / 60s / Custom |
-| Recording indicator | Waybar custom module |
+| Recording indicator | AGS bar widget, hidden unless recording is active |
 | Recording control | Pause / Resume / Stop |
 | Preferred recorder candidate | GPU Screen Recorder |
 | Fallback recorder | wf-recorder |
@@ -2375,7 +2367,8 @@ grim + slurp + wl-copy
 
 For recording, the main investigation points toward **GPU Screen Recorder** because it combines Wayland support, GPU encoding, audio, multiple capture sources, multiple formats, and — crucially for this project — explicit pause/resume control.
 
-The persistent recording indicator should preferably be implemented as a **Waybar custom module**, rather than trying to make AGS act as a traditional system-tray host/producer. Waybar already provides the exact dynamic custom-module functionality required.
+The persistent recording indicator is implemented as an **AGS bar widget**. It
+does not require a separate StatusNotifierItem/D-Bus producer.
 
 The biggest remaining technical questions are therefore **not whether the project is possible**, but which exact recording backend configuration gives us the most reliable implementation of:
 
@@ -2401,4 +2394,4 @@ Hardware encoding
 
 Those should be resolved experimentally before the final implementation begins.
 
-**Recommended next phase:** backend proof-of-concept first, followed by the AGS/Waybar implementation.
+**Recommended next phase:** backend proof-of-concept first, followed by the AGS implementation.

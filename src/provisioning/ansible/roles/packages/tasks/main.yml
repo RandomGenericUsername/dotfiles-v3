@@ -12,12 +12,12 @@
 - name: Load Arch-specific package role vars
   ansible.builtin.include_vars:
     file: arch.yml
-  when: ansible_os_family == "Archlinux"
+  when: ansible_facts['os_family'] == "Archlinux"
 
 - name: Load Debian-specific package role vars
   ansible.builtin.include_vars:
     file: debian.yml
-  when: ansible_os_family == "Debian"
+  when: ansible_facts['os_family'] == "Debian"
 
 # - Assemble package list: flatten the group_vars `packages` map, EXCLUDING
 #   AUR-only names (correct-course 2026-08-18: AGS = aylurs-gtk-shell-git has no
@@ -42,6 +42,13 @@
     state: directory
     mode: "01777"
   become: true
+
+- name: Refresh pacman databases before install
+  ansible.builtin.command: pacman -Syy --noconfirm
+  become: true
+  when:
+    - ansible_facts['os_family'] == "Archlinux"
+    - not ansible_check_mode
 
 - name: Install system packages
   ansible.builtin.package:

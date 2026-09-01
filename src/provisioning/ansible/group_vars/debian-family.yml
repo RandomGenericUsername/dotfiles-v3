@@ -17,6 +17,11 @@ packages:
   # uwsm: systemd-managed session launch (same rationale as Arch).
   uwsm: uwsm
   ags: aylurs-gtk-shell-git
+  ffmpeg: ffmpeg
+  pipewire: pipewire
+  wireplumber: wireplumber
+  gpu-screen-recorder: gpu-screen-recorder
+  wf-recorder: wf-recorder
   # Container engine for the csg container-mode chain (same rationale as Arch).
   # Debian package names; rootless podman deps.
   container_engine:

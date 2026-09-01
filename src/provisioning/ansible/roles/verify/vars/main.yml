@@ -218,6 +218,16 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/battery.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/network.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/power-menu.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/recording.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/tray.tsx"
+  - "{{ install_dir | trim }}/config/ags/capture/CaptureWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags/capture/RecordingView.tsx"
+  - "{{ install_dir | trim }}/config/ags/capture/ScreenshotView.tsx"
+  - "{{ install_dir | trim }}/config/ags/capture/types.ts"
+  - "{{ install_dir | trim }}/config/ags/capture/controllers/CaptureController.ts"
+  - "{{ install_dir | trim }}/config/ags/capture/controllers/RecordingController.ts"
+  - "{{ install_dir | trim }}/config/ags/capture/controllers/ScreenshotController.ts"
+  - "{{ install_dir | trim }}/config/ags/capture/controllers/TargetResolver.ts"
 
 # verify_compositor_fragments: the palette fragments copied into the config
 #   dirs (criterion 7), mirror of compositor_configs_fragment_copies dests.

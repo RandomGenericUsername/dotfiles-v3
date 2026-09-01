@@ -30,6 +30,13 @@ hl.bind(
     { description = "Open application launcher" }
 )
 
+-- Capture tool (AGS UI)
+hl.bind(
+    mod .. " + PRINT",
+    hl.dsp.exec_cmd("ags toggle capture-window"),
+    { description = "Open capture UI" }
+)
+
 -- File manager
 hl.bind(
     mod .. " + E",
@@ -346,13 +353,6 @@ hl.bind(
 -- ============================================================
 -- Screenshots
 -- ============================================================
-
--- Select region and copy screenshot to clipboard
-hl.bind(
-    mod .. " + Print",
-    hl.dsp.exec_cmd('grim -g "$(slurp)" - | wl-copy'),
-    { description = "Screenshot selected region to clipboard" }
-)
 
 -- Screenshot entire screen and copy to clipboard
 hl.bind(

@@ -59,7 +59,7 @@ display_manager_disable_services:
 
 # display_manager_greeter_type: the greetd greeter engine (regreet graphical
 #   or tuigreet TUI). Distro-aware default; overridable.
-display_manager_greeter_type: "{{ 'regreet' if ansible_os_family == 'Archlinux' else 'tuigreet' }}"
+display_manager_greeter_type: "{{ 'regreet' if ansible_facts['os_family'] == 'Archlinux' else 'tuigreet' }}"
 
 display_manager_packages_regreet:
   - greetd
