@@ -168,6 +168,11 @@ window#capture-window > box {
   font-variant: tabular-nums;
 }
 
+.recording-icon {
+  min-width: 16px;
+  min-height: 16px;
+}
+
 .recording-widget.stop {
   background-color: @color_02;
 }

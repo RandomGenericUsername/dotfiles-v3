@@ -1,6 +1,7 @@
 import GLib from "gi://GLib?version=2.0"
 import { createState } from "ags"
 import { execAsync } from "ags/process"
+import { registry } from "../../lib/icon-registry"
 
 type RecordingState = "idle" | "recording" | "paused"
 
@@ -27,6 +28,10 @@ function formatElapsed(seconds: number): string {
   return `${minutes}:${remainder}`
 }
 
+function iconPath(variant: "pause" | "play" | "stop"): string {
+  return registry.resolve("screen-recorder", variant) ?? ""
+}
+
 export function RecordingIndicator() {
   let current = readStatus()
   const [state, setState] = createState<RecordingState>(current.state)
@@ -46,14 +51,24 @@ export function RecordingIndicator() {
         tooltipText={state((value) => value === "recording" ? "Pause recording" : "Resume recording")}
         onClicked={() => execAsync(["capture-tool", current.state === "recording" ? "pause" : "resume"]).catch(console.error)}
       >
-        <label label={state((value) => value === "recording" ? "⏸" : "▶")} />
+        <image
+          pixel_size={16}
+          class="recording-icon"
+          $={(self) => {
+            state((value) => self.set_from_file(iconPath(value === "recording" ? "pause" : "play")))
+          }}
+        />
       </button>
       <button
         class="widget recording-widget stop"
         tooltipText="Stop recording"
         onClicked={() => execAsync(["capture-tool", "stop"]).catch(console.error)}
       >
-        <label label="⏹" />
+        <image
+          pixel_size={16}
+          class="recording-icon"
+          $={(self) => self.set_from_file(iconPath("stop"))}
+        />
       </button>
     </box>
   )
