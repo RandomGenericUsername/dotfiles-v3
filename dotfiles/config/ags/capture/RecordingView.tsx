@@ -1,3 +1,4 @@
+import { Gtk } from "ags/gtk4"
 import type { CaptureTarget } from "./CaptureWindow"
 
 export type RecordingFormat = "mp4" | "webm" | "gif"
@@ -14,7 +15,7 @@ export interface RecordingConfig {
 
 export function RecordingView() {
   return (
-    <box vertical spacing={8}>
+    <box orientation={Gtk.Orientation.VERTICAL} spacing={8}>
       <label label="Recording" />
       <label label="Target: region / screen / window" />
       <label label="FPS: 24 / 30 / 60" />

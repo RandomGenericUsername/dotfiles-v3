@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import signal
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")) / "capture-tool"
+STATE_FILE = STATE_DIR / "state.json"
+
+
+def read_state():
+    if not STATE_FILE.exists():
+        return {
+            "state": "idle",
+            "elapsed_seconds": 0,
+            "backend": None,
+            "pid": None,
+            "output_path": None,
+            "format": "mp4",
+            "target": "screen",
+        }
+    try:
+        with STATE_FILE.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        return {
+            "state": "idle",
+            "elapsed_seconds": 0,
+            "backend": None,
+            "pid": None,
+            "output_path": None,
+            "format": "mp4",
+            "target": "screen",
+        }
+
+
+def write_state(data):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with STATE_FILE.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+
+def which(name):
+    return shutil.which(name)
+
+
+def choose_backend():
+    if which("gpu-screen-recorder"):
+        return "gpu-screen-recorder"
+    if which("wf-recorder"):
+        return "wf-recorder"
+    return None
+
+
+def hyprland_json(command):
+    result = subprocess.run(["hyprctl", "-j", command], capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"hyprctl {command} failed")
+    return json.loads(result.stdout)
+
+
+def resolve_target(target):
+    if target == "screen":
+        monitors = hyprland_json("monitors")
+        monitor = next((item for item in monitors if item.get("focused")), None)
+        if not monitor:
+            raise RuntimeError("unable to resolve the focused monitor")
+        return monitor["name"]
+    if target == "window":
+        clients = hyprland_json("clients")
+        boxes = []
+        for client in clients:
+            if not client.get("mapped") or client.get("hidden"):
+                continue
+            x, y = client.get("at", [None, None])
+            width, height = client.get("size", [None, None])
+            if None in (x, y, width, height) or width <= 0 or height <= 0:
+                continue
+            title = client.get("title") or client.get("class") or "window"
+            boxes.append(f"{x},{y} {width}x{height} {title}")
+        if not boxes:
+            raise RuntimeError("no visible windows available for selection")
+        result = subprocess.run(
+            ["slurp", "-r", "-f", "%x,%y %wx%h"],
+            input="\n".join(boxes) + "\n",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError("window selection was cancelled")
+        selection = result.stdout.strip()
+        match = re.fullmatch(r"(-?\d+),(-?\d+)\s+(\d+)x(\d+)", selection)
+        if not match:
+            raise RuntimeError(f"invalid window geometry: {selection}")
+        x, y, width, height = (int(value) for value in match.groups())
+        return f"{x},{y} {width}x{height}"
+    if target == "region":
+        result = subprocess.run(["slurp"], capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            raise RuntimeError("region selection was cancelled")
+        selection = result.stdout.strip()
+        match = re.fullmatch(r"(-?\d+),(-?\d+)\s+(\d+)x(\d+)", selection)
+        if not match:
+            raise RuntimeError(f"invalid region geometry: {selection}")
+        x, y, width, height = (int(value) for value in match.groups())
+        return f"{width}x{height}+{x}+{y}"
+    raise ValueError(f"unsupported target: {target}")
+
+
+def resolve_window_geometry():
+    window = hyprland_json("activewindow")
+    x, y = window.get("at", [None, None])
+    width, height = window.get("size", [None, None])
+    if None in (x, y, width, height):
+        raise RuntimeError("unable to resolve the focused window geometry")
+    return f"{x},{y} {width}x{height}"
+
+
+def screenshot(args):
+    output = str(Path(args.output).expanduser()) if args.output else None
+    command = ["grim"]
+    if args.target != "screen":
+        geometry = resolve_target(args.target)
+        if args.target == "region":
+            width, height, x, y = re.fullmatch(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geometry).groups()
+            geometry = f"{x},{y} {width}x{height}"
+        command.extend(["-g", geometry])
+    if output:
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
+        command.append(output)
+    else:
+        command.append("-")
+    if output:
+        result = subprocess.run(command, check=False)
+    else:
+        grim = subprocess.Popen(command, stdout=subprocess.PIPE)
+        copy = subprocess.run(["wl-copy"], stdin=grim.stdout, check=False)
+        grim.stdout.close()
+        result_code = grim.wait()
+        if result_code != 0 or copy.returncode != 0:
+            return emit({"state": "error", "error": "screenshot failed"}, result_code or copy.returncode)
+    if output and result.returncode != 0:
+        return emit({"state": "error", "error": "screenshot failed"}, result.returncode)
+    return emit({"state": "idle", "target": args.target, "output_path": output or "clipboard"}, 0)
+
+
+def start_recording(args):
+    backend = choose_backend()
+    state = read_state()
+    if state.get("state") == "recording":
+        return emit({"state": state["state"], "error": "already recording"}, 0)
+    if not backend:
+        return emit({"state": "error", "error": "no recording backend installed"}, 1)
+
+    output_path = args.output or str(
+        Path.home() / "Videos" / "Recordings" /
+        f"recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
+    )
+    output_path = str(Path(output_path).expanduser())
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    target = resolve_target(args.target)
+    if backend == "gpu-screen-recorder":
+        if args.target in {"region", "window"}:
+            if args.target == "window":
+                x, y, width, height = re.fullmatch(r"(-?\d+),(-?\d+)\s+(\d+)x(\d+)", target).groups()
+                target = f"{width}x{height}+{x}+{y}"
+            command = [backend, "-w", "region", "-region", target]
+        else:
+            command = [backend, "-w", target]
+        command.extend([
+            "-c", args.format,
+            "-f", str(args.fps),
+            "-q", args.quality,
+            "-fallback-cpu-encoding", "yes",
+            "-o", output_path,
+        ])
+    else:
+        command = [backend, "-f", output_path]
+        if args.target != "screen":
+            command.extend(["-g", target])
+    process = subprocess.Popen(command, start_new_session=True)
+    time.sleep(0.15)
+    if process.poll() is not None:
+        return emit({"state": "error", "error": "recording backend exited during startup"}, 1)
+    state.update({
+        "state": "recording",
+        "backend": backend,
+        "output_path": output_path,
+        "pid": process.pid,
+        "elapsed_seconds": 0,
+        "target": args.target,
+        "format": args.format,
+        "started_at": time.time(),
+    })
+    write_state(state)
+    return emit(state, 0)
+
+
+def stop_recording(_args):
+    state = read_state()
+    pid = state.get("pid")
+    if pid and pid_is_running(pid):
+        try:
+            os.kill(pid, signal.SIGINT)
+        except ProcessLookupError:
+            pass
+    state.update({"state": "idle", "pid": None, "elapsed_seconds": 0})
+    write_state(state)
+    return emit(state, 0)
+
+
+def pause_recording(_args):
+    state = read_state()
+    if state.get("state") != "recording":
+        return emit({"state": state.get("state"), "error": "not currently recording"}, 1)
+    pid = state.get("pid")
+    if pid and pid_is_running(pid):
+        os.kill(pid, signal.SIGUSR2)
+    state["paused_at"] = time.time()
+    state["state"] = "paused"
+    write_state(state)
+    return emit(state, 0)
+
+
+def resume_recording(_args):
+    state = read_state()
+    if state.get("state") != "paused":
+        return emit({"state": state.get("state"), "error": "not paused"}, 1)
+    pid = state.get("pid")
+    if pid and pid_is_running(pid):
+        os.kill(pid, signal.SIGUSR2)
+    if state.get("paused_at") and state.get("started_at"):
+        state["paused_seconds"] = state.get("paused_seconds", 0) + time.time() - state["paused_at"]
+    state.pop("paused_at", None)
+    state["state"] = "recording"
+    write_state(state)
+    return emit(state, 0)
+
+
+def status(_args):
+    state = read_state()
+    pid = state.get("pid")
+    if state.get("state") in {"recording", "paused"} and (not pid or not pid_is_running(pid)):
+        state.update({"state": "idle", "pid": None})
+        write_state(state)
+    elif state.get("started_at"):
+        paused_seconds = state.get("paused_seconds", 0)
+        if state.get("state") == "paused" and state.get("paused_at"):
+            paused_seconds += time.time() - state["paused_at"]
+        state["elapsed_seconds"] = max(0, int(time.time() - state["started_at"] - paused_seconds))
+    return emit(state, 0)
+
+
+def pid_is_running(pid):
+    try:
+        os.kill(pid, 0)
+    except (ProcessLookupError, PermissionError):
+        return False
+    return True
+
+
+def emit(payload, return_code):
+    print(json.dumps(payload, sort_keys=True))
+    raise SystemExit(return_code)
+
+
+def parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Capture controller for AGS/Hyprland recording states.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    start = subparsers.add_parser("start", help="begin recording lifecycle")
+    start.add_argument("--output", default=None)
+    start.add_argument("--target", default="screen")
+    start.add_argument("--format", default="mp4")
+    start.add_argument("--fps", type=int, default=60)
+    start.add_argument("--quality", default="high")
+    start.set_defaults(func=start_recording)
+
+    shot = subparsers.add_parser("screenshot", help="capture a screenshot")
+    shot.add_argument("--target", choices=["region", "screen", "window"], default="region")
+    shot.add_argument("--output", default=None)
+    shot.set_defaults(func=screenshot)
+
+    stop = subparsers.add_parser("stop", help="cancel/stop the active recording")
+    stop.set_defaults(func=stop_recording)
+
+    pause = subparsers.add_parser("pause", help="pause the active recording")
+    pause.set_defaults(func=pause_recording)
+
+    resume = subparsers.add_parser("resume", help="resume the active recording")
+    resume.set_defaults(func=resume_recording)
+
+    stat = subparsers.add_parser("status", help="read the current recording state")
+    stat.set_defaults(func=status)
+
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    try:
+        args.func(args)
+    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+        emit({"state": "error", "error": str(error)}, 1)
+
+
+if __name__ == "__main__":
+    main()

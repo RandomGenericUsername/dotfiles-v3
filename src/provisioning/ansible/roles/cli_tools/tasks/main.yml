@@ -31,6 +31,13 @@
       (bootstrap.sh pre-seeds it; Story 3.1)
   when: not ansible_check_mode
 
+- name: Install the capture-tool controller into the provisioned user bin directory
+  ansible.builtin.copy:
+    src: "{{ cli_tools_repo_root }}/scripts/capture-tool"
+    dest: "{{ cli_tools_bin_dir }}/capture-tool"
+    mode: "0755"
+    remote_src: true
+
 - name: Install csg/weg/itr via uv tool install
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:
@@ -43,6 +50,12 @@
     # verify task fails after a successful install (fixed 2026-08-19).
     UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
   loop: "{{ cli_tools }}"
+
+- name: Verify capture-tool is on PATH
+  ansible.builtin.shell: "command -v capture-tool"
+  environment:
+    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  changed_when: false
 
 - name: Verify csg/weg/itr resolve on PATH
   ansible.builtin.shell: "command -v {{ item.name }}"

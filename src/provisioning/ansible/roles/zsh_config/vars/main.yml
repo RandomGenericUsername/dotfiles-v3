@@ -36,4 +36,4 @@ _zsh_config_debian:
   fzf_completion: /usr/share/doc/fzf/examples/completion.zsh
 
 # Resolved for the running distro.
-zsh_config_plugin_paths: "{{ _zsh_config_arch if ansible_os_family == 'Archlinux' else _zsh_config_debian }}"
+zsh_config_plugin_paths: "{{ _zsh_config_arch if ansible_facts['os_family'] == 'Archlinux' else _zsh_config_debian }}"

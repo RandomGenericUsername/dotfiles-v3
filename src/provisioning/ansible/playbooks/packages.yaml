@@ -15,16 +15,16 @@
   hosts: localhost
   gather_facts: true
   tasks:
-    - name: Guard os_family seam matches ansible_os_family fact
+    - name: Guard os_family seam matches ansible_facts.os_family
       ansible.builtin.assert:
         that:
           - os_family in ("arch", "debian-family")
           - >-
-            (os_family == "arch" and ansible_os_family == "Archlinux")
-            or (os_family == "debian-family" and ansible_os_family == "Debian")
+            (os_family == "arch" and ansible_facts['os_family'] == "Archlinux")
+            or (os_family == "debian-family" and ansible_facts['os_family'] == "Debian")
         fail_msg: >-
           os_family '{{ os_family }}' does not match host fact
-          ansible_os_family '{{ ansible_os_family }}'
+          ansible_facts['os_family'] '{{ ansible_facts['os_family'] }}'
     - name: Group host by os_family seam
       ansible.builtin.group_by:
         key: "{{ os_family }}"

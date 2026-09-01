@@ -4,6 +4,7 @@ import { Clock } from "./widgets/clock"
 import { BatteryIndicator } from "./widgets/battery"
 import { NetworkStatus } from "./widgets/network"
 import { PowerMenu } from "./widgets/power-menu"
+import { Tray } from "./widgets/tray"
 
 export default function Bar(gdkmonitor: Gdk.Monitor) {
   const { TOP, LEFT, RIGHT } = Astal.WindowAnchor
@@ -25,6 +26,7 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
           <Clock />
         </box>
         <box $type="end" spacing={8}>
+          <Tray />
           <BatteryIndicator />
           <NetworkStatus />
           <PowerMenu />
