@@ -75,9 +75,23 @@ def resolve_target(target):
         return monitor["name"]
     if target == "window":
         clients = hyprland_json("clients")
+        active_workspace = hyprland_json("activeworkspace")
+        focused_monitor = next(
+            (item for item in hyprland_json("monitors") if item.get("focused")),
+            None,
+        )
+        active_workspace_id = active_workspace.get("id")
+        focused_monitor_id = (
+            focused_monitor.get("id") if focused_monitor else None
+        )
         boxes = []
         for client in clients:
             if not client.get("mapped") or client.get("hidden"):
+                continue
+            workspace = client.get("workspace") or {}
+            if active_workspace_id is not None and workspace.get("id") != active_workspace_id:
+                continue
+            if focused_monitor_id is not None and client.get("monitor") != focused_monitor_id:
                 continue
             x, y = client.get("at", [None, None])
             width, height = client.get("size", [None, None])
