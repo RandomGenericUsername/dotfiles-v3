@@ -4,7 +4,7 @@ baseline_commit: cf0f931746a87913de6a8bed3ea6544d4a9a6226
 
 # Story 1.13: ApplyWallpaperUseCase — derive, cache, persist
 
-Status: review
+Status: done
 
 ## Story
 
@@ -202,3 +202,18 @@ GLM (opencode-go/glm-5.3-flash) via opencode, 2026-08-31.
 ### Change Log
 
 - 2026-08-31: Story 1.13 implemented — ApplyWallpaperUseCase (derive → cache → persist `current.json` only), shared `DerivationPipeline` extracted from SeedCacheUseCase (seed refactored to delegate, seed tests green unmodified), `dotfiles-runtime wallpaper set` CLI command with renderer-based output and exit-code mapping. 23 tests added; full suite green (212 passed, 1 skipped); no new lint/type/layering violations.
+- 2026-09-01: Review remediation (code review: 2 decision-needed resolved as patches, 8 patches applied, 1 deferred, 5 dismissed). D1: apply's current.json read-modify-write now serialized via the seed mutex — `ISeedMutex.hold(blocking=)` added (port + FlockSeedMutex), ApplyWallpaperUseCase injects ISeedMutex and holds it blocking around reload→build→save (double-checked pattern; derivation stays outside the lock). D2: new `CacheSeeder.import_wallpaper(src, hash, source_mutable=)` — copy policy for user files (cache owns its bytes, no mutable-source alias), hardlink policy for provisioning (AD-16), post-place content verification removes TOCTOU poisoning, write-once meta backfill repairs crash-stranded entries (subsumed patch P1). Also: CLI tests for `wallpaper set` (7), missing-spine palette wrap + lost-rename-race + mutex-ordering tests, `find_icon_mappings` `.is_file()`, dead attrs removed from SeedCacheUseCase, TYPE_CHECKING import in cli/main.py, `DEFAULT_MONITOR` single-sourced in domain. Suite: 229 passed, 1 skipped; zero new lint/format/mypy/layering violations vs baseline.
+
+### Review Findings
+
+- [x] [Review][Decision] Apply-vs-seed race can silently revert a just-applied wallpaper — `wallpaper set` takes no mutex; concurrent with a first-run seed in another process, the applier observes `load_current() → None`, saves default-monitor state, then the seed's save wins last (SeedLockedError skip path lets apply proceed mid-seed). Recorded no-mutex decision covered apply-vs-apply only; fix would be additive (share `FlockSeedMutex` around apply's load→save) [cli/main.py:168, seed_cache.py:149]
+- [x] [Review][Decision] User wallpaper is hardlinked into cache — aliases the user's mutable file; hash-then-link TOCTOU (or later in-place source rewrite) can put content under the wrong hash address with no post-link verification and no self-heal (hardlink_wallpaper verifies only when dst pre-exists). Options: copy for user-supplied wallpapers / post-link content verification / defer to Epic 2 [apply_wallpaper.py:130-137, seeder.py:110-147]
+- [x] [Review][Patch] Wallpaper meta write-once guard uses entry-dir existence, not meta.json existence — crash between hardlink and meta write permanently strands an entry without meta.json (apply never backfills); concurrent applies can both write meta (last-writer-wins). Fix: guard on `meta.json` existence and backfill when missing [apply_wallpaper.py:135-142]
+- [x] [Review][Patch] `wallpaper set` CLI command has zero test coverage — error mapping, exit codes, summary ternaries, cache_hits object all untested; regression would pass the whole suite. Fix: add CliRunner-based CLI tests [cli/main.py:223-282]
+- [x] [Review][Patch] Top-level `ApplyWallpaperResult` import in cli/main.py defeats the file's deliberate lazy-import pattern; used only as a return annotation. Fix: `TYPE_CHECKING` import [cli/main.py:16]
+- [x] [Review][Patch] Dead attributes `self._csg/_weg/_itr` in SeedCacheUseCase — assigned, never read after the pipeline extraction. Fix: remove the assignments (constructor params stay, feeding the pipeline) [seed_cache.py:89-91]
+- [x] [Review][Patch] `find_icon_mappings` probes with `.exists()` while sibling finders use `.is_file()`/`.is_dir()` — a directory named `icons.yaml` passes discovery and is dir-hashed. Fix: `.is_file()` [derive.py:169]
+- [x] [Review][Patch] Tautological unit assertions — `_FakeStateRepo` never touches disk, so disk-absence assertions (palette-failure test, scope-boundary test) cannot fail; palette-failure test also doesn't snapshot pre-existing state per Task 4. Fix: persist fake to disk or drop tautologies; seed pre-existing state before the palette-failure test [tests/unit/test_apply_wallpaper.py:374-387]
+- [x] [Review][Patch] Missing coverage for apply's subtle paths — missing-spine `ensure_palette` → `"palette apply failed:"` wrap, and lost-rename-race (`populate_via_staging` → False) rebuild-from-meta. Fix: two unit tests [derive.py:234, 277-282]
+- [x] [Review][Patch] `_DEFAULT_MONITOR = "DP-1"` duplicated across seed_cache.py and apply_wallpaper.py — fix: single shared constant [seed_cache.py:58, apply_wallpaper.py:56]
+- [x] [Review][Defer] Corrupt/missing `meta.json` in an existing palette/effects/icons entry bricks that layer permanently (cache-hit = dir existence, populate is write-once, no self-heal) [derive.py:239-240, seeder.py:344-353] — deferred, pre-existing (pattern from rt-1-11, now shared; self-heal is cache-hygiene beyond story scope)

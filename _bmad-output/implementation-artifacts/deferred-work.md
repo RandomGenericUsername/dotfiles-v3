@@ -302,3 +302,7 @@
 - CSG raw-output nondeterminism — .csg_determinism.json records colors.yaml hashes differing between run1/run2 (normalized hash matches); any consumer relying on raw artifact hash stability across regenerations is affected. [src/runtime/tests/integration/.csg_determinism.json]
 - Duplicated fake adapters (_FakeCsg/_FakeWeg/_FakeItr/_FakeFactory) copy-pasted across unit and integration suites, encoding the meta.json-less generate contract in both. Shared conftest fixture recommended. [src/runtime/tests/unit/test_seed_cache.py, src/runtime/tests/integration/test_seed_cache_integration.py]
 - Template discovery couples runtime to dev-repo layout — walks install_spine ancestors for src/cli-tools/... (never exists in production XDG layout); silently binds dev behavior to whatever checkout sits in an ancestor dir. [src/runtime/src/runtime/application/seed_cache.py:396-500]
+
+## Deferred from: code review of rt-1-13-applywallpaperusecase (2026-09-01)
+
+- Corrupt/missing `meta.json` in an existing palette/effects/icons cache entry bricks that layer permanently — cache-hit is entry-dir existence, populate is write-once, and `load_*_entry` raises on bad/absent meta with no self-heal path; pattern inherited from rt-1-11 (applies to seed equally), now shared via DerivationPipeline. Self-heal (rename aside / rmtree + repopulate on meta load failure) is cache-hygiene beyond this story's scope. [src/runtime/src/runtime/application/derive.py:239-240, src/runtime/src/runtime/adapters/seeder.py:344-353]
