@@ -1,5 +1,4 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import { createState } from "ags"
 import app from "ags/gtk4/app"
 import { execAsync } from "ags/process"
 
@@ -21,7 +20,24 @@ function takeScreenshot(target: CaptureTarget) {
 }
 
 export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
-  const [mode, setMode] = createState<"screenshot" | "recording">("screenshot")
+  let screenshotView: Gtk.Box | null = null
+  let recordingView: Gtk.Box | null = null
+  let screenshotTab: Gtk.Button | null = null
+  let recordingTab: Gtk.Button | null = null
+
+  function selectMode(mode: "screenshot" | "recording") {
+    const screenshotSelected = mode === "screenshot"
+    if (screenshotView) screenshotView.visible = screenshotSelected
+    if (recordingView) recordingView.visible = !screenshotSelected
+    if (screenshotTab) {
+      screenshotTab.remove_css_class("active")
+      if (screenshotSelected) screenshotTab.add_css_class("active")
+    }
+    if (recordingTab) {
+      recordingTab.remove_css_class("active")
+      if (!screenshotSelected) recordingTab.add_css_class("active")
+    }
+  }
 
   return (
     <window
@@ -39,21 +55,31 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
         <label class="capture-title" label="Capture" />
         <box class="capture-tabs" spacing={4}>
           <button
-            class={mode((value) => value === "screenshot" ? "capture-tab active" : "capture-tab")}
+            class="capture-tab active"
             label="Screenshot"
-            onClicked={() => setMode("screenshot")}
+            $={(self) => {
+              screenshotTab = self
+              selectMode("screenshot")
+            }}
+            onClicked={() => selectMode("screenshot")}
           />
           <button
-            class={mode((value) => value === "recording" ? "capture-tab active" : "capture-tab")}
+            class="capture-tab"
             label="Recording"
-            onClicked={() => setMode("recording")}
+            $={(self) => {
+              recordingTab = self
+            }}
+            onClicked={() => selectMode("recording")}
           />
         </box>
         <box
-          visible={mode((value) => value === "screenshot")}
+          visible
           class="capture-view"
           orientation={Gtk.Orientation.VERTICAL}
           spacing={12}
+          $={(self) => {
+            screenshotView = self
+          }}
         >
           <label class="capture-section" label="Capture target" />
           <box class="capture-targets" spacing={8}>
@@ -64,10 +90,13 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
           <label class="capture-hint" label="Choose what to capture, then complete the selection if prompted." />
         </box>
         <box
-          visible={mode((value) => value === "recording")}
+          visible={false}
           class="capture-view"
           orientation={Gtk.Orientation.VERTICAL}
           spacing={12}
+          $={(self) => {
+            recordingView = self
+          }}
         >
           <label class="capture-section" label="Capture target" />
           <box class="capture-targets" spacing={8}>
