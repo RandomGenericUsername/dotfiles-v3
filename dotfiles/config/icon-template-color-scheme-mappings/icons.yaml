@@ -195,7 +195,8 @@ screenshot-tool:
       output: take-screenshot.svg
 
 screen-recorder:
-  color_mappings: {}
+  color_mappings:
+    COLOR_FOREGROUND: foreground
   variants:
     - name: pause
       template: screen-recorder/default/pause.svg

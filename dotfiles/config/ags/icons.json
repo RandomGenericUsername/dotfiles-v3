@@ -298,7 +298,9 @@
     ]
   },
   "screen-recorder": {
-    "color_mappings": {},
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
     "variants": [
       {
         "name": "pause",
