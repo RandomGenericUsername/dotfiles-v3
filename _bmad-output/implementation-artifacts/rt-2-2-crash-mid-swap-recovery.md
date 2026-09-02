@@ -1,6 +1,10 @@
+---
+baseline_commit: 644c3e1459a802897faefca28be4efe48c2a1132
+---
+
 # Story 2.2: Crash-mid-swap recovery to last-good state
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -24,74 +28,74 @@ so that the next run repairs the state instead of leaving a partial swap.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — `application/reconcile.py`: `_revert_stale_symlinks` method (AC: 1, 2, 5)
-  - [ ] Add a private method `_revert_stale_symlinks(self, state: DesktopState) -> list[Path]` to `ReconcileDesktopStateUseCase`. This method runs BEFORE the normal swap sequence (before `_ensure_entries`). It reads the authoritative state from `current.json` (already loaded as `state` in `run()`) and validates every `current/` symlink against it. Import `_repoint_symlink` from `runtime.adapters.seeder` at module level (same import pattern as `CacheSeeder` at reconcile.py:43).
-  - [ ] For each file in `state_root / "current"`:
+- [x] Task 1 — `application/reconcile.py`: `_revert_stale_symlinks` method (AC: 1, 2, 5)
+  - [x] Add a private method `_revert_stale_symlinks(self, state: DesktopState) -> list[Path]` to `ReconcileDesktopStateUseCase`. This method runs BEFORE the normal swap sequence (before `_ensure_entries`). It reads the authoritative state from `current.json` (already loaded as `state` in `run()`) and validates every `current/` symlink against it. Import `_repoint_symlink` from `runtime.adapters.seeder` at module level (same import pattern as `CacheSeeder` at reconcile.py:43).
+  - [x] For each file in `state_root / "current"`:
     - Wallpaper symlinks (`wallpaper-<monitor>.png`): if the symlink target does not contain the path segment `cache/wallpapers/<state.wallpaper.content_hash>/`, revert it by repointing to `cache_entry_path(state_root, "wallpapers", state.wallpaper.content_hash) / "wallpaper.png"` via the atomic repoint pattern (import `_repoint_symlink` from `runtime.adapters.seeder` at module level — same import pattern as `CacheSeeder` at reconcile.py:43; call `_repoint_symlink(link, expected_target)` where first arg is the symlink location, second is the target — matching `seeder.py:55` signature `(current_path, target)`).
     - Palette symlinks (`colors.conf`, `colors.gtk.css`, `colors.yaml`): if `state.palette` is not None and the symlink target does not contain `cache/palettes/<state.palette.entry_hash>/`, revert to `cache_entry_path(state_root, "palettes", state.palette.entry_hash) / <filename>`.
     - Effects dir symlink (`effects/`): if `state.effects` is not None and the target does not contain `cache/effects/<state.effects.entry_hash>/`, revert to `cache_entry_path(state_root, "effects", state.effects.entry_hash)`.
     - Icons dir symlink (`icons/`): if `state.icons` is not None and the target does not contain `cache/icons/<state.icons.entry_hash>/`, revert to `cache_entry_path(state_root, "icons", state.icons.entry_hash)`.
-  - [ ] Return the list of reverted symlink paths (for logging and result reporting).
-  - [ ] Symlinks whose targets already match are left untouched (idempotent — AC 5).
-  - [ ] Symlinks to monitors not in `state.monitors` are NOT reverted by this method — they are cleaned by `_cleanup_stale_symlinks` (which already runs later in the swap). Recovery only fixes WRONG targets, not orphaned monitors.
+  - [x] Return the list of reverted symlink paths (for logging and result reporting).
+  - [x] Symlinks whose targets already match are left untouched (idempotent — AC 5).
+  - [x] Symlinks to monitors not in `state.monitors` are NOT reverted by this method — they are cleaned by `_cleanup_stale_symlinks` (which already runs later in the swap). Recovery only fixes WRONG targets, not orphaned monitors.
 
-- [ ] Task 2 — `application/reconcile.py`: integrate recovery into `run()` (AC: 1, 3)
-  - [ ] At the TOP of `run()`, after the fail-fast absent-state guard (`state is None → RuntimeError`) and BEFORE the pre-lock derivation (`_ensure_entries`), call `self._revert_stale_symlinks(state)`.
-  - [ ] Log reverted symlinks at INFO level: `logger.info("recovery: reverted %d stray symlink(s): %s", len(reverted), reverted)`.
-  - [ ] If no symlinks were reverted, log at DEBUG level: `logger.debug("recovery: no stray symlinks detected")`.
-  - [ ] The recovery step runs OUTSIDE the lock (same as derivation — it only reads `current.json` which is the authoritative baseline, and the symlinks are being corrected to match it; a concurrent `wallpaper set` that overwrites `current.json` will be caught by the double-checked re-load inside the lock, same as derivation).
-  - [ ] After recovery, the normal swap sequence proceeds: `_ensure_entries` → lock → re-load state → repoint → save → history. If the crash left the cache entries intact (AC 3), `_ensure_entries` finds them all and no tool invocations occur.
+- [x] Task 2 — `application/reconcile.py`: integrate recovery into `run()` (AC: 1, 3)
+  - [x] At the TOP of `run()`, after the fail-fast absent-state guard (`state is None → RuntimeError`) and BEFORE the pre-lock derivation (`_ensure_entries`), call `self._revert_stale_symlinks(state)`.
+  - [x] Log reverted symlinks at INFO level: `logger.info("recovery: reverted %d stray symlink(s): %s", len(reverted), reverted)`.
+  - [x] If no symlinks were reverted, log at DEBUG level: `logger.debug("recovery: no stray symlinks detected")`.
+  - [x] The recovery step runs OUTSIDE the lock (same as derivation — it only reads `current.json` which is the authoritative baseline, and the symlinks are being corrected to match it; a concurrent `wallpaper set` that overwrites `current.json` will be caught by the double-checked re-load inside the lock, same as derivation).
+  - [x] After recovery, the normal swap sequence proceeds: `_ensure_entries` → lock → re-load state → repoint → save → history. If the crash left the cache entries intact (AC 3), `_ensure_entries` finds them all and no tool invocations occur.
 
-- [ ] Task 3 — `cli/main.py`: report reload failures (AC: 4)
-  - [ ] In the `reconcile` CLI command, after `_run_reconcile()` returns, check `result.skipped` for entries containing "reload" or "consumer" (the reload adapters — Stories 2.3–2.6 — will populate these when they land). For now (before 2.3–2.6 exist), this is a structural placeholder: the CLI already renders `result.skipped` in the output.
-  - [ ] When reload adapters exist (2.3–2.6), extend `ReconcileResult` with a `reload_failures: list[str]` field. The CLI checks this field and exits non-zero with an `ErrorView` listing the failed consumers. **This task is a forward-looking placeholder — the field is `[]` until 2.3–2.6 land.**
-  - [ ] Update `_run_reconcile` composition to propagate the new field.
+- [x] Task 3 — `cli/main.py`: report reload failures (AC: 4)
+  - [x] In the `reconcile` CLI command, after `_run_reconcile()` returns, check `result.skipped` for entries containing "reload" or "consumer" (the reload adapters — Stories 2.3–2.6 — will populate these when they land). For now (before 2.3–2.6 exist), this is a structural placeholder: the CLI already renders `result.skipped` in the output.
+  - [x] When reload adapters exist (2.3–2.6), extend `ReconcileResult` with a `reload_failures: list[str]` field. The CLI checks this field and exits non-zero with an `ErrorView` listing the failed consumers. **This task is a forward-looking placeholder — the field is `[]` until 2.3–2.6 land.**
+  - [x] Update `_run_reconcile` composition to propagate the new field.
 
-- [ ] Task 4 — Unit tests `tests/unit/test_crash_recovery.py` (AC: 1–6)
-  - [ ] Follow `test_reconcile.py`'s fake-adapter style. Persist the fake state repo to `tmp_path` where disk assertions matter.
-  - [ ] **Crash scenario tests:**
+- [x] Task 4 — Unit tests `tests/unit/test_crash_recovery.py` (AC: 1–6)
+  - [x] Follow `test_reconcile.py`'s fake-adapter style. Persist the fake state repo to `tmp_path` where disk assertions matter.
+  - [x] **Crash scenario tests:**
     - `test_partial_swap_wallpaper_only_reverted`: Repoint only `wallpaper-DP-1.png` to a DIFFERENT cache entry hash; leave other symlinks untouched. Run recovery → wallpaper symlink reverted to the correct target; other symlinks unchanged.
     - `test_partial_swap_palette_only_reverted`: Repoint only `colors.conf` to a stale palette hash; recovery reverts it.
     - `test_partial_swap_effects_dir_reverted`: Repoint `effects/` to a wrong effects hash; recovery reverts.
     - `test_crash_between_symlink_and_current_json`: Simulate a crash where current.json is OLD (last-good) but 2 of 4 symlinks are NEW (from the interrupted swap). Recovery reverts the 2 new symlinks to match old current.json.
     - `test_full_swap_interrupted_all_symlinks_reverted`: All symlinks point to a different hash set than current.json; recovery reverts all.
-  - [ ] **Idempotency tests:**
+  - [x] **Idempotency tests:**
     - `test_no_crash_is_noop`: Symlinks already match current.json → zero reverts, zero tool invocations.
     - `test_double_recovery_noop`: Run recovery twice → second run reverts nothing.
-  - [ ] **Cache-hit-after-recovery test (AC 3):**
+  - [x] **Cache-hit-after-recovery test (AC 3):**
     - `test_recover_then_reconcile_is_cache_hit`: Crash scenario → recovery → then normal reconcile. Assert CSG/WEG/ITR call counts are zero (cache entries still exist).
-  - [ ] **Absent state test (AC 6):**
+  - [x] **Absent state test (AC 6):**
     - `test_recovery_absent_state_raises`: current.json absent → `RuntimeError("nothing to reconcile")`.
-  - [ ] **Corrupt state test:**
+  - [x] **Corrupt state test:**
     - `test_recovery_corrupt_current_json_propagates`: current.json is invalid JSON → `ValueError` propagates.
-  - [ ] **Structural scope lock:**
+  - [x] **Structural scope lock:**
     - `test_recovery_writes_only_inside_current`: After recovery, assert no new files appeared outside `state_root/current/` (no writes to cache, no writes to state_root root).
-  - [ ] **Missing current/ directory:**
+  - [x] **Missing current/ directory:**
     - `test_recovery_missing_current_dir_is_noop`: `current/` does not exist → recovery returns `[]`, no crash.
-  - [ ] **Dangling symlinks in current/:**
+  - [x] **Dangling symlinks in current/:**
     - `test_recovery_dangling_symlink_reverted`: A symlink in `current/` points to a non-existent cache entry → recovery reverts it to the correct target from current.json.
-  - [ ] **Monitor name traversal guard:**
+  - [x] **Monitor name traversal guard:**
     - `test_recovery_monitor_name_traversal_rejected`: Monitor name with `../` → `ValueError`.
 
-- [ ] Task 5 — Integration test `tests/integration/test_crash_recovery_integration.py` (AC: 1, 2, 3)
-  - [ ] End-to-end: seed → apply a wallpaper → manually corrupt symlinks to simulate a crash → run `reconcile` → assert desktop converges to last-good state.
-  - [ ] Crash simulation: after apply, read `current.json`, then manually repoint 2 symlinks to stale hashes (simulating partial swap). Run reconcile → symlinks match current.json.
-  - [ ] Cache-hit verification: after recovery, run reconcile again → assert zero tool invocations (CsgAdapter/WegAdapter/ItrAdapter call counters unchanged).
-  - [ ] Recovery + history: assert exactly one `history.jsonl` line is appended (trigger `"reconcile"`) after recovery + reconcile.
-  - [ ] Concurrent recovery safety: start two reconcile threads/tasks concurrently on a partially-swapped state — assert both complete without corrupting symlinks (the mutex serializes them; the second run is a no-op).
+- [x] Task 5 — Integration test `tests/integration/test_crash_recovery_integration.py` (AC: 1, 2, 3)
+  - [x] End-to-end: seed → apply a wallpaper → manually corrupt symlinks to simulate a crash → run `reconcile` → assert desktop converges to last-good state.
+  - [x] Crash simulation: after apply, read `current.json`, then manually repoint 2 symlinks to stale hashes (simulating partial swap). Run reconcile → symlinks match current.json.
+  - [x] Cache-hit verification: after recovery, run reconcile again → assert zero tool invocations (CsgAdapter/WegAdapter/ItrAdapter call counters unchanged).
+  - [x] Recovery + history: assert exactly one `history.jsonl` line is appended (trigger `"reconcile"`) after recovery + reconcile.
+  - [x] Concurrent recovery safety: start two reconcile threads/tasks concurrently on a partially-swapped state — assert both complete without corrupting symlinks (the mutex serializes them; the second run is a no-op).
 
-- [ ] Task 6 — CLI tests `tests/unit/test_cli_crash_recovery.py` (AC: 4)
-  - [ ] Extend `test_cli_reconcile.py` pattern.
-  - [ ] `test_reconcile_recovery_logs_stray_reverts`: Simulate stray symlinks → run CLI `reconcile` → assert INFO log contains "recovery: reverted".
-  - [ ] `test_reconcile_no_stray_logs_debug`: No stray symlinks → assert DEBUG log "no stray symlinks detected".
-  - [ ] Forward-looking: `test_reconcile_reload_failure_exits_nonzero` — when 2.3–2.6 land, this test exercises the `reload_failures` field; for now, mark as `pytest.skip("reload adapters not yet implemented")`.
+- [x] Task 6 — CLI tests `tests/unit/test_cli_crash_recovery.py` (AC: 4)
+  - [x] Extend `test_cli_reconcile.py` pattern.
+  - [x] `test_reconcile_recovery_logs_stray_reverts`: Simulate stray symlinks → run CLI `reconcile` → assert INFO log contains "recovery: reverted".
+  - [x] `test_reconcile_no_stray_logs_debug`: No stray symlinks → assert DEBUG log "no stray symlinks detected".
+  - [x] Forward-looking: `test_reconcile_reload_failure_exits_nonzero` — when 2.3–2.6 land, this test exercises the `reload_failures` field; for now, mark as `pytest.skip("reload adapters not yet implemented")`.
 
-- [ ] Task 7 — Full green gate (AC: all)
-  - [ ] `uv run --directory src/runtime pytest -q` (baseline: expect ~229+ passed, 1 skipped)
-  - [ ] `uv run --directory src/runtime ruff check src/runtime` (zero NEW violations)
-  - [ ] `uv run --directory src/runtime ruff format --check src/runtime` (new/edited files format-clean)
-  - [ ] `uv run --directory src/runtime mypy --strict src/runtime` (zero NEW errors)
-  - [ ] `tests/architecture/test_layering.py` green (no new adapter→application imports; recovery is pure application-layer logic delegating to adapters via the seeder)
+- [x] Task 7 — Full green gate (AC: all)
+  - [x] `uv run --directory src/runtime pytest -q` (baseline: expect ~229+ passed, 1 skipped)
+  - [x] `uv run --directory src/runtime ruff check src/runtime` (zero NEW violations)
+  - [x] `uv run --directory src/runtime ruff format --check src/runtime` (new/edited files format-clean)
+  - [x] `uv run --directory src/runtime mypy --strict src/runtime` (zero NEW errors)
+  - [x] `tests/architecture/test_layering.py` green (no new adapter→application imports; recovery is pure application-layer logic delegating to adapters via the seeder)
 
 ## Dev Notes
 
@@ -257,8 +261,33 @@ No changes: `domain/`, `ports/`, `adapters/` (reuse seeder as-is — `_repoint_s
 
 ### Agent Model Used
 
+muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
+
 ### Debug Log References
+
+- Implementation of `_revert_stale_symlinks` and `_build_expected_targets` in `application/reconcile.py` with monitor traversal validation and atomic `_repoint_symlink` primitive.
+- Integration of recovery call at top of `run()` with INFO/DEBUG logging outside mutex.
+- CLI placeholder for `reload_failures` field and non-zero exit handling.
+- Unit / integration / CLI tests created and green: 281 passed, 2 skipped.
 
 ### Completion Notes List
 
+- Task 1: Added `_revert_stale_symlinks` + `_build_expected_targets` to `ReconcileDesktopStateUseCase`; validates monitor names, compares resolved symlink targets via `_repoint_symlink`, handles missing `current/` and dangling symlinks, idempotent.
+- Task 2: Integrated recovery into `run()` before `_ensure_entries`, outside lock, with logging `recovery: reverted %d stray symlink(s)` at INFO and `recovery: no stray symlinks detected` at DEBUG.
+- Task 3: Extended `ReconcileResult` with `reload_failures: list[str] = field(default_factory=list)` and updated `cli/main.py` reconcile command to surface reload failures with `ErrorView` and exit 1; structural placeholder for 2.3-2.6.
+- Task 4: Created `tests/unit/test_crash_recovery.py` with 15 tests covering partial-swap per layer, full interrupt, idempotency, cache-hit-after-recovery, absent/corrupt, scope lock, missing dir, dangling, traversal guard.
+- Task 5: Created `tests/integration/test_crash_recovery_integration.py` with 3 end-to-end scenarios (e2e recovery, history line, concurrent safety).
+- Task 6: Created `tests/unit/test_cli_crash_recovery.py` with INFO/DEBUG log assertions and skipped reload-failure placeholder.
+- Task 7: Green gate verified — pytest 281 passed 2 skipped, ruff check zero new violations, ruff format clean, mypy strict zero new errors, layering 50 passed.
+
 ### File List
+
+- `src/runtime/src/runtime/application/reconcile.py` — added `_revert_stale_symlinks`, `_build_expected_targets`, `reload_failures` field, recovery logging, import `_repoint_symlink`
+- `src/runtime/src/runtime/cli/main.py` — reload failure placeholder handling and `reload_failures` in output
+- `src/runtime/tests/unit/test_crash_recovery.py` — NEW unit tests
+- `src/runtime/tests/integration/test_crash_recovery_integration.py` — NEW integration tests
+- `src/runtime/tests/unit/test_cli_crash_recovery.py` — NEW CLI tests
+
+### Change Log
+
+- 2026-09-02: Implemented crash-mid-swap recovery (AC 1-6), CLI placeholder, tests, and green gate.
