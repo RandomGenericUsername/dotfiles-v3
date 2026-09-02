@@ -320,3 +320,10 @@
 
 - ~140 lines of test scaffolding copy-pasted into a 4th location — `_FakeMutex`/`_FakeCsg`/`_FakeWeg`/`_FakeItr`/`_setup_spine`/`_make_applied` are byte-identical to the copies in test_hyprland_reloader*.py; should be shared conftest fixtures [src/runtime/tests/unit/test_ags_reloader.py:197-339, src/runtime/tests/integration/test_ags_reloader_integration.py]
 - Test hygiene: process-global `shutil.which` patches coupled to `hyprland_reloader`'s module location (breaks if the resolver moves to a shared module), and reconcile-integration tests (full use case + on-disk repos) living in the unit test file [src/runtime/tests/unit/test_ags_reloader.py:146-149,360-379]
+
+## Deferred from: code review of rt-2-5-hyprpaper-channel-verification (2026-09-02)
+
+- Non-symlink / directory-target `wallpaper-*.png` entries treated as valid monitors — the dangling check only guards missing targets and `is_file()` is never checked on the resolved target; masked upstream by repoint's P2 guard and stale-cleanup, reachable only by manual tampering [src/runtime/src/runtime/adapters/hyprpaper_reloader.py:170-179]
+- "Hyprpaper reload skipped" log wording undercuts the surfaced-failure it produces — spec-mandated verbatim copy of the Hyprland/AGS sibling reloaders; behavior is correctly `False` [src/runtime/src/runtime/adapters/hyprpaper_reloader.py:159]
+- `_resolve_state_root` duplicates `cli/main.py`'s resolution instead of sharing — spec-directed mirror and the composition root passes `state_root` explicitly; a shared helper is not layering-clean across application/adapters [src/runtime/src/runtime/adapters/hyprpaper_reloader.py:88-99]
+- Failure log concatenates stdout+stderr without a separator and drops a `TimeoutExpired`'s captured output — cosmetic logging, mirrors HyprlandReloader [src/runtime/src/runtime/adapters/hyprpaper_reloader.py:195-201]
