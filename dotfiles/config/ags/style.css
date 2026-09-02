@@ -144,21 +144,26 @@ window#capture-window > box {
   padding: 0 8px;
 }
 
-.recording-widget {
+.recording-controls button.recording-widget {
   min-width: 24px;
   min-height: 24px;
   padding: 0;
   border-radius: 0;
   background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
   color: @color_foreground;
 }
 
-.recording-widget.paused {
+.recording-controls button.recording-widget:hover,
+.recording-controls button.recording-widget:active,
+.recording-controls button.recording-widget:checked,
+.recording-controls button.recording-widget:focus {
   background-color: transparent;
-}
-
-.recording-widget.recording {
-  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
 }
 
 .recording-controls {
@@ -173,8 +178,4 @@ window#capture-window > box {
 .recording-icon {
   min-width: 16px;
   min-height: 16px;
-}
-
-.recording-widget.stop {
-  background-color: transparent;
 }
