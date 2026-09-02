@@ -61,5 +61,5 @@ Provisioning swaps Waybar → AGS across Phase 1's completed work:
 
 ## Unverified (Epic 2 story-level decision)
 
-1. Hyprpaper's wallpaper-swap channel: reload-after-symlink-repoint vs `hyprctl hyprpaper wallpaper <monitor> <path>` IPC. Must be verified against the installed Hyprpaper version before the reload adapter is built.
+1. Hyprpaper's wallpaper-swap channel: reload-after-symlink-repoint vs `hyprctl hyprpaper wallpaper <monitor> <path>` IPC. Must be verified against the installed Hyprpaper version before the reload adapter is built. (RESOLVED 2026-09-02: channel = per-monitor IPC `hyprctl hyprpaper wallpaper <monitor>,<path>[,<fit>]`, verified against hyprpaper 0.8.4 / hyprland 0.56.2 source; reload-after-symlink-repoint unavailable in the rewrite)
 2. AGS reload channel: `ags run` hot-reload on file change vs process restart vs dbus signal. Must be verified against the installed AGS version before the AGS reload adapter is built.

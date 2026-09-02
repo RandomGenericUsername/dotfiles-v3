@@ -84,6 +84,6 @@ On a provisioned machine, `dotfiles wallpaper set <img>` derives palette + effec
 ## Open Questions
 
 - Phase 2 done-criteria: what defines "done" for the runtime core? Must be defined before implementation is considered complete (mirrors provisioning's fourteen).
-- Hyprpaper wallpaper channel: reload-after-symlink-repoint vs `hyprctl hyprpaper wallpaper` IPC? Must verify against installed version in Epic 2.
+- Hyprpaper wallpaper channel: reload-after-symlink-repoint vs `hyprctl hyprpaper wallpaper` IPC? Must verify against installed version in Epic 2. (RESOLVED 2026-09-02: channel = per-monitor IPC `hyprctl hyprpaper wallpaper <monitor>,<path>[,<fit>]`, verified against hyprpaper 0.8.4 / hyprland 0.56.2 source; reload-after-symlink-repoint unavailable in the rewrite)
 
 > CLI packaging resolved: separate `dotfiles-runtime` binary (mirrors `dotfiles-provision`). See spine AD-19.
