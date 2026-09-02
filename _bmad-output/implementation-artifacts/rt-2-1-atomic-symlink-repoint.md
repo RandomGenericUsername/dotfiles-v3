@@ -4,7 +4,7 @@ baseline_commit: 2f5b47ed6c05b455f15c975b9be5fbd4c80c2360
 
 # Story 2.1: Atomic `current/` symlink repoint and swap sequencing
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -171,3 +171,9 @@ No changes: `domain/`, `ports/`, `adapters/` (reuse `CacheSeeder` as-is), `pypro
 ### Completion Notes List
 
 ### File List
+
+- src/runtime/src/runtime/application/reconcile.py (NEW)
+- src/runtime/tests/unit/test_reconcile.py (NEW)
+- src/runtime/tests/unit/test_cli_reconcile.py (NEW)
+- src/runtime/tests/integration/test_reconcile_integration.py (NEW)
+- src/runtime/src/runtime/cli/main.py (modified — reconcile command + _run_reconcile)
