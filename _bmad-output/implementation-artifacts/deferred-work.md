@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: code review of rt-2-6-terminal-palette-applier (2026-09-02)
+
+- No test renders the real pinned `colors.yaml.j2` — the runtime `TerminalColorApplier` parser's coupling to csg's template output (3 scalars + 16-item list + 3 trailing scalars, no blank lines between items thanks to `trim_blocks=True`) is guarded only by hand-written fixtures in both test layers. If csg's Jinja environment ever changes, every real cache artifact becomes unparseable and every reconcile surfaces `TerminalColorApplier` as failed (fail-loud, but with no structural guard). A template-render parity test crosses the runtime/csg package boundary — decide whether it belongs in runtime tests, a shared test util, or csg's own suite [src/runtime/tests/unit/test_terminal_color_applier.py:26-38, src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates/colors.yaml.j2]
+
 ## Deferred from: code review of 2-11-settings-role (2026-08-12)
 
 - No fail-loud fact-gathering guard for `ansible_facts.env` — config_copies leads with an `ansible_facts.env.HOME is defined` assert; settings asserts only `install_dir`. A future 2.12 aggregator (bootstrap.yaml) that forgets `gather_facts: true` dies with an opaque undefined-var error; the settings playbook always sets `gather_facts: true`, so not reachable today — flag at 2.12 build time [src/provisioning/ansible/roles/settings/tasks/main.yml:35-41]
