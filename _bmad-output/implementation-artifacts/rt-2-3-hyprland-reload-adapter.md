@@ -4,7 +4,7 @@ baseline_commit: b3c3f095c7f5ef775b8791ee24da5baabc65aaa5
 
 # Story 2.3: Hyprland reload adapter
 
-Status: review
+Status: done
 
 ## Story
 
@@ -72,6 +72,17 @@ so that the compositor's borders/decoration match the new palette.
   - [x] `uv run --directory src/runtime ruff format --check src/runtime` (new/edited files format-clean)
   - [x] `uv run --directory src/runtime mypy --strict src/runtime` (zero NEW errors)
   - [x] `tests/architecture/test_layering.py` green (adapters can import from ports, application can import from adapters via constructor injection)
+
+### Review Findings
+
+- [x] [Review][Decision] RESOLVED 2026-09-02: keep spec-literal surfaced failure — missing/non-live Hyprland makes `reconcile` exit non-zero. Non-live Hyprland turns every reconcile into a hard failure — hyprctl absent OR present-but-compositor-not-running makes `reload()` return False and reconcile exit 1 (`ReloadError`), regressing the pre-2.3 always-`[]` behavior. Spec AC 3/R5 mandates the failure path; decision: should "Hyprland not available" be a void/skip (reconcile succeeds) or a surfaced failure?
+
+- [x] [Review][Patch] Stale structural test identity — `TestReconcileStructuralScopeLock` name/docstring still claim the reload channel is "structurally absent" while the param pin now includes `reloaders` [src/runtime/tests/unit/test_reconcile.py:689-694]
+- [x] [Review][Patch] `_resolve_hyprctl` branches unexercised + explicit-path not validated (docstring overclaims csg mirror, incl. os.access-permissive nuance); tests bypass resolution by forcing `_hyprctl_path = None` [src/runtime/src/runtime/adapters/hyprland_reloader.py:36-46]
+- [x] [Review][Patch] reconcile.py docstrings/swap-sequence still state "Does NOT invoke any desktop reload" and omit step 5 — contradicts the shipped reload channel [src/runtime/src/runtime/application/reconcile.py:12-13,87-88]
+- [x] [Review][Patch] `ValueError`/`UnicodeDecodeError` escapes the `reload()` exception tuple — NUL-byte path or bad stderr bytes breach the "error → False" contract, contained only by reconcile's broad `except Exception` [src/runtime/src/runtime/adapters/hyprland_reloader.py:81]
+- [x] [Review][Patch] Integration test always injects fake shim (never runs a real binary, never honors spec skip-if-absent) and mislabels itself ("with_real_binary", false "logs calls" claim) [src/runtime/tests/integration/test_hyprland_reloader_integration.py:109-127,165-171]
+- [x] [Review][Patch] Dev record misreports unit-test count as "14 tests" — file defines 12 test methods [src/runtime/tests/unit/test_hyprland_reloader.py]
 
 ## Dev Notes
 
@@ -169,7 +180,7 @@ muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
 - Adapter `hyprland_reloader.py` mirrors `csg_adapter` binary resolution and subprocess patterns; `text=True` and timeout 10 enforced.
 - Reconcile use case wired with `reloaders` param; reload loop outside lock after history, fire-and-report with class-name failures.
 - CLI lazy import of `HyprlandReloader` in `_run_reconcile`; existing `reload_failures` handling exits non-zero.
-- Tests: unit `test_hyprland_reloader.py` (14 tests: success, failure, missing, missing-N, interface, reconcile integration) and integration `test_hyprland_reloader_integration.py` (real shim, missing-path) green.
+- Tests: unit `test_hyprland_reloader.py` (14 tests: success, failure, missing, `_resolve_hyprctl` resolution branches, interface, reconcile integration) and integration `test_hyprland_reloader_integration.py` (hyprctl shim with invocation marker, missing-path via which monkeypatch) green.
 - Fixed `test_reconcile.py` scope-lock assertion to allow `reloaders` param (2.1 expectation updated for 2.3).
 
 ### Completion Notes List
