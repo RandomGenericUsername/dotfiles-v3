@@ -31,6 +31,7 @@ fi
 
 hyprpm enable gloview
 hyprpm reload
+hyprctl reload
 
 hyprpm list 2>&1 | grep -E -A2 'Repository gloview|Plugin gloview' | grep -q 'enabled:'
 hyprctl plugin list 2>&1 | grep -qi gloview
