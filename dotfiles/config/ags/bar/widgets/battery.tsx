@@ -40,7 +40,7 @@ export function BatteryIndicator() {
       visible={isPresent((present) => present)}
     >
       <image
-        pixel_size={24}
+        pixel_size={32}
         class="widget-icon"
         $={(self) => {
           createEffect(() => {

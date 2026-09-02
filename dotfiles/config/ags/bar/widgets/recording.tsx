@@ -53,7 +53,7 @@ export function RecordingIndicator() {
         onClicked={() => execAsync(["capture-tool", current.state === "recording" ? "pause" : "resume"]).catch(console.error)}
       >
         <image
-          pixel_size={16}
+          pixel_size={24}
           class="recording-icon"
           halign={Gtk.Align.CENTER}
           valign={Gtk.Align.CENTER}
@@ -70,7 +70,7 @@ export function RecordingIndicator() {
         onClicked={() => execAsync(["capture-tool", "stop"]).catch(console.error)}
       >
         <image
-          pixel_size={16}
+          pixel_size={24}
           class="recording-icon"
           halign={Gtk.Align.CENTER}
           valign={Gtk.Align.CENTER}

@@ -46,6 +46,8 @@ packages:
     - kitty
   btop: btop # System monitor (AGS bar icon launcher)
   thunderbird: thunderbird # Mail client (AGS bar icon launcher)
+  brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
+  playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)
   # Display manager — SDDM + Qt6 (same rationale as Arch; SDDM Wayland greeter
   # avoids the X11-greater GPU freeze with Hyprland). Pixie theme installed by

@@ -361,6 +361,8 @@ class TestReadRealManifests:
             "lf",
             "btop",
             "thunderbird",
+            "brightnessctl",
+            "playerctl",
             "hyprcursor",
             "hyprlock",
             "hypridle",

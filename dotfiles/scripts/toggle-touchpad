@@ -1,0 +1,35 @@
+#!/bin/bash
+# Toggle the first touchpad Hyprland knows about.
+#
+# Bound from keybindings.lua via XF86TouchpadToggle. Hyprland exposes no
+# device-state getter, so the off-state is tracked in a flag file under
+# XDG_STATE_HOME/dotfiles/. Device lookup is dynamic (first device whose
+# name contains "touchpad"), never hardcoded.
+set -euo pipefail
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles"
+state_file="$state_dir/touchpad-off"
+mkdir -p "$state_dir"
+
+dev=$(hyprctl -j devices | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+names = [x['name'] for x in d.get('mice', []) + d.get('touchpads', [])
+         if 'touchpad' in x.get('name', '').lower()]
+print(names[0] if names else '')")
+
+if [ -z "$dev" ]; then
+    notify-send "Touchpad" "no touchpad found" || true
+    exit 1
+fi
+
+if [ -f "$state_file" ]; then
+    enabled="true"
+    rm -f "$state_file"
+else
+    enabled="false"
+    : > "$state_file"
+fi
+
+hyprctl eval "hl.device({ name = \"$dev\", enabled = $enabled })" > /dev/null
+notify-send "Touchpad" "$([ "$enabled" = "true" ] && echo enabled || echo disabled)" || true

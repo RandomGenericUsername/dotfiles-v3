@@ -111,6 +111,14 @@
     force: true
   loop: "{{ compositor_configs_skeleton_files }}"
 
+- name: Install desktop helper scripts (touchpad toggle for XF86 binds)
+  ansible.builtin.copy:
+    src: "{{ compositor_configs_repo_root }}/{{ item.source }}"
+    dest: "{{ item.dest }}"
+    force: true
+    mode: "0755"
+  loop: "{{ compositor_configs_bin_scripts }}"
+
 - name: Remove legacy hyprland.conf skeleton (superseded by hyprland.lua)
   ansible.builtin.file:
     path: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.conf"

@@ -8,7 +8,7 @@ window#bar {
 window#bar > centerbox {
   background-color: @color_00;
   border-radius: 10px;
-  margin: 8px;
+  margin: 2px;
 }
 
 window#bar label {
@@ -98,8 +98,8 @@ window#capture-window > box {
 /* Widget icon normalization — all SVGs render at consistent size
    regardless of intrinsic viewBox (battery=1024, wifi=96, etc.) */
 .widget-icon {
-  min-width: 16px;
-  min-height: 16px;
+  min-width: 24px;
+  min-height: 24px;
 }
 
 
@@ -135,8 +135,8 @@ window#capture-window > box {
 }
 
 .workspace-indicator button {
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 38px;
+  min-height: 38px;
   border-radius: 8px;
   padding: 0 4px;
 }
@@ -154,7 +154,7 @@ window#capture-window > box {
 /* Clock */
 .clock {
   padding: 0 16px;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 /* Battery widget */

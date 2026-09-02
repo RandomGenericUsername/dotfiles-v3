@@ -194,6 +194,22 @@
       the cli-tools playbook first (direct-run prerequisite)
   when: not ansible_check_mode
 
+- name: Check desktop helper scripts exist (Fn-key binds)
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_bin_scripts }}"
+  register: verify_bin_script_checks
+
+- name: Assert desktop helper scripts exist
+  ansible.builtin.assert:
+    that: verify_bin_script_checks.results | selectattr('stat.exists') | list | length == verify_bin_scripts | length
+    fail_msg: >-
+      desktop helper script(s) missing (expected {{ verify_bin_scripts | join(', ') }})
+      — the compositor_configs role installs them from dotfiles/scripts/ into the
+      user bin dir; run the compositor-configs playbook first. Without them the
+      XF86TouchpadToggle Fn binding silently does nothing.
+  when: not ansible_check_mode
+
 - name: Check install-dir subtree exists
   ansible.builtin.stat:
     path: "{{ install_dir | trim }}/{{ item }}"

@@ -49,6 +49,10 @@ entries:
   # Mail client (AGS bar icon launcher)
   - name: thunderbird
 
+  # Fn-key controllers (XF86 binds in keybindings.lua)
+  - name: brightnessctl     # screen backlight
+  - name: playerctl         # media transport (MPRIS)
+
   # Additional useful tools
   - name: hyprcursor         # Cursor themes
   - name: hyprlock           # Screen locker

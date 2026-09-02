@@ -831,6 +831,8 @@ class TestVerifyTasks:
             "verify_itr_list_target",
             "verify_config_copy_content",
             "verify_managed_link_dirs",
+            "verify_cli_bin_dir",
+            "verify_bin_scripts",
             "<install>",
             "install_dir",
             "ansible_facts.env",
@@ -1055,6 +1057,8 @@ class TestVerifyVars:
             "verify_itr_list_target",
             "verify_config_copy_content",
             "verify_managed_link_dirs",
+            "verify_cli_bin_dir",
+            "verify_bin_scripts",
             "install_dir",
             "ansible_facts.env",
         )
@@ -1410,6 +1414,12 @@ def _write_stub_binaries(home: Path) -> Path:
         "exit 1\n"
     )
     sysctl.chmod(0o755)
+    # toggle-touchpad: the compositor_configs role (owner decision 2026-09-02)
+    # deploys this desktop helper into the bin dir; the verify role asserts its
+    # presence (Fn-key binds would silently no-op without it).
+    helper = bin_dir / "toggle-touchpad"
+    helper.write_text("#!/bin/sh\nexit 0\n")
+    helper.chmod(0o755)
     return bin_dir
 
 

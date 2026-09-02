@@ -373,3 +373,68 @@ hl.bind(
     hl.dsp.exit(),
     { description = "Exit Hyprland" }
 )
+
+-- ============================================================
+-- Function / Media Keys (XF86)
+-- ============================================================
+-- The tools are provisioned via packages.yaml (brightnessctl, wpctl via
+-- wireplumber, playerctl). The touchpad toggle script is deployed to
+-- ~/.local/bin/toggle-touchpad by the compositor_configs role.
+
+-- Screen brightness
+hl.bind(
+    "XF86MonBrightnessUp",
+    hl.dsp.exec_cmd("brightnessctl set +5%"),
+    { description = "Screen brightness up" }
+)
+hl.bind(
+    "XF86MonBrightnessDown",
+    hl.dsp.exec_cmd("brightnessctl set 5%-"),
+    { description = "Screen brightness down" }
+)
+
+-- Volume (soft cap at 150%, as validated live on the host)
+hl.bind(
+    "XF86AudioRaiseVolume",
+    hl.dsp.exec_cmd("wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ 5%+"),
+    { description = "Volume up" }
+)
+hl.bind(
+    "XF86AudioLowerVolume",
+    hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),
+    { description = "Volume down" }
+)
+hl.bind(
+    "XF86AudioMute",
+    hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),
+    { description = "Mute output" }
+)
+hl.bind(
+    "XF86AudioMicMute",
+    hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),
+    { description = "Mute microphone" }
+)
+
+-- Media transport
+hl.bind(
+    "XF86AudioPlay",
+    hl.dsp.exec_cmd("playerctl play-pause"),
+    { description = "Play / pause" }
+)
+hl.bind(
+    "XF86AudioNext",
+    hl.dsp.exec_cmd("playerctl next"),
+    { description = "Next track" }
+)
+hl.bind(
+    "XF86AudioPrev",
+    hl.dsp.exec_cmd("playerctl previous"),
+    { description = "Previous track" }
+)
+
+-- Touchpad toggle (Fn key; script deployed by compositor_configs)
+hl.bind(
+    "XF86TouchpadToggle",
+    hl.dsp.exec_cmd("toggle-touchpad"),
+    { description = "Toggle touchpad" }
+)

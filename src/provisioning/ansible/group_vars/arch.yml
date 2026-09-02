@@ -53,6 +53,8 @@ packages:
     - kitty
   btop: btop # System monitor (AGS bar icon launcher)
   thunderbird: thunderbird # Mail client (AGS bar icon launcher)
+  brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
+  playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)
   # Display manager — SDDM + Qt6 (provisioned by the display_manager role with
   # the Pixie theme and a Wayland greeter; installed here too so the packages

@@ -47,7 +47,7 @@ export function NetworkStatus() {
     >
       <box spacing={4}>
         <image
-          pixel_size={16}
+          pixel_size={24}
           class="widget-icon"
           $={(self) => {
             let cleanup: (() => void) | null = null

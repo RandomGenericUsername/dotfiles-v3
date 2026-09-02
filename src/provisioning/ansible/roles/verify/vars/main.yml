@@ -54,6 +54,13 @@ verify_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_fa
 #   second XDG resolution is introduced. Trim lock (stray-whitespace XDG
 #   values bit Story 1.11).
 verify_state_current_dir: "{{ verify_xdg_state_home | trim }}/dotfiles/current"
+
+# verify_bin_scripts: desktop helper scripts the compositor_configs role
+#   installs into the user bin dir (toggle-touchpad is called by the
+#   XF86TouchpadToggle bind in keybindings.lua). Fails loud if absent so a
+#   fresh machine cannot end up with dead Fn keys.
+verify_bin_scripts:
+  - "{{ verify_cli_bin_dir | trim }}/toggle-touchpad"
 verify_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
 
 # verify_xdg_dirs: the three XDG base dirs criterion 8 asserts exist (mirror of

@@ -18,7 +18,7 @@ export function PowerMenu() {
       onClicked={() => execAsync(["wlogout"])}
     >
       <image
-        pixel_size={16}
+        pixel_size={24}
         class="widget-icon"
         $={(self) => self.set_from_file(getPowerMenuIconPath() ?? "")}
       />

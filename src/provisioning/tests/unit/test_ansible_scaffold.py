@@ -63,6 +63,8 @@ _LOGICAL_PACKAGE_KEYS = (
     "wf-recorder",
     "btop",
     "thunderbird",
+    "brightnessctl",
+    "playerctl",
 )
 _ARCH_EXTRA_KEYS = ("gloview_build",)
 
