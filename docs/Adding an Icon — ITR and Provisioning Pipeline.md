@@ -217,17 +217,25 @@ color_mappings:
 
 Fixed colors should be the exception. They bypass palette adaptation.
 
-## 5. Step 3: keep the AGS manifest synchronized
+## 5. Step 3: generate the AGS manifest during provisioning
 
-AGS consumes:
+AGS consumes a generated JSON representation of the same manifest:
 
 ```text
-dotfiles/config/ags/icons.json
+~/.local/share/dotfiles/config/ags/icons.json
 ```
 
-The current pipeline does not generate this JSON file automatically from
-`icons.yaml`. Therefore, every new group or variant that AGS will use must be
-represented in both files.
+The authored source is:
+
+```text
+dotfiles/config/icon-template-color-scheme-mappings/icons.yaml
+```
+
+During provisioning, the compositor configuration role reads the deployed
+`icon-mappings/icons.yaml` and writes `config/ags/icons.json` automatically.
+Therefore, new groups and variants should be added only to `icons.yaml`; the
+JSON file in the install spine is generated output and must not be edited by
+hand.
 
 Equivalent JSON entry:
 
@@ -256,14 +264,14 @@ Equivalent JSON entry:
 }
 ```
 
-The `template` and `output` values must agree with `icons.yaml`. The
-`color_mappings` entry should also agree so the JSON manifest describes the
-same icon contract as the ITR manifest.
+The generated `template`, `output`, and `color_mappings` values come directly
+from `icons.yaml`. `bar_mappings` is preserved as well because it contains the
+AGS state-to-variant mapping.
 
 Validate JSON before provisioning:
 
 ```bash
-python -m json.tool dotfiles/config/ags/icons.json >/dev/null
+python -m json.tool ~/.local/share/dotfiles/config/ags/icons.json >/dev/null
 ```
 
 ## 6. Step 4: understand `IconRegistry`
@@ -589,7 +597,7 @@ disk looks correct.
 | Icon is black | SVG has literal `fill="black"` | Inspect the template and rendered SVG | Use `{{COLOR_FOREGROUND}}` and map it |
 | ITR says placeholder has no mapping | Placeholder is not in vocabulary or group mapping | Inspect `defaults.yaml` and `icons.yaml` | Add a valid mapping |
 | ITR cannot find template | `template` path does not match the deployed tree | Run `itr list`/`itr render` with `--template-dir` | Correct the relative path |
-| AGS image is empty | `icons.json` lacks the group/variant, or file is absent | Check registry path and generated output | Synchronize JSON and provision |
+| AGS image is empty | Generated `icons.json` lacks the group/variant, or rendered file is absent | Check the generated manifest and rendered output | Correct `icons.yaml`, then re-run provisioning |
 | Stop works but pause/play is blank | Reactive image lacks initial assignment | Inspect the widget effect | Use `createEffect` with an immediate `set_from_file` |
 | Host still shows old icon or CSS | AGS process was not restarted | Check process start time and reload | Restart the exact AGS instance |
 | Button has a pill background | GTK theme background image is still active | Inspect CSS and AGS reload logs | Set `background-image: none`, border, and shadow to none |
@@ -622,7 +630,7 @@ Use this checklist for every new icon group or variant.
 
 ### AGS
 
-- [ ] Group and variants are mirrored in `icons.json`.
+- [ ] Group and variants are present in the provisioned `icons.json` generated from `icons.yaml`.
 - [ ] Widget uses `registry.resolve(...)`.
 - [ ] Stateful images perform an initial assignment.
 - [ ] `pixel_size` matches the surrounding bar design.

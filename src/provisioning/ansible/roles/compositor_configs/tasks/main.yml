@@ -73,6 +73,37 @@
     state: directory
   loop: "{{ compositor_configs_config_dirs }}"
 
+- name: Check deployed icon manifest exists
+  ansible.builtin.stat:
+    path: "{{ compositor_configs_icon_manifest_source }}"
+  register: compositor_configs_icon_manifest_check
+  when: not ansible_check_mode
+
+- name: Assert deployed icon manifest is present
+  ansible.builtin.assert:
+    that:
+      - compositor_configs_icon_manifest_check.stat.exists
+      - not compositor_configs_icon_manifest_check.stat.isdir
+    fail_msg: >-
+      deployed icon manifest missing at {{ compositor_configs_icon_manifest_source }}
+      — the assets role must run first so icons.yaml is available for AGS manifest
+      generation
+  when: not ansible_check_mode
+
+- name: Read deployed icon manifest
+  ansible.builtin.slurp:
+    src: "{{ compositor_configs_icon_manifest_source }}"
+  register: compositor_configs_icon_manifest
+  when: not ansible_check_mode
+
+- name: Generate AGS JSON manifest from icon mappings
+  ansible.builtin.copy:
+    content: "{{ (compositor_configs_icon_manifest.content | b64decode | from_yaml) | to_nice_json(indent=2) }}\n"
+    dest: "{{ compositor_configs_icon_manifest_dest }}"
+    force: true
+    mode: "0644"
+  when: not ansible_check_mode
+
 - name: Place compositor skeleton files
   ansible.builtin.template:
     src: "{{ compositor_configs_repo_root }}/{{ item.source }}"

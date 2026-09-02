@@ -232,10 +232,36 @@ sudo incus exec "$VM_NAME" -- bash -c '
     || echo "  (wifi connect deferred — associate on first bar restart)"
 '
 
+# The plugin manager needs a live Hyprland IPC session. This VM-only SDDM
+# drop-in creates that session non-interactively; normal machines retain the
+# regular interactive login flow, where autostart runs gloview-activate.
+echo "== vm-fresh: enabling VM autologin for Hyprland session =="
+sudo incus exec "$VM_NAME" -- bash -c 'mkdir -p /etc/sddm.conf.d && cat > /etc/sddm.conf.d/90-dotfiles-vm-autologin.conf <<'"'"'AUTLOGIN'"'"'
+[Autologin]
+User=arch
+Session=hyprland.desktop
+AUTLOGIN
+'
+
 echo "== vm-fresh: starting SDDM =="
 sudo incus exec "$VM_NAME" -- systemctl start sddm 2>/dev/null || true
 
-echo "== vm-fresh: provision complete. VM ready for testing. =="
+echo "== vm-fresh: waiting for Hyprland session and GloView activation =="
+for i in $(seq 1 120); do
+  if sudo incus exec "$VM_NAME" -- test -f /home/arch/.local/state/dotfiles/gloview-active 2>/dev/null; then
+    echo "Hyprland session active and GloView loaded"
+    break
+  fi
+  sleep 2
+  [ "$i" -eq 120 ] && {
+    echo "ERROR: Hyprland/GloView activation did not complete"
+    sudo incus exec "$VM_NAME" -- journalctl -u sddm --no-pager -n 80 || true
+    sudo incus exec "$VM_NAME" -- su - arch -c 'pgrep -a Hyprland || true; hyprpm list 2>&1 || true'
+    exit 1
+  }
+done
+
+echo "== vm-fresh: provision complete. VM ready for testing =="
 echo "  Console:  sudo incus console $VM_NAME --type=vga"
 echo "  Shell:    sudo incus exec $VM_NAME -- su - arch"
 echo "  Cleanup:  sudo incus delete -f $VM_NAME"

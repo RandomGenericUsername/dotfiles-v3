@@ -11,7 +11,7 @@
 - [ ] 1.3 Add `bar_mappings` section to `power-menu` group in `icons.yaml`
   - widget: power-menu, icon_size: 24
   - states: default → power-menu-default
-- [ ] 1.4 Add YAML→JSON conversion step in provisioning (icons.yaml → icons.json)
+- [x] 1.4 Add YAML→JSON conversion step in provisioning (icons.yaml → icons.json)
   - Ansible task in `compositor_configs` or `config_copies` role
   - Produces `config/ags/icons.json` from `icon-mappings/icons.yaml`
 
