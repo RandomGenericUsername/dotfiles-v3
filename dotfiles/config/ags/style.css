@@ -72,6 +72,24 @@ window#capture-window > box {
   min-width: 135px;
 }
 
+.capture-options {
+  min-height: 32px;
+}
+
+.capture-options button.selected,
+.capture-targets button.selected {
+  background-color: @color_01;
+  color: @color_background;
+}
+
+.capture-primary {
+  min-height: 42px;
+  margin-top: 8px;
+  background-color: @color_01;
+  color: @color_background;
+  font-weight: bold;
+}
+
 .capture-hint {
   color: alpha(@color_foreground, 0.7);
   font-size: 12px;
@@ -126,19 +144,26 @@ window#capture-window > box {
   padding: 0 8px;
 }
 
-.recording-widget {
-  padding: 0 12px;
-  border-radius: 999px;
-  background-color: @color_01;
+.recording-controls button.recording-widget {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
   color: @color_foreground;
 }
 
-.recording-widget.paused {
-  background-color: @color_02;
-}
-
-.recording-widget.recording {
-  background-color: alpha(@color_03, 0.8);
+.recording-controls button.recording-widget:hover,
+.recording-controls button.recording-widget:active,
+.recording-controls button.recording-widget:checked,
+.recording-controls button.recording-widget:focus {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
 }
 
 .recording-controls {
@@ -150,6 +175,7 @@ window#capture-window > box {
   font-variant: tabular-nums;
 }
 
-.recording-widget.stop {
-  background-color: @color_02;
+.recording-icon {
+  min-width: 16px;
+  min-height: 16px;
 }

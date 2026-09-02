@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository="https://github.com/fedsfarm/gloview"
+lock_dir="${XDG_RUNTIME_DIR:-/tmp}/dotfiles-gloview-activate.lock"
+
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  exit 0
+fi
+trap 'rmdir "$lock_dir"' EXIT
+
+for _ in $(seq 1 60); do
+  if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && hyprctl version >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+
+if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || ! hyprctl version >/dev/null 2>&1; then
+  printf '%s\n' "gloview-activate: Hyprland IPC was not ready after 60 seconds" >&2
+  exit 1
+fi
+
+hyprpm remove Hyprspace >/dev/null 2>&1 || true
+hyprpm remove hyprexpo >/dev/null 2>&1 || true
+
+if ! hyprpm list 2>&1 | grep -E -q 'Repository gloview|Plugin gloview'; then
+  hyprpm update
+  printf 'y\n' | hyprpm add "$repository"
+fi
+
+hyprpm enable gloview
+hyprpm reload
+
+hyprpm list 2>&1 | grep -E -A2 'Repository gloview|Plugin gloview' | grep -q 'enabled:'
+hyprctl plugin list 2>&1 | grep -qi gloview
+
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+mkdir -p "$state_home/dotfiles"
+touch "$state_home/dotfiles/gloview-active"

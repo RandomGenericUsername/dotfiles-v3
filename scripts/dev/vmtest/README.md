@@ -127,4 +127,11 @@ vm fresh
 - `vm` — single entry point for all VM operations
 - `vm-fresh.sh` — creates VM, sets up network/packages, pushes repo, runs bootstrap
 - `vm-continue.sh` — resume an existing provisioned VM
+
+`vm-fresh.sh` provisions the base machine first, then adds a VM-only SDDM
+autologin for `arch`. That starts a real Hyprland session so the session
+autostart can run `gloview-activate`; the script waits for its successful
+`hyprctl plugin list` verification before reporting the VM ready. GloView is
+not installed during headless Ansible bootstrap because `hyprpm` requires the
+live Hyprland IPC session.
 - `README.md` — this file

@@ -44,6 +44,10 @@
     repo: "{{ shell.oh_my_zsh_repo }}"
     dest: "{{ shell.oh_my_zsh_dir }}"
     depth: 1
+  register: zsh_oh_my_clone
+  retries: 3
+  delay: 5
+  until: zsh_oh_my_clone is succeeded
   when:
     - not ansible_check_mode
     - not zsh_tools_dir_checks.results[0].stat.exists
@@ -52,6 +56,10 @@
   ansible.builtin.git:
     repo: "{{ shell.pyenv_repo }}"
     dest: "{{ shell.pyenv_dir }}"
+  register: zsh_pyenv_clone
+  retries: 3
+  delay: 5
+  until: zsh_pyenv_clone is succeeded
   when:
     - not ansible_check_mode
     - not zsh_tools_dir_checks.results[1].stat.exists
@@ -61,6 +69,10 @@
     repo: "{{ shell.nvm_repo }}"
     dest: "{{ shell.nvm_dir }}"
     depth: 1
+  register: zsh_nvm_clone
+  retries: 3
+  delay: 5
+  until: zsh_nvm_clone is succeeded
   when:
     - not ansible_check_mode
     - not zsh_tools_dir_checks.results[2].stat.exists

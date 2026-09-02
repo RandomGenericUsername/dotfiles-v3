@@ -194,6 +194,20 @@ screenshot-tool:
       template: screenshot-tool/take-screenshot/default/take-screenshot.svg
       output: take-screenshot.svg
 
+screen-recorder:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: pause
+      template: screen-recorder/default/pause.svg
+      output: screen-recorder-pause.svg
+    - name: play
+      template: screen-recorder/default/play.svg
+      output: screen-recorder-play.svg
+    - name: stop
+      template: screen-recorder/default/stop.svg
+      output: screen-recorder-stop.svg
+
 email-client:
   color_mappings: {}
   variants:
@@ -207,4 +221,3 @@ wallpaper-selector:
     - name: wallpaper-selector
       template: status-bar/wallpaper-selector/default/wallpaper-selector.svg
       output: wallpaper-selector.svg
-

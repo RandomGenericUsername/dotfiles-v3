@@ -60,3 +60,5 @@ packages:
     - sddm
     - qt6-declarative
     - qt6-svg
+  gloview_build:
+    - cmake
