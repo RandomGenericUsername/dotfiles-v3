@@ -1,6 +1,10 @@
+---
+baseline_commit: b3c3f095c7f5ef775b8791ee24da5baabc65aaa5
+---
+
 # Story 2.3: Hyprland reload adapter
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,54 +24,54 @@ so that the compositor's borders/decoration match the new palette.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — Create `adapters/hyprland_reloader.py` (AC: 1, 2, 3)
-  - [ ] Create `src/runtime/src/runtime/adapters/hyprland_reloader.py` implementing `IDesktopReloader`.
-  - [ ] The class `HyprlandReloader` accepts a `hyprctl_path: Path | None = None` constructor parameter. Default: resolve via `shutil.which("hyprctl")`; if not found, store `None` for fail-later behavior. Mirror the binary resolution pattern from `csg_adapter.py:135-163` (check path separators → `shutil.which` → verify executable via `os.access`).
-  - [ ] `reload()` method:
+- [x] Task 1 — Create `adapters/hyprland_reloader.py` (AC: 1, 2, 3)
+  - [x] Create `src/runtime/src/runtime/adapters/hyprland_reloader.py` implementing `IDesktopReloader`.
+  - [x] The class `HyprlandReloader` accepts a `hyprctl_path: Path | None = None` constructor parameter. Default: resolve via `shutil.which("hyprctl")`; if not found, store `None` for fail-later behavior. Mirror the binary resolution pattern from `csg_adapter.py:135-163` (check path separators → `shutil.which` → verify executable via `os.access`).
+  - [x] `reload()` method:
     - If `hyprctl_path` is `None`, log warning `hyprctl not found in PATH; Hyprland reload skipped` and return `False`.
     - Run `subprocess.run([str(self._hyprctl_path), "reload"], capture_output=True, text=True, timeout=10)`. **Must pass `text=True`** so `result.stderr` is `str` (matching `csg_adapter.py:297` pattern).
     - If exit code == 0, return `True`.
     - If exit code != 0, log at warning level with stderr output, return `False`.
     - Catch `FileNotFoundError`, `PermissionError`, `subprocess.TimeoutExpired`, and `OSError` (matching `csg_adapter.py:301-319` exception set). On any of these, log at warning level and return `False`.
-  - [ ] Module docstring cites AD-17 (consumer wiring), FR-6 (reload after swap), R5 (reload-failure handling).
+  - [x] Module docstring cites AD-17 (consumer wiring), FR-6 (reload after swap), R5 (reload-failure handling).
 
-- [ ] Task 2 — Wire into `ReconcileDesktopStateUseCase` (AC: 4)
-  - [ ] Add `reloaders: list[IDesktopReloader]` constructor parameter to `ReconcileDesktopStateUseCase` (default: `field(default_factory=list)`).
-  - [ ] After step 4 (history append) in `run()`, invoke each reloader once: `for reloader in self._reloaders:` call `reloader.reload()`. If it returns `False`, append the reloader's class name to `reload_failures`. Note: `hyprctl reload` is global — do NOT call per-monitor. Each reloader in the list is called exactly once.
-  - [ ] Return `ReconcileResult` with `reload_failures` populated (already exists on `ReconcileResult` from rt-2-2).
-  - [ ] The reload step runs OUTSIDE the lock (after history append, same scope as history). Reload is fire-and-report — it does not affect the symlink swap or state persistence.
+- [x] Task 2 — Wire into `ReconcileDesktopStateUseCase` (AC: 4)
+  - [x] Add `reloaders: list[IDesktopReloader]` constructor parameter to `ReconcileDesktopStateUseCase` (default: `field(default_factory=list)`).
+  - [x] After step 4 (history append) in `run()`, invoke each reloader once: `for reloader in self._reloaders:` call `reloader.reload()`. If it returns `False`, append the reloader's class name to `reload_failures`. Note: `hyprctl reload` is global — do NOT call per-monitor. Each reloader in the list is called exactly once.
+  - [x] Return `ReconcileResult` with `reload_failures` populated (already exists on `ReconcileResult` from rt-2-2).
+  - [x] The reload step runs OUTSIDE the lock (after history append, same scope as history). Reload is fire-and-report — it does not affect the symlink swap or state persistence.
 
-- [ ] Task 3 — Update CLI composition root (AC: 4)
-  - [ ] In `cli/main.py` `_run_reconcile()`, add a **lazy import** inside the function body (matching the pattern at cli/main.py:309-315): `from runtime.adapters.hyprland_reloader import HyprlandReloader`.
-  - [ ] Construct `HyprlandReloader()` and pass `[HyprlandReloader()]` as the `reloaders` parameter to `ReconcileDesktopStateUseCase`.
-  - [ ] The existing reload-failure handling in the `reconcile` command (rt-2-2 placeholder at cli/main.py:362-371) already checks `result.reload_failures` and exits non-zero — verify it works with real adapter output.
+- [x] Task 3 — Update CLI composition root (AC: 4)
+  - [x] In `cli/main.py` `_run_reconcile()`, add a **lazy import** inside the function body (matching the pattern at cli/main.py:309-315): `from runtime.adapters.hyprland_reloader import HyprlandReloader`.
+  - [x] Construct `HyprlandReloader()` and pass `[HyprlandReloader()]` as the `reloaders` parameter to `ReconcileDesktopStateUseCase`.
+  - [x] The existing reload-failure handling in the `reconcile` command (rt-2-2 placeholder at cli/main.py:362-371) already checks `result.reload_failures` and exits non-zero — verify it works with real adapter output.
 
-- [ ] Task 4 — Unit tests `tests/unit/test_hyprland_reloader.py` (AC: 1, 2, 3)
-  - [ ] Follow `test_crash_recovery.py`'s fake-adapter style. Use `unittest.mock.patch` for `subprocess.run`.
-  - [ ] **Success tests:**
+- [x] Task 4 — Unit tests `tests/unit/test_hyprland_reloader.py` (AC: 1, 2, 3)
+  - [x] Follow `test_crash_recovery.py`'s fake-adapter style. Use `unittest.mock.patch` for `subprocess.run`.
+  - [x] **Success tests:**
     - `test_reload_success_returns_true`: Mock `subprocess.run` returning exit code 0 → `reload()` returns `True`.
     - `test_reload_invokes_hyprctl_reload`: Assert `subprocess.run` called with `[hyprctl_path, "reload"]`.
-  - [ ] **Failure tests:**
+  - [x] **Failure tests:**
     - `test_reload_nonzero_exit_returns_false`: Mock exit code 1 → returns `False`.
     - `test_reload_timeout_returns_false`: Mock `subprocess.TimeoutExpired` → returns `False`.
     - `test_reload_command_not_found_returns_false`: Mock `FileNotFoundError` → returns `False`.
     - `test_reload_permission_denied_returns_false`: Mock `PermissionError` → returns `False` (matching csg_adapter.py:304-306).
-  - [ ] **Missing hyprctl tests:**
+  - [x] **Missing hyprctl tests:**
     - `test_reload_no_hyprctl_returns_false`: Construct with `hyprctl_path=None` → returns `False`, no subprocess call.
-  - [ ] **Integration with ReconcileResult:**
+  - [x] **Integration with ReconcileResult:**
     - `test_reload_failure_populates_reload_failures`: Wire a failing reloader into reconcile → `result.reload_failures` contains the adapter label.
 
-- [ ] Task 5 — Integration test `tests/integration/test_hyprland_reloader_integration.py` (AC: 1, 4)
-  - [ ] End-to-end: seed → apply wallpaper → run reconcile with a real `HyprlandReloader` (skip if `hyprctl` not in PATH via `pytest.importorskip` or `shutil.which`).
-  - [ ] Assert `result.reload_failures` is empty on success.
-  - [ ] If `hyprctl` is not available, skip the test with a clear message.
+- [x] Task 5 — Integration test `tests/integration/test_hyprland_reloader_integration.py` (AC: 1, 4)
+  - [x] End-to-end: seed → apply wallpaper → run reconcile with a real `HyprlandReloader` (skip if `hyprctl` not in PATH via `pytest.importorskip` or `shutil.which`).
+  - [x] Assert `result.reload_failures` is empty on success.
+  - [x] If `hyprctl` is not available, skip the test with a clear message.
 
-- [ ] Task 6 — Full green gate (AC: all)
-  - [ ] `uv run --directory src/runtime pytest -q` (baseline: ~283+ passed, ~2 skipped)
-  - [ ] `uv run --directory src/runtime ruff check src/runtime` (zero NEW violations)
-  - [ ] `uv run --directory src/runtime ruff format --check src/runtime` (new/edited files format-clean)
-  - [ ] `uv run --directory src/runtime mypy --strict src/runtime` (zero NEW errors)
-  - [ ] `tests/architecture/test_layering.py` green (adapters can import from ports, application can import from adapters via constructor injection)
+- [x] Task 6 — Full green gate (AC: all)
+  - [x] `uv run --directory src/runtime pytest -q` (baseline: ~283+ passed, ~2 skipped)
+  - [x] `uv run --directory src/runtime ruff check src/runtime` (zero NEW violations)
+  - [x] `uv run --directory src/runtime ruff format --check src/runtime` (new/edited files format-clean)
+  - [x] `uv run --directory src/runtime mypy --strict src/runtime` (zero NEW errors)
+  - [x] `tests/architecture/test_layering.py` green (adapters can import from ports, application can import from adapters via constructor injection)
 
 ## Dev Notes
 
@@ -158,8 +162,34 @@ No changes: `domain/`, `ports/` (IDesktopReloader already exists), `pyproject.to
 
 ### Agent Model Used
 
+muse-spark-1.2-contributor-free (opencode/muse-spark-1.2-contributor-free)
+
 ### Debug Log References
+
+- Adapter `hyprland_reloader.py` mirrors `csg_adapter` binary resolution and subprocess patterns; `text=True` and timeout 10 enforced.
+- Reconcile use case wired with `reloaders` param; reload loop outside lock after history, fire-and-report with class-name failures.
+- CLI lazy import of `HyprlandReloader` in `_run_reconcile`; existing `reload_failures` handling exits non-zero.
+- Tests: unit `test_hyprland_reloader.py` (14 tests: success, failure, missing, missing-N, interface, reconcile integration) and integration `test_hyprland_reloader_integration.py` (real shim, missing-path) green.
+- Fixed `test_reconcile.py` scope-lock assertion to allow `reloaders` param (2.1 expectation updated for 2.3).
 
 ### Completion Notes List
 
+- Task 1: Created `HyprlandReloader` implementing `IDesktopReloader` with `hyprctl_path` default via `shutil.which` + `os.access`, `reload()` handling `text=True`, timeout, and `(FileNotFoundError, PermissionError, TimeoutExpired, OSError)` with warning logs.
+- Task 2: Extended `ReconcileDesktopStateUseCase` with `reloaders` param; after history append, invokes each reloader once, collects failures by class name into `ReconcileResult.reload_failures` outside mutex.
+- Task 3: Updated `cli/main.py` `_run_reconcile` to lazy-import `HyprlandReloader` and pass `[HyprlandReloader()]`.
+- Task 4: Added `tests/unit/test_hyprland_reloader.py` covering success, invoke-args, non-zero, timeout, not-found, permission, OSError, missing-path, interface, and reconcile failure/success population.
+- Task 5: Added `tests/integration/test_hyprland_reloader_integration.py` with fake hyprctl shim in PATH and missing-path check; asserts empty `reload_failures` on success.
+- Task 6: Green gate verified — pytest 296 passed 2 skipped, ruff src/runtime 3 pre-existing errors only, ruff format clean, mypy 4 pre-existing errors only, layering 51 passed.
+
 ### File List
+
+- `src/runtime/src/runtime/adapters/hyprland_reloader.py` — NEW Hyprland reload adapter
+- `src/runtime/src/runtime/application/reconcile.py` — added `reloaders` param, `IDesktopReloader` import, Step 5 reload loop outside lock
+- `src/runtime/src/runtime/cli/main.py` — wired `HyprlandReloader` into `_run_reconcile`
+- `src/runtime/tests/unit/test_hyprland_reloader.py` — NEW unit tests
+- `src/runtime/tests/integration/test_hyprland_reloader_integration.py` — NEW integration test
+- `src/runtime/tests/unit/test_reconcile.py` — updated scope-lock assertion to allow `reloaders`
+
+### Change Log
+
+- 2026-09-02: Implemented Hyprland reload adapter (AC 1-4), wired into reconcile and CLI, added unit/integration tests, and verified full green gate.
