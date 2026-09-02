@@ -1,5 +1,5 @@
 import GLib from "gi://GLib?version=2.0"
-import { createState } from "ags"
+import { createEffect, createState } from "ags"
 import { Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
@@ -58,7 +58,9 @@ export function RecordingIndicator() {
           halign={Gtk.Align.CENTER}
           valign={Gtk.Align.CENTER}
           $={(self) => {
-            state((value) => self.set_from_file(iconPath(value === "recording" ? "pause" : "play")))
+            createEffect(() => {
+              self.set_from_file(iconPath(state() === "recording" ? "pause" : "play"))
+            })
           }}
         />
       </button>
