@@ -4,7 +4,7 @@ baseline_commit: 644c3e1459a802897faefca28be4efe48c2a1132
 
 # Story 2.2: Crash-mid-swap recovery to last-good state
 
-Status: review
+Status: done
 
 ## Story
 
@@ -256,6 +256,10 @@ No changes: `domain/`, `ports/`, `adapters/` (reuse seeder as-is — `_repoint_s
 - Existing code: `src/runtime/src/runtime/application/reconcile.py` (ReconcileDesktopStateUseCase, _cleanup_stale_symlinks, _derive_skipped, ReconcileResult), `adapters/seeder.py` (repoint_current_symlinks, `_repoint_symlink` at line 55), `adapters/cache.py` (cache_entry_path at line 107)
 - Previous stories: `_bmad-output/implementation-artifacts/rt-2-1-atomic-symlink-repoint.md` (swap sequence, scope boundary, D1 mutex protocol, deferred crash-recovery item)
 - Deferred ledger: `_bmad-output/implementation-artifacts/deferred-work.md` — rt-2-1 entry (history/save atomicity deferred, crash recovery owned by this story)
+
+### Review Findings
+
+- [x] [Review][Patch] Error message deviates from AC 6 literal contract [`reconcile.py:129`] — AC 6 specifies `RuntimeError("nothing to reconcile")` but implementation appends `": no current state (never seeded)"`. Test uses substring match so it passes, but the literal contract is not met. **Fixed:** changed to `RuntimeError("nothing to reconcile")` at both call sites.
 
 ## Dev Agent Record
 
