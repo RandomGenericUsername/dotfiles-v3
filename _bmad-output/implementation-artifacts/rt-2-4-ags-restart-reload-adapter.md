@@ -4,7 +4,7 @@ baseline_commit: 5c06031de9c0cbb383dd0cb04318f64c9af87187
 
 # Story 2.4: AGS restart-based reload adapter
 
-Status: review
+Status: done
 
 ## Story
 
@@ -174,6 +174,14 @@ No changes: `domain/`, `ports/` (IDesktopReloader already exists), `pyproject.to
 
 ## Change Log
 
+- 2026-09-02 — Code review (blind hunter + edge case hunter + acceptance
+  auditor): 6 patches applied — verified-tolerant quit handling (AGS/Astal source-
+  verified: non-zero quit = no live instance; NAME_OCCUPIED prevents duplicate
+  bars) with quit-outcome logging, liveness loop restructured (no post-final-poll
+  sleep; window ≤2s) + 3 contract-pinning tests, honest module docstring, stale
+  placeholder comments fixed in cli/main.py, stdin=DEVNULL on the detached spawn.
+  Suite: 323 passed, 2 skipped; zero new lint/mypy. 2 items deferred, 14 dismissed.
+
 - 2026-09-02 — Implemented AGS restart-based reload adapter (Story 2.4): new
   `adapters/ags_reloader.py` (quit → detached run → liveness verify, reuse of
   `_resolve_via_which`), wired `AgsReloader` into the CLI composition root
@@ -238,3 +246,14 @@ No changes: `domain/`, `ports/` (IDesktopReloader already exists), `pyproject.to
 - `src/runtime/tests/integration/test_ags_reloader_integration.py` (NEW — 2 integration tests)
 - `src/runtime/src/runtime/cli/main.py` (MODIFIED — lazy `AgsReloader` import + appended to `reloaders`)
 - `src/runtime/src/runtime/application/reconcile.py` (MODIFIED — docstring-only: scope comment 2.4 shipped)
+
+### Review Findings (2026-09-02 code review: blind hunter + edge case hunter + acceptance auditor)
+
+- [x] [Review][Patch] Quit outcome handling — verified-tolerant (decision resolved 2026-09-02): AGS source verification shows `ags quit` non-zero deterministically means no live instance (`ServiceUnknown` → non-zero, astal.go), and a spawned instance under an occupied `io.Astal.ags` name dies immediately with `NAME_OCCUPIED` (application.vala:195-197) — so tolerate-and-spawn can only yield a rare spurious False, never duplicate bars. Fix: log the quit outcome distinctly (non-zero = "no live instance", zero = "Quit delivered, teardown async"), keep tolerate-and-spawn, and cite the verified semantics in the module docstring. Also covers the originally-reported silent non-zero quit (result never read/logged). [adapters/ags_reloader.py:10-22,96-113]
+- [x] [Review][Patch] Non-zero `ags quit` exit silently discarded — the `subprocess.run` result is never read; only exceptions are logged at debug. Story Task 1 mandated logging non-zero quit exits; a quit that fails with returncode 1 + useful stderr is invisible at every log level. [adapters/ags_reloader.py:100-113]
+- [x] [Review][Patch] Liveness loop: post-final-poll sleep + unpinned window contract — `for _ in range(8): poll(); sleep()` sleeps after the last poll (death in the final 0.25s blind spot is missed; 2.0s sleep total + poll overhead can exceed the documented ≤2s window). Also no test pins sleep count/interval or the alive→dead mid-window transition — halving/doubling the window passes silently. Restructure (poll → dead? return False : last? return True : sleep) and add contract-pinning tests. [adapters/ags_reloader.py:125-132, tests/unit/test_ags_reloader.py:38-46,82-90]
+- [x] [Review][Patch] Module docstring overclaims — "the separator/which/access branch logic is not forked a second time" is false (`_resolve_ags` forks separator/is_file/access verbatim; only the bare-name path reuses `_resolve_via_which`), and "Any failure after quit is reported as False" overstates (death after the liveness window returns True). rt-2-3 review lesson 2: docstrings must not overclaim. [adapters/ags_reloader.py:14,20-22]
+- [x] [Review][Patch] Stale placeholder comments in the exact function this story edited — "ReconcileResult.reload_failures is [] until adapters land" (main.py:362-364) and "Desktop reload (contract step 5) is Stories 2.3-2.6" (main.py:343) were both falsified by wiring two reloaders at main.py:328. Same stale-comment debt class Task 3 was meant to clear. [cli/main.py:337-343,362-364]
+- [x] [Review][Patch] Detached spawn does not redirect stdin — only stdout/stderr are DEVNULL; the orphaned bar inherits the CLI's stdin/tty. Add `stdin=subprocess.DEVNULL` to the Popen contract. [adapters/ags_reloader.py:119-124]
+- [x] [Review][Defer] ~140 lines of test scaffolding copy-pasted into a 4th location — `_FakeMutex`/`_FakeCsg`/`_FakeWeg`/`_FakeItr`/`_setup_spine`/`_make_applied` are byte-identical to copies in the hyprland test files; should be shared conftest fixtures [tests/unit/test_ags_reloader.py:197-339, tests/integration/test_ags_reloader_integration.py] — deferred, pre-existing pattern
+- [x] [Review][Defer] Test hygiene: process-global `which` patches coupled to `hyprland_reloader` module location, and reconcile-integration tests living in the unit file — both latent refactoring blockers, inherited from the hyprland test precedent [tests/unit/test_ags_reloader.py:146-149,360-379] — deferred, pre-existing pattern

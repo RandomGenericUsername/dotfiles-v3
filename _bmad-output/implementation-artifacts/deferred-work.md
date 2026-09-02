@@ -315,3 +315,8 @@
 - Dangling symlink false miss: cache_entry_path.exists() false for dangling symlink triggers unnecessary regeneration [reconcile.py:226] — deferred, edge case of corrupt cache
 - Composition root side effect runs on --help/--version [cli/main.py:159] — deferred, pre-existing
 - Idempotence relies on existence not content hash — stale/corrupt entry resurrected [derive.py:239] — deferred, deferred-work rt-1-11
+
+## Deferred from: code review of rt-2-4-ags-restart-reload-adapter (2026-09-02)
+
+- ~140 lines of test scaffolding copy-pasted into a 4th location — `_FakeMutex`/`_FakeCsg`/`_FakeWeg`/`_FakeItr`/`_setup_spine`/`_make_applied` are byte-identical to the copies in test_hyprland_reloader*.py; should be shared conftest fixtures [src/runtime/tests/unit/test_ags_reloader.py:197-339, src/runtime/tests/integration/test_ags_reloader_integration.py]
+- Test hygiene: process-global `shutil.which` patches coupled to `hyprland_reloader`'s module location (breaks if the resolver moves to a shared module), and reconcile-integration tests (full use case + on-disk repos) living in the unit test file [src/runtime/tests/unit/test_ags_reloader.py:146-149,360-379]
