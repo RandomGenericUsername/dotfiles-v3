@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-09-02 (rt-2-7-full-wallpaper-set-capstone → review)
+last_updated: 2026-09-02 (rt-2-7-full-wallpaper-set-capstone → done)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -71,7 +71,7 @@ development_status:
   rt-2-4-ags-restart-reload-adapter: done
   rt-2-5-hyprpaper-channel-verification: done
   rt-2-6-terminal-palette-applier: done
-  rt-2-7-full-wallpaper-set-capstone: review
+  rt-2-7-full-wallpaper-set-capstone: done
   rt-epic-2-retrospective: optional
 
   # ── Epic 3: State Inspection & History ──
