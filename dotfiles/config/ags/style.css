@@ -108,6 +108,27 @@ window#capture-window > box {
   padding: 0 8px;
 }
 
+/* Strip the GTK theme background from all widget buttons — the theme paints
+   a dark rounded box behind every icon even when background-color is
+   transparent (background-image must be cleared explicitly). Same reset the
+   recording controls use below. */
+.widget {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+.widget:hover,
+.widget:active,
+.widget:checked,
+.widget:focus {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
 /* Workspace indicator */
 .workspace-indicator {
   padding: 0 8px;
