@@ -226,6 +226,8 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/battery.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/network.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/power-menu.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/btop.tsx"
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/thunderbird.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/recording.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/tray.tsx"
   - "{{ install_dir | trim }}/config/ags/capture/CaptureWindow.tsx"

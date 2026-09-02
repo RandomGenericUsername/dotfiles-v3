@@ -4,6 +4,8 @@ import { Clock } from "./widgets/clock"
 import { BatteryIndicator } from "./widgets/battery"
 import { NetworkStatus } from "./widgets/network"
 import { PowerMenu } from "./widgets/power-menu"
+import { Btop } from "./widgets/btop"
+import { Thunderbird } from "./widgets/thunderbird"
 import { Tray } from "./widgets/tray"
 
 export default function Bar(gdkmonitor: Gdk.Monitor) {
@@ -29,6 +31,8 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
           <Tray />
           <BatteryIndicator />
           <NetworkStatus />
+          <Btop />
+          <Thunderbird />
           <PowerMenu />
         </box>
       </centerbox>

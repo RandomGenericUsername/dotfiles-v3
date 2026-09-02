@@ -43,6 +43,12 @@ entries:
   # Terminal file manager
   - name: lf
 
+  # System monitor (AGS bar icon launcher)
+  - name: btop
+
+  # Mail client (AGS bar icon launcher)
+  - name: thunderbird
+
   # Additional useful tools
   - name: hyprcursor         # Cursor themes
   - name: hyprlock           # Screen locker

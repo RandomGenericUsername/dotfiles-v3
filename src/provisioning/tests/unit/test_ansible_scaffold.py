@@ -38,7 +38,10 @@ _REQUIRED_FILES = (
     "group_vars/debian-family.yml",
 )
 
-# Every logical entry in dotfiles/provisioning/packages.yaml (Story 2.1).
+# Every logical key in the group_vars `packages` map (Story 2.1 parity lock).
+# Shared base must be identical across arch.yml and debian-family.yml;
+# distro-specific extras are pinned separately (gloview_build is Arch-only:
+# cmake build deps for the gloview Hyprland plugin).
 _LOGICAL_PACKAGE_KEYS = (
     "hyprland",
     "hyprpaper",
@@ -53,7 +56,15 @@ _LOGICAL_PACKAGE_KEYS = (
     "terminal",
     "display_manager",
     "container_engine",
+    "ffmpeg",
+    "pipewire",
+    "wireplumber",
+    "gpu-screen-recorder",
+    "wf-recorder",
+    "btop",
+    "thunderbird",
 )
+_ARCH_EXTRA_KEYS = ("gloview_build",)
 
 
 class TestAnsibleScaffoldFilesExist:
@@ -152,7 +163,8 @@ class TestGroupVars:
 
     def test_arch_packages_cover_exactly_logical_set(self) -> None:
         packages = self._packages_map("arch.yml")
-        assert set(packages.keys()) == set(_LOGICAL_PACKAGE_KEYS)
+        expected = set(_LOGICAL_PACKAGE_KEYS) | set(_ARCH_EXTRA_KEYS)
+        assert set(packages.keys()) == expected
 
     def test_debian_family_packages_cover_exactly_logical_set(self) -> None:
         packages = self._packages_map("debian-family.yml")
