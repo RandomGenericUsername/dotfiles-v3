@@ -149,7 +149,9 @@ New files (expected):
 - `src/runtime/tests/unit/test_reconcile.py` — MOD (trigger param tests)
 - `src/runtime/tests/integration/test_wallpaper_set_capstone_integration.py` — NEW (E2E capstone integration)
 
-No changes: `domain/`, `ports/`, all adapters, `seeder.py`, `json_state_repository.py`, `pyproject.toml`, `dotfiles/config/**`, provisioning.
+Deviation (2026-09-02 review remediation): the monitor connector landed in this story — NEW `ports/monitor_source.py` + `adapters/hyprland_monitor_source.py` (the otherwise-applicable "No changes: ports, all adapters" statement no longer holds).
+
+No changes: `domain/`, `seeder.py` (except `hyprpaper_reloader.py` docstring — stale stub note), `json_state_repository.py`, `pyproject.toml`, `dotfiles/config/**`, provisioning.
 
 ### References
 

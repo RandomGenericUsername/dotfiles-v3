@@ -27,7 +27,7 @@ Companion to `ARCHITECTURE-SPINE.md`. Pins the on-disk shapes the runtime core o
 Rules:
 - `schema_version`: 2 (v1 had flat wallpaper only; v2 adds per-monitor `monitors` object).
 - `wallpaper.hash` names `cache/wallpapers/<hash>/`; `palette.hash` names `cache/palettes/<hash>/`, etc.
-- `monitors` object keys are monitor names (e.g., `DP-1`, `HDMI-1`). Each monitor config specifies its wallpaper backend and parameters.
+- `monitors` object keys are monitor names (e.g., `DP-1`, `HDMI-1`). Each monitor config specifies its wallpaper backend and parameters. Names are determined once at seed/apply by the injected `IMonitorSource` adapter (`HyprlandMonitorSource` — `hyprctl monitors -j`; enabled, non-mirrored outputs); `DEFAULT_MONITOR` (`DP-1`) is only the fallback when detection is unavailable (headless/CI).
 - `backend`: one of `hyprpaper`, `swaybg`, `swww`, `mpvpaper`. Required.
 - `source_hash`: wallpaper content hash (names `cache/wallpapers/<hash>/`). Required.
 - `fit_mode`: scaling mode for static backends. Default `cover`. Ignored by `mpvpaper`.

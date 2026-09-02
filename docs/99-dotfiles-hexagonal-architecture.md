@@ -966,6 +966,7 @@ Examples:
 | `IIconRenderer` | Icon renderer adapter |
 | `IStateRepository` | SQLite repository |
 | `IDesktopReloader` | Hyprland reload adapter |
+| `IMonitorSource` | Hyprland monitor adapter (`hyprctl monitors -j`) |
 
 > **Implemented today (provisioning side):** `src/shared/oci-runtime` already
 > provides the container-mode runtime adapter (`podman`/`docker`, netavark
