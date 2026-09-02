@@ -1,6 +1,10 @@
+---
+baseline_commit: 5c06031de9c0cbb383dd0cb04318f64c9af87187
+---
+
 # Story 2.4: AGS restart-based reload adapter
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -20,33 +24,33 @@ so that the bar converges to the new colors.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — Create `adapters/ags_reloader.py` (AC: 1, 2, 3)
-  - [ ] Create `src/runtime/src/runtime/adapters/ags_reloader.py` implementing `IDesktopReloader`. The spine's adapter manifest names it `ags_reloader` [ARCHITECTURE-SPINE.md:191].
-  - [ ] Class `AgsReloader` accepts `ags_path: Path | None = None`. Default: resolve via the SAME resolution logic as `HyprlandReloader` — **reuse, do not duplicate**: only `_resolve_via_which` (hyprland_reloader.py:30-38) is directly importable — the separator/which/access branch structure lives inside hyprctl-specific `_resolve_hyprctl` (lines 41-65). So: import `_resolve_via_which` and write a thin `_resolve_ags` mirroring `_resolve_hyprctl`'s branch structure (separator check → executable-file verify / bare-name → `_resolve_via_which("ags")`). An `ags_reloader` → `hyprland_reloader` import inside `adapters/` is legal (layering allows adapters→adapters, `test_layering.py:63`). Either import the helper from there or factor both to a tiny shared `adapters/_binary_resolution.py` — do NOT copy-paste a second `_resolve_via_which`. If not found, store `None` for fail-later behavior.
-  - [ ] `reload()` method — the restart is a THREE-step sequence (quit → spawn detached run → liveness verify):
+- [x] Task 1 — Create `adapters/ags_reloader.py` (AC: 1, 2, 3)
+  - [x] Create `src/runtime/src/runtime/adapters/ags_reloader.py` implementing `IDesktopReloader`. The spine's adapter manifest names it `ags_reloader` [ARCHITECTURE-SPINE.md:191].
+  - [x] Class `AgsReloader` accepts `ags_path: Path | None = None`. Default: resolve via the SAME resolution logic as `HyprlandReloader` — **reuse, do not duplicate**: only `_resolve_via_which` (hyprland_reloader.py:30-38) is directly importable — the separator/which/access branch structure lives inside hyprctl-specific `_resolve_hyprctl` (lines 41-65). So: import `_resolve_via_which` and write a thin `_resolve_ags` mirroring `_resolve_hyprctl`'s branch structure (separator check → executable-file verify / bare-name → `_resolve_via_which("ags")`). An `ags_reloader` → `hyprland_reloader` import inside `adapters/` is legal (layering allows adapters→adapters, `test_layering.py:63`). Either import the helper from there or factor both to a tiny shared `adapters/_binary_resolution.py` — do NOT copy-paste a second `_resolve_via_which`. If not found, store `None` for fail-later behavior.
+  - [x] `reload()` method — the restart is a THREE-step sequence (quit → spawn detached run → liveness verify):
     - If `ags_path` is `None`, log warning `ags not found in PATH; AGS reload skipped` and return `False`.
     - Step A (quit): `subprocess.run([str(self._ags_path), "quit"], capture_output=True, text=True, timeout=10)`. **Tolerate quit failure**: non-zero exit or exception means no live instance (or quit channel failed) — log at debug/warning and CONTINUE to Step B, because the goal is a fresh instance, not the death of the old one. Quit failure is NOT a reload failure (contrast with HyprlandReloader where any failure is fatal).
     - Step B (run): spawn DETACHED — `subprocess.Popen([str(self._ags_path), "run"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)`. **Must be `Popen`, NOT `subprocess.run`**: `ags run` is a long-running foreground process (it IS the bar); a blocking `run()` would hang `reconcile` forever. `start_new_session=True` detaches it from the CLI's process group so it survives CLI exit; `DEVNULL` pipes stop it from writing into the CLI's output.
     - Step C (verify): poll the `Popen` for a short grace window (total ≤ 2s, e.g. `time.sleep` in ~0.25s increments). If `poll()` is not `None` (process exited) within the window, log warning with the exit code and return `False` — a misconfigured/broken `ags run` exits almost immediately, so liveness polling is the verification. If still alive after the window, return `True`. Known Phase-2 limitation (R5): liveness is the strongest verification available without a daemon — the adapter CANNOT verify the bar actually re-rendered.
     - Exception handling: wrap ALL subprocess calls in `except (FileNotFoundError, PermissionError, subprocess.TimeoutExpired, OSError, ValueError) as exc:` → log warning, return `False`. **The `ValueError` member is mandatory** — the rt-2-3 review found NUL-byte paths/bad stderr bytes escaping the tuple and breaching the "error → False" contract [hyprland_reloader.py:99-107]. Any exception in Step B/Step C is a reload failure; exceptions in Step A are tolerated (continue).
     - Module docstring cites AD-17 (consumer wiring: AGS CSS palette fragment → `current/colors.gtk.css`), FR-6 (reload after swap), R5 (reload-failure handling), and the verified no-hot-reload fact with the spine reference.
-  - [ ] No per-monitor parameter: the AGS bar is one process reloading once, exactly like HyprlandReloader — do NOT accept a `monitor` argument.
+  - [x] No per-monitor parameter: the AGS bar is one process reloading once, exactly like HyprlandReloader — do NOT accept a `monitor` argument.
 
-- [ ] Task 2 — Wire into CLI composition root (AC: 4)
-  - [ ] In `cli/main.py` `_run_reconcile()`, add a **lazy import** inside the function body next to the existing adapter imports (matching the pattern at cli/main.py:309-315): `from runtime.adapters.ags_reloader import AgsReloader`.
-  - [ ] Change `reloaders=[HyprlandReloader()]` (cli/main.py:327) to `reloaders=[HyprlandReloader(), AgsReloader()]` — Hyprland first, AGS second, deterministic order. NO changes to `reconcile.py`'s reload loop: it already invokes each reloader once and collects class names into `reload_failures` (reconcile.py:257-266).
-  - [ ] The existing reload-failure handling (cli/main.py:362-371) already exits non-zero when `reload_failures` is non-empty — verify it works with `AgsReloader` in the list; no changes expected.
+- [x] Task 2 — Wire into CLI composition root (AC: 4)
+  - [x] In `cli/main.py` `_run_reconcile()`, add a **lazy import** inside the function body next to the existing adapter imports (matching the pattern at cli/main.py:309-315): `from runtime.adapters.ags_reloader import AgsReloader`.
+  - [x] Change `reloaders=[HyprlandReloader()]` (cli/main.py:327) to `reloaders=[HyprlandReloader(), AgsReloader()]` — Hyprland first, AGS second, deterministic order. NO changes to `reconcile.py`'s reload loop: it already invokes each reloader once and collects class names into `reload_failures` (reconcile.py:257-266).
+  - [x] The existing reload-failure handling (cli/main.py:362-371) already exits non-zero when `reload_failures` is non-empty — verify it works with `AgsReloader` in the list; no changes expected.
 
-- [ ] Task 3 — Update stale scope comment in `reconcile.py` (documentation debt, rt-2-3 review lesson)
-  - [ ] `reconcile.py:12-13` still says "AGS/Hyprpaper/terminal follow in 2.4–2.6" — after this story AGS is shipped. Update to "Hyprpaper/terminal follow in 2.5–2.6". Docstring-only change; no behavior change. (rt-2-3 review flagged exactly this class of stale docstring [reconcile.py:12-13].)
+- [x] Task 3 — Update stale scope comment in `reconcile.py` (documentation debt, rt-2-3 review lesson)
+  - [x] `reconcile.py:12-13` still says "AGS/Hyprpaper/terminal follow in 2.4–2.6" — after this story AGS is shipped. Update to "Hyprpaper/terminal follow in 2.5–2.6". Docstring-only change; no behavior change. (rt-2-3 review flagged exactly this class of stale docstring [reconcile.py:12-13].)
 
-- [ ] Task 4 — Unit tests `tests/unit/test_ags_reloader.py` (AC: 1, 2, 3)
-  - [ ] Follow `test_hyprland_reloader.py`'s style: `unittest.mock.patch` on `subprocess.run` AND `subprocess.Popen` (the adapter uses both — patch each separately), **plus `time.sleep`** — the liveness poll really sleeps up to 2s per call, and unpatched success-path tests would add ~10s+ to the suite (patch `runtime.adapters.ags_reloader.time.sleep`). Construct with an explicit `ags_path` for resolution-independent tests; do NOT bypass resolution by poking `_ags_path` (rt-2-3 review: tests bypassing `_resolve_hyprctl` left branches unexercised — pass explicit paths instead).
-  - [ ] **Success tests:**
+- [x] Task 4 — Unit tests `tests/unit/test_ags_reloader.py` (AC: 1, 2, 3)
+  - [x] Follow `test_hyprland_reloader.py`'s style: `unittest.mock.patch` on `subprocess.run` AND `subprocess.Popen` (the adapter uses both — patch each separately), **plus `time.sleep`** — the liveness poll really sleeps up to 2s per call, and unpatched success-path tests would add ~10s+ to the suite (patch `runtime.adapters.ags_reloader.time.sleep`). Construct with an explicit `ags_path` for resolution-independent tests; do NOT bypass resolution by poking `_ags_path` (rt-2-3 review: tests bypassing `_resolve_hyprctl` left branches unexercised — pass explicit paths instead).
+  - [x] **Success tests:**
     - `test_reload_success_returns_true`: Mock quit `run` → CompletedProcess(0); Mock `Popen` → fake with `poll()` returning `None` → `reload()` returns `True` (with `time.sleep` patched).
     - `test_quit_invoked_with_ags_quit`: assert `subprocess.run` called with `[ags_path, "quit"]`.
     - `test_run_spawned_detached`: assert `Popen` called with `[ags_path, "run"]`, `start_new_session=True`, `stdout=DEVNULL`, `stderr=DEVNULL` — the detached-spawn contract is what prevents a hanging reconcile.
-  - [ ] **Failure tests:**
+  - [x] **Failure tests:**
     - `test_run_process_dies_within_window_returns_false`: Mock `Popen` → fake whose `poll()` returns a non-None exit code on first check → returns `False`.
     - `test_quit_failure_is_tolerated`: Mock quit `run` → returncode 1 (or raising) → `reload()` STILL spawns `ags run` and returns `True` if the process lives (distinguishes AGS restart semantics from Hyprland's fail-fast).
     - `test_popen_exception_returns_false` / `test_run_exception_returns_false`: Mock `Popen` constructor raising `FileNotFoundError` → returns `False`. Cover `PermissionError`, `OSError`, and `ValueError` for the run step.
@@ -55,21 +59,21 @@ so that the bar converges to the new colors.
       - `test_non_executable_ags_returns_false`: patch `shutil.which` to return a non-executable tmp file (chmod 0o644) → `False`.
       - `test_resolve_explicit_missing_path_fails_later`: `AgsReloader(ags_path=tmp_path / "does-not-exist")` → fail-later `None` → `reload()` returns `False` without subprocess.
       - `test_which_called_with_ags`: assert `shutil.which` invoked with `"ags"`.
-  - [ ] **Integration with ReconcileResult:**
+  - [x] **Integration with ReconcileResult:**
     - `test_ags_reload_failure_populates_reload_failures`: Wire a failing `AgsReloader` fake (a `_FakeReloader` with `fail=True`, per the rt-2-2 fake-adapter pattern) into reconcile alongside a passing fake → `result.reload_failures` contains the failing label and not the passing one.
     - `test_both_reloaders_invoked_once`: `_FakeReloader` call counts == 1 each when `[HyprlandReloader-fake, AgsReloader-fake]` wired (AC 4).
 
-- [ ] Task 5 — Integration test `tests/integration/test_ags_reloader_integration.py` (AC: 1, 4)
-  - [ ] Fake `ags` shim in PATH (a tiny shell script that records invocation to a marker file, exits 0 for `quit`; for `run` it must **sleep LONGER than the adapter's liveness window** (e.g., `sleep 3`) then exit 0 — if the shim exits within the ≤2s window, `poll()` catches the death, `reload()` returns `False`, and the test fails. Honest labeling per the rt-2-3 review finding: do NOT name tests "with_real_binary" and do not claim to log calls the shim doesn't make).
-  - [ ] End-to-end: seed → apply → reconcile with a real `AgsReloader(ags_path=<shim>)` → assert `result.reload_failures` is empty and the shim marker shows both `quit` and `run` invocations.
-  - [ ] Also cover the missing-binary path: PATH monkeypatched empty → `AgsReloader()` → `reload_failures` contains `"AgsReloader"` (consistent with the rt-2-3 decision: missing binary is a surfaced failure, reconcile exits non-zero — do NOT convert this into a skip).
+- [x] Task 5 — Integration test `tests/integration/test_ags_reloader_integration.py` (AC: 1, 4)
+  - [x] Fake `ags` shim in PATH (a tiny shell script that records invocation to a marker file, exits 0 for `quit`; for `run` it must **sleep LONGER than the adapter's liveness window** (e.g., `sleep 3`) then exit 0 — if the shim exits within the ≤2s window, `poll()` catches the death, `reload()` returns `False`, and the test fails. Honest labeling per the rt-2-3 review finding: do NOT name tests "with_real_binary" and do not claim to log calls the shim doesn't make).
+  - [x] End-to-end: seed → apply → reconcile with a real `AgsReloader(ags_path=<shim>)` → assert `result.reload_failures` is empty and the shim marker shows both `quit` and `run` invocations.
+  - [x] Also cover the missing-binary path: PATH monkeypatched empty → `AgsReloader()` → `reload_failures` contains `"AgsReloader"` (consistent with the rt-2-3 decision: missing binary is a surfaced failure, reconcile exits non-zero — do NOT convert this into a skip).
 
-- [ ] Task 6 — Full green gate (AC: all)
-  - [ ] `uv run --directory src/runtime pytest -q` (baseline: 299 passed, 2 skipped)
-  - [ ] `uv run --directory src/runtime ruff check src/runtime` (zero NEW violations; 3 pre-existing)
-  - [ ] `uv run --directory src/runtime ruff format --check src/runtime` (new/edited files format-clean)
-  - [ ] `uv run --directory src/runtime mypy --strict src/runtime` (zero NEW errors; 4 pre-existing)
-  - [ ] `tests/architecture/test_layering.py` green (adapter may import from ports and sibling adapters, NOT from domain internals beyond the allowlist; no concrete classes in ports/)
+- [x] Task 6 — Full green gate (AC: all)
+  - [x] `uv run --directory src/runtime pytest -q` (baseline: 299 passed, 2 skipped)
+  - [x] `uv run --directory src/runtime ruff check src/runtime` (zero NEW violations; 3 pre-existing)
+  - [x] `uv run --directory src/runtime ruff format --check src/runtime` (new/edited files format-clean)
+  - [x] `uv run --directory src/runtime mypy --strict src/runtime` (zero NEW errors; 4 pre-existing)
+  - [x] `tests/architecture/test_layering.py` green (adapter may import from ports and sibling adapters, NOT from domain internals beyond the allowlist; no concrete classes in ports/)
 
 ## Dev Notes
 
@@ -168,12 +172,69 @@ No changes: `domain/`, `ports/` (IDesktopReloader already exists), `pyproject.to
 - Existing code: `src/runtime/src/runtime/ports/desktop_reloader.py` (IDesktopReloader), `src/runtime/src/runtime/adapters/hyprland_reloader.py` (pattern to mirror + resolver to reuse), `src/runtime/src/runtime/application/reconcile.py` (reloaders param + Step-5 loop), `src/runtime/src/runtime/cli/main.py` (`_run_reconcile`, reload-failure exit)
 - Previous stories: `_bmad-output/implementation-artifacts/rt-2-3-hyprland-reload-adapter.md` (direct predecessor — review findings, test patterns, green-gate baselines), `_bmad-output/implementation-artifacts/rt-2-1-atomic-symlink-repoint.md` (swap sequence scope)
 
+## Change Log
+
+- 2026-09-02 — Implemented AGS restart-based reload adapter (Story 2.4): new
+  `adapters/ags_reloader.py` (quit → detached run → liveness verify, reuse of
+  `_resolve_via_which`), wired `AgsReloader` into the CLI composition root
+  (`reloaders=[HyprlandReloader(), AgsReloader()]`), fixed the stale reconcile.py
+  scope docstring, added 18 unit tests + 2 integration tests. Full suite green
+  (320 passed, 2 skipped), zero new ruff/mypy violations. Status → review.
+
 ## Dev Agent Record
 
 ### Agent Model Used
 
+- opencode-go/deepseek-v4-flash
+
 ### Debug Log References
+
+- No external debug-log session was referenced. Runtime logs for the quit-tolerance
+  path (debug) and reload-failure path (warning) were observed in passing test output.
 
 ### Completion Notes List
 
+- **Task 1 — `adapters/ags_reloader.py` (AC 1, 2, 3):** `AgsReloader(IDesktopReloader)` implemented.
+  Binary resolution reuses `_resolve_via_which` imported from `hyprland_reloader` (adapters→adapters,
+  layering-green, no second copy) behind a thin `_resolve_ags` mirroring `_resolve_hyprctl`'s
+  separator/which/access branch structure. `reload()` = Step A `ags quit` via
+  `subprocess.run(..., capture_output=True, text=True, timeout=10)` with quit failure TOLERATED
+  (debug log + continue); Step B detached spawn `Popen([ags, "run"], stdout=DEVNULL,
+  stderr=DEVNULL, start_new_session=True)` (never a blocking `run()` — deadlock guard); Step C
+  liveness poll (8 × 0.25s ≤ 2s window) — live after window → `True`, early `poll() != None` →
+  warning with exit code → `False`. Missing binary → warning + `False` (surfaced failure, not a
+  skip — R5). No `monitor` parameter. All subprocess calls wrapped in the mandated exception tuple
+  `(FileNotFoundError, PermissionError, TimeoutExpired, OSError, ValueError)`.
+  Module docstring cites AD-17, FR-6, R5, and the verified no-hot-reload fact
+  (`cli/cmd/run.go:145`, ARCHITECTURE-SPINE.md:236).
+- **Task 2 — CLI composition root (AC 4):** lazy import `AgsReloader` added inside
+  `_run_reconcile()` next to existing adapter imports; `reloaders=[HyprlandReloader(), AgsReloader()]`
+  (Hyprland first, AGS second). No change to `reconcile.py`'s Step-5 loop or the existing
+  reload-failure non-zero exit (cli/main.py:362-371) — both already generic over the reloader list.
+- **Task 3 — stale scope comment:** `reconcile.py:12-13` updated to
+  "Hyprpaper/terminal follow in 2.5–2.6" (AGS shipped in this story). Docstring-only change.
+- **Task 4 — unit tests (`tests/unit/test_ags_reloader.py`, 18 tests):** success (returns True,
+  quit args `[ags, "quit"]`, detached-spawn kwargs verified), failure (dies-within-window → False,
+  quit-failure tolerated → still True, quit-exception tolerated → still True, Popen raising each
+  of FileNotFoundError/PermissionError/OSError/TimeoutExpired/ValueError → False), missing-binary
+  (which→None, non-executable, explicit-missing-path fail-later, `which("ags")` asserted), port
+  conformance, and ReconcileResult integration (`_FailingReloader`/`_PassingReloader` — failure
+  populated with only the failing label; both reloaders invoked exactly once).
+- **Task 5 — integration test (`tests/integration/test_ags_reloader_integration.py`, 2 tests):**
+  fake `ags` shim records argv to a marker (`quit` → exit 0; `run` → `sleep 3`, longer than the
+  2s liveness window) — seed → apply → reconcile with `AgsReloader(ags_path=<shim>)` →
+  `reload_failures == []` and marker shows `["quit", "run"]`. Missing-binary path: `which→None`
+  → `reload_failures` contains `"AgsReloader"` (surfaced failure, consistent with Hyprland).
+- **Task 6 — green gate:** `pytest -q` → **320 passed, 2 skipped** (baseline 299 + 20 new =
+  319 at reference, actual full-suite count observed 320 — no regressions). `ruff check src/runtime`
+  → 3 pre-existing errors, **zero NEW**. `ruff format --check src/runtime` → clean. `mypy --strict`
+  → 4 pre-existing errors (domain/models.py:30, cli untyped cli_output imports), **zero NEW**.
+  `tests/architecture/test_layering.py` → green (adapters→adapters import legal).
+
 ### File List
+
+- `src/runtime/src/runtime/adapters/ags_reloader.py` (NEW — AGS restart reload adapter)
+- `src/runtime/tests/unit/test_ags_reloader.py` (NEW — 18 unit tests)
+- `src/runtime/tests/integration/test_ags_reloader_integration.py` (NEW — 2 integration tests)
+- `src/runtime/src/runtime/cli/main.py` (MODIFIED — lazy `AgsReloader` import + appended to `reloaders`)
+- `src/runtime/src/runtime/application/reconcile.py` (MODIFIED — docstring-only: scope comment 2.4 shipped)
