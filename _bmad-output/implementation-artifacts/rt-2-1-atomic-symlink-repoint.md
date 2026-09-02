@@ -4,7 +4,7 @@ baseline_commit: 2f5b47ed6c05b455f15c975b9be5fbd4c80c2360
 
 # Story 2.1: Atomic `current/` symlink repoint and swap sequencing
 
-Status: review
+Status: done
 
 ## Story
 
@@ -177,3 +177,30 @@ No changes: `domain/`, `ports/`, `adapters/` (reuse `CacheSeeder` as-is), `pypro
 - src/runtime/tests/unit/test_cli_reconcile.py (NEW)
 - src/runtime/tests/integration/test_reconcile_integration.py (NEW)
 - src/runtime/src/runtime/cli/main.py (modified — reconcile command + _run_reconcile)
+
+### Review Findings
+
+#### decision-needed
+
+- [x] [Review][Decision] Stale derivation race: derivation outside lock reused after reload can split state (blind+edge+auditor) — _ensure_entries runs on pre-lock state, then inside lock reloads state but reuses stale palette/effects/icons and wallpaper_target mismatch; concurrent wallpaper set between derivation and lock makes wallpaper hash vs palette hash diverge, hash-mismatch guard checks wrong recorded hash — RESOLVED: re-derive inside lock if wallpaper hash changed
+- [x] [Review][Decision] Stale symlinks never removed: monitor shrink or null layer leaves old current/ symlinks (blind+edge) — repoint only creates/overwrites, never unlinks wallpaper-DP-2.png or effects/icons when layer becomes null or monitors dict shrinks; current/ diverges from current.json — RESOLVED: added _cleanup_stale_symlinks
+
+#### patch
+
+- [x] [Review][Patch] Monitor name path traversal lacks validation [reconcile.py:155, seeder.py:531, json_state_repository.py:306]
+- [x] [Review][Patch] Wallpaper dangling symlink: wallpaper repoint has no existence guard [reconcile.py:156, seeder.py:530]
+- [x] [Review][Patch] Auto-seed masks "nothing to reconcile" — CLI callback seeds before reconcile, making RuntimeError unreachable when default.png exists [cli/main.py:158, reconcile.py:125]
+- [x] [Review][Patch] Corrupted wallpaper cache passes existence check without hash verification [reconcile.py:278]
+- [x] [Review][Patch] Wallpaper source_path whitespace/relative not rejected (only empty string checked) [reconcile.py:281]
+- [x] [Review][Patch] Invalid palette=None + effects/icons non-null dependency not guarded — skips regeneration silently [reconcile.py:257]
+- [x] [Review][Patch] Wallpaper cache-miss bypasses cache_entry_path helper, missing hex validation [reconcile.py:278]
+- [x] [Review][Patch] Lock held while logging in _derive_skipped — inflates critical section [reconcile.py:337, reconcile.py:170]
+
+#### defer
+
+- [x] [Review][Defer] History/save outside lock inconsistency and crash-recovery atomicity — save after repoint can fail leaving FS ahead of store, history append outside lock can be lost [reconcile.py:183, reconcile.py:185] — deferred, pre-existing design; Story 2.2 owns crash-mid-swap recovery
+- [x] [Review][Defer] Arbitrary file read via source_path — trusts current.json source_path to import arbitrary files [reconcile.py:281] — deferred, pre-existing spec-intended; requires write to current.json
+- [x] [Review][Defer] Cache entry exists as file not dir crashes with unmapped exception [reconcile.py:226] — deferred, pre-existing cache layer behavior
+- [x] [Review][Defer] Dangling symlink false miss: cache_entry_path.exists() false for dangling symlink triggers unnecessary regeneration [reconcile.py:226] — deferred, edge case of corrupt cache
+- [x] [Review][Defer] Composition root side effect runs on --help/--version [cli/main.py:159] — deferred, pre-existing
+- [x] [Review][Defer] Idempotence relies on existence not content hash — stale/corrupt entry resurrected [derive.py:239] — deferred, deferred-work rt-1-11

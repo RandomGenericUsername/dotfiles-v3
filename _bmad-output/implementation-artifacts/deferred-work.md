@@ -306,3 +306,12 @@
 ## Deferred from: code review of rt-1-13-applywallpaperusecase (2026-09-01)
 
 - Corrupt/missing `meta.json` in an existing palette/effects/icons cache entry bricks that layer permanently — cache-hit is entry-dir existence, populate is write-once, and `load_*_entry` raises on bad/absent meta with no self-heal path; pattern inherited from rt-1-11 (applies to seed equally), now shared via DerivationPipeline. Self-heal (rename aside / rmtree + repopulate on meta load failure) is cache-hygiene beyond this story's scope. [src/runtime/src/runtime/application/derive.py:239-240, src/runtime/src/runtime/adapters/seeder.py:344-353]
+
+## Deferred from: code review of rt-2-1-atomic-symlink-repoint (2026-09-02)
+
+- History/save outside lock inconsistency and crash-recovery atomicity — save after repoint can fail leaving FS ahead of store, history append outside lock can be lost [reconcile.py:183, reconcile.py:185] — deferred, pre-existing design; Story 2.2 owns crash-mid-swap recovery
+- Arbitrary file read via source_path — trusts current.json source_path to import arbitrary files [reconcile.py:281] — deferred, pre-existing spec-intended; requires write to current.json
+- Cache entry exists as file not dir crashes with unmapped exception [reconcile.py:226] — deferred, pre-existing cache layer behavior
+- Dangling symlink false miss: cache_entry_path.exists() false for dangling symlink triggers unnecessary regeneration [reconcile.py:226] — deferred, edge case of corrupt cache
+- Composition root side effect runs on --help/--version [cli/main.py:159] — deferred, pre-existing
+- Idempotence relies on existence not content hash — stale/corrupt entry resurrected [derive.py:239] — deferred, deferred-work rt-1-11
