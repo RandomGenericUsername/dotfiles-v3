@@ -328,6 +328,8 @@ class TestReadRealManifests:
     def test_packages_manifest_has_verified_set(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "packages.yaml")
         names = [entry.name for entry in manifest.entries]
+        # Strip trailing inline comments — the manifest annotates entries.
+        names = [name.split("#")[0].strip() for name in names]
         assert len(names) == len(set(names)), f"duplicate package entries: {names}"
         assert set(names) == {
             "hyprland",
@@ -338,7 +340,9 @@ class TestReadRealManifests:
             "astal-network",
             "networkmanager",
             "wifitui",
+            "uwsm",
             "fonts",
+            "librsvg",
             "dunst",
             "hyprpolkitagent",
             "xdg-desktop-portal-hyprland",
@@ -346,10 +350,17 @@ class TestReadRealManifests:
             "wl-clipboard",
             "grim",
             "slurp",
+            "ffmpeg",
+            "pipewire",
+            "wireplumber",
+            "gpu-screen-recorder",
+            "wf-recorder",
             "wofi",
             "thunar",
             "cliphist",
             "lf",
+            "btop",
+            "thunderbird",
             "hyprcursor",
             "hyprlock",
             "hypridle",

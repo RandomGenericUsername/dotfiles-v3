@@ -210,20 +210,32 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        assert len(files) == 22, (
-            f"expected exactly 22 skeleton files "
-            f"(hyprland.lua + gloview.lua + 8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+icons.json+icon-registry+Bar.tsx+5 widgets); found {len(files)}"
+        assert len(files) == 33, (
+            f"expected exactly 33 skeleton files "
+            f"(hyprland.lua + gloview.lua + 8 hypr modules/hyprpaper.conf/ags app.tsx+style.css"
+            f"+icon-registry+Bar.tsx+10 widgets/capture views+controllers); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "dotfiles/config/ags/app.tsx",
             "dotfiles/config/ags/bar/Bar.tsx",
             "dotfiles/config/ags/bar/widgets/battery.tsx",
+            "dotfiles/config/ags/bar/widgets/btop.tsx",
             "dotfiles/config/ags/bar/widgets/clock.tsx",
             "dotfiles/config/ags/bar/widgets/network.tsx",
             "dotfiles/config/ags/bar/widgets/power-menu.tsx",
+            "dotfiles/config/ags/bar/widgets/recording.tsx",
+            "dotfiles/config/ags/bar/widgets/thunderbird.tsx",
+            "dotfiles/config/ags/bar/widgets/tray.tsx",
             "dotfiles/config/ags/bar/widgets/workspaces.tsx",
-            "dotfiles/config/ags/icons.json",
+            "dotfiles/config/ags/capture/CaptureWindow.tsx",
+            "dotfiles/config/ags/capture/RecordingView.tsx",
+            "dotfiles/config/ags/capture/ScreenshotView.tsx",
+            "dotfiles/config/ags/capture/controllers/CaptureController.ts",
+            "dotfiles/config/ags/capture/controllers/RecordingController.ts",
+            "dotfiles/config/ags/capture/controllers/ScreenshotController.ts",
+            "dotfiles/config/ags/capture/controllers/TargetResolver.ts",
+            "dotfiles/config/ags/capture/types.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/style.css",
             "dotfiles/config/hypr/animations.lua",

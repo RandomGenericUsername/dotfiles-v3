@@ -221,3 +221,19 @@ wallpaper-selector:
     - name: wallpaper-selector
       template: status-bar/wallpaper-selector/default/wallpaper-selector.svg
       output: wallpaper-selector.svg
+
+btop:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: btop
+      template: status-bar/btop/default/icon.svg
+      output: btop.svg
+
+thunderbird:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: thunderbird
+      template: status-bar/thunderbird/default/icon.svg
+      output: thunderbird.svg
