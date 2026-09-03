@@ -4,7 +4,7 @@ baseline_commit: c9daae75e59fdc96ddc2e9836514abdf081c96a8
 
 # Story rt-3.3: inspect history command
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -82,14 +82,14 @@ changes, no seed/reconcile behavior changes.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: `InspectHistoryUseCase` (AC: 1, 2, 3, 5)
-  - [ ] Extend `src/runtime/src/runtime/application/inspect.py` (do NOT
+- [x] Task 1: `InspectHistoryUseCase` (AC: 1, 2, 3, 5)
+  - [x] Extend `src/runtime/src/runtime/application/inspect.py` (do NOT
     create a new module — keeps history+status cohesion; the layering
     module case for `inspect.py` already exists): frozen
     `HistoryRecord` dataclass (7 fields: `ts`, `trigger`, `wallpaper`,
     `palette`, `effects`, `icons`, `source_path`; `str | None` for the
     three nullable hashes) + `InspectHistoryUseCase(state_root: Path)`
-  - [ ] `run(limit: int = 20) -> list[HistoryRecord]`:
+  - [x] `run(limit: int = 20) -> list[HistoryRecord]`:
     read `state_root / "history.jsonl"`; absent file → `[]` (AC 3);
     if the path is a symlink → raise `ValueError` (mirror the writer's
     O_NOFOLLOW hardening — never follow a symlinked history file);
@@ -103,40 +103,40 @@ changes, no seed/reconcile behavior changes.
     newest-first (reverse of file order — file is oldest-first, newest
     on last line per contract); apply `limit` (newest N; `0` = all);
     negative `limit` → `ValueError`
-  - [ ] Read-only: only `Path` reads (`is_file`/`is_symlink`/`open`);
+  - [x] Read-only: only `Path` reads (`is_file`/`is_symlink`/`open`);
     never `os.open(..., O_APPEND)`, never `save()`, never seeder/mutex
     construction. Constructor takes ONLY `state_root` — no
     `state_repo`, no adapters (history is a flat file, not the
     `current.json` index; rt-3.1 reserved port extension for Phase 3).
     Do NOT call `load_current()` and do NOT require `current.json` —
     history works (including `[]`) even when `current.json` is absent.
-- [ ] Task 2: CLI `inspect history` (AC: 1, 2, 4)
-  - [ ] `@inspect_app.command("history")` in `cli/main.py` (precedent:
+- [x] Task 2: CLI `inspect history` (AC: 1, 2, 4)
+  - [x] `@inspect_app.command("history")` in `cli/main.py` (precedent:
     `inspect_status` at main.py:518-575); function `inspect_history`
     with `--limit/-n int = 20` option (`0` = all; negative → `ValueError`
     + exit 1) + shared `_OUTPUT_FORMAT_OPTION`
-  - [ ] `_run_inspect_history(limit: int)` composition helper
+  - [x] `_run_inspect_history(limit: int)` composition helper
     mirroring `_run_inspect_status` (main.py:498-515): `_resolve_state_root()`
     + `InspectHistoryUseCase(state_root)` only — no seeder, mutex,
     derivation adapters, reloaders, or `state_repo` (AC 4)
-  - [ ] Error mapping: `ValueError`/`RuntimeError`/`OSError` →
+  - [x] Error mapping: `ValueError`/`RuntimeError`/`OSError` →
     `ErrorView` + `typer.Exit(1)` (mirror main.py:535-547); catch-all
     `Exception` → `UnexpectedError`. Empty history → success path with
     the clean message (exit 0, AC 3), NOT the error path
-  - [ ] Render success via `CustomView(plain=..., object={...}, rich=...)`;
+  - [x] Render success via `CustomView(plain=..., object={...}, rich=...)`;
     `plain`: one line per entry
     (`<ts> <trigger> <wallpaper[:12]> ...`) or the empty message when
     `[]`;     `object`: `{"entries": [...newest-first full 7-field dicts...],
     "count": <returned>, "total": <parseable on-disk lines, torn trailing
     line excluded>, "truncated": bool,
     "limit": <applied>}`; `rich`: same as plain
-  - [ ] **No auto-seed guard change:** `main_callback` (main.py:168-183)
+  - [x] **No auto-seed guard change:** `main_callback` (main.py:168-183)
     already returns early when `"inspect" in sys.argv` (rt-3.2). Verify
     it covers the new subcommand (it does — argv contains `"inspect"`
     for `inspect history`) and PIN with a guard test; do NOT touch the
     guard
-- [ ] Task 3: Tests (AC: 1-6)
-  - [ ] `tests/unit/test_inspect_history.py`: use-case level — newest-first
+- [x] Task 3: Tests (AC: 1-6)
+  - [x] `tests/unit/test_inspect_history.py`: use-case level — newest-first
     ordering from multi-line fixture; `limit` newest-N + `0` = all;
     negative `limit` → `ValueError`; absent file → `[]` (even with
     `current.json` absent — no `state_repo` involved); symlinked
@@ -148,7 +148,7 @@ changes, no seed/reconcile behavior changes.
     round-trip; `ts`/hashes surfaced verbatim (no reformat); read-only (no
     `history.jsonl` creation when absent, no `current.json`/`current/`
     mutations, file bytes identical before/after)
-  - [ ] `tests/unit/test_cli_inspect_history.py`: mirrors
+  - [x] `tests/unit/test_cli_inspect_history.py`: mirrors
     `test_cli_inspect_status.py` — exit codes, plain summary text,
     `--format json` object shape (`entries`/`count`/`total`/`truncated`/
     `limit`), `--limit/-n` flag wiring (incl. `0` = all, negative →
@@ -156,30 +156,30 @@ changes, no seed/reconcile behavior changes.
     middle → exit 1 + `ErrorView` (monkeypatch `_run_inspect_history`,
     not the whole app; `DOTFILES_INSTALL_SPINE` + `XDG_STATE_HOME`
     fixtures as in `test_cli_reconcile.py:88-95`)
-  - [ ] `tests/integration/test_inspect_history_integration.py`: real
+  - [x] `tests/integration/test_inspect_history_integration.py`: real
     `CacheSeeder.append_history` writes N lines (all 4 triggers incl.
     `None` hashes) then a FRESH `InspectHistoryUseCase` on the same
     `state_root` reads newest-first (restart-survival realism, rt-3.1
     lesson); large-history limit (`--limit` newest-N + `truncated`
     flags); diverged `current/` tree does not affect history output
-  - [ ] Guard test: `inspect history` never seeds (seed-tripwire: pre-create
+  - [x] Guard test: `inspect history` never seeds (seed-tripwire: pre-create
     install-spine `generated/default.png` + assert no `current.json` /
     no `history.jsonl` mutation from the CLI path); other commands still
     seed (extend existing seed-hook CLI tests if needed)
-- [ ] Task 4: Quality gates (AC: 6)
-  - [ ] `uv run --directory src/runtime pytest`
-  - [ ] `uv run --directory src/runtime ruff check src` — zero NEW
+- [x] Task 4: Quality gates (AC: 6)
+  - [x] `uv run --directory src/runtime pytest`
+  - [x] `uv run --directory src/runtime ruff check src` — zero NEW
     (baseline: exactly 3 — cli/main.py:166, cli/main.py:271,
     domain/models.py:35; re-verify live at start, line numbers may have
     shifted after rt-3.2). Do NOT run bare `ruff check`
-  - [ ] `uv run --directory src/runtime ruff format --check src` — clean
+  - [x] `uv run --directory src/runtime ruff format --check src` — clean
     (src scope; unscoped run reports pre-existing test-file violations,
     do not count them)
-  - [ ] `uv run --directory src/runtime mypy --strict src` — zero NEW
+  - [x] `uv run --directory src/runtime mypy --strict src` — zero NEW
     (baseline: exactly 4; re-verify live). Bare `mypy --strict` errors
     out ("Missing target module")
-  - [ ] `uv run --directory src/runtime pytest tests/architecture/test_layering.py -v`
-  - [ ] Confirm `git status --short` contains ONLY this story's new files +
+  - [x] `uv run --directory src/runtime pytest tests/architecture/test_layering.py -v`
+  - [x] Confirm `git status --short` contains ONLY this story's new files +
     the story/status artifacts (`application/inspect.py`, `cli/main.py`,
     3 test files, `sprint-status.yaml`, this story file)
 
@@ -392,10 +392,38 @@ needs).
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+OpenCode powered by Meta Muse Spark (muse-spark-1.3-contributor-free)
 
 ### Debug Log References
 
+- Use-case smoke test: absent → [], empty → [], 2-line fixture newest-first, limit=1/0 verified via ad-hoc python before CLI wiring.
+- CLI smoke test: empty state → exit 0 + "no history recorded yet", JSON shape {entries,count,total,truncated,limit} verified.
+- New-test run: 52 passed (24 use-case + 21 CLI + 7 integration).
+- Full suite: 511 passed, 2 skipped (pre-existing skips) — zero regressions.
+- Ruff check src: exactly 3 (baseline preserved; B008 lines shifted 166→170, 271→278 from added TYPE_CHECKING import; E501 models.py:35 unchanged). Zero new.
+- Ruff format --check src: 1 nit in new inspect.py code → ran `ruff format` on touched files → 37 files clean.
+- Mypy --strict src: exactly 4 (baseline preserved). Zero new.
+- Layering: 57 passed.
+- Guard-test fix: CliRunner does not populate sys.argv, so the end-to-end seed-tripwire patches sys.argv (same pattern as rt-3.2 tests).
+
 ### Completion Notes List
 
+- ✅ Task 1: `HistoryRecord` (frozen slots, 7 fields, `to_dict` in pinned order) + `InspectHistoryUseCase(state_root)` in `application/inspect.py`; streaming `open` iteration, blank skip, exact-7-keys + trigger-enum validation with line numbers, torn-tail warn+skip via non-blank-tail lookahead, symlink refusal, limit 20/0/negative semantics, read-only (is_symlink/exists/open only).
+- ✅ Task 2: `inspect history` command + `_run_inspect_history(limit) -> (entries, total)` helper (double-read only when len==limit candidate-truncated); `--limit/-n` via module-level `_HISTORY_LIMIT_OPTION` (no new B008); CustomView plain/rich per-entry lines, JSON {entries,count,total,truncated,limit}; empty → exit 0 "no history recorded yet"; guard untouched + pinned.
+- ✅ Task 3: 3 test files, 52 tests, all passing; CLI tests monkeypatch `_run_inspect_history`; integration uses real `CacheSeeder.append_history` + fresh reader incl. diverged-current isolation.
+- ✅ Task 4: all gates green (see Debug Log); git status contains only story artifacts.
+- ✅ Resolved review finding: none (fresh implementation, no prior review section).
+
 ### File List
+
+- src/runtime/src/runtime/application/inspect.py (extended: HistoryRecord, InspectHistoryUseCase)
+- src/runtime/src/runtime/cli/main.py (extended: _HISTORY_LIMIT_OPTION, _run_inspect_history, inspect_history)
+- src/runtime/tests/unit/test_inspect_history.py (new, 24 tests)
+- src/runtime/tests/unit/test_cli_inspect_history.py (new, 21 tests)
+- src/runtime/tests/integration/test_inspect_history_integration.py (new, 7 tests)
+- _bmad-output/implementation-artifacts/sprint-status.yaml (rt-3-3 → review)
+- _bmad-output/implementation-artifacts/rt-3-3-inspect-history-command.md (this story file)
+
+### Change Log
+
+- 2026-09-03: Implemented `inspect history` (use case + CLI + 52 tests); all quality gates green; story → review.
