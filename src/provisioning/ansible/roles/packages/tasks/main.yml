@@ -167,20 +167,6 @@
 # reports "no network" and the network-click TUI (wifitui/nmtui) exits
 # instantly. Enable + start it here so the persistent provisioned state is
 # correct — mirror of the display_manager role's service-enable pattern.
-# asusd is the ASUS platform daemon asusctl installs (AUR, Arch-only): it owns
-# rog-control-center's power profiles (hooked into power-profiles-daemon), fan
-# curves, charge limits and keyboard LED control. Without enable+start the GUI
-# shows a dead backend. Mirrors the NetworkManager service-enable pattern.
-- name: Enable and start asusd (ASUS platform daemon)
-  ansible.builtin.systemd:
-    name: asusd
-    enabled: true
-    state: started
-  become: true
-  when:
-    - packages_use_aur | bool
-    - not ansible_check_mode
-
 - name: Enable and start NetworkManager
   ansible.builtin.systemd:
     name: NetworkManager
