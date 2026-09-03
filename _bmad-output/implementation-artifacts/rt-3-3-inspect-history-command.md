@@ -4,7 +4,7 @@ baseline_commit: c9daae75e59fdc96ddc2e9836514abdf081c96a8
 
 # Story rt-3.3: inspect history command
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -424,6 +424,24 @@ OpenCode powered by Meta Muse Spark (muse-spark-1.3-contributor-free)
 - _bmad-output/implementation-artifacts/sprint-status.yaml (rt-3-3 → review)
 - _bmad-output/implementation-artifacts/rt-3-3-inspect-history-command.md (this story file)
 
+### Review Findings
+
+Code review 2026-09-03 (baseline `c9daae7`..HEAD): 3 layers (blind, edge-case, acceptance) + code read. Acceptance Auditor: no violations in runtime code — AC 1-6, 7-field schema, limit 20/0/negative, empty-exit-0, read-only, torn-tail policy all match spec. Battery.tsx hunk in range is NOT this story (`git show --stat`: story commits `75632de` docs-only + `a013c0c` runtime-only; battery.tsx only in `f40b176`) — same false-positive as rt-3.2, dismissed with sub-issues.
+
+- [x] [Review][Patch] Corrupt middle masked by blank-only tail [src/runtime/src/runtime/application/inspect.py:338-344] — corrupt line followed only by blanks misclassified as torn tail, silently dropped instead of ValueError with line number (violates AC 5 never-drop-middle)
+- [x] [Review][Patch] TOCTOU symlink check-then-open [src/runtime/src/runtime/application/inspect.py:323-332] — is_symlink() then open() without O_NOFOLLOW; swap between check and open follows attacker symlink
+- [x] [Review][Patch] Unhashable trigger escapes as TypeError [src/runtime/src/runtime/application/inspect.py:378-379] — trigger list/dict raises TypeError, bypasses ValueError/ErrorView contract into UnexpectedError
+- [x] [Review][Patch] Mid-file UnicodeDecodeError truncated as torn tail [src/runtime/src/runtime/application/inspect.py:346-350] — invalid UTF-8 mid-file warns and returns partial prefix instead of loud ValueError
+- [x] [Review][Patch] Unbounded memory despite limit [src/runtime/src/runtime/application/inspect.py:330-354] — full list + reverse + slice is O(N) RAM; limit=1 on large log still parses everything
+- [x] [Review][Patch] Double full scan on truncated read [src/runtime/src/runtime/cli/main.py:597-603] — run(limit) then run(0) doubles I/O; exact-fit total==limit does redundant 2x parse + TOCTOU total
+- [x] [Review][Patch] exists() masks permission errors as empty [src/runtime/src/runtime/application/inspect.py:327-328] — unreadable history returns [] + exit 0 instead of OSError exit 1; also delete-between-check races to FileNotFoundError
+- [x] [Review][Patch] Dead HistoryTrigger alias [src/runtime/src/runtime/application/inspect.py:51,79] — Literal defined but HistoryRecord.trigger typed str, loses static guarantee
+- [x] [Review][Defer] Concurrent writer interleave torn lines [src/runtime/src/runtime/adapters/seeder.py:620-623] — deferred, pre-existing writer-side (rt-3.1 deferred-work), reader has no lock/snapshot contract
+- [x] [Review][Defer] Brittle argv substring guard [src/runtime/src/runtime/cli/main.py:181] — deferred, pre-existing rt-3.2, spec says do NOT touch guard
+- [x] [Review][Defer] FIFO/directory/BOM at history path [src/runtime/src/runtime/application/inspect.py:332] — deferred, out-of-scope hardening; writer never emits BOM, FIFO blocks on open
+
 ### Change Log
 
 - 2026-09-03: Implemented `inspect history` (use case + CLI + 52 tests); all quality gates green; story → review.
+
+- 2026-09-03: Code review applied — 8 patches fixed (torn-tail strictness, O_NOFOLLOW, trigger guard, UTF-8 loud, deque bound, single-scan total, lstat absent, HistoryTrigger type); 3 deferred; story → done.
