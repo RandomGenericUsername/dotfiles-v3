@@ -313,7 +313,7 @@
 
 ## Deferred from: code review of rt-2-1-atomic-symlink-repoint (2026-09-02)
 
-- History/save outside lock inconsistency and crash-recovery atomicity — save after repoint can fail leaving FS ahead of store, history append outside lock can be lost [reconcile.py:183, reconcile.py:185] — deferred, pre-existing design; Story 2.2 owns crash-mid-swap recovery
+- History/save outside lock inconsistency and crash-recovery atomicity — save after repoint can fail leaving FS ahead of store, history append outside lock can be lost [reconcile.py:183, reconcile.py:185] — deferred, pre-existing design; Story 2.2 owns crash-mid-swap recovery. **RESOLVED (2026-09-02, Story rt-3.1):** both crash windows traced, behavior test-pinned, and the residual gap explicitly re-scoped — see "Deferred from: rt-3-1-history-jsonl-persistence" below.
 - Arbitrary file read via source_path — trusts current.json source_path to import arbitrary files [reconcile.py:281] — deferred, pre-existing spec-intended; requires write to current.json
 - Cache entry exists as file not dir crashes with unmapped exception [reconcile.py:226] — deferred, pre-existing cache layer behavior
 - Dangling symlink false miss: cache_entry_path.exists() false for dangling symlink triggers unnecessary regeneration [reconcile.py:226] — deferred, edge case of corrupt cache
@@ -331,3 +331,20 @@
 - "Hyprpaper reload skipped" log wording undercuts the surfaced-failure it produces — spec-mandated verbatim copy of the Hyprland/AGS sibling reloaders; behavior is correctly `False` [src/runtime/src/runtime/adapters/hyprpaper_reloader.py:159]
 - `_resolve_state_root` duplicates `cli/main.py`'s resolution instead of sharing — spec-directed mirror and the composition root passes `state_root` explicitly; a shared helper is not layering-clean across application/adapters [src/runtime/src/runtime/adapters/hyprpaper_reloader.py:88-99]
 - Failure log concatenates stdout+stderr without a separator and drops a `TimeoutExpired`'s captured output — cosmetic logging, mirrors HyprlandReloader [src/runtime/src/runtime/adapters/hyprpaper_reloader.py:195-201]
+
+## Deferred from: rt-3-1-history-jsonl-persistence (2026-09-02) — crash-window verdict (AC 5)
+
+The "save after repoint can fail leaving FS ahead of store, history append outside lock can be lost" gap exists in TWO windows with different consequences. Both are traced and test-pinned; the residual loss is re-scoped as ACCEPTED (must-not-lose = append-only + atomicity, NOT cross-crash after-save reconstruction).
+
+### Reconcile window (reconcile.py:253 save → :265 append) — lazy self-heal, no backfill
+
+- A crash between save and append leaves `current.json` MATCHING the repointed `current/` symlinks, so rt-2-2's `_revert_stale_symlinks` divergence detection CANNOT detect it (by construction; the divergence signal is absent).
+- Reconcile self-heals lazily: the NEXT reconcile appends unconditionally, so history resumes — but the crashed transition's line is permanently missing (never backfilled).
+- **Pinned:** `test_crash_window_reconcile_save_append_lost_line_not_backfilled` (integration) proves the lost line is NOT resurrected and exactly one new reconcile line lands. Detection limitation itself is structural, not test-pinned (no observable signal exists).
+
+### Seed window (seed_cache.py:229 save → :232 append) — PERMANENT loss
+
+- A crash here is the worse half: after save, `load_current()` returns non-None, so every subsequent seed run is a NO-OP → the `trigger: "seed"` line is NEVER written. A later reconcile appends a `"reconcile"` line (or nothing), never the seed line.
+- **Pinned:** `test_crash_window_seed_save_append_seed_line_permanently_lost` (integration) proves the no-op and the permanent absence.
+
+**Decision (with acceptance):** do not add a dir-fsync or a post-crash line-reconstruction pass. AD-4/AR-3 are satisfied by O_APPEND + fsync atomicity + append-only semantics; reconstructing a lost line after a crash is beyond the architecture (no durable per-transaction intent log exists, and adding one contradicts AD-12's synchronous no-daemon design). The must-not-lose guarantee is per-line atomicity, not post-crash retro-recovery. [src/runtime/src/runtime/adapters/seeder.py:567-617, src/runtime/src/runtime/application/reconcile.py:253-273, src/runtime/src/runtime/application/seed_cache.py:229-239]

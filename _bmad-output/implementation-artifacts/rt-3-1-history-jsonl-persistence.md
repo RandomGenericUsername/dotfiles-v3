@@ -1,6 +1,10 @@
+---
+baseline_commit: 1d9babfe05bb026693f88d6f3bd4109d17a8ea7f
+---
+
 # Story rt-3.1: history.jsonl must-not-lose persistence
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -47,25 +51,25 @@ rewrite the existing writer.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: AC verification sweep (AC: 1–4)
-  - [ ] Build the AC→test mapping table (Dev Notes §Test Map is the starting point); identify any AC lacking a pinning test
-  - [ ] Add missing tests only where a gap is found (do not duplicate existing coverage)
-- [ ] Task 2: Restart-survival test (AC: 3)
-  - [ ] Integration test: write history via one `CacheSeeder` instance, append again via a FRESH `CacheSeeder` + fresh `JsonStateRepository` on the same `state_root` (simulated new process); assert accumulation and prior-line byte-identity
-- [ ] Task 3: Crash-window verification — BOTH flows (AC: 5)
-  - [ ] Trace the RECONCILE window: reconcile.py:253 save → reconcile.py:265 append. Note: rt-2-2 recovery cannot detect a crash here (symlinks match current.json); reconcile self-heals only because every reconcile appends unconditionally
-  - [ ] Trace the SEED window (the worse half): seed_cache.py:229 save → :232 append. A crash there is PERMANENT: next run sees `load_current() != None` → seed is a no-op → the `trigger: "seed"` line is never written
-  - [ ] Pin with tests where a behavior exists to pin; otherwise record decision + rationale in `deferred-work.md` for both windows
-- [ ] Task 4: Design-decision pins (AC: 1, 2)
-  - [ ] Add a test asserting no `schema_version` field appears in history lines (pinned schema is exactly 7 fields)
-  - [ ] Confirm `append_history` stays on `CacheSeeder` (NOT promoted to `IStateRepository`); add/confirm a docstring-level note citing this story's decision
-  - [ ] Fix the stale docstring trigger example in `append_history` (seeder.py:582 cites `"apply"` as an example — `"apply"` is NOT a valid trigger per the pinned enum)
-- [ ] Task 5: Quality gates (AC: 6)
-  - [ ] `uv run --directory src/runtime pytest` — all green
-  - [ ] `uv run --directory src/runtime ruff check src` and `uv run --directory src/runtime ruff format --check` — zero NEW violations (pre-existing baseline: exactly 3 ruff in cli/main.py + domain/models.py). Do NOT run bare `ruff check` (unscoped picks up tests/repo root: 96+ errors)
-  - [ ] `uv run --directory src/runtime mypy --strict src` — zero NEW violations (baseline: exactly 4). Bare `mypy --strict` errors out ("Missing target module")
-  - [ ] `uv run --directory src/runtime pytest tests/architecture/test_layering.py -v`
-  - [ ] Update `deferred-work.md` and this story's Dev Agent Record
+- [x] Task 1: AC verification sweep (AC: 1–4)
+  - [x] Build the AC→test mapping table (Dev Notes §Test Map is the starting point); identify any AC lacking a pinning test
+  - [x] Add missing tests only where a gap is found (do not duplicate existing coverage)
+- [x] Task 2: Restart-survival test (AC: 3)
+  - [x] Integration test: write history via one `CacheSeeder` instance, append again via a FRESH `CacheSeeder` + fresh `JsonStateRepository` on the same `state_root` (simulated new process); assert accumulation and prior-line byte-identity
+- [x] Task 3: Crash-window verification — BOTH flows (AC: 5)
+  - [x] Trace the RECONCILE window: reconcile.py:253 save → reconcile.py:265 append. Note: rt-2-2 recovery cannot detect a crash here (symlinks match current.json); reconcile self-heals only because every reconcile appends unconditionally
+  - [x] Trace the SEED window (the worse half): seed_cache.py:229 save → :232 append. A crash there is PERMANENT: next run sees `load_current() != None` → seed is a no-op → the `trigger: "seed"` line is never written
+  - [x] Pin with tests where a behavior exists to pin; otherwise record decision + rationale in `deferred-work.md` for both windows
+- [x] Task 4: Design-decision pins (AC: 1, 2)
+  - [x] Add a test asserting no `schema_version` field appears in history lines (pinned schema is exactly 7 fields)
+  - [x] Confirm `append_history` stays on `CacheSeeder` (NOT promoted to `IStateRepository`); add/confirm a docstring-level note citing this story's decision
+  - [x] Fix the stale docstring trigger example in `append_history` (seeder.py:582 cites `"apply"` as an example — `"apply"` is NOT a valid trigger per the pinned enum)
+- [x] Task 5: Quality gates (AC: 6)
+  - [x] `uv run --directory src/runtime pytest` — all green
+  - [x] `uv run --directory src/runtime ruff check src` and `uv run --directory src/runtime ruff format --check` — zero NEW violations (pre-existing baseline: exactly 3 ruff in cli/main.py + domain/models.py). Do NOT run bare `ruff check` (unscoped picks up tests/repo root: 96+ errors)
+  - [x] `uv run --directory src/runtime mypy --strict src` — zero NEW violations (baseline: exactly 4). Bare `mypy --strict` errors out ("Missing target module")
+  - [x] `uv run --directory src/runtime pytest tests/architecture/test_layering.py -v`
+  - [x] Update `deferred-work.md` and this story's Dev Agent Record
 
 ## Dev Notes
 
@@ -169,8 +173,37 @@ Pin-or-re-scope BOTH windows explicitly (AC 5).
 
 ### Agent Model Used
 
+deepseek-v4-flash
+
 ### Debug Log References
+
+- Baseline before any change: `pytest` 424 passed / 2 skipped; `ruff check src` exactly 3 (cli/main.py:166, cli/main.py:271, domain/models.py:35); `mypy --strict src` exactly 4 (domain/models.py:30 + 3 import-untyped in cli/main.py); layering 56 passed; format clean.
+- After implementation: `pytest` 429 passed / 2 skipped (5 new tests); `ruff check src` still exactly 3 (confirmed no new); `mypy --strict src` still exactly 4 (no new); `ruff format --check` clean; `test_layering.py` 56 passed.
 
 ### Completion Notes List
 
+- **Task 1 — AC verification sweep:** Built the AC→test mapping (all entries in Dev Notes §Test Map verified present). Only AC-3 restart survival was partial (crash-recovery test reused one in-process instance set); AC 1-4 otherwise pinned. **Gap found and pinned:** AC 1's "history BEFORE reload is considered complete" ordering had NO pinning test — added `TestCapstoneHistoryOrdering.test_every_reloader_observes_appended_history_line` (`_HistoryProbeReloader` asserts every reloader observes the new line already on disk), satisfying AR-3/AD-6 step-4 ordering.
+- **Task 2 — Restart survival (AC 3):** Added `test_restart_survival_fresh_instances_accumulate_byte_identical` in `test_crash_recovery_integration.py` — full seed+apply via one adapter pair, THEN a FRESH `JsonStateRepository` + FRESH `CacheSeeder` on the same `state_root` (simulated new process) reconciles and appends; asserts prior lines remain byte-identical and exactly one new line lands.
+- **Task 3 — Crash-window verification (AC 5):** Traced both windows against the as-built code:
+  - RECONCILE: `reconcile.py:253` save → `reconcile.py:265` append. rt-2-2's `_revert_stale_symlinks` compares symlink targets vs current.json; in the save→append window these MATCH, so divergence recovery cannot detect a crash (structural). Reconcile self-heals lazily (every reconcile appends unconditionally).
+  - SEED: `seed_cache.py:229` save → `:232` append. After a crash here `load_current()` is non-None → seed no-ops forever → `trigger:"seed"` never written (PERMANENT).
+  - Pinned both: `test_crash_window_reconcile_save_append_lost_line_not_backfilled` (lost line NOT resurrected; exactly one new line appended) and `test_crash_window_seed_save_append_seed_line_permanently_lost` (seed re-run no-op; no seed line anywhere; a later reconcile appends a "reconcile" line). Decision + rationale recorded in `deferred-work.md` (append-only + atomicity is the guarantee; post-crash line reconstruction is re-scoped as ACCEPTED, out of AD-12 scope).
+- **Task 4 — Design-decision pins (AC 1, 2):**
+  - Added `TestCacheSeederAppendHistory.test_append_line_has_exactly_seven_fields_no_schema_version` — asserts the line key-set is EXACTLY `{ts, trigger, wallpaper, palette, effects, icons, source_path}` and `schema_version` is absent (AR-9, version lives only in current.json).
+  - `append_history` stays on `CacheSeeder`; added a docstring-level note in `seeder.py` citing rt-3.1's decision (port stays minimal per rt-1-10; adapter seam serves Epic 3 inspection use cases; only writer; call via Reconcile/Seed).
+  - Fixed stale docstring trigger example in `append_history` (`"apply"` → `"seed|set|reconcile|force"`).
+- **Task 5 — Quality gates (AC 6):** full suite green (429 passed / 2 skipped), ruff 3 baseline / zero new, mypy 4 baseline / zero new, format clean, layering green. `deferred-work.md` + this record updated.
+
 ### File List
+
+- `_bmad-output/implementation-artifacts/rt-3-1-history-jsonl-persistence.md` (this story — status/checkboxes/record)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (status in-progress)
+- `_bmad-output/implementation-artifacts/deferred-work.md` (crash-window verdict, AC 5 decision)
+- `src/runtime/src/runtime/adapters/seeder.py` (append_history docstring: decision note + trigger enum fix)
+- `src/runtime/tests/unit/test_seed_cache.py` (7-field schema pin)
+- `src/runtime/tests/integration/test_wallpaper_set_capstone_integration.py` (AC 1 ordering pin)
+- `src/runtime/tests/integration/test_crash_recovery_integration.py` (restart-survival + 2 crash-window pins)
+
+## Change Log
+
+- 2026-09-02: Implemented Story rt-3.1 (verification + hardening). Added 5 tests, fixed a stale docstring, recorded the AC-5 crash-window verdict in `deferred-work.md`. All quality gates green (429 passed/2 skipped; ruff 3 & mypy 4 at pre-existing baseline, zero new).
