@@ -51,6 +51,7 @@ entries:
 
   # ASUS platform control (rog-control-center GUI, asusd service, Aura LEDs)
   - name: asusctl
+  - name: rog-control-center
 
   # Fn-key controllers (XF86 binds in keybindings.lua)
   - name: brightnessctl     # screen backlight

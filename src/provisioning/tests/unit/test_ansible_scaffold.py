@@ -66,6 +66,8 @@ _LOGICAL_PACKAGE_KEYS = (
     "brightnessctl",
     "playerctl",
     "asusctl",
+    "rog-control-center",
+            "rog-control-center",
 )
 _ARCH_EXTRA_KEYS = ("gloview_build",)
 

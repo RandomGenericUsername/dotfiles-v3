@@ -364,6 +364,7 @@ class TestReadRealManifests:
             "brightnessctl",
             "playerctl",
             "asusctl",
+            "rog-control-center",
             "hyprcursor",
             "hyprlock",
             "hypridle",
