@@ -363,6 +363,7 @@ class TestReadRealManifests:
             "thunderbird",
             "brightnessctl",
             "playerctl",
+            "asusctl",
             "hyprcursor",
             "hyprlock",
             "hypridle",
