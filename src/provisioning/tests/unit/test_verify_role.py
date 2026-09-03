@@ -1486,7 +1486,6 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
         "keybindings.lua",
         "monitors.lua",
         "general.lua",
-        "general.lua",
         "autostart.lua",
         "window-rules.lua",
         "animations.lua",

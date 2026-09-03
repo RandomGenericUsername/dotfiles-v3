@@ -4,7 +4,7 @@ baseline_commit: 1d9babfe05bb026693f88d6f3bd4109d17a8ea7f
 
 # Story rt-3.1: history.jsonl must-not-lose persistence
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -178,7 +178,7 @@ deepseek-v4-flash
 ### Debug Log References
 
 - Baseline before any change: `pytest` 424 passed / 2 skipped; `ruff check src` exactly 3 (cli/main.py:166, cli/main.py:271, domain/models.py:35); `mypy --strict src` exactly 4 (domain/models.py:30 + 3 import-untyped in cli/main.py); layering 56 passed; format clean.
-- After implementation: `pytest` 429 passed / 2 skipped (5 new tests); `ruff check src` still exactly 3 (confirmed no new); `mypy --strict src` still exactly 4 (no new); `ruff format --check` clean; `test_layering.py` 56 passed.
+- After implementation: `pytest` 429 passed / 2 skipped (5 new tests); `ruff check src` still exactly 3 (confirmed no new); `mypy --strict src` still exactly 4 (no new); `ruff format --check src` clean (src scope; the unscoped run reports 16 pre-existing test-file violations, zero NEW — identical at baseline 1d9babf); `test_layering.py` 56 passed.
 
 ### Completion Notes List
 
@@ -207,3 +207,15 @@ deepseek-v4-flash
 ## Change Log
 
 - 2026-09-02: Implemented Story rt-3.1 (verification + hardening). Added 5 tests, fixed a stale docstring, recorded the AC-5 crash-window verdict in `deferred-work.md`. All quality gates green (429 passed/2 skipped; ruff 3 & mypy 4 at pre-existing baseline, zero new).
+- 2026-09-02: Code review (Blind Hunter + Edge Case Hunter + Acceptance Auditor). All 6 ACs PASS; gates independently re-verified. 5 patch findings applied (duplicate `general.lua` fixture entry removed; seed crash-window no-op pinned via fake call counters == 0; reconcile crash-window new-line trigger asserted + dead counters removed; restart-survival byte-identity now compares the raw text prefix; story record format-clean wording clarified), 3 pre-existing items deferred to `deferred-work.md` (torn-tail tolerance, per-write O_APPEND atomicity under concurrency, `os.write`==0 spin), 3 dismissed. Post-patch gates: 429 passed / 2 skipped, ruff 3 / mypy 4 baseline, format clean (src), layering 56. Status → done.
+
+### Review Findings
+
+- [x] [Review][Patch] Remove duplicate `general.lua` fixture entry (out-of-scope c0519ea change inside the review range) [src/provisioning/tests/unit/test_verify_role.py:1489]
+- [x] [Review][Patch] Seed crash-window test: "next seed run is a NO-OP" is claimed but unpinned — assert the fake `csg/weg/itr` call counters stay 0 after the re-run [src/runtime/tests/integration/test_crash_recovery_integration.py:348-358]
+- [x] [Review][Patch] Reconcile crash-window test: dead `csg.calls = weg.calls = itr.calls = 0` boilerplate never asserted, and `after[-1]` is never parsed — assert the new line's trigger is `reconcile` [src/runtime/tests/integration/test_crash_recovery_integration.py:302,322-327]
+- [x] [Review][Patch] Restart-survival "prior lines byte-identical" is only line-identical via `splitlines()` (masks `\r\n`/`\r` and a lost trailing newline) — compare the raw text prefix instead [src/runtime/tests/integration/test_crash_recovery_integration.py:259,277-280]
+- [x] [Review][Patch] Story record "ruff format --check clean" wording is inaccurate (unscoped run shows 16 pre-existing test-file violations) — clarify: src scope clean; 16 pre-existing test-file violations, zero new [_bmad-output/implementation-artifacts/rt-3-1-history-jsonl-persistence.md:181]
+- [x] [Review][Defer] Torn/partial history line (real crash artifact of the multi-write loop) is never simulated or handled; consumers would hit a non-JSON tail [src/runtime/src/runtime/adapters/seeder.py:617-624] — deferred, pre-existing
+- [x] [Review][Defer] Multi-write append loop means O_APPEND atomicity is per-write only; concurrent appends can interleave and history integrity under concurrency is unpinned [src/runtime/src/runtime/adapters/seeder.py:620-623, src/runtime/src/runtime/application/reconcile.py:265-266] — deferred, pre-existing
+- [x] [Review][Defer] `os.write` returning 0 would loop forever in the append loop (no progress guard) [src/runtime/src/runtime/adapters/seeder.py:621-623] — deferred, pre-existing
