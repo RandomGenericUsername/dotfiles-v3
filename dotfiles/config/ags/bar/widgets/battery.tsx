@@ -1,4 +1,3 @@
-import Gdk from "gi://Gdk?version=4.0"
 import Gtk from "gi://Gtk?version=4.0"
 import Gio from "gi://Gio"
 import Battery from "gi://AstalBattery"
@@ -24,15 +23,20 @@ const PROFILES: [string, string][] = [
 
 const [profile, setProfile] = createState<string>("balanced")
 
+let ppProxy: Gio.DBusProxy | null = null
 Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM,
     Gio.DBusProxyFlags.NONE, null,
     "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles",
     null, (_source, result) => {
         try {
-            const proxy = Gio.DBusProxy.new_for_bus_finish(result)
-            setProfile(proxy.get_cached_property("ActiveProfile")?.unpack() ?? "balanced")
-            proxy.connect("g-properties-changed", () => {
-                const value = proxy.get_cached_property("ActiveProfile")?.unpack()
+            ppProxy = Gio.DBusProxy.new_for_bus_finish(result)
+            const initial = ppProxy.get_cached_property("ActiveProfile")?.unpack() ?? "balanced"
+            console.log("ppd proxy initial ActiveProfile:", initial)
+            setProfile(initial)
+            ppProxy.connect("g-properties-changed", (_p, changed) => {
+                console.log("ppd g-properties-changed", (changed as any)?.recursiveUnpack?.() ?? changed)
+                const value = ppProxy?.get_cached_property("ActiveProfile")?.unpack()
+                console.log("ppd cached ActiveProfile now:", value)
                 if (value) setProfile(value as string)
             })
         } catch (err) {
@@ -42,12 +46,6 @@ Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM,
 
 function setPowerProfile(name: string) {
     execAsync(["powerprofilesctl", "set", name]).catch(console.error)
-}
-
-function cyclePowerProfile() {
-    const names = PROFILES.map(([id]) => id)
-    const next = names[(names.indexOf(profile()) + 1) % names.length]
-    setPowerProfile(next)
 }
 
 function getBatteryStateKey(pct: number, chg: boolean): string {
@@ -82,37 +80,36 @@ export function BatteryIndicator() {
     return (
         <box
             visible={isPresent((present) => present)}
-            tooltipText={percentage((pct) => {
-                const head = `${Math.round(pct * 100)}%`
-                if (charging()) {
-                    const ttf = timeToFull()
-                    return `${head}\n${ttf > 0 ? `full in ${formatSeconds(ttf)}` : "charging"}`
-                }
-                const tte = timeToEmpty()
-                return `${head}\n${tte > 0 ? `${formatSeconds(tte)} left` : "discharging"}`
-            })}
+            tooltipText={(() => {
+                const [text, setText] = createState("")
+                createEffect(() => {
+                    const pct = Math.round(percentage() * 100)
+                    const prof = PROFILES.find(([id]) => id === profile())?.[1] ?? profile()
+                    let timeLine: string
+                    if (charging()) {
+                        const ttf = timeToFull()
+                        timeLine = ttf > 0 ? `full in ${formatSeconds(ttf)}` : "charging"
+                    } else {
+                        const tte = timeToEmpty()
+                        timeLine = tte > 0 ? `${formatSeconds(tte)} left` : "discharging"
+                    }
+                    setText(`${pct}% — ${prof}\n${timeLine}`)
+                })
+                return text
+            })()}
         >
             <button
                 class="widget battery-widget"
                 onClicked={() => {
                     execAsync(["rog-control-center"]).catch((e) => {
                         console.error("rog-control-center launch failed:", e)
-                        execAsync(["powerprofilesctl", "set", "balanced"]).catch(() => { })
                     })
                 }}
                 $={(self) => {
-                    const gesture = Gtk.GestureClick.new()
-                    gesture.set_button(0)
-                    gesture.connect("pressed", (g) => {
-                        const ev = g.get_current_event() as Gdk.ButtonEvent | null
-                        if (!ev || ev.get_button() !== 3) return
-                        if (ev.get_modifier_state() & Gdk.ModifierType.SHIFT_MASK) {
-                            cyclePowerProfile()
-                        } else {
-                            popover?.popup()
-                        }
-                    })
-                    self.add_controller(gesture)
+                    const right = Gtk.GestureClick.new()
+                    right.set_button(3)
+                    right.connect("pressed", () => popover?.popup())
+                    self.add_controller(right)
                 }}
             >
                 <image
