@@ -4,7 +4,7 @@ baseline_commit: 810910b3409ab54a4a322d23f9e6d88e74415d2b
 
 # Story rt-3.4: inspect cache list command
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -93,14 +93,14 @@ changes.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: `InspectCacheUseCase` (AC: 1, 3, 5)
-  - [ ] Extend `src/runtime/src/runtime/application/inspect.py` (do NOT
+- [x] Task 1: `InspectCacheUseCase` (AC: 1, 3, 5)
+  - [x] Extend `src/runtime/src/runtime/application/inspect.py` (do NOT
     create a new module — keeps status+history+cache cohesion; the layering
     module case for `inspect.py` already exists): frozen `CacheLayerListing`
     dataclass (`layer: str`, `entries: tuple[str, ...]` sorted) and/or
     frozen `InspectCacheResult` (`layers: dict[str, tuple[str, ...]]`,
     `counts: dict[str, int]`, `total: int`) + `InspectCacheUseCase(state_root: Path)`
-  - [ ] `run() -> InspectCacheResult`: read `state_root / "cache"`; if the
+  - [x] `run() -> InspectCacheResult`: read `state_root / "cache"`; if the
     cache path itself `is_symlink()` → raise `ValueError` (never follow);
     absent cache dir → all four layers `()` (AC 3); absent layer dir → `()`
     for that layer (do NOT create dirs — read-only). Iterate layers in
@@ -119,7 +119,7 @@ changes.
     sorted. Never `read_text` a whole directory tree into memory at once;
     never open `meta.json` (hash listing needs dir names only — do NOT
     parse meta.json in this story).
-  - [ ] Read-only: only `Path` reads (`exists`/`is_dir`/`is_symlink`/
+  - [x] Read-only: only `Path` reads (`exists`/`is_dir`/`is_symlink`/
     `iterdir`/`scandir`); never `mkdir`, never `os.rename`, never `save()`,
     never seeder/mutex/populator construction, never staging reap.
     Constructor takes ONLY `state_root` — no `state_repo`, no adapters
@@ -127,8 +127,8 @@ changes.
     as `InspectHistoryUseCase`). Do NOT call `load_current()` and do NOT
     require `current.json` — cache listing works (including empty) even
     when `current.json` is absent.
-- [ ] Task 2: CLI `inspect cache list` (AC: 1, 2, 4)
-  - [ ] Nesting: `inspect` is already a `typer.Typer` group (`inspect_app`,
+- [x] Task 2: CLI `inspect cache list` (AC: 1, 2, 4)
+  - [x] Nesting: `inspect` is already a `typer.Typer` group (`inspect_app`,
     main.py:39-40). Add a `cache` subgroup (`cache_app = typer.Typer(...)`)
     under it (`inspect_app.add_typer(cache_app, name="cache")`, precedent:
     `wallpaper_app` at main.py:35-36 + `app.add_typer(inspect_app,
@@ -139,18 +139,18 @@ changes.
     pins the three-token form. Note `list` shadows the builtin inside the
     function scope only — acceptable (same as Typer conventions); never
     `from builtins import list` workarounds.
-  - [ ] `_run_inspect_cache_list()` composition helper mirroring
+  - [x] `_run_inspect_cache_list()` composition helper mirroring
     `_run_inspect_status` (main.py:501-519) and `_run_inspect_history`
     (main.py:581-603): `_resolve_state_root()` + `InspectCacheUseCase(state_root)`
     only — no seeder, mutex, derivation adapters, reloaders, or
     `state_repo` (AC 4). Return the `InspectCacheResult` (or
     `(layers, counts, total)` tuple — pick one, document it; single-scan so
     `total` never needs a second read, rt-3.3 double-scan lesson).
-  - [ ] Error mapping: `ValueError`/`RuntimeError`/`OSError` →
+  - [x] Error mapping: `ValueError`/`RuntimeError`/`OSError` →
     `ErrorView` + `typer.Exit(1)` (mirror main.py:537-547 and 622-634);
     catch-all `Exception` → `UnexpectedError`. Empty cache → success path
     with the clean message (exit 0, AC 3), NOT the error path.
-  - [ ] Render success via `CustomView(plain=..., object={...}, rich=...)`;
+  - [x] Render success via `CustomView(plain=..., object={...}, rich=...)`;
     `plain` (pinned exact format — tests assert it verbatim): one section
     per layer in canonical order, `"<layer> (<count>):"` header then one
     truncated hash per line indented two spaces (`"<hash[:12]>"`, history
@@ -161,15 +161,15 @@ changes.
     palettes: [...], effects: [...], icons: [...]}, "counts": {...},
     "total": <int>}` in canonical layer order; `rich`: same as plain.
     No `--limit`/`--layer` options on this command (full listing only).
-  - [ ] **AC 2 pin:** no prune surface anywhere — `rg "prune|evict|clear"`
+  - [x] **AC 2 pin:** no prune surface anywhere — `rg "prune|evict|clear"`
     over the new/changed CLI + use-case files must return zero hits
     (excluding the AC-2 comment itself). Assert in review, not in a unit test.
-  - [ ] **No auto-seed guard change:** `main_callback` (main.py:178-183)
+  - [x] **No auto-seed guard change:** `main_callback` (main.py:178-183)
     already returns early when `"inspect" in sys.argv` (rt-3.2). Verify it
     covers the new subcommand (it does — argv contains `"inspect"` for
     `inspect cache list`) and PIN with a guard test; do NOT touch the guard.
-- [ ] Task 3: Tests (AC: 1-6)
-  - [ ] `tests/unit/test_inspect_cache.py`: use-case level — multi-layer
+- [x] Task 3: Tests (AC: 1-6)
+  - [x] `tests/unit/test_inspect_cache.py`: use-case level — multi-layer
     fixture (hand-made `cache/<layer>/<64hex>/` dirs, `"a"*64`-style hashes)
     listed in canonical layer order with hashes sorted per layer; absent
     `cache/` → all empty (even with `current.json` absent — no `state_repo`
@@ -182,39 +182,39 @@ changes.
     `meta.json` never required (entry without meta.json still listed);
     read-only (no dirs created when absent, no files mutated, tree bytes
     identical before/after); result deterministic (canonical order).
-  - [ ] `tests/unit/test_cli_inspect_cache_list.py`: mirrors
+  - [x] `tests/unit/test_cli_inspect_cache_list.py`: mirrors
     `test_cli_inspect_status.py` / `test_cli_inspect_history.py` — exit
     codes, plain summary text, `--format json` object shape
     (`layers`/`counts`/`total`), empty → exit 0 + clean message (NOT
     `ErrorView`) (monkeypatch `_run_inspect_cache_list`, not the whole
     app; `DOTFILES_INSTALL_SPINE` + `XDG_STATE_HOME` fixtures as in
     `test_cli_reconcile.py:88-95`).
-  - [ ] `tests/integration/test_inspect_cache_list_integration.py`: real
+  - [x] `tests/integration/test_inspect_cache_list_integration.py`: real
     `populate_via_staging` writes N entries across all 4 layers (minimal
     `populate_fn` creating one artifact + valid `meta.json` with
     `hash_algorithm: sha256`) then a FRESH `InspectCacheUseCase` on the
     same `state_root` reads them (restart-survival realism, rt-3.1/3.3
     lesson); diverged `current/` tree does not affect cache output;
     `current.json` absent does not affect cache output.
-  - [ ] Guard test: `inspect cache list` never seeds (seed-tripwire:
+  - [x] Guard test: `inspect cache list` never seeds (seed-tripwire:
     pre-create install-spine `generated/default.png` + assert no
     `current.json` / no `history.jsonl` / no `cache/` mutation from the CLI
     path); other commands still seed (extend existing seed-hook CLI tests
     if needed).
-- [ ] Task 4: Quality gates (AC: 6)
-  - [ ] `uv run --directory src/runtime pytest`
-  - [ ] `uv run --directory src/runtime ruff check src` — zero NEW
+- [x] Task 4: Quality gates (AC: 6)
+  - [x] `uv run --directory src/runtime pytest`
+  - [x] `uv run --directory src/runtime ruff check src` — zero NEW
     (baseline at rt-3.3: exactly 3 — cli/main.py B008×2, domain/models.py
     E501×1; RE-VERIFY LIVE at start, line numbers shift with each story).
     Do NOT run bare `ruff check`.
-  - [ ] `uv run --directory src/runtime ruff format --check src` — clean
+  - [x] `uv run --directory src/runtime ruff format --check src` — clean
     (src scope; unscoped run reports pre-existing test-file violations,
     do not count them)
-  - [ ] `uv run --directory src/runtime mypy --strict src` — zero NEW
+  - [x] `uv run --directory src/runtime mypy --strict src` — zero NEW
     (baseline at rt-3.3: exactly 4; re-verify live). Bare `mypy --strict`
     errors out ("Missing target module")
-  - [ ] `uv run --directory src/runtime pytest tests/architecture/test_layering.py -v`
-  - [ ] Confirm `git status --short` contains ONLY this story's new files +
+  - [x] `uv run --directory src/runtime pytest tests/architecture/test_layering.py -v`
+  - [x] Confirm `git status --short` contains ONLY this story's new files +
     the story/status artifacts (`application/inspect.py`, `cli/main.py`,
     3 test files, `sprint-status.yaml`, this story file). Unrelated hunks
     (e.g. the recurring `battery.tsx` review-range noise seen in rt-3.2/3.3
@@ -443,16 +443,53 @@ reader needs, and the reader never reaps the populator's staging).
 
 ### Agent Model Used
 
-_To be filled by dev-story._
+OpenCode powered by Meta Muse Spark (muse-spark-1.3-contributor-free)
 
 ### Debug Log References
 
-_To be filled by dev-story._
+- Baseline `rt-3.3` gates re-verified live at start: `ruff check src` = 3
+  (cli/main.py B008×2, domain/models.py E501×1), `mypy --strict src` = 4,
+  `ruff format --check src` clean.
+- `application/inspect.py` mypy strict initially flagged empty-dict
+  invariant (`dict[str, tuple[()]]` vs `dict[str, tuple[str, ...]]`);
+  fixed with explicit annotation on `_empty_result`.
+- `ruff format` reformatted both source files after edits; re-checked clean.
+- New suites: 35 tests pass
+  (`test_inspect_cache.py` + `test_cli_inspect_cache_list.py` +
+  `test_inspect_cache_list_integration.py`).
+- Full suite: 546 passed, 2 skipped (zero regressions).
+- Post-change gates: `ruff check src` = 3 (baseline unchanged, zero new),
+  `ruff format --check src` clean, `mypy --strict src` = 4 (baseline
+  unchanged, zero new), `test_layering.py` 57 passed.
+- AC-2 pin: `rg -i "prune|evict|clear"` over the 5 new/changed files
+  returns only the `eviction surface (AC 2)` docstring comment (excluded
+  per spec) — zero functional hits.
+- `git status --short` contains only this story's files
+  (`application/inspect.py`, `cli/main.py`, 3 test files,
+  `sprint-status.yaml`, this story file).
 
 ### Completion Notes List
 
-_To be filled by dev-story._
+- ✅ Task 1: `InspectCacheUseCase` + `CacheLayerListing`/`InspectCacheResult`
+  (frozen slots) in `application/inspect.py`; canonical order validated
+  against `CACHE_LAYERS`; `os.scandir` with symlink-first guards;
+  staging/files silently skipped, non-hex warns exact message, symlinked
+  cache root raises `ValueError`; never reads `meta.json`/`current.json`.
+- ✅ Task 2: `cache_app` subgroup + `inspect cache list` command in
+  `cli/main.py`; `_run_inspect_cache_list()` returns single-scan
+  `InspectCacheResult`; `ValueError/RuntimeError/OSError → ErrorView+Exit1`,
+  catch-all `UnexpectedError`; empty → exit 0 `no cache entries recorded yet`;
+  plain per-layer `<layer> (<count>):` + indented truncated hashes, JSON
+  full hashes + `counts`/`total`, rich = plain; guard untouched + pinned.
+- ✅ Task 3: 3 test files (use-case incl. caplog/read-only/symlink cases;
+  CLI incl. canonical-order/plain-truncation/JSON-values/error-mapping/
+  seed-tripwire; integration via real `populate_via_staging` + isolation).
+- ✅ Task 4: all quality gates pass with zero new violations (see Debug Log).
 
 ### File List
 
-_To be filled by dev-story._
+- src/runtime/src/runtime/application/inspect.py (modified — Task 1)
+- src/runtime/src/runtime/cli/main.py (modified — Task 2)
+- src/runtime/tests/unit/test_inspect_cache.py (new — Task 3)
+- src/runtime/tests/unit/test_cli_inspect_cache_list.py (new — Task 3)
+- src/runtime/tests/integration/test_inspect_cache_list_integration.py (new — Task 3)

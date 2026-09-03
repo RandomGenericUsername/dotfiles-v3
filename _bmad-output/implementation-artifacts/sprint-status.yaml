@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-09-03 (rt-3-4-inspect-cache-list-command → ready-for-dev)
+last_updated: 2026-09-03 (rt-3-4-inspect-cache-list-command → review)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -79,5 +79,5 @@ development_status:
   rt-3-1-history-jsonl-persistence: done
   rt-3-2-inspect-status-command: done
   rt-3-3-inspect-history-command: done
-  rt-3-4-inspect-cache-list-command: ready-for-dev
+  rt-3-4-inspect-cache-list-command: review
   rt-epic-3-retrospective: optional
