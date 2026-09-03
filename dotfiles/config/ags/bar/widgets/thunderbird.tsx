@@ -9,7 +9,7 @@ export function Thunderbird() {
       onClicked={() => execAsync(["thunderbird"]).catch(console.error)}
     >
       <image
-        pixel_size={24}
+        pixel_size={28}
         class="widget-icon"
         $={(self) => self.set_from_file(registry.resolve("thunderbird", "thunderbird") ?? "")}
       />

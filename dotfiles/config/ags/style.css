@@ -98,8 +98,8 @@ window#capture-window > box {
 /* Widget icon normalization — all SVGs render at consistent size
    regardless of intrinsic viewBox (battery=1024, wifi=96, etc.) */
 .widget-icon {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 28px;
+  min-height: 28px;
 }
 
 

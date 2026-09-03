@@ -8,8 +8,10 @@ const wifi = createBinding(network, "wifi")
 const wired = createBinding(network, "wired")
 
 function getWifiStateKey(strength: number): string {
-  if (strength > 66) return "wifi-high"
-  if (strength > 33) return "wifi-medium"
+  // GNOME Shell signalToIcon buckets (js/ui/status/network.js): >=80 good,
+  // >=50 ok, else weak. NM maps RSSI -100..-50 dBm -> 0..100%.
+  if (strength >= 80) return "wifi-high"
+  if (strength >= 50) return "wifi-medium"
   return "wifi-low"
 }
 
@@ -47,7 +49,7 @@ export function NetworkStatus() {
     >
       <box spacing={4}>
         <image
-          pixel_size={24}
+          pixel_size={28}
           class="widget-icon"
           $={(self) => {
             let cleanup: (() => void) | null = null

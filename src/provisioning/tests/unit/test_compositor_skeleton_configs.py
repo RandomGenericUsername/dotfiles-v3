@@ -76,9 +76,10 @@ class TestHyprlandSkeleton:
             "compositor_configs_xdg_config_home template"
         )
         for module in (
-            "env-variables.lua", "monitors.lua", "input.lua",
-            "decoration.lua", "animations.lua", "cursor.lua",
-            "keybindings.lua", "window-rules.lua", "autostart.lua",
+            "env-variables.lua", "monitors.lua", "general.lua",
+            "input.lua", "decoration.lua", "animations.lua",
+            "cursor.lua", "keybindings.lua", "window-rules.lua",
+            "autostart.lua",
         ):
             assert module in content, (
                 f"hyprland.lua must dofile ../{module}"
