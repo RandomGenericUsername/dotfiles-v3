@@ -49,6 +49,9 @@ entries:
   # Mail client (AGS bar icon launcher)
   - name: thunderbird
 
+  # ASUS platform control (rog-control-center GUI, asusd service, Aura LEDs)
+  - name: asusctl
+
   # Fn-key controllers (XF86 binds in keybindings.lua)
   - name: brightnessctl     # screen backlight
   - name: playerctl         # media transport (MPRIS)

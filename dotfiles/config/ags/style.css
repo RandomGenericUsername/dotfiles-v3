@@ -200,3 +200,21 @@ window#capture-window > box {
   min-width: 16px;
   min-height: 16px;
 }
+
+/* Power-profile popover (battery widget right-click menu) */
+.power-profile-item {
+  min-width: 150px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  color: @color_foreground;
+}
+
+.power-profile-item.active {
+  background-color: @color_01;
+  color: @color_background;
+}

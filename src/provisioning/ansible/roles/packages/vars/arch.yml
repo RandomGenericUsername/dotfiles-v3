@@ -6,7 +6,7 @@
 packages_use_aur: true
 aur_builder_user: aur_builder
 aur_builder_group: wheel
-aur_packages: [aylurs-gtk-shell-git, astal-hyprland, astal-battery, astal-network, wlogout, wifitui]
+aur_packages: [aylurs-gtk-shell-git, astal-hyprland, astal-battery, astal-network, wlogout, wifitui, asusctl]
 yay_repo: https://aur.archlinux.org/yay-bin.git
 
 # aur_conflict_probe_paths: system python site-packages paths that AUR/repo

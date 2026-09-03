@@ -65,6 +65,7 @@ _LOGICAL_PACKAGE_KEYS = (
     "thunderbird",
     "brightnessctl",
     "playerctl",
+    "asusctl",
 )
 _ARCH_EXTRA_KEYS = ("gloview_build",)
 
