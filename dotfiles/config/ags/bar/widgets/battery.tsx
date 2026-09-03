@@ -28,9 +28,9 @@ const ppProxy = Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM,
     null, (_source, result) => {
         try {
             const proxy = Gio.DBusProxy.new_for_bus_finish(result)
-            setProfile(proxy.get_cached_property("Profile")?.unpack() ?? "balanced")
+            setProfile(proxy.get_cached_property("ActiveProfile")?.unpack() ?? "balanced")
             proxy.connect("g-properties-changed", (_p, changed: Gio.DBusPropertyInfo) => {
-                const value = proxy.get_cached_property("Profile")?.unpack()
+                const value = proxy.get_cached_property("ActiveProfile")?.unpack()
                 if (value) setProfile(value as string)
                 void changed
             })
