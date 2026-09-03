@@ -4,7 +4,7 @@ baseline_commit: 64e4a8000c40be7a54849c4f91efcf26309fa806
 
 # Story rt-3.2: inspect status command
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -278,6 +278,25 @@ rt-3-2 ...` carrying this story `.md` + `sprint-status.yaml`. (Precedent: rt-3-1
 - src/runtime/tests/integration/test_inspect_integration.py (new)
 - _bmad-output/implementation-artifacts/rt-3-2-inspect-status-command.md (modified)
 - _bmad-output/implementation-artifacts/sprint-status.yaml (modified)
+
+### Review Findings
+
+Code review 2026-09-03 (baseline `64e4a80` → HEAD): 3 layers (adversarial, edge-case,
+acceptance) + empirical verification (`pytest` 459 passed / 2 skipped; gate-exact
+`ruff check src` / `mypy --strict src` show zero NEW violations vs baseline — the 3 ruff
+and 4 mypy `src/` errors pre-exist; `ruff format --check src` clean). 9 findings dismissed
+as noise/false-positive/spec-mandated (argv guard is exact-element `list.__contains__`
+per Task 2 spec — not substring; `dangling` status expressly authorized by Dev Notes;
+squatting-file → `missing` per Completion Notes; `link.exists()` design per spec;
+CliRunner-argv and mkdir-idempotency claims disproven; snapshot gaps covered by
+save-tripwire + artifact assertions; extra-entry reporting out of specified name set;
+mixed target forms are deliberate documented design).
+
+- [x] [Review][Patch] Out-of-scope battery.tsx hunk — INVESTIGATED, no action needed [dotfiles/config/ags/bar/widgets/battery.tsx] — premise invalidated: `git show --stat` proves story commits `a0d4411` (5 story files) and `4ce1904` (2 doc files) never touched battery.tsx; the `Profile` → `ActiveProfile` rename already lives in its own commit `b18c4dd`, extended by `c155077`. The hunk appeared in the review diff only because HEAD advanced mid-review. Task-4 attestation stands.
+- [x] [Review][Patch] Missing `Path` import in CLI test module [src/runtime/tests/unit/test_cli_inspect_status.py:53] — fixed 2026-09-03: added `from pathlib import Path` (ruff F821 + mypy `name-defined` both clear; isort order auto-fixed).
+- [x] [Review][Patch] Un-narrowed `state.palette` access in integration helper [src/runtime/tests/integration/test_inspect_integration.py:109] — fixed 2026-09-03: moved `assert state.palette is not None` above first use (mypy `union-attr` clear).
+- [x] [Review][Patch] Empty-monitors case diverges from reconcile's DEFAULT_MONITOR fallback [src/runtime/src/runtime/application/inspect.py:186-204] — fixed 2026-09-03: builder now iterates `list(state.monitors) or [DEFAULT_MONITOR]` (imported from `runtime.domain.models`), mirroring reconcile.py:216; docstring updated.
+- [x] [Review][Patch] Falsy empty-hash check makes plain/JSON disagree [src/runtime/src/runtime/cli/main.py:530-532] — fixed 2026-09-03: all three use explicit `is not None`.
 
 ## Change Log
 
