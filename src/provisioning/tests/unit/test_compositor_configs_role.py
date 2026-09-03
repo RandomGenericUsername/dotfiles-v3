@@ -210,7 +210,7 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        assert len(files) == 33, (
+        assert len(files) == 34, (
             f"expected exactly 33 skeleton files "
             f"(hyprland.lua + gloview.lua + 8 hypr modules/hyprpaper.conf/ags app.tsx+style.css"
             f"+icon-registry+Bar.tsx+10 widgets/capture views+controllers); found {len(files)}"
@@ -243,6 +243,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/hypr/cursor.lua",
             "dotfiles/config/hypr/decoration.lua",
             "dotfiles/config/hypr/env-variables.lua",
+            "dotfiles/config/hypr/general.lua",
             "dotfiles/config/hypr/gloview.lua",
             "dotfiles/config/hypr/hyprland.lua",
             "dotfiles/config/hypr/input.lua",

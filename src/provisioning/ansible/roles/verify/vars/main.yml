@@ -215,6 +215,7 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/hypr/hyprland.lua"
   - "{{ install_dir | trim }}/config/hypr/keybindings.lua"
   - "{{ install_dir | trim }}/config/hypr/monitors.lua"
+  - "{{ install_dir | trim }}/config/hypr/general.lua"
   - "{{ install_dir | trim }}/config/hypr/autostart.lua"
   - "{{ install_dir | trim }}/config/hypr/window-rules.lua"
   - "{{ install_dir | trim }}/config/hypr/animations.lua"

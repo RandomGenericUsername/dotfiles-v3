@@ -108,6 +108,7 @@ compositor_configs_skeleton_files:
   - { name: keybindings-lua, source: dotfiles/config/hypr/keybindings.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/keybindings.lua" }
   - { name: gloview-lua, source: dotfiles/config/hypr/gloview.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/gloview.lua" }
   - { name: monitors-lua, source: dotfiles/config/hypr/monitors.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/monitors.lua" }
+  - { name: general-lua, source: dotfiles/config/hypr/general.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/general.lua" }
   - { name: autostart-lua, source: dotfiles/config/hypr/autostart.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/autostart.lua" }
   - { name: window-rules-lua, source: dotfiles/config/hypr/window-rules.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/window-rules.lua" }
   - { name: animations-lua, source: dotfiles/config/hypr/animations.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/animations.lua" }
