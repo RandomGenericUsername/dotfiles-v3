@@ -332,3 +332,13 @@ class TestGroupVarsValueShape:
                     )
                 else:
                     pytest.fail(f"{basename}: {key} has unsupported shape {type(value).__name__}")
+
+    def test_aur_only_power_options_package_is_arch_only(self) -> None:
+        arch = yaml.safe_load(
+            (_ANSIBLE_DIR / "group_vars" / f"{Distro.ARCH.value}.yml").read_text()
+        )
+        debian = yaml.safe_load(
+            (_ANSIBLE_DIR / "group_vars" / f"{Distro.DEBIAN_FAMILY.value}.yml").read_text()
+        )
+        assert arch["packages"]["power-options-gtk"] == "power-options-gtk"
+        assert "power-options-gtk" not in debian["packages"]

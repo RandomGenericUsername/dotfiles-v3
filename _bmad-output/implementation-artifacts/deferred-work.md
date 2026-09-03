@@ -1,5 +1,11 @@
 # Deferred Work
 
+## Deferred from: code review of rt-3-4-inspect-cache-list-command (2026-09-03)
+
+- TOCTOU symlink race on `cache/` root (is_symlink → is_dir → scandir non-atomic); attacker swapping cache for symlink between checks bypasses ValueError — local-diagnostic hardening beyond spec, not reachable in normal use [src/runtime/src/runtime/application/inspect.py:551-556]
+- Single-entry OSError aborts entire listing; layer open catches only FileNotFoundError (NotADirectoryError/PermissionError propagate as exit 1) — spec says genuine OSError propagates to ErrorView, skip-and-continue would go beyond AC 5 [src/runtime/src/runtime/application/inspect.py:592-618]
+- Frozen `InspectCacheResult` exposes mutable `dict` fields (layers/counts); callers could mutate despite frozen — internal-only construction, use Mapping/MappingProxy if ever exposed [src/runtime/src/runtime/application/inspect.py:495-507]
+
 ## Deferred from: code review of rt-2-6-terminal-palette-applier (2026-09-02)
 
 - No test renders the real pinned `colors.yaml.j2` — the runtime `TerminalColorApplier` parser's coupling to csg's template output (3 scalars + 16-item list + 3 trailing scalars, no blank lines between items thanks to `trim_blocks=True`) is guarded only by hand-written fixtures in both test layers. If csg's Jinja environment ever changes, every real cache artifact becomes unparseable and every reconcile surfaces `TerminalColorApplier` as failed (fail-loud, but with no structural guard). A template-render parity test crosses the runtime/csg package boundary — decide whether it belongs in runtime tests, a shared test util, or csg's own suite [src/runtime/tests/unit/test_terminal_color_applier.py:26-38, src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates/colors.yaml.j2]

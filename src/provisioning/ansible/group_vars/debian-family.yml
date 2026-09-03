@@ -46,7 +46,6 @@ packages:
     - kitty
   btop: btop # System monitor (AGS bar icon launcher)
   thunderbird: thunderbird # Mail client (AGS bar icon launcher)
-  power-options-gtk: power-options-gtk # Portable power management (AUR) — defacto, launched from battery widget
   brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
   playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)

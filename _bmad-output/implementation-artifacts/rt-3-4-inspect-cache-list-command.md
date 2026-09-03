@@ -4,7 +4,7 @@ baseline_commit: 810910b3409ab54a4a322d23f9e6d88e74415d2b
 
 # Story rt-3.4: inspect cache list command
 
-Status: review
+Status: in-progress
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -493,3 +493,17 @@ OpenCode powered by Meta Muse Spark (muse-spark-1.3-contributor-free)
 - src/runtime/tests/unit/test_inspect_cache.py (new — Task 3)
 - src/runtime/tests/unit/test_cli_inspect_cache_list.py (new — Task 3)
 - src/runtime/tests/integration/test_inspect_cache_list_integration.py (new — Task 3)
+
+### Review Findings (code review 2026-09-03, diff 810910b..HEAD, mode full)
+
+- [ ] [Review][Patch] Uppercase-hex dirs accepted then lowercased without dedup — DECIDED 2026-09-03: reject uppercase with warning (strict lowercase); `A*64` is non-entry (warn + skip like other non-hex), only `a*64` lists. [src/runtime/src/runtime/application/inspect.py:480,615]
+- [ ] [Review][Patch] Dead `CacheLayerListing` dataclass shipped unused [src/runtime/src/runtime/application/inspect.py:484]
+- [ ] [Review][Patch] Layer-order guard uses `set()` comparison and raises `AssertionError` (dev-only, unmapped by CLI which handles ValueError/RuntimeError/OSError) [src/runtime/src/runtime/application/inspect.py:545-549]
+- [ ] [Review][Patch] CLI render trusts `result.layers` insertion order instead of enforcing canonical order [src/runtime/src/runtime/cli/main.py:730]
+- [x] [Review][Defer] TOCTOU symlink race on `cache/` root (is_symlink → is_dir → scandir non-atomic) — deferred, local-diagnostic hardening beyond spec [src/runtime/src/runtime/application/inspect.py:551-556]
+- [x] [Review][Defer] Single-entry OSError aborts entire listing; layer open catches only FileNotFoundError (NotADirectoryError/PermissionError propagate as exit 1) — deferred, spec says genuine OSError propagates [src/runtime/src/runtime/application/inspect.py:592-618]
+- [x] [Review][Defer] Frozen `InspectCacheResult` exposes mutable `dict` fields — deferred, internal-only construction [src/runtime/src/runtime/application/inspect.py:495-507]
+- [x] [Review][Dismiss] Diff includes unrelated battery and provisioning changes outside this story's scope — dismissed 2026-09-03 after confirming those changes are intentionally part of this review [dotfiles/config/ags/bar/widgets/battery.tsx:1, src/provisioning/ansible/group_vars/debian-family.yml:49]
+- [x] [Review][Patch] Debian provisioning sends the AUR-only `power-options-gtk` name to apt — removed the Debian mapping so `packages_flat` no longer sends this AUR-only name to apt; Arch retains its AUR mapping [src/provisioning/ansible/group_vars/debian-family.yml:49, src/provisioning/ansible/roles/packages/tasks/main.yml:30]
+- [x] [Review][Patch] Permission errors can be reported as an empty cache — replaced suppressing `Path.is_dir()` checks with error-propagating `stat()` handling and added inaccessible-directory coverage [src/runtime/src/runtime/application/inspect.py:551-559,580-589]
+- [x] [Review][Patch] Layer replacement race can make the reader follow a symlink — opened layer directories with `O_NOFOLLOW` and scanned through the anchored directory descriptor, with symlink-replacement coverage [src/runtime/src/runtime/application/inspect.py:580-592]
