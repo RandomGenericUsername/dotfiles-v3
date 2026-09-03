@@ -120,7 +120,7 @@ verify_system_binaries:
   - hyprland
   - hyprpaper
   - ags
-  - rog-control-center
+  - power-options-gtk
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of

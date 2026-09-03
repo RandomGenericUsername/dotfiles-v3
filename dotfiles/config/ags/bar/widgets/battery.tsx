@@ -1,5 +1,6 @@
 import Gtk from "gi://Gtk?version=4.0"
 import Gio from "gi://Gio"
+import GLib from "gi://GLib"
 import Battery from "gi://AstalBattery"
 import { createBinding, createEffect, createState } from "ags"
 import { execAsync } from "ags/process"
@@ -12,40 +13,56 @@ const isPresent = createBinding(device, "is-present")
 const timeToFull = createBinding(device, "time-to-full")
 const timeToEmpty = createBinding(device, "time-to-empty")
 
-// ── Power profiles (power-profiles-daemon, system bus) ─────────────────
-// Event-driven: Gio.DBusProxy on net.hadess.PowerProfiles ActiveProfile.
-// ppd 0.30 renamed Profile → ActiveProfile.
+// ── Power profiles — power-options (portable defacto) ─────────────────
+// power-options daemon: io.github.thealexdev23.power_daemon /control
+// GetActiveProfileName() / SetProfileOverride(s) — no PropertiesChanged
+// signal, so we poll GetActiveProfileName after a set + on interval for
+// external GUI changes. Left-click launches power-options-gtk (portable).
 const PROFILES: [string, string][] = [
-    ["performance", "Performance"],
-    ["balanced", "Balanced"],
-    ["power-saver", "Power Saver"],
+    ["Powersave++", "Powersave++"],
+    ["Powersave", "Powersave"],
+    ["Balanced", "Balanced"],
+    ["Performance", "Performance"],
+    ["Performance++", "Performance++"],
 ]
 
-const [profile, setProfile] = createState<string>("balanced")
+const [profile, setProfile] = createState<string>("Balanced")
 
-let ppProxy: Gio.DBusProxy | null = null
+let poProxy: Gio.DBusProxy | null = null
+function refreshPoProfile() {
+    if (!poProxy) return
+    poProxy.call("GetActiveProfileName", null, Gio.DBusCallFlags.NONE, -1, null, (_p, res) => {
+        try {
+            const ret = poProxy!.call_finish(res) as any
+            const name: string = ret?.recursiveUnpack?.()?.[0] ?? ret?.unpack?.()?.[0] ?? "Balanced"
+            if (name) setProfile(name)
+        } catch {}
+    })
+}
 Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM,
     Gio.DBusProxyFlags.NONE, null,
-    "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles", "net.hadess.PowerProfiles",
+    "io.github.thealexdev23.power_daemon", "/io/github/thealexdev23/power_daemon/control",
+    "io.github.thealexdev23.power_daemon.control",
     null, (_source, result) => {
         try {
-            ppProxy = Gio.DBusProxy.new_for_bus_finish(result)
-            const initial = ppProxy.get_cached_property("ActiveProfile")?.unpack() ?? "balanced"
-            console.log("ppd proxy initial ActiveProfile:", initial)
-            setProfile(initial)
-            ppProxy.connect("g-properties-changed", (_p, changed) => {
-                console.log("ppd g-properties-changed", (changed as any)?.recursiveUnpack?.() ?? changed)
-                const value = ppProxy?.get_cached_property("ActiveProfile")?.unpack()
-                console.log("ppd cached ActiveProfile now:", value)
-                if (value) setProfile(value as string)
-            })
+            poProxy = Gio.DBusProxy.new_for_bus_finish(result)
+            refreshPoProfile()
+            // Poll for external GUI changes (power-options-gtk) — no PropertiesChanged on this iface
+            setInterval(refreshPoProfile, 3000)
         } catch (err) {
-            console.error("power-profiles-daemon proxy failed:", err)
+            console.error("power-options proxy failed:", err)
         }
     })
 
 function setPowerProfile(name: string) {
-    execAsync(["powerprofilesctl", "set", name]).catch(console.error)
+    if (poProxy) {
+        poProxy.call("SetProfileOverride", new GLib.Variant("(s)", [name]),
+            Gio.DBusCallFlags.NONE, -1, null, (_p, res) => {
+                try { poProxy!.call_finish(res); setProfile(name) } catch (e) { console.error(e) }
+            })
+    } else {
+        execAsync(["power-daemon-mgr", "set-profile-override", name]).then(() => setProfile(name)).catch(console.error)
+    }
 }
 
 function getBatteryStateKey(pct: number, chg: boolean): string {
@@ -101,8 +118,8 @@ export function BatteryIndicator() {
             <button
                 class="widget battery-widget"
                 onClicked={() => {
-                    execAsync(["rog-control-center"]).catch((e) => {
-                        console.error("rog-control-center launch failed:", e)
+                    execAsync(["power-options-gtk"]).catch((e) => {
+                        console.error("power-options-gtk launch failed:", e)
                     })
                 }}
                 $={(self) => {

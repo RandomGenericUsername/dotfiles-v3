@@ -1030,7 +1030,7 @@ class TestVerifyVars:
             "hyprland",
             "hyprpaper",
             "ags",
-            "rog-control-center",
+            "power-options-gtk",
         ]
 
     def test_vars_use_non_deprecated_env_fact(self) -> None:
@@ -1402,7 +1402,7 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "ags", "rog-control-center", "csg", "weg", "itr"):
+    for name in ("hyprland", "hyprpaper", "ags", "power-options-gtk", "csg", "weg", "itr"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)

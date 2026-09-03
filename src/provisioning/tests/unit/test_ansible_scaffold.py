@@ -65,9 +65,7 @@ _LOGICAL_PACKAGE_KEYS = (
     "thunderbird",
     "brightnessctl",
     "playerctl",
-    "asusctl",
-    "rog-control-center",
-            "rog-control-center",
+    "power-options-gtk",
 )
 _ARCH_EXTRA_KEYS = ("gloview_build",)
 
