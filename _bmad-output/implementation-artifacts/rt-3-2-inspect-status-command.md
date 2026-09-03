@@ -1,0 +1,235 @@
+# Story rt-3.2: inspect status command
+
+Status: ready-for-dev
+
+<!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+
+## Story
+
+As a user,
+I want to see the current desktop state,
+So that I know what wallpaper/palette/effects/icons are active.
+
+## Scope Reality (READ FIRST)
+
+**This is a GREENFIELD story, unlike rt-3.1.** `InspectStateUseCase` exists ONLY as a name in
+the architecture spine (`ARCHITECTURE-SPINE.md` line 27 lists it in `runtime.application`); there
+is NO `application/inspect.py`, NO `cli/inspect.py`, NO `inspect` typer group, and NO inspection
+code anywhere in `src/runtime` (verified by grep — zero matches for inspect/Inspect beyond docs).
+Story 3.2 builds the FIRST Epic-3 inspection command: `dotfiles-runtime inspect status`.
+
+**Scope boundary — do NOT build the other Epic-3 commands.** Story 3.3 (`inspect history`) adds
+the history reader; Story 3.4 (`inspect cache list`) adds cache listing. Those land in later
+stories. This story touches ONLY the status path: `InspectStateUseCase` (status projection +
+live `current/` symlink reflection), the `inspect status` CLI surface, tests, and the shared
+auto-seed guard change (below).
+
+## Acceptance Criteria
+
+1. **Status output** — Given `dotfiles-runtime inspect status` runs on a machine with recorded
+   state, Then it prints the current wallpaper, palette, effects, and icons **derived from
+   `current.json` + the `current/` symlink targets** (FR-7, CAP-7).
+2. **Filesystem authority reflected** — The output reflects the **live `current/` symlink**
+   (NFR-3: filesystem is the authority), not just the `current.json` index: for each expected
+   consumer symlink (`wallpaper-<monitor>.png`, `colors.yaml`, `colors.conf`, `colors.gtk.css`,
+   `effects/`, `icons/`) it reports the actual symlink target and flags
+   `ok` | `missing` | `diverged` vs the index.
+3. **Absent state is loud** — Given `current.json` is absent (never seeded / missing), When
+   `dotfiles-runtime inspect status` runs, Then it exits NON-ZERO with a clear message (e.g.
+   "no state recorded — run `dotfiles-provision apply` / `dotfiles-runtime wallpaper set <img>`
+   to seed"). No fabricated/empty state, no exit-0.
+4. **Read-only + format parity** — The command MUTATES NOTHING: no cache population, no `current/`
+   repoint, no `history.jsonl` append, no seed side-effects. Supports `--format plain|json|rich`
+   (`OutputFormat`) like every other command; JSON object is structured and deterministic.
+5. **Zero regressions** — full suite passes (`pytest`, `ruff check src`, `ruff format --check src`,
+   `mypy --strict src`, layering tests) with ZERO new violations; existing seeding/apply/reconcile
+   behavior unchanged (the auto-seed guard change must not seed for non-inspect commands).
+
+## Tasks / Subtasks
+
+- [ ] Task 1: `InspectStateUseCase` (AC: 1, 2, 3)
+  - [ ] New `src/runtime/src/runtime/application/inspect.py`: frozen `InspectStatusResult` +
+    `InspectStateUseCase(state_repo: IStateRepository, state_root: Path)`
+  - [ ] `run() -> InspectStatusResult`: `state_repo.load_current()` → `None` raises
+    `RuntimeError` with the absent-state message (AC 3); otherwise project wallpaper /
+    monitors / palette / effects / icons from `DesktopState`
+  - [ ] Read live `current/` symlink targets under `state_root / "current"` and compare each
+    expected name against `resolve()` (read-only; mirror `reconcile._build_expected_targets`
+    name set) → per-name `ok|missing|diverged` (AC 2)
+- [ ] Task 2: CLI `inspect status` (AC: 1, 4)
+  - [ ] `inspect_app = typer.Typer(...)` + `app.add_typer(inspect_app, name="inspect")` in
+    `cli/main.py` (precedent: `wallpaper_app` at main.py:35-36); command `status`
+    (class-name `inspect_status`)
+  - [ ] `_run_inspect_status()` composition helper mirroring `_run_reconcile` (main.py:384-417):
+    `_resolve_state_root()` + `JsonStateRepository(state_root)` injected into the use case
+  - [ ] Error mapping: `ValueError`/`RuntimeError`/`OSError` → `ErrorView` + `typer.Exit(1)`
+    (mirror main.py:311-323 / 438-450); absent state → logger.error + `ErrorView` + exit 1
+  - [ ] Render success via `CustomView(plain=..., object={...}, rich=...)`; JSON object carries
+    wallpaper/monitors/palette/effects/icons hashes + live symlink statuses
+  - [ ] **Auto-seed guard:** extend `main_callback` (main.py:164-176) so `inspect` NEVER
+    auto-seeds — `if "reconcile" in sys.argv or "inspect" in sys.argv: return` (precedent:
+    the "reconcile" skip; AC 3 requires the absent-state error to be reachable)
+- [ ] Task 3: Tests (AC: 1-5)
+  - [ ] `tests/unit/test_inspect.py`: use-case level — happy path projects all layers; absent
+    state raises; per-monitor + palette + effects + icons reflected; live symlink
+    `ok`/`missing`/`diverged` (create real symlinks under `tmp_path`); result is read-only
+    (no `current/` mutations, no history file created)
+  - [ ] `tests/unit/test_cli_inspect_status.py`: mirrors `test_cli_reconcile.py` — exit codes,
+    plain summary text, `--format json` object shape, absent-state → exit 1 + `ErrorView`
+    (monkeypatch the composition helper, not the whole app)
+  - [ ] `tests/integration/test_inspect_integration.py`: real `JsonStateRepository` + real
+    `current/` symlinks on `tmp_path` `state_root` (seed-style `_make_state` builder with
+    `"a"*64`-style hashes); assert output + divergence when a symlink is repointed away
+  - [ ] Guard tests: `inspect`/`reconcile` skip auto-seed; other commands still seed
+    (extend existing seed-hook CLI tests if the guard change requires it)
+- [ ] Task 4: Quality gates (AC: 5)
+  - [ ] `uv run --directory src/runtime pytest`
+  - [ ] `uv run --directory src/runtime ruff check src` — zero NEW (baseline: exactly 3 —
+    cli/main.py:166, cli/main.py:271, domain/models.py:35). Do NOT run bare `ruff check`
+  - [ ] `uv run --directory src/runtime ruff format --check src` — clean (src scope; unscoped
+    run reports pre-existing test-file violations, do not count them)
+  - [ ] `uv run --directory src/runtime mypy --strict src` — zero NEW (baseline: exactly 4).
+    Bare `mypy --strict` errors out ("Missing target module")
+  - [ ] `uv run --directory src/runtime pytest tests/architecture/test_layering.py -v`
+  - [ ] Confirm `git status --short` contains ONLY this story's new files + the story/status
+    artifacts (`main.py`, `application/inspect.py`, 3 test files, `sprint-status.yaml`, this
+    story file)
+
+## Dev Notes
+
+### Pinned sources (cite in References)
+
+- PRD/epic: `_bmad-output/planning-artifacts/epics-dotfiles-runtime-phase2.md` — Epic 3
+  (line 93-98), **Story 3.2 ACs verbatim** (lines 451-462), FR-7, CAP-7, NFR-3, R1 note (line 102).
+- Architecture: `ARCHITECTURE-SPINE.md` — application layer list line 27 (`InspectStateUseCase`),
+  `cli` spine line 28 (`wallpaper/status/history/cache commands`), AD-20 (`dotfiles-runtime
+  {wallpaper,status,history,cache,...}`) line 152, AD-3/NFR-3 (filesystem authority) lines 46-51,
+  AD-5 state_root line 62, AD-17 consumer wiring line 134.
+- Data contract: `shared-data-contract.md` (same folder) — `current.json` schema (lines 5-39),
+  Swap sequence symlink names (lines 137-148), fs authority notes (line 50 AD-3).
+
+### Command-naming decision (do not re-litigate)
+
+The EPIC pins `dotfiles-runtime inspect status` / `inspect history` / `inspect cache list`.
+**Use the `inspect` group with subcommands.** Do NOT create a top-level `status` command and do
+NOT follow SPEC.md:76 ("`dotfiles status`") or AD-20's flat `{wallpaper,status,history,cache}`
+list — those are earlier, coarser namings. Flag this drift once in this story's record; the epic
+naming wins for 3.2/3.3/3.4.
+
+### Data sources (as-built)
+
+- `IStateRepository.load_current() -> DesktopState | None` — `ports/state_repository.py:10-11`;
+  **no other repository port needed.** Rt-3.1 pinned the port minimal (`load_current`/`save`
+  only); `load_history` for the history use case is a Phase-3/rt-3-3 concern — do NOT add it here.
+- `DesktopState` shape — `domain/models.py:133-144`: `wallpaper: WallpaperEntry`,
+  `monitors: dict[str, MonitorWallpaperConfig]`, `palette/effects/icons: ... | None`,
+  `applied_at`. Hashes: `wallpaper.content_hash`, `palette.entry_hash`, `effects.entry_hash`,
+  `icons.entry_hash`; foundational note: palette/effects/icons are `None` when never derived
+  (degraded apply) — the status output must render them as absent, not crash.
+- `current/` live layout (`shared-data-contract.md` swap sequence + `cache-model.md` lines 12-18):
+  `wallpaper-<monitor>.png` per monitor, `colors.yaml`, `colors.conf`, `colors.gtk.css`,
+  `effects/` (dir symlink), `icons/` (dir symlink). Expected target names derive from
+  `DesktopState` EXACTLY as `ReconcileDesktopStateUseCase._build_expected_targets` does
+  (`reconcile.py:492-529`) — mirror that name set but READ-ONLY (no `_repoint_symlink`, no
+  revert). `link.resolve()` may raise `OSError` on a dangling symlink — treat dangling as a
+  distinct status (e.g. `dangling`), never crash (mirror reconcile.py:543-547).
+
+### Composition root + CLI patterns to mirror
+
+- Build the helper `_run_inspect_status()` in `cli/main.py` and monkeypatch IT in CLI tests
+  (exact precedent: `_run_reconcile` main.py:384-417 + `test_cli_reconcile.py:97-102`
+  `_fake_composition`).
+- Wrap ALL expected domain errors: `(ValueError, RuntimeError, OSError)` → `logger.error` +
+  `renderer.error(ErrorView(kind=..., message=...))` + `raise typer.Exit(code=1)`; plus a
+  catch-all `Exception` → `UnexpectedError`. Mirror main.py:438-450 verbatim style.
+- Output: `renderer.custom(CustomView(plain=..., object={...}, rich=...))`. The `object` is the
+  `--format json` payload — include `wallpaper`, `monitors` (per-monitor backend/source_hash/
+  fit_mode/mpv_options/ipc_socket), `palette`, `effects`, `icons`, `applied_at`, and a
+  `current_symlinks` map with `{status, target}`.
+- **Auto-seed guard:** `main_callback` (main.py:164-176) runs `_run_seed_if_needed()` for every
+  command except when `"reconcile" in sys.argv`. `inspect` commands are read-only inspectors —
+  auto-seeding would (a) hide AC 3's absent-state error on provisioned machines and (b) invoke
+  csg/weg/itr for free a read command. Extend the skip: `if "reconcile" in sys.argv or
+  "inspect" in sys.argv: return`. This mirrors the documented Story-1.13 P3 decision.
+
+### Read-only invariant (AC 4 — negative tests required)
+
+`inspect status` must create/write NOTHING: no `current/` symlink creation or repoint, no
+`.staging-*` dirs, no `history.jsonl` file, no `.seed.lock` acquisition. Tests must assert the
+absence of these side-effects (e.g. `state_root` snapshot before/after; `history.jsonl` does not
+exist; `current/` unchanged on a diverged symlink). "A story implementation must leave the system
+working end-to-end" — the status command must be safe to run anytime (including mid-swap).
+
+### Test conventions (pass review or get bounced)
+
+- Runner: `uv run --directory src/runtime pytest`; class-based grouping with AC/AD-citing
+  docstrings (e.g. `class TestInspectStateUseCase:` "(NFR-3)"). No conftest.py.
+- `_make_state()` builders with deterministic `"a"*64`-style hashes; `tmp_path` as `state_root`
+  via adapter injection.
+- CLI unit tests: monkeypatch the composition helper (`_fake_composition` pattern),
+  `DOTFILES_INSTALL_SPINE` + `XDG_STATE_HOME` fixtures (mirror `test_cli_reconcile.py:88-95`).
+- Pin TRANSIENT observables (caplog) not just final state; assert VALUES (hashes, symlink
+  targets) not key presence; JSON payload asserts assert exact shape.
+- Integration: use real `JsonStateRepository.save` + `os.symlink` to build the `current/` tree,
+  then a FRESH `InspectStateUseCase` reads it — restart-survival-style realism (rt-3.1 lesson).
+
+### Commit flow
+
+`feat(rt-3-2): inspect status command ...` for the implementation; `docs(bmm): add story
+rt-3-2 ...` carrying this story `.md` + `sprint-status.yaml`. (Precedent: rt-3-1 commits.)
+
+### Project Structure Notes
+
+- All new code under existing layers: `src/runtime/src/runtime/application/inspect.py` and
+  `cli/main.py` (inspect group). Layering: application → domain/ports/adapters/application ONLY
+  (test_layering.py:9,64); cli is the composition root (imports everything in-runtime).
+  New `application/inspect.py` must import only `runtime.domain.*`, `runtime.ports.*`,
+  `runtime.adapters.*` (if needed), and stdlib — NEVER `runtime.cli`.
+- Tests land at `tests/unit/test_inspect.py`, `tests/unit/test_cli_inspect_status.py`,
+  `tests/integration/test_inspect_integration.py` — naming matches `test_cli_*` / layer split.
+- Package facts: `dotfiles-runtime` at `src/runtime/` (nested src layout), Python >= 3.14,
+  hatchling, typer>=0.12, cli-output (editable sibling), ruff line-length 100 double-quotes,
+  mypy strict, target py314.
+
+### References
+
+- [Source: _bmad-output/planning-artifacts/epics-dotfiles-runtime-phase2.md#Story 3.2: inspect status command] (ACs verbatim)
+- [Source: _bmad-output/planning-artifacts/architecture/architecture-dotfiles-repo-v3-2026-08-18/ARCHITECTURE-SPINE.md#Layer mapping] / [#AD-3 — JSON / dict-like store; filesystem is authority] / [#AD-5 — state_root] / [#AD-17 — Consumer wiring] / [#AD-20 — Separate dotfiles-runtime binary] / [line 27 application list: InspectStateUseCase]
+- [Source: same folder shared-data-contract.md#current.json] / [#Swap sequence (AD-6 ownership)]
+- [Source: _bmad-output/specs/spec-dotfiles-runtime-phase2/SPEC.md#CAP-7] / [cache-model.md#filesystem layout lines 10-18]
+- [Source: src/runtime/src/runtime/cli/main.py:384-417 `_run_reconcile`] / [:164-176 `main_callback` auto-seed guard] / [:438-450 error mapping]
+- [Source: src/runtime/src/runtime/application/reconcile.py:492-529 `_build_expected_targets`]
+- [Source: src/runtime/src/runtime/ports/state_repository.py:10-11 `load_current`]
+- [Source: src/runtime/src/runtime/domain/models.py:133-144 `DesktopState`]
+- [Source: _bmad-output/implementation-artifacts/rt-3-1-history-jsonl-persistence.md#Dev Notes] — quality-gate baselines, port-minimality, commit style
+
+## Dev Agent Record
+
+### Agent Model Used
+
+(Baseline: HEAD `06cb5b4` — fix: auto-commit code review findings.)
+
+### Debug Log References
+
+- Baseline before any change: `pytest` 429 passed / 2 skipped; `ruff check src` exactly 3
+  (cli/main.py:166, cli/main.py:271, domain/models.py:35); `mypy --strict src` exactly 4
+  (domain/models.py:30 + 3 import-untyped in cli/main.py); `ruff format --check src` clean
+  (src scope); layering 56 passed. Re-verify before and after.
+
+### Completion Notes List
+
+- (To be filled by the dev agent during implementation, per rt-3.1's record style.)
+
+### File List
+
+- (To be filled; expected: `src/runtime/src/runtime/application/inspect.py`,
+  `src/runtime/src/runtime/cli/main.py`, `src/runtime/tests/unit/test_inspect.py`,
+  `src/runtime/tests/unit/test_cli_inspect_status.py`,
+  `src/runtime/tests/integration/test_inspect_integration.py`,
+  `_bmad-output/implementation-artifacts/rt-3-2-inspect-status-command.md`,
+  `_bmad-output/implementation-artifacts/sprint-status.yaml`.)
+
+## Change Log
+
+- 2026-09-02: Story created — ultimate context engine analysis completed. Greenfield Epic-3
+  inspection command; `InspectStateUseCase` + `inspect status` CLI + read-only guardrail tests.
