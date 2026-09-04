@@ -81,3 +81,11 @@ development_status:
   rt-3-3-inspect-history-command: done
   rt-3-4-inspect-cache-list-command: done
   rt-epic-3-retrospective: optional
+
+  # ── Epic 4: Single Source of Truth (epics-runtime-single-source.md) ──
+  rt-epic-4: in-progress
+  rt-4-1-remove-generation-roles-from-provisioning: ready-for-dev
+  rt-4-2-runtime-seeder-r2-consumer-symlinks: ready-for-dev
+  rt-4-3-ags-runtime-only-icons-itr-repoint: ready-for-dev
+  rt-4-4-verify-current-only-remove-generated-docs: ready-for-dev
+  rt-epic-4-retrospective: optional
