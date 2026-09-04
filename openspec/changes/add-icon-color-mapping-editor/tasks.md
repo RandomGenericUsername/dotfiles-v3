@@ -3,7 +3,7 @@
 - [ ] 1.1 `domain/models.py` — frozen `MappingEntry(placeholder, token, origin)` with `MappingOrigin` enum (`VOCABULARY`/`GROUP`/`VARIANT`), `VariantMappingView(variant, template_path, svg_body, entries)`, `MappingShowRequest`/`MappingShowResult` (groups, palette table, missing tokens)
 - [ ] 1.2 `domain/services.py` — extend `MappingResolutionService` with `merge_with_origin(vocab, group, variant) -> tuple[MappingEntry, ...]`; unit-test precedence and origin attribution
 - [ ] 1.3 `ports/icon_renderer.py` — add `mapping_show(request) -> MappingShowResult`; update port-contract tests
-- [ ] 1.4 `adapters/icon_renderer.py` — implement `mapping_show`: load config + vocabulary + scheme, read template bodies, collect tokens referenced but absent from the scheme (never raise for missing tokens)
+- [ ] 1.4 `adapters/icon_renderer.py` — implement `mapping_show`: load config + vocabulary + scheme, read template bodies, collect tokens referenced but absent from the scheme (never raise for missing tokens), and per placeholder the list of groups that override it (shadow set)
 - [ ] 1.5 `adapters/output/projectors.py` + `{plain,json}_output.py` — project `MappingShowResult`; JSON is the GUI contract
 - [ ] 1.6 `cli/mapping.py` — `itr mapping show <yaml_file> [--icon] [--template-dir] [--color-scheme]`; register the `mapping` Typer sub-app in `cli/main.py`
 - [ ] 1.7 Integration tests: origin attribution, missing-token list, template bodies present, exit 0 with unresolvable tokens
@@ -16,8 +16,9 @@
 - [ ] 2.4 `domain/exceptions.py` — add `VariantNotFoundError`, `UnknownTokenError` (message style matching existing errors)
 - [ ] 2.5 Token validation: literal `^#[0-9a-fA-F]{6}$` passthrough, else must be a key of the resolved scheme unless `--unsafe`
 - [ ] 2.6 `cli/mapping.py` — `itr mapping set … [--variant] [--dry-run] [--diff] [--unsafe]`; atomic write (temp file + replace)
-- [ ] 2.7 Round-trip tests: comments, key order, quoting, indentation preserved; group set; variant override creation; dry-run byte-identical; unknown group/variant/token rejected with no write
-- [ ] 2.8 `make check` green in `src/cli-tools/icon-templates-renderer`
+- [ ] 2.7 `itr mapping set-default <defaults.yaml> --placeholder --token [--icons] [--dry-run] [--diff]` — same writer against the vocabulary file; reject unknown placeholder names; never add or remove names; report shadowing groups (plain + JSON)
+- [ ] 2.8 Round-trip tests: comments, key order, quoting, indentation preserved; group set; variant override creation; vocabulary set; shadow report correctness; dry-run byte-identical; unknown group/variant/placeholder/token rejected with no write
+- [ ] 2.9 `make check` green in `src/cli-tools/icon-templates-renderer`
 
 ## 3. GUI scaffold
 
@@ -42,19 +43,21 @@
 - [ ] 5.2 `ui/GroupTree.tsx` — groups and variants; selecting a variant enlarges it in the preview
 - [ ] 5.3 `ui/SelectionPanel.tsx` — shape, `{{PLACEHOLDER}}`, current token + hex, "N shapes across M variants", keyboard-accessible shape list
 - [ ] 5.4 `ui/TokenPicker.tsx` — all scheme tokens as swatches; absent tokens disabled with `not in colors.yaml`; dynamic heading; disabled state when nothing is selected
-- [ ] 5.5 `ui/ScopeSwitch.tsx` — `Whole group` (default) / `This variant only` with the blast-radius sentence
+- [ ] 5.5 `ui/ScopeSwitch.tsx` — `This variant only` / `Whole group` (default) / `All icons`, each with its blast-radius sentence and target file+key
+- [ ] 5.5a `All icons` scope: list the shadowing groups from `mapping show`, and warn when the previewed group is among them (the edit will not change what is on screen)
 - [ ] 5.6 Apply a pick to the pending-edit set (never to disk)
 
 ## 6. GUI: pending edits, diff, save
 
 - [ ] 6.1 `ui/DiffPane.tsx` — YAML diff of pending edits, sourced from `itr mapping set --dry-run --diff`
-- [ ] 6.2 `Save` — apply each pending edit through `itr mapping set`, then reload from `itr mapping show`; surface any failure without losing pending state
+- [ ] 6.2 `Save` — apply each pending edit through `itr mapping set` / `itr mapping set-default`, then reload from `itr mapping show`; surface any failure without losing pending state; never trigger a render
 - [ ] 6.3 `Revert` — clear pending edits and restore previews
-- [ ] 6.4 Guard against saving when the manifest changed on disk since load (mtime check, warn and offer reload)
+- [ ] 6.4 Guard against saving when `icons.yaml` or `defaults.yaml` changed on disk since load (mtime check, warn and offer reload)
 
 ## 7. Verification and docs
 
 - [ ] 7.1 Manual pass against the real battery group: click each shape, retarget `COLOR_ACCENT` group-wide, verify all four variants change, save, `itr render`, confirm generated SVGs match the preview
 - [ ] 7.2 Variant-override pass: same placeholder, variant scope, confirm only that variant changes after render
-- [ ] 7.3 `docs/Adding an Icon — ITR and Provisioning Pipeline.md` — document the editor as the recommended recoloring path and the `itr mapping` commands
-- [ ] 7.4 `README.md` in the tool folder: prerequisites, launch command, explicit note that it edits repo sources and is not provisioned
+- [ ] 7.3 Vocabulary pass: `All icons` scope on a placeholder no group overrides, confirm every group changes after render; repeat on a shadowed placeholder and confirm the warning was accurate
+- [ ] 7.4 `docs/Adding an Icon — ITR and Provisioning Pipeline.md` — document the editor as the recommended recoloring path and the `itr mapping` commands
+- [ ] 7.5 `README.md` in the tool folder: prerequisites, launch command, explicit note that it edits repo sources, is not provisioned, and that rendered icons refresh on the next wallpaper/theme run

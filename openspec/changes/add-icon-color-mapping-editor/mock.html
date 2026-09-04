@@ -155,6 +155,7 @@
     <div class="scope">
       <button class="toggle on" id="sGroup">Whole group</button>
       <button class="toggle" id="sVariant">This variant only</button>
+      <button class="toggle" id="sVocab">All icons</button>
     </div>
     <div class="scope-hint" id="scopeHint"></div>
 
@@ -165,12 +166,13 @@
     <div class="hint">
       Picking a color rewrites what this <b>placeholder</b> resolves to, not the SVG.
       Group scope edits <code>battery.color_mappings</code>; variant scope adds a
-      <code>variants[].color_mappings</code> override (higher priority).
+      <code>variants[].color_mappings</code> override (higher priority); all-icons scope edits
+      <code>defaults.yaml</code> (lowest priority — groups that map the placeholder shadow it).
     </div>
 
     <div class="footer">
       <button class="btn" id="revert">Revert</button>
-      <button class="btn primary">Save icons.yaml</button>
+      <button class="btn primary">Save mappings</button>
     </div>
   </div>
 </div>
@@ -183,7 +185,11 @@ const palette = { background:"#12151a", foreground:"#d5d9e0", cursor:"#d5d9e0" }
 paletteColors.forEach((c,i) => palette["color"+i] = c);
 
 // ---------- icons.yaml (battery group) ----------
-const groupMappings = { COLOR_FOREGROUND: "foreground", COLOR_ACCENT: "color12" };
+const vocab = { COLOR_FOREGROUND: "foreground", COLOR_BACKGROUND: "surface",
+                COLOR_SECONDARY: "accent", COLOR_ACCENT: "accent-muted" };
+const groupMappings = { COLOR_ACCENT: "color12" };
+const shadowers = { COLOR_ACCENT: ["battery"], COLOR_FOREGROUND: [] };
+const groupCount = 9;
 const variantMappings = {};   // variant name -> { PH: token }  (scope = "this variant only")
 
 // ---------- templates (real repo SVGs, paths abbreviated) ----------
@@ -242,7 +248,7 @@ let showGroup = true;
 const order = ["battery-0","battery-50","battery-50-charging","plugged"];
 
 function resolvedFor(variant) {
-  return { ...groupMappings, ...(variantMappings[variant] || {}) };
+  return { ...vocab, ...groupMappings, ...(variantMappings[variant] || {}) };
 }
 function hexOf(token) { return palette[token] ?? null; }
 
@@ -306,9 +312,16 @@ function renderPanel() {
   document.getElementById("grid").classList.toggle("picker-off", !ph);
   document.getElementById("named").classList.toggle("picker-off", !ph);
   document.querySelector(".scope").classList.toggle("picker-off", !ph);
-  document.getElementById("scopeHint").textContent = !ph ? "" : scope === "group"
-    ? `Changes battery.color_mappings.${ph} — affects all ${order.length} variants.`
-    : `Adds a color_mappings override on variant "${activeVariant}" only.`;
+  const shadowedBy = shadowers[ph] || [];
+  document.getElementById("scopeHint").innerHTML = !ph ? ""
+    : scope === "group"
+      ? `Changes battery.color_mappings.${ph} — affects all ${order.length} variants.`
+    : scope === "variant"
+      ? `Adds a color_mappings override on variant "${activeVariant}" only.`
+      : `Changes defaults.${ph} in defaults.yaml — affects all ${groupCount} icon groups that don't override it.`
+        + (shadowedBy.length
+            ? `<br><b>battery overrides ${ph}, so this edit will not change the preview.</b>`
+            : "");
 
   const grid = document.getElementById("grid");
   grid.innerHTML = paletteColors.map((hex, i) =>
@@ -338,13 +351,21 @@ function apply(token) {
   const ph = currentPh();
   if (!ph) return;
   if (scope === "group") groupMappings[ph] = token;
+  else if (scope === "vocab") vocab[ph] = token;
   else (variantMappings[activeVariant] ||= {})[ph] = token;
   render(); renderPanel(); renderDiff();
 }
 
-const baseGroup = { COLOR_FOREGROUND: "foreground", COLOR_ACCENT: "color12" };
+const baseGroup = { COLOR_ACCENT: "color12" };
+const baseVocab = { ...vocab };
 function renderDiff() {
   const out = [];
+  Object.keys(vocab).forEach(ph => {
+    if (vocab[ph] !== baseVocab[ph])
+      out.push(`<div class="file">defaults.yaml → defaults</div>
+        <div class="del">-   ${ph}: ${baseVocab[ph]}</div>
+        <div class="add">+   ${ph}: ${vocab[ph]}</div>`);
+  });
   Object.keys(groupMappings).forEach(ph => {
     if (groupMappings[ph] !== baseGroup[ph])
       out.push(`<div class="file">icons.yaml → battery.color_mappings</div>
@@ -367,9 +388,11 @@ document.querySelectorAll("#tree .item").forEach(i => i.onclick = () => {
   activeVariant = i.dataset.v; selectedShape = null; render(); renderPanel();
 });
 document.getElementById("sGroup").onclick = () => { scope = "group";
-  sGroup.classList.add("on"); sVariant.classList.remove("on"); renderPanel(); };
+  sGroup.classList.add("on"); sVariant.classList.remove("on"); sVocab.classList.remove("on"); renderPanel(); };
 document.getElementById("sVariant").onclick = () => { scope = "variant";
-  sVariant.classList.add("on"); sGroup.classList.remove("on"); renderPanel(); };
+  sVariant.classList.add("on"); sGroup.classList.remove("on"); sVocab.classList.remove("on"); renderPanel(); };
+document.getElementById("sVocab").onclick = () => { scope = "vocab";
+  sVocab.classList.add("on"); sGroup.classList.remove("on"); sVariant.classList.remove("on"); renderPanel(); };
 document.getElementById("tGroup").onclick = (e) => {
   showGroup = !showGroup; e.target.classList.toggle("on", showGroup); render(); };
 document.getElementById("tBg").onclick = (e) => {
@@ -379,6 +402,7 @@ document.getElementById("tBg").onclick = (e) => {
     : 'repeating-conic-gradient(#20242b 0% 25%, #191c22 0% 50%) 50% / 24px 24px'; };
 document.getElementById("revert").onclick = () => {
   Object.assign(groupMappings, baseGroup);
+  Object.assign(vocab, baseVocab);
   Object.keys(variantMappings).forEach(k => delete variantMappings[k]);
   render(); renderPanel(); renderDiff(); };
 

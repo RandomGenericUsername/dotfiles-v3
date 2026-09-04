@@ -30,6 +30,27 @@
 - **WHEN** `itr mapping set` names a group or variant that does not exist
 - **THEN** the command exits non-zero with an `IconRendererError` message and writes nothing
 
+### Requirement: `itr mapping set-default` retargets a vocabulary default
+`itr mapping set-default <defaults_file> --placeholder <NAME> --token <TOKEN>` SHALL set `defaults.<NAME>` in the vocabulary file, preserving all other content, comments, and ordering. It SHALL support `--dry-run --diff` with the same semantics as `itr mapping set`. It SHALL reject a placeholder name that does not already exist in the vocabulary, and SHALL NOT add or remove placeholder names.
+
+#### Scenario: vocabulary default retargeted
+- **WHEN** `itr mapping set-default defaults.yaml --placeholder COLOR_FOREGROUND --token color15` is invoked
+- **THEN** `defaults.COLOR_FOREGROUND` becomes `color15`
+- **AND** every comment and other entry is unchanged
+
+#### Scenario: unknown placeholder rejected
+- **WHEN** the named placeholder is absent from the vocabulary
+- **THEN** the command exits non-zero and writes nothing
+
+### Requirement: Vocabulary changes report the groups that shadow them
+`itr mapping set-default` SHALL report, on stdout and in its JSON output, every icon group whose `color_mappings` (or whose variants' `color_mappings`) overrides the named placeholder and therefore ignores the new default. Those overrides SHALL NOT be modified. When `--icons <icons.yaml>` is not supplied, the command SHALL resolve the manifest alongside the vocabulary file.
+
+#### Scenario: shadowing groups listed
+- **GIVEN** `battery` maps `COLOR_ACCENT` in `icons.yaml`
+- **WHEN** `itr mapping set-default … --placeholder COLOR_ACCENT --token color3` is invoked
+- **THEN** the output lists `battery` as shadowing the new default
+- **AND** `battery.color_mappings.COLOR_ACCENT` is unchanged
+
 ### Requirement: `itr mapping set --dry-run` reports the diff without writing
 `itr mapping set --dry-run --diff` SHALL print the unified diff the edit would produce and SHALL leave the file untouched.
 

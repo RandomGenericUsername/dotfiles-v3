@@ -20,11 +20,11 @@ A new authoring-time GUI, `icon-color-mapping-editor` (AGS/GTK4), that turns tha
 - **Renders** the icon exactly as `itr render` would — same placeholder substitution semantics, same mapping precedence (vocabulary defaults → group → variant).
 - **Click-to-select a shape** in the preview; the panel names the shape, the placeholder it uses (`{{COLOR_ACCENT}}`), the token that placeholder currently maps to (`color12 · #6ea8fe`), and how widely that placeholder is used ("2 shapes across 4 variants").
 - **Pick any palette token** (`color0..15`, `foreground`, `background`, `cursor`) for the selected placeholder. Tokens absent from `colors.yaml` are shown disabled, not hidden.
-- **Edit scope switch:** *Whole group* (default) writes `battery.color_mappings.COLOR_ACCENT`; *This variant only* writes a `variants[].color_mappings` override.
+- **Edit scope switch:** *Whole group* (default) writes `battery.color_mappings.COLOR_ACCENT`; *This variant only* writes a `variants[].color_mappings` override; *All icons* writes the vocabulary default in `defaults.yaml`, affecting every group that does not override the placeholder — with the shadowing groups named before the edit is made.
 - **Group-wide live preview:** all variants of the group re-render on every pick, so the blast radius of a group mapping is visible before saving.
 - **Deferred writes:** edits accumulate in a pending buffer with a YAML diff pane; nothing touches disk until *Save*, and *Revert* discards.
 
-Locked semantics: the tool edits **mappings**, never SVG templates. It never touches `generated/`; its output is a repo diff that you re-render and re-provision as usual.
+Locked semantics: the tool edits **mappings**, never SVG templates. It never touches `generated/` and never runs `itr render`; its output is a repo diff, and the rendered icons refresh on the next wallpaper/theme run as usual.
 
 The UI is already validated against real battery templates and mappings — see `mock.html` in this change folder, which this proposal codifies.
 
@@ -33,4 +33,4 @@ The UI is already validated against real battery templates and mappings — see 
 - Not a runtime widget: not added to `app.tsx`, not provisioned into the spine, no bar integration.
 - No SVG template editing, no shape/path creation, no new placeholder vocabulary names.
 - No palette editing and no `colors.yaml` writes; adding the missing `surface`/`accent`/`accent-muted` tokens is a separate change.
-- No `itr render` invocation from the GUI (preview is in-process); rendering stays the CLI's job.
+- No `itr render` invocation from the GUI (preview is in-process); rendering stays the CLI's job. Auto-syncing the generated icons after a save is explicitly deferred to a future change.

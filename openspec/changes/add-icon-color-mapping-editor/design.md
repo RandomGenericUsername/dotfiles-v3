@@ -18,7 +18,8 @@ Provisioning/runtime split matters here: provisioning copies repo assets into `~
 
 **Non-Goals**
 - No SVG template writes, no palette writes, no `generated/` writes, no runtime/bar integration, no provisioning of the tool itself.
-- No new placeholder vocabulary, no fix for the missing `surface`/`accent`/`accent-muted` tokens.
+- No new placeholder *names* in the vocabulary (values may be retargeted), no fix for the missing `surface`/`accent`/`accent-muted` tokens.
+- No re-render or re-provision after saving; the generated icons refresh on the next wallpaper/theme run.
 
 ## Decisions
 
@@ -36,12 +37,19 @@ Selecting a shape selects the *placeholder* that shape uses; picking a swatch ch
 Rationale: it is the only semantics that reaches every palette color with today's four-name vocabulary. Editing the template instead (option A) can only cycle between placeholders that already exist, and would require adding a `COLOR_0..COLOR_15` vocabulary to `defaults.yaml` to reach arbitrary colors. Chosen by the user after both were mocked.
 Consequence: a change is never "this one shape" — it is at least "every shape in this variant that uses this placeholder", hence D3 and D4.
 
-### D3. Edit scope: whole group (default) or single variant
+### D3. Three edit scopes, ordered by blast radius
 
-- *Whole group* writes `<group>.color_mappings.<PLACEHOLDER>: <token>`.
-- *This variant only* writes `<group>.variants[name=<variant>].color_mappings.<PLACEHOLDER>: <token>`, which wins by precedence.
+- *This variant only* writes `<group>.variants[name=<variant>].color_mappings.<PLACEHOLDER>` in `icons.yaml` — highest precedence, narrowest effect.
+- *Whole group* (default) writes `<group>.color_mappings.<PLACEHOLDER>` in `icons.yaml`.
+- *All icons* writes `defaults.<PLACEHOLDER>` in `defaults.yaml` — the vocabulary default, lowest precedence, affecting every group that does not override the placeholder.
 
-The panel always states the blast radius in words ("affects all 4 variants") before the pick. Group is the default because a group mapping is the normal authoring intent; variant overrides are the escape hatch.
+The panel always states the blast radius in words before the pick ("affects all 4 variants", "affects 9 groups"). Group is the default because a group mapping is the normal authoring intent.
+
+The vocabulary scope has a trap worth designing against: because it is the *lowest* precedence, an edit to `defaults.COLOR_ACCENT` has no visible effect on `battery`, which overrides it. The panel therefore names the shadowing groups before the pick, and if the currently previewed group is among them, the picker warns that the change will not affect what is on screen. Alternative considered: silently deleting the shadowing group overrides so the vocabulary edit "wins" — rejected as destructive and surprising.
+
+### D3a. `defaults.yaml` is the second writable file
+
+`defaults.yaml` joins `icons.yaml` as writable, reached only through the *All icons* scope, through the same comment-preserving writer (D5). Everything else about it is unchanged: it is loaded by the existing `VocabularyLoaderPort`, and the tool never adds or removes placeholder names — it only retargets the token an existing name maps to.
 
 ### D4. Preview shows every variant of the group, live
 
@@ -53,6 +61,7 @@ GJS has no YAML support, and hand-rolling one in TypeScript would risk destroyin
 
 - `itr mapping show <icons.yaml> --icon <group> --json` → groups, variants, template paths, per-variant merged mappings (with the origin of each: `vocabulary` | `group` | `variant`), the palette token table with hexes, and the raw template SVG bodies.
 - `itr mapping set <icons.yaml> --icon <group> [--variant <name>] --placeholder <NAME> --token <TOKEN>` → a single comment-preserving edit (`ruamel.yaml` round-trip, `preserve_quotes`, indent matched to the file).
+- `itr mapping set-default <defaults.yaml> --placeholder <NAME> --token <TOKEN>` → the same single-entry, comment-preserving edit against the vocabulary file, plus a report of the groups that shadow the placeholder.
 - `itr mapping set --dry-run --diff` → the unified diff the GUI shows in its pending-changes pane.
 
 Rationale: reuses the existing hexagonal domain (`MappingResolutionService`, loaders) so preview and render can never drift; makes the write path testable without a GUI; keeps the GUI dependency-free. `ruamel.yaml` is added as an ITR dependency for the write path only — `PyYAML` continues to serve the read path.
@@ -81,7 +90,7 @@ A token referenced by a mapping but absent from `colors.yaml` (today `surface`, 
 - **`ruamel.yaml` as a new dependency** — confined to the new write adapter; the read path is untouched, so existing behavior cannot regress.
 - **Two substitution implementations** (D6) — mitigated by the shared-fixture contract test; the GUI copy is display-only and never decides what is written.
 
-## Open Questions
+## Resolved Questions
 
-- Should *Save* optionally run `itr render` for the edited group so `generated/` matches immediately, or stay strictly a source edit? (Currently: strictly a source edit.)
-- Should the tool also offer `defaults.yaml` edits (vocabulary-level changes affecting all groups), or remain group/variant-scoped?
+- *Should Save run `itr render`?* No. Save is strictly a source edit; the user's flow is edit → set wallpaper, which re-renders through the normal runtime path. A future change may add an opt-in sync.
+- *Should the tool edit `defaults.yaml`?* Yes, as the *All icons* scope (D3, D3a), with shadowing groups reported before the pick.
