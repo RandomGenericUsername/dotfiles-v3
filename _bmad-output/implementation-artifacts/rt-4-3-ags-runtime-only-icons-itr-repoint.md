@@ -40,23 +40,31 @@ repoint `color_scheme.path`:**
 # BEFORE:
 path = "{{ install_dir | trim }}/generated/palettes/colors.yaml"
 # AFTER:
-path = "{{ install_dir | trim }}/../state/dotfiles/current/colors.yaml"  # NO — see below
+path = "{{ settings_xdg_state_home | trim }}/dotfiles/current/colors.yaml"
 ```
 
-Correct target: ITR runs on the host (local mode) and reads the
-settings through the `~/.config/itr` symlink. The value must be an
-absolute path the ITR process can open: use
-`$XDG_STATE_HOME/dotfiles/current/colors.yaml` resolved at render
-time. The settings role renders with the same XDG derivation the
-runtime uses (`~/.local/state` default). Concretely the template
-becomes an absolute path into the state dir (e.g.
-`/home/<user>/.local/state/dotfiles/current/colors.yaml` via the
-role's XDG vars, honoring `XDG_STATE_HOME` like the other settings
-templates do — check how the role derives user paths first).
+with a new role var in `settings/vars/main.yml` mirroring verify's
+derivation (F4 lock + trim lock — the settings role currently has no
+state-home var):
+
+```yaml
+# settings_xdg_state_home: state home honoring $XDG_STATE_HOME, same
+# derivation as verify_xdg_state_home (Story 2-12). Used ONLY for the
+# ITR color_scheme.path (runtime-owned current/); the role renders no
+# other state paths.
+settings_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+```
+
+ITR runs on the host (local mode) and reads the settings through the
+`~/.config/itr` symlink; the value is an absolute path the ITR process
+can open.
 
 Path need not exist at render time (ITR resolves at render time;
 before first seed the file is absent and `itr render` fails loud —
-correct, since nothing can render without a palette).
+correct, since nothing can render without a palette). Direct `itr`
+use before first seed therefore fails with a clear missing-file
+error, not a wrong-palette render — document that in the role header
+comment.
 
 ## Acceptance Criteria
 

@@ -26,13 +26,25 @@ same commit window (see Epic 4 ordering).
   `csg generate` into `generated/palettes/`)
 - `src/provisioning/ansible/roles/icons/` (entire role —
   `itr render` into `generated/icons/`)
-- `default-palette.yaml` + `icons.yaml` playbooks (or leave playbooks
-  as stubs that fail loud with "removed in Epic 4"? — DECISION: delete
-  playbooks + remove the two `import_playbook` lines from
-  `bootstrap.yaml`)
+- `default-palette.yaml` + `icons.yaml` playbooks: DELETE both files
+  (verified: only `bootstrap.yaml` imports them; the provisioning
+  Python CLI only references `bootstrap.yaml`).
 - `compositor_configs` fragment-copy tasks (the two entries in
   `compositor_configs_fragment_copies` + the stat/assert/copy/guard
   tasks that consume them; skeletons stay)
+
+**Add (the bootstrap seed invocation — closes the fresh-machine gap):**
+- New `runtime-seed.yaml` playbook (single task): runs
+  `dotfiles-runtime wallpaper set <install>/wallpapers/default.png`
+  via `ansible.builtin.command`, gated `when: not ansible_check_mode`
+  (dry-run must be dry — command tasks skip under `--check`).
+  `install_dir` seam assert first (verbatim sibling pattern).
+  Placement in `bootstrap.yaml`: after `config-links.yaml`, before
+  `display-manager.yaml` (needs `assets` outputs + `settings` ITR
+  config + `config_links` symlinks; must precede `verify`).
+- **Atomicity gate: rt-4-1 must NOT merge without rt-4-2.** Landing
+  rt-4-1 alone leaves fresh bootstraps with no palette at all (worse
+  than stale). The two stories share one commit window.
 
 **Keep (inputs only):**
 - `assets` role (wallpapers, icon-templates, icon-mappings,
@@ -54,19 +66,29 @@ same commit window (see Epic 4 ordering).
 3. **Filesystem spine has no `generated/`** — `filesystem_spine_dirs`
    contains no `generated*` entries; a fresh `filesystem.yaml` run
    creates no `generated/` tree.
-4. **No dangling references** — `rg "default_palette|default-palette|icons\.yaml.*playbook|generated/palettes|generated/icons" src/provisioning/ansible/roles/{bootstrap,compositor_configs,filesystem}/`
-   returns zero hits outside historical comments (comments updated).
+4. **No dangling references** — `rg "default_palette|default-palette"` over
+   `src/provisioning/ansible/{playbooks,roles/{bootstrap,compositor_configs,filesystem,verify},tests}/`
+   returns zero hits outside explicitly marked historical notes.
+   `rg "generated/palettes|generated/icons"` over
+   `playbooks/bootstrap.yaml`, `compositor_configs/{tasks,vars}/`,
+   `filesystem/vars/` returns zero hits. EXEMPT (must stay):
+   `compositor_configs` reading `icon-mappings/icons.yaml` (inputs, not
+   generated output), `verify` vars/tasks (updated in rt-4-4, not here).
 5. **Provisioning tests green** — `uv run pytest` in `src/provisioning/`
-   passes; role structural tests updated (default_palette/icons role
-   tests deleted; compositor_configs tests drop fragment cases;
-   filesystem tests drop generated dirs).
+   passes. Files touched: DELETE `tests/unit/test_default_palette_role.py`
+   + `tests/unit/test_icons_role.py`; UPDATE `test_compositor_configs_role.py`
+   (drop fragment cases), `test_filesystem_role.py` (drop generated dirs),
+   `test_verify_role.py` ONLY where it asserts removed roles (criterion 6/10
+   rework itself is rt-4-4); ADD `test_bootstrap` order test for the seed
+   step placement + check-gating.
 
 ## Tasks / Subtasks
 
 - [ ] Task 1: Delete generation roles + playbooks (AC 1)
-- [ ] Task 2: Strip fragment copies from compositor_configs (AC 2)
-- [ ] Task 3: Remove generated/ from filesystem spine dirs (AC 3)
-- [ ] Task 4: Update tests (AC 5)
+- [ ] Task 2: Add runtime-seed playbook + bootstrap order (AC 1)
+- [ ] Task 3: Strip fragment copies from compositor_configs (AC 2)
+- [ ] Task 4: Remove generated/ from filesystem spine dirs (AC 3)
+- [ ] Task 5: Update tests (AC 5)
 
 ## Dev Notes
 

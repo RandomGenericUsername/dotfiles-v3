@@ -22,8 +22,21 @@ designed here.
 remove `generated`, `generated/palettes`, `generated/effects`,
 `generated/icons`, `generated/.weg-tmp` from `filesystem_spine_dirs`.
 Delete any `generated/` trees left by earlier provisions? NO — never
-`rm -rf` user state in a role; leave orphaned dirs in place (harmless)
-and note it in the docs. (DECISION: orphan-tolerant, no deletion.)
+`rm -rf` user state in a role; orphaned dirs stay in place (harmless).
+Verify MUST ignore `generated/` entirely after this story: a stale
+`generated/palettes/colors.yaml` differing from `current/` is
+*expected* on upgraded machines, not an error — no gate may compare
+the two locations.
+
+**1b. WEG temp dir gets a new home:** `settings/templates/weg-settings.toml.j2`
+currently sets `temp_dir` to `<install>/generated/.weg-tmp`. Repoint it
+to `$XDG_CACHE_HOME/dotfiles/weg-tmp/` (new `settings_xdg_cache_home`
+var, same F4/trim derivation family; cache home honors
+`$XDG_CACHE_HOME`, default `~/.cache`). Rationale: temp is by definition
+cache-lifetime, and `verify` already derives `verify_xdg_cache_home`.
+Update the weg-settings template + settings tests + verify's
+`processing.temp_dir` extraction target (it follows whatever the
+template renders — no logic change, just the value).
 
 **2. `verify` criteria:**
 - Criterion 6 (palette): `verify_palette_files` asserted ONLY under
@@ -63,18 +76,33 @@ runtime-seed step with its placement after `config_links`, before
 
 ## Acceptance Criteria
 
-1. **No `generated/` in spine or gates** — `rg "generated/"` over
-   `src/provisioning/ansible/{playbooks,roles/{filesystem,verify,bootstrap*}}`
-   + the four spec/doc files returns zero hits outside explicitly
-   marked historical notes.
+1. **No `generated/` in spine or gates** — `rg "generated/(palettes|icons|effects)"` over
+   `src/provisioning/ansible/{playbooks/bootstrap.yaml,roles/{filesystem,verify,compositor_configs,settings}/}`
+   returns zero hits outside explicitly marked historical notes.
+   EXEMPT (must stay): `icon-mappings/` references (inputs, not
+   generated output), the orphan-tolerance note itself, and
+   `verify_itr_list_target` (`icon-mappings/icons.yaml`).
 2. **Verify is current-only** — `verify.yaml` on a seeded machine
    passes with zero `generated/` content present (prove by moving
    `<install>/generated/` aside on the dev host and re-running verify).
+   Migration note for upgraded machines: hosts with populated
+   `generated/` + `config/*/colors.*` COPIES keep serving stale colors
+   until the next `wallpaper set` replaces the copies with R2 symlinks;
+   one `wallpaper set` migrates. Document this in the verify fail
+   messages (name the runtime seed, not deleted playbooks).
 3. **Bootstrap comment matches reality** — order list contains the
    runtime-seed step and no generation roles.
-4. **All suites green** — provisioning `uv run pytest`, runtime
-   `pytest` + `ruff` + `mypy` + layering, plus
-   `ansible-playbook --syntax-check bootstrap.yaml`.
+4. **All suites green** — provisioning `uv run pytest` (files:
+   `test_verify_role.py`, `test_filesystem_role.py`,
+   `test_compositor_configs_role.py`, `test_settings_role.py`,
+   `test_bootstrap*` if present), runtime `pytest` + `ruff` + `mypy` +
+   layering, plus `ansible-playbook --syntax-check bootstrap.yaml`.
+   **Boundary decision (recorded):** `verify`'s `itr.color_scheme.path`
+   extraction now resolves into `$XDG_STATE_HOME/...` (runtime state).
+   Precedent exists (the palette OR-check already read `current/`),
+   but this makes the state read MANDATORY rather than fallback.
+   Provisioning still never WRITES under state (AD-5 holds for
+   writes); read-only coupling is accepted and stated here.
 
 ## Tasks / Subtasks
 

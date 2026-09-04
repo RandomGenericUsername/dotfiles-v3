@@ -63,19 +63,25 @@ guard (Story 1.12) protects a symlink state that nothing ever creates.
 
 ## Ordering
 
-rt-4-2 (runtime R2) FIRST — it is independently shippable (creates
-symlinks that are no-ops when fragments are plain files? NO — it
-REPLACES files with symlinks; must land together with rt-4-1's
-deletion of the copy tasks, otherwise seed fights provisioning).
-Therefore rt-4-1 + rt-4-2 land as one atomic change (two stories, one
-commit window), then rt-4-3, then rt-4-4.
+rt-4-1 + rt-4-2 land as one atomic change (two stories, one commit
+window) — rt-4-1 MUST NOT merge without rt-4-2: landing the role
+deletion alone leaves fresh bootstraps with no palette at all (worse
+than stale). The bootstrap seed invocation itself is owned by rt-4-1
+(new `runtime-seed.yaml`, check-gated, placed after `config_links`,
+before `display-manager`/`verify`). Then rt-4-3, then rt-4-4.
 
 Fresh-machine bootstrap order after the epic:
 `packages → cli_tools → filesystem → assets → compositor_configs
 (skeletons only) → config_copies → settings (ITR points at
-current/colors.yaml) → zsh_tools → zsh_config → wlogout_config →
-config_links → runtime-seed (wallpaper set default.png) →
-display_manager → verify (current-only criteria)`
+current/colors.yaml; WEG temp points at XDG cache) → zsh_tools →
+zsh_config → wlogout_config → config_links → runtime-seed
+(wallpaper set default.png) → display_manager → verify
+(current-only criteria)`
+
+Migration for existing machines: one `wallpaper set` replaces spine
+copies with R2 symlinks and repopulates `current/`; orphaned
+`<install>/generated/` trees are left in place (never `rm -rf` user
+state) and ignored by every gate thereafter.
 
 ## Out of scope
 
@@ -83,3 +89,15 @@ display_manager → verify (current-only criteria)`
 - Changing CSG/WEG/ITR derivation semantics
 - The WEG `<stem>/` subdir nesting (tracked separately)
 - SDDM/display-manager behavior
+
+## Architecture decisions recorded by this epic
+
+- **AD-11 exception:** the runtime seeder may replace
+  `<install>/config/ags/colors.css` (a consumer *pointer*, not
+  generated content) with a symlink to `current/`. Recorded in
+  `ARCHITECTURE-SPINE.md` AD-11/AD-17 as part of rt-4-2's definition
+  of done. Provisioning still never writes under state for writes
+  (AD-5 holds); verify's read-only coupling to `current/` is accepted
+  (precedent: the palette OR-check).
+- **`<install>/config/hypr/colors.conf` deliberately excluded:** no
+  Hyprland Lua config sources it (verified); no symlink is created.
