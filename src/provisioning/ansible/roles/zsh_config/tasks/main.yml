@@ -58,3 +58,25 @@
     ZSH_HISTORY_SUBSTRING_SEARCH: "{{ zsh_config_plugin_paths.history_substring_search }}"
     FZF_KEY_BINDINGS: "{{ zsh_config_plugin_paths.fzf_key_bindings }}"
     FZF_COMPLETION: "{{ zsh_config_plugin_paths.fzf_completion }}"
+
+- name: Ensure zsh is the login shell
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      current="$(getent passwd "$USER" 2>/dev/null | cut -d: -f7 || echo "")"
+      if [ "$current" = "/bin/zsh" ] || [ "$current" = "/usr/bin/zsh" ]; then
+        echo "already zsh ($current)"
+        exit 0
+      fi
+      zsh_bin="$(command -v zsh 2>/dev/null || echo /bin/zsh)"
+      if [ ! -x "$zsh_bin" ]; then echo "zsh not installed at $zsh_bin" >&2; exit 1; fi
+      # Validate against /etc/shells (space-separated via tr).
+      if ! tr ' ' '\n' < /etc/shells 2>/dev/null | grep -qxF "$zsh_bin"; then
+        echo "not in /etc/shells: $zsh_bin" >&2; exit 1
+      fi
+      chsh -s "$zsh_bin"
+  args:
+    executable: /bin/bash
+  register: zsh_config_chsh
+  changed_when: "'already zsh' not in zsh_config_chsh.stdout"
+  failed_when: zsh_config_chsh.rc != 0
