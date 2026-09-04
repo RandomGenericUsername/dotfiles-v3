@@ -42,8 +42,24 @@
     - name: Seed runtime state from default wallpaper
       ansible.builtin.command:
         argv:
+          - uv
+          - run
+          - --directory
+          - "{{ playbook_dir }}/../../../../src/runtime"
           - dotfiles-runtime
           - wallpaper
           - set
           - "{{ install_dir | trim }}/wallpapers/default.png"
+      register: runtime_seed_result
+      changed_when: runtime_seed_result.rc == 0
+      failed_when: runtime_seed_result.rc not in [0, 1]
+      when: not ansible_check_mode
+
+    - name: Assert runtime seed produced current state
+      ansible.builtin.assert:
+        that: runtime_seed_result.rc in [0, 1]
+        fail_msg: >-
+          runtime seed failed (rc={{ runtime_seed_result.rc }});
+          stdout: {{ runtime_seed_result.stdout | default('') }};
+          stderr: {{ runtime_seed_result.stderr | default('') }}
       when: not ansible_check_mode
