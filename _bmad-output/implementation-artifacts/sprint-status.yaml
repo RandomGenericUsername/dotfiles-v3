@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-09-04 (rt-4-1..rt-4-4 → review)
+last_updated: 2026-09-04 (rt-4-1..rt-4-4 → done; rt-epic-4 → done)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -83,9 +83,15 @@ development_status:
   rt-epic-3-retrospective: optional
 
   # ── Epic 4: Single Source of Truth (epics-runtime-single-source.md) ──
-  rt-epic-4: in-progress
-  rt-4-1-remove-generation-roles-from-provisioning: review
-  rt-4-2-runtime-seeder-r2-consumer-symlinks: review
-  rt-4-3-ags-runtime-only-icons-itr-repoint: review
-  rt-4-4-verify-current-only-remove-generated-docs: review
+  rt-epic-4: done
+  rt-4-1-remove-generation-roles-from-provisioning: done
+  rt-4-2-runtime-seeder-r2-consumer-symlinks: done
+  rt-4-3-ags-runtime-only-icons-itr-repoint: done
+  rt-4-4-verify-current-only-remove-generated-docs: done
   rt-epic-4-retrospective: optional
+
+  # ── Ad-hoc fixes (outside epic tracking, committed) ──
+  rt-3-5-fix-icon-templates-mappings-discovery-path: done
+  rt-3-6-align-weg-adapter-with-config-assembler-xdg: done
+  rt-3-7-weg-adapter-accepts-any-image-extension: done
+  rt-3-8-first-run-seed-looks-for-wallpaper-at-assets-role-path: done

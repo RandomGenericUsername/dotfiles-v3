@@ -4,7 +4,7 @@ baseline_commit: da4f78e08d8d3846dbbb3c67fa5156cd98ec5bf5
 
 # Story rt-3-8: first-run seed looks for the wallpaper at the assets-role path
 
-Status: review
+Status: done
 
 ## Story
 

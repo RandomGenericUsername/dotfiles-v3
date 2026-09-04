@@ -4,7 +4,7 @@ baseline_commit: f45eb4a80537f0bb5e2097e9ce4b9e22db04f5cb
 
 # Story rt-4.1: remove generation roles from provisioning bootstrap
 
-Status: review
+Status: done
 
 ## Story
 

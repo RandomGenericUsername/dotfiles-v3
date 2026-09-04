@@ -4,7 +4,7 @@ baseline_commit: 643d536
 
 # Story rt-3.6: align WEG adapter discovery with WEG's config-assembler XDG strategy
 
-Status: review
+Status: done
 
 ## Story
 

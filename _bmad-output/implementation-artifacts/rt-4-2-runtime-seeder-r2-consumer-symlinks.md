@@ -4,7 +4,7 @@ baseline_commit: f45eb4a80537f0bb5e2097e9ce4b9e22db04f5cb
 
 # Story rt-4.2: runtime seeder implements missing R2 consumer-path symlinks
 
-Status: review
+Status: done
 
 ## Story
 

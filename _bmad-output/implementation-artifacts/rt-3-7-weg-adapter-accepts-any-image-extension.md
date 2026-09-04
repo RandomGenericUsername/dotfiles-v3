@@ -4,7 +4,7 @@ baseline_commit: 37945ec5427b956ed8bd816047b428ee910fa22b
 
 # Story rt-3.7: WEG adapter accepts any image extension (PNG / JPG / WebP / etc.)
 
-Status: review
+Status: done
 
 ## Story
 

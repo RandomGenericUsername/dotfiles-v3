@@ -4,7 +4,7 @@ baseline_commit: f98f864881d7553b787ede76cd988a56f3bd3555
 
 # Story rt-3.5: fix icon templates/mappings discovery path
 
-Status: review
+Status: done
 
 ## Story
 
