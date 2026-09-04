@@ -64,7 +64,7 @@ $XDG_DATA_HOME/dotfiles/                          ← install target
 │   ├── weg/                     settings.toml + effects.yaml
 │   └── itr/                     settings.toml
 ├── wallpapers/  icon-templates/  icon-mappings/   (assets, unchanged)
-├── generated/                                    (runtime output, unchanged)
+├── (removed — Epic 4) `generated/` — runtime owns all derived artifacts under `$XDG_STATE_HOME/dotfiles/`
 └── (removed) csg-templates/  →  config/color-scheme-generator/templates/
 └── (removed) weg-effects.yaml →  config/weg/effects.yaml
 ```
@@ -161,8 +161,8 @@ Purpose: never destroy user-owned content when replacing an existing target.
 | **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`); CSG `default_formats = []` (interactive = all catalog formats) |
 | **default_palette** | `--templates-dir <install>/config/color-scheme-generator/templates` |
 | **config_links (NEW)** | backup guard + symlink step for all managed dirs |
-| **icons (NEW)** | invokes `itr render <install>/icon-mappings/icons.yaml --config <install>/config/itr/settings.toml` → `generated/icons/` (the chain previously never rendered icons) |
-| **verify** | criterion 9 flips to symlink assertion (below); new done-criterion: `generated/icons/` populated |
+| **icons (REMOVED — Epic 4)** | role deleted; runtime derives icons per wallpaper into `cache/icons/<ih>/` |
+| **verify** | criterion 9 flips to symlink assertion (below); icons criterion is `current/icons/` populated (Epic 4) |
 
 ## Verify gate changes (criterion 9 — bulletproof symlink check)
 

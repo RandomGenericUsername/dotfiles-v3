@@ -1,9 +1,13 @@
-"""Story 3.3 integration tests — settings-parity and default-palette contracts.
+"""Story 3.3 integration tests — settings-parity and CSG palette-syntax contracts.
+
+Epic 4: the default_palette provisioning role is deleted (the runtime owns
+all generation); the palette-syntax contract below covers the CSG TOOL
+output (consumed by the runtime's palette derivation), not the deleted role.
 
 FR-25 / PRD §4.7 (AC 1-5): the rendered settings files are exercised through
 REAL CLI gates (``csg info``, ``weg info``, ``itr list``), spine paths are
 asserted to resolve to existing directories (``parse ≠ works`` hardening), the
-default-palette output matches the Hyprland ``colors.conf`` syntax contract,
+CSG tool output matches the Hyprland ``colors.conf`` syntax contract,
 the ITR spine chain is unbroken, and the Phase 2 ``--templates-dir`` invocation
 contract is proven via template-marker injection.
 
@@ -185,10 +189,6 @@ def _setup_minimal_spine(install_dir: Path) -> None:
         "config/zsh",
         "config/weg",
         "config/itr",
-        "generated/palettes",
-        "generated/effects",
-        "generated/icons",
-        "generated/.weg-tmp",
     ]
     for d in dirs:
         (install_dir / d).mkdir(parents=True, exist_ok=True)
@@ -472,9 +472,11 @@ class TestSettingsFileParity:
 
 
 class TestDefaultPaletteContract:
-    """AC 3: the default-palette output matches the Hyprland ``colors.conf``
-    syntax contract — exactly 20 lines of ``$var = rgb(hex)``, with
-    ``$accent`` equal to ``$color1``."""
+    """AC 3 (Epic 4: covers the CSG TOOL output contract — the deleted
+    default_palette role used to be the producer; the runtime is now): the
+    generated palette matches the Hyprland ``colors.conf`` syntax contract
+    — exactly 20 lines of ``$var = rgb(hex)``, with ``$accent`` equal to
+    ``$color1``."
 
     @pytest.fixture()
     def palette_output(self, tmp_path: Path) -> Path:
@@ -482,7 +484,7 @@ class TestDefaultPaletteContract:
         engine = _detect_container_engine()
         csg = shutil.which("csg")
         if csg is None:
-            pytest.skip("csg not on PATH — default-palette contract requires csg")
+            pytest.skip("csg not on PATH — palette-syntax contract requires csg")
 
         _skip_if_no_csg_image(engine)
 

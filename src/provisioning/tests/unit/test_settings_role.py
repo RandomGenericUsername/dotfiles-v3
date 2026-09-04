@@ -289,8 +289,11 @@ class TestSettingsTasks:
         `startswith("/")` token check missed."""
         seam_vars = (
             "settings_xdg_config_home",
+            "settings_xdg_state_home",
+            "settings_xdg_cache_home",
             "settings_spine_config_dir",
             "settings_config_dirs",
+            "settings_cache_dirs",
             "settings_files",
             "install_dir",
             "ansible_facts.env",
@@ -308,8 +311,11 @@ class TestSettingsTasks:
 class TestSettingsVars:
     _REQUIRED_KEYS = {
         "settings_xdg_config_home",
+        "settings_xdg_state_home",
+        "settings_xdg_cache_home",
         "settings_spine_config_dir",
         "settings_config_dirs",
+        "settings_cache_dirs",
         "settings_files",
     }
 
@@ -399,7 +405,14 @@ class TestSettingsTemplates:
         just bare `/`-prefixed tokens."""
         for _name, filename in _EXPECTED_TEMPLATES.items():
             text = (_TEMPLATES_DIR / filename).read_text()
-            hit = _hardcoded_absolute_path(text, ("install_dir | trim",))
+            hit = _hardcoded_absolute_path(
+                text,
+                (
+                    "install_dir | trim",
+                    "settings_xdg_state_home | trim",
+                    "settings_xdg_cache_home | trim",
+                ),
+            )
             assert hit is None, (
                 f"{filename} hardcodes a path fragment not derived from "
                 f"{{{{ install_dir | trim }}}}: {hit!r} (trim lock)"
@@ -416,40 +429,50 @@ class TestSettingsTemplates:
             )
 
     def test_csg_renders_spine_contract_and_keeps_overwrite_false(self) -> None:
-        """AC 2: CSG [output] directory → {{ install_dir | trim }}/generated/
-        palettes; `overwrite = false` MUST be kept (2.7's per-task env override
-        is the only overwrite path)."""
+        """Epic 4: CSG [output] directory → XDG cache default (manual
+        `csg generate` runs only — the runtime always passes
+        COLORSCHEME__OUTPUT__DIRECTORY per render); `overwrite = false`
+        MUST be kept (the runtime owns the per-task env override)."""
         text = (_TEMPLATES_DIR / "csg-settings.toml.j2").read_text()
-        assert 'directory = "{{ install_dir | trim }}/generated/palettes"' in text
+        assert 'directory = "{{ settings_xdg_cache_home | trim }}/dotfiles/csg-output"' in text
         assert "overwrite = false" in text, (
-            "CSG template must keep overwrite = false (2.7 owns the per-task "
-            "COLORSCHEME__OUTPUT__OVERWRITE override)"
+            "CSG template must keep overwrite = false (the runtime owns the "
+            "per-task COLORSCHEME__OUTPUT__OVERWRITE override)"
+        )
+        assert "install_dir | trim }}/generated" not in text, (
+            "CSG template must not reference a generated/ spine path "
+            "(Epic 4 removed the tree)"
         )
 
     def test_weg_renders_spine_contract_and_locks_strict_false(self) -> None:
-        """AC 3: WEG [output] directory → {{ install_dir | trim }}/generated/
-        effects and [processing] temp_dir → {{ install_dir | trim }}/generated/
-        .weg-tmp. `strict = false` is locked (chaining-spine.md contract,
-        matches the settings schema default — see Dev Notes)."""
+        """Epic 4: WEG [output] directory + [processing] temp_dir → XDG
+        cache defaults (manual runs only — the runtime always passes env
+        overrides per render). `strict = false` is locked
+        (chaining-spine.md contract, matches the settings schema default
+        — see Dev Notes)."""
         text = (_TEMPLATES_DIR / "weg-settings.toml.j2").read_text()
-        assert 'directory = "{{ install_dir | trim }}/generated/effects"' in text
-        assert 'temp_dir = "{{ install_dir | trim }}/generated/.weg-tmp"' in text
+        assert 'directory = "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-output"' in text
+        assert 'temp_dir = "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-tmp"' in text
         assert "strict = false" in text, (
             "WEG template must lock strict = false (chaining-spine.md contract, "
             "matches settings_schema.py ExecutionSchema.strict default)"
         )
+        assert "install_dir | trim }}/generated" not in text, (
+            "WEG template must not reference a generated/ spine path "
+            "(Epic 4 removed the tree)"
+        )
 
     def test_itr_renders_spine_contract_uncommented(self) -> None:
-        """AC 4: ITR [output] output_dir → {{ install_dir | trim }}/generated/
-        icons, [templates] dir → {{ install_dir | trim }}/icon-templates, and
-        [color_scheme] path → {{ install_dir | trim }}/generated/palettes/
-        colors.yaml — the [templates]/[color_scheme] sections MUST be present
-        and UNCOMMENTED (the packaged default has them commented out; this role
-        renders them active so the resolver chain reaches the spine paths)."""
+        """Epic 4: ITR [output] output_dir → XDG cache default (manual runs
+        only), [templates] dir → {{ install_dir | trim }}/icon-templates, and
+        [color_scheme] path → the runtime's current/colors.yaml — the
+        [templates]/[color_scheme] sections MUST be present and UNCOMMENTED
+        (the packaged default has them commented out; this role renders them
+        active so the resolver chain reaches the spine/state paths)."""
         text = (_TEMPLATES_DIR / "itr-settings.toml.j2").read_text()
-        assert 'output_dir = "{{ install_dir | trim }}/generated/icons"' in text
+        assert 'output_dir = "{{ settings_xdg_cache_home | trim }}/dotfiles/itr-output"' in text
         assert 'dir = "{{ install_dir | trim }}/icon-templates"' in text
-        assert 'path = "{{ install_dir | trim }}/generated/palettes/colors.yaml"' in text
+        assert 'path = "{{ settings_xdg_state_home | trim }}/dotfiles/current/colors.yaml"' in text
         assert "[templates]" in text and "[color_scheme]" in text, (
             "ITR template must have [templates] and [color_scheme] sections present"
         )
@@ -521,6 +544,8 @@ class TestSettingsPlaybook:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
             install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
@@ -528,6 +553,8 @@ class TestSettingsPlaybook:
             env = _test_env(
                 HOME=str(home),
                 XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
                 ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
             )
 
@@ -564,25 +591,32 @@ class TestSettingsPlaybook:
                 assert path.is_file(), f"{name} settings.toml {path} was never rendered"
 
             csg = tomllib.loads(_expected_files(install)["csg"].read_text())
-            assert str(csg["output"]["directory"]) == str(install / "generated" / "palettes")
+            assert str(csg["output"]["directory"]) == str(
+                cache_home / "dotfiles" / "csg-output"
+            )
             assert csg["output"]["overwrite"] is False, (
-                "rendered CSG file must keep overwrite = false (2.7 owns the env override)"
+                "rendered CSG file must keep overwrite = false (the runtime "
+                "owns the per-task env override)"
             )
             assert csg["output"]["default_formats"] == [], (
                 "rendered CSG default_formats must be EMPTY (= all formats from "
-                "the template catalog on interactive csg generate); the chain "
-                "passes explicit -f flags, so the rendered file stays the "
-                "interactive-only surface"
+                "the template catalog on interactive csg generate)"
             )
             weg = tomllib.loads(_expected_files(install)["weg"].read_text())
-            assert str(weg["output"]["directory"]) == str(install / "generated" / "effects")
-            assert str(weg["processing"]["temp_dir"]) == str(install / "generated" / ".weg-tmp")
+            assert str(weg["output"]["directory"]) == str(
+                cache_home / "dotfiles" / "weg-output"
+            )
+            assert str(weg["processing"]["temp_dir"]) == str(
+                cache_home / "dotfiles" / "weg-tmp"
+            )
             assert weg["execution"]["strict"] is False
             itr = tomllib.loads(_expected_files(install)["itr"].read_text())
-            assert str(itr["output"]["output_dir"]) == str(install / "generated" / "icons")
+            assert str(itr["output"]["output_dir"]) == str(
+                cache_home / "dotfiles" / "itr-output"
+            )
             assert str(itr["templates"]["dir"]) == str(install / "icon-templates")
             assert str(itr["color_scheme"]["path"]) == str(
-                install / "generated" / "palettes" / "colors.yaml"
+                state_home / "dotfiles" / "current" / "colors.yaml"
             )
 
             for name, path in _expected_files(install).items():

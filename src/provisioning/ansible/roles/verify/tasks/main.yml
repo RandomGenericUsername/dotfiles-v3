@@ -15,18 +15,20 @@
 #      icon-mappings/ + csg-templates/ + weg-effects.yaml
 #   5. settings render and parse    → settings files exist AND spine targets
 #      resolve AND csg/weg/itr gates exit 0
-#   6. default palette generated    → generated/palettes/{colors.conf,
-#      colors.yaml, colors.gtk.css} OR the runtime-consumed palette at
-#      <state>/dotfiles/current/<file> (generated OR current — Story 1.12
-#      relaxes criterion 6 so verify no longer hard-fails on a post-runtime
-#      machine; a dangling runtime symlink still fails)
-#   7. compositor configs placed    → skeletons + hypr/colors.conf +
-#      ags/colors.css
+#   6. default palette generated    → the runtime-consumed palette at
+#      <state>/dotfiles/current/{colors.conf, colors.yaml, colors.gtk.css}
+#      (current-only, Epic 4 — the default_palette role is deleted; the
+#      runtime seed is the single producer. A dangling runtime symlink
+#      still fails — the filesystem is authority.)
+#   7. compositor configs placed    → skeletons (the palette fragments
+#      colors.conf/colors.css are runtime R2 symlinks, Epic 4 — no copies)
 #   8. filesystem structure exists  → XDG config/state/cache dirs
 #   9. config copies present        → every managed ~/.config/<name> is a
 #      symlink into the spine (5-layer check: islnk, exact target, resolves,
 #      content-through-link, functional parse)
-#   10. icons rendered              → generated/icons/ populated (battery-0.svg)
+#   10. icons rendered              → current/icons/ populated (battery-0.svg
+#      through the runtime cache entry — Epic 4 current-only; the icons
+#      provisioning role is deleted)
 #   11. shell tools cloned          → ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist
 #       (zsh_tools role)
 #   12. zsh config rendered+wired   → .zshrc wires starship + colors.sequences
@@ -108,7 +110,7 @@
       - verify_settings_files | length > 0
       - verify_compositor_config_dirs | length > 0
       - verify_compositor_skeleton_files | length > 0
-      - verify_compositor_fragments | length > 0
+      - verify_consumer_symlinks | length > 0
       - verify_xdg_dirs | length > 0
       - verify_config_copies_targets | length > 0
     fail_msg: >-
@@ -248,40 +250,30 @@
       them; run the assets playbook first
   when: not ansible_check_mode
 
-- name: Check default palette files exist under generated/palettes
-  ansible.builtin.stat:
-    path: "{{ install_dir | trim }}/generated/palettes/{{ item }}"
-  loop: "{{ verify_palette_files }}"
-  register: verify_palette_checks
-
-- name: Check default palette files exist under the runtime current dir
+- name: Check runtime palette files exist under the runtime current dir
   ansible.builtin.stat:
     path: "{{ verify_state_current_dir }}/{{ item }}"
     follow: true
   loop: "{{ verify_palette_files }}"
   register: verify_palette_current_checks
 
-- name: Assert default palette files are present (generated OR current)
+- name: Assert runtime palette files are present (current-only)
   ansible.builtin.assert:
     that:
-      - verify_palette_checks.results | length == verify_palette_files | length
       - verify_palette_current_checks.results | length == verify_palette_files | length
-      - (verify_palette_checks.results | map(attribute='stat.isreg', default=false) | list)
-        | zip(verify_palette_current_checks.results | map(attribute='stat.isreg', default=false) | list)
-        | map('max') | select | list | length == verify_palette_files | length
+      - verify_palette_current_checks.results | map(attribute='stat.isreg', default=false) | list | select | list | length == verify_palette_files | length
     fail_msg: >-
-      not every default palette file is present as a regular file in EITHER
-      accepted location — each of colors.conf, colors.yaml, colors.gtk.css must
-      exist under {{ install_dir | trim }}/generated/palettes/ (pre-runtime;
-      the default_palette role, Story 2.7 generates them) OR under
-      {{ verify_state_current_dir }}/ (post-runtime; the runtime-consumed
-      palette, done-criterion 6 relaxed to generated OR current — Story 1.12).
-      A dangling runtime symlink (broken cache entry) also fails — the
-      filesystem is authority. Run the default-palette playbook or investigate
-      the broken runtime cache entry
+      not every runtime palette file is present as a regular file under
+      {{ verify_state_current_dir }}/ (expected colors.conf, colors.yaml,
+      colors.gtk.css — Epic 4 current-only; the default_palette role is
+      deleted). A dangling runtime symlink (broken cache entry) also fails —
+      the filesystem is authority. Run `dotfiles-runtime wallpaper set
+      <install>/wallpapers/default.png` (or investigate the broken runtime
+      cache entry). Orphaned <install>/generated/ trees from earlier
+      provisions are ignored by every gate.
   when: not ansible_check_mode
 
-- name: Check rendered icons exist
+- name: Check rendered icons exist under the runtime current dir
   ansible.builtin.stat:
     path: "{{ item }}"
   loop:
@@ -293,10 +285,10 @@
   ansible.builtin.assert:
     that: verify_icons_checks.results | selectattr('stat.exists') | list | length == 2
     fail_msg: >-
-      the icons render output is missing: expected {{ verify_icons_dir }} as a
-      directory with at least {{ verify_icons_sample }} present (done-criterion —
-      generated icons). The icons role (Story 3.4) runs `itr render`; run the
-      icons playbook (needs assets + default_palette + settings first)
+      the runtime icons output is missing: expected {{ verify_state_current_dir }}/icons/
+      as a directory with at least battery-0.svg present (done-criterion —
+      runtime icons, Epic 4 current-only). Run `dotfiles-runtime wallpaper set`
+      (needs assets + settings first; the icons provisioning role is deleted)
   when: not ansible_check_mode
 
 - name: Check settings files exist
@@ -375,10 +367,10 @@
       a rendered settings file is missing/unparseable, or references a spine
       path that does NOT resolve (done-criterion 5 part 2 — parse ≠ works:
       verify reads each rendered settings.toml and asserts every spine path it
-      references exists). Expected the six spine targets (generated/palettes,
-      generated/effects, generated/.weg-tmp, generated/icons, icon-templates,
-      generated/palettes/colors.yaml) — created by the filesystem (2.5) and
-      default_palette (2.7) roles
+      references exists). Expected the spine/state targets the settings
+      templates render (icon-templates, icon-mappings, current/colors.yaml,
+      XDG cache temp dir) — created by the filesystem (2.5) and assets (2.6)
+      roles and the runtime seed (Epic 4)
   when: not ansible_check_mode
 
 # Settings parse gate (AC 3, done-criterion 5): the three CLI gates over the
@@ -450,24 +442,43 @@
       half is a documented weak gate (see the comment block above)
   when: not ansible_check_mode
 
-- name: Check compositor configs, skeletons and fragments
+- name: Check compositor configs and skeletons
   ansible.builtin.stat:
     path: "{{ item }}"
     follow: true
-  loop: "{{ verify_compositor_config_dirs + verify_compositor_skeleton_files + verify_compositor_fragments }}"
+  loop: "{{ verify_compositor_config_dirs + verify_compositor_skeleton_files }}"
   register: verify_compositor_checks
 
-- name: Assert compositor configs, skeletons and fragments are present with correct types
+- name: Assert compositor configs and skeletons are present with correct types
   ansible.builtin.assert:
     that:
       - verify_compositor_checks.results[:verify_compositor_config_dirs | length] | selectattr('stat.isdir') | list | length == verify_compositor_config_dirs | length
-      - verify_compositor_checks.results[verify_compositor_config_dirs | length:] | map(attribute='stat') | selectattr('isreg') | list | length == (verify_compositor_skeleton_files | length + verify_compositor_fragments | length)
+      - verify_compositor_checks.results[verify_compositor_config_dirs | length:] | map(attribute='stat') | selectattr('isreg') | list | length == verify_compositor_skeleton_files | length
     fail_msg: >-
-      not every compositor config dir, skeleton, or fragment is present with the
-      right inode type under {{ verify_xdg_config_home }} (done-criterion 7 —
-      the three config DIRS, the four skeleton FILES, and hypr/colors.conf +
-      ags/colors.css as regular FILES). The filesystem (2.5) and
-      compositor_configs (2.9) roles place them; run those playbooks first
+      not every compositor config dir or skeleton is present with the
+      right inode type under {{ verify_xdg_config_home }} (done-criterion 7).
+      The filesystem (2.5) and compositor_configs (2.9) roles place them;
+      run those playbooks first
+  when: not ansible_check_mode
+
+- name: Check R2 consumer symlinks resolve to current/
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop: "{{ verify_consumer_symlinks }}"
+  register: verify_consumer_symlink_checks
+
+- name: Assert R2 consumer symlinks point at current/
+  ansible.builtin.assert:
+    that:
+      - verify_consumer_symlink_checks.results | selectattr('stat.islnk') | list | length == verify_consumer_symlinks | length
+      - verify_consumer_symlink_checks.results | map(attribute='stat.lnk_target', default='') | select('search', 'dotfiles/current') | list | length == verify_consumer_symlinks | length
+    fail_msg: >-
+      not every R2 consumer path is a symlink into the runtime current dir
+      (done-criterion 7, Epic 4 — the AGS colors.css must resolve to
+      {{ verify_state_current_dir }}/colors.gtk.css). A stale provisioning
+      COPY fails this gate by design. Run the runtime seed (the runtime
+      seeder owns these links, rt-4-2)
   when: not ansible_check_mode
 
 - name: Check XDG base dirs exist

@@ -18,23 +18,34 @@ The bar shell is **AGS (Aylur's GTK Shell v2)**, fully replacing Waybar across p
 
 The runtime plan's references to "Waybar" in AD-17, CAP-6, the consumer-wiring chain, and Epic 2's reload adapter all become AGS.
 
-## The consumer-path flips are runtime-owned (AD-17, amended by R2)
+## The consumer-path symlinks are runtime-owned (AD-17, R2 DONE in Epic 4)
 
-The repoint of `colors.conf`/`colors.css` from the provisioning copy to `$XDG_STATE_HOME/dotfiles/current/...` is performed by the **runtime seeder as its last step** — NOT by provisioning apply. This avoids a dangling-symlink first boot (provisioning apply → first boot → before runtime ever runs).
+The R2 symlink (`<install>/config/ags/colors.css` →
+`$XDG_STATE_HOME/dotfiles/current/colors.gtk.css`) is created by the
+**runtime seeder** (`repoint_consumer_symlinks`, rt-4-2) — NOT by
+provisioning apply. Provisioning's `compositor_configs` places skeletons
+only; the Story 1.12 dont-clobber guard is retired with the fragment-copy
+tasks it guarded (nothing left to guard — provisioning never writes
+palette fragments anywhere).
 
-| # | Provisioning role / file | Pre-runtime (provisioning owns) | Post-runtime (seeder repoints) |
+| # | Provisioning role / file | Bootstrap state (pre-seed) | Post-seed (runtime-owned) |
 | --- | --- | --- | --- |
-| 1 | `compositor_configs` — `colors.conf` | copy of `<install>/generated/palettes/colors.conf` | seeder replaces with symlink → `current/colors.conf` |
-| 2 | `compositor_configs` — AGS `colors.css` | copy of `<install>/generated/palettes/colors.gtk.css` | seeder replaces with symlink → `current/colors.gtk.css` |
-| 3 | `hyprpaper` conf template | points at `<install>/wallpapers/default.png` | seeder rewrites to `current/wallpaper.png` (or hyprpaper reads a runtime-managed conf) |
-| 4 | `settings` (ITR) | `[color_scheme] path` → `<install>/generated/palettes/colors.yaml` | seeder rewrites to `current/colors.yaml` |
+| 1 | `compositor_configs` — AGS `colors.css` | absent (no copy) | seeder symlink → `current/colors.gtk.css` |
+| 2 | ITR `settings.toml` | `color_scheme.path` → `current/colors.yaml` (static string; file absent until seed) | resolves per render |
+| 3 | `hyprpaper` conf template | points at `<install>/wallpapers/default.png` (fresh boot shows default) | per-monitor IPC overrides with resolved `current/` paths |
+| 4 | `settings` (WEG/CSG) | scratch/output defaults under XDG cache | env overrides per render |
 
-## Provisioning's actual deltas
+## Provisioning's actual deltas (Epic 4 — replaces the list below)
 
-1. **AGS swap** (the bar-shell replacement above).
-2. **`verify` criterion 6:** relax to "either `<install>/generated/palettes/colors.yaml` exists (pre-runtime) OR `$XDG_STATE_HOME/dotfiles/current/colors.yaml` exists (post-runtime)."
-3. **Don't-clobber guard (R3):** `compositor_configs`/`config_copies` leave `colors.conf`/`colors.css` untouched when they are already runtime symlinks (a re-apply must not destroy the runtime's repoint).
-4. Provisioning keeps writing `<install>/generated/` (the seed source) and its pre-runtime copies — Phase-1 behavior unchanged.
+1. **Delete** `default_palette` + `icons` roles and their playbooks; add the
+   `runtime-seed.yaml` step (`wallpaper set default.png`) after
+   `config-links`, before `display-manager`/`verify` (rt-4-1).
+2. **`verify` criterion 6:** `current/colors.{conf,yaml,gtk.css}` ONLY
+   (no `generated/` OR-branch); icons criterion: `current/icons/` ONLY.
+3. **Retire the dont-clobber guard (R3)** with the fragment copies.
+4. Provisioning deploys `<install>/` inputs only; `<install>/generated/`
+   is gone (orphaned trees on upgraded machines are left in place and
+   ignored by every gate).
 
 ## What does NOT change
 

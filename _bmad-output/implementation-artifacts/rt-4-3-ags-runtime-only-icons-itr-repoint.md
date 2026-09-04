@@ -4,7 +4,7 @@ baseline_commit: f45eb4a80537f0bb5e2097e9ce4b9e22db04f5cb
 
 # Story rt-4.3: AGS runtime-only icons + ITR settings repoint
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -84,9 +84,9 @@ comment.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Strip the fallback from `icon-registry.ts` (AC 1, 3)
-- [ ] Task 2: Repoint the ITR settings template (AC 2)
-- [ ] Task 3: Update settings role tests (AC 4)
+- [x] Task 1: Strip the fallback from `icon-registry.ts` (AC 1, 3)
+- [x] Task 2: Repoint the ITR settings template (AC 2)
+- [x] Task 3: Update settings role tests (AC 4)
 
 ## Dev Notes
 
@@ -106,16 +106,36 @@ verify/docs (rt-4-4) in this story.
 
 ### Agent Model Used
 
-_To be filled by dev-story._
+OpenCode powered by Meta Muse Spark (muse-spark-1.3-contributor-free)
 
 ### Debug Log References
 
-_To be filled by dev-story._
+- `icon-registry.ts`: removed `dataDir`/`PROVISION_ICONS_DIR` + fallback
+  block; `resolve()` is now `current/icons/` → `null`.
+- ITR template `color_scheme.path` repointed to the new
+  `settings_xdg_state_home` var (`.../dotfiles/current/colors.yaml`);
+  CSG/WEG template defaults repointed to the new
+  `settings_xdg_cache_home` vars (`.../dotfiles/{csg,weg,itr}-output`,
+  `.../weg-tmp`); WEG/CSG cache dirs ensured via new
+  `settings_cache_dirs` (ungated, check-safe).
+- Settings tests updated (template contracts, trim-lock allowlist,
+  required keys, execution-test XDG env + assertions).
+- Settings suite: 24 passed (incl. live execution test).
 
 ### Completion Notes List
 
-_To be filled by dev-story._
+- ✅ Task 1 (rt-4-3): registry fallback stripped.
+- ✅ Task 2 (rt-4-3): ITR template repointed (concrete line, no open items).
+- ✅ Task 3 (rt-4-3): settings tests updated.
+- Plus: CSG/WEG output defaults + WEG temp repointed to XDG cache
+  (needed — `generated/` removal would otherwise leave dangling defaults).
 
 ### File List
 
-_To be filled by dev-story._
+- `dotfiles/config/ags/lib/icon-registry.ts` (modified)
+- `src/provisioning/ansible/roles/settings/templates/itr-settings.toml.j2` (modified)
+- `src/provisioning/ansible/roles/settings/templates/csg-settings.toml.j2` (modified)
+- `src/provisioning/ansible/roles/settings/templates/weg-settings.toml.j2` (modified)
+- `src/provisioning/ansible/roles/settings/vars/main.yml` (modified — 2 new XDG vars + cache dirs)
+- `src/provisioning/ansible/roles/settings/tasks/main.yml` (modified — ensure cache dirs)
+- `src/provisioning/tests/unit/test_settings_role.py` (modified)

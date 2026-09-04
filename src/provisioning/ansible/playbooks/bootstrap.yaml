@@ -3,20 +3,26 @@
 # (or `dotfiles-provision bootstrap`) provisions the whole machine, then
 # verifies it (done-criteria 1-10).
 #
-# Dependency order rationale (plan §11 step 7, story 2.12 AC 4):
-#   packages → cli_tools → filesystem → assets → default_palette →
+# Dependency order rationale (plan §11 step 7, story 2.12 AC 4, Epic 4):
+#   packages → cli_tools → filesystem → assets →
 #   compositor_configs → config_copies → settings → zsh_tools → zsh_config →
-#   wlogout_config → config_links → icons → display_manager → verify
+#   wlogout_config → config_links → runtime-seed → display_manager → verify
 # `packages` first (it installs the system packages everything else assumes),
 # `verify` last (it asserts every done-criterion after all roles placed their
-# outputs). The chain's seams are consumed in order: filesystem creates the
-# layout, assets/default_palette populate the spine, compositor_configs +
-# config_copies place configs, settings renders the per-tool files, zsh_tools
+# outputs). Provisioning deploys INPUTS ONLY (Epic 4): no default_palette /
+# icons roles — the runtime-seed step (`dotfiles-runtime wallpaper set
+# <install>/wallpapers/default.png`) is the single producer of generated
+# artifacts (cache entries, current.json, current/ + R2 consumer symlinks).
+# The chain's seams are consumed in order: filesystem creates the
+# layout, assets populate the spine inputs, compositor_configs +
+# config_copies place configs (skeletons only — no palette fragments),
+# settings renders the per-tool files, zsh_tools
 # provisions the shell clone-tools, zsh_config + wlogout_config RENDER the
 # shell templates (zsh .zshrc, wlogout style.css), config_links symlinks the
-# managed configs into the XDG home (config-in-spine pattern), icons renders
-# the resolved SVGs (itr), display_manager provisions the Wayland-friendly
-# greetd login (X11-free, no GPU conflict), verify re-checks all of it.
+# managed configs into the XDG home (config-in-spine pattern), runtime-seed
+# derives + swaps the desktop state, display_manager provisions the Wayland-friendly
+# greetd login (X11-free, no GPU conflict), verify re-checks all of it
+# against current-only criteria.
 #
 # import_playbook semantics: each imported playbook keeps its OWN
 # hosts/become/gather_facts/group_by — packages.yaml's two-play structure
@@ -27,10 +33,10 @@
 #
 # --check cleanliness (dry-run must be dry): packages' `package` module reports
 # would-change (no mutation); cli_tools/assets use command/creates tasks
-# skipped under --check; default_palette/compositor_configs/config_copies gate
+# skipped under --check; compositor_configs/config_copies gate
 # their state-touching tasks; settings' template has full check-mode support;
-# verify's state asserts are check-gated. The aggregate therefore completes
-# cleanly without mutation.
+# runtime-seed's wallpaper-set command is check-gated; the aggregate therefore
+# completes cleanly without mutation.
 #
 # Seam extra-vars a direct run must pass (`-e install_dir=...` and
 # `-e os_family=arch|debian-family`): the orchestrator provides both via
@@ -42,7 +48,6 @@
 - import_playbook: cli-tools.yaml
 - import_playbook: filesystem.yaml
 - import_playbook: assets.yaml
-- import_playbook: default-palette.yaml
 - import_playbook: compositor-configs.yaml
 - import_playbook: config-copies.yaml
 - import_playbook: settings.yaml
@@ -50,6 +55,6 @@
 - import_playbook: zsh-config.yaml
 - import_playbook: wlogout-config.yaml
 - import_playbook: config-links.yaml
-- import_playbook: icons.yaml
+- import_playbook: runtime-seed.yaml
 - import_playbook: display-manager.yaml
 - import_playbook: verify.yaml

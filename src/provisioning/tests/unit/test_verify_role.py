@@ -482,36 +482,30 @@ class TestVerifyTasks:
                     "ansible_check_mode (bootstrap --check cleanliness)"
                 )
 
-    def test_criterion_6_accepts_generated_or_current(self) -> None:
-        """Criterion 6 (Story 1.12 AC 4): the palette gate stats BOTH candidate
-        locations per file — generated/palettes/<file> (pre-runtime) AND
-        {{ verify_state_current_dir }}/<file> (post-runtime) — and one
-        check-gated assert accepts the OR per file. The current-dir stat sets
+    def test_criterion_6_checks_current_only(self) -> None:
+        """Criterion 6 (Epic 4 current-only): the palette gate stats ONLY
+        {{ verify_state_current_dir }}/<file> (the runtime seed is the
+        single producer — no generated/ OR-leg). The current-dir stat sets
         `follow: true` EXPLICITLY: the installed ansible-core's stat module
-        defaults follow to FALSE (verified against the argument spec — the
-        story's Dev Notes assumed otherwise), so only an explicit follow
-        resolves a healthy runtime symlink chain
+        defaults follow to FALSE (verified against the argument spec), so
+        only an explicit follow resolves a healthy runtime symlink chain
         (current/colors.conf -> cache/palettes/<ph>/colors.conf) to isreg,
         while a DANGLING runtime symlink correctly fails (filesystem is
         authority, NFR-3)."""
-        gen = next(
-            (t for t in _stat_tasks() if t.get("register") == "verify_palette_checks"),
-            None,
-        )
         cur = next(
             (t for t in _stat_tasks() if t.get("register") == "verify_palette_current_checks"),
             None,
         )
-        assert gen is not None, "missing the generated/palettes stat loop (criterion 6)"
         assert cur is not None, (
-            "missing the runtime current-dir stat loop (criterion 6 OR-leg, Story 1.12)"
+            "missing the runtime current-dir stat loop (criterion 6, Epic 4)"
         )
-        assert "generated/palettes" in str(_module(gen).get("path", ""))
-        assert "{{ verify_palette_files }}" in str(gen.get("loop", ""))
-        assert "{{ verify_state_current_dir }}" in str(_module(cur).get("path", "")), (
-            "the OR-leg must stat {{ verify_state_current_dir }}/<file>"
+        assert "generated/palettes" not in str(_load_tasks()), (
+            "criterion 6 must not reference generated/palettes (Epic 4 removed it)"
         )
         assert "{{ verify_palette_files }}" in str(cur.get("loop", ""))
+        assert "{{ verify_state_current_dir }}" in str(_module(cur).get("path", "")), (
+            "the gate must stat {{ verify_state_current_dir }}/<file>"
+        )
         assert _module(cur).get("follow") is True, (
             "the current-dir stat must pass follow: true EXPLICITLY (the stat "
             "module defaults follow to False in the installed ansible-core — a "
@@ -523,19 +517,14 @@ class TestVerifyTasks:
             (
                 t
                 for t in _assert_tasks()
-                if "verify_palette_checks" in str(_module(t).get("that", ""))
-                and "verify_palette_current_checks" in str(_module(t).get("that", ""))
+                if "verify_palette_current_checks" in str(_module(t).get("that", ""))
             ),
             None,
         )
         assert assert_task is not None, (
-            "expected ONE assert consuming BOTH criterion-6 registers (the per-file OR)"
+            "expected ONE assert consuming the criterion-6 current register"
         )
         that = str(_module(assert_task).get("that", ""))
-        assert "zip" in that, (
-            "the assert must pair the two per-file result lists (zip) so the OR "
-            "is evaluated per file, not across the whole set"
-        )
         assert "map(attribute='stat.isreg', default=false)" in that, (
             "the assert must map stat.isreg with a default (absent on missing "
             "paths — a bare selectattr would break the pairing)"
@@ -544,8 +533,9 @@ class TestVerifyTasks:
             "the criterion-6 assert must be check-gated (state assert discipline)"
         )
         fail_msg = str(_module(assert_task).get("fail_msg", ""))
-        assert "generated/palettes" in fail_msg and "verify_state_current_dir" in fail_msg, (
-            "fail_msg must enumerate BOTH accepted locations"
+        assert "verify_state_current_dir" in fail_msg, (
+            "fail_msg must name the runtime current dir (and the wallpaper-set "
+            "remedy, not a deleted playbook)"
         )
 
     def test_settings_parse_gate_tasks_exist_and_are_check_gated(self) -> None:
@@ -864,7 +854,7 @@ class TestVerifyVars:
         "verify_state_current_dir",
         "verify_compositor_config_dirs",
         "verify_compositor_skeleton_files",
-        "verify_compositor_fragments",
+        "verify_consumer_symlinks",
         "verify_config_copies_targets",
         "verify_config_copy_content",
         "verify_managed_link_dirs",
@@ -958,7 +948,7 @@ class TestVerifyVars:
                     continue
                 if "=" in line:
                     key = line.split("=", 1)[0].strip()
-                    if "install_dir" in line:
+                    if "install_dir" in line or "settings_xdg_" in line:
                         assigned.add(f"{section}.{key}")
 
             assert dotted <= assigned, (
@@ -991,22 +981,18 @@ class TestVerifyVars:
             "dotfiles/provisioning/config-copies.yaml entries"
         )
 
-    def test_palette_files_match_chain_formats(self) -> None:
-        """Criterion 6 (Story 1.12 relaxed to generated OR current): the
-        palette files check is exactly the three chain formats
-        (conf/gtk.css/yaml) — NOT json/sh (no Phase 1 consumer). The list is
-        shared by BOTH criterion-6 candidate locations (generated/palettes/
-        and the runtime current dir)."""
+    def test_palette_files_match_cache_artifacts(self) -> None:
+        """Criterion 6 (Epic 4 current-only): the palette files check is
+        exactly the three cache palette artifacts (conf/yaml/gtk.css) —
+        NOT json/sh (no consumer). These are the artifact names the
+        runtime writes into cache/palettes/<ph>/ (shared-data-contract),
+        mirrored here so verify checks what the runtime produces."""
         data = _vars()
         assert [str(f) for f in data["verify_palette_files"]] == [
             "colors.conf",
             "colors.yaml",
             "colors.gtk.css",
         ]
-        palette_formats = _sibling_vars("default_palette")["default_palette_formats"]
-        assert {str(f"colors.{fmt}") for fmt in palette_formats} == {
-            str(f) for f in data["verify_palette_files"]
-        }, "verify_palette_files must match default_palette_formats (conf/gtk.css/yaml) as a set"
 
     def test_state_current_dir_derived_from_verify_xdg_state_home(self) -> None:
         """Story 1.12 AC 4: verify_state_current_dir is <state>/dotfiles/
@@ -1128,16 +1114,20 @@ class TestVerifyRuntime:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
             install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
 
             bin_dir = _write_stub_binaries(home)
-            _build_provisioned_layout(home, xdg, install)
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
 
             env = _test_env(
                 HOME=str(home),
                 XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
                 ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
                 PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
             )
@@ -1163,7 +1153,7 @@ class TestVerifyRuntime:
                 "recap:\n" + first.stdout
             )
 
-            (install / "generated" / "palettes" / "colors.conf").unlink()
+            (state_home / "dotfiles" / "current" / "colors.conf").unlink()
             second = run()
             assert second.returncode != 0, (
                 "verify must FAIL after a criterion element is removed "
@@ -1183,12 +1173,14 @@ class TestVerifyRuntime:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
             install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
 
             bin_dir = _write_stub_binaries(home)
-            _build_provisioned_layout(home, xdg, install)
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
 
             # Make the WEG stub fail (itr/csg stay green — only the WEG gate
             # is tripped, proving that specific rc assert is a real gate).
@@ -1197,6 +1189,8 @@ class TestVerifyRuntime:
             env = _test_env(
                 HOME=str(home),
                 XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
                 ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
                 PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
             )
@@ -1234,12 +1228,14 @@ class TestVerifyRuntime:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
             install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
 
             bin_dir = _write_stub_binaries(home)
-            _build_provisioned_layout(home, xdg, install)
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
 
             # Mis-render the CSG settings to point at a directory that does
             # NOT exist (still valid TOML — the file parses fine). The file
@@ -1253,6 +1249,8 @@ class TestVerifyRuntime:
             env = _test_env(
                 HOME=str(home),
                 XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
                 ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
                 PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
             )
@@ -1274,14 +1272,12 @@ class TestVerifyRuntime:
                 "rendered files, not a static list); recap:\n" + result.stdout
             )
 
-    def test_verify_criterion_6_accepts_runtime_current_palette(self) -> None:
-        """Story 1.12 AC 4: on a post-runtime machine where the palette was
-        consumed into $XDG_STATE_HOME/dotfiles/current/ (a runtime symlink
-        chain into the cache), criterion 6 must PASS via the current/ leg even
-        with generated/palettes/colors.conf gone — and must FAIL again when
-        NEITHER location holds the file (negative lock: the gate is not
-        vacuous). The current/ file is created as a SYMLINK chain through the
-        state cache so the explicit follow: true resolution is exercised."""
+    def test_verify_criterion_6_checks_current_only(self) -> None:
+        """Epic 4 current-only: criterion 6 PASSES on the fixture's runtime
+        palette (symlink chain state_home/dotfiles/current/ →
+        cache/palettes/, exercising the explicit follow: true resolution),
+        and FAILS again when a current/ file is removed (negative lock: the
+        gate is not vacuous — there is no generated/ fallback anymore)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -1289,25 +1285,20 @@ class TestVerifyRuntime:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
             install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
 
             bin_dir = _write_stub_binaries(home)
-            _build_provisioned_layout(home, xdg, install)
-
-            state_root = home / ".local" / "state" / "dotfiles"
-            cache_palette = state_root / "cache" / "palettes" / "abc123"
-            cache_palette.mkdir(parents=True)
-            (cache_palette / "colors.conf").write_text("$background = 0x000000\n")
-            state_current = state_root / "current"
-            state_current.mkdir(parents=True)
-            (state_current / "colors.conf").symlink_to(cache_palette / "colors.conf")
-            (install / "generated" / "palettes" / "colors.conf").unlink()
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
 
             env = _test_env(
                 HOME=str(home),
                 XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
                 ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
                 PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
             )
@@ -1326,19 +1317,18 @@ class TestVerifyRuntime:
                     timeout=120,
                 )
 
-            post_runtime = run()
-            assert post_runtime.returncode == 0, (
-                "verify must PASS on a post-runtime machine where the palette "
-                "was consumed into state_root/current (criterion 6 generated OR "
-                "current, Story 1.12); recap:\n" + post_runtime.stdout
+            seeded = run()
+            assert seeded.returncode == 0, (
+                "verify must PASS on a seeded machine (runtime palette in "
+                "state_home/dotfiles/current/, Epic 4); recap:\n" + seeded.stdout
             )
 
-            (state_current / "colors.conf").unlink()
+            (state_home / "dotfiles" / "current" / "colors.conf").unlink()
             no_palette = run()
             assert no_palette.returncode != 0, (
-                "verify must FAIL when a palette file exists in NEITHER "
-                "generated/palettes/ nor state_root/current/ (negative lock — "
-                "the OR-relaxation is not vacuous); recap:\n" + no_palette.stdout
+                "verify must FAIL when a palette file is missing from "
+                "current/ (negative lock — current-only has no fallback); "
+                "recap:\n" + no_palette.stdout
             )
 
     def test_verify_fails_when_not_provisioned(self) -> None:
@@ -1424,15 +1414,18 @@ def _write_stub_binaries(home: Path) -> Path:
     return bin_dir
 
 
-def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
-    """Create the minimal provisioned "machine" verify.yaml asserts against
-    (config-in-spine 2026-08-16): the full install-spine subtree (including
-    config/ and its managed tool subdirs), the five asset outcomes, the three
-    palette files, the three rendered settings.toml files in the SPINE, the
-    compositor skeletons + fragments in the spine, the config copies in the
-    spine, the XDG state/cache homes, and the ~/.config/<name> -> spine
-    symlinks the config-links role creates. The spine is the home; every
-    ~/.config managed dir is a symlink into it."""
+def _build_provisioned_layout(
+    home: Path, xdg: Path, install: Path, state_home: Path, cache_home: Path
+) -> None:
+    """Create the minimal provisioned + seeded "machine" verify.yaml asserts
+    against (Epic 4 single-source): the input-only install-spine subtree
+    (no generated/ tree), the five asset outcomes, the three rendered
+    settings.toml files in the SPINE (pointing at XDG cache/state), the
+    compositor skeletons in the spine, the R2 consumer symlink, the
+    runtime current/ palette + icons under the state home, the config
+    copies in the spine, the XDG state/cache homes, and the
+    ~/.config/<name> -> spine symlinks the config-links role creates.
+    The spine holds inputs; the runtime state holds every derived artifact."""
     spine_dirs = (
         "wallpapers",
         "icon-templates",
@@ -1449,11 +1442,6 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
         "config/zsh",
         "config/weg",
         "config/itr",
-        "generated",
-        "generated/palettes",
-        "generated/effects",
-        "generated/icons",
-        "generated/.weg-tmp",
     )
     for rel in spine_dirs:
         (install / rel).mkdir(parents=True, exist_ok=True)
@@ -1461,25 +1449,48 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
 
     (home / ".local" / "state").mkdir(parents=True, exist_ok=True)
     (home / ".cache").mkdir(parents=True, exist_ok=True)
+    (cache_home / "dotfiles" / "weg-output").mkdir(parents=True, exist_ok=True)
+    (cache_home / "dotfiles" / "weg-tmp").mkdir(parents=True, exist_ok=True)
+    (cache_home / "dotfiles" / "csg-output").mkdir(parents=True, exist_ok=True)
+    (cache_home / "dotfiles" / "itr-output").mkdir(parents=True, exist_ok=True)
 
     (install / "wallpapers" / "default.png").write_bytes(b"\x89PNG")
     (install / "icon-mappings" / "icons.yaml").write_text("variants: []\n")
-    for name in ("colors.conf", "colors.yaml", "colors.gtk.css"):
-        (install / "generated" / "palettes" / name).write_text("")
 
     (install / "config" / "color-scheme-generator" / "settings.toml").write_text(
-        f'[output]\ndirectory = "{install}/generated/palettes"\n'
+        f'[output]\ndirectory = "{cache_home}/dotfiles/csg-output"\n'
         'overwrite = false\ndefault_formats = ["conf", "gtk.css", "yaml"]\n'
     )
     (install / "config" / "weg" / "settings.toml").write_text(
-        f'[output]\ndirectory = "{install}/generated/effects"\n'
-        f'[processing]\ntemp_dir = "{install}/generated/.weg-tmp"\n'
+        f'[output]\ndirectory = "{cache_home}/dotfiles/weg-output"\n'
+        f'[processing]\ntemp_dir = "{cache_home}/dotfiles/weg-tmp"\n'
         "[execution]\nstrict = false\n"
     )
     (install / "config" / "itr" / "settings.toml").write_text(
-        f'[output]\noutput_dir = "{install}/generated/icons"\n'
+        f'[output]\noutput_dir = "{cache_home}/dotfiles/itr-output"\n'
         f'[templates]\ndir = "{install}/icon-templates"\n'
-        f'[color_scheme]\npath = "{install}/generated/palettes/colors.yaml"\n'
+        f'[color_scheme]\npath = "{state_home}/dotfiles/current/colors.yaml"\n'
+    )
+
+    # Runtime-seeded palette + icons (what `wallpaper set` produces): the
+    # current/ symlinks resolve through a fake cache entry so follow: true
+    # resolves to isreg, and the R2 consumer symlink points at current/.
+    state_current = state_home / "dotfiles" / "current"
+    state_cache_palette = state_home / "dotfiles" / "cache" / "palettes" / "abc123"
+    state_cache_palette.mkdir(parents=True)
+    for name in ("colors.conf", "colors.yaml", "colors.gtk.css"):
+        (state_cache_palette / name).write_text("")
+    state_current.mkdir(parents=True)
+    for name in ("colors.conf", "colors.yaml", "colors.gtk.css"):
+        (state_current / name).symlink_to(state_cache_palette / name)
+    state_cache_icons = state_home / "dotfiles" / "cache" / "icons" / "def456"
+    state_cache_icons.mkdir(parents=True)
+    (state_cache_icons / "battery-0.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+    )
+    (state_current / "icons").symlink_to(state_cache_icons, target_is_directory=True)
+    (install / "config" / "ags" / "colors.css").symlink_to(
+        state_current / "colors.gtk.css"
     )
 
     for lua in (
@@ -1499,16 +1510,47 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
     (install / "config" / "ags" / "app.tsx").write_text("")
     (install / "config" / "ags" / "style.css").write_text("")
-    # AGS bar skeletons (enhance-ags-bar: icons registry + Bar + widgets)
+    # AGS bar skeletons (enhance-ags-bar: icons registry + Bar + widgets).
+    # Must match verify_compositor_skeleton_files EXACTLY (missing files
+    # fail the criterion-7 gate — the fixture is the "provisioned machine").
     (install / "config" / "ags" / "icons.json").write_text("{}")
-    for rel in ("ags/lib", "ags/bar", "ags/bar/widgets"):
+    for rel in (
+        "ags/lib",
+        "ags/bar",
+        "ags/bar/widgets",
+        "ags/capture",
+        "ags/capture/controllers",
+    ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
     (install / "config" / "ags" / "bar" / "Bar.tsx").write_text("")
-    for widget in ("workspaces", "clock", "battery", "network", "power-menu"):
+    for widget in (
+        "workspaces",
+        "clock",
+        "battery",
+        "network",
+        "power-menu",
+        "btop",
+        "thunderbird",
+        "recording",
+        "tray",
+    ):
         (install / "config" / "ags" / "bar" / "widgets" / f"{widget}.tsx").write_text("")
-    (install / "config" / "hypr" / "colors.conf").write_text("")
-    (install / "config" / "ags" / "colors.css").write_text("")
+    (install / "config" / "ags" / "capture" / "CaptureWindow.tsx").write_text("")
+    (install / "config" / "ags" / "capture" / "RecordingView.tsx").write_text("")
+    (install / "config" / "ags" / "capture" / "ScreenshotView.tsx").write_text("")
+    (install / "config" / "ags" / "capture" / "types.ts").write_text("")
+    for controller in (
+        "CaptureController",
+        "RecordingController",
+        "ScreenshotController",
+        "TargetResolver",
+    ):
+        (
+            install / "config" / "ags" / "capture" / "controllers" / f"{controller}.ts"
+        ).write_text("")
+    # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
+    # owns the R2 consumer symlink, created above).
 
     (install / "config" / "nvim" / "init.lua").write_text("")
     (install / "config" / "starship" / "starship.toml").write_text("")
@@ -1529,10 +1571,8 @@ def _build_provisioned_layout(home: Path, xdg: Path, install: Path) -> None:
     for clone in ("oh-my-zsh", "pyenv", "nvm"):
         (home / f".{clone}").mkdir(parents=True, exist_ok=True)
 
-    # Rendered icons (icons role — done-criterion: generated/icons populated).
-    (install / "generated" / "icons" / "battery-0.svg").write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
-    )
+    # NOTE: no generated/icons render (Epic 4 — the icons provisioning role
+    # is deleted; the runtime cache entry above is the single source).
 
     for name in (
         "hypr",

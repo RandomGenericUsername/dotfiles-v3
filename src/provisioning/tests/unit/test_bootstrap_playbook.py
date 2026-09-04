@@ -28,8 +28,11 @@ def _find_ansible_dir() -> Path:
 _ANSIBLE_DIR = _find_ansible_dir()
 _PLAYBOOKS_DIR = _ANSIBLE_DIR / "playbooks"
 
-# The exact dependency order (plan §11 step 7, story 2.12 AC 4): packages first
-# (system packages), verify last (done-criteria assert). Each imported playbook
+# The exact dependency order (plan §11 step 7, story 2.12 AC 4, Epic 4):
+# packages first (system packages), verify last (done-criteria assert).
+# Epic 4: default-palette.yaml + icons.yaml deleted (runtime owns all
+# generation); runtime-seed.yaml (wallpaper set default.png) runs after
+# config-links, before display-manager/verify. Each imported playbook
 # keeps its OWN hosts/become/gather_facts/group_by — the aggregate is
 # imports-only.
 _EXPECTED_ORDER = [
@@ -37,7 +40,6 @@ _EXPECTED_ORDER = [
     "cli-tools.yaml",
     "filesystem.yaml",
     "assets.yaml",
-    "default-palette.yaml",
     "compositor-configs.yaml",
     "config-copies.yaml",
     "settings.yaml",
@@ -45,7 +47,7 @@ _EXPECTED_ORDER = [
     "zsh-config.yaml",
     "wlogout-config.yaml",
     "config-links.yaml",
-    "icons.yaml",
+    "runtime-seed.yaml",
     "display-manager.yaml",
     "verify.yaml",
 ]
@@ -61,11 +63,11 @@ class TestBootstrapPlaybook:
     _PATH = _PLAYBOOKS_DIR / "bootstrap.yaml"
 
     def test_parses_as_list_of_import_playbook_entries(self) -> None:
-        """The aggregate is a top-level list of exactly fifteen `import_playbook`
-        statements (one per per-role playbook)."""
+        """The aggregate is a top-level list of exactly fourteen `import_playbook`
+        statements (one per per-role playbook + the runtime-seed step)."""
         imports = _load_imports()
-        assert len(imports) == 15, (
-            f"bootstrap.yaml must import exactly 15 playbooks; found {len(imports)}"
+        assert len(imports) == 14, (
+            f"bootstrap.yaml must import exactly 14 playbooks; found {len(imports)}"
         )
         for entry in imports:
             assert "import_playbook" in entry, (
@@ -73,11 +75,11 @@ class TestBootstrapPlaybook:
             )
 
     def test_imports_in_exact_dependency_order(self) -> None:
-        """AC 4: the fifteen imports appear in the EXACT dependency order —
-        packages → cli-tools → filesystem → assets → default-palette →
+        """AC 4: the fourteen imports appear in the EXACT dependency order —
+        packages → cli-tools → filesystem → assets →
         compositor-configs → config-copies → settings → zsh-tools →
-        zsh-config → wlogout-config → config-links → icons → display-manager →
-        verify."""
+        zsh-config → wlogout-config → config-links → runtime-seed →
+        display-manager → verify (Epic 4: no default-palette/icons)."""
         order = [str(entry["import_playbook"]) for entry in _load_imports()]
         assert order == _EXPECTED_ORDER, (
             f"bootstrap.yaml import order must be {_EXPECTED_ORDER}; got {order}"

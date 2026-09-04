@@ -1,9 +1,17 @@
 [output]
-output_dir = "{{ install_dir | trim }}/generated/icons"
+# Epic 4 single-source: default output for MANUAL `itr render` runs only
+# (the runtime always passes ICON_RENDERER__OUTPUT__OUTPUT_DIR per render).
+# Points at XDG cache lifetime (Epic 4: no install-spine output tree).
+output_dir = "{{ settings_xdg_cache_home | trim }}/dotfiles/itr-output"
 verbosity = 1
 
 [templates]
 dir = "{{ install_dir | trim }}/icon-templates"
 
+# Epic 4 single-source: the palette ITR renders against is the runtime's
+# current/colors.yaml (repointed on every wallpaper set), NOT a provisioned
+# palette copy. The path need not exist at render time —
+# ITR resolves it per render; before first seed the file is absent and
+# `itr render` fails loud (correct: nothing can render without a palette).
 [color_scheme]
-path = "{{ install_dir | trim }}/generated/palettes/colors.yaml"
+path = "{{ settings_xdg_state_home | trim }}/dotfiles/current/colors.yaml"

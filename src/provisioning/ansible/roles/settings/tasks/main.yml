@@ -62,6 +62,12 @@
     state: directory
   loop: "{{ settings_config_dirs }}"
 
+- name: Ensure WEG cache dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop: "{{ settings_cache_dirs }}"
+
 - name: Render settings files
   ansible.builtin.template:
     src: "{{ item.template }}"

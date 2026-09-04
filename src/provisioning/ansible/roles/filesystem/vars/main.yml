@@ -31,9 +31,13 @@ filesystem_compositor_dirs:
   - "{{ filesystem_xdg_config_home }}/ags"
 
 # Install-spine dirs relative to install_dir (AC 4, parity-locked to the
-# manifest). `generated` AND its nested leaves are both kept — the file module
-# auto-creates parents and the explicit `generated` entry is harmless and
-# idempotent; the parity test locks exact set equality with the manifest.
+# manifest).
+#
+# Epic 4 single-source: provisioning deploys INPUTS ONLY. The `generated/`
+# tree (palettes/effects/icons/.weg-tmp) is gone — the runtime owns all
+# derived artifacts under $XDG_STATE_HOME/dotfiles/cache/ + current/.
+# Orphaned generated/ trees from earlier provisions are left in place
+# (never rm -rf user state) and ignored by every gate.
 #
 # config-in-spine (2026-08-16): the `config/` subtree hosts ALL managed
 # configs (tool dirs + the csg-templates/effects relocations); the
@@ -56,11 +60,6 @@ filesystem_spine_dirs:
   - config/zsh
   - config/weg
   - config/itr
-  - generated
-  - generated/palettes
-  - generated/effects
-  - generated/icons
-  - generated/.weg-tmp
 
 # File nodes (AC 4). weg-effects.yaml is a FILE emitted by the assets role
 # (Story 2.6) via `weg dump-effects` into the config-in-spine home

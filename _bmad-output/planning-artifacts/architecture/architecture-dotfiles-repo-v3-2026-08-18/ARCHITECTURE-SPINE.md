@@ -96,6 +96,7 @@ A **layered content-addressed cache** sits inside the hexagon's adapters/infrast
 - **Binds:** bootstrap
 - **Prevents:** manual seeding; §11 violation by provisioning
 - **Rule:** when `current.json` is absent and provisioning's `<install>/generated/` output exists, runtime seeds `cache/<layer>/` entries from provisioning's default output, writes `current.json` with `schema_version: 2` and per-monitor config for all detected monitors (default backend `hyprpaper`, fit_mode `cover`, source_hash from `default.png`), creates `current/` symlinks, appends history (`trigger: seed`). One-time; after it, runtime **writes** nothing under the install spine. **Post-seed regeneration still needs derivation inputs (templates, effects catalog, icon templates/mappings); runtime READS those from the provisioning-owned spine READ-ONLY on every derivation (inputs are part of the cache key, per AD-2 / shared-data-contract). Writes never; reads always allowed.**
+- **Epic 4 exception (R2 consumer symlink):** the seeder — and only the seeder — may replace `<install>/config/ags/colors.css` with a symlink to `current/colors.gtk.css` (and remove it when the palette is null). This path is a consumer *pointer*, not generated content; the content lives in `cache/` (runtime-owned). No other runtime write under `<install>/` is permitted. Recorded 2026-09-04; see `epics-runtime-single-source.md`.
 
 ### AD-12 — Synchronous imperative Phase 2
 

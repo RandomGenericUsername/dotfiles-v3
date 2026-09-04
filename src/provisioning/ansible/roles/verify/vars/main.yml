@@ -73,6 +73,8 @@ verify_xdg_dirs:
 # verify_install_spine_dirs: the install-spine dirs under install_dir
 #   (criterion 1). Parity-EXACT with filesystem_spine_dirs — if the spine
 #   changes, verify must change (the test locks the exact set equality).
+#   Epic 4 single-source: no generated/ tree (runtime owns all derived
+#   artifacts under $XDG_STATE_HOME/dotfiles/).
 #   config-in-spine (2026-08-16): the `config/` subtree hosts all managed
 #   configs; csg-templates live at config/color-scheme-generator/templates.
 verify_install_spine_dirs:
@@ -91,11 +93,6 @@ verify_install_spine_dirs:
   - config/zsh
   - config/weg
   - config/itr
-  - generated
-  - generated/palettes
-  - generated/effects
-  - generated/icons
-  - generated/.weg-tmp
 
 # verify_install_spine_files: the file node(s) that must exist IN the spine
 #   (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets role
@@ -183,21 +180,22 @@ verify_asset_files:
   - wallpapers/default.png
   - config/weg/effects.yaml
 
-# verify_palette_files: the default-palette outputs that must be present under
-#   {{ install_dir | trim }}/generated/palettes/ (criterion 6). Mirror of
-#   default_palette_formats — conf/gtk.css/yaml; NOT json/sh.
+# verify_palette_files: the runtime palette files that must be present under
+#   {{ verify_state_current_dir }}/ (criterion 6, Epic 4 current-only).
+#   Mirror of the cache palette artifact names — conf/yaml/gtk.css.
 verify_palette_files:
   - colors.conf
   - colors.yaml
   - colors.gtk.css
 
-# verify_icons_dir / verify_icons_sample: the icons render output the icons
-#   role produces via `itr render` (criterion — generated/icons populated).
-#   The dir must exist and hold at least one rendered SVG; the sample is a
-#   known variant from icons.yaml (battery-0) so verify proves a REAL render
-#   happened, not just an empty dir. Trim lock.
-verify_icons_dir: "{{ install_dir | trim }}/generated/icons"
-verify_icons_sample: "{{ install_dir | trim }}/generated/icons/battery-0.svg"
+# verify_icons_dir / verify_icons_sample: the runtime icons output
+#   (criterion — runtime icons, Epic 4 current-only). The dir is the
+#   runtime's current/icons symlink; the sample is a known variant from
+#   icons.yaml (battery-0) so verify proves a REAL render happened, not
+#   just an empty dir. Trim lock (derived from verify_xdg_state_home —
+#   no second XDG resolution).
+verify_icons_dir: "{{ verify_state_current_dir }}/icons"
+verify_icons_sample: "{{ verify_state_current_dir }}/icons/battery-0.svg"
 
 # verify_compositor_config_dirs: the three compositor config dirs under the XDG
 #   config home (criterion 7). config-in-spine (2026-08-16): these are now
@@ -248,12 +246,15 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/capture/controllers/ScreenshotController.ts"
   - "{{ install_dir | trim }}/config/ags/capture/controllers/TargetResolver.ts"
 
-# verify_compositor_fragments: the palette fragments copied into the config
-#   dirs (criterion 7), mirror of compositor_configs_fragment_copies dests.
-#   The AGS fragment is colors.css (the colors.gtk.css source is renamed to
-#   colors.css on copy — the skeleton loads colors.css at runtime).
-verify_compositor_fragments:
-  - "{{ install_dir | trim }}/config/hypr/colors.conf"
+# verify_consumer_symlinks: the R2 consumer-path symlinks the runtime
+#   seeder owns (criterion 7, Epic 4 current-only). The AGS fragment is
+#   colors.css → current/colors.gtk.css (renamed on link, same convention
+#   as the old copy the compositor_configs role used to place). Checked
+#   WITHOUT following (islnk + raw target contains /current/) so a stale
+#   provisioning COPY fails the gate. <install>/config/hypr/colors.conf
+#   is deliberately absent (nothing sources it — verified: no reference
+#   under dotfiles/config/hypr/*.lua).
+verify_consumer_symlinks:
   - "{{ install_dir | trim }}/config/ags/colors.css"
 
 # verify_config_copies_targets: mirror of the config-copies.yaml entries EXACTLY

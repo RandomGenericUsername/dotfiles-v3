@@ -276,20 +276,14 @@ class TestFilesystemVars:
             "the file-node partition must be exactly weg-effects.yaml"
         )
 
-    def test_spine_dirs_keep_generated_parent_and_leaves(self) -> None:
-        """Parity guard: `generated` AND its nested leaves stay in the spine
-        list (the file module auto-creates parents; optimizing to leaves-only
-        would break the exact set-equality parity test)."""
+    def test_spine_dirs_have_no_generated_tree(self) -> None:
+        """Epic 4: no `generated/` tree in the spine list — the runtime owns
+        all derived artifacts under $XDG_STATE_HOME/dotfiles/."""
         data = _vars()
-        spine = set(str(item) for item in data["filesystem_spine_dirs"])
-        assert "generated" in spine
-        nested = {
-            "generated/palettes",
-            "generated/effects",
-            "generated/icons",
-            "generated/.weg-tmp",
-        }
-        assert nested.issubset(spine)
+        spine = [str(item) for item in data["filesystem_spine_dirs"]]
+        assert not any(
+            item == "generated" or item.startswith("generated/") for item in spine
+        ), f"spine dirs must not contain generated/ entries; got {spine}"
 
     def test_compositor_dirs_exactly_three_under_xdg_config_home(self) -> None:
         """AC 3: the compositor dirs are exactly hypr/hyprpaper/ags under

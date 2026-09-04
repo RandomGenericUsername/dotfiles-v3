@@ -227,15 +227,15 @@ passwordless sudo.
 | 2 | `cli_tools` | `uv tool install` csg/weg/itr + container-image builds (csg) |
 | 3 | `filesystem` | XDG config/state/cache dirs + the full install spine |
 | 4 | `assets` | wallpapers, icon-templates, icon-mappings, csg templates, weg effects |
-| 5 | `default_palette` | `csg generate` (container mode) → `generated/palettes/` |
-| 6 | `compositor_configs` | hypr/ags/hyprpaper skeletons + palette fragments |
+| 5 | `runtime-seed` | `dotfiles-runtime wallpaper set <install>/wallpapers/default.png` → cache + `current/` (Epic 4: runtime is the single producer; no `default_palette` role) |
+| 6 | `compositor_configs` | hypr/ags/hyprpaper skeletons only (no palette fragments — Epic 4; runtime R2 symlinks own consumer paths) |
 | 7 | `config_copies` | repo `dotfiles/config/*` → spine `config/` |
 | 8 | `settings` | renders csg/weg/itr `settings.toml` (Jinja) |
 | 9 | `zsh_tools` | git-clones oh-my-zsh/pyenv/nvm (`~/.oh-my-zsh`, `~/.pyenv`, `~/.nvm`) |
 | 10 | `zsh_config` | renders `.zshrc.j2` → spine `config/zsh/.zshrc` (starship, plugins, colors) |
 | 11 | `wlogout_config` | renders `style.css.tpl` → spine `config/wlogout/style.css` (palette import) |
 | 12 | `config_links` | `~/.config/<name>` → spine symlinks + backup guard |
-| 13 | `icons` | `itr render` resolved SVGs → `generated/icons/` |
+| 13 | ~~`icons`~~ | REMOVED (Epic 4 — runtime derives icons per wallpaper; no `generated/icons/`) |
 | 14 | `display_manager` | **SDDM + Pixie theme** (Wayland greeter, no X11 GPU grab) → `/etc/sddm.conf.d/`; enables sddm, disables greetd/lightdm |
 | 15 | `verify` | the fourteen done-criteria gate |
 
@@ -261,7 +261,7 @@ dotfiles/
 │   ├── weg/                    # settings.toml + effects.yaml
 │   └── itr/                    # settings.toml
 ├── wallpapers/ icon-templates/ icon-mappings/
-└── generated/ palettes/ effects/ icons/ .weg-tmp/
+└── (no `generated/` tree — Epic 4: runtime owns all derived artifacts under `$XDG_STATE_HOME/dotfiles/`)
 ```
 
 `~/.config/<name>` is a **symlink** into `config/` (the config-links role), so
@@ -276,11 +276,11 @@ backup) before a symlink replaces it.
 3. CLI tools on PATH (csg, weg, itr)
 4. assets deployed (wallpapers, icon dirs, csg templates, effects)
 5. settings files render + parse (`csg info`, `weg info`, `itr list`)
-6. default palette present
-7. compositor configs + fragments present with correct types
+6. runtime palette present (`current/`)
+7. compositor configs + R2 consumer symlink present with correct types
 8. XDG base dirs exist
 9. config copies are symlinks into the spine (5-layer check)
-10. icons rendered (`generated/icons/` populated)
+10. icons rendered (`current/icons/` populated)
 11. shell tools cloned (`~/.oh-my-zsh`, `~/.pyenv`, `~/.nvm`)
 12. zsh config rendered and wired (`.zshrc` → starship, color scheme, plugins)
 13. wlogout config rendered and wired (`style.css` imports the palette)
@@ -324,9 +324,9 @@ traversal > XDG > bundled default**. Env prefix `<PREFIX>__SECTION__KEY`.
 
 | Tool | Env prefix | XDG subdir | Path keys provisioning sets |
 |---|---|---|---|
-| CSG | `COLORSCHEME` | `color-scheme-generator` | `[output] directory` → `<install>/generated/palettes` |
-| WEG | `WALLPAPER` | `weg` | `[output] directory` → `<install>/generated/effects`; `[processing] temp_dir` → `<install>/generated/.weg-tmp` |
-| ITR | `ICON_RENDERER` | `itr` | `[output] output_dir` → `<install>/generated/icons`; `[templates] dir` → `<install>/icon-templates`; `[color_scheme] path` → `<install>/generated/palettes/colors.yaml` |
+| CSG | `COLORSCHEME` | `color-scheme-generator` | `[output] directory` → XDG cache default (manual runs only; runtime passes `COLORSCHEME__OUTPUT__DIRECTORY` per render — Epic 4) |
+| WEG | `WALLPAPER` | `weg` | `[output] directory` + `[processing] temp_dir` → XDG cache defaults (manual runs only; runtime passes env overrides per render — Epic 4) |
+| ITR | `ICON_RENDERER` | `itr` | `[output] output_dir` → XDG cache default (manual runs only); `[templates] dir` → `<install>/icon-templates`; `[color_scheme] path` → `$XDG_STATE_HOME/dotfiles/current/colors.yaml` (Epic 4) |
 
 **CSG templates dir is NOT a settings field** — separate resolver chain
 (`--templates-dir` → env → traversal → XDG `~/.config/color-scheme-generator/templates` → bundled). Provisioning deploys the templates to

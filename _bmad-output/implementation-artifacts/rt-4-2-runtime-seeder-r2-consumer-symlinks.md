@@ -4,7 +4,7 @@ baseline_commit: f45eb4a80537f0bb5e2097e9ce4b9e22db04f5cb
 
 # Story rt-4.2: runtime seeder implements missing R2 consumer-path symlinks
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -103,9 +103,9 @@ ordering), and `hyprland.lua` sources no colors file today.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add R2 method to `CacheSeeder` (AC 1-3)
-- [ ] Task 2: Wire into seed + reconcile swap sequence (AC 1)
-- [ ] Task 3: Update/extend tests (AC 4)
+- [x] Task 1: Add R2 method to `CacheSeeder` (AC 1-3)
+- [x] Task 2: Wire into seed + reconcile swap sequence (AC 1)
+- [x] Task 3: Update/extend tests (AC 4)
 
 ## Dev Notes
 
@@ -126,16 +126,49 @@ settings templates (rt-4-3), or verify (rt-4-4) in this story.
 
 ### Agent Model Used
 
-_To be filled by dev-story._
+OpenCode powered by Meta Muse Spark (muse-spark-1.3-contributor-free)
 
 ### Debug Log References
 
-_To be filled by dev-story._
+- Verified the R2 gap against code: `CacheSeeder` only ever created
+  `current/` symlinks; no path ever wrote `<install>/config/*/colors.*`
+  symlinks (the dont-clobber guard protected a state nothing produced).
+- Verified Hyprland exclusion: no reference to `colors.conf` under
+  `dotfiles/config/hypr/*.lua` — symlink dropped from scope with rationale.
+- Verified hyprpaper fresh-boot: conf hardcodes `wallpapers/default.png`
+  (correct default until first IPC); IPC channel (rt-2-5) needs no conf edit.
+- Verified AGS re-apply: rt-2-4 reloader RESTARTS AGS, re-executing
+  `app.apply_css(.../ags/colors.css)` through the symlink.
+- Design deviation from story draft (recorded): R2 paths ride a separate
+  `ReconcileResult.consumer_symlinks` field, NOT merged into `repointed`
+  (keeps CLI counts + JSON `repointed` contract current/-only; CLI renders
+  `N consumer link(s)` suffix + `consumer_symlinks` JSON key when non-empty).
+- End-to-end on host: `wallpaper set wave.png` →
+  `<install>/config/ags/colors.css` is a symlink resolving to
+  `current/colors.gtk.css` with live palette content.
+- Runtime suite: 569 passed / 2 skipped; ruff 3 / mypy 4 / format clean /
+  layering 57 (all baseline).
 
 ### Completion Notes List
 
-_To be filled by dev-story._
+- ✅ Task 1 (rt-4-2): `CacheSeeder.repoint_consumer_symlinks()` added
+  (create/replace/remove semantics, null-palette removal, missing-target
+  skip, parent mkdir via `_repoint_symlink`).
+- ✅ Task 2 (rt-4-2): wired into seed (`_seed`) + reconcile (inside lock,
+  after `current/` repoint); `install_spine` stored on the reconcile
+  use case; `ReconcileResult.consumer_symlinks` added (defaulted field —
+  existing constructions unaffected); CLI surfaces count + JSON key.
+- ✅ Task 3 (rt-4-2): AD-11 exception recorded in ARCHITECTURE-SPINE.md;
+  seed/reconcile spine tests rewritten to the R2 contract; reconcile
+  happy-path extended with R2 assertions; null-palette removal test added.
 
 ### File List
 
-_To be filled by dev-story._
+- `src/runtime/src/runtime/adapters/seeder.py` (modified — R2 method)
+- `src/runtime/src/runtime/application/seed_cache.py` (modified — wire-in)
+- `src/runtime/src/runtime/application/reconcile.py` (modified — install_spine store, wire-in, result field)
+- `src/runtime/src/runtime/cli/main.py` (modified — summary + JSON)
+- `src/runtime/tests/unit/test_seed_cache.py` (modified — R2 contract + 2 new tests)
+- `src/runtime/tests/integration/test_seed_cache_integration.py` (modified — R2 contract)
+- `src/runtime/tests/unit/test_reconcile.py` (modified — R2 assertions + null-palette test)
+- `_bmad-output/planning-artifacts/architecture/architecture-dotfiles-repo-v3-2026-08-18/ARCHITECTURE-SPINE.md` (modified — AD-11 exception)

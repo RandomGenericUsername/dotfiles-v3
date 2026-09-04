@@ -4,7 +4,7 @@ baseline_commit: f45eb4a80537f0bb5e2097e9ce4b9e22db04f5cb
 
 # Story rt-4.1: remove generation roles from provisioning bootstrap
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -84,11 +84,11 @@ same commit window (see Epic 4 ordering).
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Delete generation roles + playbooks (AC 1)
-- [ ] Task 2: Add runtime-seed playbook + bootstrap order (AC 1)
-- [ ] Task 3: Strip fragment copies from compositor_configs (AC 2)
-- [ ] Task 4: Remove generated/ from filesystem spine dirs (AC 3)
-- [ ] Task 5: Update tests (AC 5)
+- [x] Task 1: Delete generation roles + playbooks (AC 1)
+- [x] Task 2: Add runtime-seed playbook + bootstrap order (AC 1)
+- [x] Task 3: Strip fragment copies from compositor_configs (AC 2)
+- [x] Task 4: Remove generated/ from filesystem spine dirs (AC 3)
+- [x] Task 5: Update tests (AC 5)
 
 ## Dev Notes
 
@@ -109,16 +109,53 @@ runtime (rt-4-2), or AGS (rt-4-3) in this story.
 
 ### Agent Model Used
 
-_To be filled by dev-story._
+OpenCode powered by Meta Muse Spark (muse-spark-1.3-contributor-free)
 
 ### Debug Log References
 
-_To be filled by dev-story._
+- Deleted `roles/default_palette/`, `roles/icons/`,
+  `playbooks/default-palette.yaml`, `playbooks/icons.yaml` via `git rm`;
+  verified the provisioning Python CLI only references `bootstrap.yaml`.
+- Added `playbooks/runtime-seed.yaml` (single check-gated
+  `dotfiles-runtime wallpaper set <install>/wallpapers/default.png`
+  task + install_dir seam assert); placed after `config-links.yaml`,
+  before `display-manager.yaml` in `bootstrap.yaml` with updated order
+  comment.
+- `bootstrap.yaml` import count 15 → 14 (tests updated).
+- Compositor execution tests exposed a PRE-EXISTING failure (temp HOME
+  lacks `.local/bin` for the bin-scripts copy task; fails on unmodified
+  code too) — fixed the test env (create the dir) so the role is
+  actually exercised; both execution tests now pass.
+- Full provisioning unit suite: 463 passed, 2 pre-existing failures
+  (`test_ansible_scaffold` debian set, `test_packages_role` distro
+  branching — fail on unmodified code in 0.13s, unrelated).
 
 ### Completion Notes List
 
-_To be filled by dev-story._
+- ✅ Task 1 (rt-4-1): generation roles + playbooks deleted.
+- ✅ Task 2 (rt-4-1): runtime-seed playbook + bootstrap order added.
+- ✅ Task 3 (rt-4-1): fragment copies stripped from compositor_configs
+  (tasks + vars + header comments).
+- ✅ Task 4 (rt-4-1): generated/ removed from filesystem spine + manifest.
+- ✅ Task 5 (rt-4-1): tests updated (bootstrap order/count, compositor
+  fragment→hands-off tests, filesystem manifest parity, dryrun list).
 
 ### File List
 
-_To be filled by dev-story._
+- `src/provisioning/ansible/playbooks/bootstrap.yaml` (modified)
+- `src/provisioning/ansible/playbooks/runtime-seed.yaml` (created)
+- `src/provisioning/ansible/playbooks/default-palette.yaml` (deleted)
+- `src/provisioning/ansible/roles/icons/` (deleted)
+- `src/provisioning/ansible/roles/default_palette/` (deleted)
+- `src/provisioning/ansible/playbooks/icons.yaml` (deleted)
+- `src/provisioning/ansible/roles/compositor_configs/tasks/main.yml` (modified)
+- `src/provisioning/ansible/roles/compositor_configs/vars/main.yml` (modified)
+- `src/provisioning/ansible/roles/filesystem/vars/main.yml` (modified)
+- `dotfiles/provisioning/filesystem.yaml` (modified)
+- `src/provisioning/tests/unit/test_bootstrap_playbook.py` (modified)
+- `src/provisioning/tests/unit/test_compositor_configs_role.py` (modified)
+- `src/provisioning/tests/unit/test_filesystem_role.py` (modified)
+- `src/provisioning/tests/integration/test_ansible_dryrun.py` (modified)
+- `src/provisioning/tests/unit/test_default_palette_role.py` (deleted)
+- `src/provisioning/tests/unit/test_icons_role.py` (deleted)
+- `src/provisioning/tests/integration/test_settings_parity.py` (modified — generated/ fixture dirs removed)

@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-09-03 (rt-3-4-inspect-cache-list-command → done)
+last_updated: 2026-09-04 (rt-4-1..rt-4-4 → review)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -84,8 +84,8 @@ development_status:
 
   # ── Epic 4: Single Source of Truth (epics-runtime-single-source.md) ──
   rt-epic-4: in-progress
-  rt-4-1-remove-generation-roles-from-provisioning: ready-for-dev
-  rt-4-2-runtime-seeder-r2-consumer-symlinks: ready-for-dev
-  rt-4-3-ags-runtime-only-icons-itr-repoint: ready-for-dev
-  rt-4-4-verify-current-only-remove-generated-docs: ready-for-dev
+  rt-4-1-remove-generation-roles-from-provisioning: review
+  rt-4-2-runtime-seeder-r2-consumer-symlinks: review
+  rt-4-3-ags-runtime-only-icons-itr-repoint: review
+  rt-4-4-verify-current-only-remove-generated-docs: review
   rt-epic-4-retrospective: optional

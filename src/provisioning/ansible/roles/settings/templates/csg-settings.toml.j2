@@ -1,14 +1,15 @@
 [output]
-directory = "{{ install_dir | trim }}/generated/palettes"
+# Epic 4 single-source: default output for MANUAL `csg generate` runs only
+# (the runtime always passes COLORSCHEME__OUTPUT__DIRECTORY per render).
+# Points at XDG cache lifetime — the old install-spine output tree is gone.
+directory = "{{ settings_xdg_cache_home | trim }}/dotfiles/csg-output"
 verbosity = 1
 # Empty default_formats = "all formats": csg resolves every format present in
 # the provisioned template catalog (csg generate falls back to the catalog when
-# default_formats is empty). The provisioning CHAIN is unaffected — the
-# default_palette role passes explicit -f conf -f gtk.css -f yaml (its contract
-# set), so the chain still emits exactly the three consumed formats.
+# default_formats is empty).
 default_formats = []
 overwrite = false
-# apply_to_terminal: after an interactive `csg generate`, apply the generated
+# apply_to_terminal: after an interactive `csg generate`, apply the output
 # colors.sequences to the live terminal (event-driven — no shell polling).
 # Default true; applies only when a TTY and the sequences format was produced.
 apply_to_terminal = true

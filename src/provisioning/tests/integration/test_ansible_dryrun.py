@@ -25,17 +25,19 @@ from provisioning.adapters.ansible_fact_reader import (
 
 pytestmark = pytest.mark.integration
 
-# The ten playbooks under ansible/playbooks/ (FR-25 "every playbook"): the nine
-# per-role playbooks plus the aggregate bootstrap.yaml. packages.yaml and
-# bootstrap.yaml both contain a become:true play (--check still runs
-# fact-gathering as the become target, so they need root or passwordless sudo);
-# the other eight are user-scoped and must ALWAYS run.
+# The playbooks under ansible/playbooks/ exercised here (FR-25 "every playbook"
+# in this list): per-role playbooks plus the aggregate bootstrap.yaml.
+# packages.yaml and bootstrap.yaml both contain a become:true play (--check
+# still runs fact-gathering as the become target, so they need root or
+# passwordless sudo); the others are user-scoped and must ALWAYS run.
+# Epic 4: default-palette.yaml + icons.yaml deleted (runtime owns all
+# generation); runtime-seed.yaml (wallpaper set default.png) added.
 _PLAYBOOKS = (
     "packages.yaml",
     "cli-tools.yaml",
     "filesystem.yaml",
     "assets.yaml",
-    "default-palette.yaml",
+    "runtime-seed.yaml",
     "compositor-configs.yaml",
     "config-copies.yaml",
     "settings.yaml",

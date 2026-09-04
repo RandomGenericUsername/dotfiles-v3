@@ -37,6 +37,28 @@
 #   lock, hard-breaks on ansible-core >= 2.24).
 settings_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
 
+# settings_xdg_state_home: the state home the runtime owns ($XDG_STATE_HOME,
+# spec default ~/.local/state). Used ONLY for the ITR color_scheme.path
+# (runtime-owned current/, Epic 4) — the role renders no other state paths.
+# Same derivation as verify_xdg_state_home (Story 2-12); F4 lock + trim lock.
+settings_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+
+# settings_xdg_cache_home: the cache home ($XDG_CACHE_HOME, spec default
+# ~/.cache). Used ONLY for the WEG output.directory default + temp_dir
+# (Epic 4 — no install-spine output tree; WEG's scratch/output
+# defaults live under cache lifetime). Same F4/trim derivation family.
+settings_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
+
+# settings_cache_dirs: WEG scratch/output + CSG/ITR manual-run output defaults
+# under the XDG cache home. Ensured as directories (ungated — `file state:
+# directory` is natively check-safe) so the verify spine-target extraction
+# (criterion 5 part 2) resolves them even before the first tool run.
+settings_cache_dirs:
+  - "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-output"
+  - "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-tmp"
+  - "{{ settings_xdg_cache_home | trim }}/dotfiles/csg-output"
+  - "{{ settings_xdg_cache_home | trim }}/dotfiles/itr-output"
+
 # settings_spine_config_dir: the config-in-spine destination root
 #   (<install>/config/). The settings files are rendered into
 #   <install>/config/<tool>/settings.toml; the config-links role symlinks each

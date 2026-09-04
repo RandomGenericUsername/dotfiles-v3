@@ -7,10 +7,10 @@ max_workers = 0
 
 [output]
 verbosity = 1
-directory = "{{ install_dir | trim }}/generated/effects"
+directory = "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-output"
 
 [processing]
-temp_dir = "{{ install_dir | trim }}/generated/.weg-tmp"
+temp_dir = "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-tmp"
 
 [backend]
 binary = "magick"

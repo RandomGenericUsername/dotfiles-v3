@@ -2,31 +2,38 @@
 
 Companion to SPEC-dotfiles-runtime-phase2. Describes how desktop components read the runtime's `current/` symlinks (CAP-3) and how that wiring changes the provisioning phase (AD-17). **The bar shell is AGS (Aylur's GTK Shell v2), fully replacing Waybar (correct-course 2026-08-18).**
 
-## Consumers read through current/
+## Consumers read through current/ (Epic 4 single-source)
 
 ```
 Hyprland colors.conf
-    ~/.config/hypr/colors.conf
-      → (config-in-spine symlink) <install>/config/hypr/colors.conf
-      → (NEW symlink, was a copy) $XDG_STATE_HOME/dotfiles/current/colors.conf
-      → cache/palettes/<ph>/colors.conf
+    NOT CONSUMED — no Hyprland Lua config sources colors.conf
+    (verified: no reference under dotfiles/config/hypr/*.lua).
+    The runtime creates no Hyprland consumer path.
 
 AGS (bar shell) CSS palette fragment
     ~/.config/ags/style.css (GTK4 CSS + SASS) imports the palette fragment
     ~/.config/ags/colors.css
       → (config-in-spine symlink) <install>/config/ags/colors.css
-      → (NEW symlink, was a copy) $XDG_STATE_HOME/dotfiles/current/colors.gtk.css
+      → (R2 symlink, runtime seeder — rt-4-2, never a copy)
+        $XDG_STATE_HOME/dotfiles/current/colors.gtk.css
       → cache/palettes/<ph>/colors.gtk.css
 
 Hyprpaper wallpaper
     hyprpaper.conf wallpaper path
-      → (NEW path) $XDG_STATE_HOME/dotfiles/current/wallpaper.png
+      → (static default) <install>/wallpapers/default.png
+        (fresh boot shows the default wallpaper until first IPC)
+      → (IPC override) $XDG_STATE_HOME/dotfiles/current/wallpaper-<monitor>.png
       → cache/wallpapers/<wh>/wallpaper.png
 
 ITR icon rendering
     itr settings.toml [color_scheme] path
-      → (NEW path) $XDG_STATE_HOME/dotfiles/current/colors.yaml
+      → $XDG_STATE_HOME/dotfiles/current/colors.yaml
       → cache/palettes/<ph>/colors.yaml
+
+AGS icons
+    IconRegistry resolves through
+      $XDG_STATE_HOME/dotfiles/current/icons/<output> ONLY
+      (no generated/ fallback — Epic 4; missing icons return null)
 ```
 
 The AGS palette fragment uses GTK `@define-color` / CSS variables — the same CSG `gtk.css` output Waybar consumed; AGS's GTK4 CSS engine reads it natively.
@@ -37,13 +44,14 @@ Terminal colors: applied from `current/colors.yaml` by the terminal adapter (CAP
 
 Repointing the `current/` symlinks (AD-6) atomically changes what every consumer above resolves to — no per-consumer config rewrite on swap. The reload step (CAP-6) tells each running process to re-read its config.
 
-## Provisioning deltas (AD-17, amended by R2/R3 — cross-domain Phase-2 stories)
+## Provisioning deltas (AD-17, amended by R2/R3 — cross-domain Phase-2 stories;
+Epic 4 completes R2)
 
-The consumer-path flips are performed by the **runtime seeder as its last step**, NOT by provisioning apply. Provisioning's actual deltas:
-
-1. `verify` criterion 6: relax to "either `<install>/generated/palettes/colors.yaml` exists (pre-runtime) OR `$XDG_STATE_HOME/dotfiles/current/colors.yaml` exists (post-runtime)."
-2. **Don't-clobber guard (R3):** `compositor_configs`/`config_copies` leave `colors.conf`/`colors.css` untouched when they are already runtime symlinks — a provisioning re-apply must not destroy the runtime's repoint.
-3. Provisioning keeps writing `<install>/generated/` (the seed source) and its pre-runtime copies — Phase-1 behavior unchanged.
+The consumer-path symlink is created by the **runtime seeder**
+(`repoint_consumer_symlinks`, rt-4-2), NOT by provisioning apply.
+Provisioning's `compositor_configs` places skeletons only (no palette
+fragments since Epic 4); the dont-clobber guard is retired with the copy
+tasks it guarded. Provisioning keeps deploying `<install>/` inputs only.
 
 The seeder (Epic 1, CAP-5) then replaces the copies with symlinks → `current/...` and rewrites hyprpaper conf + ITR color_scheme path to `current/...`. This ordering means a fresh machine (apply → boot → before first runtime run) keeps provisioning's pre-runtime copies — no dangling symlinks.
 

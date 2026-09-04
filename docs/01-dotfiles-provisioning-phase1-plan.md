@@ -1,5 +1,14 @@
 # Dotfiles System — Phase 1: Provisioning Plan
 
+> **Epic 4 amendment (2026-09-04, single source of truth):** this plan
+> describes Phase 1 as-built, including the `default_palette` / `icons`
+> generation roles and the `<install>/generated/` tree. Those are REMOVED
+> by Epic 4 (`_bmad-output/planning-artifacts/epics-runtime-single-source.md`):
+> provisioning deploys inputs only, the runtime (`wallpaper set` /
+> first-run seed) is the single producer of palette/effects/icons, and
+> `<install>/generated/` no longer exists. `generated/` references below
+> are historical — do not reintroduce them.
+
 **Status:** Approved — locked decisions applied (2026-08-03). Ready to drive a BMad flow.
 **Companion docs:** [`99-dotfiles-hexagonal-architecture.md`](./99-dotfiles-hexagonal-architecture.md) · canonical contract: `_bmad-output/specs/spec-dotfiles-provisioning-phase1/SPEC.md` + `chaining-spine.md`
 **Scope:** Phase 1 of the recommended development phases (§27 of the architecture doc). Provisioning only — no runtime reconciliation.

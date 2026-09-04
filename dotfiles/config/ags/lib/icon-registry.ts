@@ -26,12 +26,8 @@ const manifest: IconManifest = iconsData as unknown as IconManifest
 const stateDir =
   GLib.getenv("XDG_STATE_HOME") ||
   `${GLib.get_home_dir()}/.local/state`
-const dataDir =
-  GLib.getenv("XDG_DATA_HOME") ||
-  `${GLib.get_home_dir()}/.local/share`
 
 const RUNTIME_ICONS_DIR = `${stateDir}/dotfiles/current/icons`
-const PROVISION_ICONS_DIR = `${dataDir}/dotfiles/generated/icons`
 
 class IconRegistry {
   getBarMappings(group: string): BarMapping | null {
@@ -47,9 +43,6 @@ class IconRegistry {
 
     const runtimePath = `${RUNTIME_ICONS_DIR}/${variantEntry.output}`
     if (GLib.file_test(runtimePath, GLib.FileTest.EXISTS)) return runtimePath
-
-    const provisionPath = `${PROVISION_ICONS_DIR}/${variantEntry.output}`
-    if (GLib.file_test(provisionPath, GLib.FileTest.EXISTS)) return provisionPath
 
     return null
   }

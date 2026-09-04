@@ -1,0 +1,49 @@
+# Runtime seed playbook (Epic 4) — seeds the runtime's initial desktop state.
+#
+# Runs `dotfiles-runtime wallpaper set <install>/wallpapers/default.png`,
+# which derives palette/effects/icons into the content-addressed cache,
+# writes current.json, creates current/ symlinks (including the R2
+# consumer-path symlinks, rt-4-2), appends the seed history line, and
+# reloads desktop consumers. This is the ONLY producer of generated
+# artifacts — provisioning deploys inputs only (Epic 4: no
+# default_palette / icons roles; no generated/ tree).
+#
+# Placement in bootstrap.yaml: after config-links.yaml (needs the
+# ~/.config/* spine symlinks + rendered settings in place) and before
+# display-manager.yaml/verify.yaml (verify asserts current-only
+# criteria). Requires: assets (default.png), cli_tools
+# (dotfiles-runtime on PATH), settings (ITR/CSG/WEG settings.toml).
+#
+# User-scoped playbook: NO become (everything the runtime writes lives
+# under the user's XDG state dir; running as root would seed root's
+# state, not the user's).
+#
+# Distro-agnostic: seeding is identical on Arch and Debian-family.
+#
+# gather_facts: true is REQUIRED — the install_dir seam and PATH
+# derivation read {{ ansible_facts.env.* }}, populated only after the
+# fact-gathering setup module runs.
+#
+# Check-gating: the seed command is gated `when: not ansible_check_mode`
+# (dry-run must be dry — a seed writes cache entries, current.json,
+# history, and consumer symlinks).
+- name: Seed runtime desktop state from default wallpaper
+  hosts: localhost
+  gather_facts: true
+  tasks:
+    - name: Assert install_dir seam is provided
+      ansible.builtin.assert:
+        that: install_dir is defined and install_dir | trim | length > 0
+        fail_msg: >-
+          install_dir is undefined or empty — the runtime-seed step requires
+          the install_dir seam extra-var (the orchestrator resolves
+          $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+    - name: Seed runtime state from default wallpaper
+      ansible.builtin.command:
+        argv:
+          - dotfiles-runtime
+          - wallpaper
+          - set
+          - "{{ install_dir | trim }}/wallpapers/default.png"
+      when: not ansible_check_mode
