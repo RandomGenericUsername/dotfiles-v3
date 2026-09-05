@@ -144,3 +144,23 @@ class TestGuiToolsVars:
         for entry in _vars()["gui_tools_app_files"]:
             path = _REPO_ROOT / str(entry["source"])
             assert path.is_file(), f"app source missing from repo: {entry['source']}"
+
+    def test_every_dest_parent_is_an_ensured_dir(self) -> None:
+        """Regression lock (bootstrap failure 2026-09-05): `template` does
+        NOT create dest parents, so every file dest's parent dir must be
+        listed in gui_tools_config_dirs — otherwise placement fails with
+        'Destination directory does not exist'."""
+        data = _vars()
+        ensured = {
+            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
+            for d in data["gui_tools_config_dirs"]
+        }
+        for entry in data["gui_tools_app_files"]:
+            dest = str(entry["dest"])
+            parent = dest.rsplit("/", 1)[0].replace(
+                "{{ gui_tools_spine_config_dir }}", "<spine>"
+            )
+            assert parent in ensured, (
+                f"dest parent {parent!r} of {entry['name']} is not an ensured "
+                f"dir (template would fail); add it to gui_tools_config_dirs"
+            )

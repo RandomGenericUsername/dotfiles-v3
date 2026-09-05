@@ -30,6 +30,8 @@ gui_tools_spine_config_dir: "{{ install_dir | trim }}/config"
 #   self-contained.
 gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
 
 # gui_tools_app_files: the app FILES, one entry per file with the explicit
 #   target path. Per-file entries (not directory sources) are REQUIRED (see
