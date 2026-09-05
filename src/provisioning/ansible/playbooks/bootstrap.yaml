@@ -6,10 +6,17 @@
 # Dependency order rationale (plan §11 step 7, story 2.12 AC 4, Epic 4):
 #   packages → cli_tools → filesystem → assets →
 #   compositor_configs → config_copies → settings → zsh_tools → zsh_config →
-#   wlogout_config → config_links → runtime-seed → display_manager → verify
-# `packages` first (it installs the system packages everything else assumes),
-# `verify` last (it asserts every done-criterion after all roles placed their
-# outputs). Provisioning deploys INPUTS ONLY (Epic 4): no default_palette /
+#   wlogout_config → config_links → runtime-seed → display_manager →
+#   gloview-plugin → verify
+# `packages` first (it installs the system packages everything else assumes —
+# including the cmake build deps the gloview Hyprland plugin compiles
+# against), `verify` last (it asserts every done-criterion after all roles
+# placed their outputs). `gloview-plugin` runs after display_manager so the
+# full desktop stack exists, and before verify: it synchronizes the hyprpm
+# headers and rebuilds/reloads GloView, which backs the provision-owned
+# touchpad gestures (dotfiles/config/hypr/{input,gloview}.lua). Without it in
+# the chain, the first Hyprland upgrade after install silently kills every
+# gesture until a manual `hyprpm update`.
 # icons roles — the runtime-seed step (`dotfiles-runtime wallpaper set
 # <install>/wallpapers/default.png`) is the single producer of generated
 # artifacts (cache entries, current.json, current/ + R2 consumer symlinks).
@@ -57,4 +64,5 @@
 - import_playbook: config-links.yaml
 - import_playbook: runtime-seed.yaml
 - import_playbook: display-manager.yaml
+- import_playbook: gloview-plugin.yaml
 - import_playbook: verify.yaml

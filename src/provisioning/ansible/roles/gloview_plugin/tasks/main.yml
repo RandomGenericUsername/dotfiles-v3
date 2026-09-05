@@ -35,6 +35,15 @@
   failed_when: false
   when: not ansible_check_mode
 
+- name: Check whether Hyprland IPC is reachable
+  ansible.builtin.command:
+    argv:
+      - hyprctl
+      - version
+  register: gloview_hyprland_check
+  changed_when: false
+  failed_when: false
+
 - name: Check whether GloView is already installed
   ansible.builtin.shell: hyprpm list 2>&1 | grep -E -q 'Repository gloview|Plugin gloview'
   register: gloview_installed
@@ -55,6 +64,16 @@
     - not ansible_check_mode
     - gloview_installed.rc != 0
 
+- name: Synchronize hyprpm headers and rebuild stale plugins
+  ansible.builtin.command:
+    argv:
+      - hyprpm
+      - update
+  register: gloview_update
+  changed_when: gloview_update.rc == 0
+  failed_when: false
+  when: not ansible_check_mode
+
 - name: Enable GloView
   ansible.builtin.command:
     argv:
@@ -74,7 +93,9 @@
   register: gloview_reload
   changed_when: gloview_reload.rc == 0
   failed_when: false
-  when: not ansible_check_mode
+  when:
+    - not ansible_check_mode
+    - gloview_hyprland_check.rc == 0
 
 - name: Verify GloView is enabled
   ansible.builtin.shell: "hyprpm list 2>&1 | grep -E -A2 'Repository gloview|Plugin gloview' | grep -q 'enabled:'"
@@ -88,19 +109,29 @@
   register: gloview_loaded
   changed_when: false
   failed_when: false
-  when: not ansible_check_mode
+  when:
+    - not ansible_check_mode
+    - gloview_hyprland_check.rc == 0
 
-- name: Assert GloView installed and loaded
+- name: Assert GloView installed, fresh, and loaded
   ansible.builtin.assert:
     that:
       - gloview_installed.rc == 0 or gloview_add.rc == 0
+      - gloview_update.rc == 0
       - gloview_enable.rc == 0
-      - gloview_reload.rc == 0
       - gloview_status.rc == 0
-      - gloview_loaded.rc == 0
+      # Live-load is asserted ONLY when Hyprland IPC is reachable: a fresh
+      # machine provisioned from a TTY has no compositor yet, and failing
+      # there would be a false red. The session activator
+      # (~/.local/bin/gloview-activate, via autostart.lua) loads the freshly
+      # built plugin at first login.
+      - gloview_hyprland_check.rc != 0 or (gloview_reload.rc == 0 and gloview_loaded.rc == 0)
     fail_msg: >-
       GloView did not install and load successfully.
       add={{ gloview_add.rc | default('skipped') }},
-      enable={{ gloview_enable.rc }}, reload={{ gloview_reload.rc }},
-      status={{ gloview_status.rc }}, loaded={{ gloview_loaded.rc }}.
+      update={{ gloview_update.rc }},
+      enable={{ gloview_enable.rc }}, reload={{ gloview_reload.rc | default('skipped: no Hyprland IPC') }},
+      status={{ gloview_status.rc }}, loaded={{ gloview_loaded.rc | default('skipped: no Hyprland IPC') }}.
+      If update failed, check network access and that the hyprpm headers match
+      the installed Hyprland (a Hyprland upgrade always requires a rebuild).
   when: not ansible_check_mode

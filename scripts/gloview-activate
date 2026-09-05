@@ -25,9 +25,18 @@ hyprpm remove Hyprspace >/dev/null 2>&1 || true
 hyprpm remove hyprexpo >/dev/null 2>&1 || true
 
 if ! hyprpm list 2>&1 | grep -E -q 'Repository gloview|Plugin gloview'; then
-  hyprpm update
   printf 'y\n' | hyprpm add "$repository"
 fi
+
+# Self-heal after Hyprland upgrades (unconditional): every Hyprland update
+# invalidates the hyprpm headers AND the built plugin, and `hyprpm reload`
+# refuses to load anything until `hyprpm update` re-syncs the headers and
+# rebuilds stale plugins. The previous shape ran `update` only when the repo
+# was missing, so the first Hyprland upgrade after install silently killed
+# every gesture/keybind backed by GloView (provision-owned gesture config in
+# dotfiles/config/hypr/{input,gloview}.lua). A fresh `update` is a cheap
+# no-op, so run it on every login.
+hyprpm update
 
 hyprpm enable gloview
 hyprpm reload
