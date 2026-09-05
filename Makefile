@@ -12,26 +12,26 @@ dev-deps:
 	@echo "Log out/in for incus-admin group to take effect."
 
 # VM commands
-vm-fresh:   scripts/dev/vmtest/vm
-	./scripts/dev/vmtest/vm fresh
+vm-fresh:   dev/vm
+	./dev/vm fresh
 
-vm-up:      scripts/dev/vmtest/vm
-	./scripts/dev/vmtest/vm up
+vm-up:      dev/vm
+	./dev/vm up
 
-vm-down:    scripts/dev/vmtest/vm
-	./scripts/dev/vmtest/vm down
+vm-down:    dev/vm
+	./dev/vm down
 
-vm-console: scripts/dev/vmtest/vm
-	./scripts/dev/vmtest/vm console
+vm-console: dev/vm
+	./dev/vm console
 
-vm-shell:   scripts/dev/vmtest/vm
-	./scripts/dev/vmtest/vm shell
+vm-shell:   dev/vm
+	./dev/vm shell
 
-vm-destroy: scripts/dev/vmtest/vm
-	./scripts/dev/vmtest/vm destroy
+vm-destroy: dev/vm
+	./dev/vm destroy
 
-vm-status:  scripts/dev/vmtest/vm
-	./scripts/dev/vmtest/vm status
+vm-status:  dev/vm
+	./dev/vm status
 
 vm-help:
 	@echo "VM Usage:"

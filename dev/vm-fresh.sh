@@ -5,7 +5,7 @@
 set -euo pipefail
 
 VM_NAME="dotfiles-test"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [ "${1:-}" = "--clean" ]; then
   echo "== vm-fresh: cleaning existing VM =="

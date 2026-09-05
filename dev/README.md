@@ -32,7 +32,7 @@ sudo pacman -S spice-gtk
 cd ~/Development/dotfiles-new-architectures/dotfiles-repo-v3
 
 # Create VM + full provision (first run takes ~5-10 min)
-scripts/dev/vmtest/vm fresh
+./dev/vm fresh
 ```
 
 ## Usage

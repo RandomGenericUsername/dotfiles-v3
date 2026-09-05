@@ -4,7 +4,7 @@ __pycache__/
 /src/cli-tools/wallpaper-effects-generator/test.sh
 
 # Dev VM runtime artifacts (downloaded image, working disk, SSH key, seed)
-/scripts/dev/vmtest/.images/
+/dev/.images/
 
 # CSG determinism verification artifact — machine-specific (timestamp, host template hash, podman state)
 # Written by src/runtime/tests/integration/test_csg_determinism.py atomically; not for version control

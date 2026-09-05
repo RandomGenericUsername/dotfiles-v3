@@ -19,4 +19,4 @@ fi
 echo "== Verify =="
 qemu-system-x86_64 --version | head -1
 command -v cloud-localds && echo "cloud-localds OK"
-echo "done. next: bash scripts/dev/vmtest/run-vm.sh"
+echo "done. next: bash dev/run-vm.sh"

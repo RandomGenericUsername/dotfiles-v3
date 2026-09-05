@@ -3,19 +3,19 @@
 #
 # What it does:
 #   - Ensures host prereqs (qemu, cloud-localds). If missing, auto-suggest install.sh.
-#   - Downloads the official Arch cloud image once (cached under scripts/dev/vmtest/.images/).
+#   - Downloads the official Arch cloud image once (cached under dev/.images/).
 #   - Creates a working disk copy + a cloud-init seed (SSH key, `arch` user, sudo).
 #   - Boots a lightweight VM, GRAPHICAL window, KVM-accelerated.
 #   - Shares the live repo read-only into the VM at /repo via virtio-9p,
 #     so any host edit is immediately visible in the VM (no copying).
 #
 # After boot, to provision (in another terminal):
-#   bash scripts/dev/vmtest/provision-in-vm.sh   (SSHPORT must match; run-vm prints it)
-# and/or SSH in:  ssh -i scripts/dev/vmtest/.images/id_vm -p "$SSHPORT" arch@localhost
+#   bash dev/provision-in-vm.sh   (SSHPORT must match; run-vm prints it)
+# and/or SSH in:  ssh -i dev/.images/id_vm -p "$SSHPORT" arch@localhost
 set -euo pipefail
 
 VMDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$VMDIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$VMDIR/.." && pwd)"
 WORKDIR="$VMDIR/.images"
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
