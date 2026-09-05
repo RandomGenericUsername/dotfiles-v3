@@ -1,0 +1,49 @@
+# GUI tools role vars — standalone desktop GUI applications under
+# src/gui-tools/<tool>/, each with its own AGS instance, autostart slot, and
+# spine config dir (<install>/config/<app>/, symlinked to ~/.config/<app> by
+# the config-links role).
+#
+# Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
+# the compositor_configs mirror:
+#   (a) vs compositor_configs (skeletons for the bar/compositor apps):
+#       this role places whole APP dirs (one entry per file, same per-file
+#       `template` + `force: true` discipline — `copy` with a directory src
+#       + a pre-existing dest dir is a silent no-op, review finding
+#       2026-08-12). Each app gets its own spine dir; the role never touches
+#       the bar's `ags/` tree.
+#   (b) vs cli_tools (backend binaries): cli_tools installs the controller
+#       binaries to the user bin dir; this role places the AGS UI sources.
+#       The two meet at runtime via $PATH + the instance bus, never on disk.
+
+# gui_tools_repo_root: repo root derived from this playbook's location.
+#   Mirror of compositor_configs_repo_root / cli_tools_repo_root exactly.
+gui_tools_repo_root: "{{ playbook_dir }}/../../../.."
+
+# gui_tools_spine_config_dir: the config-in-spine destination root
+#   (<install>/config/). Mirror of compositor_configs_spine_config_dir.
+#   Trim lock: consumes the same validated {{ install_dir | trim }} value.
+gui_tools_spine_config_dir: "{{ install_dir | trim }}/config"
+
+# gui_tools_config_dirs: the standalone app dirs under the config-in-spine
+#   home. Re-ensured as directories before the copies (copy does NOT create
+#   dest parents for file sources) so a direct gui-tools.yaml run is
+#   self-contained.
+gui_tools_config_dirs:
+  - "{{ gui_tools_spine_config_dir }}/ags-capture"
+
+# gui_tools_app_files: the app FILES, one entry per file with the explicit
+#   target path. Per-file entries (not directory sources) are REQUIRED (see
+#   note above). Rendered via `ansible.builtin.template` with `force: true`
+#   (repo-authoritative, mirror of the compositor_configs decision
+#   2026-08-26).
+gui_tools_app_files:
+  - { name: capture-app-tsx, source: src/gui-tools/capture-tool/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/app.tsx" }
+  - { name: capture-style-css, source: src/gui-tools/capture-tool/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/style.css" }
+  - { name: capture-types, source: src/gui-tools/capture-tool/types.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/types.ts" }
+  - { name: capture-window, source: src/gui-tools/capture-tool/ui/CaptureWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/CaptureWindow.tsx" }
+  - { name: capture-recording-view, source: src/gui-tools/capture-tool/ui/RecordingView.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/RecordingView.tsx" }
+  - { name: capture-screenshot-view, source: src/gui-tools/capture-tool/ui/ScreenshotView.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/ScreenshotView.tsx" }
+  - { name: capture-controller, source: src/gui-tools/capture-tool/controllers/CaptureController.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/CaptureController.ts" }
+  - { name: capture-recording-controller, source: src/gui-tools/capture-tool/controllers/RecordingController.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/RecordingController.ts" }
+  - { name: capture-screenshot-controller, source: src/gui-tools/capture-tool/controllers/ScreenshotController.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/ScreenshotController.ts" }
+  - { name: capture-target-resolver, source: src/gui-tools/capture-tool/controllers/TargetResolver.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/TargetResolver.ts" }

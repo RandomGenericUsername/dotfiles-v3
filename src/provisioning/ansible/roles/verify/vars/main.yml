@@ -87,6 +87,7 @@ verify_install_spine_dirs:
   - config/hypr
   - config/hyprpaper
   - config/ags
+  - config/ags-capture
   - config/nvim
   - config/starship
   - config/wlogout
@@ -237,14 +238,22 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/thunderbird.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/recording.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/tray.tsx"
-  - "{{ install_dir | trim }}/config/ags/capture/CaptureWindow.tsx"
-  - "{{ install_dir | trim }}/config/ags/capture/RecordingView.tsx"
-  - "{{ install_dir | trim }}/config/ags/capture/ScreenshotView.tsx"
-  - "{{ install_dir | trim }}/config/ags/capture/types.ts"
-  - "{{ install_dir | trim }}/config/ags/capture/controllers/CaptureController.ts"
-  - "{{ install_dir | trim }}/config/ags/capture/controllers/RecordingController.ts"
-  - "{{ install_dir | trim }}/config/ags/capture/controllers/ScreenshotController.ts"
-  - "{{ install_dir | trim }}/config/ags/capture/controllers/TargetResolver.ts"
+
+# verify_gui_tools_app_files: the standalone GUI tool app files that must be
+#   present in the spine (criterion 7, extended to the gui_tools role —
+#   mirror of gui_tools_app_files dests). The bar's old ags/capture/* paths
+#   are deliberately absent: the gui_tools role removes that legacy subtree.
+verify_gui_tools_app_files:
+  - "{{ install_dir | trim }}/config/ags-capture/app.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/style.css"
+  - "{{ install_dir | trim }}/config/ags-capture/types.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/CaptureWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/RecordingView.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/ScreenshotView.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/controllers/CaptureController.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/controllers/RecordingController.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/controllers/ScreenshotController.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/controllers/TargetResolver.ts"
 
 # verify_consumer_symlinks: the R2 consumer-path symlinks the runtime
 #   seeder owns (criterion 7, Epic 4 current-only). The AGS fragment is
@@ -292,6 +301,7 @@ verify_managed_link_dirs:
   - hypr
   - hyprpaper
   - ags
+  - ags-capture
   - nvim
   - starship
   - wlogout

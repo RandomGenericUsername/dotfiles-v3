@@ -30,10 +30,10 @@ hl.bind(
     { description = "Open application launcher" }
 )
 
--- Capture tool (AGS UI)
+-- Capture tool (standalone AGS instance `capture`)
 hl.bind(
     mod .. " + PRINT",
-    hl.dsp.exec_cmd("ags toggle capture-window"),
+    hl.dsp.exec_cmd("ags toggle capture-window -i capture"),
     { description = "Open capture UI" }
 )
 

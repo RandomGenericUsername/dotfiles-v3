@@ -8,6 +8,10 @@ hl.on("hyprland.start", function()
     -- AGS (Aylur's GTK Shell) - status bar
     hl.exec_cmd("ags run")
 
+    -- AGS capture tool (standalone instance `capture`, staggered: two
+    -- concurrent `ags run` invocations collide on /run/user/$UID/ags.js)
+    hl.exec_cmd("sleep 2 && ags run -d $HOME/.config/ags-capture --log-file $HOME/.local/state/ags/capture.log")
+
     -- Notification daemon (dunst)
     hl.exec_cmd("dunst")
 

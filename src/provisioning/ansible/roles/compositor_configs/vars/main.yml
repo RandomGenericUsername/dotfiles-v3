@@ -82,8 +82,6 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/lib"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets"
-  - "{{ compositor_configs_spine_config_dir }}/ags/capture"
-  - "{{ compositor_configs_spine_config_dir }}/ags/capture/controllers"
 
 # compositor_configs_skeleton_files: the skeleton FILES authored by 2.8 (AC 2),
 #   one entry per file with the explicit target path. Per-file entries (not
@@ -119,14 +117,6 @@ compositor_configs_skeleton_files:
   - { name: ags-thunderbird, source: dotfiles/config/ags/bar/widgets/thunderbird.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/thunderbird.tsx" }
   - { name: ags-recording, source: dotfiles/config/ags/bar/widgets/recording.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/recording.tsx" }
   - { name: ags-tray, source: dotfiles/config/ags/bar/widgets/tray.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/tray.tsx" }
-  - { name: ags-capture-window, source: dotfiles/config/ags/capture/CaptureWindow.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/CaptureWindow.tsx" }
-  - { name: ags-recording-view, source: dotfiles/config/ags/capture/RecordingView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/RecordingView.tsx" }
-  - { name: ags-screenshot-view, source: dotfiles/config/ags/capture/ScreenshotView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/ScreenshotView.tsx" }
-  - { name: ags-capture-types, source: dotfiles/config/ags/capture/types.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/types.ts" }
-  - { name: ags-capture-controller, source: dotfiles/config/ags/capture/controllers/CaptureController.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/controllers/CaptureController.ts" }
-  - { name: ags-recording-controller, source: dotfiles/config/ags/capture/controllers/RecordingController.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/controllers/RecordingController.ts" }
-  - { name: ags-screenshot-controller, source: dotfiles/config/ags/capture/controllers/ScreenshotController.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/controllers/ScreenshotController.ts" }
-  - { name: ags-target-resolver, source: dotfiles/config/ags/capture/controllers/TargetResolver.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/capture/controllers/TargetResolver.ts" }
 
 # compositor_configs_bin_scripts: executable desktop helpers the XF86 binds in
 #   keybindings.lua call (deployed to the user's XDG bin dir, 0755). These are

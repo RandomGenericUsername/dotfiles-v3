@@ -5,7 +5,7 @@
 #
 # Dependency order rationale (plan §11 step 7, story 2.12 AC 4, Epic 4):
 #   packages → cli_tools → filesystem → assets →
-#   compositor_configs → config_copies → settings → zsh_tools → zsh_config →
+#   compositor_configs → gui_tools → config_copies → settings → zsh_tools → zsh_config →
 #   wlogout_config → config_links → runtime-seed → display_manager →
 #   gloview-plugin → verify
 # `packages` first (it installs the system packages everything else assumes —
@@ -21,8 +21,8 @@
 # <install>/wallpapers/default.png`) is the single producer of generated
 # artifacts (cache entries, current.json, current/ + R2 consumer symlinks).
 # The chain's seams are consumed in order: filesystem creates the
-# layout, assets populate the spine inputs, compositor_configs +
-# config_copies place configs (skeletons only — no palette fragments),
+#   layout, assets populate the spine inputs, compositor_configs +
+#   gui_tools place configs (skeletons/app sources only — no palette fragments),
 # settings renders the per-tool files, zsh_tools
 # provisions the shell clone-tools, zsh_config + wlogout_config RENDER the
 # shell templates (zsh .zshrc, wlogout style.css), config_links symlinks the
@@ -56,6 +56,7 @@
 - import_playbook: filesystem.yaml
 - import_playbook: assets.yaml
 - import_playbook: compositor-configs.yaml
+- import_playbook: gui-tools.yaml
 - import_playbook: config-copies.yaml
 - import_playbook: settings.yaml
 - import_playbook: zsh-tools.yaml

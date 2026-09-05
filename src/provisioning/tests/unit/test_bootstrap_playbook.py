@@ -34,7 +34,9 @@ _PLAYBOOKS_DIR = _ANSIBLE_DIR / "playbooks"
 # generation); runtime-seed.yaml (wallpaper set default.png) runs after
 # config-links, before display-manager/verify. gloview-plugin.yaml runs after
 # display-manager, before verify: it owns the GloView build/load lifecycle
-# behind the provision-owned touchpad gestures. Each imported playbook
+# behind the provision-owned touchpad gestures. gui-tools.yaml runs after
+# compositor-configs: the standalone GUI apps complement the bar/compositor
+# skeletons. Each imported playbook
 # keeps its OWN hosts/become/gather_facts/group_by — the aggregate is
 # imports-only.
 _EXPECTED_ORDER = [
@@ -43,6 +45,7 @@ _EXPECTED_ORDER = [
     "filesystem.yaml",
     "assets.yaml",
     "compositor-configs.yaml",
+    "gui-tools.yaml",
     "config-copies.yaml",
     "settings.yaml",
     "zsh-tools.yaml",
@@ -66,12 +69,12 @@ class TestBootstrapPlaybook:
     _PATH = _PLAYBOOKS_DIR / "bootstrap.yaml"
 
     def test_parses_as_list_of_import_playbook_entries(self) -> None:
-        """The aggregate is a top-level list of exactly fifteen `import_playbook`
-        statements (one per per-role playbook + the runtime-seed step + the
-        gloview-plugin lifecycle)."""
+        """The aggregate is a top-level list of exactly sixteen `import_playbook`
+        statements (one per per-role playbook + the runtime-seed step +
+        the gloview-plugin lifecycle + the gui-tools apps)."""
         imports = _load_imports()
-        assert len(imports) == 15, (
-            f"bootstrap.yaml must import exactly 15 playbooks; found {len(imports)}"
+        assert len(imports) == 16, (
+            f"bootstrap.yaml must import exactly 16 playbooks; found {len(imports)}"
         )
         for entry in imports:
             assert "import_playbook" in entry, (
@@ -79,9 +82,9 @@ class TestBootstrapPlaybook:
             )
 
     def test_imports_in_exact_dependency_order(self) -> None:
-        """AC 4: the fifteen imports appear in the EXACT dependency order —
+        """AC 4: the sixteen imports appear in the EXACT dependency order —
         packages → cli-tools → filesystem → assets →
-        compositor-configs → config-copies → settings → zsh-tools →
+        compositor-configs → gui-tools → config-copies → settings → zsh-tools →
         zsh-config → wlogout-config → config-links → runtime-seed →
         display-manager → gloview-plugin → verify (Epic 4: no default-palette/icons)."""
         order = [str(entry["import_playbook"]) for entry in _load_imports()]

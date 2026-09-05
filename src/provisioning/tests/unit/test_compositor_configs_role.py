@@ -194,10 +194,14 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        assert len(files) == 34, (
-            f"expected exactly 33 skeleton files "
+        # capture tool files (CaptureWindow.tsx, RecordingView.tsx, ScreenshotView.tsx,
+        # types.ts, and 4 controllers) are standalone under
+        # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
+        # no longer part of the compositor_configs skeletons.
+        assert len(files) == 26, (
+            f"expected exactly 26 skeleton files "
             f"(hyprland.lua + gloview.lua + 8 hypr modules/hyprpaper.conf/ags app.tsx+style.css"
-            f"+icon-registry+Bar.tsx+10 widgets/capture views+controllers); found {len(files)}"
+            f"+icon-registry+Bar.tsx+10 bar widgets); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -212,14 +216,6 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/bar/widgets/thunderbird.tsx",
             "dotfiles/config/ags/bar/widgets/tray.tsx",
             "dotfiles/config/ags/bar/widgets/workspaces.tsx",
-            "dotfiles/config/ags/capture/CaptureWindow.tsx",
-            "dotfiles/config/ags/capture/RecordingView.tsx",
-            "dotfiles/config/ags/capture/ScreenshotView.tsx",
-            "dotfiles/config/ags/capture/controllers/CaptureController.ts",
-            "dotfiles/config/ags/capture/controllers/RecordingController.ts",
-            "dotfiles/config/ags/capture/controllers/ScreenshotController.ts",
-            "dotfiles/config/ags/capture/controllers/TargetResolver.ts",
-            "dotfiles/config/ags/capture/types.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/style.css",
             "dotfiles/config/hypr/animations.lua",

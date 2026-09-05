@@ -26,6 +26,7 @@ entries:
   - name: config/hypr
   - name: config/hyprpaper
   - name: config/ags
+  - name: config/ags-capture
   - name: config/nvim
   - name: config/starship
   - name: config/wlogout

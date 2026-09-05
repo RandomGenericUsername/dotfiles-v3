@@ -854,6 +854,7 @@ class TestVerifyVars:
         "verify_state_current_dir",
         "verify_compositor_config_dirs",
         "verify_compositor_skeleton_files",
+        "verify_gui_tools_app_files",
         "verify_consumer_symlinks",
         "verify_config_copies_targets",
         "verify_config_copy_content",
@@ -1436,6 +1437,7 @@ def _build_provisioned_layout(
         "config/hypr",
         "config/hyprpaper",
         "config/ags",
+        "config/ags-capture",
         "config/nvim",
         "config/starship",
         "config/wlogout",
@@ -1518,8 +1520,9 @@ def _build_provisioned_layout(
         "ags/lib",
         "ags/bar",
         "ags/bar/widgets",
-        "ags/capture",
-        "ags/capture/controllers",
+        "ags-capture",
+        "ags-capture/ui",
+        "ags-capture/controllers",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
@@ -1536,10 +1539,14 @@ def _build_provisioned_layout(
         "tray",
     ):
         (install / "config" / "ags" / "bar" / "widgets" / f"{widget}.tsx").write_text("")
-    (install / "config" / "ags" / "capture" / "CaptureWindow.tsx").write_text("")
-    (install / "config" / "ags" / "capture" / "RecordingView.tsx").write_text("")
-    (install / "config" / "ags" / "capture" / "ScreenshotView.tsx").write_text("")
-    (install / "config" / "ags" / "capture" / "types.ts").write_text("")
+    # Standalone capture app (gui_tools role): must match
+    # verify_gui_tools_app_files EXACTLY.
+    (install / "config" / "ags-capture" / "app.tsx").write_text("")
+    (install / "config" / "ags-capture" / "style.css").write_text("")
+    (install / "config" / "ags-capture" / "types.ts").write_text("")
+    (install / "config" / "ags-capture" / "ui" / "CaptureWindow.tsx").write_text("")
+    (install / "config" / "ags-capture" / "ui" / "RecordingView.tsx").write_text("")
+    (install / "config" / "ags-capture" / "ui" / "ScreenshotView.tsx").write_text("")
     for controller in (
         "CaptureController",
         "RecordingController",
@@ -1547,7 +1554,7 @@ def _build_provisioned_layout(
         "TargetResolver",
     ):
         (
-            install / "config" / "ags" / "capture" / "controllers" / f"{controller}.ts"
+            install / "config" / "ags-capture" / "controllers" / f"{controller}.ts"
         ).write_text("")
     # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
     # owns the R2 consumer symlink, created above).
@@ -1578,6 +1585,7 @@ def _build_provisioned_layout(
         "hypr",
         "hyprpaper",
         "ags",
+        "ags-capture",
         "nvim",
         "starship",
         "wlogout",

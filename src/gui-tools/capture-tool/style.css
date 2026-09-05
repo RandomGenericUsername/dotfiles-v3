@@ -1,0 +1,79 @@
+window#capture-window {
+  background-color: alpha(@color_00, 0.9);
+  color: @color_foreground;
+  border-radius: 16px;
+}
+
+window#capture-window > box {
+  padding: 24px;
+}
+
+.capture-panel {
+  min-width: 520px;
+  min-height: 260px;
+}
+
+.capture-title {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.capture-section {
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.capture-tabs {
+  background-color: alpha(@color_background, 0.35);
+  border-radius: 10px;
+  padding: 4px;
+}
+
+.capture-tab {
+  min-height: 38px;
+  min-width: 150px;
+  border-radius: 8px;
+  color: @color_foreground;
+}
+
+.capture-tab.active {
+  background-color: @color_01;
+  color: @color_background;
+}
+
+.capture-view {
+  min-height: 130px;
+}
+
+.capture-targets button,
+.capture-panel > box:last-child button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.capture-targets button {
+  min-width: 135px;
+}
+
+.capture-options {
+  min-height: 32px;
+}
+
+.capture-options button.selected,
+.capture-targets button.selected {
+  background-color: @color_01;
+  color: @color_background;
+}
+
+.capture-primary {
+  min-height: 42px;
+  margin-top: 8px;
+  background-color: @color_01;
+  color: @color_background;
+  font-weight: bold;
+}
+
+.capture-hint {
+  color: alpha(@color_foreground, 0.7);
+  font-size: 12px;
+}

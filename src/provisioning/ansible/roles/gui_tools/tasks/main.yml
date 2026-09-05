@@ -1,0 +1,50 @@
+# GUI tools role — places standalone desktop GUI applications from
+# src/gui-tools/<tool>/ into their own config-in-spine dirs
+# (<install>/config/<app>/). The config-links role symlinks each
+# ~/.config/<app> -> <install>/config/<app>, so each app runs via
+# `ags run -d ~/.config/<app>` as its own AGS instance.
+#
+# Design (mirror of the compositor_configs role, trimmed to app placement):
+# - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
+#   from the sibling roles: install_dir is deliberately never defaulted, so
+#   an undefined spine root aborts before any task evaluates.
+# - App placement uses `ansible.builtin.template` with PER-FILE entries
+#   (gui_tools_app_files), NOT a directory source: review finding 2026-08-12
+#   proved `copy` with a directory `src` + a pre-existing dest dir is a
+#   SILENT NO-OP. Per-file copy is the only safe shape.
+# - Skeletons are repo-authoritative (`force: true`, idempotent): every
+#   bootstrap converges to the repo (owner decision 2026-08-26, shared with
+#   compositor_configs).
+# - template module check-mode support is FULL — no `not ansible_check_mode`
+#   gate needed on the placements.
+# - copy does NOT create dest parents for file sources — the app dirs are
+#   re-ensured first so a direct gui-tools.yaml run is self-contained.
+# - User-scoped privilege context: NO become/become_user anywhere.
+# - No absolute repo paths: every source is {{ gui_tools_repo_root }}/...
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the gui_tools role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure GUI tool app dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop: "{{ gui_tools_config_dirs }}"
+
+- name: Place GUI tool app files
+  ansible.builtin.template:
+    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
+    dest: "{{ item.dest }}"
+    force: true
+  loop: "{{ gui_tools_app_files }}"
+
+- name: Remove legacy capture subtree from the bar spine dir (superseded by ags-capture/)
+  ansible.builtin.file:
+    path: "{{ gui_tools_spine_config_dir }}/ags/capture"
+    state: absent
+  when: not ansible_check_mode

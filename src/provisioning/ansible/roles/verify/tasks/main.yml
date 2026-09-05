@@ -22,6 +22,7 @@
 #      still fails — the filesystem is authority.)
 #   7. compositor configs placed    → skeletons (the palette fragments
 #      colors.conf/colors.css are runtime R2 symlinks, Epic 4 — no copies)
+#      + standalone GUI tool apps (gui_tools role: <install>/config/<app>/)
 #   8. filesystem structure exists  → XDG config/state/cache dirs
 #   9. config copies present        → every managed ~/.config/<name> is a
 #      symlink into the spine (5-layer check: islnk, exact target, resolves,
@@ -459,6 +460,23 @@
       right inode type under {{ verify_xdg_config_home }} (done-criterion 7).
       The filesystem (2.5) and compositor_configs (2.9) roles place them;
       run those playbooks first
+  when: not ansible_check_mode
+
+- name: Check GUI tool app files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+  loop: "{{ verify_gui_tools_app_files }}"
+  register: verify_gui_tools_checks
+
+- name: Assert GUI tool app files are present as regular files
+  ansible.builtin.assert:
+    that:
+      - verify_gui_tools_checks.results | map(attribute='stat') | selectattr('isreg') | list | length == verify_gui_tools_app_files | length
+    fail_msg: >-
+      not every standalone GUI tool app file is present under
+      {{ install_dir | trim }}/config/ (done-criterion 7, gui_tools role).
+      The gui_tools role places them; run that playbook first
   when: not ansible_check_mode
 
 - name: Check R2 consumer symlinks resolve to current/

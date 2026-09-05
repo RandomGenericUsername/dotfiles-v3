@@ -54,6 +54,7 @@ filesystem_spine_dirs:
   - config/hypr
   - config/hyprpaper
   - config/ags
+  - config/ags-capture
   - config/nvim
   - config/starship
   - config/wlogout

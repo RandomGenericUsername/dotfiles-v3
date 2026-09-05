@@ -1,0 +1,19 @@
+# GUI tools playbook — one-per-role playbook; aggregation into
+# bootstrap.yaml slots it after compositor-configs.yaml (the bar/compositor
+# skeletons exist before the standalone apps that complement them).
+#
+# User-scoped playbook: NO become (everything the role writes lives under
+# install_dir; running as root would diverge from the intended user's layout).
+#
+# Distro-agnostic: app-file placement is identical on Arch and Debian-family
+# and the role consumes no group_vars — so unlike packages.yaml there is NO
+# group_by distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives paths from
+# {{ ansible_facts.env.HOME }} (F4 lock: never the deprecated ansible_env),
+# which is only populated after the fact-gathering setup module runs.
+- name: Place standalone GUI tool apps
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - gui_tools
