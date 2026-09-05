@@ -40,7 +40,7 @@
 
 - name: Install the Hyprland session plugin activator
   ansible.builtin.copy:
-    src: "{{ cli_tools_repo_root }}/scripts/gloview-activate"
+    src: "{{ cli_tools_repo_root }}/dotfiles/provisioning/scripts/gloview-activate"
     dest: "{{ cli_tools_bin_dir }}/gloview-activate"
     mode: "0755"
     remote_src: true
