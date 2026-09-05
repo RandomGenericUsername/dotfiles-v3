@@ -97,6 +97,20 @@ class TestGuiToolsTasks:
         for task in tasks:
             assert _module(task).get("state") == "absent"
 
+    def test_state_dirs_ensured_via_file_directory(self) -> None:
+        """Runtime state dirs (e.g. the AGS log dir) are ensured by the role —
+        directory setup is provisioning's responsibility, never the login
+        launcher's."""
+        tasks = [
+            task
+            for task in _tasks()
+            if task.keys() & {"ansible.builtin.file"}
+            and "gui_tools_state_dirs" in str(task.get("loop", ""))
+        ]
+        assert tasks, "no state-dir ensure task found"
+        for task in tasks:
+            assert _module(task).get("state") == "directory"
+
     def test_no_become_anywhere(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere."""
         for task in _tasks():
@@ -108,6 +122,8 @@ class TestGuiToolsTasks:
 class TestGuiToolsVars:
     _REQUIRED_KEYS = {
         "gui_tools_repo_root",
+        "gui_tools_xdg_state_home",
+        "gui_tools_state_dirs",
         "gui_tools_spine_config_dir",
         "gui_tools_config_dirs",
         "gui_tools_app_files",

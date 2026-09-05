@@ -36,6 +36,13 @@
     state: directory
   loop: "{{ gui_tools_config_dirs }}"
 
+- name: Ensure GUI tool runtime state dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ gui_tools_state_dirs }}"
+
 - name: Place GUI tool app files
   ansible.builtin.template:
     src: "{{ gui_tools_repo_root }}/{{ item.source }}"

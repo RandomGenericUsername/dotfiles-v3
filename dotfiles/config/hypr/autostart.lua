@@ -9,8 +9,12 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("ags run")
 
     -- AGS capture tool (standalone instance `capture`, staggered: two
-    -- concurrent `ags run` invocations collide on /run/user/$UID/ags.js)
-    hl.exec_cmd("sleep 2 && ags run -d $HOME/.config/ags-capture --log-file $HOME/.local/state/ags/capture.log")
+    -- concurrent `ags run` invocations collide on /run/user/$UID/ags.js).
+    -- Wrapped in bash -lc like gloview-activate below: hl.exec_cmd has no
+    -- shell semantics (no &&, no $HOME expansion) on its own. The log dir
+    -- (~/.local/state/ags) is ensured by the gui_tools role — directory
+    -- setup is provisioning's responsibility, this line only starts processes.
+    hl.exec_cmd("bash -lc 'sleep 2 && ags run -d $HOME/.config/ags-capture --log-file $HOME/.local/state/ags/capture.log'")
 
     -- Notification daemon (dunst)
     hl.exec_cmd("dunst")

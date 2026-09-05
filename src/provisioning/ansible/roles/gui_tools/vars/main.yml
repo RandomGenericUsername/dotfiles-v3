@@ -19,6 +19,22 @@
 #   Mirror of compositor_configs_repo_root / cli_tools_repo_root exactly.
 gui_tools_repo_root: "{{ playbook_dir }}/../../../.."
 
+# gui_tools_xdg_state_home: the XDG state home the app log dir lives under
+#   ($XDG_STATE_HOME, spec default ~/.local/state). Identical derivation to
+#   the sibling roles (compositor_configs_xdg_state_home et al.): honors
+#   $XDG_STATE_HOME with the spec default {{ ansible_facts.env.HOME }} +
+#   '/.local/state'. Uses ansible_facts.env.* (F4 lock — never the deprecated
+#   top-level ansible_env fact).
+gui_tools_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+
+# gui_tools_state_dirs: runtime state dirs the apps need beyond the XDG base
+#   homes the filesystem role creates. Currently the AGS per-instance log
+#   dir consumed by autostart's --log-file. Owned here (not in autostart):
+#   ensuring directories is provisioning's responsibility; the login
+#   launcher only starts processes.
+gui_tools_state_dirs:
+  - "{{ gui_tools_xdg_state_home }}/ags"
+
 # gui_tools_spine_config_dir: the config-in-spine destination root
 #   (<install>/config/). Mirror of compositor_configs_spine_config_dir.
 #   Trim lock: consumes the same validated {{ install_dir | trim }} value.
