@@ -185,6 +185,9 @@ const palette = { background:"#12151a", foreground:"#d5d9e0", cursor:"#d5d9e0" }
 paletteColors.forEach((c,i) => palette["color"+i] = c);
 
 // ---------- icons.yaml (battery group) ----------
+// SAMPLE DATA below: the real tool derives vocab, group mappings, shadowers,
+// and groupCount from `itr mapping show` — nothing here may be a constant
+// in the implementation (see icme-ui "Display counts derive from loaded data").
 const vocab = { COLOR_FOREGROUND: "foreground", COLOR_BACKGROUND: "surface",
                 COLOR_SECONDARY: "accent", COLOR_ACCENT: "accent-muted" };
 const groupMappings = { COLOR_ACCENT: "color12" };
@@ -298,6 +301,9 @@ function currentPh() {
 function usageCount(ph) {
   return order.reduce((n, v) => n + T[v].shapes.filter(s => s.ph === ph).length, 0);
 }
+function variantsUsing(ph) {
+  return order.filter(v => T[v].shapes.some(s => s.ph === ph)).length;
+}
 
 function renderPanel() {
   const ph = currentPh();
@@ -306,7 +312,7 @@ function renderPanel() {
   document.getElementById("selPh").textContent = ph ? `{{${ph}}}` : "—";
   document.getElementById("selTok").textContent = ph ? `${map[ph]} · ${hexOf(map[ph])}` : "—";
   document.getElementById("selUse").textContent = ph
-    ? `${usageCount(ph)} shapes across ${order.length} variants` : "—";
+    ? `${usageCount(ph)} shapes across ${variantsUsing(ph)} variants` : "—";
   document.getElementById("paletteTitle").textContent =
     ph ? `Set {{${ph}}} to which palette token?` : "Select a shape to change its color";
   document.getElementById("grid").classList.toggle("picker-off", !ph);

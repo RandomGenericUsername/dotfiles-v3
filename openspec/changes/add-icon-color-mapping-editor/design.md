@@ -94,3 +94,12 @@ A token referenced by a mapping but absent from `colors.yaml` (today `surface`, 
 
 - *Should Save run `itr render`?* No. Save is strictly a source edit; the user's flow is edit → set wallpaper, which re-renders through the normal runtime path. A future change may add an opt-in sync.
 - *Should the tool edit `defaults.yaml`?* Yes, as the *All icons* scope (D3, D3a), with shadowing groups reported before the pick.
+
+## Visual Reference
+
+`mock.html` in this change folder is authoritative for layout structure and copy (codified in `specs/icme-layout`): three-region arrangement, enlarged main preview with sibling thumbnails, heading strings, and footer order. It is NOT authoritative for behavior details — the specs govern. Deliberate divergences from the mock:
+
+- Unresolvable shapes use the hatched unresolved fill (spec), not the mock's magenta `#ff00ff` shortcut.
+- Nothing is preselected on load (the mock preselects `path#3` as a demo convenience); the picker starts inert per `icme-ui`.
+- Only the battery group carries real data in the mock (`screen-recorder/play` is inert there); the tool loads every group from `icons.yaml`.
+- The top note banner and the explainer hint paragraph are mock-only copy, not required UI text.
