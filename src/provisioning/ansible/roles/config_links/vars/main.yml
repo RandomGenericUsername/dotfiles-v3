@@ -59,6 +59,7 @@ config_links_managed_dirs:
   - hyprpaper
   - ags
   - ags-capture
+  - ags-icme
   - nvim
   - starship
   - wlogout

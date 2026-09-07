@@ -1,6 +1,7 @@
 battery:
   color_mappings:
-    COLOR_ACCENT: color12
+    COLOR_ACCENT: color4
+    COLOR_FOREGROUND: color6
   variants:
     - name: battery-0
       template: status-bar/battery/battery-0/default/icon.svg

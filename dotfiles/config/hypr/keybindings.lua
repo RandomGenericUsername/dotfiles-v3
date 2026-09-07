@@ -37,6 +37,13 @@ hl.bind(
     { description = "Open capture UI" }
 )
 
+-- Icon color mapping editor (standalone AGS instance, provisioned launcher)
+hl.bind(
+    mod .. " + I",
+    hl.dsp.exec_cmd("icon-color-mapping-editor"),
+    { description = "Open icon color mapping editor" }
+)
+
 -- File manager
 hl.bind(
     mod .. " + E",

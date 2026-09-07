@@ -50,6 +50,23 @@
     force: true
   loop: "{{ gui_tools_app_files }}"
 
+- name: Ensure icon color mapping editor app dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+  loop: "{{ gui_tools_config_dirs }}"
+  when: "'ags-icme' in item"
+
+# RAW copy, NOT template: the icme sources contain literal `{{PLACEHOLDER}}`
+# sequences (SVG placeholder regexes) that Jinja2 would evaluate and destroy.
+# Per-file copy with force: true keeps the editor code repo-authoritative.
+- name: Place icon color mapping editor app files (raw copy)
+  ansible.builtin.copy:
+    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
+    dest: "{{ item.dest }}"
+    force: true
+  loop: "{{ gui_tools_icme_app_files }}"
+
 - name: Remove legacy capture subtree from the bar spine dir (superseded by ags-capture/)
   ansible.builtin.file:
     path: "{{ gui_tools_spine_config_dir }}/ags/capture"

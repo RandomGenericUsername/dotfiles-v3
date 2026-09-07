@@ -6,7 +6,7 @@ Substitution is implemented by `PlaceholderSubstitutionService.substitute` (`src
 
 Today `defaults.yaml` maps `COLOR_BACKGROUND: surface` and `COLOR_SECONDARY: accent`, but CSG's `colors.yaml.j2` emits only `background`, `foreground`, `cursor`, `colors[0..15]` — those tokens do not exist, so any icon using them fails to render. This change surfaces that gap in the UI but does not fix it.
 
-Provisioning/runtime split matters here: provisioning copies repo assets into `~/.local/share/dotfiles/` and runs the CLI tools to produce `generated/`; runtime reconciles state and never references the checkout. This tool sits *before* both — it is an authoring tool that edits repo sources.
+Provisioning/runtime split matters here: provisioning copies repo assets into `~/.local/share/dotfiles/` and runs the CLI tools to produce `generated/`; runtime reconciles state and never references the checkout. This tool edits the **deployed artifacts** (the spine), not repo sources (decision 2026-09-07, supersedes the earlier repo-authoring model): the editor's writable surface is the seeded `icon-mappings/` manifest — so the whole recolor loop is machine-local (`spine mappings + spine templates + generated palette → itr render → generated icons`) and a save is visible on the next wallpaper/theme run with no repo present. Consequences locked into provisioning: (a) the editor app itself is provisioned like any AGS app (gui_tools role, raw per-file copy into `config/ags-icme/`, own instance, launched via a provisioned `icon-color-mapping-editor` bin and `SUPER+I`); (b) `icon-mappings/` switches to **seed-once** semantics in the assets role — first bootstrap seeds it from the repo, afterwards the machine owns it and re-bootstrap never reverts mapping edits; (c) machine mapping edits are per-machine and not version-controlled (accepted, same trade-off as wallpaper palettes); the repo manifest remains the shipping default.
 
 ## Goals / Non-Goals
 
@@ -17,18 +17,18 @@ Provisioning/runtime split matters here: provisioning copies repo assets into `~
 - Comment- and formatting-preserving writes to `icons.yaml`.
 
 **Non-Goals**
-- No SVG template writes, no palette writes, no `generated/` writes, no runtime/bar integration, no provisioning of the tool itself.
+- No SVG template writes, no palette writes, no `generated/` writes, no runtime/bar integration.
 - No new placeholder *names* in the vocabulary (values may be retargeted), no fix for the missing `surface`/`accent`/`accent-muted` tokens.
 - No re-render or re-provision after saving; the generated icons refresh on the next wallpaper/theme run.
 
 ## Decisions
 
-### D1. Identity and location: `src/gui-tools/icon-color-mapping-editor/`, launched with `ags run`
+### D1. Identity and location: `src/gui-tools/icon-color-mapping-editor/`, provisioned as its own AGS instance
 
-New top-level `src/gui-tools/` sibling to `src/cli-tools/`, holding an AGS (GTK4/astal, TypeScript) app: `app.tsx`, `style.css`, `ui/`, `lib/`, plus a `Makefile` target to launch it. It is **not** copied by `dotfiles/provisioning/config-copies.yaml` and **not** registered in `dotfiles/config/ags/app.tsx`.
+Development lives in `src/gui-tools/icon-color-mapping-editor/` (AGS GTK4/astal, TypeScript: `app.tsx`, `style.css`, `ui/`, `lib/`). Provisioning deploys it like any standalone GUI app: the gui_tools role copies the app files into `<install>/config/ags-icme/` (RAW per-file `ansible.builtin.copy`, never `template` — the sources contain literal `{{PLACEHOLDER}}` sequences that Jinja2 would evaluate), config-links symlinks `~/.config/ags-icme`, and the cli_tools role installs a launcher bin `icon-color-mapping-editor` (`ags run -d ~/.config/ags-icme`) plus a `SUPER+I` keybind. It is not registered in the bar's `app.tsx` and not autostarted — launch-on-demand.
 
-Rationale: the tool reads and writes the checkout, which the "machine, not repo" invariant forbids for anything under `dotfiles/config/`. Keeping it in `src/` marks it as developer tooling with the same status as the CLI tools.
-Alternatives: a window inside the runtime AGS instance (rejected — couples authoring to the bar process and would ship a repo-editing surface to the machine); a separate GTK4 Python app (rejected — user asked for AGS, and AGS is already a project dependency).
+Rationale (updated 2026-09-07): the tool edits the deployed artifacts in the spine, so it must be fully machine-deployable — no repo checkout required at runtime. Repo-authoritative code (`force: true`) with machine-owned data (the seed-once icon-mappings) mirrors the capture tool's deploy shape.
+Alternatives: repo-only launcher pointing at the checkout (rejected — contradicts the deployability requirement); a window inside the runtime AGS instance (rejected — couples authoring to the bar process); a separate GTK4 Python app (rejected — user asked for AGS, and AGS is already a project dependency).
 
 ### D2. Semantics: the tool edits mappings, never templates (option B)
 

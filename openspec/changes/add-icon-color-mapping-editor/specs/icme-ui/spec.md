@@ -10,9 +10,10 @@ The editor SHALL take exactly three inputs: an SVG template root, an icons manif
 
 #### Scenario: inputs resolve to defaults on launch
 - **WHEN** the editor launches without explicit input paths
-- **THEN** the template root resolves to `dotfiles/assets/icon-templates/` in the checkout
-- **AND** the manifest resolves to `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml` with `defaults.yaml` resolved alongside it
+- **THEN** the template root resolves to `~/.local/share/dotfiles/icon-templates/` in the spine (read-only)
+- **AND** the manifest resolves to `~/.local/share/dotfiles/icon-mappings/icons.yaml` with `defaults.yaml` resolved alongside it (seed-once, machine-owned after provisioning)
 - **AND** the color scheme resolves to `~/.local/share/dotfiles/generated/palettes/colors.yaml`
+- **AND** each default is overridable via the `ICME_TEMPLATE_ROOT`, `ICME_ICONS_YAML`, and `ICME_COLOR_SCHEME` environment variables or the in-app pickers
 
 #### Scenario: templates and generated icons are never written
 - **WHEN** any sequence of shape selections and token picks is saved

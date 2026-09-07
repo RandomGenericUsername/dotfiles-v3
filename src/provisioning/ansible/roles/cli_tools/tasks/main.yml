@@ -45,6 +45,13 @@
     mode: "0755"
     remote_src: true
 
+- name: Install the icon color mapping editor launcher
+  ansible.builtin.copy:
+    src: "{{ cli_tools_repo_root }}/src/gui-tools/icon-color-mapping-editor/bin/icon-color-mapping-editor"
+    dest: "{{ cli_tools_bin_dir }}/icon-color-mapping-editor"
+    mode: "0755"
+    remote_src: true
+
 - name: Install csg/weg/itr via uv tool install
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:
@@ -57,6 +64,19 @@
     # verify task fails after a successful install (fixed 2026-08-19).
     UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
   loop: "{{ cli_tools }}"
+
+# Upgrade-after-install (2026-09-07): the `creates:` guard above only fires on
+# FIRST install, so an already-provisioned machine kept running a stale itr
+# forever (this shipped without the `mapping` subcommands). uv tool install
+# --force re-pins the tool env from current repo source on every bootstrap;
+# it is naturally idempotent (no creates guard wanted) and check-mode safe
+# (command modules never run under --check).
+- name: Upgrade csg/weg/itr tool envs from current repo source
+  ansible.builtin.command: "uv tool install --force --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
+  environment:
+    UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
+  loop: "{{ cli_tools }}"
+  when: not ansible_check_mode
 
 - name: Verify capture-tool is on PATH
   ansible.builtin.shell: "command -v capture-tool"

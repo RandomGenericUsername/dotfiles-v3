@@ -8,21 +8,31 @@ and `tests/fixtures/substitution.json` for the preview-fidelity contract.
 ## Prerequisites
 
 - AGS v3 (`ags` on PATH) with GTK4.
-- `itr` on PATH (build `src/cli-tools/icon-templates-renderer`).
-- A provisioned checkout: icon templates under
-  `dotfiles/assets/icon-templates/`, mappings in
-  `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml`, and a
-  generated palette (default
+- `itr` on PATH (installed by provisioning via `uv tool install`).
+- A provisioned machine: icon templates in `~/.local/share/dotfiles/icon-templates/`,
+  mappings in `~/.local/share/dotfiles/icon-mappings/icons.yaml` (seed-once,
+  machine-owned), and a generated palette (default
   `~/.local/share/dotfiles/generated/palettes/colors.yaml`).
 
 ## Launch
+
+Provisioned install (no repo needed):
+
+```sh
+icon-color-mapping-editor          # or SUPER+I
+```
+
+From a checkout (development):
 
 ```sh
 make run
 ```
 
-This tool edits **repo sources** (`icons.yaml`, `defaults.yaml`). It is not
-provisioned to machines and never touches `generated/` or runs `itr render`;
+This tool edits the **deployed artifacts in the dotfiles spine**
+(`~/.local/share/dotfiles/icon-mappings/`, seeded once by provisioning and
+machine-owned afterwards). It is provisioned as its own AGS instance
+(`config/ags-icme/` + a launcher bin) and never touches `generated/` or runs
+`itr render`;
 rendered icons refresh on the next wallpaper/theme run as usual.
 
 ## Editing flow

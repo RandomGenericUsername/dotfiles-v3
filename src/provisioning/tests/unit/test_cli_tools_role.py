@@ -89,11 +89,16 @@ def _manifest_entries() -> list[dict[str, str]]:
 
 
 def _install_tasks() -> list[dict[str, object]]:
-    """The tasks that run `uv tool install` for each manifest entry."""
+    """The tasks that run `uv tool install` for each manifest entry.
+
+    Only the FIRST-install task (the one carrying the `creates:` guard)
+    counts; the upgrade task (`--force`, 2026-09-07) is separate and has its
+    own locks."""
     return [
         task
         for task in _load_tasks()
         if "uv tool install" in str(task.get(_module_key(task) or "", ""))
+        if "--force" not in str(task.get(_module_key(task) or "", ""))
     ]
 
 
@@ -172,6 +177,31 @@ class TestCliToolsTasks:
             assert "uv_check" not in when and "command -v" not in when, (
                 f"install task {task.get('name')!r} must not gate on a presence-check rc"
             )
+
+    def test_upgrade_tasks_repin_from_current_source(self) -> None:
+        """Upgrade-after-install lock (2026-09-07): a `--force` re-pin task
+        must exist for every manifest entry, WITHOUT a `creates:` guard (the
+        first-install `creates:` guard alone let already-provisioned machines
+        run stale tool envs forever), gated off check-mode, and pinned to the
+        same UV_TOOL_BIN_DIR as the install task."""
+        upgrade_tasks = [
+            task
+            for task in _load_tasks()
+            if "--force" in str(task.get(_module_key(task) or "", ""))
+        ]
+        manifest_entries = _manifest_entries()
+        assert len(upgrade_tasks) == len(manifest_entries) or (
+            len(upgrade_tasks) == 1
+        ), "expected one upgrade loop task (or one per entry)"
+        task = upgrade_tasks[0]
+        module = task.get(_module_key(task))
+        assert isinstance(module, str) and "--force" in module
+        environment = task.get("environment")
+        assert isinstance(environment, dict)
+        assert environment["UV_TOOL_BIN_DIR"] == "{{ cli_tools_bin_dir }}"
+        assert task.get("when") == "not ansible_check_mode"
+        creates = _creates_value(task)
+        assert creates is None, "upgrade task must NOT carry creates: (must re-pin every run)"
 
     def test_uv_presence_check_is_shell_based(self) -> None:
         """F1 lock: `command -v uv` must run via ansible.builtin.shell — the

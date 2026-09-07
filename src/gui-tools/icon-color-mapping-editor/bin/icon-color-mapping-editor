@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Icon Color Mapping Editor launcher — provisioned by the cli_tools role.
+# Runs the deployed AGS app instance (ags-icme spine dir, symlinked to
+# ~/.config/ags-icme by config-links). The app edits the DEPLOYED artifacts
+# in ~/.local/share/dotfiles/ (icon-mappings/, seeded once by provisioning);
+# no repo checkout is required at runtime.
+set -euo pipefail
+exec ags run -d "${HOME}/.config/ags-icme" "$@"

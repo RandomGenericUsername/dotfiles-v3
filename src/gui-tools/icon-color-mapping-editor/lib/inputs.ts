@@ -1,9 +1,14 @@
 // Input resolution for the editor session.
 //
-// Precedence per input: ICME_* environment override, then the checked-out
-// repository layout relative to the launch directory, except the color
-// scheme, whose default is the provisioned generated copy. Failures to read
-// any input surface as ItrError through lib/itr.ts at load time.
+// The editor is a provisioned app: it edits the DEPLOYED artifacts in the
+// spine (~/.local/share/dotfiles/), never a repo checkout. Defaults:
+//   - manifest:   ~/.local/share/dotfiles/icon-mappings/icons.yaml (writable;
+//                 defaults.yaml is resolved alongside it by the CLI)
+//   - templates:  ~/.local/share/dotfiles/icon-templates/ (read-only)
+//   - scheme:     generated palette (read-only)
+// ICME_* environment overrides and the in-app pickers take precedence.
+// Provisioning seeds the manifest once (first run); afterwards the machine
+// owns it — re-bootstrap never overwrites edits.
 
 import GLib from "gi://GLib?version=2.0";
 import Gio from "gi://Gio?version=2.0";
@@ -14,17 +19,17 @@ export interface EditorInputs {
   colorScheme: string;
 }
 
+function spineHome(): string {
+  const dataHome = GLib.get_user_data_dir();
+  return `${dataHome}/dotfiles`;
+}
+
 export function resolveInputs(): EditorInputs {
-  const cwd = GLib.get_current_dir();
   return {
-    templateRoot:
-      GLib.getenv("ICME_TEMPLATE_ROOT") ?? `${cwd}/../../../dotfiles/assets/icon-templates`,
-    iconsYaml:
-      GLib.getenv("ICME_ICONS_YAML") ??
-      `${cwd}/../../../dotfiles/config/icon-template-color-scheme-mappings/icons.yaml`,
+    templateRoot: GLib.getenv("ICME_TEMPLATE_ROOT") ?? `${spineHome()}/icon-templates`,
+    iconsYaml: GLib.getenv("ICME_ICONS_YAML") ?? `${spineHome()}/icon-mappings/icons.yaml`,
     colorScheme:
-      GLib.getenv("ICME_COLOR_SCHEME") ??
-      `${GLib.get_user_data_dir()}/dotfiles/generated/palettes/colors.yaml`,
+      GLib.getenv("ICME_COLOR_SCHEME") ?? `${spineHome()}/generated/palettes/colors.yaml`,
   };
 }
 

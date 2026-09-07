@@ -48,6 +48,9 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
+  - "{{ gui_tools_spine_config_dir }}/ags-icme"
+  - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
+  - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
 
 # gui_tools_app_files: the app FILES, one entry per file with the explicit
 #   target path. Per-file entries (not directory sources) are REQUIRED (see
@@ -65,3 +68,28 @@ gui_tools_app_files:
   - { name: capture-recording-controller, source: src/gui-tools/capture-tool/controllers/RecordingController.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/RecordingController.ts" }
   - { name: capture-screenshot-controller, source: src/gui-tools/capture-tool/controllers/ScreenshotController.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/ScreenshotController.ts" }
   - { name: capture-target-resolver, source: src/gui-tools/capture-tool/controllers/TargetResolver.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/TargetResolver.ts" }
+
+# gui_tools_icme_app_files: the icon color mapping editor's app files,
+#   deployed into their own ags-icme/ spine dir. RAW COPY (ansible.builtin.copy),
+#   NOT `template`: the editor sources contain literal `{{PLACEHOLDER}}`
+#   sequences (SVG placeholder regexes and docs) that Jinja2 would evaluate
+#   and destroy. Repo-authoritative (force: true) like the capture app — the
+#   editor's CODE converges; the DATA it edits (icon-mappings) is seed-once
+#   in the assets role.
+gui_tools_icme_app_files:
+  - { name: icme-app-tsx, source: src/gui-tools/icon-color-mapping-editor/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/app.tsx" }
+  - { name: icme-style-css, source: src/gui-tools/icon-color-mapping-editor/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/style.css" }
+  - { name: icme-editor-window, source: src/gui-tools/icon-color-mapping-editor/ui/EditorWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/EditorWindow.tsx" }
+  - { name: icme-preview, source: src/gui-tools/icon-color-mapping-editor/ui/Preview.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/Preview.tsx" }
+  - { name: icme-inputs-panel, source: src/gui-tools/icon-color-mapping-editor/ui/InputsPanel.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/InputsPanel.tsx" }
+  - { name: icme-group-tree, source: src/gui-tools/icon-color-mapping-editor/ui/GroupTree.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/GroupTree.tsx" }
+  - { name: icme-selection-panel, source: src/gui-tools/icon-color-mapping-editor/ui/SelectionPanel.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/SelectionPanel.tsx" }
+  - { name: icme-scope-switch, source: src/gui-tools/icon-color-mapping-editor/ui/ScopeSwitch.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/ScopeSwitch.tsx" }
+  - { name: icme-token-picker, source: src/gui-tools/icon-color-mapping-editor/ui/TokenPicker.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/TokenPicker.tsx" }
+  - { name: icme-diff-pane, source: src/gui-tools/icon-color-mapping-editor/ui/DiffPane.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/DiffPane.tsx" }
+  - { name: icme-lib-itr, source: src/gui-tools/icon-color-mapping-editor/lib/itr.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/itr.ts" }
+  - { name: icme-lib-model, source: src/gui-tools/icon-color-mapping-editor/lib/model.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/model.ts" }
+  - { name: icme-lib-substitute, source: src/gui-tools/icon-color-mapping-editor/lib/substitute.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/substitute.ts" }
+  - { name: icme-lib-svg, source: src/gui-tools/icon-color-mapping-editor/lib/svg.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/svg.ts" }
+  - { name: icme-lib-inputs, source: src/gui-tools/icon-color-mapping-editor/lib/inputs.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/inputs.ts" }
+  - { name: icme-lib-diff, source: src/gui-tools/icon-color-mapping-editor/lib/diff.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/diff.ts" }

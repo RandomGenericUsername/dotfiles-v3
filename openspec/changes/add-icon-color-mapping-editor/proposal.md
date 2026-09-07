@@ -30,7 +30,7 @@ The UI is already validated against real battery templates and mappings — see 
 
 ## Non-goals
 
-- Not a runtime widget: not added to `app.tsx`, not provisioned into the spine, no bar integration.
+- Not a runtime widget: not added to the bar's `app.tsx`, not autostarted, no bar integration. It IS provisioned as its own standalone AGS instance (`ags-icme` spine dir + launcher bin + `SUPER+I` keybind), and the `icon-mappings` manifest it edits is deployed with seed-once semantics (machine-owned after first run).
 - No SVG template editing, no shape/path creation, no new placeholder vocabulary names.
 - No palette editing and no `colors.yaml` writes; adding the missing `surface`/`accent`/`accent-muted` tokens is a separate change.
 - No `itr render` invocation from the GUI (preview is in-process); rendering stays the CLI's job. Auto-syncing the generated icons after a save is explicitly deferred to a future change.

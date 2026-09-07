@@ -232,11 +232,16 @@ Fixed colors should be the exception. They bypass palette adaptation.
 
 ### 4.2 Recoloring path: editor UI and `itr mapping` commands
 
-To recolor an existing icon, use the icon color mapping editor
-(`src/gui-tools/icon-color-mapping-editor`, `make run`): click a shape, pick
-a palette swatch, choose the scope, save. The editor previews the group-wide
-effect before writing and never touches templates, the palette, or
-`generated/`.
+To recolor an existing icon, use the icon color mapping editor: click a
+shape, pick a palette swatch, choose the scope, save. On a provisioned
+machine launch it with `icon-color-mapping-editor` (or `SUPER+I`) — it is
+deployed as its own AGS instance and edits the spine's seeded
+`icon-mappings/` (machine-owned after first provisioning), so no repo
+checkout is needed. From a checkout you can also run it with
+`make run` inside `src/gui-tools/icon-color-mapping-editor`. The editor
+previews the group-wide effect before writing and never touches templates,
+the palette, or `generated/`; saved mappings are picked up by the next
+wallpaper/theme run.
 
 The same operations exist as CLI commands (the GUI shells out to them):
 
