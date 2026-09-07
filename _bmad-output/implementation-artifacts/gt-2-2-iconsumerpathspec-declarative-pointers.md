@@ -4,7 +4,7 @@ baseline_commit: 47d23cb
 
 # Story 2.2: `IConsumerPathSpec` — declarative consumer pointers
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
