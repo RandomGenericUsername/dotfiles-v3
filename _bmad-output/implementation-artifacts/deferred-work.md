@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: code review of gt-1-1-colorformat-adw-css-template (2026-09-07)
+
+- AC-4 container-mode real exec (`csg generate <img> -f adw.css` with `runtime.mode=container`) never ran: environment had only the stale `csg-custom-latest` image, which errors because it bakes old code; templates bind-mount at `/templates` so no rebuild is needed for the template itself — manual verification owed to gt-4-1/G1.1 [src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/container_processor.py:216-217]
+
 ## Deferred from: code review of rt-3-4-inspect-cache-list-command (2026-09-03)
 
 - TOCTOU symlink race on `cache/` root (is_symlink → is_dir → scandir non-atomic); attacker swapping cache for symlink between checks bypasses ValueError — local-diagnostic hardening beyond spec, not reachable in normal use [src/runtime/src/runtime/application/inspect.py:551-556]

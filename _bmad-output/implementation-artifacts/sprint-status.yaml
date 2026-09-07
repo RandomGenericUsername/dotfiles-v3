@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-09-07 (gt-1-1 review — dev-story complete, worktree feat/gtk-theming-consumer)
+last_updated: 2026-09-07 (gt-1-1 code review complete — story done, worktree feat/gtk-theming-consumer)
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -97,7 +97,7 @@ development_status:
 
   # ── Epic 1: csg adw.css format ──
   gt-epic-1: in-progress
-  gt-1-1-colorformat-adw-css-template: review
+  gt-1-1-colorformat-adw-css-template: done
   gt-epic-1-retrospective: optional
 
   # ── Epic 2: Runtime artifact set + declarative consumer pointers ──

@@ -671,7 +671,7 @@ wallust:
 
 ### `defaults/templates/*.j2` (package defaults)
 
-10 Jinja2 templates ported verbatim from v2 `packages/core/src/color_scheme/templates/` (plus `colors.conf.j2` for the Hyprland format and `colors.adw.css.j2` for the libadwaita format): `colors.{adw.css,conf,css,gtk.css,json,rasi,scss,sequences,sh,yaml}.j2`. Render context: `source_image`, `backend`, `generated_at`, `background`/`foreground`/`cursor` (`Color` with `.hex`/`.rgb`), `colors` (16-tuple of `Color`). The `sequences` format gets binary post-processing in `JinjaTemplateRenderer`.
+10 Jinja2 templates — 9 ported verbatim from v2 `packages/core/src/color_scheme/templates/`, plus `colors.conf.j2` for the Hyprland format and `colors.adw.css.j2` for the libadwaita format: `colors.{adw.css,conf,css,gtk.css,json,rasi,scss,sequences,sh,yaml}.j2`. Render context: `source_image`, `backend`, `generated_at`, `background`/`foreground`/`cursor` (`Color` with `.hex`/`.rgb`), `colors` (16-tuple of `Color`). The `sequences` format gets binary post-processing in `JinjaTemplateRenderer`.
 
 #### AR-2 contract data: `colors.adw.css.j2` palette-slot → libadwaita named-color mapping (pinned)
 

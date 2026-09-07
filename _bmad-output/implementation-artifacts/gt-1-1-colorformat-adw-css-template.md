@@ -4,7 +4,7 @@ baseline_commit: 516f113
 
 # Story 1.1: `ColorFormat.ADW_CSS` + `colors.adw.css.j2`
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -205,3 +205,11 @@ opencode-go/glm-5.3-flash (BMad dev-story, DS workflow, worktree `feat/gtk-themi
 ## Change Log
 
 - 2026-09-07 — Story gt-1-1 implemented: `ColorFormat.ADW_CSS` enum member + `colors.adw.css.j2` template (§5 mapping pinned per AC-2, confirmed via real render), render-contract/CLI/dry-run/container-forwarding tests, AR-2 docs pin in `ARCHITECTURE_PLAN.md`. Suite: 569 passed, 1 pre-existing env-dependent failure. Status → review.
+
+### Review Findings
+
+Code review (2026-09-07, commit 58d9646): 0 CRITICAL, 0 HIGH, 0 MEDIUM, 1 patch applied, 1 defer, 4 dismissed as noise. Baseline claims re-verified: 28 ruff errors + 49 format-drift files identical on story-touched-vs-untouched file split (all 9 story-touched `.py` files pass `ruff check` + `ruff format --check`); `test_resolve_falls_back_to_package_defaults` fails identically pre/post (env-dependent, `~/.config` shadows package defaults).
+
+- [x] [Review][Patch] Docs inventory wording implied all 10 templates were ported verbatim from v2 [src/cli-tools/color-scheme-generator/docs/ARCHITECTURE_PLAN.md:674] — fixed in review commit: reworded to "9 ported verbatim + 2 additions".
+- [x] [Review][Defer] AC-4 container-mode real exec not run in this story [src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/container_processor.py:216] — deferred, already documented as manual verification step for gt-4-1/G1.1 (stale `csg-custom-latest` image errored at story time; templates bind-mount makes it image-independent).
+- Dismissed (noise, contract-consistent): CLI test asserts file written by `FakeProcessor` not a real render (real rendering covered by `test_adw_css_format.py` render-contract tests + recorded manual e2e; the CLI test's job is format-string plumbing); container test asserts first `--format` occurrence (single-format request, unambiguous); `== 10` catalog tightening is intentionally fail-loud inventory; adw.css omits `color_background`/`color_foreground`/`color_cursor` passthrough names present in gtk.css (§5 pin covers `color_00..15` only — deliberate, documented).
