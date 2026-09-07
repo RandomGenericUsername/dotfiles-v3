@@ -8,8 +8,21 @@
 #      (move aside to a timestamped dir) then create the link.
 #   4. If absent → create the link.
 #
+# Migrate-then-symlink (gt-3-1, gtk dirs only — config_links_gtk_dirs): before
+# the move-aside, the spine dir is ensured and the pre-existing dir's contents
+# are COPIED into it (seed), so the user's files land in the spine and the
+# timestamped backup preserves the ORIGINAL verbatim. Ordering is pinned
+# seed → backup → symlink so a seed failure aborts while the live dir is
+# intact. After the move-aside, an idempotent `@import "colors.css";` is
+# ensured in the spine gtk.css (append-if-absent; never duplicated).
+#
+# nwg-look write-through (gt-3-1): post-link, nwg-look writes settings.ini IN
+# the spine through the symlink — the write survives; the backup guard
+# migrates the pre-spine original at first link.
+#
 # The spine source <install>/config/<name> is guaranteed present by the
-# writing roles that run before this one in bootstrap order.
+# writing roles that run before this one in bootstrap order (plus, for the gtk
+# dirs, the ensure step above).
 
 - name: "config_links : Ensure backup root exists"
   ansible.builtin.file:
@@ -43,6 +56,36 @@
     msg: "~/.config/{{ config_link_name }} already points at {{ config_links_spine_target }} — no-op"
   when: config_links_is_correct_link
 
+# ── Migrate-then-symlink (gt-3-1, gtk dirs only) ─────────────────────────────
+# For config_links_gtk_dirs the guard gains two steps BEFORE the move-aside:
+#   1. Ensure the spine dir exists (the writing roles never created it — the
+#      filesystem role created only the parents).
+#   2. Seed the spine from the user's existing dir contents (a COPY from the
+#      live path). Ordering is pinned seed → backup → symlink: a seed failure
+#      aborts the run with the user's live dir still intact and undisplaced —
+#      re-run re-classifies the real dir and retries cleanly. Seeding after
+#      the mv would leave a failure window where the user's dir exists only in
+#      the backup and a re-run classifies the destination as absent (plain
+#      symlink, no seed — the migrated spine would silently miss the files).
+# A regular file / foreign symlink at the target is skipped by the isdir gate
+# (the guard's mv below still backs it up).
+- name: "config_links : Ensure spine dir for {{ config_link_name }}"
+  ansible.builtin.file:
+    path: "{{ install_dir | trim }}/config/{{ config_link_name }}"
+    state: directory
+  when: config_link_name in config_links_gtk_dirs
+
+- name: "config_links : Seed spine from existing ~/.config/{{ config_link_name }}"
+  ansible.builtin.copy:
+    src: "{{ config_links_xdg_config_home }}/{{ config_link_name }}/"
+    dest: "{{ install_dir | trim }}/config/{{ config_link_name }}/"
+    remote_src: true
+  when:
+    - config_link_name in config_links_gtk_dirs
+    - config_links_existing.stat.exists
+    - config_links_existing.stat.isdir
+    - not config_links_is_correct_link
+
 # ── Migration guard: back up any pre-existing non-spine target ───────────────
 # A real dir / real file / foreign symlink at ~/.config/<name> is moved aside
 # (atomic rename) to a timestamped backup dir BEFORE the link replaces it. The
@@ -73,10 +116,36 @@
     - config_links_existing.stat.exists
     - not ansible_check_mode
 
+# ── Palette-import skeleton (gt-3-1, gtk dirs only) ──────────────────────────
+# Ensure `@import "colors.css";` in the SPINE gtk.css (never through
+# ~/.config — pre-link the XDG path may not exist, and post-link the spine
+# path avoids the indirection). lineinfile WITHOUT regexp is the canonical
+# idempotent append-if-absent: absent line = insert at EOF (appends to the
+# user's migrated gtk.css below their snippet); present line = no-op — re-runs
+# never duplicate the import. NOT gated on the classification (it also repairs
+# a spine gtk.css missing the import on re-run) and NOT check-gated
+# (lineinfile is check-safe — predicts would-change without writing). Ordered
+# AFTER the seed copy (the copy must not overwrite the appended line) and
+# BEFORE the symlink task.
+- name: "config_links : Ensure palette import in spine gtk.css for {{ config_link_name }}"
+  ansible.builtin.lineinfile:
+    path: "{{ install_dir | trim }}/config/{{ config_link_name }}/gtk.css"
+    line: "{{ config_links_gtk_import_line }}"
+    create: true
+  when: config_link_name in config_links_gtk_dirs
+
 - name: "config_links : Symlink ~/.config/{{ config_link_name }} -> spine"
   ansible.builtin.file:
     path: "{{ config_links_xdg_config_home }}/{{ config_link_name }}"
     src: "{{ config_links_spine_target }}"
     state: link
     force: true
-  when: not config_links_is_correct_link
+  when:
+    - not config_links_is_correct_link
+    # Under --check the backup mv above is skipped, so a pre-existing
+    # conflicting target is still on disk — `file state: link` REFUSES to
+    # predict over a non-empty real dir ("refusing to convert ... not empty",
+    # verified against ansible-core 2.20.3). Skip the prediction in that case
+    # only: on an absent target the link is still predicted (would-change),
+    # and the real run resolves the conflict via the mv.
+    - not (ansible_check_mode and config_links_existing.stat.exists)

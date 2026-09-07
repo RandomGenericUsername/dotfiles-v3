@@ -27,6 +27,17 @@
 #   3. Whole-directory backup, always (managed dirs can hold write-back files
 #      like nvim/lazy-lock.json and user additions; a file-set backup risks
 #      dropping them).
+#   4. Migrate-then-symlink (gt-3-1): for the GTK consumer dirs
+#      (config_links_gtk_dirs) a seed step COPIES the pre-existing dir's
+#      contents into the freshly-created spine dir BEFORE the move-aside, so a
+#      seed failure aborts while the user's live dir is still intact; the
+#      timestamped backup then preserves the ORIGINAL verbatim. See
+#      _link_one.yml (ensure-dir → seed → prompt → backup-mv → append →
+#      symlink) and docs/02-config-in-spine-pattern.md.
+#   5. nwg-look write-through (gt-3-1): post-link, nwg-look (and any GTK tool)
+#      writes settings.ini IN the spine through the symlink — the write
+#      survives re-runs and repo changes; the backup guard migrates the
+#      pre-spine original into the spine at first link.
 
 # config_links_xdg_config_home: the target config home the filesystem role
 #   (2.5) created. Identical derivation to the sibling roles: honors
@@ -53,6 +64,7 @@ config_links_backup_policy: auto
 #   - gui_tools    → ags-capture
 #   - config_copies → nvim, starship, wlogout, zsh
 #   - settings     → color-scheme-generator, weg, itr
+#   - gt-3-1       → gtk-3.0, gtk-4.0 (the GTK consumer dirs)
 #   Parity with the writing roles is locked by a structural test.
 config_links_managed_dirs:
   - hypr
@@ -66,3 +78,24 @@ config_links_managed_dirs:
   - color-scheme-generator
   - weg
   - itr
+  - gtk-3.0
+  - gtk-4.0
+
+# config_links_gtk_dirs: the managed dirs that get the migrate-then-symlink
+#   treatment (gt-3-1): a spine-dir ensure + seed-copy of the user's existing
+#   ~/.config/<name> contents into the spine BEFORE the backup move-aside, and
+#   an idempotent @import line ensured in the spine gtk.css. Kept as a separate
+#   membership list (entries above stay plain strings — the parity test with
+#   verify_managed_link_dirs compares the lists EXACTLY). Subset of
+#   config_links_managed_dirs (locked by test).
+config_links_gtk_dirs:
+  - gtk-3.0
+  - gtk-4.0
+
+# config_links_gtk_import_line: the palette-import line ensured in
+#   <install>/config/<name>/gtk.css for every gtk dir (gt-3-1). lineinfile
+#   without regexp appends it only when absent — re-runs never duplicate it.
+#   The line points at colors.css, which the RUNTIME seeder creates inside the
+#   spine dirs on the first seed (gt-2-2); provisioning never writes the
+#   pointer file itself (a missing import file is harmless to GTK).
+config_links_gtk_import_line: '@import "colors.css";'

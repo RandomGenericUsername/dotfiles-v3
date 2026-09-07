@@ -94,6 +94,8 @@ verify_install_spine_dirs:
   - config/zsh
   - config/weg
   - config/itr
+  - config/gtk-3.0
+  - config/gtk-4.0
 
 # verify_install_spine_files: the file node(s) that must exist IN the spine
 #   (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets role
@@ -295,8 +297,8 @@ verify_config_copy_content:
 
 # verify_managed_link_dirs: the FULL set of managed config dirs symlinked by the
 #   config-links role (criterion 9 — the 5-layer symlink check). Union of
-#   config-copies, compositor, and per-tool config dirs. Parity with
-#   config_links_managed_dirs is locked by test.
+#   config-copies, compositor, per-tool config dirs, and the GTK consumer dirs
+#   (gt-3-1). Parity with config_links_managed_dirs is locked by test.
 verify_managed_link_dirs:
   - hypr
   - hyprpaper
@@ -309,6 +311,19 @@ verify_managed_link_dirs:
   - color-scheme-generator
   - weg
   - itr
+  - gtk-3.0
+  - gtk-4.0
+
+# verify_gtk_skeleton_files: the palette-import skeleton files that must be
+#   present THROUGH the ~/.config/gtk-{3,4}.0 symlinks (criterion 9, layer 4
+#   for the gtk dirs — gt-3-1). settings.ini is deliberately NOT gated
+#   (user-machine state — a fresh machine has none until nwg-look or GTK
+#   writes it). The runtime colors.css pointers inside the spine dirs are
+#   deliberately NOT gated either (runtime-owned, gt-2-2; provisioning never
+#   creates them — their health is the gt-2-2 `inspect status` projection).
+verify_gtk_skeleton_files:
+  - "{{ verify_xdg_config_home }}/gtk-3.0/gtk.css"
+  - "{{ verify_xdg_config_home }}/gtk-4.0/gtk.css"
 
 # verify_managed_link_spine_prefix: the regex prefix each managed symlink target
 #   must match (criterion 9, layer 2 — exact-target). Derived from the same

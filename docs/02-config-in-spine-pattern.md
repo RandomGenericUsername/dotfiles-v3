@@ -150,6 +150,38 @@ Purpose: never destroy user-owned content when replacing an existing target.
 - Never clobbers a prior backup (timestamped destination).
 - A link already pointing at the correct spine target is never touched.
 
+### Migrate-then-symlink (GTK consumer dirs, gt-3-1)
+
+The GTK dirs (`~/.config/gtk-3.0`, `~/.config/gtk-4.0`) are managed spine
+entries that carry a per-entry **seed flag**: for these entries the guard
+COPIES the pre-existing dir's contents into the freshly-created spine dir
+BEFORE the move-aside (`ansible.builtin.copy`, `remote_src: true`,
+trailing-`/` contents-into-dest), so the user's files (e.g.
+`gtk-3.0/settings.ini`, their `gtk.css`) live in the spine and the timestamped
+backup preserves the ORIGINAL verbatim. Ordering is pinned
+**seed → backup → symlink**: a seed failure aborts the run while the user's
+live dir is still intact (no backup taken, no link created) — re-run
+re-classifies the real dir and retries cleanly.
+
+After the backup, an idempotent palette-import line
+(`@import "colors.css";`) is ensured in the SPINE `gtk.css`
+(append-if-absent — re-runs never duplicate it; a migrated user `gtk.css`
+keeps its existing content verbatim with the import appended at EOF; a fresh
+machine gets a new `gtk.css` containing exactly the import line). The import
+points at `colors.css`, which the RUNTIME seeder creates inside the spine
+dirs on the first seed (a missing import file is harmless to GTK).
+
+**nwg-look write-through:** post-link, nwg-look (and any GTK tool) writes
+`settings.ini` IN the spine through the symlink — the write survives re-runs
+and repo changes; the backup guard migrates the pre-spine original into the
+spine at first link.
+
+Dry-run note: under `--check` the backup move-aside is skipped, so a
+conflicting pre-existing dir is still on disk when the link task evaluates;
+the link task therefore skips its prediction ONLY in that case (a fresh
+machine's absent target is still predicted as a would-change). A real run
+resolves the conflict via the move-aside and creates the link.
+
 ## Role changes
 
 | Role | Change |

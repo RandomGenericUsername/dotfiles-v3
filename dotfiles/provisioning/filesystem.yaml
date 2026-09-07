@@ -33,5 +33,10 @@ entries:
   - name: config/zsh
   - name: config/weg
   - name: config/itr
+  # GTK consumer dirs (gt-3-1): spine parents for the gtk-3.0/gtk-4.0
+  # config-links targets. At first runtime seed they host the runtime's
+  # colors.css pointers (runtime seeder creates the pointers, never us).
+  - name: config/gtk-3.0
+  - name: config/gtk-4.0
   # File node (emitted by the assets role into config/weg/effects.yaml)
   - name: weg-effects.yaml
