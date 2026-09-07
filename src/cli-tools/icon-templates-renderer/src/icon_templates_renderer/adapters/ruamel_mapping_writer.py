@@ -106,6 +106,9 @@ class RuamelMappingWriter:
             raise InvalidYamlError(f"YAML file must contain a mapping: {yaml_path}")
         mapping_indent = _infer_indent(text)
         yaml.indent(mapping=mapping_indent, sequence=mapping_indent * 2, offset=mapping_indent)
+        # Never re-wrap long scalars: the emitter default folds lines near
+        # 80 columns, which would reformat unrelated entries on every write.
+        yaml.width = 1_000_000
         return data, yaml
 
     def _dump(self, data: dict[str, Any], yaml: YAML) -> str:

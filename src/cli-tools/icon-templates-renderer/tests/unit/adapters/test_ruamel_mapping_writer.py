@@ -137,3 +137,28 @@ class TestDiff:
     def test_diff_empty_when_identical(self, manifest_path: Path) -> None:
         writer = RuamelMappingWriter()
         assert writer.diff(manifest_path, manifest_path.read_text(encoding="utf-8")) == ""
+
+    def test_long_lines_elsewhere_are_not_rewrapped(self, tmp_path: Path) -> None:
+        long_value = "a/" + "very/" * 20 + "long-template-path.svg"
+        assert len(long_value) > 80
+        path = tmp_path / "icons.yaml"
+        path.write_text(
+            "battery:\n"
+            "  color_mappings:\n"
+            "    COLOR_ACCENT: color12\n"
+            "  variants:\n"
+            "    - name: battery-0\n"
+            f"      template: {long_value}\n"
+            "      output: battery-0.svg\n",
+            encoding="utf-8",
+        )
+        before = path.read_text(encoding="utf-8")
+        new_text = RuamelMappingWriter().set_mapping(
+            path, "battery", None, "COLOR_ACCENT", "color10"
+        )
+        old_lines = before.splitlines()
+        new_lines = new_text.splitlines()
+        assert len(new_lines) == len(old_lines)
+        changed = [(old, new) for old, new in zip(old_lines, new_lines) if old != new]
+        assert changed == [("    COLOR_ACCENT: color12", "    COLOR_ACCENT: color10")]
+        assert f"      template: {long_value}" in new_text

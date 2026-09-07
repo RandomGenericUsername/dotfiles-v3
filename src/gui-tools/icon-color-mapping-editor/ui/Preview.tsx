@@ -249,7 +249,14 @@ export function Preview(props: PreviewProps) {
   canvas.append(scroller);
 
   const diff = new Gtk.Box({ css_classes: ["diff"] });
-  diff.append(props.diffContent);
+  const diffScroll = new Gtk.ScrolledWindow({
+    hscrollbar_policy: Gtk.PolicyType.NEVER,
+    vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+    hexpand: true,
+  });
+  diffScroll.set_max_content_height(170);
+  diffScroll.set_child(props.diffContent);
+  diff.append(diffScroll);
 
   const root = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: true, vexpand: true });
   root.append(bar);

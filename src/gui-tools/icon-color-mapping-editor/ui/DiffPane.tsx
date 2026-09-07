@@ -1,5 +1,6 @@
 import { Gtk } from "ags/gtk4";
 import { createEffect, type Accessor } from "ags";
+import { renderDiffMarkup } from "../lib/diff";
 import { mappingSet, mappingSetDefault } from "../lib/itr";
 import { defaultsPathFor, type EditorInputs } from "../lib/inputs";
 import type { PendingEdit, VocabularyPendingEdit } from "../lib/model";
@@ -63,16 +64,22 @@ export function DiffPane(props: DiffPaneProps) {
     const vocabPending = props.vocabPending();
     const inputs = props.inputs();
     if (pending.size === 0 && vocabPending.size === 0) {
-      label.set_label("— no changes —");
+      label.set_text("— no changes —");
       return;
     }
-    label.set_label("Computing diff…");
+    label.set_text("Computing diff…");
     fetchPendingDiff(pending, vocabPending, inputs).then(
       (text) => {
-        if (seq === my) label.set_label(text || "— no changes —");
+        if (seq === my) {
+          if (text) {
+            label.set_markup(renderDiffMarkup(text));
+          } else {
+            label.set_text("— no changes —");
+          }
+        }
       },
       (error: unknown) => {
-        if (seq === my) label.set_label(`Diff unavailable: ${String(error)}`);
+        if (seq === my) label.set_text(`Diff unavailable: ${String(error)}`);
       },
     );
   });
