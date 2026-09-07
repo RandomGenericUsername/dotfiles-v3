@@ -145,6 +145,6 @@ Order:
 4. Append `history.jsonl`.
 5. Trigger desktop reloads per monitor:
    - For each monitor, invoke its backend's reload (hyprctl reload, ags restart, hyprctl hyprpaper wallpaper, mpvpaper IPC, swww img, swaybg restart).
-   - Terminal palette applied once from `current/colors.yaml`.
+   - Terminal palette applied once from `current/colors.sequences`.
 
 Crash recovery: on next run, `ReconcileDesktopStateUseCase` reads `current.json` and re-derives the `current/` symlinks from it (idempotent repair). If a symlink target is missing (evicted/partial), the entry is treated as a cache miss and regenerated. The desktop is never left pointing at a half-swapped state because each symlink resolves independently to a complete write-once entry.
