@@ -18,6 +18,8 @@ from icon_templates_renderer.cli.options import (
     UNSAFE_OPT,
     VARIANT_OPT,
 )
+from icon_templates_renderer.adapters.icon_renderer import IconRenderer
+from icon_templates_renderer.adapters.ruamel_mapping_writer import RuamelMappingWriter
 from icon_templates_renderer.domain.exceptions import IconRendererError
 from icon_templates_renderer.domain.models import (
     MappingSetDefaultRequest,
@@ -146,6 +148,29 @@ def set_default_command(
         )
         result = deps.icon_renderer.mapping_set_default(request)
         deps.output_adapter.mapping_set_default_result(result)
+    except IconRendererError as exc:
+        deps.output_adapter.error(exc)
+        raise typer.Exit(code=1) from None
+
+
+@mapping_app.command("register")
+def register_command(
+    ctx: typer.Context,
+    manifest_file: Path = typer.Argument(..., help="Path to the icons YAML file"),  # noqa: B008
+    group: str = typer.Option(..., "--group", help="Icon group to register into"),  # noqa: B008
+    variant: str = typer.Option(..., "--variant", help="Variant name"),  # noqa: B008
+    template: str = typer.Option(..., "--template", help="Template path (template-root relative)"),  # noqa: B008
+    output: str = typer.Option(..., "--output", help="Output filename"),  # noqa: B008
+) -> None:
+    """Register a brand-new template file as a variant in the icons manifest."""
+    deps: CliDependencies = ctx.obj["deps"]
+    try:
+        path = Path(manifest_file).resolve()
+        new_text = RuamelMappingWriter().add_variant(path, group, variant, template, output)
+        IconRenderer._atomic_write(path, new_text)
+        deps.output_adapter.message(
+            f"Registered {group}.variants[{variant}] in {manifest_file}."
+        )
     except IconRendererError as exc:
         deps.output_adapter.error(exc)
         raise typer.Exit(code=1) from None

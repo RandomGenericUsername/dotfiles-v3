@@ -79,6 +79,37 @@ class RuamelMappingWriter:
         defaults[placeholder] = token
         return self._dump(data, yaml)
 
+    def add_variant(
+        self,
+        yaml_path: Path,
+        group: str,
+        variant: str,
+        template: str,
+        output: str,
+    ) -> str:
+        data, yaml = self._load(yaml_path)
+        group_node = data.get(group)
+        if group_node is None:
+            group_node = CommentedMap()
+            data[group] = group_node
+        if not isinstance(group_node, dict):
+            raise InvalidYamlError(f"Icon '{group}' must be a mapping in {yaml_path}")
+        variants = group_node.get("variants")
+        if variants is None:
+            variants = []
+            group_node["variants"] = variants
+        if not isinstance(variants, list):
+            raise InvalidYamlError(f"'variants' must be a list in {yaml_path}")
+        for entry in variants:
+            if isinstance(entry, dict) and entry.get("name") == variant:
+                raise InvalidYamlError(
+                    f"Variant '{variant}' already exists in {yaml_path}"
+                )
+        variants.append(
+            CommentedMap({"name": variant, "template": template, "output": output})
+        )
+        return self._dump(data, yaml)
+
     def diff(self, yaml_path: Path, new_text: str) -> str:
         old_text = yaml_path.read_text(encoding="utf-8")
         if old_text == new_text:

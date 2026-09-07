@@ -17,17 +17,17 @@
 
 ## 3. GUI: Templates tab
 
-- [ ] 3.1 `lib/templates.ts`: analyze/assignment wrappers over the ITR verbs + shape extraction reuse (`extractShapes`, `rewriteWithIdColors` for hit-testing)
-- [ ] 3.2 Tab bar (Mappings | Templates) with state preserved across switches; Mappings tab embedded unchanged
-- [ ] 3.3 Template tree (grouped, badged templated/bare) + file input row; center preview of the selected file with ID-color click selection
-- [ ] 3.4 Selection panel: shape/paint/resolves-to/used-by rows; assignment list (existing placeholders with chip, token, usage, current/new markers); new-placeholder field with inline validation + vocabulary-default mini palette
-- [ ] 3.5 Pending model: template edits keyed (template_path, shape_id) with old→new; new-placeholder vocabulary pendings; bare-mode progress tracker (assigned N/M)
-- [ ] 3.6 Diff pane: per-template-file sections with abbreviated per-shape lines + `defaults.yaml` entries; Revert discards both; Save pipeline = template writes → vocabulary defaults → manifest registration (brand-new files only) → mapping writes → reload; stale guard extended to template files (mtime), Reload retains pendings
+- [x] 3.1 `lib/templates.ts`: analyze/assignment wrappers over the ITR verbs + shape extraction reuse (`extractShapes`, `rewriteWithIdColors` for hit-testing)
+- [x] 3.2 Tab bar (Mappings | Templates) with state preserved across switches; Mappings tab embedded unchanged
+- [x] 3.3 Template tree (grouped, badged templated/bare) + file input row; center preview of the selected file with ID-color click selection
+- [x] 3.4 Selection panel: shape/paint/resolves-to/used-by rows; assignment list (existing placeholders with chip, token, usage, current/new markers); new-placeholder field with inline validation + vocabulary-default mini palette
+- [x] 3.5 Pending model: template edits keyed (template_path, shape_id) with old→new; new-placeholder vocabulary pendings; bare-mode progress tracker (assigned N/M)
+- [x] 3.6 Diff pane: per-template-file sections with abbreviated per-shape lines + `defaults.yaml` entries; Revert discards both; Save pipeline = template writes → vocabulary defaults → manifest registration (brand-new files only) → mapping writes → reload; stale guard extended to template files (mtime), Reload retains pendings
 
 ## 4. Manifest registration for brand-new files
 
-- [ ] 4.1 Detect "template file not referenced by any manifest entry"; registration via existing manifest-write verbs (group/variant inference per design D5)
-- [ ] 4.2 Unit test: new file gains a group+variant entry; referenced files never restructured
+- [x] 4.1 Detect "template file not referenced by any manifest entry"; registration via existing manifest-write verbs (group/variant inference per design D5)
+- [x] 4.2 Unit test: new file gains a group+variant entry; referenced files never restructured
 
 ## 5. Verification and docs
 

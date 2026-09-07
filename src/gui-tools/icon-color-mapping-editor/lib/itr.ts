@@ -50,6 +50,25 @@ export interface MappingSetDefaultResult {
   shadows: string[];
 }
 
+export interface TemplateShape {
+  id: number;
+  tag: string;
+  paint_attr: "fill" | "stroke";
+  placeholder: string | null;
+  literal: string | null;
+}
+
+export interface TemplateAnalyzeResult {
+  path: string;
+  mode: "templated" | "bare";
+  shapes: TemplateShape[];
+}
+
+export interface RegisterResult {
+  group: string;
+  variant: string;
+}
+
 export class ItrError extends Error {
   readonly argv: string[];
   constructor(argv: string[], message: string) {
@@ -130,4 +149,48 @@ export function mappingSetDefault(args: SetDefaultArgs): Promise<MappingSetDefau
   const argv = setArgv("set-default", args.defaultsYaml, args);
   if (args.manifestYaml !== undefined) argv.push("--icons", args.manifestYaml);
   return runJson<MappingSetDefaultResult>(argv);
+}
+
+export function templateAnalyze(path: string): Promise<TemplateAnalyzeResult> {
+  return runJson<TemplateAnalyzeResult>(["template", "analyze", path]);
+}
+
+export function templateSetPlaceholder(
+  path: string,
+  shapeId: number,
+  name: string,
+): Promise<TemplateAnalyzeResult> {
+  return runJson<TemplateAnalyzeResult>([
+    "template",
+    "set-placeholder",
+    path,
+    "--shape",
+    String(shapeId),
+    "--name",
+    name,
+  ]);
+}
+
+export interface RegisterArgs {
+  manifestYaml: string;
+  group: string;
+  variant: string;
+  template: string;
+  output: string;
+}
+
+export function manifestRegister(args: RegisterArgs): Promise<RegisterResult> {
+  return runJson<RegisterResult>([
+    "mapping",
+    "register",
+    args.manifestYaml,
+    "--group",
+    args.group,
+    "--variant",
+    args.variant,
+    "--template",
+    args.template,
+    "--output",
+    args.output,
+  ]);
 }

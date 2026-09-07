@@ -1,7 +1,14 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4";
 import app from "ags/gtk4/app";
 import { createEffect, createState } from "ags";
-import { mappingSet, mappingSetDefault, mappingShow, type MappingShow } from "../lib/itr";
+import {
+  manifestRegister,
+  mappingSet,
+  mappingSetDefault,
+  mappingShow,
+  templateSetPlaceholder,
+  type MappingShow,
+} from "../lib/itr";
 import {
   defaultsPathFor,
   mtimeOf,
@@ -15,6 +22,7 @@ import type {
   VocabularyPendingEdit,
 } from "../lib/model";
 import { resolveToken, upsertPending } from "../lib/model";
+import { templatePendingKey, type ManifestPending, type TemplatePendingEdit } from "../lib/templates";
 import { extractShapes } from "../lib/svg";
 import { DiffPane } from "./DiffPane";
 import { GroupTree } from "./GroupTree";
@@ -22,6 +30,7 @@ import { InputsPanel } from "./InputsPanel";
 import { Preview } from "./Preview";
 import { ScopeSwitch } from "./ScopeSwitch";
 import { SelectionPanel, type CurrentToken } from "./SelectionPanel";
+import { TemplatesTab } from "./TemplatesTab";
 import { TokenPicker } from "./TokenPicker";
 
 // Shell window hosting the editor. Owns session state, pending edits, and the
@@ -45,6 +54,17 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   const [saving, setSaving] = createState(false);
   const [saveError, setSaveError] = createState<string | null>(null);
   const [stale, setStale] = createState(false);
+  const [activeTab, setActiveTab] = createState<"mappings" | "templates">("mappings");
+  const [templatePending, setTemplatePending] = createState<
+    ReadonlyMap<string, TemplatePendingEdit>
+  >(new Map());
+  const [newPlaceholders, setNewPlaceholders] = createState<ReadonlyMap<string, string>>(
+    new Map(),
+  );
+  const [manifestPendings, setManifestPendings] = createState<ReadonlyArray<ManifestPending>>(
+    [],
+  );
+  const templateMtimes = new Map<string, number | null>();
   let loadedMtimes: { icons: number | null; defaults: number | null } = {
     icons: null,
     defaults: null,
@@ -83,9 +103,40 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     setSelection(null);
     setPending(new Map());
     setVocabPending(new Map());
+    setTemplatePending(new Map());
+    setNewPlaceholders(new Map());
+    setManifestPendings([]);
+    templateMtimes.clear();
     setSaveError(null);
     setStale(false);
     refreshShow().catch((error: unknown) => setLoadError(String(error)));
+  }
+
+  function totalPending(): number {
+    return (
+      pending().size +
+      vocabPending().size +
+      templatePending().size +
+      newPlaceholders().size +
+      manifestPendings().length
+    );
+  }
+
+  function stageTemplate(edit: TemplatePendingEdit): void {
+    const next = new Map(templatePending());
+    next.set(templatePendingKey(edit.templatePath, edit.shapeId), edit);
+    setTemplatePending(next);
+    templateMtimes.set(edit.templatePath, mtimeOf(edit.templatePath));
+  }
+
+  function stageNewPlaceholder(name: string, token: string): void {
+    const next = new Map(newPlaceholders());
+    next.set(name, token);
+    setNewPlaceholders(next);
+  }
+
+  function stageManifest(entry: ManifestPending): void {
+    setManifestPendings([...manifestPendings(), entry]);
   }
 
   load(resolveInputs());
@@ -110,7 +161,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   }
 
   async function save(): Promise<void> {
-    if (saving() || (pending().size === 0 && vocabPending().size === 0)) return;
+    if (saving() || totalPending() === 0) return;
     setSaving(true);
     setSaveError(null);
     try {
@@ -129,6 +180,39 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
         );
         return;
       }
+      // Stale template files block save (mtime guard, same as icons/defaults).
+      for (const path of templateMtimes.keys()) {
+        if (mtimeOf(path) !== templateMtimes.get(path)) {
+          setStale(true);
+          setSaveError(`A template file changed on disk since load: ${path}. Reload to continue.`);
+          return;
+        }
+      }
+      // 1. Template writes.
+      for (const edit of templatePending().values()) {
+        await templateSetPlaceholder(edit.templatePath, edit.shapeId, edit.newPlaceholder);
+      }
+      // 2. Vocabulary defaults for new placeholders.
+      for (const [name, token] of newPlaceholders()) {
+        await mappingSetDefault({
+          defaultsYaml: defaultsPathFor(next.iconsYaml),
+          manifestYaml: next.iconsYaml,
+          colorScheme: next.colorScheme,
+          placeholder: name,
+          token,
+        });
+      }
+      // 3. Manifest registration for brand-new files.
+      for (const entry of manifestPendings()) {
+        await manifestRegister({
+          manifestYaml: entry.manifestPath,
+          group: entry.group,
+          variant: entry.variant,
+          template: entry.template,
+          output: entry.output,
+        });
+      }
+      // 4. Mapping writes.
       for (const edit of pending().values()) {
         await mappingSet({
           iconsYaml: next.iconsYaml,
@@ -150,6 +234,10 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       }
       setPending(new Map());
       setVocabPending(new Map());
+      setTemplatePending(new Map());
+      setNewPlaceholders(new Map());
+      setManifestPendings([]);
+      templateMtimes.clear();
       // Never triggers a render: sources only, generated icons refresh on the
       // next wallpaper/theme run.
       await refreshShow();
@@ -332,6 +420,10 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   revertButton.connect("clicked", () => {
     setPending(new Map());
     setVocabPending(new Map());
+    setTemplatePending(new Map());
+    setNewPlaceholders(new Map());
+    setManifestPendings([]);
+    templateMtimes.clear();
     setSaveError(null);
   });
   const footerButtons = new Gtk.Box({
@@ -348,7 +440,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   right.append(footer);
 
   createEffect(() => {
-    const hasPending = pending().size + vocabPending().size > 0;
+    const hasPending = totalPending() > 0;
     const busy = saving();
     saveButton.set_sensitive(hasPending && !busy);
     revertButton.set_sensitive(hasPending && !busy);
@@ -364,6 +456,78 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     css_classes: ["icme-center"],
     hexpand: true,
     vexpand: true,
+  });
+
+  // --- tab bar + views ---
+  function tabButton(label: string, sub: string): Gtk.Button {
+    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+    box.append(new Gtk.Label({ label, css_classes: ["tab-label"], xalign: 0 }));
+    box.append(new Gtk.Label({ label: sub, css_classes: ["tab-sub"], xalign: 0 }));
+    const button = new Gtk.Button({ css_classes: ["tab"] });
+    button.set_child(box);
+    return button;
+  }
+
+  const tabMapping = tabButton("Mappings", "recolor existing placeholders");
+  const tabTemplates = tabButton("Templates", "assign / create placeholders");
+  const tabBar = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 4, css_classes: ["tabs"] });
+  tabBar.append(tabMapping);
+  tabBar.append(tabTemplates);
+  tabMapping.connect("clicked", () => setActiveTab("mappings"));
+  tabTemplates.connect("clicked", () => setActiveTab("templates"));
+
+  const mappingView = new Gtk.Box({
+    orientation: Gtk.Orientation.HORIZONTAL,
+    spacing: 0,
+    css_classes: ["icme-root", "view"],
+    hexpand: true,
+    vexpand: true,
+  });
+  mappingView.append(left);
+  mappingView.append(center);
+  mappingView.append(right);
+
+  const templatesView = new Gtk.Box({
+    orientation: Gtk.Orientation.HORIZONTAL,
+    css_classes: ["view"],
+    hexpand: true,
+    vexpand: true,
+  });
+  templatesView.append(
+    TemplatesTab({
+      show,
+      inputs,
+      templatePending,
+      newPlaceholders,
+      manifestPendings,
+      onStageTemplate: stageTemplate,
+      onStageNewPlaceholder: stageNewPlaceholder,
+      onStageManifest: stageManifest,
+      onSave: () => void save(),
+      onRevert: () => {
+        setPending(new Map());
+        setVocabPending(new Map());
+        setTemplatePending(new Map());
+        setNewPlaceholders(new Map());
+        setManifestPendings([]);
+        templateMtimes.clear();
+        setSaveError(null);
+      },
+      onDialogOpenChange: (open: boolean) => {
+        const win = app.get_window("icme-window");
+        if (!win) return;
+        if (open) win.show();
+        else win.hide();
+      },
+    }),
+  );
+
+  createEffect(() => {
+    const tab = activeTab();
+    mappingView.set_visible(tab === "mappings");
+    templatesView.set_visible(tab === "templates");
+    tabMapping.set_css_classes(tab === "mappings" ? ["tab", "active"] : ["tab"]);
+    tabTemplates.set_css_classes(tab === "templates" ? ["tab", "active"] : ["tab"]);
   });
 
   return (
@@ -414,10 +578,10 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
         );
       }}
     >
-      <box class="icme-root" orientation={Gtk.Orientation.HORIZONTAL} spacing={0}>
-        {left}
-        {center}
-        {right}
+      <box orientation={Gtk.Orientation.VERTICAL}>
+        {tabBar}
+        {mappingView}
+        {templatesView}
       </box>
     </window>
   );

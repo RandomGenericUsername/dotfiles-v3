@@ -125,6 +125,36 @@ class TestSetDefault:
         assert defaults_path.read_text(encoding="utf-8") == before
 
 
+class TestAddVariant:
+    def test_new_file_gains_group_and_variant(self, tmp_path: Path) -> None:
+        path = tmp_path / "icons.yaml"
+        path.write_text(_manifest(), encoding="utf-8")
+        new_text = RuamelMappingWriter().add_variant(
+            path, "screenshot-tool", "cursor", "screenshot-tool/cursor/default/cursor.svg", "cursor.svg"
+        )
+        import yaml
+
+        data = yaml.safe_load(new_text)
+        assert data["screenshot-tool"]["variants"][0] == {
+            "name": "cursor",
+            "template": "screenshot-tool/cursor/default/cursor.svg",
+            "output": "cursor.svg",
+        }
+        # Existing groups are untouched.
+        assert "battery-50" in new_text
+        assert "COLOR_ACCENT: color3" in new_text
+
+    def test_duplicate_variant_rejected(self, tmp_path: Path) -> None:
+        path = tmp_path / "icons.yaml"
+        path.write_text(_manifest(), encoding="utf-8")
+        before = path.read_text(encoding="utf-8")
+        with pytest.raises(InvalidYamlError):
+            RuamelMappingWriter().add_variant(
+                path, "battery", "battery-0", "t.svg", "o.svg"
+            )
+        assert path.read_text(encoding="utf-8") == before
+
+
 class TestDiff:
     def test_diff_shows_change(self, manifest_path: Path) -> None:
         writer = RuamelMappingWriter()

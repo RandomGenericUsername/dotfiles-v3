@@ -13,3 +13,4 @@ test:
 	node $(DIR)/tests/svg.mjs
 	node $(DIR)/tests/model.mjs
 	node $(DIR)/tests/diff.mjs
+	node $(DIR)/tests/templates.mjs

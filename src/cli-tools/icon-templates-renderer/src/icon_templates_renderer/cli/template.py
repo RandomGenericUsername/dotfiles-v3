@@ -48,7 +48,8 @@ def set_placeholder_command(
         path = Path(template_file).resolve()
         request = TemplateSetPlaceholderRequest(path=path, shape_id=shape, name=name)
         result = deps.template_writer.set_placeholder(request)
-        deps.output_adapter.message(f"Set shape {shape} paint = {{{{{name}}}}}.")
+        if ctx.obj.get("output_format", OutputFormat.PLAIN) is not OutputFormat.JSON:
+            deps.output_adapter.message(f"Set shape {shape} paint = {{{{{name}}}}}.")
         deps.output_adapter.template_analysis_result(result)
     except IconRendererError as exc:
         deps.output_adapter.error(exc)
