@@ -1,6 +1,6 @@
 battery:
   color_mappings:
-    COLOR_ACCENT: color4
+    COLOR_ACCENT: color12
     COLOR_FOREGROUND: color6
   variants:
     - name: battery-0
@@ -37,6 +37,8 @@ battery:
       template: status-bar/battery/plugged/default/icon.svg
       output: plugged.svg
 
+      color_mappings:
+        COLOR_FOREGROUND: color12
   bar_mappings:
     widget: battery
     icon_size: 24
