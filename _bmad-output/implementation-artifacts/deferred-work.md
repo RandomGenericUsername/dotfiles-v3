@@ -375,3 +375,9 @@ The "save after repoint can fail leaving FS ahead of store, history append outsi
 - Concurrent writer interleave torn lines — two writers appending outside the lock can interleave/tear lines; reader has no snapshot contract. Pre-existing writer-side (rt-3.1), not caused by this reader change [src/runtime/src/runtime/adapters/seeder.py:620-623]
 - Brittle argv substring guard — `if "inspect" in sys.argv` false-positives on paths like `my-inspect`. Pre-existing rt-3.2, spec says do NOT touch guard [src/runtime/src/runtime/cli/main.py:181]
 - FIFO/directory/BOM at history.jsonl path — directory raises raw IsADirectoryError, FIFO blocks on open, BOM-prefixed file misclassified as torn tail. Out-of-scope hardening; writer never emits BOM [src/runtime/src/runtime/application/inspect.py:332]
+
+## Incident 2026-09-07: live desktop spawn from unit tests (FIXED, gt-fix-1)
+
+- `test_cli_crash_recovery` CLI tests stubbed only 2 of 4 reloaders; the real `AgsReloader` spawned `ags run` under a monkeypatched `XDG_STATE_HOME` (pytest tmp). The spawned bar survived pytest, replaced the dev's live bar (its gjs child outlived the killed parent, holding the `io.Astal.ags` D-Bus name), and rendered broken icons from the deleted tmp dir. [src/runtime/tests/unit/test_cli_crash_recovery.py:219]
+- Fix: autouse `shutil.which` guards in `tests/unit/conftest.py` + `tests/integration/conftest.py` — system-installed desktop binaries (ags/hyprctl/hyprpaper/swaybg/swww/mpvpaper) resolve to None so adapters fail fast; pytest-tmp shims still resolve (integration shim tests verified green). Affected CLI tests now stub all four reloaders explicitly.
+- Residual: production-side hardening (reloader refuses to spawn when it detects a session-foreign env) is NOT added — tests-only fix; composition-root seam (`_build_reloaders` monkeypatch) is the long-term cleaner seam, deferred.
