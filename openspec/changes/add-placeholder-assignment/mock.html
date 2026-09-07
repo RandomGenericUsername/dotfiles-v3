@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ITR Icon Tool — Templates tab mock (placeholder assignment)</title>
+<style>
+  :root {
+    --bg: #16181d; --panel: #1d2026; --panel-2: #23272f; --line: #313742;
+    --fg: #d7dbe2; --muted: #8b93a1; --accent: #6ea8fe; --warn: #e0a45e; --ok: #7bc47f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 13px/1.45 "Inter", "Cantarell", system-ui, sans-serif; }
+  .note { background: #2a2f3a; border-bottom: 1px solid var(--line);
+    padding: 8px 14px; font-size: 12px; color: var(--muted); }
+  .note b { color: var(--fg); }
+  code { background: #262b33; padding: 1px 4px; border-radius: 3px; }
+
+  /* ---- tabs ---- */
+  .tabs { display: flex; gap: 4px; padding: 8px 14px 0; background: #14161a;
+    border-bottom: 1px solid var(--line); }
+  .tab { padding: 7px 16px; border: 1px solid var(--line); border-bottom: none;
+    border-radius: 7px 7px 0 0; background: var(--panel); color: var(--muted);
+    cursor: pointer; font-size: 12.5px; }
+  .tab.active { color: #fff; background: var(--panel-2); border-color: var(--accent); }
+  .tab .sub { display: block; font-size: 10px; color: var(--muted); }
+
+  .view { display: none; height: calc(100vh - 76px); }
+  .view.active { display: block; }
+  iframe { width: 100%; height: 100%; border: 0; background: var(--bg); }
+
+  /* ---- templates tab (reuses the editor's visual language) ---- */
+  .app { display: grid; grid-template-columns: 260px 1fr 330px; height: 100%; }
+  .col { overflow: auto; }
+  .left { background: var(--panel); border-right: 1px solid var(--line); }
+  .right { background: var(--panel); border-left: 1px solid var(--line);
+    display: flex; flex-direction: column; }
+  .center { display: flex; flex-direction: column; min-width: 0; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 0; padding: 12px 14px 6px; }
+
+  .path { display: flex; align-items: center; gap: 6px; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 5px; padding: 5px 7px; margin: 0 14px 10px;
+    font-family: ui-monospace, monospace; font-size: 11px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .path.rw { border-color: var(--warn); }
+  .path .pick { margin-left: auto; color: var(--accent); cursor: pointer; flex: none; }
+
+  .tree { padding: 0 6px 14px; }
+  .tree .group { padding: 6px 8px; color: var(--muted); font-size: 11px; }
+  .tree .item { padding: 5px 8px 5px 20px; border-radius: 5px; cursor: pointer;
+    font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .tree .item:hover { background: var(--panel-2); }
+  .tree .item.active { background: #2f3947; color: #fff; }
+  .tree .badge { float: right; font-size: 9.5px; padding: 1px 5px; border-radius: 4px; }
+  .tree .badge.t { background: #2a3a2c; color: var(--ok); }
+  .tree .badge.b { background: #463a26; color: var(--warn); }
+
+  .canvas-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    border-bottom: 1px solid var(--line); background: var(--panel); }
+  .canvas-bar .file { color: var(--muted); font-family: ui-monospace, monospace; font-size: 11px; }
+  .canvas-bar .mode { font-size: 10px; padding: 2px 8px; border-radius: 4px; }
+  .canvas-bar .mode.templated { background: #2a3a2c; color: var(--ok); }
+  .canvas-bar .mode.bare { background: #463a26; color: var(--warn); }
+  .canvas { flex: 1; overflow: auto; padding: 18px;
+    background: repeating-conic-gradient(#20242b 0% 25%, #191c22 0% 50%) 50% / 24px 24px; }
+  .stage { display: flex; gap: 18px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+  .vcard { background: #00000038; border: 1px solid var(--line); border-radius: 8px; padding: 10px; width: 300px; }
+  .vcard.main { width: 340px; border-color: var(--accent); }
+  .vcard .vname { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--muted);
+    margin-bottom: 6px; text-align: center; }
+  .vcard svg { width: 100%; height: auto; display: block; }
+  [data-el] { cursor: pointer; }
+  [data-el]:hover { filter: drop-shadow(0 0 8px var(--accent)); }
+  [data-el].sel { filter: drop-shadow(0 0 3px var(--accent)) drop-shadow(0 0 12px var(--accent)); }
+  [data-el].assigned-ok { /* nothing special in preview */ }
+
+  .diff { border-top: 1px solid var(--line); background: #14161a; padding: 10px 14px;
+    font-family: ui-monospace, monospace; font-size: 11.5px; max-height: 230px; overflow: auto; }
+  .diff .del { color: #e08585; } .diff .add { color: var(--ok); } .diff .ctx { color: var(--muted); }
+  .diff .file { color: var(--accent); margin: 6px 0 2px; }
+
+  .sel-info { padding: 4px 14px 10px; }
+  .kv { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .kv span:first-child { color: var(--muted); }
+  .kv span:last-child { font-family: ui-monospace, monospace; text-align: right;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+
+  .assign { padding: 0 14px 6px; }
+  .assign .current { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .chip { width: 20px; height: 20px; border-radius: 5px; border: 1px solid #0006; flex: none; }
+  .assign .current .label { font-family: ui-monospace, monospace; font-size: 12px; }
+
+  .phlist { display: flex; flex-direction: column; gap: 4px; }
+  .phrow { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px;
+    cursor: pointer; border: 1px solid transparent; }
+  .phrow:hover { background: var(--panel-2); }
+  .phrow.picked { border-color: var(--accent); background: #222b38; }
+  .phrow .name { font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .phrow .tok { color: var(--muted); font-size: 10px; font-family: ui-monospace, monospace; }
+  .phrow .use { margin-left: auto; font-size: 10px; color: var(--muted); }
+  .phrow .cur { font-size: 9.5px; color: var(--warn); }
+
+  .newph { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
+  .newph input[type=text] { width: 100%; background: var(--panel-2); color: var(--fg);
+    border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px;
+    font-family: ui-monospace, monospace; font-size: 12px; }
+  .newph input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .newph .err { color: #e08585; font-size: 10.5px; min-height: 15px; padding: 2px 0; }
+  .newph .toklabel { font-size: 10.5px; color: var(--muted); margin: 6px 0 4px; }
+  .mini { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+  .mini .cell { aspect-ratio: 1; border-radius: 4px; border: 2px solid transparent; cursor: pointer; }
+  .mini .cell.picked { border-color: #fff; }
+
+  .assignbar { display: flex; gap: 8px; margin-top: 12px; }
+  .btn { flex: 1; padding: 7px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--fg); cursor: pointer; font-size: 12px; }
+  .btn.primary { background: #2c4b7c; border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .progress { margin: 10px 14px 4px; font-size: 11px; color: var(--muted); }
+  .progress .bar { height: 5px; background: var(--panel-2); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  .progress .bar i { display: block; height: 100%; background: var(--ok); width: 0; transition: width .2s; }
+
+  .hint { padding: 6px 14px 12px; color: var(--muted); font-size: 11px; }
+  .footer { margin-top: auto; position: sticky; bottom: 0; background: var(--panel);
+    border-top: 1px solid var(--line); padding: 10px 14px; display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="note">
+  Mock — <b>Templates tab</b> (second tab of the icon tool): assign <b>placeholders to shapes</b>,
+  creating new ones when needed. Works on already-templated SVGs <i>and</i> bare SVGs — click a shape,
+  pick an existing placeholder or invent one, preview updates live. Nothing is written until <b>Save</b>.
+</div>
+
+<div class="tabs">
+  <div class="tab active" id="tabBtnMapping">Mappings<span class="sub">recolor existing placeholders</span></div>
+  <div class="tab" id="tabBtnTemplates">Templates<span class="sub">assign / create placeholders</span></div>
+</div>
+
+<!-- TAB 1: the existing editor, embedded unchanged -->
+<div class="view active" id="viewMapping">
+  <iframe src="../add-icon-color-mapping-editor/mock.html"></iframe>
+</div>
+
+<!-- TAB 2: template write mode -->
+<div class="view" id="viewTemplates">
+  <div class="app">
+    <!-- LEFT -->
+    <div class="col left">
+      <h2>Template file (edited by tool)</h2>
+      <div class="path rw" id="tplPath">…<span class="pick">⋯</span></div>
+
+      <h2>Templates</h2>
+      <div class="tree" id="tree">
+        <div class="group">battery</div>
+        <div class="item" data-v="battery-25">battery-25/default <span class="badge t">templated</span></div>
+        <div class="item" data-v="battery-unplugged">battery-unplugged/default <span class="badge b">bare</span></div>
+        <div class="group">power-menu</div>
+        <div class="item" data-v="power-menu-default">power-menu/default <span class="badge t">templated</span></div>
+      </div>
+
+      <div class="hint">
+        <b>Bare SVG</b> = a downloaded icon with real hex colors and no
+        <code>{{…}}</code> placeholders. The tool detects its flat colors, renders
+        it, and you click each shape to assign an existing or new placeholder.
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="col center">
+      <div class="canvas-bar">
+        <span class="file" id="fileLabel"></span>
+        <span class="mode" id="modeBadge"></span>
+        <span style="flex:1"></span>
+        <span class="progress" style="margin:0;padding:0" id="progressWrap">
+          <span id="progressText"></span>
+          <div class="bar"><i id="progressBar"></i></div>
+        </span>
+      </div>
+      <div class="canvas"><div class="stage" id="stage"></div></div>
+      <div class="diff">
+        <div style="color:var(--muted);margin-bottom:4px">Pending edits — nothing written until you save</div>
+        <div id="diffBody"><span class="ctx">— no changes —</span></div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col right">
+      <h2>Selection</h2>
+      <div class="sel-info">
+        <div class="kv"><span>Shape</span><span id="selShape">—</span></div>
+        <div class="kv"><span>Paints with</span><span id="selPaint">—</span></div>
+        <div class="kv"><span>Resolves to</span><span id="selRes">—</span></div>
+        <div class="kv"><span>Used by</span><span id="selUse">—</span></div>
+      </div>
+
+      <h2>Assign placeholder</h2>
+      <div class="assign">
+        <div class="current" id="curRow">
+          <div class="chip" id="curChip"></div>
+          <div><div class="label" id="curLabel">select a shape</div></div>
+        </div>
+
+        <div class="phlist" id="phList"></div>
+
+        <div class="newph">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">…or a new placeholder</div>
+          <input type="text" id="newName" placeholder="COLOR_COUNTOUR" spellcheck="false" />
+          <div class="err" id="newErr"></div>
+          <div class="toklabel" id="newTokLabel">Vocabulary default (defaults.yaml)</div>
+          <div class="mini" id="newMini"></div>
+        </div>
+
+        <div class="assignbar">
+          <button class="btn primary" id="assignBtn" disabled>Assign</button>
+        </div>
+      </div>
+
+      <div class="hint" id="assignHint">
+        Assigning rewrites the shape's paint attribute in the template file
+        (<code>fill/stroke="{{NEW}}"</code>). A new placeholder also adds its vocabulary
+        default so it resolves — visible in the pending diff below.
+      </div>
+
+      <div class="footer">
+        <button class="btn" id="revert">Revert</button>
+        <button class="btn primary" id="save">Save templates</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- tabs ----------
+const tabMap = [["tabBtnMapping","viewMapping"],["tabBtnTemplates","viewTemplates"]];
+tabMap.forEach(([btn, view]) => {
+  document.getElementById(btn).onclick = () => {
+    tabMap.forEach(([b, v]) => {
+      document.getElementById(b).classList.toggle("active", b === btn);
+      document.getElementById(v).classList.toggle("active", v === view);
+    });
+  };
+});
+
+// ---------- sample colors.yaml ----------
+const paletteColors = ["#12151a","#e08585","#7bc47f","#d8b46a","#3f6ea8","#a67fc0","#5fb3b3","#b8bfc9",
+                       "#4b525d","#ef9b9b","#95d698","#e6c882","#6ea8fe","#c39ad9","#7fd0d0","#e6ebf2"];
+const palette = { background:"#12151a", foreground:"#d5d9e0", cursor:"#d5d9e0" };
+paletteColors.forEach((c,i) => palette["color"+i] = c);
+
+// ---------- vocabulary + group mappings (from itr mapping show) ----------
+const baseVocab = { COLOR_FOREGROUND: "foreground", COLOR_BACKGROUND: "surface",
+                    COLOR_SECONDARY: "accent", COLOR_ACCENT: "accent-muted" };
+let vocab = { ...baseVocab };
+const groupMappings = { COLOR_ACCENT: "color12" };
+let newPlaceholders = {};       // NAME -> vocabulary default token (pending)
+
+// ---------- templates ----------
+// templated: shapes carry {{PH}}; bare: shapes carry real hex colors.
+const T = {
+  "battery-25": {
+    path: "status-bar/battery/battery-25/default/icon.svg",
+    mode: "templated",
+    shapes: [
+      { id:"path#1", attr:"stroke", sw:40, ph:"COLOR_FOREGROUND",
+        d:"M810 381L810 642C810 672 785 697 755 697L164 697C133 697 109 672 109 642L109 381C109 350 133 326 164 326L755 326C785 326 810 350 810 381Z" },
+      { id:"rect#2", attr:"fill", ph:"COLOR_FOREGROUND",
+        raw:'<rect x="934" y="408" width="208" height="78" rx="25" transform="rotate(90 934 408)"/>' },
+      { id:"path#3", attr:"fill", ph:"COLOR_FOREGROUND",
+        d:"M432 379C446 379 457 390 457 404L457 618C457 631 446 643 432 643L197 643C183 643 172 631 172 618L172 404C172 390 183 379 197 379L432 379Z" },
+    ],
+  },
+  "battery-unplugged": {
+    path: "status-bar/battery/battery-unplugged/default/icon.svg",
+    mode: "bare",
+    shapes: [
+      { id:"path#1", attr:"fill", hex:"#c2c2c5", ph:null,
+        d:"M340 80H700C724 80 744 100 744 124V560C744 584 724 604 700 604H340C316 604 296 584 296 560V124C296 100 316 80 340 80Z" },
+      { id:"path#2", attr:"fill", hex:"#dbab67", ph:null,
+        d:"M380 20H420V130H380Z M620 20H660V130H620Z" },
+      { id:"rect#3", attr:"fill", hex:"#5a6070", ph:null,
+        raw:'<rect x="420" y="240" width="200" height="180" rx="20"/>' },
+    ],
+  },
+  "power-menu-default": {
+    path: "status-bar/power-menu/default/icon.svg",
+    mode: "templated",
+    shapes: [
+      { id:"path#1", attr:"stroke", sw:75, ph:"COLOR_FOREGROUND", d:"M400 66V200" },
+      { id:"path#2", attr:"stroke", sw:75, ph:"COLOR_FOREGROUND",
+        d:"M283 123C175 169 100 275 100 400C100 476 128 546 176 600M516 123C624 169 700 275 700 400C700 565 565 700 400 700" },
+    ],
+  },
+};
+
+let active = "battery-25";
+let selected = null;          // shape id
+let assignmentChoice = null;  // { kind:"existing", ph } | { kind:"new", name, token }
+let baseShapes = JSON.parse(JSON.stringify(T)); // pristine copy for diff + revert
+
+function resolvedFor() {
+  return { ...baseVocab, ...groupMappings, ...newPlaceholders, ...vocab };
+}
+function hexOf(token) { return palette[token] ?? null; }
+
+function shapeHex(s) {
+  if (s.ph) return hexOf(resolvedFor()[s.ph]) ?? "#ff00ff";
+  return s.hex ?? "#ff00ff";
+}
+
+function svgFor(v) {
+  const body = T[v].shapes.map(s => {
+    const attrs = `data-el="${s.id}" ${s.attr}="${shapeHex(s)}"` +
+      (s.attr === "stroke" ? ` fill="none" stroke-width="${s.sw}" stroke-linecap="round"` : "");
+    if (s.raw) return s.raw.replace(/^<(\w+)/, `<$1 ${attrs}`);
+    return `<path ${attrs} d="${s.d}"/>`;
+  }).join("");
+  return `<svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+}
+
+function renderStage() {
+  document.getElementById("fileLabel").textContent = T[active].path;
+  const badge = document.getElementById("modeBadge");
+  badge.textContent = T[active].mode === "bare" ? "bare — assign placeholders" : "templated";
+  badge.className = "mode " + T[active].mode;
+  document.getElementById("tplPath").innerHTML = `${T[active].path}<span class="pick">⋯</span>`;
+  document.getElementById("stage").innerHTML =
+    `<div class="vcard main"><div class="vname">${active}</div>${svgFor(active)}</div>`;
+  document.querySelectorAll("[data-el]").forEach(el => {
+    el.addEventListener("click", () => { selected = el.dataset.el; assignmentChoice = null; renderStage(); renderPanel(); });
+    if (el.dataset.el === selected) el.classList.add("sel");
+  });
+  renderProgress();
+}
+
+function assignedCount() {
+  const t = T[active];
+  return t.mode === "bare" ? t.shapes.filter(s => s.ph).length : null;
+}
+function renderProgress() {
+  const wrap = document.getElementById("progressWrap");
+  if (T[active].mode !== "bare") { wrap.style.visibility = "hidden"; return; }
+  wrap.style.visibility = "visible";
+  const n = assignedCount(), total = T[active].shapes.length;
+  document.getElementById("progressText").textContent = `assigned ${n}/${total}`;
+  document.getElementById("progressBar").style.width = `${(n/total)*100}%`;
+}
+
+// ---------- right panel ----------
+function selectedShape() { return T[active].shapes.find(s => s.id === selected) ?? null; }
+
+function renderPanel() {
+  const s = selectedShape();
+  document.getElementById("selShape").textContent = s ? s.id : "—";
+  document.getElementById("selPaint").textContent =
+    !s ? "—" : s.ph ? `{{${s.ph}}}` : (s.hex ?? "—");
+  document.getElementById("selRes").textContent =
+    !s ? "—" : s.ph ? `${resolvedFor()[s.ph]} · ${hexOf(resolvedFor()[s.ph])}` : "(literal color)";
+  const usePh = s ? (s.ph ?? "__bare__") : null;
+  document.getElementById("selUse").textContent = !s ? "—" : usePh && s.ph
+    ? `${usageCount(s.ph)} shapes across ${variantsUsing(s.ph)} templates` : "this template only";
+
+  const cur = document.getElementById("curRow");
+  if (!s) {
+    document.getElementById("curChip").style.background = "#333";
+    document.getElementById("curLabel").textContent = "select a shape";
+  } else {
+    document.getElementById("curChip").style.background = shapeHex(s);
+    document.getElementById("curLabel").textContent =
+      s.ph ? `{{${s.ph}}}` : `literal ${s.hex}`;
+  }
+
+  // existing placeholders
+  const names = [...new Set([...Object.keys(baseVocab), ...Object.keys(newPlaceholders)])];
+  const list = document.getElementById("phList");
+  list.innerHTML = names.map(n => {
+    const tok = resolvedFor()[n], hex = hexOf(tok);
+    const isCur = s && s.ph === n;
+    const isNew = !!newPlaceholders[n];
+    const picked = assignmentChoice?.kind === "existing" && assignmentChoice.ph === n;
+    return `<div class="phrow ${picked ? "picked" : ""}" data-ph="${n}">
+      <div class="chip" style="background:${hex ?? "#444"}"></div>
+      <div><div class="name">{{${n}}}</div><div class="tok">${tok ?? "unmapped"} · ${hex ?? "—"}</div></div>
+      ${isCur ? '<span class="cur">current</span>' : ""}
+      ${isNew ? '<span class="cur" style="color:var(--ok)">new</span>' : ""}
+      <span class="use">×${usageCount(n)}</span>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".phrow").forEach(r => r.onclick = () => {
+    assignmentChoice = { kind: "existing", ph: r.dataset.ph };
+    document.getElementById("newName").value = "";
+    renderPanel();
+  });
+
+  // new placeholder input + token mini-grid
+  const newNameInput = document.getElementById("newName");
+  const name = newNameInput.value.trim().toUpperCase();
+  const valid = /^[A-Z][A-Z0-9_]*$/.test(name);
+  document.getElementById("newErr").textContent =
+    name && !valid ? "A–Z, 0–9 and _ only (e.g. COLOR_COUNTOUR)" : "";
+  document.getElementById("newTokLabel").textContent = valid
+    ? `Vocabulary default for ${name} (defaults.yaml)`
+    : "Vocabulary default (defaults.yaml)";
+  const mini = document.getElementById("newMini");
+  mini.innerHTML = paletteColors.map((hex, i) => {
+    const picked = assignmentChoice?.kind === "new" && assignmentChoice.token === "color"+i;
+    return `<div class="cell ${picked ? "picked" : ""}" data-token="color${i}"
+      style="background:${hex}" title="color${i} ${hex}"></div>`;
+  }).join("");
+  mini.querySelectorAll(".cell").forEach(c => c.onclick = () => {
+    if (!valid) return;
+    assignmentChoice = { kind: "new", name, token: c.dataset.token };
+    renderPanel();
+  });
+
+  const assignBtn = document.getElementById("assignBtn");
+  assignBtn.disabled = !s || !assignmentChoice ||
+    (assignmentChoice.kind === "new" && (!valid || !assignmentChoice));
+}
+
+function usageCount(ph) {
+  return Object.keys(T).reduce((n, v) => n + T[v].shapes.filter(s => s.ph === ph).length, 0);
+}
+function variantsUsing(ph) {
+  return Object.keys(T).filter(v => T[v].shapes.some(s => s.ph === ph)).length;
+}
+
+// ---------- assign (pending) ----------
+document.getElementById("assignBtn").onclick = () => {
+  const s = selectedShape();
+  if (!s || !assignmentChoice) return;
+  if (assignmentChoice.kind === "new") {
+    newPlaceholders[assignmentChoice.name] = assignmentChoice.token;
+    vocab[assignmentChoice.name] = assignmentChoice.token;
+    s.ph = assignmentChoice.name; delete s.hex;
+  } else {
+    s.ph = assignmentChoice.ph; delete s.hex;
+  }
+  assignmentChoice = null;
+  renderStage(); renderPanel(); renderDiff();
+};
+
+document.getElementById("newName").addEventListener("input", () => {
+  assignmentChoice = null; renderPanel();
+});
+
+// ---------- diff ----------
+function renderDiff() {
+  const out = [];
+  Object.keys(T).forEach(v => {
+    const t = T[v], b = baseShapes[v];
+    t.shapes.forEach((s, i) => {
+      const old = b.shapes[i], from = old.ph ? `{{${old.ph}}}` : old.hex, to = s.ph ? `{{${s.ph}}}` : s.hex;
+      if (from !== to) {
+        const paint = s.attr === "stroke" ? "stroke" : "fill";
+        out.push(`<div class="file">${t.path}</div>
+          <div class="del">-  <${s.raw ? s.raw.match(/^<\w+/)[0].slice(1) : "path"} … ${paint}="${from}" …/></div>
+          <div class="add">+  <${s.raw ? s.raw.match(/^<\w+/)[0].slice(1) : "path"} … ${paint}="${to}" …/></div>`);
+      }
+    });
+  });
+  Object.entries(newPlaceholders).forEach(([name, tok]) => {
+    if (baseVocab[name]) return;
+    out.push(`<div class="file">defaults.yaml → defaults</div>
+      <div class="add">+   ${name}: ${tok}</div>`);
+  });
+  document.getElementById("diffBody").innerHTML =
+    out.length ? out.join("") : '<span class="ctx">— no changes —</span>';
+}
+
+// ---------- tree / revert / save ----------
+document.querySelectorAll("#tree .item").forEach(i => i.onclick = () => {
+  document.querySelectorAll("#tree .item").forEach(x => x.classList.remove("active"));
+  i.classList.add("active");
+  active = i.dataset.v; selected = null; assignmentChoice = null;
+  renderStage(); renderPanel();
+});
+
+document.getElementById("revert").onclick = () => {
+  Object.keys(T).forEach(v => { T[v] = JSON.parse(JSON.stringify(baseShapes[v])); });
+  vocab = { ...baseVocab }; newPlaceholders = {};
+  selected = null; assignmentChoice = null;
+  renderStage(); renderPanel(); renderDiff();
+};
+
+document.getElementById("save").onclick = () => {
+  alert("Mock only — Save would write:\n\n" +
+    "1. each template file (hex / old placeholder → new placeholder)\n" +
+    "2. defaults.yaml (vocabulary defaults for newly created placeholders)\n" +
+    "3. icons.yaml only if a brand-new template file needs a manifest entry");
+};
+
+// ---------- init ----------
+renderStage(); renderPanel(); renderDiff();
+selected = "path#1"; renderStage(); renderPanel(); renderDiff();
+</script>
+</body>
+</html>
