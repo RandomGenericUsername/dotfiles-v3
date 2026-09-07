@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: code review of gt-2-1-palette-artifact-set-growth (2026-09-07)
+
+- Evict-and-regenerate migration is convergent but not lock-safe under concurrent populate — two processes racing on the same incomplete `<ph>` can interleave so that one rmtree deletes the other's just-renamed complete entry (content identical, deterministic — end state converges), or the rmtree/rename interleaving raises a spurious OSError (fails loudly; the completeness guard self-heals on the next run). No cross-process lock exists anywhere in the cache layer (pre-existing design; `populate_via_staging` is the only race surface it defends). Fixing requires a lockfile or pid-aware eviction — cache-hygiene hardening beyond story scope. [src/runtime/src/runtime/application/derive.py:256-299, src/runtime/src/runtime/adapters/cache.py:176-197]
+- POSITIVE side effect worth recording: the shared completeness guard RESOLVES the palette half of the rt-1-13 deferred item ("corrupt/missing meta.json bricks that layer permanently") — corrupt/absent meta.json now evicts + regenerates the palette entry instead of failing every subsequent run. Effects/icons layers remain un-self-healed. [src/runtime/src/runtime/application/derive.py:256-299, deferred-work.md "rt-1-13-applywallpaperusecase"]
+
 ## Deferred from: code review of gt-1-1-colorformat-adw-css-template (2026-09-07)
 
 - AC-4 container-mode real exec (`csg generate <img> -f adw.css` with `runtime.mode=container`) never ran: environment had only the stale `csg-custom-latest` image, which errors because it bakes old code; templates bind-mount at `/templates` so no rebuild is needed for the template itself — manual verification owed to gt-4-1/G1.1 [src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/container_processor.py:216-217]

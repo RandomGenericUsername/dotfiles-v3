@@ -4,7 +4,7 @@ baseline_commit: 39764ff
 
 # Story 2.1: Palette artifact set growth (contract + domain + adapters)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -291,3 +291,4 @@ Story artifacts (2):
 ### Change Log
 
 - 2026-09-07: Story gt-2-1 implemented — palette artifact set grows 3 → 5 (colors.adw.css + colors.sequences) across domain/adapter/seeder/derive/reconcile/inspect/repository; shared hit-completeness guard + evict-and-regenerate migration (AC 8); `current/` gains the 2 new symlinks in seed AND reconcile; 26 test files updated to the 5-name set; 6 new tests (5-name repoint, skip+warn defense-in-depth, 3× migration); real-csg integration tests skip on stale host binary with refresh instruction (environment, pre-known). Status → review.
+- 2026-09-07: Code review (bmad-code-review) — APPROVED. Verified gates at baseline (104 ruff / 26 format / 4 mypy pre-existing; 567 unit + 61 integration passed, skips = pre-known stale-csg); hash keys unchanged (NFR-4); domain purity + layering green; AR-3 untouched; no 3-name stragglers in src. Fix applied: `test_full_swap_interrupted_all_symlinks_reverted` reversion loop + assertions grown to the 5-name set (crash-recovery reversion coverage for the 2 new links). Concurrency note on evict-and-regenerate documented in deferred-work.md (convergent, self-healing; no lock — out of scope). Status → done.

@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: 2026-09-07 (gt-epic-2 in-progress — gt-2-1 review)
+last_updated: "2026-09-07 (gt-fix-1 test-isolation hardening after live-bar incident; gt-2-2 ready-for-dev)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -102,8 +102,8 @@ development_status:
 
   # ── Epic 2: Runtime artifact set + declarative consumer pointers ──
   gt-epic-2: in-progress
-  gt-2-1-palette-artifact-set-growth: review
-  gt-2-2-iconsumerpathspec-declarative-pointers: backlog
+  gt-2-1-palette-artifact-set-growth: done
+  gt-2-2-iconsumerpathspec-declarative-pointers: ready-for-dev
   gt-2-3-terminalcolorapplier-reads-artifact: backlog
   gt-epic-2-retrospective: optional
 
@@ -120,6 +120,8 @@ development_status:
   gt-epic-4-retrospective: optional
 
   # ── Ad-hoc fixes (outside epic tracking, committed) ──
+  gt-fix-1-no-real-desktop-spawns-from-tests: done
+
   rt-3-5-fix-icon-templates-mappings-discovery-path: done
   rt-3-6-align-weg-adapter-with-config-assembler-xdg: done
   rt-3-7-weg-adapter-accepts-any-image-extension: done
