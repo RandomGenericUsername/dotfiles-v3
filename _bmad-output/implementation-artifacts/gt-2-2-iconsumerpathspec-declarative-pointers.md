@@ -4,7 +4,7 @@ baseline_commit: 47d23cb
 
 # Story 2.2: `IConsumerPathSpec` — declarative consumer pointers
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -47,21 +47,21 @@ So that adding a consumer (rofi, dunst, wlogout) is a spec entry, never bespoke 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — Domain: contract data models (AC: 1)
-  - [ ] `src/runtime/src/runtime/domain/models.py`: add `ConsumerPointer` and `ConsumerPointerRules` frozen dataclasses (style: `@dataclass(frozen=True, slots=True)`, placed near `PaletteArtifacts`/`PaletteEntry`). Docstrings cite the investigation §3 table and the gt-4.2 contract pin. No imports added; no other model touched.
-  - [ ] Verify domain purity: both are plain dataclasses — no `os`/`pathlib` (layering allowlist intact).
+- [x] Task 1 — Domain: contract data models (AC: 1)
+  - [x] `src/runtime/src/runtime/domain/models.py`: add `ConsumerPointer` and `ConsumerPointerRules` frozen dataclasses (style: `@dataclass(frozen=True, slots=True)`, placed near `PaletteArtifacts`/`PaletteEntry`). Docstrings cite the investigation §3 table and the gt-4.2 contract pin. No imports added; no other model touched.
+  - [x] Verify domain purity: both are plain dataclasses — no `os`/`pathlib` (layering allowlist intact).
 
-- [ ] Task 2 — Port: `IConsumerPathSpec` (AC: 2)
-  - [ ] NEW `src/runtime/src/runtime/ports/consumer_path_spec.py`: pure ABC, two abstract methods (`consumer_pointers`, `rules`), docstring pinning the table's canonical home (`shared-data-contract.md` ConsumerPointer table, authored in gt-4.2) and the AD-11 exception-class reference (ARCHITECTURE-SPINE AD-11).
-  - [ ] `src/runtime/src/runtime/ports/__init__.py`: re-export `IConsumerPathSpec` in imports + `__all__`.
-  - [ ] Confirm `tests/architecture/test_layering.py` ports rules pass for the new file (imports only `abc` + `runtime.domain.models`).
+- [x] Task 2 — Port: `IConsumerPathSpec` (AC: 2)
+  - [x] NEW `src/runtime/src/runtime/ports/consumer_path_spec.py`: pure ABC, two abstract methods (`consumer_pointers`, `rules`), docstring pinning the table's canonical home (`shared-data-contract.md` ConsumerPointer table, authored in gt-4.2) and the AD-11 exception-class reference (ARCHITECTURE-SPINE AD-11).
+  - [x] `src/runtime/src/runtime/ports/__init__.py`: re-export `IConsumerPathSpec` in imports + `__all__`.
+  - [x] Confirm `tests/architecture/test_layering.py` ports rules pass for the new file (imports only `abc` + `runtime.domain.models`).
 
-- [ ] Task 3 — Adapter: pinned spec table (AC: 3)
-  - [ ] NEW `src/runtime/src/runtime/adapters/consumer_path_spec.py`: `StaticConsumerPathSpec(IConsumerPathSpec)` returning the 3-entry tuple (ags → colors.gtk.css; gtk-3.0 → colors.gtk.css; gtk-4.0 → colors.adw.css) and default rules. Module docstring notes: adding a consumer = one spec line + its `@import` (never adapter code); gtk-{3,4}.0 pointer paths target `{install}/config/gtk-{3,4}.0/colors.css` — the spine dirs arrive in gt-3-1, until then the loop's missing-parent rule keeps them skip+warn.
-  - [ ] Grep-verify NO other module hardcodes the AGS path after this story (`config/ags/colors.css` survives only in the spec table + tests asserting behavior).
+- [x] Task 3 — Adapter: pinned spec table (AC: 3)
+  - [x] NEW `src/runtime/src/runtime/adapters/consumer_path_spec.py`: `StaticConsumerPathSpec(IConsumerPathSpec)` returning the 3-entry tuple (ags → colors.gtk.css; gtk-3.0 → colors.gtk.css; gtk-4.0 → colors.adw.css) and default rules. Module docstring notes: adding a consumer = one spec line + its `@import` (never adapter code); gtk-{3,4}.0 pointer paths target `{install}/config/gtk-{3,4}.0/colors.css` — the spine dirs arrive in gt-3-1, until then the loop's missing-parent rule keeps them skip+warn.
+  - [x] Grep-verify NO other module hardcodes the AGS path after this story (`config/ags/colors.css` survives only in the spec table + tests asserting behavior).
 
-- [ ] Task 4 — Seeder: generic loop (AC: 4, 5)
-  - [ ] `src/runtime/src/runtime/adapters/seeder.py`:
+- [x] Task 4 — Seeder: generic loop (AC: 4, 5)
+  - [x] `src/runtime/src/runtime/adapters/seeder.py`:
     - Constructor (line 108-109): add `consumer_spec: IConsumerPathSpec | None = None` (keyword-or-positional compatible with `CacheSeeder(state_root)` call sites); `None` → `StaticConsumerPathSpec()` module default. Import the port + default adapter (adapters→ports/domain imports are legal).
     - `repoint_consumer_symlinks` (lines 585-643): replace the hardcoded AGS block with the generic loop over `self._consumer_spec.consumer_pointers()`; keep the method name, signature, `list[Path]` return (actually created/updated paths only), and the existing docstring's AD-11 note (update it to cite the spec class + the three pointers). Rules are read ONCE via `self._consumer_spec.rules()`; the loop implements the semantics.
     - Null-palette branch: iterate ALL pointers, remove existing dests (`missing_ok`), collect nothing into the result, warn-logged per removal (match today's message shape: `"seeding: palette layer is null; consumer symlink removed: %s"`).
@@ -69,35 +69,35 @@ So that adding a consumer (rofi, dunst, wlogout) is a spec entry, never bespoke 
     - Target guard: `if not (self._state_root / "current" / p.target).exists() and not .is_symlink(): skip + warn` (mirror today's `"current/colors.gtk.css missing, R2 consumer symlink skipped"`).
     - Regular-file replacement: rely on `_repoint_symlink`'s `os.replace` (tmp symlink replaces the file atomically) — do NOT pre-unlink.
     - Keep the "Deliberately NOT covered" docstring paragraph (hypr colors.conf, hyprpaper, ITR) accurate.
-  - [ ] `repoint_current_symlink` / `repoint_current_symlinks` (current/ loops): UNTOUCHED.
+  - [x] `repoint_current_symlink` / `repoint_current_symlinks` (current/ loops): UNTOUCHED.
 
-- [ ] Task 5 — Wiring: composition root + verify-only flows (AC: 6)
-  - [ ] `src/runtime/src/runtime/cli/main.py`: import `StaticConsumerPathSpec` alongside the other adapter imports in each lazy-import block; pass `consumer_spec=StaticConsumerPathSpec()` at the 4 construction sites (lines 126, 266, 278, 439).
-  - [ ] VERIFY ONLY (no edit expected): `application/seed_cache.py` (call at 236-239), `application/reconcile.py` (call at 247-250), `application/apply_wallpaper.py` (no consumer repoint), `application/derive.py` — signatures unchanged because the spec lives inside the seeder.
+- [x] Task 5 — Wiring: composition root + verify-only flows (AC: 6)
+  - [x] `src/runtime/src/runtime/cli/main.py`: import `StaticConsumerPathSpec` alongside the other adapter imports in each lazy-import block; pass `consumer_spec=StaticConsumerPathSpec()` at the 4 construction sites (lines 126, 266, 278, 439).
+  - [x] VERIFY ONLY (no edit expected): `application/seed_cache.py` (call at 236-239), `application/reconcile.py` (call at 247-250), `application/apply_wallpaper.py` (no consumer repoint), `application/derive.py` — signatures unchanged because the spec lives inside the seeder.
 
-- [ ] Task 6 — Inspect status: additive pointer projection (AC: 7)
-  - [ ] `src/runtime/src/runtime/application/inspect.py`:
+- [x] Task 6 — Inspect status: additive pointer projection (AC: 7)
+  - [x] `src/runtime/src/runtime/application/inspect.py`:
     - `InspectStateUseCase.__init__`: add optional `install_spine: Path | None = None` and `consumer_spec: IConsumerPathSpec | None = None` (application→ports/domain imports legal; NO adapter import — the spec instance is injected).
     - `run()`: when `state.palette is not None` AND both optional args are present, build `consumer_pointers` via a new read-only `_inspect_consumer_pointers(state)` method: for each spec pointer, `dest = install_spine / pointer.path`, `expected = state_root / "current" / pointer.target`, classify with the SAME status semantics as `_link_status` (ok = resolves to expected; dangling = symlink to nonexistent target; diverged = resolves elsewhere; missing = no symlink, INCLUDING the absent-parent pre-gt-3-1 case — never crash, never follow a spine dir that doesn't exist). Reuse `LinkStatus`/`LinkStatusKind` and `_raw_target`; do NOT touch `_link_status`/`current_symlinks` logic.
     - `InspectStatusResult` (lines 117-128): add `consumer_pointers: dict[str, LinkStatus]` (default empty dict for backward-compat constructions — check test constructors; `slots` dataclass field ordering: give it a default LAST).
     - Module docstring (lines 13-25): name the spec-driven pointer projection + the doctor note.
-  - [ ] `src/runtime/src/runtime/cli/main.py` `_run_inspect_status` (lines 523-540): pass `install_spine=_resolve_install_spine()` and `consumer_spec=StaticConsumerPathSpec()`; `inspect_status` command renderer (lines 574-600): add the additive `"consumer_pointers": {path: {"status": …, "target": …}}` object key (plain summary may gain an additive pointer count — existing summary wording for `current_symlinks` unchanged).
-  - [ ] Read-only invariant: the projection performs only `Path` reads — no mkdir, no unlink, no repoint (grep-verify no write call in the new code path).
+  - [x] `src/runtime/src/runtime/cli/main.py` `_run_inspect_status` (lines 523-540): pass `install_spine=_resolve_install_spine()` and `consumer_spec=StaticConsumerPathSpec()`; `inspect_status` command renderer (lines 574-600): add the additive `"consumer_pointers": {path: {"status": …, "target": …}}` object key (plain summary may gain an additive pointer count — existing summary wording for `current_symlinks` unchanged).
+  - [x] Read-only invariant: the projection performs only `Path` reads — no mkdir, no unlink, no repoint (grep-verify no write call in the new code path).
 
-- [ ] Task 7 — Tests: spec loop, statuses, spine guard, fixtures (AC: 4, 5, 7, 8)
-  - [ ] `tests/unit/test_seed_cache.py`:
+- [x] Task 7 — Tests: spec loop, statuses, spine guard, fixtures (AC: 4, 5, 7, 8)
+  - [x] `tests/unit/test_seed_cache.py`:
     - `_setup_install_spine` (line 220-245): add `(install_spine / "config" / "ags").mkdir(parents=True, exist_ok=True)` (provisioned-machine reality; the no-mkdir rule now requires it).
     - `TestNothingWrittenToInstallSpine::test_install_spine_unmodified_except_r2_symlink` (805-833): `allowed` = exactly the ags pointer path (no dir entries; assert the gtk pointers were NOT created — parents absent).
     - `TestR2ConsumerSymlink` (836-865): keep both tests green unchanged (byte-compat proof); ADD a `TestConsumerPointerSpec` class covering: (a) all 3 pointers created when `config/gtk-3.0/` + `config/gtk-4.0/` exist (targets: ags + gtk-3.0 → `current/colors.gtk.css`; gtk-4.0 → `current/colors.adw.css`); (b) gtk pointers skip+warn when their parent dirs are absent (pre-gt-3-1), ags still created, no crash, no dirs created; (c) regular file at gtk-3.0 dest replaced with symlink; (d) missing `current/colors.adw.css` skips only the gtk-4.0 pointer (per-pointer guard, not all-or-nothing); (e) null palette removes ALL existing pointers (ags + gtk), `missing_ok`, empty result list; (f) re-run idempotent (same 3 paths, no divergence).
-  - [ ] `tests/unit/test_reconcile.py`: `TestReconcileHappyPath::test_repoints_all_consumer_symlinks_with_cache_targets` (318-362) — fixture gains `config/ags/` (+ gtk dirs in a dedicated test); assertion grows to the 3-pointer set when parents exist, and `test_null_palette_removes_r2_consumer_symlink` (489-516) grows to assert all spec'd pointers removed. `_SpySeeder`-based delegation test (381-405) unchanged.
-  - [ ] `tests/unit/test_inspect.py`: NEW consumer-pointer status tests — ok (symlink resolves to `current/<target>`), missing (dest absent / parent absent), diverged (symlink to a wrong path), dangling (symlink to a deleted target), null-palette omission, and `consumer_spec=None` → field empty (backward-compat).
-  - [ ] `tests/unit/test_cli_inspect_status.py`: additive `consumer_pointers` serialization assertion (JSON view carries status+target per pointer path; absent-spec path renders empty dict).
-  - [ ] VERIFY ONLY (constructor compat, default spec — touch ONLY if a consumer-symlink assertion exists): `tests/unit/test_apply_wallpaper.py`, `test_crash_recovery.py`, `test_cli_crash_recovery.py`, `test_cli_reconcile.py`, `test_cli_wallpaper_set.py`, `test_terminal_color_applier.py`, `test_hyprland_reloader.py`, `test_hyprpaper_reloader.py`, `test_ags_reloader.py`, `test_cache.py`, `test_find_default_effects_catalog.py` (all construct `CacheSeeder(state_root)` — the default-spec fallback keeps them compiling/behaving).
-  - [ ] Integration: `test_seed_cache_integration.py` (`_setup` gains `config/ags/`; spine-guard test updated per AC 8; NEW gtk-pointer assertions in the seed path); `test_reconcile_integration.py` (fixture + consumer coverage); `test_inspect_integration.py` (pointer statuses end-to-end with a real spine layout); VERIFY ONLY: `test_apply_wallpaper_integration.py`, `test_crash_recovery_integration.py`, `test_wallpaper_set_capstone_integration.py`, `test_terminal_color_applier_integration.py`, `test_hyprpaper_reloader_integration.py`, `test_hyprland_reloader_integration.py`, `test_ags_reloader_integration.py`, `test_inspect_cache_list_integration.py`, `test_inspect_history_integration.py`.
-  - [ ] `tests/architecture/test_layering.py`: expect green with zero edits; if the ports classifier flags the new ABC, fix the port (never weaken the test).
+  - [x] `tests/unit/test_reconcile.py`: `TestReconcileHappyPath::test_repoints_all_consumer_symlinks_with_cache_targets` (318-362) — fixture gains `config/ags/` (+ gtk dirs in a dedicated test); assertion grows to the 3-pointer set when parents exist, and `test_null_palette_removes_r2_consumer_symlink` (489-516) grows to assert all spec'd pointers removed. `_SpySeeder`-based delegation test (381-405) unchanged.
+  - [x] `tests/unit/test_inspect.py`: NEW consumer-pointer status tests — ok (symlink resolves to `current/<target>`), missing (dest absent / parent absent), diverged (symlink to a wrong path), dangling (symlink to a deleted target), null-palette omission, and `consumer_spec=None` → field empty (backward-compat).
+  - [x] `tests/unit/test_cli_inspect_status.py`: additive `consumer_pointers` serialization assertion (JSON view carries status+target per pointer path; absent-spec path renders empty dict).
+  - [x] VERIFY ONLY (constructor compat, default spec — touch ONLY if a consumer-symlink assertion exists): `tests/unit/test_apply_wallpaper.py`, `test_crash_recovery.py`, `test_cli_crash_recovery.py`, `test_cli_reconcile.py`, `test_cli_wallpaper_set.py`, `test_terminal_color_applier.py`, `test_hyprland_reloader.py`, `test_hyprpaper_reloader.py`, `test_ags_reloader.py`, `test_cache.py`, `test_find_default_effects_catalog.py` (all construct `CacheSeeder(state_root)` — the default-spec fallback keeps them compiling/behaving).
+  - [x] Integration: `test_seed_cache_integration.py` (`_setup` gains `config/ags/`; spine-guard test updated per AC 8; NEW gtk-pointer assertions in the seed path); `test_reconcile_integration.py` (fixture + consumer coverage); `test_inspect_integration.py` (pointer statuses end-to-end with a real spine layout); VERIFY ONLY: `test_apply_wallpaper_integration.py`, `test_crash_recovery_integration.py`, `test_wallpaper_set_capstone_integration.py`, `test_terminal_color_applier_integration.py`, `test_hyprpaper_reloader_integration.py`, `test_hyprland_reloader_integration.py`, `test_ags_reloader_integration.py`, `test_inspect_cache_list_integration.py`, `test_inspect_history_integration.py`.
+  - [x] `tests/architecture/test_layering.py`: expect green with zero edits; if the ports classifier flags the new ABC, fix the port (never weaken the test).
 
-- [ ] Task 8 — Full green (AC: 9)
-  - [ ] Run and require green (no test runs are part of story CREATION — this task list is for the dev agent):
+- [x] Task 8 — Full green (AC: 9)
+  - [x] Run and require green (no test runs are part of story CREATION — this task list is for the dev agent):
     ```bash
     uv run --directory src/runtime pytest -q
     uv run --directory src/runtime pytest tests/architecture/test_layering.py -v
@@ -105,8 +105,8 @@ So that adding a consumer (rofi, dunst, wlogout) is a spec entry, never bespoke 
     uv run --directory src/runtime ruff format --check .
     uv run --directory src/runtime mypy --strict src/runtime
     ```
-  - [ ] Record gate results at baseline FIRST (`git stash` trick from gt-2-1): ruff check = 104 pre-existing errors in tests, ruff format --check = 26 pre-existing files, mypy --strict = 4 pre-existing errors (FitMode/StrEnum py314 + missing cli_output stubs). Post-implementation must be EXACTLY at baseline — zero new violations, never `# type: ignore`.
-  - [ ] AR-3 byte-compat guard: history 7-field schema, `inspect cache list` shape, swap order, and the `current/` name sets are unchanged; only consumer-pointer counts grow.
+  - [x] Record gate results at baseline FIRST (`git stash` trick from gt-2-1): ruff check = 104 pre-existing errors in tests, ruff format --check = 26 pre-existing files, mypy --strict = 4 pre-existing errors (FitMode/StrEnum py314 + missing cli_output stubs). Post-implementation must be EXACTLY at baseline — zero new violations, never `# type: ignore`.
+  - [x] AR-3 byte-compat guard: history 7-field schema, `inspect cache list` shape, swap order, and the `current/` name sets are unchanged; only consumer-pointer counts grow.
 
 ## Dev Notes
 
@@ -226,8 +226,51 @@ The spec exposes BOTH the table and the rules (`ConsumerPointerRules` flags), bu
 
 ### Agent Model Used
 
+opencode-go/glm-5.3-flash (bmad-dev-story DS run)
+
 ### Debug Log References
+
+- Baseline gates recorded BEFORE coding (gt-2-1 stash procedure): full suite 573 passed / 4 skipped; ruff check 104 errors; ruff format --check 26 files; mypy --strict 4 errors; layering 59 passed.
+- Post-implementation: 597 passed / 4 skipped (+24 tests); ruff check 104 (exact baseline); format 26 files (exact baseline after reformatting seeder.py/inspect.py/test_inspect.py); mypy 4 (exact baseline); layering green, zero edits, `_PORTS_ALLOWED_AGGREGATES` still empty.
+- ruff I001 import-sort fix (3 blocks in cli/main.py: `consumer_path_spec` sorts before `csg_adapter`); E501 models.py:35 + 2× B008 main.py confirmed PRE-EXISTING at baseline.
 
 ### Completion Notes List
 
+- **Domain (Task 1)**: `ConsumerPointer(path, target)` + `ConsumerPointerRules(remove_on_null_palette, replace_regular_file, skip_on_missing_target, skip_on_missing_parent)` frozen/slots dataclasses added to `domain/models.py` near `PaletteArtifacts`/`PaletteEntry`. Pure data — no new imports, domain purity allowlist intact.
+- **Port (Task 2)**: `ports/consumer_path_spec.py` — `IConsumerPathSpec(ABC)` with exactly `consumer_pointers()` + `rules()` (state_repository ABC pattern); re-exported in `ports/__init__.py` imports + `__all__`.
+- **Adapter (Task 3)**: `adapters/consumer_path_spec.py` — `StaticConsumerPathSpec` returns the pinned 3-entry table in contract order (ags→colors.gtk.css; gtk-3.0→colors.gtk.css; gtk-4.0→colors.adw.css) + default rules. Grep-verified: `config/ags/colors.css` survives in source only in docstrings/spec table — zero code hardcodes remain.
+- **Seeder (Task 4)**: `repoint_consumer_symlinks` is now a generic loop over the injected spec. Rules read ONCE via `spec.rules()`; semantics implemented exactly once. Null-palette removal iterates ALL pointers (same warn shape, "R2" token dropped — no test pinned it); per-pointer missing-target guard (skip+warn, never dangling); per-pointer missing-PARENT guard placed BEFORE `_repoint_symlink` (its mkdir can never fire for consumer pointers); regular-file replacement rides `_repoint_symlink`'s tmp+`os.replace`. `repoint_current_symlink(s)` untouched.
+- **Wiring (Task 5)**: cli/main.py passes `consumer_spec=StaticConsumerPathSpec()` at all 4 CacheSeeder sites (import sorted per I001). seed_cache.py / reconcile.py call sites VERIFIED signature-unchanged (spec lives inside the seeder).
+- **Inspect (Task 6)**: `InspectStateUseCase` gained optional `install_spine`/`consumer_spec` (None = projection omitted); `InspectStatusResult.consumer_pointers: dict[str, LinkStatus]` with `field(default_factory=dict)` LAST (backward compat); projection gated on non-null palette + both args, reuses `_link_status` semantics (absent parent = `missing`, never a crash); CLI passes spine+spec at `_run_inspect_status` and renders additive `consumer_pointers` {path: {status, target}}. Read-only verified: Path reads only (is_symlink/exists/resolve/readlink).
+- **Tests (Task 7)**: NEW `TestConsumerPointerSpec` (8 tests: 3-pointer creation, missing-parent skip+warn pre-gt-3-1, file-replace, per-pointer missing-target, null-palette removes-all + missing_ok, idempotent re-run, custom-spec extensibility proof); NEW `TestInspectConsumerPointerProjection` (7 unit + 3 integration: ok/missing/diverged/dangling/null-omission/None-spec/read-only); 2 CLI serialization tests; spine-guard tests tightened to `new_files == {ags pointer}` (parents NEVER created); fixtures gain `config/ags/` (provisioned reality); reconcile gains 3-pointer assertion + dedicated gtk-dirs test; null-palette removal test grows to all 3 pointers (incl. regular-file dest removal — missing_ok semantics).
+- **AR-3**: history 7-field schema, `inspect cache list`, swap order, `current/` name sets untouched; only consumer-pointer counts grow additively (`ReconcileResult.consumer_symlinks` now carries up to 3 entries).
+- gt-fix-1 test-isolation hardening left intact (full suite passes without spawning the desktop).
+
+### Deliberate deviations (pinned for review)
+
+1. **Parent-skip vs mkdir (sub-AC 4d / Dev Notes decision 2)**: on a machine WITHOUT `config/ags/`, today's code mkdirs it; the generic loop skips+warns instead. Every repo-provisioned machine has `config/ags/` (provisioning deploys it), so observable AGS behavior is byte-compatible there (TestR2ConsumerSymlink kept green unchanged) — and the runtime never writes dirs into the spine.
+2. **Inspect-only health surface (doctor interpretation)**: no `doctor` command exists (verified: zero source hits); the AC's "doctor and inspect status" clause is delivered as the spec-driven projection a future doctor reuses, surfaced today through `inspect status`.
+3. **Null-palette warn wording**: "R2 consumer symlink removed" → "consumer symlink removed" (spec-neutral); no test pinned the "R2" token (grep-verified), prefix shape preserved.
+
 ### File List
+
+- `src/runtime/src/runtime/domain/models.py` (UPDATE — ConsumerPointer + ConsumerPointerRules)
+- `src/runtime/src/runtime/ports/consumer_path_spec.py` (NEW — IConsumerPathSpec)
+- `src/runtime/src/runtime/ports/__init__.py` (UPDATE — re-export)
+- `src/runtime/src/runtime/adapters/consumer_path_spec.py` (NEW — StaticConsumerPathSpec)
+- `src/runtime/src/runtime/adapters/seeder.py` (UPDATE — constructor + generic loop)
+- `src/runtime/src/runtime/application/inspect.py` (UPDATE — additive consumer_pointers projection)
+- `src/runtime/src/runtime/cli/main.py` (UPDATE — 4 seeder sites + inspect wiring + renderer)
+- `src/runtime/tests/unit/test_seed_cache.py` (UPDATE — fixture, spine guard, TestConsumerPointerSpec)
+- `src/runtime/tests/unit/test_reconcile.py` (UPDATE — fixture, 3-pointer + null-palette assertions)
+- `src/runtime/tests/unit/test_inspect.py` (UPDATE — TestInspectConsumerPointerProjection)
+- `src/runtime/tests/unit/test_cli_inspect_status.py` (UPDATE — additive serialization tests)
+- `src/runtime/tests/integration/test_seed_cache_integration.py` (UPDATE — fixture, spine guard, gtk-pointer test)
+- `src/runtime/tests/integration/test_reconcile_integration.py` (UPDATE — fixture)
+- `src/runtime/tests/integration/test_inspect_integration.py` (UPDATE — TestInspectConsumerPointersIntegration)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (UPDATE — status tracking)
+- `_bmad-output/implementation-artifacts/gt-2-2-iconsumerpathspec-declarative-pointers.md` (UPDATE — this story file)
+
+### Change Log
+
+- 2026-09-07 — Story gt-2-2 implemented: declarative `IConsumerPathSpec` port + `StaticConsumerPathSpec` pinned table; `CacheSeeder.repoint_consumer_symlinks` generalized to a spec-driven loop (null-remove missing_ok, file-replace, missing-target skip+warn, missing-parent skip+warn — no spine mkdir); `inspect status` reports all pointers via the spec additively (ok/missing/diverged/dangling); 24 new tests; all gates at exact baseline. Status → review.
