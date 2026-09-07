@@ -7,7 +7,14 @@ from rich.console import Console
 from rich.text import Text
 
 from icon_templates_renderer.domain.exceptions import IconRendererError
-from icon_templates_renderer.domain.models import ListResult, RenderResult, ValidateResult
+from icon_templates_renderer.domain.models import (
+    ListResult,
+    MappingSetDefaultResult,
+    MappingSetResult,
+    MappingShowResult,
+    RenderResult,
+    ValidateResult,
+)
 
 
 def _render_object(result: RenderResult) -> dict[str, Any]:
@@ -75,6 +82,138 @@ def project_validate_result(result: ValidateResult) -> CustomView:
         object=obj,
         rich="[bold green]Validation passed.[/bold green]",
     )
+
+
+def _mapping_show_object(result: MappingShowResult) -> dict[str, Any]:
+    return {
+        "groups": [
+            {
+                "group": group_view.group,
+                "variants": [
+                    {
+                        "variant": variant_view.variant,
+                        "template_path": str(variant_view.template_path),
+                        "svg_body": variant_view.svg_body,
+                        "mappings": [
+                            {
+                                "placeholder": entry.placeholder,
+                                "token": entry.token,
+                                "origin": str(entry.origin),
+                            }
+                            for entry in variant_view.entries
+                        ],
+                    }
+                    for variant_view in group_view.variants
+                ],
+            }
+            for group_view in result.groups
+        ],
+        "palette": dict(result.palette.values),
+        "missing_tokens": list(result.missing_tokens),
+        "shadows": {placeholder: list(groups) for placeholder, groups in result.shadows},
+    }
+
+
+def project_mapping_show_result(result: MappingShowResult) -> CustomView:
+    lines: list[str] = []
+    for group_view in result.groups:
+        lines.append(f"{group_view.group}:")
+        for variant_view in group_view.variants:
+            lines.append(f"  {variant_view.variant} (template: {variant_view.template_path}):")
+            for entry in variant_view.entries:
+                lines.append(f"    {entry.placeholder}: {entry.token} [{entry.origin}]")
+    lines.append("Palette:")
+    for token, hex_value in result.palette.values.items():
+        lines.append(f"  {token}: {hex_value}")
+    if result.missing_tokens:
+        lines.append(f"Missing tokens: {', '.join(result.missing_tokens)}")
+    else:
+        lines.append("Missing tokens: none")
+    if result.shadows:
+        lines.append("Shadowing groups:")
+        for placeholder, groups in result.shadows:
+            lines.append(f"  {placeholder}: {', '.join(groups)}")
+    else:
+        lines.append("Shadowing groups: none")
+
+    def rich(console: Console) -> None:
+        console.print()
+        for group_view in result.groups:
+            console.print(Text(group_view.group, style="bold"))
+            for variant_view in group_view.variants:
+                console.print(f"  {variant_view.variant} (template: {variant_view.template_path})")
+                for entry in variant_view.entries:
+                    console.print(f"    {entry.placeholder}: {entry.token} [{entry.origin}]")
+        console.print()
+
+    return CustomView(
+        plain="\n".join(lines),
+        object=_mapping_show_object(result),
+        rich=rich,
+    )
+
+
+def _set_target_label(result: MappingSetResult) -> str:
+    if result.variant is not None:
+        return f"{result.group}.variants[{result.variant}].color_mappings.{result.placeholder}"
+    return f"{result.group}.color_mappings.{result.placeholder}"
+
+
+def project_mapping_set_result(result: MappingSetResult) -> CustomView:
+    obj = {
+        "group": result.group,
+        "variant": result.variant,
+        "placeholder": result.placeholder,
+        "token": result.token,
+        "dry_run": result.dry_run,
+        "diff": result.diff_text,
+    }
+    if result.diff_text:
+        plain = result.diff_text.rstrip("\n")
+        rich_text = result.diff_text
+    else:
+        confirmation = f"Set {_set_target_label(result)} = {result.token}."
+        if result.dry_run:
+            confirmation += " (dry run — no changes written)"
+        plain = confirmation
+        rich_text = confirmation
+
+    def rich(console: Console) -> None:
+        console.print()
+        console.print(rich_text)
+        console.print()
+
+    return CustomView(plain=plain, object=obj, rich=rich)
+
+
+def project_mapping_set_default_result(result: MappingSetDefaultResult) -> CustomView:
+    obj = {
+        "placeholder": result.placeholder,
+        "token": result.token,
+        "dry_run": result.dry_run,
+        "diff": result.diff_text,
+        "shadows": list(result.shadows),
+    }
+    if result.shadows:
+        shadow_line = f"Shadowing groups: {', '.join(result.shadows)}"
+    else:
+        shadow_line = "Shadowing groups: none"
+    if result.diff_text:
+        plain = result.diff_text.rstrip("\n") + "\n" + shadow_line
+        rich_text = result.diff_text + "\n" + shadow_line
+    else:
+        confirmation = f"Set defaults.{result.placeholder} = {result.token}."
+        if result.dry_run:
+            confirmation += " (dry run — no changes written)"
+        plain = confirmation + "\n" + shadow_line
+        rich_text = confirmation + "\n" + shadow_line
+
+    def rich(console: Console) -> None:
+        console.print()
+        console.print(rich_text)
+        console.print()
+
+    return CustomView(plain=plain, object=obj, rich=rich)
 
 
 def project_message(msg: str) -> MessageView:

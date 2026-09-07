@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from icon_templates_renderer.domain.enums import OutputFormat, Verbosity
+from icon_templates_renderer.domain.enums import MappingOrigin, OutputFormat, Verbosity
 from icon_templates_renderer.domain.exceptions import (
     ColorSchemeKeyNotFoundError,
     ColorSchemeNotFoundError,
@@ -10,15 +10,26 @@ from icon_templates_renderer.domain.exceptions import (
     InvalidYamlError,
     MissingMappingError,
     TemplateNotFoundError,
+    UnknownPlaceholderError,
+    UnknownTokenError,
+    VariantNotFoundError,
 )
 from icon_templates_renderer.domain.models import (
     AppSettings,
     ColorScheme,
     ColorSchemeSettings,
+    GroupMappingView,
     IconConfig,
     IconGroup,
     ListRequest,
     ListResult,
+    MappingEntry,
+    MappingSetDefaultRequest,
+    MappingSetDefaultResult,
+    MappingSetRequest,
+    MappingSetResult,
+    MappingShowRequest,
+    MappingShowResult,
     OutputSettings,
     RenderedVariant,
     RenderRequest,
@@ -28,6 +39,7 @@ from icon_templates_renderer.domain.models import (
     ValidateRequest,
     ValidateResult,
     Variant,
+    VariantMappingView,
     Vocabulary,
 )
 from icon_templates_renderer.domain.services import (
@@ -43,6 +55,7 @@ __all__ = [
     "ColorSchemeNotFoundError",
     "ColorSchemeSettings",
     "ConfigResolutionError",
+    "GroupMappingView",
     "IconConfig",
     "IconGroup",
     "IconNotFoundError",
@@ -50,7 +63,15 @@ __all__ = [
     "InvalidYamlError",
     "ListRequest",
     "ListResult",
+    "MappingEntry",
+    "MappingOrigin",
     "MappingResolutionService",
+    "MappingSetDefaultRequest",
+    "MappingSetDefaultResult",
+    "MappingSetRequest",
+    "MappingSetResult",
+    "MappingShowRequest",
+    "MappingShowResult",
     "MissingMappingError",
     "OutputFormat",
     "OutputSettings",
@@ -62,9 +83,13 @@ __all__ = [
     "ResolvedRoots",
     "TemplateNotFoundError",
     "TemplatesSettings",
+    "UnknownPlaceholderError",
+    "UnknownTokenError",
     "ValidateRequest",
     "ValidateResult",
     "Variant",
+    "VariantMappingView",
+    "VariantNotFoundError",
     "Verbosity",
     "Vocabulary",
 ]

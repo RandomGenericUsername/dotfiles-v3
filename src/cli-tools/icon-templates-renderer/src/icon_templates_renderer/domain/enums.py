@@ -17,3 +17,12 @@ class Verbosity(Enum):
     NORMAL = 1
     VERBOSE = 2
     DEBUG = 3
+
+
+class MappingOrigin(Enum):
+    VOCABULARY = "vocabulary"
+    GROUP = "group"
+    VARIANT = "variant"
+
+    def __str__(self) -> str:
+        return self.value

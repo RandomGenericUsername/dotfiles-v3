@@ -51,7 +51,7 @@ The token picker SHALL be titled `Set {{PLACEHOLDER}} to which palette token?` n
 - **THEN** the heading reads `Set {{COLOR_ACCENT}} to which palette token?`
 
 ### Requirement: The picker offers every palette token, disabling absent ones
-The picker SHALL list every token present in the loaded `colors.yaml` — `color0` through `color15` plus every top-level scalar token such as `foreground`, `background`, and `cursor` — as selectable swatches showing token name and hex. Any token referenced by a resolved mapping but absent from `colors.yaml` SHALL be listed disabled and annotated `not in colors.yaml`. Absent tokens SHALL NOT be hidden and SHALL NOT be selectable. The picker SHALL offer palette tokens only: there is no free-form color entry, and the GUI SHALL NOT write literal `#rrggbb` mappings (literals already on disk keep passing through the preview per `icme-rendering`).
+The picker SHALL list every token with a `#rrggbb` color value present in the loaded `colors.yaml` — `color0` through `color15` plus every top-level scalar color token such as `foreground`, `background`, and `cursor` — as selectable swatches showing token name and hex. Non-color file metadata entries (e.g. `source_image`, `backend`) SHALL NOT be listed. Any token referenced by a resolved mapping but absent from `colors.yaml` SHALL be listed disabled and annotated `not in colors.yaml`. Absent tokens SHALL NOT be hidden and SHALL NOT be selectable. The picker SHALL offer palette tokens only: there is no free-form color entry, and the GUI SHALL NOT write literal `#rrggbb` mappings (literals already on disk keep passing through the preview per `icme-rendering`).
 
 #### Scenario: all sixteen indexed colors are selectable
 - **WHEN** a shape is selected

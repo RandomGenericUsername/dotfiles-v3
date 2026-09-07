@@ -13,15 +13,15 @@ The editor window SHALL be arranged in three regions: a left column carrying the
 - **WHEN** there are no pending edits
 - **THEN** the diff pane shows an explicit no-changes state rather than a blank area
 
-### Requirement: Enlarged main preview with sibling thumbnails
-The selected variant SHALL render enlarged as the main preview; every other previewed variant SHALL render as a smaller thumbnail. Shape clicks SHALL be accepted only on the main preview; thumbnails switch the selection when clicked.
+### Requirement: Uniform grid with a marked active variant
+All variant cards SHALL render at the same size in a wrapping left-aligned grid. The active variant SHALL be distinguished by the accent border alone, with no size difference.
 
-#### Scenario: main preview dominates
+#### Scenario: no enlarged variant
 - **WHEN** a group with several variants is loaded
-- **THEN** exactly one variant renders enlarged and the rest render as thumbnails
+- **THEN** every card renders at the same size and exactly one carries the active border
 
-#### Scenario: only the main preview is clickable for shapes
-- **WHEN** the user clicks a shape in a thumbnail
+#### Scenario: only the active card accepts shape clicks
+- **WHEN** the user clicks a shape in a non-active card
 - **THEN** no shape selection occurs (the click promotes that variant instead)
 
 ### Requirement: The canvas bar names the active template

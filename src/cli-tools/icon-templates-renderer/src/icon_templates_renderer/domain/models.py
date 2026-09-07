@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from icon_templates_renderer.domain.enums import Verbosity
+from icon_templates_renderer.domain.enums import MappingOrigin, Verbosity
 
 
 def _frozen_mapping(mapping: dict[str, str]) -> MappingProxyType[str, str]:
@@ -130,6 +130,87 @@ class ValidateResult:
     ok: bool = True
     checked_groups: int = 0
     checked_variants: int = 0
+
+
+@dataclass(frozen=True)
+class MappingEntry:
+    placeholder: str
+    token: str
+    origin: MappingOrigin
+
+
+@dataclass(frozen=True)
+class VariantMappingView:
+    variant: str
+    template_path: Path
+    svg_body: str
+    entries: tuple[MappingEntry, ...] = ()
+
+
+@dataclass(frozen=True)
+class GroupMappingView:
+    group: str
+    variants: tuple[VariantMappingView, ...] = ()
+
+
+@dataclass(frozen=True)
+class MappingShowRequest:
+    yaml_path: Path
+    icon: str | None = None
+    roots: ResolvedRoots = field(default_factory=ResolvedRoots)
+    vocabulary_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class MappingShowResult:
+    groups: tuple[GroupMappingView, ...] = ()
+    palette: ColorScheme = field(default_factory=ColorScheme)
+    missing_tokens: tuple[str, ...] = ()
+    shadows: tuple[tuple[str, tuple[str, ...]], ...] = ()
+
+
+@dataclass(frozen=True)
+class MappingSetRequest:
+    yaml_path: Path
+    group: str
+    placeholder: str
+    token: str
+    variant: str | None = None
+    roots: ResolvedRoots = field(default_factory=ResolvedRoots)
+    unsafe: bool = False
+    dry_run: bool = False
+    show_diff: bool = False
+
+
+@dataclass(frozen=True)
+class MappingSetResult:
+    group: str
+    placeholder: str
+    token: str
+    variant: str | None = None
+    dry_run: bool = False
+    diff_text: str = ""
+
+
+@dataclass(frozen=True)
+class MappingSetDefaultRequest:
+    defaults_path: Path
+    placeholder: str
+    token: str
+    icons_path: Path | None = None
+    roots: ResolvedRoots = field(default_factory=ResolvedRoots)
+    unsafe: bool = False
+    dry_run: bool = False
+    show_diff: bool = False
+
+
+@dataclass(frozen=True)
+class MappingSetDefaultResult:
+    placeholder: str
+    token: str
+    dry_run: bool = False
+    diff_text: str = ""
+    shadows: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
