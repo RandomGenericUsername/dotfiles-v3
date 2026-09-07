@@ -1,4 +1,5 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4";
+import app from "ags/gtk4/app";
 import { createEffect, createState } from "ags";
 import { mappingSet, mappingSetDefault, mappingShow, type MappingShow } from "../lib/itr";
 import {
@@ -235,6 +236,14 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       inputs,
       pendingCount: () => pending().size + vocabPending().size,
       onChange: (next) => load(next),
+      // Native file choosers are regular windows and always render below a
+      // layer-shell OVERLAY surface — hide the editor while one is open.
+      onDialogOpenChange: (open) => {
+        const win = app.get_window("icme-window");
+        if (!win) return;
+        if (open) win.show();
+        else win.hide();
+      },
     }),
   );
   left.append(status);
@@ -370,6 +379,18 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       default_width={1280}
       default_height={800}
       $={(self) => {
+        // ESC hides the window (the toggle-aware launcher brings it back).
+        // Works while the window holds keyboard focus; keymode stays
+        // ON_DEMAND so the editor never steals keys from other apps.
+        const keys = new Gtk.EventControllerKey();
+        keys.connect("key-pressed", (_c, keyval) => {
+          if (keyval === Gdk.KEY_Escape) {
+            self.hide();
+            return true;
+          }
+          return false;
+        });
+        self.add_controller(keys);
         center.append(
           Preview({
             show,

@@ -7,12 +7,18 @@ export interface InputsPanelProps {
   inputs: Accessor<EditorInputs>;
   pendingCount: Accessor<number>;
   onChange(inputs: EditorInputs): void;
+  // The editor window is a layer-shell OVERLAY surface: regular windows
+  // (including this native file chooser) always render BELOW it, so a
+  // modal chooser would be unreachable behind the editor. The window
+  // hides itself while the chooser is open and returns on response.
+  onDialogOpenChange?: (open: boolean) => void;
 }
 
 function choosePath(
   title: string,
   dirOnly: boolean,
   onPick: (path: string) => void,
+  onDialogOpenChange?: (open: boolean) => void,
 ): void {
   const dialog = new Gtk.FileChooserNative({
     title,
@@ -21,12 +27,14 @@ function choosePath(
       : Gtk.FileChooserAction.OPEN,
     modal: true,
   });
+  onDialogOpenChange?.(false);
   dialog.connect("response", (_dialog: object, response: number) => {
     if (response === Gtk.ResponseType.ACCEPT) {
       const path = dialog.get_file()?.get_path();
       if (path) onPick(path);
     }
     dialog.destroy();
+    onDialogOpenChange?.(true);
   });
   dialog.show();
 }
@@ -91,8 +99,11 @@ export function InputsPanel(props: InputsPanelProps) {
     line.append(item.path);
     line.append(item.pick);
     item.pick.connect("clicked", () =>
-      choosePath(item.label, item.dirOnly, (path) =>
-        props.onChange(item.put(props.inputs(), path)),
+      choosePath(
+        item.label,
+        item.dirOnly,
+        (path) => props.onChange(item.put(props.inputs(), path)),
+        props.onDialogOpenChange,
       ),
     );
     item.row.append(title);
