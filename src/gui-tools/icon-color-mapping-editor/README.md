@@ -9,17 +9,19 @@ and `tests/fixtures/substitution.json` for the preview-fidelity contract.
 
 - AGS v3 (`ags` on PATH) with GTK4.
 - `itr` on PATH (installed by provisioning via `uv tool install`).
-- A provisioned machine: icon templates in `~/.local/share/dotfiles/icon-templates/`,
-  mappings in `~/.local/share/dotfiles/icon-mappings/icons.yaml` (seed-once,
-  machine-owned), and a generated palette (default
+- The repo (for authoring: mappings in
+  `dotfiles/config/icon-template-color-scheme-mappings/`), or a provisioned
+  machine without a checkout (the editor falls back to the spine copy in
+  `~/.local/share/dotfiles/icon-mappings/`), plus a generated palette
+  (default
   `~/.local/share/dotfiles/generated/palettes/colors.yaml`).
 
 ## Launch
 
-Provisioned install (no repo needed):
+Provisioned install (SUPER+I, or):
 
 ```sh
-icon-color-mapping-editor          # or SUPER+I
+icon-color-mapping-editor          # cd's into the checkout when one exists
 ```
 
 From a checkout (development):
@@ -28,10 +30,16 @@ From a checkout (development):
 make run
 ```
 
-This tool edits the **deployed artifacts in the dotfiles spine**
-(`~/.local/share/dotfiles/icon-mappings/`, seeded once by provisioning and
-machine-owned afterwards). It is provisioned as its own AGS instance
-(`config/ags-icme/` + a launcher bin) and never touches `generated/` or runs
+Both target the repo manifest when a checkout is present; `make run` finds
+it by walking up from the tool directory, the provisioned launcher has the
+checkout path baked in at provision time.
+
+This tool's authoring model is **repo-authoritative**: it edits the repo
+manifest (`dotfiles/config/icon-template-color-scheme-mappings/`) whenever a
+checkout is detectable — the provisioned launcher `cd`s into the checkout —
+and bootstrap converges the manifest into the spine on every run, so
+"edit repo, bootstrap, deployed" works. On machines without a checkout it
+edits the spine copy instead. It never touches `generated/` or runs
 `itr render`;
 rendered icons refresh on the next wallpaper/theme run as usual.
 

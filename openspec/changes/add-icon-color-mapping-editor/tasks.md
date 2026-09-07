@@ -78,7 +78,8 @@
 - [x] 8.1 `lib/inputs.ts` defaults retargeted to the spine (`~/.local/share/dotfiles/icon-mappings/icons.yaml`, spine `icon-templates/`), `ICME_*` env overrides kept
 - [x] 8.2 gui_tools role: deploy the app files into `config/ags-icme/` (raw per-file copy — Jinja2 would eat `{{PLACEHOLDER}}` literals), config-links entry for `ags-icme`
 - [x] 8.3 cli_tools role: `icon-color-mapping-editor` launcher bin (`ags run -d ~/.config/ags-icme`), plus `uv tool install --force` upgrade task so already-provisioned machines re-pin csg/weg/itr on every bootstrap
-- [x] 8.4 assets role: `icon-mappings` seed-once (stat gate on the manifest; converge loop no longer touches it) — re-bootstrap must not revert machine mapping edits
+- [x] 8.4 assets role: `icon-mappings` **converge** (reverted same-day from a seed-once experiment that broke "edit repo, bootstrap, deployed") — bootstrap propagates repo mapping edits on every run
 - [x] 8.5 `SUPER+I` keybind → `icon-color-mapping-editor`
-- [x] 8.6 Structural tests updated: assets parity (seed partition), gui_tools icme file list, cli_tools upgrade locks
-- [x] 8.7 Spec/docs updated: D1 + context (spine-authoring model), proposal non-goals, icme-ui defaults scenario, README, pipeline doc §4.2
+- [x] 8.6 Structural tests updated: assets parity (converge restored), gui_tools icme file list, cli_tools upgrade locks
+- [x] 8.7 Spec/docs updated: D1 + context (repo-authoritative authoring), proposal non-goals, icme-ui defaults scenario, README, pipeline doc §4.2
+- [x] 8.8 Launcher is a provisioned template (`cli_tools/templates/icon-color-mapping-editor.j2`): checkout path baked in at deploy time, `cd`s into the checkout when present (repo-authoritative authoring), spine fallback otherwise

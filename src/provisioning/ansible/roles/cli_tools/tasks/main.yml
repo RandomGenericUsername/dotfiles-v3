@@ -45,12 +45,11 @@
     mode: "0755"
     remote_src: true
 
-- name: Install the icon color mapping editor launcher
-  ansible.builtin.copy:
-    src: "{{ cli_tools_repo_root }}/src/gui-tools/icon-color-mapping-editor/bin/icon-color-mapping-editor"
+- name: Install the icon color mapping editor launcher (repo-aware template)
+  ansible.builtin.template:
+    src: icon-color-mapping-editor.j2
     dest: "{{ cli_tools_bin_dir }}/icon-color-mapping-editor"
     mode: "0755"
-    remote_src: true
 
 - name: Install csg/weg/itr via uv tool install
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"

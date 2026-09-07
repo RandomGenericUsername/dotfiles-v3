@@ -1,14 +1,16 @@
 // Input resolution for the editor session.
 //
-// The editor is a provisioned app: it edits the DEPLOYED artifacts in the
-// spine (~/.local/share/dotfiles/), never a repo checkout. Defaults:
-//   - manifest:   ~/.local/share/dotfiles/icon-mappings/icons.yaml (writable;
-//                 defaults.yaml is resolved alongside it by the CLI)
-//   - templates:  ~/.local/share/dotfiles/icon-templates/ (read-only)
-//   - scheme:     generated palette (read-only)
+// The authoring model is REPO-AUTHORITATIVE (reverted from the brief
+// seed-once experiment, 2026-09-07): the editor targets the repo manifest
+// whenever a checkout is detectable from the working directory — bootstrap
+// then propagates repo edits to the spine on every run ("edit repo,
+// bootstrap, deployed"). Machines without a checkout fall back to the
+// seeded spine copy:
+//   - manifest:   <repo>/dotfiles/config/icon-template-color-scheme-mappings/icons.yaml
+//                 or ~/.local/share/dotfiles/icon-mappings/icons.yaml
+//   - templates:  <repo>/dotfiles/assets/icon-templates/ or spine
+//   - scheme:     the generated palette (always machine-local)
 // ICME_* environment overrides and the in-app pickers take precedence.
-// Provisioning seeds the manifest once (first run); afterwards the machine
-// owns it — re-bootstrap never overwrites edits.
 
 import GLib from "gi://GLib?version=2.0";
 import Gio from "gi://Gio?version=2.0";
@@ -19,12 +21,36 @@ export interface EditorInputs {
   colorScheme: string;
 }
 
+const MANIFEST_PROBE =
+  "dotfiles/config/icon-template-color-scheme-mappings/icons.yaml";
+
 function spineHome(): string {
-  const dataHome = GLib.get_user_data_dir();
-  return `${dataHome}/dotfiles`;
+  return `${GLib.get_user_data_dir()}/dotfiles`;
+}
+
+function findRepoRoot(): string | null {
+  let dir = GLib.get_current_dir();
+  for (;;) {
+    if (GLib.file_test(`${dir}/${MANIFEST_PROBE}`, GLib.FileTest.EXISTS)) return dir;
+    const parent = GLib.path_get_dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 export function resolveInputs(): EditorInputs {
+  const repoRoot = findRepoRoot();
+  if (repoRoot) {
+    return {
+      templateRoot:
+        GLib.getenv("ICME_TEMPLATE_ROOT") ?? `${repoRoot}/dotfiles/assets/icon-templates`,
+      iconsYaml:
+        GLib.getenv("ICME_ICONS_YAML") ??
+        `${repoRoot}/${MANIFEST_PROBE}`,
+      colorScheme:
+        GLib.getenv("ICME_COLOR_SCHEME") ?? `${spineHome()}/generated/palettes/colors.yaml`,
+    };
+  }
   return {
     templateRoot: GLib.getenv("ICME_TEMPLATE_ROOT") ?? `${spineHome()}/icon-templates`,
     iconsYaml: GLib.getenv("ICME_ICONS_YAML") ?? `${spineHome()}/icon-mappings/icons.yaml`,

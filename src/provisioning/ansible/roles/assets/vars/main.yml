@@ -67,19 +67,15 @@ assets_wallpapers_dest: "{{ install_dir | trim }}/wallpapers"
 #   configs — they have no XDG stop to satisfy).
 assets_copies:
   - { name: icon-templates, kind: icon-template, source: dotfiles/assets/icon-templates/, target: icon-templates }
+  - { name: icon-mappings, kind: icon-mapping, source: dotfiles/config/icon-template-color-scheme-mappings/, target: icon-mappings }
   - { name: csg-templates, kind: csg-template, source: src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates/, target: config/color-scheme-generator/templates }
 
-# assets_icon_mappings_seed_source: the icon-mappings manifest dir, seeded
-#   ONCE (seed-once semantics, 2026-09-07): the icon color mapping editor
-#   writes these files on the machine (they are the editor's writable
-#   surface), so re-bootstrap must NOT converge them — a converge copy would
-#   silently revert machine edits. First run seeds the dir contents from the
-#   repo; afterwards the machine owns them (same first-run self-seeding
-#   pattern as the hyprspace/hyprexpo configs). Seed trigger: the manifest
-#   icons.yaml must be ABSENT (stat gate in tasks).
-assets_icon_mappings_seed_source: dotfiles/config/icon-template-color-scheme-mappings/
-assets_icon_mappings_seed_target: "{{ install_dir | trim }}/icon-mappings"
-assets_icon_mappings_seed_marker: "{{ install_dir | trim }}/icon-mappings/icons.yaml"
+# (2026-09-07) icon-mappings is CONVERGE again, like every other copy: the
+# authoring model is repo-authoritative — the editor targets the repo
+# manifest when a checkout is present (spine copy otherwise) and bootstrap
+# propagates repo edits to the spine on every run. A brief seed-once
+# experiment (machine-owned manifest) was reverted the same day: it broke
+# the "edit repo, bootstrap, deployed" workflow, which is the user's intent.
 
 # assets_weg_effects_target: the weg dump-effects emit target — a FILE, not a
 #   dir; never a member of assets_deploy_dirs or assets_copies. Trim lock.

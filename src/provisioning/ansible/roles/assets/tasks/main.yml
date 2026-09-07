@@ -98,26 +98,6 @@
   loop: "{{ assets_copies }}"
   when: not ansible_check_mode
 
-- name: Check whether the icon-mappings manifest is already seeded
-  ansible.builtin.stat:
-    path: "{{ assets_icon_mappings_seed_marker }}"
-  register: assets_icon_mappings_seed_stat
-  when: not ansible_check_mode
-
-# Seed-once (2026-09-07): icon-mappings is the icon color mapping editor's
-# WRITABLE surface on the machine. Unlike icon-templates (which converge
-# above), the manifest dir is seeded only when the manifest is absent —
-# re-bootstrap must never revert machine mapping edits. Deleting the spine
-# dir re-seeds it from the repo on the next run.
-- name: Seed icon-mappings (first run only — machine owns them afterwards)
-  ansible.builtin.copy:
-    src: "{{ assets_repo_root }}/{{ assets_icon_mappings_seed_source }}"
-    dest: "{{ assets_icon_mappings_seed_target }}"
-    remote_src: true
-  when:
-    - not ansible_check_mode
-    - not (assets_icon_mappings_seed_stat.stat.exists | default(false))
-
 - name: Check default.png was unpacked
   ansible.builtin.stat:
     path: "{{ install_dir | trim }}/wallpapers/default.png"

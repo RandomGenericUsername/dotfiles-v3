@@ -284,8 +284,9 @@ class TestAssetsTasks:
         """AC 3-5: exactly one `ansible.builtin.copy` task loops
         `{{ assets_copies }}` with `remote_src: true`, src
         `{{ assets_repo_root }}/{{ item.source }}`, dest
-        `{{ install_dir | trim }}/{{ item.target }}` (the seed-once
-        icon-mappings copy is a separate task, tested below)."""
+        `{{ install_dir | trim }}/{{ item.target }}` — icon-mappings included
+        (converge semantics restored 2026-09-07; the brief seed-once
+        experiment was reverted: the authoring model is repo-authoritative)."""
         loop_matches = [
             task
             for task in _tasks_with_module("ansible.builtin.copy")
@@ -305,51 +306,21 @@ class TestAssetsTasks:
             "a fresh target"
         )
 
-    def test_icon_mappings_seed_once(self) -> None:
-        """Seed-once semantics (2026-09-07): icon-mappings is the editor's
-        writable surface, so it is NOT in the converge loop. A stat task
-        watches the manifest marker; a dedicated copy task seeds the dir
-        contents from the repo ONLY when the manifest is absent (and never
-        under --check). Re-bootstrap must not revert machine mapping edits."""
-        marker = "{{ assets_icon_mappings_seed_marker }}"
-        stat_matches = [
-            task
-            for task in _tasks_with_module("ansible.builtin.stat")
-            if str(_module(task).get("path", "")) == marker
-        ]
-        assert stat_matches, "no stat task on the seed marker found"
-        assert stat_matches[0].get("register"), "seed stat task must register"
-
-        seed_matches = [
-            task
-            for task in _tasks_with_module("ansible.builtin.copy")
-            if str(_module(task).get("dest", "")) == "{{ assets_icon_mappings_seed_target }}"
-        ]
-        assert len(seed_matches) == 1, "expected exactly one icon-mappings seed copy task"
-        task = seed_matches[0]
-        module = _module(task)
-        assert module["src"] == "{{ assets_repo_root }}/{{ assets_icon_mappings_seed_source }}"
-        assert module["remote_src"] is True
-        when = task.get("when")
-        assert isinstance(when, list) and len(when) == 2, (
-            "seed copy must be gated on check-mode AND the marker stat"
-        )
-        assert "not ansible_check_mode" in str(when)
-        assert any("assets_icon_mappings_seed_stat" in str(cond) for cond in when), (
-            "seed copy must reference the registered stat result (seed-once gate)"
-        )
-
-        # The converge loop must NOT contain icon-mappings anymore.
         data = _vars()
         loop_names = {entry["name"] for entry in data["assets_copies"]}
-        assert "icon-mappings" not in loop_names, (
-            "icon-mappings must not be in assets_copies (seed-once, not converge)"
+        assert "icon-mappings" in loop_names, (
+            "icon-mappings must converge via assets_copies (repo edits must "
+            "propagate on every bootstrap)"
         )
-        # Seed source mirrors the manifest entry's source.
-        manifest = {item["name"]: item for item in _manifest_entries()}
-        seed_source = str(data["assets_icon_mappings_seed_source"])
-        assert seed_source == manifest["icon-mappings"]["source"].rstrip("/") + "/", (
-            "seed source must mirror the manifest icon-mappings source (trailing /)"
+        # No seed-once residue: the dedicated stat gate and seed copy are gone.
+        marker_stats = [
+            task
+            for task in _tasks_with_module("ansible.builtin.stat")
+            if "icon_mappings_seed" in str(_module(task).get("path", ""))
+        ]
+        assert not marker_stats, "seed-once stat gate must not remain"
+        assert not any("icon_mappings_seed" in str(key) for key in data), (
+            "seed-once vars must not remain"
         )
 
     def test_every_copy_source_ends_with_slash(self) -> None:
@@ -547,9 +518,9 @@ class TestAssetsVars:
         )
 
         copy_names = {entry["name"] for entry in copies}
-        assert copy_names | {"wallpapers", "weg-effects", "icon-mappings"} == set(manifest), (
-            "assets_copies names ∪ {wallpapers, weg-effects, icon-mappings (seed-once)} "
-            "must equal the manifest entry names (single source of truth)"
+        assert copy_names | {"wallpapers", "weg-effects"} == set(manifest), (
+            "assets_copies names ∪ {wallpapers, weg-effects} must equal the "
+            "manifest entry names (single source of truth)"
         )
 
         kind_to_segment = {
