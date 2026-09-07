@@ -121,3 +121,22 @@ export function resolveToken(
   }
   return token;
 }
+
+/**
+ * Pre-pick resolution of one placeholder: the effective token with the given
+ * pending edit excluded, plus whether that value falls through to the
+ * vocabulary default (the case that reads as an apparition in raw diffs).
+ */
+export function pendingOldValue(
+  entries: MergedEntry[],
+  group: string,
+  variant: string,
+  placeholder: string,
+  pendingOthers: ReadonlyMap<string, PendingEdit>,
+  vocabOthers: ReadonlyMap<string, VocabularyPendingEdit>,
+): { token: string | null; fromVocabulary: boolean } {
+  const table = previewMappings(entries, group, variant, pendingOthers, vocabOthers);
+  const token = table[placeholder] ?? null;
+  const base = entries.find((entry) => entry.placeholder === placeholder);
+  return { token, fromVocabulary: base?.origin === 'vocabulary' };
+}

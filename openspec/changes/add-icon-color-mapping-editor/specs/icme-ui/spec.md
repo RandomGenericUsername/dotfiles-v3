@@ -122,9 +122,15 @@ Because vocabulary defaults are the lowest-precedence mappings, in `All icons` s
 Picking a token SHALL NOT write to disk. Pending edits SHALL be accumulated and rendered as a YAML diff showing removed and added mapping lines under their owning key. `Save` SHALL apply all pending edits to the icons manifest and clear the pending set; `Revert` SHALL discard them and restore the preview to the on-disk state.
 
 #### Scenario: a pick produces a diff and no write
-- **WHEN** the user picks `color10` for `COLOR_ACCENT` in group scope
-- **THEN** the diff shows `- COLOR_ACCENT: color12` and `+ COLOR_ACCENT: color10` under `battery.color_mappings`
+- **WHEN** the user picks `color10` for `COLOR_ACCENT` in group scope (previously `color12` at group level)
+- **THEN** the pane shows `COLOR_ACCENT: color12 → color10` under `battery.color_mappings`
 - **AND** the icons manifest on disk is unchanged
+
+#### Scenario: a new override reads as a retarget with its old source named
+- **GIVEN** `COLOR_FOREGROUND` has no group entry and resolves to the vocabulary default `foreground`
+- **WHEN** the user picks `color13` for `COLOR_FOREGROUND` in group scope
+- **THEN** the pane shows `COLOR_FOREGROUND: foreground (vocabulary default) → color13` under `battery.color_mappings`
+- **AND** the raw unified diff remains available through `itr mapping set --dry-run --diff`
 
 #### Scenario: revert restores the loaded state
 - **WHEN** the user reverts after several picks

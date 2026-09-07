@@ -1,52 +1,23 @@
 import { Gtk } from "ags/gtk4";
 import { createEffect, type Accessor } from "ags";
-import { renderDiffMarkup } from "../lib/diff";
-import { mappingSet, mappingSetDefault } from "../lib/itr";
-import { defaultsPathFor, type EditorInputs } from "../lib/inputs";
+import {
+  describePending,
+  renderPendingMarkup,
+} from "../lib/diff.ts";
+import type { EditorInputs } from "../lib/inputs";
 import type { PendingEdit, VocabularyPendingEdit } from "../lib/model";
+import type { MappingShow } from "../lib/itr";
 
 export interface DiffPaneProps {
+  show: Accessor<MappingShow | null>;
+  groupName: Accessor<string>;
+  activeVariant: Accessor<string>;
   pending: Accessor<ReadonlyMap<string, PendingEdit>>;
   vocabPending: Accessor<ReadonlyMap<string, VocabularyPendingEdit>>;
   inputs: Accessor<EditorInputs>;
 }
 
-/** YAML diff of all pending edits, sourced from dry-run CLI calls. */
-export async function fetchPendingDiff(
-  pending: ReadonlyMap<string, PendingEdit>,
-  vocabPending: ReadonlyMap<string, VocabularyPendingEdit>,
-  inputs: EditorInputs,
-): Promise<string> {
-  const parts: string[] = [];
-  for (const edit of pending.values()) {
-    const result = await mappingSet({
-      iconsYaml: inputs.iconsYaml,
-      colorScheme: inputs.colorScheme,
-      group: edit.group,
-      placeholder: edit.placeholder,
-      token: edit.token,
-      variant: edit.variant ?? undefined,
-      dryRun: true,
-      withDiff: true,
-    });
-    if (result.diff) parts.push(result.diff.trimEnd());
-  }
-  for (const edit of vocabPending.values()) {
-    const result = await mappingSetDefault({
-      defaultsYaml: defaultsPathFor(inputs.iconsYaml),
-      manifestYaml: inputs.iconsYaml,
-      colorScheme: inputs.colorScheme,
-      placeholder: edit.placeholder,
-      token: edit.token,
-      dryRun: true,
-      withDiff: true,
-    });
-    if (result.diff) parts.push(result.diff.trimEnd());
-  }
-  return parts.join("\n");
-}
-
-/** Live diff pane: recomputes on every pending change, never writes. */
+/** Live diff pane: semantic old→new rows per placeholder, never writes. */
 export function DiffPane(props: DiffPaneProps) {
   const label = new Gtk.Label({
     css_classes: ["diff-text"],
@@ -57,31 +28,23 @@ export function DiffPane(props: DiffPaneProps) {
   const box = new Gtk.Box({ css_classes: ["diff-pane"] });
   box.append(label);
 
-  let seq = 0;
   createEffect(() => {
-    const my = ++seq;
+    const show = props.show();
     const pending = props.pending();
     const vocabPending = props.vocabPending();
-    const inputs = props.inputs();
-    if (pending.size === 0 && vocabPending.size === 0) {
+    props.inputs();
+    if (!show || (pending.size === 0 && vocabPending.size === 0)) {
       label.set_text("— no changes —");
       return;
     }
-    label.set_text("Computing diff…");
-    fetchPendingDiff(pending, vocabPending, inputs).then(
-      (text) => {
-        if (seq === my) {
-          if (text) {
-            label.set_markup(renderDiffMarkup(text));
-          } else {
-            label.set_text("— no changes —");
-          }
-        }
-      },
-      (error: unknown) => {
-        if (seq === my) label.set_text(`Diff unavailable: ${String(error)}`);
-      },
+    const rows = describePending(
+      show,
+      props.groupName(),
+      props.activeVariant(),
+      pending,
+      vocabPending,
     );
+    label.set_markup(renderPendingMarkup(rows));
   });
 
   return box;

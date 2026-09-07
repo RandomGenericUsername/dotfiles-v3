@@ -388,7 +388,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
             onToggleGroup: () => setShowGroup(!showGroup()),
             onToggleBackdrop: () => setBarBackground(!barBackground()),
             onClose: () => self.close(),
-            diffContent: DiffPane({ pending, vocabPending, inputs }),
+            diffContent: DiffPane({ show, groupName, activeVariant, pending, vocabPending, inputs }),
           }),
         );
       }}
