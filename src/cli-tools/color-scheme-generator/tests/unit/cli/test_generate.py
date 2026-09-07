@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from color_scheme_generator.domain.enums import Backend
+from color_scheme_generator.domain.enums import Backend, ColorFormat
 from color_scheme_generator.domain.exceptions import InvalidImageError
 from color_scheme_generator.factory import CliDependencies
 from tests.conftest import FakeProcessor
@@ -88,6 +88,34 @@ class TestCliGenerate:
         assert payload["success"] is True
         assert payload["backend"] == "custom"
         assert payload["color_scheme"]["colors"] is not None
+
+    def test_generate_with_adw_css_format_requests_and_writes_adw_output(
+        self,
+        runner: CliRunner,
+        cli_deps_with_processor: CliDependencies,
+        fake_processor: FakeProcessor,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        output_dir = tmp_path / "out"
+        result = _invoke(
+            runner,
+            cli_deps_with_processor,
+            [
+                "generate",
+                "/tmp/test.png",
+                "--backend",
+                "custom",
+                "-f",
+                "adw.css",
+                "-o",
+                str(output_dir),
+            ],
+            monkeypatch,
+        )
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert fake_processor.calls[0]["request"].config.formats == (ColorFormat.ADW_CSS,)
+        assert (output_dir / "colors.adw.css").exists()
 
     def test_generate_invalid_image_exits_with_code_1(
         self,

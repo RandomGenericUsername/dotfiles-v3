@@ -25,6 +25,7 @@ class TestColorFormat:
         assert ColorFormat.SH.value == "sh"
         assert ColorFormat.CSS.value == "css"
         assert ColorFormat.GTK_CSS.value == "gtk.css"
+        assert ColorFormat.ADW_CSS.value == "adw.css"
         assert ColorFormat.YAML.value == "yaml"
         assert ColorFormat.SEQUENCES.value == "sequences"
         assert ColorFormat.RASI.value == "rasi"

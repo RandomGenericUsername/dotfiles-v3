@@ -413,6 +413,29 @@ class TestProcessGenerate:
         assert str(valid_request.image_path) in result.stderr
         assert result.color_scheme is None
 
+    def test_process_generate_plan_echoes_adw_css_format(
+        self,
+        processor: DryRunProcessor,
+        tmp_path: Path,
+    ) -> None:
+        settings = _make_settings(RuntimeMode.LOCAL)
+        input_file = tmp_path / "input.png"
+        input_file.write_text("dummy")
+        request = GenerationRequest(
+            image_path=input_file,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.ADW_CSS,),
+                output_dir=tmp_path / "output",
+            ),
+        )
+
+        result = processor.process_generate(request, settings)
+
+        assert result.success
+        assert "--format adw.css" in result.stderr
+
 
 class TestProcessShow:
     def test_process_show_returns_success_with_command(

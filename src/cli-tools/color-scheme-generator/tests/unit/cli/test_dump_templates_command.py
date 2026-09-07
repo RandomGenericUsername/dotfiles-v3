@@ -45,6 +45,7 @@ class TestDumpTemplatesCommand:
         mock_bundled.mkdir(parents=True)
         (mock_bundled / "colors.json.j2").write_text("test template")
         (mock_bundled / "colors.sh.j2").write_text("test template")
+        (mock_bundled / "colors.adw.css.j2").write_text("test template")
 
         with patch(
             "color_scheme_generator.cli.dump_templates_cmd.resource_files",
@@ -58,6 +59,7 @@ class TestDumpTemplatesCommand:
         assert result.exit_code == 0
         assert (output_dir / "templates" / "colors.json.j2").exists()
         assert (output_dir / "templates" / "colors.sh.j2").exists()
+        assert (output_dir / "templates" / "colors.adw.css.j2").exists()
 
     def test_dump_templates_creates_parent_directories(
         self,

@@ -190,7 +190,8 @@ class TestTemplateCatalogService:
         assert ColorFormat.JSON in fmts
         assert ColorFormat.SH in fmts
         assert ColorFormat.CSS in fmts
-        assert len(catalog.templates) >= 8
+        assert ColorFormat.ADW_CSS in fmts
+        assert len(catalog.templates) == 10
 
     def test_derive_unknown_format_raises(self, tmp_path: Path) -> None:
         (tmp_path / "colors.json.j2").write_text("x")

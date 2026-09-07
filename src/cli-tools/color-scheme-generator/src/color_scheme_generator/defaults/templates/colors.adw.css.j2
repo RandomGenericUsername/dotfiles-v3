@@ -1,0 +1,44 @@
+/* colors.adw.css — libadwaita named-color overrides (csg format: adw.css)
+ *
+ * AR-2 pinned mapping (palette slot -> named color), contract data pinned in
+ * docs/ARCHITECTURE_PLAN.md (templates inventory). Final pin confirmed against
+ * a real palette render in story gt-1-1 (2026-09-07):
+ *   window/view/headerbar/card/dialog/popover/sidebar_bg_color <- background
+ *   window/view/headerbar/card/sidebar_fg_color                <- foreground
+ *   accent_color / accent_bg_color   <- color_04,  accent_fg_color      <- background
+ *   destructive_color / _bg_color    <- color_08,  destructive_fg_color <- background
+ *   success_color / _bg_color        <- color_06,  success_fg_color     <- background
+ *   warning_color / _bg_color        <- color_12,  warning_fg_color     <- background
+ *   error_color / _bg_color          <- color_09,  error_fg_color       <- background
+ * color_00..15 are GTK3-compatible passthrough names (identical to colors.gtk.css).
+ */
+@define-color window_bg_color {{ background.hex }};
+@define-color view_bg_color {{ background.hex }};
+@define-color headerbar_bg_color {{ background.hex }};
+@define-color card_bg_color {{ background.hex }};
+@define-color dialog_bg_color {{ background.hex }};
+@define-color popover_bg_color {{ background.hex }};
+@define-color sidebar_bg_color {{ background.hex }};
+@define-color window_fg_color {{ foreground.hex }};
+@define-color view_fg_color {{ foreground.hex }};
+@define-color headerbar_fg_color {{ foreground.hex }};
+@define-color card_fg_color {{ foreground.hex }};
+@define-color sidebar_fg_color {{ foreground.hex }};
+@define-color accent_color {{ colors[4].hex }};
+@define-color accent_bg_color {{ colors[4].hex }};
+@define-color accent_fg_color {{ background.hex }};
+@define-color destructive_color {{ colors[8].hex }};
+@define-color destructive_bg_color {{ colors[8].hex }};
+@define-color destructive_fg_color {{ background.hex }};
+@define-color success_color {{ colors[6].hex }};
+@define-color success_bg_color {{ colors[6].hex }};
+@define-color success_fg_color {{ background.hex }};
+@define-color warning_color {{ colors[12].hex }};
+@define-color warning_bg_color {{ colors[12].hex }};
+@define-color warning_fg_color {{ background.hex }};
+@define-color error_color {{ colors[9].hex }};
+@define-color error_bg_color {{ colors[9].hex }};
+@define-color error_fg_color {{ background.hex }};
+{% for i in range(16) %}
+@define-color color_{{ '%02d' % i }} {{ colors[i].hex }};
+{% endfor %}

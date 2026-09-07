@@ -29,7 +29,7 @@
 |-------|---------|
 | `Backend` enum | `CUSTOM` / `PYWAL` / `WALLUST`; `image_suffix` property → `"custom"`, `"pywal"`, `"wallust"`. **No `AUTO` member** (D10) |
 | `ColorAlgorithm` enum | Per-backend algorithm selectors (KMEANS / THIEF / SOLARIZED / etc.) — informational; actual valid values are enforced by `BackendParameterDefinition.choices` |
-| `ColorFormat` enum | JSON / SH / CSS / GTK_CSS / YAML / RASI / SCSS / SEQUENCES / HYPRLAND (`"conf"`) — output file formats the user can request via `-f` |
+| `ColorFormat` enum | JSON / SH / CSS / GTK_CSS / ADW_CSS (`"adw.css"`) / YAML / RASI / SCSS / SEQUENCES / HYPRLAND (`"conf"`) — output file formats the user can request via `-f` |
 | `RuntimeMode` enum | LOCAL / CONTAINER |
 | `ContainerEngine` enum | DOCKER / PODMAN |
 | `OutputFormat` enum | JSON / RICH / PLAIN (default: JSON) — CLI status rendering format |
@@ -671,7 +671,29 @@ wallust:
 
 ### `defaults/templates/*.j2` (package defaults)
 
-9 Jinja2 templates ported verbatim from v2 `packages/core/src/color_scheme/templates/` (plus `colors.conf.j2` for the Hyprland format): `colors.{conf,css,gtk.css,json,rasi,scss,sequences,sh,yaml}.j2`. Render context: `source_image`, `backend`, `generated_at`, `background`/`foreground`/`cursor` (`Color` with `.hex`/`.rgb`), `colors` (16-tuple of `Color`). The `sequences` format gets binary post-processing in `JinjaTemplateRenderer`.
+10 Jinja2 templates ported verbatim from v2 `packages/core/src/color_scheme/templates/` (plus `colors.conf.j2` for the Hyprland format and `colors.adw.css.j2` for the libadwaita format): `colors.{adw.css,conf,css,gtk.css,json,rasi,scss,sequences,sh,yaml}.j2`. Render context: `source_image`, `backend`, `generated_at`, `background`/`foreground`/`cursor` (`Color` with `.hex`/`.rgb`), `colors` (16-tuple of `Color`). The `sequences` format gets binary post-processing in `JinjaTemplateRenderer`.
+
+#### AR-2 contract data: `colors.adw.css.j2` palette-slot → libadwaita named-color mapping (pinned)
+
+Pinned in story gt-1-1 (2026-09-07), confirmed against a real palette render. This table is the mapping contract; template edits here auto-invalidate runtime palette cache keys (runtime hashes `defaults/templates/` canonically). Slot hue semantics are positional (k-means extraction from the source image), not ANSI-fixed: if a real wallpaper makes a pinned slot visually wrong, edit the template + this table together.
+
+| libadwaita named color | palette source |
+|---|---|
+| `window_bg_color`, `view_bg_color`, `headerbar_bg_color`, `card_bg_color`, `dialog_bg_color`, `popover_bg_color`, `sidebar_bg_color` | `background` |
+| `window_fg_color`, `view_fg_color`, `headerbar_fg_color`, `card_fg_color`, `sidebar_fg_color` | `foreground` |
+| `accent_color`, `accent_bg_color` | `color_04` |
+| `accent_fg_color` | `background` |
+| `destructive_color`, `destructive_bg_color` | `color_08` |
+| `destructive_fg_color` | `background` |
+| `success_color`, `success_bg_color` | `color_06` |
+| `success_fg_color` | `background` |
+| `warning_color`, `warning_bg_color` | `color_12` |
+| `warning_fg_color` | `background` |
+| `error_color`, `error_bg_color` | `color_09` |
+| `error_fg_color` | `background` |
+| `@define-color color_00` … `@define-color color_15` | passthrough (GTK3-compatible custom names, identical to `colors.gtk.css.j2`) |
+
+Deliberately not overridden (gaps = future template edits, cache auto-invalidates): backdrop variants (`headerbar_backdrop_color` etc. default to aliases of the bg colors when unset), `secondary_sidebar_*` (libadwaita 1.4+), `thumbnail_*` (1.3+), `overview_*` (1.7+), per-tone accents (`accent_<tone>_color`), shade/border colors (`*_shade_color`, `*_border_color`, `shade_color`, `scrollbar_outline_color`).
 
 ---
 
