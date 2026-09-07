@@ -39,6 +39,13 @@ function placeholderOf(value: string | null): string | null {
 
 /** Extract top-level shape elements in document order. */
 export function extractShapes(svgBody: string): ShapeInfo[] {
+  // Paint attributes inherit from the root <svg> element: icons like the
+  // power menu set fill="none" there and paint shapes via stroke, so a
+  // shape without its own fill attribute must consult the root before the
+  // "missing fill paints black" default applies.
+  const rootTag = /<svg\b[^>]*>/.exec(svgBody)?.[0] ?? "";
+  const rootFill = attrValue(rootTag, "fill");
+  const rootStroke = attrValue(rootTag, "stroke");
   const shapes: ShapeInfo[] = [];
   SHAPE_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -46,8 +53,8 @@ export function extractShapes(svgBody: string): ShapeInfo[] {
   while ((match = SHAPE_RE.exec(svgBody)) !== null) {
     id += 1;
     const element = match[0];
-    const fill = attrValue(element, "fill");
-    const stroke = attrValue(element, "stroke");
+    const fill = attrValue(element, "fill") ?? rootFill;
+    const stroke = attrValue(element, "stroke") ?? rootStroke;
     // Fill wins unless explicitly none (SVG default fill is black, so a
     // missing fill attribute still paints).
     const useStroke = fill === "none";

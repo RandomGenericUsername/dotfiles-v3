@@ -38,6 +38,27 @@ check("fill placeholder", shapes[0].placeholder, "COLOR_FOREGROUND");
 check("fill paintAttr", shapes[0].paintAttr, "fill");
 check("stroke placeholder with fill none", shapes[1].placeholder, "COLOR_ACCENT");
 check("stroke paintAttr", shapes[1].paintAttr, "stroke");
+
+// Root-level fill="none" inherits to shapes with no fill attribute: the
+// power-menu default icon paints stroke-only shapes this way.
+const STROKE_BODY =
+  '<svg width="800" height="800" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+  '<path d="M400 66V200" stroke="{{COLOR_FOREGROUND}}" stroke-width="75" stroke-linecap="round"/>' +
+  '<path d="M283 123C175 169 100 275 100 400" stroke="{{COLOR_FOREGROUND}}" stroke-width="75"/>' +
+  "</svg>";
+const strokeShapes = extractShapes(STROKE_BODY);
+check("root fill none inherits to both shapes", strokeShapes.length, 2);
+check(
+  "inherited stroke placeholders",
+  strokeShapes.map((s) => s.placeholder),
+  ["COLOR_FOREGROUND", "COLOR_FOREGROUND"],
+);
+check(
+  "inherited stroke paintAttr",
+  strokeShapes.every((s) => s.paintAttr === "stroke"),
+  true,
+);
+check("id rewrite clears placeholders on stroke shapes", /\{\{/.test(rewriteWithIdColors(STROKE_BODY)), false);
 check("static shape has null placeholder", shapes[2].placeholder, null);
 
 // id colors round-trip
