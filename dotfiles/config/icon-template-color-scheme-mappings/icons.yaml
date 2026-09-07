@@ -161,6 +161,7 @@ power-menu:
     COLOR_BACKGROUND: background
     COLOR_SECONDARY: color1
     COLOR_ACCENT: color12
+    COLOR_FOREGROUND: color6
   variants:
     - name: power-menu-default
       template: status-bar/power-menu/default/icon.svg
