@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from icon_templates_renderer.domain.enums import MappingOrigin, Verbosity
+from icon_templates_renderer.domain.enums import MappingOrigin, TemplateMode, Verbosity
 
 
 def _frozen_mapping(mapping: dict[str, str]) -> MappingProxyType[str, str]:
@@ -211,6 +211,29 @@ class MappingSetDefaultResult:
     dry_run: bool = False
     diff_text: str = ""
     shadows: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class TemplateShape:
+    shape_id: int
+    tag: str
+    paint_attr: str
+    placeholder: str | None
+    literal: str | None
+
+
+@dataclass(frozen=True)
+class TemplateAnalysis:
+    path: Path
+    mode: TemplateMode
+    shapes: tuple[TemplateShape, ...] = ()
+
+
+@dataclass(frozen=True)
+class TemplateSetPlaceholderRequest:
+    path: Path
+    shape_id: int
+    name: str
 
 
 @dataclass(frozen=True)

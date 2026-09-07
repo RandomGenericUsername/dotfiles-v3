@@ -2,18 +2,18 @@
 
 ## 1. ITR: template analysis surface
 
-- [ ] 1.1 Domain: `TemplateShape` (id, tag, paint_attr, paint_value: placeholder name or literal), `TemplateAnalysis` (mode: templated/bare, shapes); extraction reuses the root-inheritance rules from the GUI extractor (root `fill`/`stroke` fall back before the "missing fill paints black" default)
-- [ ] 1.2 Port `TemplateReaderPort` + adapter reading raw file bytes (no XML round-trip); `analyze` projection for plain output
-- [ ] 1.3 CLI `itr template analyze <file> [--json]` with structured output parity tests (real templates: battery fill-based, power-menu stroke-based, a synthetic bare file)
-- [ ] 1.4 Integration test: bare classification on a hex-only file; templated classification on a mixed file
+- [x] 1.1 Domain: `TemplateShape` (id, tag, paint_attr, paint_value: placeholder name or literal), `TemplateAnalysis` (mode: templated/bare, shapes); extraction reuses the root-inheritance rules from the GUI extractor (root `fill`/`stroke` fall back before the "missing fill paints black" default)
+- [x] 1.2 Port `TemplateReaderPort` + adapter reading raw file bytes (no XML round-trip); `analyze` projection for plain output
+- [x] 1.3 CLI `itr template analyze <file> [--json]` with structured output parity tests (real templates: battery fill-based, power-menu stroke-based, a synthetic bare file)
+- [x] 1.4 Integration test: bare classification on a hex-only file; templated classification on a mixed file
 
 ## 2. ITR: template write surface
 
-- [ ] 2.1 Port `TemplateWriterPort`; adapter performing single-shape paint-attribute rewrites via exact substring replacement, byte-preserving outside the edit, atomic write (temp file + rename)
-- [ ] 2.2 Name validation `[A-Z][A-Z0-9_]*` in the domain (shared constant with the GUI); unknown shape id / missing paint attribute / invalid name → typed errors, no write
-- [ ] 2.3 CLI `itr template set-placeholder <file> --shape <id> --name <NAME>`
-- [ ] 2.4 Unit tests: re-place placeholder among siblings (shapes 1–3 same placeholder, only one changes); bare hex → placeholder; stroke-painted shapes; comments/attrs preserved byte-for-byte; failure cases leave file untouched
-- [ ] 2.5 Round-trip test over all real templates in `dotfiles/assets/icon-templates/`: analyze → write → analyze reports the new placeholder and unchanged everything else
+- [x] 2.1 Port `TemplateWriterPort`; adapter performing single-shape paint-attribute rewrites via exact substring replacement, byte-preserving outside the edit, atomic write (temp file + rename)
+- [x] 2.2 Name validation `[A-Z][A-Z0-9_]*` in the domain (shared constant with the GUI); unknown shape id / missing paint attribute / invalid name → typed errors, no write
+- [x] 2.3 CLI `itr template set-placeholder <file> --shape <id> --name <NAME>`
+- [x] 2.4 Unit tests: re-place placeholder among siblings (shapes 1–3 same placeholder, only one changes); bare hex → placeholder; stroke-painted shapes; comments/attrs preserved byte-for-byte; failure cases leave file untouched
+- [x] 2.5 Round-trip test over all real templates in `dotfiles/assets/icon-templates/`: analyze → write → analyze reports the new placeholder and unchanged everything else
 
 ## 3. GUI: Templates tab
 

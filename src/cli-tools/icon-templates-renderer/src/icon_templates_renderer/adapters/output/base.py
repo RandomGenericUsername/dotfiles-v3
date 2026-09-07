@@ -15,6 +15,7 @@ from icon_templates_renderer.domain.models import (
     MappingSetResult,
     MappingShowResult,
     RenderResult,
+    TemplateAnalysis,
     ValidateResult,
 )
 
@@ -59,6 +60,9 @@ class OutputAdapterBase:
         if self._verbosity is Verbosity.QUIET:
             return
         self._renderer.custom(projectors.project_mapping_set_default_result(result))
+
+    def template_analysis_result(self, result: TemplateAnalysis) -> None:
+        raise NotImplementedError
 
     def error(self, exc: IconRendererError) -> None:
         # Preserve v2's exact "Error: <message>" on stderr across all formats.

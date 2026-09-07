@@ -8,6 +8,7 @@ from icon_templates_renderer.ports.icon_renderer import IconRendererPort
 from icon_templates_renderer.ports.output import OutputPort
 from icon_templates_renderer.ports.svg_renderer import SvgRendererPort
 from icon_templates_renderer.ports.template_dir_resolver import TemplateDirResolverPort
+from icon_templates_renderer.ports.template_writer import TemplateWriterPort
 from icon_templates_renderer.ports.vocabulary_loader import VocabularyLoaderPort
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "OutputPort",
     "SvgRendererPort",
     "TemplateDirResolverPort",
+    "TemplateWriterPort",
     "VocabularyLoaderPort",
 ]

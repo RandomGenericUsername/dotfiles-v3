@@ -98,15 +98,50 @@ class ConfigResolutionError(IconRendererError):
         super().__init__(f"Could not resolve required root '{name}'. Set it via {hint}.")
 
 
+class TemplateWriteError(IconRendererError):
+    """Base exception for template file write errors."""
+
+
+class UnknownTemplateShapeError(TemplateWriteError):
+    """The requested shape id does not exist in the template file."""
+
+    def __init__(self, shape_id: int, path: Path) -> None:
+        self.shape_id = shape_id
+        self.path = path
+        super().__init__(f"Shape id {shape_id} not found in {path}")
+
+
+class InvalidPlaceholderNameError(TemplateWriteError):
+    """A placeholder name fails the ``[A-Z][A-Z0-9_]*`` vocabulary rule."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(f"Invalid placeholder name '{name}'. Must match [A-Z][A-Z0-9_]*.")
+
+
+class TemplatePaintAttributeError(TemplateWriteError):
+    """The target shape has no paint attribute present to rewrite."""
+
+    def __init__(self, shape_id: int, paint_attr: str, path: Path) -> None:
+        self.shape_id = shape_id
+        self.paint_attr = paint_attr
+        self.path = path
+        super().__init__(f"Shape {shape_id} in {path} has no '{paint_attr}' attribute to rewrite")
+
+
 __all__ = [
     "ColorSchemeKeyNotFoundError",
     "ColorSchemeNotFoundError",
     "ConfigResolutionError",
     "IconNotFoundError",
     "IconRendererError",
+    "InvalidPlaceholderNameError",
     "InvalidYamlError",
     "MissingMappingError",
     "TemplateNotFoundError",
+    "TemplatePaintAttributeError",
+    "TemplateWriteError",
+    "UnknownTemplateShapeError",
     "UnknownPlaceholderError",
     "UnknownTokenError",
     "VariantNotFoundError",

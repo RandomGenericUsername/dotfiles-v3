@@ -7,6 +7,7 @@ import typer
 from icon_templates_renderer.cli.list_cmd import list_command
 from icon_templates_renderer.cli.mapping import mapping_app
 from icon_templates_renderer.cli.render import render_command
+from icon_templates_renderer.cli.template import template_app
 from icon_templates_renderer.cli.validate import validate_command
 from icon_templates_renderer.domain.enums import OutputFormat, Verbosity
 from icon_templates_renderer.factory import build_deps, create_output_adapter
@@ -86,3 +87,4 @@ app.command("validate", help="Validate the YAML and all referenced files without
     validate_command
 )
 app.add_typer(mapping_app, name="mapping")
+app.add_typer(template_app, name="template")

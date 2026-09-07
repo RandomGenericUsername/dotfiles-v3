@@ -6,6 +6,7 @@ from icon_templates_renderer.adapters.assembled_config_resolver import Assembled
 from icon_templates_renderer.adapters.color_scheme_resolver import ColorSchemeResolver
 from icon_templates_renderer.adapters.file_color_scheme_loader import FileColorSchemeLoader
 from icon_templates_renderer.adapters.file_svg_renderer import FileSvgRenderer
+from icon_templates_renderer.adapters.file_template_writer import FileTemplateWriter
 from icon_templates_renderer.adapters.icon_renderer import IconRenderer
 from icon_templates_renderer.adapters.template_dir_resolver import TemplateDirResolver
 from icon_templates_renderer.adapters.yaml_icon_config_loader import YamlIconConfigLoader
@@ -19,6 +20,7 @@ from icon_templates_renderer.ports.icon_renderer import IconRendererPort
 from icon_templates_renderer.ports.output import OutputPort
 from icon_templates_renderer.ports.svg_renderer import SvgRendererPort
 from icon_templates_renderer.ports.template_dir_resolver import TemplateDirResolverPort
+from icon_templates_renderer.ports.template_writer import TemplateWriterPort
 from icon_templates_renderer.ports.vocabulary_loader import VocabularyLoaderPort
 
 
@@ -32,6 +34,7 @@ class CliDependencies:
     config_resolver: ConfigResolverPort | None = None
     template_dir_resolver: TemplateDirResolverPort | None = None
     color_scheme_resolver: ColorSchemeResolverPort | None = None
+    template_writer: TemplateWriterPort = field(default_factory=FileTemplateWriter)
     output_adapter: OutputPort | None = None
 
     def __post_init__(self) -> None:

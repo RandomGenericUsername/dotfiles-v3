@@ -1,16 +1,25 @@
 from __future__ import annotations
 
-from icon_templates_renderer.domain.enums import MappingOrigin, OutputFormat, Verbosity
+from icon_templates_renderer.domain.enums import (
+    MappingOrigin,
+    OutputFormat,
+    TemplateMode,
+    Verbosity,
+)
 from icon_templates_renderer.domain.exceptions import (
     ColorSchemeKeyNotFoundError,
     ColorSchemeNotFoundError,
     ConfigResolutionError,
     IconNotFoundError,
     IconRendererError,
+    InvalidPlaceholderNameError,
     InvalidYamlError,
     MissingMappingError,
     TemplateNotFoundError,
+    TemplatePaintAttributeError,
+    TemplateWriteError,
     UnknownPlaceholderError,
+    UnknownTemplateShapeError,
     UnknownTokenError,
     VariantNotFoundError,
 )
@@ -35,6 +44,9 @@ from icon_templates_renderer.domain.models import (
     RenderRequest,
     RenderResult,
     ResolvedRoots,
+    TemplateAnalysis,
+    TemplateSetPlaceholderRequest,
+    TemplateShape,
     TemplatesSettings,
     ValidateRequest,
     ValidateResult,
@@ -46,6 +58,8 @@ from icon_templates_renderer.domain.services import (
     MappingResolutionService,
     PathResolutionService,
     PlaceholderSubstitutionService,
+    TemplateAnalysisService,
+    validate_placeholder_name,
 )
 
 __all__ = [
@@ -60,6 +74,7 @@ __all__ = [
     "IconGroup",
     "IconNotFoundError",
     "IconRendererError",
+    "InvalidPlaceholderNameError",
     "InvalidYamlError",
     "ListRequest",
     "ListResult",
@@ -81,9 +96,17 @@ __all__ = [
     "RenderRequest",
     "RenderResult",
     "ResolvedRoots",
+    "TemplateAnalysis",
+    "TemplateAnalysisService",
+    "TemplateMode",
     "TemplateNotFoundError",
+    "TemplatePaintAttributeError",
+    "TemplateSetPlaceholderRequest",
+    "TemplateShape",
+    "TemplateWriteError",
     "TemplatesSettings",
     "UnknownPlaceholderError",
+    "UnknownTemplateShapeError",
     "UnknownTokenError",
     "ValidateRequest",
     "ValidateResult",
@@ -92,4 +115,5 @@ __all__ = [
     "VariantNotFoundError",
     "Verbosity",
     "Vocabulary",
+    "validate_placeholder_name",
 ]

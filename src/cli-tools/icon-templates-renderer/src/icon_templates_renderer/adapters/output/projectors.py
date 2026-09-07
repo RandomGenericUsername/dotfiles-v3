@@ -13,6 +13,7 @@ from icon_templates_renderer.domain.models import (
     MappingSetResult,
     MappingShowResult,
     RenderResult,
+    TemplateAnalysis,
     ValidateResult,
 )
 
@@ -214,6 +215,56 @@ def project_mapping_set_default_result(result: MappingSetDefaultResult) -> Custo
         console.print()
 
     return CustomView(plain=plain, object=obj, rich=rich)
+
+
+def _template_analysis_object(result: TemplateAnalysis) -> dict[str, Any]:
+    return {
+        "path": str(result.path),
+        "mode": str(result.mode),
+        "shapes": [
+            {
+                "id": shape.shape_id,
+                "tag": shape.tag,
+                "paint_attr": shape.paint_attr,
+                "placeholder": shape.placeholder,
+                "literal": shape.literal,
+            }
+            for shape in result.shapes
+        ],
+    }
+
+
+def project_template_analysis(result: TemplateAnalysis) -> CustomView:
+    lines = [f"Template: {result.path}", f"Mode: {result.mode}"]
+    lines.append("Shapes:")
+    for shape in result.shapes:
+        if shape.placeholder is not None:
+            value = f"{{{{{shape.placeholder}}}}}"
+        elif shape.literal is not None:
+            value = shape.literal
+        else:
+            value = "(none)"
+        lines.append(f"  {shape.shape_id}  {shape.tag}  {shape.paint_attr}={value}")
+
+    def rich(console: Console) -> None:
+        console.print()
+        console.print(Text(f"Template: {result.path}", style="bold"))
+        console.print(f"Mode: {result.mode}")
+        for shape in result.shapes:
+            if shape.placeholder is not None:
+                value = f"{{{{{shape.placeholder}}}}}"
+            elif shape.literal is not None:
+                value = shape.literal
+            else:
+                value = "(none)"
+            console.print(f"  {shape.shape_id}  {shape.tag}  {shape.paint_attr}={value}")
+        console.print()
+
+    return CustomView(
+        plain="\n".join(lines),
+        object=_template_analysis_object(result),
+        rich=rich,
+    )
 
 
 def project_message(msg: str) -> MessageView:

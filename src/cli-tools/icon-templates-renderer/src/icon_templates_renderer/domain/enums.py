@@ -26,3 +26,11 @@ class MappingOrigin(Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+class TemplateMode(Enum):
+    TEMPLATED = "templated"
+    BARE = "bare"
+
+    def __str__(self) -> str:
+        return self.value
