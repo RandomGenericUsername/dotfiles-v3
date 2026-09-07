@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from icon_templates_renderer.domain.enums import MappingOrigin
 from icon_templates_renderer.domain.exceptions import (
     ColorSchemeKeyNotFoundError,
     ConfigResolutionError,
@@ -16,6 +17,7 @@ from icon_templates_renderer.domain.models import (
     ColorScheme,
     ColorSchemeSettings,
     IconGroup,
+    MappingEntry,
     OutputSettings,
     ResolvedRoots,
     TemplatesSettings,
@@ -130,6 +132,47 @@ class TestMappingResolutionService:
     def test_vocab_fills_when_neither_overrides(self) -> None:
         out = self.service.merge({"k": "v0", "x": "x0"}, {"k": "v1"}, {})
         assert out == {"k": "v1", "x": "x0"}
+
+
+class TestMappingResolutionServiceMergeWithOrigin:
+    def setup_method(self) -> None:
+        self.service = MappingResolutionService()
+
+    def test_origin_attribution_per_layer(self) -> None:
+        out = self.service.merge_with_origin(
+            {"v": "v0", "g": "g0", "k": "k0"},
+            {"g": "g1", "k": "k1"},
+            {"k": "k2"},
+        )
+        by_placeholder = {entry.placeholder: entry for entry in out}
+        assert by_placeholder["v"].origin is MappingOrigin.VOCABULARY
+        assert by_placeholder["v"].token == "v0"
+        assert by_placeholder["g"].origin is MappingOrigin.GROUP
+        assert by_placeholder["g"].token == "g1"
+        assert by_placeholder["k"].origin is MappingOrigin.VARIANT
+        assert by_placeholder["k"].token == "k2"
+
+    def test_tokens_match_plain_merge(self) -> None:
+        vocab = {"k": "v0", "x": "x0"}
+        group = {"k": "v1"}
+        variant = {"k": "v2"}
+        merged = self.service.merge(vocab, group, variant)
+        with_origin = {
+            entry.placeholder: entry.token
+            for entry in self.service.merge_with_origin(vocab, group, variant)
+        }
+        assert with_origin == merged
+
+    def test_sorted_by_placeholder(self) -> None:
+        out = self.service.merge_with_origin({"zeta": "z", "alpha": "a"}, {"mid": "m"}, {})
+        assert [entry.placeholder for entry in out] == ["alpha", "mid", "zeta"]
+
+    def test_vocab_none_treated_as_empty(self) -> None:
+        out = self.service.merge_with_origin(None, {"k": "v1"}, {})
+        assert out == (MappingEntry(placeholder="k", token="v1", origin=MappingOrigin.GROUP),)
+
+    def test_empty_inputs(self) -> None:
+        assert self.service.merge_with_origin(None, {}, {}) == ()
 
 
 class TestPlaceholderSubstitutionService:

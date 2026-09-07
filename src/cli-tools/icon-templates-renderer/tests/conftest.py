@@ -13,6 +13,12 @@ from icon_templates_renderer.adapters.template_dir_resolver import TemplateDirRe
 from icon_templates_renderer.domain.models import (
     ListRequest,
     ListResult,
+    MappingSetDefaultRequest,
+    MappingSetDefaultResult,
+    MappingSetRequest,
+    MappingSetResult,
+    MappingShowRequest,
+    MappingShowResult,
     RenderRequest,
     RenderResult,
     ValidateRequest,
@@ -27,6 +33,9 @@ class FakeIconRenderer:
     render_error: Exception | None = None
     list_error: Exception | None = None
     validate_error: Exception | None = None
+    mapping_show_error: Exception | None = None
+    mapping_set_error: Exception | None = None
+    mapping_set_default_error: Exception | None = None
 
     def render(self, request: RenderRequest) -> RenderResult:
         self.calls.append({"command": "render", "request": request})
@@ -45,6 +54,29 @@ class FakeIconRenderer:
         if self.validate_error is not None:
             raise self.validate_error
         return ValidateResult(ok=True, checked_groups=1, checked_variants=1)
+
+    def mapping_show(self, request: MappingShowRequest) -> MappingShowResult:
+        self.calls.append({"command": "mapping_show", "request": request})
+        if self.mapping_show_error is not None:
+            raise self.mapping_show_error
+        return MappingShowResult()
+
+    def mapping_set(self, request: MappingSetRequest) -> MappingSetResult:
+        self.calls.append({"command": "mapping_set", "request": request})
+        if self.mapping_set_error is not None:
+            raise self.mapping_set_error
+        return MappingSetResult(
+            group=request.group,
+            placeholder=request.placeholder,
+            token=request.token,
+            variant=request.variant,
+        )
+
+    def mapping_set_default(self, request: MappingSetDefaultRequest) -> MappingSetDefaultResult:
+        self.calls.append({"command": "mapping_set_default", "request": request})
+        if self.mapping_set_default_error is not None:
+            raise self.mapping_set_default_error
+        return MappingSetDefaultResult(placeholder=request.placeholder, token=request.token)
 
 
 @pytest.fixture

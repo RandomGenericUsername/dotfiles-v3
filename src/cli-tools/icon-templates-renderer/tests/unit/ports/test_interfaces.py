@@ -44,7 +44,25 @@ class _Stub:
     def validate(self, *args, **kwargs) -> object:
         return None
 
+    def mapping_show(self, *args, **kwargs) -> object:
+        return None
+
+    def mapping_set(self, *args, **kwargs) -> object:
+        return None
+
+    def mapping_set_default(self, *args, **kwargs) -> object:
+        return None
+
     def render_result(self, *args, **kwargs) -> None:
+        return None
+
+    def mapping_show_result(self, *args, **kwargs) -> None:
+        return None
+
+    def mapping_set_result(self, *args, **kwargs) -> None:
+        return None
+
+    def mapping_set_default_result(self, *args, **kwargs) -> None:
         return None
 
     def list_result(self, *args, **kwargs) -> None:

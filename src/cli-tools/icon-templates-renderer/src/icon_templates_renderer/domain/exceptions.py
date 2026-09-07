@@ -29,6 +29,36 @@ class TemplateNotFoundError(IconRendererError):
         super().__init__(f"Template not found: {path}")
 
 
+class VariantNotFoundError(IconRendererError):
+    """The requested variant is not present in the icon group."""
+
+    def __init__(self, name: str, group: str | None = None) -> None:
+        self.name = name
+        self.group = group
+        location = f"in icon '{group}'" if group is not None else "(config)"
+        super().__init__(f"Variant '{name}' not found {location}")
+
+
+class UnknownTokenError(IconRendererError):
+    """A mapping token is neither a #rrggbb literal nor a color scheme key."""
+
+    def __init__(self, token: str) -> None:
+        self.token = token
+        super().__init__(
+            f"Token '{token}' is neither a #rrggbb literal nor a key of the color scheme"
+        )
+
+
+class UnknownPlaceholderError(IconRendererError):
+    """A placeholder name is not defined in the vocabulary file."""
+
+    def __init__(self, name: str, yaml_path: Path | None = None) -> None:
+        self.name = name
+        self.yaml_path = yaml_path
+        location = yaml_path if yaml_path is not None else "(vocabulary)"
+        super().__init__(f"Placeholder '{name}' is not defined in the vocabulary: {location}")
+
+
 class ColorSchemeNotFoundError(IconRendererError):
     """The color scheme file does not exist or its format is unsupported."""
 
@@ -77,4 +107,7 @@ __all__ = [
     "InvalidYamlError",
     "MissingMappingError",
     "TemplateNotFoundError",
+    "UnknownPlaceholderError",
+    "UnknownTokenError",
+    "VariantNotFoundError",
 ]

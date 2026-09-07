@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ITR Icon Color Mapping Editor — UI mock (option B)</title>
+<style>
+  :root {
+    --bg: #16181d; --panel: #1d2026; --panel-2: #23272f; --line: #313742;
+    --fg: #d7dbe2; --muted: #8b93a1; --accent: #6ea8fe; --warn: #e0a45e; --ok: #7bc47f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 13px/1.45 "Inter", "Cantarell", system-ui, sans-serif; }
+  .note { background: #2a2f3a; border-bottom: 1px solid var(--line);
+    padding: 8px 14px; font-size: 12px; color: var(--muted); }
+  .app { display: grid; grid-template-columns: 240px 1fr 320px; height: calc(100vh - 35px); }
+  .col { overflow: auto; }
+  .left { background: var(--panel); border-right: 1px solid var(--line); }
+  .right { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; }
+  .center { display: flex; flex-direction: column; min-width: 0; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 0; padding: 12px 14px 6px; }
+  .inputs { padding: 0 14px 10px; }
+  .input-row { margin-bottom: 9px; }
+  .input-row label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .path { display: flex; align-items: center; gap: 6px; background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 5px; padding: 5px 7px;
+    font-family: ui-monospace, monospace; font-size: 11px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .path .pick { margin-left: auto; color: var(--accent); cursor: pointer; flex: none; }
+  .path.rw { border-color: var(--warn); }
+  .tree { padding: 0 6px 14px; }
+  .tree .group { padding: 6px 8px; color: var(--muted); font-size: 11px; }
+  .tree .item { padding: 5px 8px 5px 20px; border-radius: 5px; cursor: pointer;
+    font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .tree .item:hover { background: var(--panel-2); }
+  .tree .item.active { background: #2f3947; color: #fff; }
+  .canvas-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    border-bottom: 1px solid var(--line); background: var(--panel); }
+  .canvas-bar .spacer { flex: 1; }
+  .toggle { background: var(--panel-2); border: 1px solid var(--line); color: var(--fg);
+    border-radius: 5px; padding: 4px 9px; cursor: pointer; font-size: 11.5px; }
+  .toggle.on { border-color: var(--accent); color: var(--accent); }
+  .canvas { flex: 1; overflow: auto; padding: 16px;
+    background: repeating-conic-gradient(#20242b 0% 25%, #191c22 0% 50%) 50% / 24px 24px; }
+  .variants { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  .vcard { background: #00000038; border: 1px solid var(--line); border-radius: 8px; padding: 8px; width: 150px; }
+  .vcard.main { width: 330px; border-color: var(--accent); }
+  .vcard .vname { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--muted);
+    margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vcard svg { width: 100%; height: auto; display: block; }
+  .vcard.main [data-el] { cursor: pointer; }
+  .vcard.main [data-el]:hover { filter: drop-shadow(0 0 8px var(--accent)); }
+  .vcard.main [data-el].sel { filter: drop-shadow(0 0 3px var(--accent)) drop-shadow(0 0 12px var(--accent)); }
+  .vcard .badge { font-size: 10px; color: var(--warn); }
+  .diff { border-top: 1px solid var(--line); background: #14161a; padding: 10px 14px;
+    font-family: ui-monospace, monospace; font-size: 11.5px; max-height: 210px; overflow: auto; }
+  .diff .del { color: #e08585; } .diff .add { color: var(--ok); } .diff .ctx { color: var(--muted); }
+  .diff .file { color: var(--accent); margin: 6px 0 2px; }
+  .sel-info { padding: 4px 14px 10px; }
+  .kv { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .kv span:first-child { color: var(--muted); }
+  .kv span:last-child { font-family: ui-monospace, monospace; text-align: right; }
+  .scope { display: flex; gap: 6px; padding: 0 14px 6px; }
+  .scope .toggle { flex: 1; text-align: center; }
+  .scope-hint { padding: 0 14px 10px; font-size: 11px; color: var(--warn); }
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 0 14px 10px; }
+  .picker-off { opacity: .35; pointer-events: none; }
+  .cell { aspect-ratio: 1; border-radius: 5px; border: 2px solid transparent; cursor: pointer; position: relative; }
+  .cell.current { border-color: #fff; }
+  .cell:hover::after { content: attr(data-token); position: absolute; bottom: -17px; left: 0;
+    font-size: 9.5px; color: var(--muted); font-family: ui-monospace, monospace; white-space: nowrap; z-index: 2; }
+  .named { padding: 0 14px 12px; }
+  .sw { display: flex; align-items: center; gap: 9px; padding: 6px 6px; border-radius: 6px;
+    cursor: pointer; border: 1px solid transparent; }
+  .sw:hover { background: var(--panel-2); }
+  .sw.current { border-color: var(--accent); background: #222b38; }
+  .sw.disabled { opacity: .45; cursor: not-allowed; }
+  .chip { width: 20px; height: 20px; border-radius: 5px; border: 1px solid #0006; flex: none; }
+  .sw .ph { font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .sw .tok { color: var(--muted); font-size: 10.5px; font-family: ui-monospace, monospace; }
+  .sw .tag { margin-left: auto; font-size: 10px; color: var(--warn); }
+  .footer { margin-top: auto; position: sticky; bottom: 0; background: var(--panel);
+    border-top: 1px solid var(--line); padding: 10px 14px; display: flex; gap: 8px; }
+  .btn { flex: 1; padding: 7px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--fg); cursor: pointer; font-size: 12px; }
+  .btn.primary { background: #2c4b7c; border-color: var(--accent); color: #fff; }
+  .hint { padding: 0 14px 12px; color: var(--muted); font-size: 11px; }
+  code { background: #262b33; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="note">
+  UI mock — <b>option B</b>: the tool edits <code>icons.yaml</code> <code>color_mappings</code>.
+  Click a shape in the big preview, then pick any palette color. Real battery templates + mappings.
+</div>
+
+<div class="app">
+  <!-- LEFT -->
+  <div class="col left">
+    <h2>Inputs</h2>
+    <div class="inputs">
+      <div class="input-row">
+        <label>SVG template root (read-only)</label>
+        <div class="path">dotfiles/assets/icon-templates/<span class="pick">⋯</span></div>
+      </div>
+      <div class="input-row">
+        <label>Icons manifest (edited by tool)</label>
+        <div class="path rw">…/icons.yaml<span class="pick">⋯</span></div>
+      </div>
+      <div class="input-row">
+        <label>Color scheme (read-only)</label>
+        <div class="path">…/generated/palettes/colors.yaml<span class="pick">⋯</span></div>
+      </div>
+    </div>
+
+    <h2>Group / variants</h2>
+    <div class="tree" id="tree">
+      <div class="group">battery</div>
+      <div class="item" data-v="battery-0">battery-0</div>
+      <div class="item" data-v="battery-50">battery-50</div>
+      <div class="item active" data-v="battery-50-charging">battery-50-charging</div>
+      <div class="item" data-v="plugged">plugged</div>
+      <div class="group">screen-recorder</div>
+      <div class="item" data-v="play">play</div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="col center">
+    <div class="canvas-bar">
+      <span id="tplPath" style="color:var(--muted);font-family:ui-monospace,monospace;font-size:11px"></span>
+      <div class="spacer"></div>
+      <button class="toggle on" id="tGroup">Show whole group</button>
+      <button class="toggle" id="tBg">Bar background</button>
+    </div>
+    <div class="canvas"><div class="variants" id="variants"></div></div>
+    <div class="diff">
+      <div style="color:var(--muted);margin-bottom:4px">Pending edits — nothing written until you save</div>
+      <div id="diffBody"><span class="ctx">— no changes —</span></div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="col right">
+    <h2>Selection</h2>
+    <div class="sel-info">
+      <div class="kv"><span>Shape</span><span id="selEl">—</span></div>
+      <div class="kv"><span>Placeholder</span><span id="selPh">—</span></div>
+      <div class="kv"><span>Maps to</span><span id="selTok">—</span></div>
+      <div class="kv"><span>Used by</span><span id="selUse">—</span></div>
+    </div>
+
+    <h2>Edit scope</h2>
+    <div class="scope">
+      <button class="toggle on" id="sGroup">Whole group</button>
+      <button class="toggle" id="sVariant">This variant only</button>
+      <button class="toggle" id="sVocab">All icons</button>
+    </div>
+    <div class="scope-hint" id="scopeHint"></div>
+
+    <h2 id="paletteTitle">Palette token (colors.yaml)</h2>
+    <div class="grid" id="grid"></div>
+    <div class="named" id="named"></div>
+
+    <div class="hint">
+      Picking a color rewrites what this <b>placeholder</b> resolves to, not the SVG.
+      Group scope edits <code>battery.color_mappings</code>; variant scope adds a
+      <code>variants[].color_mappings</code> override (higher priority); all-icons scope edits
+      <code>defaults.yaml</code> (lowest priority — groups that map the placeholder shadow it).
+    </div>
+
+    <div class="footer">
+      <button class="btn" id="revert">Revert</button>
+      <button class="btn primary">Save mappings</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- sample colors.yaml (CSG output shape) ----------
+const paletteColors = ["#12151a","#e08585","#7bc47f","#d8b46a","#3f6ea8","#a67fc0","#5fb3b3","#b8bfc9",
+                       "#4b525d","#ef9b9b","#95d698","#e6c882","#6ea8fe","#c39ad9","#7fd0d0","#e6ebf2"];
+const palette = { background:"#12151a", foreground:"#d5d9e0", cursor:"#d5d9e0" };
+paletteColors.forEach((c,i) => palette["color"+i] = c);
+
+// ---------- icons.yaml (battery group) ----------
+// SAMPLE DATA below: the real tool derives vocab, group mappings, shadowers,
+// and groupCount from `itr mapping show` — nothing here may be a constant
+// in the implementation (see icme-ui "Display counts derive from loaded data").
+const vocab = { COLOR_FOREGROUND: "foreground", COLOR_BACKGROUND: "surface",
+                COLOR_SECONDARY: "accent", COLOR_ACCENT: "accent-muted" };
+const groupMappings = { COLOR_ACCENT: "color12" };
+const shadowers = { COLOR_ACCENT: ["battery"], COLOR_FOREGROUND: [] };
+const groupCount = 9;
+const variantMappings = {};   // variant name -> { PH: token }  (scope = "this variant only")
+
+// ---------- templates (real repo SVGs, paths abbreviated) ----------
+const T = {
+  "battery-50-charging": {
+    path: "status-bar/battery/battery-50-charging/default/icon.svg",
+    shapes: [
+      { id:"rect#1", ph:"COLOR_FOREGROUND", attr:"fill", d:null,
+        raw:'<rect x="934" y="408" width="208" height="78" rx="25" transform="rotate(90 934 408)"/>' },
+      { id:"path#2", ph:"COLOR_FOREGROUND", attr:"fill",
+        d:"M129 642C129 661.33 144.67 677 164 677H386.987L375.039 717H164L163.03 716.994C122.379 716.479 89.521 683.621 89.0059 642.97L89 642V381C89 339.579 122.579 306 164 306H457.904L427.261 346H164C144.67 346 129 361.67 129 381V642ZM755 306C796.098 306 829.475 339.056 829.994 380.03L830 381V642L829.994 642.97C829.475 683.944 796.098 717 755 717H471.99L503.826 677H755C774.33 677 790 661.33 790 642V381C790 361.67 774.33 346 755 346H539.813L551.3 306H755Z" },
+      { id:"path#3", ph:"COLOR_ACCENT", attr:"fill",
+        d:"M528.879 278.802C531.16 271.181 520.982 266.266 516.431 272.791L326.674 544.885C323.438 549.526 326.758 555.889 332.416 555.889H434.873C439.552 555.889 442.913 560.39 441.586 564.876L383.671 760.532C381.435 768.088 391.453 773.004 396.061 766.612L592.001 494.856C595.339 490.226 592.031 483.762 586.323 483.762H554.237H476.931C472.244 483.762 468.881 479.245 470.225 474.754L528.879 278.802Z" },
+      { id:"path#4", ph:"COLOR_FOREGROUND", attr:"fill",
+        d:"M260.48 563.701C252.92 573.57 259.956 587.823 272.388 587.823H393.49C403.531 587.823 410.736 597.496 407.862 607.116L397.144 643H198C184.193 643 173 631.807 173 618V404C173 390.193 184.193 379 198 379H401.979L260.48 563.701Z" },
+    ],
+  },
+  "battery-50": {
+    path: "status-bar/battery/battery-50/default/icon.svg",
+    shapes: [
+      { id:"path#1", ph:"COLOR_FOREGROUND", attr:"stroke", sw:40,
+        d:"M810 381L810 642C810 672.376 785.376 697 755 697L164 697C133.624 697 109 672.376 109 642L109 381C109 350.624 133.624 326 164 326L755 326C785.376 326 810 350.624 810 381Z" },
+      { id:"rect#2", ph:"COLOR_FOREGROUND", attr:"fill",
+        raw:'<rect x="934" y="408" width="208" height="78" rx="25" transform="rotate(90 934 408)"/>' },
+      { id:"path#3", ph:"COLOR_ACCENT", attr:"fill",
+        d:"M432.5 379C446.307 379 457.5 390.193 457.5 404L457.5 618C457.5 631.807 446.307 643 432.5 643L197 643C183.193 643 172 631.807 172 618L172 404C172 390.193 183.193 379 197 379L432.5 379Z" },
+    ],
+  },
+  "battery-0": {
+    path: "status-bar/battery/battery-0/default/icon.svg",
+    shapes: [
+      { id:"path#1", ph:"COLOR_FOREGROUND", attr:"stroke", sw:40,
+        d:"M810 381L810 642C810 672.376 785.376 697 755 697L164 697C133.624 697 109 672.376 109 642L109 381C109 350.624 133.624 326 164 326L755 326C785.376 326 810 350.624 810 381Z" },
+      { id:"rect#2", ph:"COLOR_FOREGROUND", attr:"fill",
+        raw:'<rect x="934" y="408" width="208" height="78" rx="25" transform="rotate(90 934 408)"/>' },
+    ],
+  },
+  "plugged": {
+    path: "status-bar/battery/plugged/default/icon.svg",
+    shapes: [
+      { id:"rect#1", ph:"COLOR_FOREGROUND", attr:"fill", raw:'<rect x="340" y="150" width="80" height="200" rx="15"/>' },
+      { id:"rect#2", ph:"COLOR_FOREGROUND", attr:"fill", raw:'<rect x="604" y="150" width="80" height="200" rx="15"/>' },
+      { id:"path#3", ph:"COLOR_FOREGROUND", attr:"fill",
+        d:"M280 350H744C771.614 350 794 372.386 794 400V550C794 577.614 771.614 600 744 600H280C252.386 600 230 577.614 230 550V400C230 372.386 252.386 350 280 350Z" },
+      { id:"path#4", ph:"COLOR_FOREGROUND", attr:"fill",
+        d:"M430 600H594V680C594 707.614 571.614 730 544 730H480C452.386 730 430 707.614 430 680V600Z" },
+      { id:"rect#5", ph:"COLOR_FOREGROUND", attr:"fill", raw:'<rect x="472" y="730" width="80" height="150" rx="10"/>' },
+    ],
+  },
+};
+
+let activeVariant = "battery-50-charging";
+let selectedShape = null;
+let scope = "group";
+let showGroup = true;
+const order = ["battery-0","battery-50","battery-50-charging","plugged"];
+
+function resolvedFor(variant) {
+  return { ...vocab, ...groupMappings, ...(variantMappings[variant] || {}) };
+}
+function hexOf(token) { return palette[token] ?? null; }
+
+function svgFor(variant, interactive) {
+  const map = resolvedFor(variant);
+  const body = T[variant].shapes.map(s => {
+    const hex = hexOf(map[s.ph]) ?? "#ff00ff";
+    const attrs = `data-el="${s.id}" data-ph="${s.ph}" ${s.attr}="${hex}"` +
+      (s.attr === "stroke" ? ` fill="none" stroke-width="${s.sw}"` : "");
+    if (s.raw) return s.raw.replace(/^<(\w+)/, `<$1 ${attrs}`);
+    return `<path ${attrs} d="${s.d}"/>`;
+  }).join("");
+  return `<svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+}
+
+function render() {
+  document.getElementById("tplPath").textContent = T[activeVariant].path;
+  const wrap = document.getElementById("variants");
+  const list = showGroup ? order : [activeVariant];
+  wrap.innerHTML = list.map(v => {
+    const isMain = v === activeVariant;
+    const override = variantMappings[v] ? '<span class="badge">variant override</span>' : "";
+    return `<div class="vcard ${isMain ? "main" : ""}" data-variant="${v}">
+      <div class="vname">${v} ${override}</div>${svgFor(v, isMain)}</div>`;
+  }).join("");
+  wrap.querySelectorAll(".vcard").forEach(card => {
+    const v = card.dataset.variant;
+    if (v === activeVariant) {
+      card.querySelectorAll("[data-el]").forEach(el => {
+        el.addEventListener("click", () => { selectedShape = el.dataset.el; render(); renderPanel(); });
+        if (el.dataset.el === selectedShape) el.classList.add("sel");
+      });
+    } else {
+      card.querySelector(".vname").style.cursor = "pointer";
+      card.onclick = () => { activeVariant = v; selectedShape = null;
+        document.querySelectorAll("#tree .item").forEach(i =>
+          i.classList.toggle("active", i.dataset.v === v));
+        render(); renderPanel(); };
+    }
+  });
+}
+
+function currentPh() {
+  const s = T[activeVariant].shapes.find(s => s.id === selectedShape);
+  return s ? s.ph : null;
+}
+function usageCount(ph) {
+  return order.reduce((n, v) => n + T[v].shapes.filter(s => s.ph === ph).length, 0);
+}
+function variantsUsing(ph) {
+  return order.filter(v => T[v].shapes.some(s => s.ph === ph)).length;
+}
+
+function renderPanel() {
+  const ph = currentPh();
+  const map = resolvedFor(activeVariant);
+  document.getElementById("selEl").textContent = selectedShape ?? "—";
+  document.getElementById("selPh").textContent = ph ? `{{${ph}}}` : "—";
+  document.getElementById("selTok").textContent = ph ? `${map[ph]} · ${hexOf(map[ph])}` : "—";
+  document.getElementById("selUse").textContent = ph
+    ? `${usageCount(ph)} shapes across ${variantsUsing(ph)} variants` : "—";
+  document.getElementById("paletteTitle").textContent =
+    ph ? `Set {{${ph}}} to which palette token?` : "Select a shape to change its color";
+  document.getElementById("grid").classList.toggle("picker-off", !ph);
+  document.getElementById("named").classList.toggle("picker-off", !ph);
+  document.querySelector(".scope").classList.toggle("picker-off", !ph);
+  const shadowedBy = shadowers[ph] || [];
+  document.getElementById("scopeHint").innerHTML = !ph ? ""
+    : scope === "group"
+      ? `Changes battery.color_mappings.${ph} — affects all ${order.length} variants.`
+    : scope === "variant"
+      ? `Adds a color_mappings override on variant "${activeVariant}" only.`
+      : `Changes defaults.${ph} in defaults.yaml — affects all ${groupCount} icon groups that don't override it.`
+        + (shadowedBy.length
+            ? `<br><b>battery overrides ${ph}, so this edit will not change the preview.</b>`
+            : "");
+
+  const grid = document.getElementById("grid");
+  grid.innerHTML = paletteColors.map((hex, i) =>
+    `<div class="cell ${ph && map[ph] === "color"+i ? "current" : ""}"
+       data-token="color${i}" style="background:${hex}" title="color${i} ${hex}"></div>`).join("");
+  grid.querySelectorAll(".cell").forEach(c => c.onclick = () => apply(c.dataset.token));
+
+  const named = document.getElementById("named");
+  const specials = [
+    { token:"foreground", hex:palette.foreground },
+    { token:"background", hex:palette.background },
+    { token:"cursor",     hex:palette.cursor },
+    { token:"surface",    hex:null, note:"not in colors.yaml" },
+    { token:"accent",     hex:null, note:"not in colors.yaml" },
+  ];
+  named.innerHTML = specials.map(s => `
+    <div class="sw ${ph && map[ph] === s.token ? "current" : ""} ${s.hex ? "" : "disabled"}" data-token="${s.token}">
+      <div class="chip" style="background:${s.hex || "repeating-linear-gradient(45deg,#555 0 4px,#333 4px 8px)"}"></div>
+      <div><div class="ph">${s.token}</div><div class="tok">${s.hex || "missing token"}</div></div>
+      ${s.note ? `<div class="tag">${s.note}</div>` : ""}
+    </div>`).join("");
+  named.querySelectorAll(".sw:not(.disabled)").forEach(sw =>
+    sw.onclick = () => apply(sw.dataset.token));
+}
+
+function apply(token) {
+  const ph = currentPh();
+  if (!ph) return;
+  if (scope === "group") groupMappings[ph] = token;
+  else if (scope === "vocab") vocab[ph] = token;
+  else (variantMappings[activeVariant] ||= {})[ph] = token;
+  render(); renderPanel(); renderDiff();
+}
+
+const baseGroup = { COLOR_ACCENT: "color12" };
+const baseVocab = { ...vocab };
+function renderDiff() {
+  const out = [];
+  Object.keys(vocab).forEach(ph => {
+    if (vocab[ph] !== baseVocab[ph])
+      out.push(`<div class="file">defaults.yaml → defaults</div>
+        <div class="del">-   ${ph}: ${baseVocab[ph]}</div>
+        <div class="add">+   ${ph}: ${vocab[ph]}</div>`);
+  });
+  Object.keys(groupMappings).forEach(ph => {
+    if (groupMappings[ph] !== baseGroup[ph])
+      out.push(`<div class="file">icons.yaml → battery.color_mappings</div>
+        <div class="del">-   ${ph}: ${baseGroup[ph]}</div>
+        <div class="add">+   ${ph}: ${groupMappings[ph]}</div>`);
+  });
+  Object.entries(variantMappings).forEach(([v, m]) => {
+    out.push(`<div class="file">icons.yaml → battery.variants[name: ${v}]</div>` +
+      `<div class="add">+   color_mappings:</div>` +
+      Object.entries(m).map(([ph, t]) => `<div class="add">+     ${ph}: ${t}</div>`).join(""));
+  });
+  document.getElementById("diffBody").innerHTML =
+    out.length ? out.join("") : '<span class="ctx">— no changes —</span>';
+}
+
+document.querySelectorAll("#tree .item").forEach(i => i.onclick = () => {
+  if (!T[i.dataset.v]) return;
+  document.querySelectorAll("#tree .item").forEach(x => x.classList.remove("active"));
+  i.classList.add("active");
+  activeVariant = i.dataset.v; selectedShape = null; render(); renderPanel();
+});
+document.getElementById("sGroup").onclick = () => { scope = "group";
+  sGroup.classList.add("on"); sVariant.classList.remove("on"); sVocab.classList.remove("on"); renderPanel(); };
+document.getElementById("sVariant").onclick = () => { scope = "variant";
+  sVariant.classList.add("on"); sGroup.classList.remove("on"); sVocab.classList.remove("on"); renderPanel(); };
+document.getElementById("sVocab").onclick = () => { scope = "vocab";
+  sVocab.classList.add("on"); sGroup.classList.remove("on"); sVariant.classList.remove("on"); renderPanel(); };
+document.getElementById("tGroup").onclick = (e) => {
+  showGroup = !showGroup; e.target.classList.toggle("on", showGroup); render(); };
+document.getElementById("tBg").onclick = (e) => {
+  e.target.classList.toggle("on");
+  document.querySelector(".canvas").style.background = e.target.classList.contains("on")
+    ? palette.background
+    : 'repeating-conic-gradient(#20242b 0% 25%, #191c22 0% 50%) 50% / 24px 24px'; };
+document.getElementById("revert").onclick = () => {
+  Object.assign(groupMappings, baseGroup);
+  Object.assign(vocab, baseVocab);
+  Object.keys(variantMappings).forEach(k => delete variantMappings[k]);
+  render(); renderPanel(); renderDiff(); };
+
+render();
+selectedShape = "path#3";
+render(); renderPanel(); renderDiff();
+</script>
+</body>
+</html>

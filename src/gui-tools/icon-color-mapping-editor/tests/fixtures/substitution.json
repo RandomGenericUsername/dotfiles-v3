@@ -1,0 +1,68 @@
+{
+  "_comment": "Shared fixtures pinning agreement between lib/substitute.ts and PlaceholderSubstitutionService. Cases with 'expected' must be produced byte-identically by both. Cases with 'unresolved: true' must render the TS marker in substitute.ts and raise python_error in the Python service.",
+  "unresolved_marker": "url(#icme-unresolved)",
+  "cases": [
+    {
+      "name": "group mapping resolves through the scheme",
+      "svg": "<path fill=\"{{COLOR_ACCENT}}\"/>",
+      "mappings": { "COLOR_ACCENT": "color12" },
+      "scheme": { "color12": "#6ea8fe" },
+      "expected": "<path fill=\"#6ea8fe\"/>"
+    },
+    {
+      "name": "variant override wins in the merged table",
+      "svg": "<path fill=\"{{COLOR_ACCENT}}\"/>",
+      "mappings": { "COLOR_ACCENT": "color3" },
+      "scheme": { "color12": "#6ea8fe", "color3": "#3f6ea8" },
+      "expected": "<path fill=\"#3f6ea8\"/>"
+    },
+    {
+      "name": "literal hex passes through without a scheme lookup",
+      "svg": "<rect fill=\"{{SOLID}}\"/>",
+      "mappings": { "SOLID": "#ff0066" },
+      "scheme": {},
+      "expected": "<rect fill=\"#ff0066\"/>"
+    },
+    {
+      "name": "multiple placeholders in one body",
+      "svg": "<path fill=\"{{FG}}\" stroke=\"{{BG}}\"/>",
+      "mappings": { "FG": "foreground", "BG": "background" },
+      "scheme": { "foreground": "#e0e0e0", "background": "#1a1a2e" },
+      "expected": "<path fill=\"#e0e0e0\" stroke=\"#1a1a2e\"/>"
+    },
+    {
+      "name": "body without placeholders passes through",
+      "svg": "<circle r=\"4\"/>",
+      "mappings": { "COLOR_ACCENT": "color12" },
+      "scheme": { "color12": "#6ea8fe" },
+      "expected": "<circle r=\"4\"/>"
+    },
+    {
+      "name": "placeholder with no mapping renders unresolved",
+      "svg": "<path fill=\"{{GHOST}}\"/>",
+      "mappings": { "COLOR_ACCENT": "color12" },
+      "scheme": { "color12": "#6ea8fe" },
+      "unresolved": true,
+      "python_error": "MissingMappingError",
+      "expected": "<path fill=\"url(#icme-unresolved)\"/>"
+    },
+    {
+      "name": "mapped token absent from the scheme renders unresolved",
+      "svg": "<path fill=\"{{COLOR_BACKGROUND}}\"/>",
+      "mappings": { "COLOR_BACKGROUND": "surface" },
+      "scheme": { "background": "#1a1a2e" },
+      "unresolved": true,
+      "python_error": "ColorSchemeKeyNotFoundError",
+      "expected": "<path fill=\"url(#icme-unresolved)\"/>"
+    },
+    {
+      "name": "resolved and unresolved placeholders mix",
+      "svg": "<path fill=\"{{OK}}\" stroke=\"{{MISSING}}\"/>",
+      "mappings": { "OK": "color0" },
+      "scheme": { "color0": "#1a1a2e" },
+      "unresolved": true,
+      "python_error": "MissingMappingError",
+      "expected": "<path fill=\"#1a1a2e\" stroke=\"url(#icme-unresolved)\"/>"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import logging
 import typer
 
 from icon_templates_renderer.cli.list_cmd import list_command
+from icon_templates_renderer.cli.mapping import mapping_app
 from icon_templates_renderer.cli.render import render_command
 from icon_templates_renderer.cli.validate import validate_command
 from icon_templates_renderer.domain.enums import OutputFormat, Verbosity
@@ -84,3 +85,4 @@ app.command("list", help="List icon groups and their variants defined in a YAML 
 app.command("validate", help="Validate the YAML and all referenced files without rendering")(
     validate_command
 )
+app.add_typer(mapping_app, name="mapping")

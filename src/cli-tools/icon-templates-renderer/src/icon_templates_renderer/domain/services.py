@@ -3,11 +3,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from icon_templates_renderer.domain.enums import MappingOrigin
 from icon_templates_renderer.domain.exceptions import (
     ColorSchemeKeyNotFoundError,
     MissingMappingError,
 )
-from icon_templates_renderer.domain.models import ColorScheme
+from icon_templates_renderer.domain.models import ColorScheme, MappingEntry
 
 _PLACEHOLDER_RE = re.compile(r"\{\{(\w+)\}\}")
 
@@ -40,6 +41,35 @@ class MappingResolutionService:
     ) -> dict[str, str]:
         base = vocab_defaults or {}
         return {**base, **group_mappings, **variant_mappings}
+
+    def merge_with_origin(
+        self,
+        vocab_defaults: dict[str, str] | None,
+        group_mappings: dict[str, str],
+        variant_mappings: dict[str, str],
+    ) -> tuple[MappingEntry, ...]:
+        """Merge like :meth:`merge` but attribute each entry to its source layer.
+
+        Priority (highest to lowest): variant > group > vocabulary. Entries are
+        returned sorted by placeholder for stable output.
+        """
+        vocab = vocab_defaults or {}
+        entries = []
+        for placeholder in vocab.keys() | group_mappings.keys() | variant_mappings.keys():
+            if placeholder in variant_mappings:
+                entries.append(
+                    MappingEntry(placeholder, variant_mappings[placeholder], MappingOrigin.VARIANT)
+                )
+            elif placeholder in group_mappings:
+                entries.append(
+                    MappingEntry(placeholder, group_mappings[placeholder], MappingOrigin.GROUP)
+                )
+            else:
+                entries.append(
+                    MappingEntry(placeholder, vocab[placeholder], MappingOrigin.VOCABULARY)
+                )
+        entries.sort(key=lambda entry: entry.placeholder)
+        return tuple(entries)
 
 
 class PlaceholderSubstitutionService:
