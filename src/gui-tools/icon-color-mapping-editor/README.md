@@ -25,6 +25,19 @@ This tool edits **repo sources** (`icons.yaml`, `defaults.yaml`). It is not
 provisioned to machines and never touches `generated/` or runs `itr render`;
 rendered icons refresh on the next wallpaper/theme run as usual.
 
+## Editing flow
+
+Picks never write to disk. They accumulate in a pending set (keyed by group,
+variant-or-null, placeholder) with a live YAML diff sourced from
+`itr mapping set --dry-run --diff`. **Save mappings** applies each edit
+through `itr mapping set` / `set-default` and reloads; a failed save keeps
+the pending edits. **Revert** discards them. Saving is blocked when
+`icons.yaml` or `defaults.yaml` changed on disk since load — reload first.
+
+Scopes: *Whole group* writes `<group>.color_mappings` (default),
+*This variant only* adds a `variants[].color_mappings` override, *All icons*
+retargets `defaults.yaml` and names the groups shadowing the placeholder.
+
 ## Testing
 
 - `make lint` — bundles the app (fails on syntax errors).

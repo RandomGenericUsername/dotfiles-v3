@@ -42,33 +42,33 @@
 
 ## 5. GUI: selection, picker, scope
 
-- [ ] 5.1 `ui/InputsPanel.tsx` — three inputs with resolved paths and read-only/writable labels
-- [ ] 5.1a Picker per input row that reloads the session from the new path, clears selection and pending edits; pickers disabled while pending edits exist
-- [ ] 5.1b Launch defaults: `dotfiles/assets/icon-templates/`, `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml` (+ `defaults.yaml` alongside), `~/.local/share/dotfiles/generated/palettes/colors.yaml`
-- [ ] 5.2 `ui/GroupTree.tsx` — groups and variants; selecting a variant enlarges it in the preview
-- [ ] 5.2a Selecting a group loads it into the preview pane; selecting a variant (tree or thumbnail) clears the shape selection
-- [ ] 5.3 `ui/SelectionPanel.tsx` — shape, `{{PLACEHOLDER}}`, current token + hex, "N shapes across M variants", keyboard-accessible shape list
-- [ ] 5.3a No hardcoded constants: all counts/lists (affected variants/groups, shadowers, usage, tokens) derive from `mapping show` output + pending edits
-- [ ] 5.4 `ui/TokenPicker.tsx` — all scheme tokens as swatches; absent tokens disabled with `not in colors.yaml`; dynamic heading; disabled state when nothing is selected
-- [ ] 5.4a Indexed grid (`color0`–`color15`) above named-token rows, stable order; palette tokens only, no free-form literal entry
-- [ ] 5.5 `ui/ScopeSwitch.tsx` — `This variant only` / `Whole group` (default) / `All icons`, each with its blast-radius sentence and target file+key
-- [ ] 5.5b Scope hints use the pinned copy templates from `icme-ui`; usage count shows variants actually using the placeholder
-- [ ] 5.5a `All icons` scope: list the shadowing groups from `mapping show`, and warn when the previewed group is among them (the edit will not change what is on screen)
-- [ ] 5.6 Apply a pick to the pending-edit set (never to disk)
+- [x] 5.1 `ui/InputsPanel.tsx` — three inputs with resolved paths and read-only/writable labels
+- [x] 5.1a Picker per input row that reloads the session from the new path, clears selection and pending edits; pickers disabled while pending edits exist
+- [x] 5.1b Launch defaults: `dotfiles/assets/icon-templates/`, `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml` (+ `defaults.yaml` alongside), `~/.local/share/dotfiles/generated/palettes/colors.yaml`
+- [x] 5.2 `ui/GroupTree.tsx` — groups and variants; selecting a variant enlarges it in the preview
+- [x] 5.2a Selecting a group loads it into the preview pane; selecting a variant (tree or thumbnail) clears the shape selection
+- [x] 5.3 `ui/SelectionPanel.tsx` — shape, `{{PLACEHOLDER}}`, current token + hex, "N shapes across M variants", keyboard-accessible shape list
+- [x] 5.3a No hardcoded constants: all counts/lists (affected variants/groups, shadowers, usage, tokens) derive from `mapping show` output + pending edits
+- [x] 5.4 `ui/TokenPicker.tsx` — all scheme tokens as swatches; absent tokens disabled with `not in colors.yaml`; dynamic heading; disabled state when nothing is selected
+- [x] 5.4a Indexed grid (`color0`–`color15`) above named-token rows, stable order; palette tokens only, no free-form literal entry
+- [x] 5.5 `ui/ScopeSwitch.tsx` — `This variant only` / `Whole group` (default) / `All icons`, each with its blast-radius sentence and target file+key
+- [x] 5.5b Scope hints use the pinned copy templates from `icme-ui`; usage count shows variants actually using the placeholder
+- [x] 5.5a `All icons` scope: list the shadowing groups from `mapping show`, and warn when the previewed group is among them (the edit will not change what is on screen)
+- [x] 5.6 Apply a pick to the pending-edit set (never to disk)
 
 ## 6. GUI: pending edits, diff, save
 
-- [ ] 6.1 `ui/DiffPane.tsx` — YAML diff of pending edits, sourced from `itr mapping set --dry-run --diff`
-- [ ] 6.2 `Save` — apply each pending edit through `itr mapping set` / `itr mapping set-default`, then reload from `itr mapping show`; surface any failure without losing pending state; never trigger a render
-- [ ] 6.3 `Revert` — clear pending edits and restore previews
-- [ ] 6.4 Guard against saving when `icons.yaml` or `defaults.yaml` changed on disk since load (mtime check, warn and offer reload)
-- [ ] 6.5 Surface `itr`/filesystem failures in the GUI without losing state: unreadable picker choice keeps the session, failed save retains pending edits
+- [x] 6.1 `ui/DiffPane.tsx` — YAML diff of pending edits, sourced from `itr mapping set --dry-run --diff`
+- [x] 6.2 `Save` — apply each pending edit through `itr mapping set` / `itr mapping set-default`, then reload from `itr mapping show`; surface any failure without losing pending state; never trigger a render
+- [x] 6.3 `Revert` — clear pending edits and restore previews
+- [x] 6.4 Guard against saving when `icons.yaml` or `defaults.yaml` changed on disk since load (mtime check, warn and offer reload)
+- [x] 6.5 Surface `itr`/filesystem failures in the GUI without losing state: unreadable picker choice keeps the session, failed save retains pending edits
 
 ## 7. Verification and docs
 
 - [ ] 7.1 Manual pass against the real battery group: click each shape, retarget `COLOR_ACCENT` group-wide, verify all four variants change, save, `itr render`, confirm generated SVGs match the preview
 - [ ] 7.2 Variant-override pass: same placeholder, variant scope, confirm only that variant changes after render
 - [ ] 7.3 Vocabulary pass: `All icons` scope on a placeholder no group overrides, confirm every group changes after render; repeat on a shadowed placeholder and confirm the warning was accurate
-- [ ] 7.4 `docs/Adding an Icon — ITR and Provisioning Pipeline.md` — document the editor as the recommended recoloring path and the `itr mapping` commands
-- [ ] 7.5 `README.md` in the tool folder: prerequisites, launch command, explicit note that it edits repo sources, is not provisioned, and that rendered icons refresh on the next wallpaper/theme run
-- [ ] 7.6 Layout pass against `mock.html`: three regions, enlarged main with thumbnails, state affordances, heading copy, pinned footer — modulo the divergences listed in `design.md` (hatch, no preselection, mock-only copy)
+- [x] 7.4 `docs/Adding an Icon — ITR and Provisioning Pipeline.md` — document the editor as the recommended recoloring path and the `itr mapping` commands
+- [x] 7.5 `README.md` in the tool folder: prerequisites, launch command, explicit note that it edits repo sources, is not provisioned, and that rendered icons refresh on the next wallpaper/theme run
+- [x] 7.6 Layout pass against `mock.html`: three regions, uniform grid with bordered active card, state affordances, heading copy, pinned footer — modulo the divergences listed in `design.md` (hatch, no preselection, mock-only copy)

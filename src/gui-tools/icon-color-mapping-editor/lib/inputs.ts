@@ -6,6 +6,7 @@
 // any input surface as ItrError through lib/itr.ts at load time.
 
 import GLib from "gi://GLib?version=2.0";
+import Gio from "gi://Gio?version=2.0";
 
 export interface EditorInputs {
   templateRoot: string;
@@ -25,4 +26,23 @@ export function resolveInputs(): EditorInputs {
       GLib.getenv("ICME_COLOR_SCHEME") ??
       `${GLib.get_user_data_dir()}/dotfiles/generated/palettes/colors.yaml`,
   };
+}
+
+/** Vocabulary file resolved alongside the manifest (mirrors the CLI). */
+export function defaultsPathFor(iconsYaml: string): string {
+  return `${GLib.path_get_dirname(iconsYaml)}/defaults.yaml`;
+}
+
+/** mtime seconds of a file, or null when it cannot be read. */
+export function mtimeOf(path: string): number | null {
+  try {
+    const info = Gio.File.new_for_path(path).query_info(
+      "time::modified",
+      Gio.FileQueryInfoFlags.NONE,
+      null,
+    );
+    return info.get_modification_date_time()?.to_unix() ?? null;
+  } catch {
+    return null;
+  }
 }

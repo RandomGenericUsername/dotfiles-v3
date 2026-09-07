@@ -252,3 +252,35 @@ window#icme-window {
   color: #e08585;
   margin: 4px 14px 0;
 }
+
+.diff-text {
+  font-family: monospace;
+  font-size: 11px;
+  color: #d7dbe2;
+}
+
+.footer {
+  padding: 10px 14px;
+  border-top: 1px solid #313742;
+}
+
+.btn {
+  padding: 7px;
+  border-radius: 6px;
+  border: 1px solid #313742;
+  background-color: #23272f;
+  color: #d7dbe2;
+  font-size: 12px;
+}
+
+.btn.primary {
+  background-color: #2c4b7c;
+  border-color: #6ea8fe;
+  color: #ffffff;
+}
+
+.save-error {
+  font-size: 11px;
+  color: #e08585;
+  margin: 0 14px 6px;
+}

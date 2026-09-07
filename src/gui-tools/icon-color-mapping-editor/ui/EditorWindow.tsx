@@ -1,7 +1,12 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4";
 import { createEffect, createState } from "ags";
-import { mappingShow, type MappingShow } from "../lib/itr";
-import { resolveInputs, type EditorInputs } from "../lib/inputs";
+import { mappingSet, mappingSetDefault, mappingShow, type MappingShow } from "../lib/itr";
+import {
+  defaultsPathFor,
+  mtimeOf,
+  resolveInputs,
+  type EditorInputs,
+} from "../lib/inputs";
 import type {
   PendingEdit,
   Scope,
@@ -10,6 +15,7 @@ import type {
 } from "../lib/model";
 import { resolveToken, upsertPending } from "../lib/model";
 import { extractShapes } from "../lib/svg";
+import { DiffPane } from "./DiffPane";
 import { GroupTree } from "./GroupTree";
 import { InputsPanel } from "./InputsPanel";
 import { Preview } from "./Preview";
@@ -17,9 +23,9 @@ import { ScopeSwitch } from "./ScopeSwitch";
 import { SelectionPanel, type CurrentToken } from "./SelectionPanel";
 import { TokenPicker } from "./TokenPicker";
 
-// Shell window hosting the editor. Owns session state; §6 adds the diff/save
-// footer. One centered overlay window on the given monitor (same layer-shell
-// pattern as the capture dialog).
+// Shell window hosting the editor. Owns session state, pending edits, and the
+// save pipeline. One centered overlay window on the given monitor (same
+// layer-shell pattern as the capture dialog).
 export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   const [show, setShow] = createState<MappingShow | null>(null);
   const [loadError, setLoadError] = createState<string | null>(null);
@@ -35,6 +41,39 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   const [showGroup, setShowGroup] = createState(true);
   const [barBackground, setBarBackground] = createState(false);
   const [currentToken, setCurrentToken] = createState<CurrentToken | null>(null);
+  const [saving, setSaving] = createState(false);
+  const [saveError, setSaveError] = createState<string | null>(null);
+  const [stale, setStale] = createState(false);
+  let loadedMtimes: { icons: number | null; defaults: number | null } = {
+    icons: null,
+    defaults: null,
+  };
+
+  function snapshotMtimes(next: EditorInputs): void {
+    loadedMtimes = {
+      icons: mtimeOf(next.iconsYaml),
+      defaults: mtimeOf(defaultsPathFor(next.iconsYaml)),
+    };
+  }
+
+  async function refreshShow(): Promise<void> {
+    const next = inputs();
+    const loaded = await mappingShow({
+      iconsYaml: next.iconsYaml,
+      templateDir: next.templateRoot,
+      colorScheme: next.colorScheme,
+    });
+    setShow(loaded);
+    setLoadError(null);
+    snapshotMtimes(next);
+    const group = loaded.groups.find((g) => g.group === groupName()) ?? loaded.groups[0];
+    if (group) {
+      setGroupName(group.group);
+      const view =
+        group.variants.find((v) => v.variant === activeVariant()) ?? group.variants[0];
+      if (view) setActiveVariant(view.variant);
+    }
+  }
 
   function load(next: EditorInputs): void {
     setInputs(next);
@@ -43,21 +82,9 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     setSelection(null);
     setPending(new Map());
     setVocabPending(new Map());
-    mappingShow({
-      iconsYaml: next.iconsYaml,
-      templateDir: next.templateRoot,
-      colorScheme: next.colorScheme,
-    })
-      .then((loaded) => {
-        setShow(loaded);
-        const first = loaded.groups[0];
-        if (first) {
-          setGroupName(first.group);
-          const firstVariant = first.variants[0];
-          if (firstVariant) setActiveVariant(firstVariant.variant);
-        }
-      })
-      .catch((error: unknown) => setLoadError(String(error)));
+    setSaveError(null);
+    setStale(false);
+    refreshShow().catch((error: unknown) => setLoadError(String(error)));
   }
 
   load(resolveInputs());
@@ -78,6 +105,58 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
           token,
         }),
       );
+    }
+  }
+
+  async function save(): Promise<void> {
+    if (saving() || (pending().size === 0 && vocabPending().size === 0)) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const next = inputs();
+      const fresh = {
+        icons: mtimeOf(next.iconsYaml),
+        defaults: mtimeOf(defaultsPathFor(next.iconsYaml)),
+      };
+      if (
+        fresh.icons !== loadedMtimes.icons ||
+        fresh.defaults !== loadedMtimes.defaults
+      ) {
+        setStale(true);
+        setSaveError(
+          "icons.yaml or defaults.yaml changed on disk since load. Reload to continue.",
+        );
+        return;
+      }
+      for (const edit of pending().values()) {
+        await mappingSet({
+          iconsYaml: next.iconsYaml,
+          colorScheme: next.colorScheme,
+          group: edit.group,
+          placeholder: edit.placeholder,
+          token: edit.token,
+          variant: edit.variant ?? undefined,
+        });
+      }
+      for (const edit of vocabPending().values()) {
+        await mappingSetDefault({
+          defaultsYaml: defaultsPathFor(next.iconsYaml),
+          manifestYaml: next.iconsYaml,
+          colorScheme: next.colorScheme,
+          placeholder: edit.placeholder,
+          token: edit.token,
+        });
+      }
+      setPending(new Map());
+      setVocabPending(new Map());
+      // Never triggers a render: sources only, generated icons refresh on the
+      // next wallpaper/theme run.
+      await refreshShow();
+    } catch (error: unknown) {
+      // Pending state is retained so nothing is lost.
+      setSaveError(String(error));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -227,6 +306,50 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   rightScroll.set_child(rightInner);
   right.append(rightScroll);
 
+  const saveErrorLabel = new Gtk.Label({
+    css_classes: ["save-error"],
+    xalign: 0,
+    wrap: true,
+  });
+  const reloadButton = new Gtk.Button({ label: "Reload", css_classes: ["toggle"] });
+  reloadButton.connect("clicked", () => load(inputs()));
+  const saveButton = new Gtk.Button({
+    label: "Save mappings",
+    css_classes: ["btn", "primary"],
+    hexpand: true,
+  });
+  saveButton.connect("clicked", () => void save());
+  const revertButton = new Gtk.Button({ label: "Revert", css_classes: ["btn"] });
+  revertButton.connect("clicked", () => {
+    setPending(new Map());
+    setVocabPending(new Map());
+    setSaveError(null);
+  });
+  const footerButtons = new Gtk.Box({
+    orientation: Gtk.Orientation.HORIZONTAL,
+    spacing: 8,
+    css_classes: ["footer"],
+  });
+  footerButtons.append(revertButton);
+  footerButtons.append(saveButton);
+  const footer = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+  footer.append(saveErrorLabel);
+  footer.append(reloadButton);
+  footer.append(footerButtons);
+  right.append(footer);
+
+  createEffect(() => {
+    const hasPending = pending().size + vocabPending().size > 0;
+    const busy = saving();
+    saveButton.set_sensitive(hasPending && !busy);
+    revertButton.set_sensitive(hasPending && !busy);
+    saveButton.set_label(busy ? "Saving…" : "Save mappings");
+    const error = saveError();
+    saveErrorLabel.set_label(error ?? "");
+    saveErrorLabel.set_visible(error !== null);
+    reloadButton.set_visible(stale());
+  });
+
   const center = new Gtk.Box({
     orientation: Gtk.Orientation.VERTICAL,
     css_classes: ["icme-center"],
@@ -265,6 +388,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
             onToggleGroup: () => setShowGroup(!showGroup()),
             onToggleBackdrop: () => setBarBackground(!barBackground()),
             onClose: () => self.close(),
+            diffContent: DiffPane({ pending, vocabPending, inputs }),
           }),
         );
       }}

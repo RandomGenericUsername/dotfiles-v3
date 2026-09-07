@@ -230,6 +230,39 @@ color_mappings:
 
 Fixed colors should be the exception. They bypass palette adaptation.
 
+### 4.2 Recoloring path: editor UI and `itr mapping` commands
+
+To recolor an existing icon, use the icon color mapping editor
+(`src/gui-tools/icon-color-mapping-editor`, `make run`): click a shape, pick
+a palette swatch, choose the scope, save. The editor previews the group-wide
+effect before writing and never touches templates, the palette, or
+`generated/`.
+
+The same operations exist as CLI commands (the GUI shells out to them):
+
+```sh
+# inspect merged mappings with per-entry origin (JSON is the GUI contract)
+itr mapping show icons.yaml --icon battery --output-format json
+
+# group scope (default): writes <group>.color_mappings.<PLACEHOLDER>
+itr mapping set icons.yaml --icon battery --placeholder COLOR_ACCENT --token color10
+
+# variant scope: adds a variants[].color_mappings override
+itr mapping set icons.yaml --icon battery --variant battery-50-charging \
+  --placeholder COLOR_ACCENT --token color3
+
+# vocabulary scope: retargets defaults.yaml, reports shadowing groups
+itr mapping set-default defaults.yaml --placeholder COLOR_ACCENT --token color3 \
+  --icons icons.yaml
+
+# preview any edit first: nothing is written
+itr mapping set icons.yaml --icon battery --placeholder COLOR_ACCENT \
+  --token color10 --dry-run --diff
+```
+
+All writes are comment-preserving single-entry edits. Rendered icons refresh
+on the next wallpaper/theme run; the editor never runs `itr render` itself.
+
 ## 5. Step 3: generate the AGS manifest during provisioning
 
 AGS consumes a generated JSON representation of the same manifest:

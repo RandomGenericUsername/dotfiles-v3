@@ -88,21 +88,18 @@ export function mappingShow(args: ShowArgs): Promise<MappingShow> {
   return runJson<MappingShow>(argv);
 }
 
-export interface SetArgs extends ShowArgs {
+export interface SetArgs {
   placeholder: string;
   token: string;
-  variant?: string;
   unsafe?: boolean;
   dryRun?: boolean;
   withDiff?: boolean;
+  templateDir?: string;
+  colorScheme?: string;
 }
 
 function setArgv(command: "set" | "set-default", target: string, args: SetArgs): string[] {
   const argv = ["mapping", command, target, "--placeholder", args.placeholder, "--token", args.token];
-  if (command === "set") {
-    if (args.icon !== undefined) argv.push("--icon", args.icon);
-    if (args.variant !== undefined) argv.push("--variant", args.variant);
-  }
   if (args.unsafe === true) argv.push("--unsafe");
   if (args.dryRun === true) argv.push("--dry-run");
   if (args.withDiff === true) argv.push("--diff");
@@ -112,19 +109,25 @@ function setArgv(command: "set" | "set-default", target: string, args: SetArgs):
 }
 
 export interface SetGroupArgs extends SetArgs {
+  iconsYaml: string;
   group: string;
+  variant?: string;
 }
 
 export function mappingSet(args: SetGroupArgs): Promise<MappingSetResult> {
-  return runJson<MappingSetResult>(setArgv("set", args.iconsYaml, { ...args, icon: args.group }));
+  const argv = setArgv("set", args.iconsYaml, args);
+  argv.push("--icon", args.group);
+  if (args.variant !== undefined) argv.push("--variant", args.variant);
+  return runJson<MappingSetResult>(argv);
 }
 
 export interface SetDefaultArgs extends SetArgs {
-  iconsYaml?: string;
+  defaultsYaml: string;
+  manifestYaml?: string;
 }
 
 export function mappingSetDefault(args: SetDefaultArgs): Promise<MappingSetDefaultResult> {
-  const argv = setArgv("set-default", args.iconsYaml, args);
-  if (args.iconsYaml !== undefined) argv.push("--icons", args.iconsYaml);
+  const argv = setArgv("set-default", args.defaultsYaml, args);
+  if (args.manifestYaml !== undefined) argv.push("--icons", args.manifestYaml);
   return runJson<MappingSetDefaultResult>(argv);
 }

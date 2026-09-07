@@ -78,6 +78,7 @@ export interface PreviewProps {
   onToggleGroup(): void;
   onToggleBackdrop(): void;
   onClose(): void;
+  diffContent: Gtk.Widget;
 }
 
 interface VariantRender {
@@ -247,9 +248,8 @@ export function Preview(props: PreviewProps) {
   });
   canvas.append(scroller);
 
-  const diffLabel = new Gtk.Label({ label: "— no changes —", css_classes: ["diff-empty"] });
   const diff = new Gtk.Box({ css_classes: ["diff"] });
-  diff.append(diffLabel);
+  diff.append(props.diffContent);
 
   const root = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: true, vexpand: true });
   root.append(bar);
