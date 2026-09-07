@@ -4,9 +4,15 @@ baseline_commit: 07ea6fd
 
 # Story 2.3: TerminalColorApplier reads the artifact
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
+
+### Review Findings
+
+Code review 2026-09-07 (commit 9b87109, worktree review; 0 decision-needed, 0 defer, 5 dismissed as noise — pinned Decision B minimal-guard semantics, documented `_LinkBreaker` integration interpretation, unit `_FakeCsg` stub sanctioned by Task 4, parity cross-check per spec, gate deltas pre-documented):
+
+- [x] [Review][Patch] Stray leading space on docstring exception-tuple continuation line [src/runtime/src/runtime/adapters/terminal_color_applier.py:56] — fixed in review commit f60259c (cosmetic only; format check + 21 applier unit tests re-verified green).
 
 ## Story
 
