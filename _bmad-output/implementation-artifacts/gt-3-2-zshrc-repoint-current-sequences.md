@@ -4,7 +4,7 @@ baseline_commit: 104e11f
 
 # Story 3.2: zshrc repoint to current/colors.sequences
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -63,6 +63,11 @@ So that my terminal stops reading the orphaned pre-Epic-4 `generated/` tree.
   - [x] Sanity greps: `grep -rn "COLOR_SCHEME_OUTPUT_DIR" src/ dotfiles/` → ZERO hits (retired, no dangling references); `grep -rn "generated/palettes" src/provisioning/ansible/roles/zsh_config/ src/provisioning/tests/unit/test_zsh_config_role.py dotfiles/config/zsh/` → ZERO hits; `grep -rn "zsh_config_xdg_state_home\|zsh_config_state_current_dir" src/provisioning/ansible/` → only zsh_config vars/tasks.
 - [x] Task 7 — live-shell acceptance test (AC: 8)
   - [x] Execute the sub-AC 8 procedure on this machine (apply + seed already landed) and record the results verbatim in the Dev Agent Record; a pre-seed spot-check is optional (temporarily point XDG_STATE_HOME at an empty dir in a throwaway shell to observe the harmless backgrounded cat — do NOT delete the real `current/` artifact).
+
+### Review Findings
+
+- [x] [Review][Defer] Foreign main-worktree provisioning run clobbered converged machine state after the dev's honest AC-8 evidence [machine, not in diff] — deferred, environmental. A concurrent `bootstrap.yaml` (main worktree, pre-gt-3-2 code, 21:00–21:10) re-rendered the old `.zshrc` (orphan `generated/palettes` cat), reverted the uv `csg` tool + container images to pre-`adw.css`, and split the `current/` pointer set (sequences=e5e310aa vs conf/gtk/yaml=746d82f5). All story evidence verified coherent before the clobber; reviewer restored state from this worktree (zsh-config.yaml + assets.yaml re-apply, csg reinstall, 4 image rebuilds, `wallpaper set diwali.png` → pointers unified on 13e74b00, `.zshrc` line 33 state-root cat, pty byte re-test 19/19 OSC units). Sessions sharing the install dir will keep re-clobbering until gt-4 coordination.
+- [x] [Review][Defer] Stale runtime docstring: "A NEW shell still reads provisioning's rendered generated/palettes/" is now factually outdated [src/runtime/src/runtime/adapters/terminal_color_applier.py:61] — deferred, pre-existing boundary (story pins zero runtime edits; gt-4-2 doc reconciliation owns it).
 
 ## Dev Notes
 
