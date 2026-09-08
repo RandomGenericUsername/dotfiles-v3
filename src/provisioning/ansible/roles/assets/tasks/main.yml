@@ -23,9 +23,13 @@
 #      from unarchive's natural re-extract-when-changed behavior.
 #      Check-mode caveat: partial support for .tar.gz — the task is skipped
 #      under --check; that keeps "dry-run must be dry" satisfied.
-#   3. ansible.builtin.copy (AC 3-5) loops the directory kinds with remote_src:
-#      true; idempotent via checksums; check-mode full. Every `source` ends
+#   3. ansible.posix.synchronize (AC 3-5) loops the directory kinds with
+#      delete: true — a MIRROR, not a merge: files deleted from the repo
+#      (e.g. replaced icon template groups) must vanish from the spine on the
+#      next apply, exactly as fresh installs see them. Every `source` ends
 #      with `/` (contents-into-dest semantics, no accidental nested dir).
+#      (2026-09-07: replaced ansible.builtin.copy, which merged only and left
+#      stale deleted templates behind on converged hosts.)
 #   4. ansible.builtin.command `weg dump-effects` (AC 6) is the 2.4
 #      command+`creates:` pattern verbatim — the ONLY idempotency/dry-run
 #      mechanism on command modules (filesystem check, not a registered rc).
@@ -90,11 +94,11 @@
     remote_src: true
   when: not ansible_check_mode
 
-- name: Deploy directory asset kinds
-  ansible.builtin.copy:
+- name: Deploy directory asset kinds (mirror, prune deleted files)
+  ansible.posix.synchronize:
     src: "{{ assets_repo_root }}/{{ item.source }}"
     dest: "{{ install_dir | trim }}/{{ item.target }}"
-    remote_src: true
+    delete: true
   loop: "{{ assets_copies }}"
   when: not ansible_check_mode
 

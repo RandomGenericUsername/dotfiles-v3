@@ -3,8 +3,8 @@
 # The role deploys the five asset kinds from the repo into the install spine
 # that the filesystem role (2.5) created (FR-17, chaining-spine.md): the
 # wallpaper tarball (unarchive), the three directory-based kinds
-# (icon-templates / icon-mappings / csg-templates via copy), and the
-# weg-effects catalog (command emit).
+# (icon-templates / icon-mappings / csg-templates via synchronize, mirror
+# semantics with prune), and the weg-effects catalog (command emit).
 #
 # The desired asset list lives in dotfiles/provisioning/assets.yaml (Story
 # 2.1): five {name, kind, source} entries, the `weg-effects` entry having NO
@@ -51,9 +51,10 @@ assets_wallpapers_tarball: dotfiles/assets/wallpapers/wallpapers.tar.gz
 assets_wallpapers_dest: "{{ install_dir | trim }}/wallpapers"
 
 # assets_copies: the three directory-based asset kinds as (name, kind, source,
-#   target) mirroring the manifest. Every `source` ENDS WITH `/` so copy's
-#   contents-into-dest semantics land the files directly in the target (no
-#   accidental nested dir). `target` IS the AssetKind.spine_segment() of the
+#   target) mirroring the manifest. Every `source` ENDS WITH `/` so
+#   synchronize (like copy) lands the contents directly in the target — rsync
+#   trailing-slash contents semantics (no accidental nested dir), with
+#   delete: true making the deploy an exact mirror of the repo tree. `target` IS the AssetKind.spine_segment() of the
 #   kind — parity-locked by the structural test. The csg-templates source has a
 #   trailing `/` ADDED here (the manifest source has none); the parity test
 #   normalizes with rstrip("/").
