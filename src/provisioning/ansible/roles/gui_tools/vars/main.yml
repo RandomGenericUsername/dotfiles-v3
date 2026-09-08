@@ -80,6 +80,7 @@ gui_tools_icme_app_files:
   - { name: icme-app-tsx, source: src/gui-tools/icon-color-mapping-editor/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/app.tsx" }
   - { name: icme-style-css, source: src/gui-tools/icon-color-mapping-editor/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/style.css" }
   - { name: icme-editor-window, source: src/gui-tools/icon-color-mapping-editor/ui/EditorWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/EditorWindow.tsx" }
+  - { name: icme-templates-tab, source: src/gui-tools/icon-color-mapping-editor/ui/TemplatesTab.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/TemplatesTab.tsx" }
   - { name: icme-preview, source: src/gui-tools/icon-color-mapping-editor/ui/Preview.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/Preview.tsx" }
   - { name: icme-inputs-panel, source: src/gui-tools/icon-color-mapping-editor/ui/InputsPanel.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/InputsPanel.tsx" }
   - { name: icme-group-tree, source: src/gui-tools/icon-color-mapping-editor/ui/GroupTree.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/GroupTree.tsx" }
@@ -93,3 +94,4 @@ gui_tools_icme_app_files:
   - { name: icme-lib-svg, source: src/gui-tools/icon-color-mapping-editor/lib/svg.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/svg.ts" }
   - { name: icme-lib-inputs, source: src/gui-tools/icon-color-mapping-editor/lib/inputs.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/inputs.ts" }
   - { name: icme-lib-diff, source: src/gui-tools/icon-color-mapping-editor/lib/diff.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/diff.ts" }
+  - { name: icme-lib-templates, source: src/gui-tools/icon-color-mapping-editor/lib/templates.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/templates.ts" }
