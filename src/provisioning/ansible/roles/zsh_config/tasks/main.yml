@@ -12,8 +12,9 @@
 # Design:
 # - Runs AFTER packages + zsh_tools (plugins + clone tools exist) and BEFORE
 #   config_links (so the rendered .zshrc is in the spine when ~/.config/zsh is
-#   symlinked). Needs the palette (settings/default_palette) for
-#   COLOR_SCHEME_OUTPUT_DIR.
+#   symlinked). The template vars resolve spine paths, distro plugin paths,
+#   and the runtime state-root current dir (COLOR_SCHEME_CURRENT_DIR,
+#   gt-3-2) — no palette dependency (the runtime owns the artifact).
 # - Distro-specific plugin FILE paths resolve in vars/main.yml via the
 #   ansible_os_family fact (Arch vs Debian differ) — mirror of the NFR-3
 #   distro isolation discipline: group_vars carries package NAMES, this role
@@ -48,7 +49,7 @@
     dest: "{{ zsh_config_spine_dir }}/.zshrc"
   vars:
     STARSHIP_CONFIG: "{{ install_dir | trim }}/config/starship/starship.toml"
-    COLOR_SCHEME_OUTPUT_DIR: "{{ install_dir | trim }}/generated/palettes"
+    COLOR_SCHEME_CURRENT_DIR: "{{ zsh_config_state_current_dir }}"
     OH_MY_ZSH_DIR: "{{ shell.oh_my_zsh_dir }}"
     NVM_DIR: "{{ shell.nvm_dir }}"
     PYENV_DIR: "{{ shell.pyenv_dir }}"

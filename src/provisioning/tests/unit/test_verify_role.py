@@ -1684,9 +1684,12 @@ def _build_provisioned_layout(
     (install / "config" / "wlogout" / "layout").write_text("")
     # Rendered shell configs (zsh_config + wlogout_config roles): verify checks
     # the FINAL .zshrc / style.css, not the .j2/.tpl sources.
+    # gt-3-2: the .zshrc cat line reads the runtime state-root current pointer
+    # (criterion 12's grep is tightened to current/colors\.sequences — the
+    # orphaned <INSTALL>/generated/palettes/ path would fail the gate).
     (install / "config" / "zsh" / ".zshrc").write_text(
         'command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"\n'
-        '(cat "<INSTALL>/generated/palettes/colors.sequences" &)\n'
+        '(cat "<STATE>/dotfiles/current/colors.sequences" &)\n'
     )
     (install / "config" / "wlogout" / "style.css").write_text(
         '@import url("<INSTALL>/config/ags/colors.css");\nbutton { color: @color_15; }\n'

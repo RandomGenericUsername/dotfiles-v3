@@ -26,8 +26,11 @@ function set_win_title(){
 }
 precmd_functions+=(set_win_title)
 
-# Follow color schemes - dynamically update terminal colors
-(cat "{{COLOR_SCHEME_OUTPUT_DIR}}/colors.sequences" &)
+# Follow color schemes - dynamically update terminal colors. The cat points
+# at the runtime-owned current/ pointer (gt-2-2 seeder/reconcile flips it on
+# every wallpaper set); provisioning renders the absolute state-root path at
+# apply time. Absent until first seed → harmless backgrounded cat.
+(cat "{{COLOR_SCHEME_CURRENT_DIR}}/colors.sequences" &)
 
 ## Plugins section: Enable fish style features
 # Use syntax highlighting

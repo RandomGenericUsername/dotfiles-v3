@@ -18,6 +18,22 @@ zsh_config_spine_dir: "{{ install_dir | trim }}/config/zsh"
 #   repo-root pattern.
 zsh_config_template_root: "{{ playbook_dir }}/../../../.."
 
+# zsh_config_xdg_state_home: the state home the runtime owns ($XDG_STATE_HOME,
+#   AD-5: <state>/dotfiles/) — the rendered .zshrc reads the runtime's
+#   current/colors.sequences pointer from it (gt-3-2). Provisioning only
+#   REFERENCES the path in the rendered consumer config; it never WRITES
+#   under the state root (the pointers are runtime writes). Identical
+#   derivation to verify_xdg_state_home / filesystem_xdg_state_home — F4
+#   lock: ansible_facts.env, NOT the deprecated top-level ansible_env fact.
+zsh_config_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+
+# zsh_config_state_current_dir: the runtime-owned current/ pointer dir.
+#   AD-5: the state root is ALWAYS <XDG_STATE_HOME>/dotfiles/. Trim lock
+#   (stray-whitespace XDG values bit Story 1.11) — mirror of
+#   verify_state_current_dir / compositor_configs_state_current_dir; one XDG
+#   read per role, downstream consumption is this derived var.
+zsh_config_state_current_dir: "{{ zsh_config_xdg_state_home | trim }}/dotfiles/current"
+
 # ── Plugin file paths (distro-resolved) ─────────────────────────────────────
 # Each is the FILE the .zshrc.j2 `{% if VAR %}` block sources. Empty string =
 # plugin absent → block omitted. Arch paths verified 2026-08-16.

@@ -32,8 +32,9 @@
 #      provisioning role is deleted)
 #   11. shell tools cloned          → ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist
 #       (zsh_tools role)
-#   12. zsh config rendered+wired   → .zshrc wires starship + colors.sequences
-#       (zsh_config role)
+#   12. zsh config rendered+wired   → .zshrc wires starship + a cat of the
+#       state-root current/colors.sequences (gt-3-2: the runtime's current
+#       pointer, NOT the orphaned generated/palettes tree) (zsh_config role)
 #   13. wlogout config rendered+wired → style.css imports the palette
 #       (wlogout_config role)
 #   14. §12 preconditions           → criteria 2/3 + 4 + 8 + 5 — the whole role;
@@ -667,7 +668,7 @@
     argv:
       - grep
       - -E
-      - "starship init|colors.sequences"
+      - 'starship init|current/colors\.sequences'
       - "{{ verify_xdg_config_home }}/zsh/.zshrc"
   register: verify_zshrc_wiring
   changed_when: false
@@ -679,9 +680,12 @@
     that: verify_zshrc_wiring.rc == 0
     fail_msg: >-
       the rendered .zshrc does not wire starship and the color scheme
-      (expected both `starship init` and `colors.sequences` — done-criterion
-      12, shell wiring). The zsh_config role renders .zshrc.j2 → .zshrc; run the
-      zsh-config playbook (needs packages + zsh_tools first)
+      (expected both `starship init` and a cat of the state-root
+      `current/colors.sequences` — done-criterion 12, shell wiring; gt-3-2
+      tightened the grep to the runtime current pointer so a regression to
+      the orphaned provisioning-era tree fails loud). The zsh_config role
+      renders .zshrc.j2 → .zshrc; run the zsh-config playbook (needs
+      packages + zsh_tools first)
   when: not ansible_check_mode
 
 - name: Check rendered wlogout style.css imports the palette colors

@@ -4,7 +4,7 @@ baseline_commit: 104e11f
 
 # Story 3.2: zshrc repoint to current/colors.sequences
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -44,25 +44,25 @@ So that my terminal stops reading the orphaned pre-Epic-4 `generated/` tree.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1 — template repoint (AC: 1, 3, 4)
-  - [ ] `dotfiles/config/zsh/.zshrc.j2:30`: `(cat "{{COLOR_SCHEME_OUTPUT_DIR}}/colors.sequences" &)` → `(cat "{{COLOR_SCHEME_CURRENT_DIR}}/colors.sequences" &)`; extend the two-line comment above it with the state-root provenance (runtime-owned `current/` pointer, gt-2-2 seeder/reconcile flip it; provisioning renders the absolute path at apply time).
-  - [ ] NO guard added — bare backgrounded cat per pinned contract (sub-AC 4).
-- [ ] Task 2 — zsh_config vars (AC: 2)
-  - [ ] `src/provisioning/ansible/roles/zsh_config/vars/main.yml`: add `zsh_config_xdg_state_home` (exact shared derivation string) with a comment mirroring the sibling roles' ("the state home the runtime owns… identical derivation to verify_xdg_state_home / filesystem_xdg_state_home; F4 lock: ansible_facts.env, NOT ansible_env") and `zsh_config_state_current_dir: "{{ zsh_config_xdg_state_home | trim }}/dotfiles/current"` with the AD-5 + trim-lock comment (mirror `verify_state_current_dir`).
-- [ ] Task 3 — zsh_config tasks (AC: 1, 3)
-  - [ ] `src/provisioning/ansible/roles/zsh_config/tasks/main.yml` render-task vars: `COLOR_SCHEME_OUTPUT_DIR: "{{ install_dir | trim }}/generated/palettes"` → `COLOR_SCHEME_CURRENT_DIR: "{{ zsh_config_state_current_dir }}"`.
-  - [ ] Same file: header comment line ("Needs the palette (settings/default_palette) for COLOR_SCHEME_OUTPUT_DIR") replaced — the role's template vars now resolve spine paths, distro plugin paths, and the runtime state-root current dir; no palette dependency.
-- [ ] Task 4 — verify criterion 12 (AC: 5)
-  - [ ] `src/provisioning/ansible/roles/verify/tasks/main.yml`: grep argv pattern `"starship init|colors.sequences"` → `"starship init|current/colors\.sequences"`; update the criterion-12 line in the header checklist comment (~line 35) and the assert fail_msg (~line 682) to the state-root wording (expected `starship init` and a cat of `<state>/dotfiles/current/colors.sequences`); keep command gating (`changed_when: false`, `failed_when: false`, `when: not ansible_check_mode`) and OR-semantics untouched.
-- [ ] Task 5 — tests (AC: 6)
-  - [ ] `src/provisioning/tests/unit/test_zsh_config_role.py`: execution test — remove the `(install / "generated" / "palettes")` fixture writes, `env["XDG_STATE_HOME"] = str(root / "state")` (explicit — never ambient), pre-create `<state>/dotfiles/current/colors.sequences`, assert rendered text contains `<state>/dotfiles/current/colors.sequences` and NOT `generated/palettes`; NEW structural tests per sub-AC 6(ii) (state-home derivation mirror, current-dir trim lock, generated/palettes tripwire over tasks+vars+template, `_REQUIRED_KEYS` += the two vars).
-  - [ ] `src/provisioning/tests/unit/test_verify_role.py`: `_build_provisioned_layout` `.zshrc` fixture line → `(cat "<STATE>/dotfiles/current/colors.sequences" &)` (the fixture's `<INSTALL>`/`<STATE>` placeholders must track whatever install/state dirs the fixture builds — mirror how the fixture derives other paths); confirm the criterion-12 gate tests (if any assert the grep argv) stay green or gain the tightened pattern.
-  - [ ] VERIFY ONLY (expected green, touch only if an assertion exists): `test_render_task_defines_all_template_vars` (regex-driven, auto-tracks the rename), `tests/integration/test_ansible_dryrun.py` (template is check-safe; pattern-only grep change), `tests/integration/test_apply_verify_container.py` (container sets `XDG_STATE_HOME=/scratch/state`; rendered cat contains `current/colors.sequences` → tightened grep matches; its `generated/palettes/colors.conf` manipulations exercise criterion 6, unrelated), `test_bootstrap_playbook.py` (import order unchanged).
-- [ ] Task 6 — gates + sanity greps (AC: 3, 5)
-  - [ ] Record provisioning gate baselines BEFORE coding (gt-3-1/gt-2-1 stash procedure): `uv run --directory src/provisioning pytest -q`, `ruff check .`, `ruff format --check .`, `mypy src` (bare `mypy` errors — pre-existing invocation quirk, use `mypy src`); post-implementation EXACTLY at baseline, zero new violations.
-  - [ ] Sanity greps: `grep -rn "COLOR_SCHEME_OUTPUT_DIR" src/ dotfiles/` → ZERO hits (retired, no dangling references); `grep -rn "generated/palettes" src/provisioning/ansible/roles/zsh_config/ src/provisioning/tests/unit/test_zsh_config_role.py dotfiles/config/zsh/` → ZERO hits; `grep -rn "zsh_config_xdg_state_home\|zsh_config_state_current_dir" src/provisioning/ansible/` → only zsh_config vars/tasks.
-- [ ] Task 7 — live-shell acceptance test (AC: 8)
-  - [ ] Execute the sub-AC 8 procedure on this machine (apply + seed already landed) and record the results verbatim in the Dev Agent Record; a pre-seed spot-check is optional (temporarily point XDG_STATE_HOME at an empty dir in a throwaway shell to observe the harmless backgrounded cat — do NOT delete the real `current/` artifact).
+- [x] Task 1 — template repoint (AC: 1, 3, 4)
+  - [x] `dotfiles/config/zsh/.zshrc.j2:30`: `(cat "{{COLOR_SCHEME_OUTPUT_DIR}}/colors.sequences" &)` → `(cat "{{COLOR_SCHEME_CURRENT_DIR}}/colors.sequences" &)`; extend the two-line comment above it with the state-root provenance (runtime-owned `current/` pointer, gt-2-2 seeder/reconcile flip it; provisioning renders the absolute path at apply time).
+  - [x] NO guard added — bare backgrounded cat per pinned contract (sub-AC 4).
+- [x] Task 2 — zsh_config vars (AC: 2)
+  - [x] `src/provisioning/ansible/roles/zsh_config/vars/main.yml`: add `zsh_config_xdg_state_home` (exact shared derivation string) with a comment mirroring the sibling roles' ("the state home the runtime owns… identical derivation to verify_xdg_state_home / filesystem_xdg_state_home; F4 lock: ansible_facts.env, NOT ansible_env") and `zsh_config_state_current_dir: "{{ zsh_config_xdg_state_home | trim }}/dotfiles/current"` with the AD-5 + trim-lock comment (mirror `verify_state_current_dir`).
+- [x] Task 3 — zsh_config tasks (AC: 1, 3)
+  - [x] `src/provisioning/ansible/roles/zsh_config/tasks/main.yml` render-task vars: `COLOR_SCHEME_OUTPUT_DIR: "{{ install_dir | trim }}/generated/palettes"` → `COLOR_SCHEME_CURRENT_DIR: "{{ zsh_config_state_current_dir }}"`.
+  - [x] Same file: header comment line ("Needs the palette (settings/default_palette) for COLOR_SCHEME_OUTPUT_DIR") replaced — the role's template vars now resolve spine paths, distro plugin paths, and the runtime state-root current dir; no palette dependency.
+- [x] Task 4 — verify criterion 12 (AC: 5)
+  - [x] `src/provisioning/ansible/roles/verify/tasks/main.yml`: grep argv pattern `"starship init|colors.sequences"` → `"starship init|current/colors\.sequences"`; update the criterion-12 line in the header checklist comment (~line 35) and the assert fail_msg (~line 682) to the state-root wording (expected `starship init` and a cat of `<state>/dotfiles/current/colors.sequences`); keep command gating (`changed_when: false`, `failed_when: false`, `when: not ansible_check_mode`) and OR-semantics untouched.
+- [x] Task 5 — tests (AC: 6)
+  - [x] `src/provisioning/tests/unit/test_zsh_config_role.py`: execution test — remove the `(install / "generated" / "palettes")` fixture writes, `env["XDG_STATE_HOME"] = str(root / "state")` (explicit — never ambient), pre-create `<state>/dotfiles/current/colors.sequences`, assert rendered text contains `<state>/dotfiles/current/colors.sequences` and NOT `generated/palettes`; NEW structural tests per sub-AC 6(ii) (state-home derivation mirror, current-dir trim lock, generated/palettes tripwire over tasks+vars+template, `_REQUIRED_KEYS` += the two vars).
+  - [x] `src/provisioning/tests/unit/test_verify_role.py`: `_build_provisioned_layout` `.zshrc` fixture line → `(cat "<STATE>/dotfiles/current/colors.sequences" &)` (the fixture's `<INSTALL>`/`<STATE>` placeholders must track whatever install/state dirs the fixture builds — mirror how the fixture derives other paths); confirm the criterion-12 gate tests (if any assert the grep argv) stay green or gain the tightened pattern.
+  - [x] VERIFY ONLY (expected green, touch only if an assertion exists): `test_render_task_defines_all_template_vars` (regex-driven, auto-tracks the rename), `tests/integration/test_ansible_dryrun.py` (template is check-safe; pattern-only grep change), `tests/integration/test_apply_verify_container.py` (container sets `XDG_STATE_HOME=/scratch/state`; rendered cat contains `current/colors.sequences` → tightened grep matches; its `generated/palettes/colors.conf` manipulations exercise criterion 6, unrelated), `test_bootstrap_playbook.py` (import order unchanged).
+- [x] Task 6 — gates + sanity greps (AC: 3, 5)
+  - [x] Record provisioning gate baselines BEFORE coding (gt-3-1/gt-2-1 stash procedure): `uv run --directory src/provisioning pytest -q`, `ruff check .`, `ruff format --check .`, `mypy src` (bare `mypy` errors — pre-existing invocation quirk, use `mypy src`); post-implementation EXACTLY at baseline, zero new violations.
+  - [x] Sanity greps: `grep -rn "COLOR_SCHEME_OUTPUT_DIR" src/ dotfiles/` → ZERO hits (retired, no dangling references); `grep -rn "generated/palettes" src/provisioning/ansible/roles/zsh_config/ src/provisioning/tests/unit/test_zsh_config_role.py dotfiles/config/zsh/` → ZERO hits; `grep -rn "zsh_config_xdg_state_home\|zsh_config_state_current_dir" src/provisioning/ansible/` → only zsh_config vars/tasks.
+- [x] Task 7 — live-shell acceptance test (AC: 8)
+  - [x] Execute the sub-AC 8 procedure on this machine (apply + seed already landed) and record the results verbatim in the Dev Agent Record; a pre-seed spot-check is optional (temporarily point XDG_STATE_HOME at an empty dir in a throwaway shell to observe the harmless backgrounded cat — do NOT delete the real `current/` artifact).
 
 ## Dev Notes
 
@@ -150,10 +150,45 @@ Criterion 12's current pattern `starship init|colors.sequences` survives the rep
 
 ### Agent Model Used
 
+opencode-go/glm-5.3-flash (Claude Code agent harness), fresh context, 2026-09-07
+
 ### Debug Log References
+
+- Baselines recorded BEFORE coding (git stash discipline not needed — clean tree at `0a7081e`, story scaffolding committed first):
+  - `pytest -q` full: **4 failed / 564 passed / 3 skipped** (pre-existing: test_settings_parity x2 integration, test_ansible_scaffold, test_packages_role — exactly the gt-3-1-known 4)
+  - `ruff check .`: 3 errors (E501 — test_compositor_configs_role.py:191,597; test_config_copies_role.py:492)
+  - `ruff format --check .`: 10 files would be reformatted
+  - `mypy src`: Success, 17 files
+- RED phase confirmed: 5 targeted test failures against the unmodified source (ansible-playbook present, execution test ran the real playbook).
+- GREEN-phase fix 1: YAML scanner error — `"starship init|current/colors\.sequences"` in a double-quoted YAML scalar is an invalid escape (`\.`); switched to single quotes (backslash literal, regex intact).
+- GREEN-phase fix 2: the new criterion-12 fail_msg mentioned `generated/palettes/` and tripped the pre-existing tripwire `test_criterion_6_checks_current_only` ("generated/palettes must not appear in parsed task data"); fail_msg reworded to "the orphaned provisioning-era tree" (header-comment mentions are safe — comments don't parse into task data).
+- ruff-format found one non-canonical assert in my new tripwire test; `ruff format tests/unit/test_zsh_config_role.py` applied → format baseline restored (10 files), ruff check clean, tests green.
+- Full post-gates: full suite **exactly at baseline** (4 pre-existing failures), ruff/mypy at baseline, `--syntax-check` green for zsh-config.yaml + verify.yaml; bootstrap.yaml dies at packages.yaml `hosts: "{{ os_family }}"` (pre-existing inventory-var quirk; passes fully with `-e os_family=arch`).
 
 ### Completion Notes List
 
+- **Template repoint** (`.zshrc.j2`): line 30 now `(cat "{{COLOR_SCHEME_CURRENT_DIR}}/colors.sequences" &)` — a STATIC ABSOLUTE state-root path rendered at apply time (no `$XDG_STATE_HOME` literal); comment block extended with the state-root provenance; NO existence guard added (pinned byte-shape).
+- **Var retirement**: `COLOR_SCHEME_OUTPUT_DIR` deleted from the render-task vars + header comment (retired, not repurposed); `zsh_config` vars gained `zsh_config_xdg_state_home` (exact shared derivation string, F4 lock) + `zsh_config_state_current_dir` (`| trim`, AD-5, one XDG read per role). Sanity greps: zero functional `COLOR_SCHEME_OUTPUT_DIR` / `generated/palettes` references — the only hits are the NEW tripwire test's own negative assertions (mirrors test_compositor_configs_role.py's tripwire precedent) and gitignored pycache.
+- **Verify criterion 12 tightened**: grep argv → `'starship init|current/colors\.sequences'` (pin the PATH, not the filename); header checklist + fail_msg carry the state-root wording; command gating (changed_when/failed_when/check-gate) and OR-semantics untouched.
+- **Tests**: execution test now sets `XDG_STATE_HOME` explicitly in the ansible env (ambient values would silently win via `ansible_facts.env`), pre-creates `<state>/dotfiles/current/colors.sequences`, asserts the exact cat line and NO `generated/palettes`; 3 new structural tests (derivation mirror, trim lock, Epic-4 tripwire over tasks+vars+template); `_REQUIRED_KEYS` grew the two vars; `test_render_task_defines_all_template_vars` auto-tracked the rename (zero edits, as predicted); verify fixture `.zshrc` rewritten to `(cat "<STATE>/dotfiles/current/colors.sequences" &)` (placeholder convention preserved — criterion 12 grep only pattern-matches).
+- **Live-shell acceptance test (sub-AC 8) — EXECUTED on this machine**, which required converging stale machine state first (the story's "apply + seed already landed" premise was factually stale at `~/.config/zsh/.zshrc` ago-24 render + pre-gt-2-1 cache entries; recorded verbatim):
+  - Machine convergence (provisioning apply of 3 idempotent role playbooks from this worktree): zsh-config.yaml (rendered new .zshrc, ok=6 changed=1 failed=0), assets.yaml (ok=12 changed=1 — deployed `colors.adw.css.j2` into the spine's csg-templates, closing the derive-vs-adapter template-set divergence that previously made `wallpaper set` fail loud on `output_dir hash mismatch`), config-links.yaml (ok=101 changed=10 failed=0 — ~/.config/zsh is now the spine symlink).
+  - Toolchain: machine's uv-installed `csg` lacked `adw.css` (pre-gt-1-1) → reinstalled from this worktree (`uv tool install --force src/cli-tools/color-scheme-generator`); the container images (`csg-pywal-podman:latest` etc.) contained the old backend → rebuilt via `csg install --container-engine podman --source-root <worktree>` (all 4 images: built).
+  - Seed: `uv run --directory src/runtime dotfiles-runtime wallpaper set ~/.local/share/dotfiles/wallpapers/default.png` — derive/cache/swap SUCCEEDED (new palette entry e5e310aa… incl. colors.sequences; current/ pointers flipped); reload surfaced 2 expected failures from the non-interactive CLI context (HyprpaperReloader: "Invalid monitor" — no Hyprland session in the tool shell; TerminalColorApplier: "/dev/tty: No such device or address" — no controlling tty in the sandboxed shell). The artifact + pointer mechanics were unaffected (swap precedes reload).
+  - (a) `grep -n "colors.sequences" ~/.config/zsh/.zshrc` → exactly ONE line: `33:(cat "/home/inumaki/.local/state/dotfiles/current/colors.sequences" &)`.
+  - (b) artifact shape: ST-terminated OSC lines with trailing LFs (od: `033 ] 4 ; 0 ; # 0b0b1a 033 \ \n` … ends `033 ] 1 2 ; # c2c2c5 033 \`), 306 bytes — csg `sequences` format, safe to cat raw.
+  - (c) byte-consistency: ran a REAL zsh (`script -qec 'zsh -i -c "sleep 2"'`) so it sources the new .zshrc under a pty; captured the backgrounded cat's TTY stream and verified all 19 OSC units of `current/colors.sequences` appear VERBATIM in the captured stream (python byte-level check) — the shell themes from exactly the bytes TerminalColorApplier writes (it writes the artifact unmodified to /dev/tty; both read the same file — gt-2-3's deferred "single source of truth shared with new shells" closed).
+  - (d) pre-seed: threw-away state root (`/tmp/opencode/empty-state/…`), template-rendered cat pointed at the absent pointer → backgrounded subshell printed `cat: …: No such file or directory` while the shell continued normally (`echo SHELL_OK` printed, rc=0) — harmless, per pinned contract.
+
 ### File List
 
+- dotfiles/config/zsh/.zshrc.j2
+- src/provisioning/ansible/roles/zsh_config/tasks/main.yml
+- src/provisioning/ansible/roles/zsh_config/vars/main.yml
+- src/provisioning/ansible/roles/verify/tasks/main.yml
+- src/provisioning/tests/unit/test_zsh_config_role.py
+- src/provisioning/tests/unit/test_verify_role.py
+
 ### Change Log
+
+- 2026-09-07: gt-3-2 implemented — zshrc repointed to the runtime state-root `current/colors.sequences` (static absolute path), `COLOR_SCHEME_OUTPUT_DIR` retired, verify criterion-12 grep tightened to `current/colors\.sequences`, role/verify tests updated + 3 new structural tests; full provisioning suite exactly at the 4 pre-existing-failure baseline; live-shell AC-8 procedure executed on-machine (machine first converged from a stale pre-gt-2-1 state via idempotent provisioning applies + csg reinstall + container image rebuilds).

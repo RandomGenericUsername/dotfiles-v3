@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: "2026-09-07 (gt-3-2 story created — ready-for-dev)"
+last_updated: "2026-09-07 (gt-3-2 implementation complete — review)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -110,7 +110,7 @@ development_status:
   # ── Epic 3: GTK config-in-spine (provisioning) ──
   gt-epic-3: in-progress
   gt-3-1-gtk-config-dirs-spine-config-links: done
-  gt-3-2-zshrc-repoint-current-sequences: ready-for-dev
+  gt-3-2-zshrc-repoint-current-sequences: review
   gt-epic-3-retrospective: optional
 
   # ── Epic 4: Consumer polish + docs ──
