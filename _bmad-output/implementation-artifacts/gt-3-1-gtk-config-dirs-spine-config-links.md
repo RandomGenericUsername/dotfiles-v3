@@ -4,7 +4,7 @@ baseline_commit: 56bde5c
 
 # Story 3.1: GTK config dirs in the spine + config_links
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -210,3 +210,8 @@ The story pinned "the symlink task is ungated-by-check" and "existing tasks are 
 ### Change Log
 
 - 2026-09-07: Story gt-3-1 implemented (provisioning-side only): GTK spine dirs in filesystem manifest+vars; config_links migrate-then-symlink (ensure-dir → seed → backup-mv → `@import` append → symlink) with `config_links_gtk_dirs`/`config_links_gtk_import_line` vars; verify criteria (spine dirs, 5-layer symlink set, skeleton files, `@import` grep gate); docs/02 migrate-then-symlink + nwg-look subsection; NEW config_links role test suite (structural + real-playbook execution) and verify-role test updates. Fixed a pre-existing committed SyntaxError in `test_settings_parity.py` (one-character docstring-quote restore) that blocked whole-suite collection. Adjusted the config_links symlink task's `when` with a check-mode conflict-skip (deviation 5) required to keep `bootstrap.yaml --check` clean on hosts with real pre-existing gtk dirs. Sprint status: ready-for-dev → in-progress → review.
+- 2026-09-07: Code review (CR, bmad-code-review @ 5ecb7e0): verdict approve. Full gates re-run to completion — pytest 4 failed / 561 passed / 3 skipped (exactly the 4 pre-existing baselines), dryrun suite 10 passed / 1 skipped (host-gated yay), ruff check = 3 pre-existing E501, ruff format = baseline-identical (new file clean), mypy src clean. Deviation 5 validated empirically on all four check-mode branches (bootstrap --check on this host's REAL conflicting gtk dirs via the suite; absent-target predicted + nothing created; already-correct link no-op; conflict-skip with no "refusing to convert" error — all exit 0, failed=0). Backup-guard compliance re-verified (whole-dir timestamped mv, never rm -rf, TTY policy untouched, correct-link no-op). No runtime/csg changes leaked. 1 patch applied, 2 dismissed. Sprint status: review → done.
+
+### Review Findings
+
+- [x] [Review][Patch] gt-3-1-added asserts in test_verify_role.py written in multi-line style where ruff format's canonical form collapses them (file's format status unchanged vs baseline — already unformatted pre-story — but the new code must be format-clean per the Task 7 gate) [src/provisioning/tests/unit/test_verify_role.py:813,824] — FIXED in commit 9e70ab8; remaining reformat hunks verified byte-identical to the 5ecb7e0^ baseline; all 43 verify-role tests pass.
