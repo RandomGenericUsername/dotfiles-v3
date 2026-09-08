@@ -144,3 +144,37 @@ colors — verify), terminal, icons; OR accept light/white status quo.
 Runtime feature that follows from decision A: `ISystemColorSchemeSetter` —
 reconcile computes palette background luminance and flips
 `color-scheme prefer-dark/light` so GTK follows the wallpaper's tone.
+
+## 2026-09-08 CORRECTION — the channel was never dead; `GTK_THEME=Adwaita:dark` was
+
+Pass-2's "upstream killed user-CSS palette injection" conclusion was WRONG.
+Continued investigation (user-directed internet research surfaced the GNOME
+PSA that a stray `GTK_THEME` — even empty — breaks libadwaita styling):
+
+- The session exported **`GTK_THEME=Adwaita:dark`** from the project's own
+  `dotfiles/config/hypr/env-variables.lua:6` (Phase-1-era line). GTK_THEME
+  forces the plain-GTK theme provider in place of libadwaita's stylesheet at
+  a priority that beats ALL user-CSS declarations — every override
+  (named colors AND `:root` variables) lost the cascade while it was set.
+- Machine-verified: with `GTK_THEME` unset, a pure-red user-CSS override
+  renders `srgb(255,0,0)` in power-options-gtk; with the runtime palette
+  artifact live the same window renders the palette (`srgb(28,17,17)`
+  titlebar ≈ `#140808` family). The two-channel `colors.adw.css` mechanism
+  is FULLY ALIVE.
+- Test-hygiene note: `cp -r ~/.config` preserves the `gtk-4.0` symlink, so
+  writing the "isolated copy" wrote through into the spine — probe results
+  in that window were from the real file. Spine restored via
+  config-links re-apply (`@import "colors.css";` skeleton re-created).
+
+Fix applied: the `GTK_THEME` line is REMOVED from `env-variables.lua`
+(comment records the why). `gsettings color-scheme prefer-dark` stays as the
+dark base; the wallpaper palette drives colors via `colors.adw.css`.
+Follow-up runtime story (future): `ISystemColorSchemeSetter` — luminance-based
+dark/light switch per wallpaper set.
+
+## Correction protocol note
+
+The durable doc previously stated "libadwaita user-css channel dead upstream".
+Superseded by this section. Lesson: before concluding "unsupported upstream",
+probe for env-var overrides (`GTK_THEME`) — the parser-error probe proved the
+file was read; the missing red result was the env var, not the cascade.
