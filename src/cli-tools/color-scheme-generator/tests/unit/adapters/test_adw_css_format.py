@@ -154,3 +154,37 @@ class TestAdwCssFormat:
         assert len(defined) == len(_EXPECTED_SLOTS)
         for name, hex_value in defined.items():
             assert re.fullmatch(r"#[0-9a-fA-F]{6}", hex_value), f"{name}={hex_value}"
+
+    def test_render_custom_properties_channel_matches_named_mapping(
+        self, _bundled_templates_dir: Path, _scheme: ColorScheme, tmp_path: Path
+    ) -> None:
+        """libadwaita 1.4+ / GTK 4.16+ channel: the :root block must carry the
+        same palette mapping as the named colors (gt-4-1 machine evidence:
+        power-options-gtk stayed stock-light on @define-color alone)."""
+        output_path = tmp_path / "colors.adw.css"
+        renderer = JinjaTemplateRenderer(_BundledDirResolver(_bundled_templates_dir))
+        renderer.render("colors.adw.css.j2", _scheme, output_path)
+
+        content = output_path.read_text()
+        assert ":root {" in content, "custom-properties channel missing"
+        variables = dict(
+            re.findall(r"^\s*(--window-bg-color|--window-fg-color|--popover-bg-color|--popover-fg-color|--dialog-bg-color|--dialog-fg-color|--headerbar-bg-color|--card-bg-color|--sidebar-bg-color|--accent-bg-color|--accent-color|--shade-color): (#[0-9a-fA-F]{6});$", content, re.MULTILINE)
+        )
+
+        expected: dict[str, str] = {
+            "--window-bg-color": "background",
+            "--window-fg-color": "foreground",
+            "--popover-bg-color": "background",
+            "--popover-fg-color": "foreground",
+            "--dialog-bg-color": "background",
+            "--dialog-fg-color": "foreground",
+            "--headerbar-bg-color": "background",
+            "--card-bg-color": "background",
+            "--sidebar-bg-color": "background",
+            "--accent-bg-color": "colors[4]",
+            "--accent-color": "colors[5]",
+            "--shade-color": "colors[1]",
+        }
+        assert set(variables) == set(expected)
+        for var, slot in expected.items():
+            assert variables[var] == _slot_hex(_scheme, slot), f"{var} <- {slot}"

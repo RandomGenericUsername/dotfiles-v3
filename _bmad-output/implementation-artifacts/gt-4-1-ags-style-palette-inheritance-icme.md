@@ -4,7 +4,7 @@ baseline_commit: 4dd4a07
 
 # Story 4.1: AGS style palette inheritance + icme verification
 
-Status: review
+Status: review (second-channel fix landed; awaiting human visual confirmation)
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -281,4 +281,5 @@ Machine-verifiable items recorded here; the visual rows are recorded as **awaiti
 
 ### Change Log
 
-- 2026-09-08: implemented inline; csg suite 569 passed / 1 pre-existing resolver failure; machine converged (assets + compositor-configs apply, csg reinstall, reseed, bar relaunch via systemd-run); adw fg-color gap closed via the AR-2 escape path; deferred: stale-monitor defect (eDP-1 vs eDP-2) blocking Hyprpaper reload on renamed outputs.
+- 2026-09-08 (pass 1): implemented inline; csg suite 569 passed / 1 pre-existing resolver failure; machine converged (assets + compositor-configs apply, csg reinstall, reseed, bar relaunch via systemd-run); adw fg-color gap closed via the AR-2 escape path; deferred: stale-monitor defect (eDP-1 vs eDP-2) blocking Hyprpaper reload on renamed outputs.
+- 2026-09-08 (pass 2 — HUMAN VISUAL VERDICT: named colors insufficient): user reported power-options-gtk (libadwaita 1.9.3) still stock-light and bar workspace pills still white DESPITE the named-color chain loading cleanly (45 defines, zero GTK CSS errors — chain verified intact post-reseed). Root cause: since libadwaita 1.4 / GTK Default theme 4.16+, surface styles resolve CSS CUSTOM PROPERTIES (--window-bg-color etc.), not the legacy named colors — exactly the fallback channel Design decision 2 pinned. Fix: colors.adw.css.j2 now ALSO emits a :root { … } custom-properties block (same mapping: window/view/headerbar/card/dialog/popover/sidebar bg+fg, backdrop/shade family, accent 04/05, state trios, scrollbar outline, color-scheme: dark) — plain-GTK4 + libadwaita + mixed consumers all read one palette. Tests: new test_render_custom_properties_channel_matches_named_mapping; csg suite 570 passed / 1 pre-existing. Machine flow: assets apply (changed=1) → csg install rebuilt base/custom/pywal images (wallust build failed on network — codeberg unreachable, NOT code; custom+base fresh with adw.css verified in-container) → reseed → entry 7e8a556e… carries :root block (--window-bg-color #140808 live). AWAITING USER: relaunch power-options-gtk + bar and confirm dark/palette surfaces.

@@ -11,6 +11,16 @@
  *   warning_color / _bg_color        <- color_12,  warning_fg_color     <- background
  *   error_color / _bg_color          <- color_09,  error_fg_color       <- background
  * color_00..15 are GTK3-compatible passthrough names (identical to colors.gtk.css).
+ *
+ * SECOND CHANNEL (gt-4-1, 2026-09-08): since libadwaita 1.4 (this machine:
+ * 1.9.3) and plain-GTK4's Default theme (GTK >= 4.16, this machine: 4.22.4),
+ * surface styles resolve CSS CUSTOM PROPERTIES (--window-bg-color etc.), not
+ * the legacy named colors — @define-color alone no longer restyles those
+ * surfaces (machine-verified: power-options-gtk rendered stock light despite
+ * the named-color override chain loading cleanly). The :root block below is
+ * the same mapping expressed as custom properties; BOTH channels are emitted
+ * so plain-GTK4 apps, libadwaita apps, and any consumer of either mechanism
+ * all read the same palette.
  */
 @define-color window_bg_color {{ background.hex }};
 @define-color view_bg_color {{ background.hex }};
@@ -44,3 +54,47 @@
 {% for i in range(16) %}
 @define-color color_{{ '%02d' % i }} {{ colors[i].hex }};
 {% endfor %}
+
+/* libadwaita 1.4+ / GTK 4.16+ custom-properties channel — the mapping above
+ * expressed as the CSS variables those stylesheets actually resolve. */
+:root {
+  --window-bg-color: {{ background.hex }};
+  --window-fg-color: {{ foreground.hex }};
+  --view-bg-color: {{ background.hex }};
+  --view-fg-color: {{ foreground.hex }};
+  --headerbar-bg-color: {{ background.hex }};
+  --headerbar-fg-color: {{ foreground.hex }};
+  --headerbar-backdrop-color: {{ background.hex }};
+  --headerbar-shade-color: {{ colors[2].hex }};
+  --headerbar-darker-shade-color: {{ colors[1].hex }};
+  --headerbar-border-color: {{ colors[2].hex }};
+  --card-bg-color: {{ background.hex }};
+  --card-fg-color: {{ foreground.hex }};
+  --card-shade-color: {{ colors[2].hex }};
+  --dialog-bg-color: {{ background.hex }};
+  --dialog-fg-color: {{ foreground.hex }};
+  --popover-bg-color: {{ background.hex }};
+  --popover-fg-color: {{ foreground.hex }};
+  --sidebar-bg-color: {{ background.hex }};
+  --sidebar-fg-color: {{ foreground.hex }};
+  --sidebar-backdrop-color: {{ colors[1].hex }};
+  --thumbnail-bg-color: {{ colors[1].hex }};
+  --accent-color: {{ colors[5].hex }};
+  --accent-bg-color: {{ colors[4].hex }};
+  --accent-fg-color: {{ background.hex }};
+  --destructive-color: {{ colors[9].hex }};
+  --destructive-bg-color: {{ colors[8].hex }};
+  --destructive-fg-color: {{ background.hex }};
+  --success-color: {{ colors[6].hex }};
+  --success-bg-color: {{ colors[6].hex }};
+  --success-fg-color: {{ background.hex }};
+  --warning-color: {{ colors[12].hex }};
+  --warning-bg-color: {{ colors[12].hex }};
+  --warning-fg-color: {{ background.hex }};
+  --error-color: {{ colors[9].hex }};
+  --error-bg-color: {{ colors[8].hex }};
+  --error-fg-color: {{ background.hex }};
+  --shade-color: {{ colors[1].hex }};
+  --scrollbar-outline-color: {{ colors[3].hex }};
+  color-scheme: dark;
+}

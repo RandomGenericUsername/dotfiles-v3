@@ -693,6 +693,20 @@ Pinned in story gt-1-1 (2026-09-07), confirmed against a real palette render. Th
 | `error_fg_color` | `background` |
 | `@define-color color_00` … `@define-color color_15` | passthrough (GTK3-compatible custom names, identical to `colors.gtk.css.j2`) |
 
+Second channel (gt-4-1, 2026-09-08): since libadwaita 1.4 / the plain-GTK4
+Default theme (GTK >= 4.16), surface styles resolve **CSS custom properties**
+(`--window-bg-color` etc.), not the legacy named colors — machine evidence:
+`power-options-gtk` (libadwaita 1.9.3) rendered stock light under the
+named-color channel alone. The template therefore ALSO emits a
+`:root { … }` block expressing the same mapping as custom properties:
+window/view/headerbar/card/dialog/popover/sidebar bg+fg (`background` /
+`foreground`), headerbar backdrop/shade/border + sidebar-backdrop +
+thumbnail/shade family (`color_01`/`color_02`), accent trio (`color_04` bg /
+`color_05` fg / `background` fg), destructive/success/warning/error trios,
+`color_03` scrollbar outline, and `color-scheme: dark`. Both channels are
+emitted together so plain-GTK4 apps, libadwaita apps, and any mixed consumer
+read one palette.
+
 Deliberately not overridden (gaps = future template edits, cache auto-invalidates): backdrop variants (`headerbar_backdrop_color` etc. default to aliases of the bg colors when unset), `secondary_sidebar_*` (libadwaita 1.4+), `thumbnail_*` (1.3+), `overview_*` (1.7+), per-tone accents (`accent_<tone>_color`), shade/border colors (`*_shade_color`, `*_border_color`, `shade_color`, `scrollbar_outline_color`).
 
 ---
