@@ -262,11 +262,11 @@ export function describeTemplatePending(input: TemplateDiffInput): PendingRow[] 
     const attr = edit.attr;
     const old = edit.oldValue;
     const neu = `{{${edit.newPlaceholder}}}`;
+    const line = (sign: string, value: string): string =>
+      `  ${sign}  ${escapeMarkup(`<${tag} … ${attr}="${value}"/>`)}`;
     emit(
       edit.templatePath,
-      `  -  <${tag} … ${attr}="${escapeMarkup(old)}"/>` +
-        String.fromCharCode(10) +
-        `  +  <${tag} … ${attr}="${escapeMarkup(neu)}"/>`,
+      line("-", old) + String.fromCharCode(10) + line("+", neu),
     );
   }
   for (const [name, token] of input.newPlaceholders) {

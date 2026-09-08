@@ -151,7 +151,7 @@ check("template row header", rows[0].header, edit.templatePath);
 check(
   "template row html",
   rows[0].html,
-  '  -  <path … fill="{{COLOR_FOREGROUND}}"/>' + String.fromCharCode(10) + '  +  <path … fill="{{COLOR_COUNTOUR}}"/>',
+  '  -  &lt;path … fill=&quot;{{COLOR_FOREGROUND}}&quot;/&gt;' + String.fromCharCode(10) + '  +  &lt;path … fill=&quot;{{COLOR_COUNTOUR}}&quot;/&gt;',
 );
 check("defaults row header", rows[1].header, "defaults.yaml → defaults");
 check("defaults row html", rows[1].html, "  +   COLOR_COUNTOUR: color5");
