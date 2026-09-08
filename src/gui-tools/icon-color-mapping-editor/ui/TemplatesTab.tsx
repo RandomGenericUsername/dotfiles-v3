@@ -217,16 +217,17 @@ export function TemplatesTab(props: TemplatesTabProps) {
 
     const oldValue = paintValueOf(target);
     const existing = props.templatePending().get(`${path}\u0000${sel}`);
+    const isNew = ch.kind === "new";
     const edit: TemplatePendingEdit = {
       templatePath: path,
       shapeId: sel,
       attr: target.attr,
       oldValue: existing?.oldValue ?? oldValue,
-      newPlaceholder: ch.kind === "existing" ? ch.ph : ch.name,
+      newPlaceholder: isNew ? ch.name : ch.ph,
     };
     props.onStageTemplate(edit);
-    if (ch.kind === "new") {
-      props.onStageNewPlaceholder(ch.name, ch.token);
+    if (isNew) {
+      props.onStageNewPlaceholder(ch.name, ch.token ?? defaultTokenFor(target));
     }
     // Brand-new files (not referenced by the manifest) gain a manifest entry.
     const manifestPaths = new Set(templatePathsFrom(props.show()));
@@ -437,6 +438,9 @@ export function TemplatesTab(props: TemplatesTabProps) {
   const phList = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 4, css_classes: ["phlist"] });
   const newNameEntry = new Gtk.Entry({ css_classes: ["newph-input"] });
   newNameEntry.set_placeholder_text("COLOR_COUNTOUR");
+  newNameEntry.set_tooltip_text(
+    "Type a name and press Enter to assign it with the vocabulary default — or pick a color below first",
+  );
   const newErr = new Gtk.Label({ css_classes: ["err"], xalign: 0 });
   const newTokLabel = new Gtk.Label({ css_classes: ["toklabel"], xalign: 0 });
   const mini = new Gtk.Grid({
@@ -690,14 +694,34 @@ export function TemplatesTab(props: TemplatesTabProps) {
     const shapes = currentShapes();
     const shape = shapes.find((s) => s.id === sel) ?? null;
     const ch = choice();
+    const nameValid = isValidPlaceholderName(newName().trim().toUpperCase());
     assignBtn.set_sensitive(
-      shape !== null && ch !== null && (ch.kind === "existing" || (ch.kind === "new" && valid)),
+      shape !== null && (ch?.kind === "existing" || (nameValid && (ch === null || ch.kind === "new"))),
     );
   });
 
   newNameEntry.connect("changed", () => {
+    const text = newNameEntry.get_text();
+    if (choice()?.kind === "new") {
+      const token = choice()?.token;
+      setChoice(text.trim() === "" ? null : { kind: "new", name: text.trim().toUpperCase(), token });
+    } else {
+      setChoice(null);
+    }
+    setNewName(text);
+  });
+
+  newNameEntry.connect("activate", () => {
+    const name = newNameEntry.get_text().trim().toUpperCase();
+    if (!selectedId() || !isValidPlaceholderName(name)) return;
+    if (choice()?.kind === "existing") return;
+    const token = choice()?.kind === "new" ? choice()?.token : undefined;
+    setChoice({ kind: "new", name, token });
+    setNewName(name);
+    assign();
+    newNameEntry.set_text("");
+    setNewName("");
     setChoice(null);
-    setNewName(newNameEntry.get_text());
   });
 
   function usageCount(ph: string): number {
@@ -706,6 +730,18 @@ export function TemplatesTab(props: TemplatesTabProps) {
       count += shapes.filter((s) => s.ph === ph).length;
     }
     return count;
+  }
+
+  function defaultTokenFor(shape: { ph: string | null }): string {
+    if (shape.ph) {
+      const mapped = props.newPlaceholders().get(shape.ph) ?? currentMappings()[shape.ph];
+      if (mapped) return mapped;
+    }
+    const palette = props.show()?.palette ?? {};
+    const keys = Object.keys(palette)
+      .filter((k) => /^color\d+$/.test(k))
+      .sort((a, b) => Number(a.slice(5)) - Number(b.slice(5)));
+    return keys[0] ?? "color1";
   }
 
   return root;
