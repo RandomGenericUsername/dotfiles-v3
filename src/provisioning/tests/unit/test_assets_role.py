@@ -280,30 +280,49 @@ class TestAssetsTasks:
                 "(AC 10 — FR-18 regenerate semantics)"
             )
 
-    def test_directory_kinds_deployed_via_single_copy_loop(self) -> None:
-        """AC 3-5: exactly one `ansible.builtin.copy` task loops
-        `{{ assets_copies }}` with `remote_src: true`, src
+    def test_directory_kinds_deployed_via_single_mirror_loop(self) -> None:
+        """AC 3-5: exactly one `ansible.posix.synchronize` task loops
+        `{{ assets_copies }}` with `delete: true`, src
         `{{ assets_repo_root }}/{{ item.source }}`, dest
         `{{ install_dir | trim }}/{{ item.target }}` — icon-mappings included
         (converge semantics restored 2026-09-07; the brief seed-once
-        experiment was reverted: the authoring model is repo-authoritative)."""
+        experiment was reverted: the authoring model is repo-authoritative).
+        (2026-09-07: replaced ansible.builtin.copy with a mirror — files
+        deleted from the repo (e.g. replaced icon template groups) must be
+        pruned from the spine on the next apply, exactly as fresh installs
+        see them; copy merged only and left stale templates behind.)"""
         loop_matches = [
             task
-            for task in _tasks_with_module("ansible.builtin.copy")
+            for task in _tasks_with_module("ansible.posix.synchronize")
             if task.get("loop") == "{{ assets_copies }}"
         ]
         assert len(loop_matches) == 1, (
-            f"expected exactly one copy task looping assets_copies; found {len(loop_matches)}"
+            f"expected exactly one synchronize task looping assets_copies; "
+            f"found {len(loop_matches)}"
         )
         task = loop_matches[0]
         module = _module(task)
         assert module["src"] == "{{ assets_repo_root }}/{{ item.source }}"
         assert module["dest"] == "{{ install_dir | trim }}/{{ item.target }}"
-        assert module["remote_src"] is True
+        assert module["delete"] is True, (
+            "synchronize must carry delete: true — the deploy is a mirror of "
+            "the repo tree, not a merge"
+        )
         assert task.get("when") == "not ansible_check_mode", (
-            "copy task must be gated when: not ansible_check_mode — its dest "
-            "dir is only would-created under --check, so the module aborts on "
-            "a fresh target"
+            "synchronize task must be gated when: not ansible_check_mode — its "
+            "dest dir is only would-created under --check, so the module "
+            "aborts on a fresh target"
+        )
+
+        # The old merge-only copy deploy must not linger alongside the mirror.
+        copy_matches = [
+            task
+            for task in _tasks_with_module("ansible.builtin.copy")
+            if task.get("loop") == "{{ assets_copies }}"
+        ]
+        assert not copy_matches, (
+            "no ansible.builtin.copy task may loop assets_copies — the "
+            "directory kinds deploy via the mirror synchronize"
         )
 
         data = _vars()
