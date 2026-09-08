@@ -2,7 +2,7 @@ import { Gdk, Gtk } from "ags/gtk4";
 import Rsvg from "gi://Rsvg?version=2.0";
 import Pango from "gi://Pango?version=1.0";
 import { createEffect, createState, type Accessor } from "ags";
-import { templateAnalyze, type MappingShow } from "../lib/itr";
+import { templateAnalyze, templateScan, type MappingShow } from "../lib/itr";
 import type { EditorInputs } from "../lib/inputs";
 import type {
   ManifestPending,
@@ -135,29 +135,30 @@ export function TemplatesTab(props: TemplatesTabProps) {
   }
 
   async function loadAll(): Promise<void> {
-    const paths = templatePathsFrom(props.show());
-    const modesNext = new Map<string, TemplateMode>();
-    const workingNext = new Map<string, WorkingShape[]>();
     try {
-      for (const path of paths) {
-        const analysis = await templateAnalyze(path);
-        modesNext.set(path, analysis.mode);
-        workingNext.set(path, analysis.shapes.map(workingFrom));
-      }
-      setModes(modesNext);
-      setWorking(workingNext);
-      if (!selectedPath() && paths.length > 0) {
-        setSelectedPath(paths[0]);
+      const entries = await templateScan(props.inputs().templateRoot);
+      setModes(new Map(entries.map((entry) => [entry.path, entry.mode])));
+      setWorking(new Map());
+      const first = entries[0]?.path ?? null;
+      if (!selectedPath() && first) {
+        setSelectedPath(first);
         setSelectedId(null);
+        setChoice(null);
+      }
+      const pending = selectedPath();
+      if (pending !== null && !working().has(pending)) {
+        void loadSingle(pending);
       }
       setLoadError(null);
     } catch (error) {
+      console.log(`[templates] scan FAILED: ${String(error)}`);
       setLoadError(String(error));
     }
   }
 
   createEffect(() => {
     props.show();
+    props.inputs().templateRoot;
     void loadAll();
   });
 
@@ -166,6 +167,7 @@ export function TemplatesTab(props: TemplatesTabProps) {
     setSelectedId(null);
     setChoice(null);
     setNewName("");
+    if (!working().has(entry.path)) void loadSingle(entry.path);
   }
 
   function chooseTemplatePath(): void {
@@ -352,11 +354,18 @@ export function TemplatesTab(props: TemplatesTabProps) {
   });
 
   // --- center column ---
-  const fileLabel = new Gtk.Label({ css_classes: ["file"], xalign: 0 });
+  const fileLabel = new Gtk.Label({
+    css_classes: ["file"],
+    xalign: 0,
+    ellipsize: Pango.EllipsizeMode.END,
+    max_width_chars: 60,
+    width_chars: 40,
+    hexpand: true,
+    halign: Gtk.Align.START,
+  });
   const modeBadge = new Gtk.Label({ css_classes: ["mode"] });
   const progressText = new Gtk.Label({ label: "", css_classes: ["progress-text"] });
   const progressBar = new Gtk.LevelBar({ css_classes: ["progress-bar"] });
-  progressBar.set_show_value(false);
   const progressWrap = new Gtk.Box({
     orientation: Gtk.Orientation.VERTICAL,
     css_classes: ["progress"],
@@ -430,7 +439,13 @@ export function TemplatesTab(props: TemplatesTabProps) {
   newNameEntry.set_placeholder_text("COLOR_COUNTOUR");
   const newErr = new Gtk.Label({ css_classes: ["err"], xalign: 0 });
   const newTokLabel = new Gtk.Label({ css_classes: ["toklabel"], xalign: 0 });
-  const mini = new Gtk.Grid({ column_spacing: 4, row_spacing: 4, css_classes: ["mini"] });
+  const mini = new Gtk.Grid({
+    column_spacing: 4,
+    row_spacing: 4,
+    css_classes: ["mini"],
+    halign: Gtk.Align.START,
+    valign: Gtk.Align.START,
+  });
 
   const assignBtn = new Gtk.Button({ label: "Assign", css_classes: ["btn", "primary"], hexpand: true });
   assignBtn.connect("clicked", assign);
@@ -445,7 +460,7 @@ export function TemplatesTab(props: TemplatesTabProps) {
   const saveBtn = new Gtk.Button({ label: "Save templates", css_classes: ["btn", "primary"], hexpand: true });
   saveBtn.connect("clicked", () => void props.onSave());
 
-  const right = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, css_classes: ["col", "right"] });
+  const right = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, css_classes: ["col", "right"], width_request: 330 });
   right.append(new Gtk.Label({ label: "Selection", css_classes: ["icme-pane-title"] }));
   right.append(selInfo);
   right.append(new Gtk.Label({ label: "Assign placeholder", css_classes: ["icme-pane-title"] }));
@@ -468,7 +483,7 @@ export function TemplatesTab(props: TemplatesTabProps) {
   footer.append(saveBtn);
   right.append(footer);
 
-  const left = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, css_classes: ["col", "left"] });
+  const left = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, css_classes: ["col", "left"], width_request: 260 });
   left.append(new Gtk.Label({ label: "Template file (edited by tool)", css_classes: ["icme-pane-title"] }));
   left.append(pathRow);
   left.append(new Gtk.Label({ label: "Templates", css_classes: ["icme-pane-title"] }));
@@ -483,7 +498,7 @@ export function TemplatesTab(props: TemplatesTabProps) {
   const hint = new Gtk.Label({
     label:
       "<b>Bare SVG</b> = a downloaded icon with real hex colors and no " +
-      "<code>{{…}}</code> placeholders. Click each shape to assign an existing " +
+      "<tt>{{…}}</tt> placeholders. Click each shape to assign an existing " +
       "or new placeholder.",
     css_classes: ["hint"],
     xalign: 0,
@@ -491,6 +506,10 @@ export function TemplatesTab(props: TemplatesTabProps) {
     use_markup: true,
   });
   left.append(hint);
+
+  const loadErrLabel = new Gtk.Label({ css_classes: ["hint", "load-error"], xalign: 0, wrap: true });
+  loadErrLabel.set_visible(false);
+  left.append(loadErrLabel);
 
   const center = new Gtk.Box({
     orientation: Gtk.Orientation.VERTICAL,
@@ -525,18 +544,30 @@ export function TemplatesTab(props: TemplatesTabProps) {
     const shapes = currentShapes();
     fileLabel.set_label(path ?? "");
     const mode = modeOf(shapes);
-    modeBadge.set_label(mode === "bare" ? "bare — assign placeholders" : "templated");
-    modeBadge.set_css_classes(["mode", mode]);
-    const prog = bareProgress(shapes);
-    if (mode === "bare") {
-      progressWrap.set_visible(true);
-      progressText.set_label(`assigned ${prog.assigned}/${prog.total}`);
-      progressBar.set_value(prog.total > 0 ? prog.assigned / prog.total : 0);
-    } else {
+    if (!path) {
+      modeBadge.set_visible(false);
       progressWrap.set_visible(false);
+    } else {
+      modeBadge.set_visible(true);
+      modeBadge.set_label(mode === "bare" ? "bare — assign placeholders" : "templated");
+      modeBadge.set_css_classes(["mode", mode]);
+      const prog = bareProgress(shapes);
+      if (mode === "bare") {
+        progressWrap.set_visible(true);
+        progressText.set_label(`assigned ${prog.assigned}/${prog.total}`);
+        progressBar.set_value(prog.total > 0 ? prog.assigned / prog.total : 0);
+      } else {
+        progressWrap.set_visible(false);
+      }
     }
     picture.set_paintable(texture());
     filePath.set_label(path ?? "…");
+  });
+
+  createEffect(() => {
+    const err = loadError();
+    loadErrLabel.set_visible(err !== null);
+    if (err !== null) loadErrLabel.set_label(`template load failed: ${err}`);
   });
 
   createEffect(() => {
@@ -640,6 +671,8 @@ export function TemplatesTab(props: TemplatesTabProps) {
       const picked = choice()?.kind === "new" && choice()?.token === token;
       const cell = new Gtk.Button({
         css_classes: ["cell", ...(picked ? ["picked"] : [])],
+        width_request: 30,
+        height_request: 30,
       });
       cell.set_tooltip_text(`${token} ${palette[token]}`);
       const fill = new Gtk.Box({ hexpand: true, vexpand: true });

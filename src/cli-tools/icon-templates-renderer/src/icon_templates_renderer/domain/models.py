@@ -230,6 +230,12 @@ class TemplateAnalysis:
 
 
 @dataclass(frozen=True)
+class TemplateScanEntry:
+    path: Path
+    mode: TemplateMode
+
+
+@dataclass(frozen=True)
 class TemplateSetPlaceholderRequest:
     path: Path
     shape_id: int

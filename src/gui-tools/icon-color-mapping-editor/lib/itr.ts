@@ -64,6 +64,17 @@ export interface TemplateAnalyzeResult {
   shapes: TemplateShape[];
 }
 
+export interface TemplateScanEntry {
+  path: string;
+  mode: "templated" | "bare";
+}
+
+export function templateScan(root: string): Promise<TemplateScanEntry[]> {
+  return runJson<{ templates: TemplateScanEntry[] }>(["template", "scan", root]).then(
+    (payload) => payload.templates,
+  );
+}
+
 export interface RegisterResult {
   group: string;
   variant: string;

@@ -14,6 +14,7 @@ from icon_templates_renderer.domain.models import (
     MappingShowResult,
     RenderResult,
     TemplateAnalysis,
+    TemplateScanEntry,
     ValidateResult,
 )
 
@@ -215,6 +216,26 @@ def project_mapping_set_default_result(result: MappingSetDefaultResult) -> Custo
         console.print()
 
     return CustomView(plain=plain, object=obj, rich=rich)
+
+
+def project_template_scan(result: list[TemplateScanEntry]) -> CustomView:
+    lines = [f"Templates: {len(result)}"]
+    lines.extend(f"  {entry.mode.value}  {entry.path}" for entry in result)
+
+    def rich(console: Console) -> None:
+        console.print(f"Templates: {len(result)}", style="bold")
+        for entry in result:
+            console.print(f"  {entry.mode.value}  {entry.path}")
+
+    return CustomView(
+        plain="\n".join(lines),
+        object={
+            "templates": [
+                {"path": str(entry.path), "mode": str(entry.mode)} for entry in result
+            ]
+        },
+        rich=rich,
+    )
 
 
 def _template_analysis_object(result: TemplateAnalysis) -> dict[str, Any]:

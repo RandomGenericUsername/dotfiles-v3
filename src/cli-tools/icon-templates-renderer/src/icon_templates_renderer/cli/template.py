@@ -35,6 +35,29 @@ def analyze_command(
         raise typer.Exit(code=1) from None
 
 
+@template_app.command("scan")
+def scan_command(
+    ctx: typer.Context,
+    template_dir: Path = typer.Argument(..., help="Template root directory to scan"),  # noqa: B008
+    json: bool = typer.Option(  # noqa: B008
+        False,
+        "--json",
+        help="Output as JSON",
+    ),
+) -> None:
+    """Classify every template SVG under a root as templated or bare."""
+    deps: CliDependencies = ctx.obj["deps"]
+    try:
+        if json:
+            verbosity: Verbosity = ctx.obj.get("verbosity", Verbosity.NORMAL)
+            deps.output_adapter = create_output_adapter(OutputFormat.JSON, verbosity=verbosity)
+        entries = deps.template_writer.scan(Path(template_dir).resolve())
+        deps.output_adapter.template_scan_result(entries)
+    except IconRendererError as exc:
+        deps.output_adapter.error(exc)
+        raise typer.Exit(code=1) from None
+
+
 @template_app.command("set-placeholder")
 def set_placeholder_command(
     ctx: typer.Context,

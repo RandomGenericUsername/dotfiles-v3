@@ -196,3 +196,24 @@ class TestRoundTripRealTemplates:
             assert new_text == _expected_after_set(original_text, shapes_before[0]), (
                 f"unexpected bytes for {svg}"
             )
+
+
+class TestScanIntegration:
+    def test_scan_classifies_all_real_templates(self) -> None:
+        root = _worktree_root() / "dotfiles" / "assets" / "icon-templates"
+        result = CliRunner().invoke(app, ["template", "scan", str(root), "--json"])
+        assert result.exit_code == 0, result.stderr
+        payload = json.loads(result.stdout)
+        entries = payload["templates"]
+        assert len(entries) > 0
+        by_path = {entry["path"]: entry["mode"] for entry in entries}
+        power_menu = next(
+            path for path in by_path if "power-menu/default" in path
+        )
+        assert by_path[power_menu] == "templated"
+
+    def test_scan_missing_root_fails(self) -> None:
+        result = CliRunner().invoke(
+            app, ["template", "scan", "/nonexistent/root", "--json"]
+        )
+        assert result.exit_code == 1

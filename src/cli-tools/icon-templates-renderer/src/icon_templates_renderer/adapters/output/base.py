@@ -16,6 +16,7 @@ from icon_templates_renderer.domain.models import (
     MappingShowResult,
     RenderResult,
     TemplateAnalysis,
+    TemplateScanEntry,
     ValidateResult,
 )
 
@@ -62,6 +63,9 @@ class OutputAdapterBase:
         self._renderer.custom(projectors.project_mapping_set_default_result(result))
 
     def template_analysis_result(self, result: TemplateAnalysis) -> None:
+        raise NotImplementedError
+
+    def template_scan_result(self, result: list[TemplateScanEntry]) -> None:
         raise NotImplementedError
 
     def error(self, exc: IconRendererError) -> None:

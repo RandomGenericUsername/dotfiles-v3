@@ -12,6 +12,7 @@ from icon_templates_renderer.domain.exceptions import (
 )
 from icon_templates_renderer.domain.models import (
     TemplateAnalysis,
+    TemplateScanEntry,
     TemplateSetPlaceholderRequest,
 )
 from icon_templates_renderer.domain.services import (
@@ -36,6 +37,21 @@ class FileTemplateWriter:
         body = self._read(path)
         shapes = self._service.analyze(body)
         return TemplateAnalysis(path=path, mode=self._service.classify(shapes), shapes=shapes)
+
+    def scan(self, root: Path) -> list[TemplateScanEntry]:
+        if not root.is_dir():
+            raise TemplateNotFoundError(root)
+        entries: list[TemplateScanEntry] = []
+        for path in sorted(root.rglob("*.svg")):
+            try:
+                body = self._read(path)
+            except TemplateNotFoundError:
+                continue
+            shapes = self._service.analyze(body)
+            entries.append(
+                TemplateScanEntry(path=path, mode=self._service.classify(shapes))
+            )
+        return entries
 
     def set_placeholder(self, request: TemplateSetPlaceholderRequest) -> TemplateAnalysis:
         validate_placeholder_name(request.name)
