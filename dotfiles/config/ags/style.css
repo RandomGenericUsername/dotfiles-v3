@@ -28,10 +28,9 @@ window#bar label {
   padding: 0 8px;
 }
 
-/* Strip the GTK theme background from all widget buttons — the theme paints
-   a dark rounded box behind every icon even when background-color is
-   transparent (background-image must be cleared explicitly). Same reset the
-   recording controls use below. */
+/* Icon-only floating buttons — every widget renders as a bare icon sitting
+   on the bar pill: no button chrome of its own (transparent background, no
+   border/box-shadow/image paint) in any interaction state. */
 .widget {
   background-color: transparent;
   background-image: none;
@@ -89,7 +88,6 @@ window#bar label {
   min-width: 24px;
   min-height: 24px;
   padding: 0;
-  border-radius: 0;
   background-color: transparent;
   background-image: none;
   border: none;
@@ -121,7 +119,9 @@ window#bar label {
   min-height: 16px;
 }
 
-/* Power-profile popover (battery widget right-click menu) */
+/* Power-profile popover (battery widget right-click menu) — row chrome only;
+   the popover surface + text colors come from the palette via the adw
+   named-color overrides (popover_bg_color / popover_fg_color). */
 .power-profile-item {
   min-width: 150px;
   min-height: 32px;

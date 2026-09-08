@@ -4,7 +4,7 @@
  * docs/ARCHITECTURE_PLAN.md (templates inventory). Final pin confirmed against
  * a real palette render in story gt-1-1 (2026-09-07):
  *   window/view/headerbar/card/dialog/popover/sidebar_bg_color <- background
- *   window/view/headerbar/card/sidebar_fg_color                <- foreground
+ *   window/view/headerbar/card/dialog/popover/sidebar_fg_color <- foreground
  *   accent_color / accent_bg_color   <- color_04,  accent_fg_color      <- background
  *   destructive_color / _bg_color    <- color_08,  destructive_fg_color <- background
  *   success_color / _bg_color        <- color_06,  success_fg_color     <- background
@@ -23,6 +23,8 @@
 @define-color view_fg_color {{ foreground.hex }};
 @define-color headerbar_fg_color {{ foreground.hex }};
 @define-color card_fg_color {{ foreground.hex }};
+@define-color dialog_fg_color {{ foreground.hex }};
+@define-color popover_fg_color {{ foreground.hex }};
 @define-color sidebar_fg_color {{ foreground.hex }};
 @define-color accent_color {{ colors[4].hex }};
 @define-color accent_bg_color {{ colors[4].hex }};

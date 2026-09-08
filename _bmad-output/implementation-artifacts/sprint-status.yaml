@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: "2026-09-07 (gt-epic-3 done — gt-3-1/gt-3-2 complete; next gt-4-1)"
+last_updated: "2026-09-08 (gt-4-1 implemented inline — review; adw fg gap closed)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -114,8 +114,8 @@ development_status:
   gt-epic-3-retrospective: optional
 
   # ── Epic 4: Consumer polish + docs ──
-  gt-epic-4: backlog
-  gt-4-1-ags-style-palette-inheritance-icme: backlog
+  gt-epic-4: in-progress
+  gt-4-1-ags-style-palette-inheritance-icme: in-progress
   gt-4-2-docs-contract-reconciliation: backlog
   gt-epic-4-retrospective: optional
 

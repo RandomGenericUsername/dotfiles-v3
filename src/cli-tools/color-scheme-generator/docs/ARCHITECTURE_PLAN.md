@@ -680,7 +680,7 @@ Pinned in story gt-1-1 (2026-09-07), confirmed against a real palette render. Th
 | libadwaita named color | palette source |
 |---|---|
 | `window_bg_color`, `view_bg_color`, `headerbar_bg_color`, `card_bg_color`, `dialog_bg_color`, `popover_bg_color`, `sidebar_bg_color` | `background` |
-| `window_fg_color`, `view_fg_color`, `headerbar_fg_color`, `card_fg_color`, `sidebar_fg_color` | `foreground` |
+| `window_fg_color`, `view_fg_color`, `headerbar_fg_color`, `card_fg_color`, `dialog_fg_color`, `popover_fg_color`, `sidebar_fg_color` | `foreground` |
 | `accent_color`, `accent_bg_color` | `color_04` |
 | `accent_fg_color` | `background` |
 | `destructive_color`, `destructive_bg_color` | `color_08` |
