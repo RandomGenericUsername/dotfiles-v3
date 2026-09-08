@@ -810,9 +810,7 @@ class TestVerifyTasks:
             for task in _assert_tasks()
             if "verify_gtk_skeleton_checks" in str(_module(task).get("that", ""))
         ]
-        assert len(matches) == 1, (
-            f"expected exactly one gtk-skeleton assert; found {len(matches)}"
-        )
+        assert len(matches) == 1, f"expected exactly one gtk-skeleton assert; found {len(matches)}"
         return matches[0]
 
     def _gtk_grep_gate_task(self) -> dict[str, object]:
@@ -821,9 +819,7 @@ class TestVerifyTasks:
             for task in _command_tasks()
             if "verify_gtk_import_checks" == str(task.get("register"))
         ]
-        assert len(matches) == 1, (
-            f"expected exactly one gtk-import grep gate; found {len(matches)}"
-        )
+        assert len(matches) == 1, f"expected exactly one gtk-import grep gate; found {len(matches)}"
         return matches[0]
 
     def _gtk_grep_assert_task(self) -> dict[str, object]:
