@@ -1,5 +1,4 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4";
-import GLib from "gi://GLib?version=2.0";
 import app from "ags/gtk4/app";
 import { createEffect, createState } from "ags";
 import {
@@ -149,29 +148,13 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
 
   load(resolveInputs());
 
-  // Live-follow the runtime palette: the show (and every token grid built
-  // from it) is a snapshot, so a wallpaper switch while the editor runs
-  // would otherwise leave stale colors until restart. Poll the scheme
-  // fingerprint; on change, rebuild the show — pending edits are preserved
-  // (refreshShow only swaps the loaded show, never the staging maps).
-  GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
-    try {
-      if (saving() || schemeRefreshing) return GLib.SOURCE_CONTINUE;
-      const next = inputs();
-      const fp = schemeFingerprint(next.colorScheme);
-      if (fp === schemeFp) return GLib.SOURCE_CONTINUE;
-      schemeFp = fp;
-      schemeRefreshing = true;
-      refreshShow()
-        .catch((error: unknown) => setLoadError(String(error)))
-        .finally(() => {
-          schemeRefreshing = false;
-        });
-    } catch {
-      // Poll must never take the UI down; next tick retries.
-    }
-    return GLib.SOURCE_CONTINUE;
-  });
+  // Follow the runtime palette on every invocation: the show (and every
+  // token grid built from it) is a snapshot, so a wallpaper switch made
+  // while the editor was hidden left stale colors on the next SUPER+I
+  // toggle. The window's `map` handler (below) re-checks the scheme
+  // fingerprint on each show and rebuilds the show when it moved — no
+  // background polling. Pending edits are preserved (refreshShow only
+  // swaps the loaded show, never the staging maps).
 
   function pick(token: string): void {
     const sel = selection();
@@ -597,6 +580,25 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
           return false;
         });
         self.add_controller(keys);
+        // Every invocation (SUPER+I toggle -> show -> map): re-check the
+        // runtime scheme fingerprint and rebuild the show when the palette
+        // moved. First map after load() is a fingerprint no-op.
+        self.connect("map", () => {
+          if (saving() || schemeRefreshing) return;
+          try {
+            const fp = schemeFingerprint(inputs().colorScheme);
+            if (fp === schemeFp) return;
+            schemeFp = fp;
+            schemeRefreshing = true;
+            refreshShow()
+              .catch((error: unknown) => setLoadError(String(error)))
+              .finally(() => {
+                schemeRefreshing = false;
+              });
+          } catch {
+            // A failed fingerprint check must never break the window show.
+          }
+        });
         center.append(
           Preview({
             show,
