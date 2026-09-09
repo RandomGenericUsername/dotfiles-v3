@@ -20,6 +20,13 @@ export interface EditorInputs {
   templateRoot: string;
   iconsYaml: string;
   colorScheme: string;
+  /**
+   * Non-null when the runtime palette is missing: previews built on
+   * colorScheme will fail downstream, so the UI must show this instead of
+   * silently falling back to the orphaned generated/ seed (Epic 4 removed
+   * that tree — the runtime is the sole palette producer).
+   */
+  colorSchemeWarning: string | null;
 }
 
 const MANIFEST_PROBE =
@@ -30,22 +37,25 @@ function spineHome(): string {
 }
 
 /**
- * Color-scheme resolution: the runtime-owned current palette first, the
- * provisioned generated seed as fallback.
+ * Color-scheme resolution: the runtime-owned current palette, no fallback.
  *
  * The runtime reconciler repoints <state>/dotfiles/current/colors.yaml on
  * every wallpaper set (via the color-scheme generator), and the whole
  * desktop consumes that pointer — so the editor previews against the LIVE
- * scheme. Before the runtime ever runs (or if the pointer dangles), fall
- * back to the bootstrap-rendered generated/palettes/colors.yaml seed,
- * which the verify role accepts as the pre-runtime palette location.
+ * scheme. There is deliberately no generated/ fallback: Epic 4 removed that
+ * tree and the runtime is its sole producer. When the pointer is missing
+ * (runtime never ran), callers get the path anyway plus a warning carrying
+ * the recovery command; downstream itr failures then surface next to it.
  */
-function resolveColorScheme(): string {
+const MISSING_SCHEME_HINT =
+  "Runtime palette not found — run `dotfiles-runtime wallpaper set <wallpaper>` or re-bootstrap; previews are unavailable until it exists.";
+
+function resolveColorScheme(): { path: string; warning: string | null } {
   const override = GLib.getenv("ICME_COLOR_SCHEME");
-  if (override) return override;
+  if (override) return { path: override, warning: null };
   const current = `${GLib.get_user_state_dir()}/dotfiles/current/colors.yaml`;
-  if (GLib.file_test(current, GLib.FileTest.EXISTS)) return current;
-  return `${spineHome()}/generated/palettes/colors.yaml`;
+  if (GLib.file_test(current, GLib.FileTest.EXISTS)) return { path: current, warning: null };
+  return { path: current, warning: MISSING_SCHEME_HINT };
 }
 
 /** True when a path lives under the install spine (not a repo checkout). */
@@ -75,6 +85,7 @@ function findRepoRoot(): string | null {
 
 export function resolveInputs(): EditorInputs {
   const repoRoot = findRepoRoot();
+  const scheme = resolveColorScheme();
   if (repoRoot) {
     return {
       templateRoot:
@@ -82,13 +93,15 @@ export function resolveInputs(): EditorInputs {
       iconsYaml:
         GLib.getenv("ICME_ICONS_YAML") ??
         `${repoRoot}/${MANIFEST_PROBE}`,
-      colorScheme: resolveColorScheme(),
+      colorScheme: scheme.path,
+      colorSchemeWarning: scheme.warning,
     };
   }
   return {
     templateRoot: GLib.getenv("ICME_TEMPLATE_ROOT") ?? `${spineHome()}/icon-templates`,
     iconsYaml: GLib.getenv("ICME_ICONS_YAML") ?? `${spineHome()}/icon-mappings/icons.yaml`,
-    colorScheme: resolveColorScheme(),
+    colorScheme: scheme.path,
+    colorSchemeWarning: scheme.warning,
   };
 }
 

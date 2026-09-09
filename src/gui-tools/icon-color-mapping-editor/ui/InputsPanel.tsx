@@ -119,9 +119,16 @@ export function InputsPanel(props: InputsPanelProps) {
     wrap: true,
     max_width_chars: 30,
   });
+  const schemeWarn = new Gtk.Label({
+    css_classes: ["input-warn"],
+    xalign: 0,
+    wrap: true,
+    max_width_chars: 30,
+  });
   const reset = new Gtk.Button({ label: "Reset to checkout defaults", css_classes: ["btn"] });
   reset.connect("clicked", () => props.onReset());
   root.append(warn);
+  root.append(schemeWarn);
   root.append(reset);
 
   createEffect(() => {
@@ -156,6 +163,9 @@ export function InputsPanel(props: InputsPanelProps) {
         ? "Save or Revert pending changes before resetting inputs"
         : "Restore the checkout defaults",
     );
+    const schemeWarning = inputs.colorSchemeWarning;
+    schemeWarn.set_visible(schemeWarning !== null);
+    if (schemeWarning !== null) schemeWarn.set_label(schemeWarning);
   });
 
   return root;
