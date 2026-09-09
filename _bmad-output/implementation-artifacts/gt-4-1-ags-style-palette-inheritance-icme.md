@@ -4,7 +4,7 @@ baseline_commit: 4dd4a07
 
 # Story 4.1: AGS style palette inheritance + icme verification
 
-Status: review (second-channel fix landed; awaiting human visual confirmation)
+Status: done (human verdict 2026-09-08: tinted chrome confirmed visually; session-wide env fix requires re-login — recorded caveat)
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -254,6 +254,13 @@ glm-5.3-flash (inline implementation — no subagent; user directive after slow 
 | `.recording-controls`/`-timer`/`-icon` (L110-122) | KEEP | DESIGN: spacing/size |
 | `.power-profile-item` (L124-135) | KEEP, comment UPDATED | DESIGN: transparent rows; popover surface + text now palette-supplied via adw overrides |
 | `.power-profile-item.active` (L137-140) | KEEP | DESIGN: active highlight from palette |
+
+### Human verdict (2026-09-08, juan david)
+
+- "power options being colored two ways and it looks kinda good" — **tinted chrome CONFIRMED** on the live machine (visual).
+- Switching wallpaper → "went back to old plain black": expected for apps launched from the pre-relogin session env (still carries `GTK_THEME=Adwaita:dark`); the durable fix applies to all new sessions after re-login. User defers the re-login and accepts the caveat.
+- Thunderbird unchanged: separate scope — thunderbird is a GTK3 app with its own theme engine (reads `gtk-theme-name=Arc-Dark` from settings.ini); the runtime's named-color chain only reaches GTK3 surfaces whose stylesheets consume `@color_*` names. Recorded as out-of-scope follow-up, NOT an AC failure (FR-7's contract covers AGS/icme/libadwaita surfaces).
+- New terminals: confirmed receiving current palette colors (gt-3-2 chain working).
 
 ### Verification checklist results (sub-AC 6)
 

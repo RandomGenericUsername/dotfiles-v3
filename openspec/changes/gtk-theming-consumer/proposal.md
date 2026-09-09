@@ -178,3 +178,12 @@ The durable doc previously stated "libadwaita user-css channel dead upstream".
 Superseded by this section. Lesson: before concluding "unsupported upstream",
 probe for env-var overrides (`GTK_THEME`) — the parser-error probe proved the
 file was read; the missing red result was the env var, not the cascade.
+
+## 2026-09-08 human verdict + AC closure
+
+User visual verdict: "power options being colored two ways and it looks kinda
+good" — tinted chrome CONFIRMED. Apps launched before re-login still inherit
+`GTK_THEME=Adwaita:dark` (session env) → plain Adwaita-dark; the clean env
+applies to all new sessions. User defers the re-login and approves proceeding.
+Thunderbird (GTK3, own theme engine) recorded out of FR-7 scope.
+gt-4-1 → done (caveats recorded in the story file).
