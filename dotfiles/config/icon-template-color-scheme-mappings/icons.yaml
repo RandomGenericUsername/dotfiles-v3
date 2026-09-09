@@ -237,8 +237,8 @@ wallpaper-selector:
 
 btop:
   color_mappings:
-    COLOR_FOREGROUND: color13
-    COLOR_JOIN: color13
+    COLOR_FOREGROUND: color11
+    COLOR_JOIN: color11
   variants:
     - name: btop
       template: status-bar/btop/default/icon.svg
