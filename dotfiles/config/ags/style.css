@@ -13,6 +13,7 @@ window#bar > centerbox {
 
 window#bar label {
   padding: 0 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 /* Widget icon normalization — all SVGs render at consistent size
@@ -20,6 +21,9 @@ window#bar label {
 .widget-icon {
   min-width: 28px;
   min-height: 28px;
+  /* Glyph-shaped dropshadow ON the icon itself (macOS look) — renders on
+     non-symbolic SVG pixbufs; verified live 2026-09-09. */
+  -gtk-icon-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
 }
 
 
@@ -28,9 +32,10 @@ window#bar label {
   padding: 0 8px;
 }
 
-/* Icon-only floating buttons — every widget renders as a bare icon sitting
-   on the bar pill: no button chrome of its own (transparent background, no
-   border/box-shadow/image paint) in any interaction state. */
+/* Icon-only floating buttons — every widget renders as a bare icon floating
+   on the wallpaper: no button chrome, no box plate. The depth comes ONLY from
+   the glyph-shaped -gtk-icon-shadow on .widget-icon (the icon's own
+   dropshadow) + label text-shadow — verified live 2026-09-09. */
 .widget {
   background-color: transparent;
   background-image: none;
