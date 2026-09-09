@@ -404,3 +404,18 @@ The "save after repoint can fail leaving FS ahead of store, history append outsi
 ### RESOLUTION (stale stored monitor, 2026-09-08)
 
 - `ApplyWallpaperUseCase._build_monitors` now reconciles the stored `monitors` against live `IMonitorSource` detection when detection returns a non-empty set: same-name configs preserved (only `source_hash` updates), detected-but-unstored names get the default config, stale names dropped. Headless/empty detection preserves the stored set (no behavior change). Renamed outputs self-heal on the next `wallpaper set` — the exact eDP-1→eDP-2 case. Tests: `test_existing_monitors_reconciled_against_detection` (replaces `test_existing_monitors_win_over_injected_source`); suite 593 passed / 2 skipped (stale-csg).
+
+## Merge review findings: feat/gtk-theming-consumer → master (2026-09-09, merge 8ea8c8b)
+
+- Only 2 conflicts (sprint-status blocks; config_links auto-merged). Merge
+  fixes applied on top: `verify_palette_files` extended to the 5-artifact set
+  (gt-2-1 oversight — the role still gated 3 names), and `ags-icme` added to
+  `verify_managed_link_dirs` + live fixture spine/link dirs (master's icme
+  work had broken BOTH parity locks: link-dirs and spine-dirs; the merged
+  suite surfaced it).
+- 4 provisioning suite failures PROVEN pre-existing on pristine master
+  (4067188): 2 unit (packages exact-set drift) reproduced verbatim; 2
+  settings_parity integration failures are environment-dependent
+  (container-mode csg + installed-tool interactions; on master the file
+  cannot even collect — the branch fixed a blocking SyntaxError). No test
+  changes beyond the parity/agset fixes above.
