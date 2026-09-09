@@ -48,11 +48,12 @@ verify_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_
 verify_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
 
 # verify_state_current_dir: the runtime-owned current dir (AD-5:
-#   <state>/dotfiles/current/) — done-criterion 6 (Story 1.12) accepts each
-#   palette file under generated/palettes/ (pre-runtime) OR here (post-runtime,
-#   the runtime-consumed palette). Derived from verify_xdg_state_home — NO
-#   second XDG resolution is introduced. Trim lock (stray-whitespace XDG
-#   values bit Story 1.11).
+#   <state>/dotfiles/current/) — done-criterion 6 (Story 1.12) requires each
+#   palette file HERE, current-only (Epic 4: the generated/palettes tree is
+#   gone and the runtime seed is the single producer; a machine with only an
+#   orphaned generated/ tree and no current/ palette fails the gate).
+#   Derived from verify_xdg_state_home — NO second XDG resolution is
+#   introduced. Trim lock (stray-whitespace XDG values bit Story 1.11).
 verify_state_current_dir: "{{ verify_xdg_state_home | trim }}/dotfiles/current"
 
 # verify_bin_scripts: desktop helper scripts the compositor_configs role
