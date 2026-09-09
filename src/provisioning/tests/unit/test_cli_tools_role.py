@@ -126,6 +126,21 @@ class TestCliToolsRoleTree:
         for relative in self._REQUIRED_FILES:
             assert (_ROLES_DIR / relative).is_file(), f"missing {relative}"
 
+    def test_icme_launcher_exports_repo_root(self) -> None:
+        """The ICME launcher must export ICME_REPO_ROOT, not just `cd`.
+
+        `ags run -d` re-roots the app process into the app dir, so the
+        editor's cwd ancestor walk can never find a checkout — without the
+        explicit export the session silently falls back to spine defaults.
+        """
+        template = (
+            _ROLES_DIR / "templates" / "icon-color-mapping-editor.j2"
+        ).read_text()
+        assert "export ICME_REPO_ROOT=" in template, (
+            "launcher must hand the checkout to the app explicitly; "
+            "`cd` alone is defeated by `ags run -d` re-rooting"
+        )
+
 
 class TestCliToolsTasks:
     def test_tasks_parse_to_list_of_named_tasks(self) -> None:

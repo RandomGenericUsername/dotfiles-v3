@@ -2,7 +2,8 @@
 //
 // The authoring model is REPO-AUTHORITATIVE (reverted from the brief
 // seed-once experiment, 2026-09-07): the editor targets the repo manifest
-// whenever a checkout is detectable from the working directory — bootstrap
+// whenever a checkout is detectable — via ICME_REPO_ROOT (set by the
+// provisioned launcher) or a working-directory ancestor walk — bootstrap
 // then propagates repo edits to the spine on every run ("edit repo,
 // bootstrap, deployed"). Machines without a checkout fall back to the
 // seeded spine copy:
@@ -34,6 +35,16 @@ export function isSpinePath(path: string): boolean {
 }
 
 function findRepoRoot(): string | null {
+  // Explicit checkout from the provisioned launcher wins: `ags run -d`
+  // re-roots the app process into the app dir, so the cwd walk below can
+  // never find a checkout on its own.
+  const hinted = GLib.getenv("ICME_REPO_ROOT");
+  if (
+    hinted &&
+    GLib.file_test(`${hinted}/${MANIFEST_PROBE}`, GLib.FileTest.EXISTS)
+  ) {
+    return hinted;
+  }
   let dir = GLib.get_current_dir();
   for (;;) {
     if (GLib.file_test(`${dir}/${MANIFEST_PROBE}`, GLib.FileTest.EXISTS)) return dir;
