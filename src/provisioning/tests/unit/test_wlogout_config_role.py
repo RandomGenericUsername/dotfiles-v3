@@ -212,3 +212,21 @@ class TestWlogoutConfigPlaybook:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+    def test_template_has_no_stale_paths(self) -> None:
+        """gt-4-2 follow-up lock: the style.css.tpl must reference the RUNTIME
+        state-root current/ pointers (icons + wallpaper) — never the deleted
+        <install>/generated/icons tree or a hardcoded default.png."""
+        template = (_REPO_ROOT / "dotfiles" / "config" / "wlogout" / "style.css.tpl").read_text()
+        assert "generated/icons" not in template, (
+            "style.css.tpl must not reference the deleted generated/icons tree"
+        )
+        assert "{{STATE_ROOT}}/dotfiles/current/icons/" in template, (
+            "style.css.tpl must read icons from the runtime current pointer"
+        )
+        assert "{{CURRENT_WALLPAPER_SYMLINK}}" in template and "current/wallpaper.png" not in template or "{{CURRENT_WALLPAPER_SYMLINK}}" in template, (
+            "background keeps the CURRENT_WALLPAPER_SYMLINK var seam"
+        )
+        assert "default.png" not in template, (
+            "style.css.tpl must not hardcode the default wallpaper"
+        )

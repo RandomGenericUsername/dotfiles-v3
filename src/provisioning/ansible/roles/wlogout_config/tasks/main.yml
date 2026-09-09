@@ -12,8 +12,9 @@
 # - Runs AFTER assets (icons + wallpaper exist) + default_palette (colors.css
 #   fragment in config/ags) and BEFORE config_links.
 # - Vars resolve: COLORS_FILE_PATH → <install>/config/ags/colors.css (the
-#   rendered @define-color file wlogout imports); ICONS_DIR → <install>/
-#   generated/icons; CURRENT_WALLPAPER_SYMLINK → <install>/wallpapers/default.png;
+#   rendered @define-color file wlogout imports); STATE_ROOT icons/wallpaper →
+#   $XDG_STATE_HOME/dotfiles/current/{icons/*,wallpaper.png} (the runtime's
+#   current pointers — gt-4-2 follow-up; the generated/ tree is deleted).
 #   font from the tunable shell vars (group_vars/all.yml).
 # - The `template` module has full check-mode support — no --check gate.
 # - User-scoped: NO become.
@@ -37,7 +38,11 @@
     dest: "{{ wlogout_config_spine_dir }}/style.css"
   vars:
     COLORS_FILE_PATH: "{{ install_dir | trim }}/config/ags/colors.css"
-    ICONS_DIR: "{{ install_dir | trim }}/generated/icons"
-    CURRENT_WALLPAPER_SYMLINK: "{{ install_dir | trim }}/wallpapers/default.png"
+    # gt-4-2 follow-up: icons + wallpaper read the RUNTIME state-root current/
+    # pointers (single source, palette-fresh per wallpaper set) — the pre-Epic-4
+    # <install>/generated/icons tree is deleted; the default.png hardcode never
+    # followed wallpaper changes.
+    STATE_ROOT: "{{ wlogout_config_state_root | trim }}"
+    CURRENT_WALLPAPER_SYMLINK: "{{ wlogout_config_state_root | trim }}/dotfiles/current/wallpaper.png"
     SYSTEM_FONT_FAMILY: "{{ shell.font_family }}"
     FONT_SIZE_PX: "{{ shell.font_size_px }}"

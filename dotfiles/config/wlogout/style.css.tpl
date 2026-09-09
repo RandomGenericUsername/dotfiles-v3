@@ -42,25 +42,25 @@ button span {
 }
 
 #lock {
-    background-image: image(url("{{ICONS_DIR}}/lock.svg"));
+    background-image: image(url("{{STATE_ROOT}}/dotfiles/current/icons/lock.svg"));
 }
 
 #logout {
-    background-image: image(url("{{ICONS_DIR}}/logout.svg"));
+    background-image: image(url("{{STATE_ROOT}}/dotfiles/current/icons/logout.svg"));
 }
 
 #suspend {
-    background-image: image(url("{{ICONS_DIR}}/suspend.svg"));
+    background-image: image(url("{{STATE_ROOT}}/dotfiles/current/icons/suspend.svg"));
 }
 
 #hibernate {
-    background-image: image(url("{{ICONS_DIR}}/hibernate.svg"));
+    background-image: image(url("{{STATE_ROOT}}/dotfiles/current/icons/hibernate.svg"));
 }
 
 #shutdown {
-    background-image: image(url("{{ICONS_DIR}}/shutdown.svg"));
+    background-image: image(url("{{STATE_ROOT}}/dotfiles/current/icons/shutdown.svg"));
 }
 
 #reboot {
-    background-image: image(url("{{ICONS_DIR}}/reboot.svg"));
+    background-image: image(url("{{STATE_ROOT}}/dotfiles/current/icons/reboot.svg"));
 }

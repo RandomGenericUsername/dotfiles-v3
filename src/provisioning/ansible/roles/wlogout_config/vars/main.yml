@@ -8,3 +8,8 @@ wlogout_config_spine_dir: "{{ install_dir | trim }}/config/wlogout"
 #   REPO-CONFIG template (dotfiles/config/wlogout/style.css.tpl), mirror of the
 #   config_copies repo-root pattern.
 wlogout_config_template_root: "{{ playbook_dir }}/../../../.."
+
+# wlogout_config_state_root: the runtime-owned state root ($XDG_STATE_HOME/dotfiles
+#   is the state dir; the runtime current/ pointers live one level below).
+#   Derivation mirrors verify_xdg_state_home exactly (single XDG resolution).
+wlogout_config_state_root: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
