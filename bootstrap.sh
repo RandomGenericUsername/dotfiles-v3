@@ -27,14 +27,16 @@ set -euo pipefail
 # live ONLY in ansible/group_vars. Do not add any distro logic here.
 #
 # CONTAINER ENGINE (LOCKED decision 2026-08-13, Option A): the container-mode
-# chain (cli_tools builds the csg image; default_palette runs csg generate)
+# chain (cli_tools builds the csg image; runtime-seed runs
+# `dotfiles-runtime wallpaper set`, which generates the scheme via csg)
 # needs podman OR docker at runtime. Neither role installs one, so this script
 # fails loud EARLY if no USABLE engine exists — a presence-only probe would let
 # a stopped docker daemon through and die ~40 minutes in. Usability is probed
 # via `engine info` (bounded by a 15s timeout). Install podman (preferred) or
 # docker, then re-run. This script NEVER installs an engine: a distro-specific
 # install here would violate NFR-3. Engine forcing is the roles' own concern
-# (cli_tools_container_engine_override / default_palette_container_engine_override),
+# (cli_tools_container_engine_override; the generate-side engine lives in
+# csg-settings.toml [container]),
 # NOT a bootstrap.sh override — a second source of truth would let the gate and
 # the roles diverge (confirmation CR 2026-08-15).
 # ─────────────────────────────────────────────────────────────────────────
@@ -119,7 +121,7 @@ fi
 # presence-only `command -v` gate would let a stopped docker daemon through and
 # die ~40 minutes in — exactly what this gate exists to prevent. We do NOT
 # install an engine (distro-specific install would violate NFR-3) and do NOT
-# silently proceed (the aggregate would fail deep in cli_tools/default_palette
+# silently proceed (the aggregate would fail deep in cli_tools/runtime-seed
 # with an opaque engine error). No engine name is stored as a script variable —
 # the roles re-detect at runtime via their OWN detection/override vars and must
 # not diverge from a second source of truth (confirmation CR 2026-08-15).
@@ -145,7 +147,7 @@ else
   red "    probe failed (e.g. the docker daemon is not running)"
   red "The container-mode chain requires podman OR docker at runtime:"
   red "  - cli_tools builds the csg image via 'csg install'"
-  red "  - default_palette runs 'csg generate' in container mode"
+  red "  - runtime-seed runs 'dotfiles-runtime wallpaper set' (csg generate) in container mode"
   red "Neither role installs an engine. Install podman (preferred) or docker,"
   red "start its daemon, then re-run $0."
   exit 1
@@ -284,8 +286,10 @@ fi
 
 # ── Stage 3: aggregate bootstrap (AC 3) ──────────────────────────────────
 # The aggregate bootstrap.yaml (Story 2.12) runs the whole chain:
-# packages → cli_tools → filesystem → assets → default_palette →
-# compositor_configs → config_copies → settings → verify. BootstrapUseCase
+# packages → cli_tools → filesystem → assets → compositor_configs →
+# gui_tools → config_copies → settings → zsh_tools → zsh_config →
+# wlogout_config → config_links → runtime-seed → display_manager →
+# gloview-plugin → verify. BootstrapUseCase
 # passes the install_dir + os_family seam extra-vars.
 run_stage "bootstrap" uv run --directory "$PROVISION_DIR" dotfiles-provision bootstrap
 

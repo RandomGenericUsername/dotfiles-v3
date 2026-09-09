@@ -23,8 +23,8 @@ packages:
   wireplumber: wireplumber
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
-  # Container engine for the csg container-mode chain (cli_tools/default_palette
-  # build + run csg under podman). DOCUMENTED DEPENDENCY — must be provisioned on
+  # Container engine for the csg container-mode chain (cli_tools builds the
+  # image + runtime-seed runs csg generate under podman). DOCUMENTED DEPENDENCY — must be provisioned on
   # a fresh machine (VM-verified 2026-08-19: a fresh Arch cloud image has no
   # engine, so the csg image build aborts). slirp4netns + fuse-overlayfs make
   # rootless podman work out of the box.
