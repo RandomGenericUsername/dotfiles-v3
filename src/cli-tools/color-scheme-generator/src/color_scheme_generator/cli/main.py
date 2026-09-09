@@ -240,6 +240,7 @@ def generate(
                 container_runtime,
                 template_dir_resolver=deps.template_dir_resolver,
                 engine_value=engine_obj.value,
+                templates_dir=templates_dir,
             )
         else:
             processor = create_local_processor(deps.backend_registry, deps.template_renderer)

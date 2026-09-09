@@ -413,9 +413,15 @@ The "save after repoint can fail leaving FS ahead of store, history append outsi
   `verify_managed_link_dirs` + live fixture spine/link dirs (master's icme
   work had broken BOTH parity locks: link-dirs and spine-dirs; the merged
   suite surfaced it).
-- 4 provisioning suite failures PROVEN pre-existing on pristine master
-  (4067188): 2 unit (packages exact-set drift) reproduced verbatim; 2
-  settings_parity integration failures are environment-dependent
-  (container-mode csg + installed-tool interactions; on master the file
-  cannot even collect — the branch fixed a blocking SyntaxError). No test
-  changes beyond the parity/agset fixes above.
+- 4 provisioning suite failures triaged on pristine master (4067188):
+  2 unit (packages exact-set drift, reproduced verbatim — pre-existing,
+  untouched); 2 settings_parity integration failures turned out to be REAL,
+  not environmental, and are FIXED post-merge: (a) a genuine csg bug —
+  container mode silently ignored CLI ``--templates-dir`` (fixed by
+  threading it into ``ContainerProcessor`` + factory + CLI; unit test
+  added); (b) ``test_itr_color_scheme_path_points_to_csg_palette``
+  asserted the deleted pre-Epic-4 contract (``generated/palettes`` +
+  ``-f conf`` producing yaml — impossible under replace semantics) —
+  rewritten to the Epic-4 chain (``-f yaml`` emit + ITR settings
+  ``color_scheme.path`` → state-root ``current/colors.yaml`` contract).
+  On master the file cannot even collect (branch-fixed SyntaxError).

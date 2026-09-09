@@ -174,6 +174,53 @@ class TestContainerProcessorIsInstance:
 
 
 class TestContainerProcessorGenerate:
+    def test_explicit_templates_dir_mounts_requested_dir_not_resolver(
+        self, tmp_path: Path
+    ) -> None:
+        """CLI --templates-dir must reach the /templates bind-mount.
+
+        Regression: process_generate resolved templates through the
+        resolver chain and silently IGNORED the explicit CLI flag, so
+        ``csg generate --templates-dir <dir> --runtime container`` rendered
+        from bundled defaults (spine-templates marker missing in output).
+        """
+        img = tmp_path / "img.png"
+        img.write_text("dummy")
+        explicit = tmp_path / "spine-templates"
+        explicit.mkdir()
+        other = tmp_path / "bundled"
+        other.mkdir()
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+
+        fake_runtime = _FakeContainerRuntime()
+        template_dir_resolver = MagicMock()
+        template_dir_resolver.resolve.return_value = other
+
+        processor = ContainerProcessor(
+            fake_runtime,
+            template_dir_resolver=template_dir_resolver,
+            templates_dir=explicit,
+        )
+        settings = _make_settings()
+        request = GenerationRequest(
+            image_path=img,
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        result = processor.process_generate(request, settings)
+
+        assert result.success is True
+        mounts = _run_call_args(processor)["mounts"]
+        mount_by_target = {m.target: m for m in mounts}
+        assert mount_by_target[PurePosixPath("/templates")].source == explicit
+        template_dir_resolver.resolve.assert_not_called()
+
     def test_preflight_raises_image_not_found(self, tmp_path: Path) -> None:
         fake_runtime = _FakeContainerRuntime(image_exists=False)
         processor = ContainerProcessor(fake_runtime)

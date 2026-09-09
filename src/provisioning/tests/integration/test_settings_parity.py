@@ -311,12 +311,21 @@ def _run_csg_generate(
     engine: str | None = None,
     env: dict[str, str] | None = None,
     timeout: int = 120,
+    formats: tuple[str, ...] = ("conf",),
 ) -> subprocess.CompletedProcess[str]:
-    """Run ``csg generate`` against a test image with the given options."""
+    """Run ``csg generate`` against a test image with the given options.
+
+    ``formats`` defaults to ``("conf",)`` for backward compatibility; the
+    CLI's ``-f`` REPLACES the settings ``default_formats`` (main.py), so
+    callers must request exactly the formats they assert on.
+    """
     csg = shutil.which("csg")
     assert csg is not None, "csg must be on PATH"
 
-    args = [csg, "generate", str(image_path), "-f", "conf", "-o", str(output_dir)]
+    args = [csg, "generate", str(image_path)]
+    for fmt in formats:
+        args += ["-f", fmt]
+    args += ["-o", str(output_dir)]
     if templates_dir:
         args += ["--templates-dir", str(templates_dir)]
     if runtime:
@@ -579,14 +588,20 @@ class TestDefaultPaletteContract:
 
 
 class TestSpineChain:
-    """AC 4: ITR's ``color_scheme.path`` resolves to a real CSG palette output,
-    proving the spine chain (CSG → palette → ITR) is unbroken."""
+    """AC 4 (Epic-4 current): the CSG → palette → ITR chain is unbroken
+    through the runtime state root. Provisioning deploys inputs only and
+    never generates palettes (the deleted ``default_palette`` role), so
+    this test proves the two halves of the chain the runtime stitches
+    together: (1) ``csg generate -f yaml`` emits the palette schema ITR
+    consumes, and (2) the provisioned ITR settings point
+    ``color_scheme.path`` at the state-root ``current/colors.yaml``
+    contract the runtime seeder populates."""
 
     def test_itr_color_scheme_path_points_to_csg_palette(
         self, tmp_path: Path
     ) -> None:
-        """After palette generation, ITR's ``color_scheme.path`` setting
-        resolves to a file that exists in the generated palettes dir."""
+        """CSG's yaml palette is ITR-consumable AND the provisioned ITR
+        settings point at the runtime's current-pointer contract."""
         csg = shutil.which("csg")
         if csg is None:
             pytest.skip("csg not on PATH")
@@ -594,19 +609,20 @@ class TestSpineChain:
         engine = _detect_container_engine()
         _skip_if_no_csg_image(engine)
 
-        install_dir = tmp_path / "install"
-        palettes_dir = install_dir / "generated" / "palettes"
-        palettes_dir.mkdir(parents=True)
-
-        # Generate the palette
+        # Half 1: csg emits the palette schema ITR consumes. The CLI's -f
+        # REPLACES default_formats (main.py), so request yaml explicitly.
         image_path = tmp_path / "test.png"
         _create_test_image(image_path)
+
+        output_dir = tmp_path / "palette-output"
+        output_dir.mkdir()
 
         env = _scrubbed_env()
 
         result = _run_csg_generate(
             image_path,
-            palettes_dir,
+            output_dir,
+            formats=("yaml",),
             runtime="container",
             engine=engine,
             env=env,
@@ -616,17 +632,36 @@ class TestSpineChain:
             f"stderr:\n{result.stderr}"
         )
 
-        # The ITR spine chain path (from itr-settings.toml.j2)
-        itr_colors_path = palettes_dir / "colors.yaml"
+        itr_colors_path = output_dir / "colors.yaml"
         assert itr_colors_path.is_file(), (
-            f"ITR color_scheme.path must point to a real CSG palette output; "
-            f"expected {itr_colors_path} but it does not exist"
+            f"csg generate -f yaml must emit colors.yaml in {output_dir}"
         )
 
-        # Verify the file is non-empty YAML
+        # ITR's CSG-export schema: top-level background/foreground/cursor
+        # scalars + a colors list (file_color_scheme_loader).
         content = itr_colors_path.read_text()
         assert len(content.strip()) > 0, (
             "colors.yaml must not be empty — CSG palette output is blank"
+        )
+        for key in ('background:', 'foreground:', 'cursor:', 'colors:'):
+            assert key in content, (
+                f"colors.yaml must carry the ITR-consumable CSG schema "
+                f"(missing {key!r})"
+            )
+
+        # Half 2: the provisioned ITR settings point color_scheme.path at
+        # the runtime-owned state-root current/colors.yaml contract.
+        install_dir = tmp_path / "install"
+        _setup_minimal_spine(install_dir)
+        rendered = _render_settings(
+            install_dir,
+            _scrubbed_env(ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg")),
+        )
+        itr_settings = tomllib.loads(rendered["itr"].read_text())
+        color_scheme_path = itr_settings["color_scheme"]["path"]
+        assert color_scheme_path.endswith("dotfiles/current/colors.yaml"), (
+            f"ITR color_scheme.path must point at the runtime state-root "
+            f"current/colors.yaml contract; got {color_scheme_path!r}"
         )
 
 

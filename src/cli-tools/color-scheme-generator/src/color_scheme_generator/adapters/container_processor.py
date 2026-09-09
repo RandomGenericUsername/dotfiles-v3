@@ -51,11 +51,17 @@ class ContainerProcessor:
         template_dir_resolver: TemplateDirResolver | None = None,
         default_settings_path: Path | None = None,
         engine_value: str | None = None,
+        templates_dir: Path | str | None = None,
     ) -> None:
         self._container_runtime = container_runtime
         self._template_dir_resolver = template_dir_resolver
         self._default_settings_path = default_settings_path
         self._engine_value = engine_value
+        # Explicit CLI --templates-dir (main.py): wins over every resolver
+        # chain branch below, so the container bind-mounts the SAME dir the
+        # local processor would render from. Without it, container mode
+        # silently ignored the flag and mounted resolver defaults instead.
+        self._templates_dir = Path(templates_dir) if templates_dir is not None else None
 
     def _select_image(self, settings: AppSettings, backend_value: str) -> str:
         prefix = settings.container.image_prefix
@@ -130,6 +136,31 @@ class ContainerProcessor:
         except (KeyError, TypeError, ValueError):
             return None
 
+    def _resolve_templates_dir(self) -> Path:
+        """Templates dir for the /templates bind-mount.
+
+        Precedence: explicit CLI ``--templates-dir`` > resolver chain >
+        settings-adjacent defaults > system path. The explicit branch is
+        what makes ``csg generate --templates-dir <dir> --runtime
+        container`` mount the requested dir instead of silently mounting
+        resolver defaults (the container previously ignored the flag).
+        """
+        if self._templates_dir is not None:
+            templates_dir = self._templates_dir
+        elif self._template_dir_resolver:
+            templates_dir = self._template_dir_resolver.resolve()
+        elif self._default_settings_path:
+            templates_dir = (
+                self._default_settings_path.parent / "defaults" / "templates"
+            )
+        else:
+            templates_dir = Path(
+                "/usr/share/color-scheme-generator/templates"
+            )
+        if not templates_dir.is_dir():
+            raise FileNotFoundError(f"Templates directory not found: {templates_dir}")
+        return templates_dir
+
     def process_generate(
         self, request: GenerationRequest, settings: AppSettings
     ) -> GenerationResult:
@@ -155,19 +186,7 @@ class ContainerProcessor:
             output_dir = request.config.output_dir
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            if self._template_dir_resolver:
-                templates_dir = self._template_dir_resolver.resolve()
-            elif self._default_settings_path:
-                templates_dir = (
-                    self._default_settings_path.parent / "defaults" / "templates"
-                )
-            else:
-                templates_dir = Path(
-                    "/usr/share/color-scheme-generator/templates"
-                )
-
-            if not templates_dir.is_dir():
-                raise FileNotFoundError(f"Templates directory not found: {templates_dir}")
+            templates_dir = self._resolve_templates_dir()
 
             toml_content = self._serialize_settings(settings)
             with tempfile.NamedTemporaryFile(
@@ -317,19 +336,7 @@ class ContainerProcessor:
             if not request.image_path.is_file():
                 raise FileNotFoundError(f"Input image not found: {request.image_path}")
 
-            if self._template_dir_resolver:
-                templates_dir = self._template_dir_resolver.resolve()
-            elif self._default_settings_path:
-                templates_dir = (
-                    self._default_settings_path.parent / "defaults" / "templates"
-                )
-            else:
-                templates_dir = Path(
-                    "/usr/share/color-scheme-generator/templates"
-                )
-
-            if not templates_dir.is_dir():
-                raise FileNotFoundError(f"Templates directory not found: {templates_dir}")
+            templates_dir = self._resolve_templates_dir()
 
             toml_content = self._serialize_settings(settings)
             with tempfile.NamedTemporaryFile(
