@@ -80,7 +80,7 @@ class TestHyprlandSkeleton:
             "env-variables.lua", "monitors.lua", "general.lua",
             "input.lua", "decoration.lua", "animations.lua",
             "cursor.lua", "keybindings.lua", "window-rules.lua",
-            "autostart.lua",
+            "autostart.lua", "colors.lua",
         ):
             assert module in content, (
                 f"hyprland.lua must dofile ../{module}"

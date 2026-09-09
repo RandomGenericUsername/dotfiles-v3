@@ -1224,6 +1224,7 @@ the Hyprland wiki recommends several must-have utilities that were missing.
 |--------|-------|
 | Migrate `hyprland.conf` → `hyprland.lua` | `dotfiles/config/hypr/hyprland.lua` (new) |
 | Add 9 modular Lua config files | `keybindings.lua`, `monitors.lua`, `autostart.lua`, `window-rules.lua`, `animations.lua`, `input.lua`, `decoration.lua`, `cursor.lua`, `env-variables.lua` |
+| Add animated palette border glow | `colors.lua` — reads `current/colors.conf` at `dofile` time; sets `general.col.active_border` gradient + `borderangle` loop; re-applies on every `hyprctl reload` (runtime palette swap) |
 | Remove old `hyprland.conf` | `dotfiles/config/hypr/hyprland.conf` (deleted) |
 | Add must-have packages | `packages.yaml` — dunst, hyprpolkitagent, xdg-desktop-portal-hyprland, xdg-desktop-portal-gtk, wl-clipboard, grim, slurp, rofi, thunar, cliphist, lf, hyprcursor, hyprlock, hypridle |
 | Wire services via systemd | `autostart.lua` — systemctl --user start for hyprpolkitagent, xdg-desktop-portal-hyprland, xdg-desktop-portal-gtk |

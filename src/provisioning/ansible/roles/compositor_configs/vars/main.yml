@@ -103,6 +103,7 @@ compositor_configs_skeleton_files:
   - { name: animations-lua, source: dotfiles/config/hypr/animations.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/animations.lua" }
   - { name: input-lua, source: dotfiles/config/hypr/input.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/input.lua" }
   - { name: decoration-lua, source: dotfiles/config/hypr/decoration.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/decoration.lua" }
+  - { name: colors-lua, source: dotfiles/config/hypr/colors.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/colors.lua" }
   - { name: cursor-lua, source: dotfiles/config/hypr/cursor.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/cursor.lua" }
   - { name: env-variables-lua, source: dotfiles/config/hypr/env-variables.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/env-variables.lua" }
   - { name: hyprpaper-conf, source: dotfiles/config/hyprpaper/hyprpaper.conf, dest: "{{ compositor_configs_spine_config_dir }}/hyprpaper/hyprpaper.conf" }
