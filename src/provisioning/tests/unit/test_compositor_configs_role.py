@@ -151,6 +151,58 @@ class TestCompositorConfigsRoleTree:
         for relative in self._REQUIRED_FILES:
             assert (_ROLES_DIR / relative).is_file(), f"missing {relative}"
 
+    def test_icme_chooser_rule_matches_every_editor_dialog(self) -> None:
+        """The icme-filechooser-replaces-editor rule must match EVERY file
+        chooser the editor can open — Mappings inputs + Templates picker —
+        so all of them float centered at editor size instead of tiling.
+
+        The rule matches portal-window TITLES, and those titles are the
+        GUI dialogs' own label strings: renaming a dialog (as happened to
+        'SVG template root (read-only)' and to the new Templates 'Template
+        file') silently drops the rule for that chooser. Lock the rule to
+        the GUI source."""
+        import re
+
+        rule = (
+            _ANSIBLE_DIR.parents[2]
+            / "dotfiles"
+            / "config"
+            / "hypr"
+            / "window-rules.lua"
+        ).read_text()
+        m = re.search(
+            r"icme-filechooser-replaces-editor.*?title = \"([^\"]+)\"",
+            rule,
+            re.S,
+        )
+        assert m, "icme-filechooser-replaces-editor rule must carry a title regex"
+        normalized = m.group(1).replace("\\", "")
+
+        gui = (
+            _ANSIBLE_DIR.parents[2]
+            / "src"
+            / "gui-tools"
+            / "icon-color-mapping-editor"
+            / "ui"
+        )
+        inputs = (gui / "InputsPanel.tsx").read_text()
+        templates = (gui / "TemplatesTab.tsx").read_text()
+        # InputsPanel: chooser titles are the InputRow labels — the '⋯' pick-button
+        # label is not a dialog title. Scope to the rows array literal only.
+        rows_src = inputs[inputs.index("const rows") :]
+        rows_src = rows_src[: rows_src.index("];") + 2]
+        inputs_titles = [
+            t for t in re.findall(r'label: "([^"]+)"', rows_src) if t != "⋯"
+        ]
+        tpl_titles = re.findall(r'title: "([^"]+)"', templates)
+        all_titles = inputs_titles + tpl_titles
+        assert all_titles, "no editor file-chooser titles found in GUI source"
+        for title in all_titles:
+            assert title in normalized, (
+                f"editor chooser title {title!r} missing from the "
+                "icme-filechooser-replaces-editor window rule"
+            )
+
 
 class TestCompositorConfigsTasks:
     def test_tasks_parse_to_list_of_named_tasks(self) -> None:

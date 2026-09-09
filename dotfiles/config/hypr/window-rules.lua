@@ -24,7 +24,7 @@ hl.window_rule({
     name  = "icme-filechooser-replaces-editor",
     match = {
         class = "^(xdg-desktop-portal-gtk)$",
-        title = "^(Icons manifest \\(edited by tool\\)|SVG template root \\(read-only\\)|Color scheme \\(read-only\\))$",
+        title = "^(Icons manifest \\(edited by tool\\)|SVG template root|Color scheme \\(read-only\\)|Template file)$",
     },
     float = true,
     size  = "1280 800",
