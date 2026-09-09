@@ -10,13 +10,48 @@ Hyprland colors.conf
     (verified: no reference under dotfiles/config/hypr/*.lua).
     The runtime creates no Hyprland consumer path.
 
-AGS (bar shell) CSS palette fragment
+ AGS (bar shell) CSS palette fragment
     ~/.config/ags/style.css (GTK4 CSS + SASS) imports the palette fragment
     ~/.config/ags/colors.css
       → (config-in-spine symlink) <install>/config/ags/colors.css
       → (R2 symlink, runtime seeder — rt-4-2, never a copy)
         $XDG_STATE_HOME/dotfiles/current/colors.gtk.css
       → cache/palettes/<ph>/colors.gtk.css
+
+System GTK — GTK4/libadwaita apps (gt-4-1, two-channel mechanism)
+    ~/.config/gtk-4.0/gtk.css (spine skeleton, gt-3-1)
+      @import "colors.css";
+      → <install>/config/gtk-4.0/colors.css
+      → (R2 symlink, runtime seeder) current/colors.adw.css
+      → cache/palettes/<ph>/colors.adw.css
+    colors.adw.css emits BOTH channels: `@define-color` named colors
+    (window/view/headerbar/card/dialog/popover/sidebar + accent/state trios +
+    `color_00..15` passthrough) AND the `:root { --window-bg-color: … }`
+    custom-properties block (libadwaita ≥ 1.4 / plain-GTK4 Default theme
+    ≥ 4.16 resolve variables; chrome surfaces are color-mix blends of the
+    wallpaper's k-means mid clusters — visibly wallpaper-tinted).
+    Pickup = process relaunch (no hot reload). REQUIRES the session NOT to
+    export `GTK_THEME` (see hazard below).
+
+GTK3 apps (gt-4-1 channel, consumer-cooperative)
+    ~/.config/gtk-3.0/gtk.css (spine skeleton, gt-3-1)
+      @import "colors.css";
+      → <install>/config/gtk-3.0/colors.css
+      → (R2 symlink) current/colors.gtk.css
+      → cache/palettes/<ph>/colors.gtk.css
+    Provides the GTK3-compatible `@color_*` custom names + `color_00..15`.
+    Only reaches GTK3 surfaces whose stylesheets consume those names; apps
+    with their own theme engine (e.g. thunderbird via `gtk-theme-name`) are
+    out of the runtime's reach — separate follow-up scope.
+
+New zsh shells (gt-3-2)
+    .zshrc: `(cat "$XDG_STATE_HOME/dotfiles/current/colors.sequences" &)`
+      → cache/palettes/<ph>/colors.sequences
+    STALE `generated/palettes` path retired (pre-Epic-4 orphan). The
+    CURRENT palette reaches every NEW shell; a running terminal only
+    receives the OSC payload written by TerminalColorApplier to its own
+    `/dev/tty` (launching terminal only — documented Phase-2 limitation;
+    broadcast to all open terminals = Phase-5 daemon territory).
 
 Hyprpaper wallpaper
     hyprpaper.conf wallpaper path
@@ -71,3 +106,17 @@ Provisioning swaps Waybar → AGS across Phase 1's completed work:
 
 1. Hyprpaper's wallpaper-swap channel: reload-after-symlink-repoint vs `hyprctl hyprpaper wallpaper <monitor> <path>` IPC. Must be verified against the installed Hyprpaper version before the reload adapter is built. (RESOLVED 2026-09-02: channel = per-monitor IPC `hyprctl hyprpaper wallpaper <monitor>,<path>[,<fit>]`, verified against hyprpaper 0.8.4 / hyprland 0.56.2 source; reload-after-symlink-repoint unavailable in the rewrite)
 2. AGS reload channel: `ags run` hot-reload on file change vs process restart vs dbus signal. Must be verified against the installed AGS version before the AGS reload adapter is built.
+
+## The `GTK_THEME` hazard (gt-4-1, 2026-09-08 — machine-verified)
+
+A session that exports `GTK_THEME` — even an EMPTY string — makes GTK load
+the plain GTK theme in place of libadwaita's stylesheet at a priority that
+beats ALL `~/.config/gtk-4.0` user-CSS declarations: the wallpaper palette
+never reaches libadwaita apps while it is set. This project shipped that
+hazard itself (`env-variables.lua:6` `GTK_THEME=Adwaita:dark`, Phase-1 era);
+the line was removed with an in-file rationale and the durable lesson is:
+before concluding a CSS channel is dead upstream, probe for env-var
+overrides. Light/dark preference comes from
+`gsettings org.gnome.desktop.interface color-scheme` (the runtime does not
+manage it in Phase 2.x; luminance-based auto-switch is a future
+`ISystemColorSchemeSetter` story).

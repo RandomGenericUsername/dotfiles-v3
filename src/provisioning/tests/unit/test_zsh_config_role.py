@@ -140,7 +140,13 @@ class TestZshConfigTasks:
 
 
 class TestZshConfigVars:
-    _REQUIRED_KEYS = {"zsh_config_spine_dir", "zsh_config_template_root", "zsh_config_plugin_paths"}
+    _REQUIRED_KEYS = {
+        "zsh_config_spine_dir",
+        "zsh_config_template_root",
+        "zsh_config_xdg_state_home",
+        "zsh_config_state_current_dir",
+        "zsh_config_plugin_paths",
+    }
 
     def test_vars_parse_with_required_keys(self) -> None:
         data = _vars()
@@ -173,6 +179,60 @@ class TestZshConfigVars:
         # Arch and Debian paths must actually differ (the whole point).
         assert arch != debian, "Arch and Debian plugin paths must differ"
 
+    def test_xdg_state_home_mirrors_verify_derivation(self) -> None:
+        """gt-3-2 (zshrc reads the runtime current pointer): the state root
+        derives EXACTLY like the existing non-deprecated env-fact precedents
+        (verify_xdg_state_home / filesystem_xdg_state_home /
+        compositor_configs_xdg_state_home): honors $XDG_STATE_HOME with the
+        spec default ~/.local/state via ansible_facts.env (F4 lock)."""
+        data = _vars()
+        value = str(data["zsh_config_xdg_state_home"])
+        assert value == (
+            "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME "
+            "| default(ansible_facts.user_dir) + '/.local/state', true) }}"
+        ), "zsh_config_xdg_state_home must carry the exact shared derivation string"
+        assert "{{ ansible_env." not in value, "F4 lock: never the top-level ansible_env fact"
+
+    def test_state_current_dir_derived_from_state_home(self) -> None:
+        """gt-3-2: zsh_config_state_current_dir is <state>/dotfiles/current
+        (AD-5: the state root is ALWAYS <XDG_STATE_HOME>/dotfiles/) DERIVED
+        from zsh_config_xdg_state_home with the trim lock — no second XDG
+        resolution is introduced."""
+        data = _vars()
+        value = str(data["zsh_config_state_current_dir"])
+        assert value == "{{ zsh_config_xdg_state_home | trim }}/dotfiles/current", (
+            "zsh_config_state_current_dir must derive from zsh_config_xdg_state_home "
+            "(trim lock, mirror of verify_state_current_dir)"
+        )
+        assert "ansible_facts.env.XDG_STATE_HOME" not in value, (
+            "never a second ansible_facts.env.XDG_STATE_HOME read — one XDG read per role"
+        )
+
+    def test_no_generated_palette_references_remain(self) -> None:
+        """Epic 4 tripwire (gt-3-2): the zshrc reads the runtime-owned
+        current/ pointer — no task, var, or template may reference the
+        orphaned provisioning-era generated/palettes tree or the retired
+        COLOR_SCHEME_OUTPUT_DIR var name."""
+        for source_name, source_path in (
+            ("tasks", _ROLES_DIR / "tasks" / "main.yml"),
+            ("vars", _ROLES_DIR / "vars" / "main.yml"),
+            ("template", _REPO_ROOT / "dotfiles" / "config" / "zsh" / ".zshrc.j2"),
+        ):
+            text = source_path.read_text()
+            assert "generated/palettes" not in text, (
+                f"{source_name} must not reference the orphaned generated/palettes "
+                "tree (Epic 4 removed it — the runtime owns current/)"
+            )
+            assert "COLOR_SCHEME_OUTPUT_DIR" not in text, (
+                f"{source_name} must not reference the retired COLOR_SCHEME_OUTPUT_DIR "
+                "var (gt-3-2: retired, not repurposed — the name asserted inverted "
+                "provisioning-OUTPUT semantics)"
+            )
+        assert (
+            "COLOR_SCHEME_CURRENT_DIR"
+            in (_REPO_ROOT / "dotfiles" / "config" / "zsh" / ".zshrc.j2").read_text()
+        ), "the template must consume COLOR_SCHEME_CURRENT_DIR (gt-3-2)"
+
 
 class TestZshConfigPlaybook:
     def test_syntax_check_exits_zero(self) -> None:
@@ -198,7 +258,12 @@ class TestZshConfigPlaybook:
 
     def test_playbook_renders_zshrc_with_all_vars(self) -> None:
         """End-to-end render: run zsh-config.yaml against a temp spine, assert
-        the rendered .zshrc resolves every template var (no raw {{...}} left)."""
+        the rendered .zshrc resolves every template var (no raw {{...}} left).
+        gt-3-2: the cat line reads the runtime state root — XDG_STATE_HOME is
+        set EXPLICITLY in the env (the derivation reads ansible_facts.env; an
+        ambient host value would silently win) and the rendered .zshrc cats
+        exactly <state>/dotfiles/current/colors.sequences, never the orphaned
+        generated/palettes tree."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -206,12 +271,13 @@ class TestZshConfigPlaybook:
             root = Path(tmp)
             home = root / "home"
             install = root / "install"
+            state = root / "state"
             home.mkdir()
             zsh_dir = install / "config" / "zsh"
             (install / "config" / "starship").mkdir(parents=True)
-            (install / "generated" / "palettes").mkdir(parents=True)
             (install / "config" / "starship" / "starship.toml").write_text("")
-            (install / "generated" / "palettes" / "colors.sequences").write_text("")
+            (state / "dotfiles" / "current").mkdir(parents=True)
+            (state / "dotfiles" / "current" / "colors.sequences").write_text("")
             for d in (home / ".oh-my-zsh", home / ".pyenv"):
                 d.mkdir(parents=True)
 
@@ -219,6 +285,7 @@ class TestZshConfigPlaybook:
             env.update(
                 {
                     "HOME": str(home),
+                    "XDG_STATE_HOME": str(state),
                     "ANSIBLE_CONFIG": str(_ANSIBLE_DIR / "ansible.cfg"),
                 }
             )
@@ -253,7 +320,15 @@ class TestZshConfigPlaybook:
                 "rendered .zshrc must have no unresolved Jinja: " + text
             )
             assert "starship init zsh" in text, "rendered .zshrc must init starship"
-            assert "colors.sequences" in text, "rendered .zshrc must load the color scheme"
+            expected_cat = f'(cat "{state / "dotfiles" / "current" / "colors.sequences"}" &)'
+            assert expected_cat in text, (
+                "rendered .zshrc must cat the runtime state-root current pointer "
+                f"(gt-3-2); got: {text}"
+            )
+            assert "generated/palettes" not in text, (
+                "rendered .zshrc must NOT reference the orphaned generated/palettes "
+                "tree (Epic 4 removed it)"
+            )
 
 
 if __name__ == "__main__":

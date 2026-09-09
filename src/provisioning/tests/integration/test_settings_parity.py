@@ -476,7 +476,7 @@ class TestDefaultPaletteContract:
     default_palette role used to be the producer; the runtime is now): the
     generated palette matches the Hyprland ``colors.conf`` syntax contract
     — exactly 20 lines of ``$var = rgb(hex)``, with ``$accent`` equal to
-    ``$color1``."
+    ``$color1``."""
 
     @pytest.fixture()
     def palette_output(self, tmp_path: Path) -> Path:

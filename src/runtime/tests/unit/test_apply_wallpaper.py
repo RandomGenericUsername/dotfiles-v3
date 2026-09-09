@@ -106,6 +106,8 @@ class _FakeCsg:
         (output_dir / "colors.yaml").write_text("colors: []")
         (output_dir / "colors.conf").write_text("colors {}")
         (output_dir / "colors.gtk.css").write_text("colors {}")
+        (output_dir / "colors.adw.css").write_text("colors {}")
+        (output_dir / "colors.sequences").write_bytes(b"\x1b]4;0;#000\x1b\\")
         return PaletteEntry(
             hash_algorithm="sha256",
             kind="palette",
@@ -116,6 +118,8 @@ class _FakeCsg:
                 colors_yaml=hash_file(output_dir / "colors.yaml"),
                 colors_conf=hash_file(output_dir / "colors.conf"),
                 colors_gtk_css=hash_file(output_dir / "colors.gtk.css"),
+                colors_adw_css=hash_file(output_dir / "colors.adw.css"),
+                colors_sequences=hash_file(output_dir / "colors.sequences"),
             ),
             generated_at=_now_z(),
         )
@@ -359,7 +363,13 @@ class TestApplyWallpaperHappyPath:
         assert pmeta["kind"] == "palette"
         assert pmeta["entry_hash"] == state.palette.entry_hash
         assert pmeta["source_wallpaper_hash"] == wh
-        assert set(pmeta["artifact_hashes"]) == {"colors.yaml", "colors.conf", "colors.gtk.css"}
+        assert set(pmeta["artifact_hashes"]) == {
+            "colors.yaml",
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.adw.css",
+            "colors.sequences",
+        }
         for name, h in pmeta["artifact_hashes"].items():
             assert h == hash_file(
                 tmp_path / "state" / "cache" / "palettes" / state.palette.entry_hash / name
@@ -669,18 +679,30 @@ class TestApplyWallpaperMonitors:
         state = repo.saved[0]
         assert set(state.monitors) == {"DP-1"}
 
-    def test_existing_monitors_win_over_injected_source(self, tmp_path: Path) -> None:
-        """Preserved per-monitor configs are never overridden by detection."""
+    def test_existing_monitors_reconciled_against_detection(self, tmp_path: Path) -> None:
+        """Live detection is authoritative for NAMES when it returns a set.
+
+        Same-name configs keep their per-monitor settings; a detected name
+        with no stored entry gets a default; a stored name no longer
+        detected (stale — renamed output) is dropped.
+        """
         _setup_spine(tmp_path / "install")
 
         class _FakeMonitorSource:
             def detect_monitors(self) -> list[str]:
-                return ["eDP-1"]
+                return ["eDP-2", "HDMI-A-1"]
 
         repo = _FakeStateRepo(
             self._state_with_monitors(
                 {
-                    "DP-2": MonitorWallpaperConfig(
+                    "eDP-1": MonitorWallpaperConfig(  # stale (renamed to eDP-2)
+                        backend=BackendType.hyprpaper,
+                        source_hash="a" * 64,
+                        fit_mode=FitMode.contain,
+                        mpv_options=None,
+                        ipc_socket=None,
+                    ),
+                    "HDMI-A-1": MonitorWallpaperConfig(
                         backend=BackendType.swww,
                         source_hash="a" * 64,
                         fit_mode=FitMode.contain,
@@ -692,12 +714,20 @@ class TestApplyWallpaperMonitors:
             )
         )
         use_case = _make_use_case(tmp_path, repo, monitor_source=_FakeMonitorSource())
-        img = _img_in(tmp_path, "wall.png", b"preserved beats detection bytes")
+        img = _img_in(tmp_path, "wall.png", b"reconciled monitors bytes")
         use_case.run(img)
 
         state = repo.saved[0]
-        assert set(state.monitors) == {"DP-2"}
-        assert state.monitors["DP-2"].backend == BackendType.swww
+        assert set(state.monitors) == {"eDP-2", "HDMI-A-1"}
+        # stale entry dropped
+        assert "eDP-1" not in state.monitors
+        # same-name config preserved (backend/fit), source_hash updated
+        assert state.monitors["HDMI-A-1"].backend == BackendType.swww
+        assert state.monitors["HDMI-A-1"].fit_mode == FitMode.contain
+        assert state.monitors["HDMI-A-1"].source_hash == hash_file(img)
+        # new name gets the default config
+        assert state.monitors["eDP-2"].backend == BackendType.hyprpaper
+        assert state.monitors["eDP-2"].fit_mode == FitMode.cover
 
 
 class TestApplyWallpaperScopeBoundary:
@@ -787,7 +817,13 @@ class TestApplyWallpaperLostRenameRace:
             def generate(self, wallpaper_path: Path, output_dir: Path) -> Any:
                 entry = super().generate(wallpaper_path, output_dir)
                 target.mkdir(parents=True, exist_ok=True)
-                for name in ("colors.yaml", "colors.conf", "colors.gtk.css"):
+                for name in (
+                    "colors.yaml",
+                    "colors.conf",
+                    "colors.gtk.css",
+                    "colors.adw.css",
+                    "colors.sequences",
+                ):
                     (target / name).write_text("winner")
                 (target / "meta.json").write_text(
                     json.dumps(
@@ -803,6 +839,8 @@ class TestApplyWallpaperLostRenameRace:
                                     "colors.yaml",
                                     "colors.conf",
                                     "colors.gtk.css",
+                                    "colors.adw.css",
+                                    "colors.sequences",
                                 )
                             },
                             "generated_at": _now_z(),

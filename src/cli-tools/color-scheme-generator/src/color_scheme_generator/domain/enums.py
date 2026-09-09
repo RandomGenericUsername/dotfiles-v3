@@ -33,6 +33,7 @@ class ColorFormat(Enum):
     SH = "sh"
     CSS = "css"
     GTK_CSS = "gtk.css"
+    ADW_CSS = "adw.css"
     YAML = "yaml"
     SEQUENCES = "sequences"
     RASI = "rasi"

@@ -352,6 +352,26 @@ class TestContainerProcessorGenerate:
         assert command[0] == "csg"
         assert command[1] == "generate"
 
+    def test_inner_command_forwards_adw_css_format(self, tmp_path: Path) -> None:
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
+        settings = _make_settings()
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.ADW_CSS,),
+                output_dir=output_dir,
+            ),
+        )
+
+        processor.process_generate(request, settings)
+
+        command = _run_call_args(processor)["command"]
+        assert isinstance(command, list)
+        assert "--format" in command
+        assert command[command.index("--format") + 1] == "adw.css"
+
     def test_params_forwarded_verbatim(self, tmp_path: Path) -> None:
         templates_dir, output_dir, processor = _setup_test_env(tmp_path)
         settings = _make_settings()

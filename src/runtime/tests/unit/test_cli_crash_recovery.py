@@ -49,6 +49,8 @@ class _FakeCsg:
         (output_dir / "colors.yaml").write_text("colors: []")
         (output_dir / "colors.conf").write_text("colors {}")
         (output_dir / "colors.gtk.css").write_text("colors {}")
+        (output_dir / "colors.adw.css").write_text("colors {}")
+        (output_dir / "colors.sequences").write_bytes(b"\x1b]4;0;#000\x1b\\")
         return PaletteEntry(
             hash_algorithm="sha256",
             kind="palette",
@@ -59,6 +61,8 @@ class _FakeCsg:
                 colors_yaml=hash_file(output_dir / "colors.yaml"),
                 colors_conf=hash_file(output_dir / "colors.conf"),
                 colors_gtk_css=hash_file(output_dir / "colors.gtk.css"),
+                colors_adw_css=hash_file(output_dir / "colors.adw.css"),
+                colors_sequences=hash_file(output_dir / "colors.sequences"),
             ),
             generated_at=_now_z(),
         )
@@ -180,6 +184,33 @@ class _PassingTerminalColorApplier:
         return True
 
 
+class _PassingHyprlandReloader:
+    """Isolates the CLI from the real ``hyprctl reload`` on this host."""
+
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
+    def reload(self) -> bool:
+        return True
+
+
+class _PassingAgsReloader:
+    """Isolates the CLI from the real ``ags quit && ags run`` on this host.
+
+    Incident 2026-09-07: without this stub the real ``AgsReloader`` spawned a
+    live bar under the test's monkeypatched ``XDG_STATE_HOME`` (pytest tmp
+    dir); the process outlived pytest, replaced the developer's bar, and
+    rendered broken icons from the deleted dir. See ``tests/unit/conftest.py``
+    for the belt-and-braces autouse guard.
+    """
+
+    def __init__(self, **_kwargs: object) -> None:
+        pass
+
+    def reload(self) -> bool:
+        return True
+
+
 class TestCliCrashRecoveryLogging:
     def test_reconcile_recovery_logs_stray_reverts(self, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
         state_root = tmp_path / "dotfiles"
@@ -205,6 +236,14 @@ class TestCliCrashRecoveryLogging:
             "runtime.adapters.terminal_color_applier.TerminalColorApplier",
             _PassingTerminalColorApplier,
         )
+        monkeypatch.setattr(
+            "runtime.adapters.hyprland_reloader.HyprlandReloader",
+            _PassingHyprlandReloader,
+        )
+        monkeypatch.setattr(
+            "runtime.adapters.ags_reloader.AgsReloader",
+            _PassingAgsReloader,
+        )
 
         with caplog.at_level(logging.INFO, logger="runtime.application.reconcile"):
             result = runner.invoke(app, ["reconcile"])
@@ -226,6 +265,14 @@ class TestCliCrashRecoveryLogging:
         monkeypatch.setattr(
             "runtime.adapters.terminal_color_applier.TerminalColorApplier",
             _PassingTerminalColorApplier,
+        )
+        monkeypatch.setattr(
+            "runtime.adapters.hyprland_reloader.HyprlandReloader",
+            _PassingHyprlandReloader,
+        )
+        monkeypatch.setattr(
+            "runtime.adapters.ags_reloader.AgsReloader",
+            _PassingAgsReloader,
         )
 
         with caplog.at_level(logging.DEBUG, logger="runtime.application.reconcile"):

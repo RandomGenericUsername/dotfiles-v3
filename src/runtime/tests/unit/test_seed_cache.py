@@ -105,6 +105,8 @@ class _FakeCsg:
         (output_dir / "colors.yaml").write_text("colors: []")
         (output_dir / "colors.conf").write_text("colors {}")
         (output_dir / "colors.gtk.css").write_text("colors {}")
+        (output_dir / "colors.adw.css").write_text("colors {}")
+        (output_dir / "colors.sequences").write_bytes(b"\x1b]4;0;#000\x1b\\")
         return PaletteEntry(
             hash_algorithm="sha256",
             kind="palette",
@@ -115,6 +117,8 @@ class _FakeCsg:
                 colors_yaml=hash_file(output_dir / "colors.yaml"),
                 colors_conf=hash_file(output_dir / "colors.conf"),
                 colors_gtk_css=hash_file(output_dir / "colors.gtk.css"),
+                colors_adw_css=hash_file(output_dir / "colors.adw.css"),
+                colors_sequences=hash_file(output_dir / "colors.sequences"),
             ),
             generated_at=_now_z(),
         )
@@ -225,6 +229,9 @@ def _setup_install_spine(
     wallpapers = install_spine / "wallpapers"
     wallpapers.mkdir(parents=True)
     (wallpapers / "default.png").write_bytes(WALLPAPER_PNG.read_bytes())
+    # Provisioned-machine reality (Story gt-2-2): the AGS consumer-pointer
+    # parent exists; the no-mkdir parent guard requires it.
+    (install_spine / "config" / "ags").mkdir(parents=True, exist_ok=True)
     if with_templates:
         csg_templates = install_spine / "config" / "color-scheme-generator" / "templates"
         csg_templates.mkdir(parents=True)
@@ -327,6 +334,8 @@ class TestCacheSeederWriteMeta:
                 "colors.yaml": "d" * 64,
                 "colors.conf": "e" * 64,
                 "colors.gtk.css": "f" * 64,
+                "colors.adw.css": "a" * 64,
+                "colors.sequences": "b" * 64,
             },
             generated_at="2026-01-01T00:00:00Z",
         )
@@ -336,6 +345,27 @@ class TestCacheSeederWriteMeta:
         assert entry.artifact_hashes["colors_yaml"] == "d" * 64
         assert entry.artifact_hashes["colors_conf"] == "e" * 64
         assert entry.artifact_hashes["colors_gtk_css"] == "f" * 64
+        assert entry.artifact_hashes["colors_adw_css"] == "a" * 64
+        assert entry.artifact_hashes["colors_sequences"] == "b" * 64
+
+    def test_load_palette_entry_raises_on_pre_growth_meta(self, tmp_path: Path) -> None:
+        """Defense-in-depth: a pre-growth 3-key meta must NEVER load through
+        this path — the missing-key KeyError is loud (the derive hit-validation
+        of AC 8 guarantees old entries never reach it)."""
+        seeder = CacheSeeder(state_root=tmp_path)
+        seeder.write_palette_meta(
+            entry_hash="b" * 64,
+            source_wallpaper_hash="a" * 64,
+            input_template_hash="c" * 64,
+            artifact_hashes={
+                "colors.yaml": "d" * 64,
+                "colors.conf": "e" * 64,
+                "colors.gtk.css": "f" * 64,
+            },
+            generated_at="2026-01-01T00:00:00Z",
+        )
+        with pytest.raises(KeyError):
+            seeder.load_palette_entry(tmp_path / "cache" / "palettes" / ("b" * 64))
 
 
 class TestCacheSeederSymlinkRepoint:
@@ -497,7 +527,7 @@ class TestSeedCacheUseCaseRunsOnFirstRun:
         assert data["wallpaper"] == _make_wallpaper_hash()
 
     def test_seeding_populates_palette_cache(self, tmp_path: Path) -> None:
-        """Spec Task 4: cache/palettes/<ph>/ has all 3 artifacts + real-hash meta."""
+        """Spec Task 4: cache/palettes/<ph>/ has all 5 artifacts + real-hash meta."""
         install_spine = tmp_path / "install"
         _setup_install_spine(install_spine)
         repo = _FakeStateRepo()
@@ -509,7 +539,13 @@ class TestSeedCacheUseCaseRunsOnFirstRun:
         assert state.palette is not None
         peh = state.palette.entry_hash
         palette_dir = tmp_path / "cache" / "palettes" / peh
-        for name in ("colors.yaml", "colors.conf", "colors.gtk.css"):
+        for name in (
+            "colors.yaml",
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.adw.css",
+            "colors.sequences",
+        ):
             assert (palette_dir / name).is_file(), f"missing {name}"
         meta = json.loads((palette_dir / "meta.json").read_text())
         assert meta["hash_algorithm"] == "sha256"
@@ -520,7 +556,13 @@ class TestSeedCacheUseCaseRunsOnFirstRun:
         assert state.palette.input_template_hash == meta["input_template_hash"]
         assert not set(state.palette.input_template_hash) == {"0"}
         # meta hashes match on-disk content
-        for name in ("colors.yaml", "colors.conf", "colors.gtk.css"):
+        for name in (
+            "colors.yaml",
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.adw.css",
+            "colors.sequences",
+        ):
             assert meta["artifact_hashes"][name] == hash_file(palette_dir / name)
         # effects/icons likewise carry real hashes
         assert state.effects is not None
@@ -572,7 +614,13 @@ class TestSeedCacheUseCaseRunsOnFirstRun:
         )
 
         palette_dir = tmp_path / "cache" / "palettes" / state.palette.entry_hash
-        for name in ("colors.conf", "colors.gtk.css", "colors.yaml"):
+        for name in (
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.yaml",
+            "colors.adw.css",
+            "colors.sequences",
+        ):
             link = current_dir / name
             assert link.is_symlink(), f"missing symlink {name}"
             assert link.resolve() == (palette_dir / name).resolve()
@@ -759,7 +807,8 @@ class TestSeedCacheIdempotent:
 
 class TestNothingWrittenToInstallSpine:
     """AD-11 + Epic 4 R2 exception: nothing written under install_spine
-    EXCEPT the single R2 consumer symlink."""
+    EXCEPT the spec'd consumer pointer paths (gt-2-2: the pointer class
+    replaces the single-symlink prose — parents are NEVER created)."""
 
     def test_install_spine_unmodified_except_r2_symlink(self, tmp_path: Path) -> None:
         install_spine = tmp_path / "install"
@@ -772,19 +821,17 @@ class TestNothingWrittenToInstallSpine:
         use_case = _make_use_case(tmp_path, repo, install_spine)
         use_case.run()
 
-        # Only the R2 consumer symlink (plus any parent dirs the atomic
-        # repoint creates) may appear under install_spine
+        # Only the ags pointer symlink may appear under install_spine —
+        # no created parent dirs; the gtk pointers' parents are absent
+        # (pre-gt-3-1) so those pointers must not be created either.
         after_files = set(install_spine.rglob("*"))
         new_files = after_files - before_files
         allowed = {
             install_spine / "config" / "ags" / "colors.css",
-            install_spine / "config" / "ags",
-            install_spine / "config",
         }
-        assert new_files <= allowed and (
-            install_spine / "config" / "ags" / "colors.css"
-        ) in new_files, (
-            f"only the R2 consumer symlink may be written under install_spine; got {new_files}"
+        assert new_files == allowed, (
+            f"only the spec'd consumer pointer symlink may be written under "
+            f"install_spine; got {new_files}"
         )
 
 
@@ -818,3 +865,367 @@ class TestR2ConsumerSymlink:
 
         assert stale.is_symlink(), "stale copy must be replaced with the R2 symlink"
         assert os.readlink(stale) == str(tmp_path / "current" / "colors.gtk.css")
+
+
+class TestConsumerPointerSpec:
+    """gt-2-2: the generic spec-driven loop (StaticConsumerPathSpec table)
+    implements each investigation §3 rule exactly once."""
+
+    AGS = "config/ags/colors.css"
+    GTK3 = "config/gtk-3.0/colors.css"
+    GTK4 = "config/gtk-4.0/colors.css"
+
+    @staticmethod
+    def _provision_current(
+        state_root: Path, artifacts: tuple[str, ...] = ("colors.gtk.css", "colors.adw.css")
+    ) -> None:
+        current = state_root / "current"
+        current.mkdir(parents=True, exist_ok=True)
+        for name in artifacts:
+            (current / name).write_text(f"/* {name} */\n")
+
+    def test_all_three_pointers_created_when_parents_exist(self, tmp_path: Path) -> None:
+        install_spine = tmp_path / "install"
+        for d in ("config/ags", "config/gtk-3.0", "config/gtk-4.0"):
+            (install_spine / d).mkdir(parents=True)
+        self._provision_current(tmp_path)
+        seeder = CacheSeeder(tmp_path)
+
+        created = seeder.repoint_consumer_symlinks(install_spine, "p" * 64)
+
+        current = tmp_path / "current"
+        assert [p.name for p in created] == ["colors.css"] * 3
+        assert os.readlink(install_spine / self.AGS) == str(current / "colors.gtk.css")
+        assert os.readlink(install_spine / self.GTK3) == str(current / "colors.gtk.css")
+        assert os.readlink(install_spine / self.GTK4) == str(current / "colors.adw.css")
+
+    def test_gtk_pointers_skip_with_warning_when_parents_absent(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Pre-gt-3-1: gtk spine dirs don't exist — skip + warn, ags still
+        created, no crash, no dirs created (never mkdir into the spine)."""
+        install_spine = tmp_path / "install"
+        (install_spine / "config" / "ags").mkdir(parents=True)
+        self._provision_current(tmp_path)
+        seeder = CacheSeeder(tmp_path)
+
+        with caplog.at_level(logging.WARNING, logger="runtime.adapters.seeder"):
+            created = seeder.repoint_consumer_symlinks(install_spine, "p" * 64)
+
+        assert created == [install_spine / self.AGS]
+        assert os.readlink(install_spine / self.AGS) == str(
+            tmp_path / "current" / "colors.gtk.css"
+        )
+        assert not (install_spine / "config" / "gtk-3.0").exists()
+        assert not (install_spine / "config" / "gtk-4.0").exists()
+        gtk_warnings = [r for r in caplog.records if "destination parent missing" in r.message]
+        assert len(gtk_warnings) == 2
+
+    def test_regular_file_at_dest_replaced_with_symlink(self, tmp_path: Path) -> None:
+        install_spine = tmp_path / "install"
+        (install_spine / "config" / "gtk-3.0").mkdir(parents=True)
+        self._provision_current(tmp_path)
+        stale = install_spine / self.GTK3
+        stale.write_text("@define-color stale #000000;\n")
+        seeder = CacheSeeder(tmp_path)
+
+        created = seeder.repoint_consumer_symlinks(install_spine, "p" * 64)
+
+        assert created == [stale]
+        assert stale.is_symlink()
+        assert os.readlink(stale) == str(tmp_path / "current" / "colors.gtk.css")
+
+    def test_missing_target_skips_only_that_pointer(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Per-pointer guard (not all-or-nothing): missing colors.adw.css
+        skips only the gtk-4.0 pointer — ags + gtk-3.0 still created."""
+        install_spine = tmp_path / "install"
+        for d in ("config/ags", "config/gtk-3.0", "config/gtk-4.0"):
+            (install_spine / d).mkdir(parents=True)
+        self._provision_current(tmp_path, artifacts=("colors.gtk.css",))
+        seeder = CacheSeeder(tmp_path)
+
+        with caplog.at_level(logging.WARNING, logger="runtime.adapters.seeder"):
+            created = seeder.repoint_consumer_symlinks(install_spine, "p" * 64)
+
+        assert created == [install_spine / self.AGS, install_spine / self.GTK3]
+        gtk4 = install_spine / self.GTK4
+        assert not gtk4.exists() and not gtk4.is_symlink()
+        assert any("colors.adw.css missing" in r.message for r in caplog.records)
+
+    def test_null_palette_removes_all_existing_pointers(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        install_spine = tmp_path / "install"
+        for d in ("config/ags", "config/gtk-3.0", "config/gtk-4.0"):
+            (install_spine / d).mkdir(parents=True)
+        self._provision_current(tmp_path)
+        seeder = CacheSeeder(tmp_path)
+        seeder.repoint_consumer_symlinks(install_spine, "p" * 64)
+
+        with caplog.at_level(logging.WARNING, logger="runtime.adapters.seeder"):
+            created = seeder.repoint_consumer_symlinks(install_spine, None)
+
+        assert created == []
+        for rel in (self.AGS, self.GTK3, self.GTK4):
+            dest = install_spine / rel
+            assert not dest.exists() and not dest.is_symlink()
+        removals = [r for r in caplog.records if "palette layer is null" in r.message]
+        assert len(removals) == 3
+
+    def test_null_palette_missing_ok_no_crash(self, tmp_path: Path) -> None:
+        """missing_ok: a null palette with NO existing pointers is clean."""
+        install_spine = tmp_path / "install"
+        (install_spine / "config" / "ags").mkdir(parents=True)
+        seeder = CacheSeeder(tmp_path)
+
+        created = seeder.repoint_consumer_symlinks(install_spine, None)
+
+        assert created == []
+
+    def test_rerun_idempotent_no_divergence(self, tmp_path: Path) -> None:
+        install_spine = tmp_path / "install"
+        for d in ("config/ags", "config/gtk-3.0", "config/gtk-4.0"):
+            (install_spine / d).mkdir(parents=True)
+        self._provision_current(tmp_path)
+        seeder = CacheSeeder(tmp_path)
+        first = seeder.repoint_consumer_symlinks(install_spine, "p" * 64)
+
+        second = seeder.repoint_consumer_symlinks(install_spine, "p" * 64)
+
+        assert second == first
+        for rel, target in (
+            (self.AGS, "colors.gtk.css"),
+            (self.GTK3, "colors.gtk.css"),
+            (self.GTK4, "colors.adw.css"),
+        ):
+            assert os.readlink(install_spine / rel) == str(tmp_path / "current" / target)
+
+    def test_custom_spec_is_consumed_generically(self, tmp_path: Path) -> None:
+        """Adding a consumer = one spec line — the loop consumes ANY spec."""
+        from runtime.adapters.consumer_path_spec import StaticConsumerPathSpec
+        from runtime.domain.models import ConsumerPointer
+
+        class _ExtendedSpec(StaticConsumerPathSpec):
+            def consumer_pointers(self) -> tuple[ConsumerPointer, ...]:
+                return (
+                    ConsumerPointer(path="config/rofi/colors.rasi", target="colors.gtk.css"),
+                )
+
+        install_spine = tmp_path / "install"
+        (install_spine / "config" / "rofi").mkdir(parents=True)
+        self._provision_current(tmp_path)
+
+        created = CacheSeeder(tmp_path, consumer_spec=_ExtendedSpec()).repoint_consumer_symlinks(
+            install_spine, "p" * 64
+        )
+
+        assert created == [install_spine / "config" / "rofi" / "colors.rasi"]
+        assert os.readlink(created[0]) == str(tmp_path / "current" / "colors.gtk.css")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# AC 8 — pre-growth palette entry migration (incomplete-entry eviction)
+# ═══════════════════════════════════════════════════════════════════
+
+
+class TestPreGrowthPaletteEntryMigration:
+    """Story gt-2-1 AC 8: an on-disk cache entry holding only the 3 legacy
+    artifacts + old-shape meta.json is a cache MISS — evicted (logged) and
+    regenerated in full (5 artifacts + 5-key meta) through the normal
+    staging pipeline at the SAME <ph> (cache keys unchanged, NFR-4).
+    Idempotent: the second pass is a clean hit — no re-eviction."""
+
+    @staticmethod
+    def _populate_pre_growth_entry(state_root: Path, install_spine: Path) -> Path:
+        """Create a pre-growth partial palette entry at the correct <ph>."""
+        from runtime.adapters.hashing import canonical_hash_dir, palette_entry_hash
+
+        templates = install_spine / "config" / "color-scheme-generator" / "templates"
+        wh = _make_wallpaper_hash()
+        template_hash = canonical_hash_dir(templates)
+        ph = palette_entry_hash(wh, template_hash)
+        entry = state_root / "cache" / "palettes" / ph
+        entry.mkdir(parents=True)
+        (entry / "colors.yaml").write_text("colors: []")
+        (entry / "colors.conf").write_text("colors {}")
+        (entry / "colors.gtk.css").write_text("colors {}")
+        CacheSeeder(state_root).write_palette_meta_in(
+            entry,
+            entry_hash=ph,
+            source_wallpaper_hash=wh,
+            input_template_hash=template_hash,
+            artifact_hashes={  # old shape: 3 keys only (pre-growth)
+                "colors.yaml": "d" * 64,
+                "colors.conf": "e" * 64,
+                "colors.gtk.css": "f" * 64,
+            },
+            generated_at="2026-01-01T00:00:00Z",
+        )
+        return entry
+
+    def test_seed_migrates_pre_growth_entry(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """First post-upgrade run: incomplete entry evicted + regenerated;
+        current/ gains the two new symlinks on that same run."""
+        install_spine = tmp_path / "install"
+        _setup_install_spine(install_spine)
+        entry = self._populate_pre_growth_entry(tmp_path, install_spine)
+        repo = _FakeStateRepo()  # no current.json → seed runs
+
+        use_case = _make_use_case(tmp_path, repo, install_spine)
+        with caplog.at_level(logging.INFO, logger="runtime.application.derive"):
+            use_case.run()
+
+        assert any("evicting" in r.message for r in caplog.records), (
+            "incomplete pre-growth entry eviction must be logged"
+        )
+        state = repo.saved[0]
+        assert state.palette is not None
+        peh = state.palette.entry_hash
+        assert entry.name == peh  # SAME <ph> — cache keys unchanged (NFR-4)
+        palette_dir = tmp_path / "cache" / "palettes" / peh
+        meta = json.loads((palette_dir / "meta.json").read_text())
+        assert set(meta["artifact_hashes"]) == {
+            "colors.yaml",
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.adw.css",
+            "colors.sequences",
+        }
+        for name in meta["artifact_hashes"]:
+            assert (palette_dir / name).is_file(), f"missing regenerated artifact {name}"
+        # current/ carries the two new symlinks
+        current_dir = tmp_path / "current"
+        palette_dir_resolved = palette_dir.resolve()
+        for name in ("colors.adw.css", "colors.sequences"):
+            link = current_dir / name
+            assert link.is_symlink(), f"missing symlink {name}"
+            assert link.resolve() == (palette_dir_resolved / name)
+
+    def test_pipeline_migration_is_idempotent(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """DerivationPipeline.ensure_palette: incomplete → miss+evict+regen;
+        second pass on the regenerated entry → clean hit, no re-eviction."""
+        from runtime.application.derive import DerivationPipeline
+
+        install_spine = tmp_path / "install"
+        _setup_install_spine(install_spine)
+        entry = self._populate_pre_growth_entry(tmp_path, install_spine)
+        pipeline = DerivationPipeline(
+            state_root=tmp_path,
+            seeder=CacheSeeder(tmp_path),
+            csg=_FakeCsg(),
+            weg=_FakeWeg(),
+            itr=_FakeItr(),
+            install_spine=install_spine,
+        )
+        with caplog.at_level(logging.INFO, logger="runtime.application.derive"):
+            entry1, hit1 = pipeline.ensure_palette(WALLPAPER_PNG, _make_wallpaper_hash())
+        assert hit1 is False
+        assert entry1.entry_hash == entry.name
+        meta1 = json.loads((entry / "meta.json").read_text())
+        assert set(meta1["artifact_hashes"]) == {
+            "colors.yaml",
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.adw.css",
+            "colors.sequences",
+        }
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="runtime.application.derive"):
+            entry2, hit2 = pipeline.ensure_palette(WALLPAPER_PNG, _make_wallpaper_hash())
+        assert hit2 is True
+        assert not any("evicting" in r.message for r in caplog.records)
+        assert json.loads((entry / "meta.json").read_text()) == meta1  # untouched
+        assert entry2.entry_hash == entry1.entry_hash
+
+    def test_incomplete_entry_eviction_never_leaves_half_evicted_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """rmtree with ignore_errors=False: an OSError during eviction
+        propagates (caller failure policy applies) — never a silent partial."""
+        from runtime.application.derive import DerivationPipeline, ensure_palette_entry_complete
+
+        install_spine = tmp_path / "install"
+        _setup_install_spine(install_spine)
+        entry = self._populate_pre_growth_entry(tmp_path, install_spine)
+        pipeline = DerivationPipeline(
+            state_root=tmp_path,
+            seeder=CacheSeeder(tmp_path),
+            csg=_FakeCsg(),
+            weg=_FakeWeg(),
+            itr=_FakeItr(),
+            install_spine=install_spine,
+        )
+
+        def _boom(target: object, **kwargs: object) -> None:
+            raise OSError("eviction failed")
+
+        monkeypatch.setattr(
+            "runtime.application.derive.shutil.rmtree",
+            _boom,
+        )
+        with pytest.raises(OSError, match="eviction failed"):
+            pipeline.ensure_palette(WALLPAPER_PNG, _make_wallpaper_hash())
+        # The incomplete entry dir still exists (half-evicted state prevented)
+        assert entry.exists()
+        # And the guard itself surfaces the same failure loudly
+        with pytest.raises(OSError, match="eviction failed"):
+            ensure_palette_entry_complete(entry, CacheSeeder(tmp_path))
+
+
+class TestRepointCurrentSymlinksPaletteArtifactSkip:
+    """Seeder-level defense-in-depth (gt-2-1): per-artifact exists-or-symlink
+    check with skip+warn per missing artifact — now over the 5-name set."""
+
+    def test_missing_palette_artifacts_skip_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        seeder = CacheSeeder(tmp_path)
+        ph = "b" * 64
+        entry = tmp_path / "cache" / "palettes" / ph
+        entry.mkdir(parents=True)
+        (entry / "colors.conf").write_text("conf only")
+        with caplog.at_level(logging.WARNING, logger="runtime.adapters.seeder"):
+            created = seeder.repoint_current_symlinks(
+                wallpaper_target=tmp_path / "wall.png",
+                monitor_names=["DP-1"],
+                palette_entry_hash=ph,
+            )
+        names = [p.name for p in created]
+        assert "colors.conf" in names
+        for missing in ("colors.gtk.css", "colors.yaml", "colors.adw.css", "colors.sequences"):
+            assert missing not in names, f"{missing} must be skipped, never dangling"
+        assert sum("palette artifact missing" in r.message for r in caplog.records) == 4
+
+    def test_all_five_artifacts_repointed(self, tmp_path: Path) -> None:
+        seeder = CacheSeeder(tmp_path)
+        ph = "b" * 64
+        entry = tmp_path / "cache" / "palettes" / ph
+        entry.mkdir(parents=True)
+        for name in (
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.yaml",
+            "colors.adw.css",
+            "colors.sequences",
+        ):
+            (entry / name).write_text(name)
+        created = seeder.repoint_current_symlinks(
+            wallpaper_target=tmp_path / "wall.png",
+            monitor_names=["DP-1"],
+            palette_entry_hash=ph,
+        )
+        names = {p.name for p in created}
+        assert names == {
+            "wallpaper-DP-1.png",
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.yaml",
+            "colors.adw.css",
+            "colors.sequences",
+        }

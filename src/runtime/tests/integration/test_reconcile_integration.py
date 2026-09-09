@@ -37,6 +37,8 @@ class _FakeCsg:
         (output_dir / "colors.yaml").write_text("colors: []")
         (output_dir / "colors.conf").write_text("colors {}")
         (output_dir / "colors.gtk.css").write_text("colors {}")
+        (output_dir / "colors.adw.css").write_text("colors {}")
+        (output_dir / "colors.sequences").write_bytes(b"\x1b]4;0;#000\x1b\\")
         return PaletteEntry(
             hash_algorithm="sha256",
             kind="palette",
@@ -47,6 +49,8 @@ class _FakeCsg:
                 colors_yaml=hash_file(output_dir / "colors.yaml"),
                 colors_conf=hash_file(output_dir / "colors.conf"),
                 colors_gtk_css=hash_file(output_dir / "colors.gtk.css"),
+                colors_adw_css=hash_file(output_dir / "colors.adw.css"),
+                colors_sequences=hash_file(output_dir / "colors.sequences"),
             ),
             generated_at="2026-01-01T00:00:00Z",
         )
@@ -129,6 +133,9 @@ class TestReconcileIntegration:
         weg_config = install_spine / "config" / "weg"
         weg_config.mkdir(parents=True)
         (weg_config / "effects.yaml").write_text("effects: []\n")
+        # Provisioned-machine reality (Story gt-2-2): the AGS consumer-pointer
+        # parent exists; the no-mkdir parent guard requires it.
+        (install_spine / "config" / "ags").mkdir(parents=True, exist_ok=True)
         itr_templates = install_spine / "icon-templates"
         itr_templates.mkdir(parents=True)
         (itr_templates / "terminal.svg").write_text("<svg/>")
@@ -208,6 +215,9 @@ class TestReconcileIntegration:
         assert links["colors.conf"] == state_root / "cache" / "palettes" / peh / "colors.conf"
         assert links["colors.gtk.css"] == state_root / "cache" / "palettes" / peh / "colors.gtk.css"
         assert links["colors.yaml"] == state_root / "cache" / "palettes" / peh / "colors.yaml"
+        assert links["colors.adw.css"] == state_root / "cache" / "palettes" / peh / "colors.adw.css"
+        pal = state_root / "cache" / "palettes" / peh
+        assert links["colors.sequences"] == pal / "colors.sequences"
         assert links["effects"] == state_root / "cache" / "effects" / eeh
         assert links["icons"] == state_root / "cache" / "icons" / ieh
 

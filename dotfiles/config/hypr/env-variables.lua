@@ -3,7 +3,14 @@
 
 hl.env("XCURSOR_SIZE", "24")
 hl.env("XCURSOR_THEME", "Adwaita")
-hl.env("GTK_THEME", "Adwaita:dark")
+-- GTK_THEME REMOVED (gt-4-1, 2026-09-08): forcing "Adwaita:dark" here made GTK
+-- load the plain GTK theme in place of libadwaita's stylesheet at a priority
+-- that beats ALL user-CSS overrides (~/.config/gtk-4.0/gtk.css) — the runtime's
+-- wallpaper-derived palette (current/colors.adw.css via the gtk-4.0 chain)
+-- never reached libadwaita apps while this was set (machine-verified: pure-red
+-- override rendered only after unsetting this var). Light/dark now comes from
+-- gsettings org.gnome.desktop.interface color-scheme; colors come from the
+-- runtime palette CSS.
 hl.env("QT_QPA_PLATFORMTHEME", "gtk3")
 hl.env("QT_QPA_PLATFORM", "wayland")
 hl.env("SDL_VIDEODRIVER", "wayland")

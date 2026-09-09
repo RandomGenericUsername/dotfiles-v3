@@ -793,6 +793,122 @@ class TestVerifyTasks:
             "config_links_managed_dirs (every managed link is asserted)"
         )
 
+    def _gtk_skeleton_stat_task(self) -> dict[str, object]:
+        matches = [
+            task
+            for task in _stat_tasks()
+            if "verify_gtk_skeleton_checks" == str(task.get("register"))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one gtk-skeleton stat task; found {len(matches)}"
+        )
+        return matches[0]
+
+    def _gtk_skeleton_stat_assert_task(self) -> dict[str, object]:
+        matches = [
+            task
+            for task in _assert_tasks()
+            if "verify_gtk_skeleton_checks" in str(_module(task).get("that", ""))
+        ]
+        assert len(matches) == 1, f"expected exactly one gtk-skeleton assert; found {len(matches)}"
+        return matches[0]
+
+    def _gtk_grep_gate_task(self) -> dict[str, object]:
+        matches = [
+            task
+            for task in _command_tasks()
+            if "verify_gtk_import_checks" == str(task.get("register"))
+        ]
+        assert len(matches) == 1, f"expected exactly one gtk-import grep gate; found {len(matches)}"
+        return matches[0]
+
+    def _gtk_grep_assert_task(self) -> dict[str, object]:
+        matches = [
+            task
+            for task in _assert_tasks()
+            if "verify_gtk_import_checks" in str(_module(task).get("that", ""))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one gtk-import grep assert; found {len(matches)}"
+        )
+        return matches[0]
+
+    def test_gtk_skeleton_files_stat_pair_exists_and_is_check_gated(self) -> None:
+        """gt-3-1 (criterion 9 layer 4 for the gtk dirs): a stat+assert pair
+        over verify_gtk_skeleton_files reads THROUGH the ~/.config/gtk-{3,4}.0
+        symlinks (follow: true) and asserts stat.isreg count parity — mirror
+        of the verify_config_copy_content pair. Both check-gated."""
+        stat_task = self._gtk_skeleton_stat_task()
+        assert "{{ verify_gtk_skeleton_files }}" in str(stat_task.get("loop", ""))
+        assert _module(stat_task).get("follow") is True, (
+            "the skeleton stat must pass follow: true (content read through the link)"
+        )
+        assert stat_task.get("when") == "not ansible_check_mode"
+
+        assert_task = self._gtk_skeleton_stat_assert_task()
+        that = str(_module(assert_task).get("that", ""))
+        assert "stat.isreg" in that
+        assert "verify_gtk_skeleton_files | length" in that, (
+            "the assert must derive its count from verify_gtk_skeleton_files | length"
+        )
+        assert assert_task.get("when") == "not ansible_check_mode"
+
+    def test_gtk_palette_import_grep_gate_is_a_real_gate(self) -> None:
+        """gt-3-1: the grep gate over both skeleton gtk.css files (through the
+        ~/.config links, mirroring the wlogout style.css gate) asserts the
+        exact `@import "colors.css";` line. The command task registers rc
+        (changed_when: false, failed_when: false) and is check-gated; the
+        assert consumes the register with rc==0 count parity and is
+        check-gated."""
+        gate = self._gtk_grep_gate_task()
+        text = _module_text(gate)
+        assert "grep" in text and "colors" in text, (
+            "the gate must grep the skeleton files for the palette import"
+        )
+        assert "{{ verify_gtk_skeleton_files }}" in str(gate.get("loop", ""))
+        assert gate.get("changed_when") is False
+        assert gate.get("failed_when") is False
+        assert gate.get("when") == "not ansible_check_mode"
+
+        assert_task = self._gtk_grep_assert_task()
+        that = str(_module(assert_task).get("that", ""))
+        assert "verify_gtk_import_checks.results | selectattr('rc', 'equalto', 0)" in that, (
+            "the assert must require rc == 0 for every grepped skeleton file"
+        )
+        assert "verify_gtk_skeleton_files | length" in that
+        assert assert_task.get("when") == "not ansible_check_mode"
+
+    def test_gtk_skeleton_files_var_pins_both_dirs_through_xdg(self) -> None:
+        """The skeleton list pins exactly ~/.config/gtk-{3,4}.0/gtk.css
+        (read through the links). settings.ini is deliberately absent
+        (user-machine state) and the runtime colors.css pointers are
+        deliberately absent (runtime-owned, gt-2-2)."""
+        data = _vars()
+        files = [str(f) for f in data["verify_gtk_skeleton_files"]]
+        assert files == [
+            "{{ verify_xdg_config_home }}/gtk-3.0/gtk.css",
+            "{{ verify_xdg_config_home }}/gtk-4.0/gtk.css",
+        ]
+        assert "settings.ini" not in str(data["verify_gtk_skeleton_files"]), (
+            "settings.ini must NOT be gated (user-machine state)"
+        )
+
+    def test_empty_list_guard_covers_the_gtk_skeleton_files(self) -> None:
+        """The vacuous-pass guard covers verify_gtk_skeleton_files — an
+        emptied list would make the skeleton + grep asserts pass 0 == 0."""
+        matches = [
+            task
+            for task in _assert_tasks()
+            if "verify_system_binaries | length > 0" in str(_module(task).get("that", ""))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one empty-list guard assert; found {len(matches)}"
+        )
+        that = str(_module(matches[0]).get("that", ""))
+        assert "verify_gtk_skeleton_files | length > 0" in that, (
+            "the empty-list guard must cover verify_gtk_skeleton_files"
+        )
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere —
         everything the role checks lives under the user's config home and
@@ -859,6 +975,7 @@ class TestVerifyVars:
         "verify_config_copies_targets",
         "verify_config_copy_content",
         "verify_managed_link_dirs",
+        "verify_gtk_skeleton_files",
         "verify_itr_list_target",
     }
 
@@ -993,6 +1110,8 @@ class TestVerifyVars:
             "colors.conf",
             "colors.yaml",
             "colors.gtk.css",
+            "colors.adw.css",
+            "colors.sequences",
         ]
 
     def test_state_current_dir_derived_from_verify_xdg_state_home(self) -> None:
@@ -1045,6 +1164,7 @@ class TestVerifyVars:
             "verify_itr_list_target",
             "verify_config_copy_content",
             "verify_managed_link_dirs",
+            "verify_gtk_skeleton_files",
             "verify_cli_bin_dir",
             "verify_bin_scripts",
             "install_dir",
@@ -1438,12 +1558,15 @@ def _build_provisioned_layout(
         "config/hyprpaper",
         "config/ags",
         "config/ags-capture",
+        "config/ags-icme",
         "config/nvim",
         "config/starship",
         "config/wlogout",
         "config/zsh",
         "config/weg",
         "config/itr",
+        "config/gtk-3.0",
+        "config/gtk-4.0",
     )
     for rel in spine_dirs:
         (install / rel).mkdir(parents=True, exist_ok=True)
@@ -1480,10 +1603,10 @@ def _build_provisioned_layout(
     state_current = state_home / "dotfiles" / "current"
     state_cache_palette = state_home / "dotfiles" / "cache" / "palettes" / "abc123"
     state_cache_palette.mkdir(parents=True)
-    for name in ("colors.conf", "colors.yaml", "colors.gtk.css"):
+    for name in ("colors.conf", "colors.yaml", "colors.gtk.css", "colors.adw.css", "colors.sequences"):
         (state_cache_palette / name).write_text("")
     state_current.mkdir(parents=True)
-    for name in ("colors.conf", "colors.yaml", "colors.gtk.css"):
+    for name in ("colors.conf", "colors.yaml", "colors.gtk.css", "colors.adw.css", "colors.sequences"):
         (state_current / name).symlink_to(state_cache_palette / name)
     state_cache_icons = state_home / "dotfiles" / "cache" / "icons" / "def456"
     state_cache_icons.mkdir(parents=True)
@@ -1564,9 +1687,12 @@ def _build_provisioned_layout(
     (install / "config" / "wlogout" / "layout").write_text("")
     # Rendered shell configs (zsh_config + wlogout_config roles): verify checks
     # the FINAL .zshrc / style.css, not the .j2/.tpl sources.
+    # gt-3-2: the .zshrc cat line reads the runtime state-root current pointer
+    # (criterion 12's grep is tightened to current/colors\.sequences — the
+    # orphaned <INSTALL>/generated/palettes/ path would fail the gate).
     (install / "config" / "zsh" / ".zshrc").write_text(
         'command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"\n'
-        '(cat "<INSTALL>/generated/palettes/colors.sequences" &)\n'
+        '(cat "<STATE>/dotfiles/current/colors.sequences" &)\n'
     )
     (install / "config" / "wlogout" / "style.css").write_text(
         '@import url("<INSTALL>/config/ags/colors.css");\nbutton { color: @color_15; }\n'
@@ -1586,6 +1712,7 @@ def _build_provisioned_layout(
         "hyprpaper",
         "ags",
         "ags-capture",
+        "ags-icme",
         "nvim",
         "starship",
         "wlogout",
@@ -1593,5 +1720,13 @@ def _build_provisioned_layout(
         "color-scheme-generator",
         "weg",
         "itr",
+        "gtk-3.0",
+        "gtk-4.0",
     ):
         (xdg / name).symlink_to(install / "config" / name, target_is_directory=True)
+
+    # GTK skeleton files (gt-3-1): both spine gtk.css files carry the exact
+    # palette-import line the config-links role ensures (the fixture IS the
+    # provisioned machine and must satisfy the skeleton + grep criteria).
+    for name in ("gtk-3.0", "gtk-4.0"):
+        (install / "config" / name / "gtk.css").write_text('@import "colors.css";\n')

@@ -151,7 +151,7 @@ Responsible for:
 Examples:
 
 - install Hyprland
-- install Waybar
+- install AGS (bar shell — correct-course 2026-08-18)
 - install fonts
 - install CLI tools
 - place wallpapers
@@ -825,7 +825,7 @@ Examples:
 | Artifact | Derived From |
 |---|---|
 | Color palette | Wallpaper |
-| Waybar theme | Palette |
+| AGS bar theme | Palette |
 | Icon theme | Theme state |
 | Blur effects | Wallpaper |
 | Config files | Multiple inputs |

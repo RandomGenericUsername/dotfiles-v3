@@ -84,6 +84,8 @@ class _FakeCsg:
         (output_dir / "colors.yaml").write_text("colors: []")
         (output_dir / "colors.conf").write_text("colors {}")
         (output_dir / "colors.gtk.css").write_text("colors {}")
+        (output_dir / "colors.adw.css").write_text("colors {}")
+        (output_dir / "colors.sequences").write_bytes(b"\x1b]4;0;#000\x1b\\")
         return PaletteEntry(
             hash_algorithm="sha256",
             kind="palette",
@@ -94,6 +96,8 @@ class _FakeCsg:
                 colors_yaml=hash_file(output_dir / "colors.yaml"),
                 colors_conf=hash_file(output_dir / "colors.conf"),
                 colors_gtk_css=hash_file(output_dir / "colors.gtk.css"),
+                colors_adw_css=hash_file(output_dir / "colors.adw.css"),
+                colors_sequences=hash_file(output_dir / "colors.sequences"),
             ),
             generated_at=_now_z(),
         )
@@ -218,13 +222,18 @@ class _Applied:
 
 
 def _setup_spine(install_spine: Path) -> None:
-    """Create spine config inputs (templates/catalog/icon assets)."""
+    """Create spine config inputs (templates/catalog/icon assets).
+
+    ``config/ags/`` reflects provisioned-machine reality (Story gt-2-2:
+    the no-mkdir parent guard requires the pointer's parent to exist).
+    """
     csg_templates = install_spine / "config" / "color-scheme-generator" / "templates"
     csg_templates.mkdir(parents=True)
     (csg_templates / "default.yaml").write_text("window: {}\n")
     weg_config = install_spine / "config" / "weg"
     weg_config.mkdir(parents=True)
     (weg_config / "effects.yaml").write_text("effects: []\n")
+    (install_spine / "config" / "ags").mkdir(parents=True, exist_ok=True)
     itr_templates = install_spine / "icon-templates"
     itr_templates.mkdir(parents=True)
     (itr_templates / "terminal.svg").write_text("<svg/>")
@@ -330,6 +339,8 @@ class TestReconcileHappyPath:
             "colors.conf",
             "colors.gtk.css",
             "colors.yaml",
+            "colors.adw.css",
+            "colors.sequences",
             "effects",
             "icons",
         }
@@ -339,6 +350,8 @@ class TestReconcileHappyPath:
         assert links["colors.conf"] == str(palette_dir / "colors.conf")
         assert links["colors.gtk.css"] == str(palette_dir / "colors.gtk.css")
         assert links["colors.yaml"] == str(palette_dir / "colors.yaml")
+        assert links["colors.adw.css"] == str(palette_dir / "colors.adw.css")
+        assert links["colors.sequences"] == str(palette_dir / "colors.sequences")
         assert links["effects"] == str(applied.state_root / "cache" / "effects" / loaded.effects.entry_hash)
         assert links["icons"] == str(applied.state_root / "cache" / "icons" / loaded.icons.entry_hash)
         assert sorted(p.name for p in result.repointed) == sorted(links)
@@ -352,6 +365,39 @@ class TestReconcileHappyPath:
         assert r2_link.is_symlink(), "R2 consumer symlink must be created by reconcile"
         assert os_readlink(r2_link) == str(applied.state_root / "current" / "colors.gtk.css")
         assert result.consumer_symlinks == [r2_link]
+        # gt-2-2: gtk pointer parents are NOT provisioned here — skipped
+        # with a warning (never mkdir into the spine), ags-only coverage.
+        assert not (applied.install_spine / "config" / "gtk-3.0").exists()
+        assert not (applied.install_spine / "config" / "gtk-4.0").exists()
+
+    def test_repoints_all_three_consumer_pointers_when_parents_exist(
+        self, tmp_path: Path
+    ) -> None:
+        """gt-2-2 spec loop: with provisioned gtk spine dirs all three
+        pointers are created (ags + gtk-3.0 → colors.gtk.css; gtk-4.0 →
+        colors.adw.css), in table order."""
+        applied = _apply_state(tmp_path)
+        gtk3 = applied.install_spine / "config" / "gtk-3.0"
+        gtk4 = applied.install_spine / "config" / "gtk-4.0"
+        gtk3.mkdir(parents=True)
+        gtk4.mkdir(parents=True)
+        use_case = _make_reconcile(applied)
+        loaded = applied.repo.load_current()
+        assert loaded is not None
+        assert loaded.palette is not None
+
+        result = use_case.run()
+
+        current = applied.state_root / "current"
+        ags = applied.install_spine / "config" / "ags" / "colors.css"
+        assert result.consumer_symlinks == [
+            ags,
+            gtk3 / "colors.css",
+            gtk4 / "colors.css",
+        ]
+        assert os_readlink(ags) == str(current / "colors.gtk.css")
+        assert os_readlink(gtk3 / "colors.css") == str(current / "colors.gtk.css")
+        assert os_readlink(gtk4 / "colors.css") == str(current / "colors.adw.css")
 
     def test_no_copy_every_current_entry_is_a_symlink(self, tmp_path: Path) -> None:
         applied = _apply_state(tmp_path)
@@ -480,11 +526,22 @@ class TestReconcileFailurePolicy:
 
     def test_null_palette_removes_r2_consumer_symlink(self, tmp_path: Path) -> None:
         """Epic 4 R2: a null palette removes the consumer symlink (never
-        stale) — e.g. after a CSG failure degraded a previous good run."""
+        stale) — e.g. after a CSG failure degraded a previous good run.
+        gt-2-2: ALL spec'd pointers are removed (ags + gtk), missing_ok."""
         applied = _apply_state(tmp_path)
-        r2 = applied.install_spine / "config" / "ags" / "colors.css"
-        r2.parent.mkdir(parents=True, exist_ok=True)
-        r2.symlink_to(applied.state_root / "current" / "colors.gtk.css")
+        current = applied.state_root / "current"
+        pointers = [
+            applied.install_spine / "config" / "ags" / "colors.css",
+            applied.install_spine / "config" / "gtk-3.0" / "colors.css",
+            applied.install_spine / "config" / "gtk-4.0" / "colors.css",
+        ]
+        for p in pointers:
+            p.parent.mkdir(parents=True, exist_ok=True)
+        pointers[0].symlink_to(current / "colors.gtk.css")
+        pointers[1].symlink_to(current / "colors.gtk.css")
+        # A regular-file dest is also removed (missing_ok semantics —
+        # never leave a stale provisioning copy serving as current).
+        pointers[2].write_text("@define-color stale #000000;\n")
         loaded = applied.repo.load_current()
         assert loaded is not None
         applied.repo.save(
@@ -502,12 +559,16 @@ class TestReconcileFailurePolicy:
 
         result = use_case.run()
 
-        assert not r2.exists() and not r2.is_symlink(), (
-            "null palette must remove the R2 consumer symlink (never stale)"
-        )
+        for p in pointers:
+            assert not p.exists() and not p.is_symlink(), (
+                "null palette must remove every existing consumer pointer (never stale)"
+            )
         assert result.consumer_symlinks == []
 
-    def test_missing_palette_artifact_skipped_never_dangling(self, tmp_path: Path) -> None:
+    def test_missing_palette_artifact_triggers_regeneration(self, tmp_path: Path) -> None:
+        """AC 8 migration: an entry missing an artifact FILE is incomplete →
+        the shared completeness guard evicts + regenerates it (never a
+        dangling current/ link, never a false hit)."""
         applied = _apply_state(tmp_path)
         loaded = applied.repo.load_current()
         assert loaded is not None
@@ -519,10 +580,10 @@ class TestReconcileFailurePolicy:
         result = use_case.run()
 
         links = _symlink_map(applied.state_root / "current")
-        assert "colors.gtk.css" not in links  # not created — never dangling
-        assert "colors.conf" in links
-        assert "colors.yaml" in links
-        assert any("colors.gtk.css" in s for s in result.skipped)
+        assert (palette_dir / "colors.gtk.css").is_file()  # regenerated
+        assert links["colors.gtk.css"] == str(palette_dir / "colors.gtk.css")
+        assert result.cache_regenerated == ["palette"]
+        assert result.skipped == []
 
     def test_empty_monitors_default_to_dp1(self, tmp_path: Path) -> None:
         applied = _apply_state(tmp_path)

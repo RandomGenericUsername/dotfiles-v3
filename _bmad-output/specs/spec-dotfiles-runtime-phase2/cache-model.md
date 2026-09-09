@@ -9,18 +9,24 @@ $XDG_STATE_HOME/dotfiles/                ← state_root (runtime-owned, AD-5)
 ├── current.json                         ← manifest: current derivation projection
 ├── history.jsonl                        ← append-only, must-not-lose (AD-4)
 ├── current/                             ← directory of symlinks (consumers read here)
-│   ├── wallpaper.png   → cache/wallpapers/<wh>/wallpaper.png
+│   ├── wallpaper-<monitor>.png → cache/wallpapers/<wh>/wallpaper.png  (per-monitor)
 │   ├── colors.yaml     → cache/palettes/<ph>/colors.yaml
 │   ├── colors.conf     → cache/palettes/<ph>/colors.conf
 │   ├── colors.gtk.css  → cache/palettes/<ph>/colors.gtk.css
+│   ├── colors.adw.css  → cache/palettes/<ph>/colors.adw.css   (gt-2-1)
+│   ├── colors.sequences→ cache/palettes/<ph>/colors.sequences (gt-2-1)
 │   ├── effects/        → cache/effects/<eh>/           (dir symlink)
 │   └── icons/          → cache/icons/<ih>/              (dir symlink)
 └── cache/
     ├── wallpapers/<wh>/{wallpaper.png, meta.json}
-    ├── palettes/<ph>/{colors.yaml, colors.conf, colors.gtk.css, meta.json}
+    ├── palettes/<ph>/{colors.yaml, colors.conf, colors.gtk.css, colors.adw.css, colors.sequences, meta.json}
     ├── effects/<eh>/{*.png, meta.json}
     └── icons/<ih>/{*.svg, meta.json}
 ```
+
+Consumer-pointer symlinks (AD-11 exception class, spec'd in
+`shared-data-contract.md`) additionally route AGS + gtk-3.0 →
+`colors.gtk.css` and gtk-4.0 → `colors.adw.css` from the spine config dirs.
 
 ## Derivation layers and cache keys
 

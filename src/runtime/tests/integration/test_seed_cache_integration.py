@@ -8,6 +8,7 @@ state surfacing and reseed after a crashed prior run.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,8 @@ class _FakeCsg:
         (output_dir / "colors.yaml").write_text("colors: []")
         (output_dir / "colors.conf").write_text("colors {}")
         (output_dir / "colors.gtk.css").write_text("colors {}")
+        (output_dir / "colors.adw.css").write_text("colors {}")
+        (output_dir / "colors.sequences").write_bytes(b"\x1b]4;0;#000\x1b\\")
         return PaletteEntry(
             hash_algorithm="sha256",
             kind="palette",
@@ -46,6 +49,8 @@ class _FakeCsg:
                 colors_yaml=hash_file(output_dir / "colors.yaml"),
                 colors_conf=hash_file(output_dir / "colors.conf"),
                 colors_gtk_css=hash_file(output_dir / "colors.gtk.css"),
+                colors_adw_css=hash_file(output_dir / "colors.adw.css"),
+                colors_sequences=hash_file(output_dir / "colors.sequences"),
             ),
             generated_at="2026-01-01T00:00:00Z",
         )
@@ -122,6 +127,9 @@ class TestSeedCacheIntegration:
         weg_config = install_spine / "config" / "weg"
         weg_config.mkdir(parents=True)
         (weg_config / "effects.yaml").write_text("effects: []\n")
+        # Provisioned-machine reality (Story gt-2-2): the AGS consumer-pointer
+        # parent exists; the no-mkdir parent guard requires it.
+        (install_spine / "config" / "ags").mkdir(parents=True, exist_ok=True)
         itr_templates = install_spine / "icon-templates"
         itr_templates.mkdir(parents=True)
         (itr_templates / "terminal.svg").write_text("<svg/>")
@@ -193,7 +201,13 @@ class TestSeedCacheIntegration:
         wp_link = current_dir / "wallpaper-DP-1.png"
         assert wp_link.is_symlink()
         assert wp_link.exists()  # symlink resolves
-        for name in ("colors.conf", "colors.gtk.css", "colors.yaml"):
+        for name in (
+            "colors.conf",
+            "colors.gtk.css",
+            "colors.yaml",
+            "colors.adw.css",
+            "colors.sequences",
+        ):
             assert (current_dir / name).is_symlink()
             assert (current_dir / name).exists()
         assert (current_dir / "effects").is_symlink()
@@ -224,25 +238,46 @@ class TestSeedCacheIntegration:
 
     def test_install_spine_unmodified_except_r2_symlink(self, tmp_path: Path) -> None:
         """AD-11 + Epic 4 R2 exception: nothing written under install_spine
-        EXCEPT the single R2 consumer symlink."""
+        EXCEPT the spec'd consumer pointer paths (gt-2-2 pointer class —
+        parents are NEVER created; gtk pointers skip on absent parents)."""
         install_spine, _, _, use_case = self._setup(tmp_path)
 
         # Record before
         before = set(install_spine.rglob("*"))
         use_case.run()
 
-        # Only the R2 consumer symlink (plus created parents) may appear
+        # Only the ags pointer symlink may appear — no created parent dirs,
+        # no gtk pointer files (their parents are absent pre-gt-3-1).
         after = set(install_spine.rglob("*"))
         new_files = after - before
         allowed = {
             install_spine / "config" / "ags" / "colors.css",
-            install_spine / "config" / "ags",
-            install_spine / "config",
         }
-        assert new_files <= allowed and (
-            install_spine / "config" / "ags" / "colors.css"
-        ) in new_files, (
-            f"only the R2 consumer symlink may be written under install_spine; got {new_files}"
+        assert new_files == allowed, (
+            f"only the spec'd consumer pointer symlink may be written under "
+            f"install_spine; got {new_files}"
+        )
+
+    def test_seed_creates_all_consumer_pointers_when_gtk_dirs_provisioned(
+        self, tmp_path: Path
+    ) -> None:
+        """gt-2-2: with provisioned gtk spine dirs the seed path creates all
+        three pointers (ags + gtk-3.0 → colors.gtk.css; gtk-4.0 → colors.adw.css)."""
+        install_spine, state_root, _, use_case = self._setup(tmp_path)
+        (install_spine / "config" / "gtk-3.0").mkdir()
+        (install_spine / "config" / "gtk-4.0").mkdir()
+
+        use_case.run()
+
+        current = state_root / "current"
+        assert os.readlink(install_spine / "config" / "ags" / "colors.css") == str(
+            current / "colors.gtk.css"
+        )
+        assert os.readlink(install_spine / "config" / "gtk-3.0" / "colors.css") == str(
+            current / "colors.gtk.css"
+        )
+        assert os.readlink(install_spine / "config" / "gtk-4.0" / "colors.css") == str(
+            current / "colors.adw.css"
         )
 
     def test_corrupt_current_json_fails_loudly(self, tmp_path: Path) -> None:

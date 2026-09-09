@@ -52,6 +52,8 @@ class PaletteArtifacts(TypedDict):
     colors_yaml: str  # key: "colors.yaml"
     colors_conf: str  # key: "colors.conf"
     colors_gtk_css: str  # key: "colors.gtk.css"
+    colors_adw_css: str  # key: "colors.adw.css"
+    colors_sequences: str  # key: "colors.sequences"
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +67,35 @@ class PaletteEntry:
     input_template_hash: str  # canonicalized hash of CSG templates dir
     artifact_hashes: PaletteArtifacts
     generated_at: str  # ISO-8601 UTC timestamp
+
+
+@dataclass(frozen=True, slots=True)
+class ConsumerPointer:
+    """One declarative consumer-pointer table entry (investigation §3).
+
+    Pure contract data (gt-4.2 ``shared-data-contract.md`` ConsumerPointer
+    table): ``path`` is posix-relative to the install spine (e.g.
+    ``"config/ags/colors.css"``); ``target`` is posix-relative to
+    ``state_root/current/`` (e.g. ``"colors.gtk.css"``). Zero I/O.
+    """
+
+    path: str  # spine-relative posix path of the consumer pointer
+    target: str  # current/-relative posix path of the target artifact
+
+
+@dataclass(frozen=True, slots=True)
+class ConsumerPointerRules:
+    """Rules governing consumer-pointer repoint semantics (investigation §3).
+
+    All flags default ``True`` (the pinned table has no per-pointer
+    variation); the seeder loop reads them once and implements the
+    semantics exactly once. Zero I/O.
+    """
+
+    remove_on_null_palette: bool = True
+    replace_regular_file: bool = True
+    skip_on_missing_target: bool = True
+    skip_on_missing_parent: bool = True
 
 
 class EffectsArtifacts(TypedDict, total=False):

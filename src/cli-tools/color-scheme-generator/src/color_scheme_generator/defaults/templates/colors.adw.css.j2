@@ -1,0 +1,108 @@
+/* colors.adw.css — libadwaita named-color overrides (csg format: adw.css)
+ *
+ * AR-2 pinned mapping (palette slot -> named color), contract data pinned in
+ * docs/ARCHITECTURE_PLAN.md (templates inventory). Final pin confirmed against
+ * a real palette render in story gt-1-1 (2026-09-07):
+ *   window/view/dialog (bg)            <- background            (neutral dark)
+ *   headerbar (bg)                     <- color-mix(colors[2] 55%, background)
+ *   card (bg)                          <- color-mix(colors[3] 35%, background)
+ *   popover/sidebar (bg)               <- color-mix(colors[1] 45%, background)
+ *   window/view/headerbar/card/dialog/popover/sidebar (fg) <- foreground
+ *   accent_color / accent_bg_color     <- color_04,  accent_fg_color   <- background
+ *   destructive_color / _bg_color    <- color_08,  destructive_fg_color <- background
+ *   success_color / _bg_color        <- color_06,  success_fg_color     <- background
+ *   warning_color / _bg_color        <- color_12,  warning_fg_color     <- background
+ *   error_color / _bg_color          <- color_09,  error_fg_color       <- background
+ * color_00..15 are GTK3-compatible passthrough names (identical to colors.gtk.css).
+ *
+ * SECOND CHANNEL (gt-4-1, 2026-09-08): since libadwaita 1.4 (this machine:
+ * 1.9.3) and plain-GTK4's Default theme (GTK >= 4.16, this machine: 4.22.4),
+ * surface styles resolve CSS CUSTOM PROPERTIES (--window-bg-color etc.), not
+ * the legacy named colors — @define-color alone no longer restyles those
+ * surfaces (machine-verified: power-options-gtk rendered stock light despite
+ * the named-color override chain loading cleanly). The :root block below is
+ * the same mapping expressed as custom properties; BOTH channels are emitted
+ * so plain-GTK4 apps, libadwaita apps, and any consumer of either mechanism
+ * all read the same palette.
+ */
+/* wallpaper-tinted chrome mixes (shared by BOTH channels below) */
+{% set headerbar_mix = 'color-mix(in srgb, ' ~ colors[2].hex ~ ' 55%, ' ~ background.hex ~ ')' %}
+{% set card_mix = 'color-mix(in srgb, ' ~ colors[3].hex ~ ' 35%, ' ~ background.hex ~ ')' %}
+{% set popover_mix = 'color-mix(in srgb, ' ~ colors[1].hex ~ ' 45%, ' ~ background.hex ~ ')' %}
+{% set sidebar_mix = 'color-mix(in srgb, ' ~ colors[1].hex ~ ' 45%, ' ~ background.hex ~ ')' %}
+@define-color window_bg_color {{ background.hex }};
+@define-color view_bg_color {{ background.hex }};
+@define-color headerbar_bg_color {{ headerbar_mix }};
+@define-color card_bg_color {{ card_mix }};
+@define-color dialog_bg_color {{ background.hex }};
+@define-color popover_bg_color {{ popover_mix }};
+@define-color sidebar_bg_color {{ sidebar_mix }};
+@define-color window_fg_color {{ foreground.hex }};
+@define-color view_fg_color {{ foreground.hex }};
+@define-color headerbar_fg_color {{ foreground.hex }};
+@define-color card_fg_color {{ foreground.hex }};
+@define-color dialog_fg_color {{ foreground.hex }};
+@define-color popover_fg_color {{ foreground.hex }};
+@define-color sidebar_fg_color {{ foreground.hex }};
+@define-color accent_color {{ colors[4].hex }};
+@define-color accent_bg_color {{ colors[4].hex }};
+@define-color accent_fg_color {{ background.hex }};
+@define-color destructive_color {{ colors[8].hex }};
+@define-color destructive_bg_color {{ colors[8].hex }};
+@define-color destructive_fg_color {{ background.hex }};
+@define-color success_color {{ colors[6].hex }};
+@define-color success_bg_color {{ colors[6].hex }};
+@define-color success_fg_color {{ background.hex }};
+@define-color warning_color {{ colors[12].hex }};
+@define-color warning_bg_color {{ colors[12].hex }};
+@define-color warning_fg_color {{ background.hex }};
+@define-color error_color {{ colors[9].hex }};
+@define-color error_bg_color {{ colors[9].hex }};
+@define-color error_fg_color {{ background.hex }};
+{% for i in range(16) %}
+@define-color color_{{ '%02d' % i }} {{ colors[i].hex }};
+{% endfor %}
+
+/* libadwaita 1.4+ / GTK 4.16+ custom-properties channel — the mapping above
+ * expressed as the CSS variables those stylesheets actually resolve. The
+ * wallpaper-tinted chrome surfaces reuse the SAME mixes as the named colors. */
+:root {
+  --window-bg-color: {{ background.hex }};
+  --window-fg-color: {{ foreground.hex }};
+  --view-bg-color: {{ background.hex }};
+  --view-fg-color: {{ foreground.hex }};
+  --headerbar-bg-color: {{ headerbar_mix }};
+  --headerbar-fg-color: {{ foreground.hex }};
+  --headerbar-backdrop-color: {{ background.hex }};
+  --headerbar-shade-color: {{ colors[2].hex }};
+  --headerbar-darker-shade-color: {{ colors[1].hex }};
+  --headerbar-border-color: {{ colors[2].hex }};
+  --card-bg-color: {{ card_mix }};
+  --card-fg-color: {{ foreground.hex }};
+  --card-shade-color: {{ colors[2].hex }};
+  --dialog-bg-color: {{ background.hex }};
+  --dialog-fg-color: {{ foreground.hex }};
+  --popover-bg-color: {{ popover_mix }};
+  --popover-fg-color: {{ foreground.hex }};
+  --sidebar-bg-color: {{ sidebar_mix }};
+  --sidebar-fg-color: {{ foreground.hex }};
+  --sidebar-backdrop-color: {{ colors[1].hex }};
+  --thumbnail-bg-color: {{ colors[1].hex }};
+  --accent-color: {{ colors[5].hex }};
+  --accent-bg-color: {{ colors[4].hex }};
+  --accent-fg-color: {{ background.hex }};
+  --destructive-color: {{ colors[9].hex }};
+  --destructive-bg-color: {{ colors[8].hex }};
+  --destructive-fg-color: {{ background.hex }};
+  --success-color: {{ colors[6].hex }};
+  --success-bg-color: {{ colors[6].hex }};
+  --success-fg-color: {{ background.hex }};
+  --warning-color: {{ colors[12].hex }};
+  --warning-bg-color: {{ colors[12].hex }};
+  --warning-fg-color: {{ background.hex }};
+  --error-color: {{ colors[9].hex }};
+  --error-bg-color: {{ colors[8].hex }};
+  --error-fg-color: {{ background.hex }};
+  --shade-color: {{ colors[1].hex }};
+  --scrollbar-outline-color: {{ colors[3].hex }};
+}

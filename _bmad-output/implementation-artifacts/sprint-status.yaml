@@ -33,12 +33,11 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
-generated: 2026-08-04
-last_updated: 2026-09-07 (Phase 3 epics added via sprint planning)
+last_updated: "2026-09-09 (merge feat/gtk-theming-consumer — Phase 3 + GTK epics both live)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
-story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/_bmad-output/implementation-artifacts
+story_location: /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3-gtk-theming/_bmad-output/implementation-artifacts
 
 development_status:
   # ═══════════════════════════════════════════════════════════════════
@@ -116,8 +115,41 @@ development_status:
   p3-3-3-prune-cli: backlog
   p3-epic-3-retrospective: optional
 
+  # GTK Theming Consumer — Phase 2.x remediation (epics-gtk-theming.md)
+  # Worktree: feat/gtk-theming-consumer
+  # ═══════════════════════════════════════════════════════════════════
+
+  # ── Epic 1: csg adw.css format ──
+  gt-epic-1: done
+  gt-1-1-colorformat-adw-css-template: done
+  gt-epic-1-retrospective: optional
+
+  # ── Epic 2: Runtime artifact set + declarative consumer pointers ──
+  gt-epic-2: done
+  gt-2-1-palette-artifact-set-growth: done
+  gt-2-2-iconsumerpathspec-declarative-pointers: done
+  gt-2-3-terminalcolorapplier-reads-artifact: done
+  gt-epic-2-retrospective: optional
+
+  # ── Epic 3: GTK config-in-spine (provisioning) ──
+  gt-epic-3: done
+  gt-3-1-gtk-config-dirs-spine-config-links: done
+  gt-3-2-zshrc-repoint-current-sequences: done
+  gt-epic-3-retrospective: optional
+
+  # ── Epic 4: Consumer polish + docs ──
+  gt-epic-4: done
+  gt-4-1-ags-style-palette-inheritance-icme: done
+  gt-4-2-docs-contract-reconciliation: done
+  gt-epic-4-retrospective: optional
+
   # ── Ad-hoc fixes (outside epic tracking, committed) ──
+  gt-fix-1-no-real-desktop-spawns-from-tests: done
+
   rt-3-5-fix-icon-templates-mappings-discovery-path: done
   rt-3-6-align-weg-adapter-with-config-assembler-xdg: done
   rt-3-7-weg-adapter-accepts-any-image-extension: done
   rt-3-8-first-run-seed-looks-for-wallpaper-at-assets-role-path: done
+
+  # gt-4-2 executed inline (docs + contract reconciliation, no story cycle)
+  gt-4-2-docs-contract-reconciliation: done

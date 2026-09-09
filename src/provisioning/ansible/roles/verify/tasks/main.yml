@@ -32,8 +32,9 @@
 #      provisioning role is deleted)
 #   11. shell tools cloned          → ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist
 #       (zsh_tools role)
-#   12. zsh config rendered+wired   → .zshrc wires starship + colors.sequences
-#       (zsh_config role)
+#   12. zsh config rendered+wired   → .zshrc wires starship + a cat of the
+#       state-root current/colors.sequences (gt-3-2: the runtime's current
+#       pointer, NOT the orphaned generated/palettes tree) (zsh_config role)
 #   13. wlogout config rendered+wired → style.css imports the palette
 #       (wlogout_config role)
 #   14. §12 preconditions           → criteria 2/3 + 4 + 8 + 5 — the whole role;
@@ -114,6 +115,7 @@
       - verify_consumer_symlinks | length > 0
       - verify_xdg_dirs | length > 0
       - verify_config_copies_targets | length > 0
+      - verify_gtk_skeleton_files | length > 0
     fail_msg: >-
       a verify list var is empty — a runtime override or a manifest desync
       silently disabled a criterion: every count assert is
@@ -226,7 +228,7 @@
       - verify_spine_checks.results | selectattr('stat.isreg') | list | length == verify_install_spine_files | length
     fail_msg: >-
       not every install-spine path exists with the right inode type under
-      {{ install_dir | trim }} (expected the nine spine DIRS + weg-effects.yaml
+      {{ install_dir | trim }} (expected the spine DIRS + weg-effects.yaml
       as a regular FILE — done-criterion 1). The filesystem role (2.5) creates
       the dirs and the assets role (2.6) emits weg-effects.yaml; run the
       filesystem and assets playbooks first
@@ -266,7 +268,8 @@
     fail_msg: >-
       not every runtime palette file is present as a regular file under
       {{ verify_state_current_dir }}/ (expected colors.conf, colors.yaml,
-      colors.gtk.css — Epic 4 current-only; the default_palette role is
+      colors.gtk.css, colors.adw.css, colors.sequences — Epic 4 current-only
+      + gt-2-1 artifact growth; the default_palette role is
       deleted). A dangling runtime symlink (broken cache entry) also fails —
       the filesystem is authority. Run `dotfiles-runtime wallpaper set
       <install>/wallpapers/default.png` (or investigate the broken runtime
@@ -606,12 +609,67 @@
       playbooks
   when: not ansible_check_mode
 
+# GTK skeleton files (gt-3-1, criterion 9 layer 4 for the gtk dirs): the
+# palette-import skeleton gtk.css must be present THROUGH the
+# ~/.config/gtk-{3,4}.0 symlinks. Mirror of the verify_config_copy_content
+# stat+assert pair (follow: true — resolve through the link to isreg).
+# settings.ini is deliberately NOT gated (user-machine state); the runtime
+# colors.css pointers are deliberately NOT gated (runtime-owned, gt-2-2).
+- name: Check gtk skeleton files are reachable through the symlinks
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+  loop: "{{ verify_gtk_skeleton_files }}"
+  register: verify_gtk_skeleton_checks
+  when: not ansible_check_mode
+
+- name: Assert gtk skeleton files are present through the symlinks
+  ansible.builtin.assert:
+    that: verify_gtk_skeleton_checks.results | selectattr('stat.isreg') | list | length == verify_gtk_skeleton_files | length
+    fail_msg: >-
+      not every gtk skeleton file resolves through its
+      {{ verify_xdg_config_home }} symlink into the spine (done-criterion 9,
+      layer 4, gt-3-1). Expected {{ verify_gtk_skeleton_files | join(', ') }};
+      the spine gtk.css is missing or the link points at an empty/wrong dir.
+      Re-run the config-links playbook
+  when: not ansible_check_mode
+
+# GTK palette wiring (gt-3-1): the grep gate over both skeleton files THROUGH
+# the ~/.config/gtk-{3,4}.0 links (exercising the link, mirroring how the
+# wlogout style.css gate reads through its link) asserts the exact
+# `@import "colors.css";` line — a drifted import path fails. command tasks
+# register rc (failed_when: false, changed_when: false) and are check-gated;
+# the assert decides. Mirror of the wlogout gate shape.
+- name: Gate gtk skeleton palette import wiring
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -E
+      - '@import "colors\.css";'
+      - "{{ item }}"
+  loop: "{{ verify_gtk_skeleton_files }}"
+  register: verify_gtk_import_checks
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert gtk skeleton files import the palette
+  ansible.builtin.assert:
+    that: verify_gtk_import_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_gtk_skeleton_files | length
+    fail_msg: >-
+      the gtk skeleton gtk.css does not import the palette colors (expected
+      the exact line `@import "colors.css";` in the skeleton files
+      {{ verify_gtk_skeleton_files | join(' and ') }} — gt-3-1, read through
+      the spine symlinks). The config-links role ensures the import;
+      re-run the config-links playbook
+  when: not ansible_check_mode
+
 - name: Check rendered zshrc wires starship and the color scheme
   ansible.builtin.command:
     argv:
       - grep
       - -E
-      - "starship init|colors.sequences"
+      - 'starship init|current/colors\.sequences'
       - "{{ verify_xdg_config_home }}/zsh/.zshrc"
   register: verify_zshrc_wiring
   changed_when: false
@@ -623,9 +681,12 @@
     that: verify_zshrc_wiring.rc == 0
     fail_msg: >-
       the rendered .zshrc does not wire starship and the color scheme
-      (expected both `starship init` and `colors.sequences` — done-criterion
-      12, shell wiring). The zsh_config role renders .zshrc.j2 → .zshrc; run the
-      zsh-config playbook (needs packages + zsh_tools first)
+      (expected both `starship init` and a cat of the state-root
+      `current/colors.sequences` — done-criterion 12, shell wiring; gt-3-2
+      tightened the grep to the runtime current pointer so a regression to
+      the orphaned provisioning-era tree fails loud). The zsh_config role
+      renders .zshrc.j2 → .zshrc; run the zsh-config playbook (needs
+      packages + zsh_tools first)
   when: not ansible_check_mode
 
 - name: Check rendered wlogout style.css imports the palette colors

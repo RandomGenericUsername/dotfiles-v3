@@ -44,6 +44,10 @@ filesystem_compositor_dirs:
 # config-links role symlinks each ~/.config/<name> -> <install>/config/<name>.
 # csg-templates moved to config/color-scheme-generator/templates (CSG tool
 # config); weg-effects.yaml moved to config/weg/effects.yaml (WEG tool config).
+# gt-3-1: the GTK consumer dirs (config/gtk-3.0, config/gtk-4.0) join the
+# spine so the config-links role can migrate+symlink ~/.config/gtk-{3,4}.0.
+# Provisioning creates the DIRS only — never the colors.css pointers inside
+# them (the runtime seeder owns those, gt-2-2).
 filesystem_spine_dirs:
   - wallpapers
   - icon-templates
@@ -61,6 +65,8 @@ filesystem_spine_dirs:
   - config/zsh
   - config/weg
   - config/itr
+  - config/gtk-3.0
+  - config/gtk-4.0
 
 # File nodes (AC 4). weg-effects.yaml is a FILE emitted by the assets role
 # (Story 2.6) via `weg dump-effects` into the config-in-spine home

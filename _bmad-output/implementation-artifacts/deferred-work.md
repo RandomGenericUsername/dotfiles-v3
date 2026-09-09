@@ -1,5 +1,14 @@
 # Deferred Work
 
+## Deferred from: code review of gt-2-1-palette-artifact-set-growth (2026-09-07)
+
+- Evict-and-regenerate migration is convergent but not lock-safe under concurrent populate — two processes racing on the same incomplete `<ph>` can interleave so that one rmtree deletes the other's just-renamed complete entry (content identical, deterministic — end state converges), or the rmtree/rename interleaving raises a spurious OSError (fails loudly; the completeness guard self-heals on the next run). No cross-process lock exists anywhere in the cache layer (pre-existing design; `populate_via_staging` is the only race surface it defends). Fixing requires a lockfile or pid-aware eviction — cache-hygiene hardening beyond story scope. [src/runtime/src/runtime/application/derive.py:256-299, src/runtime/src/runtime/adapters/cache.py:176-197]
+- POSITIVE side effect worth recording: the shared completeness guard RESOLVES the palette half of the rt-1-13 deferred item ("corrupt/missing meta.json bricks that layer permanently") — corrupt/absent meta.json now evicts + regenerates the palette entry instead of failing every subsequent run. Effects/icons layers remain un-self-healed. [src/runtime/src/runtime/application/derive.py:256-299, deferred-work.md "rt-1-13-applywallpaperusecase"]
+
+## Deferred from: code review of gt-1-1-colorformat-adw-css-template (2026-09-07)
+
+- AC-4 container-mode real exec (`csg generate <img> -f adw.css` with `runtime.mode=container`) never ran: environment had only the stale `csg-custom-latest` image, which errors because it bakes old code; templates bind-mount at `/templates` so no rebuild is needed for the template itself — manual verification owed to gt-4-1/G1.1 [src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/container_processor.py:216-217]
+
 ## Deferred from: code review of rt-3-4-inspect-cache-list-command (2026-09-03)
 
 - TOCTOU symlink race on `cache/` root (is_symlink → is_dir → scandir non-atomic); attacker swapping cache for symlink between checks bypasses ValueError — local-diagnostic hardening beyond spec, not reachable in normal use [src/runtime/src/runtime/application/inspect.py:551-556]
@@ -366,3 +375,32 @@ The "save after repoint can fail leaving FS ahead of store, history append outsi
 - Concurrent writer interleave torn lines — two writers appending outside the lock can interleave/tear lines; reader has no snapshot contract. Pre-existing writer-side (rt-3.1), not caused by this reader change [src/runtime/src/runtime/adapters/seeder.py:620-623]
 - Brittle argv substring guard — `if "inspect" in sys.argv` false-positives on paths like `my-inspect`. Pre-existing rt-3.2, spec says do NOT touch guard [src/runtime/src/runtime/cli/main.py:181]
 - FIFO/directory/BOM at history.jsonl path — directory raises raw IsADirectoryError, FIFO blocks on open, BOM-prefixed file misclassified as torn tail. Out-of-scope hardening; writer never emits BOM [src/runtime/src/runtime/application/inspect.py:332]
+
+## Incident 2026-09-07: live desktop spawn from unit tests (FIXED, gt-fix-1)
+
+- `test_cli_crash_recovery` CLI tests stubbed only 2 of 4 reloaders; the real `AgsReloader` spawned `ags run` under a monkeypatched `XDG_STATE_HOME` (pytest tmp). The spawned bar survived pytest, replaced the dev's live bar (its gjs child outlived the killed parent, holding the `io.Astal.ags` D-Bus name), and rendered broken icons from the deleted tmp dir. [src/runtime/tests/unit/test_cli_crash_recovery.py:219]
+- Fix: autouse `shutil.which` guards in `tests/unit/conftest.py` + `tests/integration/conftest.py` — system-installed desktop binaries (ags/hyprctl/hyprpaper/swaybg/swww/mpvpaper) resolve to None so adapters fail fast; pytest-tmp shims still resolve (integration shim tests verified green). Affected CLI tests now stub all four reloaders explicitly.
+- Residual: production-side hardening (reloader refuses to spawn when it detects a session-foreign env) is NOT added — tests-only fix; composition-root seam (`_build_reloaders` monkeypatch) is the long-term cleaner seam, deferred.
+
+## Deferred from: code review of gt-2-2-iconsumerpathspec-declarative-pointers (2026-09-07)
+
+- `CacheSeeder.__init__` falls back via `consumer_spec or StaticConsumerPathSpec()` — a falsy custom spec implementation would silently receive the default table instead of raising; unreachable today (class instances are truthy), but `is None` would be the precise guard. Fix opportunistically when the constructor is next touched [src/runtime/src/runtime/adapters/seeder.py:110-111]
+- Inspect `_link_status` classifies a regular FILE squatting at a pointer dest as `missing` (not `diverged`) — consistent with the existing `current_symlinks` semantics the AC pins ("SAME status semantics"), but a pre-migration provisioning file at a gtk dest reads as `missing` rather than flagging divergence; revisit if a future doctor command needs the distinction [src/runtime/src/runtime/application/inspect.py:261-263]
+- `ConsumerPointerRules` flags are consumed conditionally but only the all-True semantics are tested: `remove_on_null_palette: False` (null palette keeps stale pointers) and `skip_on_missing_target: False` (dangling pointer creation) paths have no coverage because the pinned table has no per-pointer variation (YAGNI per Dev Notes decision 1). If a real consumer ever flips a flag, dedicated tests for the flipped semantics are required at that time [src/runtime/src/runtime/adapters/seeder.py:626-640]
+
+## Deferred from: code review of gt-3-2-zshrc-repoint-current-sequences (2026-09-07)
+
+- Concurrent-session machine clobber: a foreign main-worktree `bootstrap.yaml` (old pre-gt-3-2 code, shared `install_dir` ~/.local/share/dotfiles) re-rendered the orphan-cat `.zshrc`, reverted the uv `csg` tool + container images, and split the `current/` pointer set AFTER gt-3-2's dev recorded honest AC-8 evidence. Reviewer restored state from the gt worktree (verified: pointers unified on diwali/13e74b00, `.zshrc` line 33 state-root cat, pty byte test 19/19). Risk persists while parallel sessions provision the same install dir — coordinate main-session provisioning runs or land gt-4 before further parallel work.
+- Stale runtime docstring: `terminal_color_applier.py:61` still says "A NEW shell still reads provisioning's rendered `generated/palettes/`" — outdated after gt-3-2 (shells now read the runtime `current/` pointer). One-line fix owned by gt-4-2 contract/doc reconciliation (story pins zero runtime edits) [src/runtime/src/runtime/adapters/terminal_color_applier.py:61]
+
+## RESOLVED 2026-09-08: stale stored monitor blocks Hyprpaper reload (was: Deferred from gt-4-1)
+
+- `current.json` stores monitor `eDP-1` but the live output is `eDP-2` (renamed under the running session, likely re-enumeration after a compositor reload). `ReconcileDesktopStateUseCase` reads STORED monitors (scope lock, AD/deferred note "reads stored monitors and is untouched"), and the apply pass does not drop/rename stale entries — so `hyprctl hyprpaper wallpaper eDP-1,…` fails "Invalid monitor" on every reconcile/wallpaper-set until manual store surgery. HIGH-value runtime fix: reconcile/apply should diff live `IMonitorSource` names against stored `monitors` and repair (add/rename/remove) with history implications documented — touches the shared-data-contract monitors shape, so it is a runtime story, not a patch. [src/runtime/src/runtime/application/reconcile.py, hyprpaper_reloader.py]
+
+## Deferred from: gt-4-1 verification (2026-09-08) — dual templates-dir discovery diverges
+
+- `derive.py` hashes the SPINE templates dir (`find_templates_dir(install_spine)`); `CsgAdapter.generate` independently re-discovers its own templates dir (`_find_default_templates_dir` — env/ancestors/repo fallback) and validates `output_dir.name` against ITS hash. When the two dirs diverge (template edited in repo, assets not re-applied), `wallpaper set` dies with the confusing `output_dir hash mismatch: expected <adapter-ph>, got <pipeline-ph>` instead of treating it as a miss. User hit it 2026-09-08 (circuit.png). Fix shape: the pipeline should pass its templates_dir (or its hash) into the adapter generate() contract (port signature change), eliminating dual discovery. Extends the rt-1-11 deferred item ("template discovery couples runtime to dev-repo layout"). [src/runtime/src/runtime/application/derive.py:64, src/runtime/src/runtime/adapters/csg_adapter.py:110]
+
+### RESOLUTION (stale stored monitor, 2026-09-08)
+
+- `ApplyWallpaperUseCase._build_monitors` now reconciles the stored `monitors` against live `IMonitorSource` detection when detection returns a non-empty set: same-name configs preserved (only `source_hash` updates), detected-but-unstored names get the default config, stale names dropped. Headless/empty detection preserves the stored set (no behavior change). Renamed outputs self-heal on the next `wallpaper set` — the exact eDP-1→eDP-2 case. Tests: `test_existing_monitors_reconciled_against_detection` (replaces `test_existing_monitors_win_over_injected_source`); suite 593 passed / 2 skipped (stale-csg).
