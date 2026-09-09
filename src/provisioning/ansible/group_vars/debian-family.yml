@@ -46,6 +46,10 @@ packages:
     - kitty
   btop: btop # System monitor (AGS bar icon launcher)
   thunderbird: thunderbird # Mail client (AGS bar icon launcher)
+  # adw-gtk-theme intentionally ABSENT on Debian-family (Option A 2026-09-09):
+  # no official package (adw-gtk3 README points at a 3rd-party repo). Debian
+  # keeps its distro GTK theme; the config-links gtk-3.0 theme migration is
+  # gated to the Arc-Dark value so it no-ops here.
   brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
   playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)

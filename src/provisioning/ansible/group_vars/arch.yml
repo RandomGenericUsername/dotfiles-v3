@@ -53,6 +53,12 @@ packages:
     - kitty
   btop: btop # System monitor (AGS bar icon launcher)
   thunderbird: thunderbird # Mail client (AGS bar icon launcher)
+  # GTK3 theme (extra repo — Option A 2026-09-09): adw-gtk3 unifies GTK3 apps
+  # (thunar, wlogout, native menus/dialogs, thunderbird's native bits) with the
+  # libadwaita design language the GTK4 apps already wear. Installed here so the
+  # packages role makes it present; the theme switch itself is a gated one-time
+  # settings.ini migration in the config-links role (gtk-3.0 dir).
+  adw_gtk_theme: adw-gtk-theme
   power-options-gtk: power-options-gtk # Portable power management (AUR) — defacto, launched from battery widget
   brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
   playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)

@@ -141,10 +141,14 @@ def _seed_copy_task() -> dict[str, object]:
 
 def _lineinfile_task() -> dict[str, object]:
     matches = _link_one_tasks_with_module("ansible.builtin.lineinfile")
-    assert len(matches) == 1, (
-        f"expected exactly one lineinfile task in _link_one.yml; found {len(matches)}"
+    # Option A (2026-09-09) added a SECOND lineinfile (the gtk-3.0 theme
+    # migration). This helper is the palette-import ensure — select by its
+    # signature line, not by counting.
+    import_tasks = [t for t in matches if "config_links_gtk_import_line" in str(_module(t).get("line", ""))]
+    assert len(import_tasks) == 1, (
+        f"expected exactly one palette-import lineinfile task; found {len(import_tasks)}"
     )
-    return matches[0]
+    return import_tasks[0]
 
 
 def _symlink_task() -> dict[str, object]:
@@ -630,3 +634,25 @@ class TestConfigLinksExecution:
             assert _import_counts(migrated_css) == 1, (
                 "re-runs must never duplicate the import line after migration"
             )
+
+    def test_gtk3_theme_migration_task_shape(self) -> None:
+        """Option A (2026-09-09): the gtk-3.0-only task flips settings.ini
+        gtk-theme-name Arc-Dark -> adw-gtk3-dark, gated on os_family Archlinux
+        (Debian has no package) — and is a no-op once the value differs."""
+        tasks = _load_tasks(_TASKS_LINK_ONE)
+        mig = [
+            t for t in tasks
+            if _module_key(t) == "ansible.builtin.lineinfile"
+            and "adw-gtk3-dark" in str(_module(t).get("line", ""))
+        ]
+        assert len(mig) == 1, f"expected exactly one theme-migration task; got {len(mig)}"
+        m = _module(mig[0])
+        assert str(m.get("path", "")).endswith("gtk-3.0/settings.ini")
+        assert m.get("regexp") == "^gtk-theme-name=Arc-Dark$", (
+            "regexp must anchor exactly Arc-Dark so a user-changed value is never overwritten"
+        )
+        when = _when_list(mig[0])
+        assert "config_link_name == \"gtk-3.0\"" in when, "must run only for the gtk-3.0 dir"
+        assert "ansible_facts.os_family == \"Archlinux\"" in when, (
+            "must be Arch-gated (Debian-family has no adw-gtk-theme package)"
+        )

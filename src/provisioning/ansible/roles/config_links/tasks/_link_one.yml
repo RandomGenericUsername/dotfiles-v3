@@ -149,3 +149,29 @@
     # only: on an absent target the link is still predicted (would-change),
     # and the real run resolves the conflict via the mv.
     - not (ansible_check_mode and config_links_existing.stat.exists)
+
+# ── GTK3 theme migration (Option A, 2026-09-09, gtk-3.0 only) ───────────────
+# One-time unification: flip the migrated settings.ini gtk-theme-name from the
+# legacy Arc-Dark to adw-gtk3-dark (the GTK3 port of the libadwaita design
+# language the GTK4 apps already wear). Gated on the CURRENT value still being
+# Arc-Dark so it (a) never fights nwg-look after the user changes the theme
+# themselves, and (b) no-ops on distros where the package is absent (Debian).
+# Only runs when the settings.ini EXISTS (i.e. it was migrated from a real
+# user dir — a fresh machine has no gtk-3.0 settings.ini to touch).
+# lineinfile is check-safe; settings.ini stays USER-owned after migration
+# (nwg-look write-through — verify deliberately does not gate its content).
+- name: "config_links : Stat migrated gtk-3.0 settings.ini"
+  ansible.builtin.stat:
+    path: "{{ install_dir | trim }}/config/gtk-3.0/settings.ini"
+  register: config_links_gtk_settings_ini
+  when: config_link_name == "gtk-3.0"
+
+- name: "config_links : Migrate gtk-3.0 theme to adw-gtk3-dark (Arc-Dark -> modern)"
+  ansible.builtin.lineinfile:
+    path: "{{ install_dir | trim }}/config/gtk-3.0/settings.ini"
+    regexp: "^gtk-theme-name=Arc-Dark$"
+    line: "gtk-theme-name=adw-gtk3-dark"
+  when:
+    - config_link_name == "gtk-3.0"
+    - ansible_facts.os_family == "Archlinux"
+    - config_links_gtk_settings_ini.stat.exists | default(false)

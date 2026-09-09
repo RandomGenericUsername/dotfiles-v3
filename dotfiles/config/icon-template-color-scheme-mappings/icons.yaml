@@ -38,7 +38,7 @@ battery:
       output: plugged.svg
 
       color_mappings:
-        COLOR_FOREGROUND: color12
+        COLOR_FOREGROUND: color15
   bar_mappings:
     widget: battery
     icon_size: 24

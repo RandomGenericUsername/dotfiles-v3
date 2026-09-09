@@ -67,7 +67,7 @@ _LOGICAL_PACKAGE_KEYS = (
     "playerctl",
     "power-options-gtk",
 )
-_ARCH_EXTRA_KEYS = ("gloview_build",)
+_ARCH_EXTRA_KEYS = ("gloview_build", "adw_gtk_theme")  # +adw_gtk_theme: GTK3 theme (Option A 2026-09-09)
 
 
 class TestAnsibleScaffoldFilesExist:
