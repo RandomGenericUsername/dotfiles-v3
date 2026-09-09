@@ -10,7 +10,9 @@ from color_scheme_generator.adapters.jinja_template_renderer import JinjaTemplat
 from color_scheme_generator.domain.enums import Backend
 from color_scheme_generator.domain.models import Color, ColorScheme
 
-_DEFINE_COLOR_RE = re.compile(r"@define-color (?P<name>[A-Za-z0-9_]+) (?P<hex>#[0-9a-fA-F]{6});")
+_DEFINE_COLOR_RE = re.compile(
+    r"@define-color (?P<name>[A-Za-z0-9_]+) (?P<value>.+?);"
+)
 _PASSTHROUGH_RE = re.compile(r"@define-color color_[0-9]{2} #[0-9a-fA-F]{6};")
 
 # AC-2 pinned §5 mapping: named color -> palette slot. Literal dict so template
@@ -18,13 +20,13 @@ _PASSTHROUGH_RE = re.compile(r"@define-color color_[0-9]{2} #[0-9a-fA-F]{6};")
 _NAMED_COLOR_SLOTS: dict[str, str] = {
     "window_bg_color": "background",
     "view_bg_color": "background",
-    "headerbar_bg_color": "background",
-    "card_bg_color": "background",
+    "headerbar_bg_color": "mix:colors[2]:55%",
+    "card_bg_color": "mix:colors[3]:35%",
     "dialog_bg_color": "background",
     "dialog_fg_color": "foreground",
-    "popover_bg_color": "background",
+    "popover_bg_color": "mix:colors[1]:45%",
     "popover_fg_color": "foreground",
-    "sidebar_bg_color": "background",
+    "sidebar_bg_color": "mix:colors[1]:45%",
     "window_fg_color": "foreground",
     "view_fg_color": "foreground",
     "headerbar_fg_color": "foreground",
@@ -86,12 +88,22 @@ def _slot_hex(scheme: ColorScheme, slot: str) -> str:
         return scheme.background.hex
     if slot == "foreground":
         return scheme.foreground.hex
+    if slot.startswith("mix:"):
+        # "mix:colors[N]:P%" -> color-mix(in srgb, #N-hex P%, #bg-hex);
+        _, source, pct = slot.split(":")
+        idx = int(source[len("colors[") : -1])
+        return (
+            f"color-mix(in srgb, {scheme.colors[idx].hex} {pct}, {scheme.background.hex})"
+        )
     index = int(slot[len("colors[") : -1])
     return scheme.colors[index].hex
 
 
 def _parse_define_colors(content: str) -> dict[str, str]:
-    return {m.group("name"): m.group("hex") for m in _DEFINE_COLOR_RE.finditer(content)}
+    return {
+        m.group("name"): m.group("value").strip()
+        for m in _DEFINE_COLOR_RE.finditer(content)
+    }
 
 
 class TestAdwCssFormat:
@@ -152,8 +164,15 @@ class TestAdwCssFormat:
 
         defined = _parse_define_colors(output_path.read_text())
         assert len(defined) == len(_EXPECTED_SLOTS)
-        for name, hex_value in defined.items():
-            assert re.fullmatch(r"#[0-9a-fA-F]{6}", hex_value), f"{name}={hex_value}"
+        hex_re = re.compile(r"#[0-9a-fA-F]{6}")
+        for name, value in defined.items():
+            # simple hex values, or every hex embedded in a color-mix(...)
+            if value.startswith("color-mix("):
+                assert "in srgb," in value, f"{name}={value}"
+                embedded = re.findall(r"#[0-9a-fA-F]{6}", value)
+                assert len(embedded) == 2, f"{name}={value}"
+            else:
+                assert re.fullmatch(r"#[0-9a-fA-F]{6}", value), f"{name}={value}"
 
     def test_render_custom_properties_channel_matches_named_mapping(
         self, _bundled_templates_dir: Path, _scheme: ColorScheme, tmp_path: Path
@@ -168,19 +187,23 @@ class TestAdwCssFormat:
         content = output_path.read_text()
         assert ":root {" in content, "custom-properties channel missing"
         variables = dict(
-            re.findall(r"^\s*(--window-bg-color|--window-fg-color|--popover-bg-color|--popover-fg-color|--dialog-bg-color|--dialog-fg-color|--headerbar-bg-color|--card-bg-color|--sidebar-bg-color|--accent-bg-color|--accent-color|--shade-color): (#[0-9a-fA-F]{6});$", content, re.MULTILINE)
+            re.findall(
+                r"^\s*(--window-bg-color|--window-fg-color|--popover-bg-color|--popover-fg-color|--dialog-bg-color|--dialog-fg-color|--headerbar-bg-color|--card-bg-color|--sidebar-bg-color|--accent-bg-color|--accent-color|--shade-color): (.+?);$",
+                content,
+                re.MULTILINE,
+            )
         )
 
         expected: dict[str, str] = {
             "--window-bg-color": "background",
             "--window-fg-color": "foreground",
-            "--popover-bg-color": "background",
+            "--popover-bg-color": "mix:colors[1]:45%",
             "--popover-fg-color": "foreground",
             "--dialog-bg-color": "background",
             "--dialog-fg-color": "foreground",
-            "--headerbar-bg-color": "background",
-            "--card-bg-color": "background",
-            "--sidebar-bg-color": "background",
+            "--headerbar-bg-color": "mix:colors[2]:55%",
+            "--card-bg-color": "mix:colors[3]:35%",
+            "--sidebar-bg-color": "mix:colors[1]:45%",
             "--accent-bg-color": "colors[4]",
             "--accent-color": "colors[5]",
             "--shade-color": "colors[1]",

@@ -3,9 +3,12 @@
  * AR-2 pinned mapping (palette slot -> named color), contract data pinned in
  * docs/ARCHITECTURE_PLAN.md (templates inventory). Final pin confirmed against
  * a real palette render in story gt-1-1 (2026-09-07):
- *   window/view/headerbar/card/dialog/popover/sidebar_bg_color <- background
- *   window/view/headerbar/card/dialog/popover/sidebar_fg_color <- foreground
- *   accent_color / accent_bg_color   <- color_04,  accent_fg_color      <- background
+ *   window/view/dialog (bg)            <- background            (neutral dark)
+ *   headerbar (bg)                     <- color-mix(colors[2] 55%, background)
+ *   card (bg)                          <- color-mix(colors[3] 35%, background)
+ *   popover/sidebar (bg)               <- color-mix(colors[1] 45%, background)
+ *   window/view/headerbar/card/dialog/popover/sidebar (fg) <- foreground
+ *   accent_color / accent_bg_color     <- color_04,  accent_fg_color   <- background
  *   destructive_color / _bg_color    <- color_08,  destructive_fg_color <- background
  *   success_color / _bg_color        <- color_06,  success_fg_color     <- background
  *   warning_color / _bg_color        <- color_12,  warning_fg_color     <- background
@@ -22,13 +25,18 @@
  * so plain-GTK4 apps, libadwaita apps, and any consumer of either mechanism
  * all read the same palette.
  */
+/* wallpaper-tinted chrome mixes (shared by BOTH channels below) */
+{% set headerbar_mix = 'color-mix(in srgb, ' ~ colors[2].hex ~ ' 55%, ' ~ background.hex ~ ')' %}
+{% set card_mix = 'color-mix(in srgb, ' ~ colors[3].hex ~ ' 35%, ' ~ background.hex ~ ')' %}
+{% set popover_mix = 'color-mix(in srgb, ' ~ colors[1].hex ~ ' 45%, ' ~ background.hex ~ ')' %}
+{% set sidebar_mix = 'color-mix(in srgb, ' ~ colors[1].hex ~ ' 45%, ' ~ background.hex ~ ')' %}
 @define-color window_bg_color {{ background.hex }};
 @define-color view_bg_color {{ background.hex }};
-@define-color headerbar_bg_color {{ background.hex }};
-@define-color card_bg_color {{ background.hex }};
+@define-color headerbar_bg_color {{ headerbar_mix }};
+@define-color card_bg_color {{ card_mix }};
 @define-color dialog_bg_color {{ background.hex }};
-@define-color popover_bg_color {{ background.hex }};
-@define-color sidebar_bg_color {{ background.hex }};
+@define-color popover_bg_color {{ popover_mix }};
+@define-color sidebar_bg_color {{ sidebar_mix }};
 @define-color window_fg_color {{ foreground.hex }};
 @define-color view_fg_color {{ foreground.hex }};
 @define-color headerbar_fg_color {{ foreground.hex }};
@@ -56,26 +64,27 @@
 {% endfor %}
 
 /* libadwaita 1.4+ / GTK 4.16+ custom-properties channel — the mapping above
- * expressed as the CSS variables those stylesheets actually resolve. */
+ * expressed as the CSS variables those stylesheets actually resolve. The
+ * wallpaper-tinted chrome surfaces reuse the SAME mixes as the named colors. */
 :root {
   --window-bg-color: {{ background.hex }};
   --window-fg-color: {{ foreground.hex }};
   --view-bg-color: {{ background.hex }};
   --view-fg-color: {{ foreground.hex }};
-  --headerbar-bg-color: {{ background.hex }};
+  --headerbar-bg-color: {{ headerbar_mix }};
   --headerbar-fg-color: {{ foreground.hex }};
   --headerbar-backdrop-color: {{ background.hex }};
   --headerbar-shade-color: {{ colors[2].hex }};
   --headerbar-darker-shade-color: {{ colors[1].hex }};
   --headerbar-border-color: {{ colors[2].hex }};
-  --card-bg-color: {{ background.hex }};
+  --card-bg-color: {{ card_mix }};
   --card-fg-color: {{ foreground.hex }};
   --card-shade-color: {{ colors[2].hex }};
   --dialog-bg-color: {{ background.hex }};
   --dialog-fg-color: {{ foreground.hex }};
-  --popover-bg-color: {{ background.hex }};
+  --popover-bg-color: {{ popover_mix }};
   --popover-fg-color: {{ foreground.hex }};
-  --sidebar-bg-color: {{ background.hex }};
+  --sidebar-bg-color: {{ sidebar_mix }};
   --sidebar-fg-color: {{ foreground.hex }};
   --sidebar-backdrop-color: {{ colors[1].hex }};
   --thumbnail-bg-color: {{ colors[1].hex }};

@@ -679,7 +679,10 @@ Pinned in story gt-1-1 (2026-09-07), confirmed against a real palette render. Th
 
 | libadwaita named color | palette source |
 |---|---|
-| `window_bg_color`, `view_bg_color`, `headerbar_bg_color`, `card_bg_color`, `dialog_bg_color`, `popover_bg_color`, `sidebar_bg_color` | `background` |
+| `window_bg_color`, `view_bg_color`, `dialog_bg_color` | `background` (neutral dark) |
+| `headerbar_bg_color` | `color-mix(colors[2] 55%, background)` |
+| `card_bg_color` | `color-mix(colors[3] 35%, background)` |
+| `popover_bg_color`, `sidebar_bg_color` | `color-mix(colors[1] 45%, background)` |
 | `window_fg_color`, `view_fg_color`, `headerbar_fg_color`, `card_fg_color`, `dialog_fg_color`, `popover_fg_color`, `sidebar_fg_color` | `foreground` |
 | `accent_color`, `accent_bg_color` | `color_04` |
 | `accent_fg_color` | `background` |
@@ -700,12 +703,16 @@ Default theme (GTK >= 4.16), surface styles resolve **CSS custom properties**
 named-color channel alone. The template therefore ALSO emits a
 `:root { … }` block expressing the same mapping as custom properties:
 window/view/headerbar/card/dialog/popover/sidebar bg+fg (`background` /
-`foreground`), headerbar backdrop/shade/border + sidebar-backdrop +
-thumbnail/shade family (`color_01`/`color_02`), accent trio (`color_04` bg /
-`color_05` fg / `background` fg), destructive/success/warning/error trios,
-`color_03` scrollbar outline, and `color-scheme: dark`. Both channels are
+`foreground`), headerbar/card/popover/sidebar **wallpaper-tinted chrome**
+(the same `color-mix` values as the named colors — the k-means mid clusters
+carry the wallpaper's actual hues, so dark wallpapers produce visibly
+different chrome), headerbar/sidebar backdrop + shade family, accent trio
+(`color_04` bg / `color_05` fg / `background` fg), destructive/success/
+warning/error trios, `color_03` scrollbar outline. Both channels are
 emitted together so plain-GTK4 apps, libadwaita apps, and any mixed consumer
-read one palette.
+read one palette. (gt-4-1 pass 3: `color-scheme: dark` REMOVED from the
+:root block — invalid GTK4 CSS; light/dark comes from the
+`org.gnome.desktop.interface color-scheme` GSetting.)
 
 Deliberately not overridden (gaps = future template edits, cache auto-invalidates): backdrop variants (`headerbar_backdrop_color` etc. default to aliases of the bg colors when unset), `secondary_sidebar_*` (libadwaita 1.4+), `thumbnail_*` (1.3+), `overview_*` (1.7+), per-tone accents (`accent_<tone>_color`), shade/border colors (`*_shade_color`, `*_border_color`, `shade_color`, `scrollbar_outline_color`).
 
