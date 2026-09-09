@@ -34,7 +34,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-08-04
-last_updated: "2026-09-09 (gt-4-1 done — human verdict: tinted chrome confirmed; re-login deferred)"
+last_updated: "2026-09-09 (gt-epic-4 done — gt-4-2 docs+contracts reconciled inline)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -114,7 +114,7 @@ development_status:
   gt-epic-3-retrospective: optional
 
   # ── Epic 4: Consumer polish + docs ──
-  gt-epic-4: in-progress
+  gt-epic-4: done
   gt-4-1-ags-style-palette-inheritance-icme: in-progress
   gt-4-2-docs-contract-reconciliation: backlog
   gt-epic-4-retrospective: optional
@@ -126,3 +126,6 @@ development_status:
   rt-3-6-align-weg-adapter-with-config-assembler-xdg: done
   rt-3-7-weg-adapter-accepts-any-image-extension: done
   rt-3-8-first-run-seed-looks-for-wallpaper-at-assets-role-path: done
+
+  # gt-4-2 executed inline (docs + contract reconciliation, no story cycle)
+  gt-4-2-docs-contract-reconciliation: done

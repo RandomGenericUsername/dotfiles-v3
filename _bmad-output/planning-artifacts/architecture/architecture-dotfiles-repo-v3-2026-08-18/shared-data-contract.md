@@ -72,7 +72,7 @@ Rules:
   "entry_hash": "<sha256-hex>",
   "source_wallpaper_hash": "<sha256-hex>",
   "input_template_hash": "<sha256-hex>",
-  "artifact_hashes": { "colors.yaml": "<sha256-hex>", "colors.conf": "<sha256-hex>", "colors.gtk.css": "<sha256-hex>" },
+  "artifact_hashes": { "colors.yaml": "<sha256-hex>", "colors.conf": "<sha256-hex>", "colors.gtk.css": "<sha256-hex>", "colors.adw.css": "<sha256-hex>", "colors.sequences": "<sha256-hex>" },
   "generated_at": "<ISO-8601-UTC>"
 }
 ```
@@ -138,7 +138,7 @@ Order:
 1. Ensure all cache entries exist (populate via staging-dir, AD-9).
 2. Repoint `current/` symlinks (each atomic: tmp symlink + `os.replace`).
    - Repoint wallpaper symlink(s): for each monitor in `current.json.monitors`, create `current/wallpaper-<monitor>.png` → `cache/wallpapers/<hash>/wallpaper.png`.
-   - Repoint palette symlinks: `current/colors.conf`, `current/colors.gtk.css`, `current/colors.yaml` → `cache/palettes/<ph>/...`.
+   - Repoint palette symlinks: `current/colors.conf`, `current/colors.gtk.css`, `current/colors.yaml`, `current/colors.adw.css`, `current/colors.sequences` → `cache/palettes/<ph>/...`.
    - Repoint effects dir: `current/effects/` → `cache/effects/<eh>/`.
    - Repoint icons dir: `current/icons/` → `cache/icons/<ih>/`.
 3. Write `current.json` (atomic tmp + `os.replace`).
@@ -148,3 +148,28 @@ Order:
    - Terminal palette applied once from `current/colors.sequences`.
 
 Crash recovery: on next run, `ReconcileDesktopStateUseCase` reads `current.json` and re-derives the `current/` symlinks from it (idempotent repair). If a symlink target is missing (evicted/partial), the entry is treated as a cache miss and regenerated. The desktop is never left pointing at a half-swapped state because each symlink resolves independently to a complete write-once entry.
+
+## Consumer-pointer table (gt-2-2, AD-11 exception class)
+
+Consumer *pointers* are the only writes the runtime may make under the
+install spine (AD-11 exception, spec'd as data — adding a consumer is a
+table entry, never bespoke code):
+
+| Pointer | Target | Owning writer |
+| --- | --- | --- |
+| `<install>/config/ags/colors.css` | `current/colors.gtk.css` | runtime seeder + reconcile loop |
+| `<install>/config/gtk-3.0/colors.css` | `current/colors.gtk.css` | runtime seeder + reconcile loop |
+| `<install>/config/gtk-4.0/colors.css` | `current/colors.adw.css` | runtime seeder + reconcile loop |
+
+Rules (pinned, implemented once in `CacheSeeder.repoint_consumer_symlinks`):
+palette null → pointer removed (`missing_ok`); regular file at destination →
+replaced with symlink (one-run migration); missing destination parent →
+skip+warn (never mkdir into the spine); missing target artifact → skip+warn
+(never a dangling consumer link). Health of all pointers is projected by
+`inspect status` from the same spec.
+
+Palette artifact set (gt-2-1): `colors.yaml`, `colors.conf`, `colors.gtk.css`,
+`colors.adw.css`, `colors.sequences` — all sha256-addressed in per-entry
+`meta.json`; keys unchanged (`sha256(ph‖templates)`). Terminal palette is
+applied from `current/colors.sequences`; the two-channel GTK mechanism and
+the `GTK_THEME` hazard are recorded in `consumer-wiring.md`.
