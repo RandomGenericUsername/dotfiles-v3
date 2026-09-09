@@ -1,4 +1,5 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4";
+import GLib from "gi://GLib?version=2.0";
 import app from "ags/gtk4/app";
 import { createEffect, createState } from "ags";
 import {
@@ -13,6 +14,7 @@ import {
   defaultsPathFor,
   mtimeOf,
   resolveInputs,
+  schemeFingerprint,
   type EditorInputs,
 } from "../lib/inputs";
 import type {
@@ -96,6 +98,11 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     }
   }
 
+  // Live-palette baseline, declared before load() so input switches can
+  // re-anchor it (avoids one spurious refresh after every manual switch).
+  let schemeFp: string | null = null;
+  let schemeRefreshing = false;
+
   function load(next: EditorInputs): void {
     setInputs(next);
     setShow(null);
@@ -109,6 +116,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     templateMtimes.clear();
     setSaveError(null);
     setStale(false);
+    schemeFp = schemeFingerprint(next.colorScheme);
     refreshShow().catch((error: unknown) => setLoadError(String(error)));
   }
 
@@ -140,6 +148,30 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   }
 
   load(resolveInputs());
+
+  // Live-follow the runtime palette: the show (and every token grid built
+  // from it) is a snapshot, so a wallpaper switch while the editor runs
+  // would otherwise leave stale colors until restart. Poll the scheme
+  // fingerprint; on change, rebuild the show — pending edits are preserved
+  // (refreshShow only swaps the loaded show, never the staging maps).
+  GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+    try {
+      if (saving() || schemeRefreshing) return GLib.SOURCE_CONTINUE;
+      const next = inputs();
+      const fp = schemeFingerprint(next.colorScheme);
+      if (fp === schemeFp) return GLib.SOURCE_CONTINUE;
+      schemeFp = fp;
+      schemeRefreshing = true;
+      refreshShow()
+        .catch((error: unknown) => setLoadError(String(error)))
+        .finally(() => {
+          schemeRefreshing = false;
+        });
+    } catch {
+      // Poll must never take the UI down; next tick retries.
+    }
+    return GLib.SOURCE_CONTINUE;
+  });
 
   function pick(token: string): void {
     const sel = selection();

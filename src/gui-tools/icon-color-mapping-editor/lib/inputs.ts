@@ -123,3 +123,20 @@ export function mtimeOf(path: string): number | null {
     return null;
   }
 }
+
+/**
+ * Change fingerprint for the color-scheme pointer: symlink target + mtime.
+ * The runtime repoints current/colors.yaml on every wallpaper set — often at
+ * a cached entry whose mtime predates the switch — so mtime alone misses
+ * repoints back to an older scheme. Null when unreadable.
+ */
+export function schemeFingerprint(colorSchemePath: string): string | null {
+  try {
+    const target = GLib.file_read_link(colorSchemePath) ?? colorSchemePath;
+    const mtime = mtimeOf(colorSchemePath);
+    if (mtime === null) return null;
+    return `${target}@${mtime}`;
+  } catch {
+    return null;
+  }
+}
