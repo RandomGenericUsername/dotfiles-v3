@@ -6,7 +6,7 @@ window#bar {
 }
 
 window#bar > centerbox {
-  background-color: @color_00;
+  background-color: alpha(@color_00, 0.7);
   border-radius: 10px;
   margin: 2px;
 }
