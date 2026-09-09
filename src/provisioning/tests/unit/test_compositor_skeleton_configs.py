@@ -45,6 +45,7 @@ _EXISTING_DIRS_KNOWN_FILES = {
     "starship": ("starship.toml",),
     "wlogout": ("layout", "style.css.tpl"),
     "zsh": (".zshrc.j2",),
+    "rofi": ("launcher/config.rasi",),
 }
 
 _TEMPLATE_SUFFIXES = (".j2", ".tpl")
@@ -157,10 +158,16 @@ class TestExistingDirsUnchanged:
 
 class TestSkeletonsAreStatic:
     def test_new_skeletons_have_no_template_suffix(self) -> None:
-        """AC 1-4 guard: the three new skeleton files are STATIC — unlike the
+        """AC 1-4 guard: the skeleton files are STATIC — unlike the
         zsh `.zshrc.j2` and wlogout `style.css.tpl` templates, they must NOT
         carry a template suffix."""
-        new_files = (_HYPR_LUA, _AGS_APP, _AGS_CSS, _HYPRPAPER_CONF)
+        new_files = (
+            _HYPR_LUA,
+            _AGS_APP,
+            _AGS_CSS,
+            _HYPRPAPER_CONF,
+            _CONFIG_DIR / "rofi" / "launcher" / "config.rasi",
+        )
         for path in new_files:
             assert not path.name.endswith(_TEMPLATE_SUFFIXES), (
                 f"{path.name} must not use a template suffix ({_TEMPLATE_SUFFIXES})"

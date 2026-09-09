@@ -26,8 +26,8 @@ hl.bind(
 -- Application launcher
 hl.bind(
     mod .. " + D",
-    hl.dsp.exec_cmd("wofi --show drun"),
-    { description = "Open application launcher" }
+    hl.dsp.exec_cmd("rofi -config ~/.config/rofi/launcher/config.rasi -show drun"),
+    { description = "Open application launcher (rofi)" }
 )
 
 -- Capture tool (standalone AGS instance `capture`)

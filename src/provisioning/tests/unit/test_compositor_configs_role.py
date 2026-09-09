@@ -250,10 +250,11 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 26, (
-            f"expected exactly 26 skeleton files "
+        assert len(files) == 27, (
+            f"expected exactly 27 skeleton files "
             f"(hyprland.lua + gloview.lua + 8 hypr modules/hyprpaper.conf/ags app.tsx+style.css"
-            f"+icon-registry+Bar.tsx+10 bar widgets); found {len(files)}"
+            f"+icon-registry+Bar.tsx+10 bar widgets + rofi launcher config.rasi); "
+            f"found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -283,6 +284,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/hypr/monitors.lua",
             "dotfiles/config/hypr/window-rules.lua",
             "dotfiles/config/hyprpaper/hyprpaper.conf",
+            "dotfiles/config/rofi/launcher/config.rasi",
         ]
         assert sources == expected, f"skeleton file sources must be exactly {expected}"
         for file_ in files:

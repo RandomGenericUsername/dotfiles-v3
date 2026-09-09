@@ -342,3 +342,10 @@ class TestGroupVarsValueShape:
         )
         assert arch["packages"]["power-options-gtk"] == "power-options-gtk"
         assert "power-options-gtk" not in debian["packages"]
+
+    def test_rofi_launcher_mapped_on_both_distros(self) -> None:
+        """The launcher package maps in BOTH group_vars (the map, not the
+        manifest, is the install authority — add-rofi-app-launcher)."""
+        for basename in (Distro.ARCH.value, Distro.DEBIAN_FAMILY.value):
+            data = yaml.safe_load((_ANSIBLE_DIR / "group_vars" / f"{basename}.yml").read_text())
+            assert data["packages"]["rofi"] == "rofi"

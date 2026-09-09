@@ -53,6 +53,7 @@ packages:
   brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
   playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)
+  rofi: rofi # Application launcher (SUPER+D)
   # Display manager — SDDM + Qt6 (same rationale as Arch; SDDM Wayland greeter
   # avoids the X11-greater GPU freeze with Hyprland). Pixie theme installed by
   # the display_manager role.

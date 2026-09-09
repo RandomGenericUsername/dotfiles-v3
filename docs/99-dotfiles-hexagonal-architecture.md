@@ -1225,7 +1225,7 @@ the Hyprland wiki recommends several must-have utilities that were missing.
 | Migrate `hyprland.conf` → `hyprland.lua` | `dotfiles/config/hypr/hyprland.lua` (new) |
 | Add 9 modular Lua config files | `keybindings.lua`, `monitors.lua`, `autostart.lua`, `window-rules.lua`, `animations.lua`, `input.lua`, `decoration.lua`, `cursor.lua`, `env-variables.lua` |
 | Remove old `hyprland.conf` | `dotfiles/config/hypr/hyprland.conf` (deleted) |
-| Add must-have packages | `packages.yaml` — dunst, hyprpolkitagent, xdg-desktop-portal-hyprland, xdg-desktop-portal-gtk, wl-clipboard, grim, slurp, wofi, thunar, cliphist, lf, hyprcursor, hyprlock, hypridle |
+| Add must-have packages | `packages.yaml` — dunst, hyprpolkitagent, xdg-desktop-portal-hyprland, xdg-desktop-portal-gtk, wl-clipboard, grim, slurp, rofi, thunar, cliphist, lf, hyprcursor, hyprlock, hypridle |
 | Wire services via systemd | `autostart.lua` — systemctl --user start for hyprpolkitagent, xdg-desktop-portal-hyprland, xdg-desktop-portal-gtk |
 | Update Ansible roles | `compositor_configs/vars/main.yml` — 13 skeleton files (was 4) |
 | Update verify role | `verify/vars/main.yml` — verify_compositor_skeleton_files list |

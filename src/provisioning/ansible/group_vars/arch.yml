@@ -63,6 +63,7 @@ packages:
   brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
   playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)
+  rofi: rofi # Application launcher (Wayland fork, SUPER+D)
   # Display manager — SDDM + Qt6 (provisioned by the display_manager role with
   # the Pixie theme and a Wayland greeter; installed here too so the packages
   # role makes them present in the aggregate). X11 greeters grabbed the GPU and

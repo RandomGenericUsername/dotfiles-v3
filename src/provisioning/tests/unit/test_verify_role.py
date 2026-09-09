@@ -1567,6 +1567,8 @@ def _build_provisioned_layout(
         "config/itr",
         "config/gtk-3.0",
         "config/gtk-4.0",
+        "config/rofi",
+        "config/rofi/launcher",
     )
     for rel in spine_dirs:
         (install / rel).mkdir(parents=True, exist_ok=True)
@@ -1635,6 +1637,8 @@ def _build_provisioned_layout(
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
     (install / "config" / "ags" / "app.tsx").write_text("")
     (install / "config" / "ags" / "style.css").write_text("")
+    # rofi launcher skeleton (compositor_configs role, add-rofi-app-launcher).
+    (install / "config" / "rofi" / "launcher" / "config.rasi").write_text("")
     # AGS bar skeletons (enhance-ags-bar: icons registry + Bar + widgets).
     # Must match verify_compositor_skeleton_files EXACTLY (missing files
     # fail the criterion-7 gate — the fixture is the "provisioned machine").
@@ -1722,6 +1726,7 @@ def _build_provisioned_layout(
         "itr",
         "gtk-3.0",
         "gtk-4.0",
+        "rofi",
     ):
         (xdg / name).symlink_to(install / "config" / name, target_is_directory=True)
 

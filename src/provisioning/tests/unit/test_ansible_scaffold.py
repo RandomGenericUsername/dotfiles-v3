@@ -48,6 +48,7 @@ _LOGICAL_PACKAGE_KEYS = (
     "networkmanager",
     "wifitui",
     "wlogout",
+    "rofi",
     "librsvg",
     "uwsm",
     "ags",
@@ -65,9 +66,12 @@ _LOGICAL_PACKAGE_KEYS = (
     "thunderbird",
     "brightnessctl",
     "playerctl",
-    "power-options-gtk",
 )
-_ARCH_EXTRA_KEYS = ("gloview_build", "adw_gtk_theme")  # +adw_gtk_theme: GTK3 theme (Option A 2026-09-09)
+_ARCH_EXTRA_KEYS = (
+    "gloview_build",
+    "adw_gtk_theme",  # GTK3 theme (Option A 2026-09-09)
+    "power-options-gtk",  # AUR-only (portable power management) — Arch
+)
 
 
 class TestAnsibleScaffoldFilesExist:

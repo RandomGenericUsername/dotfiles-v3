@@ -36,7 +36,7 @@ entries:
   - name: wireplumber        # Audio device management for PipeWire
   - name: gpu-screen-recorder # Preferred Wayland recording backend with pause/resume
   - name: wf-recorder        # Fallback Wayland-native recorder
-  - name: wofi               # Application launcher
+  - name: rofi               # Application launcher
   - name: thunar             # File manager (GTK-based)
   - name: cliphist           # Clipboard history
 

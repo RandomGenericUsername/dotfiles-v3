@@ -355,7 +355,7 @@ class TestReadRealManifests:
             "wireplumber",
             "gpu-screen-recorder",
             "wf-recorder",
-            "wofi",
+            "rofi",
             "thunar",
             "cliphist",
             "lf",

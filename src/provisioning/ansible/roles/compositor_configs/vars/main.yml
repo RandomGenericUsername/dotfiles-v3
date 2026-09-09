@@ -82,6 +82,8 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/lib"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets"
+  - "{{ compositor_configs_spine_config_dir }}/rofi"
+  - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
 
 # compositor_configs_skeleton_files: the skeleton FILES authored by 2.8 (AC 2),
 #   one entry per file with the explicit target path. Per-file entries (not
@@ -117,6 +119,7 @@ compositor_configs_skeleton_files:
   - { name: ags-thunderbird, source: dotfiles/config/ags/bar/widgets/thunderbird.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/thunderbird.tsx" }
   - { name: ags-recording, source: dotfiles/config/ags/bar/widgets/recording.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/recording.tsx" }
   - { name: ags-tray, source: dotfiles/config/ags/bar/widgets/tray.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/tray.tsx" }
+  - { name: rofi-launcher-config-rasi, source: dotfiles/config/rofi/launcher/config.rasi, dest: "{{ compositor_configs_spine_config_dir }}/rofi/launcher/config.rasi" }
 
 # compositor_configs_bin_scripts: executable desktop helpers the XF86 binds in
 #   keybindings.lua call (deployed to the user's XDG bin dir, 0755). These are

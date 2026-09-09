@@ -318,6 +318,7 @@ verify_managed_link_dirs:
   - itr
   - gtk-3.0
   - gtk-4.0
+  - rofi
 
 # verify_gtk_skeleton_files: the palette-import skeleton files that must be
 #   present THROUGH the ~/.config/gtk-{3,4}.0 symlinks (criterion 9, layer 4

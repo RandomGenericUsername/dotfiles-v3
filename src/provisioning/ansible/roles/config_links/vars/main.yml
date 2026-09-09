@@ -65,6 +65,7 @@ config_links_backup_policy: auto
 #   - config_copies → nvim, starship, wlogout, zsh
 #   - settings     → color-scheme-generator, weg, itr
 #   - gt-3-1       → gtk-3.0, gtk-4.0 (the GTK consumer dirs)
+#   - add-rofi-app-launcher → rofi
 #   Parity with the writing roles is locked by a structural test.
 config_links_managed_dirs:
   - hypr
@@ -81,6 +82,7 @@ config_links_managed_dirs:
   - itr
   - gtk-3.0
   - gtk-4.0
+  - rofi
 
 # config_links_gtk_dirs: the managed dirs that get the migrate-then-symlink
 #   treatment (gt-3-1): a spine-dir ensure + seed-copy of the user's existing
