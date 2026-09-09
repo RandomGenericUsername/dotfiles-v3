@@ -256,10 +256,14 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     if (!view) return;
     const shape = extractShapes(view.svg_body).find((s) => String(s.id) === shapeId);
     if (!shape || shape.placeholder === null) return;
+    // Staged (unsaved) template edits win over the on-disk placeholder:
+    // without this, a shape re-placed in the Templates tab still selects
+    // its old placeholder here and the color pick lands on the wrong one.
+    const staged = templatePending().get(templatePendingKey(view.template_path, shape.id));
     setSelection({
       variantName: view.variant,
       shapeId,
-      placeholder: shape.placeholder,
+      placeholder: staged?.newPlaceholder ?? shape.placeholder,
     });
   }
 
@@ -322,8 +326,13 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   left.append(
     InputsPanel({
       inputs,
-      pendingCount: () => pending().size + vocabPending().size,
+      // Every pending kind locks the pickers: switching inputs runs load(),
+      // which discards all staging — previously only mapping pendings locked,
+      // so staged template edits were wiped silently by a picker change.
+      pendingCount: totalPending,
+      defaults: resolveInputs(),
       onChange: (next) => load(next),
+      onReset: () => load(resolveInputs()),
       // Native file choosers are regular windows and always render below a
       // layer-shell OVERLAY surface — hide the editor while one is open.
       onDialogOpenChange: (open) => {
@@ -378,6 +387,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       activeVariant,
       selection,
       currentToken,
+      templatePending,
       onSelectShapeId: selectShapeId,
     }),
   );

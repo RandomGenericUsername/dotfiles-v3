@@ -1,12 +1,14 @@
 import { Gtk } from "ags/gtk4";
 import Pango from "gi://Pango?version=1.0";
 import { createEffect, type Accessor } from "ags";
-import type { EditorInputs } from "../lib/inputs";
+import { isSpinePath, type EditorInputs } from "../lib/inputs";
 
 export interface InputsPanelProps {
   inputs: Accessor<EditorInputs>;
   pendingCount: Accessor<number>;
+  defaults: EditorInputs;
   onChange(inputs: EditorInputs): void;
+  onReset(): void;
   // The editor window is a layer-shell OVERLAY surface: regular windows
   // (including this native file chooser) always render BELOW it, so a
   // modal chooser would be unreachable behind the editor. The window
@@ -58,7 +60,7 @@ export function InputsPanel(props: InputsPanelProps) {
 
   const rows: InputRow[] = [
     {
-      label: "SVG template root (read-only)",
+      label: "SVG template root",
       row: new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL }),
       path: new Gtk.Label({ css_classes: ["path"], xalign: 0 }),
       pick: new Gtk.Button({ label: "⋯", css_classes: ["pick"] }),
@@ -111,6 +113,17 @@ export function InputsPanel(props: InputsPanelProps) {
     root.append(item.row);
   }
 
+  const warn = new Gtk.Label({
+    css_classes: ["input-warn"],
+    xalign: 0,
+    wrap: true,
+    max_width_chars: 30,
+  });
+  const reset = new Gtk.Button({ label: "Reset to checkout defaults", css_classes: ["btn"] });
+  reset.connect("clicked", () => props.onReset());
+  root.append(warn);
+  root.append(reset);
+
   createEffect(() => {
     const inputs = props.inputs();
     const locked = props.pendingCount() > 0;
@@ -119,7 +132,30 @@ export function InputsPanel(props: InputsPanelProps) {
       item.path.set_label(path);
       item.path.set_tooltip_text(path);
       item.pick.set_sensitive(!locked);
+      item.pick.set_tooltip_text(
+        locked ? "Save or Revert pending changes before switching inputs" : "Choose a different path",
+      );
     }
+    const d = props.defaults;
+    const custom =
+      inputs.templateRoot !== d.templateRoot ||
+      inputs.iconsYaml !== d.iconsYaml ||
+      inputs.colorScheme !== d.colorScheme;
+    const split =
+      isSpinePath(inputs.templateRoot) !== isSpinePath(inputs.iconsYaml);
+    warn.set_visible(custom);
+    warn.set_label(
+      split
+        ? "Template root and manifest come from different checkouts — saves will split across repo and spine."
+        : "Custom inputs — writes go to the paths above, not the checkout defaults.",
+    );
+    reset.set_visible(custom);
+    reset.set_sensitive(!locked);
+    reset.set_tooltip_text(
+      locked
+        ? "Save or Revert pending changes before resetting inputs"
+        : "Restore the checkout defaults",
+    );
   });
 
   return root;

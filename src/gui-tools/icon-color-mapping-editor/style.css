@@ -252,6 +252,11 @@ window#icme-window {
   color: #e08585;
   margin: 4px 14px 0;
 }
+.input-warn {
+  font-size: 11px;
+  color: #e0a35e;
+  margin: 6px 14px 0;
+}
 
 .diff-text {
   font-family: monospace;

@@ -3,6 +3,7 @@ import { createEffect, type Accessor } from "ags";
 import type { MappingShow } from "../lib/itr";
 import type { ShapeSelection } from "../lib/model";
 import { extractShapes, usageCount } from "../lib/svg";
+import { templatePendingKey, type TemplatePendingEdit } from "../lib/templates";
 
 export interface CurrentToken {
   token: string;
@@ -15,6 +16,7 @@ export interface SelectionPanelProps {
   activeVariant: Accessor<string>;
   selection: Accessor<ShapeSelection | null>;
   currentToken: Accessor<CurrentToken | null>;
+  templatePending: Accessor<ReadonlyMap<string, TemplatePendingEdit>>;
   onSelectShapeId(shapeId: string): void;
 }
 
@@ -49,15 +51,19 @@ export function SelectionPanel(props: SelectionPanelProps) {
   const shapeButtons = new Map<string, Gtk.Button>();
   let builtKey = "";
 
-  function activeBody(): { bodies: string[]; body: string } | null {
+  function activeBody(): { bodies: string[]; body: string; templatePath: string } | null {
     const show = props.show();
     const group = show?.groups.find((g) => g.group === props.groupName());
     const view = group?.variants.find((v) => v.variant === props.activeVariant());
     if (!group || !view) return null;
-    return { bodies: group.variants.map((v) => v.svg_body), body: view.svg_body };
+    return {
+      bodies: group.variants.map((v) => v.svg_body),
+      body: view.svg_body,
+      templatePath: view.template_path,
+    };
   }
 
-  function rebuildList(body: string): void {
+  function rebuildList(body: string, templatePath: string): void {
     let child = shapeList.get_first_child();
     while (child) {
       const next = child.get_next_sibling();
@@ -65,12 +71,15 @@ export function SelectionPanel(props: SelectionPanelProps) {
       child = next;
     }
     shapeButtons.clear();
+    // Staged (unsaved) template edits win, mirroring selectShapeId: the list
+    // must show the placeholder a color pick would actually target.
+    const staged = props.templatePending();
     for (const info of extractShapes(body)) {
-      const label = info.placeholder
-        ? `${info.id} · {{${info.placeholder}}}`
-        : `${info.id} · static`;
+      const override = staged.get(templatePendingKey(templatePath, info.id));
+      const ph = override?.newPlaceholder ?? info.placeholder;
+      const label = ph ? `${info.id} · {{${ph}}}` : `${info.id} · static`;
       const button = new Gtk.Button({ label, css_classes: ["shape-item"] });
-      if (info.placeholder === null) {
+      if (ph === null) {
         button.set_sensitive(false);
       } else {
         button.connect("clicked", () => props.onSelectShapeId(String(info.id)));
@@ -84,6 +93,7 @@ export function SelectionPanel(props: SelectionPanelProps) {
     const active = activeBody();
     const selection = props.selection();
     const current = props.currentToken();
+    const staged = props.templatePending();
     if (!active) {
       shape.value.set_label("—");
       placeholder.value.set_label("—");
@@ -91,9 +101,12 @@ export function SelectionPanel(props: SelectionPanelProps) {
       usedBy.value.set_label("—");
       return;
     }
-    const key = `${props.groupName()}:${props.activeVariant()}`;
+    const stagedFp = [...staged.entries()]
+      .map(([k, v]) => `${k}>${v.newPlaceholder}`)
+      .join("|");
+    const key = `${props.groupName()}:${props.activeVariant()}:${stagedFp}`;
     if (key !== builtKey) {
-      rebuildList(active.body);
+      rebuildList(active.body, active.templatePath);
       builtKey = key;
     }
     const selectedId =

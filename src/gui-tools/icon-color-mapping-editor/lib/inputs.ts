@@ -28,6 +28,11 @@ function spineHome(): string {
   return `${GLib.get_user_data_dir()}/dotfiles`;
 }
 
+/** True when a path lives under the install spine (not a repo checkout). */
+export function isSpinePath(path: string): boolean {
+  return path === spineHome() || path.startsWith(`${spineHome()}/`);
+}
+
 function findRepoRoot(): string | null {
   let dir = GLib.get_current_dir();
   for (;;) {
