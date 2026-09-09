@@ -29,6 +29,25 @@ function spineHome(): string {
   return `${GLib.get_user_data_dir()}/dotfiles`;
 }
 
+/**
+ * Color-scheme resolution: the runtime-owned current palette first, the
+ * provisioned generated seed as fallback.
+ *
+ * The runtime reconciler repoints <state>/dotfiles/current/colors.yaml on
+ * every wallpaper set (via the color-scheme generator), and the whole
+ * desktop consumes that pointer — so the editor previews against the LIVE
+ * scheme. Before the runtime ever runs (or if the pointer dangles), fall
+ * back to the bootstrap-rendered generated/palettes/colors.yaml seed,
+ * which the verify role accepts as the pre-runtime palette location.
+ */
+function resolveColorScheme(): string {
+  const override = GLib.getenv("ICME_COLOR_SCHEME");
+  if (override) return override;
+  const current = `${GLib.get_user_state_dir()}/dotfiles/current/colors.yaml`;
+  if (GLib.file_test(current, GLib.FileTest.EXISTS)) return current;
+  return `${spineHome()}/generated/palettes/colors.yaml`;
+}
+
 /** True when a path lives under the install spine (not a repo checkout). */
 export function isSpinePath(path: string): boolean {
   return path === spineHome() || path.startsWith(`${spineHome()}/`);
@@ -63,15 +82,13 @@ export function resolveInputs(): EditorInputs {
       iconsYaml:
         GLib.getenv("ICME_ICONS_YAML") ??
         `${repoRoot}/${MANIFEST_PROBE}`,
-      colorScheme:
-        GLib.getenv("ICME_COLOR_SCHEME") ?? `${spineHome()}/generated/palettes/colors.yaml`,
+      colorScheme: resolveColorScheme(),
     };
   }
   return {
     templateRoot: GLib.getenv("ICME_TEMPLATE_ROOT") ?? `${spineHome()}/icon-templates`,
     iconsYaml: GLib.getenv("ICME_ICONS_YAML") ?? `${spineHome()}/icon-mappings/icons.yaml`,
-    colorScheme:
-      GLib.getenv("ICME_COLOR_SCHEME") ?? `${spineHome()}/generated/palettes/colors.yaml`,
+    colorScheme: resolveColorScheme(),
   };
 }
 
