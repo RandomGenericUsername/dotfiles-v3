@@ -44,10 +44,13 @@ cli_tools_image_builds:
   - { name: csg }
 
 # cli_tools: install specs mirroring dotfiles/provisioning/cli-tools.yaml
-#   (csg/weg/itr -> repo source paths). The console-script name is the
-#   install target; `itr` IS the icon-renderer (no separate binary).
+#   (csg/weg/itr -> repo source paths, plus dotfiles-runtime -> src/runtime).
+#   The console-script name is the install target; `itr` IS the icon-renderer
+#   (no separate binary). dotfiles-runtime has NO container mode and is NOT
+#   in cli_tools_image_builds (host-side reconcile/inspect only).
 #   Parity with the manifest is locked by a structural test.
 cli_tools:
   - { name: csg, source: src/cli-tools/color-scheme-generator }
   - { name: weg, source: src/cli-tools/wallpaper-effects-generator }
   - { name: itr, source: src/cli-tools/icon-templates-renderer }
+  - { name: dotfiles-runtime, source: src/runtime }

@@ -32,6 +32,7 @@ _REPO_ROOT = _find_repo_root()
 _CONFIG_DIR = _REPO_ROOT / "dotfiles" / "config"
 
 _HYPR_LUA = _CONFIG_DIR / "hypr" / "hyprland.lua"
+_HYPR_AUTOSTART = _CONFIG_DIR / "hypr" / "autostart.lua"
 _AGS_APP = _CONFIG_DIR / "ags" / "app.tsx"
 _AGS_CSS = _CONFIG_DIR / "ags" / "style.css"
 _HYPRPAPER_CONF = _CONFIG_DIR / "hyprpaper" / "hyprpaper.conf"
@@ -85,6 +86,28 @@ class TestHyprlandSkeleton:
             assert module in content, (
                 f"hyprland.lua must dofile ../{module}"
             )
+
+
+class TestAutostartLoginRestore:
+    def test_reconcile_hook_exists_and_is_fail_open(self) -> None:
+        """Login restore: autostart must invoke `dotfiles-runtime reconcile`
+        (staggered, backgrounded, fail-open) so a reboot converges to
+        current.json instead of the static default.png. The hyprpaper IPC
+        socket wait must be bounded and the whole hook must end in `|| true`
+        inside a backgrounded subshell so login can never block on it."""
+        content = _HYPR_AUTOSTART.read_text(encoding="utf-8")
+        assert "dotfiles-runtime reconcile" in content, (
+            "autostart.lua must invoke dotfiles-runtime reconcile at login"
+        )
+        assert ".hyprpaper.sock" in content, (
+            "reconcile must wait for the hyprpaper IPC socket (bounded)"
+        )
+        assert "|| true" in content, (
+            "login restore must be fail-open (|| true)"
+        )
+        assert content.rstrip().endswith("end)") or "&'" in content or '&")' in content, (
+            "login restore must be backgrounded so it cannot block session start"
+        )
 
 
 class TestAgsSkeleton:

@@ -149,6 +149,8 @@ Order:
 
 Crash recovery: on next run, `ReconcileDesktopStateUseCase` reads `current.json` and re-derives the `current/` symlinks from it (idempotent repair). If a symlink target is missing (evicted/partial), the entry is treated as a cache miss and regenerated. The desktop is never left pointing at a half-swapped state because each symlink resolves independently to a complete write-once entry.
 
+Login restore: Hyprland session start runs `dotfiles-runtime reconcile` (staggered, fail-open hook in `config/hypr/autostart.lua`, after the hyprpaper IPC socket is ready) so a reboot converges to `current.json` instead of the static `default.png` from `hyprpaper.conf`. This is the same `reconcile` primitive — no separate restore path.
+
 ## Consumer-pointer table (gt-2-2, AD-11 exception class)
 
 Consumer *pointers* are the only writes the runtime may make under the

@@ -1,7 +1,9 @@
 # CLI tools installed via `uv tool install` from repo source paths (plan §3).
 #
-# These are the three compute-provider CLIs. src/cli-tools/openspec/ is NOT an
-# install target and must not be listed here.
+# csg/weg/itr are the three compute-provider CLIs; dotfiles-runtime is the
+# desktop-state CLI (wallpaper set / reconcile / inspect) that the login
+# hook needs on PATH. src/cli-tools/openspec/ is NOT an install target and
+# must not be listed here.
 kind: cli-tools
 entries:
   - name: csg
@@ -10,3 +12,5 @@ entries:
     source: src/cli-tools/wallpaper-effects-generator
   - name: itr
     source: src/cli-tools/icon-templates-renderer
+  - name: dotfiles-runtime
+    source: src/runtime
