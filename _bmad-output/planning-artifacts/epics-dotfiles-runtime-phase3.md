@@ -14,6 +14,9 @@ inputDocuments:
   - _bmad-output/specs/spec-dotfiles-runtime-phase2/SPEC.md
   - _bmad-output/specs/spec-dotfiles-runtime-phase2/cache-model.md
   - _bmad-output/specs/spec-dotfiles-runtime-phase2/consumer-wiring.md
+  - _bmad-output/planning-artifacts/prds/prd-dotfiles-repo-v3-2026-09-10/prd.md
+  - _bmad-output/planning-artifacts/architecture/architecture-dotfiles-repo-v3-2026-09-07/delta-phase3-digest-2026-09-10.md
+amended: 2026-09-10 (cache-integrity fold-in: FR-8/FR-9, AR-10/AR-11, Story 1.5; parent CE validation intact)
 ---
 
 # dotfiles-repo-v3 - Epic Breakdown (Phase 3: State Awareness)
@@ -33,6 +36,8 @@ FR-4: `doctor --repair` quarantines bad entries (rename-aside, never `rm -rf` us
 FR-5: `inspect cache list --verify` adds per-entry health (hash recheck) without changing default list output. (CAP-2)
 FR-6: `cache prune [--dry-run --keep N --prune-pinned=false]` removes only unreferenced, non-active, non-pinned entries; dry-run is default-safe; every removal logged. (CAP-4)
 FR-7: History reader tolerates a torn trailing line (skip + warn, never crash) — implements rt-3-1 deferred item. (CAP-3)
+FR-8: Digest enforcement at populate time — every artifact is hashed as it is written via `populate_via_staging`; mismatch vs recorded `artifact_hashes` raises `CorruptCacheError` before the staging rename. (fold-in 2026-09-10, AD-26)
+FR-9: Legacy lazy annotation — entries without `artifact_hashes` stay usable (healthy-until-proven-corrupt); first `--verify` annotates them, never fails them. No migration. (fold-in 2026-09-10, AD-27)
 
 ### NonFunctional Requirements
 
@@ -46,12 +51,14 @@ NFR-4: Performance: `--check-inputs` on a warm cache completes without tool invo
 AR-1 (AD-21): Invalidation is hash-compare only — recompute spine input hashes (csg templates, weg catalog, icon templates/mappings) with Phase 2 canonicalization, compare against `meta.json`; no new hash formulas, no cache layout change.
 AR-2 (AD-21): Cascade rule pinned: wallpaper→palette+effects, palette→icons; regenerate the minimal stale set plus cascade.
 AR-3 (AD-22): `DoctorUseCase` checks `current.json` vs `current/` targets vs `cache/<layer>/<hash>/` existence+health; repair quarantines by rename-aside (never `rm -rf`), repopulates via Phase 2 pipeline, repoints stray symlinks to last-good state, saves `current.json`, appends `history.jsonl` with `trigger: doctor`; idempotent and re-runnable.
-AR-4 (AD-23): Torn history tail policy — readers skip a non-JSON trailing line with a warning and report clean; only `doctor --repair` may truncate/quarantine it; resolves rt-3-1 at the reader contract, not the writer.
+AR-4 (AD-23): Torn history tail policy — readers skip a non-JSON trailing line with a warning and report clean; only `doctor --repair` (and the sole writer `append_history`, which self-heals before appending) may truncate/quarantine it; resolves rt-3-1 at the reader contract, with a writer self-heal added in Story 2.3 (amended 2026-09-10; a complete-but-unterminated JSON record is terminated, not truncated).
 AR-5 (AD-24): Eviction keeps active + last-N per layer (default 5) + seed-pinned; prune is explicit, dry-run default-safe, every removal logged.
 AR-6 (AD-25): New units land in existing layers — `IInvalidationQuery` in `ports/`; `DoctorUseCase`/`PruneUseCase` in `application/`; `doctor` + `cache prune [--verify]` in `cli/` composition root; all I/O in `adapters/`; `tests/architecture/test_layering.py` unchanged and green.
 AR-7 (Inherited): Parent AD-1..AD-20 binding read-only (inward deps, layered content-addressed cache, JSON store FS authority, append-only history, runtime-owned `state_root`, symlink-only swap symlinks-leading, per-call env-overrides, SHA-256 versioned, staging-dir population, derivation graph, seed+R2 exception, sync imperative, nested-hexagon layout, domain purity, cross-package boundary, wallpaper hardlink, `current/` consumer wiring, backend abstraction, Typer CLI via `cli_output`, separate binary).
 AR-8 (Non-goals, binding): No declarative diff engine (P4), no daemon/watchers (P5), no parallel execution/plugins (P6), no SQLite/multi-backend store, no hash-formula / cache-layout / derivation-semantics changes.
 AR-9 (Deferred, binding): Auto-check on `wallpaper set` stays explicit in Phase 3 (OQ-2 decision: explicit now, auto in Phase 4 reconciler); Keep-N tuning and seed-pin UX beyond defaults deferred; writer-side history atomicity redesign deferred (multi-`write(2)` interleave accepted).
+AR-10 (AD-26, fold-in 2026-09-10): Digest enforcement at populate — every artifact hashed at write time inside `populate_via_staging`; mismatch raises `CorruptCacheError` before the staging rename; write-once preserved (no in-place re-hash; correction via `DoctorUseCase` only); enforcement helper lives in `adapters/`, surfaced as data by `application/`.
+AR-11 (AD-27, fold-in 2026-09-10): Legacy lazy annotation — pre-FR-8 entries without `artifact_hashes` stay usable (healthy-until-proven-corrupt); first `cache list --verify` annotates them in place; never hard-failed, no migration pass.
 
 ### UX Design Requirements
 
@@ -66,14 +73,16 @@ FR-4: Epic 2 - Doctor repair (quarantine, repopulate, repoint, `trigger: doctor`
 FR-5: Epic 3 - `cache list --verify` per-entry health, default list output unchanged
 FR-6: Epic 3 - `cache prune` keep-policy eviction with dry-run safety + removal logging
 FR-7: Epic 2 - Torn-history-tail tolerance (skip + warn; truncate only under `--repair`)
+FR-8: Epic 1 - Digest enforcement at populate time (Story 1.5; AD-26)
+FR-9: Epic 3 - Legacy lazy annotation on first `--verify` (Story 3.1; AD-27)
 
 ## Epic List
 
 ### Epic 1: Invalidation-Aware Regeneration
 
-Operator edits a spine input (csg template, weg catalog, icon template/mapping) and a read-only check surfaces exactly the stale layers (+ cascade); regeneration rebuilds only those through the Phase 2 pipeline and the desktop reconverges.
+Operator edits a spine input (csg template, weg catalog, icon template/mapping) and a read-only check surfaces exactly the stale layers (+ cascade); regeneration rebuilds only those through the Phase 2 pipeline and the desktop reconverges. Populated entries carry enforced artifact digests so corruption is caught at write time, not discovered later.
 
-**FRs covered:** FR-1, FR-2
+**FRs covered:** FR-1, FR-2, FR-8
 
 ### Epic 2: Doctor Drift Detection + Repair
 
@@ -124,6 +133,7 @@ So that stale layers are detected by hash-compare only.
 **When** the hash-walk adapter recomputes input hashes and compares them to recorded values
 **Then** matching layers report fresh and differing layers report stale with the differing input identified (templates vs catalog vs mappings)
 **And** canonicalization matches `shared-data-contract.md` exactly (no new formulas, AR-1)
+**And** the stale-set computation uses recorded *input* hashes only — artifact-hash mismatch is NOT staleness; it is the corrupt-by-digest domain of Story 1.5 / doctor `--verify` (boundary pinned 2026-09-10)
 **And** all filesystem I/O lives in `adapters/` only (AR-6)
 
 ### Story 1.3: Read-only `--check-inputs` stale report
@@ -154,6 +164,24 @@ So that `doctor --repair` after a template edit rebuilds only what changed.
 **And** fresh layers are untouched (no tool invocation for them)
 **And** the run finishes with repointed `current/`, saved `current.json`, one history line, and consumer reload (PRD success signal)
 **And** repair/regeneration is idempotent and re-runnable (NFR-3)
+
+### Story 1.5: Digest enforcement at populate time (fold-in 2026-09-10)
+
+As a developer,
+I want every artifact hashed as it is written via `populate_via_staging`,
+So that generator-level corruption raises before the entry becomes visible and later verify/repair have real digests to check.
+
+Depends on Story 1.2 (same recorded `meta.json` input-hash fields); must land before Story 2.2 so doctor repair has corrupt-by-digest entries to classify.
+
+**Acceptance Criteria:**
+
+**Given** a `populate_fn` staging dir with artifacts + `meta.json`
+**When** `populate_via_staging` finalizes the entry
+**Then** every artifact listed in `artifact_hashes` is re-hashed at write time and a mismatch raises `CorruptCacheError` BEFORE the staging rename — the corrupt entry never becomes visible (FR-8/AR-10/AD-26)
+**And** populated entries are never re-hashed in place (write-once preserved); correction flows only through `DoctorUseCase` repair (AD-22)
+**And** the enforcement helper lives in `adapters/` (next to `cache.py`/`hashing.py`); `application/` surfaces the error as data, never an uncaught crash (zero-crash invariant)
+**And** no hash formula or cache-layout constant is altered (AD-21 holds)
+**And** `tests/architecture/test_layering.py` passes unchanged (AR-6)
 
 ---
 
@@ -188,6 +216,7 @@ So that a corrupted `meta.json` heals without manual deletion and the desktop re
 **Given** a drifted machine (corrupt/missing `meta.json` or artifact-hash mismatch, stray symlink)
 **When** `dotfiles-runtime doctor --repair` runs
 **Then** bad entries are quarantined by rename-aside (never `rm -rf`), repopulated via the Phase 2 pipeline, stray symlinks repointed to last-good `current.json` state
+**And** corrupt-by-digest entries (artifact-hash mismatch per Story 1.5, FR-8) are quarantined + repopulated identically to corrupt-`meta.json` entries — one repair path for all corruption classes (fold-in 2026-09-10)
 **And** `current.json` is saved (tmp+rename) and `history.jsonl` gains exactly one line with `trigger: doctor` (O_APPEND)
 **And** re-running `doctor --repair` is a no-op success (idempotent, NFR-3)
 **And** repair never writes under the install spine except the AD-11 R2 symlink (NFR-2)
@@ -210,8 +239,8 @@ So that one short write never bricks every history consumer (rt-3-1).
 
 ## Epic 3: Cache Verify + Prune
 
-Operator verifies per-entry cache health without changing default list output, and explicitly prunes only unreferenced, non-active, non-pinned entries (keep active + last-N default 5 + seed-pinned), with dry-run default-safe and every removal logged.
-**FRs covered:** FR-5, FR-6
+Operator verifies per-entry cache health without changing default list output, and explicitly prunes only unreferenced, non-active, non-pinned entries (keep active + last-N default 5 + seed-pinned), with dry-run default-safe and every removal logged. Legacy entries are annotated, never failed.
+**FRs covered:** FR-5, FR-6, FR-9
 **CAPs covered:** CAP-2, CAP-4
 
 ### Story 3.1: `cache list --verify` per-entry health
@@ -226,7 +255,8 @@ So that corrupt entries are visible without changing the default list.
 **When** `dotfiles-runtime inspect cache list` runs without flags
 **Then** output is byte-identical to the Phase 2 default list (FR-5)
 **And** when run with `--verify` each entry carries a health verdict (ok/corrupt/missing) from a single bounded cache walk (NFR-4)
-**And** verify performs zero mutations
+**And** legacy entries without `artifact_hashes` are lazily annotated in place on first `--verify` (digests recorded, FR-9/AR-11/AD-27) — never hard-failed, no migration pass
+**And** verify performs zero mutations beyond the annotation write (fold-in 2026-09-10)
 
 ### Story 3.2: `cache prune` keep-policy eviction core
 

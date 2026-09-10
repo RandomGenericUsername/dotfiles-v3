@@ -9,3 +9,4 @@ updated: 2026-09-07T12:00
 - (decision) Story sizing layering-clean per AD-25: ports → adapters → application → cli; 4+3+3 = 10 stories; no UX-DRs (headless CLI, no UX contract)
 - (assumption) Skill menu halts pre-authorized by user prompt (fresh-context autonomous run; return only path/titles/questions)
 - (event) CE Steps 1-4 completed; file validated: all FRs mapped, no forward story dependencies, layering test constraint carried in 1.1/3.2
+- (event 2026-09-10) Cache-integrity fold-in approved: versioned PRD 2026-09-10 (FR-8 digest-at-populate, FR-9 legacy lazy annotation), arch delta AD-26/AD-27 (proposed), Story 1.5 inserted (depends 1.2, precedes 2.2); 1.2 boundary pinned (input-hash staleness vs corrupt-by-digest); 2.2 + 3.1 ACs amended. Count now 5+3+3 = 11 stories.

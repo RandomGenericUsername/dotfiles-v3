@@ -41,7 +41,7 @@ Parent `architecture-dotfiles-repo-v3-2026-08-18` AD-1..AD-20 are binding and re
 
 - **Binds:** history readers
 - **Prevents:** one short write bricking every history consumer
-- **Rule:** readers skip a non-JSON trailing line with a warning and report clean; only `doctor --repair` may truncate/quarantine it. Resolves the rt-3-1 deferred writer gap at the reader contract, not the writer. [ADOPTED]
+- **Rule:** readers skip a non-JSON trailing line with a warning and report clean; only `doctor --repair` may truncate/quarantine it. Resolves the rt-3-1 deferred writer gap at the reader contract, not the writer. [ADOPTED] (Amended 2026-09-10, Story 2.3: read commands never mutate; the sole history writer `append_history` self-heals a torn tail before appending (a plain newline-prefix would convert a tolerable tail into loud middle corruption), and `doctor --repair` heals explicitly even when otherwise clean. A complete-but-unterminated JSON record is terminated, not truncated. Both paths share one locked adapter method. Writer atomicity/append-only guarantee preserved.)
 
 ### AD-24 — Eviction keeps active + recent + pinned
 

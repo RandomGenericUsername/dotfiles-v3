@@ -33,7 +33,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
-last_updated: "2026-09-09 (merge feat/gtk-theming-consumer — Phase 3 + GTK epics both live)"
+last_updated: "2026-09-10 (Phase 3 COMPLETE: Epics 1-3 done — 11/11 stories; PRD v2 + AD-26/27 adopted)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -94,25 +94,26 @@ development_status:
   # ═══════════════════════════════════════════════════════════════════
 
   # ── Epic 1: Invalidation-Aware Regeneration ──
-  p3-epic-1: backlog
-  p3-1-1-iinvalidationsquery-port: backlog
-  p3-1-2-spine-input-hash-walk-adapter: backlog
-  p3-1-3-check-inputs-stale-report: backlog
-  p3-1-4-selective-regeneration-cascade-reconverge: backlog
+  p3-epic-1: done
+  p3-1-1-iinvalidationsquery-port: done
+  p3-1-2-spine-input-hash-walk-adapter: done
+  p3-1-3-check-inputs-stale-report: done
+  p3-1-4-selective-regeneration-cascade-reconverge: done
+  p3-1-5-digest-enforcement-at-populate: done
   p3-epic-1-retrospective: optional
 
   # ── Epic 2: Doctor Drift Detection + Repair ──
-  p3-epic-2: backlog
-  p3-2-1-doctor-three-way-check: backlog
-  p3-2-2-doctor-repair: backlog
-  p3-2-3-torn-history-tail-tolerance: backlog
+  p3-epic-2: done
+  p3-2-1-doctor-three-way-check: done
+  p3-2-2-doctor-repair: done
+  p3-2-3-torn-history-tail-tolerance: done
   p3-epic-2-retrospective: optional
 
   # ── Epic 3: Cache Verify + Prune ──
-  p3-epic-3: backlog
-  p3-3-1-cache-list-verify: backlog
-  p3-3-2-prune-keep-policy: backlog
-  p3-3-3-prune-cli: backlog
+  p3-epic-3: done
+  p3-3-1-cache-list-verify: done
+  p3-3-2-prune-keep-policy: done
+  p3-3-3-prune-cli: done
   p3-epic-3-retrospective: optional
 
   # GTK Theming Consumer — Phase 2.x remediation (epics-gtk-theming.md)
