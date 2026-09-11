@@ -138,7 +138,7 @@ development_status:
   p4-epic-3-retrospective: optional
 
   # ── Phase 4 backlog siblings (Gate 1 ruling, option b) ──
-  p4-3-3-history-lock: backlog
+  p4-3-3-history-lock: done
   p4-3-4-wallpaper-set-auto-check: backlog
 
   # GTK Theming Consumer — Phase 2.x remediation (epics-gtk-theming.md)
