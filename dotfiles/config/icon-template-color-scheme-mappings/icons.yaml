@@ -58,6 +58,8 @@ battery:
 network:
   color_mappings:
     COLOR_FOREGROUND: color15
+    COLOR_CROSS: color13
+    COLOR_WARNING: color13
   variants:
     - name: wifi-full-default
       template: status-bar/network/wifi-full/default/icon.svg
