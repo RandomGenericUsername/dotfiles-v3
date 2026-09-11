@@ -126,14 +126,14 @@ development_status:
   p4-epic-1-retrospective: optional
 
   # ── Epic 2: Declarative State ──
-  p4-epic-2: in-progress
+  p4-epic-2: done
   p4-2-1-desired-state-file: done
   p4-2-2-actual-state-projection: done
   p4-epic-2-retrospective: optional
 
   # ── Epic 3: Diff + Plan Execution ──
-  p4-epic-3: backlog
-  p4-3-1-diff-engine: backlog
+  p4-epic-3: in-progress
+  p4-3-1-diff-engine: done
   p4-3-2-planner-wiring: backlog
   p4-epic-3-retrospective: optional
 
