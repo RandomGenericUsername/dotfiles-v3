@@ -42,13 +42,17 @@ class ProvisionResult:
 
     ``returncode`` and ``stderr`` carry the raw ``ansible-playbook`` outcome so
     the application layer can surface the cause of a failed run without
-    re-reaching into the adapter.
+    re-reaching into the adapter. ``failure_detail`` carries the per-task
+    failure lines ansible writes to *stdout* (``fatal:`` / ``failed:``) — the
+    only place a task's error text lives, since ansible's stderr is typically
+    empty for a failed task.
     """
 
     success: bool
     tasks: tuple[tuple[str, str], ...] = field(default_factory=tuple)
     returncode: int = 0
     stderr: str = ""
+    failure_detail: str = ""
 
 
 __all__ = [

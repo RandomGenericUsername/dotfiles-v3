@@ -171,6 +171,29 @@ class TestPlanCommand:
         payload = json.loads(result.stdout)
         assert payload["install_dir"] == "unresolved"
 
+    def test_plan_failed_result_surfaces_failure_detail_when_stderr_blank(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Ansible writes task failures to stdout, so stderr can be empty on a
+        real command failure. The error envelope must still carry the cause."""
+        deps = FakeDeps(
+            ProvisionResult(
+                success=False,
+                tasks=(("packages : Refresh pacman databases before install", "failed"),),
+                returncode=2,
+                stderr="",
+                failure_detail='fatal: [localhost]: FAILED! => {"msg": "No space left"}',
+            )
+        )
+        result = _invoke(runner, deps, ["plan"], monkeypatch)
+        assert result.exit_code == 1
+        error_payload = json.loads(result.stderr)
+        assert error_payload["details"]["stderr"] == ""
+        assert "No space left" in error_payload["details"]["failure_detail"]
+        assert error_payload["details"]["failed_tasks"] == [
+            "packages : Refresh pacman databases before install"
+        ]
+
     def test_plan_adapter_error_renders_error_view(
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
     ) -> None:

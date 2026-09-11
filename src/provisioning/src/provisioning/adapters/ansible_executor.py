@@ -78,6 +78,25 @@ def _strip_ansi(line: str) -> str:
     return _ANSI_ESCAPE_RE.sub("", line)
 
 
+def _extract_failure_detail(stdout: str) -> str:
+    """Return the raw error lines for failed tasks.
+
+    Ansible writes *task* failures to stdout (``fatal: [host]: FAILED! => {...}``
+    or ``failed: [host] => {...}``); its stderr is empty for a failed task, so
+    stderr alone leaves the orchestrator reporting a blank cause. These lines
+    carry ``msg``/``rc``/``stdout``/``stderr`` for the failing command, so
+    surfacing them makes a command failure diagnosable instead of opaque. ANSI
+    escapes are stripped and blank lines dropped; unrelated task output is left
+    out so the detail stays bounded to the actual failures.
+    """
+    detail: list[str] = []
+    for raw_line in stdout.splitlines():
+        line = _strip_ansi(raw_line.strip())
+        if line.startswith(("fatal:", "failed:")):
+            detail.append(line)
+    return "\n".join(detail)
+
+
 def _parse_tasks(stdout: str) -> tuple[tuple[str, str], ...]:
     """Extract ``(task_label, status)`` pairs from the play output.
 
@@ -188,6 +207,7 @@ class AnsibleExecutor(IProvisionExecutor):
             tasks=tasks,
             returncode=proc.returncode,
             stderr=proc.stderr or "",
+            failure_detail=_extract_failure_detail(proc.stdout),
         )
 
 

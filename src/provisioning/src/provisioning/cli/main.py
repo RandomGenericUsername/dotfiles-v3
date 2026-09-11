@@ -120,18 +120,21 @@ def _render_run(
         renderer.error(ErrorView(kind=type(exc).__name__, message=str(exc)))
         raise typer.Exit(code=1) from None
     if not result.success:
+        details: dict[str, str] = {
+            "stderr": result.stderr,
+            "failed_tasks": [  # type: ignore[dict-item]
+                label
+                for label, status in result.tasks
+                if status in ("failed", "unreachable")
+            ],
+        }
+        if result.failure_detail:
+            details["failure_detail"] = result.failure_detail
         renderer.error(
             ErrorView(
                 kind="ProvisionFailed",
                 message=f"{command} failed (returncode={result.returncode})",
-                details={
-                    "stderr": result.stderr,
-                    "failed_tasks": [
-                        label
-                        for label, status in result.tasks
-                        if status in ("failed", "unreachable")
-                    ],
-                },
+                details=details,
             )
         )
         raise typer.Exit(code=1) from None

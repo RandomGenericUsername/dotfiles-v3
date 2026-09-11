@@ -43,12 +43,39 @@
     mode: "01777"
   become: true
 
+# `-Syy` forces a full DB refresh (not `-Sy`) — deliberate: the provisioner
+# must reconcile against current mirror state, so a stale local DB is never
+# trusted. `failed_when: false` + an explicit fail task turns a command failure
+# into a diagnosable message: a bare ansible.builtin.command failure prints only
+# "non-zero return code" and, because ansible routes task errors to STDOUT, the
+# orchestrator's stderr-based error view would otherwise be blank. The
+# registered rc/stdout/stderr is the actual pacman error (e.g. an ENOSPC
+# "Failure writing output to destination" or a mirror/keyring error).
 - name: Refresh pacman databases before install
   ansible.builtin.command: pacman -Syy --noconfirm
+  register: pacman_db_refresh
+  failed_when: false
   become: true
   when:
     - ansible_facts['os_family'] == "Archlinux"
     - not ansible_check_mode
+
+- name: Fail with the pacman DB refresh error and likely causes
+  ansible.builtin.fail:
+    msg: >-
+      pacman -Syy failed (rc={{ pacman_db_refresh.rc | default('?') }}).
+      stdout: {{ pacman_db_refresh.stdout | default('') | trim }}
+      stderr: {{ pacman_db_refresh.stderr | default('') | trim }}
+      Likely causes: a stale/held /var/lib/pacman/db.lck (another pacman, pamac,
+      paru, yay, or a crashed run); unreachable or empty mirrors
+      (/etc/pacman.d/mirrorlist); a broken pacman keyring
+      (pacman-key --init/--populate); a corrupted pacman database; or a full
+      disk (check `df -h /`). Fix the cause, then re-run.
+  when:
+    - ansible_facts['os_family'] == "Archlinux"
+    - not ansible_check_mode
+    - pacman_db_refresh.rc is defined
+    - pacman_db_refresh.rc != 0
 
 - name: Install system packages
   ansible.builtin.package:

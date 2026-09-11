@@ -138,6 +138,48 @@ class TestAnsibleExecutor:
         assert result.tasks == (("packages : install hyprland", "failed"),)
         assert result.success is False
 
+    def test_failure_detail_captures_stdout_fatal_when_stderr_empty(self) -> None:
+        """A failed command's error text lives on stdout (ansible's stderr is
+        empty for task failures), so failure_detail must surface it — otherwise
+        the CLI reports a blank cause."""
+        stdout = (
+            "TASK [packages : Refresh pacman databases before install] ***\n"
+            'fatal: [localhost]: FAILED! => {"changed": true, '
+            '"msg": "non-zero return code", "rc": 1, "stderr": "", '
+            '"stdout": "error: failed to synchronize all databases"}\n'
+            "PLAY RECAP ***************************************************\n"
+            "localhost : ok=0 changed=0 unreachable=0 failed=1\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout, returncode=2, stderr="")
+        result = executor.run(Path("bootstrap.yaml"), check=False, extra_vars={})
+        assert result.stderr == ""
+        assert result.failure_detail.startswith("fatal: [localhost]")
+        assert "failed to synchronize all databases" in result.failure_detail
+
+    def test_failure_detail_includes_failed_status_lines(self) -> None:
+        stdout = (
+            "TASK [packages : install hyprland] *************************\n"
+            'failed: [localhost] (item=hyprland) => {"msg": "No space left on device"}\n'
+            "TASK [packages : install ags] ****************************\n"
+            "changed: [localhost]\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout, returncode=0, stderr="")
+        result = executor.run(Path("bootstrap.yaml"), check=False, extra_vars={})
+        assert "No space left on device" in result.failure_detail
+        assert "changed:" not in result.failure_detail
+
+    def test_failure_detail_empty_on_clean_run(self) -> None:
+        stdout = (
+            "TASK [packages : install hyprland] *************************\n"
+            "changed: [localhost]\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout)
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert result.failure_detail == ""
+
     def test_failed_task_with_ignore_errors_yields_success_false(self) -> None:
         stdout = (
             "TASK [packages : install hyprland] *************************\n"
