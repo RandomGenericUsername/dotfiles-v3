@@ -34,8 +34,8 @@ yet — readers only.
 
 | Story | Title | Status |
 |---|---|---|
-| p4-2-1 | Desired-state file + schema + loader | backlog |
-| p4-2-2 | Actual-state projection | backlog |
+| p4-2-1 | Desired-state file + schema + loader | done |
+| p4-2-2 | Actual-state projection | done |
 
 ### Epic 3: Diff + Plan Execution
 
@@ -44,8 +44,8 @@ gains its declarative core.
 
 | Story | Title | Status |
 |---|---|---|
-| p4-3-1 | Diff engine (desired vs actual → change set) | backlog |
-| p4-3-2 | Planner wiring (execute plan incl. AD-30 delete steps) | backlog |
+| p4-3-1 | Diff engine (desired vs actual → change set) | done |
+| p4-3-2 | Planner wiring (execute plan incl. AD-30 delete steps) | done |
 
 ## Cross-Epic Contracts (locked)
 

@@ -132,7 +132,7 @@ development_status:
   p4-epic-2-retrospective: optional
 
   # ── Epic 3: Diff + Plan Execution ──
-  p4-epic-3: in-progress
+  p4-epic-3: done
   p4-3-1-diff-engine: done
   p4-3-2-planner-wiring: done
   p4-epic-3-retrospective: optional
