@@ -95,3 +95,18 @@ gui_tools_icme_app_files:
   - { name: icme-lib-inputs, source: src/gui-tools/icon-color-mapping-editor/lib/inputs.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/inputs.ts" }
   - { name: icme-lib-diff, source: src/gui-tools/icon-color-mapping-editor/lib/diff.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/diff.ts" }
   - { name: icme-lib-templates, source: src/gui-tools/icon-color-mapping-editor/lib/templates.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/templates.ts" }
+
+# gui_tools_ags_instances: the AGS process instance names (as reported by
+#   `ags list`) that must be restarted after their source files are updated
+#   by this role. AGS bundles TypeScript at startup and holds the compiled
+#   bundle in memory; without a restart the running process keeps serving the
+#   old code even after provisioning has overwritten the sources on disk.
+#
+#   Only the three instances whose source dirs are managed here are listed —
+#   the bar (ags), the capture tool (capture), and the icon color mapping
+#   editor (icon-color-mapping-editor). Each is quit safely: if the instance
+#   is not running `ags quit` exits non-zero and the task ignores that failure.
+gui_tools_ags_instances:
+  - ags
+  - capture
+  - icon-color-mapping-editor

@@ -72,3 +72,26 @@
     path: "{{ gui_tools_spine_config_dir }}/ags/capture"
     state: absent
   when: not ansible_check_mode
+
+# Quit known AGS instances so the next invocation picks up the freshly placed
+# sources. AGS bundles TypeScript at startup and holds the result in memory;
+# without a restart the running process keeps serving the old bundle even after
+# provisioning has overwritten files on disk.
+#
+# Design notes:
+#   - `ags quit -i <instance>` exits non-zero when the instance is not on the
+#     bus (no-op for a machine that never ran the app). `failed_when: false`
+#     makes the task green in both cases — running (quit) and not-running
+#     (no-op).
+#   - Skipped under --check: quitting a live process is a state mutation that
+#     dry-run must never perform.
+#   - `changed_when: false`: the task is idempotent by design — the next
+#     SUPER+I / launcher invocation restarts the app transparently; we never
+#     want spurious changed-counts from this step.
+- name: Quit running AGS instances to pick up updated sources on next launch
+  ansible.builtin.command:
+    cmd: "ags quit -i {{ item }}"
+  loop: "{{ gui_tools_ags_instances }}"
+  failed_when: false
+  changed_when: false
+  when: not ansible_check_mode
