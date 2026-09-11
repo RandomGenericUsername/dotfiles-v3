@@ -139,7 +139,7 @@ development_status:
 
   # ── Phase 4 backlog siblings (Gate 1 ruling, option b) ──
   p4-3-3-history-lock: done
-  p4-3-4-wallpaper-set-auto-check: backlog
+  p4-3-4-wallpaper-set-auto-check: done
 
   # GTK Theming Consumer — Phase 2.x remediation (epics-gtk-theming.md)
   # Worktree: feat/gtk-theming-consumer
