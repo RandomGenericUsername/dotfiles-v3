@@ -116,6 +116,27 @@ development_status:
   p3-3-3-prune-cli: done
   p3-epic-3-retrospective: optional
 
+  # ═══════════════════════════════════════════════════════════════════
+  # Phase 4 — Reconciliation Engine (epics-dotfiles-runtime-phase4.md)
+  # ═══════════════════════════════════════════════════════════════════
+
+  # ── Epic 1: Reconciliation Preview ──
+  p4-epic-1: done
+  p4-1-1-reconcile-plan-preview: done
+  p4-epic-1-retrospective: optional
+
+  # ── Epic 2: Declarative State ──
+  p4-epic-2: in-progress
+  p4-2-1-desired-state-file: in-progress
+  p4-2-2-actual-state-projection: backlog
+  p4-epic-2-retrospective: optional
+
+  # ── Epic 3: Diff + Plan Execution ──
+  p4-epic-3: backlog
+  p4-3-1-diff-engine: backlog
+  p4-3-2-planner-wiring: backlog
+  p4-epic-3-retrospective: optional
+
   # GTK Theming Consumer — Phase 2.x remediation (epics-gtk-theming.md)
   # Worktree: feat/gtk-theming-consumer
   # ═══════════════════════════════════════════════════════════════════
