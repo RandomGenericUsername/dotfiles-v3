@@ -1,0 +1,33 @@
+{
+  "bus": "session",
+  "well_known_name": "org.dotfiles.Events",
+  "owner": "dotfiles-runtime daemon run (the signal hub)",
+  "object_path": "/org/dotfiles/Events",
+  "interface": "org.dotfiles.Events1",
+  "methods": {
+    "Emit": { "in": ["topic:s", "payload:a{sv}"] },
+    "GetActiveJobs": { "out": ["jobs:a{ss}"] },
+    "GetTopicState": { "in": ["topic:s"], "out": ["state:a{sv}"] }
+  },
+  "signals": {
+    "JobStarted": ["job_id:s", "kind:s"],
+    "JobProgress": ["job_id:s", "fraction:d"],
+    "JobFinished": ["job_id:s", "exit_code:i"],
+    "DomainEvent": ["topic:s", "producer:s", "payload:a{sv}"]
+  },
+  "topics": {
+    "icme.saved": {
+      "producer": "ICME",
+      "payload": { "path": "s" }
+    },
+    "capture.state": {
+      "producer": "capture controller",
+      "payload": { "state": "s" },
+      "enum": { "state": ["idle", "recording", "paused"] }
+    },
+    "speedtest.finished": {
+      "producer": "speed-test job",
+      "payload": { "down_mbps": "d", "up_mbps": "d", "latency_ms": "d" }
+    }
+  }
+}
