@@ -134,8 +134,12 @@ development_status:
   # ── Epic 3: Diff + Plan Execution ──
   p4-epic-3: in-progress
   p4-3-1-diff-engine: done
-  p4-3-2-planner-wiring: backlog
+  p4-3-2-planner-wiring: done
   p4-epic-3-retrospective: optional
+
+  # ── Phase 4 backlog siblings (Gate 1 ruling, option b) ──
+  p4-3-3-history-lock: backlog
+  p4-3-4-wallpaper-set-auto-check: backlog
 
   # GTK Theming Consumer — Phase 2.x remediation (epics-gtk-theming.md)
   # Worktree: feat/gtk-theming-consumer
