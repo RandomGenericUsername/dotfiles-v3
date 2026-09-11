@@ -31,7 +31,6 @@ import { InputsPanel } from "./InputsPanel";
 import { Preview } from "./Preview";
 import { ScopeSwitch } from "./ScopeSwitch";
 import { SelectionPanel, type CurrentToken } from "./SelectionPanel";
-import { TemplatesTab } from "./TemplatesTab";
 import { TokenPicker } from "./TokenPicker";
 
 // Shell window hosting the editor. Owns session state, pending edits, and the
@@ -55,7 +54,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   const [saving, setSaving] = createState(false);
   const [saveError, setSaveError] = createState<string | null>(null);
   const [stale, setStale] = createState(false);
-  const [activeTab, setActiveTab] = createState<"mappings" | "templates">("mappings");
+  const [inspectorMode, setInspectorMode] = createState<"mapping" | "template">("mapping");
   const [templatePending, setTemplatePending] = createState<
     ReadonlyMap<string, TemplatePendingEdit>
   >(new Map());
@@ -270,28 +269,46 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     const view = group?.variants.find((v) => v.variant === activeVariant());
     if (!view) return;
     const shape = extractShapes(view.svg_body).find((s) => String(s.id) === shapeId);
-    if (!shape || shape.placeholder === null) return;
-    // Staged (unsaved) template edits win over the on-disk placeholder:
-    // without this, a shape re-placed in the Templates tab still selects
-    // its old placeholder here and the color pick lands on the wrong one.
+    if (!shape) return;
+    // Bare shapes (placeholder === null) are selectable — users assign them in
+    // the Shape Placeholder sub-pane of the unified SelectionPanel.
+    // Staged template edits win over the on-disk placeholder so a re-placed
+    // shape immediately shows its new placeholder in the Color Mapping pane.
     const staged = templatePending().get(templatePendingKey(view.template_path, shape.id));
     setSelection({
       variantName: view.variant,
       shapeId,
       placeholder: staged?.newPlaceholder ?? shape.placeholder,
+      literal: shape.literal ?? null,
+      paintAttr: shape.paintAttr,
     });
   }
 
   // Current token follows on-disk mappings overlaid with pending edits.
+  // Bare shapes (placeholder === null) always yield null.
+  // Newly staged placeholders are resolved from newPlaceholders first.
   createEffect(() => {
     const loaded = show();
     const sel = selection();
     pending();
     vocabPending();
+    newPlaceholders();
     const group = loaded?.groups.find((g) => g.group === groupName());
     const view = group?.variants.find((v) => v.variant === activeVariant());
     if (!loaded || !sel || !view || sel.variantName !== view.variant) {
       setCurrentToken(null);
+      return;
+    }
+    // Bare shape — no color token can be resolved.
+    if (sel.placeholder === null) {
+      setCurrentToken(null);
+      return;
+    }
+    // New placeholder staged this session: resolve from vocabulary defaults map.
+    const newToken = newPlaceholders().get(sel.placeholder);
+    if (newToken !== undefined) {
+      const hex = newToken.startsWith("#") ? newToken : (loaded.palette[newToken] ?? null);
+      setCurrentToken({ token: newToken, hex });
       return;
     }
     const token = resolveToken(
@@ -403,10 +420,18 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       selection,
       currentToken,
       templatePending,
+      newPlaceholders,
+      inspectorMode,
+      onSetInspectorMode: (mode) => setInspectorMode(mode),
       onSelectShapeId: selectShapeId,
+      onStageTemplate: stageTemplate,
+      onStageNewPlaceholder: stageNewPlaceholder,
     }),
   );
-  rightInner.append(
+  // Color-mapping widgets are only meaningful when inspecting a templated
+  // shape — hide them while the user is in placeholder-assignment mode.
+  const mappingWidgets = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+  mappingWidgets.append(
     ScopeSwitch({
       scope,
       show,
@@ -416,7 +441,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       onScope: (next) => setScope(next),
     }),
   );
-  rightInner.append(
+  mappingWidgets.append(
     TokenPicker({
       palette: () => show()?.palette ?? {},
       missingTokens: () => show()?.missing_tokens ?? [],
@@ -425,6 +450,10 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       onPick: pick,
     }),
   );
+  createEffect(() => {
+    mappingWidgets.set_visible(inspectorMode() === "mapping");
+  });
+  rightInner.append(mappingWidgets);
   rightScroll.set_child(rightInner);
   right.append(rightScroll);
 
@@ -436,7 +465,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   const reloadButton = new Gtk.Button({ label: "Reload", css_classes: ["toggle"] });
   reloadButton.connect("clicked", () => load(inputs()));
   const saveButton = new Gtk.Button({
-    label: "Save mappings",
+    label: "Save changes",
     css_classes: ["btn", "primary"],
     hexpand: true,
   });
@@ -469,7 +498,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     const busy = saving();
     saveButton.set_sensitive(hasPending && !busy);
     revertButton.set_sensitive(hasPending && !busy);
-    saveButton.set_label(busy ? "Saving…" : "Save mappings");
+    saveButton.set_label(busy ? "Saving…" : "Save changes");
     const error = saveError();
     saveErrorLabel.set_label(error ?? "");
     saveErrorLabel.set_visible(error !== null);
@@ -483,77 +512,17 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
     vexpand: true,
   });
 
-  // --- tab bar + views ---
-  function tabButton(label: string, sub: string): Gtk.Button {
-    const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
-    box.append(new Gtk.Label({ label, css_classes: ["tab-label"], xalign: 0 }));
-    box.append(new Gtk.Label({ label: sub, css_classes: ["tab-sub"], xalign: 0 }));
-    const button = new Gtk.Button({ css_classes: ["tab"] });
-    button.set_child(box);
-    return button;
-  }
-
-  const tabMapping = tabButton("Mappings", "recolor existing placeholders");
-  const tabTemplates = tabButton("Templates", "assign / create placeholders");
-  const tabBar = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 4, css_classes: ["tabs"] });
-  tabBar.append(tabMapping);
-  tabBar.append(tabTemplates);
-  tabMapping.connect("clicked", () => setActiveTab("mappings"));
-  tabTemplates.connect("clicked", () => setActiveTab("templates"));
-
-  const mappingView = new Gtk.Box({
+  // Unified 3-column layout — no top-level tab bar.
+  const unifiedRoot = new Gtk.Box({
     orientation: Gtk.Orientation.HORIZONTAL,
     spacing: 0,
-    css_classes: ["icme-root", "view"],
+    css_classes: ["icme-root"],
     hexpand: true,
     vexpand: true,
   });
-  mappingView.append(left);
-  mappingView.append(center);
-  mappingView.append(right);
-
-  const templatesView = new Gtk.Box({
-    orientation: Gtk.Orientation.HORIZONTAL,
-    css_classes: ["view"],
-    hexpand: true,
-    vexpand: true,
-  });
-  templatesView.append(
-    TemplatesTab({
-      show,
-      inputs,
-      templatePending,
-      newPlaceholders,
-      manifestPendings,
-      onStageTemplate: stageTemplate,
-      onStageNewPlaceholder: stageNewPlaceholder,
-      onStageManifest: stageManifest,
-      onSave: () => void save(),
-      onRevert: () => {
-        setPending(new Map());
-        setVocabPending(new Map());
-        setTemplatePending(new Map());
-        setNewPlaceholders(new Map());
-        setManifestPendings([]);
-        templateMtimes.clear();
-        setSaveError(null);
-      },
-      onDialogOpenChange: (open: boolean) => {
-        const win = app.get_window("icme-window");
-        if (!win) return;
-        if (open) win.show();
-        else win.hide();
-      },
-    }),
-  );
-
-  createEffect(() => {
-    const tab = activeTab();
-    mappingView.set_visible(tab === "mappings");
-    templatesView.set_visible(tab === "templates");
-    tabMapping.set_css_classes(tab === "mappings" ? ["tab", "active"] : ["tab"]);
-    tabTemplates.set_css_classes(tab === "templates" ? ["tab", "active"] : ["tab"]);
-  });
+  unifiedRoot.append(left);
+  unifiedRoot.append(center);
+  unifiedRoot.append(right);
 
   return (
     <window
@@ -617,16 +586,22 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
             onToggleGroup: () => setShowGroup(!showGroup()),
             onToggleBackdrop: () => setBarBackground(!barBackground()),
             onClose: () => self.close(),
-            diffContent: DiffPane({ show, groupName, activeVariant, pending, vocabPending, inputs }),
+            diffContent: DiffPane({
+              show,
+              groupName,
+              activeVariant,
+              pending,
+              vocabPending,
+              inputs,
+              templatePending,
+              newPlaceholders,
+              manifestPendings,
+            }),
           }),
         );
       }}
     >
-      <box orientation={Gtk.Orientation.VERTICAL}>
-        {tabBar}
-        {mappingView}
-        {templatesView}
-      </box>
+      {unifiedRoot}
     </window>
   );
 }
