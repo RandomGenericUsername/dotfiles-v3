@@ -7,7 +7,9 @@ export type Scope = "variant" | "group" | "vocabulary";
 export interface ShapeSelection {
   variantName: string;
   shapeId: string;
-  placeholder: string;
+  placeholder: string | null;
+  literal?: string | null;
+  paintAttr?: "fill" | "stroke";
 }
 
 export interface PendingKey {

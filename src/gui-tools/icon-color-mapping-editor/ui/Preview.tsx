@@ -19,6 +19,7 @@ import {
   withHighlight,
   type ShapeInfo,
 } from "../lib/svg";
+import { templatePendingKey, type TemplatePendingEdit } from "../lib/templates";
 
 const HOVER_COLOR = "#8fb8f5";
 const SELECT_COLOR = "#6ea8fe";
@@ -70,6 +71,8 @@ export interface PreviewProps {
   activeVariant: Accessor<string>;
   pending: Accessor<ReadonlyMap<string, PendingEdit>>;
   vocabPending: Accessor<ReadonlyMap<string, VocabularyPendingEdit>>;
+  templatePending?: Accessor<ReadonlyMap<string, TemplatePendingEdit>>;
+  newPlaceholders?: Accessor<ReadonlyMap<string, string>>;
   selection: Accessor<ShapeSelection | null>;
   showGroup: Accessor<boolean>;
   barBackground: Accessor<boolean>;
@@ -128,8 +131,25 @@ export function Preview(props: PreviewProps) {
     isActive: boolean,
   ): VariantRender {
     const mappings = mappingsFor(group.group, view, props.pending(), props.vocabPending());
-    let svg = withHatchDefs(substitute(view.svg_body, mappings, show.palette));
+    const newPhs = props.newPlaceholders?.() ?? new Map();
+    for (const [name, token] of newPhs) {
+      mappings[name] = token;
+    }
+
+    const staged = props.templatePending?.() ?? new Map();
+    let body = view.svg_body;
     const shapes = extractShapes(view.svg_body);
+    for (const s of shapes) {
+      const edit = staged.get(templatePendingKey(view.template_path, s.id));
+      if (edit) {
+        const re = new RegExp(`\\b${s.paintAttr}\\s*=\\s*"([^"]*)"`);
+        const replacement = `${s.paintAttr}="{{${edit.newPlaceholder}}}"`;
+        const elem = s.element.replace(re, replacement);
+        body = body.replace(s.element, () => elem);
+      }
+    }
+
+    let svg = withHatchDefs(substitute(body, mappings, show.palette));
     if (isActive) {
       const selection = props.selection();
       const hovered = hover();
@@ -201,10 +221,22 @@ export function Preview(props: PreviewProps) {
   const breadcrumb = new Gtk.Label({
     css_classes: ["template-path"],
     halign: Gtk.Align.START,
-    hexpand: true,
     ellipsize: Pango.EllipsizeMode.END,
-    max_width_chars: 80,
+    max_width_chars: 60,
   });
+  const modeBadge = new Gtk.Label({ css_classes: ["mode", "templated"] });
+  const progressText = new Gtk.Label({ css_classes: ["progress-text"] });
+  const progressBar = new Gtk.ProgressBar({ css_classes: ["progress-bar"] });
+  progressBar.set_size_request(80, 6);
+  const progressBox = new Gtk.Box({
+    orientation: Gtk.Orientation.HORIZONTAL,
+    spacing: 6,
+    css_classes: ["progress"],
+  });
+  progressBox.append(progressText);
+  progressBox.append(progressBar);
+
+  const spacer = new Gtk.Box({ hexpand: true });
   const groupToggle = new Gtk.Button({ label: "Show whole group", css_classes: ["toggle"] });
   groupToggle.connect("clicked", () => {
     setHover(null);
@@ -221,6 +253,9 @@ export function Preview(props: PreviewProps) {
     spacing: 10,
   });
   bar.append(breadcrumb);
+  bar.append(modeBadge);
+  bar.append(progressBox);
+  bar.append(spacer);
   bar.append(groupToggle);
   bar.append(backdropToggle);
   bar.append(closeButton);
@@ -278,13 +313,17 @@ export function Preview(props: PreviewProps) {
     click.connect("pressed", (_gesture: object, _presses: number, x: number, y: number) => {
       if (view.variant === props.activeVariant()) {
         const shape = shapeAt(view.variant, picture, x, y);
-        if (shape === null || shape.placeholder === null) {
+        if (shape === null) {
           props.onSelectShape(null);
         } else {
+          const staged = props.templatePending?.().get(templatePendingKey(view.template_path, shape.id));
+          const placeholder = staged?.newPlaceholder ?? shape.placeholder;
           props.onSelectShape({
             variantName: view.variant,
             shapeId: String(shape.id),
-            placeholder: shape.placeholder,
+            placeholder,
+            literal: shape.literal ?? null,
+            paintAttr: shape.paintAttr,
           });
         }
       } else {
@@ -325,14 +364,36 @@ export function Preview(props: PreviewProps) {
     }
   }
 
-  // Chrome: breadcrumb, toggles, backdrop.
+  // Chrome: breadcrumb, mode badge, progress meter, toggles, backdrop.
   createEffect(() => {
     const show = props.show();
     const group = currentGroup();
     if (!show || !group) return;
-    const templatePath =
-      group.variants.find((v) => v.variant === props.activeVariant())?.template_path ?? "";
-    breadcrumb.set_label(templatePath);
+    const active = group.variants.find((v) => v.variant === props.activeVariant());
+    if (active) {
+      breadcrumb.set_label(active.template_path);
+      const shapes = extractShapes(active.svg_body);
+      const staged = props.templatePending?.() ?? new Map();
+      let unassigned = 0;
+      for (const s of shapes) {
+        const edit = staged.get(templatePendingKey(active.template_path, s.id));
+        const ph = edit?.newPlaceholder ?? s.placeholder;
+        if (ph === null) unassigned++;
+      }
+      const total = shapes.length;
+      const assigned = total - unassigned;
+      if (unassigned > 0) {
+        modeBadge.set_label(`bare — ${unassigned} unassigned`);
+        modeBadge.set_css_classes(["mode", "bare"]);
+        progressBox.set_visible(true);
+        progressText.set_label(`assigned ${assigned}/${total}`);
+        progressBar.set_fraction(total > 0 ? assigned / total : 0);
+      } else {
+        modeBadge.set_label("templated");
+        modeBadge.set_css_classes(["mode", "templated"]);
+        progressBox.set_visible(false);
+      }
+    }
     groupToggle.set_css_classes(props.showGroup() ? ["toggle", "on"] : ["toggle"]);
     backdropToggle.set_css_classes(props.barBackground() ? ["toggle", "on"] : ["toggle"]);
     if (props.barBackground()) {
@@ -354,6 +415,8 @@ export function Preview(props: PreviewProps) {
     if (!show || !group) return;
     props.pending();
     props.vocabPending();
+    props.templatePending?.();
+    props.newPlaceholders?.();
     props.selection();
     hover();
     const active = props.activeVariant();
