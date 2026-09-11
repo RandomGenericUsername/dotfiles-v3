@@ -128,7 +128,7 @@ development_status:
   # ── Epic 2: Declarative State ──
   p4-epic-2: in-progress
   p4-2-1-desired-state-file: done
-  p4-2-2-actual-state-projection: backlog
+  p4-2-2-actual-state-projection: done
   p4-epic-2-retrospective: optional
 
   # ── Epic 3: Diff + Plan Execution ──
