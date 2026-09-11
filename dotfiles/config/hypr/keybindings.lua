@@ -30,10 +30,13 @@ hl.bind(
     { description = "Open application launcher (rofi)" }
 )
 
--- Capture tool (standalone AGS instance `capture`)
+-- Capture tool (standalone AGS instance `capture`, provisioned launcher)
+-- The launcher is start-if-down/toggle: provisioning quits the instance after
+-- updating its sources, and this bind both reopens a running window and
+-- restarts a quit instance on demand.
 hl.bind(
     mod .. " + PRINT",
-    hl.dsp.exec_cmd("ags toggle capture-window -i capture"),
+    hl.dsp.exec_cmd("capture-ui"),
     { description = "Open capture UI" }
 )
 

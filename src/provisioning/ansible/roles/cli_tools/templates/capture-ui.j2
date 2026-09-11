@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Capture tool launcher — provisioned by the cli_tools role.
+#
+# The capture UI is a standalone AGS instance (`capture`) whose process bundles
+# TypeScript at startup and holds the compiled bundle in memory. Provisioning
+# quits the instance after placing updated sources (gui_tools role); this
+# launcher is the single keybinding entrypoint so the next press re-bundles
+# from disk instead of no-oping, and so a quit instance is started on demand.
+#
+# Toggle-aware, start-if-down, zombie-safe:
+#   1. no instance on the bus              -> fresh `ags run`
+#   2. instance running, window registered -> `ags toggle` (hide/show)
+#   3. instance running, window gone       -> quit the zombie, fresh run
+# (astal apps stay alive after their window disappears; a bare `ags run`
+# against a live instance is a silent no-op.)
+set -uo pipefail
+INSTANCE="capture"
+WINDOW="capture-window"
+DIR="${HOME}/.config/ags-capture"
+LOG="${HOME}/.local/state/ags/capture.log"
+
+if ags list 2>/dev/null | grep -qx "$INSTANCE"; then
+    if timeout 8 ags toggle "$WINDOW" -i "$INSTANCE" 2>/dev/null; then
+        exit 0
+    fi
+    ags quit -i "$INSTANCE" 2>/dev/null
+    sleep 1
+fi
+exec ags run -d "$DIR" --log-file "$LOG"

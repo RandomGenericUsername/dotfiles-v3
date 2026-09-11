@@ -51,6 +51,17 @@
     dest: "{{ cli_tools_bin_dir }}/icon-color-mapping-editor"
     mode: "0755"
 
+# The capture UI is a standalone AGS instance with the same "bundles TS at
+# startup" lifecycle as icme. Provisioning (gui_tools role) quits it after
+# placing updated sources; this start-if-down/toggle launcher is what the
+# SUPER+PRINT keybind now calls, so a quit instance is restarted on demand
+# instead of leaving the keybind a silent no-op until the next login.
+- name: Install the capture tool UI launcher (toggle/start-if-down template)
+  ansible.builtin.template:
+    src: capture-ui.j2
+    dest: "{{ cli_tools_bin_dir }}/capture-ui"
+    mode: "0755"
+
 - name: Install csg/weg/itr via uv tool install
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:

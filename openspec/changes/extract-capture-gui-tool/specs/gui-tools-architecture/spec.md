@@ -12,11 +12,15 @@ The repository SHALL maintain the capture tool under `src/gui-tools/capture-tool
 - **THEN** `scripts/capture-tool` and `dotfiles/config/ags/capture/` do not exist
 
 ### Requirement: Dedicated AGS instance identity
-The capture app SHALL declare `instanceName: "capture"` in code, and the desktop keybind SHALL address it explicitly (`ags toggle capture-window -i capture`).
+The capture app SHALL declare `instanceName: "capture"` in code, and the desktop keybind SHALL invoke a provisioned start-if-down launcher (`capture-ui`) that addresses the instance explicitly. The launcher toggles a running window, and starts a fresh `ags run -d ~/.config/ags-capture` when no instance is on the bus, so provisioning's quit (which forces a re-bundle) never leaves the keybind a silent no-op.
 
 #### Scenario: Toggle opens the dialog
-- **WHEN** pressing `SUPER+PRINT` (or running `ags toggle capture-window -i capture`) with both instances running
+- **WHEN** pressing `SUPER+PRINT` with the capture instance running
 - **THEN** the capture dialog visibility toggles without affecting bar windows
+
+#### Scenario: Keybind restarts a quit instance
+- **WHEN** pressing `SUPER+PRINT` after the capture instance has been quit (e.g. by a provisioning run that updated its sources)
+- **THEN** the launcher starts a fresh `ags run -d ~/.config/ags-capture` and the dialog opens
 
 #### Scenario: Two instances are listed
 - **WHEN** running `ags list` on a provisioned machine
@@ -30,7 +34,7 @@ Hyprland autostart SHALL launch the bar app and, staggered after it, the capture
 - **THEN** the bar is visible and `ags list` shows the `capture` instance without `/run/user/*/ags.js` collision errors
 
 ### Requirement: Capture provisioning contract
-The `gui_tools` Ansible role SHALL deploy the capture app sources to `<install>/config/ags-capture/`, `config-links` SHALL symlink `~/.config/ags-capture` there, and `cli_tools` SHALL continue installing `bin/capture-tool` to the user bin dir with mode `0755` (backend CLI surface unchanged).
+The `gui_tools` Ansible role SHALL deploy the capture app sources to `<install>/config/ags-capture/`, `config-links` SHALL symlink `~/.config/ags-capture` there, and `cli_tools` SHALL install `bin/capture-tool` (backend, mode `0755`) and the `capture-ui` launcher (keybind entrypoint, mode `0755`).
 
 #### Scenario: Provisioning deploys the standalone app
 - **WHEN** bootstrap runs the `gui_tools` role
@@ -39,6 +43,10 @@ The `gui_tools` Ansible role SHALL deploy the capture app sources to `<install>/
 #### Scenario: Backend remains on PATH
 - **WHEN** running `command -v capture-tool` after provisioning
 - **THEN** the backend resolves and `capture-tool status` returns valid JSON
+
+#### Scenario: UI launcher is installed
+- **WHEN** running `command -v capture-ui` after provisioning
+- **THEN** the launcher resolves and is executable (the keybind's entrypoint)
 
 ### Requirement: Bar is capture-window-free but recording-aware
 The bar app SHALL NOT register `capture-window`, and its recording controls SHALL continue driving the backend (`status` poll, `pause|resume|stop`) with no dependency on the capture instance.
