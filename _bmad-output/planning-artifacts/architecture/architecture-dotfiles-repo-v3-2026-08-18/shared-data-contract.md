@@ -42,12 +42,25 @@ Rules:
 One JSON object per line, append-only, never rewritten, never truncated. Newest on the last line.
 
 ```json
-{"ts": "<ISO-8601-UTC>", "trigger": "seed|set|reconcile|force", "wallpaper": "<sha256-hex>", "palette": "<sha256-hex|null>", "effects": "<sha256-hex|null>", "icons": "<sha256-hex|null>", "source_path": "<abs-or-empty>"}
+{"ts": "<ISO-8601-UTC>", "trigger": "seed|set|reconcile|force|regenerate|doctor|prune", "wallpaper": "<sha256-hex>", "palette": "<sha256-hex|null>", "effects": "<sha256-hex|null>", "icons": "<sha256-hex|null>", "source_path": "<abs-or-empty>"}
 ```
+
+Optional per-trigger payload (R-1): a line may carry a `details` object (string
+keys, JSON values). A real `prune` execution appends exactly one line with
+`trigger="prune"` and `details={"removed": <int>, "layers": {<layer>: <int>}}`,
+plus `"failed": <int>` when a removal errored; `--dry-run` appends nothing. The
+field is absent on all other lines. The machine definition is
+`contracts/schemas/history.schema.json` (embedded in the runtime package and
+enforced by the history reader); this prose is descriptive.
 
 Rules:
 - Appended BEFORE desktop reload is considered complete (AD-4).
 - A line is immutable once written; correction of a mistake is a NEW line, never an edit.
+- The trigger enum and the `details` shape are defined once in code and
+  machine-checked (AD-44); this prose is descriptive. A change to either is a
+  shared-contract change, not an implementation detail.
+- `force` is a reserved (currently unwritten) value; `reactive` is added by the
+  Phase 5 daemon (AD-42).
 
 ## meta.json (one per cache entry, co-located in the entry dir)
 

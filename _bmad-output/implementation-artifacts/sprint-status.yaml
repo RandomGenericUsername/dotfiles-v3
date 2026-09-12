@@ -179,3 +179,13 @@ development_status:
 
   # gt-4-2 executed inline (docs + contract reconciliation, no story cycle)
   gt-4-2-docs-contract-reconciliation: done
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Phase 5 — Reactive Runtime: prerequisite remediation (epics-dotfiles-runtime-phase5.md)
+  # ═══════════════════════════════════════════════════════════════════
+  p5-remediation: in-progress
+  r1-prune-audit-line: done
+  r2-trigger-enum-single-source: backlog
+  r3-derivation-inputs-spine-only: backlog
+  r4-schema-driven-contracts: backlog
+  r5-doctor-store-history-divergence: backlog
