@@ -188,4 +188,4 @@ development_status:
   r2-trigger-enum-single-source: done
   r3-derivation-inputs-spine-only: done
   r4-schema-driven-contracts: done
-  r5-doctor-store-history-divergence: backlog
+  r5-doctor-store-history-divergence: done
