@@ -11,27 +11,38 @@
   },
   "methods": {
     "Emit": { "in": ["topic:s", "payload:a{sv}"] },
-    "BeginJob": { "in": ["kind:s"], "out": ["job_id:s"] },
+    "BeginJob": { "in": ["kind:s", "ttl:u"], "out": ["job_id:s"] },
+    "RenewJob": { "in": ["job_id:s"] },
+    "AdoptJob": { "in": ["job_id:s", "pid:u"] },
     "ReportProgress": { "in": ["job_id:s", "fraction:d"] },
     "EndJob": { "in": ["job_id:s", "exit_code:i"] },
+    "Control": { "in": ["job_id:s", "action:s"] },
     "GetActiveJobs": { "out": ["jobs:a{ss}"] },
     "GetTopicState": { "in": ["topic:s"], "out": ["state:a{sv}"] }
   },
   "signals": {
-    "JobStarted": ["job_id:s", "kind:s"],
-    "JobProgress": ["job_id:s", "fraction:d"],
-    "JobFinished": ["job_id:s", "exit_code:i"],
-    "DomainEvent": ["topic:s", "producer:s", "seq:u", "payload:a{sv}"],
+    "JobStarted": ["job_id:s", "kind:s", "epoch:u"],
+    "JobProgress": ["job_id:s", "fraction:d", "epoch:u"],
+    "JobFinished": ["job_id:s", "exit_code:i", "epoch:u"],
+    "DomainEvent": ["topic:s", "producer:s", "seq:u", "epoch:u", "payload:a{sv}"],
     "JobsCleared": ["epoch:u"]
   },
+  "job_lease": {
+    "renew_method": "RenewJob",
+    "expiry_exit_code": -1,
+    "adopt_method": "AdoptJob",
+    "control_method": "Control"
+  },
+  "errors": ["UnknownTopic", "PayloadTooLarge", "RateLimited", "UnknownJob", "JobEnded", "NotControllable"],
   "delivery": {
     "semantics": "at-most-once",
-    "ordering": "per-topic monotonic seq (u) within an epoch (u); the epoch bumps on hub restart and resets seq",
+    "ordering": "per-topic monotonic seq (u) within an epoch (u); epoch bumps and seq resets on every hub start",
+    "restart_signal": "JobsCleared(epoch) on first start and every restart; consumers also watch NameOwnerChanged on org.dotfiles.Events",
     "hydration": "subscribe-then-read GetTopicState/GetActiveJobs; GetTopicState returns reserved _epoch (u) and _seq (u); drop signals whose (epoch, seq) is not greater than hydrated"
   },
   "validation": {
     "identity": "none (trusted same-user session bus)",
-    "structural": ["schema", "max_payload_bytes", "max_payload_depth", "publish_rate"]
+    "structural": ["schema", "max_payload_bytes", "max_payload_depth", "publish_rate", "known_topic_only"]
   },
   "topics": {
     "icme.saved": {
@@ -40,9 +51,10 @@
     },
     "capture.state": {
       "producer": "capture controller",
-      "payload": { "state": "s", "started_at": "x" },
+      "payload": { "state": "s", "elapsed_seconds": "x" },
       "enum": { "state": ["idle", "recording", "paused"] },
-      "notes": "started_at is unix seconds (0 when idle); the timer is rendered from it, never read from a file"
+      "cadence": "on every transition and at least once per second while recording",
+      "notes": "the bar renders the pushed elapsed_seconds (may interpolate locally); it derives no time from a file or shared wall clock"
     },
     "speedtest.finished": {
       "producer": "speed-test job",
