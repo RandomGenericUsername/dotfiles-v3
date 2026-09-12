@@ -186,6 +186,6 @@ development_status:
   p5-remediation: in-progress
   r1-prune-audit-line: done
   r2-trigger-enum-single-source: done
-  r3-derivation-inputs-spine-only: backlog
+  r3-derivation-inputs-spine-only: done
   r4-schema-driven-contracts: backlog
   r5-doctor-store-history-divergence: backlog

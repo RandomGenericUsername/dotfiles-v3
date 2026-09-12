@@ -116,6 +116,7 @@
       - verify_xdg_dirs | length > 0
       - verify_config_copies_targets | length > 0
       - verify_gtk_skeleton_files | length > 0
+      - verify_derivation_template_dirs | length > 0
     fail_msg: >-
       a verify list var is empty — a runtime override or a manifest desync
       silently disabled a criterion: every count assert is
@@ -232,6 +233,25 @@
       as a regular FILE — done-criterion 1). The filesystem role (2.5) creates
       the dirs and the assets role (2.6) emits weg-effects.yaml; run the
       filesystem and assets playbooks first
+  when: not ansible_check_mode
+
+- name: Find files in each derivation-input template dir
+  ansible.builtin.find:
+    paths: "{{ install_dir | trim }}/{{ item }}"
+    file_type: file
+    recurse: true
+  loop: "{{ verify_derivation_template_dirs }}"
+  register: verify_derivation_template_files
+
+- name: Assert derivation-input template dirs are non-empty (R-3 / AD-43)
+  ansible.builtin.assert:
+    that:
+      - (verify_derivation_template_files.results | map(attribute='files') | map('length') | min) > 0
+    fail_msg: >-
+      a derivation-input template dir in the spine is empty under
+      {{ install_dir | trim }} (expected {{ verify_derivation_template_dirs | join(', ') }}).
+      An empty templates dir silently derives empty output — the assets role (2.6)
+      deploys their content; re-run the assets playbook.
   when: not ansible_check_mode
 
 - name: Check assets deployed

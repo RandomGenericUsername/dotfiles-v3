@@ -1583,6 +1583,22 @@ def _build_provisioned_layout(
 
     (install / "wallpapers" / "default.png").write_bytes(b"\x89PNG")
     (install / "icon-mappings" / "icons.yaml").write_text("variants: []\n")
+    # R-3: verify asserts derivation-input CONTENT, so populate the inputs.
+    for name in (
+        "battery",
+        "defaults",
+        "email-client",
+        "network",
+        "power-menu",
+        "screenshot-tool",
+        "wallpaper-selector",
+        "wlogout",
+    ):
+        (install / "icon-mappings" / f"{name}.yaml").write_text("{}\n")
+    nested_icon = install / "icon-templates" / "status-bar" / "battery"
+    nested_icon.mkdir(parents=True, exist_ok=True)
+    (nested_icon / "icon.svg").write_text("<svg/>\n")
+    (install / "config" / "color-scheme-generator" / "templates" / "template.j2").write_text("x\n")
 
     (install / "config" / "color-scheme-generator" / "settings.toml").write_text(
         f'[output]\ndirectory = "{cache_home}/dotfiles/csg-output"\n'

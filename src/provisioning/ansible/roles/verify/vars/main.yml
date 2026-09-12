@@ -104,6 +104,22 @@ verify_install_spine_dirs:
 #   (mirror of filesystem_file_nodes).
 verify_install_spine_files:
   - config/weg/effects.yaml
+  - icon-mappings/icons.yaml
+  - icon-mappings/battery.yaml
+  - icon-mappings/defaults.yaml
+  - icon-mappings/email-client.yaml
+  - icon-mappings/network.yaml
+  - icon-mappings/power-menu.yaml
+  - icon-mappings/screenshot-tool.yaml
+  - icon-mappings/wallpaper-selector.yaml
+  - icon-mappings/wlogout.yaml
+
+# verify_derivation_template_dirs: derivation-input DIRECTORIES that must be
+#   NON-EMPTY in the spine (R-3/AD-43: `verify` asserts input CONTENT, not just
+#   container existence — an empty templates dir silently derives empty output).
+verify_derivation_template_dirs:
+  - icon-templates
+  - config/color-scheme-generator/templates
 
 # verify_weg_effects_path: the spine effects catalog the WEG gate must read.
 #   The assets role (2.6) emits it via `weg dump-effects --output` to
