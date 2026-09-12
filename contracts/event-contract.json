@@ -1,11 +1,19 @@
 {
   "bus": "session",
   "well_known_name": "org.dotfiles.Events",
-  "owner": "dotfiles-runtime daemon run (the signal hub)",
+  "owner": "dotfiles-runtime daemon run (the hub, sole emitter)",
   "object_path": "/org/dotfiles/Events",
   "interface": "org.dotfiles.Events1",
+  "versioning": {
+    "breaking": "removed | retyped | newly-required field -> org.dotfiles.Events2",
+    "non_breaking": "additive method | signal | topic | optional field stays on org.dotfiles.Events1",
+    "coexistence": "Events1 and Events2 may coexist on the bus under distinct interface names during migration"
+  },
   "methods": {
     "Emit": { "in": ["topic:s", "payload:a{sv}"] },
+    "BeginJob": { "in": ["kind:s"], "out": ["job_id:s"] },
+    "ReportProgress": { "in": ["job_id:s", "fraction:d"] },
+    "EndJob": { "in": ["job_id:s", "exit_code:i"] },
     "GetActiveJobs": { "out": ["jobs:a{ss}"] },
     "GetTopicState": { "in": ["topic:s"], "out": ["state:a{sv}"] }
   },
@@ -13,7 +21,17 @@
     "JobStarted": ["job_id:s", "kind:s"],
     "JobProgress": ["job_id:s", "fraction:d"],
     "JobFinished": ["job_id:s", "exit_code:i"],
-    "DomainEvent": ["topic:s", "producer:s", "payload:a{sv}"]
+    "DomainEvent": ["topic:s", "producer:s", "seq:u", "payload:a{sv}"],
+    "JobsCleared": ["epoch:u"]
+  },
+  "delivery": {
+    "semantics": "at-most-once",
+    "ordering": "per-topic monotonic seq (u) within an epoch (u); the epoch bumps on hub restart and resets seq",
+    "hydration": "subscribe-then-read GetTopicState/GetActiveJobs; GetTopicState returns reserved _epoch (u) and _seq (u); drop signals whose (epoch, seq) is not greater than hydrated"
+  },
+  "validation": {
+    "identity": "none (trusted same-user session bus)",
+    "structural": ["schema", "max_payload_bytes", "max_payload_depth", "publish_rate"]
   },
   "topics": {
     "icme.saved": {
@@ -22,8 +40,9 @@
     },
     "capture.state": {
       "producer": "capture controller",
-      "payload": { "state": "s" },
-      "enum": { "state": ["idle", "recording", "paused"] }
+      "payload": { "state": "s", "started_at": "x" },
+      "enum": { "state": ["idle", "recording", "paused"] },
+      "notes": "started_at is unix seconds (0 when idle); the timer is rendered from it, never read from a file"
     },
     "speedtest.finished": {
       "producer": "speed-test job",

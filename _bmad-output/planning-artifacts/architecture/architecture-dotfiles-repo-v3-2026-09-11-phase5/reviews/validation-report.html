@@ -1,0 +1,143 @@
+<!doctype html><html><head><meta charset='utf-8'><title>Phase 5 Validation Report</title><style>
+body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:960px;margin:40px auto;padding:0 20px;color:#1c1c1e;line-height:1.55}
+h1{font-size:1.7rem;border-bottom:2px solid #d0d0d5;padding-bottom:.3rem}
+h2{font-size:1.25rem;margin-top:2rem;color:#0a4}
+h3{font-size:1.05rem;margin-top:1.4rem;color:#a40}
+code{background:#f2f2f5;padding:.1rem .3rem;border-radius:4px;font-size:.9em}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid #d0d0d5;padding:.4rem .6rem;text-align:left;font-size:.92rem}
+th{background:#f2f2f5}
+blockquote{border-left:4px solid #0a4;margin:1rem 0;padding:.3rem 1rem;background:#f7fbf9;color:#333}
+hr{border:none;border-top:1px solid #d0d0d5;margin:2rem 0}
+strong{color:#000}
+</style></head><body><h1>Phase 5 Architecture — Validation Report</h1>
+<p><strong>Intent:</strong> validate (critique, no spine changes).</p>
+<p><strong>Date:</strong> 2026-09-11</p>
+<p><strong>Spine:</strong> <code>architecture-dotfiles-repo-v3-2026-09-11-phase5/ARCHITECTURE-SPINE.md</code> (status: final)</p>
+<p><strong>Companion:</strong> <code>contracts/event-contract.md</code> / <code>.json</code></p>
+<h2>Verdict</h2>
+<p><strong>NOT READY for story breakdown.</strong> Mechanical lint passed (0 findings), but a</p>
+<p>scaled reviewer gate returned <strong>REJECT / CONDITIONAL REJECT</strong> from every</p>
+<p>judgment lens. The spine specifies a *single-converge correctness* model but</p>
+<p>leaves the *contract semantics, recovery behavior, supervision, and trust</p>
+<p>boundary* under-specified — enough that two AD-conformant units can build</p>
+<p>incompatibly, and one CRITICAL internal contradiction makes the driving use case</p>
+<p>(ICME save → regenerate) unimplementable as written.</p>
+<h2>Method</h2>
+<p><code>lint_spine.py</code> (0 findings) + 6 parallel lenses, each written to <code>reviews/</code>:</p>
+<table><thead><tr><th>Lens</th><th>File</th><th>Verdict</th></tr></thead><tbody><tr><td>Rubric walker</td><td><code>review-rubric.md</code></td><td>CONDITIONAL REJECT</td></tr><tr><td>Reality-check (floor)</td><td><code>review-reality.md</code></td><td>PASS WITH FINDINGS (1C/4H/5M/4L)</td></tr><tr><td>Adversarial-divergence (floor)</td><td><code>review-adversarial.md</code></td><td>REJECT</td></tr><tr><td>Operational / failure-mode</td><td><code>review-operational.md</code></td><td>REJECT AS WRITTEN</td></tr><tr><td>Trust &amp; security</td><td><code>review-trust.md</code></td><td>FAIL (blocking)</td></tr><tr><td>Contract robustness</td><td><code>review-contract.md</code></td><td>REJECT</td></tr></tbody></table>
+<hr/>
+<h2>CRITICAL</h2>
+<p><strong>C1 — AD-36 forbids the very reaction AD-37/AD-42 require.</strong></p>
+<p>AD-36: &quot;the daemon reacts <strong>only</strong> to the watched root set.&quot; AD-37/AD-42: ICME</p>
+<p><code>icme.saved</code> → the daemon triggers regeneration. A file-watch-only trigger</p>
+<p>surface makes the contract event an orphan, or violates AD-36. *(rubric,</p>
+<p>adversarial)*</p>
+<p>→ <strong>Fix:</strong> redefine the daemon&#x27;s trigger surface as **watched roots ∪ authorized</p>
+<p>domain-event topics**; AD-36 loops-safety applies to the root set only.</p>
+<p><strong>C2 — <code>Job*</code> lifecycle signals have no producer path.</strong></p>
+<p>The contract exposes only <code>Emit(topic, payload)</code>→<code>DomainEvent</code>; `JobStarted/</p>
+<p>Progress/Finished` are hub-only signals, yet AD-37 says a lifetime job</p>
+<p>&quot;publishes lifecycle&quot; and AD-38 says only the hub emits. Dead interface.</p>
+<p>*(adversarial, contract, reality)*</p>
+<p>→ <strong>Fix:</strong> pin one path — e.g. jobs call hub methods (<code>BeginJob/ReportJob/EndJob</code>)</p>
+<p>and the <strong>hub</strong> emits <code>Job*</code>; the contract&#x27;s method set must expose it.</p>
+<p><strong>C3 — AD-38 caller→topic authorization is unenforceable on a session bus.</strong></p>
+<p>Same-UID processes; unique names rotate; PID→exe is TOCTOU-unsound; policy XML</p>
+<p>cannot match executables. Any same-user process can forge <code>icme.saved</code> /</p>
+<p><code>capture.state</code> / <code>Job*</code> and drive regeneration. There is no threat model.</p>
+<p>*(trust, reality)*</p>
+<p>→ <strong>Fix:</strong> decide the trust posture explicitly. Session-bus trust is *same-UID*;</p>
+<p>make the guarantee real (hub-spawned jobs carry a capability cookie; hub validates</p>
+<p>the cookie + sender), or <strong>downgrade the claim</strong> to &quot;same-user trust; no</p>
+<p>integrity guarantee beyond AD-30 floor.&quot; Do not assert an enforceable mapping you</p>
+<p>cannot implement.</p>
+<p><strong>C4 — AD-33 supervision does not do what it claims.</strong></p>
+<p><code>Restart=on-failure</code> never restarts a clean exit; <code>StartLimit</code> drops the unit to</p>
+<p><code>failed</code> on a crash-loop; <code>Type=simple</code> marks the unit active <strong>before</strong></p>
+<p><code>org.dotfiles.Events</code> is acquired (active with no hub); no **session target /</p>
+<p>environment import** → the daemon cannot reach the session bus or its reloaders.</p>
+<p>*(reality, rubric, operational)*</p>
+<p>→ <strong>Fix:</strong> use <code>Type=dbus</code> + <code>BusName=org.dotfiles.Events</code> (or <code>Restart=always</code></p>
+<p>with <code>StartLimitIntervalSec=0</code> + <code>RequestName(DO_NOT_QUEUE)</code> exiting non-zero on</p>
+<p>loss), and bind the unit to <code>graphical-session.target</code> with the uwsm session env.</p>
+<p><strong>C5 — No converge-on-start / recovery; downtime changes are lost forever.</strong></p>
+<p>The last-converged hash backstop is <strong>in-memory only</strong> and polling is banned, so</p>
+<p>any change made while the daemon was down is never reconciled. An unseeded daemon</p>
+<p>hits <code>nothing to reconcile</code> → <code>Restart=on-failure</code> crash-loop → <code>failed</code> unit.</p>
+<p>*(operational, contract, rubric)*</p>
+<p>→ <strong>Fix:</strong> converge once on startup; persist the last-converged input hashes</p>
+<p>(under <code>state_root</code>) so the first post-restart run repairs downtime drift; treat</p>
+<p>&quot;unseeded&quot; as a benign no-op, never an error.</p>
+<p><strong>C6 — AD-42&#x27;s premise is already false.</strong></p>
+<p><code>shared-data-contract.md</code> pins <code>seed|set|reconcile|force</code>; shipped code enforces</p>
+<p>six values (<code>+regenerate,+doctor</code>) in <code>reconcile.py</code>, <code>inspect.py</code>, <code>seeder.py</code>.</p>
+<p>&quot;no trigger value absent from the contract&quot; cannot hold. *(rubric, reality)*</p>
+<p>→ <strong>Fix:</strong> sync the shared-data-contract + add a cross-copy drift test <strong>before</strong></p>
+<p>adding <code>reactive</code>.</p>
+<hr/>
+<h2>HIGH</h2>
+<p><strong>H1 — Watched roots: recursion and coverage.</strong> inotify is non-recursive, but</p>
+<p><code>icon-templates/</code> is nested (<code>&lt;...&gt;/status-bar/&lt;app&gt;/&lt;variant&gt;/icon.svg</code>) and</p>
+<p><code>canonical_hash_dir</code> hashes recursively → deep edits fire nothing. The watched</p>
+<p>set also <strong>omits the wallpaper bytes</strong> (<code>sha256(file_bytes)</code> is a derivation</p>
+<p>input), and calls <code>icon-mappings</code> a *file* where <code>shared-data-contract</code> says</p>
+<p>*directory*. *(reality, adversarial, operational)* → bounded recursive watch;</p>
+<p>include the wallpaper source; resolve dir-vs-file from the real repo.</p>
+<p><strong>H2 — The daemon is not bound to the existing mutexes.</strong> Nothing binds</p>
+<p><code>daemon run</code> to <code>.seed.lock</code> / <code>.history.lock</code> (only the memlog mentions it); a</p>
+<p>separate composition root can race the CLI. *(operational)* → add an AD: the</p>
+<p>daemon join the existing locks per action; never hold across sleeps.</p>
+<p><strong>H3 — Crash between <code>current.json</code> save and history append.</strong> Leaves permanent</p>
+<p>store/history divergence; the unchanged-input backstop then *suppresses* repair</p>
+<p>(AD-23 only heals torn tails). *(operational)* → extend doctor/verify to detect</p>
+<p>store↔history divergence and repair it; the daemon must not assume its own last</p>
+<p>write succeeded.</p>
+<p><strong>H4 — Two same-user sessions share one <code>state_root</code>.</strong> No session/seat identity,</p>
+<p>so two compositors overwrite each other&#x27;s monitor sets and cross-fire reloaders.</p>
+<p>*(operational)* → scope state by session, or explicitly document single-session.</p>
+<p><strong>H5 — Contract semantics absent.</strong> Delivery (signals are at-most-once — a bar</p>
+<p>starting mid-event misses <code>JobFinished</code>), ordering, <code>job_id</code> generation/scope/</p>
+<p>lifetime across restarts, staleness/heartbeat, schema evolution (additive vs</p>
+<p>breaking), <code>a{sv}</code> validation + size/depth limits, and <code>GetTopicState</code> authority/</p>
+<p>retention/absence/restart are all unspecified. *(contract, adversarial, trust)*</p>
+<p><strong>H6 — Hydrate-then-subscribe race.</strong> No <code>seq</code>/generation and no subscribe-order</p>
+<p>rule → lost updates permanently (polling banned). *(contract, adversarial)* →</p>
+<p>subscribe-before-hydrate + per-topic monotonic <code>seq</code>.</p>
+<p><strong>H7 — AD-19 misattributed.</strong> Phase-2 AD-19 has no presence/absence/recovery</p>
+<p>content (it defers daemons to Phase 5). Absence/recovery needs a Phase-5</p>
+<p>invariant, not an inherited row. *(reality, rubric)*</p>
+<p><strong>H8 — <code>capture.state</code> cannot rebuild the timer.</strong> Payload is <code>{state}</code> only; no</p>
+<p>monotonic start anchor, so the no-polling elapsed indicator is unimplementable</p>
+<p>across bar/hub restarts. *(rubric, role, contract)* → add a start anchor (or a</p>
+<p><code>started_at</code> field/topic).</p>
+<p><strong>H9 — <code>desired.json</code> relocation is incomplete.</strong> No writer exists for it and the</p>
+<p>reader still targets <code>state_root</code>; AD-39 wants it under <code>$XDG_CONFIG_HOME</code>.</p>
+<p>*(reality)* → the relocation is a real story with a reader/writer move.</p>
+<hr/>
+<h2>MEDIUM / LOW (tail)</h2>
+<ul><li>GJS <code>a{sv}</code> needs <code>recursiveUnpack()</code> — document the consumer idiom. *(reality)*</li><li><code>Type=simple</code> + in-memory hub state: no re-announce after hub restart; consumers</li></ul>
+<p>  keep stale state. *(reality)*</p>
+<ul><li>Unbounded <code>a{sv}</code> (size/depth) → memory exhaustion; no runtime validation.</li></ul>
+<p>  *(trust)*</p>
+<ul><li>Audit flooding; <code>desired.json</code> is user-writable so <code>last-N</code> is attacker-tunable</li></ul>
+<p>  within the floor; regeneration cost unbounded. *(trust)*</p>
+<ul><li>High-frequency <code>JobProgress</code> (speed test) needs coalescing/rate policy.</li></ul>
+<p>  *(contract)*</p>
+<ul><li><code>GetActiveJobs a{ss}</code> cannot express staleness. *(contract)*</li><li>Observe-only → live promotion mid-session unspecified. *(operational, medium)*</li><li>Log growth/rotation, uninstall/upgrade, watch limits (<code>max_user_watches</code>).</li></ul>
+<p>  *(operational, medium/low)*</p>
+<ul><li>Hub is a single point of failure for signals *and* authorization. *(trust,</li></ul>
+<p>  operational)*</p>
+<hr/>
+<h2>Recommendation</h2>
+<p>Treat this as an <strong>Update pass</strong>, not a patch:</p>
+<p>1. Resolve <strong>C1–C6</strong> (contradictions, supervision, recovery, trigger sync).</p>
+<p>2. Decide the <strong>trust posture</strong> (C3) — enforce with a capability, or document</p>
+<p>   same-UID trust honestly.</p>
+<p>3. Specify <strong>contract semantics</strong> (H5/H6/H8) and revise <code>event-contract.json</code></p>
+<p>   with required/enum/range/limits + <code>seq</code> + job epoch.</p>
+<p>4. Add Phase-5 invariants for <strong>recovery/converge-on-start</strong>, <strong>lock participation</strong>,</p>
+<p>   <strong>absence/recovery (replacing the AD-19 row)</strong>, and <strong>session scoping</strong>.</p>
+<p>5. Update the epics to make <code>desired.json</code> relocation and the contract-semantics</p>
+<p>   work first-class stories.</p>
+<p>Until then, <strong>do not freeze epics/stories.</strong></p></body></html>
