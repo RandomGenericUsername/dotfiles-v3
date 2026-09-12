@@ -5,9 +5,10 @@ Python runtime world and the GJS/AGS shell world share — neither imports the
 other's code; both obey this document. A rename or shape change here is a spine
 change, not an implementation detail.
 
-Per AD‑44 this contract has **one machine-checkable definition**
-(`event-contract.json`); this prose is descriptive. A drift test on each side
-fails when the two disagree.
+Per AD‑44 the wire **interface** is defined by **`event-contract.xml`**
+(the source GJS parses natively and Python checks against); **`event-contract.json`**
+keeps topics, payload schemas, and delivery semantics pinned to it. Both are
+machine-checked by executable conformance; this prose is descriptive.
 
 ## Transport and ownership
 

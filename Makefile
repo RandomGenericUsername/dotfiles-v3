@@ -1,8 +1,14 @@
-.PHONY: bootstrap dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-help
+.PHONY: bootstrap contracts-check dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-help
 
 # Bootstrap the host machine (full provisioning)
 bootstrap:
 	./bootstrap.sh
+
+# Contract conformance (AD-44): embedded schemas equal their canonical
+# definitions, and the D-Bus wire XML agrees with the event contract JSON.
+# Runs by execution, never by reading prose.
+contracts-check:
+	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_history_trigger_enum.py -q
 
 # Dev dependencies for the VM harness
 dev-deps:

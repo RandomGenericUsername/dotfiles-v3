@@ -1,0 +1,86 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  Single source of truth candidate for the org.dotfiles.Events1 contract.
+  Object path /org/dotfiles/Events, owned by `dotfiles-runtime daemon run` on the session bus.
+  This XML is the parse target for BOTH the Python hub and the GJS/AGS consumers.
+-->
+<node name="/org/dotfiles/Events">
+  <interface name="org.dotfiles.Events1">
+
+    <method name="Emit">
+      <arg name="topic" type="s" direction="in"/>
+      <arg name="payload" type="a{sv}" direction="in"/>
+    </method>
+
+    <method name="BeginJob">
+      <arg name="kind" type="s" direction="in"/>
+      <arg name="ttl" type="u" direction="in"/>
+      <arg name="job_id" type="s" direction="out"/>
+    </method>
+
+    <method name="RenewJob">
+      <arg name="job_id" type="s" direction="in"/>
+    </method>
+
+    <method name="AdoptJob">
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="pid" type="u" direction="in"/>
+    </method>
+
+    <method name="ReportProgress">
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="fraction" type="d" direction="in"/>
+    </method>
+
+    <method name="EndJob">
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="exit_code" type="i" direction="in"/>
+    </method>
+
+    <method name="Control">
+      <arg name="job_id" type="s" direction="in"/>
+      <arg name="action" type="s" direction="in"/>
+    </method>
+
+    <method name="GetActiveJobs">
+      <arg name="jobs" type="a{ss}" direction="out"/>
+    </method>
+
+    <method name="GetTopicState">
+      <arg name="topic" type="s" direction="in"/>
+      <arg name="state" type="a{sv}" direction="out"/>
+    </method>
+
+    <signal name="JobStarted">
+      <arg name="job_id" type="s"/>
+      <arg name="kind" type="s"/>
+      <arg name="epoch" type="u"/>
+    </signal>
+
+    <signal name="JobProgress">
+      <arg name="job_id" type="s"/>
+      <arg name="fraction" type="d"/>
+      <arg name="epoch" type="u"/>
+    </signal>
+
+    <signal name="JobFinished">
+      <arg name="job_id" type="s"/>
+      <arg name="exit_code" type="i"/>
+      <arg name="epoch" type="u"/>
+    </signal>
+
+    <signal name="DomainEvent">
+      <arg name="topic" type="s"/>
+      <arg name="producer" type="s"/>
+      <arg name="seq" type="u"/>
+      <arg name="epoch" type="u"/>
+      <arg name="payload" type="a{sv}"/>
+    </signal>
+
+    <signal name="JobsCleared">
+      <arg name="epoch" type="u"/>
+    </signal>
+
+  </interface>
+</node>
