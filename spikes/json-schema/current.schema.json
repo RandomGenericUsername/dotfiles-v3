@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dotfiles.local/schemas/current.schema.json",
+  "title": "current.json",
+  "description": "Manifest projection of the current desktop derivation (schema_version 2). Sketch only — see reviews/schema-json.md for doc/code divergences.",
+  "type": "object",
+  "required": ["schema_version", "wallpaper", "monitors", "palette", "effects", "icons", "applied_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "wallpaper": {
+      "type": "object",
+      "required": ["hash", "source_path", "applied_at"],
+      "additionalProperties": false,
+      "properties": {
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "source_path": { "type": "string" },
+        "applied_at": { "type": "string" }
+      }
+    },
+    "monitors": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["backend", "source_hash", "fit_mode"],
+        "additionalProperties": false,
+        "properties": {
+          "backend": { "enum": ["hyprpaper", "swaybg", "swww", "mpvpaper"] },
+          "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "fit_mode": { "enum": ["cover", "contain", "fill", "tile", "center", "stretch"] },
+          "mpv_options": { "type": ["string", "null"] },
+          "ipc_socket": { "type": ["string", "null"] }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "backend": { "const": "mpvpaper" } },
+              "required": ["backend"]
+            },
+            "then": {}
+          },
+          {
+            "if": {
+              "not": {
+                "properties": { "backend": { "const": "mpvpaper" } },
+                "required": ["backend"]
+              }
+            },
+            "then": {
+              "properties": {
+                "mpv_options": { "const": null },
+                "ipc_socket": { "const": null }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "palette": { "oneOf": [{ "$ref": "#/$defs/projection" }, { "type": "null" }] },
+    "effects": { "oneOf": [{ "$ref": "#/$defs/projection" }, { "type": "null" }] },
+    "icons": { "oneOf": [{ "$ref": "#/$defs/projection" }, { "type": "null" }] },
+    "applied_at": { "type": "string" }
+  },
+  "$defs": {
+    "projection": {
+      "type": "object",
+      "required": ["hash", "generated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "generated_at": { "type": "string" }
+      }
+    }
+  }
+}

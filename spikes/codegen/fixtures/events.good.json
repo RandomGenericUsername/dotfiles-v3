@@ -1,0 +1,9 @@
+[
+  { "signal": "JobStarted", "members": { "job_id": "j1", "kind": "speedtest", "epoch": 0 } },
+  { "signal": "DomainEvent", "members": { "topic": "icme.saved", "producer": "ICME", "seq": 7, "epoch": 0, "payload": { "path": "/home/u/theme" } } },
+  { "signal": "JobsCleared", "members": { "epoch": 1 } },
+  { "method": "Emit", "args": { "topic": "capture.state", "payload": { "state": "recording" } } },
+  { "method": "GetActiveJobs", "args": {} },
+  { "topic": "capture.state", "producer": "capture controller", "payload": { "state": "recording", "elapsed_seconds": 5 } },
+  { "topic": "speedtest.finished", "producer": "speed-test job", "payload": { "down_mbps": 940.2, "up_mbps": 41.5, "latency_ms": 7.0 } }
+]

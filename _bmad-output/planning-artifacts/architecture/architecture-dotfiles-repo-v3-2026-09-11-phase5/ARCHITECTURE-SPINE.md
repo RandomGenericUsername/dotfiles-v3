@@ -107,7 +107,11 @@ Hexagonal (ports & adapters), inherited unchanged — with one addition: **the c
 
 - **Binds:** every cross-boundary shared contract (history trigger enum, `current.json`, `meta.json`, the event contract, and the last-converged backstop record)
 - **Prevents:** prose contracts drifting silently from the code (e.g. the doc that said four trigger values while the code enforced six)
-- **Rule:** each shared contract has **exactly one machine-checkable definition** (code constants / JSON schema), including the **backstop record's path and key set** and the **intent document's** shape. Prose documents are **descriptive**, never authoritative; where practical their tables are generated from the definition. A **drift test** fails when a document and its definition disagree; a format change ships with a migration. [ADOPTED]
+- **Rule:** each shared contract has **exactly one machine-checkable definition**, and conformance is checked by **executing** a script — never by reading prose and asserting compliance on each side. The definition is per contract type:
+  - **D-Bus wire** (names, methods, signals, type signatures): one **introspection XML** (`contracts/event-contract.xml`), parsed/enforced by GJS natively (`Gio.DBusNodeInfo`) and by Python via a declared signature table + assertion; `a{sv}` payload shapes/enums live in a **JSON Schema** referenced from the XML.
+  - **Structural files** (`history.jsonl`, `current.json`, `meta.json`): one **JSON Schema**, enforced at runtime by the Python readers/tests (no JS consumer today).
+  - **Enums** (e.g. the history trigger): one **code constant**, imported by every side.
+  Machine definitions are **embedded per side and gated by a repo conformance test** (provisioning does not copy `contracts/`); prose is descriptive. A format change ships with a migration; additive changes stay non-breaking. [ADOPTED — shape validated by executed prototypes]
 
 ## Consistency Conventions
 

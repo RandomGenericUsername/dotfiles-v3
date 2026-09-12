@@ -1,0 +1,7 @@
+{"ts":"2026-02-01T00:00:00Z","trigger":"seed","wallpaper":"3333333333333333333333333333333333333333333333333333333333333333","palette":null,"effects":null,"icons":null}
+{"ts":"2026-02-02T00:00:00Z","trigger":"apply","wallpaper":"4444444444444444444444444444444444444444444444444444444444444444","palette":null,"effects":null,"icons":null,"source_path":""}
+{"ts":"2026-02-03T00:00:00Z","trigger":"set","wallpaper":"5555555555555555555555555555555555555555555555555555555555555555","palette":null,"effects":null,"icons":null,"source_path":"","apply":true}
+{"ts":"2026-02-04T00:00:00Z","trigger":"prune","wallpaper":"6666666666666666666666666666666666666666666666666666666666666666","palette":null,"effects":null,"icons":null,"source_path":"","details":{"failed":1}}
+{"ts":"2026-02-05T00:00:00Z","trigger":"prune","wallpaper":"7777777777777777777777777777777777777777777777777777777777777777","palette":null,"effects":null,"icons":null,"source_path":"","details":{"removed":-1}}
+{"ts":"2026-02-06T00:00:00Z","trigger":"set","wallpaper":"8888888888888888888888888888888888888888888888888888888888888888","palette":null,"effects":null,"icons":null,"source_path":"","details":{"removed":1}}
+{"ts":"2026-02-07T00:00:00Z","trigger":"seed","wallpaper":"not-a-sha256","palette":null,"effects":null,"icons":null,"source_path":""}

@@ -1,0 +1,122 @@
+{
+  "schema": "current.schema.json",
+  "cases": [
+    {
+      "id": "good-full",
+      "expected": true,
+      "why": "v2 manifest with one hyprpaper monitor and all layers present",
+      "line": {
+        "schema_version": 2,
+        "wallpaper": {
+          "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source_path": "/home/u/wall.png",
+          "applied_at": "2026-01-01T00:00:00Z"
+        },
+        "monitors": {
+          "DP-1": {
+            "backend": "hyprpaper",
+            "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "fit_mode": "cover",
+            "mpv_options": null,
+            "ipc_socket": null
+          }
+        },
+        "palette": { "hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "generated_at": "2026-01-01T00:00:01Z" },
+        "effects": { "hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "generated_at": "2026-01-01T00:00:02Z" },
+        "icons": { "hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "generated_at": "2026-01-01T00:00:03Z" },
+        "applied_at": "2026-01-01T00:00:03Z"
+      }
+    },
+    {
+      "id": "good-null-layers",
+      "expected": true,
+      "why": "palette/effects/icons may be null",
+      "line": {
+        "schema_version": 2,
+        "wallpaper": {
+          "hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "source_path": "",
+          "applied_at": "2026-01-01T00:00:00Z"
+        },
+        "monitors": {},
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "applied_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "bad-schema-version",
+      "expected": false,
+      "why": "schema_version is const 2",
+      "line": {
+        "schema_version": 1,
+        "wallpaper": {
+          "hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "source_path": "",
+          "applied_at": "2026-01-01T00:00:00Z"
+        },
+        "monitors": {},
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "applied_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "bad-monitor-backend",
+      "expected": false,
+      "why": "backend must be in enum",
+      "line": {
+        "schema_version": 2,
+        "wallpaper": {
+          "hash": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+          "source_path": "",
+          "applied_at": "2026-01-01T00:00:00Z"
+        },
+        "monitors": {
+          "DP-1": { "backend": "xwallpaper", "source_hash": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "fit_mode": "cover" }
+        },
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "applied_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "bad-hash-not-hex64",
+      "expected": false,
+      "why": "wallpaper.hash pattern must be 64 lowercase hex",
+      "line": {
+        "schema_version": 2,
+        "wallpaper": {
+          "hash": "not-a-hash",
+          "source_path": "",
+          "applied_at": "2026-01-01T00:00:00Z"
+        },
+        "monitors": {},
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "applied_at": "2026-01-01T00:00:00Z"
+      }
+    },
+    {
+      "id": "divergence-missing-monitors",
+      "expected": false,
+      "why": "SCHEMA requires monitors, but JsonStateRepository._dict_to_state tolerates an absent monitors key. Marker for doc/code divergence.",
+      "line": {
+        "schema_version": 2,
+        "wallpaper": {
+          "hash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "source_path": "",
+          "applied_at": "2026-01-01T00:00:00Z"
+        },
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "applied_at": "2026-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

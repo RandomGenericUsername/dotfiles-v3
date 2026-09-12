@@ -1,0 +1,255 @@
+{
+  "schema": "history.schema.json",
+  "cases": [
+    {
+      "id": "good-seed-minimal",
+      "expected": true,
+      "why": "7 required fields, all optional layers null",
+      "line": {
+        "ts": "2026-01-01T00:00:00Z",
+        "trigger": "seed",
+        "wallpaper": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "/home/u/wall.png"
+      }
+    },
+    {
+      "id": "good-set-with-hashes",
+      "expected": true,
+      "why": "layer hashes present as strings",
+      "line": {
+        "ts": "2026-01-02T00:00:00Z",
+        "trigger": "set",
+        "wallpaper": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "palette": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "effects": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "icons": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "source_path": "/home/u/next.png"
+      }
+    },
+    {
+      "id": "good-prune-details",
+      "expected": true,
+      "why": "prune payload: removed + failed + layers maps",
+      "line": {
+        "ts": "2026-01-03T00:00:00Z",
+        "trigger": "prune",
+        "wallpaper": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": {
+          "removed": 3,
+          "failed": 0,
+          "layers": { "palettes": 2, "effects": 1, "icons": 0 }
+        }
+      }
+    },
+    {
+      "id": "good-details-removed-only",
+      "expected": true,
+      "why": "details subfields are not required",
+      "line": {
+        "ts": "2026-01-04T00:00:00Z",
+        "trigger": "prune",
+        "wallpaper": "1111111111111111111111111111111111111111111111111111111111111111",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": { "removed": 1 }
+      }
+    },
+    {
+      "id": "good-doctor-empty-source",
+      "expected": true,
+      "why": "empty source_path is allowed (str, not pattern-constrained)",
+      "line": {
+        "ts": "2026-01-05T00:00:00Z",
+        "trigger": "doctor",
+        "wallpaper": "2222222222222222222222222222222222222222222222222222222222222222",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": ""
+      }
+    },
+    {
+      "id": "bad-missing-source-path",
+      "expected": false,
+      "why": "required field omitted",
+      "line": {
+        "ts": "2026-01-06T00:00:00Z",
+        "trigger": "seed",
+        "wallpaper": "3333333333333333333333333333333333333333333333333333333333333333",
+        "palette": null,
+        "effects": null,
+        "icons": null
+      }
+    },
+    {
+      "id": "bad-unknown-top-key",
+      "expected": false,
+      "why": "additionalProperties:false at top level",
+      "line": {
+        "ts": "2026-01-07T00:00:00Z",
+        "trigger": "set",
+        "wallpaper": "4444444444444444444444444444444444444444444444444444444444444444",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "apply": true
+      }
+    },
+    {
+      "id": "bad-trigger",
+      "expected": false,
+      "why": "trigger not in enum (apply is explicitly NOT valid)",
+      "line": {
+        "ts": "2026-01-08T00:00:00Z",
+        "trigger": "apply",
+        "wallpaper": "5555555555555555555555555555555555555555555555555555555555555555",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": ""
+      }
+    },
+    {
+      "id": "bad-wallpaper-type",
+      "expected": false,
+      "why": "wrong value type",
+      "line": {
+        "ts": "2026-01-09T00:00:00Z",
+        "trigger": "set",
+        "wallpaper": 123,
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": ""
+      }
+    },
+    {
+      "id": "bad-palette-type",
+      "expected": false,
+      "why": "palette must be string|null, not number",
+      "line": {
+        "ts": "2026-01-10T00:00:00Z",
+        "trigger": "set",
+        "wallpaper": "6666666666666666666666666666666666666666666666666666666666666666",
+        "palette": 5,
+        "effects": null,
+        "icons": null,
+        "source_path": ""
+      }
+    },
+    {
+      "id": "bad-trigger-type",
+      "expected": false,
+      "why": "trigger must be a string",
+      "line": {
+        "ts": "2026-01-11T00:00:00Z",
+        "trigger": 42,
+        "wallpaper": "7777777777777777777777777777777777777777777777777777777777777777",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": ""
+      }
+    },
+    {
+      "id": "bad-details-removed-negative",
+      "expected": false,
+      "why": "removed must be integer >= 0",
+      "line": {
+        "ts": "2026-01-12T00:00:00Z",
+        "trigger": "prune",
+        "wallpaper": "8888888888888888888888888888888888888888888888888888888888888888",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": { "removed": -1 }
+      }
+    },
+    {
+      "id": "bad-details-removed-string",
+      "expected": false,
+      "why": "removed must be integer, not string",
+      "line": {
+        "ts": "2026-01-13T00:00:00Z",
+        "trigger": "prune",
+        "wallpaper": "9999999999999999999999999999999999999999999999999999999999999999",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": { "removed": "3" }
+      }
+    },
+    {
+      "id": "bad-details-layers-value",
+      "expected": false,
+      "why": "layers values must be integer >= 0",
+      "line": {
+        "ts": "2026-01-14T00:00:00Z",
+        "trigger": "prune",
+        "wallpaper": "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": { "layers": { "icons": "x" } }
+      }
+    },
+    {
+      "id": "bad-details-unknown-key",
+      "expected": false,
+      "why": "additionalProperties:false inside details",
+      "line": {
+        "ts": "2026-01-15T00:00:00Z",
+        "trigger": "prune",
+        "wallpaper": "bcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcb",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": { "removed": 1, "bogus": true }
+      }
+    },
+    {
+      "id": "bad-details-not-object",
+      "expected": false,
+      "why": "details must be an object",
+      "line": {
+        "ts": "2026-01-16T00:00:00Z",
+        "trigger": "prune",
+        "wallpaper": "cabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": []
+      }
+    },
+    {
+      "id": "divergence-null-details",
+      "expected": false,
+      "why": "SCHEMA says object-only, but the hand-written runtime parser accepts explicit null. Marker case for the runtime-parity check.",
+      "line": {
+        "ts": "2026-01-17T00:00:00Z",
+        "trigger": "set",
+        "wallpaper": "dabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabc",
+        "palette": null,
+        "effects": null,
+        "icons": null,
+        "source_path": "",
+        "details": null
+      }
+    }
+  ]
+}

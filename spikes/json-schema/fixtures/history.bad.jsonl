@@ -1,0 +1,12 @@
+{"ts": "2026-01-06T00:00:00Z", "trigger": "seed", "wallpaper": "3333333333333333333333333333333333333333333333333333333333333333", "palette": null, "effects": null, "icons": null}
+{"ts": "2026-01-07T00:00:00Z", "trigger": "set", "wallpaper": "4444444444444444444444444444444444444444444444444444444444444444", "palette": null, "effects": null, "icons": null, "source_path": "", "apply": true}
+{"ts": "2026-01-08T00:00:00Z", "trigger": "apply", "wallpaper": "5555555555555555555555555555555555555555555555555555555555555555", "palette": null, "effects": null, "icons": null, "source_path": ""}
+{"ts": "2026-01-09T00:00:00Z", "trigger": "set", "wallpaper": 123, "palette": null, "effects": null, "icons": null, "source_path": ""}
+{"ts": "2026-01-10T00:00:00Z", "trigger": "set", "wallpaper": "6666666666666666666666666666666666666666666666666666666666666666", "palette": 5, "effects": null, "icons": null, "source_path": ""}
+{"ts": "2026-01-11T00:00:00Z", "trigger": 42, "wallpaper": "7777777777777777777777777777777777777777777777777777777777777777", "palette": null, "effects": null, "icons": null, "source_path": ""}
+{"ts": "2026-01-12T00:00:00Z", "trigger": "prune", "wallpaper": "8888888888888888888888888888888888888888888888888888888888888888", "palette": null, "effects": null, "icons": null, "source_path": "", "details": {"removed": -1}}
+{"ts": "2026-01-13T00:00:00Z", "trigger": "prune", "wallpaper": "9999999999999999999999999999999999999999999999999999999999999999", "palette": null, "effects": null, "icons": null, "source_path": "", "details": {"removed": "3"}}
+{"ts": "2026-01-14T00:00:00Z", "trigger": "prune", "wallpaper": "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabca", "palette": null, "effects": null, "icons": null, "source_path": "", "details": {"layers": {"icons": "x"}}}
+{"ts": "2026-01-15T00:00:00Z", "trigger": "prune", "wallpaper": "bcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcb", "palette": null, "effects": null, "icons": null, "source_path": "", "details": {"removed": 1, "bogus": true}}
+{"ts": "2026-01-16T00:00:00Z", "trigger": "prune", "wallpaper": "cabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc", "palette": null, "effects": null, "icons": null, "source_path": "", "details": []}
+{"ts": "2026-01-17T00:00:00Z", "trigger": "set", "wallpaper": "dabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabc", "palette": null, "effects": null, "icons": null, "source_path": "", "details": null}

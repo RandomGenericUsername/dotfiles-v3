@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "HistoryDetails": {
+      "additionalProperties": false,
+      "properties": {
+        "failed": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed"
+        },
+        "layers": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layers"
+        },
+        "removed": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Removed"
+        }
+      },
+      "title": "HistoryDetails",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "details": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HistoryDetails"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "effects": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Effects"
+    },
+    "icons": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Icons"
+    },
+    "palette": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Palette"
+    },
+    "source_path": {
+      "title": "Source Path",
+      "type": "string"
+    },
+    "trigger": {
+      "enum": [
+        "seed",
+        "set",
+        "reconcile",
+        "force",
+        "regenerate",
+        "doctor",
+        "prune"
+      ],
+      "title": "Trigger",
+      "type": "string"
+    },
+    "ts": {
+      "title": "Ts",
+      "type": "string"
+    },
+    "wallpaper": {
+      "title": "Wallpaper",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ts",
+    "trigger",
+    "wallpaper",
+    "palette",
+    "effects",
+    "icons",
+    "source_path"
+  ],
+  "title": "HistoryLine",
+  "type": "object"
+}

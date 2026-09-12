@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dotfiles.local/schemas/history.schema.json",
+  "title": "history.jsonl line",
+  "description": "One append-only history record. Neutral, language-agnostic source of truth.",
+  "type": "object",
+  "required": [
+    "ts",
+    "trigger",
+    "wallpaper",
+    "palette",
+    "effects",
+    "icons",
+    "source_path"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "ts": {
+      "type": "string",
+      "description": "ISO-8601 UTC timestamp, emitted ending in Z. Format not constrained (runtime does not hex/ISO-validate history)."
+    },
+    "trigger": {
+      "enum": [
+        "seed",
+        "set",
+        "reconcile",
+        "force",
+        "regenerate",
+        "doctor",
+        "prune"
+      ]
+    },
+    "wallpaper": {
+      "type": "string"
+    },
+    "palette": {
+      "type": ["string", "null"]
+    },
+    "effects": {
+      "type": ["string", "null"]
+    },
+    "icons": {
+      "type": ["string", "null"]
+    },
+    "source_path": {
+      "type": "string"
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "removed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "layers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

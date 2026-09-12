@@ -1,0 +1,233 @@
+{
+  "$defs": {
+    "Details_doctor": {
+      "additionalProperties": false,
+      "properties": {
+        "repaired": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "repaired"
+      ],
+      "type": "object"
+    },
+    "Details_prune": {
+      "additionalProperties": false,
+      "properties": {
+        "failed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "layers": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "removed": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "removed"
+      ],
+      "type": "object"
+    },
+    "Details_regenerate": {
+      "additionalProperties": false,
+      "properties": {
+        "regenerated": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "regenerated"
+      ],
+      "type": "object"
+    },
+    "HistoryDetails": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Details_prune"
+        },
+        {
+          "$ref": "#/$defs/Details_regenerate"
+        },
+        {
+          "$ref": "#/$defs/Details_doctor"
+        }
+      ]
+    },
+    "HistoryTrigger": {
+      "enum": [
+        "seed",
+        "set",
+        "reconcile",
+        "force",
+        "regenerate",
+        "doctor",
+        "prune"
+      ]
+    },
+    "Sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://dotfiles.local/generated/history.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "const": "doctor"
+          }
+        },
+        "required": [
+          "trigger"
+        ]
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "$ref": "#/$defs/Details_doctor"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "const": "prune"
+          }
+        },
+        "required": [
+          "trigger"
+        ]
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "$ref": "#/$defs/Details_prune"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "const": "regenerate"
+          }
+        },
+        "required": [
+          "trigger"
+        ]
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "$ref": "#/$defs/Details_regenerate"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "trigger": {
+            "enum": [
+              "force",
+              "reconcile",
+              "seed",
+              "set"
+            ]
+          }
+        },
+        "required": [
+          "trigger"
+        ]
+      },
+      "then": {
+        "properties": {
+          "details": false
+        }
+      }
+    }
+  ],
+  "properties": {
+    "details": {
+      "$ref": "#/$defs/HistoryDetails"
+    },
+    "effects": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "icons": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "palette": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_path": {
+      "type": "string"
+    },
+    "trigger": {
+      "$ref": "#/$defs/HistoryTrigger"
+    },
+    "ts": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "wallpaper": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ts",
+    "trigger",
+    "wallpaper",
+    "palette",
+    "effects",
+    "icons",
+    "source_path"
+  ],
+  "title": "HistoryLine",
+  "type": "object"
+}

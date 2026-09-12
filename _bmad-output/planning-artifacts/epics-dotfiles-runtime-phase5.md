@@ -18,9 +18,9 @@ no polling anywhere.
 | Story | Fix | Why first |
 | --- | --- | --- |
 | R‑1 prune audit line | A real prune appends one `history.jsonl` line `trigger="prune"` with counts; dry-run appends nothing. (AD‑30 was never implemented.) | The daemon auto-prunes; the audit trail must exist before automation |
-| R‑2 trigger enum single‑source | One machine-checkable definition; values `seed|set|reconcile|regenerate|doctor|prune|reactive`; validator + `shared-data-contract` derive from it; drift test; drop dead `force`. (AD‑42/AD‑44) | Phase 5 adds `reactive`/`prune`; never extend a brittle doc |
+| R‑2 trigger enum single‑source | One Python constants module owns the enum; `inspect`/`reconcile` (which has a stale copy at `reconcile.py:68` missing `prune`) import it; one drift/conformance test. Values `seed|set|reconcile|regenerate|doctor|prune|reactive`. (AD‑42/AD‑44) | Phase 5 adds `reactive`/`prune`; the enum is currently triplicated |
 | R‑3 derivation inputs spine‑only | `derive.find_*` resolves the spine only in production; repo fallback is an explicit opt‑in dev override; missing input fails loud; `verify` asserts input **content**; `doctor` provenance tripwire. (AD‑43) | Phase 5 watches spine roots; the spine must be complete and repo‑free |
-| R‑4 machine‑enforced shared contracts | `current.json`/`meta.json`/history get a machine-checkable definition; prose descriptive; drift test. (AD‑44, beyond R‑2) | Removes the proven prose-drift class |
+| R‑4 schema‑driven contracts (hybrid) | Adopt the validated hybrid (AD‑44): `contracts/event-contract.xml` (wire) + payload JSON Schema; JSON Schema for `history.jsonl`/`current.json`/`meta.json` with runtime enforcement in the Python readers; conformance scripts wired into `make`/CI; contracts embedded per side + gated by a repo test. | Removes the hand-written-doc drift class proven across this review |
 | R‑5 doctor store↔history divergence | `doctor` detects and repairs `current.json`↔history divergence (the save↔append crash window). (AD‑41 claims it; unimplemented today) | The daemon's recovery path needs a detector, not a claim |
 
 ## Epics

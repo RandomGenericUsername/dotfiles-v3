@@ -1,0 +1,81 @@
+################################################################
+# 1. POSITIVE CONFORMANCE
+################################################################
+[1/4] Python parser : dbus-fast -> 9 methods, 5 signals
+[2/4] GJS parser    : Gio.DBusNodeInfo.new_for_xml -> 9 methods, 5 signals
+[3/4] cross-parser agreement: PASS (interface, methods in/out, signals args identical)
+[4/4] XML <-> event-contract.json: PASS (interface, methods in/out, signals args identical)
+RESULT: PASS
+
+################################################################
+# 2. NEGATIVE DEMOS (must all be detected)
+################################################################
+######## NEGATIVE CASE A: XML drops ReportProgress, contract still lists it
+wrote /tmp/tmp.HWOwOeW3eT/missing-method.xml with ReportProgress removed
+================================================================
+CASE: XML<->contract drift: method removed from XML only
+CMD : uv run /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/spikes/dbus-xml/conformance.py --xml /tmp/tmp.HWOwOeW3eT/missing-method.xml
+----------------------------------------------------------------
+[1/4] Python parser : dbus-fast -> 8 methods, 5 signals
+[2/4] GJS parser    : Gio.DBusNodeInfo.new_for_xml -> 8 methods, 5 signals
+[3/4] cross-parser agreement: PASS (interface, methods in/out, signals args identical)
+[4/4] XML <-> event-contract.json: FAIL
+      - methods: 'ReportProgress' present in contract but missing from xml
+RESULT: FAIL
+>>> correctly FAILED (exit 1)
+
+######## NEGATIVE CASE B: interface renamed to org.dotfiles.Events2
+wrote /tmp/tmp.HWOwOeW3eT/events2.xml with interface renamed
+================================================================
+CASE: XML<->contract drift: interface version mismatch
+CMD : uv run /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/spikes/dbus-xml/conformance.py --xml /tmp/tmp.HWOwOeW3eT/events2.xml
+----------------------------------------------------------------
+[1/4] Python parser : dbus-fast -> 9 methods, 5 signals
+[2/4] GJS parser    : Gio.DBusNodeInfo.new_for_xml -> 9 methods, 5 signals
+[3/4] cross-parser agreement: PASS (interface, methods in/out, signals args identical)
+[4/4] XML <-> event-contract.json: FAIL
+      - interface: xml='org.dotfiles.Events2' vs contract='org.dotfiles.Events1'
+RESULT: FAIL
+>>> correctly FAILED (exit 1)
+
+######## NEGATIVE CASE C: producer emits JobCrashed, undeclared in XML
+================================================================
+CASE: undeclared emitted signal rejected
+CMD : uv run /home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3/spikes/dbus-xml/conformance.py --check-emitted JobCrashed
+----------------------------------------------------------------
+[1/4] Python parser : dbus-fast -> 9 methods, 5 signals
+[2/4] GJS parser    : Gio.DBusNodeInfo.new_for_xml -> 9 methods, 5 signals
+[3/4] cross-parser agreement: PASS (interface, methods in/out, signals args identical)
+[4/4] XML <-> event-contract.json: PASS (interface, methods in/out, signals args identical)
+[emit ] declared-signal guard: FAIL
+      - signal 'JobCrashed' is emitted but not declared in XML; declared signals: ['DomainEvent', 'JobFinished', 'JobProgress', 'JobStarted', 'JobsCleared']
+RESULT: FAIL
+>>> correctly FAILED (exit 1)
+
+######## NEGATIVE CASE D: declared signal still passes the emit guard (control)
+control: JobFinished accepted as declared (as expected)
+================================================================
+ALL NEGATIVE CASES CORRECTLY DETECTED
+
+################################################################
+# 3a. GJS RUNTIME VALIDATION (Gio.DBusInterfaceInfo)
+################################################################
+signal ACCEPT  JobStarted/ssu (declared)       declared (ssu) == emitted (ssu)
+signal REJECT  JobStarted/sss (wrong types)    declared (ssu), emitted (sss)
+signal REJECT  JobCrashed/ssu (undeclared)     signal 'JobCrashed' not declared in XML
+signal ACCEPT  JobsCleared/u (declared)        declared (u) == emitted (u)
+method lookup Control -> in=(ss) out=()
+method lookup LaunchJob -> REJECT (undeclared)
+RESULT: PASS (expected exactly 2 rejections, got 2)
+
+################################################################
+# 3b. PYTHON RUNTIME VALIDATION (dbus-fast SignatureTree)
+################################################################
+parser=dbus-fast interface=org.dotfiles.Events1
+signal ACCEPT  JobStarted/ssu (declared)       declared (ssu) == body
+signal REJECT  JobStarted/sss (wrong types)    declared (ssu): SignatureBodyMismatchError: DBus UINT32 type "u" must be Python type "int", got <class 'str'>
+signal REJECT  JobCrashed/ssu (undeclared)     signal 'JobCrashed' not declared in XML
+signal ACCEPT  JobsCleared/u (declared)        declared (u) == body
+method lookup Control -> in=['s', 's'] out=[]
+method lookup LaunchJob -> REJECT (undeclared)
+RESULT: PASS (expected exactly 2 rejections, got 2)

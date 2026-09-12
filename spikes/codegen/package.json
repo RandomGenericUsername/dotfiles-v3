@@ -1,0 +1,11 @@
+{
+  "name": "dotfiles-codegen-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Spike: one contract.json generating JSON Schema + Python + TypeScript, checked by ajv + tsc",
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "typescript": "^5.9.2"
+  }
+}

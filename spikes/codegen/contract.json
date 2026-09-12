@@ -1,0 +1,93 @@
+{
+  "id": "dotfiles-runtime-shell-contracts",
+  "version": 1,
+  "enums": {
+    "HistoryTrigger": [
+      "seed",
+      "set",
+      "reconcile",
+      "force",
+      "regenerate",
+      "doctor",
+      "prune"
+    ]
+  },
+  "history": {
+    "title": "HistoryLine",
+    "fields": [
+      { "name": "ts", "type": "timestamp", "required": true },
+      { "name": "trigger", "type": "HistoryTrigger", "required": true },
+      { "name": "wallpaper", "type": "sha256", "required": true },
+      { "name": "palette", "type": "sha256?", "required": true },
+      { "name": "effects", "type": "sha256?", "required": true },
+      { "name": "icons", "type": "sha256?", "required": true },
+      { "name": "source_path", "type": "string", "required": true },
+      { "name": "details", "type": "HistoryDetails?", "required": false }
+    ],
+    "details": {
+      "prune": {
+        "removed": "uint",
+        "failed?": "uint",
+        "layers?": "uint_map"
+      },
+      "regenerate": {
+        "regenerated": "string_list"
+      },
+      "doctor": {
+        "repaired": "string_list"
+      }
+    }
+  },
+  "events": {
+    "bus_name": "org.dotfiles.Events",
+    "object_path": "/org/dotfiles/Events",
+    "interface": "org.dotfiles.Events1",
+    "errors": [
+      "UnknownTopic",
+      "PayloadTooLarge",
+      "RateLimited",
+      "UnknownJob",
+      "JobEnded",
+      "NotControllable"
+    ],
+    "methods": {
+      "Emit": { "in": { "topic": "s", "payload": "a{sv}" }, "out": {} },
+      "BeginJob": { "in": { "kind": "s", "ttl": "u" }, "out": { "job_id": "s" } },
+      "RenewJob": { "in": { "job_id": "s" }, "out": {} },
+      "AdoptJob": { "in": { "job_id": "s", "pid": "u" }, "out": {} },
+      "ReportProgress": { "in": { "job_id": "s", "fraction": "d" }, "out": {} },
+      "EndJob": { "in": { "job_id": "s", "exit_code": "i" }, "out": {} },
+      "Control": { "in": { "job_id": "s", "action": "s" }, "out": {} },
+      "GetActiveJobs": { "in": {}, "out": { "jobs": "a{ss}" } },
+      "GetTopicState": { "in": { "topic": "s" }, "out": { "state": "a{sv}" } }
+    },
+    "signals": {
+      "JobStarted": { "job_id": "s", "kind": "s", "epoch": "u" },
+      "JobProgress": { "job_id": "s", "fraction": "d", "epoch": "u" },
+      "JobFinished": { "job_id": "s", "exit_code": "i", "epoch": "u" },
+      "DomainEvent": {
+        "topic": "s",
+        "producer": "s",
+        "seq": "u",
+        "epoch": "u",
+        "payload": "a{sv}"
+      },
+      "JobsCleared": { "epoch": "u" }
+    },
+    "topics": {
+      "icme.saved": {
+        "producer": "ICME",
+        "payload": { "path": "s" }
+      },
+      "capture.state": {
+        "producer": "capture controller",
+        "payload": { "state": "s", "elapsed_seconds": "x" },
+        "enum": { "state": ["idle", "recording", "paused"] }
+      },
+      "speedtest.finished": {
+        "producer": "speed-test job",
+        "payload": { "down_mbps": "d", "up_mbps": "d", "latency_ms": "d" }
+      }
+    }
+  }
+}

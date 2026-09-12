@@ -1,0 +1,10 @@
+{
+  "name": "dotfiles-json-schema-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Spike: one JSON Schema consumed by python-jsonschema and ajv",
+  "dependencies": {
+    "ajv": "^8.20.0"
+  }
+}

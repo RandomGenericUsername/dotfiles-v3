@@ -1,0 +1,8 @@
+[
+  { "signal": "JobStarted", "members": { "job_id": "j1", "kind": "speedtest", "epoch": "zero" } },
+  { "signal": "JobCrashed", "members": { "job_id": "j1", "kind": "speedtest", "epoch": 0 } },
+  { "method": "Emit", "args": { "topic": "capture.state" } },
+  { "topic": "capture.state", "producer": "capture controller", "payload": { "state": "pausedx", "elapsed_seconds": 5 } },
+  { "topic": "speedtest.finished", "producer": "speed-test job", "payload": { "down_mbps": 940.2, "up_mbps": 41.5 } },
+  { "topic": "unknown.topic", "producer": "someone", "payload": {} }
+]
