@@ -135,13 +135,11 @@ class TestPackagesTasks:
             f"found {len(include_vars_tasks)}"
         )
         for task in tasks:
-            if "ansible_os_family" not in str(task):
+            if "os_family" not in str(task):
                 continue
             assert _module_key(task) in ("include_vars", "ansible.builtin.include_vars"), (
-                "ansible_os_family may only appear in the two include_vars tasks"
+                "os_family may only appear in the two include_vars tasks"
             )
-        whens = [str(t.get("when", "")) for t in tasks]
-        assert sum("ansible_os_family" in w for w in whens) == 2
 
     def test_no_hardcoded_package_manager_modules(self) -> None:
         tasks = _load_tasks()

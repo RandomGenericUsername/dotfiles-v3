@@ -105,6 +105,22 @@
     mode: "0755"
   loop: "{{ compositor_configs_bin_scripts }}"
 
+# App desktop-entry overrides (e.g. TIDAL's Electron /dev/shm flag). The dest
+# parent is not created by copy, so it is ensured first — and it must exist
+# anyway for the entry to be discoverable by rofi's drun mode.
+- name: Ensure XDG data applications dir exists
+  ansible.builtin.file:
+    path: "{{ compositor_configs_xdg_data_home }}/applications"
+    state: directory
+
+- name: Install application desktop entry overrides
+  ansible.builtin.copy:
+    src: "{{ compositor_configs_repo_root }}/{{ item.source }}"
+    dest: "{{ item.dest }}"
+    force: true
+    mode: "0644"
+  loop: "{{ compositor_configs_desktop_entries }}"
+
 - name: Remove legacy hyprland.conf skeleton (superseded by hyprland.lua)
   ansible.builtin.file:
     path: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.conf"

@@ -130,6 +130,22 @@ compositor_configs_skeleton_files:
 compositor_configs_bin_scripts:
   - { name: toggle-touchpad, source: dotfiles/scripts/toggle-touchpad, dest: "{{ compositor_configs_xdg_bin_home }}/toggle-touchpad" }
 
+# compositor_configs_xdg_data_home: the XDG data home that hosts per-user
+#   application desktop entries ($XDG_DATA_HOME, spec default ~/.local/share).
+#   The install spine itself lives under $XDG_DATA_HOME/dotfiles; this var is
+#   only used for desktop-entry overrides. Honors $XDG_DATA_HOME via
+#   ansible_facts.env (F4 lock — never the deprecated top-level ansible_env).
+compositor_configs_xdg_data_home: "{{ ansible_facts.env.XDG_DATA_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/share', true) }}"
+
+# compositor_configs_desktop_entries: per-user application desktop entries
+#   placed into $XDG_DATA_HOME/applications. A user entry SHADOWS the package's
+#   own /usr/share/applications entry (XDG data-dir priority), which is how we
+#   add launch flags a package does not ship — currently TIDAL's Electron
+#   /dev/shm workaround so rofi's drun launcher starts it reliably. Authored
+#   under dotfiles/applications/ and repo-authoritative (force: true).
+compositor_configs_desktop_entries:
+  - { name: tidal-hifi, source: dotfiles/applications/tidal-hifi.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/tidal-hifi.desktop" }
+
 # The icon mappings are authored once under icon-mappings and converted to the
 # JSON shape consumed by AGS during provisioning.
 compositor_configs_icon_manifest_source: "{{ install_dir | trim }}/icon-mappings/icons.yaml"

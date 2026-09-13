@@ -250,11 +250,11 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 28, (
-            f"expected exactly 28 skeleton files "
-            f"(hyprland.lua + gloview.lua + 8 hypr modules/hyprpaper.conf/ags app.tsx+style.css"
-            f"+icon-registry+Bar.tsx+10 bar widgets + rofi launcher config.rasi + hypr colors.lua); "
-            f"found {len(files)}"
+        assert len(files) == 29, (
+            f"expected exactly 29 skeleton files (hyprland.lua + gloview.lua + "
+            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+icon-registry+"
+            f"status-notifier+Bar.tsx+10 bar widgets + rofi launcher config.rasi + "
+            f"hypr colors.lua); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -270,6 +270,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/bar/widgets/tray.tsx",
             "dotfiles/config/ags/bar/widgets/workspaces.tsx",
             "dotfiles/config/ags/lib/icon-registry.ts",
+            "dotfiles/config/ags/lib/status-notifier.ts",
             "dotfiles/config/ags/style.css",
             "dotfiles/config/hypr/animations.lua",
             "dotfiles/config/hypr/autostart.lua",
@@ -315,6 +316,55 @@ class TestCompositorConfigsTasks:
             assert "compositor_configs_fragment_stats" not in str(task), (
                 f"task {task.get('name')!r} still consumes the retired classification register"
             )
+
+    def test_desktop_entries_placed_into_xdg_data_applications(self) -> None:
+        """App desktop-entry overrides (e.g. TIDAL's Electron /dev/shm flag) are
+        placed into $XDG_DATA_HOME/applications so rofi's drun mode shadows the
+        package entry. The role owns both the dir ensure and the per-file copy."""
+        data = _vars()
+        entries = list(data["compositor_configs_desktop_entries"])
+        assert entries, "expected at least one desktop entry override"
+        for entry in entries:
+            assert str(entry["source"]).startswith("dotfiles/applications/"), (
+                "desktop entry sources live under dotfiles/applications/"
+            )
+            assert str(entry["dest"]).startswith(
+                "{{ compositor_configs_xdg_data_home }}/applications/"
+            ), "desktop entry dest must derive from compositor_configs_xdg_data_home"
+
+        dir_tasks = [
+            task
+            for task in _tasks_with_module("ansible.builtin.file")
+            if "applications" in str(_module(task).get("path", ""))
+        ]
+        assert dir_tasks, "no $XDG_DATA_HOME/applications dir ensure task found"
+
+        copy_tasks = [
+            task
+            for task in _copy_tasks()
+            if "compositor_configs_desktop_entries" in str(task.get("loop", ""))
+        ]
+        assert len(copy_tasks) == 1, (
+            "expected exactly one desktop-entry copy task looping over "
+            "compositor_configs_desktop_entries"
+        )
+        assert _module(copy_tasks[0]).get("force") is True, (
+            "desktop entries are repo-authoritative (force: true)"
+        )
+
+    def test_tidal_desktop_entry_carries_dev_shm_workaround(self) -> None:
+        """The repo-authored override must keep the packaged Wayland/Ozone flags
+        and add --disable-dev-shm-usage (TIDAL's Castlabs Electron needs it)."""
+        desktop = (
+            _ANSIBLE_DIR.parents[2]
+            / "dotfiles"
+            / "applications"
+            / "tidal-hifi.desktop"
+        )
+        text = desktop.read_text()
+        assert "Exec=tidal-hifi --disable-dev-shm-usage" in text
+        assert "--ozone-platform-hint=auto" in text
+        assert "%U" in text
 
     def test_no_generated_palette_references_remain(self) -> None:
         """Epic 4: no task references generated/palettes or the deleted
@@ -526,6 +576,7 @@ class TestCompositorConfigsPlaybook:
             env = dict(os.environ)
             env["HOME"] = str(home)
             env["XDG_CONFIG_HOME"] = str(xdg)
+            env["XDG_DATA_HOME"] = str(home / ".local" / "share")
             env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
             result = subprocess.run(
                 [
@@ -565,6 +616,16 @@ class TestCompositorConfigsPlaybook:
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"
+            desktop_entry = (
+                home / ".local" / "share" / "applications" / "tidal-hifi.desktop"
+            )
+            assert desktop_entry.is_file(), (
+                "desktop entry override was not placed into "
+                "$XDG_DATA_HOME/applications (rofi drun would miss it)"
+            )
+            assert "--disable-dev-shm-usage" in desktop_entry.read_text(), (
+                "the TIDAL desktop override must carry the /dev/shm workaround flag"
+            )
             assert not (install / "config" / "hypr" / "colors.conf").exists(), (
                 "Epic 4: the role must NOT place a hypr/colors.conf fragment"
             )
@@ -627,6 +688,7 @@ class TestCompositorConfigsPlaybook:
             env["HOME"] = str(home)
             env["XDG_CONFIG_HOME"] = str(xdg)
             env["XDG_STATE_HOME"] = str(state)
+            env["XDG_DATA_HOME"] = str(home / ".local" / "share")
             env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
             result = subprocess.run(
                 [
