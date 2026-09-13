@@ -1,14 +1,22 @@
 # P5‑1‑2b‑ii‑a: Hub Event Surface — Emit + Validation + Topic Store/Seq + GetTopicState
 
-Status: draft (Gate‑1 ballot pending)
+Status: done — implemented and committed in `b1674aa` (tree clean at that
+commit; runtime 1372 passed / 2 skipped, layering 100, contracts-check 22).
 
-baseline_commit: 2681e97
+baseline_commit: 2681e97 (implemented on top; landed in b1674aa)
 
-Gate‑1 ruling note: pending — sub-decisions Q1–Q9 below require owner
-ruling before DEV. Recommendations are recorded inline; recs marked
-"(rule now, implement in ii‑b)" shape ii‑b's seam the way 2b‑i's Q3–Q7
-shaped this slice.
-Gate 2: not yet run.
+Gate‑1 ruling note: applied — the Q1–Q9 recommendations were adopted and are
+visible in the implementation: `Emit`/`GetTopicState` added to `METHODS`
+(`adapters/dbus_event_bus.py`), `fastjsonschema` embedded per-topic schemas,
+canonical-JSON size (64 KiB) / depth (8) caps, sliding 60 s window at
+60/min per (sender, topic) + 600/min global, `"(local)"` in-process sender,
+log-and-continue signal emission, adapter-side drain, and the documented
+hub self-read exemption.
+Gate 2: **CHANGES-REQUIRED** (one blocking finding: wire-reachable
+heterogeneous-array payload escapes validation and crashes the signal
+drain) — see `p5-1-2b-ii-a-hub-event-surface-emit-gate2-review.md`.
+Tasks/Subtasks boxes below are left as the historical plan; each is
+evidenced by `b1674aa` (see the review's Verification table).
 
 Epic: Phase 5 epic 5‑1 — Daemon foundation, observability & safety (see
 `_bmad-output/planning-artifacts/epics-dotfiles-runtime-phase5.md`;

@@ -33,7 +33,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
-last_updated: "2026-09-10 (Phase 3 COMPLETE: Epics 1-3 done — 11/11 stories; PRD v2 + AD-26/27 adopted)"
+last_updated: "2026-09-13 (Phase 5 partial: P5-1-2b-ii-a/ii-b + Epics 5-2/5-3 + first 5-4 slice landed in b1674aa; p5-1-4 status surface still open)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -183,7 +183,7 @@ development_status:
   # ═══════════════════════════════════════════════════════════════════
   # Phase 5 — Reactive Runtime: prerequisite remediation (epics-dotfiles-runtime-phase5.md)
   # ═══════════════════════════════════════════════════════════════════
-  p5-remediation: in-progress
+  p5-remediation: done   # R-1..R-5 committed (eac14b7, 01a5e94, 34721ba, 39aab69, 6ac38c5)
   r1-prune-audit-line: done
   r2-trigger-enum-single-source: done
   r3-derivation-inputs-spine-only: done
@@ -193,8 +193,30 @@ development_status:
   # ═══════════════════════════════════════════════════════════════════
   # Phase 5 — Reactive Runtime: daemon + bus + reactivity
   # (epics-dotfiles-runtime-phase5.md; spine final AD-33..AD-44)
+  # Landed in b1674aa unless noted. Gate-2 reviews live beside the story
+  # artifacts (see *-gate2-review.md); status here reflects land state.
   # ═══════════════════════════════════════════════════════════════════
-  p5-epic-1: in-progress
+
+  # ── Epic 5-1: Daemon foundation, observability & safety ──
+  p5-epic-1: in-progress   # open on p5-1-4 (status surface)
   p5-1-1-daemon-run-skeleton: done
   p5-1-2a-hub-registry-leases: done
   p5-1-2b-i-hub-wire-dispatch: done
+  # gate2 CHANGES-REQUIRED: wire-reachable heterogeneous-array payload escapes
+  # Emit validation and aborts the signal drain (see the ii-a/ii-b reviews).
+  p5-1-2b-ii-a-hub-event-surface-emit: done
+  p5-1-2b-ii-b-signal-emission-restart: done
+  p5-1-3-watch-reactive-reconcile: done   # folded into p5-3-watch-reactive (no standalone artifact)
+  p5-1-4-status-surface: in-progress   # concurrent agent: artifact p5-1-4-status-kill-switch-audit.md + daemon_status.py landed UNCOMMITTED during this review; not verified here (owned elsewhere)
+
+  # ── Epic 5-2: Event contract & bus ──
+  p5-epic-2: done
+  p5-2-bar-consumer-binding: done   # gate2: APPROVED-WITH-FOLLOWUPS
+
+  # ── Epic 5-3: Watch & reactive reconcile (lands P5-1-3) ──
+  p5-epic-3: done
+  p5-3-watch-reactive: done   # gate2: APPROVED-WITH-FOLLOWUPS
+
+  # ── Epic 5-4: Shell reactivity (first slice only) ──
+  p5-epic-4: in-progress   # out-of-process Control + daemon-hosted job runner remain
+  p5-4-shell-reactivity: done   # gate2: APPROVED-WITH-FOLLOWUPS
