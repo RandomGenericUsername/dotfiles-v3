@@ -253,3 +253,11 @@ thunderbird:
     - name: thunderbird
       template: status-bar/thunderbird/default/icon.svg
       output: thunderbird.svg
+
+tray:
+  color_mappings:
+    COLOR_FOREGROUND: color15
+  variants:
+    - name: tidal
+      template: status-bar/tray/tidal/default/icon.svg
+      output: tray-tidal.svg

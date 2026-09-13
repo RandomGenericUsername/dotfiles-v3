@@ -396,6 +396,23 @@ For buttons, keep behavior and icon resolution separate:
 - the registry resolves the path;
 - the CSS controls layout and visual treatment.
 
+### 7.1 Tray (StatusNotifier) icon overrides
+
+The bar's tray widget (`bar/widgets/tray.tsx`) renders StatusNotifier items.
+An app's native tray pixbuf can be replaced by a runtime-generated SVG through
+the same registry contract:
+
+1. add a `tray` group variant in `icons.yaml` (e.g. `tidal` →
+   `status-bar/tray/tidal/default/icon.svg`, output `tray-tidal.svg`);
+2. map the app's StatusNotifier identity to it in the widget's
+   `TRAY_ICON_OVERRIDES` (`["tidal", ["tray", "tidal"]]`), matched against the
+   item's `id` / `item-id` / `title`;
+3. the widget calls `registry.resolve(group, variant)` and falls back to the
+   item's own `gicon` / `icon-name` when no override matches.
+
+Because a tray item exists only while its app runs, no `bar_mappings` state
+machine is needed — the override is a simple identity → variant lookup.
+
 ## 8. Step 6: preserve scale and alignment
 
 Icon loading and icon sizing are separate concerns.
