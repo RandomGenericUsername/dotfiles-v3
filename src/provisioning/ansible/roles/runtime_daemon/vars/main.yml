@@ -11,6 +11,12 @@ runtime_daemon_bin_dir: >-
 # runtime_daemon_unit_name: the --user unit file name.
 runtime_daemon_unit_name: dotfiles-runtime-daemon.service
 
+# runtime_daemon_activate: opt into live automatic convergence. Observe-only
+#   is the shipped default (AD-35/AD-41); setting this true appends
+#   `--activate` to the unit's ExecStart. The daemon still ships observe-only
+#   for every other invocation (a plain `daemon run`).
+runtime_daemon_activate: false
+
 # Supervision tuning (P5-1-1 Gate-1 rec 5; AD-33/C4):
 # - Type=dbus + BusName means systemd holds "started" until the name is
 #   owned; a pre-ownership exit is a start failure, retried per below.
@@ -20,7 +26,11 @@ runtime_daemon_unit_name: dotfiles-runtime-daemon.service
 #   persistent failure settles instead of hot-looping.
 # - TimeoutStartSec=90s accommodates a cold start (long first converge lands
 #   in P5-1-3, non-gating, but the budget is set now).
+# - WatchdogSec=30 (P5 follow-up): catches a wedged-but-name-owning daemon
+#   that Type=dbus cannot see. The daemon pings WATCHDOG=1 at half this
+#   interval (from $WATCHDOG_USEC); a missed ping restarts the unit.
 runtime_daemon_restart_sec: 5
 runtime_daemon_start_limit_interval_sec: 60
 runtime_daemon_start_limit_burst: 3
 runtime_daemon_timeout_start_sec: 90
+runtime_daemon_watchdog_sec: 30

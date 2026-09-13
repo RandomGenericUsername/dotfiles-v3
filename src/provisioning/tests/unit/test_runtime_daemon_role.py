@@ -61,6 +61,8 @@ _RENDER_VARS = {
     "runtime_daemon_start_limit_interval_sec": 60,
     "runtime_daemon_start_limit_burst": 3,
     "runtime_daemon_timeout_start_sec": 90,
+    "runtime_daemon_watchdog_sec": 30,
+    "runtime_daemon_activate": False,
 }
 
 
@@ -146,6 +148,25 @@ class TestUnitContent:
         assert "daemon start" not in rendered
         assert "daemon stop" not in rendered
 
+    def test_observe_only_by_default_no_activate_flag(self) -> None:
+        """AD-35/AD-41: provisioning must not silently enable convergence."""
+        assert "--activate" not in _render_unit()
+
+    def test_watchdog_sec_and_notify_access_in_service(self) -> None:
+        """P5 follow-up: a wedged-but-name-owning daemon is restarted."""
+        service = _section(_render_unit(), "Service")
+        assert "WatchdogSec=30" in service
+        assert "NotifyAccess=main" in service
+
+    def test_activate_opt_in_appends_exec_start_flag(self) -> None:
+        template = (_ROLE_DIR / "templates" / "dotfiles-runtime-daemon.service.j2").read_text()
+        rendered = JinjaTemplate(template, undefined=StrictUndefined).render(
+            **{**_RENDER_VARS, "runtime_daemon_activate": True}
+        )
+        assert (
+            'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run --activate' in rendered
+        )
+
     def test_session_binding(self) -> None:
         unit = _section(_render_unit(), "Unit")
         assert "Requires=dbus.socket" in unit
@@ -229,7 +250,14 @@ class TestVars:
         assert data["runtime_daemon_start_limit_interval_sec"] == 60
         assert data["runtime_daemon_start_limit_burst"] == 3
         assert data["runtime_daemon_timeout_start_sec"] == 90
+        assert data["runtime_daemon_watchdog_sec"] == 30
         assert data["runtime_daemon_unit_name"] == "dotfiles-runtime-daemon.service"
+
+    def test_activate_defaults_to_observe_only(self) -> None:
+        """AD-35/AD-41: live convergence is opt-in, never the provisioned default."""
+        data = yaml.safe_load((_ROLE_DIR / "vars" / "main.yml").read_text())
+        assert isinstance(data, dict)
+        assert data["runtime_daemon_activate"] is False
 
     def test_no_dead_repo_root_var(self) -> None:
         """Gate-2: unreferenced derivations rot — the role must not define

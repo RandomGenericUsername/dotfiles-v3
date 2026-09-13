@@ -16,7 +16,9 @@ StartLimitBurst={{ runtime_daemon_start_limit_burst }}
 # 0 before owning the name, and releases it on SIGTERM.
 Type=dbus
 BusName=org.dotfiles.Events
-ExecStart="{{ runtime_daemon_bin_dir }}/dotfiles-runtime" daemon run
+# Observe-only is the default (AD-35/AD-41); runtime_daemon_activate=true
+# provisions live automatic convergence.
+ExecStart="{{ runtime_daemon_bin_dir }}/dotfiles-runtime" daemon run{% if runtime_daemon_activate %} --activate{% endif %}
 # Restart=always: name loss is a CLEAN stop, so on-failure is insufficient
 # (it would never restart after a bus blip). Backoff + start limits keep a
 # persistent failure from hot-looping (fatal-vs-recoverable, AD-33/B3).
@@ -25,6 +27,13 @@ RestartSec={{ runtime_daemon_restart_sec }}
 # Accommodates startup; converge (P5-1-3) is non-gating and must never
 # block readiness, but the budget is set now.
 TimeoutStartSec={{ runtime_daemon_timeout_start_sec }}
+# Watchdog + sd_notify (P5 follow-up): Type=dbus only proves the name is
+# owned, not that the process is alive. The daemon sends READY=1 after
+# acquiring the name and WATCHDOG=1 at half this interval; a missed ping
+# restarts the unit. WatchdogSec implicitly sets NotifyAccess=main, so the
+# notify socket is available; stated explicitly for clarity.
+WatchdogSec={{ runtime_daemon_watchdog_sec }}
+NotifyAccess=main
 
 [Install]
 WantedBy=graphical-session.target
