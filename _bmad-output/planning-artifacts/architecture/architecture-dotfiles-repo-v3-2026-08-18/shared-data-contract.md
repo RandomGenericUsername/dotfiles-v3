@@ -4,6 +4,9 @@ Companion to `ARCHITECTURE-SPINE.md`. Pins the on-disk shapes the runtime core o
 
 ## current.json (manifest — single current derivation projection)
 
+Machine definition: `contracts/schemas/current.schema.json` (enforced by the
+reader; this prose is descriptive).
+
 ```json
 {
   "schema_version": 2,
@@ -63,6 +66,9 @@ Rules:
   Phase 5 daemon (AD-42).
 
 ## meta.json (one per cache entry, co-located in the entry dir)
+
+Machine definition: `contracts/schemas/meta.schema.json` (enforced by the
+trusted loaders; this prose is descriptive).
 
 ### cache/wallpapers/<hash>/meta.json
 

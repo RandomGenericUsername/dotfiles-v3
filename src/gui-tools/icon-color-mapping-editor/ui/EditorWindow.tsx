@@ -16,6 +16,7 @@ import {
   schemeFingerprint,
   type EditorInputs,
 } from "../lib/inputs";
+import { publishIcmeSaved } from "../lib/event-bus";
 import type {
   PendingEdit,
   Scope,
@@ -252,6 +253,9 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
       setNewPlaceholders(new Map());
       setManifestPendings([]);
       templateMtimes.clear();
+      // Publish the domain event at the meaningful moment (save), not on
+      // exit; the hub forwards it to consumers (Phase 5, 5-4).
+      publishIcmeSaved(next.iconsYaml);
       // Never triggers a render: sources only, generated icons refresh on the
       // next wallpaper/theme run.
       await refreshShow();

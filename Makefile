@@ -5,10 +5,12 @@ bootstrap:
 	./bootstrap.sh
 
 # Contract conformance (AD-44): embedded schemas equal their canonical
-# definitions, and the D-Bus wire XML agrees with the event contract JSON.
+# definitions, the D-Bus wire XML agrees with the event contract JSON, and
+# every baked code constant (hub adapter tables + bar consumer binding)
+# matches the machine definitions — the per-language drift gate.
 # Runs by execution, never by reading prose.
 contracts-check:
-	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_history_trigger_enum.py -q
+	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_event_contract_drift.py tests/unit/test_history_trigger_enum.py -q
 
 # Dev dependencies for the VM harness
 dev-deps:
