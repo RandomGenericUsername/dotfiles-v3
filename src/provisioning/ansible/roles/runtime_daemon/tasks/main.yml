@@ -45,12 +45,13 @@
       Run the cli-tools playbook first (or bootstrap in order) instead of
       runtime-daemon.yaml standalone on a fresh machine.
 
-- name: Reload the user manager and enable the daemon unit
+- name: Reload the user manager and enable + start the daemon unit
   ansible.builtin.systemd:
     name: "{{ runtime_daemon_unit_name }}"
     scope: user
     daemon_reload: true
     enabled: true
+    state: started
   when: not ansible_check_mode and runtime_daemon_manager_probe.rc | default(1) == 0
 
 - name: Ensure the graphical-session wants directory exists (manager-less path)

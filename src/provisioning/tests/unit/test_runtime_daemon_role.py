@@ -15,8 +15,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from jinja2 import StrictUndefined
-from jinja2 import Template as JinjaTemplate
+from jinja2 import Environment, StrictUndefined
 
 
 def _find_ansible_dir() -> Path:
@@ -64,7 +63,13 @@ _RENDER_VARS = {
     "runtime_daemon_watchdog_sec": 30,
     "runtime_daemon_activate": False,
     "runtime_daemon_prune_on_reactive": False,
+    "runtime_daemon_run_flags": "",
 }
+
+
+def _run_flags(activate: bool = False, prune: bool = False) -> str:
+    """Mirror the role's runtime_daemon_run_flags var for template renders."""
+    return (" --activate" if activate else "") + (" --prune-on-reactive" if prune else "")
 
 
 def _load_tasks() -> list[dict[str, object]]:
@@ -80,9 +85,22 @@ def _module_key(task: dict[str, object]) -> str | None:
     return None
 
 
-def _render_unit() -> str:
+def _render_unit(**overrides: object) -> str:
+    """Render the unit with Ansible's template-module Jinja settings.
+
+    ``trim_blocks=True`` / ``lstrip_blocks=True`` / ``keep_trailing_newline=True``
+    match ansible.builtin.template; rendering without them hides whitespace
+    bugs (e.g. an ExecStart line ending in ``{% endif %}`` swallowing the next
+    line — the real ``daemon run#`` start-limit-hit defect).
+    """
     template = (_ROLE_DIR / "templates" / "dotfiles-runtime-daemon.service.j2").read_text()
-    return JinjaTemplate(template, undefined=StrictUndefined).render(**_RENDER_VARS)
+    env = Environment(
+        undefined=StrictUndefined,
+        trim_blocks=True,
+        lstrip_blocks=True,
+        keep_trailing_newline=True,
+    )
+    return env.from_string(template).render(**{**_RENDER_VARS, **overrides})
 
 
 def _section(rendered: str, name: str) -> str:
@@ -159,10 +177,37 @@ class TestUnitContent:
         assert "WatchdogSec=30" in service
         assert "NotifyAccess=main" in service
 
+    def test_exec_start_line_not_merged_with_following_comment(self) -> None:
+        """Regression: Ansible trim_blocks merged the next comment into ExecStart.
+
+        The real install rendered `... daemon run# Restart=always...`, so
+        systemd ran `daemon run#` (typer: No such command 'run#') and the unit
+        failed start-limit-hit. The ExecStart line must be exactly the command.
+        """
+        rendered = _render_unit()
+        exec_lines = [line for line in rendered.splitlines() if line.startswith("ExecStart=")]
+        assert len(exec_lines) == 1, exec_lines
+        assert exec_lines[0] == (
+            'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run'
+        )
+        assert "#" not in exec_lines[0]
+
+    def test_exec_start_stays_exact_with_flags(self) -> None:
+        rendered = _render_unit(
+            runtime_daemon_activate=True,
+            runtime_daemon_prune_on_reactive=True,
+            runtime_daemon_run_flags=_run_flags(True, True),
+        )
+        exec_lines = [line for line in rendered.splitlines() if line.startswith("ExecStart=")]
+        assert exec_lines == [
+            'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run '
+            "--activate --prune-on-reactive"
+        ]
+
     def test_activate_opt_in_appends_exec_start_flag(self) -> None:
-        template = (_ROLE_DIR / "templates" / "dotfiles-runtime-daemon.service.j2").read_text()
-        rendered = JinjaTemplate(template, undefined=StrictUndefined).render(
-            **{**_RENDER_VARS, "runtime_daemon_activate": True}
+        rendered = _render_unit(
+            runtime_daemon_activate=True,
+            runtime_daemon_run_flags=_run_flags(True, False),
         )
         assert (
             'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run --activate' in rendered
@@ -173,13 +218,10 @@ class TestUnitContent:
         assert "--prune-on-reactive" not in _render_unit()
 
     def test_reactive_prune_opt_in_appends_exec_start_flag(self) -> None:
-        template = (_ROLE_DIR / "templates" / "dotfiles-runtime-daemon.service.j2").read_text()
-        rendered = JinjaTemplate(template, undefined=StrictUndefined).render(
-            **{
-                **_RENDER_VARS,
-                "runtime_daemon_activate": True,
-                "runtime_daemon_prune_on_reactive": True,
-            }
+        rendered = _render_unit(
+            runtime_daemon_activate=True,
+            runtime_daemon_prune_on_reactive=True,
+            runtime_daemon_run_flags=_run_flags(True, True),
         )
         assert (
             'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run '
@@ -220,6 +262,7 @@ class TestTasks:
         assert isinstance(params, dict)
         assert params.get("scope") == "user"
         assert params.get("enabled") is True
+        assert params.get("state") == "started"
         assert params.get("daemon_reload") is True
         when = str(enable.get("when", ""))
         assert "ansible_check_mode" in when
@@ -283,6 +326,24 @@ class TestVars:
         data = yaml.safe_load((_ROLE_DIR / "vars" / "main.yml").read_text())
         assert isinstance(data, dict)
         assert data["runtime_daemon_prune_on_reactive"] is False
+
+    def test_run_flags_var_builds_single_string(self) -> None:
+        """The ExecStart flags live in ONE string var (no trailing block tag)."""
+        data = yaml.safe_load((_ROLE_DIR / "vars" / "main.yml").read_text())
+        assert isinstance(data, dict)
+        flags_template = data["runtime_daemon_run_flags"]
+        env = Environment(undefined=StrictUndefined)
+
+        def render(activate: bool, prune: bool) -> str:
+            return env.from_string(flags_template).render(
+                runtime_daemon_activate=activate,
+                runtime_daemon_prune_on_reactive=prune,
+            )
+
+        assert render(False, False) == ""
+        assert render(True, False) == _run_flags(True, False)
+        assert render(False, True) == _run_flags(False, True)
+        assert render(True, True) == _run_flags(True, True)
 
     def test_no_dead_repo_root_var(self) -> None:
         """Gate-2: unreferenced derivations rot — the role must not define

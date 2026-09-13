@@ -25,6 +25,15 @@ runtime_daemon_activate: false
 #   (observe-only never reaches the prune leg).
 runtime_daemon_prune_on_reactive: false
 
+# runtime_daemon_run_flags: the optional ExecStart flags as ONE string, so the
+#   ExecStart line in the unit template never ENDS with a Jinja `{% ... %}`
+#   block tag. Ansible's template env uses trim_blocks=True, which strips the
+#   newline after a block tag; an ExecStart line ending in `{% endif %}` then
+#   merges the following comment line into the command, making systemd run
+#   `daemon run# ...` (typer: `No such command 'run#'`) → start-limit-hit.
+#   Keep this as a single-line expression, never a trailing block tag.
+runtime_daemon_run_flags: "{{ ' --activate' if runtime_daemon_activate else '' }}{{ ' --prune-on-reactive' if runtime_daemon_prune_on_reactive else '' }}"
+
 # Supervision tuning (P5-1-1 Gate-1 rec 5; AD-33/C4):
 # - Type=dbus + BusName means systemd holds "started" until the name is
 #   owned; a pre-ownership exit is a start failure, retried per below.

@@ -20,7 +20,14 @@ BusName=org.dotfiles.Events
 # provisions live automatic convergence. The reactive prune is separately
 # opt-in (default off): runtime_daemon_prune_on_reactive=true provisions real
 # AD-30-bounded deletions on each reactive converge.
-ExecStart="{{ runtime_daemon_bin_dir }}/dotfiles-runtime" daemon run{% if runtime_daemon_activate %} --activate{% endif %}{% if runtime_daemon_prune_on_reactive %} --prune-on-reactive{% endif %}
+#
+# The optional flags are rendered via a single `runtime_daemon_run_flags`
+# string so this line does NOT end in a Jinja block tag: Ansible's template
+# env sets trim_blocks=True, which strips the newline after a block tag and
+# would merge the next comment line into the command (that produced
+# `daemon run# Restart=always...` -> typer `No such command 'run#'` ->
+# systemd start-limit-hit).
+ExecStart="{{ runtime_daemon_bin_dir }}/dotfiles-runtime" daemon run{{ runtime_daemon_run_flags }}
 # Restart=always: name loss is a CLEAN stop, so on-failure is insufficient
 # (it would never restart after a bus blip). Backoff + start limits keep a
 # persistent failure from hot-looping (fatal-vs-recoverable, AD-33/B3).
