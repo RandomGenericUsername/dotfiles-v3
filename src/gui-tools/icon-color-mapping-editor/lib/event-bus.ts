@@ -7,18 +7,20 @@
 // the call fails and is logged — absence is reduced functionality, never a
 // crash (AD-34/AD-38).
 //
-// Contract literals are mirrored from `contracts/event-contract.json`; the
-// runtime's per-language drift gate pins the Python side (there is no JS
-// test runner in this repo).
+// The contract shape lives in `event-contract.ts` (no GJS imports), pinned to
+// `contracts/event-contract.{json,xml}` by the node drift test; this file is
+// only the Gio seam.
 
 import Gio from "gi://Gio?version=2.0";
 import GLib from "gi://GLib?version=2.0";
-
-const EVENTS_BUS_NAME = "org.dotfiles.Events";
-const EVENTS_OBJECT_PATH = "/org/dotfiles/Events";
-const EVENTS_INTERFACE = "org.dotfiles.Events1";
-const EMIT_METHOD = "Emit";
-const ICME_SAVED_TOPIC = "icme.saved";
+import {
+  EMIT_METHOD,
+  EVENTS_BUS_NAME,
+  EVENTS_INTERFACE,
+  EVENTS_OBJECT_PATH,
+  publishIcmeSavedVia,
+  type EmitPort,
+} from "./event-contract";
 
 let connection: Gio.DBusConnection | null = null;
 
@@ -27,21 +29,29 @@ function sessionBus(): Gio.DBusConnection {
   return connection;
 }
 
-/** Publish `icme.saved {path}` after a successful save; never throws. */
-export function publishIcmeSaved(path: string): void {
-  if (path === "") return;
-  try {
+const gioPort: EmitPort = {
+  emit(topic: string, payload: Record<string, unknown>): void {
     sessionBus().call_sync(
       EVENTS_BUS_NAME,
       EVENTS_OBJECT_PATH,
       EVENTS_INTERFACE,
       EMIT_METHOD,
-      new GLib.Variant("(sa{sv})", [ICME_SAVED_TOPIC, { path: new GLib.Variant("s", path) }]),
+      new GLib.Variant("(sa{sv})", [
+        topic,
+        { path: new GLib.Variant("s", String(payload.path ?? "")) },
+      ]),
       null,
       Gio.DBusCallFlags.NONE,
       -1,
       null,
     );
+  },
+};
+
+/** Publish `icme.saved {path}` after a successful save; never throws. */
+export function publishIcmeSaved(path: string): void {
+  try {
+    publishIcmeSavedVia(gioPort, path);
   } catch (error) {
     console.error(`event-bus: icme.saved(${path}) failed: ${error}`);
   }

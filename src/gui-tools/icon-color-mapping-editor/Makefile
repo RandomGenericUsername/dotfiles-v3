@@ -14,3 +14,5 @@ test:
 	node $(DIR)/tests/model.mjs
 	node $(DIR)/tests/diff.mjs
 	node $(DIR)/tests/templates.mjs
+	node $(DIR)/tests/event-contract-drift.mjs
+	node $(DIR)/tests/icme-saved-smoke.mjs

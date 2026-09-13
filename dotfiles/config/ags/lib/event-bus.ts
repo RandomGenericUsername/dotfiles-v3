@@ -1,4 +1,4 @@
-// Domain-event binding for the AGS bar (Phase 5, AD-34/AD-37).
+// Gio transport for the bar's domain-event consumer (Phase 5, AD-34/AD-37).
 //
 // The bar is a THIN CONSUMER of the hub's `org.dotfiles.Events1` surface:
 // it subscribes to the contract `DomainEvent` signal, filters by topic, and
@@ -7,33 +7,48 @@
 // actions go back through the hub's `Control` method — the single control
 // path — never by shelling the tool.
 //
-// The contract literals below are pinned to `contracts/event-contract.json`
-// by the runtime's per-language drift gate (there is no JS test runner in
-// this repo).
+// The subscribe-before-read hydration state machine and every contract
+// literal live in `event-bus-core.ts` (no GJS imports), pinned to
+// `contracts/event-contract.{json,xml}` by the node drift test. This file is
+// only the Gio seam.
 
 import Gio from "gi://Gio?version=2.0";
 import GLib from "gi://GLib?version=2.0";
+import {
+  CONTROL_METHOD,
+  DBUS_BUS_NAME,
+  DBUS_OBJECT_PATH,
+  DOMAIN_EVENT_SIGNAL,
+  DomainEventBusCore,
+  EVENTS_BUS_NAME,
+  EVENTS_INTERFACE,
+  EVENTS_OBJECT_PATH,
+  HYDRATION_METHOD,
+  HYDRATION_TIMEOUT_MS,
+  JOBS_CLEARED_SIGNAL,
+  NAME_OWNER_CHANGED_SIGNAL,
+  type EventBusTransport,
+} from "./event-bus-core";
 
-export const EVENTS_BUS_NAME = "org.dotfiles.Events";
-export const EVENTS_OBJECT_PATH = "/org/dotfiles/Events";
-export const EVENTS_INTERFACE = "org.dotfiles.Events1";
-export const DOMAIN_EVENT_SIGNAL = "DomainEvent";
-export const JOBS_CLEARED_SIGNAL = "JobsCleared";
-export const CONTROL_METHOD = "Control";
-
-export type DomainPayload = { [key: string]: unknown };
-export type TopicHandler = (topic: string, payload: DomainPayload) => void;
-export type RestartHandler = () => void;
-
-// One shared connection for the whole bar; `subscribe` lazily connects.
-class DomainEventBus {
+class GioEventBusTransport implements EventBusTransport {
   private connection: Gio.DBusConnection | null = null;
-  private readonly handlers = new Map<string, Set<TopicHandler>>();
-  private readonly restartHandlers = new Set<RestartHandler>();
 
-  private connect(): Gio.DBusConnection {
-    if (this.connection !== null) return this.connection;
-    const connection = Gio.bus_get_sync(Gio.BusType.SESSION, null);
+  private ensure(): Gio.DBusConnection {
+    if (this.connection === null) {
+      this.connection = Gio.bus_get_sync(Gio.BusType.SESSION, null);
+    }
+    return this.connection;
+  }
+
+  //: Install the match rules. Called before any hydration so a signal racing
+  //: the read is either delivered after the rule is installed or superseded
+  //: by the hydrated `(epoch, seq)` baseline.
+  startSignals(
+    onDomainEvent: (params: unknown[]) => void,
+    onJobsCleared: (params: unknown[]) => void,
+    onHubRestart: () => void,
+  ): void {
+    const connection = this.ensure();
     connection.signal_subscribe(
       null,
       EVENTS_INTERFACE,
@@ -42,7 +57,7 @@ class DomainEventBus {
       null,
       Gio.DBusSignalFlags.NONE,
       (_connection, _sender, _path, _iface, _signal, parameters) =>
-        this.dispatchDomainEvent(parameters),
+        onDomainEvent(parameters.deepUnpack() as unknown[]),
     );
     connection.signal_subscribe(
       null,
@@ -51,77 +66,73 @@ class DomainEventBus {
       EVENTS_OBJECT_PATH,
       null,
       Gio.DBusSignalFlags.NONE,
-      () => this.dispatchRestart(),
+      (_connection, _sender, _path, _iface, _signal, parameters) =>
+        onJobsCleared(parameters.deepUnpack() as unknown[]),
     );
-    this.connection = connection;
-    return connection;
+    // Belt-and-braces restart: a new owner of the well-known name (arg0
+    // filter) is a hub start even if `JobsCleared` was lost. Ownership loss
+    // (empty new owner) is the supervisor's concern, not the bar's.
+    connection.signal_subscribe(
+      DBUS_BUS_NAME,
+      DBUS_BUS_NAME,
+      NAME_OWNER_CHANGED_SIGNAL,
+      DBUS_OBJECT_PATH,
+      EVENTS_BUS_NAME,
+      Gio.DBusSignalFlags.NONE,
+      (_connection, _sender, _path, _iface, _signal, parameters) => {
+        const body = parameters.deepUnpack() as string[];
+        if (body.length === 3 && body[2]) onHubRestart();
+      },
+    );
   }
 
-  subscribe(topic: string, handler: TopicHandler): void {
-    this.connect();
-    let handlers = this.handlers.get(topic);
-    if (handlers === undefined) {
-      handlers = new Set<TopicHandler>();
-      this.handlers.set(topic, handlers);
-    }
-    handlers.add(handler);
+  getTopicState(topic: string): Record<string, unknown> | null {
+    const reply = this.ensure().call_sync(
+      EVENTS_BUS_NAME,
+      EVENTS_OBJECT_PATH,
+      EVENTS_INTERFACE,
+      HYDRATION_METHOD,
+      new GLib.Variant("(s)", [topic]),
+      null,
+      Gio.DBusCallFlags.NONE,
+      HYDRATION_TIMEOUT_MS,
+      null,
+    );
+    const unpacked = reply.deepUnpack() as unknown[];
+    if (!Array.isArray(unpacked) || unpacked.length === 0) return null;
+    const state = unpacked[0];
+    return state !== null && typeof state === "object"
+      ? (state as Record<string, unknown>)
+      : null;
   }
 
-  onRestart(handler: RestartHandler): void {
-    this.connect();
-    this.restartHandlers.add(handler);
-  }
-
-  // Hub restart (new epoch) invalidates all hydrated state; consumers
-  // re-read on the next push. The bar holds no cached state to discard but
-  // re-arms its handlers so a stale UI cannot linger.
   control(jobId: string, action: string): void {
-    const connection = this.connect();
-    try {
-      connection.call_sync(
-        EVENTS_BUS_NAME,
-        EVENTS_OBJECT_PATH,
-        EVENTS_INTERFACE,
-        CONTROL_METHOD,
-        new GLib.Variant("(ss)", [jobId, action]),
-        null,
-        Gio.DBusCallFlags.NONE,
-        -1,
-        null,
-      );
-    } catch (error) {
-      console.error(`event-bus: Control(${jobId}, ${action}) failed: ${error}`);
-    }
-  }
-
-  private dispatchDomainEvent(parameters: GLib.Variant): void {
-    const [topic, _producer, _seq, _epoch, payload] = parameters.deepUnpack() as [
-      string,
-      string,
-      number,
-      number,
-      DomainPayload,
-    ];
-    const handlers = this.handlers.get(topic);
-    if (handlers === undefined) return;
-    for (const handler of handlers) {
-      try {
-        handler(topic, payload);
-      } catch (error) {
-        console.error(`event-bus: handler for ${topic} failed: ${error}`);
-      }
-    }
-  }
-
-  private dispatchRestart(): void {
-    for (const handler of this.restartHandlers) {
-      try {
-        handler();
-      } catch (error) {
-        console.error(`event-bus: restart handler failed: ${error}`);
-      }
-    }
+    this.ensure().call_sync(
+      EVENTS_BUS_NAME,
+      EVENTS_OBJECT_PATH,
+      EVENTS_INTERFACE,
+      CONTROL_METHOD,
+      new GLib.Variant("(ss)", [jobId, action]),
+      null,
+      Gio.DBusCallFlags.NONE,
+      -1,
+      null,
+    );
   }
 }
 
-export const domainEvents = new DomainEventBus();
+// One shared consumer for the whole bar; `subscribe` lazily connects.
+export const domainEvents = new DomainEventBusCore(new GioEventBusTransport());
+
+export {
+  CAPTURE_STATE_TOPIC,
+  CONTROL_METHOD,
+  DOMAIN_EVENT_SIGNAL,
+  EVENTS_BUS_NAME,
+  EVENTS_INTERFACE,
+  EVENTS_OBJECT_PATH,
+  HYDRATION_METHOD,
+  JOBS_CLEARED_SIGNAL,
+  SPEEDTEST_FINISHED_TOPIC,
+} from "./event-bus-core";
+export type { DomainPayload, RestartHandler, TopicHandler } from "./event-bus-core";

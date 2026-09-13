@@ -19,15 +19,26 @@ function iconPath(variant: "pause" | "play" | "stop"): string {
 // Recording indicator driven by the hub's `capture.state` DOMAIN event
 // (Phase 5, AD-37/AD-40): no `capture-tool status` polling. Between pushes
 // the elapsed value is interpolated locally from the recorded sync time —
-// a rendered continuous value, not a state read. Control actions go through
-// the hub's `Control` method using the additive `job_id` on the event; when
-// the hub is absent nothing is published (reduced functionality).
+// a rendered continuous value, not a state read. `domainEvents.subscribe`
+// hydrates subscribe-before-read, so a bar that starts mid-recording renders
+// immediately; a hub restart resets the indicator before re-hydration. Control
+// actions go through the hub's `Control` method using the additive `job_id`
+// on the event; when the hub is absent nothing is published (reduced
+// functionality).
 export function RecordingIndicator() {
   const [state, setState] = createState<RecordingState>("idle")
   const [elapsed, setElapsed] = createState("00:00")
   let jobId: string | null = null
   let baseElapsed = 0
   let syncedAtMs = Date.now()
+
+  function reset(): void {
+    jobId = null
+    baseElapsed = 0
+    syncedAtMs = Date.now()
+    setState("idle")
+    setElapsed("00:00")
+  }
 
   domainEvents.subscribe("capture.state", (_topic, payload) => {
     const next = payload.state
@@ -39,6 +50,11 @@ export function RecordingIndicator() {
     setState(validState)
     setElapsed(formatElapsed(baseElapsed))
   })
+
+  // A hub restart (new epoch) invalidates the old capture job: clear the
+  // stale indicator, then the bus re-hydrates `capture.state` and re-renders
+  // it if a capture is still live.
+  domainEvents.onRestart(reset)
 
   GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
     if (state() === "recording") {
