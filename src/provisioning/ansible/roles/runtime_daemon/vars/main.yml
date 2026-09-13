@@ -17,6 +17,14 @@ runtime_daemon_unit_name: dotfiles-runtime-daemon.service
 #   for every other invocation (a plain `daemon run`).
 runtime_daemon_activate: false
 
+# runtime_daemon_prune_on_reactive: opt into the real AD-30-bounded prune on
+#   each reactive converge. Default false: the reactive prune is skipped (no
+#   deletion, no `prune` history line) and only the read-only would-be count
+#   is logged at INFO. Setting this true appends `--prune-on-reactive` to the
+#   unit's ExecStart. Inert while runtime_daemon_activate is false
+#   (observe-only never reaches the prune leg).
+runtime_daemon_prune_on_reactive: false
+
 # Supervision tuning (P5-1-1 Gate-1 rec 5; AD-33/C4):
 # - Type=dbus + BusName means systemd holds "started" until the name is
 #   owned; a pre-ownership exit is a start failure, retried per below.

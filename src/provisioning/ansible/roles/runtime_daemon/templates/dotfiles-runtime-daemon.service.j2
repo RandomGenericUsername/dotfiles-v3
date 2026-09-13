@@ -17,8 +17,10 @@ StartLimitBurst={{ runtime_daemon_start_limit_burst }}
 Type=dbus
 BusName=org.dotfiles.Events
 # Observe-only is the default (AD-35/AD-41); runtime_daemon_activate=true
-# provisions live automatic convergence.
-ExecStart="{{ runtime_daemon_bin_dir }}/dotfiles-runtime" daemon run{% if runtime_daemon_activate %} --activate{% endif %}
+# provisions live automatic convergence. The reactive prune is separately
+# opt-in (default off): runtime_daemon_prune_on_reactive=true provisions real
+# AD-30-bounded deletions on each reactive converge.
+ExecStart="{{ runtime_daemon_bin_dir }}/dotfiles-runtime" daemon run{% if runtime_daemon_activate %} --activate{% endif %}{% if runtime_daemon_prune_on_reactive %} --prune-on-reactive{% endif %}
 # Restart=always: name loss is a CLEAN stop, so on-failure is insufficient
 # (it would never restart after a bus blip). Backoff + start limits keep a
 # persistent failure from hot-looping (fatal-vs-recoverable, AD-33/B3).

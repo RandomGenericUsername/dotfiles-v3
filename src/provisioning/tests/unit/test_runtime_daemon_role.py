@@ -63,6 +63,7 @@ _RENDER_VARS = {
     "runtime_daemon_timeout_start_sec": 90,
     "runtime_daemon_watchdog_sec": 30,
     "runtime_daemon_activate": False,
+    "runtime_daemon_prune_on_reactive": False,
 }
 
 
@@ -167,6 +168,24 @@ class TestUnitContent:
             'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run --activate' in rendered
         )
 
+    def test_reactive_prune_default_off_no_flag(self) -> None:
+        """The reactive prune is opt-in: provisioning ships no --prune flag."""
+        assert "--prune-on-reactive" not in _render_unit()
+
+    def test_reactive_prune_opt_in_appends_exec_start_flag(self) -> None:
+        template = (_ROLE_DIR / "templates" / "dotfiles-runtime-daemon.service.j2").read_text()
+        rendered = JinjaTemplate(template, undefined=StrictUndefined).render(
+            **{
+                **_RENDER_VARS,
+                "runtime_daemon_activate": True,
+                "runtime_daemon_prune_on_reactive": True,
+            }
+        )
+        assert (
+            'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run '
+            "--activate --prune-on-reactive" in rendered
+        )
+
     def test_session_binding(self) -> None:
         unit = _section(_render_unit(), "Unit")
         assert "Requires=dbus.socket" in unit
@@ -258,6 +277,12 @@ class TestVars:
         data = yaml.safe_load((_ROLE_DIR / "vars" / "main.yml").read_text())
         assert isinstance(data, dict)
         assert data["runtime_daemon_activate"] is False
+
+    def test_reactive_prune_defaults_off(self) -> None:
+        """The reactive prune is opt-in, never the provisioned default (AD-30)."""
+        data = yaml.safe_load((_ROLE_DIR / "vars" / "main.yml").read_text())
+        assert isinstance(data, dict)
+        assert data["runtime_daemon_prune_on_reactive"] is False
 
     def test_no_dead_repo_root_var(self) -> None:
         """Gate-2: unreferenced derivations rot — the role must not define

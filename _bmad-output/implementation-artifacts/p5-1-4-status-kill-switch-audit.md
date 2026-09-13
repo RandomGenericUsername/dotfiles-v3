@@ -27,11 +27,13 @@ automatic convergence is never invisible or unrecoverable.
   releases on SIGTERM (P5‑1‑1..P5‑1‑3).
 - Observe-only is the shipped default (`--activate` opts in).
 - `_run_reactive_converge` runs the composite and appends exactly one
-  `trigger="reactive"` line; `_run_prune` (used by the daemon's prune pass)
-  appends exactly one `trigger="prune"` line with counts (AD‑30/R‑1). Neither
-  path logged its trigger structurally, and there was **no read-only status
-  surface beyond `systemctl`**, and the persisted backstop record carried only
-  the input hash (no timestamp).
+  `trigger="reactive"` line. The daemon prune pass (`_run_prune`) is
+  **opt-in, default off** (Gate‑2 N1 resolution, `--prune-on-reactive` /
+  `$DOTFILES_REACTIVE_PRUNE`): when opted in it appends exactly one
+  `trigger="prune"` line with counts (AD‑30/R‑1); when off there is no
+  deletion and no `prune` line. Neither path logged its trigger structurally,
+  and there was **no read-only status surface beyond `systemctl`**, and the
+  persisted backstop record carried only the input hash (no timestamp).
 
 ## Acceptance Criteria (all met)
 
@@ -54,11 +56,13 @@ automatic convergence is never invisible or unrecoverable.
    the prune path logs `trigger=prune action=prune outcome=… removed=…
    failed=…`. Fields ride both the message and the `LogRecord` (`extra=`).
    ✅
-4. **Delete-audit retention** — the daemon-initiated prune path (the real
-   `_run_prune` invoked by `_run_reactive_converge`) writes exactly one
-   `history.jsonl` line `trigger="prune"` with counts; a new end-to-end test
-   exercises that daemon path (the existing coverage was the manual CLI
-   command, not the daemon composite). ✅
+4. **Delete-audit retention** — when the daemon-initiated prune is opted in
+   (the real `_run_prune` invoked by `_run_reactive_converge`), it writes
+   exactly one `history.jsonl` line `trigger="prune"` with counts; a new
+   end-to-end test exercises that daemon path (the existing coverage was the
+   manual CLI command, not the daemon composite). The prune leg is opt-in
+   (default off, Gate‑2 N1): with it off no delete-audit line is written
+   because no deletion occurs. ✅
 5. **Observe-only remains the default** — `daemon run` still ships
    observe-only; `--activate` opts in. No default changed. ✅
 6. **Story artifact** — this file. ✅
@@ -116,10 +120,15 @@ automatic convergence is never invisible or unrecoverable.
   exits 0. No `ExecStop`, no self-managed stop, no `daemon stop` subcommand.
 - **No lock across use-case calls (AD‑35):** unchanged. The status surface
   takes no lock and invokes no use case; the trigger logging wraps existing
-  calls; the daemon prune still holds `.seed.lock` only for plan+deletions
-  and appends after release (unchanged).
+  calls; the daemon prune (when opted in) still holds `.seed.lock` only for
+  plan+deletions and appends after release (unchanged).
 - **Observe-only default (AD‑41):** unchanged — `_run_reactive_converge`
   remains `observe_only=True` unless `--activate`.
+- **Reactive prune opt-in (AD‑30/Gate‑2 N1):** the daemon prune pass is gated
+  by `--prune-on-reactive` / `$DOTFILES_REACTIVE_PRUNE` (default false); with
+  it off `_run_reactive_converge` does no deletion and writes no `prune` line,
+  logging the read‑only would‑be count at INFO. Inert while observe-only. No
+  contract change (`prune` is already in the trigger enum).
 - **Layering:** no new third-party deps; `daemon_status.py` imports
   `jeepney` (already declared) and sibling adapters only.
 
@@ -169,8 +178,10 @@ no change for the kill switch (SIGTERM default).
   provisioning appends `--activate` when `runtime_daemon_activate` is true
   (default observe-only) and the unit sets `WatchdogSec=30` +
   `NotifyAccess=main`; the daemon sends `READY=1`/`WATCHDOG=1`/`STOPPING=1`
-  (no-op without `NOTIFY_SOCKET`). See `epic5-3-watch-reactive.md` →
-  "P5 follow-up closed".
+  (no-op without `NOTIFY_SOCKET`). The reactive prune is a separate opt-in:
+  `runtime_daemon_prune_on_reactive` (default `false`) appends
+  `--prune-on-reactive`. See `epic5-3-watch-reactive.md` → "P5 follow-up
+  closed" and "Reactive prune policy (Gate‑2 N1 resolution)".
 - **Degraded watch set is now surfaced (AD‑40, P5 follow-up):**
   `inspect daemon` reports `watch health: unknown|ok|degraded (N unwatched: …)`
   and names each unwatched root (JSON `watch_health`), read from the daemon's

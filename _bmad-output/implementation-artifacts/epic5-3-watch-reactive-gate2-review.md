@@ -61,6 +61,14 @@ Verified claims:
   relative to the AD‑30 floor; consider gating auto-prune behind config or
   defaulting the reactive prune to dry-run. `_keep()` falls back to 5 on a
   corrupt intent (`cli/main.py:1120‑1125`), which is safe.
+  **RESOLVED (owner decision): the reactive prune is now OPT‑IN, default
+  OFF.** `daemon run --prune-on-reactive` / `$DOTFILES_REACTIVE_PRUNE`
+  (default false) gates the prune leg; when off, no deletion and no `prune`
+  history line, with the read‑only AD‑30 would‑be count logged at INFO. When
+  on, behavior is unchanged and never escalates past the floor. Provisioning
+  mirrors this via `runtime_daemon_prune_on_reactive` (default false). See
+  `epic5-3-watch-reactive.md` → "Reactive prune policy (Gate‑2 N1
+  resolution)".
 - **N2 — the shipped daemon is observe-only end-to-end.** `daemon run`
   defaults observe-only and `--activate` is not added by the provisioned
   unit (the 5‑3 artifact lists unit `--activate`/`WatchdogSec`/`sd_notify`
@@ -101,7 +109,7 @@ Verified claims:
 ## Follow-ups
 
 1. Decide the reactive-prune policy (N1) before enabling `--activate` in
-   provisioning.
+   provisioning. **Done: opt-in, default off** (N1 above).
 2. Land the unit `--activate`/watchdog wiring (N2) as the remaining 5‑3
    slice.
 3. Harmonise the symlink policy in `converge_inputs` (N3).

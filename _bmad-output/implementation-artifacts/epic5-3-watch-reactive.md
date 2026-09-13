@@ -63,11 +63,14 @@ owns the single reactive line.
    source blocks on the inotify fd (+ stop pipe) and never stats/rescans on a
    timer. ✅
 3. **Reactive composite + exactly one line** — active converge runs
-   `CheckInputs → RegenerateStale → Reconcile → declarative`, then a prune
-   pass, then appends exactly one `trigger="reactive"` line and persists the
-   backstop. Inner writes are suppressed. Daemon prune (`_run_prune`) appends
-   exactly one `trigger="prune"` line with counts. Observe-only appends no
-   history. ✅
+   `CheckInputs → RegenerateStale → Reconcile → declarative`, then — only when
+   the reactive prune is **opted in** (see "Reactive prune policy (Gate‑2 N1
+   resolution)") — a real AD‑30‑bounded prune pass, then appends exactly one
+   `trigger="reactive"` line and persists the backstop. Inner writes are
+   suppressed. Daemon prune (`_run_prune`) appends exactly one
+   `trigger="prune"` line with counts when opted in. **Default (opt‑in off):
+   no deletion, no `prune` line**; the AD‑30 would‑be removal count is computed
+   read‑only and logged at INFO. Observe-only appends no history. ✅
 4. **Converge-on-start backstop** — `LastConvergedBackstop` persists under
    `state_root` (never a watched root); inputs are the four derivation inputs
    **plus** the intent document, hashed over exactly the watched set and
@@ -151,6 +154,11 @@ owns the single reactive line.
 - **Observe-only default (AD‑35/AD‑41):** `daemon run` ships observe-only;
   `--activate` opts in. The systemd unit provisioning that adds `--activate`
   (and `WatchdogSec`/`sd_notify`) is a follow-up outside this runtime story.
+- **Reactive prune opt-in (default off).** See "Reactive prune policy (Gate‑2
+  N1 resolution)" below: the reactive prune is gated by
+  `daemon run --prune-on-reactive` / `$DOTFILES_REACTIVE_PRUNE` (default
+  false). It lives outside every watched root (CLI flag/env), never escalates
+  past the AD‑30 floor, and is inert while observe-only.
 - **Bounded depth alignment (AD‑39):** the backstop hash is bounded to the same
   depth the watcher installs, so a hash change always corresponds to a
   fireable event (a deeper change changes neither).
@@ -165,6 +173,52 @@ owns the single reactive line.
   `WatchdogSec`/`sd_notify`; `max_user_watches` exhaustion recovery beyond the
   warn+rebuild path; multi-session `state_root` scoping; a live systemd
   end-to-end as an unattended test.
+
+## Reactive prune policy (Gate‑2 N1 resolution)
+
+Gate‑2 review N1 flagged the reactive converge wiring
+`prune=lambda: _run_prune(dry_run=False, keep=..., prune_pinned=False)` as a
+**surprise‑deletion surface**: with `daemon run --activate`, every
+input‑change‑triggered converge deleted cache entries (beyond `keep`/pins)
+without an explicit user prune. Owner decision: **make the reactive prune
+OPT‑IN, default OFF.**
+
+- **Opt‑in mechanism:** `daemon run --prune-on-reactive` (default `False`)
+  with the equivalent env var `$DOTFILES_REACTIVE_PRUNE`; either opts in, and
+  neither is required. Both live outside every watched root (a flag/env is not
+  a config file under a watched root).
+- **Default OFF (shipped):** the reactive composite still runs
+  regenerate/reconcile/declarative, but the prune leg is **skipped** — no
+  deletion and **no `prune` history line** (dry‑run appends nothing per
+  AD‑30). The AD‑30 would‑be removal count is computed read‑only via the
+  shared plan and logged at INFO, e.g. `reactive: prune skipped (opt-in off:
+  --prune-on-reactive / DOTFILES_REACTIVE_PRUNE); N entries would be removed
+  under the AD-30 floor`.
+- **ON:** behavior is exactly the prior one — real prune bounded by the AD‑30
+  floor (active ∪ last‑N ∪ seed‑pinned ∪ undated survive), `--keep` /
+  `desired.keep` precedence unchanged, per‑entry failure logging, exactly one
+  `prune` history line with counts, plus the `reactive` line. Never escalates
+  past the floor.
+- **Observe‑only unchanged (AD‑41):** `daemon run` still ships observe‑only
+  and `--prune-on-reactive` is inert until `--activate` reaches the composite.
+- **Implementation:** `cli/main.py` `_run_reactive_converge(prune_on_reactive=
+  False)` passes `prune=None` when off (the use case already skips a `None`
+  prune) and logs the read‑only count via `_log_reactive_prune_skipped`; a
+  shared `_build_prune_plan` is used by both the real prune and the skip
+  count. `application/converge.py` is unchanged: prune policy is a
+  composition‑root decision.
+- **Provisioning:** `runtime_daemon_prune_on_reactive` (default `false`)
+  conditionally appends `--prune-on-reactive` to the unit's `ExecStart`,
+  analogous to `runtime_daemon_activate`. Observe‑only remains the shipped
+  default.
+- **Tests:** `test_cli_reactive_converge.py` (default‑off = zero deletions +
+  exactly one `reactive` line + no `prune` line + skip count; opt‑in = one
+  `reactive` + one `prune` line with the floor respected),
+  `test_daemon_run.py` (`--prune-on-reactive` and `$DOTFILES_REACTIVE_PRUNE`
+  reach `_run_reactive_converge`; flag without `--activate` stays
+  observe‑only), `test_cli_inspect_daemon.py` (daemon‑path prune line now
+  opts in), `test_runtime_daemon_role.py` (provisioning default off + opt‑in
+  flag).
 
 ## Verification (exact)
 
@@ -229,8 +283,11 @@ no change to the hub wire contract):
    (default `false`, observe-only) conditionally appends `--activate` to the
    unit's `ExecStart`; the CLI option also honours
    `$DOTFILES_RUNTIME_ACTIVATE`. Manager-less enablement via
-   `graphical-session.target.wants/` is retained and re-pinned.
-   Tests: `tests/unit/test_runtime_daemon_role.py`.
+   `graphical-session.target.wants/` is retained and re-pinned. The reactive
+   prune is a **separate** opt-in: `runtime_daemon_prune_on_reactive`
+   (default `false`) conditionally appends `--prune-on-reactive`; the CLI
+   option also honours `$DOTFILES_REACTIVE_PRUNE`. Tests:
+   `tests/unit/test_runtime_daemon_role.py`.
 
 **Observability of a degraded watch set.** `inspect daemon` reports
 `watch health: unknown|ok|degraded (N unwatched: …)` and names each unwatched
