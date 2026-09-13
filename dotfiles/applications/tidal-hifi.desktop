@@ -1,0 +1,19 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=TIDAL Hi-Fi
+GenericName=TIDAL Hi-Fi
+Comment=The web version of tidal.com running in electron with hifi support thanks to widevine.
+# Repo-authoritative override of /usr/share/applications/tidal-hifi.desktop.
+# It shadows the packaged entry (XDG_DATA_HOME has higher priority) so rofi's
+# drun mode launches TIDAL with the /dev/shm workaround TIDAL's bundled
+# Castlabs Electron needs on this machine. The packaged Wayland/Ozone flags are
+# preserved (Chromium takes only one --enable-features, so they are combined).
+Exec=tidal-hifi --disable-dev-shm-usage --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform-hint=auto %U
+Icon=tidal-hifi
+StartupNotify=true
+Terminal=false
+Type=Application
+Categories=Network;Application;Audio;Video;AudioVideo
+StartupWMClass=tidal-hifi
+X-PulseAudio-Properties=media.role=music
+MimeType=x-scheme-handler/tidal;

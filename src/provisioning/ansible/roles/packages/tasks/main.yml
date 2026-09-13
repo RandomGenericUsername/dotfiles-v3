@@ -57,7 +57,10 @@
   failed_when: false
   become: true
   when:
-    - ansible_facts['os_family'] == "Archlinux"
+    # packages_use_aur is the Arch-loaded routing var (vars/arch.yml); gating
+    # the Arch-only pacman refresh on it keeps distro branching confined to the
+    # include_vars tasks (NFR-3 distro isolation).
+    - packages_use_aur | bool
     - not ansible_check_mode
 
 - name: Fail with the pacman DB refresh error and likely causes
@@ -72,7 +75,7 @@
       (pacman-key --init/--populate); a corrupted pacman database; or a full
       disk (check `df -h /`). Fix the cause, then re-run.
   when:
-    - ansible_facts['os_family'] == "Archlinux"
+    - packages_use_aur | bool
     - not ansible_check_mode
     - pacman_db_refresh.rc is defined
     - pacman_db_refresh.rc != 0

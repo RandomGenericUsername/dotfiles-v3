@@ -361,6 +361,7 @@ class TestReadRealManifests:
             "lf",
             "btop",
             "thunderbird",
+            "tidal-hifi",
             "brightnessctl",
             "playerctl",
             "power-options-gtk",

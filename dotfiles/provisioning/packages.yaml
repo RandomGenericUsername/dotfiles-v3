@@ -49,6 +49,10 @@ entries:
   # Mail client (AGS bar icon launcher)
   - name: thunderbird
 
+  # Music streaming client (rofi launcher; AUR-only on Arch — see
+  # `aur_packages` in roles/packages/vars/arch.yml)
+  - name: tidal-hifi
+
   # Portable power management (defacto: power-options-gtk)
   - name: power-options-gtk
 
