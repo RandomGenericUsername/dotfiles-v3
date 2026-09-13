@@ -1,11 +1,14 @@
 import Gtk from "gi://Gtk?version=4.0"
 import Gdk from "gi://Gdk?version=4.0"
-import AstalTray from "gi://AstalTray"
 import { For, createBinding, createState } from "ags"
 import { registry } from "../../lib/icon-registry"
+import {
+  isNetworkItem,
+  popupItemMenu,
+  tray,
+  type TrayItem as Item,
+} from "../../lib/status-notifier"
 import { RecordingIndicator } from "./recording"
-
-const tray = AstalTray.get_default()
 
 /**
  * Apps whose tray icon should be replaced by a runtime-generated SVG from the
@@ -16,7 +19,7 @@ const TRAY_ICON_OVERRIDES: Array<[string, [string, string]]> = [
   ["tidal", ["tray", "tidal"]],
 ]
 
-function overrideIconPath(item: AstalTray.TrayItem): string | null {
+function overrideIconPath(item: Item): string | null {
   const identity = `${item.id ?? ""} ${item.item_id ?? ""} ${item.title ?? ""}`.toLowerCase()
   for (const [match, [group, variant]] of TRAY_ICON_OVERRIDES) {
     if (identity.includes(match)) return registry.resolve(group, variant)
@@ -24,7 +27,7 @@ function overrideIconPath(item: AstalTray.TrayItem): string | null {
   return null
 }
 
-function TrayIcon({ item }: { item: AstalTray.TrayItem }) {
+function TrayIcon({ item }: { item: Item }) {
   return (
     <image
       pixel_size={28}
@@ -54,47 +57,22 @@ function TrayIcon({ item }: { item: AstalTray.TrayItem }) {
 
 /**
  * One StatusNotifier item: left click activates it (restore the app), right
- * click pops the item's D-Bus menu. The menu model and its "dbusmenu" action
- * group are bound live so Electron/GTK items (tidal, nm-applet) work.
+ * click pops the item's D-Bus menu. The network item (nm-applet) is excluded
+ * here — it is merged into the NetworkStatus widget instead.
  */
-function TrayItem({ item }: { item: AstalTray.TrayItem }) {
+function TrayItem({ item }: { item: Item }) {
   return (
     <box
       class="tray-item"
       tooltipMarkup={createBinding(item, "tooltip-markup")}
       $={(self) => {
-        const popover = new Gtk.PopoverMenu()
-        popover.set_parent(self)
-        popover.menu_model = item.menu_model
-        if (item.action_group) {
-          popover.insert_action_group("dbusmenu", item.action_group)
-        }
-
-        const menuHandler = item.connect("notify::menu-model", () => {
-          popover.menu_model = item.menu_model
-        })
-        const actionHandler = item.connect("notify::action-group", () => {
-          if (item.action_group) {
-            popover.insert_action_group("dbusmenu", item.action_group)
-          }
-        })
-
         const primary = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
         primary.connect("pressed", (_gesture, _n, x, y) => item.activate(x, y))
         self.add_controller(primary)
 
         const secondary = new Gtk.GestureClick({ button: Gdk.BUTTON_SECONDARY })
-        secondary.connect("pressed", () => {
-          item.about_to_show()
-          popover.popup()
-        })
+        secondary.connect("pressed", () => popupItemMenu(item, self))
         self.add_controller(secondary)
-
-        self.connect("destroy", () => {
-          item.disconnect(menuHandler)
-          item.disconnect(actionHandler)
-          popover.unparent()
-        })
       }}
     >
       <TrayIcon item={item} />
@@ -103,8 +81,9 @@ function TrayItem({ item }: { item: AstalTray.TrayItem }) {
 }
 
 export function Tray() {
-  const [items, setItems] = createState<AstalTray.TrayItem[]>(tray.get_items())
-  const refresh = () => setItems(tray.get_items())
+  const visible = (): Item[] => (tray.get_items() as Item[]).filter((item) => !isNetworkItem(item))
+  const [items, setItems] = createState<Item[]>(visible())
+  const refresh = () => setItems(visible())
   tray.connect("item-added", refresh)
   tray.connect("item-removed", refresh)
 
