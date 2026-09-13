@@ -1,0 +1,70 @@
+# runtime_daemon role (P5-1-1) — provision the reactive daemon's --user unit.
+#
+# Owns the daemon's CONFIGURATION (unit file + enablement); the runtime owns
+# only the executable (locked roles-provision / runtime-executes split).
+# User-scoped throughout: NO become anywhere (running as root would place the
+# unit under /root/.config and enable it for the wrong user).
+#
+# Enablement without a live user manager: `systemctl --user` needs a live
+# manager, which bootstrap may not have (e.g. provisioning over ssh without
+# a session). The probe below detects that; with a manager we enable via
+# the systemd module, without one we symlink the unit into
+# graphical-session.target.wants/ directly (what `enable` would create), so
+# the next graphical login starts the daemon. Both paths are check-safe.
+
+- name: Ensure the user systemd unit directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.config/systemd/user"
+    state: directory
+    mode: "0755"
+
+- name: Install the daemon unit file
+  ansible.builtin.template:
+    src: dotfiles-runtime-daemon.service.j2
+    dest: "{{ ansible_facts.env.HOME }}/.config/systemd/user/{{ runtime_daemon_unit_name }}"
+    mode: "0644"
+
+- name: Probe for a live user manager
+  ansible.builtin.shell: "systemctl --user show-environment >/dev/null 2>&1"
+  register: runtime_daemon_manager_probe
+  changed_when: false
+  failed_when: false
+
+- name: Assert the runtime binary exists before enabling its unit
+  ansible.builtin.stat:
+    path: "{{ runtime_daemon_bin_dir }}/dotfiles-runtime"
+  register: runtime_daemon_binary
+  changed_when: false
+
+- name: Ensure dotfiles-runtime is installed (cli-tools role precedes us)
+  ansible.builtin.assert:
+    that: runtime_daemon_binary.stat.exists | default(false)
+    fail_msg: >-
+      {{ runtime_daemon_bin_dir }}/dotfiles-runtime not found — the cli-tools
+      role installs it and runs before runtime-daemon in bootstrap.yaml.
+      Run the cli-tools playbook first (or bootstrap in order) instead of
+      runtime-daemon.yaml standalone on a fresh machine.
+
+- name: Reload the user manager and enable the daemon unit
+  ansible.builtin.systemd:
+    name: "{{ runtime_daemon_unit_name }}"
+    scope: user
+    daemon_reload: true
+    enabled: true
+  when: not ansible_check_mode and runtime_daemon_manager_probe.rc | default(1) == 0
+
+- name: Ensure the graphical-session wants directory exists (manager-less path)
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.config/systemd/user/graphical-session.target.wants"
+    state: directory
+    mode: "0755"
+  when: runtime_daemon_manager_probe.rc | default(1) != 0
+
+- name: Enable the daemon unit without a live manager (wants/ symlink)
+  ansible.builtin.file:
+    src: "{{ ansible_facts.env.HOME }}/.config/systemd/user/{{ runtime_daemon_unit_name }}"
+    dest: >-
+      {{ ansible_facts.env.HOME }}/.config/systemd/user/graphical-session.target.wants/{{ runtime_daemon_unit_name }}
+    state: link
+    force: true
+  when: runtime_daemon_manager_probe.rc | default(1) != 0

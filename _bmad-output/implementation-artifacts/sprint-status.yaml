@@ -189,3 +189,10 @@ development_status:
   r3-derivation-inputs-spine-only: done
   r4-schema-driven-contracts: done
   r5-doctor-store-history-divergence: done
+
+  # ═══════════════════════════════════════════════════════════════════
+  # Phase 5 — Reactive Runtime: daemon + bus + reactivity
+  # (epics-dotfiles-runtime-phase5.md; spine final AD-33..AD-44)
+  # ═══════════════════════════════════════════════════════════════════
+  p5-epic-1: in-progress
+  p5-1-1-daemon-run-skeleton: done

@@ -1,0 +1,26 @@
+# runtime_daemon role vars (P5-1-1).
+#
+# runtime_daemon_bin_dir: where `uv tool install` drops dotfiles-runtime,
+#   resolved EXACTLY as uv does ($UV_TOOL_BIN_DIR -> $XDG_BIN_HOME ->
+#   $HOME/.local/bin). Mirrors cli_tools_bin_dir (cli_tools role) so the
+#   unit's ExecStart points at the binary provisioning actually installed.
+runtime_daemon_bin_dir: >-
+  {{ ansible_facts.env.UV_TOOL_BIN_DIR
+     | default(ansible_facts.env.XDG_BIN_HOME | default(ansible_facts.env.HOME + '/.local/bin', true), true) }}
+
+# runtime_daemon_unit_name: the --user unit file name.
+runtime_daemon_unit_name: dotfiles-runtime-daemon.service
+
+# Supervision tuning (P5-1-1 Gate-1 rec 5; AD-33/C4):
+# - Type=dbus + BusName means systemd holds "started" until the name is
+#   owned; a pre-ownership exit is a start failure, retried per below.
+# - Restart=always (NOT on-failure): name loss is a CLEAN stop, so
+#   on-failure would never restart the daemon after a bus blip.
+# - RestartSec=5s backoff + StartLimit 3/60s: retries heal transients but a
+#   persistent failure settles instead of hot-looping.
+# - TimeoutStartSec=90s accommodates a cold start (long first converge lands
+#   in P5-1-3, non-gating, but the budget is set now).
+runtime_daemon_restart_sec: 5
+runtime_daemon_start_limit_interval_sec: 60
+runtime_daemon_start_limit_burst: 3
+runtime_daemon_timeout_start_sec: 90

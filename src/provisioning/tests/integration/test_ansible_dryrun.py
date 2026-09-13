@@ -32,9 +32,11 @@ pytestmark = pytest.mark.integration
 # passwordless sudo); the others are user-scoped and must ALWAYS run.
 # Epic 4: default-palette.yaml + icons.yaml deleted (runtime owns all
 # generation); runtime-seed.yaml (wallpaper set default.png) added.
+# P5-1-1: runtime-daemon.yaml (reactive daemon --user unit) added.
 _PLAYBOOKS = (
     "packages.yaml",
     "cli-tools.yaml",
+    "runtime-daemon.yaml",
     "filesystem.yaml",
     "assets.yaml",
     "runtime-seed.yaml",

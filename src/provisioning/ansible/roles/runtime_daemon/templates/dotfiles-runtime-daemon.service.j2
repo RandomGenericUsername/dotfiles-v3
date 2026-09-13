@@ -1,0 +1,30 @@
+[Unit]
+Description=dotfiles runtime reactive daemon (owns org.dotfiles.Events)
+# The daemon is session-scoped: it needs the user bus and belongs to the
+# graphical session (uwsm-managed). It must never start at boot/system scope.
+Requires=dbus.socket
+After=dbus.socket graphical-session.target
+# Start limits are [Unit] directives (systemd.unit(5)) — in [Service] they
+# are silently ignored, which would leave a persistent failure hot-looping.
+StartLimitIntervalSec={{ runtime_daemon_start_limit_interval_sec }}
+StartLimitBurst={{ runtime_daemon_start_limit_burst }}
+
+[Service]
+# Type=dbus + BusName: systemd considers the service started ONLY once the
+# daemon owns org.dotfiles.Events (name-first, AD-33/C4). The daemon calls
+# RequestName(DO_NOT_QUEUE), fails fast non-zero on contention, NEVER exits
+# 0 before owning the name, and releases it on SIGTERM.
+Type=dbus
+BusName=org.dotfiles.Events
+ExecStart="{{ runtime_daemon_bin_dir }}/dotfiles-runtime" daemon run
+# Restart=always: name loss is a CLEAN stop, so on-failure is insufficient
+# (it would never restart after a bus blip). Backoff + start limits keep a
+# persistent failure from hot-looping (fatal-vs-recoverable, AD-33/B3).
+Restart=always
+RestartSec={{ runtime_daemon_restart_sec }}
+# Accommodates startup; converge (P5-1-3) is non-gating and must never
+# block readiness, but the budget is set now.
+TimeoutStartSec={{ runtime_daemon_timeout_start_sec }}
+
+[Install]
+WantedBy=graphical-session.target

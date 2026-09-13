@@ -53,6 +53,10 @@
 # an `import_playbook` statement; there is no play (no hosts/roles/tasks).
 - import_playbook: packages.yaml
 - import_playbook: cli-tools.yaml
+# runtime-daemon right after cli-tools: the unit's ExecStart needs the
+# dotfiles-runtime binary installed above; the daemon tolerates an unseeded
+# machine (benign idle), so it does not wait for runtime-seed.
+- import_playbook: runtime-daemon.yaml
 - import_playbook: filesystem.yaml
 - import_playbook: assets.yaml
 - import_playbook: compositor-configs.yaml

@@ -1,0 +1,15 @@
+# Runtime daemon playbook (P5-1-1) — one-per-role playbook; aggregated into
+# bootstrap.yaml.
+#
+# User-scoped playbook: NO become (the unit belongs to the invoking user's
+# manager; running as root would provision /root's session). Distro-agnostic
+# (unit files + symlinks are identical on Arch and Debian-family), so there
+# is NO group_by distro-selection mechanism.
+#
+# gather_facts: true is REQUIRED — vars/main.yml derives the bin dir from
+# {{ ansible_facts.env.* }}, populated only after fact gathering.
+- name: Provision the runtime daemon user unit
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - runtime_daemon
