@@ -43,3 +43,15 @@ Backend (grim / slurp / gpu-screen-recorder / wf-recorder)
 ```
 
 This keeps the UI free of shell commands and makes the recorder lifecycle testable.
+
+## Recording host (Phase 5)
+
+`start` no longer owns the recorder itself. It resolves the target/backend and
+spawns `dotfiles-runtime capture`, which owns the recorder child, registers a
+`capture` lifetime job with the running daemon, publishes `capture.state`
+through the hub, and serves `org.dotfiles.Job1.Control`. Pause/resume/stop are
+driven by the bar through the hub's `Control` (never by shelling this script),
+so the legacy `stop`/`pause`/`resume`/`status` subcommands and the
+`$XDG_STATE_HOME/capture-tool/state.json` file have been retired. `screenshot`
+is unchanged.
+

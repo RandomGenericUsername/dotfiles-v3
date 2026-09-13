@@ -362,3 +362,121 @@ and `test_control_channel.py` (unbound/dead/timeout → `UnknownJob`).
   host to `DbusJobClient.serve` is the next slice.
 - **`capture.state` rate budget** and bar hydration (follow‑ups 2/5) are
   unchanged.
+
+---
+
+## Post‑review addendum — N1 closure (production capture host)
+
+Status: **complete** — the N1 production host is shipped, the launcher path
+spawns it, the hub↔job Control round‑trip was verified on a real private
+session bus, and all suites are green. Nothing committed.
+
+This closes Gate‑2 finding **N1** (the capture job was exercised only with
+fakes; no shipped process served `org.dotfiles.Job1.Control`).
+
+### What changed
+
+- **Host** — `application/capture_host.py` (`CaptureHost`): composes the
+  already‑tested `CaptureController` with an injected
+  `IControllableJobClient` + `IRecorderProcess`. `start()` binds the
+  controller's `control`, `tick()` drives the cadence, and `stop()` finalizes.
+  A validated `Control("stop")` also raises the host's stop event, so the
+  resident serving loop exits and the process ends. The host imports no
+  jeepney (AD‑34) and constructs no signal (AD‑38).
+- **Port** — `ports/jobs.py` gains `IControllableJobClient` (an `IJobClient`
+  that serves `Job1.Control`); `DbusJobClient` and `InProcessJobClient` now
+  implement it. The speed‑test job stays a plain `IJobClient`.
+- **CLI** — `dotfiles-runtime capture --command '<recorder argv>' [--backend]`
+  (mirrors `daemon run`): one bus probe (`probe_session_bus`, never a poll)
+  selects the D‑Bus client when the daemon owns the hub, else the degraded
+  `LocalJobClient` (recorder still runs; no events/control; never a
+  crash‑loop). With a hub it `BeginJob`s, drives `DbusJobClient.serve`
+  (renew + `capture.state` ≥ 1/s + `Job1.Control`), and `EndJob`s on exit;
+  SIGTERM/SIGINT stop the recorder and exit 0. The command is skipped by
+  first‑run seeding.
+- **Degraded adapter** — `adapters/local_job_client.py` (no‑bus no‑op).
+- **Launcher** — `bin/capture-tool` `start` keeps its target/backend
+  resolution, then spawns `dotfiles-runtime capture -- <recorder argv>` as the
+  single recorder owner. Its legacy `stop`/`pause`/`resume`/`status`
+  subcommands and the `state.json` machinery are **retired** (nothing called
+  them after the bar moved to hub `Control`; screenshots are untouched).
+  No GJS change was needed; `ags bundle` is re‑verified green.
+- **Re‑entrancy fix (required for the feature to work).** The hub's
+  `Events1.Control` is request/response and the job reports back
+  (`Emit`/`EndJob`) from inside its handler. Both sides used blocking
+  `send_and_get_reply`, which silently consumes and drops an interleaved
+  `Job1.Control` / `Emit` while it waits: `Control` then stalls ~5s and fails
+  `UnknownJob` (reproduced on a private bus before the fix). The fix is
+  symmetric pumping:
+  - hub `DbusControlChannel._send_and_pump` keeps receiving and dispatching
+    interleaved messages (via the owner's `_route_message`) until the job's
+    ack;
+  - job `DbusJobClient._call` pumps and serves an inbound `Control` while it
+    waits for its own reply, and stashes a reply that belongs to an outer
+    nested call (`self._pending`) so a handler's own call can never consume
+    the outer call's reply.
+  Single connection, single thread, no concurrent writers.
+
+### N1 proof
+
+- **In‑process (integration):** `test_capture_host_integration.py` drives the
+  real `EventHub`/`HubService`/`InProcessControlChannel` with a fake recorder
+  and clock — begin → `Control` pause/resume/stop → the correct
+  `capture.state` transitions and cadence → `EndJob`. `Control` returns only
+  after the controller transitioned; with no host endpoint the hub still
+  raises `UnknownJob` (N2 preserved).
+- **Real bus (manual, private `dbus-run-session`):** daemon + host + a
+  signal‑aware fake recorder. `Events1.Control pause/resume/stop` each return
+  `()` in ~5–60 ms (was 5.0 s + `UnknownJob`), `GetTopicState("capture.state")`
+  shows the transitions (`recording → paused → recording → idle`, seq 4),
+  `GetActiveJobs` empties, the host exits, and a second `stop` is `JobEnded`.
+- **Bus smoke test:** `test_capture_host_bus_smoke.py` skips when no session
+  bus exists; the client‑selection test is total with or without a bus.
+
+### Exact verification
+
+| Command | Result |
+| --- | --- |
+| `uv run --directory src/runtime pytest` | **1591 passed, 2 skipped** (baseline 1573/2; +18) |
+| own suites (`capture_host_integration`, `capture_host_bus_smoke`, `cli_capture`, `dbus_job_client`, `control_channel`) | **42 passed** |
+| `uv run --directory src/runtime pytest tests/architecture/test_layering.py` | **105 passed** (was 103; +2 source files) |
+| `make contracts-check` | **29 passed** |
+| `uv run --directory src/runtime ruff check src` | 3 errors, **all pre‑existing** (2× B008 typer, 1× E501 models) |
+| `uv run --directory src/runtime mypy src` | 6 errors, **all pre‑existing** |
+| `ags bundle dotfiles/config/ags/app.tsx … --gtk 4` | **exit 0** (unchanged; re‑verified) |
+| `ags bundle src/gui-tools/capture-tool/app.tsx … --gtk 4` | **exit 0** |
+| `uv run --directory src/provisioning pytest tests/unit/test_cli_tools_role.py tests/unit/test_gui_tools_role.py` | **39 passed** |
+| manual private‑bus round‑trip | pause/resume/stop `()` in ≤ 60 ms; idle stored; host exits; `JobEnded` on re‑stop |
+
+### Files changed
+
+**New (runtime):** `application/capture_host.py`,
+`adapters/local_job_client.py`.
+**Edited (runtime):** `ports/jobs.py`, `adapters/dbus_job_client.py`,
+`adapters/dbus_event_bus.py`, `adapters/in_process_job_client.py`,
+`cli/main.py`.
+**Edited (shell):** `src/gui-tools/capture-tool/bin/capture-tool`
+(launcher spawns the host; legacy control/status retired).
+**New (tests):** `tests/integration/test_capture_host_integration.py`,
+`test_capture_host_bus_smoke.py`, `tests/unit/test_cli_capture.py`.
+**Edited (tests):** `tests/unit/test_dbus_job_client.py`,
+`test_control_channel.py`.
+**Untouched:** `contracts/`, `adapters/bar_subscriber.py`,
+`adapters/emit_validation.py`, `adapters/converge_backstop.py`,
+`src/provisioning/*` (no manifest change was needed — `dotfiles-runtime` and
+`capture-tool` are both installed by `cli_tools`, and the `capture` subcommand
+ships with the package). Nothing committed.
+
+### Remaining (explicit)
+
+- **`capture.state` rate budget (N4).** The ≥ 1/s cadence plus transitions
+  still exactly consumes the 60/min per‑(sender, topic) budget; unchanged.
+- **Bar hydration on start (N3/N5).** The GJS widget still relies on the next
+  push; unchanged.
+- **Retired legacy control surface.** `capture-tool stop|pause|resume|status`
+  are gone (the bar uses hub `Control`, and `screenshot` is preserved). No
+  in‑repo caller remained; an external caller would need the bar path.
+- **Recorder backend.** `SubprocessRecorder` already resolves both
+  `gpu-screen-recorder` (`SIGUSR2`) and `wf-recorder` (`SIGSTOP`/`SIGCONT`);
+  the launcher passes the backend explicitly, so follow‑up 4 is covered by
+  the shipped adapter.

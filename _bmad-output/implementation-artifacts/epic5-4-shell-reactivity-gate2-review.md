@@ -134,3 +134,46 @@ Verification: full runtime suite **1573 passed, 2 skipped**; layering **103
 passed**; `make contracts-check` **29 passed**; `ruff check src` and
 `mypy src` report only the pre-existing errors (3 and 6 respectively). No
 consumer/bar change was required.
+
+---
+
+## Post-review addendum — N1 closure (production capture host)
+
+Finding **N1 is closed**. A production host now runs the resident capture job
+and serves the delegated control channel:
+
+- `dotfiles-runtime capture` (CLI, foreground) owns a `SubprocessRecorder`,
+  `BeginJob`s a `capture` lifetime job with a running daemon, renews the
+  lease and publishes `capture.state` at ≥ 1/s while recording, serves
+  `org.dotfiles.Job1.Control` on its unique connection, and `EndJob`s on exit.
+  With no daemon/bus it degrades to a local no-op client (recorder still runs;
+  no events/control) and never crash-loops. No polling.
+- `application/capture_host.py` composes the tested `CaptureController` over
+  an injected `IControllableJobClient` + `IRecorderProcess`; `ports/jobs.py`
+  adds the `IControllableJobClient` seam.
+- `bin/capture-tool start` keeps target/backend resolution and spawns the
+  host as the single recorder owner; the legacy
+  `stop|pause|resume|status` control surface (and its `state.json`) is
+  retired — the bar already calls hub `Control` (screenshots preserved). No
+  GJS change; `ags bundle` re-verified exit 0.
+
+**A real re-entrancy defect was found and fixed as part of this slice.** The
+hub and job both waited on `send_and_get_reply`, which drops an interleaved
+`Control`/`Emit`; a `Control` therefore stalled ~5 s and failed `UnknownJob`.
+The fix is symmetric single-thread pumping (`DbusControlChannel._send_and_pump`
+hub-side; `DbusJobClient._call` job-side, with a pending-reply queue so a
+nested handler call cannot consume an outer call's reply). Reproduced and
+verified on a private `dbus-run-session`: `Control` pause/resume/stop now
+return in ≤ 60 ms, the `capture.state` transitions land (`idle` at seq 4), and
+the host exits.
+
+Verification: full runtime suite **1591 passed, 2 skipped** (+18); own suites
+**42 passed**; layering **105 passed**; `make contracts-check` **29 passed**;
+`ruff`/`mypy` only the pre-existing errors (3/6); bar and capture `ags bundle`
+exit 0; provisioning `cli_tools`/`gui_tools` roles **39 passed**. No
+provisioning manifest change was needed.
+
+Findings **N3–N8** are unchanged by this slice. See
+`epic5-4-shell-reactivity.md` → "Post-review addendum — N1 closure" for the
+files changed and the remaining items (rate budget N4, bar hydration
+N3/N5).
