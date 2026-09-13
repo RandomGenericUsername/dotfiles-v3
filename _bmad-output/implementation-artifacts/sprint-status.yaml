@@ -196,3 +196,4 @@ development_status:
   # ═══════════════════════════════════════════════════════════════════
   p5-epic-1: in-progress
   p5-1-1-daemon-run-skeleton: done
+  p5-1-2a-hub-registry-leases: done
