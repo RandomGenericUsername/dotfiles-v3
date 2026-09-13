@@ -2,21 +2,25 @@
 
 ## Deferred from: Phase 5 completion review (2026-09-13)
 
-- **R1 — the reactive prune opt-in does not gate the real deletion.** With
-  `--prune-on-reactive` OFF (the default), a reactive converge still deletes
-  cache entries beyond the `keep` floor: the composite's declarative step
-  (`_run_converge` → `ConvergeUseCase`) executes `actual.prunable_hashes`
-  before the gated `_run_prune` leg runs. Reproduced on a private-bus E2E:
-  8 palette entries → 5, **no** `prune` history line. With the flag ON,
-  `_run_prune` runs but logs `removed=0` (the declarative step already
-  deleted them) yet writes a `prune` audit line, so the audit is misleading.
-  `_run_reactive_converge`'s "performs no deletion" docstring and the
-  `daemon run` help text are inaccurate. Needs a product decision (gate the
-  declarative trim, or correct the docs/audit attribution) — changing the
-  p4 planner's deletion semantics is not a surgical fix. Evidence:
-  `phase5-completion-report.md` §6;
-  [src/runtime/src/runtime/cli/main.py:1303-1314, :2102-2151,
-  src/runtime/src/runtime/application/planner.py:80-96].
+- **R1 — the reactive prune opt-in does not gate the real deletion.**
+  **RESOLVED (follow-up fix).** The defect: with `--prune-on-reactive` OFF
+  (the default) a reactive converge still deleted cache entries beyond the
+  `keep` floor because the composite's declarative step
+  (`_run_converge` → `ConvergeUseCase`) executed `actual.prunable_hashes`
+  before the gated `_run_prune` leg; with the flag ON, `_run_prune` logged
+  `removed=0` yet wrote a `prune` audit line (misleading). Fix:
+  `_run_converge(*, suppress_history=False, allow_delete=True)` wires a no-op
+  deletion executor (returns `False`) when `allow_delete=False`;
+  `_run_reactive_converge` always passes `allow_delete=False` so the
+  declarative leg is plan-only, and deletion is solely the `_run_prune` leg
+  gated by the opt-in (run exactly once after the declarative step when ON,
+  producing one `prune` line whose `removed` count equals the actual
+  deletions). The manual `reconcile` path keeps `allow_delete=True` (Phase 4
+  unchanged). Verified by non-tautological unit tests (the declarative step is
+  no longer faked) and the private-bus E2E (OFF: 8 → 8 entries, no `prune`
+  line; ON: real removal, audit count matches). AD-30/AD-35/AD-40/AD-41
+  preserved. Evidence: `phase5-completion-report.md` §6;
+  [src/runtime/src/runtime/cli/main.py:1215-1330, :2102-2165].
 - **Launcher has no liveness/error surface (Gate-2 N1).** `capture-tool
   start` spawns `dotfiles-runtime capture` detached and immediately emits
   `{"state":"recording"}` with exit 0; a recorder that dies during startup

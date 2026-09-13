@@ -33,7 +33,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
-last_updated: "2026-09-13 (Phase 5 COMPLETE — verified at c9f2794: runtime 1597 passed/2 skipped, layering 105, contracts-check 29, private-bus E2E 2 passed. Gate-2 review p5-4-job1-control-capture-host-gate2-review.md: 2 blocking defects (B1 reply mis-routing, B2 recorder-failure lease leak) reproduced and fixed; R1 declarative-trim/prune-opt-in residual deferred)"
+last_updated: "2026-09-13 (Phase 5 COMPLETE — runtime suite green, layering 105, contracts-check 29, private-bus E2E green. Gate-2 review p5-4-job1-control-capture-host-gate2-review.md: 2 blocking defects (B1 reply mis-routing, B2 recorder-failure lease leak) reproduced and fixed. R1 declarative-trim/prune-opt-in RESOLVED: declarative leg is plan-only (allow_delete=False) in the reactive path; deletion is solely the opt-in _run_prune leg — OFF removes nothing and writes no prune line, ON runs once and audits the real count)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -224,5 +224,5 @@ development_status:
   p5-4-shell-reactivity: done   # gate2: APPROVED-WITH-FOLLOWUPS
   p5-4-job-control-channel: done   # f31103a: org.dotfiles.Job1.Control + fail-loud Control (N2 closed). gate2 B1 (hub pump dropped outer ack) reproduced + FIXED in review (uncommitted)
   p5-4-production-capture-host: done   # c9f2794: dotfiles-runtime capture (resident host + serve Job1 + degrade-to-local); gate2 B2 (recorder-start lease leak/masking error) reproduced + FIXED in review (uncommitted)
-  p5-3-reactive-prune-opt-in: done   # eb06a61: --prune-on-reactive default off (audit leg); residual R1: declarative diff trim still deletes beyond-keep entries when OFF (see phase5-completion-report.md §6)
+  p5-3-reactive-prune-opt-in: done   # eb06a61 + R1 fix: --prune-on-reactive default off => reactive path deletes NOTHING and writes no prune line; ON => AD-30-bounded prune runs once (real count). R1 resolved (see phase5-completion-report.md §6)
   p5-e2e-private-bus-harness: done   # new tests/integration/test_phase5_reactive_runtime_e2e.py (uncommitted)

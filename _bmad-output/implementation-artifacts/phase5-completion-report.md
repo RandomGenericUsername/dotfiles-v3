@@ -45,7 +45,7 @@ tests added with the two fixes (one file contributes 2, one 3, one 1).
 | Speed-test job | `b1674aa`, harden `93d79f0` | `test_speedtest_job.py` |
 | ICME `icme.saved` event + provisioning deploy | `b1674aa`, `c5b87be` | `test_icme_saved.py`; `test_gui_tools_role.py` |
 | Bar consumer binding + `(epoch,seq)` hydration | `b1674aa`, `f6544db`, deploy `c5b87be` | `event-bus-core.ts` subscribe-before-read; node drift test; `ags bundle` green |
-| Reactive prune opt-in (default off) | `eb06a61` | `test_cli_reactive_converge.py::TestReactivePrunePolicy`; E2E: no `prune` line by default (see residual R1) |
+| Reactive prune opt-in (default off) | `eb06a61`, R1 fix | `test_cli_reactive_converge.py::TestReactivePrunePolicy`; E2E: no deletion and no `prune` line by default, real removal + one `prune` line when opted in (R1 resolved) |
 | Status surface (`inspect daemon` / kill-switch / audit) | `0e95bd1` | `test_cli_inspect_daemon.py`; E2E: real `inspect daemon --format json` reports present + epoch |
 | `sd_notify` readiness + watchdog | `1f0fc67` | `test_systemd_notify.py`; unit template `WatchdogSec=30`, `NotifyAccess=main` |
 | Session-scoped `state_root` | `1f0fc67` | `test_cli_state_root.py` |
@@ -86,7 +86,11 @@ Exercised and passing:
   history line, and writes the `last-converged.json` backstop. (A fully-fresh
   seeded state is used so the composite's derivation steps are cache hits and
   no csg/weg/itr tool is invoked.)
-- Reactive prune is **skipped by default**: no `prune` history line.
+- Reactive prune is **skipped by default**: no cache entry is removed
+  anywhere and no `prune` history line is written (R1; see §6).
+- With `--prune-on-reactive` the AD-30-bounded prune runs exactly once after
+  the declarative step and writes exactly one `prune` line whose `removed`
+  count equals the entries actually deleted.
 - `dotfiles-runtime capture` registers a real `capture` job
   (`GetActiveJobs`), `Control` pause → `capture.state == paused`, resume →
   `recording`, stop → `idle`, the job disappears, and the capture process
@@ -122,26 +126,46 @@ Exercised and passing:
 
 ## 6. Findings & residual risks
 
-### E2E finding R1 — the declarative step trims beyond-keep entries even with `--prune-on-reactive` off
+### E2E finding R1 — the declarative step trimmed beyond-keep entries even with `--prune-on-reactive` off — **RESOLVED**
 
-Reproduced on the private-bus E2E: with 7 prunable palette entries and the
-opt-in flag **OFF**, a reactive converge reduced the palette cache from 8 to
-5 entries and wrote **no** `prune` line. The deletions come from the
-declarative step (`_run_converge` → `ConvergeUseCase`, which executes
-`prunable_hashes`), not from `_run_prune`. With the flag **ON**, `_run_prune`
-runs but reports `removed=0` (the declarative step already deleted them) yet
-still writes a `prune` audit line.
+Original defect: with 7 prunable palette entries and the opt-in flag **OFF**,
+a reactive converge reduced the palette cache from 8 to 5 entries and wrote
+**no** `prune` line. The deletions came from the declarative step
+(`_run_converge` → `ConvergeUseCase`, which executed `prunable_hashes`), not
+from `_run_prune`. With the flag **ON**, `_run_prune` ran but reported
+`removed=0` (the declarative step had already deleted them) yet still wrote a
+`prune` audit line — a surprise-deletion / misleading-audit risk relative to
+AD‑30, and the opt-in did not protect data.
 
-Consequence: `_run_reactive_converge`'s documented "no deletion" default and
-the `daemon run` help text are **inaccurate**; the opt-in flag governs the
-`prune` audit leg only, while the real deletion is the always-on declarative
-diff trim. This is a **surprise-deletion / misleading-audit** risk relative
-to AD‑30, and it is **not fixed here** (changing deletion semantics touches
-the p4 planner and is not low-risk/surgical). It spans `_run_converge`
-(p4‑3‑2) and the reactive composite (5‑3/`eb06a61`), i.e. outside the two
-reviewed slices. **Recommend a follow-up decision** (gate the declarative
-trim, or correct the docs/audit attribution). Recorded in
-`deferred-work.md`? — not yet; proposed for the next bookkeeping pass.
+**Resolution (R1 fix).** The opt-in is now literally true and the double
+deletion is gone:
+
+- `_run_converge(*, suppress_history=False, allow_delete=True)`. With
+  `allow_delete=False` the deletion executor is a no-op (returns `False`), so
+  `ConvergeUseCase` plans the AD-30 removals but physically deletes nothing
+  and reports no deleted hashes. The manual `reconcile` path keeps
+  `allow_delete=True` — Phase 4 behavior unchanged.
+- `_run_reactive_converge` always calls
+  `_run_converge(suppress_history=True, allow_delete=False)`: the daemon's
+  declarative leg never deletes.
+- Deletion in the reactive path is solely the `_run_prune` leg, gated by
+  `prune_on_reactive`. OFF (default): no `_run_prune`, no cache entry removed
+  anywhere, no `prune` history line; the read-only INFO "would remove N" log
+  (`_log_reactive_prune_skipped` / `_build_prune_plan`) is computed at the
+  settled state. ON: `_run_prune(dry_run=False, keep=_keep(),
+  prune_pinned=False)` runs exactly once after the declarative leg, producing
+  exactly one `prune` line whose counts equal the entries actually removed
+  (> 0 when entries are prunable).
+
+Evidence (real, non-tautological — the declarative step is **not** faked):
+`tests/unit/test_cli_reactive_converge.py::TestReactivePrunePolicy` (OFF:
+palette entry set byte-identical + exactly one `reactive` line + no `prune`
+line; ON: real deletion, `removed == 3 > 0`, one `reactive` + one `prune`
+line, floor respected), the manual-reconcile guards in
+`tests/unit/test_cli_planner_wiring.py`, and the private-bus real-process E2E
+`tests/integration/test_phase5_reactive_runtime_e2e.py` (OFF: 8 → 8 entries,
+no `prune` line; ON: real removal with the audit count matching). AD‑30,
+AD‑35, AD‑40 and AD‑41 are preserved.
 
 ### Other non-blocking findings (from the Gate‑2 review)
 
@@ -157,8 +181,9 @@ trim, or correct the docs/audit attribution). Recorded in
 1. Live GJS/AGS bar E2E (Section 5).
 2. Container-target provisioning integration test (Section 5).
 3. Live user-systemd `sd_notify`/watchdog validation (Section 5).
-4. E2E finding R1 (declarative trim vs. prune opt-in) — needs a product
-   decision, not a mechanical fix.
+4. ~~E2E finding R1 (declarative trim vs. prune opt-in)~~ — **resolved**:
+   the declarative leg is now plan-only in the reactive path and the opt-in
+   gates the sole deletion pass (see §6).
 5. Launcher liveness/error surface (N1).
 
 ## 8. Files changed by this review (uncommitted)
@@ -181,6 +206,22 @@ Docs (3 files):
 - `_bmad-output/implementation-artifacts/phase5-completion-report.md` — this report.
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` — Phase‑5 states reconciled.
 
+### R1 follow-up fix (this change, uncommitted)
+
+Production (1 file):
+- `src/runtime/src/runtime/cli/main.py` — `_run_converge(allow_delete=...)`
+  no-op executor wiring; `_run_reactive_converge` passes `allow_delete=False`;
+  corrected `daemon run` help + docstrings.
+
+Tests (3 files):
+- `src/runtime/tests/unit/test_cli_reactive_converge.py` — policy tests now
+  exercise the **real** declarative step (no `_run_converge` fake).
+- `src/runtime/tests/unit/test_cli_planner_wiring.py` — manual-reconcile
+  `allow_delete=True` guard + `allow_delete=False` no-deletion guard.
+- `src/runtime/tests/integration/test_phase5_reactive_runtime_e2e.py` — OFF
+  asserts zero deletion; ON asserts the audit `removed` count matches actual
+  removal.
+
 `contracts/` is untouched.
 
 ## 9. Sign-off
@@ -190,9 +231,11 @@ contract/watch+reactive/capture+control/status/sd_notify/session-scope
 surface: full runtime suite green (1597/2), layering 105, contract gate 29,
 and real-process bus E2E green. Two blocking defects found by the adversarial
 review were fixed surgically with regressions. The sign-off is qualified by
-the explicitly deferred items above — most importantly the live GJS bar E2E
-and the declarative-trim/prune-opt-in finding (R1), which should be resolved
-before treating the prune opt-in as a data-safety guarantee.
+the explicitly deferred items above — most importantly the live GJS bar E2E.
+Finding R1 (declarative-trim / prune-opt-in) was subsequently **resolved**:
+with the opt-in OFF the reactive path performs no deletion at all, and with it
+ON the AD-30-bounded prune runs exactly once and is audited (see §6), so the
+prune opt-in is now a real data-safety guarantee.
 
 Branch after verification: `master` (unchanged).
 `git log --oneline -1`: `c9f2794 feat(runtime): production capture job host (dotfiles-runtime capture)`.
