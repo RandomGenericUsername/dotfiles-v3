@@ -103,10 +103,14 @@ automatic convergence is never invisible or unrecoverable.
   hydration path; `_STATUS_EPOCH_TOPIC` (`icme.saved`) is only a vehicle for
   it. No contract change (AD‑44 additive-only).
 - **Backstop timestamp (AD‑36/AD‑44):** `converged_at` is additive on the
-  v1 record; `read_record()` treats a missing/invalid timestamp as `None`.
-  A machine-checkable JSON Schema for the backstop record is **not** added
-  here: the change is confined to `src/runtime/` and must not touch
-  `contracts/` (a stated constraint). See Follow-ups.
+  v1 record; `read_record()` treats a missing timestamp as `None`. The
+  machine-checkable JSON Schema now exists:
+  `contracts/schemas/last-converged.schema.json` (v1: required `version` +
+  `input_hash`, optional additive `converged_at`), embedded byte-identically
+  under `src/runtime/src/runtime/adapters/schemas/` and enforced on read via
+  `fastjsonschema`. A record that violates it — unknown version, missing
+  required field, or mistyped timestamp — is logged and treated as changed
+  (never fatal). See Follow-ups (closed).
 - **Kill switch (AD‑41):** the unit is `Type=dbus`; `systemctl --user stop`
   sends SIGTERM, the installed handler releases the name, and the process
   exits 0. No `ExecStop`, no self-managed stop, no `daemon stop` subcommand.
@@ -154,11 +158,24 @@ no change for the kill switch (SIGTERM default).
 
 ## Follow-ups
 
-- **Backstop schema (AD‑44):** add `contracts/schemas/last-converged.schema.json`
-  (version 1: `input_hash` + `converged_at`) and a conformance test pinning
-  it — blocked here only by the "do not touch `contracts/` machine
-  definitions" constraint on this story.
-- **Unit `--activate` + `WatchdogSec`/`sd_notify`** wiring (carried from
-  P5‑1‑3) remains provisioning-owned and out of scope.
+- **Backstop schema (AD‑44) — done (follow-up):**
+  `contracts/schemas/last-converged.schema.json` (v1: required `version` +
+  `input_hash`, optional `converged_at`) is the machine definition; embedded
+  byte-identically under `adapters/schemas/`, enforced on read by
+  `fastjsonschema`, and pinned by
+  `tests/unit/test_contract_schema_conformance.py` and
+  `tests/unit/test_backstop_schema.py` under `make contracts-check`.
+- **Unit `--activate` + `WatchdogSec`/`sd_notify` — done (follow-up, P5):**
+  provisioning appends `--activate` when `runtime_daemon_activate` is true
+  (default observe-only) and the unit sets `WatchdogSec=30` +
+  `NotifyAccess=main`; the daemon sends `READY=1`/`WATCHDOG=1`/`STOPPING=1`
+  (no-op without `NOTIFY_SOCKET`). See `epic5-3-watch-reactive.md` →
+  "P5 follow-up closed".
+- **Degraded watch set is now surfaced (AD‑40, P5 follow-up):**
+  `inspect daemon` reports `watch health: unknown|ok|degraded (N unwatched: …)`
+  and names each unwatched root (JSON `watch_health`), read from the daemon's
+  atomically-persisted `<state_root>/watch-health.json`; `doctor` appends the
+  one-line summary without changing its exit code. The status surface stays
+  read-only and daemon-independent (no new D-Bus contract).
 - **`inspect daemon` rich rendering:** plain/JSON are exact today; rich
   mirrors plain (consistent with the other inspect commands).

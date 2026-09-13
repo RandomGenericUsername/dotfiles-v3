@@ -205,3 +205,25 @@ nothing but hold the name until SIGTERM.
    mutation) — confirm converge-on-start stays in P5‑1‑3 and is NOT
    smuggled into 5‑1‑1, and that provisioning (not runtime) authors +
    enables the unit file?
+
+## P5 follow-up closed (unit supervision + activation)
+
+The three P5‑1‑1 "Deferred (do NOT decide in this story)" unit items are now
+closed (provisioning-owned; runtime change limited to `cli/main.py` and a new
+`adapters/systemd_notify.py`):
+
+- **`WatchdogSec`/`sd_notify`** — the unit now sets `WatchdogSec=30` (+
+  `NotifyAccess=main`); the daemon sends `READY=1` after acquiring the name
+  and pings `WATCHDOG=1` on a background thread, so a wedged-but-name-owning
+  daemon is restarted by systemd. No `NOTIFY_SOCKET` ⇒ graceful no-op
+  (AC 2/3/5 unchanged for non-systemd invocations).
+- **Opt-in live mode** — `runtime_daemon_activate` (default `false`,
+  observe-only) conditionally appends `--activate` to `ExecStart`; the CLI
+  option also honours `$DOTFILES_RUNTIME_ACTIVATE`.
+- **Manager-less enablement** — `graphical-session.target.wants/` symlink
+  fallback retained, re-pinned by `test_managerless_fallback_is_wants_symlink`.
+
+**Verification:** provisioning role `20 passed` (was 15); the real
+`runtime-daemon.yaml` `ansible-playbook --check` integration dry-run
+`1 passed`. Full runtime suite and the exact counts are recorded in
+`epic5-3-watch-reactive.md` → "P5 follow-up closed".

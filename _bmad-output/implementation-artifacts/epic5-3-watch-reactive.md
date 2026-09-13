@@ -106,7 +106,9 @@ owns the single reactive line.
 - [x] `adapters/converge_inputs.py` — total, depth-bounded watch-set hasher with
       stable sentinels.
 - [x] `adapters/converge_backstop.py` — atomic read/write under `state_root`,
-      symlink refusal, corrupt ⇒ changed.
+      symlink refusal, corrupt ⇒ changed; record shape machine-defined by
+      `contracts/schemas/last-converged.schema.json` (AD‑44, follow-up) and
+      enforced on read via `fastjsonschema`.
 - [x] `application/converge.py` — `ReactiveConvergeUseCase` (backstop
       short-circuit, unseeded no-op, observe-only, composite order, single
       append before backstop write).
@@ -136,6 +138,12 @@ owns the single reactive line.
 - **Never write a watched root (AD‑36):** the backstop lives at
   `<state_root>/last-converged.json`; a test asserts it is not in the watched
   set. The intent document moved out of `state_root` to `$XDG_CONFIG_HOME`.
+- **Backstop machine contract (AD‑44, follow-up):** the v1 record shape
+  (`version` + `input_hash` + additive optional `converged_at`) is defined by
+  `contracts/schemas/last-converged.schema.json`, embedded byte-identically
+  under `adapters/schemas/`, and enforced on read with `fastjsonschema`. A
+  schema violation (unknown version, missing required field, mistyped field)
+  is logged and treated as changed, preserving the AD‑36 short-circuit policy.
 - **Always a full re-scan:** the converge recomputes the whole watch-set hash
   on every trigger, so `full_rescan` is presently informational (overflow and
   registration loss are already equivalent to a full rescan). The flag is kept
@@ -184,3 +192,71 @@ Changed: `adapters/desired_state_reader.py`, `adapters/seeder.py`,
 
 Untouched by this story: `src/runtime/src/runtime/adapters/bar_subscriber.py`
 (another owner) and all of `contracts/`.
+
+## P5 follow-up closed (runtime/provisioning surface)
+
+The four deferred items from the "Deferred / follow-up slice candidates" list
+are now closed on the runtime/provisioning surface (no `contracts/` change;
+no change to the hub wire contract):
+
+1. **Multi-session `state_root` scoping.** `_resolve_state_root(session_id=None)`
+   resolves a session identifier and scopes to
+   `<xdg_state>/dotfiles/sessions/<id>`; with none it returns the historical
+   path **byte-identically**. Resolution: `$DOTFILES_SESSION_ID` (explicit,
+   sanitized `[A-Za-z0-9._-]`, hostile/empty ⇒ safe fallback), else when
+   `$DOTFILES_SESSION_SCOPE` is truthy `$XDG_SESSION_ID` then the
+   `$XDG_RUNTIME_DIR` basename. Tests: `tests/unit/test_cli_state_root.py`.
+2. **inotify watch-registration exhaustion recovery (AD‑40).** The adapter
+   records unwatchable roots and exposes a pure
+   `WatchStatus(registered, failed, last_error)`; exhaustion
+   (`ENOSPC`/`EMFILE`/`ENFILE`) is logged at **ERROR**, not silently dropped.
+   `WatchCoordinator` retries a degraded set **once per burst on the next
+   arriving event** (never a poll) and re-installs via `rebuild()`; the latest
+   status is persisted atomically to `<state_root>/watch-health.json`
+   (`adapters/watch_health.py`) so the daemon-independent surface can read it.
+   Tests: `tests/unit/test_inotify_registration_recovery.py`,
+   `tests/unit/test_watch_health.py`.
+3. **`WatchdogSec` + `sd_notify` (AD‑33/AD‑41 residual).** New adapter
+   `adapters/systemd_notify.py` (stdlib unix datagram; abstract `@` socket
+   supported). The daemon sends `READY=1` **after owning the name**, pings
+   `WATCHDOG=1` on a background thread at half `$WATCHDOG_USEC` (default
+   30 s/2), and `STOPPING=1` on shutdown; with no `NOTIFY_SOCKET` every call
+   is a graceful no-op (never gates, never crashes). The unit sets
+   `WatchdogSec=30` + `NotifyAccess=main`. Tests:
+   `tests/unit/test_systemd_notify.py` + `TestSystemdNotify` in
+   `test_daemon_run.py`.
+4. **Provisioning opt-in live mode (`--activate`).** `runtime_daemon_activate`
+   (default `false`, observe-only) conditionally appends `--activate` to the
+   unit's `ExecStart`; the CLI option also honours
+   `$DOTFILES_RUNTIME_ACTIVATE`. Manager-less enablement via
+   `graphical-session.target.wants/` is retained and re-pinned.
+   Tests: `tests/unit/test_runtime_daemon_role.py`.
+
+**Observability of a degraded watch set.** `inspect daemon` reports
+`watch health: unknown|ok|degraded (N unwatched: …)` and names each unwatched
+root (JSON `watch_health`); `doctor` appends the same one-line summary without
+changing its exit code (watch exhaustion is an environment limit, not desktop
+drift).
+
+## Verification (follow-up, exact)
+
+- `uv run --directory src/runtime pytest` → **1532 passed, 2 skipped**
+  (pre-follow-up baseline: 1488 passed, 2 skipped; **+44 tests, all green**).
+- `uv run --directory src/runtime ruff check src` → **3 errors, all
+  pre-existing/unrelated** (2× B008 `typer.Option` in `main.py`; 1× E501
+  `domain/models.py`).
+- `tests/architecture/test_layering.py` → **103 passed**.
+- `make contracts-check` → **27 passed**.
+- Provisioning unit: **572 passed, 2 failed, 28 deselected** — the 2 failures
+  (`test_compositor_configs_role`, `test_packages_role`) are pre-existing and
+  unrelated (untouched files; provisioning shows no other diff). The
+  `runtime_daemon` role: **20 passed** (was 15).
+- Provisioning integration: `test_ansible_dryrun.py` + `test_settings_parity.py`
+  → **21 passed, 1 skipped**; the real `runtime-daemon.yaml --check` dry-run →
+  **1 passed**.
+
+**Genuinely remaining (not this surface):** out-of-process `Control(job_id,
+action)` delivery / daemon-hosted job runner (Epic 5‑4) needs an owner/contract
+decision — **no contract change was invented here**; the container-target
+provisioning integration test (`test_apply_verify_container.py`) is not run
+unattended (heavy nested-engine/network target).
