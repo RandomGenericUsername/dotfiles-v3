@@ -1,7 +1,10 @@
 import Network from "gi://AstalNetwork"
+import Gtk from "gi://Gtk?version=4.0"
+import Gdk from "gi://Gdk?version=4.0"
 import { execAsync } from "ags/process"
 import { createBinding, createComputed, createEffect } from "ags"
 import { registry } from "../../lib/icon-registry"
+import { findNetworkItem, popupItemMenu } from "../../lib/status-notifier"
 
 const network = Network.get_default()
 const wifi = createBinding(network, "wifi")
@@ -80,6 +83,16 @@ export function NetworkStatus() {
     <button
       class="widget network-widget"
       onClicked={() => execAsync(["kitty", "--", "wifitui", "tui"])}
+      $={(self) => {
+        // Left click = wifitui TUI (onClicked); right click = the nm-applet
+        // StatusNotifier menu, which the tray no longer renders separately.
+        const secondary = new Gtk.GestureClick({ button: Gdk.BUTTON_SECONDARY })
+        secondary.connect("pressed", () => {
+          const item = findNetworkItem()
+          if (item) popupItemMenu(item, self)
+        })
+        self.add_controller(secondary)
+      }}
     >
       <box spacing={4}>
         <image
