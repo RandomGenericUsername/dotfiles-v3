@@ -250,11 +250,11 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 29, (
-            f"expected exactly 29 skeleton files (hyprland.lua + gloview.lua + "
+        assert len(files) == 31, (
+            f"expected exactly 31 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+icon-registry+"
-            f"status-notifier+Bar.tsx+10 bar widgets + rofi launcher config.rasi + "
-            f"hypr colors.lua); found {len(files)}"
+            f"status-notifier+event-bus+event-bus-core+Bar.tsx+10 bar widgets + "
+            f"rofi launcher config.rasi + hypr colors.lua); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -269,6 +269,8 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/bar/widgets/thunderbird.tsx",
             "dotfiles/config/ags/bar/widgets/tray.tsx",
             "dotfiles/config/ags/bar/widgets/workspaces.tsx",
+            "dotfiles/config/ags/lib/event-bus-core.ts",
+            "dotfiles/config/ags/lib/event-bus.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/lib/status-notifier.ts",
             "dotfiles/config/ags/style.css",
@@ -607,6 +609,8 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "style.css",
                 install / "config" / "ags" / "icons.json",
                 install / "config" / "ags" / "lib" / "icon-registry.ts",
+                install / "config" / "ags" / "lib" / "event-bus.ts",
+                install / "config" / "ags" / "lib" / "event-bus-core.ts",
                 install / "config" / "ags" / "bar" / "Bar.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "workspaces.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "clock.tsx",

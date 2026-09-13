@@ -111,6 +111,8 @@ compositor_configs_skeleton_files:
   - { name: ags-style-css, source: dotfiles/config/ags/style.css, dest: "{{ compositor_configs_spine_config_dir }}/ags/style.css" }
   - { name: ags-icon-registry, source: dotfiles/config/ags/lib/icon-registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/icon-registry.ts" }
   - { name: ags-status-notifier, source: dotfiles/config/ags/lib/status-notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/status-notifier.ts" }
+  - { name: ags-event-bus, source: dotfiles/config/ags/lib/event-bus.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus.ts" }
+  - { name: ags-event-bus-core, source: dotfiles/config/ags/lib/event-bus-core.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus-core.ts" }
   - { name: ags-bar-tsx, source: dotfiles/config/ags/bar/Bar.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx" }
   - { name: ags-workspaces, source: dotfiles/config/ags/bar/widgets/workspaces.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/workspaces.tsx" }
   - { name: ags-clock, source: dotfiles/config/ags/bar/widgets/clock.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/clock.tsx" }

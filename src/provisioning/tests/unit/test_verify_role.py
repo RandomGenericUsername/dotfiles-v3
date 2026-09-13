@@ -1139,6 +1139,20 @@ class TestVerifyVars:
             "power-options-gtk",
         ]
 
+    def test_verify_lists_include_the_phase5_event_modules(self) -> None:
+        """Phase 5 event seam: verify gates the AGS bar event-bus modules
+        (compositor_configs) and the ICME event-contract/event-bus modules
+        (gui_tools) so a real install cannot ship a shell whose event seam was
+        never deployed — the per-file provisioning manifests are the
+        deployment contract."""
+        data = _vars()
+        skeletons = [str(f) for f in data["verify_compositor_skeleton_files"]]
+        assert "{{ install_dir | trim }}/config/ags/lib/event-bus.ts" in skeletons
+        assert "{{ install_dir | trim }}/config/ags/lib/event-bus-core.ts" in skeletons
+        gui = [str(f) for f in data["verify_gui_tools_app_files"]]
+        assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
+        assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts" in gui
+
     def test_vars_use_non_deprecated_env_fact(self) -> None:
         """F4 lock: vars read ansible_facts.env, never the deprecated top-level
         ansible_env fact (INJECT_FACTS_AS_VARS injection that hard-breaks on
@@ -1666,9 +1680,12 @@ def _build_provisioned_layout(
         "ags-capture",
         "ags-capture/ui",
         "ags-capture/controllers",
+        "ags-icme/lib",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
+    (install / "config" / "ags" / "lib" / "event-bus.ts").write_text("")
+    (install / "config" / "ags" / "lib" / "event-bus-core.ts").write_text("")
     (install / "config" / "ags" / "bar" / "Bar.tsx").write_text("")
     for widget in (
         "workspaces",
@@ -1699,6 +1716,10 @@ def _build_provisioned_layout(
         (
             install / "config" / "ags-capture" / "controllers" / f"{controller}.ts"
         ).write_text("")
+    # Icon color mapping editor (gui_tools role): verify gates its event seam
+    # modules (Phase 5 event-contract + event-bus).
+    (install / "config" / "ags-icme" / "lib" / "event-contract.ts").write_text("")
+    (install / "config" / "ags-icme" / "lib" / "event-bus.ts").write_text("")
     # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
     # owns the R2 consumer symlink, created above).
 

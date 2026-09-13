@@ -161,6 +161,70 @@ class TestGuiToolsVars:
             path = _REPO_ROOT / str(entry["source"])
             assert path.is_file(), f"app source missing from repo: {entry['source']}"
 
+    def test_icme_app_files_exact_list(self) -> None:
+        """The icon color mapping editor file set, exactly: entry point,
+        stylesheet, dialogs, and every lib module the editor imports — including
+        the Phase 5 event seam (event-contract.ts + event-bus.ts). Deployed by
+        the raw-copy task (NOT template: literal {{PLACEHOLDER}} sequences would
+        be destroyed by Jinja2)."""
+        files = list(_vars()["gui_tools_icme_app_files"])
+        assert len(files) == 20, f"expected exactly 20 icme files; found {len(files)}"
+        sources = sorted(str(f["source"]) for f in files)
+        expected = [
+            "src/gui-tools/icon-color-mapping-editor/app.tsx",
+            "src/gui-tools/icon-color-mapping-editor/lib/diff.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/event-contract.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/inputs.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/itr.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/model.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/substitute.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/svg.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/templates.ts",
+            "src/gui-tools/icon-color-mapping-editor/style.css",
+            "src/gui-tools/icon-color-mapping-editor/ui/DiffPane.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/EditorWindow.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/GroupTree.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/InputsPanel.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/Preview.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/ScopeSwitch.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/SelectionPanel.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/TemplatesTab.tsx",
+            "src/gui-tools/icon-color-mapping-editor/ui/TokenPicker.tsx",
+        ]
+        assert sources == expected, (
+            f"gui_tools_icme_app_files sources must be exactly {expected}; got {sources}"
+        )
+        for entry in files:
+            dest = str(entry["dest"])
+            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-icme/"), (
+                f"icme dest must derive from gui_tools_spine_config_dir/ags-icme: {dest}"
+            )
+
+    def test_icme_app_sources_exist_in_repo(self) -> None:
+        """Every icme source resolves to a real repo file (typo-proof)."""
+        for entry in _vars()["gui_tools_icme_app_files"]:
+            path = _REPO_ROOT / str(entry["source"])
+            assert path.is_file(), f"icme app source missing from repo: {entry['source']}"
+
+    def test_every_icme_dest_parent_is_an_ensured_dir(self) -> None:
+        """Regression lock: `copy` does NOT create dest parents, so every icme
+        file dest's parent dir must be listed in gui_tools_config_dirs."""
+        data = _vars()
+        ensured = {
+            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
+            for d in data["gui_tools_config_dirs"]
+        }
+        for entry in data["gui_tools_icme_app_files"]:
+            dest = str(entry["dest"])
+            parent = dest.rsplit("/", 1)[0].replace(
+                "{{ gui_tools_spine_config_dir }}", "<spine>"
+            )
+            assert parent in ensured, (
+                f"dest parent {parent!r} of {entry['name']} is not an ensured "
+                f"dir (copy would fail); add it to gui_tools_config_dirs"
+            )
+
     def test_every_dest_parent_is_an_ensured_dir(self) -> None:
         """Regression lock (bootstrap failure 2026-09-05): `template` does
         NOT create dest parents, so every file dest's parent dir must be
