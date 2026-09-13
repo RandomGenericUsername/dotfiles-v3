@@ -1,5 +1,37 @@
 # Deferred Work
 
+## Deferred from: Phase 5 completion review (2026-09-13)
+
+- **R1 — the reactive prune opt-in does not gate the real deletion.** With
+  `--prune-on-reactive` OFF (the default), a reactive converge still deletes
+  cache entries beyond the `keep` floor: the composite's declarative step
+  (`_run_converge` → `ConvergeUseCase`) executes `actual.prunable_hashes`
+  before the gated `_run_prune` leg runs. Reproduced on a private-bus E2E:
+  8 palette entries → 5, **no** `prune` history line. With the flag ON,
+  `_run_prune` runs but logs `removed=0` (the declarative step already
+  deleted them) yet writes a `prune` audit line, so the audit is misleading.
+  `_run_reactive_converge`'s "performs no deletion" docstring and the
+  `daemon run` help text are inaccurate. Needs a product decision (gate the
+  declarative trim, or correct the docs/audit attribution) — changing the
+  p4 planner's deletion semantics is not a surgical fix. Evidence:
+  `phase5-completion-report.md` §6;
+  [src/runtime/src/runtime/cli/main.py:1303-1314, :2102-2151,
+  src/runtime/src/runtime/application/planner.py:80-96].
+- **Launcher has no liveness/error surface (Gate-2 N1).** `capture-tool
+  start` spawns `dotfiles-runtime capture` detached and immediately emits
+  `{"state":"recording"}` with exit 0; a recorder that dies during startup
+  is silent to the user (the bar indicator is event-driven and simply never
+  appears). Follow-up: confirm the job registered before reporting success.
+  [src/gui-tools/capture-tool/bin/capture-tool:182-192].
+- **Real capture controller's control errors are untyped (Gate-2 N2).**
+  `CaptureController.control` raises bare `RuntimeError` for an unknown job /
+  invalid transition, which crosses as `Failed` → `HubError` rather than the
+  contract's `NotControllable`. [src/runtime/src/runtime/application/capture.py:154-170].
+- **Validation gaps (not defects):** no live GJS/AGS bar E2E (hydration core
+  is node-tested, `GetTopicState` is E2E-verified); container-target
+  provisioning integration not run (needs podman/docker); live user-systemd
+  `sd_notify` not exercised. See `phase5-completion-report.md` §5.
+
 ## Deferred from: StatusNotifier tray custom menus (2026-09-13)
 
 - The SNI menu relay is a dead end on this stack: libastal-tray's `TrayItem.action_group` is a local `Gio.SimpleActionGroup` whose activations do NOT reach the owning app. The popover renders and submenus navigate, but selecting any item is a no-op — nm-applet "Connect"/"Disconnect" do nothing and the Wi-Fi state is unchanged. Inserting the item's group directly additionally crashes AGS (GLib refcount underflow, `g_atomic_ref_count_dec`). `dotfiles/config/ags/lib/status-notifier.ts` now opens menus from a private model copy + a forwarding `SimpleActionGroup` (commit 959e103): this stopped the crashes but cannot make the actions work. Tidal's exported menu is Electron's webview menu (Edit → Select All/Copy), so it is useless as a tray menu even if the relay worked.

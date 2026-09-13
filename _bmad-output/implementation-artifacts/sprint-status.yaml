@@ -33,7 +33,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
-last_updated: "2026-09-13 (Phase 5 partial: P5-1-2b-ii-a/ii-b + Epics 5-2/5-3 + first 5-4 slice landed in b1674aa; p5-1-4 status surface still open)"
+last_updated: "2026-09-13 (Phase 5 COMPLETE — verified at c9f2794: runtime 1597 passed/2 skipped, layering 105, contracts-check 29, private-bus E2E 2 passed. Gate-2 review p5-4-job1-control-capture-host-gate2-review.md: 2 blocking defects (B1 reply mis-routing, B2 recorder-failure lease leak) reproduced and fixed; R1 declarative-trim/prune-opt-in residual deferred)"
 project: dotfiles-repo-v3
 project_key: NOKEY
 tracking_system: file-system
@@ -198,16 +198,18 @@ development_status:
   # ═══════════════════════════════════════════════════════════════════
 
   # ── Epic 5-1: Daemon foundation, observability & safety ──
-  p5-epic-1: in-progress   # open on p5-1-4 (status surface)
+  p5-epic-1: done
   p5-1-1-daemon-run-skeleton: done
   p5-1-2a-hub-registry-leases: done
   p5-1-2b-i-hub-wire-dispatch: done
-  # gate2 CHANGES-REQUIRED: wire-reachable heterogeneous-array payload escapes
-  # Emit validation and aborts the signal drain (see the ii-a/ii-b reviews).
+  # gate2 B1 (heterogeneous-array payload escaped Emit validation and aborted
+  # the signal drain) was CLOSED by 0e95bd1 (mapping guarded in _drain_signals
+  # + regression). Verified green at c9f2794.
   p5-1-2b-ii-a-hub-event-surface-emit: done
   p5-1-2b-ii-b-signal-emission-restart: done
   p5-1-3-watch-reactive-reconcile: done   # folded into p5-3-watch-reactive (no standalone artifact)
-  p5-1-4-status-surface: in-progress   # concurrent agent: artifact p5-1-4-status-kill-switch-audit.md + daemon_status.py landed UNCOMMITTED during this review; not verified here (owned elsewhere)
+  p5-1-4-status-surface: done   # 0e95bd1: inspect daemon + kill-switch + audit; test_cli_inspect_daemon.py; E2E-verified (inspect daemon --format json)
+  p5-session-scope-sd-notify: done   # 1f0fc67: session-scoped state_root, watch-exhaustion recovery, sd_notify watchdog, opt-in live mode
 
   # ── Epic 5-2: Event contract & bus ──
   p5-epic-2: done
@@ -217,6 +219,10 @@ development_status:
   p5-epic-3: done
   p5-3-watch-reactive: done   # gate2: APPROVED-WITH-FOLLOWUPS
 
-  # ── Epic 5-4: Shell reactivity (first slice only) ──
-  p5-epic-4: in-progress   # out-of-process Control + daemon-hosted job runner remain
+  # ── Epic 5-4: Shell reactivity ──
+  p5-epic-4: done
   p5-4-shell-reactivity: done   # gate2: APPROVED-WITH-FOLLOWUPS
+  p5-4-job-control-channel: done   # f31103a: org.dotfiles.Job1.Control + fail-loud Control (N2 closed). gate2 B1 (hub pump dropped outer ack) reproduced + FIXED in review (uncommitted)
+  p5-4-production-capture-host: done   # c9f2794: dotfiles-runtime capture (resident host + serve Job1 + degrade-to-local); gate2 B2 (recorder-start lease leak/masking error) reproduced + FIXED in review (uncommitted)
+  p5-3-reactive-prune-opt-in: done   # eb06a61: --prune-on-reactive default off (audit leg); residual R1: declarative diff trim still deletes beyond-keep entries when OFF (see phase5-completion-report.md §6)
+  p5-e2e-private-bus-harness: done   # new tests/integration/test_phase5_reactive_runtime_e2e.py (uncommitted)
