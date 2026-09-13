@@ -108,3 +108,29 @@ Verified claims:
    no-op semantics.
 3. Extend the bar to `(epoch, seq)` hydration/stale-drop (N3) and bring the
    ICME GJS file into the drift scan (N7).
+
+---
+
+## Post-review addendum — N2 closure (5-4 job-control channel)
+
+Finding **N2 is closed**. The hub now delegates `Control` over a
+request/response job-control channel:
+
+- a consumer keeps calling `Events1.Control(job_id, action)`;
+- the hub validates against the domain allowlist, resolves the job's
+  bus-attested unique name (recorded from the `BeginJob` sender), and calls
+  `org.dotfiles.Job1.Control(action)` on it with a timeout, outside the
+  dispatcher lock; and
+- **success is returned only on the job's ack** — with no live endpoint the
+  hub raises the typed `UnknownJob` (never a silent success).
+
+Findings **N1 (no production job host)** and **N3–N8** are unchanged by this
+slice; the job-side serving loop is built and tested but no shipped host runs
+it yet. See `epic5-4-shell-reactivity.md` → "Post-review addendum — Phase 5
+job-control channel" for the contract delta, the N2 proof, and the files
+changed.
+
+Verification: full runtime suite **1573 passed, 2 skipped**; layering **103
+passed**; `make contracts-check` **29 passed**; `ruff check src` and
+`mypy src` report only the pre-existing errors (3 and 6 respectively). No
+consumer/bar change was required.

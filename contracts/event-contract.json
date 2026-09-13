@@ -33,6 +33,15 @@
     "adopt_method": "AdoptJob",
     "control_method": "Control"
   },
+  "job_interface": {
+    "interface": "org.dotfiles.Job1",
+    "object_path": "/org/dotfiles/Job",
+    "methods": {
+      "Control": { "in": ["action:s"] }
+    },
+    "served_by": "each job process on its own bus-attested unique name; the hub is the only caller and delegates org.dotfiles.Events1.Control(job_id, action) to it",
+    "delivery": "request/response: Events1.Control returns success only on the job ack; unreachable/dead/timed-out -> UnknownJob"
+  },
   "errors": ["UnknownTopic", "PayloadTooLarge", "RateLimited", "UnknownJob", "JobEnded", "NotControllable"],
   "delivery": {
     "semantics": "at-most-once",

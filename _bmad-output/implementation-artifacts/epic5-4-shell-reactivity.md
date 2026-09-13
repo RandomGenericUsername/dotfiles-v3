@@ -276,3 +276,89 @@ carried P5‑1‑2b‑ii baseline, not from this story.
 6. **ICME end‑to‑end.** The GJS `publishIcmeSaved` is bundle‑checked only
    (no JS runner); a VM smoke test should confirm the hub receives
    `icme.saved` and that the bar/daemon behavior is unchanged.
+
+---
+
+## Post‑review addendum — Phase 5 job‑control channel (5‑4 follow‑up, N2 closure)
+
+Status: **complete** — contract + hub channel + job‑side serving + tests + docs;
+full runtime suite green. Nothing committed.
+
+This lands the "out‑of‑process `Control` delivery" follow‑up (item 1 above) and
+closes Gate‑2 finding **N2** (the hub used to answer `Control` successfully
+with no consumer).
+
+### What changed
+
+- **Contract (additive; `Events1` members untouched).**
+  `contracts/event-contract.xml` is now a `/org/dotfiles` tree with two
+  children: `Events` (`org.dotfiles.Events1`, unchanged) and `Job`
+  (`org.dotfiles.Job1`, `Control(action:s)`). `contracts/event-contract.json`
+  gains a `job_interface` block (name/path/method/delivery);
+  `event-contract.md` documents request/response delegation.
+- **Request/response control (AD‑38/H1).** A consumer still calls
+  `Events1.Control(job_id, action)`. The hub validates the action against the
+  domain allowlist (`EventHub.control` stays the allowlist source), resolves
+  the job's **bus‑attested unique name** recorded from the `BeginJob` sender
+  (transport state in the adapter only), makes a synchronous outbound
+  `org.dotfiles.Job1.Control(action)` call with a timeout — **outside** the
+  dispatcher lock — and returns success only on the job's ack.
+- **Port + adapters.** `IControlChannel.send_control(job_id, action)` in
+  `ports/jobs.py`; `DbusControlChannel` (hub side, `dbus_event_bus.py`) and
+  `InProcessControlChannel` (co‑hosted/tests, `in_process_job_client.py`). The
+  old `HubService.register_control`/`_notify_control` fan‑out is removed.
+- **Endpoints.** `JeepneyNameOwner` binds `job_id -> BeginJob sender` on
+  success, unbinds on `EndJob`, and drops mappings on `NameOwnerChanged`
+  (owner loss). A missing/unreachable/dead/timed‑out endpoint drops the stale
+  mapping and raises `UnknownJob`; a typed job error crosses through.
+- **Job side.** `DbusJobClient` serves `/org/dotfiles/Job` /
+  `org.dotfiles.Job1` on the same connection it used for `BeginJob`, routes
+  `Control` to a registered handler (the capture controller's
+  pause/resume/stop), and answers typed errors. `serve(...)` runs the receive
+  loop (with an optional cadence tick) on the single blocking connection.
+- **Wiring.** `cli/main.py` injects a `DbusControlChannel` into the daemon's
+  `HubService`; the owner binds its owned connection on acquire. No consumer
+  (bar) change is needed — the bar already calls `Events1.Control`.
+
+### N2 proof
+
+With no live endpoint — no channel injected, or the channel has no binding for
+`job_id` — `HubService.Control` now raises the typed `UnknownJob` (wire:
+`org.dotfiles.Events1.UnknownJob`) instead of returning `("", ())`. Tests:
+`test_dbus_dispatch.py::TestControlDelegation::test_control_without_channel_fails_loud`,
+`test_job_hub_wiring.py::TestInProcessControlChannel::test_live_job_without_endpoint_fails_loud`,
+and `test_control_channel.py` (unbound/dead/timeout → `UnknownJob`).
+
+### Exact verification
+
+| Command | Result |
+| --- | --- |
+| `uv run --directory src/runtime pytest` | **1573 passed, 2 skipped** (baseline 1539/2; +34) |
+| `uv run --directory src/runtime ruff check src` | 3 errors, all pre‑existing (2× B008 typer, 1× E501 models) |
+| `uv run --directory src/runtime mypy src` | 6 errors, all pre‑existing (models, actual_state, cli/main stubs + no‑redef) |
+| `uv run --directory src/runtime pytest tests/architecture/test_layering.py` | **103 passed** |
+| `make contracts-check` | **29 passed** |
+| `test_control_channel.py` / `test_dbus_job_client.py` / `test_dbus_dispatch.py` | 12 / 14 / 78 |
+| `test_job_hub_wiring.py` / `test_dbus_conformance.py` | 12 / 13 |
+| `test_event_contract_conformance.py` / `test_event_contract_drift.py` | 3 / 8 |
+
+### Files changed
+
+- Contract: `contracts/event-contract.{xml,json,md}`
+- Runtime: `ports/jobs.py`, `adapters/dbus_event_bus.py`,
+  `adapters/dbus_job_client.py`, `adapters/in_process_job_client.py`,
+  `cli/main.py`
+- Tests: `tests/unit/test_control_channel.py` (new),
+  `test_dbus_dispatch.py`, `test_dbus_job_client.py`, `test_job_hub_wiring.py`,
+  `test_dbus_conformance.py`, `test_event_contract_conformance.py`,
+  `test_event_contract_drift.py`
+
+### Remaining (explicit)
+
+- **Production job host.** There is still no production host that runs the
+  resident capture job (Gate‑2 N1). The job‑side `serve` loop exists and is
+  tested, but no shipped process calls it; the TypeScript `capture-tool`
+  remains the production capture surface. Wiring a `dotfiles-runtime capture`
+  host to `DbusJobClient.serve` is the next slice.
+- **`capture.state` rate budget** and bar hydration (follow‑ups 2/5) are
+  unchanged.

@@ -17,13 +17,18 @@ machine-checked by executable conformance; this prose is descriptive.
   one** process, the runtime daemon (`dotfiles-runtime daemon run`), the **hub**
   (AD‑38). Jobs/tools emit **through** the hub and never request an
   `org.dotfiles.*` name; if the daemon is absent they publish nothing.
-- **Object path:** `/org/dotfiles/Events`
-- **Interface (versioned):** `org.dotfiles.Events1`
+- **Hub object path:** `/org/dotfiles/Events`, **interface (versioned):**
+  `org.dotfiles.Events1`.
+- **Job object path:** `/org/dotfiles/Job`, **interface (versioned):**
+  `org.dotfiles.Job1` — served by **each job process on its own bus-attested
+  unique name**. A job requests no well-known name. The hub is the **only**
+  caller (see *Jobs and control*).
 
-A breaking change becomes `org.dotfiles.Events2`. **Additive** changes — a new
-method, signal, topic, or optional field — stay on `…Events1`; a **removed,
-retyped, or newly-required** field is breaking. `Events1` and `Events2` may
-coexist on the bus under distinct interface names while consumers migrate.
+A breaking change becomes `org.dotfiles.Events2` (hub) or
+`org.dotfiles.Job2` (job). **Additive** changes — a new method, signal,
+topic, or optional field — stay on `…Events1`/`…Job1`; a **removed, retyped,
+or newly-required** field is breaking. Versions may coexist on the bus under
+distinct interface names while consumers migrate.
 
 ## Methods (hub)
 
@@ -70,9 +75,30 @@ A job obtains a `job_id` via `BeginJob`, **renews its lease** while alive
 (`RenewJob`), and ends with `EndJob`. A job that dies without ending is **expired
 by the hub** (synthetic `JobFinished` with `exit_code = -1`). A wrapper that
 spawns the observed process and exits **adopts** it (`AdoptJob`) so the hub
-records the child. A job that exposes control registers its allowed actions
-(`pause`/`resume`/`stop` for capture); the hub is the **single control path**
-(`Control`), so a UI never shells the tool directly.
+records the child.
+
+### Control is request/response (hub is the single path)
+
+A job that exposes control **serves** `/org/dotfiles/Job` / `org.dotfiles.Job1`
+on the same connection it used for `BeginJob` (so its bus-attested unique name
+is the one the hub saw). The allowed actions per job kind live in the hub
+(`pause`/`resume`/`stop` for capture).
+
+A consumer (bar/UI) calls **`Events1.Control(job_id, action)`** and nothing
+else — it never addresses `Job1` and never shells the tool (AD‑38/H1). The hub:
+
+1. validates `action` against the domain allowlist (unknown action →
+   `NotControllable`; unknown/ended job → `UnknownJob`/`JobEnded`);
+2. resolves the job's **bus-attested unique name**, recorded from the
+   `BeginJob` sender (transport state only — never the domain);
+3. makes a **synchronous outbound call** `org.dotfiles.Job1.Control(action)` to
+   that unique name with a timeout, **outside** the dispatcher lock; and
+4. returns success to the consumer **only on the job's ack**.
+
+An unreachable, dead, or timed-out endpoint is a **loud** typed `UnknownJob`
+(never a silent success — a UI can always tell the action did not apply). A
+typed error the job returns crosses through unchanged. If the owner is gone,
+the normal lease expiry still yields the synthetic `JobFinished(-1)`.
 
 ## Known topics and payload schemas
 
