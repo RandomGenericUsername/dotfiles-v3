@@ -159,7 +159,7 @@ export function ItemCard(
 
   const header = new Gtk.Box({
     orientation: Gtk.Orientation.HORIZONTAL,
-    spacing: 8,
+    spacing: 5,
     css_classes: ["pano-head", headerTextClass(item.kind)],
   })
   const badge = new Gtk.Label({ label: String(index), xalign: 0.5 })
