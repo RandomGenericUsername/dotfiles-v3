@@ -156,28 +156,30 @@ export function ItemCard(
   // default), so the header/body follow the card radius like the mockup.
   card.set_overflow(Gtk.Overflow.HIDDEN)
   card.set_size_request(260, -1)
+  card.set_hexpand(false)
+  card.set_halign(Gtk.Align.START)
 
-  const header = new Gtk.Box({
-    orientation: Gtk.Orientation.HORIZONTAL,
-    spacing: 4,
+  // CenterBox lays start/end out itself — no child hexpand, which would
+  // otherwise propagate up and make the card stretch in the list.
+  const header = new Gtk.CenterBox({
     css_classes: ["pano-head", headerTextClass(item.kind)],
   })
+  const headStart = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 4 })
   const badge = new Gtk.Label({ label: String(index), xalign: 0.5 })
   badge.add_css_class("pano-index")
   badge.set_size_request(18, 18)
   badge.set_halign(Gtk.Align.CENTER)
   badge.set_valign(Gtk.Align.CENTER)
-  header.append(badge)
-
-  header.append(uiIcon(item.kind, 18))
-
-  const label = new Gtk.Label({ label: TYPE_LABEL[item.kind], xalign: 0, hexpand: true })
+  headStart.append(badge)
+  headStart.append(uiIcon(item.kind, 18))
+  const label = new Gtk.Label({ label: TYPE_LABEL[item.kind], xalign: 0 })
   label.add_css_class("pano-head-label")
-  header.append(label)
+  headStart.append(label)
+  header.set_start_widget(headStart)
 
   const time = new Gtk.Label({ label: relativeTime(item.timestamp) })
   time.add_css_class("pano-time")
-  header.append(time)
+  header.set_end_widget(time)
   card.append(header)
 
   const body = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })

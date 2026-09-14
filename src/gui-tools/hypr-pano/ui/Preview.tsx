@@ -33,13 +33,18 @@ export function Preview(item: ClipboardItem): Gtk.Widget {
         BODY_WIDTH,
         BODY_HEIGHT,
       )
-      const image = Gtk.Image.new_from_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-      image.set_size_request(BODY_WIDTH, BODY_HEIGHT)
-      image.set_halign(Gtk.Align.CENTER)
-      image.set_valign(Gtk.Align.CENTER)
+      const picture = Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+      picture.set_content_fit(Gtk.ContentFit.COVER)
+      picture.set_size_request(BODY_WIDTH, BODY_HEIGHT)
+      // Gtk.Picture reports expand via compute_expand; putting it in a
+      // Gtk.Fixed (which does not propagate expand) keeps the card fixed-size.
+      const fixed = new Gtk.Fixed()
+      fixed.set_size_request(BODY_WIDTH, BODY_HEIGHT)
+      fixed.set_overflow(Gtk.Overflow.HIDDEN)
+      fixed.put(picture, 0, 0)
       const wrap = new Gtk.Box({ css_classes: ["pano-thumb-wrap"] })
       wrap.set_overflow(Gtk.Overflow.HIDDEN)
-      wrap.append(image)
+      wrap.append(fixed)
       return wrap
     } catch (error) {
       console.error(`hypr-pano: cannot load image ${item.path}: ${error}`)
