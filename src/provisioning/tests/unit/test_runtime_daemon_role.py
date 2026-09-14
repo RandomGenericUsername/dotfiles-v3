@@ -61,9 +61,9 @@ _RENDER_VARS = {
     "runtime_daemon_start_limit_burst": 3,
     "runtime_daemon_timeout_start_sec": 90,
     "runtime_daemon_watchdog_sec": 30,
-    "runtime_daemon_activate": False,
+    "runtime_daemon_activate": True,
     "runtime_daemon_prune_on_reactive": False,
-    "runtime_daemon_run_flags": "",
+    "runtime_daemon_run_flags": " --activate",
 }
 
 
@@ -174,9 +174,10 @@ class TestUnitContent:
         assert "daemon start" not in rendered
         assert "daemon stop" not in rendered
 
-    def test_observe_only_by_default_no_activate_flag(self) -> None:
-        """AD-35/AD-41: provisioning must not silently enable convergence."""
-        assert "--activate" not in _render_unit()
+    def test_observe_only_when_activate_disabled(self) -> None:
+        """AD-35/AD-41: runtime_daemon_activate=false renders observe-only."""
+        rendered = _render_unit(runtime_daemon_activate=False, runtime_daemon_run_flags="")
+        assert "--activate" not in rendered
 
     def test_watchdog_sec_and_notify_access_in_service(self) -> None:
         """P5 follow-up: a wedged-but-name-owning daemon is restarted."""
@@ -195,7 +196,7 @@ class TestUnitContent:
         exec_lines = [line for line in rendered.splitlines() if line.startswith("ExecStart=")]
         assert len(exec_lines) == 1, exec_lines
         assert exec_lines[0] == (
-            'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run'
+            'ExecStart="/home/tester/.local/bin/dotfiles-runtime" daemon run --activate'
         )
         assert "#" not in exec_lines[0]
 
@@ -347,11 +348,11 @@ class TestVars:
         assert data["runtime_daemon_watchdog_sec"] == 30
         assert data["runtime_daemon_unit_name"] == "dotfiles-runtime-daemon.service"
 
-    def test_activate_defaults_to_observe_only(self) -> None:
-        """AD-35/AD-41: live convergence is opt-in, never the provisioned default."""
+    def test_activate_defaults_on(self) -> None:
+        """Owner decision 2026-09-13: spine edits (e.g. an ICME save) auto-reconcile."""
         data = yaml.safe_load((_ROLE_DIR / "vars" / "main.yml").read_text())
         assert isinstance(data, dict)
-        assert data["runtime_daemon_activate"] is False
+        assert data["runtime_daemon_activate"] is True
 
     def test_reactive_prune_defaults_off(self) -> None:
         """The reactive prune is opt-in, never the provisioned default (AD-30)."""

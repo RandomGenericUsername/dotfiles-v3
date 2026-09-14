@@ -16,10 +16,10 @@ StartLimitBurst={{ runtime_daemon_start_limit_burst }}
 # 0 before owning the name, and releases it on SIGTERM.
 Type=dbus
 BusName=org.dotfiles.Events
-# Observe-only is the default (AD-35/AD-41); runtime_daemon_activate=true
-# provisions live automatic convergence. The reactive prune is separately
-# opt-in (default off): runtime_daemon_prune_on_reactive=true provisions real
-# AD-30-bounded deletions on each reactive converge.
+# Live automatic convergence is ON by default (owner decision 2026-09-13):
+# runtime_daemon_activate=false provisions observe-only (AD-41). The reactive
+# prune is separately opt-in (default off): runtime_daemon_prune_on_reactive=true
+# provisions real AD-30-bounded deletions on each reactive converge.
 #
 # The optional flags are rendered via a single `runtime_daemon_run_flags`
 # string so this line does NOT end in a Jinja block tag: Ansible's template

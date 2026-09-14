@@ -11,11 +11,14 @@ runtime_daemon_bin_dir: >-
 # runtime_daemon_unit_name: the --user unit file name.
 runtime_daemon_unit_name: dotfiles-runtime-daemon.service
 
-# runtime_daemon_activate: opt into live automatic convergence. Observe-only
-#   is the shipped default (AD-35/AD-41); setting this true appends
-#   `--activate` to the unit's ExecStart. The daemon still ships observe-only
-#   for every other invocation (a plain `daemon run`).
-runtime_daemon_activate: false
+# runtime_daemon_activate: enable live automatic convergence. Owner decision
+#   (2026-09-13): the daemon ships ACTIVATED so a watched spine change (e.g.
+#   an ICME save writing icon-mappings/icon-templates) triggers a reactive
+#   converge that re-renders the icons through ITR. Set this false to ship
+#   observe-only instead (AD-41): the daemon then detects+logs but mutates
+#   nothing. This only sets the unit's flags; a plain `daemon run` still
+#   defaults to observe-only.
+runtime_daemon_activate: true
 
 # runtime_daemon_prune_on_reactive: opt into the real AD-30-bounded prune on
 #   each reactive converge. Default false: the reactive prune is skipped (no
