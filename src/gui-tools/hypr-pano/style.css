@@ -1,6 +1,7 @@
 /* hypr-pano clipboard overlay — follows the generated runtime palette
- * (colors.css), matching the capture tool's idiom and the rofi launcher's
- * accent choices (@color_04 border, @color_10 selection). */
+ * (colors.css): panel/border mirror the capture tool and rofi launcher, and
+ * each card's type header uses a palette token (never a fixed hex), so a
+ * wallpaper change restyles the overlay like the rest of the desktop. */
 
 window#hypr-pano-window {
   background-color: transparent;
@@ -27,10 +28,6 @@ window#hypr-pano-window {
   color: alpha(@color_foreground, 0.55);
 }
 
-.pano-ui-icon {
-  opacity: 0.8;
-}
-
 .pano-incognito {
   min-width: 120px;
   background-color: @color_01;
@@ -42,15 +39,21 @@ window#hypr-pano-window {
   background-color: @color_10;
 }
 
-.pano-list {
-  min-height: 140px;
+.pano-ui-icon {
+  opacity: 0.85;
 }
 
+.pano-list {
+  min-height: 150px;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────── */
+
 .pano-card {
-  background-color: alpha(@color_background, 0.4);
+  min-width: 240px;
+  border-radius: 12px;
+  background-color: alpha(@color_background, 0.45);
   border: 1px solid alpha(@color_foreground, 0.12);
-  border-radius: 10px;
-  padding: 8px;
 }
 
 .pano-card:hover {
@@ -58,39 +61,120 @@ window#hypr-pano-window {
 }
 
 .pano-card.selected {
-  background-color: @color_10;
   border-color: @color_10;
+  box-shadow: 0 0 0 2px alpha(@color_10, 0.55);
 }
 
-.pano-card.selected .pano-text,
-.pano-card.selected .pano-code {
-  color: @color_background;
+/* Type header: background = palette token, text contrast chosen at runtime
+ * (on-dark → light text, on-light → dark text) by token luminance. */
+.pano-head {
+  min-height: 32px;
+  padding: 0 10px;
+  border-top-left-radius: 11px;
+  border-top-right-radius: 11px;
+}
+
+.pano-head.on-dark {
+  color: @color_15;
+}
+
+.pano-head.on-light {
+  color: @color_00;
+}
+
+.kind-text .pano-head {
+  background-color: @color_06;
+}
+
+.kind-code .pano-head {
+  background-color: @color_00;
+}
+
+.kind-color .pano-head {
+  background-color: @color_13;
+}
+
+.kind-image .pano-head {
+  background-color: @color_09;
+}
+
+.kind-link .pano-head {
+  background-color: @color_04;
+}
+
+.kind-emoji .pano-head {
+  background-color: @color_12;
+}
+
+.pano-index {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0 6px;
+  border-radius: 6px;
+  min-width: 0;
+  min-height: 0;
+  background-color: alpha(@color_00, 0.30);
+  color: inherit;
+}
+
+.pano-head-ico {
+  padding: 2px;
+  border-radius: 6px;
+  background-color: alpha(@color_00, 0.28);
+}
+
+.pano-head-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pano-time {
+  font-size: 0.66rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* ── Body ─────────────────────────────────────────────────────────── */
+
+.pano-body {
+  padding: 10px 12px;
+  min-height: 118px;
+}
+
+.pano-text,
+.pano-code {
+  color: @color_foreground;
 }
 
 .pano-text {
-  color: @color_foreground;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .pano-code {
   font-family: monospace;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
+}
+
+.pano-link {
   color: @color_10;
 }
 
-.pano-card-footer {
-  color: alpha(@color_foreground, 0.6);
+.pano-emoji {
+  font-size: 1.9rem;
 }
 
-.pano-index {
-  background-color: @color_12;
-  color: @color_00;
-  border-radius: 6px;
-  padding: 0 7px;
+.pano-thumb {
+  border-radius: 8px;
+}
+
+.pano-swatch {
+  min-height: 64px;
+}
+
+.pano-hex {
+  font-family: monospace;
   font-size: 0.75rem;
-  font-weight: 800;
-  min-width: 12px;
-  min-height: 0;
+  color: @color_foreground;
 }
 
 .pano-empty {

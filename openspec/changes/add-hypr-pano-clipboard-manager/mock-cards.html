@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>hypr-pano card mockup</title>
+<style>
+  :root { --bg:#0b0b1a; --panel:#11112a; --fg:#c2c2c5; --accent:#549ec8; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family:-apple-system,Inter,"Noto Sans",sans-serif; padding:28px; }
+  h1 { font-size:16px; font-weight:600; margin:0 0 4px; color:#e8e8ea; }
+  p.sub { margin:0 0 18px; font-size:12px; opacity:.6; }
+  .row { display:flex; gap:14px; overflow-x:auto; padding-bottom:12px; }
+  .card { width:240px; flex:0 0 auto; border-radius:12px; overflow:hidden;
+           background:var(--panel); border:2px solid var(--accent);
+           box-shadow:0 8px 24px rgba(0,0,0,.45); }
+  .head { display:flex; align-items:center; gap:8px; height:34px; padding:0 10px;
+           color:#fff; font-size:13px; font-weight:600; }
+  .head .idx { font-size:11px; font-weight:800; background:rgba(0,0,0,.28);
+                border-radius:6px; padding:1px 6px; }
+  .head .ico { display:flex; width:16px; height:16px; }
+  .head .ico svg { width:16px; height:16px; }
+  .head .lbl { flex:1; }
+  .head .time { font-size:10.5px; font-weight:500; opacity:.82; white-space:nowrap; }
+  .body { min-height:132px; padding:10px 12px; font-size:12px; line-height:1.45;
+           background:var(--panel); }
+  .txt { color:var(--fg); }
+  .url { color:var(--accent); word-break:break-all; }
+  .code { font-family:"JetBrains Mono",monospace; font-size:10.5px; line-height:1.5;
+           color:#d7d7e0; }
+  .c-dim { color:#7a7a90; } .c-str { color:#dbab67; }
+  .swatch { display:flex; flex-direction:column; align-items:center; justify-content:center;
+             gap:10px; height:112px; }
+  .chip { width:96px; height:64px; border-radius:10px; border:1px solid rgba(255,255,255,.15); }
+  .hex { font-family:"JetBrains Mono",monospace; font-size:12px; color:#e8e8ea; }
+  .img { display:flex; flex-direction:column; gap:8px; }
+  .thumb { height:92px; border-radius:8px;
+            background:
+              radial-gradient(circle at 70% 30%, #ffd166 0 14%, transparent 15%),
+              linear-gradient(135deg,#7b2ff7,#f107a3 60%,#1b1464); }
+  .cap { font-size:10.5px; opacity:.65; }
+  .emoji { font-size:34px; letter-spacing:6px; text-align:center; padding:26px 0; }
+  .note { margin-top:22px; font-size:12px; opacity:.75; max-width:900px; }
+  table { border-collapse:collapse; margin-top:8px; font-size:12px; }
+  td,th { border:1px solid #2a2a44; padding:4px 10px; text-align:left; }
+  .dot { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-2px; margin-right:6px; }
+</style></head>
+<body>
+  <h1>hypr-pano — card redesign (colored type header)</h1>
+  <p class="sub">Mockup: header = type color + our rendered `ui` glyph + type label + relative time; index badge kept for Ctrl+1..9. Body = type preview.</p>
+  <div class="row">
+      <div class="card">
+        <div class="head" style="background:#3f8f8f">
+          <span class="idx">1</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M571.625 37H156V987H868.5V333.816L571.625 37ZM274.75 868.25V155.75H512.25V393.25H749.75V868.25H274.75Z" fill="#ffffff"/>
+</svg></span>
+          <span class="lbl">Text</span>
+          <span class="time">1 minute ago</span>
+        </div>
+        <div class="body">
+<div class="txt">CHIME has launched a new campaign that it hopes will help to "better understand" its users &mdash; and anyone can take part.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head" style="background:#2b2b3c">
+          <span class="idx">2</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M297.204 357.947C316.373 338.597 316.373 307.253 297.204 287.903L296.56 287.244C277.391 267.894 246.335 267.894 227.166 287.244L51.3767 464.649C32.2078 483.999 32.2078 515.404 51.3767 534.754L227.166 712.147C246.335 731.497 277.391 731.497 296.56 712.147L297.204 711.5C316.373 692.15 316.373 660.806 297.204 641.456L191.503 534.754C172.334 515.404 172.334 483.999 191.503 464.649L297.204 357.947ZM972.623 464.649L796.834 287.244C777.715 267.894 746.609 267.894 727.44 287.244L726.796 287.903C707.627 307.253 707.627 338.597 726.796 357.947L832.547 464.649C851.716 483.999 851.716 515.404 832.547 534.754L726.796 641.456C707.627 660.806 707.627 692.15 726.796 711.5L727.44 712.147C746.609 731.497 777.715 731.497 796.834 712.147L972.623 534.754C991.792 515.404 991.792 483.999 972.623 464.649ZM677.468 257.41L424.349 798.939C416.149 815.963 401.762 837 383.202 837H382.219C346.13 837 322.611 787.99 338.569 754.945L590.214 218.543C598.414 201.568 628.808 188.257 628.808 188.257V187C677.91 187 693.377 224.366 677.468 257.41Z" fill="#ffffff"/>
+</svg></span>
+          <span class="lbl">Code</span>
+          <span class="time">1 minute ago</span>
+        </div>
+        <div class="body">
+<div class="code"><span class="c-dim">#!/usr/bin/env bash</span><br># upgrade_24_command<br>echo <span class="c-str">"starting upgrade"</span><br>for pkg in $(pacman -Qq); do<br>&nbsp;&nbsp;echo <span class="c-str">"$pkg"</span><br>done</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head" style="background:#e0357f">
+          <span class="idx">3</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M603.063 538.484C603.063 574.199 574.107 603.155 538.392 603.155C502.676 603.155 473.721 574.199 473.721 538.484C473.721 502.768 502.676 473.812 538.392 473.812C574.107 473.812 603.063 502.768 603.063 538.484Z" fill="#ffffff"/>
+<path d="M710.847 430.697C746.563 430.697 775.518 401.743 775.518 366.027C775.518 330.31 746.563 301.355 710.847 301.355C675.131 301.355 646.176 330.31 646.176 366.027C646.176 401.743 675.131 430.697 710.847 430.697Z" fill="#ffffff"/>
+<path d="M559.948 279.798C559.948 315.515 530.992 344.469 495.277 344.469C459.561 344.469 430.605 315.515 430.605 279.798C430.605 244.081 459.561 215.127 495.277 215.127C530.992 215.127 559.948 244.081 559.948 279.798Z" fill="#ffffff"/>
+<path d="M322.821 516.926C358.538 516.926 387.492 487.97 387.492 452.255C387.492 416.539 358.538 387.584 322.821 387.584C287.104 387.584 258.15 416.539 258.15 452.255C258.15 487.97 287.104 516.926 322.821 516.926Z" fill="#ffffff"/>
+<path d="M603.063 754.052C603.063 789.768 574.107 818.723 538.392 818.723C502.676 818.723 473.721 789.768 473.721 754.052C473.721 718.336 502.676 689.381 538.392 689.381C574.107 689.381 603.063 718.336 603.063 754.052Z" fill="#ffffff"/>
+<path d="M322.821 732.496C358.538 732.496 387.492 703.541 387.492 667.825C387.492 632.11 358.538 603.154 322.821 603.154C287.104 603.154 258.15 632.11 258.15 667.825C258.15 703.541 287.104 732.496 322.821 732.496Z" fill="#ffffff"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M495.351 43.6226C663.634 33.689 842.933 99.7696 939.728 232.857C969.895 274.33 983.45 328.785 975.952 380.317C968.282 433.022 938.206 483.789 881.028 512.374C846.179 529.8 808.851 557.734 785.871 588.836C763.266 619.439 758.873 645.906 770.967 670.102C793.761 715.687 813.865 772.403 810.468 826.804C808.713 854.828 800.646 883.159 782.694 908.393C764.689 933.693 738.648 953.202 705.304 966.541C629.341 996.924 543.906 998.26 465.448 983.446C386.88 968.606 311.822 936.943 254.985 897.162C172.168 839.191 106.155 762.194 73.3516 665.51C40.4422 568.508 42.4045 455.92 88.2919 329.722C156.555 141.99 325.516 53.6484 495.351 43.6226ZM500.435 129.701C355.843 138.236 223.006 211.571 169.329 359.189C128.987 470.135 129.407 562.347 155.008 637.805C180.716 713.578 233.266 776.706 304.433 826.52C350.59 858.829 414.09 885.996 481.447 898.714C548.921 911.459 616.778 909.083 673.279 886.478C702.57 874.764 722.394 853.638 724.408 821.424C726.395 789.597 714.164 749.311 693.844 708.663C661.866 644.708 683.005 582.964 716.518 537.6C749.66 492.739 799.038 456.963 842.467 435.251C871.517 420.725 886.525 396.04 890.621 367.901C894.885 338.587 886.887 306.801 869.995 283.576C794.334 179.549 646.578 121.074 500.435 129.701Z" fill="#ffffff"/>
+</svg></span>
+          <span class="lbl">Color</span>
+          <span class="time">2 minutes ago</span>
+        </div>
+        <div class="body">
+<div class="swatch"><div class="chip" style="background:#ff4f95"></div><div class="hex">#FF4F95</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head" style="background:#d9483b">
+          <span class="idx">4</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M939.5 37H84.5C71.9022 37 59.8204 42.0044 50.9124 50.9124C42.0044 59.8204 37 71.9022 37 84.5V939.5C37 952.098 42.0044 964.18 50.9124 973.088C59.8204 981.996 71.9022 987 84.5 987H939.5C952.098 987 964.18 981.996 973.088 973.088C981.996 964.18 987 952.098 987 939.5V84.5C987 71.9022 981.996 59.8204 973.088 50.9124C964.18 42.0044 952.098 37 939.5 37ZM892 607L749.5 464.5L512 702L417 607L132 892V132H892V607ZM227 345.75C227 322.263 233.965 299.304 247.013 279.776C260.061 260.248 278.608 245.027 300.306 236.039C322.005 227.051 345.882 224.7 368.917 229.282C391.952 233.864 413.111 245.174 429.719 261.781C446.326 278.389 457.636 299.548 462.218 322.583C466.8 345.618 464.449 369.495 455.461 391.194C446.473 412.892 431.252 431.439 411.724 444.487C392.196 457.535 369.237 464.5 345.75 464.5C314.256 464.5 284.051 451.989 261.781 429.719C239.511 407.449 227 377.244 227 345.75Z" fill="#ffffff"/>
+</svg></span>
+          <span class="lbl">Image</span>
+          <span class="time">1 minute ago</span>
+        </div>
+        <div class="body">
+<div class="img"><div class="thumb"></div><div class="cap">B Day L!NUX! &nbsp; 1236 x 656 &nbsp; 96.7 KiB</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head" style="background:#2f6fb0">
+          <span class="idx">5</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M455.609 128.172C513.986 69.7957 593.161 37 675.721 37C847.635 37 987 176.366 987 348.282C987 430.839 954.207 510.014 895.83 568.391L774.093 690.125L690.125 606.156L811.862 484.422C847.967 448.316 868.25 399.344 868.25 348.282C868.25 241.949 782.049 155.75 675.721 155.75C624.656 155.75 575.684 176.034 539.578 212.141L417.844 333.875L333.875 249.906L455.609 128.172Z" fill="#ffffff"/>
+<path d="M484.422 811.862L606.156 690.125L690.125 774.093L568.391 895.83C510.014 954.207 430.839 987 348.282 987C176.366 987 37 847.635 37 675.721C37 593.161 69.7956 513.986 128.172 455.609L249.906 333.875L333.875 417.844L212.141 539.578C176.034 575.684 155.75 624.656 155.75 675.721C155.75 782.049 241.949 868.25 348.282 868.25C399.344 868.25 448.316 847.967 484.422 811.862Z" fill="#ffffff"/>
+<path d="M375.858 732.107L732.107 375.858L648.139 291.889L291.889 648.139L375.858 732.107Z" fill="#ffffff"/>
+</svg></span>
+          <span class="lbl">Link</span>
+          <span class="time">8 minutes ago</span>
+        </div>
+        <div class="body">
+<div class="txt">Get a Second! This Test Is a Test Help write&hellip;<br><span class="url">https://gitlab.gnome.org/Teams/Design/t&hellip;</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="head" style="background:#d9a534">
+          <span class="idx">6</span>
+          <span class="ico"><svg width="16" height="16" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M360.865 468.819C396.638 468.819 425.637 439.818 425.637 404.046C425.637 368.273 396.638 339.273 360.865 339.273C325.091 339.273 296.092 368.273 296.092 404.046C296.092 439.818 325.091 468.819 360.865 468.819Z" fill="#ffffff"/>
+<path d="M727.911 404.046C727.911 439.818 698.91 468.819 663.138 468.819C627.366 468.819 598.365 439.818 598.365 404.046C598.365 368.273 627.366 339.273 663.138 339.273C698.91 339.273 727.911 368.273 727.911 404.046Z" fill="#ffffff"/>
+<path d="M377.652 578.561C366.833 557.596 341.135 549.167 319.972 559.751C298.641 570.417 289.995 596.356 300.66 617.684C304.221 624.783 308.755 631.437 313.509 637.776C321.403 648.304 333.319 661.859 350.092 675.275C384.185 702.549 436.748 727.918 512.01 727.918C587.271 727.918 639.836 702.549 673.928 675.275C690.7 661.859 702.618 648.304 710.512 637.776C715.284 631.416 719.623 624.761 723.337 617.731C733.899 596.68 725.112 570.283 704.048 559.751C682.884 549.167 657.187 557.596 646.37 578.561C645.774 579.636 637.647 593.701 619.977 607.838C600.096 623.742 566.293 641.555 512.01 641.555C457.726 641.555 423.926 623.742 404.043 607.838C386.373 593.701 378.247 579.636 377.652 578.561Z" fill="#ffffff"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M512 987C774.334 987 987 774.334 987 512C987 249.665 774.334 37 512 37C249.665 37 37 249.665 37 512C37 774.334 249.665 987 512 987ZM512 900.343C297.525 900.343 123.659 726.475 123.659 512C123.659 297.525 297.525 123.659 512 123.659C726.475 123.659 900.343 297.525 900.343 512C900.343 726.475 726.475 900.343 512 900.343Z" fill="#ffffff"/>
+</svg></span>
+          <span class="lbl">Emoji</span>
+          <span class="time">3 minutes ago</span>
+        </div>
+        <div class="body">
+<div class="emoji">😀 🚀 ✨ 🎉</div>
+        </div>
+      </div>
+  </div>
+  <div class="note">
+    <strong>Proposed per-type header colors</strong> (Pano-like; to be mapped to runtime palette tokens so they still follow the wallpaper):
+    <table>
+      <tr><th>Type</th><th>Mockup</th><th>Proposed palette token</th></tr>
+      <tr><td>Text</td><td><span class="dot" style="background:#3f8f8f"></span>#3f8f8f</td><td>color06</td></tr>
+      <tr><td>Code</td><td><span class="dot" style="background:#2b2b3c"></span>#2b2b3c</td><td>color00 (dark)</td></tr>
+      <tr><td>Color</td><td><span class="dot" style="background:#e0357f"></span>#e0357f</td><td>color13</td></tr>
+      <tr><td>Image</td><td><span class="dot" style="background:#d9483b"></span>#d9483b</td><td>color09</td></tr>
+      <tr><td>Link</td><td><span class="dot" style="background:#2f6fb0"></span>#2f6fb0</td><td>color04</td></tr>
+      <tr><td>Emoji</td><td><span class="dot" style="background:#d9a534"></span>#d9a534</td><td>color12</td></tr>
+    </table>
+    <p>Selected-card highlight and the panel border stay on the existing accent tokens.</p>
+  </div>
+</body></html>

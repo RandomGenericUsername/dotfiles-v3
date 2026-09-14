@@ -1,7 +1,8 @@
 import { Gtk } from "ags/gtk4"
+import GLib from "gi://GLib?version=2.0"
 import Gdk from "gi://Gdk?version=4.0"
 import GdkPixbuf from "gi://GdkPixbuf?version=2.0"
-import type { ClipboardItem } from "../lib/clipboard-types"
+import type { ClipboardItem, ItemKind } from "../lib/clipboard-types"
 import { resolveIcon } from "../lib/icon-registry"
 import { Preview } from "./Preview"
 
@@ -16,9 +17,7 @@ const FALLBACK_ICON: Record<string, string> = {
   emoji: "face-smile-symbolic",
 }
 
-//: Rasterized-at-size icon textures, shared across cards. Loading the SVG and
-//: rasterizing it per card per rebuild was the freeze source under fast arrow
-//: repeats; one texture per (path, size) is reused instead.
+//: Rasterized-at-size icon textures, shared across cards.
 const textureCache = new Map<string, Gdk.Texture>()
 
 function iconTexture(path: string, size: number): Gdk.Texture {
@@ -26,7 +25,6 @@ function iconTexture(path: string, size: number): Gdk.Texture {
   const cached = textureCache.get(key)
   if (cached !== undefined) return cached
   let pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(path, size, size)
-  // Some SVG loaders ignore the requested size; guarantee a bounded pixbuf.
   if (pixbuf.get_width() > size || pixbuf.get_height() > size) {
     const factor = Math.min(size / pixbuf.get_width(), size / pixbuf.get_height())
     pixbuf = pixbuf.scale_simple(
@@ -42,8 +40,7 @@ function iconTexture(path: string, size: number): Gdk.Texture {
 
 /**
  * Shared UI glyph from the themed `ui` group (ITR-rendered, palette-tinted),
- * falling back to a stock symbolic icon until the render exists. Exported so
- * any overlay surface (cards, search field, …) uses the same icon set.
+ * falling back to a stock symbolic icon until the render exists.
  */
 export function uiIcon(variant: string, size = 18): Gtk.Widget {
   const path = resolveIcon("ui", variant)
@@ -65,12 +62,81 @@ export function uiIcon(variant: string, size = 18): Gtk.Widget {
   return fallback
 }
 
+//: Each content type is themed by a generated-palette token (never a fixed
+//: hex) so the header follows the wallpaper like the rest of the desktop.
+const TYPE_TOKEN: Record<ItemKind, string> = {
+  text: "color_06",
+  code: "color_00",
+  color: "color_13",
+  image: "color_09",
+  link: "color_04",
+  emoji: "color_12",
+}
+
+const TYPE_LABEL: Record<ItemKind, string> = {
+  text: "Text",
+  code: "Code",
+  color: "Color",
+  image: "Image",
+  link: "Link",
+  emoji: "Emoji",
+}
+
+let tokenCache: Record<string, string> | null = null
+
+function paletteTokens(): Record<string, string> {
+  if (tokenCache !== null) return tokenCache
+  const tokens: Record<string, string> = {}
+  try {
+    const path = `${GLib.get_user_config_dir()}/ags/colors.css`
+    const [ok, bytes] = GLib.file_get_contents(path)
+    if (ok && bytes !== null) {
+      const text = new TextDecoder().decode(bytes)
+      for (const match of text.matchAll(/@define-color\s+([\w-]+)\s+(#[0-9a-fA-F]{6})/g)) {
+        tokens[match[1]] = match[2]
+      }
+    }
+  } catch (error) {
+    console.error(`hypr-pano: cannot read palette tokens: ${error}`)
+  }
+  tokenCache = tokens
+  return tokens
+}
+
+function relativeLuminance(hex: string): number {
+  const int = Number.parseInt(hex.slice(1), 16)
+  const channel = (value: number): number => {
+    const c = value / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const r = channel((int >> 16) & 0xff)
+  const g = channel((int >> 8) & 0xff)
+  const b = channel(int & 0xff)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+//: "on-dark" (light text) when the type token is dark, else "on-light".
+function headerTextClass(kind: ItemKind): string {
+  const hex = paletteTokens()[TYPE_TOKEN[kind]]
+  if (hex === undefined) return "on-dark"
+  return relativeLuminance(hex) < 0.45 ? "on-dark" : "on-light"
+}
+
+function relativeTime(timestamp: number): string {
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp))
+  if (seconds < 45) return "just now"
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${Math.max(1, minutes)} min${minutes === 1 ? "" : "s"} ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`
+  const days = Math.round(hours / 24)
+  return `${days} day${days === 1 ? "" : "s"} ago`
+}
+
 /**
- * One clipboard history card: preview + footer, click selects.
- *
- * ``index`` is the 1-based position in the visible list, shown as a solid
- * badge in the footer (not over the preview text) so the ``Ctrl+1..9``
- * shortcut is discoverable.
+ * One clipboard history card: a palette-themed type header
+ * (index + glyph + type label + relative time) over a type-appropriate
+ * preview body. ``index`` is the 1-based position for ``Ctrl+1..9``.
  */
 export function ItemCard(
   item: ClipboardItem,
@@ -79,23 +145,36 @@ export function ItemCard(
 ): Gtk.Box {
   const card = new Gtk.Box({
     orientation: Gtk.Orientation.VERTICAL,
-    spacing: 6,
-    css_classes: ["pano-card"],
+    spacing: 0,
+    css_classes: ["pano-card", `kind-${item.kind}`],
   })
-  card.set_size_request(200, -1)
 
-  card.append(Preview(item))
-
-  const footer = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 6 })
-  footer.add_css_class("pano-card-footer")
+  const header = new Gtk.Box({
+    orientation: Gtk.Orientation.HORIZONTAL,
+    spacing: 8,
+    css_classes: ["pano-head", headerTextClass(item.kind)],
+  })
   const badge = new Gtk.Label({ label: String(index) })
   badge.add_css_class("pano-index")
-  footer.append(badge)
-  footer.append(uiIcon(item.kind))
-  if (item.favorite) {
-    footer.append(Gtk.Image.new_from_icon_name("starred-symbolic"))
-  }
-  card.append(footer)
+  header.append(badge)
+
+  const iconWrap = new Gtk.Box({ css_classes: ["pano-head-ico"] })
+  iconWrap.append(uiIcon(item.kind, 15))
+  header.append(iconWrap)
+
+  const label = new Gtk.Label({ label: TYPE_LABEL[item.kind], xalign: 0, hexpand: true })
+  label.add_css_class("pano-head-label")
+  header.append(label)
+
+  const time = new Gtk.Label({ label: relativeTime(item.timestamp) })
+  time.add_css_class("pano-time")
+  header.append(time)
+  card.append(header)
+
+  const body = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
+  body.add_css_class("pano-body")
+  body.append(Preview(item))
+  card.append(body)
 
   const gesture = new Gtk.GestureClick()
   gesture.connect("released", () => onSelect(item))
