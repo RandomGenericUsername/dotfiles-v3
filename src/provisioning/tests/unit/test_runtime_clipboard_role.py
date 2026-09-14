@@ -207,6 +207,41 @@ class TestTasks:
         assert params.get("force") is True
         assert "default(1)" in str(link.get("when", ""))
 
+    def test_runtime_executable_freshness_detection_is_read_only(self) -> None:
+        """uv force-install rewrites the binary but never re-execs the job, so
+        the role must detect a newer executable to restart the watcher."""
+        task = next(
+            t
+            for t in _load_tasks()
+            if "newer than the running watcher" in str(t["name"])
+            and _module_key(t) == "ansible.builtin.shell"
+        )
+        assert task.get("changed_when") is False
+        assert task.get("failed_when") is False
+        when = str(task.get("when", ""))
+        assert "ansible_check_mode" in when
+        assert "runtime_clipboard_manager_probe" in when
+        cmd = task["ansible.builtin.shell"]
+        assert isinstance(cmd, dict)
+        assert "ActiveEnterTimestamp" in cmd["cmd"]
+        assert "stat -c %Y" in cmd["cmd"]
+
+    def test_newer_executable_notifies_watcher_restart(self) -> None:
+        """A newer installed binary must fire the restart handler (live only)."""
+        task = next(
+            t
+            for t in _load_tasks()
+            if str(t["name"]) == "Restart the watcher to load the newer runtime executable"
+        )
+        assert _module_key(task) == "ansible.builtin.debug"
+        assert task.get("changed_when") is True
+        assert task.get("notify") == "Restart dotfiles clipboard watcher"
+        when = str(task.get("when", ""))
+        assert "runtime_clipboard_executable_freshness" in when
+        assert "newer" in when
+        assert "ansible_check_mode" in when
+        assert "runtime_clipboard_manager_probe" in when
+
     def test_syntax_check_exits_zero(self) -> None:
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:

@@ -51,6 +51,43 @@
     state: started
   when: not ansible_check_mode and runtime_clipboard_manager_probe.rc | default(1) == 0
 
+# Runtime-executable freshness (mirror of runtime_daemon, 6a2321b): cli_tools
+# force-installs `dotfiles-runtime` on every bootstrap, but systemd does not
+# re-exec an already-running job — so a freshly installed classifier/store fix
+# would stay unloaded until the next login. When the binary is newer than the
+# watcher's last activation, notify the restart handler so the job runs the
+# code provisioning just installed.
+- name: Detect a runtime executable newer than the running watcher
+  ansible.builtin.shell:
+    cmd: |
+      bin="{{ runtime_clipboard_bin_dir }}/dotfiles-runtime"
+      bin_mtime=$(stat -c %Y "$bin")
+      start=$(systemctl --user show -p ActiveEnterTimestamp --value "{{ runtime_clipboard_unit_name }}")
+      start_epoch=$(date -d "$start" +%s 2>/dev/null || printf '')
+      if [ -n "$start_epoch" ] && [ "$bin_mtime" -gt "$start_epoch" ]; then
+        printf newer
+      else
+        printf current
+      fi
+  register: runtime_clipboard_executable_freshness
+  changed_when: false
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - runtime_clipboard_manager_probe.rc | default(1) == 0
+
+- name: Restart the watcher to load the newer runtime executable
+  ansible.builtin.debug:
+    msg: >-
+      {{ runtime_clipboard_bin_dir }}/dotfiles-runtime is newer than the running
+      watcher; restarting to load the freshly installed code
+  changed_when: true
+  notify: Restart dotfiles clipboard watcher
+  when:
+    - not ansible_check_mode
+    - runtime_clipboard_manager_probe.rc | default(1) == 0
+    - runtime_clipboard_executable_freshness.stdout | default('') | trim == 'newer'
+
 - name: Ensure the graphical-session wants directory exists (manager-less path)
   ansible.builtin.file:
     path: "{{ ansible_facts.env.HOME }}/.config/systemd/user/graphical-session.target.wants"
