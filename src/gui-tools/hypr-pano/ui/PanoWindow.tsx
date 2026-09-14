@@ -13,7 +13,15 @@ import {
   type ClipboardItem,
   type ClipboardUpdatePayload,
 } from "../lib/clipboard-types"
-import { clearHistory, copyItem, deleteItem, readHistory, toggleFavorite } from "../lib/history"
+import {
+  clearHistory,
+  copyItem,
+  deleteItem,
+  firstUrl,
+  openUrl,
+  readHistory,
+  toggleFavorite,
+} from "../lib/history"
 import { ItemCard, uiIcon } from "./ItemCard"
 
 const WINDOW_NAME = "hypr-pano-window"
@@ -93,7 +101,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     if (selected >= shown.length) selected = shown.length - 1
     if (selected < 0) selected = 0
     shown.forEach((item, index) => {
-      const card = ItemCard(item, index + 1, select)
+      const card = ItemCard(item, index + 1, select, openLink)
       cards.push(card)
       list.append(card)
     })
@@ -138,6 +146,14 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     copyItem(item)
       .then(() => hideWindow())
       .catch((error: unknown) => console.error(`hypr-pano: copy failed: ${error}`))
+  }
+
+  //: Collapse the overlay, then hand the URL to xdg-open. Hyprland focuses the
+  //: activated window (misc:focus_on_activate), so it navigates there.
+  function openLink(item: ClipboardItem): void {
+    hideWindow()
+    const url = firstUrl(item.text)
+    if (url !== null) openUrl(url)
   }
 
   function onKey(keyval: number, state: Gdk.ModifierType): boolean {

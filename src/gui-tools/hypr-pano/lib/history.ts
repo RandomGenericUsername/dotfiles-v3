@@ -94,6 +94,16 @@ export function clearHistory(): void {
   }
 }
 
+/** First non-empty line of a link item (handles multi-line text/uri-list). */
+export function firstUrl(text: string | null): string | null {
+  if (text === null) return null
+  for (const line of text.split("\n")) {
+    const candidate = line.trim()
+    if (candidate.length > 0) return candidate
+  }
+  return null
+}
+
 /** Open a URL with the desktop handler (xdg-open), fire-and-forget. */
 export function openUrl(url: string): void {
   const target = url.trim()

@@ -15,4 +15,10 @@ hl.config({
             left   = 8,
         },
     },
+    -- Focus a window when it requests activation (xdg-activation), e.g. when
+    -- an app is opened via xdg-open: Hyprland switches to and focuses it
+    -- instead of leaving the requesting/overlay surface focused.
+    misc = {
+        focus_on_activate = true,
+    },
 })

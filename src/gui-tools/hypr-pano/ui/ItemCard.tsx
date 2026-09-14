@@ -4,7 +4,6 @@ import Gdk from "gi://Gdk?version=4.0"
 import GdkPixbuf from "gi://GdkPixbuf?version=2.0"
 import type { ClipboardItem, ItemKind } from "../lib/clipboard-types"
 import { resolveIcon } from "../lib/icon-registry"
-import { openUrl } from "../lib/history"
 import { Preview } from "./Preview"
 
 //: Stock symbolic fallbacks (used only until the themed `ui-*.svg` renders).
@@ -147,6 +146,7 @@ export function ItemCard(
   item: ClipboardItem,
   index: number,
   onSelect: (item: ClipboardItem) => void,
+  onOpenLink?: (item: ClipboardItem) => void,
 ): Gtk.Box {
   const card = new Gtk.Box({
     orientation: Gtk.Orientation.VERTICAL,
@@ -195,24 +195,12 @@ export function ItemCard(
   card.add_controller(gesture)
 
   // Right click on a LINK card opens the URL via the desktop handler.
-  if (item.kind === "link") {
-    const url = firstUrl(item.text)
-    if (url !== null) {
-      const rightClick = new Gtk.GestureClick()
-      rightClick.set_button(Gdk.BUTTON_SECONDARY)
-      rightClick.connect("released", () => openUrl(url))
-      card.add_controller(rightClick)
-    }
+  if (item.kind === "link" && onOpenLink !== undefined) {
+    const rightClick = new Gtk.GestureClick()
+    rightClick.set_button(Gdk.BUTTON_SECONDARY)
+    rightClick.connect("released", () => onOpenLink(item))
+    card.add_controller(rightClick)
   }
 
   return card
-}
-
-function firstUrl(text: string | null): string | null {
-  if (text === null) return null
-  for (const line of text.split("\n")) {
-    const candidate = line.trim()
-    if (candidate.length > 0) return candidate
-  }
-  return null
 }
