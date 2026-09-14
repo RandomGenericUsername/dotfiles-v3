@@ -53,7 +53,12 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     orientation: Gtk.Orientation.HORIZONTAL,
     spacing: 12,
     css_classes: ["pano-list"],
+    halign: Gtk.Align.START,
   })
+  // Trailing spacer: absorbs any extra width so the fixed-width cards keep
+  // their natural size instead of being stretched by the box.
+  const spacer = new Gtk.Box()
+  spacer.set_hexpand(true)
   const empty = new Gtk.Label({ label: "No clipboard history yet" })
   empty.add_css_class("pano-empty")
 
@@ -64,6 +69,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     vscrollbar_policy: Gtk.PolicyType.NEVER,
   })
   scroll.set_child(list)
+  scroll.set_propagate_natural_width(true)
 
   function visibleItems(): ClipboardItem[] {
     return items.filter((item) => matchesQuery(item, query))
@@ -91,6 +97,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
       cards.push(card)
       list.append(card)
     })
+    list.append(spacer)
     applySelection(false)
   }
 
