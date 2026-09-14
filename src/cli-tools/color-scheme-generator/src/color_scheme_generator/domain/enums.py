@@ -39,6 +39,7 @@ class ColorFormat(Enum):
     RASI = "rasi"
     SCSS = "scss"
     HYPRLAND = "conf"
+    KITTY = "kitty"
 
 
 class RuntimeMode(Enum):

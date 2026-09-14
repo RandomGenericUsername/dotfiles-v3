@@ -1,0 +1,8 @@
+background {{ background.hex }}
+foreground {{ foreground.hex }}
+cursor {{ cursor.hex }}
+{% for i in range(16) %}
+color{{ i }} {{ colors[i].hex }}
+{% endfor %}
+selection_background {{ background.hex }}
+selection_foreground {{ foreground.hex }}

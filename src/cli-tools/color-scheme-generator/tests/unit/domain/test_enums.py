@@ -31,6 +31,10 @@ class TestColorFormat:
         assert ColorFormat.RASI.value == "rasi"
         assert ColorFormat.SCSS.value == "scss"
         assert ColorFormat.HYPRLAND.value == "conf"
+        assert ColorFormat.KITTY.value == "kitty"
+
+    def test_format_listing_includes_kitty(self) -> None:
+        assert "kitty" in {f.value for f in ColorFormat}
 
 
 class TestOutputFormat:

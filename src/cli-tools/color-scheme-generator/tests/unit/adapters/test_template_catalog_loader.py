@@ -3,8 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from color_scheme_generator.adapters.template_catalog_loader import DirectoryTemplateCatalogLoader
 from color_scheme_generator.domain.enums import ColorFormat
+from color_scheme_generator.domain.exceptions import TemplatesValidationError
 
 
 def test_load_with_explicit_dir(tmp_path: Path) -> None:
@@ -67,3 +70,26 @@ def test_get_resolved_path_before_load_is_none() -> None:
     resolver = MagicMock()
     loader = DirectoryTemplateCatalogLoader(resolver)
     assert loader.get_resolved_path() is None
+
+
+def test_load_discovers_kitty_format(tmp_path: Path) -> None:
+    (tmp_path / "colors.kitty.j2").write_text("x")
+
+    resolver = MagicMock()
+    loader = DirectoryTemplateCatalogLoader(resolver)
+    catalog = loader.load(explicit_dir=tmp_path)
+
+    assert len(catalog.templates) == 1
+    assert catalog.templates[0].format == ColorFormat.KITTY
+    assert catalog.templates[0].name == "colors.kitty.j2"
+
+
+def test_load_unknown_kitty_like_format_raises(tmp_path: Path) -> None:
+    (tmp_path / "colors.kitty.j2").write_text("x")
+    (tmp_path / "colors.bogus.j2").write_text("x")
+
+    resolver = MagicMock()
+    loader = DirectoryTemplateCatalogLoader(resolver)
+
+    with pytest.raises(TemplatesValidationError):
+        loader.load(explicit_dir=tmp_path)
