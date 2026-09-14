@@ -1,9 +1,9 @@
 ## 1. `kitty_config` role
 
 - [ ] 1.1 `roles/kitty_config/vars/main.yml` — `kitty_config_xdg_config_home`, `kitty_config_xdg_state_home`, `kitty_config_state_current_dir` (`<state>/dotfiles/current`), `kitty_config_spine_config_dir` (`<install>/config/kitty`), all with the `ansible_facts.env` F4 lock and `install_dir | trim` seam
-- [ ] 1.2 `roles/kitty_config/templates/kitty.conf.j2` — managed header + `include {{ kitty_config_state_current_dir }}/colors.kitty` + `include local.conf` + `auto_reload_config no`
+- [ ] 1.2 `roles/kitty_config/templates/kitty.conf.j2` — managed header + `include {{ kitty_config_state_current_dir }}/colors.kitty` + `include local.conf` + `auto_reload_config -1`
 - [ ] 1.3 `roles/kitty_config/tasks/main.yml` — fail-loud `install_dir` + facts asserts; ensure spine dir; render `kitty.conf`; touch `local.conf` only if absent (`force: false`); no `become`
-- [ ] 1.4 Role unit tests: rendered `kitty.conf` contains the absolute include and `auto_reload_config no`; no `install_dir | default(` fallback; `local.conf` not clobbered
+- [ ] 1.4 Role unit tests: rendered `kitty.conf` contains the absolute include and `auto_reload_config -1`; no `install_dir | default(` fallback; `local.conf` not clobbered
 
 ## 2. Wiring into provisioning
 

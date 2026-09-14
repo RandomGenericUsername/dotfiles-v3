@@ -11,8 +11,12 @@
 # - The rendered kitty.conf includes:
 #     include <state>/dotfiles/current/colors.kitty   (runtime palette, absolute)
 #     include local.conf                               (optional user overrides)
-#     auto_reload_config no                            (the runtime reloader
-#                                                       signals SIGUSR1
+#     auto_reload_config -1                            (negative seconds =
+#                                                       DISABLED; kitty 0.48
+#                                                       types this option as a
+#                                                       float, so `no` is a parse
+#                                                       error. The runtime
+#                                                       reloader signals SIGUSR1
 #                                                       deterministically)
 # - local.conf is created ONLY IF ABSENT (`copy` with `force: false`) so a
 #   user's hand-written overrides survive re-provisioning. kitty.conf itself is

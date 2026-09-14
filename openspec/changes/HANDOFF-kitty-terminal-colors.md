@@ -98,7 +98,8 @@ Location: `openspec/changes/`. Each has `proposal.md`, `design.md`, `tasks.md`,
 
 ### Change 3 — `provision-kitty-color-config` (capability `provisioning-terminal-config`)
 - New rendered role `kitty_config` (copy `zsh_config`): `kitty.conf.j2` with
-  `include <state>/dotfiles/current/colors.kitty`, `include local.conf`, `auto_reload_config no`.
+  `include <state>/dotfiles/current/colors.kitty`, `include local.conf`, `auto_reload_config -1`
+  (kitty 0.48 types this as a float in seconds; negative disables — `no` is a parse error).
   State path derived as `zsh_config_state_current_dir` (`<XDG_STATE_HOME|~/.local/state>/dotfiles/current`).
 - `local.conf` created only if absent (never clobbered).
 - Wire: `filesystem` (config home), `config_links` (`~/.config/kitty -> <install>/config/kitty`),

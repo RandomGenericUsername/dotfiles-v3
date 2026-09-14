@@ -1756,7 +1756,7 @@ def _build_provisioned_layout(
         "# managed by provisioning\n"
         "include <STATE>/dotfiles/current/colors.kitty\n"
         "include local.conf\n"
-        "auto_reload_config no\n"
+        "auto_reload_config -1\n"
     )
 
     # Shell-tools clones (zsh_tools role — done-criterion 11): verify checks

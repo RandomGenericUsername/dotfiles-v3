@@ -194,8 +194,10 @@ class TestKittyConfigTemplate:
             "the template must include the runtime palette at the absolute state path"
         )
         assert "include local.conf" in text, "the template must include the user local.conf"
-        assert "auto_reload_config no" in text, (
-            "auto_reload_config must be no (the runtime reloader signals SIGUSR1)"
+        assert "auto_reload_config -1" in text, (
+            "auto_reload_config must be -1 (kitty 0.48 types it as a float in "
+            "seconds; a negative value disables it; the runtime reloader "
+            "signals SIGUSR1)"
         )
 
 
@@ -224,7 +226,7 @@ class TestKittyConfigPlaybook:
     def test_playbook_renders_kitty_conf_with_absolute_include(self) -> None:
         """End-to-end render against a temp spine: the rendered kitty.conf
         includes the ABSOLUTE runtime palette path derived from the explicit
-        XDG_STATE_HOME, carries auto_reload_config no, and creates local.conf;
+            XDG_STATE_HOME, carries auto_reload_config -1, and creates local.conf;
         re-running never clobbers a user-edited local.conf."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
@@ -236,6 +238,9 @@ class TestKittyConfigPlaybook:
             state = root / "state"
             home.mkdir()
             kitty_dir = install / "config" / "kitty"
+            palette_dir = state / "dotfiles" / "current"
+            palette_dir.mkdir(parents=True)
+            (palette_dir / "colors.kitty").write_text("background #000000\n")
 
             env = {k: v for k, v in os.environ.items() if not k.startswith("ANSIBLE_")}
             env.update(
@@ -275,9 +280,29 @@ class TestKittyConfigPlaybook:
                 f"got: {text}"
             )
             assert "include local.conf" in text
-            assert "auto_reload_config no" in text
+            assert "auto_reload_config -1" in text
             local_conf = kitty_dir / "local.conf"
             assert local_conf.is_file(), "local.conf must be created on first provision"
+
+            kitty_bin = shutil.which("kitty")
+            if kitty_bin is not None:
+                parsed = subprocess.run(
+                    [
+                        kitty_bin,
+                        "+runpy",
+                        f"from kitty.config import load_config; load_config({str(rendered)!r})",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=60,
+                )
+                combined = parsed.stdout + parsed.stderr
+                assert parsed.returncode == 0, (
+                    "kitty rejected the rendered kitty.conf: " + combined
+                )
+                assert "could not convert" not in combined, combined
+                assert "Ignoring invalid config line" not in combined, combined
 
             local_conf.write_text("# user override\n")
             second = run()

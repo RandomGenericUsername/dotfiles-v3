@@ -4,8 +4,10 @@
 Provisioning SHALL place a rendered kitty config at `<install>/config/kitty/kitty.conf`
 and link `~/.config/kitty` to it. The config SHALL include the runtime palette at
 the absolute path `<state_root>/dotfiles/current/colors.kitty` and SHALL include
-an optional user file `local.conf`. `auto_reload_config` SHALL be `no` (the
-runtime signals reloads explicitly).
+an optional user file `local.conf`. `auto_reload_config` SHALL be set to a
+negative number (`-1`), which disables automatic reload (kitty 0.48 types this
+option as a float number of seconds; `no` is a parse error). The runtime signals
+reloads explicitly via `SIGUSR1`.
 
 #### Scenario: kitty reads the current palette
 - **GIVEN** a provisioned machine

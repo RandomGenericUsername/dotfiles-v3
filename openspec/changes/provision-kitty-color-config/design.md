@@ -41,11 +41,13 @@ include local.conf
 re-provisioning; `include local.conf` must not fail when the file is missing
 (empty file created at first provision).
 
-### D3. `auto_reload_config no` — the runtime signals reloads
+### D3. `auto_reload_config -1` — the runtime signals reloads
 Reloading a symlinked `current/colors.kitty` via kitty's file watcher is not
 guaranteed (the symlink target changes, not the watched path's content). The
 runtime's `KittyReloader` sends `SIGUSR1` deterministically, so the config
-disables auto-reload to avoid double work.
+disables auto-reload to avoid double work. kitty 0.48 types `auto_reload_config`
+as a float number of seconds (negative disables); the earlier `no` value is a
+parse error, not a boolean.
 
 ### D4. config-in-spine + link, consistent with the existing model
 Config lives at `<install>/config/kitty/kitty.conf`; `config_links` symlinks

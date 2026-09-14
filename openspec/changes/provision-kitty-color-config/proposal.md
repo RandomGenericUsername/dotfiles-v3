@@ -15,7 +15,8 @@ kitty window.
 - The rendered `kitty.conf` `include`s the runtime palette at an **absolute**
   machine path: `<state_root>/dotfiles/current/colors.kitty` (the same derivation
   `zsh_config` uses for `COLOR_SCHEME_CURRENT_DIR`). `auto_reload_config` is set
-  to `no` — the runtime signals reload explicitly (`KittyReloader`), avoiding a
+  to `-1` (negative seconds disables it in kitty 0.48, which types the option as
+  a float) — the runtime signals reload explicitly (`KittyReloader`), avoiding a
   reliance on file-watching a symlink.
 - The config reserves a user-local include (e.g. `include local.conf` guarded so
   it is optional) so user customisations live outside the provisioned file.
