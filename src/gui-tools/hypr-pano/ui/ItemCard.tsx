@@ -148,6 +148,10 @@ export function ItemCard(
     spacing: 0,
     css_classes: ["pano-card", `kind-${item.kind}`],
   })
+  // Clip children to the rounded card corners (GTK does not do this by
+  // default), so the header/body follow the card radius like the mockup.
+  card.set_overflow(Gtk.Overflow.HIDDEN)
+  card.set_size_request(260, -1)
 
   const header = new Gtk.Box({
     orientation: Gtk.Orientation.HORIZONTAL,

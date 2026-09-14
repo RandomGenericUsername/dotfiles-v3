@@ -40,7 +40,7 @@ window#hypr-pano-window {
 }
 
 .pano-ui-icon {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .pano-list {
@@ -50,7 +50,7 @@ window#hypr-pano-window {
 /* ── Card ─────────────────────────────────────────────────────────── */
 
 .pano-card {
-  min-width: 240px;
+  min-width: 260px;
   border-radius: 12px;
   background-color: alpha(@color_background, 0.45);
   border: 1px solid alpha(@color_foreground, 0.12);
@@ -66,12 +66,11 @@ window#hypr-pano-window {
 }
 
 /* Type header: background = palette token, text contrast chosen at runtime
- * (on-dark → light text, on-light → dark text) by token luminance. */
+ * (on-dark → light text, on-light → dark text) by token luminance. Corners
+ * are clipped by the card's Gtk.Overflow.HIDDEN. */
 .pano-head {
-  min-height: 32px;
-  padding: 0 10px;
-  border-top-left-radius: 11px;
-  border-top-right-radius: 11px;
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .pano-head.on-dark {
@@ -107,23 +106,23 @@ window#hypr-pano-window {
 }
 
 .pano-index {
-  min-width: 18px;
-  min-height: 18px;
+  min-width: 20px;
+  min-height: 20px;
   padding: 0;
-  border-radius: 5px;
-  font-size: 0.72rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-weight: 800;
-  background-color: alpha(@color_00, 0.30);
+  background-color: alpha(@color_00, 0.32);
   color: inherit;
 }
 
 .pano-head-label {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .pano-time {
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   font-weight: 500;
   opacity: 0.85;
 }
@@ -131,8 +130,8 @@ window#hypr-pano-window {
 /* ── Body ─────────────────────────────────────────────────────────── */
 
 .pano-body {
-  padding: 10px 12px;
-  min-height: 118px;
+  padding: 12px;
+  min-height: 122px;
 }
 
 .pano-text,
@@ -141,7 +140,7 @@ window#hypr-pano-window {
 }
 
 .pano-text {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
 .pano-code {
@@ -154,15 +153,12 @@ window#hypr-pano-window {
 }
 
 .pano-emoji {
-  font-size: 1.9rem;
+  font-size: 2rem;
 }
 
-.pano-thumb {
+.pano-thumb-wrap,
+.pano-swatch-wrap {
   border-radius: 8px;
-}
-
-.pano-swatch {
-  min-height: 64px;
 }
 
 .pano-hex {
