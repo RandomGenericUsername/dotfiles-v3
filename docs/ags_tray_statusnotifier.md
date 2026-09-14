@@ -219,6 +219,9 @@ Planned shape:
 This is tracked in `_bmad-output/implementation-artifacts/deferred-work.md`
 under "StatusNotifier tray custom menus (2026-09-13)".
 
+For the general per-app procedure when a tray item's menu, activate, or icon is
+broken/off-theme, see `docs/tray-app-integration-playbook.md`.
+
 ---
 
 ## 7. Deployment and validation
