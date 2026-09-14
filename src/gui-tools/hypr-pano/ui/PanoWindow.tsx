@@ -30,6 +30,13 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
   let selected = 0
   let paused = false
   let jobId: string | null = null
+  //: Card widgets for the currently shown list, in order, so navigation can
+  //: move the highlight without rebuilding (rebuilding re-rasterized every
+  //: icon and froze the machine under fast arrow repeats).
+  let cards: Gtk.Widget[] = []
+  //: Whether the surface is mapped; capture updates while hidden just refresh
+  //: the in-memory list and rebuild lazily on the next show.
+  let mapped = false
 
   const searchIcon = uiIcon("search", 18)
   const search = new Gtk.Entry({
@@ -60,7 +67,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     return items.filter((item) => matchesQuery(item, query))
   }
 
-  function refresh(): void {
+  function rebuild(): void {
     let child = list.get_first_child()
     while (child) {
       const next = child.get_next_sibling()
@@ -68,22 +75,54 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
       child = next
     }
     const shown = visibleItems()
+    cards = []
     empty.set_visible(shown.length === 0)
     list.set_visible(shown.length > 0)
-    if (shown.length === 0) return
+    if (shown.length === 0) {
+      selected = 0
+      return
+    }
     if (selected >= shown.length) selected = shown.length - 1
     if (selected < 0) selected = 0
     shown.forEach((item, index) => {
       const card = ItemCard(item, index + 1, select)
-      if (index === selected) card.add_css_class("selected")
+      cards.push(card)
       list.append(card)
     })
+    applySelection(false)
+  }
+
+  //: Move only the "selected" CSS class between the existing cards and scroll
+  //: the newly selected one into view. O(2) widget ops instead of a full
+  //: teardown/rebuild, so held/repeated arrows stay cheap.
+  function applySelection(scrollIntoView: boolean): void {
+    cards.forEach((card, index) => {
+      if (index === selected) card.add_css_class("selected")
+      else card.remove_css_class("selected")
+    })
+    const card = cards[selected]
+    if (!scrollIntoView || card === undefined) return
+    try {
+      const allocation = card.get_allocation()
+      if (allocation.width <= 0) return
+      const adjustment = scroll.get_hadjustment()
+      const start = adjustment.get_value()
+      const end = start + adjustment.get_page_size()
+      if (allocation.x < start) {
+        adjustment.set_value(allocation.x)
+      } else if (allocation.x + allocation.width > end) {
+        adjustment.set_value(allocation.x + allocation.width - adjustment.get_page_size())
+      }
+    } catch (error) {
+      // A missing allocation must never break navigation.
+      console.error(`hypr-pano: scroll-into-view failed: ${error}`)
+    }
   }
 
   function reload(): void {
     items = readHistory()
     selected = 0
-    refresh()
+    rebuild()
   }
 
   function select(item: ClipboardItem): void {
@@ -100,12 +139,12 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     }
     if (keyval === Gdk.KEY_Left) {
       selected = Math.max(0, selected - 1)
-      refresh()
+      applySelection(true)
       return true
     }
     if (keyval === Gdk.KEY_Right) {
       selected = Math.min(shown.length - 1, selected + 1)
-      refresh()
+      applySelection(true)
       return true
     }
     if (keyval === Gdk.KEY_Return || keyval === Gdk.KEY_KP_Enter) {
@@ -146,7 +185,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     const key = itemKey(item)
     items = [item, ...items.filter((existing) => itemKey(existing) !== key)]
     selected = 0
-    refresh()
+    if (mapped) rebuild()
   })
   domainEvents.subscribe(CLIPBOARD_STATE_TOPIC, (_topic: string, payload: DomainPayload) => {
     paused = payload.state === "paused"
@@ -163,7 +202,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
   search.connect("changed", () => {
     query = search.get_text()
     selected = 0
-    refresh()
+    rebuild()
   })
 
   return (
@@ -192,12 +231,16 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
         // Hydrate from disk on every open so the overlay reflects captures
         // that happened while it was hidden, even with no hub signal.
         self.connect("map", () => {
+          mapped = true
           reload()
           // ON_DEMAND (like the capture tool and ICME) so the overlay never
           // grabs the keyboard from other AGS windows; present() asks the
           // compositor to focus the surface on show.
           self.present()
           search.grab_focus()
+        })
+        self.connect("unmap", () => {
+          mapped = false
         })
       }}
     >
