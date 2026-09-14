@@ -57,7 +57,7 @@ class GioEventBusTransport implements EventBusTransport {
       null,
       Gio.DBusSignalFlags.NONE,
       (_connection, _sender, _path, _iface, _signal, parameters) =>
-        onDomainEvent(parameters.deepUnpack() as unknown[]),
+        onDomainEvent(parameters.recursiveUnpack() as unknown[]),
     );
     connection.signal_subscribe(
       null,
@@ -67,7 +67,7 @@ class GioEventBusTransport implements EventBusTransport {
       null,
       Gio.DBusSignalFlags.NONE,
       (_connection, _sender, _path, _iface, _signal, parameters) =>
-        onJobsCleared(parameters.deepUnpack() as unknown[]),
+        onJobsCleared(parameters.recursiveUnpack() as unknown[]),
     );
     // Belt-and-braces restart: a new owner of the well-known name (arg0
     // filter) is a hub start even if `JobsCleared` was lost. Ownership loss
@@ -80,7 +80,7 @@ class GioEventBusTransport implements EventBusTransport {
       EVENTS_BUS_NAME,
       Gio.DBusSignalFlags.NONE,
       (_connection, _sender, _path, _iface, _signal, parameters) => {
-        const body = parameters.deepUnpack() as string[];
+        const body = parameters.recursiveUnpack() as string[];
         if (body.length === 3 && body[2]) onHubRestart();
       },
     );
@@ -98,7 +98,7 @@ class GioEventBusTransport implements EventBusTransport {
       HYDRATION_TIMEOUT_MS,
       null,
     );
-    const unpacked = reply.deepUnpack() as unknown[];
+    const unpacked = reply.recursiveUnpack() as unknown[];
     if (!Array.isArray(unpacked) || unpacked.length === 0) return null;
     const state = unpacked[0];
     return state !== null && typeof state === "object"
