@@ -156,6 +156,10 @@ The GUI SHALL be a standalone AGS application rendered as a bottom-anchored laye
 - **WHEN** the overlay is rendered
 - **THEN** its colors come from the runtime-generated palette (`colors.css`: `@color_background`/`@color_foreground`/`@color_00..15`), so a wallpaper/palette change restyles the overlay like the bar, capture tool, and rofi launcher
 
+#### Scenario: Shared themed glyphs
+- **WHEN** a card or the search field renders an icon
+- **THEN** it comes from the shared `ui` icon group (templates under `icon-templates/ui/`, mapped in `icons.yaml`, ITR-rendered to `current/icons/ui-*.svg` and advertised in the shared AGS manifest), falling back to a stock symbolic icon only when the render is absent
+
 ### Requirement: Selection, copy-back, and window lifecycle
 
 Selecting an item SHALL place its content back on the system clipboard with the correct representation (plain text or `image/png` for images) so it can be pasted. Items SHALL be selectable by mouse and by keyboard, including arrow navigation, Enter to copy the focused item, `Ctrl+1..9` to copy by position, and Delete to remove an item; a favorite toggle SHALL be available. Keyboard commands MUST reach the overlay even while the search field holds focus (handled before the text widget consumes them). The overlay MUST close on Escape, hide after a copy is performed, and hide when the toggle/launcher closes it.

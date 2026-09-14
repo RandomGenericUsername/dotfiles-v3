@@ -1,6 +1,38 @@
 import { Gtk } from "ags/gtk4"
-import { kindIcon, type ClipboardItem } from "../lib/clipboard-types"
+import type { ClipboardItem } from "../lib/clipboard-types"
+import { resolveIcon } from "../lib/icon-registry"
 import { Preview } from "./Preview"
+
+//: Stock symbolic fallbacks (used only until the themed `ui-*.svg` renders).
+const FALLBACK_ICON: Record<string, string> = {
+  search: "system-search-symbolic",
+  text: "text-x-generic-symbolic",
+  image: "image-x-generic-symbolic",
+  link: "insert-link-symbolic",
+  code: "text-x-script-symbolic",
+  color: "applications-graphics-symbolic",
+  emoji: "face-smile-symbolic",
+}
+
+/**
+ * Shared UI glyph from the themed `ui` group (ITR-rendered, palette-tinted),
+ * falling back to a stock symbolic icon until the render exists. Exported so
+ * any overlay surface (cards, search field, …) uses the same icon set.
+ */
+export function uiIcon(variant: string, size = 18): Gtk.Widget {
+  const path = resolveIcon("ui", variant)
+  if (path !== null) {
+    const image = Gtk.Image.new_from_file(path)
+    image.set_pixel_size(size)
+    image.add_css_class("pano-ui-icon")
+    return image
+  }
+  const fallback = Gtk.Image.new_from_icon_name(
+    FALLBACK_ICON[variant] ?? "text-x-generic-symbolic",
+  )
+  fallback.set_pixel_size(size)
+  return fallback
+}
 
 /**
  * One clipboard history card: preview + footer, click selects.
@@ -28,7 +60,7 @@ export function ItemCard(
   const badge = new Gtk.Label({ label: String(index) })
   badge.add_css_class("pano-index")
   footer.append(badge)
-  footer.append(Gtk.Image.new_from_icon_name(kindIcon(item.kind)))
+  footer.append(uiIcon(item.kind))
   if (item.favorite) {
     footer.append(Gtk.Image.new_from_icon_name("starred-symbolic"))
   }

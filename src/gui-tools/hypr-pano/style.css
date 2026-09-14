@@ -17,11 +17,18 @@ window#hypr-pano-window {
 .pano-search {
   background-color: alpha(@color_background, 0.5);
   color: @color_foreground;
+  border: none;
   border-radius: 8px;
+  padding: 4px 8px;
+  min-height: 26px;
 }
 
 .pano-search placeholder {
   color: alpha(@color_foreground, 0.55);
+}
+
+.pano-ui-icon {
+  opacity: 0.8;
 }
 
 .pano-incognito {

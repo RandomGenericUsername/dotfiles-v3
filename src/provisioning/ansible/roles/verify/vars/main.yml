@@ -289,6 +289,7 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/ItemCard.tsx"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/Preview.tsx"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/clipboard-types.ts"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/history.ts"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus.ts"

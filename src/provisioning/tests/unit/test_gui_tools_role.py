@@ -250,7 +250,7 @@ class TestGuiToolsVars:
         dialogs, and every lib module the overlay imports (including the
         Phase 5 event seam: clipboard-types, history, event-bus-core, event-bus)."""
         files = list(_vars()["gui_tools_hypr_pano_app_files"])
-        assert len(files) == 9, f"expected exactly 9 hypr-pano files; found {len(files)}"
+        assert len(files) == 10, f"expected exactly 10 hypr-pano files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/hypr-pano/app.tsx",
@@ -258,6 +258,7 @@ class TestGuiToolsVars:
             "src/gui-tools/hypr-pano/lib/event-bus-core.ts",
             "src/gui-tools/hypr-pano/lib/event-bus.ts",
             "src/gui-tools/hypr-pano/lib/history.ts",
+            "src/gui-tools/hypr-pano/lib/icon-registry.ts",
             "src/gui-tools/hypr-pano/style.css",
             "src/gui-tools/hypr-pano/ui/ItemCard.tsx",
             "src/gui-tools/hypr-pano/ui/PanoWindow.tsx",

@@ -14,7 +14,7 @@ import {
   type ClipboardUpdatePayload,
 } from "../lib/clipboard-types"
 import { copyItem, deleteItem, readHistory, toggleFavorite } from "../lib/history"
-import { ItemCard } from "./ItemCard"
+import { ItemCard, uiIcon } from "./ItemCard"
 
 const WINDOW_NAME = "hypr-pano-window"
 
@@ -31,7 +31,8 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
   let paused = false
   let jobId: string | null = null
 
-  const search = new Gtk.SearchEntry({
+  const searchIcon = uiIcon("search", 18)
+  const search = new Gtk.Entry({
     placeholder_text: "Search clipboard\u2026",
     hexpand: true,
   })
@@ -159,7 +160,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
     domainEvents.control(jobId, paused ? "resume" : "pause")
   })
 
-  search.connect("search-changed", () => {
+  search.connect("changed", () => {
     query = search.get_text()
     selected = 0
     refresh()
@@ -206,6 +207,7 @@ export function PanoWindow(gdkmonitor: Gdk.Monitor) {
         css_classes={["pano-panel"]}
         $={(self) => {
           const header = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 })
+          header.append(searchIcon)
           header.append(search)
           header.append(incognito)
           self.append(header)

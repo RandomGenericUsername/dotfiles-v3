@@ -1732,6 +1732,7 @@ def _build_provisioned_layout(
     (install / "config" / "ags-hypr-pano" / "ui" / "ItemCard.tsx").write_text("")
     (install / "config" / "ags-hypr-pano" / "ui" / "Preview.tsx").write_text("")
     (install / "config" / "ags-hypr-pano" / "lib" / "clipboard-types.ts").write_text("")
+    (install / "config" / "ags-hypr-pano" / "lib" / "icon-registry.ts").write_text("")
     (install / "config" / "ags-hypr-pano" / "lib" / "history.ts").write_text("")
     (install / "config" / "ags-hypr-pano" / "lib" / "event-bus-core.ts").write_text("")
     (install / "config" / "ags-hypr-pano" / "lib" / "event-bus.ts").write_text("")
