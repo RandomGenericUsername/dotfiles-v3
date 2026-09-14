@@ -1575,6 +1575,7 @@ def _build_provisioned_layout(
         "config/ags",
         "config/ags-capture",
         "config/ags-icme",
+        "config/ags-hypr-pano",
         "config/nvim",
         "config/starship",
         "config/wlogout",
@@ -1692,6 +1693,9 @@ def _build_provisioned_layout(
         "ags-capture/ui",
         "ags-capture/controllers",
         "ags-icme/lib",
+        "ags-hypr-pano",
+        "ags-hypr-pano/ui",
+        "ags-hypr-pano/lib",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
@@ -1731,6 +1735,18 @@ def _build_provisioned_layout(
     # modules (Phase 5 event-contract + event-bus).
     (install / "config" / "ags-icme" / "lib" / "event-contract.ts").write_text("")
     (install / "config" / "ags-icme" / "lib" / "event-bus.ts").write_text("")
+    # hypr-pano clipboard overlay (gui_tools role): must match
+    # verify_gui_tools_app_files EXACTLY.
+    (install / "config" / "ags-hypr-pano" / "app.tsx").write_text("")
+    (install / "config" / "ags-hypr-pano" / "style.css").write_text("")
+    (install / "config" / "ags-hypr-pano" / "ui" / "PanoWindow.tsx").write_text("")
+    (install / "config" / "ags-hypr-pano" / "ui" / "ItemCard.tsx").write_text("")
+    (install / "config" / "ags-hypr-pano" / "ui" / "Preview.tsx").write_text("")
+    (install / "config" / "ags-hypr-pano" / "lib" / "clipboard-types.ts").write_text("")
+    (install / "config" / "ags-hypr-pano" / "lib" / "icon-registry.ts").write_text("")
+    (install / "config" / "ags-hypr-pano" / "lib" / "history.ts").write_text("")
+    (install / "config" / "ags-hypr-pano" / "lib" / "event-bus-core.ts").write_text("")
+    (install / "config" / "ags-hypr-pano" / "lib" / "event-bus.ts").write_text("")
     # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
     # owns the R2 consumer symlink, created above).
 
@@ -1774,6 +1790,7 @@ def _build_provisioned_layout(
         "ags",
         "ags-capture",
         "ags-icme",
+        "ags-hypr-pano",
         "nvim",
         "starship",
         "wlogout",

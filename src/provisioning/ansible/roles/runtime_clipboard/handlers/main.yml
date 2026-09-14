@@ -1,0 +1,18 @@
+# runtime_clipboard handlers (mirror of runtime_daemon, 6dd697f).
+#
+# Restart the watcher only when the unit template ACTUALLY changed. A plain
+# `state: started` is a no-op for an already-running job: Ansible reloads the
+# unit file but never re-execs the process, so a template fix would stay
+# unapplied until the next manual restart or login. Guarded exactly like the
+# enable/start task:
+#   - never in --check (restarting a live unit is a state mutation);
+#   - only with a live user manager.
+- name: Restart dotfiles clipboard watcher
+  ansible.builtin.systemd:
+    name: "{{ runtime_clipboard_unit_name }}"
+    scope: user
+    daemon_reload: true
+    state: restarted
+  when:
+    - not ansible_check_mode
+    - runtime_clipboard_manager_probe.rc | default(1) == 0

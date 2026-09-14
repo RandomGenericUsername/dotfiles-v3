@@ -357,7 +357,6 @@ class TestReadRealManifests:
             "wf-recorder",
             "rofi",
             "thunar",
-            "cliphist",
             "lf",
             "btop",
             "thunderbird",

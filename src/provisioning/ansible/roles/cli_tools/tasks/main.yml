@@ -62,6 +62,14 @@
     dest: "{{ cli_tools_bin_dir }}/capture-ui"
     mode: "0755"
 
+# The clipboard overlay has the same "bundles TS at startup" lifecycle; its
+# keybind entrypoint must restart a quit instance on demand (super+w toggles).
+- name: Install the hypr-pano clipboard overlay launcher (toggle/start-if-down template)
+  ansible.builtin.template:
+    src: hypr-pano-ui.j2
+    dest: "{{ cli_tools_bin_dir }}/hypr-pano-ui"
+    mode: "0755"
+
 - name: Install csg/weg/itr via uv tool install
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:

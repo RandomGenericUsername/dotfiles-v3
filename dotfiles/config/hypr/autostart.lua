@@ -39,7 +39,9 @@ hl.on("hyprland.start", function()
     -- Hyprland plugins require a live IPC session.
     hl.exec_cmd("bash -lc '$HOME/.local/bin/gloview-activate'")
 
-    -- Clipboard manager (wl-clipboard)
-    hl.exec_cmd("wl-paste --type text --watch cliphist store")
-    hl.exec_cmd("wl-paste --type image --watch cliphist store")
+    -- Clipboard history is owned by the resident `dotfiles-runtime clipboard`
+    -- job (systemd --user unit dotfiles-runtime-clipboard.service), which
+    -- supersedes the old `cliphist` watcher lines. The overlay UI is a
+    -- standalone AGS instance started below, staggered after the capture app.
+    hl.exec_cmd("bash -lc 'sleep 3 && ags run -d $HOME/.config/ags-hypr-pano --log-file $HOME/.local/state/ags/hypr-pano.log'")
 end)

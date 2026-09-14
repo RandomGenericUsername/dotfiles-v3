@@ -68,6 +68,19 @@
     "speedtest.finished": {
       "producer": "speed-test job",
       "payload": { "down_mbps": "d", "up_mbps": "d", "latency_ms": "d" }
+    },
+    "clipboard.update": {
+      "producer": "clipboard controller",
+      "payload": { "type": "s", "hash": "s", "path": "s", "preview": "s" },
+      "enum": { "type": ["text", "image", "link", "code", "color", "emoji"] },
+      "notes": "path is the image file path for image items and empty otherwise; preview is a bounded text excerpt for text-like items and empty for images; never raw binary"
+    },
+    "clipboard.state": {
+      "producer": "clipboard controller",
+      "payload": { "state": "s", "job_id": "s" },
+      "enum": { "state": ["idle", "running", "paused"] },
+      "cadence": "on every transition (start, pause, resume, stop)",
+      "notes": "drives the overlay's incognito indicator and routes Control; job_id is the hub-allocated clipboard job"
     }
   }
 }

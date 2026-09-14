@@ -47,6 +47,16 @@ hl.bind(
     { description = "Open icon color mapping editor" }
 )
 
+-- Clipboard history overlay (standalone AGS instance `hypr-pano`)
+-- The launcher is start-if-down/toggle: provisioning quits the instance after
+-- updating its sources, and this bind both reopens a running window and
+-- restarts a quit instance on demand.
+hl.bind(
+    mod .. " + V",
+    hl.dsp.exec_cmd("hypr-pano-ui"),
+    { description = "Open clipboard history" }
+)
+
 -- File manager
 hl.bind(
     mod .. " + E",

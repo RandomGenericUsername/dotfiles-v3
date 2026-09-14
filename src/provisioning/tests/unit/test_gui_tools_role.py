@@ -244,3 +244,65 @@ class TestGuiToolsVars:
                 f"dest parent {parent!r} of {entry['name']} is not an ensured "
                 f"dir (template would fail); add it to gui_tools_config_dirs"
             )
+
+    def test_hypr_pano_app_files_exact_list(self) -> None:
+        """The clipboard overlay file set, exactly: entry point, stylesheet,
+        dialogs, and every lib module the overlay imports (including the
+        Phase 5 event seam: clipboard-types, history, event-bus-core, event-bus)."""
+        files = list(_vars()["gui_tools_hypr_pano_app_files"])
+        assert len(files) == 10, f"expected exactly 10 hypr-pano files; found {len(files)}"
+        sources = sorted(str(f["source"]) for f in files)
+        expected = [
+            "src/gui-tools/hypr-pano/app.tsx",
+            "src/gui-tools/hypr-pano/lib/clipboard-types.ts",
+            "src/gui-tools/hypr-pano/lib/event-bus-core.ts",
+            "src/gui-tools/hypr-pano/lib/event-bus.ts",
+            "src/gui-tools/hypr-pano/lib/history.ts",
+            "src/gui-tools/hypr-pano/lib/icon-registry.ts",
+            "src/gui-tools/hypr-pano/style.css",
+            "src/gui-tools/hypr-pano/ui/ItemCard.tsx",
+            "src/gui-tools/hypr-pano/ui/PanoWindow.tsx",
+            "src/gui-tools/hypr-pano/ui/Preview.tsx",
+        ]
+        assert sources == expected, (
+            f"gui_tools_hypr_pano_app_files sources must be exactly {expected}; got {sources}"
+        )
+        for entry in files:
+            dest = str(entry["dest"])
+            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-hypr-pano/"), (
+                f"hypr-pano dest must derive from gui_tools_spine_config_dir/ags-hypr-pano: {dest}"
+            )
+
+    def test_hypr_pano_app_sources_exist_in_repo(self) -> None:
+        """Every hypr-pano source resolves to a real repo file (typo-proof)."""
+        for entry in _vars()["gui_tools_hypr_pano_app_files"]:
+            path = _REPO_ROOT / str(entry["source"])
+            assert path.is_file(), f"hypr-pano app source missing from repo: {entry['source']}"
+
+    def test_every_hypr_pano_dest_parent_is_an_ensured_dir(self) -> None:
+        """Regression lock: `template` does NOT create dest parents, so every
+        hypr-pano dest's parent dir must be listed in gui_tools_config_dirs."""
+        data = _vars()
+        ensured = {
+            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
+            for d in data["gui_tools_config_dirs"]
+        }
+        for entry in data["gui_tools_hypr_pano_app_files"]:
+            dest = str(entry["dest"])
+            parent = dest.rsplit("/", 1)[0].replace(
+                "{{ gui_tools_spine_config_dir }}", "<spine>"
+            )
+            assert parent in ensured, (
+                f"dest parent {parent!r} of {entry['name']} is not an ensured "
+                f"dir (template would fail); add it to gui_tools_config_dirs"
+            )
+
+    def test_hypr_pano_sources_contain_no_jinja_sequences(self) -> None:
+        """The hypr-pano sources are placed via `template`, so they must not
+        contain Jinja-sensitive `{{`/`{%` sequences (which Jinja2 would
+        evaluate and destroy). Pins the choice of template over raw copy."""
+        for entry in _vars()["gui_tools_hypr_pano_app_files"]:
+            text = (_REPO_ROOT / str(entry["source"])).read_text(encoding="utf-8")
+            assert "{{" not in text and "{%" not in text, (
+                f"{entry['source']} contains a Jinja sequence; use raw copy"
+            )

@@ -261,3 +261,31 @@ tray:
     - name: tidal
       template: status-bar/tray/tidal/default/icon.svg
       output: tray-tidal.svg
+
+ui:
+  color_mappings:
+    COLOR_FOREGROUND: color15
+    COLOR_ACCENT: color12
+  variants:
+    - name: search
+      template: ui/search/default/icon.svg
+      output: ui-search.svg
+    - name: text
+      template: ui/text/default/icon.svg
+      output: ui-text.svg
+    - name: image
+      template: ui/image/default/icon.svg
+      output: ui-image.svg
+    - name: link
+      template: ui/link/default/icon.svg
+      output: ui-link.svg
+    - name: code
+      template: ui/code/default/icon.svg
+      output: ui-code.svg
+    - name: color
+      template: ui/color/default/icon.svg
+      output: ui-color.svg
+    - name: emoji
+      template: ui/emoji/default/icon.svg
+      output: ui-emoji.svg
+

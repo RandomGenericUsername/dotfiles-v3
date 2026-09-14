@@ -1,0 +1,26 @@
+[Unit]
+Description=dotfiles clipboard watcher (history + clipboard.update events)
+# Session-scoped: needs the user bus and the graphical session (Wayland
+# wl-clipboard data-control). Never system scope.
+Requires=dbus.socket
+After=dbus.socket graphical-session.target
+# Order after the hub so BeginJob/lease registration happens promptly on a
+# normal login. The watcher tolerates an absent hub (reduced functionality),
+# so this is ordering, not a hard dependency beyond the graphical session.
+After=dotfiles-runtime-daemon.service
+Wants=dotfiles-runtime-daemon.service
+# Start limits are [Unit] directives (systemd.unit(5)); in [Service] they are
+# silently ignored and a persistent failure would hot-loop.
+StartLimitIntervalSec={{ runtime_clipboard_start_limit_interval_sec }}
+StartLimitBurst={{ runtime_clipboard_start_limit_burst }}
+
+[Service]
+Type=simple
+ExecStart="{{ runtime_clipboard_bin_dir }}/dotfiles-runtime" clipboard
+# Restart=always: the watcher is the history's whole reason to exist; any exit
+# (crash, wl-paste failure) must be retried, not left stopped.
+Restart=always
+RestartSec={{ runtime_clipboard_restart_sec }}
+
+[Install]
+WantedBy=graphical-session.target
