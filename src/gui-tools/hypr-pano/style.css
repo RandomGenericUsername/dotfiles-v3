@@ -60,9 +60,36 @@ window#hypr-pano-window {
   border-color: @color_04;
 }
 
-.pano-card.selected {
-  border-color: @color_10;
-  box-shadow: 0 0 0 2px alpha(@color_10, 0.55);
+/* Highlight follows the card's TYPE token (same palette token as its header),
+ * so the selected outline is dynamic per type, not one shared accent. */
+.kind-text.selected {
+  border-color: @color_06;
+  box-shadow: 0 0 0 2px alpha(@color_06, 0.6);
+}
+
+.kind-code.selected {
+  border-color: @color_00;
+  box-shadow: 0 0 0 2px alpha(@color_00, 0.6);
+}
+
+.kind-color.selected {
+  border-color: @color_13;
+  box-shadow: 0 0 0 2px alpha(@color_13, 0.6);
+}
+
+.kind-image.selected {
+  border-color: @color_09;
+  box-shadow: 0 0 0 2px alpha(@color_09, 0.6);
+}
+
+.kind-link.selected {
+  border-color: @color_04;
+  box-shadow: 0 0 0 2px alpha(@color_04, 0.6);
+}
+
+.kind-emoji.selected {
+  border-color: @color_12;
+  box-shadow: 0 0 0 2px alpha(@color_12, 0.6);
 }
 
 /* Type header: background = palette token, text contrast chosen at runtime
