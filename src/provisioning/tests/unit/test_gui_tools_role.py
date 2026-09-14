@@ -84,6 +84,19 @@ class TestGuiToolsTasks:
         for task in tasks:
             assert _module(task).get("force") is True
 
+    def test_wallpaper_selector_files_placed_via_template_force(self) -> None:
+        """Per-file `template` + `force: true` (repo-authoritative) for the
+        selector list — same placement discipline as the sibling apps."""
+        tasks = [
+            task
+            for task in _tasks()
+            if task.keys() & {"ansible.builtin.template"}
+            and "gui_tools_wallpaper_selector_app_files" in str(task.get("loop", ""))
+        ]
+        assert tasks, "no selector placement task found"
+        for task in tasks:
+            assert _module(task).get("force") is True
+
     def test_legacy_capture_subtree_removed(self) -> None:
         """Reprovision convergence: the bar spine's old ags/capture/ subtree
         is removed (superseded by ags-capture/)."""
@@ -306,3 +319,73 @@ class TestGuiToolsVars:
             assert "{{" not in text and "{%" not in text, (
                 f"{entry['source']} contains a Jinja sequence; use raw copy"
             )
+
+    def test_wallpaper_selector_app_files_exact_list(self) -> None:
+        """The wallpaper selector file set, exactly: entry point, stylesheet,
+        P5 window, and every lib module it imports (scan/thumbnails/apply plus
+        the Phase 5 event seam: icon-registry, event-bus-core, event-bus)."""
+        files = list(_vars()["gui_tools_wallpaper_selector_app_files"])
+        assert len(files) == 10, f"expected exactly 10 selector files; found {len(files)}"
+        sources = sorted(str(f["source"]) for f in files)
+        expected = [
+            "src/gui-tools/wallpaper-selector/app.tsx",
+            "src/gui-tools/wallpaper-selector/lib/apply.ts",
+            "src/gui-tools/wallpaper-selector/lib/event-bus-core.ts",
+            "src/gui-tools/wallpaper-selector/lib/event-bus.ts",
+            "src/gui-tools/wallpaper-selector/lib/icon-registry.ts",
+            "src/gui-tools/wallpaper-selector/lib/model.ts",
+            "src/gui-tools/wallpaper-selector/lib/scan.ts",
+            "src/gui-tools/wallpaper-selector/lib/thumbnails.ts",
+            "src/gui-tools/wallpaper-selector/style.css",
+            "src/gui-tools/wallpaper-selector/ui/WallpaperSelectorWindow.tsx",
+        ]
+        assert sources == expected, (
+            f"gui_tools_wallpaper_selector_app_files sources must be exactly {expected}; got {sources}"
+        )
+        for entry in files:
+            dest = str(entry["dest"])
+            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/"), (
+                f"selector dest must derive from gui_tools_spine_config_dir/ags-wallpaper-selector: {dest}"
+            )
+
+    def test_wallpaper_selector_app_sources_exist_in_repo(self) -> None:
+        """Every selector source resolves to a real repo file (typo-proof)."""
+        for entry in _vars()["gui_tools_wallpaper_selector_app_files"]:
+            path = _REPO_ROOT / str(entry["source"])
+            assert path.is_file(), f"selector app source missing from repo: {entry['source']}"
+
+    def test_every_wallpaper_selector_dest_parent_is_an_ensured_dir(self) -> None:
+        """Regression lock: `template` does NOT create dest parents, so every
+        selector dest's parent dir must be listed in gui_tools_config_dirs."""
+        data = _vars()
+        ensured = {
+            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
+            for d in data["gui_tools_config_dirs"]
+        }
+        for entry in data["gui_tools_wallpaper_selector_app_files"]:
+            dest = str(entry["dest"])
+            parent = dest.rsplit("/", 1)[0].replace(
+                "{{ gui_tools_spine_config_dir }}", "<spine>"
+            )
+            assert parent in ensured, (
+                f"dest parent {parent!r} of {entry['name']} is not an ensured "
+                f"dir (template would fail); add it to gui_tools_config_dirs"
+            )
+
+    def test_wallpaper_selector_sources_contain_no_jinja_sequences(self) -> None:
+        """The selector sources are placed via `template`, so they must not
+        contain Jinja-sensitive `{{`/`{%` sequences (which Jinja2 would
+        evaluate and destroy). Pins the choice of template over raw copy."""
+        for entry in _vars()["gui_tools_wallpaper_selector_app_files"]:
+            text = (_REPO_ROOT / str(entry["source"])).read_text(encoding="utf-8")
+            assert "{{" not in text and "{%" not in text, (
+                f"{entry['source']} contains a Jinja sequence; use raw copy"
+            )
+
+    def test_ags_instances_include_wallpaper_selector(self) -> None:
+        """The selector instance must be quit after placement (bundles TS at
+        startup and holds it in memory — same lifecycle as the siblings)."""
+        instances = list(_vars()["gui_tools_ags_instances"])
+        assert "wallpaper-selector" in instances, (
+            f"gui_tools_ags_instances must include wallpaper-selector; got {instances}"
+        )

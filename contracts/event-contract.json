@@ -81,6 +81,13 @@
       "enum": { "state": ["idle", "running", "paused"] },
       "cadence": "on every transition (start, pause, resume, stop)",
       "notes": "drives the overlay's incognito indicator and routes Control; job_id is the hub-allocated clipboard job"
+    },
+    "wallpaper.state": {
+      "producer": "dotfiles-runtime wallpaper set",
+      "payload": { "state": "s", "wallpaper_hash": "s" },
+      "enum": { "state": ["applying", "done", "error"] },
+      "cadence": "on transition: applying at set start, done/error at finish",
+      "notes": "drives the wallpaper selector's progress indicator and LIVE refresh; publish-only, no job lease; wallpaper_hash is empty when the input never validated"
     }
   }
 }

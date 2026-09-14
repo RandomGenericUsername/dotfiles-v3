@@ -57,6 +57,16 @@ hl.bind(
     { description = "Open clipboard history" }
 )
 
+-- Wallpaper selector (standalone AGS instance `wallpaper-selector`)
+-- The launcher is start-if-down/toggle: provisioning quits the instance after
+-- updating its sources, and this bind both reopens a running window and
+-- restarts a quit instance on demand.
+hl.bind(
+    mod .. " + W",
+    hl.dsp.exec_cmd("wallpaper-selector-ui"),
+    { description = "Open wallpaper selector" }
+)
+
 -- File manager
 hl.bind(
     mod .. " + E",

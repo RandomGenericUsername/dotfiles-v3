@@ -1154,6 +1154,8 @@ class TestVerifyVars:
         gui = [str(f) for f in data["verify_gui_tools_app_files"]]
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts" in gui
+        assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts" in gui
+        assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts" in gui
 
     def test_vars_use_non_deprecated_env_fact(self) -> None:
         """F4 lock: vars read ansible_facts.env, never the deprecated top-level
@@ -1630,6 +1632,7 @@ def _build_provisioned_layout(
         "config/ags-capture",
         "config/ags-icme",
         "config/ags-hypr-pano",
+        "config/ags-wallpaper-selector",
         "config/nvim",
         "config/starship",
         "config/wlogout",
@@ -1760,6 +1763,9 @@ def _build_provisioned_layout(
         "ags-hypr-pano",
         "ags-hypr-pano/ui",
         "ags-hypr-pano/lib",
+        "ags-wallpaper-selector",
+        "ags-wallpaper-selector/ui",
+        "ags-wallpaper-selector/lib",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
@@ -1811,6 +1817,23 @@ def _build_provisioned_layout(
     (install / "config" / "ags-hypr-pano" / "lib" / "history.ts").write_text("")
     (install / "config" / "ags-hypr-pano" / "lib" / "event-bus-core.ts").write_text("")
     (install / "config" / "ags-hypr-pano" / "lib" / "event-bus.ts").write_text("")
+    # Wallpaper selector (gui_tools role): must match
+    # verify_gui_tools_app_files EXACTLY.
+    (install / "config" / "ags-wallpaper-selector" / "app.tsx").write_text("")
+    (install / "config" / "ags-wallpaper-selector" / "style.css").write_text("")
+    (install / "config" / "ags-wallpaper-selector" / "ui" / "WallpaperSelectorWindow.tsx").write_text(
+        ""
+    )
+    for lib in (
+        "model",
+        "scan",
+        "thumbnails",
+        "apply",
+        "icon-registry",
+        "event-bus-core",
+        "event-bus",
+    ):
+        (install / "config" / "ags-wallpaper-selector" / "lib" / f"{lib}.ts").write_text("")
     # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
     # owns the R2 consumer symlink, created above).
 
@@ -1855,6 +1878,7 @@ def _build_provisioned_layout(
         "ags-capture",
         "ags-icme",
         "ags-hypr-pano",
+        "ags-wallpaper-selector",
         "nvim",
         "starship",
         "wlogout",
