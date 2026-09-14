@@ -39,6 +39,17 @@ window#hypr-pano-window {
   background-color: @color_10;
 }
 
+.pano-clear {
+  min-width: 64px;
+  background-color: @color_08;
+  color: @color_background;
+  border-radius: 8px;
+}
+
+.pano-clear:hover {
+  background-color: @color_09;
+}
+
 .pano-ui-icon {
   opacity: 0.9;
 }

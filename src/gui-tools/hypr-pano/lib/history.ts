@@ -17,10 +17,12 @@ export function historyPath(): string {
   return `${stateHome}/hypr-pano/history.json`
 }
 
-/** Read + parse the history document; empty on any error. */
+/** Read + parse the history document; empty when absent or unreadable. */
 export function readHistory(): ClipboardItem[] {
+  const path = historyPath()
+  if (!GLib.file_test(path, GLib.FileTest.EXISTS)) return []
   try {
-    const [ok, bytes] = GLib.file_get_contents(historyPath())
+    const [ok, bytes] = GLib.file_get_contents(path)
     if (!ok || bytes === null) return []
     return parseHistory(new TextDecoder().decode(bytes))
   } catch (error) {
@@ -74,6 +76,20 @@ export function deleteItem(hash: string): void {
       Gio.File.new_for_path(target.path).delete(null)
     } catch (error) {
       console.error(`hypr-pano: cannot remove image ${target.path}: ${error}`)
+    }
+  }
+}
+
+/** Wipe the whole history and delete every cached image it referenced. */
+export function clearHistory(): void {
+  const items = readHistory()
+  writeHistory([])
+  for (const item of items) {
+    if (item.path === null) continue
+    try {
+      Gio.File.new_for_path(item.path).delete(null)
+    } catch (error) {
+      console.error(`hypr-pano: cannot remove image ${item.path}: ${error}`)
     }
   }
 }
