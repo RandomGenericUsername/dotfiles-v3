@@ -94,6 +94,24 @@ export function clearHistory(): void {
   }
 }
 
+/** Open a URL with the desktop handler (xdg-open), fire-and-forget. */
+export function openUrl(url: string): void {
+  const target = url.trim()
+  if (target.length === 0) return
+  try {
+    const proc = Gio.Subprocess.new(["xdg-open", target], Gio.SubprocessFlags.NONE)
+    proc.wait_async(null, () => {
+      try {
+        proc.wait_finish(null)
+      } catch {
+        // Ignore: the handler's exit code is not actionable here.
+      }
+    })
+  } catch (error) {
+    console.error(`hypr-pano: cannot open ${target}: ${error}`)
+  }
+}
+
 /** Put an item back on the system clipboard with the right representation. */
 export function copyItem(item: ClipboardItem): Promise<void> {
   if (item.kind === "image" && item.path !== null) {
