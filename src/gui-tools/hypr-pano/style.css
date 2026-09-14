@@ -106,8 +106,8 @@ window#hypr-pano-window {
 }
 
 .pano-index {
-  min-width: 20px;
-  min-height: 20px;
+  min-width: 18px;
+  min-height: 18px;
   padding: 0;
   border-radius: 6px;
   font-size: 0.75rem;
