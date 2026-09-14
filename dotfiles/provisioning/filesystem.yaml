@@ -31,6 +31,7 @@ entries:
   - name: config/starship
   - name: config/wlogout
   - name: config/zsh
+  - name: config/kitty
   - name: config/weg
   - name: config/itr
   # GTK consumer dirs (gt-3-1): spine parents for the gtk-3.0/gtk-4.0

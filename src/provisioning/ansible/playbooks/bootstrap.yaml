@@ -6,7 +6,7 @@
 # Dependency order rationale (plan §11 step 7, story 2.12 AC 4, Epic 4):
 #   packages → cli_tools → filesystem → assets →
 #   compositor_configs → gui_tools → config_copies → settings → zsh_tools → zsh_config →
-#   wlogout_config → config_links → runtime-seed → display_manager →
+#   wlogout_config → kitty_config → config_links → runtime-seed → display_manager →
 #   gloview-plugin → verify
 # `packages` first (it installs the system packages everything else assumes —
 # including the cmake build deps the gloview Hyprland plugin compiles
@@ -66,6 +66,7 @@
 - import_playbook: zsh-tools.yaml
 - import_playbook: zsh-config.yaml
 - import_playbook: wlogout-config.yaml
+- import_playbook: kitty-config.yaml
 - import_playbook: config-links.yaml
 - import_playbook: runtime-seed.yaml
 - import_playbook: display-manager.yaml

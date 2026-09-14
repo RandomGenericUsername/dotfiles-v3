@@ -1101,10 +1101,11 @@ class TestVerifyVars:
 
     def test_palette_files_match_cache_artifacts(self) -> None:
         """Criterion 6 (Epic 4 current-only): the palette files check is
-        exactly the three cache palette artifacts (conf/yaml/gtk.css) —
-        NOT json/sh (no consumer). These are the artifact names the
-        runtime writes into cache/palettes/<ph>/ (shared-data-contract),
-        mirrored here so verify checks what the runtime produces."""
+        exactly the cache palette artifacts (conf/yaml/gtk.css/adw.css/
+        sequences/kitty) — NOT json/sh (no consumer). These are the artifact
+        names the runtime writes into cache/palettes/<ph>/
+        (shared-data-contract), mirrored here so verify checks what the runtime
+        produces."""
         data = _vars()
         assert [str(f) for f in data["verify_palette_files"]] == [
             "colors.conf",
@@ -1112,6 +1113,7 @@ class TestVerifyVars:
             "colors.gtk.css",
             "colors.adw.css",
             "colors.sequences",
+            "colors.kitty",
         ]
 
     def test_state_current_dir_derived_from_verify_xdg_state_home(self) -> None:
@@ -1577,6 +1579,7 @@ def _build_provisioned_layout(
         "config/starship",
         "config/wlogout",
         "config/zsh",
+        "config/kitty",
         "config/weg",
         "config/itr",
         "config/gtk-3.0",
@@ -1635,10 +1638,18 @@ def _build_provisioned_layout(
     state_current = state_home / "dotfiles" / "current"
     state_cache_palette = state_home / "dotfiles" / "cache" / "palettes" / "abc123"
     state_cache_palette.mkdir(parents=True)
-    for name in ("colors.conf", "colors.yaml", "colors.gtk.css", "colors.adw.css", "colors.sequences"):
+    palette_names = (
+        "colors.conf",
+        "colors.yaml",
+        "colors.gtk.css",
+        "colors.adw.css",
+        "colors.sequences",
+        "colors.kitty",
+    )
+    for name in palette_names:
         (state_cache_palette / name).write_text("")
     state_current.mkdir(parents=True)
-    for name in ("colors.conf", "colors.yaml", "colors.gtk.css", "colors.adw.css", "colors.sequences"):
+    for name in palette_names:
         (state_current / name).symlink_to(state_cache_palette / name)
     state_cache_icons = state_home / "dotfiles" / "cache" / "icons" / "def456"
     state_cache_icons.mkdir(parents=True)
@@ -1738,6 +1749,15 @@ def _build_provisioned_layout(
     (install / "config" / "wlogout" / "style.css").write_text(
         '@import url("<INSTALL>/config/ags/colors.css");\nbutton { color: @color_15; }\n'
     )
+    # Rendered kitty config (kitty_config role): verify checks the FINAL
+    # kitty.conf (through the ~/.config/kitty link) and greps the runtime
+    # palette include line (current/colors.kitty).
+    (install / "config" / "kitty" / "kitty.conf").write_text(
+        "# managed by provisioning\n"
+        "include <STATE>/dotfiles/current/colors.kitty\n"
+        "include local.conf\n"
+        "auto_reload_config no\n"
+    )
 
     # Shell-tools clones (zsh_tools role — done-criterion 11): verify checks
     # ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist as dirs (in the HOME the playbook
@@ -1758,6 +1778,7 @@ def _build_provisioned_layout(
         "starship",
         "wlogout",
         "zsh",
+        "kitty",
         "color-scheme-generator",
         "weg",
         "itr",

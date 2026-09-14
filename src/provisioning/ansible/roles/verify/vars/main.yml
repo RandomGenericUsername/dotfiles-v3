@@ -93,6 +93,7 @@ verify_install_spine_dirs:
   - config/starship
   - config/wlogout
   - config/zsh
+  - config/kitty
   - config/weg
   - config/itr
   - config/gtk-3.0
@@ -210,6 +211,7 @@ verify_palette_files:
   - colors.gtk.css
   - colors.adw.css
   - colors.sequences
+  - colors.kitty
 
 # verify_icons_dir / verify_icons_sample: the runtime icons output
 #   (criterion — runtime icons, Epic 4 current-only). The dir is the
@@ -321,6 +323,7 @@ verify_config_copy_content:
   - "{{ verify_xdg_config_home }}/wlogout/layout"
   - "{{ verify_xdg_config_home }}/wlogout/style.css"
   - "{{ verify_xdg_config_home }}/zsh/.zshrc"
+  - "{{ verify_xdg_config_home }}/kitty/kitty.conf"
 
 # verify_managed_link_dirs: the FULL set of managed config dirs symlinked by the
 #   config-links role (criterion 9 — the 5-layer symlink check). Union of
@@ -336,6 +339,7 @@ verify_managed_link_dirs:
   - starship
   - wlogout
   - zsh
+  - kitty
   - color-scheme-generator
   - weg
   - itr

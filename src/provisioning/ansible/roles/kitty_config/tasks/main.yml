@@ -1,0 +1,48 @@
+# Kitty-config role — renders the user's kitty.conf from the authored Jinja
+# template (roles/kitty_config/templates/kitty.conf.j2) into the
+# config-in-spine home <install>/config/kitty/kitty.conf, resolving the runtime
+# palette include to the actual provisioned state path.
+#
+# Design:
+# - The FIRST task is the fail-loud install_dir seam assert, verbatim from the
+#   sibling roles (zsh_config / wlogout_config). install_dir is deliberately
+#   never defaulted (group_vars/all.yml), so a missing spine root aborts before
+#   any template evaluates.
+# - The rendered kitty.conf includes:
+#     include <state>/dotfiles/current/colors.kitty   (runtime palette, absolute)
+#     include local.conf                               (optional user overrides)
+#     auto_reload_config no                            (the runtime reloader
+#                                                       signals SIGUSR1
+#                                                       deterministically)
+# - local.conf is created ONLY IF ABSENT (`copy` with `force: false`) so a
+#   user's hand-written overrides survive re-provisioning. kitty.conf itself is
+#   owned by provisioning and re-rendered on every run (content-compare
+#   idempotent).
+# - Runs AFTER the runtime owns current/colors.kitty (sibling change) and
+#   BEFORE config_links (which symlinks ~/.config/kitty).
+# - The `template`/`copy` modules have full check-mode support — no --check gate.
+# - User-scoped: NO become.
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the kitty_config role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure kitty config dir exists in the spine
+  ansible.builtin.file:
+    path: "{{ kitty_config_spine_dir }}"
+    state: directory
+
+- name: Render kitty.conf
+  ansible.builtin.template:
+    src: kitty.conf.j2
+    dest: "{{ kitty_config_spine_dir }}/kitty.conf"
+
+- name: Ensure local.conf exists (never clobber user overrides)
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ kitty_config_spine_dir }}/local.conf"
+    force: false

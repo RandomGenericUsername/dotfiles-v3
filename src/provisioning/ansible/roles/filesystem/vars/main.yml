@@ -63,6 +63,7 @@ filesystem_spine_dirs:
   - config/starship
   - config/wlogout
   - config/zsh
+  - config/kitty
   - config/weg
   - config/itr
   - config/gtk-3.0

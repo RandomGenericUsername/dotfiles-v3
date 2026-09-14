@@ -1,0 +1,36 @@
+# Kitty-config role vars.
+#
+# Renders kitty's config into the config-in-spine home
+# <install>/config/kitty/kitty.conf and links it at kitty's native XDG
+# location (~/.config/kitty -> <install>/config/kitty, via the config_links
+# role). The rendered kitty.conf includes the runtime-owned palette at the
+# ABSOLUTE, machine-specific path <state>/dotfiles/current/colors.kitty, so
+# kitty reads the current wallpaper palette on every start.
+#
+# Mirror-and-adapt discipline (mirror of the zsh_config rendered role):
+#   - The include path embeds an absolute machine path, so this role RENDERS
+#     (template) rather than joining the static config_copies set.
+#   - State-path derivation mirrors zsh_config_state_current_dir EXACTLY:
+#     <XDG_STATE_HOME | ~/.local/state>/dotfiles/current, F4 lock
+#     (ansible_facts.env, NOT the deprecated top-level ansible_env fact).
+#   - install_dir is NEVER defaulted; the fail-loud first task asserts it.
+#   - User-scoped: NO become.
+
+# kitty_config_spine_dir: where the rendered kitty.conf lands (config-in-spine
+#   home). Trim lock: consumes the same validated {{ install_dir | trim }}
+#   value the fail-loud first-task assert enforces.
+kitty_config_spine_dir: "{{ install_dir | trim }}/config/kitty"
+
+# kitty_config_xdg_state_home: the state home the runtime owns
+#   ($XDG_STATE_HOME, AD-5: <state>/dotfiles/) — the rendered kitty.conf reads
+#   the runtime's current/colors.kitty pointer from it. Provisioning only
+#   REFERENCES the path in the rendered consumer config; it never WRITES under
+#   the state root (the pointers are runtime writes). Identical derivation to
+#   zsh_config_xdg_state_home / verify_xdg_state_home / filesystem_xdg_state_home
+#   — F4 lock: ansible_facts.env, NOT the deprecated top-level ansible_env fact.
+kitty_config_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+
+# kitty_config_state_current_dir: the runtime-owned current/ pointer dir.
+#   AD-5: the state root is ALWAYS <XDG_STATE_HOME>/dotfiles/. Trim lock —
+#   mirror of zsh_config_state_current_dir; one XDG read per role.
+kitty_config_state_current_dir: "{{ kitty_config_xdg_state_home | trim }}/dotfiles/current"

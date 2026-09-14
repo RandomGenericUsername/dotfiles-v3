@@ -731,6 +731,28 @@
       run the wlogout-config playbook (needs assets + default_palette first)
   when: not ansible_check_mode
 
+- name: Check rendered kitty.conf includes the runtime palette
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -E
+      - 'current/colors\.kitty'
+      - "{{ verify_xdg_config_home }}/kitty/kitty.conf"
+  register: verify_kitty_wiring
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert rendered kitty.conf includes the runtime palette
+  ansible.builtin.assert:
+    that: verify_kitty_wiring.rc == 0
+    fail_msg: >-
+      the rendered kitty.conf does not include the runtime palette (expected the
+      colors.kitty artifact to be included from the runtime state current dir —
+      kitty terminal config). The kitty_config role renders kitty.conf.j2 →
+      kitty.conf; run the kitty-config playbook first
+  when: not ansible_check_mode
+
 - name: Stat shell-tools clone dirs (zsh_tools)
   ansible.builtin.stat:
     path: "{{ item }}"

@@ -1,0 +1,14 @@
+# Kitty-config playbook — one-per-role playbook.
+#
+# Renders the user's kitty.conf into <install>/config/kitty/kitty.conf,
+# resolving the runtime palette include to the absolute machine state path
+# <state>/dotfiles/current/colors.kitty. Runs BEFORE config-links (which
+# symlinks ~/.config/kitty -> <install>/config/kitty).
+#
+# User-scoped: NO become. Distro-agnostic at the play level.
+# gather_facts: true REQUIRED — vars derive ansible_facts + the seam.
+- name: Render user kitty config
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - kitty_config

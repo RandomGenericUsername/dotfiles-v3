@@ -55,6 +55,7 @@ _EXPECTED_ORDER = [
     "zsh-tools.yaml",
     "zsh-config.yaml",
     "wlogout-config.yaml",
+    "kitty-config.yaml",
     "config-links.yaml",
     "runtime-seed.yaml",
     "display-manager.yaml",
@@ -73,13 +74,13 @@ class TestBootstrapPlaybook:
     _PATH = _PLAYBOOKS_DIR / "bootstrap.yaml"
 
     def test_parses_as_list_of_import_playbook_entries(self) -> None:
-        """The aggregate is a top-level list of exactly seventeen `import_playbook`
+        """The aggregate is a top-level list of exactly eighteen `import_playbook`
         statements (one per per-role playbook + the runtime-seed step +
         the gloview-plugin lifecycle + the gui-tools apps + the P5-1-1
-        runtime-daemon unit)."""
+        runtime-daemon unit + the kitty-config render)."""
         imports = _load_imports()
-        assert len(imports) == 17, (
-            f"bootstrap.yaml must import exactly 17 playbooks; found {len(imports)}"
+        assert len(imports) == 18, (
+            f"bootstrap.yaml must import exactly 18 playbooks; found {len(imports)}"
         )
         for entry in imports:
             assert "import_playbook" in entry, (
@@ -87,11 +88,12 @@ class TestBootstrapPlaybook:
             )
 
     def test_imports_in_exact_dependency_order(self) -> None:
-        """AC 4: the seventeen imports appear in the EXACT dependency order —
+        """AC 4: the eighteen imports appear in the EXACT dependency order —
         packages → cli-tools → runtime-daemon → filesystem → assets →
         compositor-configs → gui-tools → config-copies → settings → zsh-tools →
-        zsh-config → wlogout-config → config-links → runtime-seed →
-        display-manager → gloview-plugin → verify (Epic 4: no default-palette/icons)."""
+        zsh-config → wlogout-config → kitty-config → config-links →
+        runtime-seed → display-manager → gloview-plugin → verify (Epic 4: no
+        default-palette/icons)."""
         order = [str(entry["import_playbook"]) for entry in _load_imports()]
         assert order == _EXPECTED_ORDER, (
             f"bootstrap.yaml import order must be {_EXPECTED_ORDER}; got {order}"
