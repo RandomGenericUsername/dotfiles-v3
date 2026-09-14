@@ -49,6 +49,8 @@ export function uiIcon(variant: string, size = 18): Gtk.Widget {
       const picture = Gtk.Picture.new_for_paintable(iconTexture(path, size))
       picture.set_content_fit(Gtk.ContentFit.CONTAIN)
       picture.set_size_request(size, size)
+      picture.set_halign(Gtk.Align.CENTER)
+      picture.set_valign(Gtk.Align.CENTER)
       picture.add_css_class("pano-ui-icon")
       return picture
     } catch (error) {
@@ -59,6 +61,8 @@ export function uiIcon(variant: string, size = 18): Gtk.Widget {
     FALLBACK_ICON[variant] ?? "text-x-generic-symbolic",
   )
   fallback.set_pixel_size(size)
+  fallback.set_halign(Gtk.Align.CENTER)
+  fallback.set_valign(Gtk.Align.CENTER)
   return fallback
 }
 
@@ -165,7 +169,7 @@ export function ItemCard(
   badge.set_valign(Gtk.Align.CENTER)
   header.append(badge)
 
-  header.append(uiIcon(item.kind, 20))
+  header.append(uiIcon(item.kind, 15))
 
   const label = new Gtk.Label({ label: TYPE_LABEL[item.kind], xalign: 0, hexpand: true })
   label.add_css_class("pano-head-label")
