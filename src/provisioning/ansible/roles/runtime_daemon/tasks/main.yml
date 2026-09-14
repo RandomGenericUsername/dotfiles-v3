@@ -23,6 +23,7 @@
     src: dotfiles-runtime-daemon.service.j2
     dest: "{{ ansible_facts.env.HOME }}/.config/systemd/user/{{ runtime_daemon_unit_name }}"
     mode: "0644"
+  notify: Restart dotfiles runtime daemon
 
 - name: Probe for a live user manager
   ansible.builtin.shell: "systemctl --user show-environment >/dev/null 2>&1"

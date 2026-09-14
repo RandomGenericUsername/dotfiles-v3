@@ -1,0 +1,26 @@
+# runtime_daemon handlers (Phase 5 follow-up).
+#
+# Restart the daemon only when the unit template ACTUALLY changed. A plain
+# `state: started` in the tasks below is a no-op for an already-running
+# daemon: Ansible reloads the unit files (daemon_reload) but never re-execs
+# the running process, so a template fix (e.g. the ExecStart line that merged
+# with a comment -> `daemon run#` -> start-limit-hit) would stay unapplied
+# until the next manual restart or reboot. Firing this handler on the
+# template task's `changed` closes that convergence gap, and stays a no-op
+# when the unit is unchanged (Ansible only runs notified handlers once the
+# notifying task reports changed).
+#
+# Guarded exactly like the enable/start task:
+#   - never in --check (restarting a live unit is a state mutation);
+#   - only with a live user manager (manager-less machines have no daemon to
+#     restart yet — they start at the next graphical login via the
+#     graphical-session.target.wants/ symlink).
+- name: Restart dotfiles runtime daemon
+  ansible.builtin.systemd:
+    name: "{{ runtime_daemon_unit_name }}"
+    scope: user
+    daemon_reload: true
+    state: restarted
+  when:
+    - not ansible_check_mode
+    - runtime_daemon_manager_probe.rc | default(1) == 0

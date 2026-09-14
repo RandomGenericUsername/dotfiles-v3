@@ -78,6 +78,12 @@ def _load_tasks() -> list[dict[str, object]]:
     return [dict(entry) for entry in data]
 
 
+def _load_handlers() -> list[dict[str, object]]:
+    data = yaml.safe_load((_ROLE_DIR / "handlers" / "main.yml").read_text())
+    assert isinstance(data, list)
+    return [dict(entry) for entry in data]
+
+
 def _module_key(task: dict[str, object]) -> str | None:
     for key in task:
         if key not in _TASK_KEYWORDS:
@@ -128,6 +134,7 @@ class TestRoleTree:
         assert (_ROLE_DIR / "tasks" / "main.yml").is_file()
         assert (_ROLE_DIR / "templates" / "dotfiles-runtime-daemon.service.j2").is_file()
         assert (_ROLE_DIR / "vars" / "main.yml").is_file()
+        assert (_ROLE_DIR / "handlers" / "main.yml").is_file()
 
     def test_tasks_parse_to_named_list(self) -> None:
         for task in _load_tasks():
@@ -301,6 +308,31 @@ class TestTasks:
             timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
+
+
+class TestHandlers:
+    def test_unit_template_notifies_restart(self) -> None:
+        """A changed unit template must trigger a daemon restart (convergence)."""
+        template_task = next(
+            t for t in _load_tasks() if _module_key(t) == "ansible.builtin.template"
+        )
+        assert template_task.get("notify") == "Restart dotfiles runtime daemon"
+
+    def test_restart_handler_restarts_only_with_live_manager(self) -> None:
+        """Restart is a live mutation: never in --check / without a manager."""
+        handler = next(
+            h for h in _load_handlers() if h.get("name") == "Restart dotfiles runtime daemon"
+        )
+        params = handler["ansible.builtin.systemd"]
+        assert isinstance(params, dict)
+        assert params.get("scope") == "user"
+        assert params.get("state") == "restarted"
+        assert params.get("daemon_reload") is True
+        when = handler.get("when")
+        assert isinstance(when, list)
+        joined = " ".join(str(clause) for clause in when)
+        assert "ansible_check_mode" in joined
+        assert "runtime_daemon_manager_probe" in joined
 
 
 class TestVars:
