@@ -1409,6 +1409,60 @@ class TestVerifyRuntime:
                 "rendered files, not a static list); recap:\n" + result.stdout
             )
 
+    def test_verify_fails_when_csg_color_template_missing(self) -> None:
+        """Negative lock: csg silently OMITS a format whose ``colors.<fmt>.j2``
+        template is absent, so a spine templates dir that is non-empty but
+        LACKS ``colors.kitty.j2`` must FAIL verify (not pass on a subset)."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+
+            bin_dir = _write_stub_binaries(home)
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
+
+            (
+                install
+                / "config"
+                / "color-scheme-generator"
+                / "templates"
+                / "colors.kitty.j2"
+            ).unlink()
+
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+            )
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(self._PATH),
+                    "-e",
+                    f"install_dir={install}",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, (
+                "verify must FAIL when a CSG color-format template is missing "
+                "(csg silently omits the format; the dir is non-empty but "
+                "incomplete); recap:\n" + result.stdout
+            )
+
     def test_verify_criterion_6_checks_current_only(self) -> None:
         """Epic 4 current-only: criterion 6 PASSES on the fixture's runtime
         palette (symlink chain state_home/dotfiles/current/ →
@@ -1617,6 +1671,16 @@ def _build_provisioned_layout(
     nested_icon.mkdir(parents=True, exist_ok=True)
     (nested_icon / "icon.svg").write_text("<svg/>\n")
     (install / "config" / "color-scheme-generator" / "templates" / "template.j2").write_text("x\n")
+    for _tpl in (
+        "colors.yaml.j2",
+        "colors.conf.j2",
+        "colors.gtk.css.j2",
+        "colors.adw.css.j2",
+        "colors.sequences.j2",
+        "colors.rasi.j2",
+        "colors.kitty.j2",
+    ):
+        (install / "config" / "color-scheme-generator" / "templates" / _tpl).write_text("x\n")
 
     (install / "config" / "color-scheme-generator" / "settings.toml").write_text(
         f'[output]\ndirectory = "{cache_home}/dotfiles/csg-output"\n'

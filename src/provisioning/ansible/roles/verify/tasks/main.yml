@@ -254,6 +254,27 @@
       deploys their content; re-run the assets playbook.
   when: not ansible_check_mode
 
+- name: Check required CSG color-format templates exist in the spine
+  ansible.builtin.stat:
+    path: "{{ install_dir | trim }}/config/color-scheme-generator/templates/{{ item }}"
+  loop: "{{ verify_csg_template_files }}"
+  register: verify_csg_template_checks
+
+- name: Assert every CSG color-format template is deployed
+  ansible.builtin.assert:
+    that:
+      - verify_csg_template_checks.results | selectattr('stat.isreg') | list | length == verify_csg_template_files | length
+    fail_msg: >-
+      a CSG color-format template is missing under
+      {{ install_dir | trim }}/config/color-scheme-generator/templates/
+      (expected {{ verify_csg_template_files | join(', ') }}). The assets role
+      (2.6) mirrors the CSG defaults; csg silently OMITS a format whose
+      template is missing, so the runtime fails a palette entry with "csg did
+      not write expected artifact" (a missing colors.kitty.j2 leaves
+      current/colors.kitty dangling and kitty never re-themes). Re-run the
+      assets playbook.
+  when: not ansible_check_mode
+
 - name: Check assets deployed
   ansible.builtin.stat:
     path: "{{ install_dir | trim }}/{{ item }}"

@@ -122,6 +122,22 @@ verify_derivation_template_dirs:
   - icon-templates
   - config/color-scheme-generator/templates
 
+# verify_csg_template_files: the CSG color-format templates the runtime's
+#   csg_adapter requests by name (adapters/csg_adapter.py `--format` args).
+#   Non-empty is NOT enough (AD-43): csg silently OMITS a format whose
+#   `colors.<fmt>.j2` template is missing, and the runtime then fails a
+#   palette entry with "csg did not write expected artifact" (e.g. a missing
+#   colors.kitty.j2 leaves current/colors.kitty dangling and kitty never
+#   re-themes). Parity-locked to the adapter's requested format set.
+verify_csg_template_files:
+  - colors.yaml.j2
+  - colors.conf.j2
+  - colors.gtk.css.j2
+  - colors.adw.css.j2
+  - colors.sequences.j2
+  - colors.rasi.j2
+  - colors.kitty.j2
+
 # verify_weg_effects_path: the spine effects catalog the WEG gate must read.
 #   The assets role (2.6) emits it via `weg dump-effects --output` to
 #   <install>/config/weg/effects.yaml, and the spec (chaining-spine.md) wires
