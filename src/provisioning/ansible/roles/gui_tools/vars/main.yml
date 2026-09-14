@@ -54,6 +54,9 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano"
   - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib"
+  - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector"
+  - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/ui"
+  - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib"
 
 # gui_tools_app_files: the app FILES, one entry per file with the explicit
 #   target path. Per-file entries (not directory sources) are REQUIRED (see
@@ -117,6 +120,23 @@ gui_tools_hypr_pano_app_files:
   - { name: hypr-pano-lib-event-bus-core, source: src/gui-tools/hypr-pano/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/event-bus-core.ts" }
   - { name: hypr-pano-lib-event-bus, source: src/gui-tools/hypr-pano/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/event-bus.ts" }
 
+# gui_tools_wallpaper_selector_app_files: the wallpaper selector's app files,
+#   deployed into their own ags-wallpaper-selector/ spine dir. Rendered via
+#   `template` with force: true (repo-authoritative); the sources contain no
+#   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
+#   test) — same placement discipline as the capture app and hypr-pano.
+gui_tools_wallpaper_selector_app_files:
+  - { name: wallpaper-selector-app-tsx, source: src/gui-tools/wallpaper-selector/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/app.tsx" }
+  - { name: wallpaper-selector-style-css, source: src/gui-tools/wallpaper-selector/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/style.css" }
+  - { name: wallpaper-selector-window, source: src/gui-tools/wallpaper-selector/ui/WallpaperSelectorWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/ui/WallpaperSelectorWindow.tsx" }
+  - { name: wallpaper-selector-lib-model, source: src/gui-tools/wallpaper-selector/lib/model.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/model.ts" }
+  - { name: wallpaper-selector-lib-scan, source: src/gui-tools/wallpaper-selector/lib/scan.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/scan.ts" }
+  - { name: wallpaper-selector-lib-thumbnails, source: src/gui-tools/wallpaper-selector/lib/thumbnails.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/thumbnails.ts" }
+  - { name: wallpaper-selector-lib-apply, source: src/gui-tools/wallpaper-selector/lib/apply.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/apply.ts" }
+  - { name: wallpaper-selector-lib-icon-registry, source: src/gui-tools/wallpaper-selector/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/icon-registry.ts" }
+  - { name: wallpaper-selector-lib-event-bus-core, source: src/gui-tools/wallpaper-selector/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus-core.ts" }
+  - { name: wallpaper-selector-lib-event-bus, source: src/gui-tools/wallpaper-selector/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus.ts" }
+
 # gui_tools_ags_instances: the AGS process instance names (as reported by
 #   `ags list`) that must be restarted after their source files are updated
 #   by this role. AGS bundles TypeScript at startup and holds the compiled
@@ -132,3 +152,4 @@ gui_tools_ags_instances:
   - capture
   - icon-color-mapping-editor
   - hypr-pano
+  - wallpaper-selector

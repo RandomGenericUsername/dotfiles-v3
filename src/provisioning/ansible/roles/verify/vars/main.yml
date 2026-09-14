@@ -311,6 +311,16 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/history.ts"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus.ts"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/app.tsx"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/style.css"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/ui/WallpaperSelectorWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/model.ts"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/scan.ts"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/thumbnails.ts"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/apply.ts"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/icon-registry.ts"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts"
+  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts"
 
 # verify_consumer_symlinks: the R2 consumer-path symlinks the runtime
 #   seeder owns (criterion 7, Epic 4 current-only). The AGS fragment is
@@ -362,6 +372,7 @@ verify_managed_link_dirs:
   - ags-capture
   - ags-icme
   - ags-hypr-pano
+  - ags-wallpaper-selector
   - nvim
   - starship
   - wlogout

@@ -1,0 +1,184 @@
+/* Wallpaper selector — rofi-style centered dialog in hypr-pano dress.
+ *
+ * Every color is a runtime palette token from `ags/colors.css` (applied by
+ * app.tsx after this sheet): a palette swap restyles the dialog with zero
+ * code changes. The event-driven reload is the runtime's AgsReloader — it
+ * restarts every running `ags run -d` instance after each set, so the fresh
+ * process re-applies the new colors.css (same mechanism as the bar,
+ * capture, and hypr-pano; no file watchers, no polling). */
+
+window#wallpaper-selector-window {
+  background-color: transparent;
+  color: @color_foreground;
+}
+
+.ws-root {
+  min-width: 920px;
+  min-height: 600px;
+}
+
+.ws-panel {
+  background-color: alpha(@color_00, 0.94);
+  border: 2px solid @color_04;
+  border-radius: 16px;
+  padding: 14px 16px 12px;
+}
+
+.ws-search {
+  background-color: alpha(@color_background, 0.5);
+  color: @color_foreground;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 8px;
+  min-height: 26px;
+}
+
+.ws-search placeholder {
+  color: alpha(@color_foreground, 0.55);
+}
+
+.ws-ui-icon {
+  opacity: 0.9;
+}
+
+.ws-crumb {
+  background-color: alpha(@color_background, 0.45);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.ws-crumb-thumb {
+  border-radius: 8px;
+}
+
+.ws-crumb-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ws-crumb-sub {
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.65);
+}
+
+.ws-back {
+  border: 1px solid alpha(@color_foreground, 0.25);
+  border-radius: 8px;
+  padding: 6px 14px;
+}
+
+.ws-back:hover {
+  border-color: @color_04;
+}
+
+.ws-title {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: alpha(@color_foreground, 0.6);
+}
+
+.ws-scroll {
+  border-radius: 8px;
+}
+
+.ws-card {
+  background-color: alpha(@color_background, 0.45);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 12px;
+  padding: 0;
+}
+
+.ws-card:hover {
+  border-color: @color_04;
+}
+
+.ws-thumb {
+  border-radius: 11px 11px 0 0;
+}
+
+/* Async placeholder while the thumbnail streams in off the idle pump. */
+.ws-thumb-loading {
+  background-color: alpha(@color_foreground, 0.07);
+}
+
+.ws-card-name {
+  font-size: 12px;
+  margin: 6px 10px 0;
+}
+
+.ws-card-sub {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.6);
+  margin: 0 10px 8px;
+}
+
+.ws-live {
+  font-size: 10px;
+  font-weight: 700;
+  background-color: #2ecc71;
+  color: #06270f;
+  border-radius: 6px;
+  padding: 1px 7px;
+  margin: 6px 6px 0 0;
+}
+
+.ws-quick {
+  background-color: @color_01;
+  color: @color_background;
+  font-weight: 600;
+  border-radius: 7px;
+  padding: 3px 14px;
+  margin: 0 6px 6px 0;
+}
+
+.ws-quick:hover {
+  background-color: @color_10;
+}
+
+/* Flat variant tile (mock): bare thumbnail, name + pill Apply in one row
+ * beneath. No card chrome. */
+.ws-variant {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.ws-variant .ws-thumb {
+  border-radius: 8px;
+}
+
+.ws-variant-name {
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.85);
+  margin-top: 6px;
+}
+
+.ws-variant-apply {
+  font-size: 11px;
+  background-color: alpha(@color_foreground, 0.14);
+  color: @color_foreground;
+  border-radius: 12px;
+  padding: 2px 14px;
+  margin-top: 4px;
+}
+
+.ws-variant-apply:hover {
+  background-color: @color_04;
+  color: @color_background;
+}
+
+.ws-empty {
+  color: alpha(@color_foreground, 0.6);
+  border: 1px dashed alpha(@color_foreground, 0.25);
+  border-radius: 10px;
+  padding: 22px;
+}
+
+
+
+.ws-status {
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.6);
+}
