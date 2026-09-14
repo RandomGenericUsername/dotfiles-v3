@@ -154,13 +154,14 @@ export function ItemCard(
     spacing: 8,
     css_classes: ["pano-head", headerTextClass(item.kind)],
   })
-  const badge = new Gtk.Label({ label: String(index) })
+  const badge = new Gtk.Label({ label: String(index), xalign: 0.5 })
   badge.add_css_class("pano-index")
+  badge.set_size_request(18, 18)
+  badge.set_halign(Gtk.Align.CENTER)
+  badge.set_valign(Gtk.Align.CENTER)
   header.append(badge)
 
-  const iconWrap = new Gtk.Box({ css_classes: ["pano-head-ico"] })
-  iconWrap.append(uiIcon(item.kind, 15))
-  header.append(iconWrap)
+  header.append(uiIcon(item.kind, 16))
 
   const label = new Gtk.Label({ label: TYPE_LABEL[item.kind], xalign: 0, hexpand: true })
   label.add_css_class("pano-head-label")

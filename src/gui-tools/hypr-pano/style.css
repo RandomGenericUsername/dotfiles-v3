@@ -107,20 +107,14 @@ window#hypr-pano-window {
 }
 
 .pano-index {
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border-radius: 5px;
   font-size: 0.72rem;
   font-weight: 800;
-  padding: 0 6px;
-  border-radius: 6px;
-  min-width: 0;
-  min-height: 0;
   background-color: alpha(@color_00, 0.30);
   color: inherit;
-}
-
-.pano-head-ico {
-  padding: 2px;
-  border-radius: 6px;
-  background-color: alpha(@color_00, 0.28);
 }
 
 .pano-head-label {
