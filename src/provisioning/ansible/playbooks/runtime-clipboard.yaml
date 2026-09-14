@@ -1,0 +1,11 @@
+# Runtime clipboard playbook (D1) — one-per-role playbook; aggregated into
+# bootstrap.yaml right after runtime-daemon (the watcher orders after the hub).
+#
+# User-scoped playbook: NO become.
+# gather_facts: true is REQUIRED — vars/main.yml derives the bin dir from
+# {{ ansible_facts.env.* }}, populated only after fact gathering.
+- name: Provision the clipboard watcher user unit
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - runtime_clipboard

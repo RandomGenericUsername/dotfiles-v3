@@ -107,6 +107,17 @@ the normal lease expiry still yields the synthetic `JobFinished(-1)`.
 | `icme.saved` | ICME (on save) | `{ "path": s }` |
 | `capture.state` | capture controller | `{ "state": s (idle\|recording\|paused), "elapsed_seconds": x }` |
 | `speedtest.finished` | speed-test job | `{ "down_mbps": d, "up_mbps": d, "latency_ms": d }` |
+| `clipboard.update` | clipboard controller | `{ "type": s (text\|image\|link\|code\|color\|emoji), "hash": s, "path": s, "preview": s }` |
+| `clipboard.state` | clipboard controller | `{ "state": s (idle\|running\|paused), "job_id": s }` |
+
+`clipboard.update` carries no binary: `path` is the cached image file for image
+items (empty otherwise) and `preview` is a bounded text excerpt for text-like
+items (empty for images). Consumers read image bytes from the path when they
+render.
+
+`clipboard.state` is emitted on every transition (start, pause, resume, stop)
+so the overlay's incognito indicator reflects the daemon's real state and can
+route `Control` to the hub-allocated `job_id`.
 
 The capture controller updates `capture.state` on every transition **and at
 least once per second while recording**, so the bar renders the pushed value

@@ -1,0 +1,68 @@
+# runtime_clipboard role — provision the clipboard watcher's --user unit.
+#
+# Owns the watcher's CONFIGURATION (unit file + enablement); the runtime owns
+# the executable (locked roles-provision / runtime-executes split). User-scoped
+# throughout: NO become anywhere.
+#
+# Enablement without a live user manager mirrors runtime_daemon exactly: the
+# probe detects a manager; with one we enable via the systemd module, without
+# one we symlink the unit into graphical-session.target.wants/ so the next
+# graphical login starts the watcher. Both paths are check-safe.
+
+- name: Ensure the user systemd unit directory exists
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.config/systemd/user"
+    state: directory
+    mode: "0755"
+
+- name: Install the clipboard watcher unit file
+  ansible.builtin.template:
+    src: dotfiles-runtime-clipboard.service.j2
+    dest: "{{ ansible_facts.env.HOME }}/.config/systemd/user/{{ runtime_clipboard_unit_name }}"
+    mode: "0644"
+  notify: Restart dotfiles clipboard watcher
+
+- name: Probe for a live user manager
+  ansible.builtin.shell: "systemctl --user show-environment >/dev/null 2>&1"
+  register: runtime_clipboard_manager_probe
+  changed_when: false
+  failed_when: false
+
+- name: Assert the runtime binary exists before enabling its unit
+  ansible.builtin.stat:
+    path: "{{ runtime_clipboard_bin_dir }}/dotfiles-runtime"
+  register: runtime_clipboard_binary
+  changed_when: false
+
+- name: Ensure dotfiles-runtime is installed (cli-tools role precedes us)
+  ansible.builtin.assert:
+    that: runtime_clipboard_binary.stat.exists | default(false)
+    fail_msg: >-
+      {{ runtime_clipboard_bin_dir }}/dotfiles-runtime not found — the
+      cli-tools role installs it and runs before runtime-clipboard in
+      bootstrap.yaml. Run the cli-tools playbook first (or bootstrap in order).
+
+- name: Reload the user manager and enable + start the watcher unit
+  ansible.builtin.systemd:
+    name: "{{ runtime_clipboard_unit_name }}"
+    scope: user
+    daemon_reload: true
+    enabled: true
+    state: started
+  when: not ansible_check_mode and runtime_clipboard_manager_probe.rc | default(1) == 0
+
+- name: Ensure the graphical-session wants directory exists (manager-less path)
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.config/systemd/user/graphical-session.target.wants"
+    state: directory
+    mode: "0755"
+  when: runtime_clipboard_manager_probe.rc | default(1) != 0
+
+- name: Enable the watcher unit without a live manager (wants/ symlink)
+  ansible.builtin.file:
+    src: "{{ ansible_facts.env.HOME }}/.config/systemd/user/{{ runtime_clipboard_unit_name }}"
+    dest: >-
+      {{ ansible_facts.env.HOME }}/.config/systemd/user/graphical-session.target.wants/{{ runtime_clipboard_unit_name }}
+    state: link
+    force: true
+  when: runtime_clipboard_manager_probe.rc | default(1) != 0

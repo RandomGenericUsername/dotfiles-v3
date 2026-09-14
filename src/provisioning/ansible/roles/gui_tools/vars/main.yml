@@ -51,6 +51,9 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
+  - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano"
+  - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui"
+  - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib"
 
 # gui_tools_app_files: the app FILES, one entry per file with the explicit
 #   target path. Per-file entries (not directory sources) are REQUIRED (see
@@ -98,6 +101,21 @@ gui_tools_icme_app_files:
   - { name: icme-lib-event-contract, source: src/gui-tools/icon-color-mapping-editor/lib/event-contract.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-contract.ts" }
   - { name: icme-lib-event-bus, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus.ts" }
 
+# gui_tools_hypr_pano_app_files: the clipboard overlay's app files, deployed
+#   into their own ags-hypr-pano/ spine dir. Rendered via `template` with
+#   force: true (repo-authoritative); the sources contain no Jinja-sensitive
+#   `{{`/`{%` sequences (verified by the provisioning role test).
+gui_tools_hypr_pano_app_files:
+  - { name: hypr-pano-app-tsx, source: src/gui-tools/hypr-pano/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/app.tsx" }
+  - { name: hypr-pano-style-css, source: src/gui-tools/hypr-pano/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/style.css" }
+  - { name: hypr-pano-window, source: src/gui-tools/hypr-pano/ui/PanoWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui/PanoWindow.tsx" }
+  - { name: hypr-pano-item-card, source: src/gui-tools/hypr-pano/ui/ItemCard.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui/ItemCard.tsx" }
+  - { name: hypr-pano-preview, source: src/gui-tools/hypr-pano/ui/Preview.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui/Preview.tsx" }
+  - { name: hypr-pano-lib-clipboard-types, source: src/gui-tools/hypr-pano/lib/clipboard-types.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/clipboard-types.ts" }
+  - { name: hypr-pano-lib-history, source: src/gui-tools/hypr-pano/lib/history.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/history.ts" }
+  - { name: hypr-pano-lib-event-bus-core, source: src/gui-tools/hypr-pano/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/event-bus-core.ts" }
+  - { name: hypr-pano-lib-event-bus, source: src/gui-tools/hypr-pano/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/event-bus.ts" }
+
 # gui_tools_ags_instances: the AGS process instance names (as reported by
 #   `ags list`) that must be restarted after their source files are updated
 #   by this role. AGS bundles TypeScript at startup and holds the compiled
@@ -112,3 +130,4 @@ gui_tools_ags_instances:
   - ags
   - capture
   - icon-color-mapping-editor
+  - hypr-pano

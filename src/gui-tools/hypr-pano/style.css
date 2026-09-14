@@ -1,0 +1,92 @@
+/* hypr-pano clipboard overlay — follows the generated runtime palette
+ * (colors.css), matching the capture tool's idiom and the rofi launcher's
+ * accent choices (@color_04 border, @color_10 selection). */
+
+window#hypr-pano-window {
+  background-color: transparent;
+  color: @color_foreground;
+}
+
+.pano-panel {
+  background-color: alpha(@color_00, 0.92);
+  border: 2px solid @color_04;
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.pano-search {
+  background-color: alpha(@color_background, 0.5);
+  color: @color_foreground;
+  border-radius: 8px;
+}
+
+.pano-search placeholder {
+  color: alpha(@color_foreground, 0.55);
+}
+
+.pano-incognito {
+  min-width: 120px;
+  background-color: @color_01;
+  color: @color_background;
+  border-radius: 8px;
+}
+
+.pano-incognito:hover {
+  background-color: @color_10;
+}
+
+.pano-list {
+  min-height: 140px;
+}
+
+.pano-card {
+  background-color: alpha(@color_background, 0.4);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.pano-card:hover {
+  border-color: @color_04;
+}
+
+.pano-card.selected {
+  background-color: @color_10;
+  border-color: @color_10;
+}
+
+.pano-card.selected .pano-text,
+.pano-card.selected .pano-code {
+  color: @color_background;
+}
+
+.pano-text {
+  color: @color_foreground;
+  font-size: 0.85rem;
+}
+
+.pano-code {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: @color_10;
+}
+
+.pano-card-footer {
+  color: alpha(@color_foreground, 0.6);
+}
+
+.pano-index {
+  background-color: @color_12;
+  color: @color_00;
+  border-radius: 6px;
+  padding: 0 7px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  min-width: 12px;
+  min-height: 0;
+}
+
+.pano-empty {
+  color: alpha(@color_foreground, 0.6);
+  padding: 24px;
+}

@@ -283,6 +283,15 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/controllers/TargetResolver.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/app.tsx"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/style.css"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/PanoWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/ItemCard.tsx"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/Preview.tsx"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/clipboard-types.ts"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/history.ts"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus-core.ts"
+  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus.ts"
 
 # verify_consumer_symlinks: the R2 consumer-path symlinks the runtime
 #   seeder owns (criterion 7, Epic 4 current-only). The AGS fragment is
@@ -332,6 +341,7 @@ verify_managed_link_dirs:
   - ags
   - ags-capture
   - ags-icme
+  - ags-hypr-pano
   - nvim
   - starship
   - wlogout

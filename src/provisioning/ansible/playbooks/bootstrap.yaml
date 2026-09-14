@@ -57,6 +57,7 @@
 # dotfiles-runtime binary installed above; the daemon tolerates an unseeded
 # machine (benign idle), so it does not wait for runtime-seed.
 - import_playbook: runtime-daemon.yaml
+- import_playbook: runtime-clipboard.yaml
 - import_playbook: filesystem.yaml
 - import_playbook: assets.yaml
 - import_playbook: compositor-configs.yaml
