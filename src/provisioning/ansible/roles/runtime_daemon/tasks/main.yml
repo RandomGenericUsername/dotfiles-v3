@@ -55,6 +55,49 @@
     state: started
   when: not ansible_check_mode and runtime_daemon_manager_probe.rc | default(1) == 0
 
+# Runtime-executable freshness (2026-09-13): the cli_tools role force-installs
+# `dotfiles-runtime` via `uv tool install --force` on EVERY bootstrap, which
+# rewrites the console script and its tool env on disk but does NOT re-exec an
+# already-running daemon — systemd still reports the unit `started` and the old
+# code stays resident. The unit-template handler above closes the CONFIG gap
+# only; this closes the EXECUTABLE gap: when the installed binary is newer than
+# the daemon's last activation, notify the same restart handler so the daemon
+# runs the code provisioning just installed. Binary mtime is the freshness
+# signal; uv re-stamps it on every force install, so a re-run of an unchanged
+# tree still restarts. That is accepted-by-design (same "convergence over quiet
+# reports" semantics as the csg image build): the invariant is no stale process,
+# not a no-op report.
+- name: Detect a runtime executable newer than the running daemon
+  ansible.builtin.shell:
+    cmd: |
+      bin="{{ runtime_daemon_bin_dir }}/dotfiles-runtime"
+      bin_mtime=$(stat -c %Y "$bin")
+      start=$(systemctl --user show -p ActiveEnterTimestamp --value "{{ runtime_daemon_unit_name }}")
+      start_epoch=$(date -d "$start" +%s 2>/dev/null || printf '')
+      if [ -n "$start_epoch" ] && [ "$bin_mtime" -gt "$start_epoch" ]; then
+        printf newer
+      else
+        printf current
+      fi
+  register: runtime_daemon_executable_freshness
+  changed_when: false
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - runtime_daemon_manager_probe.rc | default(1) == 0
+
+- name: Restart the daemon to load the newer runtime executable
+  ansible.builtin.debug:
+    msg: >-
+      {{ runtime_daemon_bin_dir }}/dotfiles-runtime is newer than the running
+      daemon; restarting to load the freshly installed code
+  changed_when: true
+  notify: Restart dotfiles runtime daemon
+  when:
+    - not ansible_check_mode
+    - runtime_daemon_manager_probe.rc | default(1) == 0
+    - runtime_daemon_executable_freshness.stdout | default('') | trim == 'newer'
+
 - name: Ensure the graphical-session wants directory exists (manager-less path)
   ansible.builtin.file:
     path: "{{ ansible_facts.env.HOME }}/.config/systemd/user/graphical-session.target.wants"
