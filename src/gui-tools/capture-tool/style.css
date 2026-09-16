@@ -38,7 +38,13 @@ window#capture-window {
   background-color: alpha(@color_00, 0.92);
   border: 1px solid alpha(@color_foreground, 0.12);
   border-radius: 18px;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  /* No box-shadow. The surface is sized to the panel, so a shadow (blur 70px
+     + 24px offset) extends past the surface and gets CLIPPED at its edge —
+     hard square corners on a rounded panel. It only showed while the surface
+     was briefly larger than the panel during a view transition, which is the
+     "square shadow" that trailed the shrink. Fitting the shadow would need
+     ~94px of transparent margin, which would grow the surface's input area and
+     swallow clicks around the panel; the border carries the edge instead. */
 }
 
 /* --------------------------------------------------------- Mode switcher */
