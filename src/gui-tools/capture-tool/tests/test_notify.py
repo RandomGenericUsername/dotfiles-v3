@@ -36,6 +36,20 @@ def _load():
 mod = _load()
 
 
+@pytest.fixture(autouse=True)
+def _isolated_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Never read the developer's real config.
+
+    `notifications_enabled()` consults `$XDG_CONFIG_HOME/capture-tool/config.json`
+    and `cmd_notify` returns early when it is false, so without this the whole
+    detached-wiring suite depended on the machine's own settings — it broke the
+    moment the user's toggle turned notifications off. Isolated, `load_config`
+    finds no file and falls back to the defaults.
+    """
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+
 @pytest.fixture()
 def _no_spawn(monkeypatch: pytest.MonkeyPatch):
     """Capture detached-helper spawns instead of forking real processes."""

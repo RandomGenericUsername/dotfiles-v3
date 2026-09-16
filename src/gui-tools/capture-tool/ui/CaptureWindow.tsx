@@ -736,30 +736,21 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
     getValue: () => boolean,
     setValue: (value: boolean) => void,
   ): Gtk.Box {
-    const track = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL })
-    track.add_css_class("toggle")
-    const knob = new Gtk.Box()
-    knob.add_css_class("toggle-knob")
-    track.append(knob)
-    const apply = (on: boolean) => {
-      if (on) {
-        track.add_css_class("on")
-        knob.set_halign(Gtk.Align.END)
-      } else {
-        track.remove_css_class("on")
-        knob.set_halign(Gtk.Align.START)
-      }
-    }
-    apply(getValue())
-    const button = new Gtk.Button()
-    button.add_css_class("toggle-button")
-    button.set_child(track)
-    button.connect("clicked", () => {
-      const next = !getValue()
-      setValue(next)
-      apply(next)
+    // Gtk.Switch, not a hand-rolled track+knob: a GtkBox ignores a child's
+    // main-axis alignment, so the old knob's halign START/END never moved it and
+    // both states looked identical (you could not tell whether the cursor
+    // toggle was on). The native switch owns the knob, its position and its
+    // transition; the palette styling lives in style.css.
+    const control = new Gtk.Switch()
+    control.add_css_class("palette-switch")
+    control.set_active(getValue())
+    control.set_halign(Gtk.Align.END)
+    control.set_valign(Gtk.Align.CENTER)
+    control.connect("state-set", (_self, state: boolean) => {
+      setValue(state)
+      return false // let the switch animate to the new state
     })
-    return settingsItem(name, desc, button)
+    return settingsItem(name, desc, control)
   }
 
   function pillRow<T>(

@@ -332,42 +332,36 @@ window#capture-window {
 }
 
 /* Toggle: pill track + sliding knob (mockup .toggle/.toggle.on). */
-.toggle-button {
-  min-height: 0;
-  min-width: 0;
+/* Switch (Gtk.Switch), styled from the palette to match the settings mock:
+   OFF is a neutral track with a light knob on the left; ON is a solid accent
+   track with a dark knob on the right. GTK owns the knob position and animates
+   the transition, so the state is always visible. */
+switch.palette-switch {
+  min-width: 46px;
+  min-height: 24px;
   padding: 0;
-  border: none;
-  background-color: transparent;
+  border-radius: 999px;
+  background-color: alpha(@color_foreground, 0.14);
+  border: 1px solid alpha(@color_foreground, 0.3);
   box-shadow: none;
 }
 
-/* Switch: OFF is a neutral track with a light knob; ON is a solid accent
-   track with a dark knob, so the two states differ in both colour AND knob
-   position (the old pair used two alpha tints of the accent that read almost
-   identically on dark palettes). */
-.toggle {
-  min-width: 44px;
-  min-height: 24px;
-  border-radius: 999px;
-  padding: 3px;
-  background-color: alpha(@color_foreground, 0.14);
-  border: 1px solid alpha(@color_foreground, 0.3);
-}
-
-.toggle.on {
+switch.palette-switch:checked {
   background-color: @color_06;
   border-color: @color_06;
 }
 
-.toggle-knob {
+switch.palette-switch > slider {
   min-width: 16px;
   min-height: 16px;
+  margin: 3px;
+  border: none;
   border-radius: 999px;
   background-color: alpha(@color_foreground, 0.85);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
-.toggle.on .toggle-knob {
+switch.palette-switch:checked > slider {
   background-color: @color_00;
   box-shadow: none;
 }
