@@ -6,7 +6,7 @@ The bar recording indicator as a single coherent surface: a restyled inline clus
 
 ### Requirement: Restyled inline cluster
 
-The cluster SHALL show a pulsing record dot, a tabular-nums timer, and ghost icon buttons (pause/resume, stop) with hover states; in `paused` state the dot and frame turn amber. The cluster SHALL render nothing when idle.
+The cluster SHALL show a pulsing REC dot (the one fixed `#e0605f` affordance — everything else is a `@color_*` token), a tabular-nums timer, and ghost icon buttons (pause/resume, stop) with hover states; in `paused` state the dot and frame use the palette caution slot (`@color_03`) without pulse. The cluster SHALL render nothing when idle.
 
 #### Scenario: Recording cluster
 - **WHEN** `capture.state` reports `recording` with elapsed 37s

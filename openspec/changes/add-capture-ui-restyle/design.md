@@ -66,7 +66,8 @@ setting rows: label-left micro-cap + segmented pills right
                 quality(low/medium/high) · duration(∞/10s/30s/60s/custom)
 GIF mode: audio row removed; fps → (10/15/20/30); + size row (original/75%/50%);
           + amber notice ("GIF has no audio track…")
-primary CTA: full-width, mode-tinted (accent for screenshot, record-red for recording),
+primary CTA: full-width, mode-tinted (accent for screenshot, the palette's
+             caution slot for recording),
              icon + label; footer: Esc/Enter hints + "remembers last choices"
 ```
 
@@ -77,9 +78,12 @@ Keyboard: `Escape` hides the window (cancel), `Enter` triggers the primary actio
 Stylesheet: port `mockup.css` component classes onto GTK4 CSS with `@color_*` variables:
 `--panel-bg → alpha(@color_00, .92)`, `--surface → alpha(@color_background, .45)`,
 `--hairline → alpha(@color_foreground, .12)`, `--accent → @color_06`-family (bright accent),
-`--record → #e0605f` semantic (bar-precedent: wallpaper-selector's hardcoded `#2ecc71` live pill),
-`--warn → @color_03`. Selected pill = accent tint + accent border (departure from the bar's
+recording accent + caution → `@color_03` (the bar's pre-existing paused/attention slot;
+palette-derived like rofi's generated `colors.rasi`, so a blue wallpaper yields a blue record
+CTA — the mockup's hardcoded record red is NOT carried into the implementation).
+Selected pill = accent tint + accent border (departure from the bar's
 `@color_01` fill, per approved design decision). GTK4 CSS has no `color-mix` — precompute via `alpha()`/`mix()`.
+The capture window's sheet contains NO literal colors.
 
 ## 3. Persistence (A5)
 

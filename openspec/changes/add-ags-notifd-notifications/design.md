@@ -6,7 +6,7 @@ Reference UI: `spikes/capture-tool-ui/notifications.html`.
 
 `src/gui-tools/notifications/`, capture-tool deploy shape:
 - `app.tsx`: `instanceName: "notifications"`; applies `style.css` then `~/.config/ags/colors.css` (same order as the capture app); subscribes to the AstalNotifd daemon (exact binding per the Astal version on the machine — the implementing agent confirms `AstalNotifd.Notifd.get_default()` availability first; if the binding is absent, the change stops and reports rather than hand-rolling a daemon).
-- Card (per mockup `.toast`): 56px icon tile (notification's image path, which the emitter sets to a `current/icons/` file), title (13px bold), body (11.5px dim, paths `word-break`), action chips row. Urgency mapping: `normal` → default card, auto-expire on the daemon's timeout; `critical` → record-red icon tile, persists until dismissed (matches the "Capture failed" card).
+- Card (per mockup `.toast`): 56px icon tile (notification's image path, which the emitter sets to a `current/icons/` file), title (13px bold), body (11.5px dim, paths `word-break`), action chips row. Urgency mapping: `normal` → default card, auto-expire on the daemon's timeout; `critical` → icon tile in the palette caution slot (`@color_03`, palette-derived — the mockup's fixed red is not carried over), persists until dismissed (matches the "Capture failed" card).
 - Stack: top-right, newest on top, cap at 5 (oldest dismissed overflow, mirroring the old `notification_limit = 5`).
 - Styling: panel translucency + hairline + radius tokens identical to the capture panel recipe; no new color vocabulary.
 

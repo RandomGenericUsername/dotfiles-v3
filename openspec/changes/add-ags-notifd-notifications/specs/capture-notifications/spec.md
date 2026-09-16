@@ -30,7 +30,7 @@ A standalone AGS app SHALL serve `org.freedesktop.Notifications` and render inco
 
 ### Requirement: Urgency-differentiated failures
 
-`critical`-urgency notifications SHALL persist until dismissed and render the icon tile in record-red; `normal` notifications SHALL expire on timeout.
+`critical`-urgency notifications SHALL persist until dismissed and render the icon tile in the palette caution slot (`@color_03`); `normal` notifications SHALL expire on timeout. The notification sheet SHALL contain no literal colors.
 
 #### Scenario: Failure persists
 - **WHEN** a capture failure arrives with urgency critical

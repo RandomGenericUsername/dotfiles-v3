@@ -6,7 +6,7 @@ The capture window rebuilt to the approved mockup information architecture (`spi
 
 ### Requirement: Mode-first layout
 
-The window SHALL open on a two-tab mode switch (Screenshot with the `camera` icon, Recording with the `video` icon); the active tab is tinted in its mode color (accent for screenshot, record-red for recording) and determines which settings view renders. No backend names (`grim`, `wf-recorder`, …) SHALL appear in the UI.
+The window SHALL open on a two-tab mode switch (Screenshot with the `camera` icon, Recording with the `video` icon); the active tab is tinted in its mode accent (palette accent for screenshot, palette caution slot for recording) and determines which settings view renders. No backend names (`grim`, `wf-recorder`, …) SHALL appear in the UI.
 
 #### Scenario: Mode determines the view
 - **WHEN** the user switches tabs
@@ -54,8 +54,12 @@ The window SHALL restore the user's last-used screenshot and recording choices o
 
 ### Requirement: Token-driven stylesheet
 
-`style.css` SHALL style the window using only `@color_*` palette tokens plus the single semantic `--record` red (bar-precedent exception). Selected states use accent tint + accent border. No literal theme colors SHALL appear in the sheet.
+`style.css` SHALL style the window using only `@color_*` palette tokens, with NO literal colors. The recording mode accent and caution states SHALL use the palette's caution slot (`@color_03`), consistent with the bar's existing paused/attention usage; the screenshot accent SHALL use `@color_06`. Selected states use accent tint + accent border.
 
 #### Scenario: Palette swap restyles the window
 - **WHEN** the runtime derives a new palette and the reloader restarts the `capture` instance
 - **THEN** the window renders in the new palette with zero code or file changes
+
+#### Scenario: No literal colors
+- **WHEN** scanning `style.css`
+- **THEN** no hex literal appears — the recording accent is a palette slot, not a fixed red

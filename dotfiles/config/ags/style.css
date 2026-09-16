@@ -113,10 +113,14 @@ window#bar label {
    spikes/capture-tool-ui/mockup.css (.rec-cluster, .rec-dot, .rec-timer,
    .rec-btn, .popup, .popup-row, .popup-time, .popup-actions) and adapted to
    GTK4 CSS: color-mix() becomes alpha(), the 2-col grid becomes a homogeneous
-   box, backdrop-filter is dropped (GTK has no such property). Record-red
-   #e0605f is the established semantic exception; everything else is @color_*
-   tokens. The dot pulse uses @keyframes where the GTK theme engine honors
-   them and degrades to a static dot otherwise. */
+   box, backdrop-filter is dropped (GTK has no such property).
+
+   Every surface is a @color_* slot — paused/attention states use @color_03,
+   the palette's caution slot already used by .rec-dot.paused. The ONE literal
+   in the capture stack is the pulsing record dot (#e0605f): "REC" must read as
+   red regardless of wallpaper, and the dot's pulse ring shares it. The dot
+   pulse uses @keyframes where the GTK theme engine honors them and degrades to
+   a static dot otherwise. */
 .rec-cluster {
   background-color: alpha(@color_00, 0.55);
   border: 1px solid alpha(@color_foreground, 0.12);
@@ -196,8 +200,8 @@ window#bar label {
 }
 
 .rec-btn.stop:hover {
-  background-color: alpha(#e0605f, 0.22);
-  color: #e0605f;
+  background-color: alpha(@color_03, 0.22);
+  color: @color_03;
 }
 
 .rec-popup {
@@ -244,9 +248,9 @@ window#bar label {
 }
 
 .rec-popup-action.danger:hover {
-  background-color: alpha(#e0605f, 0.2);
-  border-color: #e0605f;
-  color: #e0605f;
+  background-color: alpha(@color_03, 0.2);
+  border-color: @color_03;
+  color: @color_03;
 }
 
 /* Power-profile popover (battery widget right-click menu) — row chrome only;

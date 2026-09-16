@@ -9,7 +9,7 @@ Per the agreed decision, the surface is an AGS notification overlay (AstalNotifd
 - **New AGS notifd app** `src/gui-tools/notifications/` (standalone instance `notifications`, capture-tool deploy shape): renders the freedesktop notification stream as mockup cards — icon tile, bold title, dim body, action chips, urgency-differentiated styling (success expires, failure persists), top-right stack.
 - **Daemon swap**: autostart launches the notifd AGS instance instead of `dunst`; `dunst` stays installed as a manual fallback but is no longer the session daemon, so every notification (including the existing `toggle-touchpad` `notify-send` traffic) renders in the new style.
 - **Capture integration**: the capture backend emits success/failure notifications with palette-resolved `-i` icon paths and `actions`; action invocations (Copy/Open/Reveal/Details) are executed by the issuing side.
-- **Styling**: exclusively `colors.css` tokens (+ the same semantic record-red exception as the capture window); the existing AgsReloader covers the new `ags run -d` instance with no changes.
+- **Styling**: exclusively `colors.css` tokens — critical severity uses the palette caution slot (`@color_03`), matching the bar's attention usage, so notification colour follows the wallpaper like every other surface; the existing AgsReloader covers the new `ags run -d` instance with no changes.
 
 ## Capabilities
 

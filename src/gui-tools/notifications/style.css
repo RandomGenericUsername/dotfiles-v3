@@ -14,9 +14,9 @@
  *   --text-dim    -> alpha(@color_foreground, 0.62)
  *   --accent      -> @color_06
  *
- * The ONE allowed literal is the semantic record red #e0605f for the
- * critical-urgency tile (bar-precedent exception, same as the capture
- * window's record styling).
+ * No literal colors: the critical-urgency tile uses the palette's caution
+ * slot (@color_03), the same slot the bar uses for recording attention
+ * states, so notification severity still follows the wallpaper.
  * ========================================================================== */
 
 window#notifications-window {
@@ -47,9 +47,9 @@ window#notifications-window {
 }
 
 .notif-tile.critical {
-  color: #e0605f;
-  border-color: alpha(#e0605f, 0.5);
-  background-color: alpha(#e0605f, 0.16);
+  color: @color_03;
+  border-color: alpha(@color_03, 0.5);
+  background-color: alpha(@color_03, 0.16);
 }
 
 .notif-fallback {

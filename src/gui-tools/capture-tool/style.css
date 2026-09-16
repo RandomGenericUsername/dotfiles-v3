@@ -9,8 +9,11 @@
  * Selected = accent tint + accent border (approved design decision; departs
  * from the bar's @color_01 fill).
  *
- * The ONE allowed literal is the semantic record red #e0605f (bar-precedent
- * exception, cf. wallpaper-selector's hardcoded live pill).
+ * NO literal colors here. The recording accent is the palette's own caution
+ * slot (@color_03), matching the bar's pre-existing paused-dot/cluster-border
+ * usage, so every surface follows the wallpaper like the rofi launcher's
+ * generated colors.rasi does. The only remaining literal in the whole
+ * capture stack is the pulsing record dot in the bar stylesheet.
  * ========================================================================== */
 
 window#capture-window {
@@ -60,8 +63,8 @@ window#capture-window {
 }
 
 .mode-switch button.active.record {
-  background-color: alpha(#e0605f, 0.16);
-  border-color: alpha(#e0605f, 0.5);
+  background-color: alpha(@color_03, 0.16);
+  border-color: alpha(@color_03, 0.5);
 }
 
 /* ---------------------------------------------------------------- Layout */
@@ -182,12 +185,12 @@ window#capture-window {
 }
 
 .primary.record {
-  background-color: #e0605f;
+  background-color: @color_03;
   color: @color_00;
-  box-shadow: 0 8px 22px alpha(#e0605f, 0.32);
+  box-shadow: 0 8px 22px alpha(@color_03, 0.32);
 }
 
-/* Record "dot" glyph on the recording CTA (dark on record-red). */
+/* Record "dot" glyph on the recording CTA (dark on the accent). */
 .record-dot {
   min-width: 11px;
   min-height: 11px;
@@ -269,7 +272,7 @@ window#capture-window {
 
 .settings-error {
   font-size: 11px;
-  color: #e0605f;
+  color: @color_03;
 }
 
 .path-chip {
