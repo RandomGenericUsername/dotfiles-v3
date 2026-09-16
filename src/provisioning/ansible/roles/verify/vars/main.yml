@@ -62,6 +62,12 @@ verify_state_current_dir: "{{ verify_xdg_state_home | trim }}/dotfiles/current"
 #   fresh machine cannot end up with dead Fn keys.
 verify_bin_scripts:
   - "{{ verify_cli_bin_dir | trim }}/toggle-touchpad"
+  # The capture tool: `capture-tool` (the controller the AGS UI shells out to)
+  # and `capture-ui` (the SUPER+PRINT launcher). Both are installed by the
+  # cli_tools role; without them the keybind is a silent no-op and every UI
+  # action fails, so their presence is asserted here too.
+  - "{{ verify_cli_bin_dir | trim }}/capture-tool"
+  - "{{ verify_cli_bin_dir | trim }}/capture-ui"
 verify_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
 
 # verify_xdg_dirs: the three XDG base dirs criterion 8 asserts exist (mirror of
@@ -172,6 +178,26 @@ verify_cli_tools:
 verify_notifd_binding_packages:
   - libastal-notifd-git
 
+# verify_masked_user_units: systemd --user units that must be MASKED, not just
+#   stopped, on a provisioned machine. The notifications overlay owns
+#   org.freedesktop.Notifications for the session; dunst's enabled unit
+#   respawns at login and steals the bus name, leaving the overlay unable to
+#   serve ("cannot get proxy: dunst is already running" — verified live).
+#   gui_tools stops and masks it, but both of those tasks are
+#   `failed_when: false` so provisioning can never break on a machine without
+#   systemd --user — which means a silent failure would ship. This gate makes
+#   it loud. Mirror of the gui_tools mask task.
+verify_masked_user_units:
+  - dunst.service
+
+# verify_directory_handler: the desktop default handler for directories, which
+#   the capture tool's "Show in folder" action relies on (it xdg-opens the
+#   recording's parent dir). Without an explicit default the mime database
+#   resolved inode/directory to kitty-open.desktop, so the action opened a
+#   terminal (reported live). gui_tools pins thunar (the provisioned file
+#   manager); this gate catches a machine where that never took effect.
+verify_directory_handler: thunar.desktop
+
 # verify_cli_bin_dir: the uv bin dir to prepend to PATH — mirror of
 #   cli_tools_bin_dir exactly. The CLIs land here via `uv tool install`
 #   ($UV_TOOL_BIN_DIR -> $XDG_BIN_HOME -> $HOME/.local/bin); without the
@@ -219,6 +245,11 @@ verify_settings_spine_keys:
 #   config/weg/effects.yaml (also in verify_install_spine_files).
 verify_asset_dirs:
   - icon-templates
+  # The capture tool's icon group: templates for the mode/target/output/audio
+  # glyphs (ITR renders them into current/icons/, the AGS registry resolves
+  # them). Asserted by group so a missing template tree fails provisioning
+  # instead of the UI silently falling back to text labels.
+  - icon-templates/capture-tool
   - icon-mappings
   - config/color-scheme-generator/templates
 verify_asset_files:

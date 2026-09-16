@@ -145,3 +145,17 @@
   failed_when: false
   changed_when: false
   when: not ansible_check_mode
+
+# The capture tool's "Show in folder" action xdg-opens the recording's parent
+# DIRECTORY. With no explicit handler the mime database resolves
+# inode/directory by its own ordering, which picked kitty-open.desktop — so
+# "Show in folder" launched a terminal instead of the file manager (reported
+# live). thunar is the provisioned file manager (packages.yaml), so pin it.
+# `xdg-mime default` merges the entry into ~/.config/mimeapps.list rather than
+# replacing it, so the user's other associations survive; re-running writes the
+# same value, hence changed_when: false.
+- name: Default the directory handler to the provisioned file manager
+  ansible.builtin.command:
+    cmd: "xdg-mime default thunar.desktop inode/directory"
+  changed_when: false
+  when: not ansible_check_mode

@@ -62,6 +62,10 @@ Notification icons SHALL be palette-tinted per outcome (success copies render in
 - **WHEN** the user invokes the Open action on a recording-saved card
 - **THEN** the file opens in the default application
 
+#### Scenario: Show in folder opens the file manager
+- **WHEN** the user invokes Show in folder
+- **THEN** the recording's directory opens in the provisioned file manager — provisioning pins the desktop default for `inode/directory` (gui_tools runs `xdg-mime default thunar.desktop inode/directory`, and `verify` asserts the result), because with no explicit default the mime database resolved the directory handler to `kitty-open.desktop` and the action opened a terminal instead
+
 #### Scenario: Action delivery does not depend on the notifier CLI
 - **WHEN** any action chip is invoked
 - **THEN** the emitting helper receives `ActionInvoked` over the session bus and executes it — the round trip never relies on a CLI printing the action id to stdout

@@ -1363,6 +1363,122 @@ class TestVerifyRuntime:
                 or "one of the rendered settings" in result.stdout
             ), "the failure must be the settings parse-gate assert"
 
+    def test_verify_fails_when_dunst_is_not_masked(self) -> None:
+        """Negative lock for the dunst gate: the notifications overlay owns
+        org.freedesktop.Notifications, so a stopped-but-ENABLED (or running)
+        dunst would respawn at login and steal the bus name. The gui_tools
+        masking tasks are `failed_when: false` (provisioning must not break on
+        a machine without systemd --user), so verify is the only place this can
+        be caught — prove it actually bites: report dunst as enabled/active and
+        expect verify to FAIL."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+
+            bin_dir = _write_stub_binaries(home)
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
+
+            # Model a machine where gui_tools' masking never took effect.
+            (bin_dir / "systemctl").write_text(
+                "#!/bin/sh\n"
+                'if [ "$1" = "is-active" ] && [ "$2" = "NetworkManager" ]; then\n'
+                '  echo active; exit 0\n'
+                "fi\n"
+                'if [ "$2" = "is-enabled" ]; then echo enabled; exit 0; fi\n'
+                'if [ "$2" = "is-active" ]; then echo active; exit 0; fi\n'
+                "exit 1\n"
+            )
+            (bin_dir / "systemctl").chmod(0o755)
+
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+            )
+            result = subprocess.run(
+                [ansible_playbook, str(self._PATH), "-e", f"install_dir={install}"],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, (
+                "verify must FAIL when dunst is not masked (the notifications "
+                "overlay cannot own the bus otherwise); recap:\n" + result.stdout
+            )
+            assert "not masked" in result.stdout or "still active" in result.stdout, (
+                "the failure must be the dunst mask/active assert; recap:\n"
+                + result.stdout
+            )
+
+    def test_verify_fails_when_directory_handler_is_wrong(self) -> None:
+        """Negative lock for the directory-handler gate: "Show in folder"
+        xdg-opens the recording's parent directory, so a machine whose
+        inode/directory default is not the file manager would open the wrong
+        app (it opened a terminal live, because the mime database resolved to
+        kitty-open.desktop). Prove the gate bites by reporting kitty and
+        expecting verify to FAIL."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+
+            bin_dir = _write_stub_binaries(home)
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
+
+            # Model a machine where the gui_tools xdg-mime step never ran: the
+            # mime database resolves the directory handler to the terminal.
+            (bin_dir / "xdg-mime").write_text(
+                "#!/bin/sh\n"
+                'if [ "$1" = "query" ]; then echo kitty-open.desktop; exit 0; fi\n'
+                "exit 1\n"
+            )
+            (bin_dir / "xdg-mime").chmod(0o755)
+
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+            )
+            result = subprocess.run(
+                [ansible_playbook, str(self._PATH), "-e", f"install_dir={install}"],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, (
+                "verify must FAIL when inode/directory does not resolve to the "
+                "file manager; recap:\n" + result.stdout
+            )
+            assert "inode/directory handler" in result.stdout, (
+                "the failure must be the directory-handler assert; recap:\n"
+                + result.stdout
+            )
+
     def test_verify_fails_when_settings_reference_missing_dir(self) -> None:
         """Negative lock for the dynamic spine-target gate (review finding
         2026-08-13): a rendered settings.toml whose spine path points at a
@@ -1604,6 +1720,17 @@ def _write_stub_binaries(home: Path) -> Path:
         'if [ "$1" = "is-active" ] && [ "$2" = "NetworkManager" ]; then\n'
         '  echo active; exit 0\n'
         "fi\n"
+        # Masked/stopped dunst, as a provisioned machine must be: the verify
+        # role asserts BOTH (masked so it cannot respawn, inactive so it is not
+        # holding org.freedesktop.Notifications). Modelled with the real exit
+        # codes — is-enabled returns 1 for a masked unit, is-active 3 for an
+        # inactive one — so the assertions compare stdout, not rc.
+        'if [ "$1" = "--user" ] && [ "$2" = "is-enabled" ] && [ "$3" = "dunst.service" ]; then\n'
+        '  echo masked; exit 1\n'
+        "fi\n"
+        'if [ "$1" = "--user" ] && [ "$2" = "is-active" ] && [ "$3" = "dunst.service" ]; then\n'
+        '  echo inactive; exit 3\n'
+        "fi\n"
         "exit 1\n"
     )
     sysctl.chmod(0o755)
@@ -1620,12 +1747,31 @@ def _write_stub_binaries(home: Path) -> Path:
         "exit 1\n"
     )
     pacman.chmod(0o755)
+    # xdg-mime: the verify role gates the inode/directory default handler (the
+    # capture tool's "Show in folder" opens a directory). Stubbed so the
+    # synthetic machine is hermetic — a real xdg-mime would query the HOST's
+    # mime database — and reports the provisioned value.
+    xdg = bin_dir / "xdg-mime"
+    xdg.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "query" ] && [ "$2" = "default" ] && [ "$3" = "inode/directory" ]; then\n'
+        '  echo thunar.desktop; exit 0\n'
+        "fi\n"
+        "exit 1\n"
+    )
+    xdg.chmod(0o755)
     # toggle-touchpad: the compositor_configs role (owner decision 2026-09-02)
     # deploys this desktop helper into the bin dir; the verify role asserts its
     # presence (Fn-key binds would silently no-op without it).
     helper = bin_dir / "toggle-touchpad"
     helper.write_text("#!/bin/sh\nexit 0\n")
     helper.chmod(0o755)
+    # capture-tool / capture-ui: installed by the cli_tools role, asserted by
+    # verify (the keybind launcher + the controller every UI action calls).
+    for name in ("capture-tool", "capture-ui"):
+        stub = bin_dir / name
+        stub.write_text("#!/bin/sh\nexit 0\n")
+        stub.chmod(0o755)
     return bin_dir
 
 
@@ -1695,6 +1841,11 @@ def _build_provisioned_layout(
     nested_icon = install / "icon-templates" / "status-bar" / "battery"
     nested_icon.mkdir(parents=True, exist_ok=True)
     (nested_icon / "icon.svg").write_text("<svg/>\n")
+    # The capture tool's icon group (verify asserts this dir: the UI resolves
+    # its glyphs from it, and a missing tree would silently degrade to labels).
+    capture_icon = install / "icon-templates" / "capture-tool" / "default"
+    capture_icon.mkdir(parents=True, exist_ok=True)
+    (capture_icon / "camera.svg").write_text("<svg/>\n")
     (install / "config" / "color-scheme-generator" / "templates" / "template.j2").write_text("x\n")
     for _tpl in (
         "colors.yaml.j2",

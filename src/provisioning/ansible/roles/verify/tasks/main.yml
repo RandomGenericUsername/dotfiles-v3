@@ -224,6 +224,81 @@
       run the packages playbook first (direct-run prerequisite)
   when: not ansible_check_mode
 
+# dunst must be MASKED, not merely stopped: a stopped-but-enabled unit comes
+# back at the next login and steals org.freedesktop.Notifications from the
+# notifications overlay. gui_tools does the masking with `failed_when: false`
+# (provisioning must not break on a machine without systemd --user), so this
+# is the only place a regression becomes visible. Spec scenario: "dunst cannot
+# steal the bus".
+- name: Check masked systemd user units
+  ansible.builtin.command:
+    cmd: "systemctl --user is-enabled {{ item }}"
+  loop: "{{ verify_masked_user_units }}"
+  register: verify_masked_unit_checks
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert systemd user units are masked
+  ansible.builtin.assert:
+    that:
+      - >-
+        (verify_masked_unit_checks.results | selectattr('stdout', 'equalto', 'masked') | list | length)
+        == verify_masked_user_units | length
+    fail_msg: >-
+      not masked: {{ verify_masked_user_units | join(', ') }} — a merely
+      stopped dunst respawns at login and takes org.freedesktop.Notifications
+      from the notifications overlay. The gui_tools role masks it
+      (systemctl --user mask dunst.service); run the gui-tools playbook first
+      (direct-run prerequisite)
+  when: not ansible_check_mode
+
+- name: Check running state of masked systemd user units
+  ansible.builtin.command:
+    cmd: "systemctl --user is-active {{ item }}"
+  loop: "{{ verify_masked_user_units }}"
+  register: verify_masked_unit_active
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert masked systemd user units are not running
+  ansible.builtin.assert:
+    that:
+      - >-
+        (verify_masked_unit_active.results | selectattr('stdout', 'equalto', 'active') | list | length)
+        == 0
+    fail_msg: >-
+      still active: {{ verify_masked_user_units | join(', ') }} — it holds
+      org.freedesktop.Notifications, so the notifications overlay cannot
+      serve. Run the gui-tools playbook (or `systemctl --user disable --now
+      dunst.service` followed by `systemctl --user mask dunst.service`)
+  when: not ansible_check_mode
+
+# "Show in folder" opens a DIRECTORY through xdg-open, so the desktop default
+# for inode/directory decides what appears. gui_tools pins thunar; without a
+# gate a regression would only show up as the wrong app opening at click time.
+- name: Check the directory handler default
+  ansible.builtin.command:
+    cmd: "xdg-mime query default inode/directory"
+  register: verify_directory_handler_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the directory handler default
+  ansible.builtin.assert:
+    that:
+      - verify_directory_handler_check.stdout | trim == verify_directory_handler
+    fail_msg: >-
+      the inode/directory handler is
+      '{{ verify_directory_handler_check.stdout | trim }}', expected
+      '{{ verify_directory_handler }}' — the capture tool's "Show in folder"
+      would open the wrong application. The gui_tools role sets it via
+      `xdg-mime default`; run the gui-tools playbook first (direct-run
+      prerequisite)
+  when: not ansible_check_mode
+
 - name: Check desktop helper scripts exist (Fn-key binds)
   ansible.builtin.stat:
     path: "{{ item }}"

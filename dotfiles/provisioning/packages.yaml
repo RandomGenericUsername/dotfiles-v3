@@ -26,6 +26,11 @@ entries:
   - name: hyprpolkitagent    # Polkit authentication agent
   - name: xdg-desktop-portal-hyprland  # XDG Desktop Portal backend (XDPH)
   - name: xdg-desktop-portal-gtk      # File picker for XDPH (XDPH lacks one)
+  # xdg-mime: the desktop default handlers. Provisioning sets one explicitly
+  # (gui_tools: inode/directory -> thunar) instead of relying on the mime
+  # database's resolution order, which otherwise picked kitty-open.desktop and
+  # made the capture tool's "Show in folder" open a terminal.
+  - name: xdg-utils
   - name: wl-clipboard       # Wayland clipboard utilities
   - name: grim               # Screenshot utility
   - name: slurp              # Region selection for screenshots
