@@ -404,22 +404,22 @@ function hideCaptureWindow() {
  * GTK does not shrink a layer-shell surface when its content gets shorter:
  * measured live, the surface stayed 718px tall after returning to the 590px
  * screenshot view, so the panel ended up glued to the top of a too-tall
- * transparent window. Measuring the panel and pushing an explicit size makes
- * the surface resize, and the compositor re-centres it on resize (verified).
+ * transparent window.
  *
- * Runs on an idle callback so the newly shown/hidden rows have been laid out
- * before the measurement.
+ * Deliberately SYNCHRONOUS (no idle callback): deferring the size change made
+ * GTK paint an intermediate frame with the new, shorter content still inside
+ * the OLD surface, and the panel's clipped shadow in that leftover area read as
+ * a rectangle trailing the window. Measuring and resizing in the same turn lets
+ * GTK resize and repaint atomically. GTK's measure() recomputes on demand, so
+ * the visibility changes made just before this are already reflected.
  */
 function syncWindowSize() {
-  GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-    const window = app.get_window(WINDOW_NAME)
-    const panel = window?.get_child()
-    if (!window || !panel) return false
-    const [, width] = panel.measure(Gtk.Orientation.HORIZONTAL, -1)
-    const [, height] = panel.measure(Gtk.Orientation.VERTICAL, width)
-    window.set_default_size(width, height)
-    return false
-  })
+  const window = app.get_window(WINDOW_NAME)
+  const panel = window?.get_child()
+  if (!window || !panel) return
+  const [, width] = panel.measure(Gtk.Orientation.HORIZONTAL, -1)
+  const [, height] = panel.measure(Gtk.Orientation.VERTICAL, width)
+  window.set_default_size(width, height)
 }
 
 export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
@@ -1005,7 +1005,19 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
         })
       }}
     >
-      <box class="capture-panel" orientation={Gtk.Orientation.VERTICAL} spacing={0}>
+      {/* The panel HUGS its content (halign/valign CENTER) instead of filling the
+          window. It is the window's child, so a filling panel is stretched to
+          the surface size — and while the surface is briefly still at the old
+          (taller) size after a view switch, that stretch painted the panel
+          background below the content as a rectangle trailing the window.
+          Centred, the leftover area paints nothing (the window is transparent). */}
+      <box
+        class="capture-panel"
+        orientation={Gtk.Orientation.VERTICAL}
+        spacing={0}
+        halign={Gtk.Align.CENTER}
+        valign={Gtk.Align.CENTER}
+      >
         <box
           class="mode-switch"
           homogeneous

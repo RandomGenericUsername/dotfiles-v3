@@ -46,6 +46,12 @@ the panel pinned near the top of a too-tall transparent window — so the panel 
 measured and an explicit size pushed after each switch, which also re-centres it
 on the compositor side.
 
+Two further constraints, both learned from a rectangle that trailed the window
+during the switch: the resize SHALL happen synchronously with the view change
+(deferring it to an idle painted an intermediate frame: new content inside the
+old surface), and the panel SHALL hug its content (centred) rather than fill the
+window, so that brief size lag paints nothing instead of the panel background.
+
 #### Scenario: Returning to a shorter view re-centres the panel
 - **WHEN** the user goes Recording (taller) and back to Screenshot (shorter)
 - **THEN** the surface shrinks to the screenshot view's height and the panel is centred again
