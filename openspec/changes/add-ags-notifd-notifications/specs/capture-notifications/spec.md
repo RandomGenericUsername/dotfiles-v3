@@ -40,15 +40,15 @@ A standalone AGS app SHALL serve `org.freedesktop.Notifications` and render inco
 
 The capture backend SHALL emit `Notify` requests for screenshot capture, recording completion, and categorized failures, with palette-resolved `current/icons/` icon paths, the specified actions, and urgency normal/critical respectively; the emitting side SHALL execute Copy/Open/Reveal/Details on `ActionInvoked`.
 
-Notification icons SHALL be palette-tinted per outcome (success copies render in the stack accent, failure in the caution slot) so the cards carry the wallpaper's colour, matching the tinted tile the overlay draws. Screenshot captures SHALL always be backed by a file — a clipboard capture is written to the configured screenshots directory before being copied — so the screenshot card always offers Open / Copy again, and `Open` SHALL launch the file with the XDG opener.
+Notification icons SHALL be palette-tinted per outcome (success copies render in the stack accent, failure in the caution slot) so the cards carry the wallpaper's colour, matching the tinted tile the overlay draws. File actions (Open / Copy again / Show in folder) SHALL be offered only for captures that produced a file: a clipboard capture keeps NO file (the UI's Clipboard/Save pill is the user's explicit choice) and therefore emits an action-less card. `Open` SHALL launch the file with the XDG opener.
 
-#### Scenario: Screenshot success notifies
-- **WHEN** a screenshot capture finalizes
-- **THEN** a card shows `Screenshot captured`, the output path, and Copy-again/Open actions with the accent-tinted `camera` icon
+#### Scenario: Clipboard capture stays file-less
+- **WHEN** a screenshot is captured with the Clipboard output selected
+- **THEN** nothing is written to the screenshots directory and the card shows only `Copied to clipboard` with no actions
 
-#### Scenario: Clipboard capture is file-backed
-- **WHEN** a screenshot is captured to the clipboard
-- **THEN** the image is also written under the configured screenshots directory, and the card offers Open / Copy again pointing at that file
+#### Scenario: Saved capture offers file actions
+- **WHEN** a screenshot is captured with the Save output selected
+- **THEN** the file is written under the configured screenshots directory and the card offers Copy again / Open against that path
 
 #### Scenario: Recording success notifies
 - **WHEN** a recording finalizes

@@ -50,9 +50,15 @@ def _stub_detached_notifications(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture()
 def config_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """Point XDG_CONFIG_HOME at a temp tree and expose a writer helper."""
+    """Point XDG_CONFIG_HOME (and HOME) at a temp tree and expose a writer.
+
+    HOME is redirected too: the default save paths expand ``~``, and without
+    this a test that exercises a file-writing path made the fake grim write
+    real files into the developer's ~/Pictures/Screenshots (it did).
+    """
     config_home = tmp_path / "config"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
+    monkeypatch.setenv("HOME", str(tmp_path))
 
     def write(data=None, raw=None) -> Path:
         path = config_home / "capture-tool" / "config.json"
@@ -171,11 +177,20 @@ class _ShotHarness:
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self.commands: list[list[str]] = []
+        self.popen: list[list[str]] = []
         self.payloads: list[dict] = []
         monkeypatch.setattr(
             mod.subprocess,
             "run",
             self._run,
+        )
+        monkeypatch.setattr(
+            mod.subprocess,
+            "Popen",
+            lambda command, **kwargs: self.popen.append(list(command))
+            or SimpleNamespace(
+                stdout=SimpleNamespace(close=lambda: None), wait=lambda: 0
+            ),
         )
         original_emit = mod.emit
 
@@ -185,18 +200,11 @@ class _ShotHarness:
 
         monkeypatch.setattr(mod, "emit", _capture)
 
-    @staticmethod
-    def _is_grim(command: list[str]) -> bool:
-        return bool(command) and command[0] == "grim"
-
     def _run(self, command, **kwargs):
-        """Fake grim/wl-copy. A grim invocation (writes a file) leaves the file
-        behind so the clipboard path can copy it, mirroring real grim."""
+        """Fake grim/wl-copy for the file path (Save)."""
         command = list(command)
         self.commands.append(command)
-        if self._is_grim(command):
-            # Last arg is the output; "-" would be a stdout pipe (no longer used
-            # for clipboard captures).
+        if command and command[0] == "grim":
             target = command[-1]
             if target != "-":
                 Path(target).parent.mkdir(parents=True, exist_ok=True)
@@ -258,15 +266,12 @@ class TestScreenshotCursorAndPrecedence:
         harness = _ShotHarness(monkeypatch)
         with pytest.raises(SystemExit):
             mod.screenshot(_shot_args(save=False))
-        # A clipboard capture still writes a file (the success card's Open /
-        # Copy again actions need a real artifact), then copies THAT file —
-        # grim never streams to stdout for this path.
-        grim = harness.commands[0]
-        assert grim[-1] != "-"
-        assert Path(grim[-1]).name.startswith("screenshot_")
-        assert harness.commands[1][0] == "wl-copy"
-        # The emitted payload reports the file, not a "clipboard" sentinel.
-        assert harness.payloads[0]["output_path"] == grim[-1]
+        # Clipboard means clipboard: grim streams to stdout ("-") and nothing is
+        # written to the configured screenshots directory. Only the Save pill
+        # produces a file (and therefore a card with Open / Copy again).
+        assert harness.popen[0][-1] == "-"
+        assert not any(str(tmp_path) in part for part in harness.popen[0])
+        assert harness.payloads[0]["output_path"] == "clipboard"
 
 
 class TestRecordingCursor:

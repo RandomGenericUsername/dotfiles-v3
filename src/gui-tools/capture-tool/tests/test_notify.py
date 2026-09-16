@@ -197,19 +197,18 @@ class TestRequestBuilders:
         assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
         assert request["urgency"] == "normal"
 
-    def test_clipboard_screenshot_carries_path_and_actions(self) -> None:
-        # Clipboard captures are written to disk first, so the card offers the
-        # same Open / Copy again affordances as the mockup.
-        request = mod.build_screenshot_request(path="/p/shot.png", clipboard=True)
-        assert request["body"] == "Copied to clipboard \u00b7 /p/shot.png"
-        assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
-        assert request["urgency"] == "normal"
-
-    def test_pathless_screenshot_falls_back_plain(self) -> None:
+    def test_clipboard_screenshot_has_no_file_actions(self) -> None:
+        # Clipboard/save is the user's explicit choice: a clipboard capture
+        # keeps no file, so it must not offer Open / Copy again even if a path
+        # is handed in.
         request = mod.build_screenshot_request(clipboard=True)
         assert request["body"] == "Copied to clipboard"
         assert request["actions"] == ()
         assert request["urgency"] == "normal"
+
+        with_path = mod.build_screenshot_request(path="/p/shot.png", clipboard=True)
+        assert with_path["body"] == "Copied to clipboard"
+        assert with_path["actions"] == ()
 
     def test_recording_request(self) -> None:
         request = mod.build_recording_request(
@@ -446,12 +445,11 @@ class TestDetachedWiring:
         assert args.func(args) is None
         assert seen and seen[0][0]["summary"].startswith("Recording saved")
 
-    def test_cmd_notify_keeps_path_for_clipboard_screenshot(
+    def test_cmd_notify_clipboard_ignores_path(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Regression: the helper dropped --path whenever --clipboard was set,
-        so clipboard captures rendered a chip-less "Copied to clipboard" card
-        even though the file existed. Path must win."""
+        """Clipboard wins over any path: the card must stay action-less, since
+        the capture deliberately left no file behind."""
         seen: list[tuple] = []
         monkeypatch.setattr(
             mod, "emit_notification", lambda *args: seen.append(args) or "sent"
@@ -463,9 +461,25 @@ class TestDetachedWiring:
         )
         assert args.func(args) is None
         request = seen[0][0]
+        assert request["actions"] == ()
+        assert request["body"] == "Copied to clipboard"
+        assert seen[0][1] == {}
+
+    def test_cmd_notify_saved_screenshot_has_file_actions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[tuple] = []
+        monkeypatch.setattr(
+            mod, "emit_notification", lambda *args: seen.append(args) or "sent"
+        )
+        monkeypatch.setattr(mod, "resolve_notify_icon", lambda _v: None)
+        args = mod.parse_args(
+            ["notify", "--kind", "screenshot-saved", "--path", "/p/shot.png"]
+        )
+        assert args.func(args) is None
+        request = seen[0][0]
         assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
-        assert "/p/shot.png" in request["body"]
-        assert seen[0][1] == {"path": "/p/shot.png"}
+        assert request["body"] == "/p/shot.png"
 
     def test_notify_help_lists_kinds(self, capsys) -> None:
         with pytest.raises(SystemExit) as exc:
