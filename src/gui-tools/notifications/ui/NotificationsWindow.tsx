@@ -112,25 +112,31 @@ function NotificationCard(
 ): Gtk.Box {
   const critical = notification.get_urgency() === URGENCY_CRITICAL
 
-  const tile = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL })
+  // CenterBox, not Box: a Gtk.Box packs a non-expanding child at the START of
+  // its main axis, so the 24px glyph sat at the TOP of the 56px tile. The
+  // box's own valign/align cannot fix that (measured: tile 58x58, valign
+  // CENTER, glyph still top-packed) — CenterBox centers its centre widget by
+  // construction, which is what the mockup's flex centring does.
+  const tile = new Gtk.CenterBox()
   tile.add_css_class("notif-tile")
   if (critical) tile.add_css_class("critical")
   tile.set_halign(Gtk.Align.CENTER)
-  // Centre the 56px tile against the card's text block. START pinned it to the
-  // top of the card, so the icon looked misaligned whenever the body wrapped
-  // to more lines than the tile is tall.
   tile.set_valign(Gtk.Align.CENTER)
-  tile.append(tileContent(notification, critical))
+  tile.set_center_widget(tileContent(notification, critical))
 
   const title = new Gtk.Label({ label: notification.get_summary() ?? "" })
   title.add_css_class("notif-title")
   title.set_halign(Gtk.Align.START)
   title.set_wrap(true)
+  // Bound the natural (unwrapped) width so the window sizes to the intended
+  // card measure instead of the longest path's single-line width.
+  title.set_max_width_chars(38)
 
   const body = new Gtk.Label({ label: notification.get_body() ?? "" })
   body.add_css_class("notif-body")
   body.set_halign(Gtk.Align.START)
   body.set_wrap(true)
+  body.set_max_width_chars(44)
   // Paths must break mid-token (mockup `word-break: break-all`).
   body.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
 
