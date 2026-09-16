@@ -46,11 +46,19 @@ the panel pinned near the top of a too-tall transparent window — so the panel 
 measured and an explicit size pushed after each switch, which also re-centres it
 on the compositor side.
 
-Two further constraints, both learned from a rectangle that trailed the window
-during the switch: the resize SHALL happen synchronously with the view change
-(deferring it to an idle painted an intermediate frame: new content inside the
-old surface), and the panel SHALL hug its content (centred) rather than fill the
-window, so that brief size lag paints nothing instead of the panel background.
+Three further constraints, all learned from a rectangle that trailed the window
+during the switch:
+- the resize SHALL happen synchronously with the view change (deferring it to an
+  idle painted an intermediate frame: new content inside the old surface);
+- the panel SHALL hug its content rather than fill the window (a GtkWindow
+  allocates its whole area to its direct child and a GtkBox ignores a child's
+  main-axis alignment — measured: panel allocated 950 while its content was 590
+  — so the panel is placed as a CenterBox centre widget), so any size lag paints
+  nothing instead of the panel background;
+- the window SHALL declare its own layer namespace (`capture`) and the compositor
+  config SHALL carry a matching `layer_rule { no_anim = true }`: Hyprland's
+  `layers` animation eases layer-surface resizes (~230ms measured from a 60fps
+  recording), which read as the panel trailing a rectangle while it shrank.
 
 #### Scenario: Returning to a shorter view re-centres the panel
 - **WHEN** the user goes Recording (taller) and back to Screenshot (shorter)

@@ -983,6 +983,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
       visible={false}
       name="capture-window"
       class="capture-window"
+      namespace="capture"
       gdkmonitor={gdkmonitor}
       anchor={0}
       layer={Astal.Layer.OVERLAY}
@@ -1005,19 +1006,20 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
         })
       }}
     >
-      {/* The panel HUGS its content (halign/valign CENTER) instead of filling the
-          window. It is the window's child, so a filling panel is stretched to
-          the surface size — and while the surface is briefly still at the old
-          (taller) size after a view switch, that stretch painted the panel
-          background below the content as a rectangle trailing the window.
-          Centred, the leftover area paints nothing (the window is transparent). */}
-      <box
-        class="capture-panel"
-        orientation={Gtk.Orientation.VERTICAL}
-        spacing={0}
-        halign={Gtk.Align.CENTER}
-        valign={Gtk.Align.CENTER}
-      >
+      {/* CenterBox, not a Box. The window allocates its whole area to its
+          direct child, and a GtkBox ignores a child's main-axis alignment
+          (verified live: panel allocated 950 while its own content was 590), so
+          the panel still stretched to the stale surface size and painted its
+          background as a rectangle below the content during a view switch.
+          CenterBox centres its centre widget by construction, so the panel
+          keeps its natural size and the leftover area stays transparent. */}
+      <centerbox class="capture-root">
+        <box
+          $type="center"
+          class="capture-panel"
+          orientation={Gtk.Orientation.VERTICAL}
+          spacing={0}
+        >
         <box
           class="mode-switch"
           homogeneous
@@ -1831,7 +1833,8 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
             </box>
           </box>
         </box>
-      </box>
+        </box>
+      </centerbox>
     </window>
   )
 }
