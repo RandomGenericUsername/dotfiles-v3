@@ -1099,7 +1099,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment selected"
                   label="None"
@@ -1147,7 +1147,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment selected"
                   label="PNG"
@@ -1177,7 +1177,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment selected"
                   $={(self) => screenshotOutputGroup.push({ value: false, button: self })}
@@ -1333,7 +1333,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment"
                   label="24"
@@ -1372,7 +1372,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment selected"
                   label="MP4"
@@ -1409,7 +1409,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment"
                   label="10"
@@ -1463,7 +1463,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment selected"
                   $={(self) => recordingAudioGroup.push({ value: "system", button: self })}
@@ -1527,7 +1527,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment selected"
                   label="Original"
@@ -1566,7 +1566,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment"
                   label="Low"
@@ -1605,7 +1605,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 valign={Gtk.Align.CENTER}
                 width_request={86}
               />
-              <box class="segments" spacing={6}>
+              <box class="segments" homogeneous hexpand spacing={6}>
                 <button
                   class="segment selected"
                   label="∞"
