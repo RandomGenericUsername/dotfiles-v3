@@ -1,16 +1,186 @@
 #!/usr/bin/env python3
 import json
+import logging
+import os
 import re
 import shlex
 import shutil
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
+logger = logging.getLogger("capture-tool")
+
 
 def which(name):
     return shutil.which(name)
+
+
+# ── Typed errors (project plan §49 categories) ───────────────────────
+#
+# Failures raise these types so the JSON error channel carries a stable
+# ``error_kind`` the UI can categorize (permission denied, backend
+# unavailable, encoder unavailable, audio unavailable, file error, user
+# cancellation). The ``error`` message key is unchanged (backward
+# compatible); ``error_kind`` is purely additive.
+
+#: User dismissed a selection prompt (slurp/window picker): no notification.
+ERROR_KIND_CANCELLED = "cancelled"
+#: No recorder backend / resident runtime available.
+ERROR_KIND_BACKEND_UNAVAILABLE = "backend_unavailable"
+#: The selected format/settings (e.g. GIF fps band, --size misuse) or the
+#: conversion toolchain (ffmpeg) is not available.
+ERROR_KIND_ENCODER_UNAVAILABLE = "encoder_unavailable"
+#: The selected PipeWire audio source has no available device.
+ERROR_KIND_AUDIO_UNAVAILABLE = "audio_unavailable"
+#: The output path cannot be prepared/finalized.
+ERROR_KIND_FILE_ERROR = "file_error"
+
+
+class CaptureToolError(RuntimeError):
+    """Base for typed capture failures; carries the UI-facing category."""
+
+    kind = ""
+
+
+class SelectionCancelledError(CaptureToolError):
+    """The user cancelled an interactive selection prompt."""
+
+    kind = ERROR_KIND_CANCELLED
+
+
+class BackendUnavailableError(CaptureToolError):
+    """No recorder backend or resident runtime host available."""
+
+    kind = ERROR_KIND_BACKEND_UNAVAILABLE
+
+
+class EncoderUnavailableError(CaptureToolError):
+    """The selected format/settings or conversion toolchain is unavailable."""
+
+    kind = ERROR_KIND_ENCODER_UNAVAILABLE
+
+
+class AudioUnavailableError(CaptureToolError):
+    """The selected audio source has no available PipeWire device."""
+
+    kind = ERROR_KIND_AUDIO_UNAVAILABLE
+
+
+class CaptureFileError(CaptureToolError):
+    """The output path cannot be prepared."""
+
+    kind = ERROR_KIND_FILE_ERROR
+
+
+#: Audio sources accepted by ``start --audio``.
+AUDIO_CHOICES = ("none", "system", "mic")
+
+#: Frame rates the GIF special pipeline supports (project plan §8/§43).
+GIF_FPS_BAND = (10, 15, 20, 30)
+
+#: Output scales accepted by ``start --size`` (GIF only).
+GIF_SIZE_CHOICES = ("original", "75", "50")
+
+
+def _pactl_text(argv, run):
+    """Run a pactl probe; raise AudioUnavailableError loudly on any failure."""
+    try:
+        result = run(argv, capture_output=True, text=True, check=False)
+    except OSError as exc:
+        raise AudioUnavailableError(
+            f"audio device probe failed ({' '.join(argv)}): {exc}"
+        ) from exc
+    if result.returncode != 0:
+        detail = ((result.stderr or result.stdout) or "").strip()
+        suffix = f": {detail}" if detail else ""
+        raise AudioUnavailableError(
+            f"audio device probe failed ({' '.join(argv)} exited"
+            f" {result.returncode}{suffix})"
+        )
+    return (result.stdout or "").strip()
+
+
+def list_pipewire_sources(run=subprocess.run):
+    """Return PipeWire/Pulse source names (``pactl list short sources``).
+
+    Columns are TAB-separated and names may contain spaces, so split on
+    tabs (never bare whitespace).
+    """
+    names = []
+    for line in _pactl_text(["pactl", "list", "short", "sources"], run).splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2 and parts[1].strip():
+            names.append(parts[1].strip())
+    return names
+
+
+def resolve_audio_device(audio, run=subprocess.run):
+    """Resolve ``--audio`` to a PipeWire source name (``None`` for ``none``).
+
+    ``none`` performs no probe and opens no audio device. Any other choice
+    fails loudly with :class:`AudioUnavailableError` when the selected
+    device is missing — never a silent fallback to a different source.
+    """
+    if audio == "none":
+        return None
+    if audio == "system":
+        sink = _pactl_text(["pactl", "get-default-sink"], run)
+        if not sink:
+            raise AudioUnavailableError("no default sink (system audio unavailable)")
+        device = f"{sink}.monitor"
+    elif audio == "mic":
+        device = _pactl_text(["pactl", "get-default-source"], run)
+        if not device:
+            raise AudioUnavailableError("no default source (microphone unavailable)")
+    else:
+        raise ValueError(f"unsupported audio source: {audio}")
+    if device not in list_pipewire_sources(run):
+        raise AudioUnavailableError(
+            f"selected audio source is unavailable: {device}"
+        )
+    return device
+
+
+def audio_backend_args(backend, device):
+    """Recorder argv fragment selecting the resolved audio device.
+
+    ``device is None`` contributes no flags, so the backend opens no audio
+    hardware at all.
+    """
+    if device is None:
+        return []
+    if backend == "gpu-screen-recorder":
+        return ["-a", device]
+    return [f"--audio={device}"]
+
+
+def gif_intermediate_path(final_output):
+    """Intermediate video path the recorder writes before FFmpeg conversion."""
+    path = Path(final_output)
+    return str(path.with_name(f"{path.stem}.capture.mp4"))
+
+
+def validate_gif_options(args):
+    """Validate GIF-mode settings; raise EncoderUnavailableError loudly."""
+    if args.format == "gif":
+        if args.fps not in GIF_FPS_BAND:
+            raise EncoderUnavailableError(
+                f"GIF mode supports frame rates {list(GIF_FPS_BAND)}, got {args.fps}"
+            )
+        if which("ffmpeg") is None:
+            raise EncoderUnavailableError("GIF mode requires ffmpeg on PATH")
+    elif args.size != "original":
+        raise EncoderUnavailableError("--size is only valid with --format gif")
+
+
+def _ensure_parent_dir(path):
+    try:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise CaptureFileError(f"could not prepare output directory: {exc}") from exc
 
 
 def choose_backend():
@@ -74,7 +244,7 @@ def resolve_target(target):
             check=False,
         )
         if result.returncode != 0:
-            raise RuntimeError("window selection was cancelled")
+            raise SelectionCancelledError("window selection was cancelled")
         selection = result.stdout.strip()
         match = re.fullmatch(r"(-?\d+),(-?\d+)\s+(\d+)x(\d+)", selection)
         if not match:
@@ -84,7 +254,7 @@ def resolve_target(target):
     if target == "region":
         result = subprocess.run(["slurp"], capture_output=True, text=True, check=False)
         if result.returncode != 0:
-            raise RuntimeError("region selection was cancelled")
+            raise SelectionCancelledError("region selection was cancelled")
         selection = result.stdout.strip()
         match = re.fullmatch(r"(-?\d+),(-?\d+)\s+(\d+)x(\d+)", selection)
         if not match:
@@ -106,10 +276,26 @@ def resolve_window_geometry():
 def screenshot(args):
     if args.delay:
         time.sleep(args.delay)
-    output = str(Path(args.output).expanduser()) if args.output else None
+    config = load_config()
+    explicit_cursor = getattr(args, "cursor", None)
+    cursor = (
+        explicit_cursor
+        if explicit_cursor is not None
+        else config["screenshot"]["cursor"]
+    )
+    if args.output:
+        output = str(Path(args.output).expanduser())
+    elif getattr(args, "save", False):
+        # Configured default save path (explicit --output always wins).
+        output = default_screenshot_path(config, args.format)
+    else:
+        output = None
     command = ["grim"]
     if args.format:
         command.extend(["-t", args.format])
+    if cursor:
+        # ``grim -c`` includes cursors (verified ``grim -h`` on-machine).
+        command.append("-c")
     if args.target != "screen":
         geometry = resolve_target(args.target)
         if args.target == "region":
@@ -129,13 +315,32 @@ def screenshot(args):
         grim.stdout.close()
         result_code = grim.wait()
         if result_code != 0 or copy.returncode != 0:
+            notify_failed("screenshot failed")
             return emit({"state": "error", "error": "screenshot failed"}, result_code or copy.returncode)
     if output and result.returncode != 0:
+        notify_failed("screenshot failed")
         return emit({"state": "error", "error": "screenshot failed"}, result.returncode)
+    if output:
+        notify_screenshot_saved(output)
+    else:
+        notify_screenshot_saved(clipboard=True)
     return emit({"state": "idle", "target": args.target, "output_path": output or "clipboard"}, 0)
 
 
-def _build_recording_command(backend, target, args, output_path):
+# Our user-facing presets (low/medium/high) do NOT match gpu-screen-recorder's
+# -q vocabulary (medium/high/very_high/ultra) — passing them through makes gsr
+# abort on "low". Map up one step so every preset is a valid gsr quality.
+GSR_QUALITY_MAP = {
+    "low": "medium",
+    "medium": "high",
+    "high": "very_high",
+}
+
+
+def _build_recording_command(
+    backend, target, args, output_path, audio_device=None, cursor=False
+):
+    gif = args.format == "gif"
     if backend == "gpu-screen-recorder":
         if args.target in {"region", "window"}:
             if args.target == "window":
@@ -145,51 +350,101 @@ def _build_recording_command(backend, target, args, output_path):
         else:
             command = [backend, "-w", target]
         command.extend([
-            "-c", args.format,
+            "-c", args.format if not gif else "mp4",
             "-f", str(args.fps),
-            "-q", args.quality,
+            "-q", GSR_QUALITY_MAP.get(args.quality, "high"),
             "-fallback-cpu-encoding", "yes",
+            # gsr spells the cursor toggle ``-cursor yes|no`` (verified
+            # ``gpu-screen-recorder -h`` on-machine); pass it explicitly.
+            "-cursor", "yes" if cursor else "no",
             "-o", output_path,
         ])
     else:
         command = [backend, "-f", output_path]
         if args.target != "screen":
             command.extend(["-g", target])
+        if gif:
+            # wf-recorder only honours an explicit framerate via -r.
+            command.extend(["-r", str(args.fps)])
+        # wf-recorder exposes NO cursor flag (verified ``wf-recorder --help``
+        # on-machine), so --cursor is accepted by the launcher but cannot be
+        # honored on this backend — recorded in the spec as the outcome.
+    command.extend(audio_backend_args(backend, audio_device))
     return command
 
 
-def start_recording(args):
+def start_recording(args, run=subprocess.run):
     # The resident runtime host owns the recorder and serves hub Control;
     # this launcher only resolves the target and hands the exact recorder
     # argv to `dotfiles-runtime capture`. Retiring the old in-process
     # spawn/control path is what lets the bar's Control reach a real job.
     backend = choose_backend()
     if not backend:
-        return emit({"state": "error", "error": "no recording backend installed"}, 1)
-
-    output_path = args.output or str(
-        Path.home() / "Videos" / "Recordings" /
-        f"recording-{datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
+        raise BackendUnavailableError("no recording backend installed")
+    if args.duration < 0:
+        raise ValueError(f"--duration must be >= 0 seconds, got {args.duration}")
+    validate_gif_options(args)
+    gif = args.format == "gif"
+    config = load_config()
+    explicit_cursor = getattr(args, "cursor", None)
+    cursor = (
+        explicit_cursor
+        if explicit_cursor is not None
+        else config["recording"]["cursor"]
     )
-    output_path = str(Path(output_path).expanduser())
-    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    if gif:
+        # GIF special pipeline (project plan §43): capture video at the
+        # selected GIF frame rate, then the resident host converts the
+        # intermediate to the final GIF via FFmpeg. Audio hardware is
+        # NEVER opened in GIF mode, regardless of --audio.
+        final_path = str(Path(args.output).expanduser()) if args.output else default_recording_path(config, "gif")
+        _ensure_parent_dir(final_path)
+        output_path = gif_intermediate_path(final_path)
+        audio_device = None
+    else:
+        final_path = None
+        output_path = str(Path(args.output).expanduser()) if args.output else default_recording_path(config, args.format)
+        _ensure_parent_dir(output_path)
+        audio_device = resolve_audio_device(args.audio, run=run)
 
     target = resolve_target(args.target)
-    command = _build_recording_command(backend, target, args, output_path)
+    command = _build_recording_command(
+        backend, target, args, output_path, audio_device, cursor=cursor
+    )
     runtime = shutil.which("dotfiles-runtime")
     if runtime is None:
-        return emit({"state": "error", "error": "dotfiles-runtime not found on PATH"}, 1)
-    subprocess.Popen(
-        [runtime, "capture", "--backend", backend, "--command", shlex.join(command)],
-        start_new_session=True,
-    )
-    return emit({
+        raise BackendUnavailableError("dotfiles-runtime not found on PATH")
+    launcher = [
+        runtime, "capture",
+        "--backend", backend,
+        "--command", shlex.join(command),
+        "--duration", str(args.duration),
+        # The resident host reports "Recording saved" at finalize; it needs
+        # the final output path (GIF pipeline: the converted .gif, not the
+        # intermediate the recorder wrote).
+        "--output-path", final_path if gif else output_path,
+    ]
+    if gif:
+        launcher.extend([
+            "--gif-input", output_path,
+            "--gif-output", final_path,
+            "--gif-size", args.size,
+        ])
+    subprocess.Popen(launcher, start_new_session=True)
+    payload = {
         "state": "recording",
         "backend": backend,
-        "output_path": output_path,
+        "output_path": final_path if gif else output_path,
         "target": args.target,
         "format": args.format,
-    }, 0)
+        "audio": "none" if gif else args.audio,
+        "duration": args.duration,
+    }
+    if gif:
+        payload["gif_size"] = args.size
+        payload["intermediate_path"] = output_path
+    return emit(payload, 0)
 
 
 def emit(payload, return_code):
@@ -197,7 +452,651 @@ def emit(payload, return_code):
     raise SystemExit(return_code)
 
 
-def parse_args():
+# ── Notifications (add-ags-notifd-notifications emission contract) ───
+#
+# The capture backend reports outcomes through
+# ``org.freedesktop.Notifications`` (rendered by the session's AGS notifd
+# overlay as the approved mockup cards). Emitting primitive: ``dunstify
+# -A <id>,<label> --wait`` — the only primitive on the machine that closes
+# the full Notify+ActionInvoked round-trip in one call (``gdbus`` Notify is
+# fire-and-forget; ``notify-send`` has no wait/action execution). When
+# dunstify is absent the module falls back to plain ``notify-send`` (no
+# actions) — the degraded path, never silent.
+#
+# The CLI never blocks on the round-trip: outcomes spawn a DETACHED
+# ``capture-tool notify ...`` helper (``start_new_session``, stdio to
+# DEVNULL) that runs ``dunstify --wait`` itself — bounded by
+# ``NOTIFY_TIMEOUT_MS`` for normal urgency plus a hard subprocess cap for
+# sticky critical cards — and executes the invoked action. Every
+# notification failure is swallowed: capture must never fail because a
+# toast failed. Tests monkeypatch ``_spawn_detached`` to capture spawns.
+
+#: Application name every capture notification carries (design.md §2).
+NOTIFY_APP_NAME = "capture-tool"
+#: Expiry for normal-urgency cards (ms). Critical cards carry NO timeout
+#: (sticky until dismissed, matching the mockup's "Capture failed" card).
+NOTIFY_TIMEOUT_MS = 8000
+#: Hard cap (s) on the detached ``dunstify --wait`` so a sticky critical
+#: card can never leak a helper process forever.
+NOTIFY_WAIT_CAP_S = 120
+#: Icon group in the AGS icon manifest (same group the AGS registry reads).
+NOTIFY_ICON_GROUP = "capture-tool"
+#: Outcome kind -> manifest variant (design.md §2; variants exist in
+#: dotfiles/config/icon-template-color-scheme-mappings/icons.yaml).
+NOTIFY_VARIANTS = {
+    "screenshot": "camera",
+    "recording": "video",
+    "failure": "warning",
+}
+#: Outcome kind -> [(action id, chip label)] (design.md §2).
+NOTIFY_ACTIONS = {
+    "screenshot": (("copy", "Copy again"), ("open", "Open")),
+    "recording": (("open", "Open"), ("reveal", "Show in folder")),
+    "failure": (("details", "Details"),),
+}
+#: Card body budget: concrete text only, never a traceback.
+NOTIFY_MAX_BODY = 160
+#: Details re-emit budget (the full error text, still bounded).
+NOTIFY_MAX_DETAILS = 2000
+
+
+def _xdg_dir(env_var, fallback_suffix):
+    """XDG base dir honoring the env var with the spec default under HOME."""
+    override = os.environ.get(env_var)
+    if override:
+        return override
+    return os.path.join(os.path.expanduser("~"), fallback_suffix)
+
+
+# ── Config file (add-capture-settings, design.md §1/§3) ──────────────
+#
+# ``$XDG_CONFIG_HOME/capture-tool/config.json`` is app-owned: the AGS
+# settings view writes it, the launcher reads it fresh on every command for
+# defaults. Reads are always safe — a missing file is first-run (silent
+# defaults) and a corrupt file is ignored wholesale with a loud log, never a
+# crash. Explicit CLI args always beat these values.
+
+#: Config directory/file names under ``$XDG_CONFIG_HOME``.
+CONFIG_DIR_NAME = "capture-tool"
+CONFIG_FILE_NAME = "config.json"
+
+#: ``{kind}`` expands to screenshot/recording; the rest is strftime.
+DEFAULT_FILENAME_PATTERN = "{kind}_%Y-%m-%d_%H-%M-%S"
+
+#: First-run defaults (design.md §1); every key is optional in the file.
+DEFAULT_CONFIG = {
+    "screenshot_dir": "~/Pictures/Screenshots",
+    "recording_dir": "~/Videos/Recordings",
+    "filename_pattern": DEFAULT_FILENAME_PATTERN,
+    "notifications": True,
+    "screenshot": {"format": "png", "output": "clipboard", "cursor": False},
+    "recording": {"fps": 60, "quality": "high", "audio": "system", "cursor": True},
+}
+
+_SCREENSHOT_FORMATS = ("png", "jpeg")
+_SCREENSHOT_OUTPUTS = ("clipboard", "save")
+_RECORDING_FPS = (24, 30, 60)
+_RECORDING_QUALITIES = ("low", "medium", "high")
+_RECORDING_AUDIO = ("none", "system", "mic")
+_RECORDING_EXTENSIONS = ("mp4", "webm", "gif")
+
+
+def config_path():
+    """Absolute ``$XDG_CONFIG_HOME/capture-tool/config.json`` path."""
+    return os.path.join(
+        _xdg_dir("XDG_CONFIG_HOME", ".config"),
+        CONFIG_DIR_NAME,
+        CONFIG_FILE_NAME,
+    )
+
+
+def _merge_config(raw):
+    """Overlay a parsed mapping onto defaults, validating every key.
+
+    Unknown keys, wrong types, and out-of-vocabulary values are silently
+    dropped (falling back to the default) so a hand-edited file can never
+    crash a capture.
+    """
+    config = {
+        "screenshot_dir": DEFAULT_CONFIG["screenshot_dir"],
+        "recording_dir": DEFAULT_CONFIG["recording_dir"],
+        "filename_pattern": DEFAULT_CONFIG["filename_pattern"],
+        "notifications": DEFAULT_CONFIG["notifications"],
+        "screenshot": dict(DEFAULT_CONFIG["screenshot"]),
+        "recording": dict(DEFAULT_CONFIG["recording"]),
+    }
+    if not isinstance(raw, dict):
+        return config
+    for key in ("screenshot_dir", "recording_dir"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            config[key] = value
+    pattern = raw.get("filename_pattern")
+    if isinstance(pattern, str) and pattern.strip():
+        config["filename_pattern"] = pattern
+    if isinstance(raw.get("notifications"), bool):
+        config["notifications"] = raw["notifications"]
+    shot = raw.get("screenshot")
+    if isinstance(shot, dict):
+        if shot.get("format") in _SCREENSHOT_FORMATS:
+            config["screenshot"]["format"] = shot["format"]
+        if shot.get("output") in _SCREENSHOT_OUTPUTS:
+            config["screenshot"]["output"] = shot["output"]
+        if isinstance(shot.get("cursor"), bool):
+            config["screenshot"]["cursor"] = shot["cursor"]
+    rec = raw.get("recording")
+    if isinstance(rec, dict):
+        if rec.get("fps") in _RECORDING_FPS:
+            config["recording"]["fps"] = rec["fps"]
+        if rec.get("quality") in _RECORDING_QUALITIES:
+            config["recording"]["quality"] = rec["quality"]
+        if rec.get("audio") in _RECORDING_AUDIO:
+            config["recording"]["audio"] = rec["audio"]
+        if isinstance(rec.get("cursor"), bool):
+            config["recording"]["cursor"] = rec["cursor"]
+    return config
+
+
+def load_config(path=None):
+    """Load config with safe fallbacks (missing → defaults, corrupt → log)."""
+    resolved = path or config_path()
+    try:
+        with open(resolved, encoding="utf-8") as handle:
+            raw = json.load(handle)
+    except FileNotFoundError:
+        return _merge_config(None)
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "capture-tool: ignoring unreadable config %s: %s", resolved, exc
+        )
+        return _merge_config(None)
+    return _merge_config(raw)
+
+
+def notifications_enabled(config=None):
+    """Whether the settings toggle permits Notify emission."""
+    source = config if config is not None else load_config()
+    return bool(source.get("notifications", True))
+
+
+def expand_dir(value):
+    """Expand ``~`` and ``$HOME``/env references in a configured directory."""
+    if not isinstance(value, str):
+        return value
+    return os.path.expandvars(os.path.expanduser(value))
+
+
+def expand_filename_pattern(pattern, kind, now=None):
+    """Expand ``{kind}`` + strftime tokens; never raise on a bad pattern."""
+    moment = now or datetime.now()
+    template = (
+        pattern
+        if isinstance(pattern, str) and pattern.strip()
+        else DEFAULT_FILENAME_PATTERN
+    )
+    try:
+        expanded = moment.strftime(template.replace("{kind}", kind))
+    except (ValueError, TypeError):
+        expanded = ""
+    if not expanded:
+        expanded = moment.strftime(DEFAULT_FILENAME_PATTERN.replace("{kind}", kind))
+    return expanded
+
+
+def _extension_for(kind, fmt):
+    if kind == "screenshot":
+        return fmt if fmt in _SCREENSHOT_FORMATS else "png"
+    return fmt if fmt in _RECORDING_EXTENSIONS else "mp4"
+
+
+def default_capture_path(kind, fmt, config=None, now=None):
+    """Configured default save path: ``<dir>/<pattern>.<extension>``."""
+    source = config if config is not None else load_config()
+    key = "screenshot_dir" if kind == "screenshot" else "recording_dir"
+    directory = expand_dir(source.get(key) or DEFAULT_CONFIG[key])
+    name = expand_filename_pattern(source.get("filename_pattern"), kind, now=now)
+    return os.path.join(directory, f"{name}.{_extension_for(kind, fmt)}")
+
+
+def default_screenshot_path(config=None, fmt="png", now=None):
+    return default_capture_path("screenshot", fmt, config=config, now=now)
+
+
+def default_recording_path(config=None, fmt="mp4", now=None):
+    return default_capture_path("recording", fmt, config=config, now=now)
+
+
+def resolve_notify_icon(variant):
+    """Absolute path to the rendered SVG for a capture-tool variant, or None.
+
+    Mirrors ``lib/icon-registry.ts`` exactly: prefers the capture
+    instance's own manifest (``~/.config/ags-capture/icons.json``) when it
+    advertises the group and falls back to the shared bar manifest
+    (``~/.config/ags/icons.json``); renders live under
+    ``$XDG_STATE_HOME/dotfiles/current/icons/``. No hardcoded paths — only
+    XDG-derived dirs. A missing manifest/render yields None (the card
+    renders its fallback tile), never a crash.
+    """
+    config_home = _xdg_dir("XDG_CONFIG_HOME", ".config")
+    icons_dir = os.path.join(
+        _xdg_dir("XDG_STATE_HOME", os.path.join(".local", "state")),
+        "dotfiles",
+        "current",
+        "icons",
+    )
+    manifests = [
+        os.path.join(config_home, "ags-capture", "icons.json"),
+        os.path.join(config_home, "ags", "icons.json"),
+    ]
+    fallback = {}
+    for manifest_path in manifests:
+        try:
+            with open(manifest_path, encoding="utf-8") as handle:
+                parsed = json.load(handle)
+        except (OSError, ValueError):
+            continue
+        group = parsed.get(NOTIFY_ICON_GROUP)
+        if group is not None:
+            return _manifest_icon_path(group, variant, icons_dir)
+        if not fallback:
+            fallback = parsed
+    if fallback:
+        return _manifest_icon_path(
+            fallback.get(NOTIFY_ICON_GROUP) or {}, variant, icons_dir
+        )
+    return None
+
+
+def _manifest_icon_path(group, variant, icons_dir):
+    variants = group.get("variants") or []
+    entry = next(
+        (item for item in variants if item.get("name") == variant), None
+    )
+    if entry is None:
+        return None
+    candidate = os.path.join(icons_dir, entry.get("output", ""))
+    return candidate if os.path.isfile(candidate) else None
+
+
+def format_notify_duration(seconds):
+    """MM:SS for the recording-saved summary (design.md §2)."""
+    total = max(0, int(seconds or 0))
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def format_notify_size(num_bytes):
+    """Human size for the recording-saved summary (e.g. ``18.4 MB``)."""
+    try:
+        size = float(num_bytes)
+    except (TypeError, ValueError):
+        return None
+    if size < 0:
+        return None
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            if unit in ("B", "KB"):
+                return f"{int(size)} {unit}"
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return None  # pragma: no cover - loop always returns
+
+
+def notify_short_message(error_kind, message):
+    """Categorized short card body for a failure — never a raw traceback.
+
+    ``cancelled`` (user dismissed a picker) yields None: no notification.
+    Typed kinds prefer the concrete backend message (already short, e.g.
+    the PipeWire device name); untyped errors sniff for the screencopy
+    permission denial (the mockup's failure card) and otherwise carry the
+    first message line, bounded.
+    """
+    if error_kind == ERROR_KIND_CANCELLED:
+        return None
+    text = (message or "").strip()
+    if error_kind in (
+        ERROR_KIND_BACKEND_UNAVAILABLE,
+        ERROR_KIND_ENCODER_UNAVAILABLE,
+        ERROR_KIND_AUDIO_UNAVAILABLE,
+        ERROR_KIND_FILE_ERROR,
+    ):
+        defaults = {
+            ERROR_KIND_BACKEND_UNAVAILABLE: "No recording backend available.",
+            ERROR_KIND_ENCODER_UNAVAILABLE: "Encoder unavailable.",
+            ERROR_KIND_AUDIO_UNAVAILABLE: "Audio device unavailable.",
+            ERROR_KIND_FILE_ERROR: "Could not write the output file.",
+        }
+        short = text.splitlines()[0].strip() if text else ""
+        return (short or defaults[error_kind])[:NOTIFY_MAX_BODY]
+    if "permission denied" in text.lower():
+        return (
+            "Screen capture permission denied. "
+            "Check Hyprland screencopy permissions."
+        )
+    if text:
+        return text.splitlines()[0].strip()[:NOTIFY_MAX_BODY]
+    return "Capture failed."
+
+
+def build_screenshot_request(path=None, clipboard=False):
+    """Notify request for a finalized screenshot (design.md §2)."""
+    if clipboard or not path:
+        return {
+            "app_name": NOTIFY_APP_NAME,
+            "summary": "Screenshot captured",
+            "body": "Copied to clipboard",
+            "icon_variant": NOTIFY_VARIANTS["screenshot"],
+            "actions": (),
+            "urgency": "normal",
+        }
+    return {
+        "app_name": NOTIFY_APP_NAME,
+        "summary": "Screenshot captured",
+        "body": str(path),
+        "icon_variant": NOTIFY_VARIANTS["screenshot"],
+        "actions": NOTIFY_ACTIONS["screenshot"],
+        "urgency": "normal",
+    }
+
+
+def build_recording_request(path, duration_s=0.0, size_bytes=None):
+    """Notify request for a finalized recording (design.md §2)."""
+    summary = f"Recording saved \u00b7 {format_notify_duration(duration_s)}"
+    size = format_notify_size(size_bytes)
+    if size is not None:
+        summary += f" \u00b7 {size}"
+    return {
+        "app_name": NOTIFY_APP_NAME,
+        "summary": summary,
+        "body": str(path),
+        "icon_variant": NOTIFY_VARIANTS["recording"],
+        "actions": NOTIFY_ACTIONS["recording"],
+        "urgency": "normal",
+    }
+
+
+def build_failure_request(short_message):
+    """Notify request for a categorized failure (design.md §2)."""
+    return {
+        "app_name": NOTIFY_APP_NAME,
+        "summary": "Capture failed",
+        "body": short_message,
+        "icon_variant": NOTIFY_VARIANTS["failure"],
+        "actions": NOTIFY_ACTIONS["failure"],
+        "urgency": "critical",
+    }
+
+
+def _dunstify_argv(request, icon=None, wait=True):
+    """Full ``dunstify -A … --wait`` argv for a request."""
+    argv = [
+        "dunstify",
+        "-a", request["app_name"],
+        "-u", request["urgency"],
+    ]
+    # Critical cards stay sticky (no --timeout); normal cards expire.
+    if request["urgency"] != "critical":
+        argv += ["--timeout", str(NOTIFY_TIMEOUT_MS)]
+    if icon:
+        argv += ["-i", icon]
+    for action_id, label in request["actions"]:
+        argv += ["--action", f"{action_id},{label}"]
+    if wait:
+        argv.append("--wait")
+    argv += [request["summary"], request["body"]]
+    return argv
+
+
+def _notify_send_argv(request, icon=None):
+    """No-actions plain-notify fallback argv (design.md §2 degraded path)."""
+    argv = ["notify-send", "-a", request["app_name"], "-u", request["urgency"]]
+    if icon:
+        argv += ["-i", icon]
+    argv += [request["summary"], request["body"]]
+    return argv
+
+
+def _perform_copy(path):
+    with open(path, "rb") as handle:
+        subprocess.run(["wl-copy"], stdin=handle, check=False)
+
+
+def _perform_open(path):
+    subprocess.run(["xdg-open", str(path)], check=False)
+
+
+def _perform_reveal(path):
+    subprocess.run(
+        ["xdg-open", str(Path(path).expanduser().parent)], check=False
+    )
+
+
+def _perform_details(request, context):
+    """Details: re-emit the full error text as a plain card (never a
+    traceback dump into the failure card itself)."""
+    details = (context.get("details") or request["body"] or "").strip()
+    if not details:
+        return
+    icon = resolve_notify_icon(NOTIFY_VARIANTS["failure"])
+    detail_request = {
+        "app_name": NOTIFY_APP_NAME,
+        "summary": "Capture error details",
+        "body": details[:NOTIFY_MAX_DETAILS],
+        "icon_variant": NOTIFY_VARIANTS["failure"],
+        "actions": (),
+        "urgency": "normal",
+    }
+    try:
+        if which("dunstify") is not None:
+            subprocess.run(
+                _dunstify_argv(detail_request, icon=icon, wait=False),
+                check=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif which("notify-send") is not None:
+            subprocess.run(
+                _notify_send_argv(detail_request, icon=icon),
+                check=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except OSError:
+        pass
+
+
+def handle_notify_action(action_id, request, context):
+    """Execute a Copy/Open/Reveal/Details invocation (design.md §2).
+
+    Returns the handled action id, or None when nothing was executed.
+    Every failure is swallowed (fail-open).
+    """
+    try:
+        path = context.get("path")
+        if action_id == "copy" and path:
+            _perform_copy(Path(path).expanduser())
+            return action_id
+        if action_id == "open" and path:
+            _perform_open(Path(path).expanduser())
+            return action_id
+        if action_id == "reveal" and path:
+            _perform_reveal(path)
+            return action_id
+        if action_id == "details":
+            _perform_details(request, context)
+            return action_id
+    except OSError:
+        pass
+    return None
+
+
+def emit_notification(request, context=None):
+    """Emit one request via dunstify --wait and execute the invoked action.
+
+    Returns ``"sent"`` (fallback/no-action path), ``"action:<id>"``,
+    ``"closed"`` (expired/dismissed), ``"unsupported"`` (no notifier), or
+    ``"failed"``. Never raises.
+    """
+    context = context or {}
+    try:
+        icon = resolve_notify_icon(request["icon_variant"])
+        if which("dunstify") is not None and request["actions"]:
+            result = subprocess.run(
+                _dunstify_argv(request, icon=icon, wait=True),
+                capture_output=True,
+                text=True,
+                timeout=NOTIFY_WAIT_CAP_S,
+                check=False,
+            )
+            action_id = (result.stdout or "").strip()
+            known = {action_id for action_id, _ in request["actions"]}
+            if action_id in known:
+                handle_notify_action(action_id, request, context)
+                return f"action:{action_id}"
+            return "closed"
+        if which("notify-send") is not None or which("dunstify") is not None:
+            plain = (
+                _notify_send_argv(request, icon=icon)
+                if which("notify-send") is not None
+                else _dunstify_argv(request, icon=icon, wait=False)
+            )
+            subprocess.run(
+                plain,
+                check=False,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return "sent"
+        return "unsupported"
+    except (OSError, subprocess.SubprocessError):
+        return "failed"
+
+
+def _spawn_detached(argv):
+    """Spawn a detached helper (double-fork discipline); None on failure."""
+    try:
+        return subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        return None
+
+
+def _notify_helper_argv(kind, **fields):
+    base = [sys.executable, str(Path(__file__)), "notify", "--kind", kind]
+    for key, value in fields.items():
+        if value is None:
+            continue
+        flag = f"--{key.replace('_', '-')}"
+        if isinstance(value, bool):
+            if value:
+                base.append(flag)
+        else:
+            base += [flag, str(value)]
+    return base
+
+
+def notify_screenshot_saved(path=None, clipboard=False):
+    """Detached success toast for a finalized screenshot (fail-open).
+
+    The settings ``notifications`` toggle gates ALL emission: when it is
+    ``false`` nothing is built and nothing is spawned (silent).
+    """
+    if not notifications_enabled():
+        return None
+    if clipboard or not path:
+        request = build_screenshot_request(clipboard=True)
+        _spawn_detached(_notify_helper_argv("screenshot-saved", clipboard=True))
+    else:
+        request = build_screenshot_request(path=path)
+        _spawn_detached(_notify_helper_argv("screenshot-saved", path=str(path)))
+    return request
+
+
+def notify_recording_saved(path, duration_s=0.0, size_bytes=None):
+    """Detached success toast for a finalized recording (fail-open).
+
+    Gated by the settings ``notifications`` toggle (see
+    :func:`notify_screenshot_saved`).
+    """
+    if not notifications_enabled():
+        return None
+    request = build_recording_request(path, duration_s, size_bytes)
+    fields = {"path": str(path), "duration": float(duration_s or 0.0)}
+    if size_bytes is not None:
+        fields["size"] = int(size_bytes)
+    _spawn_detached(_notify_helper_argv("recording-saved", **fields))
+    return request
+
+
+def notify_failed(message, error_kind=None, details=None):
+    """Detached persistent toast for a categorized failure (fail-open).
+
+    Returns the built request, or None when the kind suppresses
+    notification (user cancellation) or the settings toggle disables
+    notifications entirely.
+    """
+    if not notifications_enabled():
+        return None
+    short = notify_short_message(error_kind, message)
+    if short is None:
+        return None
+    request = build_failure_request(short)
+    fields = {"message": short}
+    if error_kind:
+        fields["error_kind"] = error_kind
+    if details or (message and message.strip() != short):
+        fields["details"] = (details or message or "").strip()[:NOTIFY_MAX_DETAILS]
+    _spawn_detached(_notify_helper_argv("failed", **fields))
+    return request
+
+
+def cmd_notify(args):
+    """Detached helper entrypoint: emit one toast + execute the action.
+
+    Re-checks the settings toggle so a helper spawned before the toggle was
+    flipped off still emits nothing (belt-and-suspenders for the runtime
+    host's recording-saved/failure routes, which spawn this helper).
+    """
+    if not notifications_enabled():
+        return None
+    if args.kind == "screenshot-saved":
+        if args.clipboard or not args.path:
+            request = build_screenshot_request(clipboard=True)
+            context: dict = {}
+        else:
+            request = build_screenshot_request(path=args.path)
+            context = {"path": args.path}
+    elif args.kind == "recording-saved":
+        request = build_recording_request(args.path, args.duration, args.size)
+        context = {"path": args.path}
+    else:
+        short = notify_short_message(args.error_kind, args.message)
+        if short is None:
+            return None
+        request = build_failure_request(short)
+        context = {"details": args.details or args.message}
+    emit_notification(request, context)
+    return None
+
+
+def show_backend(args):
+    """Read-only backend readout for the settings view (design.md §4).
+
+    Display-only: the recorder stays hidden behind ``choose_backend()`` and
+    the UI never offers a selection. ``none`` means no recorder is
+    installed.
+    """
+    emit({"backend": choose_backend() or "none"}, 0)
+
+
+def parse_args(argv=None):
     import argparse
 
     parser = argparse.ArgumentParser(description="Capture launcher for AGS/Hyprland recording states.")
@@ -209,6 +1108,24 @@ def parse_args():
     start.add_argument("--format", default="mp4")
     start.add_argument("--fps", type=int, default=60)
     start.add_argument("--quality", default="high")
+    start.add_argument(
+        "--audio", choices=list(AUDIO_CHOICES), default="none",
+        help="audio source via PipeWire device selection (default: none; "
+             "never opened in GIF mode)",
+    )
+    start.add_argument(
+        "--duration", type=float, default=0.0,
+        help="auto-stop after N seconds and finalize (0 = record until stopped)",
+    )
+    start.add_argument(
+        "--size", choices=list(GIF_SIZE_CHOICES), default="original",
+        help="GIF output scale (only with --format gif)",
+    )
+    start.add_argument(
+        "--cursor", action=argparse.BooleanOptionalAction, default=None,
+        help="draw the pointer into the recording; defaults to the config "
+             "value (gpu-screen-recorder -cursor; wf-recorder has no flag)",
+    )
     start.set_defaults(func=start_recording)
 
     shot = subparsers.add_parser("screenshot", help="capture a screenshot")
@@ -216,16 +1133,55 @@ def parse_args():
     shot.add_argument("--output", default=None)
     shot.add_argument("--delay", type=int, default=0)
     shot.add_argument("--format", choices=["png", "jpeg"], default="png")
+    shot.add_argument(
+        "--save", action="store_true",
+        help="save to the configured default path instead of the clipboard",
+    )
+    shot.add_argument(
+        "--cursor", action=argparse.BooleanOptionalAction, default=None,
+        help="include the pointer (grim -c); defaults to the config value",
+    )
     shot.set_defaults(func=screenshot)
 
-    return parser.parse_args()
+    backend_cmd = subparsers.add_parser(
+        "backend", help="print the detected recorder backend (JSON, read-only)"
+    )
+    backend_cmd.set_defaults(func=show_backend)
+
+    notify_cmd = subparsers.add_parser(
+        "notify",
+        help="emit one capture notification (detached helper spawned by "
+             "the screenshot/failure paths; runs dunstify --wait itself)",
+    )
+    notify_cmd.add_argument(
+        "--kind",
+        choices=["screenshot-saved", "recording-saved", "failed"],
+        required=True,
+    )
+    notify_cmd.add_argument("--path", default=None)
+    notify_cmd.add_argument("--clipboard", action="store_true")
+    notify_cmd.add_argument("--duration", type=float, default=0.0)
+    notify_cmd.add_argument("--size", type=int, default=None)
+    notify_cmd.add_argument("--message", default="")
+    notify_cmd.add_argument("--error-kind", default=None)
+    notify_cmd.add_argument("--details", default=None)
+    notify_cmd.set_defaults(func=cmd_notify)
+
+    return parser.parse_args(argv)
 
 
 def main():
     args = parse_args()
     try:
         args.func(args)
+    except CaptureToolError as error:
+        notify_failed(str(error), error.kind or None)
+        payload = {"state": "error", "error": str(error)}
+        if error.kind:
+            payload["error_kind"] = error.kind
+        emit(payload, 1)
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+        notify_failed(str(error))
         emit({"state": "error", "error": str(error)}, 1)
 
 

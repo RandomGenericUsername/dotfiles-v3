@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Capture tool — UI mockups</title>
+<link rel="stylesheet" href="mockup.css" />
+</head>
+<body class="gallery">
+  <div class="gallery-head">
+    <h1>Capture tool &mdash; UI mockups</h1>
+    <p>
+      A visual pass over the AGS capture window, the recording indicator, and the
+      surrounding surfaces. Same information architecture as the project plan
+      (Screenshot / Recording &rarr; Region / Screen / Window), dressed in the
+      shell's existing "hypr-pano" language. Every color is a <code>--color-*</code>
+      token that maps 1:1 onto the runtime <code>@color_*</code> palette.
+    </p>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <h3>One door, two modes</h3>
+      <p>The Screenshot / Recording switch is the header — the first question answered before any setting competes for attention.</p>
+    </div>
+    <div class="note-card">
+      <h3>Targets are objects</h3>
+      <p>Region / Screen / Window sit as icon tiles. You point the tool <em>at</em> something before tuning it.</p>
+    </div>
+    <div class="note-card">
+      <h3>Settings recede</h3>
+      <p>Micro-labels left, segmented pills right. One loud primary action, tinted per mode (accent for still, red for record).</p>
+    </div>
+    <div class="note-card">
+      <h3>GIF is its own mode</h3>
+      <p>Choosing GIF swaps in a short frame-rate band and a Size selector, and removes audio entirely — with a note explaining why.</p>
+    </div>
+    <div class="note-card">
+      <h3>Idle means invisible</h3>
+      <p>The bar cluster renders nothing when there's no recording. Controls materialise only while recording or paused.</p>
+    </div>
+    <div class="note-card">
+      <h3>Feedback is concrete</h3>
+      <p>Toasts name the outcome, the path, and the next useful action — never a raw backend error.</p>
+    </div>
+  </div>
+
+  <div class="gallery-grid">
+    <div class="frame">
+      <header><h2>Screenshot</h2><a href="screenshot.html" target="_blank">open &#8599;</a></header>
+      <iframe src="screenshot.html" height="640" title="Screenshot view"></iframe>
+    </div>
+
+    <div class="frame">
+      <header><h2>Recording</h2><a href="recording.html" target="_blank">open &#8599;</a></header>
+      <iframe src="recording.html" height="700" title="Recording view"></iframe>
+    </div>
+
+    <div class="frame">
+      <header><h2>Recording &mdash; GIF mode</h2><a href="recording-gif.html" target="_blank">open &#8599;</a></header>
+      <iframe src="recording-gif.html" height="700" title="GIF recording view"></iframe>
+    </div>
+
+    <div class="frame">
+      <header><h2>Bar indicator &amp; popup</h2><a href="bar-indicator.html" target="_blank">open &#8599;</a></header>
+      <iframe src="bar-indicator.html" height="560" title="Bar indicator"></iframe>
+    </div>
+
+    <div class="frame">
+      <header><h2>Notifications</h2><a href="notifications.html" target="_blank">open &#8599;</a></header>
+      <iframe src="notifications.html" height="560" title="Notifications"></iframe>
+    </div>
+
+    <div class="frame">
+      <header><h2>Settings</h2><a href="settings.html" target="_blank">open &#8599;</a></header>
+      <iframe src="settings.html" height="920" title="Settings"></iframe>
+    </div>
+  </div>
+</body>
+</html>

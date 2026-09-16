@@ -1,0 +1,94 @@
+/* Notifications overlay — GTK port of the spikes/capture-tool-ui toast recipe
+ * (mockup.css `.toast*`).
+ * ==========================================================================
+ * Visual language: the "hypr-pano dress" — dark translucent card, hairline
+ * border, rounded corners. Every color is a runtime palette token from
+ * colors.css so a palette swap restyles the stack with zero code changes.
+ *
+ * GTK4 CSS has no color-mix(): tints below are precomputed with alpha().
+ * Mockup token map:
+ *   --panel-bg    -> alpha(@color_00, 0.92)
+ *   --surface     -> alpha(@color_background, 0.45)
+ *   --hairline    -> alpha(@color_foreground, 0.12)
+ *   --hairline-strong -> alpha(@color_foreground, 0.22)
+ *   --text-dim    -> alpha(@color_foreground, 0.62)
+ *   --accent      -> @color_06
+ *
+ * The ONE allowed literal is the semantic record red #e0605f for the
+ * critical-urgency tile (bar-precedent exception, same as the capture
+ * window's record styling).
+ * ========================================================================== */
+
+window#notifications-window {
+  background-color: transparent;
+}
+
+.notif-stack {
+  min-width: 380px;
+}
+
+/* ------------------------------------------------------------------ Card */
+
+.notif-card {
+  padding: 13px;
+  border-radius: 14px;
+  background-color: alpha(@color_00, 0.92);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.notif-tile {
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 9px;
+  background-color: alpha(@color_background, 0.45);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  color: @color_06;
+}
+
+.notif-tile.critical {
+  color: #e0605f;
+  border-color: alpha(#e0605f, 0.5);
+  background-color: alpha(#e0605f, 0.16);
+}
+
+.notif-fallback {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------ Title/body */
+
+.notif-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: @color_foreground;
+}
+
+.notif-body {
+  font-size: 11.5px;
+  color: alpha(@color_foreground, 0.62);
+}
+
+/* ------------------------------------------------------------ Action row */
+
+.notif-actions {
+  margin-top: 9px;
+}
+
+.notif-chip {
+  min-height: 27px;
+  padding-left: 12px;
+  padding-right: 12px;
+  border-radius: 7px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  background-color: alpha(@color_background, 0.45);
+  color: alpha(@color_foreground, 0.62);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.notif-chip:hover {
+  color: @color_foreground;
+  border-color: alpha(@color_foreground, 0.22);
+}

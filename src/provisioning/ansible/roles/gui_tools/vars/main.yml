@@ -48,6 +48,7 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
@@ -57,6 +58,8 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector"
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib"
+  - "{{ gui_tools_spine_config_dir }}/ags-notifications"
+  - "{{ gui_tools_spine_config_dir }}/ags-notifications/ui"
 
 # gui_tools_app_files: the app FILES, one entry per file with the explicit
 #   target path. Per-file entries (not directory sources) are REQUIRED (see
@@ -74,6 +77,13 @@ gui_tools_app_files:
   - { name: capture-recording-controller, source: src/gui-tools/capture-tool/controllers/RecordingController.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/RecordingController.ts" }
   - { name: capture-screenshot-controller, source: src/gui-tools/capture-tool/controllers/ScreenshotController.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/ScreenshotController.ts" }
   - { name: capture-target-resolver, source: src/gui-tools/capture-tool/controllers/TargetResolver.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/controllers/TargetResolver.ts" }
+  # The capture instance resolves palette-aware icons through its own
+  # registry (hypr-pano pattern: each GUI app owns its lib/ in src and the
+  # role deploys it per-file). The capture registry prefers the instance's
+  # own manifest (`../icons.json` → the ags-capture manifest the
+  # compositor_configs role generates into the same spine dir) and falls back
+  # to the shared bar manifest. Repo-authoritative, force: true.
+  - { name: capture-lib-icon-registry, source: src/gui-tools/capture-tool/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/lib/icon-registry.ts" }
 
 # gui_tools_icme_app_files: the icon color mapping editor's app files,
 #   deployed into their own ags-icme/ spine dir. RAW COPY (ansible.builtin.copy),
@@ -137,6 +147,20 @@ gui_tools_wallpaper_selector_app_files:
   - { name: wallpaper-selector-lib-event-bus-core, source: src/gui-tools/wallpaper-selector/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus-core.ts" }
   - { name: wallpaper-selector-lib-event-bus, source: src/gui-tools/wallpaper-selector/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus.ts" }
 
+# gui_tools_notifications_app_files: the notifd overlay's app files,
+#   deployed into their own ags-notifications/ spine dir. Rendered via
+#   `template` with force: true (repo-authoritative); the sources contain no
+#   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
+#   test) — same placement discipline as hypr-pano and the wallpaper
+#   selector. The overlay renders the daemon-provided image paths directly,
+#   so it owns no icon registry of its own (the EMITTER resolves
+#   current/icons/ paths in the capture backend).
+gui_tools_notifications_app_files:
+  - { name: notifications-app-tsx, source: src/gui-tools/notifications/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/app.tsx" }
+  - { name: notifications-style-css, source: src/gui-tools/notifications/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/style.css" }
+  - { name: notifications-window, source: src/gui-tools/notifications/ui/NotificationsWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/ui/NotificationsWindow.tsx" }
+  - { name: notifications-makefile, source: src/gui-tools/notifications/Makefile, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/Makefile" }
+
 # gui_tools_ags_instances: the AGS process instance names (as reported by
 #   `ags list`) that must be restarted after their source files are updated
 #   by this role. AGS bundles TypeScript at startup and holds the compiled
@@ -153,3 +177,4 @@ gui_tools_ags_instances:
   - icon-color-mapping-editor
   - hypr-pano
   - wallpaper-selector
+  - notifications

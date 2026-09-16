@@ -111,7 +111,6 @@ verify_install_spine_files:
   - icon-mappings/email-client.yaml
   - icon-mappings/network.yaml
   - icon-mappings/power-menu.yaml
-  - icon-mappings/screenshot-tool.yaml
   - icon-mappings/wallpaper-selector.yaml
   - icon-mappings/wlogout.yaml
 
@@ -163,6 +162,15 @@ verify_cli_tools:
   - csg
   - weg
   - itr
+
+# verify_notifd_binding_packages: the AUR packages backing the AstalNotifd
+#   binding the notifications overlay imports (capture-notifications
+#   implementation gate — the app is never scaffolded against a missing
+#   binding). Checked via `pacman -Q` (importable == installed here: the
+#   package ships the GIR + typelib the girepository loader resolves).
+#   Mirror of the packages role's `aur_packages` entry.
+verify_notifd_binding_packages:
+  - libastal-notifd-git
 
 # verify_cli_bin_dir: the uv bin dir to prepend to PATH — mirror of
 #   cli_tools_bin_dir exactly. The CLIs land here via `uv tool install`
@@ -267,6 +275,7 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/app.tsx"
   - "{{ install_dir | trim }}/config/ags/style.css"
   - "{{ install_dir | trim }}/config/ags/icons.json"
+  - "{{ install_dir | trim }}/config/ags-capture/icons.json"
   - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus-core.ts"
@@ -299,6 +308,7 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/controllers/RecordingController.ts"
   - "{{ install_dir | trim }}/config/ags-capture/controllers/ScreenshotController.ts"
   - "{{ install_dir | trim }}/config/ags-capture/controllers/TargetResolver.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/app.tsx"
@@ -321,6 +331,10 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts"
+  - "{{ install_dir | trim }}/config/ags-notifications/app.tsx"
+  - "{{ install_dir | trim }}/config/ags-notifications/style.css"
+  - "{{ install_dir | trim }}/config/ags-notifications/ui/NotificationsWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags-notifications/Makefile"
 
 # verify_consumer_symlinks: the R2 consumer-path symlinks the runtime
 #   seeder owns (criterion 7, Epic 4 current-only). The AGS fragment is
@@ -373,6 +387,7 @@ verify_managed_link_dirs:
   - ags-icme
   - ags-hypr-pano
   - ags-wallpaper-selector
+  - ags-notifications
   - nvim
   - starship
   - wlogout

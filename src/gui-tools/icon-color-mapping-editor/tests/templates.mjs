@@ -70,7 +70,7 @@ check("group status-bar", groupAndLabel("/r/status-bar/battery/battery-25/defaul
 check("group power-menu", groupAndLabel("/r/status-bar/power-menu/default/icon.svg", "/r"), {
   group: "power-menu", label: "default",
 });
-check("group shorth path", groupAndLabel("/r/screen-recorder/default/play.svg", "/r"), {
+check("group shorth path", groupAndLabel("/r/capture-tool/default/play.svg", "/r"), {
   group: "default", label: "play.svg",
 });
 
@@ -139,10 +139,10 @@ const rows = describeTemplatePending({
   manifestPendings: [
     {
       manifestPath: "/m/icons.yaml",
-      group: "screenshot-tool",
-      variant: "cursor",
-      template: "screenshot-tool/cursor/default/cursor.svg",
-      output: "cursor.svg",
+      group: "capture-tool",
+      variant: "camera",
+      template: "capture-tool/default/camera.svg",
+      output: "capture-tool-camera.svg",
     },
   ],
   workingByPath,
@@ -155,11 +155,11 @@ check(
 );
 check("defaults row header", rows[1].header, "defaults.yaml → defaults");
 check("defaults row html", rows[1].html, "  +   COLOR_COUNTOUR: color5");
-check("manifest row header", rows[2].header, "/m/icons.yaml → screenshot-tool");
+check("manifest row header", rows[2].header, "/m/icons.yaml → capture-tool");
 check(
   "manifest row html",
   rows[2].html,
-  "  +   - name: cursor" + String.fromCharCode(10) + "      template: screenshot-tool/cursor/default/cursor.svg" + String.fromCharCode(10) + "      output: cursor.svg",
+  "  +   - name: camera" + String.fromCharCode(10) + "      template: capture-tool/default/camera.svg" + String.fromCharCode(10) + "      output: capture-tool-camera.svg",
 );
 
 // resolve + preview body rendering
