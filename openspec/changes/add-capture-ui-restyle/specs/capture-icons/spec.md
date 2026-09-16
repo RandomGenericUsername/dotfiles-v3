@@ -8,13 +8,19 @@ One palette-aware icon namespace for the capture tool: 14 user-provided glyphs r
 
 The icon manifest SHALL define exactly one `capture-tool` group containing 14 variants — `camera`, `video`, `region`, `monitor`, `window`, `clipboard`, `save`, `speaker`, `mic`, `info`, `warning`, `pause`, `play`, `stop` — each with a `template` under `capture-tool/default/` and an `output` named `capture-tool-<variant>.svg`. The group SHALL declare `color_mappings` for `COLOR_FOREGROUND` (→ `foreground`) and `COLOR_ACCENT` (→ a bright palette slot, battery-precedent `color13`, user-retunable via the icon color mapping editor).
 
+The group SHALL additionally carry tinted outcome variants reusing the same templates with variant-level `color_mappings`: `camera-accent` and `video-accent` (→ a palette accent slot) for success cards, and `warning-caution` (→ the palette caution slot) for failure cards. Tinted variants SHALL NOT replace the base variants, which the capture window and bar continue to consume.
+
 #### Scenario: Manifest enumerates the full set
 - **WHEN** inspecting `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml`
-- **THEN** the `capture-tool` group exists with all 14 variants and no other capture-related group remains
+- **THEN** the `capture-tool` group exists with all 14 base variants, the 3 tinted variants, and no other capture-related group remains
 
 #### Scenario: Every placeholder resolves
 - **WHEN** `itr render` runs against the active palette
-- **THEN** all 14 outputs land in `current/icons/` with no unmapped-placeholder errors
+- **THEN** all variants' outputs land in `current/icons/` with no unmapped-placeholder errors
+
+#### Scenario: Tinted variants really differ
+- **WHEN** the rendered `camera-accent` and `warning-caution` are compared with their base glyphs
+- **THEN** the accent copy carries the palette's accent slot colour and the caution copy the caution slot colour, while the base variants stay foreground-coloured
 
 ### Requirement: Palette-safe templates
 

@@ -171,21 +171,11 @@ class _ShotHarness:
 
     def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self.commands: list[list[str]] = []
-        self.popen: list[list[str]] = []
         self.payloads: list[dict] = []
         monkeypatch.setattr(
             mod.subprocess,
             "run",
-            lambda command, **kwargs: self.commands.append(list(command))
-            or SimpleNamespace(returncode=0),
-        )
-        monkeypatch.setattr(
-            mod.subprocess,
-            "Popen",
-            lambda command, **kwargs: self.popen.append(list(command))
-            or SimpleNamespace(
-                stdout=SimpleNamespace(close=lambda: None), wait=lambda: 0
-            ),
+            self._run,
         )
         original_emit = mod.emit
 
@@ -194,6 +184,24 @@ class _ShotHarness:
             return original_emit(payload, code)
 
         monkeypatch.setattr(mod, "emit", _capture)
+
+    @staticmethod
+    def _is_grim(command: list[str]) -> bool:
+        return bool(command) and command[0] == "grim"
+
+    def _run(self, command, **kwargs):
+        """Fake grim/wl-copy. A grim invocation (writes a file) leaves the file
+        behind so the clipboard path can copy it, mirroring real grim."""
+        command = list(command)
+        self.commands.append(command)
+        if self._is_grim(command):
+            # Last arg is the output; "-" would be a stdout pipe (no longer used
+            # for clipboard captures).
+            target = command[-1]
+            if target != "-":
+                Path(target).parent.mkdir(parents=True, exist_ok=True)
+                Path(target).write_bytes(b"fake-png")
+        return SimpleNamespace(returncode=0)
 
 
 class TestScreenshotCursorAndPrecedence:
@@ -250,9 +258,15 @@ class TestScreenshotCursorAndPrecedence:
         harness = _ShotHarness(monkeypatch)
         with pytest.raises(SystemExit):
             mod.screenshot(_shot_args(save=False))
-        # Clipboard path pipes grim to stdout ("-") rather than a file.
-        assert harness.popen[0][-1] == "-"
-        assert not any(str(tmp_path) in part for part in harness.popen[0])
+        # A clipboard capture still writes a file (the success card's Open /
+        # Copy again actions need a real artifact), then copies THAT file —
+        # grim never streams to stdout for this path.
+        grim = harness.commands[0]
+        assert grim[-1] != "-"
+        assert Path(grim[-1]).name.startswith("screenshot_")
+        assert harness.commands[1][0] == "wl-copy"
+        # The emitted payload reports the file, not a "clipboard" sentinel.
+        assert harness.payloads[0]["output_path"] == grim[-1]
 
 
 class TestRecordingCursor:

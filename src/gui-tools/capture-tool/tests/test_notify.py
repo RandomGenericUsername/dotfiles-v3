@@ -193,11 +193,19 @@ class TestRequestBuilders:
         assert request["app_name"] == "capture-tool"
         assert request["summary"] == "Screenshot captured"
         assert request["body"] == "/p/shot.png"
-        assert request["icon_variant"] == "camera"
+        assert request["icon_variant"] == "camera-accent"
         assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
         assert request["urgency"] == "normal"
 
-    def test_clipboard_screenshot_is_plain(self) -> None:
+    def test_clipboard_screenshot_carries_path_and_actions(self) -> None:
+        # Clipboard captures are written to disk first, so the card offers the
+        # same Open / Copy again affordances as the mockup.
+        request = mod.build_screenshot_request(path="/p/shot.png", clipboard=True)
+        assert request["body"] == "Copied to clipboard \u00b7 /p/shot.png"
+        assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
+        assert request["urgency"] == "normal"
+
+    def test_pathless_screenshot_falls_back_plain(self) -> None:
         request = mod.build_screenshot_request(clipboard=True)
         assert request["body"] == "Copied to clipboard"
         assert request["actions"] == ()
@@ -209,7 +217,7 @@ class TestRequestBuilders:
         )
         assert request["summary"] == "Recording saved \u00b7 00:42 \u00b7 18.4 MB"
         assert request["body"] == "/v/rec.mp4"
-        assert request["icon_variant"] == "video"
+        assert request["icon_variant"] == "video-accent"
         assert request["actions"] == (
             ("open", "Open"),
             ("reveal", "Show in folder"),
@@ -220,7 +228,7 @@ class TestRequestBuilders:
         request = mod.build_failure_request("boom")
         assert request["summary"] == "Capture failed"
         assert request["body"] == "boom"
-        assert request["icon_variant"] == "warning"
+        assert request["icon_variant"] == "warning-caution"
         assert request["actions"] == (("details", "Details"),)
         assert request["urgency"] == "critical"
 
@@ -437,6 +445,27 @@ class TestDetachedWiring:
         )
         assert args.func(args) is None
         assert seen and seen[0][0]["summary"].startswith("Recording saved")
+
+    def test_cmd_notify_keeps_path_for_clipboard_screenshot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: the helper dropped --path whenever --clipboard was set,
+        so clipboard captures rendered a chip-less "Copied to clipboard" card
+        even though the file existed. Path must win."""
+        seen: list[tuple] = []
+        monkeypatch.setattr(
+            mod, "emit_notification", lambda *args: seen.append(args) or "sent"
+        )
+        monkeypatch.setattr(mod, "resolve_notify_icon", lambda _v: None)
+        args = mod.parse_args(
+            ["notify", "--kind", "screenshot-saved",
+             "--path", "/p/shot.png", "--clipboard"]
+        )
+        assert args.func(args) is None
+        request = seen[0][0]
+        assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
+        assert "/p/shot.png" in request["body"]
+        assert seen[0][1] == {"path": "/p/shot.png"}
 
     def test_notify_help_lists_kinds(self, capsys) -> None:
         with pytest.raises(SystemExit) as exc:

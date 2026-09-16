@@ -237,6 +237,26 @@ capture-tool:
     - name: stop
       template: capture-tool/default/stop.svg
       output: capture-tool-stop.svg
+    # Notification tints: the same glyphs recoloured per outcome so the cards
+    # read at a glance (success = the accent used across the capture stack,
+    # failure = the caution slot). Variant-level color_mappings win over the
+    # group's, so these render as tinted copies while the base variants stay
+    # foreground-coloured for the capture window and bar.
+    - name: camera-accent
+      template: capture-tool/default/camera.svg
+      output: capture-tool-camera-accent.svg
+      color_mappings:
+        COLOR_FOREGROUND: color6
+    - name: video-accent
+      template: capture-tool/default/video.svg
+      output: capture-tool-video-accent.svg
+      color_mappings:
+        COLOR_FOREGROUND: color6
+    - name: warning-caution
+      template: capture-tool/default/warning.svg
+      output: capture-tool-warning-caution.svg
+      color_mappings:
+        COLOR_FOREGROUND: color3
 
 email-client:
   color_mappings: {}

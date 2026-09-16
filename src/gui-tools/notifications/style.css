@@ -37,12 +37,17 @@ window#notifications-window {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
+/* Tile: a palette-tinted plate, the way the rofi launcher tints its rows
+   (@color10 background under @background text) — the card carries the
+   wallpaper's colour instead of being uniformly monochrome. Success uses the
+   stack accent (matching the tinted icon variant the emitter selects);
+   critical uses the palette caution slot. */
 .notif-tile {
   min-width: 56px;
   min-height: 56px;
   border-radius: 9px;
-  background-color: alpha(@color_background, 0.45);
-  border: 1px solid alpha(@color_foreground, 0.12);
+  background-color: alpha(@color_06, 0.18);
+  border: 1px solid alpha(@color_06, 0.45);
   color: @color_06;
 }
 
@@ -76,19 +81,32 @@ window#notifications-window {
   margin-top: 9px;
 }
 
+/* Action chips (Copy again / Open / Show in folder / Details) — tinted from
+   the palette like the tile, so the affordances read as part of the card
+   rather than as neutral buttons. */
 .notif-chip {
-  min-height: 27px;
-  padding-left: 12px;
-  padding-right: 12px;
-  border-radius: 7px;
-  border: 1px solid alpha(@color_foreground, 0.12);
-  background-color: alpha(@color_background, 0.45);
-  color: alpha(@color_foreground, 0.62);
+  min-height: 28px;
+  padding-left: 13px;
+  padding-right: 13px;
+  border-radius: 8px;
+  border: 1px solid alpha(@color_06, 0.35);
+  background-color: alpha(@color_06, 0.14);
+  color: @color_foreground;
   font-size: 11px;
   font-weight: 600;
 }
 
 .notif-chip:hover {
-  color: @color_foreground;
-  border-color: alpha(@color_foreground, 0.22);
+  background-color: alpha(@color_06, 0.26);
+  border-color: alpha(@color_06, 0.6);
+}
+
+.notif-card.critical .notif-chip {
+  background-color: alpha(@color_03, 0.14);
+  border-color: alpha(@color_03, 0.4);
+}
+
+.notif-card.critical .notif-chip:hover {
+  background-color: alpha(@color_03, 0.26);
+  border-color: alpha(@color_03, 0.6);
 }

@@ -304,7 +304,13 @@ def screenshot(args):
         # Configured default save path (explicit --output always wins).
         output = default_screenshot_path(config, args.format)
     else:
+        # Clipboard capture. It STILL lands on disk: the success card offers
+        # "Open" / "Copy again" (the approved mockup), which need a real file
+        # to point at, and a streamed grim|wl-copy pipe leaves nothing behind.
         output = None
+    clipboard = output is None
+    if clipboard:
+        output = default_screenshot_path(config, args.format)
     command = ["grim"]
     if args.format:
         command.extend(["-t", args.format])
@@ -317,29 +323,22 @@ def screenshot(args):
             width, height, x, y = re.fullmatch(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geometry).groups()
             geometry = f"{x},{y} {width}x{height}"
         command.extend(["-g", geometry])
-    if output:
-        Path(output).parent.mkdir(parents=True, exist_ok=True)
-        command.append(output)
-    else:
-        command.append("-")
-    if output:
-        result = subprocess.run(command, check=False)
-    else:
-        grim = subprocess.Popen(command, stdout=subprocess.PIPE)
-        copy = subprocess.run(["wl-copy"], stdin=grim.stdout, check=False)
-        grim.stdout.close()
-        result_code = grim.wait()
-        if result_code != 0 or copy.returncode != 0:
-            notify_failed("screenshot failed")
-            return emit({"state": "error", "error": "screenshot failed"}, result_code or copy.returncode)
-    if output and result.returncode != 0:
+    Path(output).parent.mkdir(parents=True, exist_ok=True)
+    command.append(output)
+    result = subprocess.run(command, check=False)
+    if result.returncode != 0:
         notify_failed("screenshot failed")
         return emit({"state": "error", "error": "screenshot failed"}, result.returncode)
-    if output:
-        notify_screenshot_saved(output)
-    else:
-        notify_screenshot_saved(clipboard=True)
-    return emit({"state": "idle", "target": args.target, "output_path": output or "clipboard"}, 0)
+    if clipboard:
+        # Copy the file we just wrote (never a pipe: the file is the artifact
+        # the notification acts on).
+        with open(output, "rb") as handle:
+            copy = subprocess.run(["wl-copy"], stdin=handle, check=False)
+        if copy.returncode != 0:
+            notify_failed("screenshot failed")
+            return emit({"state": "error", "error": "screenshot failed"}, copy.returncode)
+    notify_screenshot_saved(output, clipboard=clipboard)
+    return emit({"state": "idle", "target": args.target, "output_path": output}, 0)
 
 
 # Our user-facing presets (low/medium/high) do NOT match gpu-screen-recorder's
@@ -499,9 +498,12 @@ NOTIFY_ICON_GROUP = "capture-tool"
 #: Outcome kind -> manifest variant (design.md §2; variants exist in
 #: dotfiles/config/icon-template-color-scheme-mappings/icons.yaml).
 NOTIFY_VARIANTS = {
-    "screenshot": "camera",
-    "recording": "video",
-    "failure": "warning",
+    # Tinted per-outcome copies of the base glyphs (icons.yaml variant
+    # color_mappings): success reads in the stack accent, failure in the
+    # caution slot, so the card is scannable at a glance.
+    "screenshot": "camera-accent",
+    "recording": "video-accent",
+    "failure": "warning-caution",
 }
 #: Outcome kind -> [(action id, chip label)] (design.md §2).
 NOTIFY_ACTIONS = {
@@ -793,8 +795,13 @@ def notify_short_message(error_kind, message):
 
 
 def build_screenshot_request(path=None, clipboard=False):
-    """Notify request for a finalized screenshot (design.md §2)."""
-    if clipboard or not path:
+    """Notify request for a finalized screenshot (design.md §2).
+
+    Every screenshot has a file behind it (clipboard captures are written to
+    the configured screenshots dir before being copied), so the card always
+    offers Open / Copy again like the approved mockup.
+    """
+    if not path:
         return {
             "app_name": NOTIFY_APP_NAME,
             "summary": "Screenshot captured",
@@ -806,7 +813,7 @@ def build_screenshot_request(path=None, clipboard=False):
     return {
         "app_name": NOTIFY_APP_NAME,
         "summary": "Screenshot captured",
-        "body": str(path),
+        "body": f"Copied to clipboard \u00b7 {path}" if clipboard else str(path),
         "icon_variant": NOTIFY_VARIANTS["screenshot"],
         "actions": NOTIFY_ACTIONS["screenshot"],
         "urgency": "normal",
@@ -1025,12 +1032,16 @@ def notify_screenshot_saved(path=None, clipboard=False):
     """
     if not notifications_enabled():
         return None
-    if clipboard or not path:
+    if path:
+        # A screenshot always has a file behind it now (clipboard captures are
+        # written to disk first), so the card carries Open / Copy again.
+        request = build_screenshot_request(path=path, clipboard=clipboard)
+        _spawn_detached(
+            _notify_helper_argv("screenshot-saved", path=str(path), clipboard=clipboard)
+        )
+    else:
         request = build_screenshot_request(clipboard=True)
         _spawn_detached(_notify_helper_argv("screenshot-saved", clipboard=True))
-    else:
-        request = build_screenshot_request(path=path)
-        _spawn_detached(_notify_helper_argv("screenshot-saved", path=str(path)))
     return request
 
 
@@ -1082,12 +1093,16 @@ def cmd_notify(args):
     if not notifications_enabled():
         return None
     if args.kind == "screenshot-saved":
-        if args.clipboard or not args.path:
-            request = build_screenshot_request(clipboard=True)
-            context: dict = {}
-        else:
-            request = build_screenshot_request(path=args.path)
+        # A path always wins: clipboard captures are written to disk before
+        # being copied, so the card offers Open / Copy again in both cases.
+        # The pathless branch only covers a capture that genuinely produced no
+        # file.
+        if args.path:
+            request = build_screenshot_request(path=args.path, clipboard=args.clipboard)
             context = {"path": args.path}
+        else:
+            request = build_screenshot_request(clipboard=True)
+            context = {}
     elif args.kind == "recording-saved":
         request = build_recording_request(args.path, args.duration, args.size)
         context = {"path": args.path}

@@ -40,17 +40,23 @@ A standalone AGS app SHALL serve `org.freedesktop.Notifications` and render inco
 
 The capture backend SHALL emit `Notify` requests for screenshot capture, recording completion, and categorized failures, with palette-resolved `current/icons/` icon paths, the specified actions, and urgency normal/critical respectively; the emitting side SHALL execute Copy/Open/Reveal/Details on `ActionInvoked`.
 
+Notification icons SHALL be palette-tinted per outcome (success copies render in the stack accent, failure in the caution slot) so the cards carry the wallpaper's colour, matching the tinted tile the overlay draws. Screenshot captures SHALL always be backed by a file — a clipboard capture is written to the configured screenshots directory before being copied — so the screenshot card always offers Open / Copy again, and `Open` SHALL launch the file with the XDG opener.
+
 #### Scenario: Screenshot success notifies
 - **WHEN** a screenshot capture finalizes
-- **THEN** a card shows `Screenshot captured`, the output path, and Copy-again/Open actions with the `capture-tool-camera` icon
+- **THEN** a card shows `Screenshot captured`, the output path, and Copy-again/Open actions with the accent-tinted `camera` icon
+
+#### Scenario: Clipboard capture is file-backed
+- **WHEN** a screenshot is captured to the clipboard
+- **THEN** the image is also written under the configured screenshots directory, and the card offers Open / Copy again pointing at that file
 
 #### Scenario: Recording success notifies
 - **WHEN** a recording finalizes
-- **THEN** a card shows `Recording saved · MM:SS · size`, the output path, and Open/Show-in-folder actions with the `capture-tool-video` icon
+- **THEN** a card shows `Recording saved · MM:SS · size`, the output path, and Open/Show-in-folder actions with the accent-tinted `video` icon
 
 #### Scenario: Failure notifies without tracebacks
 - **WHEN** a capture fails (e.g. screencopy permission denied)
-- **THEN** a persistent card shows `Capture failed`, the short categorized message, and a Details action — never a raw traceback
+- **THEN** a persistent card shows `Capture failed`, the short categorized message, and a Details action with the caution-tinted `warning` icon — never a raw traceback
 
 #### Scenario: Actions execute
 - **WHEN** the user invokes the Open action on a recording-saved card
