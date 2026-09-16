@@ -490,6 +490,10 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
   function selectMode(next: Mode) {
     mode = next
     view = next
+    // Leaving settings must restore the mode switch: openSettings() hides it,
+    // and without this the whole tab row (Screenshot + Recording) stayed
+    // hidden for the rest of the session after one visit to settings.
+    if (modeSwitch) modeSwitch.visible = true
     if (settingsView) settingsView.visible = false
     const screenshotSelected = next === "screenshot"
     if (screenshotView) screenshotView.visible = screenshotSelected
