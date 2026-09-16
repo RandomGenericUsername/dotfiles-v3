@@ -1132,6 +1132,15 @@ class TestVerifyVars:
         data = _vars()
         assert [str(c) for c in data["verify_cli_tools"]] == ["csg", "weg", "itr"]
 
+    def test_notifd_binding_packages_pin_libastal_notifd(self) -> None:
+        """Implementation gate (capture-notifications): verify pins the
+        AstalNotifd binding package the overlay imports — mirror of the
+        packages role's aur_packages entry."""
+        data = _vars()
+        assert [str(p) for p in data["verify_notifd_binding_packages"]] == [
+            "libastal-notifd-git"
+        ]
+
     def test_system_binaries_are_compositors(self) -> None:
         data = _vars()
         assert [str(b) for b in data["verify_system_binaries"]] == [
@@ -1598,6 +1607,19 @@ def _write_stub_binaries(home: Path) -> Path:
         "exit 1\n"
     )
     sysctl.chmod(0o755)
+    # pacman: the verify role gates the AstalNotifd binding package via
+    # `pacman -Q` (capture-notifications implementation gate). Stub it so the
+    # synthetic machine passes hermetically (the stub dir shadows the real
+    # pacman on PATH) — report the notifd package as installed.
+    pacman = bin_dir / "pacman"
+    pacman.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "-Q" ] && [ "$2" = "libastal-notifd-git" ]; then\n'
+        '  echo "libastal-notifd-git r973.e07013e-1"; exit 0\n'
+        "fi\n"
+        "exit 1\n"
+    )
+    pacman.chmod(0o755)
     # toggle-touchpad: the compositor_configs role (owner decision 2026-09-02)
     # deploys this desktop helper into the bin dir; the verify role asserts its
     # presence (Fn-key binds would silently no-op without it).
@@ -1633,6 +1655,7 @@ def _build_provisioned_layout(
         "config/ags-icme",
         "config/ags-hypr-pano",
         "config/ags-wallpaper-selector",
+        "config/ags-notifications",
         "config/nvim",
         "config/starship",
         "config/wlogout",
@@ -1665,7 +1688,6 @@ def _build_provisioned_layout(
         "email-client",
         "network",
         "power-menu",
-        "screenshot-tool",
         "wallpaper-selector",
         "wlogout",
     ):
@@ -1752,6 +1774,7 @@ def _build_provisioned_layout(
     # Must match verify_compositor_skeleton_files EXACTLY (missing files
     # fail the criterion-7 gate — the fixture is the "provisioned machine").
     (install / "config" / "ags" / "icons.json").write_text("{}")
+    (install / "config" / "ags-capture" / "icons.json").write_text("{}")
     for rel in (
         "ags/lib",
         "ags/bar",
@@ -1759,6 +1782,7 @@ def _build_provisioned_layout(
         "ags-capture",
         "ags-capture/ui",
         "ags-capture/controllers",
+        "ags-capture/lib",
         "ags-icme/lib",
         "ags-hypr-pano",
         "ags-hypr-pano/ui",
@@ -1766,6 +1790,8 @@ def _build_provisioned_layout(
         "ags-wallpaper-selector",
         "ags-wallpaper-selector/ui",
         "ags-wallpaper-selector/lib",
+        "ags-notifications",
+        "ags-notifications/ui",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
@@ -1801,6 +1827,7 @@ def _build_provisioned_layout(
         (
             install / "config" / "ags-capture" / "controllers" / f"{controller}.ts"
         ).write_text("")
+    (install / "config" / "ags-capture" / "lib" / "icon-registry.ts").write_text("")
     # Icon color mapping editor (gui_tools role): verify gates its event seam
     # modules (Phase 5 event-contract + event-bus).
     (install / "config" / "ags-icme" / "lib" / "event-contract.ts").write_text("")
@@ -1834,6 +1861,12 @@ def _build_provisioned_layout(
         "event-bus",
     ):
         (install / "config" / "ags-wallpaper-selector" / "lib" / f"{lib}.ts").write_text("")
+    # Notifications overlay (gui_tools role): must match
+    # verify_gui_tools_app_files EXACTLY.
+    (install / "config" / "ags-notifications" / "app.tsx").write_text("")
+    (install / "config" / "ags-notifications" / "style.css").write_text("")
+    (install / "config" / "ags-notifications" / "Makefile").write_text("")
+    (install / "config" / "ags-notifications" / "ui" / "NotificationsWindow.tsx").write_text("")
     # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
     # owns the R2 consumer symlink, created above).
 
@@ -1879,6 +1912,7 @@ def _build_provisioned_layout(
         "ags-icme",
         "ags-hypr-pano",
         "ags-wallpaper-selector",
+        "ags-notifications",
         "nvim",
         "starship",
         "wlogout",

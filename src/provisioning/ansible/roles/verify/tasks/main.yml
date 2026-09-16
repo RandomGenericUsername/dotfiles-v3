@@ -106,6 +106,7 @@
     that:
       - verify_system_binaries | length > 0
       - verify_cli_tools | length > 0
+      - verify_notifd_binding_packages | length > 0
       - verify_install_spine_dirs | length > 0
       - verify_install_spine_files | length > 0
       - verify_palette_files | length > 0
@@ -198,6 +199,29 @@
       3). The cli_tools role (Story 2.4) installs them via uv tool install
       into {{ verify_cli_bin_dir }}; the check prepends that dir to PATH. Run
       the cli-tools playbook first (direct-run prerequisite)
+  when: not ansible_check_mode
+
+# The notifications overlay imports AstalNotifd at startup — a provisioned
+# machine with the app dir deployed but the binding missing would ship a
+# daemon that crashes on launch. Gate on the AUR package the packages role
+# installs (capture-notifications implementation gate, spec scenario
+# "Binding present after provision").
+- name: Check AstalNotifd binding package is installed
+  ansible.builtin.shell: "pacman -Q {{ item }}"
+  loop: "{{ verify_notifd_binding_packages }}"
+  register: verify_notifd_binding_checks
+  changed_when: false
+  failed_when: false
+
+- name: Assert AstalNotifd binding is installed
+  ansible.builtin.assert:
+    that:
+      - verify_notifd_binding_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_notifd_binding_packages | length
+    fail_msg: >-
+      the AstalNotifd binding is not installed (expected
+      {{ verify_notifd_binding_packages | join(', ') }} — the notification
+      overlay's import). The packages role installs it via aur_packages;
+      run the packages playbook first (direct-run prerequisite)
   when: not ansible_check_mode
 
 - name: Check desktop helper scripts exist (Fn-key binds)

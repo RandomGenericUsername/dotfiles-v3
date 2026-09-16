@@ -97,6 +97,19 @@ class TestGuiToolsTasks:
         for task in tasks:
             assert _module(task).get("force") is True
 
+    def test_notifications_files_placed_via_template_force(self) -> None:
+        """Per-file `template` + `force: true` (repo-authoritative) for the
+        notifications list — same placement discipline as the sibling apps."""
+        tasks = [
+            task
+            for task in _tasks()
+            if task.keys() & {"ansible.builtin.template"}
+            and "gui_tools_notifications_app_files" in str(task.get("loop", ""))
+        ]
+        assert tasks, "no notifications placement task found"
+        for task in tasks:
+            assert _module(task).get("force") is True
+
     def test_legacy_capture_subtree_removed(self) -> None:
         """Reprovision convergence: the bar spine's old ags/capture/ subtree
         is removed (superseded by ags-capture/)."""
@@ -148,9 +161,12 @@ class TestGuiToolsVars:
 
     def test_app_files_exact_list(self) -> None:
         """The capture app file set, exactly: entry point, stylesheet,
-        types, dialog + kept scaffolding (views + controllers)."""
+        types, dialog + kept scaffolding (views + controllers), plus the
+        capture-owned icon registry (hypr-pano pattern) deployed beside the
+        app sources so the instance resolves palette-aware icons with
+        fallback to the shared bar manifest."""
         files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 10, f"expected exactly 10 app files; found {len(files)}"
+        assert len(files) == 11, f"expected exactly 11 app files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/capture-tool/app.tsx",
@@ -158,6 +174,7 @@ class TestGuiToolsVars:
             "src/gui-tools/capture-tool/controllers/RecordingController.ts",
             "src/gui-tools/capture-tool/controllers/ScreenshotController.ts",
             "src/gui-tools/capture-tool/controllers/TargetResolver.ts",
+            "src/gui-tools/capture-tool/lib/icon-registry.ts",
             "src/gui-tools/capture-tool/style.css",
             "src/gui-tools/capture-tool/types.ts",
             "src/gui-tools/capture-tool/ui/CaptureWindow.tsx",
@@ -388,4 +405,70 @@ class TestGuiToolsVars:
         instances = list(_vars()["gui_tools_ags_instances"])
         assert "wallpaper-selector" in instances, (
             f"gui_tools_ags_instances must include wallpaper-selector; got {instances}"
+        )
+
+    def test_notifications_app_files_exact_list(self) -> None:
+        """The notifd overlay file set, exactly: entry point, stylesheet,
+        and the stack window (the overlay renders daemon-provided image
+        paths directly, so it owns no icon registry — the EMITTER resolves
+        current/icons/ paths in the capture backend)."""
+        files = list(_vars()["gui_tools_notifications_app_files"])
+        assert len(files) == 4, f"expected exactly 4 notifications files; found {len(files)}"
+        sources = sorted(str(f["source"]) for f in files)
+        expected = [
+            "src/gui-tools/notifications/Makefile",
+            "src/gui-tools/notifications/app.tsx",
+            "src/gui-tools/notifications/style.css",
+            "src/gui-tools/notifications/ui/NotificationsWindow.tsx",
+        ]
+        assert sources == expected, (
+            f"gui_tools_notifications_app_files sources must be exactly {expected}; got {sources}"
+        )
+        for entry in files:
+            dest = str(entry["dest"])
+            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-notifications/"), (
+                f"notifications dest must derive from gui_tools_spine_config_dir/ags-notifications: {dest}"
+            )
+
+    def test_notifications_app_sources_exist_in_repo(self) -> None:
+        """Every notifications source resolves to a real repo file (typo-proof)."""
+        for entry in _vars()["gui_tools_notifications_app_files"]:
+            path = _REPO_ROOT / str(entry["source"])
+            assert path.is_file(), f"notifications app source missing from repo: {entry['source']}"
+
+    def test_every_notifications_dest_parent_is_an_ensured_dir(self) -> None:
+        """Regression lock: `template` does NOT create dest parents, so every
+        notifications dest's parent dir must be listed in gui_tools_config_dirs."""
+        data = _vars()
+        ensured = {
+            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
+            for d in data["gui_tools_config_dirs"]
+        }
+        for entry in data["gui_tools_notifications_app_files"]:
+            dest = str(entry["dest"])
+            parent = dest.rsplit("/", 1)[0].replace(
+                "{{ gui_tools_spine_config_dir }}", "<spine>"
+            )
+            assert parent in ensured, (
+                f"dest parent {parent!r} of {entry['name']} is not an ensured "
+                f"dir (template would fail); add it to gui_tools_config_dirs"
+            )
+
+    def test_notifications_sources_contain_no_jinja_sequences(self) -> None:
+        """The notifications sources are placed via `template`, so they must
+        not contain Jinja-sensitive `{{`/`{%` sequences (which Jinja2 would
+        evaluate and destroy). Pins the choice of template over raw copy."""
+        for entry in _vars()["gui_tools_notifications_app_files"]:
+            text = (_REPO_ROOT / str(entry["source"])).read_text(encoding="utf-8")
+            assert "{{" not in text and "{%" not in text, (
+                f"{entry['source']} contains a Jinja sequence; use raw copy"
+            )
+
+    def test_ags_instances_include_notifications(self) -> None:
+        """The notifications instance must be quit after placement (bundles
+        TS at startup and holds it in memory — same lifecycle as the
+        siblings)."""
+        instances = list(_vars()["gui_tools_ags_instances"])
+        assert "notifications" in instances, (
+            f"gui_tools_ags_instances must include notifications; got {instances}"
         )

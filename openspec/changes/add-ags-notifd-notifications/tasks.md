@@ -1,0 +1,9 @@
+# Tasks: add-ags-notifd-notifications
+
+- [ ] 0. Provision the dependency: add `libastal-notifd-git` to `aur_packages` in `src/provisioning/ansible/roles/packages/vars/arch.yml`; run the `packages` playbook (`playbooks/packages.yaml` with `-e os_family=arch` + the executor's `install_dir`); GATE: `pacman -Q libastal-notifd-git` succeeds and `AstalNotifd-0.1.gir` exists — only then continue below
+- [ ] 1. Confirm the AstalNotifd binding on the target machine (`AstalNotifd.Notifd.get_default()` or equivalent); if absent, stop and report — do not hand-roll a daemon
+- [ ] 2. Scaffold `src/gui-tools/notifications/` (`app.tsx` instance `notifications`, card components, `style.css` ported from the mockup toast recipe onto `@color_*` tokens); apply `colors.css` after the sheet like the capture app
+- [ ] 3. Implement card rendering (icon tile, title, body, action chips), urgency mapping (critical persists + red tile), top-right stack capped at 5, `Escape`/click dismissal
+- [ ] 4. Implement the capture emission contract in the backend (`Notify` with icon paths resolved like `icon-registry.ts`, actions, urgencies) + `ActionInvoked` execution (copy/open/reveal/details); choose the emitting primitive available on the machine, with an explicit report if the action round-trip forces the no-actions fallback
+- [ ] 5. Provisioning: `gui_tools` deploy + `config-links` symlink + `compositor_configs`-style placement as needed; autostart swap (`dunst` → staggered `ags run -d` + log file); `verify` expectations
+- [ ] 6. Verify: VM converge → login shows no dunst, notifd instance on the bus; `notify-send` renders a card; end-to-end capture flows produce the three mockup cards; action chips execute

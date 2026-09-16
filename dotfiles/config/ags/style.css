@@ -109,10 +109,75 @@ window#bar label {
   padding: 0 8px;
 }
 
-.recording-controls button.recording-widget {
-  min-width: 24px;
-  min-height: 24px;
+/* Recording indicator (capture tool) — cluster + popup card, ported from
+   spikes/capture-tool-ui/mockup.css (.rec-cluster, .rec-dot, .rec-timer,
+   .rec-btn, .popup, .popup-row, .popup-time, .popup-actions) and adapted to
+   GTK4 CSS: color-mix() becomes alpha(), the 2-col grid becomes a homogeneous
+   box, backdrop-filter is dropped (GTK has no such property). Record-red
+   #e0605f is the established semantic exception; everything else is @color_*
+   tokens. The dot pulse uses @keyframes where the GTK theme engine honors
+   them and degrades to a static dot otherwise. */
+.rec-cluster {
+  background-color: alpha(@color_00, 0.55);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 10px;
+  padding: 4px 8px 4px 10px;
+  margin-right: 4px;
+}
+
+.rec-cluster.paused {
+  border-color: alpha(@color_03, 0.45);
+}
+
+.rec-dot {
+  min-width: 9px;
+  min-height: 9px;
+  border-radius: 999px;
+  background-color: #e0605f;
+  animation: rec-pulse 1.6s ease-out infinite;
+}
+
+@keyframes rec-pulse {
+  0% {
+    box-shadow: 0 0 0 0 alpha(#e0605f, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px alpha(#e0605f, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 alpha(#e0605f, 0);
+  }
+}
+
+.rec-dot.paused {
+  background-color: @color_03;
+  animation: none;
+  box-shadow: none;
+}
+
+.rec-status {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 0 2px;
+  color: @color_foreground;
+}
+
+.rec-timer {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  min-width: 46px;
+  color: @color_foreground;
+}
+
+.rec-btn {
+  min-width: 26px;
+  min-height: 26px;
   padding: 0;
+  border-radius: 7px;
   background-color: transparent;
   background-image: none;
   border: none;
@@ -120,28 +185,68 @@ window#bar label {
   color: @color_foreground;
 }
 
-.recording-controls button.recording-widget:hover,
-.recording-controls button.recording-widget:active,
-.recording-controls button.recording-widget:checked,
-.recording-controls button.recording-widget:focus {
-  background-color: transparent;
+.rec-btn:hover,
+.rec-btn:active,
+.rec-btn:checked,
+.rec-btn:focus {
+  background-color: alpha(@color_foreground, 0.1);
   background-image: none;
   border: none;
   box-shadow: none;
 }
 
-.recording-controls {
-  margin-right: 4px;
+.rec-btn.stop:hover {
+  background-color: alpha(#e0605f, 0.22);
+  color: #e0605f;
 }
 
-.recording-timer {
-  padding: 0 6px;
-  font-variant: tabular-nums;
+.rec-popup {
+  min-width: 216px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background-color: alpha(@color_00, 0.92);
+  border: 1px solid alpha(@color_foreground, 0.12);
 }
 
-.recording-icon {
-  min-width: 16px;
-  min-height: 16px;
+.rec-popup.paused {
+  border-color: alpha(@color_03, 0.45);
+}
+
+.rec-popup-row {
+  font-size: 13px;
+  font-weight: 600;
+  color: @color_foreground;
+}
+
+.rec-popup-time {
+  font-size: 30px;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  color: @color_foreground;
+  padding: 10px 0 14px;
+}
+
+.rec-popup-action {
+  min-height: 38px;
+  padding: 0 8px;
+  border-radius: 9px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  background-color: alpha(@color_background, 0.45);
+  background-image: none;
+  box-shadow: none;
+  color: @color_foreground;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rec-popup-action:hover {
+  border-color: alpha(@color_foreground, 0.22);
+}
+
+.rec-popup-action.danger:hover {
+  background-color: alpha(#e0605f, 0.2);
+  border-color: #e0605f;
+  color: #e0605f;
 }
 
 /* Power-profile popover (battery widget right-click menu) — row chrome only;

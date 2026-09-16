@@ -82,6 +82,7 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/lib"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets"
+  - "{{ compositor_configs_spine_config_dir }}/ags-capture"
   - "{{ compositor_configs_spine_config_dir }}/rofi"
   - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
 
@@ -152,3 +153,7 @@ compositor_configs_desktop_entries:
 # JSON shape consumed by AGS during provisioning.
 compositor_configs_icon_manifest_source: "{{ install_dir | trim }}/icon-mappings/icons.yaml"
 compositor_configs_icon_manifest_dest: "{{ compositor_configs_spine_config_dir }}/ags/icons.json"
+# The capture AGS instance resolves icons through the same registry contract
+# as the bar, so it needs the same generated manifest beside its own sources.
+# Same decoded content as the bar manifest, second destination only.
+compositor_configs_capture_icon_manifest_dest: "{{ compositor_configs_spine_config_dir }}/ags-capture/icons.json"

@@ -1,79 +1,361 @@
+/* Capture tool — GTK port of spikes/capture-tool-ui/mockup.css
+ * ==========================================================================
+ * Visual language: the "hypr-pano dress" — dark translucent panel, hairline
+ * border, rounded corners, accent-on-select. Every color is a runtime palette
+ * token from colors.css so a palette swap restyles this window with zero code
+ * or file changes.
+ *
+ * GTK4 CSS has no color-mix(): tints below are precomputed with alpha()/mix().
+ * Selected = accent tint + accent border (approved design decision; departs
+ * from the bar's @color_01 fill).
+ *
+ * The ONE allowed literal is the semantic record red #e0605f (bar-precedent
+ * exception, cf. wallpaper-selector's hardcoded live pill).
+ * ========================================================================== */
+
 window#capture-window {
-  background-color: alpha(@color_00, 0.9);
+  background-color: alpha(@color_00, 0.92);
   color: @color_foreground;
-  border-radius: 16px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 
-window#capture-window > box {
-  padding: 24px;
-}
+/* ------------------------------------------------------------------ Panel */
 
 .capture-panel {
-  min-width: 520px;
-  min-height: 260px;
+  min-width: 560px;
+  padding: 22px;
 }
 
-.capture-title {
-  font-size: 20px;
-  font-weight: bold;
+/* --------------------------------------------------------- Mode switcher */
+
+.mode-switch {
+  background-color: alpha(@color_background, 0.45);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 12px;
+  padding: 5px;
+  margin-bottom: 20px;
 }
 
-.capture-section {
-  font-weight: bold;
-  margin-top: 8px;
+.mode-switch button {
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background-color: transparent;
+  color: alpha(@color_foreground, 0.62);
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.capture-tabs {
-  background-color: alpha(@color_background, 0.35);
-  border-radius: 10px;
-  padding: 4px;
+.mode-switch button:hover {
+  color: @color_foreground;
+  background-color: alpha(@color_foreground, 0.1);
 }
 
-.capture-tab {
-  min-height: 38px;
-  min-width: 150px;
-  border-radius: 8px;
+.mode-switch button.active {
+  background-color: alpha(@color_06, 0.18);
+  border-color: alpha(@color_06, 0.55);
   color: @color_foreground;
 }
 
-.capture-tab.active {
-  background-color: @color_01;
-  color: @color_background;
+.mode-switch button.active.record {
+  background-color: alpha(#e0605f, 0.16);
+  border-color: alpha(#e0605f, 0.5);
 }
+
+/* ---------------------------------------------------------------- Layout */
 
 .capture-view {
   min-height: 130px;
 }
 
-.capture-targets button,
-.capture-panel > box:last-child button {
-  min-height: 36px;
-  padding: 0 14px;
+.setting-row {
+  /* label-left (86px) + segmented pills right; spacing set in TSX */
 }
 
-.capture-targets button {
-  min-width: 135px;
+.setting-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: alpha(@color_foreground, 0.42);
 }
 
-.capture-options {
-  min-height: 32px;
+/* Full-width section: label stacked above its control (target tiles). */
+.setting-block > .setting-label {
+  margin-bottom: 9px;
 }
 
-.capture-options button.selected,
-.capture-targets button.selected {
-  background-color: @color_01;
-  color: @color_background;
+/* --------------------------------------------------------- Target tiles */
+
+.targets {
+  /* equal tiles; homogeneous + spacing set in TSX */
 }
 
-.capture-primary {
-  min-height: 42px;
-  margin-top: 8px;
-  background-color: @color_01;
-  color: @color_background;
-  font-weight: bold;
-}
-
-.capture-hint {
-  color: alpha(@color_foreground, 0.7);
+.target {
+  min-height: 78px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 12px;
+  background-color: alpha(@color_background, 0.45);
+  color: alpha(@color_foreground, 0.62);
   font-size: 12px;
+  font-weight: 600;
+}
+
+.target:hover {
+  border-color: alpha(@color_foreground, 0.22);
+  color: @color_foreground;
+}
+
+.target.selected {
+  background-color: alpha(@color_06, 0.16);
+  border-color: @color_06;
+  color: @color_foreground;
+}
+
+/* ----------------------------------------------- Segmented option pills */
+
+.segments {
+  /* equal-width pills; spacing set in TSX */
+}
+
+.segment {
+  min-height: 36px;
+  padding-left: 13px;
+  padding-right: 13px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 9px;
+  background-color: alpha(@color_background, 0.45);
+  color: alpha(@color_foreground, 0.62);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.segment:hover {
+  border-color: alpha(@color_foreground, 0.22);
+  color: @color_foreground;
+}
+
+.segment.selected {
+  background-color: alpha(@color_06, 0.18);
+  border-color: alpha(@color_06, 0.62);
+  color: @color_foreground;
+}
+
+/* Inline custom-duration editor (revealed by the Custom pill). */
+.custom-duration spinbutton {
+  min-height: 36px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 9px;
+  background-color: alpha(@color_background, 0.45);
+  color: @color_foreground;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* ------------------------------------------------------------ GIF notice */
+
+.notice {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background-color: alpha(@color_03, 0.1);
+  border: 1px solid alpha(@color_03, 0.3);
+}
+
+.notice-text {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.62);
+}
+
+/* ----------------------------------------------------------- Primary CTA */
+
+.primary {
+  min-height: 50px;
+  margin-top: 5px;
+  border: none;
+  border-radius: 12px;
+  background-color: @color_06;
+  color: @color_00;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 22px alpha(@color_06, 0.3);
+}
+
+.primary.record {
+  background-color: #e0605f;
+  color: @color_00;
+  box-shadow: 0 8px 22px alpha(#e0605f, 0.32);
+}
+
+/* Record "dot" glyph on the recording CTA (dark on record-red). */
+.record-dot {
+  min-width: 11px;
+  min-height: 11px;
+  border-radius: 999px;
+  background-color: @color_00;
+}
+
+/* ---------------------------------------------------------------- Footer */
+
+.panel-footer {
+  margin-top: 15px;
+  padding-top: 13px;
+  border-top: 1px solid alpha(@color_foreground, 0.12);
+}
+
+.footer-note {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.42);
+}
+
+.kbd {
+  border: 1px solid alpha(@color_foreground, 0.22);
+  border-radius: 5px;
+  background-color: alpha(@color_background, 0.45);
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: alpha(@color_foreground, 0.62);
+}
+
+/* ---------------------------------------------------------------- Settings
+ * GTK port of the mockup settings page (spikes/capture-tool-ui/settings.html).
+ * Reuses the @color_* tokens; GTK4 CSS has no color-mix(), so the toggle-on
+ * tint is a plain alpha() of the accent. */
+
+.settings-page {
+  min-width: 560px;
+}
+
+.settings-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: @color_foreground;
+}
+
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: alpha(@color_foreground, 0.42);
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.settings-item {
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+
+.settings-item:hover {
+  background-color: alpha(@color_foreground, 0.06);
+}
+
+.settings-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: @color_foreground;
+}
+
+.settings-desc {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.42);
+}
+
+.settings-readout {
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.62);
+}
+
+.settings-error {
+  font-size: 11px;
+  color: #e0605f;
+}
+
+.path-chip {
+  min-height: 30px;
+  padding-left: 11px;
+  padding-right: 11px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 7px;
+  background-color: alpha(@color_background, 0.45);
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.62);
+}
+
+.path-chip:hover {
+  border-color: alpha(@color_foreground, 0.22);
+  color: @color_foreground;
+}
+
+.path-entry {
+  min-height: 30px;
+  padding-left: 9px;
+  padding-right: 9px;
+  border: 1px solid alpha(@color_06, 0.62);
+  border-radius: 7px;
+  background-color: alpha(@color_background, 0.45);
+  color: @color_foreground;
+  font-size: 11px;
+}
+
+/* Compact pills (settings rows) — same segmented pattern as the main view. */
+.segment.compact {
+  min-height: 30px;
+  padding-left: 11px;
+  padding-right: 11px;
+  font-size: 11px;
+}
+
+/* Text-labeled ghost button (Settings / Back footer entry points). */
+.ghost {
+  min-height: 32px;
+  padding-left: 13px;
+  padding-right: 13px;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 9px;
+  background-color: transparent;
+  color: alpha(@color_foreground, 0.62);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ghost:hover {
+  border-color: alpha(@color_foreground, 0.22);
+  color: @color_foreground;
+}
+
+/* Toggle: pill track + sliding knob (mockup .toggle/.toggle.on). */
+.toggle-button {
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.toggle {
+  min-width: 40px;
+  min-height: 23px;
+  border-radius: 999px;
+  padding: 2px;
+  background-color: alpha(@color_foreground, 0.1);
+  border: 1px solid alpha(@color_foreground, 0.22);
+}
+
+.toggle.on {
+  background-color: alpha(@color_06, 0.35);
+  border-color: @color_06;
+}
+
+.toggle-knob {
+  min-width: 17px;
+  min-height: 17px;
+  border-radius: 999px;
+  background-color: alpha(@color_foreground, 0.62);
+}
+
+.toggle.on .toggle-knob {
+  background-color: @color_06;
 }

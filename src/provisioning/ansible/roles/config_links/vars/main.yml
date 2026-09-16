@@ -75,6 +75,7 @@ config_links_managed_dirs:
   - ags-icme
   - ags-hypr-pano
   - ags-wallpaper-selector
+  - ags-notifications
   - nvim
   - starship
   - wlogout

@@ -90,6 +90,14 @@
     mode: "0644"
   when: not ansible_check_mode
 
+- name: Generate capture AGS JSON manifest from icon mappings
+  ansible.builtin.copy:
+    content: "{{ (compositor_configs_icon_manifest.content | b64decode | from_yaml) | to_nice_json(indent=2) }}\n"
+    dest: "{{ compositor_configs_capture_icon_manifest_dest }}"
+    force: true
+    mode: "0644"
+  when: not ansible_check_mode
+
 - name: Place compositor skeleton files
   ansible.builtin.template:
     src: "{{ compositor_configs_repo_root }}/{{ item.source }}"

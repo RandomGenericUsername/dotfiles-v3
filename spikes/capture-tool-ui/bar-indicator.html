@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Capture — Bar indicator</title>
+<link rel="stylesheet" href="mockup.css" />
+</head>
+<body class="screen">
+  <div class="bar-stage">
+    <!-- The bar in context: recording controls live at the end, only while active -->
+    <div class="bar-inner">
+      <div class="bar-ws">
+        <span class="active">1</span><span>2</span><span>3</span><span>4</span>
+      </div>
+      <div class="bar-spacer"></div>
+      <div class="bar-clock">14:07</div>
+      <div class="bar-spacer"></div>
+      <div class="bar-cluster">
+        <span class="bar-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3l4-3.4v11.8l-4-3.4H4z"/><path d="M15.5 9.2a4 4 0 0 1 0 5.6"/></svg>
+        </span>
+        <span class="bar-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8 15.5a6 6 0 0 1 8 0"/><circle cx="12" cy="18.5" r="1" fill="currentColor" stroke="none"/></svg>
+        </span>
+        <span class="bar-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="15" height="9" rx="2"/><path d="M21 11v3"/><rect x="5" y="10" width="9" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
+        </span>
+      </div>
+      <!-- Recording cluster: the only new thing the capture tool adds to the bar -->
+      <div class="rec-cluster">
+        <span class="rec-dot"></span>
+        <span class="rec-timer">00:37</span>
+        <div class="rec-actions">
+          <button class="rec-btn" title="Pause">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="7" y="5.5" width="3.4" height="13" rx="1.2"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1.2"/></svg>
+          </button>
+          <button class="rec-btn stop" title="Stop">
+            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6.5" y="6.5" width="11" height="11" rx="2.4"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Popup states, anchored under the controls -->
+    <div class="state-grid">
+      <div class="state-cell">
+        <div class="popup">
+          <div class="popup-row"><span class="rec-dot"></span> Recording</div>
+          <div class="popup-time">00:37</div>
+          <div class="popup-actions">
+            <button>
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="7" y="5.5" width="3.4" height="13" rx="1.2"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1.2"/></svg>
+              Pause
+            </button>
+            <button class="danger">
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6.5" y="6.5" width="11" height="11" rx="2.4"/></svg>
+              Stop
+            </button>
+          </div>
+        </div>
+        <span class="state-caption">Recording</span>
+      </div>
+
+      <div class="state-cell">
+        <div class="popup" style="border-color: color-mix(in srgb, var(--warn) 45%, transparent);">
+          <div class="popup-row"><span class="rec-dot paused"></span> Recording paused</div>
+          <div class="popup-time">00:37</div>
+          <div class="popup-actions">
+            <button>
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5.5v13l11-6.5z"/></svg>
+              Resume
+            </button>
+            <button class="danger">
+              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6.5" y="6.5" width="11" height="11" rx="2.4"/></svg>
+              Stop
+            </button>
+          </div>
+        </div>
+        <span class="state-caption">Paused</span>
+      </div>
+    </div>
+
+    <div class="idle-note">
+      <strong>Idle:</strong> the cluster renders nothing at all — no icon, label, or placeholder in the bar.
+    </div>
+  </div>
+</body>
+</html>

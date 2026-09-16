@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Capture — Settings</title>
+<link rel="stylesheet" href="mockup.css" />
+</head>
+<body class="screen">
+  <div class="settings-page">
+    <h1>Capture settings</h1>
+
+    <div class="settings-group">
+      <h2>General</h2>
+      <div class="settings-item">
+        <div>
+          <div class="name">Screenshot folder</div>
+          <div class="desc">Where saved screenshots go</div>
+        </div>
+        <div class="control"><span class="path-chip">~/Pictures/Screenshots</span></div>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="name">Recording folder</div>
+          <div class="desc">Where finished recordings go</div>
+        </div>
+        <div class="control"><span class="path-chip">~/Videos/Recordings</span></div>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="name">Filename pattern</div>
+          <div class="desc">Timestamp tokens are expanded at capture time</div>
+        </div>
+        <div class="control"><span class="path-chip">screenshot_%Y-%m-%d_%H-%M-%S</span></div>
+      </div>
+      <div class="settings-item">
+        <div class="name">Show notifications</div>
+        <div class="control"><div class="toggle on"></div></div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h2>Screenshot</h2>
+      <div class="settings-item">
+        <div class="name">Default format</div>
+        <div class="control">
+          <div class="segments">
+            <button class="segment compact selected">PNG</button>
+            <button class="segment compact">JPEG</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-item">
+        <div class="name">Default output</div>
+        <div class="control">
+          <div class="segments">
+            <button class="segment compact selected">Clipboard</button>
+            <button class="segment compact">Save</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="name">Include cursor</div>
+          <div class="desc">Draw the pointer into the shot</div>
+        </div>
+        <div class="control"><div class="toggle"></div></div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h2>Recording</h2>
+      <div class="settings-item">
+        <div class="name">Default frame rate</div>
+        <div class="control">
+          <div class="segments">
+            <button class="segment compact">24</button>
+            <button class="segment compact">30</button>
+            <button class="segment compact selected">60</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-item">
+        <div class="name">Default quality</div>
+        <div class="control">
+          <div class="segments">
+            <button class="segment compact">Low</button>
+            <button class="segment compact">Medium</button>
+            <button class="segment compact selected">High</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-item">
+        <div class="name">Default audio</div>
+        <div class="control">
+          <div class="segments">
+            <button class="segment compact">None</button>
+            <button class="segment compact selected">System</button>
+            <button class="segment compact">Mic</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="name">Include cursor</div>
+          <div class="desc">Draw the pointer into the recording</div>
+        </div>
+        <div class="control"><div class="toggle on"></div></div>
+      </div>
+      <div class="settings-item">
+        <div>
+          <div class="name">Recorder backend</div>
+          <div class="desc">Chosen automatically after detection</div>
+        </div>
+        <div class="control">Automatic</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

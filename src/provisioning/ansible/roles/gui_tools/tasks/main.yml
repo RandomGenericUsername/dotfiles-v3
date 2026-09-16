@@ -87,6 +87,16 @@
     force: true
   loop: "{{ gui_tools_wallpaper_selector_app_files }}"
 
+# The notification overlay sources carry no Jinja-sensitive sequences (the
+# role test pins that), so they take the same per-file, repo-authoritative
+# template placement as the capture app and the sibling overlays.
+- name: Place notifications overlay app files
+  ansible.builtin.template:
+    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
+    dest: "{{ item.dest }}"
+    force: true
+  loop: "{{ gui_tools_notifications_app_files }}"
+
 - name: Remove legacy capture subtree from the bar spine dir (superseded by ags-capture/)
   ansible.builtin.file:
     path: "{{ gui_tools_spine_config_dir }}/ags/capture"

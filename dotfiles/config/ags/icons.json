@@ -1,321 +1,175 @@
 {
   "battery": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "charging-0": "battery-0-charging",
+        "charging-100": "battery-100-charging",
+        "charging-25": "battery-25-charging",
+        "charging-50": "battery-50-charging",
+        "charging-75": "battery-75-charging",
+        "discharging-0": "battery-0",
+        "discharging-100": "battery-100",
+        "discharging-25": "battery-25",
+        "discharging-50": "battery-50",
+        "discharging-75": "battery-75",
+        "plugged": "plugged"
+      },
+      "widget": "battery"
+    },
     "color_mappings": {
-      "COLOR_ACCENT": "color12"
+      "COLOR_ACCENT": "color13",
+      "COLOR_FOREGROUND": "color15"
     },
     "variants": [
       {
         "name": "battery-0",
-        "template": "status-bar/battery/battery-0/default/icon.svg",
-        "output": "battery-0.svg"
+        "output": "battery-0.svg",
+        "template": "status-bar/battery/battery-0/default/icon.svg"
       },
       {
         "name": "battery-25",
-        "template": "status-bar/battery/battery-25/default/icon.svg",
-        "output": "battery-25.svg"
+        "output": "battery-25.svg",
+        "template": "status-bar/battery/battery-25/default/icon.svg"
       },
       {
         "name": "battery-50",
-        "template": "status-bar/battery/battery-50/default/icon.svg",
-        "output": "battery-50.svg"
+        "output": "battery-50.svg",
+        "template": "status-bar/battery/battery-50/default/icon.svg"
       },
       {
         "name": "battery-75",
-        "template": "status-bar/battery/battery-75/default/icon.svg",
-        "output": "battery-75.svg"
+        "output": "battery-75.svg",
+        "template": "status-bar/battery/battery-75/default/icon.svg"
       },
       {
         "name": "battery-100",
-        "template": "status-bar/battery/battery-100/default/icon.svg",
-        "output": "battery-100.svg"
+        "output": "battery-100.svg",
+        "template": "status-bar/battery/battery-100/default/icon.svg"
       },
       {
         "name": "battery-0-charging",
-        "template": "status-bar/battery/battery-0-charging/default/icon.svg",
-        "output": "battery-0-charging.svg"
+        "output": "battery-0-charging.svg",
+        "template": "status-bar/battery/battery-0-charging/default/icon.svg"
       },
       {
         "name": "battery-25-charging",
-        "template": "status-bar/battery/battery-25-charging/default/icon.svg",
-        "output": "battery-25-charging.svg"
+        "output": "battery-25-charging.svg",
+        "template": "status-bar/battery/battery-25-charging/default/icon.svg"
       },
       {
         "name": "battery-50-charging",
-        "template": "status-bar/battery/battery-50-charging/default/icon.svg",
-        "output": "battery-50-charging.svg"
+        "output": "battery-50-charging.svg",
+        "template": "status-bar/battery/battery-50-charging/default/icon.svg"
       },
       {
         "name": "battery-75-charging",
-        "template": "status-bar/battery/battery-75-charging/default/icon.svg",
-        "output": "battery-75-charging.svg"
+        "output": "battery-75-charging.svg",
+        "template": "status-bar/battery/battery-75-charging/default/icon.svg"
       },
       {
         "name": "battery-100-charging",
-        "template": "status-bar/battery/battery-100-charging/default/icon.svg",
-        "output": "battery-100-charging.svg"
+        "output": "battery-100-charging.svg",
+        "template": "status-bar/battery/battery-100-charging/default/icon.svg"
       },
       {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color15"
+        },
         "name": "plugged",
-        "template": "status-bar/battery/plugged/default/icon.svg",
-        "output": "plugged.svg"
-      }
-    ],
-    "bar_mappings": {
-      "widget": "battery",
-      "icon_size": 24,
-      "states": {
-        "discharging-0": "battery-0",
-        "discharging-25": "battery-25",
-        "discharging-50": "battery-50",
-        "discharging-75": "battery-75",
-        "discharging-100": "battery-100",
-        "charging-0": "battery-0-charging",
-        "charging-25": "battery-25-charging",
-        "charging-50": "battery-50-charging",
-        "charging-75": "battery-75-charging",
-        "charging-100": "battery-100-charging",
-        "plugged": "plugged"
-      }
-    }
-  },
-  "network": {
-    "color_mappings": {},
-    "variants": [
-      {
-        "name": "ethernet-default",
-        "template": "status-bar/network/ethernet/default/icon.svg",
-        "output": "ethernet-default.svg"
-      },
-      {
-        "name": "ethernet-rounded",
-        "template": "status-bar/network/ethernet/rounded/icon.svg",
-        "output": "ethernet-rounded.svg"
-      },
-      {
-        "name": "ethernet-sharp",
-        "template": "status-bar/network/ethernet/sharp/icon.svg",
-        "output": "ethernet-sharp.svg"
-      },
-      {
-        "name": "ethernet-no-internet-default",
-        "template": "status-bar/network/ethernet-no-internet/default/icon.svg",
-        "output": "ethernet-no-internet-default.svg"
-      },
-      {
-        "name": "ethernet-no-internet-rounded",
-        "template": "status-bar/network/ethernet-no-internet/rounded/icon.svg",
-        "output": "ethernet-no-internet-rounded.svg"
-      },
-      {
-        "name": "ethernet-no-internet-sharp",
-        "template": "status-bar/network/ethernet-no-internet/sharp/icon.svg",
-        "output": "ethernet-no-internet-sharp.svg"
-      },
-      {
-        "name": "wifi-low-default",
-        "template": "status-bar/network/wifi-low/default/icon.svg",
-        "output": "wifi-low-default.svg"
-      },
-      {
-        "name": "wifi-low-rounded",
-        "template": "status-bar/network/wifi-low/rounded/icon.svg",
-        "output": "wifi-low-rounded.svg"
-      },
-      {
-        "name": "wifi-low-sharp",
-        "template": "status-bar/network/wifi-low/sharp/icon.svg",
-        "output": "wifi-low-sharp.svg"
-      },
-      {
-        "name": "wifi-medium-default",
-        "template": "status-bar/network/wifi-medium/default/icon.svg",
-        "output": "wifi-medium-default.svg"
-      },
-      {
-        "name": "wifi-medium-rounded",
-        "template": "status-bar/network/wifi-medium/rounded/icon.svg",
-        "output": "wifi-medium-rounded.svg"
-      },
-      {
-        "name": "wifi-medium-sharp",
-        "template": "status-bar/network/wifi-medium/sharp/icon.svg",
-        "output": "wifi-medium-sharp.svg"
-      },
-      {
-        "name": "wifi-high-default",
-        "template": "status-bar/network/wifi-high/default/icon.svg",
-        "output": "wifi-high-default.svg"
-      },
-      {
-        "name": "wifi-high-rounded",
-        "template": "status-bar/network/wifi-high/rounded/icon.svg",
-        "output": "wifi-high-rounded.svg"
-      },
-      {
-        "name": "wifi-high-sharp",
-        "template": "status-bar/network/wifi-high/sharp/icon.svg",
-        "output": "wifi-high-sharp.svg"
-      },
-      {
-        "name": "wifi-disabled-default",
-        "template": "status-bar/network/wifi-disabled/default/icon.svg",
-        "output": "wifi-disabled-default.svg"
-      },
-      {
-        "name": "wifi-disabled-rounded",
-        "template": "status-bar/network/wifi-disabled/rounded/icon.svg",
-        "output": "wifi-disabled-rounded.svg"
-      },
-      {
-        "name": "wifi-disabled-sharp",
-        "template": "status-bar/network/wifi-disabled/sharp/icon.svg",
-        "output": "wifi-disabled-sharp.svg"
-      },
-      {
-        "name": "wifi-no-internet-default",
-        "template": "status-bar/network/wifi-no-internet/default/icon.svg",
-        "output": "wifi-no-internet-default.svg"
-      },
-      {
-        "name": "wifi-no-internet-rounded",
-        "template": "status-bar/network/wifi-no-internet/rounded/icon.svg",
-        "output": "wifi-no-internet-rounded.svg"
-      },
-      {
-        "name": "wifi-no-internet-sharp",
-        "template": "status-bar/network/wifi-no-internet/sharp/icon.svg",
-        "output": "wifi-no-internet-sharp.svg"
-      }
-    ],
-    "bar_mappings": {
-      "widget": "network",
-      "icon_size": 24,
-      "states": {
-        "wifi-high": "wifi-high-default",
-        "wifi-medium": "wifi-medium-default",
-        "wifi-low": "wifi-low-default",
-        "wifi-disabled": "wifi-disabled-default",
-        "wifi-no-internet": "wifi-no-internet-default",
-        "ethernet": "ethernet-default",
-        "ethernet-no-internet": "ethernet-no-internet-default"
-      }
-    }
-  },
-  "wlogout": {
-    "color_mappings": {},
-    "variants": [
-      {
-        "name": "hibernate",
-        "template": "wlogout/hibernate/default/icon.svg",
-        "output": "hibernate.svg"
-      },
-      {
-        "name": "lock",
-        "template": "wlogout/lock/default/icon.svg",
-        "output": "lock.svg"
-      },
-      {
-        "name": "logout",
-        "template": "wlogout/logout/default/icon.svg",
-        "output": "logout.svg"
-      },
-      {
-        "name": "reboot",
-        "template": "wlogout/reboot/default/icon.svg",
-        "output": "reboot.svg"
-      },
-      {
-        "name": "shutdown",
-        "template": "wlogout/shutdown/default/icon.svg",
-        "output": "shutdown.svg"
-      },
-      {
-        "name": "suspend",
-        "template": "wlogout/suspend/default/icon.svg",
-        "output": "suspend.svg"
+        "output": "plugged.svg",
+        "template": "status-bar/battery/plugged/default/icon.svg"
       }
     ]
   },
-  "power-menu": {
+  "btop": {
     "color_mappings": {
-      "COLOR_BACKGROUND": "background",
-      "COLOR_SECONDARY": "color1",
-      "COLOR_ACCENT": "color12"
+      "COLOR_FOREGROUND": "color15",
+      "COLOR_JOIN": "color15"
     },
     "variants": [
       {
-        "name": "power-menu-default",
-        "template": "status-bar/power-menu/default/icon.svg",
-        "output": "power-menu-default.svg"
-      },
-      {
-        "name": "power-menu-modern-gradient",
-        "template": "status-bar/power-menu/modern/gradient.svg",
-        "output": "power-menu-modern-gradient.svg"
-      },
-      {
-        "name": "power-menu-modern-with-background",
-        "template": "status-bar/power-menu/modern/with-background.svg",
-        "output": "power-menu-modern-with-background.svg"
-      }
-    ],
-    "bar_mappings": {
-      "widget": "power-menu",
-      "icon_size": 24,
-      "states": {
-        "default": "power-menu-default"
-      }
-    }
-  },
-  "screenshot-tool": {
-    "color_mappings": {},
-    "variants": [
-      {
-        "name": "all-screen-selection",
-        "template": "screenshot-tool/all-screen-selection/default/all-screen-selection.svg",
-        "output": "all-screen-selection.svg"
-      },
-      {
-        "name": "cursor",
-        "template": "screenshot-tool/cursor/default/cursor.svg",
-        "output": "cursor.svg"
-      },
-      {
-        "name": "delay",
-        "template": "screenshot-tool/delay/default/delay.svg",
-        "output": "delay.svg"
-      },
-      {
-        "name": "region-screen-selection",
-        "template": "screenshot-tool/region-screen-selection/default/region-selection.svg",
-        "output": "region-selection.svg"
-      },
-      {
-        "name": "take-screenshot",
-        "template": "screenshot-tool/take-screenshot/default/take-screenshot.svg",
-        "output": "take-screenshot.svg"
+        "name": "btop",
+        "output": "btop.svg",
+        "template": "status-bar/btop/default/icon.svg"
       }
     ]
   },
-  "screen-recorder": {
+  "capture-tool": {
     "color_mappings": {
+      "COLOR_ACCENT": "color13",
       "COLOR_FOREGROUND": "foreground"
     },
     "variants": [
       {
+        "name": "camera",
+        "output": "capture-tool-camera.svg",
+        "template": "capture-tool/default/camera.svg"
+      },
+      {
+        "name": "video",
+        "output": "capture-tool-video.svg",
+        "template": "capture-tool/default/video.svg"
+      },
+      {
+        "name": "region",
+        "output": "capture-tool-region.svg",
+        "template": "capture-tool/default/region.svg"
+      },
+      {
+        "name": "monitor",
+        "output": "capture-tool-monitor.svg",
+        "template": "capture-tool/default/monitor.svg"
+      },
+      {
+        "name": "window",
+        "output": "capture-tool-window.svg",
+        "template": "capture-tool/default/window.svg"
+      },
+      {
+        "name": "clipboard",
+        "output": "capture-tool-clipboard.svg",
+        "template": "capture-tool/default/clipboard.svg"
+      },
+      {
+        "name": "save",
+        "output": "capture-tool-save.svg",
+        "template": "capture-tool/default/save.svg"
+      },
+      {
+        "name": "speaker",
+        "output": "capture-tool-speaker.svg",
+        "template": "capture-tool/default/speaker.svg"
+      },
+      {
+        "name": "mic",
+        "output": "capture-tool-mic.svg",
+        "template": "capture-tool/default/mic.svg"
+      },
+      {
+        "name": "info",
+        "output": "capture-tool-info.svg",
+        "template": "capture-tool/default/info.svg"
+      },
+      {
+        "name": "warning",
+        "output": "capture-tool-warning.svg",
+        "template": "capture-tool/default/warning.svg"
+      },
+      {
         "name": "pause",
-        "template": "screen-recorder/default/pause.svg",
-        "output": "screen-recorder-pause.svg"
+        "output": "capture-tool-pause.svg",
+        "template": "capture-tool/default/pause.svg"
       },
       {
         "name": "play",
-        "template": "screen-recorder/default/play.svg",
-        "output": "screen-recorder-play.svg"
+        "output": "capture-tool-play.svg",
+        "template": "capture-tool/default/play.svg"
       },
       {
         "name": "stop",
-        "template": "screen-recorder/default/stop.svg",
-        "output": "screen-recorder-stop.svg"
+        "output": "capture-tool-stop.svg",
+        "template": "capture-tool/default/stop.svg"
       }
     ]
   },
@@ -324,8 +178,246 @@
     "variants": [
       {
         "name": "email-client",
-        "template": "status-bar/email-client/default/icon.svg",
-        "output": "email-client.svg"
+        "output": "email-client.svg",
+        "template": "status-bar/email-client/default/icon.svg"
+      }
+    ]
+  },
+  "network": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "ethernet-connected": "ethernet-connected-default",
+        "ethernet-no-internet": "ethernet-no-internet-default",
+        "ethernet-not-connected": "ethernet-not-connected-default",
+        "wifi-full": "wifi-full-default",
+        "wifi-high": "wifi-high-default",
+        "wifi-low": "wifi-low-default",
+        "wifi-medium": "wifi-medium-default",
+        "wifi-no-internet": "wifi-no-internet-default",
+        "wifi-not-connected": "wifi-not-connected-default"
+      },
+      "widget": "network"
+    },
+    "color_mappings": {
+      "COLOR_CROSS": "color13",
+      "COLOR_FOREGROUND": "color15",
+      "COLOR_WARNING": "color13"
+    },
+    "variants": [
+      {
+        "name": "wifi-full-default",
+        "output": "wifi-full-default.svg",
+        "template": "status-bar/network/wifi-full/default/icon.svg"
+      },
+      {
+        "name": "wifi-full-bold",
+        "output": "wifi-full-bold.svg",
+        "template": "status-bar/network/wifi-full/bold/icon.svg"
+      },
+      {
+        "name": "wifi-full-rounded",
+        "output": "wifi-full-rounded.svg",
+        "template": "status-bar/network/wifi-full/rounded/icon.svg"
+      },
+      {
+        "name": "wifi-high-default",
+        "output": "wifi-high-default.svg",
+        "template": "status-bar/network/wifi-high/default/icon.svg"
+      },
+      {
+        "name": "wifi-high-bold",
+        "output": "wifi-high-bold.svg",
+        "template": "status-bar/network/wifi-high/bold/icon.svg"
+      },
+      {
+        "name": "wifi-high-rounded",
+        "output": "wifi-high-rounded.svg",
+        "template": "status-bar/network/wifi-high/rounded/icon.svg"
+      },
+      {
+        "name": "wifi-medium-default",
+        "output": "wifi-medium-default.svg",
+        "template": "status-bar/network/wifi-medium/default/icon.svg"
+      },
+      {
+        "name": "wifi-medium-bold",
+        "output": "wifi-medium-bold.svg",
+        "template": "status-bar/network/wifi-medium/bold/icon.svg"
+      },
+      {
+        "name": "wifi-medium-rounded",
+        "output": "wifi-medium-rounded.svg",
+        "template": "status-bar/network/wifi-medium/rounded/icon.svg"
+      },
+      {
+        "name": "wifi-low-default",
+        "output": "wifi-low-default.svg",
+        "template": "status-bar/network/wifi-low/default/icon.svg"
+      },
+      {
+        "name": "wifi-low-bold",
+        "output": "wifi-low-bold.svg",
+        "template": "status-bar/network/wifi-low/bold/icon.svg"
+      },
+      {
+        "name": "wifi-low-rounded",
+        "output": "wifi-low-rounded.svg",
+        "template": "status-bar/network/wifi-low/rounded/icon.svg"
+      },
+      {
+        "name": "wifi-not-connected-default",
+        "output": "wifi-not-connected-default.svg",
+        "template": "status-bar/network/wifi-not-connected/default/icon.svg"
+      },
+      {
+        "name": "wifi-not-connected-bold",
+        "output": "wifi-not-connected-bold.svg",
+        "template": "status-bar/network/wifi-not-connected/bold/icon.svg"
+      },
+      {
+        "name": "wifi-not-connected-rounded",
+        "output": "wifi-not-connected-rounded.svg",
+        "template": "status-bar/network/wifi-not-connected/rounded/icon.svg"
+      },
+      {
+        "name": "wifi-no-internet-default",
+        "output": "wifi-no-internet-default.svg",
+        "template": "status-bar/network/wifi-no-internet/default/icon.svg"
+      },
+      {
+        "name": "wifi-no-internet-bold",
+        "output": "wifi-no-internet-bold.svg",
+        "template": "status-bar/network/wifi-no-internet/bold/icon.svg"
+      },
+      {
+        "name": "wifi-no-internet-rounded",
+        "output": "wifi-no-internet-rounded.svg",
+        "template": "status-bar/network/wifi-no-internet/rounded/icon.svg"
+      },
+      {
+        "name": "ethernet-connected-default",
+        "output": "ethernet-connected-default.svg",
+        "template": "status-bar/network/ethernet-connected/default/icon.svg"
+      },
+      {
+        "name": "ethernet-connected-bold",
+        "output": "ethernet-connected-bold.svg",
+        "template": "status-bar/network/ethernet-connected/bold/icon.svg"
+      },
+      {
+        "name": "ethernet-connected-rounded",
+        "output": "ethernet-connected-rounded.svg",
+        "template": "status-bar/network/ethernet-connected/rounded/icon.svg"
+      },
+      {
+        "name": "ethernet-no-internet-default",
+        "output": "ethernet-no-internet-default.svg",
+        "template": "status-bar/network/ethernet-no-internet/default/icon.svg"
+      },
+      {
+        "name": "ethernet-not-connected-default",
+        "output": "ethernet-not-connected-default.svg",
+        "template": "status-bar/network/ethernet-not-connected/default/icon.svg"
+      }
+    ]
+  },
+  "power-menu": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "default": "power-menu-default"
+      },
+      "widget": "power-menu"
+    },
+    "color_mappings": {
+      "COLOR_ACCENT": "color13",
+      "COLOR_BACKGROUND": "background",
+      "COLOR_FOREGROUND": "color15",
+      "COLOR_SECONDARY": "color1"
+    },
+    "variants": [
+      {
+        "name": "power-menu-default",
+        "output": "power-menu-default.svg",
+        "template": "status-bar/power-menu/default/icon.svg"
+      },
+      {
+        "name": "power-menu-modern-gradient",
+        "output": "power-menu-modern-gradient.svg",
+        "template": "status-bar/power-menu/modern/gradient.svg"
+      },
+      {
+        "name": "power-menu-modern-with-background",
+        "output": "power-menu-modern-with-background.svg",
+        "template": "status-bar/power-menu/modern/with-background.svg"
+      }
+    ]
+  },
+  "thunderbird": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "color15"
+    },
+    "variants": [
+      {
+        "name": "thunderbird",
+        "output": "thunderbird.svg",
+        "template": "status-bar/thunderbird/default/icon.svg"
+      }
+    ]
+  },
+  "tray": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "color15"
+    },
+    "variants": [
+      {
+        "name": "tidal",
+        "output": "tray-tidal.svg",
+        "template": "status-bar/tray/tidal/default/icon.svg"
+      }
+    ]
+  },
+  "ui": {
+    "color_mappings": {
+      "COLOR_ACCENT": "color12",
+      "COLOR_FOREGROUND": "color15"
+    },
+    "variants": [
+      {
+        "name": "search",
+        "output": "ui-search.svg",
+        "template": "ui/search/default/icon.svg"
+      },
+      {
+        "name": "text",
+        "output": "ui-text.svg",
+        "template": "ui/text/default/icon.svg"
+      },
+      {
+        "name": "image",
+        "output": "ui-image.svg",
+        "template": "ui/image/default/icon.svg"
+      },
+      {
+        "name": "link",
+        "output": "ui-link.svg",
+        "template": "ui/link/default/icon.svg"
+      },
+      {
+        "name": "code",
+        "output": "ui-code.svg",
+        "template": "ui/code/default/icon.svg"
+      },
+      {
+        "name": "color",
+        "output": "ui-color.svg",
+        "template": "ui/color/default/icon.svg"
+      },
+      {
+        "name": "emoji",
+        "output": "ui-emoji.svg",
+        "template": "ui/emoji/default/icon.svg"
       }
     ]
   },
@@ -334,8 +426,43 @@
     "variants": [
       {
         "name": "wallpaper-selector",
-        "template": "status-bar/wallpaper-selector/default/wallpaper-selector.svg",
-        "output": "wallpaper-selector.svg"
+        "output": "wallpaper-selector.svg",
+        "template": "status-bar/wallpaper-selector/default/wallpaper-selector.svg"
+      }
+    ]
+  },
+  "wlogout": {
+    "color_mappings": {},
+    "variants": [
+      {
+        "name": "hibernate",
+        "output": "hibernate.svg",
+        "template": "wlogout/hibernate/default/icon.svg"
+      },
+      {
+        "name": "lock",
+        "output": "lock.svg",
+        "template": "wlogout/lock/default/icon.svg"
+      },
+      {
+        "name": "logout",
+        "output": "logout.svg",
+        "template": "wlogout/logout/default/icon.svg"
+      },
+      {
+        "name": "reboot",
+        "output": "reboot.svg",
+        "template": "wlogout/reboot/default/icon.svg"
+      },
+      {
+        "name": "shutdown",
+        "output": "shutdown.svg",
+        "template": "wlogout/shutdown/default/icon.svg"
+      },
+      {
+        "name": "suspend",
+        "output": "suspend.svg",
+        "template": "wlogout/suspend/default/icon.svg"
       }
     ]
   }

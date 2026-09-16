@@ -26,8 +26,13 @@ hl.on("hyprland.start", function()
     -- setup is provisioning's responsibility, this line only starts processes.
     hl.exec_cmd("bash -lc 'sleep 2 && ags run -d $HOME/.config/ags-capture --log-file $HOME/.local/state/ags/capture.log'")
 
-    -- Notification daemon (dunst)
-    hl.exec_cmd("dunst")
+    -- Notification overlay (standalone AGS instance `notifications`,
+    -- staggered: concurrent `ags run` invocations collide on
+    -- /run/user/$UID/ags.js). Owns org.freedesktop.Notifications for the
+    -- session (replaces dunst, which stays installed as a manual fallback
+    -- but is no longer autostarted). Same stagger/log discipline as the
+    -- sibling instances; the log dir is ensured by the gui_tools role.
+    hl.exec_cmd("bash -lc 'sleep 4 && ags run -d $HOME/.config/ags-notifications --log-file $HOME/.local/state/ags/notifications.log'")
 
     -- Polkit authentication agent (hyprpolkitagent)
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
