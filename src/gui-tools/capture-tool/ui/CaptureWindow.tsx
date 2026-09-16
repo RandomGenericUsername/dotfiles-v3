@@ -1363,37 +1363,6 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                 />
               </box>
             </box>
-
-            <box class="setting-row" spacing={14}>
-              <label
-                class="setting-label"
-                label="FORMAT"
-                halign={Gtk.Align.START}
-                valign={Gtk.Align.CENTER}
-                width_request={86}
-              />
-              <box class="segments" homogeneous hexpand spacing={6}>
-                <button
-                  class="segment selected"
-                  label="MP4"
-                  $={(self) => recordingFormatGroup.push({ value: "mp4", button: self })}
-                  onClicked={(self) => setRecordingFormat("mp4", self)}
-                />
-                <button
-                  class="segment"
-                  label="WebM"
-                  $={(self) => recordingFormatGroup.push({ value: "webm", button: self })}
-                  onClicked={(self) => setRecordingFormat("webm", self)}
-                />
-                <button
-                  class="segment"
-                  label="GIF"
-                  $={(self) => recordingFormatGroup.push({ value: "gif", button: self })}
-                  onClicked={(self) => setRecordingFormat("gif", self)}
-                />
-              </box>
-            </box>
-
             <box
               visible={false}
               class="setting-row"
@@ -1445,6 +1414,37 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                     recording.gifFps = 30
                     select(self, recordingGifFpsGroup.map((entry) => entry.button))
                   }}
+                />
+              </box>
+            </box>
+
+
+            <box class="setting-row" spacing={14}>
+              <label
+                class="setting-label"
+                label="FORMAT"
+                halign={Gtk.Align.START}
+                valign={Gtk.Align.CENTER}
+                width_request={86}
+              />
+              <box class="segments" homogeneous hexpand spacing={6}>
+                <button
+                  class="segment selected"
+                  label="MP4"
+                  $={(self) => recordingFormatGroup.push({ value: "mp4", button: self })}
+                  onClicked={(self) => setRecordingFormat("mp4", self)}
+                />
+                <button
+                  class="segment"
+                  label="WebM"
+                  $={(self) => recordingFormatGroup.push({ value: "webm", button: self })}
+                  onClicked={(self) => setRecordingFormat("webm", self)}
+                />
+                <button
+                  class="segment"
+                  label="GIF"
+                  $={(self) => recordingFormatGroup.push({ value: "gif", button: self })}
+                  onClicked={(self) => setRecordingFormat("gif", self)}
                 />
               </box>
             </box>

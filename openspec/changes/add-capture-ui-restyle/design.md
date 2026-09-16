@@ -65,7 +65,11 @@ setting rows: label-left micro-cap + segmented pills right
     recording:  fps(24/30/60) · format(MP4/WebM/GIF) · audio(speaker/mic/none, icons) ·
                 quality(low/medium/high) · duration(∞/10s/30s/60s/custom)
 GIF mode: audio row removed; fps → (10/15/20/30); + size row (original/75%/50%);
-          + amber notice ("GIF has no audio track…")
+          + amber notice ("GIF has no audio track…"). Rows keep their SLOTS —
+          frame rate stays above format and the size row takes the audio row's
+          place, so switching format never reshuffles the form. (Deliberate
+          departure from recording-gif.html, which shows format first: review
+          feedback is that a stable order matters more than the mockup here.)
 primary CTA: full-width, palette accent in both modes (the modes are told
              apart by their icon and the record dot),
              icon + label; footer: Esc/Enter hints + "remembers last choices"
