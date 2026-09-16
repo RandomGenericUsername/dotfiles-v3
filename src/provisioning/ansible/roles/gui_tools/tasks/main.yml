@@ -125,3 +125,23 @@
   failed_when: false
   changed_when: false
   when: not ansible_check_mode
+
+# The notifications overlay IS the session daemon (it owns
+# org.freedesktop.Notifications). dunst ships an enabled systemd user unit that
+# otherwise respawns and steals the bus name, leaving the overlay unable to
+# serve (verified live: "cannot get proxy: dunst is already running"). Stop and
+# mask it — dunst stays installed as a manual fallback (`systemctl --user
+# unmask --now dunst`), it just no longer races the overlay for the name.
+- name: Stop the dunst user unit so the overlay can own the notification bus
+  ansible.builtin.command:
+    cmd: "systemctl --user disable --now dunst.service"
+  failed_when: false
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Mask the dunst user unit (respawn guard)
+  ansible.builtin.command:
+    cmd: "systemctl --user mask dunst.service"
+  failed_when: false
+  changed_when: false
+  when: not ansible_check_mode

@@ -63,3 +63,11 @@ Autostart SHALL launch the notifd AGS instance instead of `dunst` (same stagger/
 #### Scenario: Session daemon is the overlay
 - **WHEN** logging in after provisioning converges
 - **THEN** the notifications AGS instance is running, `dunst` is not started by autostart, and `notify-send` traffic renders as cards
+
+#### Scenario: dunst cannot steal the bus
+- **WHEN** provisioning converges on a machine where the dunst user unit was enabled
+- **THEN** `dunst.service` is stopped and masked, so the overlay owns `org.freedesktop.Notifications` instead of losing it to a respawning dunst
+
+#### Scenario: Foreign daemon is detected, not crashed
+- **WHEN** the overlay starts while another process already owns `org.freedesktop.Notifications`
+- **THEN** it logs the conflict and exits cleanly (no half-initialised instance)

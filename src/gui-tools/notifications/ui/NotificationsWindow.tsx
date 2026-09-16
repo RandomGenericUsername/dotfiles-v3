@@ -13,6 +13,21 @@ const URGENCY_CRITICAL = 2
 // Oldest-overflow discipline (mirrors the old dunst `notification_limit`).
 const MAX_VISIBLE = 5
 
+// Fixed card width (the mockup `.toast-stack` measure). A fixed request makes
+// long bodies wrap instead of letting the card grow, and guarantees no
+// notification can ever expand past a toast-sized box.
+const CARD_WIDTH = 380
+
+// Icon size inside the 56px tile.
+const TILE_ICON = 24
+
+// Auto-expiry. AstalNotifd does not reliably resolve notifications on their
+// own (verified live: a capture toast sent with an 8s timeout stayed on screen
+// until dismissed), so the stack owns the timer. Critical cards persist until
+// dismissed — the mockup's "Capture failed" card. A sender's 0 ("never") or
+// -1 ("server default") is treated as the default so nothing sticks forever.
+const DEFAULT_TIMEOUT_MS = 8000
+
 const WINDOW_NAME = "notifications-window"
 
 interface CardEntry {
@@ -24,6 +39,17 @@ interface CardEntry {
 function hideWindow(): void {
   const window = app.get_window(WINDOW_NAME)
   if (window) window.visible = false
+}
+
+/**
+ * Map the stack window before a card lands. An empty layer-shell surface stays
+ * mapped and the compositor keeps re-presenting its LAST PAINTED BUFFER, so a
+ * card removed from the box would otherwise stay on screen forever (verified
+ * live: removeCard ran, the widget was gone, the pixels were not).
+ */
+function showWindow(): void {
+  const window = app.get_window(WINDOW_NAME)
+  if (window) window.visible = true
 }
 
 /** Absolute on-disk image for the notification, or null (fallback tile). */
@@ -55,12 +81,15 @@ function tileContent(
   const path = notificationImagePath(notification)
   if (path !== null) {
     try {
-      const picture = Gtk.Picture.new_for_filename(path)
-      picture.set_content_fit(Gtk.ContentFit.CONTAIN)
-      picture.set_size_request(24, 24)
-      picture.set_halign(Gtk.Align.CENTER)
-      picture.set_valign(Gtk.Align.CENTER)
-      return picture
+      // Gtk.Image + pixel_size (bar precedent): forces the SVG to rasterize at
+      // exactly TILE_ICON px. Gtk.Picture + set_size_request is NOT equivalent
+      // — the request is only a minimum, so a 1024px icon (the capture-tool
+      // set) measured at natural size and blew the card up to full screen.
+      const image = Gtk.Image.new_from_file(path)
+      image.set_pixel_size(TILE_ICON)
+      image.set_halign(Gtk.Align.CENTER)
+      image.set_valign(Gtk.Align.CENTER)
+      return image
     } catch (error) {
       console.error(`notifications: cannot load image ${path}: ${error}`)
     }
@@ -79,6 +108,7 @@ function tileContent(
 /** One mockup `.toast` card for a daemon notification. */
 function NotificationCard(
   notification: InstanceType<typeof Notifd.Notification>,
+  onDismiss: () => void,
 ): Gtk.Box {
   const critical = notification.get_urgency() === URGENCY_CRITICAL
 
@@ -125,17 +155,13 @@ function NotificationCard(
         // Route the invocation back to the emitting client (the
         // capture backend's `dunstify --wait` resolves the matching
         // ActionInvoked and executes copy/open/reveal/details), then
-        // dismiss locally so the card clears promptly.
+        // clear the card locally.
         try {
           current.invoke()
         } catch (error) {
           console.error(`notifications: action invoke failed: ${error}`)
         }
-        try {
-          notification.dismiss()
-        } catch (error) {
-          console.error(`notifications: dismiss failed: ${error}`)
-        }
+        onDismiss()
       })
       actions.append(chip)
     }
@@ -150,18 +176,13 @@ function NotificationCard(
   })
   card.add_css_class("notif-card")
   if (critical) card.add_css_class("critical")
+  card.set_size_request(CARD_WIDTH, -1)
   card.append(tile)
   card.append(text)
 
   // Click anywhere on the card dismisses it.
   const click = new Gtk.GestureClick()
-  click.connect("pressed", () => {
-    try {
-      notification.dismiss()
-    } catch (error) {
-      console.error(`notifications: dismiss failed: ${error}`)
-    }
-  })
+  click.connect("pressed", () => onDismiss())
   card.add_controller(click)
 
   return card
@@ -172,12 +193,68 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
   const notifd = Notifd.get_default()
   let stack: Gtk.Box | null = null
   let cards: CardEntry[] = []
+  /** id -> pending GLib timeout source for auto-expiry. */
+  const timers = new Map<number, number>()
 
   function removeCard(id: number): void {
     const index = cards.findIndex((entry) => entry.id === id)
     if (index === -1 || stack === null) return
+    clearExpiry(id)
     const [entry] = cards.splice(index, 1)
     if (entry !== undefined) stack.remove(entry.widget)
+    // Unmap once the last card leaves: an empty surface would keep showing the
+    // previous frame (see showWindow).
+    if (cards.length === 0) hideWindow()
+  }
+
+  /**
+   * Remove a card and tell the daemon. The local removal is AUTHORITATIVE:
+   * `Notification.dismiss()` does not reliably emit `resolved` (verified live
+   * — a card the daemon had already been told to dismiss stayed on screen), so
+   * every user/expiry path clears the UI itself and treats `resolved` as a
+   * bonus path for daemon-initiated closes.
+   */
+  function dismissCard(id: number): void {
+    const index = cards.findIndex((entry) => entry.id === id)
+    if (index === -1) return
+    const entry = cards[index]
+    removeCard(id)
+    try {
+      entry?.notification.dismiss()
+    } catch (error) {
+      console.error(`notifications: dismiss failed: ${error}`)
+    }
+  }
+
+  /** Cancel a card's pending auto-expiry (called on every removal path). */
+  function clearExpiry(id: number): void {
+    const source = timers.get(id)
+    if (source !== undefined) {
+      GLib.source_remove(source)
+      timers.delete(id)
+    }
+  }
+
+  /**
+   * Auto-dismiss a normal-urgency card after its timeout. Critical cards are
+   * skipped entirely (sticky until the user dismisses them).
+   */
+  function scheduleExpiry(entry: CardEntry): void {
+    if (entry.notification.get_urgency() === URGENCY_CRITICAL) return
+    let ms = DEFAULT_TIMEOUT_MS
+    try {
+      const declared = entry.notification.get_expire_timeout()
+      if (declared > 0) ms = declared
+    } catch (error) {
+      console.error(`notifications: cannot read expire timeout: ${error}`)
+    }
+    const id = entry.id
+    const source = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+      timers.delete(id)
+      dismissCard(id)
+      return GLib.SOURCE_REMOVE
+    })
+    timers.set(id, source)
   }
 
   function addCard(
@@ -188,27 +265,18 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
     const id = notification.get_id()
     // A replaced notification reuses its id: drop the stale card first.
     removeCard(id)
-    const widget = NotificationCard(notification)
+    showWindow()
+    const widget = NotificationCard(notification, () => dismissCard(id))
     cards.push({ id, notification, widget })
     if (newestOnTop) stack.prepend(widget)
     else stack.append(widget)
-    // Bound the stack: dismiss the oldest overflow through the DAEMON so
-    // removal flows through the single `resolved` path below.
+    scheduleExpiry({ id, notification, widget })
+    // Bound the stack: the oldest overflow is dismissed locally (authoritative)
+    // and the daemon is told, so the cap holds even for sticky criticals.
     while (cards.length > MAX_VISIBLE) {
       const oldest = cards[0]
       if (oldest === undefined) break
-      try {
-        oldest.notification.dismiss()
-      } catch (error) {
-        console.error(`notifications: overflow dismiss failed: ${error}`)
-        removeCard(oldest.id)
-        break
-      }
-      // If the daemon never resolves (sticky critical), avoid a hot loop:
-      // drop the local card and move on.
-      if (cards.length > 0 && cards[0] !== undefined && cards[0].id === oldest.id) {
-        removeCard(oldest.id)
-      }
+      dismissCard(oldest.id)
     }
   }
 
@@ -236,12 +304,7 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
         hideWindow()
         return true
       }
-      try {
-        newest.notification.dismiss()
-      } catch (error) {
-        console.error(`notifications: escape dismiss failed: ${error}`)
-        removeCard(newest.id)
-      }
+      dismissCard(newest.id)
       return true
     }
     return false
@@ -266,17 +329,13 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
           onKey(keyval),
         )
         self.add_controller(keys)
-        // Hydrate cards already live on the daemon (e.g. after a restart).
-        self.connect("map", () => {
-          try {
-            const live = notifd.get_notifications()
-            if (live !== null) {
-              for (const notification of live) addCard(notification, false)
-            }
-          } catch (error) {
-            console.error(`notifications: hydrate failed: ${error}`)
-          }
-        })
+        // NOTE: earlier revisions hydrated the daemon's live notification list
+        // on map. Removed deliberately: this process IS the notifd daemon
+        // (AstalNotifd), so its list is always empty at startup — a hydrate
+        // could only ever re-add cards the stack had already cleared,
+        // resurrecting dismissed toasts and duplicating cards whenever the
+        // window remapped. Notifications that arrive during startup are
+        // covered by the `notified` handler.
       }}
     >
       <box
