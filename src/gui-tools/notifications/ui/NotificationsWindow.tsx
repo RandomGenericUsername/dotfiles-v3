@@ -196,10 +196,17 @@ function NotificationCard(
   card.append(tile)
   card.append(text)
 
-  // Click anywhere on the card dismisses it.
-  const click = new Gtk.GestureClick()
-  click.connect("pressed", () => onDismiss())
-  card.add_controller(click)
+  // Click-to-dismiss is attached to the INFORMATIONAL parts (tile, title,
+  // body) and deliberately NOT to the card as a whole. A card-wide
+  // GestureClick fires on PRESS, so pressing an action chip closed the
+  // notification before the chip's `clicked` (which lands on release) could
+  // invoke it — the notification was gone, the invoke was a no-op, and the
+  // chip did nothing.
+  for (const region of [tile, title, body]) {
+    const click = new Gtk.GestureClick()
+    click.connect("pressed", () => onDismiss())
+    region.add_controller(click)
+  }
 
   return card
 }

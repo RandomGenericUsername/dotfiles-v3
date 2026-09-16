@@ -493,9 +493,13 @@ NOTIFY_APP_NAME = "capture-tool"
 #: Expiry for normal-urgency cards (ms). Critical cards carry NO timeout
 #: (sticky until dismissed, matching the mockup's "Capture failed" card).
 NOTIFY_TIMEOUT_MS = 8000
-#: Hard cap (s) on the detached ``dunstify --wait`` so a sticky critical
-#: card can never leak a helper process forever.
+#: Hard cap (s) on the detached notify helper so a sticky critical card can
+#: never leak a helper process forever.
 NOTIFY_WAIT_CAP_S = 120
+#: Grace (ms) after NotificationClosed before the helper gives up on an action.
+#: The daemon emits Closed BEFORE ActionInvoked, so quitting immediately would
+#: drop the action; this window covers the ordering race.
+NOTIFY_ACTION_GRACE_MS = 1500
 #: Icon group in the AGS icon manifest (same group the AGS registry reads).
 NOTIFY_ICON_GROUP = "capture-tool"
 #: Outcome kind -> manifest variant (design.md §2; variants exist in
@@ -1043,9 +1047,10 @@ def _notify_with_actions(request, icon, context):
                 (nid, _reason) = params.unpack()
                 if nid == notification_id:
                     # Closed precedes ActionInvoked for an invoked action, so
-                    # give the action signal a short grace period to land before
-                    # treating this as a plain dismissal.
-                    GLib.timeout_add(300, _quit_loop, loop)
+                    # give the action signal a generous grace period: the daemon
+                    # emits Closed first, and a slow client release must not slip
+                    # past the window.
+                    GLib.timeout_add(NOTIFY_ACTION_GRACE_MS, _quit_loop, loop)
 
         subscription = bus.signal_subscribe(
             "org.freedesktop.Notifications",
@@ -1083,7 +1088,6 @@ def _quit_loop(loop):
     loop.quit()
     return False
 
-
 def emit_notification(request, context=None):
     """Emit one request and execute the invoked action.
 
@@ -1118,14 +1122,36 @@ def emit_notification(request, context=None):
         return "failed"
 
 
+def _notify_log_path():
+    """Where detached helpers log their stderr.
+
+    The helper is detached with stdio to DEVNULL (it must not hold the
+    caller's pipes open), which also hides every failure: an action chip that
+    does nothing leaves no trace anywhere. Capturing stderr to the state dir
+    keeps silent no-ops diagnosable.
+    """
+    state = _xdg_dir("XDG_STATE_HOME", os.path.join(".local", "state"))
+    return Path(state) / "capture-tool" / "notify.log"
+
+
 def _spawn_detached(argv):
-    """Spawn a detached helper (double-fork discipline); None on failure."""
+    """Spawn a detached helper (double-fork discipline); None on failure.
+
+    stdout/stderr go to the notify log rather than /dev/null — see
+    :func:`_notify_log_path`.
+    """
+    try:
+        log_path = _notify_log_path()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(log_path, "a", encoding="utf-8")  # noqa: SIM115 — child owns it
+    except OSError:
+        handle = subprocess.DEVNULL
     try:
         return subprocess.Popen(
             argv,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=handle,
+            stderr=handle,
             start_new_session=True,
         )
     except OSError:
@@ -1207,8 +1233,14 @@ def cmd_notify(args):
     Re-checks the settings toggle so a helper spawned before the toggle was
     flipped off still emits nothing (belt-and-suspenders for the runtime
     host's recording-saved/failure routes, which spawn this helper).
+
+    Its stderr is captured to the notify log (see :func:`_notify_log_path`), so
+    the outcome line below is the diagnostic trail for "I clicked and nothing
+    happened".
     """
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     if not notifications_enabled():
+        logger.info("notify: suppressed (notifications disabled)")
         return None
     if args.kind == "screenshot-saved":
         # Clipboard captures keep no file by design, so they get no file
@@ -1228,7 +1260,13 @@ def cmd_notify(args):
             return None
         request = build_failure_request(short)
         context = {"details": args.details or args.message}
-    emit_notification(request, context)
+    outcome = emit_notification(request, context)
+    logger.info(
+        "notify: kind=%s id-variant=%s outcome=%s",
+        args.kind,
+        request["icon_variant"],
+        outcome,
+    )
     return None
 
 
