@@ -222,14 +222,6 @@ window#bar label {
   color: @color_foreground;
 }
 
-.rec-popup-time {
-  font-size: 30px;
-  font-weight: bold;
-  font-variant-numeric: tabular-nums;
-  color: @color_foreground;
-  padding: 10px 0 14px;
-}
-
 .rec-popup-action {
   min-height: 38px;
   padding: 0 8px;

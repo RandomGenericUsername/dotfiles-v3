@@ -39,6 +39,9 @@ interface CaptureSettings {
   recording_dir: string
   filename_pattern: string
   notifications: boolean
+  /** Bar feedback mode: true = bar shows the dot + timer only and the popup
+   *  carries pause/resume/stop; false = the bar carries the buttons itself. */
+  bar_compact_controls: boolean
   screenshot: {
     format: ConfigScreenshotFormat
     output: ConfigScreenshotOutput
@@ -62,6 +65,7 @@ const DEFAULT_SETTINGS: CaptureSettings = {
   recording_dir: "~/Videos/Recordings",
   filename_pattern: "{kind}_%Y-%m-%d_%H-%M-%S",
   notifications: true,
+  bar_compact_controls: false,
   screenshot: { format: "png", output: "clipboard", cursor: false },
   recording: { fps: 60, quality: "high", audio: "system", cursor: true },
 }
@@ -112,6 +116,10 @@ function mergeSettings(raw: unknown): CaptureSettings {
     recording_dir: configString(record.recording_dir, DEFAULT_SETTINGS.recording_dir),
     filename_pattern: configString(record.filename_pattern, DEFAULT_SETTINGS.filename_pattern),
     notifications: configBool(record.notifications, DEFAULT_SETTINGS.notifications),
+    bar_compact_controls: configBool(
+      record.bar_compact_controls,
+      DEFAULT_SETTINGS.bar_compact_controls,
+    ),
     screenshot: {
       format: configOneOf(shot.format, CONFIG_SCREENSHOT_FORMATS, DEFAULT_SETTINGS.screenshot.format),
       output: configOneOf(shot.output, CONFIG_SCREENSHOT_OUTPUTS, DEFAULT_SETTINGS.screenshot.output),
@@ -866,6 +874,14 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
         () => settingsConfig.notifications,
         (value) => {
           settingsConfig.notifications = value
+        },
+      ),
+      toggleRow(
+        "Compact bar indicator",
+        "Bar shows only the timer; pause/stop appear in the popup. Off: the bar shows the buttons and opens no popup.",
+        () => settingsConfig.bar_compact_controls,
+        (value) => {
+          settingsConfig.bar_compact_controls = value
         },
       ),
     ])

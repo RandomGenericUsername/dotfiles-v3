@@ -555,6 +555,11 @@ DEFAULT_CONFIG = {
     "recording_dir": "~/Videos/Recordings",
     "filename_pattern": DEFAULT_FILENAME_PATTERN,
     "notifications": True,
+    #: Bar recording feedback: True = the bar shows only the dot + elapsed time
+    #: and the popup carries pause/resume/stop; False (default) = the bar
+    #: carries the buttons itself and no popup opens. Consumed by the bar app,
+    #: which watches this file.
+    "bar_compact_controls": False,
     "screenshot": {"format": "png", "output": "clipboard", "cursor": False},
     "recording": {"fps": 60, "quality": "high", "audio": "system", "cursor": True},
 }
@@ -588,6 +593,7 @@ def _merge_config(raw):
         "recording_dir": DEFAULT_CONFIG["recording_dir"],
         "filename_pattern": DEFAULT_CONFIG["filename_pattern"],
         "notifications": DEFAULT_CONFIG["notifications"],
+        "bar_compact_controls": DEFAULT_CONFIG["bar_compact_controls"],
         "screenshot": dict(DEFAULT_CONFIG["screenshot"]),
         "recording": dict(DEFAULT_CONFIG["recording"]),
     }
@@ -602,6 +608,8 @@ def _merge_config(raw):
         config["filename_pattern"] = pattern
     if isinstance(raw.get("notifications"), bool):
         config["notifications"] = raw["notifications"]
+    if isinstance(raw.get("bar_compact_controls"), bool):
+        config["bar_compact_controls"] = raw["bar_compact_controls"]
     shot = raw.get("screenshot")
     if isinstance(shot, dict):
         if shot.get("format") in _SCREENSHOT_FORMATS:

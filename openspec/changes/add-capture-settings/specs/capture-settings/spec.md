@@ -6,7 +6,7 @@ A settings surface for the capture tool matching the approved mockup, backed by 
 
 ### Requirement: Settings view and navigation
 
-The capture window SHALL offer a settings view with General / Screenshot / Recording groups matching `spikes/capture-tool-ui/settings.html` (path rows, toggles, compact segmented pills), reachable via a footer entry point and exited via back affordance or `Escape` (which returns to the mode view, not out of the window).
+The capture window SHALL offer a settings view with General / Screenshot / Recording groups matching `spikes/capture-tool-ui/settings.html` (path rows, toggles, compact segmented pills), reachable via a footer entry point and exited via back affordance or `Escape` (which returns to the mode view, not out of the window). The General group SHALL include a `bar_compact_controls` toggle selecting the bar's recording feedback mode (see `recording-indicator`).
 
 #### Scenario: Round trip
 - **WHEN** the user opens settings, changes the screenshot folder, saves, and presses `Escape`
@@ -14,7 +14,7 @@ The capture window SHALL offer a settings view with General / Screenshot / Recor
 
 ### Requirement: Config file contract
 
-Settings SHALL persist to `$XDG_CONFIG_HOME/capture-tool/config.json` per the design schema; missing file, missing keys, and corrupt JSON SHALL all degrade to defaults without crashing, and directories SHALL be created on save.
+Settings SHALL persist to `$XDG_CONFIG_HOME/capture-tool/config.json` per the design schema; missing file, missing keys, and corrupt JSON SHALL all degrade to defaults without crashing, and directories SHALL be created on save. The schema includes `bar_compact_controls` (bool, default `false`), which the bar app reads directly — it is a separate AGS instance and watches the file so a change applies without a restart.
 
 #### Scenario: First run
 - **WHEN** no config file exists
@@ -31,6 +31,10 @@ Explicit CLI args SHALL beat config values; last-used UI state SHALL beat settin
 #### Scenario: Explicit output wins
 - **WHEN** `--output /tmp/x.png` is passed with a configured screenshot dir
 - **THEN** the file lands at `/tmp/x.png`
+
+#### Scenario: Changes apply without an explicit save
+- **WHEN** the user flips any settings toggle, pill, or path and then dismisses the window without pressing Back
+- **THEN** the change is already persisted (settings save on every change), so the next capture uses it
 
 #### Scenario: Notifications off is silent
 - **WHEN** the toggle is `false`
