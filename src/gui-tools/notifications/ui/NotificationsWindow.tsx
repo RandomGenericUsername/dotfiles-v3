@@ -116,7 +116,10 @@ function NotificationCard(
   tile.add_css_class("notif-tile")
   if (critical) tile.add_css_class("critical")
   tile.set_halign(Gtk.Align.CENTER)
-  tile.set_valign(Gtk.Align.START)
+  // Centre the 56px tile against the card's text block. START pinned it to the
+  // top of the card, so the icon looked misaligned whenever the body wrapped
+  // to more lines than the tile is tall.
+  tile.set_valign(Gtk.Align.CENTER)
   tile.append(tileContent(notification, critical))
 
   const title = new Gtk.Label({ label: notification.get_summary() ?? "" })

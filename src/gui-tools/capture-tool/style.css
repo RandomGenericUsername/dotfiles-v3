@@ -9,11 +9,13 @@
  * Selected = accent tint + accent border (approved design decision; departs
  * from the bar's @color_01 fill).
  *
- * NO literal colors here. The recording accent is the palette's own caution
- * slot (@color_03), matching the bar's pre-existing paused-dot/cluster-border
- * usage, so every surface follows the wallpaper like the rofi launcher's
- * generated colors.rasi does. The only remaining literal in the whole
- * capture stack is the pulsing record dot in the bar stylesheet.
+ * NO literal colors here. ONE accent drives both modes and both primary CTAs
+ * (@color_06) — Screenshot and Recording are told apart by their icon and the
+ * record dot, not by a second hue; the palette's caution slot (@color_03) is
+ * reserved for severity (the GIF notice, settings errors). So every surface
+ * follows the wallpaper like the rofi launcher's generated colors.rasi does.
+ * The only remaining literal in the whole capture stack is the pulsing record
+ * dot in the bar stylesheet.
  * ========================================================================== */
 
 window#capture-window {
@@ -62,10 +64,9 @@ window#capture-window {
   color: @color_foreground;
 }
 
-.mode-switch button.active.record {
-  background-color: alpha(@color_03, 0.16);
-  border-color: alpha(@color_03, 0.5);
-}
+/* Recording shares the SAME accent as Screenshot: the two modes are told
+   apart by their icon and the record dot, not by a second accent hue. The
+   record red lives only on the bar's pulsing dot. */
 
 /* ---------------------------------------------------------------- Layout */
 
@@ -184,10 +185,12 @@ window#capture-window {
   box-shadow: 0 8px 22px alpha(@color_06, 0.3);
 }
 
+/* Recording CTA uses the same accent as the screenshot CTA (see above). The
+   `.record` class is kept by the view for the record-dot glyph only. */
 .primary.record {
-  background-color: @color_03;
+  background-color: @color_06;
   color: @color_00;
-  box-shadow: 0 8px 22px alpha(@color_03, 0.32);
+  box-shadow: 0 8px 22px alpha(@color_06, 0.3);
 }
 
 /* Record "dot" glyph on the recording CTA (dark on the accent). */

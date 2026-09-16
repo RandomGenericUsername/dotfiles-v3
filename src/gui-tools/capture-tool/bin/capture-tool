@@ -274,7 +274,22 @@ def resolve_window_geometry():
 
 
 def screenshot(args):
-    if args.delay:
+    # Delay placement is target-aware, because "wait N seconds" means different
+    # things per target:
+    #   region — slurp FIRST, then delay. The user picks the rectangle and gets
+    #            the delay to arrange what happens INSIDE it. Sleeping before
+    #            slurp only postponed the selection prompt, which is why the
+    #            region flow felt broken (delay elapsed, prompt appeared, shot
+    #            fired instantly afterwards).
+    #   window — delay first, so the user can focus the intended window before
+    #            its geometry is read.
+    #   screen — delay first (nothing to select).
+    region_geometry = None
+    if args.target == "region":
+        region_geometry = resolve_target("region")
+        if args.delay:
+            time.sleep(args.delay)
+    elif args.delay:
         time.sleep(args.delay)
     config = load_config()
     explicit_cursor = getattr(args, "cursor", None)
@@ -297,7 +312,7 @@ def screenshot(args):
         # ``grim -c`` includes cursors (verified ``grim -h`` on-machine).
         command.append("-c")
     if args.target != "screen":
-        geometry = resolve_target(args.target)
+        geometry = region_geometry or resolve_target(args.target)
         if args.target == "region":
             width, height, x, y = re.fullmatch(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)", geometry).groups()
             geometry = f"{x},{y} {width}x{height}"

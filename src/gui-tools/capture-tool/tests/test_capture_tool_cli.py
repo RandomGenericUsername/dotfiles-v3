@@ -220,6 +220,52 @@ class TestCommandConstruction:
         assert "--audio=sink.monitor" in wf
 
 
+class TestScreenshotDelayOrder:
+    """The delay is placed per target: for region the user picks the rectangle
+    FIRST and then gets the delay to arrange what happens inside it. Sleeping
+    before slurp (the original behaviour) only postponed the selection prompt,
+    so the delay was useless in region mode."""
+
+    def _order(self, monkeypatch, *, target, delay, tmp_path):
+        order: list[str] = []
+        monkeypatch.setattr(
+            mod, "load_config", lambda: {"screenshot": {"cursor": False}}
+        )
+        monkeypatch.setattr(
+            mod,
+            "resolve_target",
+            lambda name: order.append(f"select:{name}") or "100x100+0+0",
+        )
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: order.append(f"delay:{seconds}"))
+        monkeypatch.setattr(
+            mod.subprocess,
+            "run",
+            lambda cmd, **kwargs: order.append(f"run:{cmd[0]}") or SimpleNamespace(returncode=0),
+        )
+        with pytest.raises(SystemExit):
+            mod.screenshot(
+                _args(
+                    target=target,
+                    delay=delay,
+                    format="png",
+                    output=str(tmp_path / "shot.png"),
+                )
+            )
+        return order
+
+    def test_region_selects_then_delays_then_captures(self, monkeypatch, tmp_path) -> None:
+        order = self._order(monkeypatch, target="region", delay=3, tmp_path=tmp_path)
+        assert order == ["select:region", "delay:3", "run:grim"]
+
+    def test_screen_delays_then_captures(self, monkeypatch, tmp_path) -> None:
+        order = self._order(monkeypatch, target="screen", delay=5, tmp_path=tmp_path)
+        assert order == ["delay:5", "run:grim"]
+
+    def test_no_delay_captures_immediately_after_selection(self, monkeypatch, tmp_path) -> None:
+        order = self._order(monkeypatch, target="region", delay=0, tmp_path=tmp_path)
+        assert order == ["select:region", "run:grim"]
+
+
 class _LauncherHarness:
     """Stub the launcher's environment: backend, target, runtime, Popen."""
 
