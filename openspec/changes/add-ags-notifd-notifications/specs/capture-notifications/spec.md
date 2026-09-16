@@ -40,7 +40,7 @@ A standalone AGS app SHALL serve `org.freedesktop.Notifications` and render inco
 
 The capture backend SHALL emit `Notify` requests for screenshot capture, recording completion, and categorized failures, with palette-resolved `current/icons/` icon paths, the specified actions, and urgency normal/critical respectively; the emitting side SHALL execute Copy/Open/Reveal/Details on `ActionInvoked`.
 
-Notification icons SHALL be palette-tinted per outcome (success copies render in the stack accent, failure in the caution slot) so the cards carry the wallpaper's colour, matching the tinted tile the overlay draws. File actions (Open / Copy again / Show in folder) SHALL be offered only for captures that produced a file: a clipboard capture keeps NO file (the UI's Clipboard/Save pill is the user's explicit choice) and therefore emits an action-less card. `Open` SHALL launch the file with the XDG opener.
+Notification icons SHALL be palette-tinted per outcome (success copies render in the stack accent, failure in the caution slot) so the cards carry the wallpaper's colour, matching the tinted tile the overlay draws. File actions (Open / Show in folder) SHALL be offered only for captures that produced a file: a clipboard capture keeps NO file (the UI's Clipboard/Save pill is the user's explicit choice) and therefore emits an action-less card. A saved screenshot offers `Open` only — it is already on disk, so re-copying is redundant. `Open` SHALL launch the file with the XDG opener.
 
 #### Scenario: Clipboard capture stays file-less
 - **WHEN** a screenshot is captured with the Clipboard output selected
@@ -48,7 +48,7 @@ Notification icons SHALL be palette-tinted per outcome (success copies render in
 
 #### Scenario: Saved capture offers file actions
 - **WHEN** a screenshot is captured with the Save output selected
-- **THEN** the file is written under the configured screenshots directory and the card offers Copy again / Open against that path
+- **THEN** the file is written under the configured screenshots directory and the card offers Open against that path
 
 #### Scenario: Recording success notifies
 - **WHEN** a recording finalizes

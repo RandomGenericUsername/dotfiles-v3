@@ -268,7 +268,7 @@ class TestScreenshotCursorAndPrecedence:
             mod.screenshot(_shot_args(save=False))
         # Clipboard means clipboard: grim streams to stdout ("-") and nothing is
         # written to the configured screenshots directory. Only the Save pill
-        # produces a file (and therefore a card with Open / Copy again).
+        # produces a file (and therefore a card with an Open action).
         assert harness.popen[0][-1] == "-"
         assert not any(str(tmp_path) in part for part in harness.popen[0])
         assert harness.payloads[0]["output_path"] == "clipboard"

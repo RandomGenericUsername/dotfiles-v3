@@ -514,7 +514,9 @@ NOTIFY_VARIANTS = {
 }
 #: Outcome kind -> [(action id, chip label)] (design.md §2).
 NOTIFY_ACTIONS = {
-    "screenshot": (("copy", "Copy again"), ("open", "Open")),
+    # Saved screenshots live on disk, so Open is the only useful action there —
+    # "Copy again" is redundant once there is a file to open.
+    "screenshot": (("open", "Open"),),
     "recording": (("open", "Open"), ("reveal", "Show in folder")),
     "failure": (("details", "Details"),),
 }
@@ -804,9 +806,10 @@ def notify_short_message(error_kind, message):
 def build_screenshot_request(path=None, clipboard=False):
     """Notify request for a finalized screenshot (design.md §2).
 
-    File actions (Open / Copy again) belong to SAVED captures only. A
-    clipboard capture deliberately keeps no file, so its card carries no
-    file actions — the Clipboard/Save pill in the UI is the user's choice.
+    File actions (Open, or Open / Show in folder for recordings) belong to
+    SAVED captures only. A clipboard capture deliberately keeps no file, so
+    its card carries no file actions — the Clipboard/Save pill in the UI is
+    the user's choice.
     """
     if clipboard or not path:
         return {

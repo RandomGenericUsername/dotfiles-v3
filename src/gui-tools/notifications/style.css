@@ -81,7 +81,7 @@ window#notifications-window {
   margin-top: 9px;
 }
 
-/* Action chips (Copy again / Open / Show in folder / Details) — tinted from
+/* Action chips (Open / Show in folder / Details) — tinted from
    the palette like the tile, so the affordances read as part of the card
    rather than as neutral buttons. */
 .notif-chip {

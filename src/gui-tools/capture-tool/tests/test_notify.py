@@ -194,13 +194,15 @@ class TestRequestBuilders:
         assert request["summary"] == "Screenshot captured"
         assert request["body"] == "/p/shot.png"
         assert request["icon_variant"] == "camera-accent"
-        assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
+        # Open only: a saved screenshot is on disk, so "Copy again" would be
+        # redundant (removed on request).
+        assert request["actions"] == (("open", "Open"),)
         assert request["urgency"] == "normal"
 
     def test_clipboard_screenshot_has_no_file_actions(self) -> None:
         # Clipboard/save is the user's explicit choice: a clipboard capture
-        # keeps no file, so it must not offer Open / Copy again even if a path
-        # is handed in.
+        # keeps no file, so it must not offer file actions even if a path is
+        # handed in.
         request = mod.build_screenshot_request(clipboard=True)
         assert request["body"] == "Copied to clipboard"
         assert request["actions"] == ()
@@ -240,8 +242,9 @@ class TestNotifierArgv:
         assert "-a" in argv and "capture-tool" in argv
         assert "-i" in argv and "/i/camera.svg" in argv
         assert "--wait" in argv
-        assert argv.count("--action") == 2
-        assert "copy,Copy again" in argv
+        assert argv.count("--action") == 1
+        assert "open,Open" in argv
+        assert "copy,Copy again" not in argv
         assert argv[-2:] == ["Screenshot captured", "/p/shot.png"]
 
     def test_normal_cards_expire_critical_stays_sticky(self) -> None:
@@ -497,7 +500,7 @@ class TestDetachedWiring:
         )
         assert args.func(args) is None
         request = seen[0][0]
-        assert request["actions"] == (("copy", "Copy again"), ("open", "Open"))
+        assert request["actions"] == (("open", "Open"),)
         assert request["body"] == "/p/shot.png"
 
     def test_notify_help_lists_kinds(self, capsys) -> None:
