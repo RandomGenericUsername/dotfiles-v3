@@ -409,7 +409,6 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
   let stdFpsRow: Gtk.Box | null = null
   let gifFpsRow: Gtk.Box | null = null
   let sizeRow: Gtk.Box | null = null
-  let gifNotice: Gtk.Box | null = null
   let recFooterStd: Gtk.Box | null = null
   let recFooterGif: Gtk.Box | null = null
 
@@ -472,7 +471,6 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
     if (stdFpsRow) stdFpsRow.visible = !gif
     if (gifFpsRow) gifFpsRow.visible = gif
     if (sizeRow) sizeRow.visible = gif
-    if (gifNotice) gifNotice.visible = gif
     if (recFooterStd) recFooterStd.visible = !gif
     if (recFooterGif) recFooterGif.visible = gif
   }
@@ -1686,27 +1684,6 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
                   }}
                 />
               </box>
-            </box>
-
-            <box
-              visible={false}
-              class="notice"
-              spacing={9}
-              $={(self) => {
-                gifNotice = self
-              }}
-            >
-              <box valign={Gtk.Align.START} $={withIcon("info", 15)}>
-                <label label="" />
-              </box>
-              <label
-                class="notice-text"
-                label="GIF has no audio track, so audio options are hidden. Keep GIFs short — files grow quickly."
-                wrap
-                hexpand
-                halign={Gtk.Align.START}
-                valign={Gtk.Align.CENTER}
-              />
             </box>
 
             <button class="primary record" onClicked={startRecording}>

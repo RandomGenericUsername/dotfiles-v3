@@ -12,7 +12,7 @@
  * NO literal colors here. ONE accent drives both modes and both primary CTAs
  * (@color_06) — Screenshot and Recording are told apart by their icon and the
  * record dot, not by a second hue; the palette's caution slot (@color_03) is
- * reserved for severity (the GIF notice, settings errors). So every surface
+ * reserved for severity (settings errors). So every surface
  * follows the wallpaper like the rofi launcher's generated colors.rasi does.
  * The only remaining literal in the whole capture stack is the pulsing record
  * dot in the bar stylesheet.
@@ -155,20 +155,6 @@ window#capture-window {
   color: @color_foreground;
   padding-left: 8px;
   padding-right: 8px;
-}
-
-/* ------------------------------------------------------------ GIF notice */
-
-.notice {
-  padding: 10px 12px;
-  border-radius: 10px;
-  background-color: alpha(@color_03, 0.1);
-  border: 1px solid alpha(@color_03, 0.3);
-}
-
-.notice-text {
-  font-size: 11px;
-  color: alpha(@color_foreground, 0.62);
 }
 
 /* ----------------------------------------------------------- Primary CTA */

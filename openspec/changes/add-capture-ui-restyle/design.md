@@ -64,8 +64,9 @@ setting rows: label-left micro-cap + segmented pills right
     screenshot: delay(None/3s/5s/10s) · format(PNG/JPEG) · output(clipboard/save, icons)
     recording:  fps(24/30/60) · format(MP4/WebM/GIF) · audio(speaker/mic/none, icons) ·
                 quality(low/medium/high) · duration(∞/10s/30s/60s/custom)
-GIF mode: audio row removed; fps → (10/15/20/30); + size row (original/75%/50%);
-          + amber notice ("GIF has no audio track…"). Rows keep their SLOTS —
+GIF mode: audio row removed; fps → (10/15/20/30); + size row (original/75%/50%)
+          in the audio slot; no explanatory notice (removed on review).
+          Rows keep their SLOTS —
           frame rate stays above format and the size row takes the audio row's
           place, so switching format never reshuffles the form. (Deliberate
           departure from recording-gif.html, which shows format first: review

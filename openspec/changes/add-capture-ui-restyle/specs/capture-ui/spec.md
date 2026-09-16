@@ -30,11 +30,11 @@ Each setting SHALL render as a micro-cap label on the left and an equal-width se
 
 ### Requirement: GIF special mode
 
-Selecting GIF SHALL remove the Audio row, narrow Frame rate to (10/15/20/30), add a Size row (Original/75%/50%), and show the amber `info` notice explaining that GIF has no audio track. Deselecting GIF SHALL restore the standard rows.
+Selecting GIF SHALL remove the Audio row, narrow Frame rate to (10/15/20/30), and add a Size row (Original/75%/50%) in the slot Audio vacated. Rows SHALL keep their positions across the switch — Frame rate stays above Format. Deselecting GIF SHALL restore the standard rows. No explanatory notice is rendered (review feedback: the row changes are self-evident).
 
 #### Scenario: GIF reshapes the view
 - **WHEN** the user selects the GIF format pill
-- **THEN** the layout matches `spikes/capture-tool-ui/recording-gif.html` exactly (no audio row, new fps/size rows, notice visible)
+- **THEN** the audio row is gone, the fps row is narrowed, Size occupies the audio slot, and Format has not moved
 
 ### Requirement: Primary action and keyboard contract
 
