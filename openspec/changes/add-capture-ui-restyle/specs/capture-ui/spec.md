@@ -55,10 +55,14 @@ during the switch:
   main-axis alignment — measured: panel allocated 950 while its content was 590
   — so the panel is placed as a CenterBox centre widget), so any size lag paints
   nothing instead of the panel background;
-- the window SHALL declare its own layer namespace (`capture`) and the compositor
-  config SHALL carry a matching `layer_rule { no_anim = true }`: Hyprland's
-  `layers` animation eases layer-surface resizes (~230ms measured from a 60fps
-  recording), which read as the panel trailing a rectangle while it shrank.
+- the compositor config SHALL disable Hyprland's `layers` geometry animation
+  (`hl.animation { leaf = "layers", enabled = false }`): it eases a layer-surface
+  resize by STRETCHING the buffer (~230ms measured from a 60fps recording), which
+  renders a rounded panel as a squared one for the duration. Disabling the leaf
+  rather than a scoped `layer_rule { no_anim = true }` is deliberate — the rule
+  also killed the window's open/close fade, whereas the leaf disable keeps
+  `layersIn`/`layersOut` (open still fades over ~230ms, measured). The window
+  keeps `namespace = "capture"` so it stays individually targetable.
 
 #### Scenario: Returning to a shorter view re-centres the panel
 - **WHEN** the user goes Recording (taller) and back to Screenshot (shorter)

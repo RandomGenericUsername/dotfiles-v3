@@ -31,15 +31,7 @@ hl.window_rule({
     center = true,
 })
 
--- Capture tool's window is a layer-shell OVERLAY that RESIZES whenever the user
--- switches views (screenshot / recording / settings), so its height changes.
--- Hyprland animates layer-surface resizes through the `layers` animation, which
--- eased the surface between sizes for ~230ms — measured from a screen recording
--- at 60fps — and read as the panel trailing a rectangle as it shrank. The
--- window declares `namespace = "capture"` (Astal Window) so this rule targets
--- only it, leaving the bar and the notification overlay animated as before.
-hl.layer_rule({
-    name  = "capture-no-resize-anim",
-    match = { namespace = "capture" },
-    no_anim = true,
-})
+-- The capture window's layer geometry animation is disabled globally in
+-- animations.lua (leaf `layers`), deliberately NOT here: a scoped `no_anim`
+-- rule also killed the window's open/close fade, whereas the leaf-level disable
+-- keeps layersIn/layersOut and still removes the stretched, square resize.
