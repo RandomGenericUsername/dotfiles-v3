@@ -686,6 +686,21 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
     return box
   }
 
+  /** Persist settings immediately after every change.
+   *
+   * They used to save only through closeSettings (the Back button / Enter), so
+   * toggling something and then dismissing the window — pressing the keybind
+   * again, switching apps — silently discarded the change. That read as "the
+   * cursor toggle does nothing": the screenshot kept using the old value.
+   */
+  function persistSettings(): void {
+    const error = saveSettings(settingsConfig)
+    if (settingsError) {
+      settingsError.set_label(error ?? "")
+      settingsError.visible = error !== null
+    }
+  }
+
   function pathRow(
     name: string,
     desc: string,
@@ -706,6 +721,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
       entry.set_visible(false)
       chip.set_visible(true)
       pathEditor = null
+      persistSettings()
     }
     const cancel = () => {
       entry.set_text(getValue())
@@ -748,6 +764,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
     control.set_valign(Gtk.Align.CENTER)
     control.connect("state-set", (_self, state: boolean) => {
       setValue(state)
+      persistSettings()
       return false // let the switch animate to the new state
     })
     return settingsItem(name, desc, control)
@@ -769,6 +786,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
       if (option.value === getValue()) button.add_css_class("selected")
       button.connect("clicked", () => {
         setValue(option.value)
+        persistSettings()
         for (const item of buttons) {
           if (item.value === option.value) item.button.add_css_class("selected")
           else item.button.remove_css_class("selected")
