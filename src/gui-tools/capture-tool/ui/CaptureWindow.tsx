@@ -391,9 +391,35 @@ const GIF_SIZE_ARG: Record<GifScale, string> = {
   "50%": "50",
 }
 
+const WINDOW_NAME = "capture-window"
+
 function hideCaptureWindow() {
-  const window = app.get_window("capture-window")
+  const window = app.get_window(WINDOW_NAME)
   if (window) window.visible = false
+}
+
+/**
+ * Re-assert the layer surface size after a view switch.
+ *
+ * GTK does not shrink a layer-shell surface when its content gets shorter:
+ * measured live, the surface stayed 718px tall after returning to the 590px
+ * screenshot view, so the panel ended up glued to the top of a too-tall
+ * transparent window. Measuring the panel and pushing an explicit size makes
+ * the surface resize, and the compositor re-centres it on resize (verified).
+ *
+ * Runs on an idle callback so the newly shown/hidden rows have been laid out
+ * before the measurement.
+ */
+function syncWindowSize() {
+  GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+    const window = app.get_window(WINDOW_NAME)
+    const panel = window?.get_child()
+    if (!window || !panel) return false
+    const [, width] = panel.measure(Gtk.Orientation.HORIZONTAL, -1)
+    const [, height] = panel.measure(Gtk.Orientation.VERTICAL, width)
+    window.set_default_size(width, height)
+    return false
+  })
 }
 
 export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
@@ -473,6 +499,8 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
     if (sizeRow) sizeRow.visible = gif
     if (recFooterStd) recFooterStd.visible = !gif
     if (recFooterGif) recFooterGif.visible = gif
+    // Swapping audio for size changes the height, so the surface must follow.
+    syncWindowSize()
   }
 
   function durationSelection(): number {
@@ -508,6 +536,8 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
         recordingTab.add_css_class("record")
       }
     }
+    // Views differ in height; the surface must shrink as well as grow.
+    syncWindowSize()
   }
 
   function takeScreenshot() {
@@ -931,6 +961,8 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
     if (recordingView) recordingView.visible = false
     if (settingsView) settingsView.visible = true
     renderSettings()
+    // Settings is the tallest view; the surface must grow to fit it.
+    syncWindowSize()
   }
 
   function closeSettings() {

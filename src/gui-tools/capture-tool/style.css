@@ -18,12 +18,16 @@
  * dot in the bar stylesheet.
  * ========================================================================== */
 
+/* The WINDOW stays fully transparent and paints nothing: it is a layer-shell
+   surface, so it can be presented for a frame before the child has laid out.
+   When the window itself carried the panel chrome, that first frame showed the
+   background as an unclipped RECTANGLE (the rounded corners only arrive once
+   the child is drawn) — visible as a coloured rectangle during the surface's
+   show/resize transition. Painting the chrome on the child means there is
+   simply nothing to flash. */
 window#capture-window {
-  background-color: alpha(@color_00, 0.92);
+  background-color: transparent;
   color: @color_foreground;
-  border: 1px solid alpha(@color_foreground, 0.12);
-  border-radius: 18px;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 
 /* ------------------------------------------------------------------ Panel */
@@ -31,6 +35,10 @@ window#capture-window {
 .capture-panel {
   min-width: 560px;
   padding: 22px;
+  background-color: alpha(@color_00, 0.92);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
 }
 
 /* --------------------------------------------------------- Mode switcher */
@@ -327,27 +335,33 @@ window#capture-window {
   box-shadow: none;
 }
 
+/* Switch: OFF is a neutral track with a light knob; ON is a solid accent
+   track with a dark knob, so the two states differ in both colour AND knob
+   position (the old pair used two alpha tints of the accent that read almost
+   identically on dark palettes). */
 .toggle {
-  min-width: 40px;
-  min-height: 23px;
+  min-width: 44px;
+  min-height: 24px;
   border-radius: 999px;
-  padding: 2px;
-  background-color: alpha(@color_foreground, 0.1);
-  border: 1px solid alpha(@color_foreground, 0.22);
+  padding: 3px;
+  background-color: alpha(@color_foreground, 0.14);
+  border: 1px solid alpha(@color_foreground, 0.3);
 }
 
 .toggle.on {
-  background-color: alpha(@color_06, 0.35);
+  background-color: @color_06;
   border-color: @color_06;
 }
 
 .toggle-knob {
-  min-width: 17px;
-  min-height: 17px;
+  min-width: 16px;
+  min-height: 16px;
   border-radius: 999px;
-  background-color: alpha(@color_foreground, 0.62);
+  background-color: alpha(@color_foreground, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
 .toggle.on .toggle-knob {
-  background-color: @color_06;
+  background-color: @color_00;
+  box-shadow: none;
 }

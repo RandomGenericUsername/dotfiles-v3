@@ -36,6 +36,24 @@ Selecting GIF SHALL remove the Audio row, narrow Frame rate to (10/15/20/30), an
 - **WHEN** the user selects the GIF format pill
 - **THEN** the audio row is gone, the fps row is narrowed, Size occupies the audio slot, and Format has not moved
 
+### Requirement: Surface follows the view size
+
+The window SHALL resize its layer surface when the visible view's height changes
+(mode switch, settings, GIF row swap), and SHALL shrink as well as grow.
+GTK does not shrink a layer-shell surface on its own — measured live, the
+surface stayed 718px tall after returning to the 590px screenshot view, leaving
+the panel pinned near the top of a too-tall transparent window — so the panel is
+measured and an explicit size pushed after each switch, which also re-centres it
+on the compositor side.
+
+#### Scenario: Returning to a shorter view re-centres the panel
+- **WHEN** the user goes Recording (taller) and back to Screenshot (shorter)
+- **THEN** the surface shrinks to the screenshot view's height and the panel is centred again
+
+#### Scenario: Settings grows the surface
+- **WHEN** the settings view (the tallest) opens
+- **THEN** the surface grows to fit it and stays centred
+
 ### Requirement: Primary action and keyboard contract
 
 Each view SHALL end in one full-width primary button (accent-tinted camera + "Take Screenshot"; record-tinted dot + "Start Recording"). `Escape` SHALL hide the window (cancel); `Enter` SHALL trigger the primary action.
