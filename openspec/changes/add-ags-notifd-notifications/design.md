@@ -19,7 +19,7 @@ Requests go through `org.freedesktop.Notifications.Notify` with:
 - `actions`: `[["copy","Copy again"],["open","Open"]]` (screenshot), `[["open","Open"],["reveal","Show in folder"]]` (recording), `[["details","Details"]]` (failure).
 - `urgency`: 1 (normal) for success, 2 (critical) for failure.
 - The emitting side listens for `ActionInvoked` and executes: `copy` → `wl-copy < file`, `open` → `xdg-open`, `reveal` → open the containing folder, `details` → re-emit/append the full error text the daemon log holds (agent's choice of presentation, must not dump tracebacks into the card).
-- Emitting primitive is the agent's choice among what's on the machine (`gdbus`, `dunstify -A … --wait`, a minimal Python D-Bus snippet in the backend); hard requirement is the `Notify`+`ActionInvoked` round-trip above, with a no-actions plain-notify fallback if the round-trip proves unworkable — reported explicitly, not silently degraded.
+- Emitting primitive: the helper posts `Notify` directly over Gio (PyGObject) and subscribes to `ActionInvoked` / `NotificationClosed`, executing the invoked action itself. `dunstify --wait` is NOT usable for the round trip: our daemon emits `NotificationClosed` immediately before `ActionInvoked`, so dunstify prints the numeric close reason (`2`) and exits and the action id never reaches the emitter (verified on the session bus). The plain, action-less paths still prefer `notify-send`, falling back to `dunstify` without `--wait`; when Gio/the bus is unavailable the action card degrades to a plain toast rather than vanishing.
 
 ## 3. Daemon swap
 

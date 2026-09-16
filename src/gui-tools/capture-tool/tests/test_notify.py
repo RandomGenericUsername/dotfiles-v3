@@ -271,31 +271,47 @@ class _FakeRun:
 
 
 class TestEmitNotification:
-    def test_action_round_trip_executes(
+    def test_actions_route_through_the_dbus_listener(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        run = _FakeRun(stdout="open\n")
-        monkeypatch.setattr(mod, "which", lambda _name: "/usr/bin/dunstify")
-        monkeypatch.setattr(mod.subprocess, "run", run)
-        handled: list[tuple] = []
+        """Action cards must NOT depend on dunstify's stdout: our daemon emits
+        NotificationClosed before ActionInvoked, so dunstify prints a close
+        reason ("2") and the action id never arrives (verified on the bus)."""
+        seen: list[tuple] = []
         monkeypatch.setattr(
-            mod, "handle_notify_action", lambda *args: handled.append(args) or "open"
+            mod,
+            "_notify_with_actions",
+            lambda request, icon, context: seen.append((request, icon, context))
+            or "action:open",
         )
         monkeypatch.setattr(mod, "resolve_notify_icon", lambda _v: None)
         request = mod.build_screenshot_request(path="/p/shot.png")
         assert mod.emit_notification(request, {"path": "/p/shot.png"}) == "action:open"
-        assert handled and handled[0][0] == "open"
+        assert seen and seen[0][0] is request
 
-    def test_expired_close_reports_closed(
+    def test_action_path_failure_falls_back_to_plain_toast(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # dunstify --wait prints the numeric close reason (1 = expired).
-        run = _FakeRun(stdout="1\n")
-        monkeypatch.setattr(mod, "which", lambda _name: "/usr/bin/dunstify")
+        """No bus/gi: the toast still shows (actions degraded), never dropped."""
+        monkeypatch.setattr(mod, "_notify_with_actions", lambda *a: None)
+        run = _FakeRun()
+        monkeypatch.setattr(
+            mod,
+            "which",
+            lambda name: "/usr/bin/dunstify" if name == "dunstify" else None,
+        )
         monkeypatch.setattr(mod.subprocess, "run", run)
         monkeypatch.setattr(mod, "resolve_notify_icon", lambda _v: None)
         request = mod.build_screenshot_request(path="/p/shot.png")
-        assert mod.emit_notification(request, {"path": "/p"}) == "closed"
+        assert mod.emit_notification(request, {"path": "/p"}) == "sent"
+        assert run.argv and run.argv[0][0] == "dunstify"
+
+    def test_dbus_listener_unavailable_without_gi(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(mod, "_load_gio", lambda: None)
+        request = mod.build_screenshot_request(path="/p/shot.png")
+        assert mod._notify_with_actions(request, None, {"path": "/p"}) is None
 
     def test_no_actions_takes_plain_path(
         self, monkeypatch: pytest.MonkeyPatch
@@ -313,9 +329,11 @@ class TestEmitNotification:
     def test_no_notifier_reports_unsupported(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        # Action-less: the plain path is the only one that can report
+        # "unsupported" (an action card falls back to the bus listener first).
         monkeypatch.setattr(mod, "which", lambda _name: None)
         monkeypatch.setattr(mod, "resolve_notify_icon", lambda _v: None)
-        request = mod.build_screenshot_request(path="/p")
+        request = mod.build_screenshot_request(clipboard=True)
         assert mod.emit_notification(request, {}) == "unsupported"
 
     def test_os_error_reports_failed(
@@ -324,10 +342,11 @@ class TestEmitNotification:
         def _boom(argv, **kwargs):
             raise OSError("no bus")
 
-        monkeypatch.setattr(mod, "which", lambda _name: "/usr/bin/dunstify")
+        # Action-less request: exercises the plain-toast error path.
+        monkeypatch.setattr(mod, "which", lambda _name: "/usr/bin/notify-send")
         monkeypatch.setattr(mod.subprocess, "run", _boom)
         monkeypatch.setattr(mod, "resolve_notify_icon", lambda _v: None)
-        request = mod.build_screenshot_request(path="/p")
+        request = mod.build_screenshot_request(clipboard=True)
         assert mod.emit_notification(request, {}) == "failed"
 
 

@@ -62,6 +62,14 @@ Notification icons SHALL be palette-tinted per outcome (success copies render in
 - **WHEN** the user invokes the Open action on a recording-saved card
 - **THEN** the file opens in the default application
 
+#### Scenario: Action delivery does not depend on the notifier CLI
+- **WHEN** any action chip is invoked
+- **THEN** the emitting helper receives `ActionInvoked` over the session bus and executes it — the round trip never relies on a CLI printing the action id to stdout
+
+#### Scenario: Stale-chip race avoided
+- **WHEN** the overlay invokes an action
+- **THEN** it does not clear the card in the same tick (the daemon emits `NotificationClosed` before `ActionInvoked`), so the action is always delivered
+
 ### Requirement: Daemon swap
 
 Autostart SHALL launch the notifd AGS instance instead of `dunst` (same stagger/log discipline as the other AGS instances); provisioning SHALL deploy the app sources and symlinks; `verify` SHALL expect them.

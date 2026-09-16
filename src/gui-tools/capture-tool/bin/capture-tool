@@ -956,30 +956,149 @@ def handle_notify_action(action_id, request, context):
     return None
 
 
-def emit_notification(request, context=None):
-    """Emit one request via dunstify --wait and execute the invoked action.
+def _load_gio():
+    """Return ``(Gio, GLib)``, or None when PyGObject is unavailable.
 
-    Returns ``"sent"`` (fallback/no-action path), ``"action:<id>"``,
-    ``"closed"`` (expired/dismissed), ``"unsupported"`` (no notifier), or
+    Loaded lazily so the import-free paths (and the module's import in tests)
+    never require a GTK stack.
+    """
+    try:
+        import gi
+
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio, GLib
+
+        return Gio, GLib
+    except (ImportError, ValueError):
+        return None
+
+
+def _urgency_byte(urgency):
+    """Notification urgency hint (byte): 2 = critical, 1 = normal."""
+    return 2 if urgency == "critical" else 1
+
+
+def _notify_with_actions(request, icon, context):
+    """Post the notification ourselves and listen for ``ActionInvoked``.
+
+    ``dunstify --wait`` cannot drive this: our daemon emits
+    ``NotificationClosed`` immediately before ``ActionInvoked`` (verified on the
+    bus), and dunstify then prints the numeric close reason (``2``) and exits —
+    the action id never reaches us, so every Open/Copy chip was a no-op. We call
+    ``Notify`` over Gio and subscribe to the signals, which is daemon-agnostic.
+
+    Returns ``"action:<id>"``, ``"closed"``, or None when the bus/gi path is
+    unavailable (caller falls back to a plain toast).
+    """
+    loaded = _load_gio()
+    if loaded is None:
+        return None
+    Gio, GLib = loaded
+
+    actions_flat: list[str] = []
+    for action_id, label in request["actions"]:
+        actions_flat += [action_id, label]
+    hints = {"urgency": GLib.Variant("y", _urgency_byte(request["urgency"]))}
+    # Critical cards are sticky (0 = never expire); normal cards expire.
+    expire_ms = 0 if request["urgency"] == "critical" else NOTIFY_TIMEOUT_MS
+
+    invoked: list[str] = []
+    loop = GLib.MainLoop()
+    bus = None
+    subscription = None
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        reply = bus.call_sync(
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+            "Notify",
+            GLib.Variant(
+                "(susssasa{sv}i)",
+                (
+                    request["app_name"],
+                    0,  # replaces_id
+                    icon or "",
+                    request["summary"],
+                    request["body"],
+                    actions_flat,
+                    hints,
+                    expire_ms,
+                ),
+            ),
+            GLib.VariantType.new("(u)"),
+            Gio.DBusCallFlags.NONE,
+            5000,
+            None,
+        )
+        (notification_id,) = reply.unpack()
+
+        def on_signal(_conn, _sender, _path, _iface, signal, params):
+            if signal == "ActionInvoked":
+                nid, key = params.unpack()
+                if nid == notification_id:
+                    invoked.append(key)
+                    loop.quit()
+            elif signal == "NotificationClosed":
+                (nid, _reason) = params.unpack()
+                if nid == notification_id:
+                    # Closed precedes ActionInvoked for an invoked action, so
+                    # give the action signal a short grace period to land before
+                    # treating this as a plain dismissal.
+                    GLib.timeout_add(300, _quit_loop, loop)
+
+        subscription = bus.signal_subscribe(
+            "org.freedesktop.Notifications",
+            "org.freedesktop.Notifications",
+            None,
+            "/org/freedesktop/Notifications",
+            None,
+            Gio.DBusSignalFlags.NONE,
+            on_signal,
+        )
+        # Hard cap so a sticky critical card can never leak a helper process.
+        GLib.timeout_add_seconds(NOTIFY_WAIT_CAP_S, _quit_loop, loop)
+        loop.run()
+    except (GLib.Error, OSError, ValueError, TypeError) as error:
+        # TypeError: defensive — PyGObject's GLib signatures differ from GJS's
+        # (timeout_add takes (interval, callback)), and a bad call must never
+        # take the toast down with it.
+        logger.warning("notify: %s", error)
+        return None
+    finally:
+        if bus is not None and subscription is not None:
+            try:
+                bus.signal_unsubscribe(subscription)
+            except Exception:  # noqa: BLE001 — teardown must never raise
+                pass
+
+    if invoked:
+        handle_notify_action(invoked[0], request, context)
+        return f"action:{invoked[0]}"
+    return "closed"
+
+
+def _quit_loop(loop):
+    """GLib timeout callback: stop the helper's main loop."""
+    loop.quit()
+    return False
+
+
+def emit_notification(request, context=None):
+    """Emit one request and execute the invoked action.
+
+    Returns ``"sent"``, ``"action:<id>"``, ``"closed"``, ``"unsupported"``, or
     ``"failed"``. Never raises.
     """
     context = context or {}
+    icon = resolve_notify_icon(request["icon_variant"])
+    if request["actions"]:
+        outcome = _notify_with_actions(request, icon, context)
+        if outcome is not None:
+            return outcome
+        # Bus/gi unavailable: still show the toast (without working actions)
+        # rather than dropping it — the degraded path, never silent.
     try:
-        icon = resolve_notify_icon(request["icon_variant"])
-        if which("dunstify") is not None and request["actions"]:
-            result = subprocess.run(
-                _dunstify_argv(request, icon=icon, wait=True),
-                capture_output=True,
-                text=True,
-                timeout=NOTIFY_WAIT_CAP_S,
-                check=False,
-            )
-            action_id = (result.stdout or "").strip()
-            known = {action_id for action_id, _ in request["actions"]}
-            if action_id in known:
-                handle_notify_action(action_id, request, context)
-                return f"action:{action_id}"
-            return "closed"
         if which("notify-send") is not None or which("dunstify") is not None:
             plain = (
                 _notify_send_argv(request, icon=icon)

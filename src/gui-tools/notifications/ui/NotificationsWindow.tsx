@@ -161,16 +161,23 @@ function NotificationCard(
       chip.add_css_class("notif-chip")
       const current = action
       chip.connect("clicked", () => {
-        // Route the invocation back to the emitting client (the
-        // capture backend's `dunstify --wait` resolves the matching
-        // ActionInvoked and executes copy/open/reveal/details), then
-        // clear the card locally.
+        // Route the invocation back to the emitting client (the capture
+        // backend listens on D-Bus for ActionInvoked and executes
+        // copy/open/reveal/details). Do NOT dismiss in the same tick: our
+        // daemon emits NotificationClosed BEFORE ActionInvoked, and clearing
+        // the card immediately raced the action delivery. The daemon closes
+        // the notification for these actions, which removes the card through
+        // `resolved`; the timeout is only a fallback for a daemon that keeps
+        // it open.
         try {
           current.invoke()
         } catch (error) {
           console.error(`notifications: action invoke failed: ${error}`)
         }
-        onDismiss()
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+          onDismiss()
+          return GLib.SOURCE_REMOVE
+        })
       })
       actions.append(chip)
     }
