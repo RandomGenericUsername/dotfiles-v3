@@ -264,3 +264,436 @@ window#bar label {
   background-color: @color_01;
   color: @color_background;
 }
+
+/* ── Settings panel ─────────────────────────────────────────────────────
+   Second window in the always-on bar instance. Surface-panel = alpha(@color_00,
+   .94) + 1.5px @color_04 + radius 12; cards = alpha(@color_01,.18) + hairline.
+   Capability glyphs render bare; ITR bakes their tint into separate variants
+   so on = @color_13 (accent) and off = @color_11 (muted). Selected row =
+   @color_10 fill with FOREGROUND text (background-on-@color10 fails contrast).
+   Slider track =
+   alpha(@color_foreground,.16), fill @color_13, thumb @color_15. colors.css
+   tokens only; no literal colors. */
+
+window.settings-catcher,
+window.settings-panel {
+  background-color: transparent;
+  color: @color_foreground;
+}
+
+.settings-catcher-fill {
+  background-color: transparent;
+}
+
+.settings-surface {
+  background-color: alpha(@color_00, 0.94);
+  border: 1.5px solid @color_04;
+  border-radius: 12px;
+  padding: 11px;
+}
+
+.settings-scroll,
+.settings-scroll viewport {
+  background-color: transparent;
+  border: none;
+}
+
+.settings-scroll scrollbar slider {
+  min-width: 5px;
+  border-radius: 5px;
+  background-color: alpha(@color_foreground, 0.25);
+}
+
+/* Cards */
+.settings-card {
+  background-color: alpha(@color_01, 0.18);
+  border: 1px solid alpha(@color_foreground, 0.10);
+  border-radius: 9px;
+  padding: 10px 11px;
+}
+
+.settings-card-title {
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+/* Capability tile — icon is the toggle, row/chevron opens the list */
+.settings-tile {
+  background-color: alpha(@color_01, 0.18);
+  border: 1px solid alpha(@color_foreground, 0.10);
+  border-radius: 9px;
+  padding: 8px 11px 8px 10px;
+}
+
+.settings-tile-main {
+  min-height: 0;
+  padding: 0;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  color: @color_foreground;
+}
+
+.settings-tile-main:hover,
+.settings-tile-main:active,
+.settings-tile-main:focus {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+.settings-tile-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-tile-sub {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.62);
+}
+
+.settings-chevron {
+  font-size: 16px;
+  color: alpha(@color_foreground, 0.5);
+}
+
+/* Icon toggle — the glyph IS the power switch. It renders bare: the on/off
+   tint is baked by ITR into two variants (`wifi`/`bluetooth` = accent,
+   `-off` = muted), so there is no background, border, or -gtk-icon-filter
+   container here. */
+.settings-icon-toggle {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+.settings-icon-toggle:hover,
+.settings-icon-toggle:active,
+.settings-icon-toggle:focus {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Capability glyph (main-view Wi-Fi / Bluetooth tiles) */
+.settings-toggle-glyph {
+  min-width: 28px;
+  min-height: 28px;
+}
+
+/* Off state reads by BRIGHTNESS, not hue: palette tokens can be near-identical
+   (e.g. color11 and color13 both yellow), so the pipeline renders the off
+   variant in the neutral foreground and this dims it — the GUI family's
+   disabled treatment. */
+.settings-icon-toggle.off .settings-toggle-glyph {
+  opacity: 0.4;
+}
+
+/* Subview header toggle glyph — a touch smaller than the tiles */
+.settings-nav-header .settings-toggle-glyph {
+  min-width: 22px;
+  min-height: 22px;
+}
+
+/* Mini action tile (Hyprmod) */
+.settings-mini {
+  min-height: 0;
+  padding: 10px;
+  background-color: alpha(@color_01, 0.18);
+  background-image: none;
+  border: 1px solid alpha(@color_foreground, 0.10);
+  border-radius: 9px;
+  color: @color_foreground;
+  box-shadow: none;
+}
+
+.settings-mini:hover {
+  border-color: @color_04;
+}
+
+/* Hyprmod glyph — bare, no icon box */
+.settings-mini-icon {
+  min-width: 28px;
+  min-height: 28px;
+}
+
+.settings-mini-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Nav header (subviews) */
+.settings-nav-header {
+  min-height: 26px;
+}
+
+.settings-back {
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+  border-radius: 8px;
+  background-color: alpha(@color_foreground, 0.12);
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  color: @color_foreground;
+}
+
+.settings-back:hover {
+  background-color: alpha(@color_foreground, 0.2);
+}
+
+.settings-back-glyph {
+  font-size: 18px;
+}
+
+.settings-nav-title {
+  font-size: 13.5px;
+  font-weight: 650;
+}
+
+/* Slider (Gtk.Scale) */
+.settings-slider {
+  min-height: 20px;
+}
+
+.settings-slider-glyph {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+.settings-slider-glyph:hover {
+  background-color: alpha(@color_foreground, 0.1);
+  border-radius: 6px;
+}
+
+.settings-slider-icon {
+  opacity: 0.85;
+}
+
+.settings-level-slider trough {
+  min-height: 10px;
+  min-width: 10px;
+  border-radius: 99px;
+  background-color: alpha(@color_foreground, 0.16);
+  border: none;
+}
+
+.settings-level-slider trough highlight {
+  border-radius: 99px;
+  background-color: @color_13;
+}
+
+.settings-level-slider trough slider {
+  min-width: 15px;
+  min-height: 15px;
+  margin: -3px 0;
+  border: none;
+  border-radius: 50%;
+  background-color: @color_15;
+  box-shadow: none;
+}
+
+.settings-level-slider value {
+  color: transparent;
+}
+
+/* Wi-Fi / Bluetooth rows */
+.settings-net {
+  min-height: 0;
+  padding: 8px 9px;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  border-radius: 7px;
+  box-shadow: none;
+  color: @color_foreground;
+}
+
+.settings-net:hover {
+  background-color: alpha(@color_foreground, 0.08);
+}
+
+.settings-net.sel {
+  background-color: @color_10;
+  color: @color_foreground;
+}
+
+.settings-net-name {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.settings-net-sub {
+  font-size: 10.5px;
+  color: alpha(@color_foreground, 0.62);
+}
+
+.settings-net.sel .settings-net-sub {
+  color: alpha(@color_foreground, 0.85);
+}
+
+.settings-badge {
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 20px;
+  background-color: alpha(@color_foreground, 0.12);
+  border: 1px solid alpha(@color_foreground, 0.14);
+}
+
+.settings-badge.conn {
+  background-color: alpha(@color_13, 0.18);
+  border: 1px solid alpha(@color_13, 0.45);
+  color: @color_foreground;
+}
+
+.settings-rowact {
+  min-height: 0;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid alpha(@color_foreground, 0.26);
+  border-radius: 7px;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: @color_foreground;
+}
+
+.settings-rowact:hover {
+  border-color: @color_10;
+}
+
+/* Signal strength bars */
+.settings-signal {
+  min-height: 12px;
+}
+
+.settings-signal-bar {
+  min-width: 3px;
+  min-height: 5px;
+  border-radius: 1px;
+  background-color: alpha(@color_foreground, 0.28);
+}
+
+.settings-signal-bar.on {
+  background-color: @color_foreground;
+}
+
+.settings-signal-bar:nth-child(2) {
+  min-height: 8px;
+}
+
+.settings-signal-bar:nth-child(3) {
+  min-height: 11px;
+}
+
+.settings-signal-bar:nth-child(4) {
+  min-height: 14px;
+}
+
+/* Wi-Fi password field — fields are surfaces, not holes (solid @color_01) */
+.settings-password {
+  background-color: alpha(@color_01, 0.18);
+  border: 1px solid alpha(@color_foreground, 0.10);
+  border-radius: 9px;
+  padding: 10px 11px;
+}
+
+.settings-field-label {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: alpha(@color_foreground, 0.55);
+}
+
+.settings-field-input {
+  background-color: @color_01;
+  border: 1px solid alpha(@color_foreground, 0.22);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.settings-field-input entry {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  min-height: 0;
+  color: @color_foreground;
+  caret-color: @color_13;
+}
+
+.settings-field-input entry:focus {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.settings-field-input entry placeholder {
+  color: alpha(@color_foreground, 0.5);
+}
+
+.settings-field-error {
+  font-size: 11px;
+  color: @color_03;
+}
+
+.settings-btnrow {
+  min-height: 0;
+}
+
+.settings-btn {
+  min-height: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  background-image: none;
+  box-shadow: none;
+}
+
+.settings-btn.cancel {
+  background-color: transparent;
+  border: 1px solid alpha(@color_foreground, 0.28);
+  color: @color_foreground;
+}
+
+.settings-btn.cancel:hover {
+  border-color: alpha(@color_foreground, 0.45);
+}
+
+.settings-btn.join {
+  background-color: @color_06;
+  border: 1px solid @color_13;
+  color: @color_foreground;
+}
+
+.settings-btn.join:hover {
+  border-color: @color_15;
+}
+
+/* Empty / inline message states */
+.settings-empty {
+  padding: 18px 10px;
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.6);
+}
+
+.settings-message {
+  font-size: 11.5px;
+  color: @color_03;
+}

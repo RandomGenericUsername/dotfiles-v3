@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1500" />
+<title>AGS Settings Panel — Key Screens (Native Family)</title>
+<style>
+/*
+  AGS Settings Panel — key-screen mocks, Direction B (Family Native).
+  Governing spines (draft): DESIGN.md (Brand & Style, Colors, Shapes, Components) ·
+  EXPERIENCE.md (Information Architecture, Component Patterns, State Patterns, Key Flows).
+
+  Runtime palette (live, ~/.local/state/dotfiles/current/colors.yaml):
+    background #100915 · foreground #c3c1c4
+    color01 #6b1b47 · color04 #78224c · color06 #652365 · color10 #972d61 · color13 #c22b5f
+  Applied roles:
+    panel surface  = rgba(16,9,21,.94) + 1.5px @color04 frame, radius 12   [surface-panel]
+    selection      = @color10 fill + FOREGROUND text (4.10:1)              [selection-fill]
+    action/toggle  = @color06 fill + @color13 border; foreground text (5.93:1)
+    input field    = solid @color01 (fields are surfaces, not holes)       [surface-search]
+    slider fill    = @color13 ; thumb = @color15
+*/
+:root{
+  --bg:#100915; --fg:#c3c1c4; --c01:#6b1b47; --c04:#78224c;
+  --c06:#652365; --c10:#972d61; --c11:#63586c; --c12:#c22b5f; --c13:#c22b5f;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);padding:26px 22px 60px}
+.page-head{max-width:1460px;margin:0 auto 20px}
+.page-head h1{font-size:19px;font-weight:650;letter-spacing:-.01em}
+.page-head p{font-size:12.5px;opacity:.72;margin-top:6px;max-width:900px;line-height:1.55}
+.states{max-width:2080px;margin:0 auto;display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+.cap{margin-bottom:9px;display:flex;align-items:baseline;gap:9px}
+.cap h2{font-size:13.5px;font-weight:650}
+.cap span{font-size:11px;opacity:.6}
+
+/* Desktop with bar strip + wallpaper stand-in */
+.desk{position:relative;width:384px;height:610px;border-radius:13px;overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 22% 8%, rgba(194,43,95,.5) 0%, rgba(151,45,97,.26) 38%, rgba(16,9,21,0) 72%),
+    radial-gradient(90% 70% at 85% 90%, rgba(101,35,101,.6) 0%, rgba(16,9,21,0) 60%),
+    linear-gradient(200deg,#2a1130 0%,#100915 55%,#0a0610 100%);
+  box-shadow:0 22px 55px rgba(0,0,0,.5)}
+.desk::after{content:"MOCK · wallpaper stand-in";position:absolute;left:10px;bottom:8px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:rgba(195,193,196,.38)}
+
+/* status bar strip */
+.bar{position:absolute;top:0;left:0;right:0;height:30px;display:flex;align-items:center;gap:11px;padding:0 12px;background:rgba(16,9,21,.45);backdrop-filter:blur(14px);font-size:11.5px;color:rgba(195,193,196,.9)}
+.bar .baricon{width:15px;height:15px;display:flex;align-items:center;justify-content:center;opacity:.9}
+.bar .baricon svg{width:15px;height:15px}
+.bar .spacer{flex:1}
+.bar .clock{font-variant-numeric:tabular-nums;opacity:.85}
+.bar .settings{width:24px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:rgba(151,45,97,.85);border:1px solid rgba(194,43,95,.6)}
+.bar .settings svg{width:14px;height:14px}
+
+/* Panel anchored under the bar, top-right, beside the settings icon */
+.panel{position:absolute;top:38px;right:12px;width:312px;padding:11px;display:flex;flex-direction:column;gap:9px;
+  background:rgba(16,9,21,.94);border:1.5px solid var(--c04);border-radius:12px;
+  box-shadow:0 18px 44px rgba(0,0,0,.55)}
+.stack{display:flex;flex-direction:column;gap:8px}
+
+.card{border-radius:9px;padding:10px 11px;display:flex;align-items:center;gap:10px;
+  background:rgba(107,27,71,.18);border:1px solid rgba(195,193,196,.10)}
+.ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  background:rgba(195,193,196,.12);color:rgba(195,193,196,.72)}
+.ic svg{width:18px;height:18px;display:block}
+/* The icon IS the power toggle (macOS-style). The row + chevron opens the list. */
+.ic.toggle.on{background:var(--c13);color:#100915;border:1px solid rgba(16,9,21,.4);
+  box-shadow:0 0 0 1px rgba(194,43,95,.30),0 0 12px rgba(194,43,95,.20)}
+.ic.toggle.off{background:rgba(195,193,196,.10);color:rgba(195,193,196,.5);border:1px solid rgba(195,193,196,.14)}
+.lbl{flex:1 1 auto;min-width:0}
+.lbl .t{display:block;font-size:13px;font-weight:600;line-height:1.15}
+.lbl .s{display:block;font-size:11px;opacity:.62;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{opacity:.5;flex:0 0 auto;display:flex;align-items:center}
+.chev svg{width:12px;height:12px}
+.hint{font-size:10px;opacity:.5;padding:0 2px;line-height:1.4}
+
+.mini{border-radius:9px;padding:10px;display:flex;align-items:center;justify-content:center;gap:9px;
+  background:rgba(107,27,71,.18);border:1px solid rgba(195,193,196,.10)}
+.mini .ic{width:28px;height:28px}.mini .ic svg{width:15px;height:15px}
+.mini .mt{font-size:12px;font-weight:600}
+
+.cardtitle{font-size:12.5px;font-weight:650;margin-bottom:9px}
+.slider-row{display:flex;align-items:center;gap:9px}
+.slider-row .sic{display:flex;align-items:center;opacity:.8}
+.slider-row .sic svg{width:15px;height:15px}
+.vsic{width:17px;height:17px;display:block}
+.ladder{max-width:2080px;margin:26px auto 0}
+.ladder h3{font-size:13px;font-weight:650;margin-bottom:4px}
+.ladder p{font-size:11.5px;opacity:.65;margin-bottom:12px;max-width:760px;line-height:1.5}
+.ladrow{display:flex;gap:12px;flex-wrap:wrap}
+.lad{display:flex;align-items:center;gap:11px;background:rgba(107,27,71,.18);border:1px solid rgba(195,193,196,.10);border-radius:10px;padding:10px 15px;min-width:168px}
+.lad .vsic{width:20px;height:20px;color:var(--fg);opacity:.9}
+.lad .lt{font-size:11.5px;font-weight:600}
+.lad .ls{font-size:10.5px;opacity:.6;margin-top:1px}
+.track{flex:1 1 auto;height:10px;border-radius:99px;background:rgba(195,193,196,.16);position:relative}
+.track .fill{position:absolute;top:0;bottom:0;left:0;border-radius:99px;background:var(--c13)}
+.track .thumb{position:absolute;top:50%;width:15px;height:15px;border-radius:50%;background:var(--fg);transform:translateY(-50%);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+
+.subhead{display:flex;align-items:center;gap:9px;margin-bottom:1px}
+.back{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:rgba(195,193,196,.12);color:var(--fg)}
+.back svg{width:13px;height:13px}
+.subhead .st{font-size:13.5px;font-weight:650;flex:1 1 auto}
+
+.net{display:flex;align-items:center;gap:10px;border-radius:7px;padding:8px 9px}
+.net .ic{width:26px;height:26px;border-radius:7px}.net .ic svg{width:14px;height:14px}
+.net .nl{flex:1 1 auto;min-width:0}
+.net .nl .t{display:block;font-size:12.5px;font-weight:600}
+.net .nl .s{display:block;font-size:10.5px;opacity:.6;margin-top:1px}
+.net.sel{background:var(--c10);color:var(--fg)}
+.badge{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:20px;background:rgba(195,193,196,.12);border:1px solid rgba(195,193,196,.14)}
+.badge.conn{background:rgba(194,43,95,.18);color:#e6b9cc;border:1px solid rgba(194,43,95,.45)}
+.sig{display:flex;align-items:flex-end;gap:2px;height:12px;color:var(--fg)}
+.sig b{width:3px;border-radius:1px;display:block;background:currentColor}
+.rowact{font-size:11px;font-weight:600;opacity:.75;border:1px solid rgba(195,193,196,.26);border-radius:7px;padding:4px 8px}
+
+/* password prompt */
+.field{margin-top:2px}
+.field label{display:block;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;opacity:.55;margin-bottom:6px}
+.field .input{display:flex;align-items:center;gap:8px;background:var(--c01);border:1px solid rgba(195,193,196,.22);border-radius:8px;padding:9px 10px}
+.field .input .dots{letter-spacing:2px;font-size:13px;opacity:.9}
+.field .input .cursor{width:1.5px;height:14px;background:var(--c13);display:inline-block}
+.field .input svg{width:14px;height:14px;opacity:.6}
+.btnrow{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;text-align:center;font-size:12px;font-weight:600;padding:8px 10px;border-radius:8px}
+.btn.cancel{background:transparent;border:1px solid rgba(195,193,196,.28);color:var(--fg)}
+.btn.join{background:var(--c06);border:1px solid var(--c13);color:var(--fg)}
+
+.legend{max-width:1460px;margin:24px auto 0;font-size:11.5px;line-height:1.7;opacity:.7;border-left:2px solid var(--c13);padding-left:12px}
+.legend b{color:var(--c13)}
+.legend code{background:rgba(195,193,196,.1);padding:1px 4px;border-radius:4px;font-size:11px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="v-body" d="M516.765 713.801L285.062 552.36V186.049L516.765 26.3496C547.318 26.3496 591.115 49.46 591.115 77.961V662.162C591.142 690.69 547.346 713.801 516.765 713.801ZM259.293 546.942H92.6487C62.096 546.942 37.3496 510.396 37.3496 481.868V258.228C37.3496 229.754 62.1236 189.256 92.6487 189.256H259.293V546.942Z"/>
+    <path id="v-body-center" d="M714.416 713.451L482.712 552.01V185.699L714.416 26C744.968 26 788.765 49.1104 788.765 77.6114V661.812C788.793 690.341 744.996 713.451 714.416 713.451ZM456.943 546.592H290.299C259.746 546.592 235 510.047 235 481.518V257.878C235 229.405 259.774 188.906 290.299 188.906H456.943V546.592Z"/>
+    <path id="v-w1" d="M697.555 213.92C686.283 202.65 668.02 202.65 656.748 213.92C645.476 225.19 645.476 243.449 656.748 254.719C712.997 310.958 712.997 402.475 656.693 458.772C645.42 470.042 645.42 488.299 656.693 499.571C667.965 510.843 686.227 510.843 697.5 499.571C776.296 420.789 776.296 292.645 697.555 213.92Z"/>
+    <path id="v-w2" d="M779.115 132.267C767.843 120.997 749.58 120.997 738.308 132.267C727.035 143.537 727.035 161.796 738.308 173.066C839.536 274.33 839.536 439.107 738.308 540.37C727.035 551.64 727.035 569.899 738.308 581.169C749.582 592.441 767.843 592.441 779.115 581.169C902.833 457.419 902.833 256.015 779.115 132.267Z"/>
+    <path id="v-w3" d="M860.785 50.6704C849.513 39.4002 831.25 39.4002 819.978 50.6704C808.705 61.9405 808.705 80.1993 819.978 91.4695C966.185 237.703 966.185 475.735 819.978 621.97C808.705 633.24 808.705 651.499 819.978 662.769C831.252 674.041 849.513 674.041 860.785 662.769C1029.54 493.994 1029.54 219.444 860.785 50.6704Z"/>
+    <g id="v-muted"><use href="#v-body"/><rect x="727.355" y="493.488" width="50" height="300" transform="rotate(-135 727.355 493.488)"/><rect x="692" y="281.355" width="50" height="300" transform="rotate(-45 692 281.355)"/></g>
+    <g id="v-lowest"><use href="#v-body-center"/></g>
+    <g id="v-low"><use href="#v-body"/><use href="#v-w1"/><use href="#v-w2" opacity="0.5"/><use href="#v-w3" opacity="0.5"/></g>
+    <g id="v-medium"><use href="#v-body"/><use href="#v-w1"/><use href="#v-w2"/><use href="#v-w3" opacity="0.5"/></g>
+    <g id="v-max"><use href="#v-body"/><use href="#v-w1"/><use href="#v-w2"/><use href="#v-w3"/></g>
+  </defs>
+</svg>
+<div class="page-head">
+  <h1>Settings Panel — Native Family key screens</h1>
+  <p>Direction B applied. Panel anchored top-right under the status bar, beside the settings icon. The icon circle is the power toggle (fill = state); the row + chevron opens the list. In-place subview with back arrow. Five load-bearing states: main, main with Bluetooth off, Wi-Fi list, Wi-Fi password entry, Bluetooth devices. The Sound card's speaker glyph is level-aware (see ladder below).</p>
+</div>
+
+<div class="states">
+
+  <!-- ============ 1. MAIN ============ -->
+  <div>
+    <div class="cap"><h2>Main</h2><span>control center at rest</span></div>
+    <div class="desk">
+      <div class="bar">
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l4 2.5V6.5L8 9H4z"/></svg></span>
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></span>
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+        <span class="spacer"></span>
+        <span class="clock">Mon 2:52</span>
+        <span class="settings"><svg viewBox="0 0 24 24" fill="none" stroke="#100915" stroke-width="2.2"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.4" fill="#100915"/><circle cx="15" cy="16" r="2.4" fill="#100915"/></svg></span>
+      </div>
+
+      <div class="panel">
+        <div class="stack">
+          <div class="card">
+            <span class="ic toggle on" title="Toggle Wi-Fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+            <span class="lbl"><span class="t">Wi-Fi</span><span class="s">malefor-5G</span></span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="card">
+            <span class="ic toggle on" title="Toggle Bluetooth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+            <span class="lbl"><span class="t">Bluetooth</span><span class="s">MX Master 3S connected</span></span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="mini">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h7"/><circle cx="18" cy="16" r="3"/></svg></span>
+            <span class="mt">Hyprmod</span>
+          </div>
+        </div>
+        <div class="card" style="flex-direction:column;align-items:stretch">
+          <div class="cardtitle">Display</div>
+          <div class="slider-row">
+            <span class="sic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+            <span class="track"><span class="fill" style="width:72%"></span><span class="thumb" style="left:calc(72% - 7.5px)"></span></span>
+          </div>
+        </div>
+        <div class="card" style="flex-direction:column;align-items:stretch">
+          <div class="cardtitle">Sound</div>
+          <div class="slider-row">
+            <span class="sic"><svg class="vsic" viewBox="0 0 1024 741" fill="currentColor"><use href="#v-low"/></svg></span>
+            <span class="track"><span class="fill" style="width:40%"></span><span class="thumb" style="left:calc(40% - 7.5px)"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 1b. MAIN — BLUETOOTH OFF ============ -->
+  <div>
+    <div class="cap"><h2>Main — Bluetooth off</h2><span>icon state = off</span></div>
+    <div class="desk">
+      <div class="bar">
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l4 2.5V6.5L8 9H4z"/></svg></span>
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg></span>
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+        <span class="spacer"></span>
+        <span class="clock">Mon 2:52</span>
+        <span class="settings"><svg viewBox="0 0 24 24" fill="none" stroke="#100915" stroke-width="2.2"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.4" fill="#100915"/><circle cx="15" cy="16" r="2.4" fill="#100915"/></svg></span>
+      </div>
+      <div class="panel">
+        <div class="stack">
+          <div class="card">
+            <span class="ic toggle on" title="Toggle Wi-Fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+            <span class="lbl"><span class="t">Wi-Fi</span><span class="s">malefor-5G</span></span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="card">
+            <span class="ic toggle off" title="Toggle Bluetooth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+            <span class="lbl"><span class="t">Bluetooth</span><span class="s">Off</span></span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+          <div class="mini">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h7"/><circle cx="18" cy="16" r="3"/></svg></span>
+            <span class="mt">Hyprmod</span>
+          </div>
+        </div>
+        <div class="card" style="flex-direction:column;align-items:stretch">
+          <div class="cardtitle">Display</div>
+          <div class="slider-row">
+            <span class="sic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
+            <span class="track"><span class="fill" style="width:72%"></span><span class="thumb" style="left:calc(72% - 7.5px)"></span></span>
+          </div>
+        </div>
+        <div class="card" style="flex-direction:column;align-items:stretch">
+          <div class="cardtitle">Sound</div>
+          <div class="slider-row">
+            <span class="sic"><svg class="vsic" viewBox="0 0 1024 741" fill="currentColor"><use href="#v-low"/></svg></span>
+            <span class="track"><span class="fill" style="width:40%"></span><span class="thumb" style="left:calc(40% - 7.5px)"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 2. WI-FI LIST ============ -->
+  <div>
+    <div class="cap"><h2>Wi-Fi list</h2><span>after tapping the Wi-Fi row</span></div>
+    <div class="desk">
+      <div class="bar">
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l4 2.5V6.5L8 9H4z"/></svg></span>
+        <span class="spacer"></span>
+        <span class="clock">Mon 2:52</span>
+        <span class="settings"><svg viewBox="0 0 24 24" fill="none" stroke="#100915" stroke-width="2.2"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.4" fill="#100915"/><circle cx="15" cy="16" r="2.4" fill="#100915"/></svg></span>
+      </div>
+      <div class="panel">
+        <div class="subhead">
+          <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 6l-6 6 6 6"/></svg></span>
+          <span class="st">Wi-Fi</span>
+          <span class="ic toggle on" title="Toggle Wi-Fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+        </div>
+        <div class="stack">
+          <div class="net sel">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+            <span class="nl"><span class="t">malefor-5G</span><span class="s">Connected · Secured</span></span>
+            <span class="badge conn">Connected</span>
+          </div>
+          <div class="net">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+            <span class="nl"><span class="t">malefor</span><span class="s">Secured</span></span>
+            <span class="sig"><b style="height:5px"></b><b style="height:8px"></b><b style="height:11px"></b></span>
+          </div>
+          <div class="net">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+            <span class="nl"><span class="t">Cafe_Free_WiFi</span><span class="s">Open network</span></span>
+            <span class="sig"><b style="height:5px"></b><b style="height:8px"></b></span>
+          </div>
+          <div class="net">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+            <span class="nl"><span class="t">NETGEAR42</span><span class="s">Secured</span></span>
+            <span class="sig" style="opacity:.5"><b style="height:5px"></b></span>
+          </div>
+          <div class="net">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+            <span class="nl"><span class="t">Other…</span><span class="s">Join a hidden network</span></span>
+            <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 3. WI-FI PASSWORD ============ -->
+  <div>
+    <div class="cap"><h2>Wi-Fi password</h2><span>tapping a secured network</span></div>
+    <div class="desk">
+      <div class="bar">
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l4 2.5V6.5L8 9H4z"/></svg></span>
+        <span class="spacer"></span>
+        <span class="clock">Mon 2:52</span>
+        <span class="settings"><svg viewBox="0 0 24 24" fill="none" stroke="#100915" stroke-width="2.2"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.4" fill="#100915"/><circle cx="15" cy="16" r="2.4" fill="#100915"/></svg></span>
+      </div>
+      <div class="panel">
+        <div class="subhead">
+          <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 6l-6 6 6 6"/></svg></span>
+          <span class="st">malefor</span>
+          <span class="ic toggle on" title="Toggle Wi-Fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+        </div>
+        <div class="net sel">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0M12 19.5h.01"/></svg></span>
+          <span class="nl"><span class="t">malefor</span><span class="s">Secured network</span></span>
+          <span class="badge">WPA2</span>
+        </div>
+        <div class="card" style="flex-direction:column;align-items:stretch">
+          <div class="field">
+            <label>Password</label>
+            <div class="input">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+              <span class="dots">••••••••••</span><span class="cursor"></span>
+            </div>
+          </div>
+          <div class="btnrow">
+            <span class="btn cancel">Cancel</span>
+            <span class="btn join">Join</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 4. BLUETOOTH ============ -->
+  <div>
+    <div class="cap"><h2>Bluetooth devices</h2><span>after tapping the Bluetooth row</span></div>
+    <div class="desk">
+      <div class="bar">
+        <span class="baricon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l4 2.5V6.5L8 9H4z"/></svg></span>
+        <span class="spacer"></span>
+        <span class="clock">Mon 2:52</span>
+        <span class="settings"><svg viewBox="0 0 24 24" fill="none" stroke="#100915" stroke-width="2.2"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.4" fill="#100915"/><circle cx="15" cy="16" r="2.4" fill="#100915"/></svg></span>
+      </div>
+      <div class="panel">
+        <div class="subhead">
+          <span class="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 6l-6 6 6 6"/></svg></span>
+          <span class="st">Bluetooth</span>
+          <span class="ic toggle on" title="Toggle Bluetooth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+        </div>
+        <div class="stack">
+          <div class="net sel">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+            <span class="nl"><span class="t">MX Master 3S</span><span class="s">Connected</span></span>
+            <span class="badge conn">Connected</span>
+          </div>
+          <div class="net">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+            <span class="nl"><span class="t">AirPods Pro</span><span class="s">Not connected</span></span>
+            <span class="rowact">Connect</span>
+          </div>
+          <div class="net">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+            <span class="nl"><span class="t">Keychron K2</span><span class="s">Paired</span></span>
+            <span class="rowact">Connect</span>
+          </div>
+          <div class="net">
+            <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg></span>
+            <span class="nl"><span class="t">Galaxy Buds2</span><span class="s">Available</span></span>
+            <span class="rowact">Pair</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="ladder">
+  <h3>Volume icon ladder</h3>
+  <p>The speaker glyph tracks the slider level using the icon set you supplied. The Sound card at 40% therefore renders the <strong>Low</strong> glyph.</p>
+  <div class="ladrow">
+    <div class="lad"><svg class="vsic" viewBox="0 0 1024 741" fill="currentColor"><use href="#v-muted"/></svg><div><div class="lt">Muted</div><div class="ls">0% · volume-muted</div></div></div>
+    <div class="lad"><svg class="vsic" viewBox="0 0 1024 741" fill="currentColor"><use href="#v-lowest"/></svg><div><div class="lt">Lowest</div><div class="ls">1–25% · lowest-volume</div></div></div>
+    <div class="lad"><svg class="vsic" viewBox="0 0 1024 741" fill="currentColor"><use href="#v-low"/></svg><div><div class="lt">Low</div><div class="ls">26–50% · low-volume</div></div></div>
+    <div class="lad"><svg class="vsic" viewBox="0 0 1024 741" fill="currentColor"><use href="#v-medium"/></svg><div><div class="lt">Medium</div><div class="ls">51–75% · medium-volume</div></div></div>
+    <div class="lad"><svg class="vsic" viewBox="0 0 1024 741" fill="currentColor"><use href="#v-max"/></svg><div><div class="lt">Max</div><div class="ls">76–100% · max-volume</div></div></div>
+  </div>
+</div>
+
+<div class="legend">
+  <b>Spine trace:</b> panel surface = <code>surface-panel</code> (DESIGN.md Colors/Layout) · selected row = <code>selection-fill</code> @color10 + foreground text (contrast rule) · toggle = <code>action-active</code> @color06 fill + @color13 border (the family's action intent, adapted for a dark palette) · password field = <code>surface-search</code> "fields are surfaces, not holes" (solid @color01).<br>
+  <b>Behavior:</b> the icon circle toggles power (macOS-style); the row + chevron opens the list; back arrow returns to Main; panel size is stable across states. Hyprmod launches the CLI and returns no state.
+</div>
+</body>
+</html>

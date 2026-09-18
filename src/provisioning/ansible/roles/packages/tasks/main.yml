@@ -204,3 +204,17 @@
     state: started
   become: true
   when: not ansible_check_mode
+
+# BlueZ is the DBus backend astal-bluetooth (the settings panel) reads
+# (AstalBluetooth). Installing bluez/bluez-utils alone leaves
+# bluetooth.service disabled and inactive (verified 2026-09-18), so the panel
+# would report no adapter and every BT control would be a no-op. Enable + start
+# it here so the persistent provisioned state is correct — mirror of the
+# NetworkManager task above.
+- name: Enable and start bluetooth
+  ansible.builtin.systemd:
+    name: bluetooth.service
+    enabled: true
+    state: started
+  become: true
+  when: not ansible_check_mode

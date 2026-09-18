@@ -82,6 +82,18 @@
       }
     ]
   },
+  "brightness": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "default",
+        "output": "brightness.svg",
+        "template": "brightness/default/icon.svg"
+      }
+    ]
+  },
   "btop": {
     "color_mappings": {
       "COLOR_FOREGROUND": "color15",
@@ -170,6 +182,30 @@
         "name": "stop",
         "output": "capture-tool-stop.svg",
         "template": "capture-tool/default/stop.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color6"
+        },
+        "name": "camera-accent",
+        "output": "capture-tool-camera-accent.svg",
+        "template": "capture-tool/default/camera.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color6"
+        },
+        "name": "video-accent",
+        "output": "capture-tool-video-accent.svg",
+        "template": "capture-tool/default/video.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color3"
+        },
+        "name": "warning-caution",
+        "output": "capture-tool-warning-caution.svg",
+        "template": "capture-tool/default/warning.svg"
       }
     ]
   },
@@ -354,6 +390,69 @@
       }
     ]
   },
+  "settings": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "default": "default"
+      },
+      "widget": "settings"
+    },
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "default",
+        "output": "status-bar-settings.svg",
+        "template": "status-bar/settings/default/icon.svg"
+      }
+    ]
+  },
+  "settings-panel": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color13"
+        },
+        "name": "wifi",
+        "output": "settings-panel-wifi.svg",
+        "template": "settings-panel/wifi/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "wifi-off",
+        "output": "settings-panel-wifi-off.svg",
+        "template": "settings-panel/wifi/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color13"
+        },
+        "name": "bluetooth",
+        "output": "settings-panel-bluetooth.svg",
+        "template": "settings-panel/bluetooth/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "bluetooth-off",
+        "output": "settings-panel-bluetooth-off.svg",
+        "template": "settings-panel/bluetooth/default/icon.svg"
+      },
+      {
+        "name": "hyprmod",
+        "output": "settings-panel-hyprmod.svg",
+        "template": "settings-panel/hyprmod/default/icon.svg"
+      }
+    ]
+  },
   "thunderbird": {
     "color_mappings": {
       "COLOR_FOREGROUND": "color15"
@@ -385,6 +484,9 @@
     },
     "variants": [
       {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color15"
+        },
         "name": "search",
         "output": "ui-search.svg",
         "template": "ui/search/default/icon.svg"
@@ -418,6 +520,38 @@
         "name": "emoji",
         "output": "ui-emoji.svg",
         "template": "ui/emoji/default/icon.svg"
+      }
+    ]
+  },
+  "volume": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "muted",
+        "output": "volume-muted.svg",
+        "template": "volume/muted/default/icon.svg"
+      },
+      {
+        "name": "lowest",
+        "output": "volume-lowest.svg",
+        "template": "volume/lowest/default/icon.svg"
+      },
+      {
+        "name": "low",
+        "output": "volume-low.svg",
+        "template": "volume/low/default/icon.svg"
+      },
+      {
+        "name": "medium",
+        "output": "volume-medium.svg",
+        "template": "volume/medium/default/icon.svg"
+      },
+      {
+        "name": "max",
+        "output": "volume-max.svg",
+        "template": "volume/max/default/icon.svg"
       }
     ]
   },

@@ -107,6 +107,7 @@
       - verify_system_binaries | length > 0
       - verify_cli_tools | length > 0
       - verify_notifd_binding_packages | length > 0
+      - verify_astal_binding_packages | length > 0
       - verify_ags_always_on_instances | length > 0
       - verify_install_spine_dirs | length > 0
       - verify_install_spine_files | length > 0
@@ -118,6 +119,7 @@
       - verify_xdg_dirs | length > 0
       - verify_config_copies_targets | length > 0
       - verify_gtk_skeleton_files | length > 0
+      - verify_icons_samples | length > 0
       - verify_derivation_template_dirs | length > 0
     fail_msg: >-
       a verify list var is empty — a runtime override or a manifest desync
@@ -181,6 +183,67 @@
       packages playbook or start it with `systemctl start NetworkManager`
   when: not ansible_check_mode
 
+# BlueZ is the DBus backend astal-bluetooth (the settings panel) reads
+# (AstalBluetooth). A bare bluez install leaves bluetooth.service disabled and
+# inactive (verified live 2026-09-18), which makes the panel report no adapter
+# and every BT control a no-op. Gate on BOTH enabled (survives reboot) and
+# active (usable now) — mirror of the NetworkManager gate shape.
+- name: Check bluetooth service is enabled
+  ansible.builtin.command:
+    cmd: "systemctl is-enabled {{ verify_bluetooth_service }}"
+  register: verify_bluetooth_enabled
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Check bluetooth service is active
+  ansible.builtin.command:
+    cmd: "systemctl is-active {{ verify_bluetooth_service }}"
+  register: verify_bluetooth_active
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert bluetooth service is enabled and running
+  ansible.builtin.assert:
+    that:
+      - verify_bluetooth_enabled.stdout | trim == "enabled"
+      - verify_bluetooth_active.stdout | trim == "active"
+    fail_msg: >-
+      {{ verify_bluetooth_service }} is not enabled and running (enabled={{
+      verify_bluetooth_enabled.stdout | trim }}, active={{
+      verify_bluetooth_active.stdout | trim }}) — the settings panel's
+      Bluetooth control (AstalBluetooth) needs the BlueZ daemon. The packages
+      role enables+starts it; re-run the packages playbook or run
+      `systemctl enable --now {{ verify_bluetooth_service }}`
+  when: not ansible_check_mode
+
+# The settings panel's Display slider drives `brightnessctl set <pct>%` as the
+# session user (and reads with `-m`). The packages role installs brightnessctl
+# and its udev rule grants the session write access; a machine where even the
+# read fails would ship a slider that is a silent no-op, so gate it here.
+- name: Check backlight is readable as the user
+  ansible.builtin.command:
+    argv:
+      - "{{ verify_backlight_binary }}"
+      - -m
+  register: verify_backlight_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert brightnessctl can read the backlight
+  ansible.builtin.assert:
+    that:
+      - verify_backlight_check.rc == 0
+      - verify_backlight_check.stdout | trim | length > 0
+    fail_msg: >-
+      `{{ verify_backlight_binary }} -m` failed — the settings panel's Display
+      slider would be a silent no-op. The packages role installs brightnessctl
+      and its udev rule grants the session user access; run the packages
+      playbook or check `{{ verify_backlight_binary }} -m` as the user
+  when: not ansible_check_mode
+
 - name: Check CLI tools on PATH
   ansible.builtin.shell: "command -v {{ item }}"
   loop: "{{ verify_cli_tools }}"
@@ -223,6 +286,29 @@
       {{ verify_notifd_binding_packages | join(', ') }} — the notification
       overlay's import). The packages role installs it via aur_packages;
       run the packages playbook first (direct-run prerequisite)
+  when: not ansible_check_mode
+
+# The settings panel imports AstalBluetooth and AstalWp at startup — a
+# provisioned machine with the panel sources deployed but either binding
+# missing would ship a window that crashes on open (settings-panel-
+# provisioning gate, spec scenario "Namespaces importable"). Gate on the AUR
+# packages the packages role installs (mirror of the AstalNotifd check above).
+- name: Check Astal Bluetooth/Wp binding packages are installed
+  ansible.builtin.shell: "pacman -Q {{ item }}"
+  loop: "{{ verify_astal_binding_packages }}"
+  register: verify_astal_binding_checks
+  changed_when: false
+  failed_when: false
+
+- name: Assert Astal Bluetooth/Wp bindings are installed
+  ansible.builtin.assert:
+    that:
+      - verify_astal_binding_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_astal_binding_packages | length
+    fail_msg: >-
+      the Astal Bluetooth/Wp bindings are not installed (expected
+      {{ verify_astal_binding_packages | join(', ') }} — the settings panel's
+      AstalBluetooth/AstalWp imports). The packages role installs them via
+      aur_packages; run the packages playbook first (direct-run prerequisite)
   when: not ansible_check_mode
 
 # dunst must be MASKED, not merely stopped: a stopped-but-enabled unit comes
@@ -457,19 +543,21 @@
 - name: Check rendered icons exist under the runtime current dir
   ansible.builtin.stat:
     path: "{{ item }}"
-  loop:
-    - "{{ verify_icons_dir }}"
-    - "{{ verify_icons_sample }}"
+  loop: "{{ [verify_icons_dir] + verify_icons_samples }}"
   register: verify_icons_checks
 
 - name: Assert rendered icons exist
   ansible.builtin.assert:
-    that: verify_icons_checks.results | selectattr('stat.exists') | list | length == 2
+    that: >-
+      verify_icons_checks.results | selectattr('stat.exists') | list | length
+      == (verify_icons_samples | length) + 1
     fail_msg: >-
       the runtime icons output is missing: expected {{ verify_state_current_dir }}/icons/
-      as a directory with at least battery-0.svg present (done-criterion —
-      runtime icons, Epic 4 current-only). Run `dotfiles-runtime wallpaper set`
-      (needs assets + settings first; the icons provisioning role is deleted)
+      as a directory with each of {{ verify_icons_samples | join(', ') }} present
+      (done-criterion — runtime icons, Epic 4 current-only, incl. the settings
+      panel's new settings-panel-wifi.svg/volume-low.svg groups). Run
+      `dotfiles-runtime wallpaper set` (needs assets + settings first; the
+      icons provisioning role is deleted)
   when: not ansible_check_mode
 
 - name: Check settings files exist

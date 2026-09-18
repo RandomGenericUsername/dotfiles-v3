@@ -7,6 +7,7 @@ import { PowerMenu } from "./widgets/power-menu"
 import { Btop } from "./widgets/btop"
 import { Thunderbird } from "./widgets/thunderbird"
 import { Tray } from "./widgets/tray"
+import { Settings } from "./widgets/settings"
 
 export default function Bar(gdkmonitor: Gdk.Monitor) {
   const { TOP, LEFT, RIGHT } = Astal.WindowAnchor
@@ -34,6 +35,7 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
           <Btop />
           <Thunderbird />
           <PowerMenu />
+          <Settings />
         </box>
       </centerbox>
     </window>

@@ -988,6 +988,7 @@ class TestVerifyVars:
         "verify_state_current_dir",
         "verify_compositor_config_dirs",
         "verify_compositor_skeleton_files",
+        "verify_icons_samples",
         "verify_gui_tools_app_files",
         "verify_consumer_symlinks",
         "verify_config_copies_targets",
@@ -1159,6 +1160,24 @@ class TestVerifyVars:
             "libastal-notifd-git"
         ]
 
+    def test_astal_binding_packages_pin_bluetooth_and_wp(self) -> None:
+        """Implementation gate (add-ags-settings-panel, wave 1): verify pins the
+        Astal Bluetooth/Wp binding packages the settings panel imports — mirror
+        of the packages role's aur_packages entries."""
+        data = _vars()
+        assert [str(p) for p in data["verify_astal_binding_packages"]] == [
+            "libastal-bluetooth-git",
+            "libastal-wireplumber-git",
+        ]
+
+    def test_bluetooth_service_and_backlight_binary_are_pinned(self) -> None:
+        """The settings panel's Bluetooth control needs the BlueZ unit enabled,
+        and its Display slider drives brightnessctl — pin both so a rename is
+        caught here rather than at runtime."""
+        data = _vars()
+        assert str(data["verify_bluetooth_service"]) == "bluetooth.service"
+        assert str(data["verify_backlight_binary"]) == "brightnessctl"
+
     def test_ags_always_on_instances_are_bar_and_overlay(self) -> None:
         """The always-on AGS gate pins exactly the status bar and the
         notification overlay — the two instances the session cannot afford to
@@ -1190,6 +1209,19 @@ class TestVerifyVars:
             "hyprpaper",
             "ags",
             "power-options-gtk",
+        ]
+
+    def test_icons_samples_include_the_settings_panel_glyphs(self) -> None:
+        """add-ags-settings-panel: the icons gate asserts one known render per
+        new icon group (settings-panel-wifi, volume-low) on top of the
+        pre-existing battery-0 sample, so a runtime render that silently
+        skipped the new groups fails verify rather than only the live UI."""
+        data = _vars()
+        samples = [str(s) for s in data["verify_icons_samples"]]
+        assert samples == [
+            "{{ verify_state_current_dir }}/icons/battery-0.svg",
+            "{{ verify_state_current_dir }}/icons/settings-panel-wifi.svg",
+            "{{ verify_state_current_dir }}/icons/volume-low.svg",
         ]
 
     def test_verify_lists_include_the_phase5_event_modules(self) -> None:
@@ -1431,9 +1463,17 @@ class TestVerifyRuntime:
             _build_provisioned_layout(home, xdg, install, state_home, cache_home)
 
             # Model a machine where gui_tools' masking never took effect.
+            # bluetooth.service stays enabled/active (an unrelated provisioned
+            # unit) so the failure is attributable to dunst, not the new gate.
             (bin_dir / "systemctl").write_text(
                 "#!/bin/sh\n"
                 'if [ "$1" = "is-active" ] && [ "$2" = "NetworkManager" ]; then\n'
+                '  echo active; exit 0\n'
+                "fi\n"
+                'if [ "$1" = "is-enabled" ] && [ "$2" = "bluetooth.service" ]; then\n'
+                '  echo enabled; exit 0\n'
+                "fi\n"
+                'if [ "$1" = "is-active" ] && [ "$2" = "bluetooth.service" ]; then\n'
                 '  echo active; exit 0\n'
                 "fi\n"
                 'if [ "$2" = "is-enabled" ]; then echo enabled; exit 0; fi\n'
@@ -1831,6 +1871,15 @@ def _write_stub_binaries(home: Path) -> Path:
         'if [ "$1" = "is-active" ] && [ "$2" = "NetworkManager" ]; then\n'
         '  echo active; exit 0\n'
         "fi\n"
+        # bluetooth.service: the packages role enables + starts it after the
+        # bluez install (settings-panel-provisioning gate). Report it enabled
+        # and active so the synthetic machine passes.
+        'if [ "$1" = "is-enabled" ] && [ "$2" = "bluetooth.service" ]; then\n'
+        '  echo enabled; exit 0\n'
+        "fi\n"
+        'if [ "$1" = "is-active" ] && [ "$2" = "bluetooth.service" ]; then\n'
+        '  echo active; exit 0\n'
+        "fi\n"
         # Masked/stopped dunst, as a provisioned machine must be: the verify
         # role asserts BOTH (masked so it cannot respawn, inactive so it is not
         # holding org.freedesktop.Notifications). Modelled with the real exit
@@ -1845,19 +1894,37 @@ def _write_stub_binaries(home: Path) -> Path:
         "exit 1\n"
     )
     sysctl.chmod(0o755)
-    # pacman: the verify role gates the AstalNotifd binding package via
-    # `pacman -Q` (capture-notifications implementation gate). Stub it so the
-    # synthetic machine passes hermetically (the stub dir shadows the real
-    # pacman on PATH) — report the notifd package as installed.
+    # pacman: the verify role gates the AstalNotifd binding package (capture-
+    # notifications) and the Astal Bluetooth/Wp bindings (settings-panel-
+    # provisioning) via `pacman -Q`. Stub it so the synthetic machine passes
+    # hermetically (the stub dir shadows the real pacman on PATH) — report all
+    # three binding packages as installed.
     pacman = bin_dir / "pacman"
     pacman.write_text(
         "#!/bin/sh\n"
-        'if [ "$1" = "-Q" ] && [ "$2" = "libastal-notifd-git" ]; then\n'
-        '  echo "libastal-notifd-git r973.e07013e-1"; exit 0\n'
+        'if [ "$1" = "-Q" ]; then\n'
+        '  case "$2" in\n'
+        '    libastal-notifd-git) echo "libastal-notifd-git r973.e07013e-1"; exit 0 ;;\n'
+        '    libastal-bluetooth-git) echo "libastal-bluetooth-git r786.ca3190d-2"; exit 0 ;;\n'
+        '    libastal-wireplumber-git) echo "libastal-wireplumber-git r776.c1bd89a-1"; exit 0 ;;\n'
+        "  esac\n"
         "fi\n"
         "exit 1\n"
     )
     pacman.chmod(0o755)
+    # brightnessctl: the settings panel's Display slider drives it, so verify
+    # runs `brightnessctl -m` (read) as the user. Stubbed so the synthetic
+    # machine is hermetic (a real brightnessctl would query the HOST's
+    # backlight); emit a well-formed machine-readable line.
+    backlight = bin_dir / "brightnessctl"
+    backlight.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "-m" ]; then\n'
+        '  echo "intel_backlight,backlight,96000,100%,96000"; exit 0\n'
+        "fi\n"
+        "exit 1\n"
+    )
+    backlight.chmod(0o755)
     # xdg-mime: the verify role gates the inode/directory default handler (the
     # capture tool's "Show in folder" opens a directory). Stubbed so the
     # synthetic machine is hermetic — a real xdg-mime would query the HOST's
@@ -2006,9 +2073,13 @@ def _build_provisioned_layout(
         (state_current / name).symlink_to(state_cache_palette / name)
     state_cache_icons = state_home / "dotfiles" / "cache" / "icons" / "def456"
     state_cache_icons.mkdir(parents=True)
-    (state_cache_icons / "battery-0.svg").write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
-    )
+    # The samples verify asserts (verify_icons_samples): battery-0 predates the
+    # panel; the settings-panel Wi-Fi and volume-low glyphs prove the new
+    # groups rendered (add-ags-settings-panel).
+    for sample in ("battery-0", "settings-panel-wifi", "volume-low"):
+        (state_cache_icons / f"{sample}.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
+        )
     (state_current / "icons").symlink_to(state_cache_icons, target_is_directory=True)
     (install / "config" / "ags" / "colors.css").symlink_to(
         state_current / "colors.gtk.css"
@@ -2042,6 +2113,9 @@ def _build_provisioned_layout(
         "ags/lib",
         "ags/bar",
         "ags/bar/widgets",
+        "ags/settings-panel",
+        "ags/settings-panel/controls",
+        "ags/settings-panel/views",
         "ags-capture",
         "ags-capture/ui",
         "ags-capture/controllers",
@@ -2071,8 +2145,24 @@ def _build_provisioned_layout(
         "thunderbird",
         "recording",
         "tray",
+        "settings",
     ):
         (install / "config" / "ags" / "bar" / "widgets" / f"{widget}.tsx").write_text("")
+    # Settings panel sources (compositor_configs role, add-ags-settings-panel):
+    # must match verify_compositor_skeleton_files EXACTLY (a missing panel
+    # source fails the criterion-7 gate — the fixture IS the provisioned
+    # machine).
+    (install / "config" / "ags" / "settings-panel" / "state.ts").write_text("")
+    (install / "config" / "ags" / "settings-panel" / "primitives.tsx").write_text("")
+    (install / "config" / "ags" / "settings-panel" / "SettingsPanel.tsx").write_text("")
+    for control in ("wifi", "bluetooth", "brightness", "volume", "hyprmod"):
+        (
+            install / "config" / "ags" / "settings-panel" / "controls" / f"{control}.tsx"
+        ).write_text("")
+    for view in ("MainView", "WifiView", "BluetoothView"):
+        (
+            install / "config" / "ags" / "settings-panel" / "views" / f"{view}.tsx"
+        ).write_text("")
     # Standalone capture app (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.
     (install / "config" / "ags-capture" / "app.tsx").write_text("")

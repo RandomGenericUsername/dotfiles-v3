@@ -17,6 +17,16 @@ packages:
   # uwsm: systemd-managed session launch (same rationale as Arch).
   uwsm: uwsm
   ags: aylurs-gtk-shell-git
+  # Astal bindings backing the AGS settings panel (AUR-only upstream; no Debian
+  # package — must be built from source like ags/hyprland, a packages role
+  # concern, deferred). Kept as the upstream names so the logical set matches
+  # Arch; packages_use_aur is false here so these are not AUR-installed.
+  astal-bluetooth: libastal-bluetooth-git # AstalBluetooth — BlueZ over DBus (settings panel BT)
+  astal-wp: libastal-wireplumber-git # AstalWp — WirePlumber audio (settings panel volume)
+  # BlueZ stack backing AstalBluetooth. bluez-utils is merged into bluez on
+  # Debian — the sane distro mapping for the logical bluez-utils entry.
+  bluez: bluez
+  bluez-utils: bluez
   ffmpeg: ffmpeg
   pipewire: pipewire
   wireplumber: wireplumber

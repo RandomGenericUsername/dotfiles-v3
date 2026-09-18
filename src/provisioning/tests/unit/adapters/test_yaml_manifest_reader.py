@@ -347,6 +347,7 @@ class TestReadRealManifests:
             "hyprpolkitagent",
             "xdg-desktop-portal-hyprland",
             "xdg-desktop-portal-gtk",
+            "xdg-utils",
             "wl-clipboard",
             "grim",
             "slurp",
@@ -364,10 +365,15 @@ class TestReadRealManifests:
             "brightnessctl",
             "playerctl",
             "power-options-gtk",
+            "hyprmod",
             "hyprcursor",
             "hyprlock",
             "hypridle",
             "wlogout",
+            "astal-bluetooth",
+            "astal-wp",
+            "bluez",
+            "bluez-utils",
         }
 
     def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:

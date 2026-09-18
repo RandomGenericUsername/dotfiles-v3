@@ -65,6 +65,15 @@ entries:
   - name: brightnessctl     # screen backlight
   - name: playerctl         # media transport (MPRIS)
 
+  # AGS settings panel (settings-panel-provisioning gate). The Astal bindings
+  # are AUR-only on Arch (see `aur_packages` in roles/packages/vars/arch.yml):
+  # astal-bluetooth -> AstalBluetooth, astal-wp -> AstalWp. bluez/bluez-utils
+  # ship the BlueZ daemon + bluetoothctl; provisioning enables bluetooth.service.
+  - name: astal-bluetooth    # AstalBluetooth — BlueZ over DBus (settings panel BT)
+  - name: astal-wp           # AstalWp — WirePlumber audio (settings panel volume)
+  - name: bluez              # Bluetooth stack / bluetoothd
+  - name: bluez-utils        # bluetoothctl + the bluetooth.service unit
+
   # Additional useful tools
   - name: hyprcursor         # Cursor themes
   - name: hyprlock           # Screen locker

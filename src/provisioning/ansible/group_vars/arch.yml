@@ -18,6 +18,15 @@ packages:
   # the AUR package name resolves here; the packages role routes it through the
   # aur_packages channel (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
   ags: aylurs-gtk-shell-git
+  # Astal bindings backing the AGS settings panel (AUR-only on Arch, mirroring
+  # ags): the per-manager name resolves here and the packages role routes it
+  # through aur_packages (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
+  astal-bluetooth: libastal-bluetooth-git # AstalBluetooth — BlueZ over DBus (settings panel BT)
+  astal-wp: libastal-wireplumber-git # AstalWp — WirePlumber audio (settings panel volume)
+  # BlueZ stack backing AstalBluetooth (official repo) — the packages role
+  # enables + starts bluetooth.service after install.
+  bluez: bluez
+  bluez-utils: bluez-utils # bluetoothctl + the bluetooth.service unit
   ffmpeg: ffmpeg
   pipewire: pipewire
   wireplumber: wireplumber

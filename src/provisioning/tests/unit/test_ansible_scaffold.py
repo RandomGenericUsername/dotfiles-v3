@@ -66,11 +66,18 @@ _LOGICAL_PACKAGE_KEYS = (
     "thunderbird",
     "brightnessctl",
     "playerctl",
+    # AGS settings panel (add-ags-settings-panel, wave 1): the Astal bindings
+    # and the BlueZ stack, mapped per-manager in both group_vars.
+    "astal-bluetooth",
+    "astal-wp",
+    "bluez",
+    "bluez-utils",
 )
 _ARCH_EXTRA_KEYS = (
     "gloview_build",
     "adw_gtk_theme",  # GTK3 theme (Option A 2026-09-09)
     "power-options-gtk",  # AUR-only (portable power management) — Arch
+    "hyprmod",  # AUR-only (GTK4 module manager) — Arch (pre-existing drift lock)
 )
 
 

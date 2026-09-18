@@ -250,11 +250,11 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 31, (
-            f"expected exactly 31 skeleton files (hyprland.lua + gloview.lua + "
-            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+icon-registry+"
-            f"status-notifier+event-bus+event-bus-core+Bar.tsx+10 bar widgets + "
-            f"rofi launcher config.rasi + hypr colors.lua); found {len(files)}"
+        assert len(files) == 43, (
+            f"expected exactly 43 skeleton files (hyprland.lua + gloview.lua + "
+            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+4 lib+Bar.tsx+10 "
+            f"bar widgets + the settings panel (SettingsPanel/state/primitives + "
+            f"5 controls + 3 views) + rofi launcher config.rasi); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -266,6 +266,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/bar/widgets/network.tsx",
             "dotfiles/config/ags/bar/widgets/power-menu.tsx",
             "dotfiles/config/ags/bar/widgets/recording.tsx",
+            "dotfiles/config/ags/bar/widgets/settings.tsx",
             "dotfiles/config/ags/bar/widgets/thunderbird.tsx",
             "dotfiles/config/ags/bar/widgets/tray.tsx",
             "dotfiles/config/ags/bar/widgets/workspaces.tsx",
@@ -273,6 +274,17 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/lib/event-bus.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/lib/status-notifier.ts",
+            "dotfiles/config/ags/settings-panel/SettingsPanel.tsx",
+            "dotfiles/config/ags/settings-panel/controls/bluetooth.tsx",
+            "dotfiles/config/ags/settings-panel/controls/brightness.tsx",
+            "dotfiles/config/ags/settings-panel/controls/hyprmod.tsx",
+            "dotfiles/config/ags/settings-panel/controls/volume.tsx",
+            "dotfiles/config/ags/settings-panel/controls/wifi.tsx",
+            "dotfiles/config/ags/settings-panel/primitives.tsx",
+            "dotfiles/config/ags/settings-panel/state.ts",
+            "dotfiles/config/ags/settings-panel/views/BluetoothView.tsx",
+            "dotfiles/config/ags/settings-panel/views/MainView.tsx",
+            "dotfiles/config/ags/settings-panel/views/WifiView.tsx",
             "dotfiles/config/ags/style.css",
             "dotfiles/config/hypr/animations.lua",
             "dotfiles/config/hypr/autostart.lua",
@@ -617,6 +629,18 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "bar" / "widgets" / "battery.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "network.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "power-menu.tsx",
+                install / "config" / "ags" / "bar" / "widgets" / "settings.tsx",
+                install / "config" / "ags" / "settings-panel" / "state.ts",
+                install / "config" / "ags" / "settings-panel" / "primitives.tsx",
+                install / "config" / "ags" / "settings-panel" / "SettingsPanel.tsx",
+                install / "config" / "ags" / "settings-panel" / "controls" / "wifi.tsx",
+                install / "config" / "ags" / "settings-panel" / "controls" / "bluetooth.tsx",
+                install / "config" / "ags" / "settings-panel" / "controls" / "brightness.tsx",
+                install / "config" / "ags" / "settings-panel" / "controls" / "volume.tsx",
+                install / "config" / "ags" / "settings-panel" / "controls" / "hyprmod.tsx",
+                install / "config" / "ags" / "settings-panel" / "views" / "MainView.tsx",
+                install / "config" / "ags" / "settings-panel" / "views" / "WifiView.tsx",
+                install / "config" / "ags" / "settings-panel" / "views" / "BluetoothView.tsx",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"

@@ -82,6 +82,13 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/lib"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets"
+  # Settings panel sources (add-ags-settings-panel): the panel window, its
+  # state/primitives, the five controls, and the three views live in their own
+  # subdirs; copy does NOT create dest parents for file sources, so the dirs
+  # are re-ensured here.
+  - "{{ compositor_configs_spine_config_dir }}/ags/settings-panel"
+  - "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls"
+  - "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views"
   - "{{ compositor_configs_spine_config_dir }}/ags-capture"
   - "{{ compositor_configs_spine_config_dir }}/rofi"
   - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
@@ -124,6 +131,22 @@ compositor_configs_skeleton_files:
   - { name: ags-thunderbird, source: dotfiles/config/ags/bar/widgets/thunderbird.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/thunderbird.tsx" }
   - { name: ags-recording, source: dotfiles/config/ags/bar/widgets/recording.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/recording.tsx" }
   - { name: ags-tray, source: dotfiles/config/ags/bar/widgets/tray.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/tray.tsx" }
+  # Settings panel (add-ags-settings-panel): the bar trigger widget + the panel
+  # window, state, primitives, five controls, and three views. One per-file
+  # entry each (never a directory source — see the header note), all under the
+  # config-in-spine ags/ tree.
+  - { name: ags-bar-settings, source: dotfiles/config/ags/bar/widgets/settings.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/settings.tsx" }
+  - { name: ags-settings-panel-state, source: dotfiles/config/ags/settings-panel/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/state.ts" }
+  - { name: ags-settings-panel-primitives, source: dotfiles/config/ags/settings-panel/primitives.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/primitives.tsx" }
+  - { name: ags-settings-panel, source: dotfiles/config/ags/settings-panel/SettingsPanel.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/SettingsPanel.tsx" }
+  - { name: ags-settings-panel-control-wifi, source: dotfiles/config/ags/settings-panel/controls/wifi.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/wifi.tsx" }
+  - { name: ags-settings-panel-control-bluetooth, source: dotfiles/config/ags/settings-panel/controls/bluetooth.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/bluetooth.tsx" }
+  - { name: ags-settings-panel-control-brightness, source: dotfiles/config/ags/settings-panel/controls/brightness.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/brightness.tsx" }
+  - { name: ags-settings-panel-control-volume, source: dotfiles/config/ags/settings-panel/controls/volume.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/volume.tsx" }
+  - { name: ags-settings-panel-control-hyprmod, source: dotfiles/config/ags/settings-panel/controls/hyprmod.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/hyprmod.tsx" }
+  - { name: ags-settings-panel-view-main, source: dotfiles/config/ags/settings-panel/views/MainView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/MainView.tsx" }
+  - { name: ags-settings-panel-view-wifi, source: dotfiles/config/ags/settings-panel/views/WifiView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/WifiView.tsx" }
+  - { name: ags-settings-panel-view-bluetooth, source: dotfiles/config/ags/settings-panel/views/BluetoothView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/BluetoothView.tsx" }
   - { name: rofi-launcher-config-rasi, source: dotfiles/config/rofi/launcher/config.rasi, dest: "{{ compositor_configs_spine_config_dir }}/rofi/launcher/config.rasi" }
 
 # compositor_configs_bin_scripts: executable desktop helpers the XF86 binds in

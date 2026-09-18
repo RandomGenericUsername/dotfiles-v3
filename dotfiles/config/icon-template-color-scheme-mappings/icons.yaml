@@ -332,3 +332,81 @@ ui:
       template: ui/emoji/default/icon.svg
       output: ui-emoji.svg
 
+settings:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: default
+      template: status-bar/settings/default/icon.svg
+      output: status-bar-settings.svg
+
+  bar_mappings:
+    widget: settings
+    icon_size: 24
+    states:
+      default: default
+
+settings-panel:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    # The capability glyphs bake their own on/off tint through ITR (accent when
+    # on, muted when off) so the panel renders bare glyphs — no CSS filter, no
+    # background box. Variant-level mappings win over the group's foreground.
+    - name: wifi
+      template: settings-panel/wifi/default/icon.svg
+      output: settings-panel-wifi.svg
+      color_mappings:
+        COLOR_FOREGROUND: color13
+    # The off variants use the neutral foreground token (NOT a second palette
+    # hue): on some wallpapers color11 and color13 are near-identical, so hue
+    # cannot carry the state. The panel dims the off glyph via opacity, matching
+    # the GUI family's disabled treatment — brightness, not hue, carries "off".
+    - name: wifi-off
+      template: settings-panel/wifi/default/icon.svg
+      output: settings-panel-wifi-off.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: bluetooth
+      template: settings-panel/bluetooth/default/icon.svg
+      output: settings-panel-bluetooth.svg
+      color_mappings:
+        COLOR_FOREGROUND: color13
+    - name: bluetooth-off
+      template: settings-panel/bluetooth/default/icon.svg
+      output: settings-panel-bluetooth-off.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    # Hyprmod is a stateless action, so it inherits the group foreground.
+    - name: hyprmod
+      template: settings-panel/hyprmod/default/icon.svg
+      output: settings-panel-hyprmod.svg
+
+brightness:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: default
+      template: brightness/default/icon.svg
+      output: brightness.svg
+
+volume:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: muted
+      template: volume/muted/default/icon.svg
+      output: volume-muted.svg
+    - name: lowest
+      template: volume/lowest/default/icon.svg
+      output: volume-lowest.svg
+    - name: low
+      template: volume/low/default/icon.svg
+      output: volume-low.svg
+    - name: medium
+      template: volume/medium/default/icon.svg
+      output: volume-medium.svg
+    - name: max
+      template: volume/max/default/icon.svg
+      output: volume-max.svg
+

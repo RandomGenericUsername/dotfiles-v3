@@ -181,6 +181,29 @@ verify_cli_tools:
 verify_notifd_binding_packages:
   - libastal-notifd-git
 
+# verify_astal_binding_packages: the AUR packages backing the AstalBluetooth
+#   and AstalWp bindings the settings panel imports (settings-panel-
+#   provisioning gate — the panel is never scaffolded against a missing
+#   binding). Checked via `pacman -Q` (importable == installed here: the
+#   package ships the GIR + typelib the girepository loader resolves).
+#   Mirror of the packages role's `aur_packages` entries.
+verify_astal_binding_packages:
+  - libastal-bluetooth-git
+  - libastal-wireplumber-git
+
+# verify_bluetooth_service: the system unit backing AstalBluetooth (the
+#   settings panel's Bluetooth control). Installing bluez alone leaves no
+#   daemon running, so the packages role enables + starts it; this gate asserts
+#   BOTH enabled (survives the next boot) and active (usable now) — a disabled
+#   unit would silently drop Bluetooth from the panel after a reboot.
+verify_bluetooth_service: bluetooth.service
+
+# verify_backlight_binary: the CLI the settings panel's Display slider drives
+#   (`-m` read, `set <pct>%` write). The packages role installs it and its udev
+#   rule grants the session user access; this gate runs the machine-readable
+#   read as the user so a slider that would silently no-op fails provisioning.
+verify_backlight_binary: brightnessctl
+
 # verify_masked_user_units: systemd --user units that must be MASKED, not just
 #   stopped, on a provisioned machine. The notifications overlay owns
 #   org.freedesktop.Notifications for the session; dunst's enabled unit
@@ -286,14 +309,19 @@ verify_palette_files:
   - colors.sequences
   - colors.kitty
 
-# verify_icons_dir / verify_icons_sample: the runtime icons output
+# verify_icons_dir / verify_icons_samples: the runtime icons output
 #   (criterion — runtime icons, Epic 4 current-only). The dir is the
-#   runtime's current/icons symlink; the sample is a known variant from
-#   icons.yaml (battery-0) so verify proves a REAL render happened, not
-#   just an empty dir. Trim lock (derived from verify_xdg_state_home —
-#   no second XDG resolution).
+#   runtime's current/icons symlink; the samples are known variants from
+#   icons.yaml so verify proves a REAL render happened, not just an empty dir.
+#   battery-0 predates the settings panel; settings-panel-wifi.svg and
+#   volume-low.svg prove the new groups (add-ags-settings-panel) actually
+#   rendered. Trim lock (derived from verify_state_current_dir — no second
+#   XDG resolution).
 verify_icons_dir: "{{ verify_state_current_dir }}/icons"
-verify_icons_sample: "{{ verify_state_current_dir }}/icons/battery-0.svg"
+verify_icons_samples:
+  - "{{ verify_state_current_dir }}/icons/battery-0.svg"
+  - "{{ verify_state_current_dir }}/icons/settings-panel-wifi.svg"
+  - "{{ verify_state_current_dir }}/icons/volume-low.svg"
 
 # verify_compositor_config_dirs: the three compositor config dirs under the XDG
 #   config home (criterion 7). config-in-spine (2026-08-16): these are now
@@ -338,6 +366,22 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/thunderbird.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/recording.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/tray.tsx"
+  # Settings panel sources (add-ags-settings-panel): the bar trigger widget,
+  # the panel window/state/primitives, the five controls, and the three views.
+  # Mirror of compositor_configs_skeleton_files dests — a missing panel source
+  # means a window that crashes or silently omits a section at open.
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/settings.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/state.ts"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/primitives.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/SettingsPanel.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/wifi.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/bluetooth.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/brightness.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/volume.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/hyprmod.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/views/MainView.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/views/WifiView.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/views/BluetoothView.tsx"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
