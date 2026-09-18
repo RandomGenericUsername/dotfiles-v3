@@ -42,9 +42,14 @@ protocol as `BarSubscriber`: register match rules before reading
 `GetTopicState` (subscribe-before-read hydration), discard any `DomainEvent`
 whose `(epoch, seq)` is not greater than the hydrated baseline, re-hydrate on
 `JobsCleared`/`NameOwnerChanged` without replaying stale events, and
-structurally validate payloads (size and depth) before dispatch. It SHALL read
-contract constants from `contracts/event-contract.json` at import time and SHALL
-NOT import `runtime.domain`/`runtime.ports`.
+structurally validate payloads (size and depth) before dispatch. It SHALL source
+its contract constants from the runtime's embedded, conformance-pinned tables
+(`runtime.adapters.dbus_event_bus`, `runtime.ports.bus_name_owner`,
+`runtime.domain.hub`) rather than reading `contracts/event-contract.json` at
+import time, so the binding functions in the installed tool environment whose
+wheel ships no repo-root `contracts/` directory; the conformance tests keep the
+embedded tables equal to the contract (AD-44, "embedded per side + pinned
+executably").
 
 #### Scenario: subscribe-before-read prevents a lost race
 

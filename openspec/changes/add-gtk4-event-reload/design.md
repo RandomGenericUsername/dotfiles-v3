@@ -62,9 +62,14 @@ on DomainEvent("wallpaper.state", payload):
     restart_allowlisted_apps()                          # set | reconcile | reactive
 ```
 
-Contract constants are read from `contracts/event-contract.json` at import time
-(never from `runtime.domain`/`runtime.ports`), exactly as `bar_subscriber.py`
-does — consumer and hub depend on the contract, not on each other.
+Contract constants are sourced from the runtime's embedded, conformance-pinned
+tables (`runtime.adapters.dbus_event_bus`, `runtime.ports.bus_name_owner`,
+`runtime.domain.hub`) — never read from `contracts/event-contract.json` at
+import time. The installed tool wheel packages only the `runtime` package, so
+the repo-root `contracts/` directory is absent there and a file-walk would
+abort import; embedding mirrors `dbus_event_bus`'s served surface, which
+`test_dbus_conformance` keeps equal to `contracts/event-contract.{json,xml}`
+(AD-44 "embedded per side + pinned executably").
 
 ## 4. Hosting: daemon background thread
 

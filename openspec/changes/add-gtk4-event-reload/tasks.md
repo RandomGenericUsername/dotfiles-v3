@@ -81,3 +81,16 @@ Prereqs: all prior sections ticked.
 
 - [ ] 7.1 Move `openspec/changes/add-gtk4-event-reload/` to `openspec/changes/archive/2026-09-18-add-gtk4-event-reload/`
 - [ ] 7.2 Merge `feat/gtk4-event-reload` → `master`; remove the worktree
+
+## 8. Integration fix: installed-layout contract resolution — Agent C
+
+E2E exposed that `gtk4_app_subscriber.py` read `contracts/event-contract.json`
+by walking up from its own file at import time; the installed tool wheel ships
+only the `runtime` package, so the daemon could not import the binding. Fix:
+source the constants from the runtime's embedded, conformance-pinned tables
+(AD-44), exactly as `dbus_event_bus` does. Does NOT re-open section 3.
+
+- [x] 8.1 `gtk4_app_subscriber.py` — delete `_find_contract`/`_CONTRACT`/`_signal_args` and the `Path` import; import `INTERFACE`/`OBJECT_PATH`/`SIGNALS` from `runtime.adapters.dbus_event_bus`, `BUS_NAME` from `runtime.ports.bus_name_owner`, `KNOWN_TOPICS` from `runtime.domain.hub`; keep the signal/method names as literals and set `DOMAIN_EVENT_ARGS = SIGNALS["DomainEvent"]`; adjust the `KNOWN_TOPICS` type annotation to `frozenset`
+- [x] 8.2 Regression test in `tests/unit/test_gtk4_app_subscriber.py` — constants equal the embedded hub tables and `_find_contract`/`_CONTRACT`/`_signal_args` no longer exist (no repo-root `contracts/` dependency)
+- [x] 8.3 Artifact wording — `design.md` §3 and `specs/gtk4-event-reload/spec.md` now mandate embedded constants, naming the three modules and the installed-wheel reason
+- [x] 8.4 Verify: unit + conformance tests green; `make contracts-check`; `uv tool install --force --no-cache <worktree>/src/runtime` then import `Gtk4AppSubscriber` in the installed interpreter prints OK; full `src/runtime` suite green except the known pre-existing `test_ags_reloader_integration_restart_with_shim`; commit `fix(runtime): source gtk4 subscriber constants from embedded hub (installed layout)`
