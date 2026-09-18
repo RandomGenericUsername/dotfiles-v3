@@ -10,8 +10,9 @@ section. Do not start a dependent section before its prerequisites are ticked.
 No OpenSpec CLI is installed; this file is the tracker (mirrors the format of
 `openspec/changes/add-icon-contrast-guard/tasks.md`).
 
-Dependency order: 1 → (2, 4) → 3 → 5 → 6. Sections 2 and 4 may run in parallel
-after 1.
+Dependency order: 1 → 2 → 3 → 4 → 5 → 6. (Sections 1 and 2 are independent
+and may run in parallel. Section 4 hosts the subscriber, so it requires
+section 3 — do NOT run 4 before 3.)
 
 ## 0. Setup — Orchestrator (done)
 
@@ -49,7 +50,7 @@ Prereqs: sections 1 and 2 ticked.
 
 ## 4. Daemon hosting + publish coverage — Agent D
 
-Prereqs: section 1 ticked (1.4 call-site wiring completed here).
+Prereqs: sections 1 and 3 ticked (1.4 call-site wiring is completed here).
 
 - [ ] 4.1 `src/runtime/src/runtime/cli/main.py::daemon_run` (line ~2074) — start the subscriber read loop in a background thread (own `open_dbus_connection`); ensure clean shutdown on daemon stop; never crash the daemon on subscriber errors (log + continue)
 - [ ] 4.2 Standalone `reconcile` command — publish `wallpaper.state done/error` with `trigger="reconcile"` around the use case (mirror `_run_wallpaper_set`'s publish discipline: informational only, never fail the command on publish failure)
