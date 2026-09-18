@@ -60,6 +60,7 @@ packages:
   # settings.ini migration in the config-links role (gtk-3.0 dir).
   adw_gtk_theme: adw-gtk-theme
   power-options-gtk: power-options-gtk # Portable power management (AUR) — defacto, launched from battery widget
+  hyprmod: hyprmod # Hyprland module manager (GTK4/libadwaita)
   brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
   playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)

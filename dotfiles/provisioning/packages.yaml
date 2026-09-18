@@ -59,6 +59,7 @@ entries:
 
   # Portable power management (defacto: power-options-gtk)
   - name: power-options-gtk
+  - name: hyprmod             # Hyprland module manager (GTK4/libadwaita)
 
   # Fn-key controllers (XF86 binds in keybindings.lua)
   - name: brightnessctl     # screen backlight
