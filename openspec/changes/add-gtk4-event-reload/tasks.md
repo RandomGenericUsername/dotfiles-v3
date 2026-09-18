@@ -94,3 +94,17 @@ source the constants from the runtime's embedded, conformance-pinned tables
 - [x] 8.2 Regression test in `tests/unit/test_gtk4_app_subscriber.py` — constants equal the embedded hub tables and `_find_contract`/`_CONTRACT`/`_signal_args` no longer exist (no repo-root `contracts/` dependency)
 - [x] 8.3 Artifact wording — `design.md` §3 and `specs/gtk4-event-reload/spec.md` now mandate embedded constants, naming the three modules and the installed-wheel reason
 - [x] 8.4 Verify: unit + conformance tests green; `make contracts-check`; `uv tool install --force --no-cache <worktree>/src/runtime` then import `Gtk4AppSubscriber` in the installed interpreter prints OK; full `src/runtime` suite green except the known pre-existing `test_ags_reloader_integration_restart_with_shim`; commit `fix(runtime): source gtk4 subscriber constants from embedded hub (installed layout)`
+
+## 9. Fix: interpreter-wrapped app discovery (hyprmod) — Agent B
+
+E2E exposed that `_discover_gtk4_apps` matched only `Path(argv[0]).name`
+against `TARGET_APPS`: `power-options-gtk` (direct ELF) matched, but `hyprmod`
+runs as `/usr/bin/python /usr/bin/hyprmod`, so its argv[0] basename is
+`python` and it was never discovered (and therefore never restarted). Does NOT
+re-open sections 3/8.
+
+- [x] 9.1 `gtk4_app_reloader.py` — add pure `_resolve_app_name(argv)` (direct binary; Python interpreter → next token script/module; `/usr/bin/env python`; no arbitrary-position scanning) and use it in `_discover_gtk4_apps`; keep the full original argv for relaunch
+- [x] 9.2 INFO-level observability — `Gtk4AppReloader.reload` logs the app being restarted and the success/failure outcome (previously a successful restart was silent)
+- [x] 9.3 Tests `tests/unit/test_gtk4_app_reloader.py` — resolve table (direct, `python /usr/bin/hyprmod`, versioned interpreter, `-m`, `env`, and negatives) plus a fake-`/proc` discovery regression asserting `app_name == "hyprmod"` with argv preserved; existing restart/skip/no-target tests stay green
+- [x] 9.4 Verify via `uv run` unit tests + live read-only discovery + `ruff`/`mypy`; commit `fix(runtime): discover interpreter-wrapped GTK4 apps (hyprmod)`
+

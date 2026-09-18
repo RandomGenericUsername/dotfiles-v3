@@ -93,13 +93,16 @@ trigger a restart.
 
 The restart primitive SHALL target only the explicit allowlist
 (`power-options-gtk`, `hyprmod`) and never wildcard-discover arbitrary GTK4
-apps. For each target it SHALL send SIGTERM (graceful, equivalent to the user
-closing the window), wait until the old pid is gone (bounded poll), escalate to
-SIGKILL on timeout, wait again, and only then relaunch with the original argv
-detached. A restart that cannot be confirmed live after relaunch SHALL be
-reported as a failure. No target running SHALL be a vacuous success. The
-per-target state-safety rationale SHALL be recorded in the module docstring,
-and the `skip_apps` opt-out SHALL remain honored.
+apps. Discovery SHALL resolve interpreter-wrapped scripts (a shebang target
+such as `hyprmod`, whose process argv is `python /usr/bin/hyprmod`) in addition
+to direct binaries, without scanning arbitrary argv positions. For each target
+it SHALL send SIGTERM (graceful, equivalent to the user closing the window),
+wait until the old pid is gone (bounded poll), escalate to SIGKILL on timeout,
+wait again, and only then relaunch with the original argv detached. A restart
+that cannot be confirmed live after relaunch SHALL be reported as a failure.
+No target running SHALL be a vacuous success. The per-target state-safety
+rationale SHALL be recorded in the module docstring, and the `skip_apps`
+opt-out SHALL remain honored.
 
 #### Scenario: relaunch waits for the old single-instance owner
 

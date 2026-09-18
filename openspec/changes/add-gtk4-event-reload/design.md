@@ -109,6 +109,13 @@ invisible to GUI progress indicators (they refresh on the same event).
 - **Allowlist only.** `TARGET_APPS = {"power-options-gtk", "hyprmod"}`
   (`gtk4_app_reloader.py:38`). Never wildcard-discover GTK4 apps; an app with
   genuine unsaved state (editor) can never be swept in.
+- **Discovery resolves interpreter-wrapped scripts.** `/proc/[pid]/cmdline`
+  matching handles both direct binaries (`power-options-gtk`) and
+  interpreter-wrapped scripts: `hyprmod` runs as `python /usr/bin/hyprmod` (or
+  `env python ...`), so the app name is resolved from the interpreter's
+  script/module position rather than only `argv[0]`. No arbitrary argv-position
+  scanning, so `bash -c 'hyprmod'` / `rg hyprmod` never match; the original
+  full argv is retained for relaunch.
 - **Per-target rationale (recorded in the module docstring):**
   - `power-options-gtk` — frontend for the power-options daemon; changes apply
     to the daemon immediately, no pending buffer; reopening re-reads state.
