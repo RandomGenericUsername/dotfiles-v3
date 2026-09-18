@@ -52,11 +52,11 @@ Prereqs: sections 1 and 2 ticked.
 
 Prereqs: sections 1 and 3 ticked (1.4 call-site wiring is completed here).
 
-- [ ] 4.1 `src/runtime/src/runtime/cli/main.py::daemon_run` (line ~2074) — start the subscriber read loop in a background thread (own `open_dbus_connection`); ensure clean shutdown on daemon stop; never crash the daemon on subscriber errors (log + continue)
-- [ ] 4.2 Standalone `reconcile` command — publish `wallpaper.state done/error` with `trigger="reconcile"` around the use case (mirror `_run_wallpaper_set`'s publish discipline: informational only, never fail the command on publish failure)
-- [ ] 4.3 Daemon reactive converge (`_run_reactive_converge`) — after converge, publish `done` with `trigger="reactive"` (same non-fatal discipline)
-- [ ] 4.4 Tests: daemon starts/stops the subscriber thread cleanly; a published `set` done causes exactly one restart invocation against fakes; `regenerate` causes none; subscriber failure does not stop the daemon
-- [ ] 4.5 Commit: `feat(runtime): host gtk4 subscriber in daemon and publish reconcile/reactive triggers`
+- [x] 4.1 `src/runtime/src/runtime/cli/main.py::daemon_run` (line ~2074) — start the subscriber read loop in a background thread (own `open_dbus_connection`); ensure clean shutdown on daemon stop; never crash the daemon on subscriber errors (log + continue)
+- [x] 4.2 Standalone `reconcile` command — publish `wallpaper.state done/error` with `trigger="reconcile"` around the use case (mirror `_run_wallpaper_set`'s publish discipline: informational only, never fail the command on publish failure)
+- [x] 4.3 Daemon reactive converge (`_run_reactive_converge`) — after converge, publish `done` with `trigger="reactive"` (same non-fatal discipline)
+- [x] 4.4 Tests: daemon starts/stops the subscriber thread cleanly; a published `set` done causes exactly one restart invocation against fakes; `regenerate` causes none; subscriber failure does not stop the daemon
+- [x] 4.5 Commit: `feat(runtime): host gtk4 subscriber in daemon and publish reconcile/reactive triggers`
 
 ## 5. Chain rewiring + escape hatch — Agent A
 
