@@ -42,11 +42,11 @@ section 3 — do NOT run 4 before 3.)
 
 Prereqs: sections 1 and 2 ticked.
 
-- [ ] 3.1 New `src/runtime/src/runtime/adapters/gtk4_app_subscriber.py` — mirror `bar_subscriber.py`: jeepney blocking transport, register match rules before `GetTopicState` hydration, `(epoch, seq)` lexicographic discard, `JobsCleared`/`NameOwnerChanged` re-hydration, payload size/depth validation; contract constants read from `contracts/event-contract.json` at import time (never import `runtime.domain`/`runtime.ports`)
-- [ ] 3.2 Dispatch logic — on `DomainEvent` topic `wallpaper.state`: only `state == "done"`; skip `trigger == "regenerate"` (log); restart allowlisted apps for `set`/`reconcile`/`reactive` via the hardened primitive; tolerate a missing `trigger` field conservatively (treat as palette-affecting only if `state=="done"`; document the choice)
-- [ ] 3.3 Reuse `_discover_gtk4_apps` + hardened restart (import from `gtk4_app_reloader`); no duplicated /proc logic
-- [ ] 3.4 Tests `tests/unit/test_gtk4_app_subscriber.py` (mirror `test_bar_subscriber.py`): hydration baseline, stale `(epoch,seq)` dropped, `JobsCleared` re-hydration without replay, oversized/deep payload dropped, trigger gate table (`regenerate` skipped; `set`/`reconcile`/`reactive` restart), missing-trigger behavior, no-targets no-op
-- [ ] 3.5 Commit: `feat(runtime): add gtk4_app_subscriber hub consumer binding`
+- [x] 3.1 New `src/runtime/src/runtime/adapters/gtk4_app_subscriber.py` — mirror `bar_subscriber.py`: jeepney blocking transport, register match rules before `GetTopicState` hydration, `(epoch, seq)` lexicographic discard, `JobsCleared`/`NameOwnerChanged` re-hydration, payload size/depth validation; contract constants read from `contracts/event-contract.json` at import time (never import `runtime.domain`/`runtime.ports`)
+- [x] 3.2 Dispatch logic — on `DomainEvent` topic `wallpaper.state`: only `state == "done"`; skip `trigger == "regenerate"` (log); restart allowlisted apps for `set`/`reconcile`/`reactive` via the hardened primitive; tolerate a missing `trigger` field conservatively (treat as palette-affecting only if `state=="done"`; document the choice)
+- [x] 3.3 Reuse `_discover_gtk4_apps` + hardened restart (import from `gtk4_app_reloader`); no duplicated /proc logic
+- [x] 3.4 Tests `tests/unit/test_gtk4_app_subscriber.py` (mirror `test_bar_subscriber.py`): hydration baseline, stale `(epoch,seq)` dropped, `JobsCleared` re-hydration without replay, oversized/deep payload dropped, trigger gate table (`regenerate` skipped; `set`/`reconcile`/`reactive` restart), missing-trigger behavior, no-targets no-op
+- [x] 3.5 Commit: `feat(runtime): add gtk4_app_subscriber hub consumer binding`
 
 ## 4. Daemon hosting + publish coverage — Agent D
 
