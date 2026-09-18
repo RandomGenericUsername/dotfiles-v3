@@ -31,11 +31,11 @@ after 1.
 
 ## 2. Restart primitive hardening — Agent B
 
-- [ ] 2.1 `src/runtime/src/runtime/adapters/gtk4_app_reloader.py::_restart` — after SIGTERM, poll `os.kill(pid, 0)` until `ProcessLookupError` using the existing `_LIVENESS_POLLS`/`_LIVENESS_POLL_INTERVAL` budget; on timeout send SIGKILL and poll again; only then `Popen(argv, start_new_session=True)`
-- [ ] 2.2 Extract the wait-for-death step into a small testable helper (e.g. `_wait_for_exit(pid) -> bool`); keep `_discover_gtk4_apps`, `TARGET_APPS`, `DEFAULT_SKIP_APPS` unchanged
-- [ ] 2.3 Module docstring — record the restart-safety contract: allowlist-only, per-target state rationale (`power-options-gtk`: daemon frontend, apply-on-change; `hyprmod`: persists to `hyprland.conf`), SIGTERM = graceful close, SIGKILL only after grace, `skip_apps` opt-out, vacuous success on no targets
-- [ ] 2.4 Tests `tests/unit/test_gtk4_app_reloader.py` — wait-before-relaunch ordering (fake pid-alive probe), SIGKILL escalation on timeout, still-alive-after-both → `False`, no-targets → `True`; keep existing restart/skip tests green
-- [ ] 2.5 Commit: `fix(runtime): wait for GTK4 app exit before relaunch (GApplication race)`
+- [x] 2.1 `src/runtime/src/runtime/adapters/gtk4_app_reloader.py::_restart` — after SIGTERM, poll `os.kill(pid, 0)` until `ProcessLookupError` using the existing `_LIVENESS_POLLS`/`_LIVENESS_POLL_INTERVAL` budget; on timeout send SIGKILL and poll again; only then `Popen(argv, start_new_session=True)`
+- [x] 2.2 Extract the wait-for-death step into a small testable helper (e.g. `_wait_for_exit(pid) -> bool`); keep `_discover_gtk4_apps`, `TARGET_APPS`, `DEFAULT_SKIP_APPS` unchanged
+- [x] 2.3 Module docstring — record the restart-safety contract: allowlist-only, per-target state rationale (`power-options-gtk`: daemon frontend, apply-on-change; `hyprmod`: persists to `hyprland.conf`), SIGTERM = graceful close, SIGKILL only after grace, `skip_apps` opt-out, vacuous success on no targets
+- [x] 2.4 Tests `tests/unit/test_gtk4_app_reloader.py` — wait-before-relaunch ordering (fake pid-alive probe), SIGKILL escalation on timeout, still-alive-after-both → `False`, no-targets → `True`; keep existing restart/skip tests green
+- [x] 2.5 Commit: `fix(runtime): wait for GTK4 app exit before relaunch (GApplication race)`
 
 ## 3. Consumer binding: `gtk4_app_subscriber.py` — Agent C
 
