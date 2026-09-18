@@ -123,6 +123,30 @@ export function needsRealHash(
   return knownSources.has(file.path) || knownSizes.has(file.size);
 }
 
+/** Re-resolve cached `unapplied:` placeholders against a fresh path→hash
+ * mapping (built from current runtime metas). A placeholder means "never
+ * applied when last scanned"; a later apply creates runtime metas WITHOUT
+ * touching spine stats, so any fast path that reuses cached hashes must run
+ * this first — otherwise the gallery (keyed by real content hash) shows zero
+ * variants for the wallpaper forever, no matter how often it is selected.
+ * Entries without a fresh mapping keep their placeholder. */
+export function resolvePlaceholders(
+  cached: { name: string; path: string; hash: string; mtime: string; size: number }[],
+  mapping: Map<string, string>,
+): { name: string; path: string; hash: string; mtime: string; size: number }[] {
+  return cached.map((c) =>
+    c.hash.startsWith(UNAPPLIED_PREFIX) && mapping.has(c.path)
+      ? {
+          name: c.name,
+          path: c.path,
+          hash: mapping.get(c.path) as string,
+          mtime: c.mtime,
+          size: c.size,
+        }
+      : c,
+  );
+}
+
 export function buildModel(
   spine: RawWallpaper[],
   effects: RawEffectsEntry[],
@@ -162,11 +186,48 @@ export function buildModel(
       live: w.hash === liveHash,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  // Pin the live wallpaper (or a live variant's parent) first in the grid;
+  // everything else keeps name order. No pin when nothing live matches.
+  const pinHash = pinTargetHash(
+    wallpapers.map((w) => w.hash),
+    variants,
+    liveHash,
+    livePath,
+  );
+  if (pinHash !== null) {
+    const idx = wallpapers.findIndex((w) => w.hash === pinHash);
+    if (idx > 0) {
+      const [pinned] = wallpapers.splice(idx, 1);
+      wallpapers.unshift(pinned);
+    }
+  }
   return { wallpapers, variants, liveWallpaperHash: liveHash, liveVariantPath: livePath };
 }
 
 export function variantsFor(model: SelectorModel, wallpaperHash: string): VariantEntry[] {
   return model.variants.get(wallpaperHash) ?? [];
+}
+
+/** Hash of the wallpaper to pin first in the grid: the live wallpaper
+ * itself, or — when a variant is live — its parent (variants are keyed by
+ * parent hash, so the parent is found through the live variant's path).
+ * Null when nothing live matches (absent state, stale hash, pruned
+ * variants) — plain name order then. Ordering only; the `live` flags are
+ * untouched (a live variant keeps its own badge, the parent does not gain
+ * one). */
+export function pinTargetHash(
+  wallpaperHashes: string[],
+  variants: Map<string, VariantEntry[]>,
+  liveHash: string,
+  liveVariantPath: string,
+): string | null {
+  if (liveHash !== "" && wallpaperHashes.includes(liveHash)) return liveHash;
+  if (liveVariantPath !== "") {
+    for (const [sourceHash, list] of variants) {
+      if (list.some((v) => v.path === liveVariantPath)) return sourceHash;
+    }
+  }
+  return null;
 }
 
 export function filterWallpapers(

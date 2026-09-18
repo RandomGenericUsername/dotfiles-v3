@@ -6,8 +6,11 @@ import {
   isImageFile,
   mapSpineHashes,
   needsRealHash,
+  pinTargetHash,
+  resolvePlaceholders,
   stemOf,
   unappliedPlaceholder,
+  UNAPPLIED_PREFIX,
   variantsFor,
 } from "../lib/model.ts";
 
@@ -144,6 +147,95 @@ const CURRENT_VAR = {
   check("placeholder shape", unappliedPlaceholder("/s/fresh.png"), "unapplied:/s/fresh.png");
   check("empty metas", [...mapSpineHashes(spine, []).entries()], []);
   check("empty spine", [...mapSpineHashes([], metas).entries()], []);
+}
+
+// placeholder re-resolution (an apply creates runtime metas without
+// touching spine stats, so cached `unapplied:` hashes must resolve against
+// fresh metas or the gallery stays empty forever)
+{
+  const cached = [
+    { name: "new.png", path: "/s/new.png", hash: `${UNAPPLIED_PREFIX}/s/new.png`, mtime: "t", size: 100 },
+    { name: "never.png", path: "/s/never.png", hash: `${UNAPPLIED_PREFIX}/s/never.png`, mtime: "t", size: 200 },
+    { name: "old.png", path: "/s/old.png", hash: "o".repeat(64), mtime: "t", size: 300 },
+  ];
+  const mapping = new Map([["/s/new.png", "n".repeat(64)]]);
+  const fixed = resolvePlaceholders(cached, mapping);
+  check("placeholder resolves to fresh hash", fixed[0].hash, "n".repeat(64));
+  check("resolved entry keeps fields", [fixed[0].name, fixed[0].path, fixed[0].mtime, fixed[0].size], ["new.png", "/s/new.png", "t", 100]);
+  check("unmapped placeholder pins", fixed[1].hash, `${UNAPPLIED_PREFIX}/s/never.png`);
+  check("real hash untouched", fixed[2].hash, "o".repeat(64));
+  check("input not mutated", cached[0].hash, `${UNAPPLIED_PREFIX}/s/new.png`);
+  check("empty mapping pins all", resolvePlaceholders(cached, new Map())[0].hash, `${UNAPPLIED_PREFIX}/s/new.png`);
+}
+
+// gallery link restored once the placeholder resolves
+{
+  const entry = [{ sourceHash: "n".repeat(64), variants: [{ name: "blur", group: "effect", path: "/cache/e/new/effect/blur.png" }] }];
+  const before = buildModel(
+    [{ name: "new.png", path: "/s/new.png", hash: `${UNAPPLIED_PREFIX}/s/new.png` }],
+    entry, null,
+  );
+  check("placeholder shows zero variants", before.wallpapers[0].variantCount, 0);
+  const after = buildModel(
+    [{ name: "new.png", path: "/s/new.png", hash: "n".repeat(64) }],
+    entry, null,
+  );
+  check("resolved hash shows variants", after.wallpapers[0].variantCount, 1);
+  check("variants listed", variantsFor(after, "n".repeat(64)).map((v) => v.name), ["blur"]);
+}
+
+// live pinning: live wallpaper (or live variant's parent) sorts first,
+// everything else keeps name order
+{
+  const m = buildModel(SPINE, EFFECTS, CURRENT_WALL);
+  check("live wallpaper pinned first", m.wallpapers.map((w) => w.name), [
+    "imperial_eagle.jpg",
+    "black_dragon.webp",
+    "shani.png",
+  ]);
+  check("pinned keeps live flag", m.wallpapers[0].live, true);
+}
+{
+  const m = buildModel(SPINE, EFFECTS, CURRENT_VAR);
+  check("live variant pins its parent", m.wallpapers.map((w) => w.name), [
+    "imperial_eagle.jpg",
+    "black_dragon.webp",
+    "shani.png",
+  ]);
+  check("parent gains no live flag", m.wallpapers[0].live, false);
+}
+{
+  const m = buildModel(SPINE, EFFECTS, null);
+  check("nothing live keeps name order", m.wallpapers.map((w) => w.name), [
+    "black_dragon.webp",
+    "imperial_eagle.jpg",
+    "shani.png",
+  ]);
+  check("pin target null without current", pinTargetHash(
+    ["i".repeat(64)], new Map(), "", "",
+  ), null);
+}
+{
+  const vars = new Map([["i".repeat(64), [{ name: "sepia", group: "effect", path: "/cache/sepia.jpg" }]]]);
+  check("direct live hash wins", pinTargetHash(
+    ["i".repeat(64), "s".repeat(64)], vars, "s".repeat(64), "/cache/sepia.jpg",
+  ), "s".repeat(64));
+  check("variant path resolves parent", pinTargetHash(
+    ["i".repeat(64), "s".repeat(64)], vars, "v".repeat(64), "/cache/sepia.jpg",
+  ), "i".repeat(64));
+  check("unknown variant path pins nothing", pinTargetHash(
+    ["i".repeat(64)], vars, "v".repeat(64), "/cache/gone.jpg",
+  ), null);
+  check("stale live hash pins nothing", pinTargetHash(
+    ["i".repeat(64)], vars, "z".repeat(64), "",
+  ), null);
+}
+{
+  // pin survives search filtering (filter preserves model order)
+  const m = buildModel(SPINE, EFFECTS, CURRENT_VAR);
+  check("filtered pin stays first", filterWallpapers(m.wallpapers, "eagle").map((w) => w.name), [
+    "imperial_eagle.jpg",
+  ]);
 }
 
 // helpers

@@ -15,7 +15,9 @@ import {
   isImageFile,
   mapSpineHashes,
   needsRealHash,
+  resolvePlaceholders,
   unappliedPlaceholder,
+  UNAPPLIED_PREFIX,
   stemOf,
   type RawCurrent,
   type RawEffectsEntry,
@@ -453,6 +455,17 @@ export function loadModelSmart(cachePath?: string): SelectorModel {
     if (intact) {
       wallpapers = prev.spine.map((c) => ({ name: c.name, path: c.path, hash: c.hash }));
       spineCache = prev.spine;
+      // A cached `unapplied:` placeholder pins forever under this fast path:
+      // applying a wallpaper creates runtime metas WITHOUT touching spine
+      // stats, so intact stays true and the gallery (keyed by real hash)
+      // would show zero variants forever. Re-resolve placeholders against
+      // fresh metas (cheap, and only when a placeholder is actually cached).
+      if (spineCache.some((c) => c.hash.startsWith(UNAPPLIED_PREFIX))) {
+        const mapping = mapSpineHashes(spineStats, scanWallpaperMetas());
+        const fixed = resolvePlaceholders(spineCache, mapping);
+        spineCache = fixed;
+        wallpapers = fixed.map((c) => ({ name: c.name, path: c.path, hash: c.hash }));
+      }
     } else {
       const freshMetas = scanWallpaperMetas();
       const mapping = mapSpineHashes(spineStats, freshMetas);
@@ -467,7 +480,12 @@ export function loadModelSmart(cachePath?: string): SelectorModel {
           old !== undefined &&
           old.name === f.name &&
           old.mtime === f.mtime &&
-          old.size === f.size
+          old.size === f.size &&
+          // A cached placeholder must not pin here either: the file may
+          // have been applied since it was cached (runtime metas exist
+          // without spine stat changes) — fall through to the fresh
+          // mapping below instead of reusing the stale placeholder.
+          !old.hash.startsWith(UNAPPLIED_PREFIX)
         ) {
           wallpapers.push({ name: old.name, path: old.path, hash: old.hash });
           spineCache.push(old);
