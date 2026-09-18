@@ -75,7 +75,7 @@ Prereqs: all prior sections ticked.
 - [x] 6.1 Docs — update the reload/consumer prose (`docs/`, and the runtime architecture-in-spine notes) to state: event-driven GTK4 restart, `trigger` semantics, `done` = synchronous chain then subscribers act, degraded mode + escape hatch, allowlist/safety contract
 - [x] 6.2 Full suite green: `uv run --directory src/runtime pytest -q`; `ruff check` + `ruff format --check` + `mypy --strict` clean on touched runtime modules; GJS drift tests green (`wallpaper-selector`, `icme`)
 - [ ] 6.3 Manual E2E from the worktree (requires the user): `uv tool install --force --no-cache <worktree>/src/runtime`; restart `dotfiles-runtime-daemon.service`; with `power-options-gtk` + `hyprmod` open — (a) change wallpaper → both close/reopen with new palette; (b) contrast toggle → no restart; (c) stop daemon → `dotfiles-runtime gtk4 restart` works; (d) no apps open → no-op. Record outcomes in this file
-- [ ] 6.4 Commit: `docs(runtime): document event-driven GTK4 app reload`
+- [x] 6.4 Commit: `docs(runtime): document event-driven GTK4 app reload`
 
 ## 7. Archive + merge — Orchestrator (after user sign-off)
 
