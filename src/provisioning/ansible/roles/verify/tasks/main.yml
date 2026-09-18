@@ -107,6 +107,7 @@
       - verify_system_binaries | length > 0
       - verify_cli_tools | length > 0
       - verify_notifd_binding_packages | length > 0
+      - verify_ags_always_on_instances | length > 0
       - verify_install_spine_dirs | length > 0
       - verify_install_spine_files | length > 0
       - verify_palette_files | length > 0
@@ -273,6 +274,42 @@
       org.freedesktop.Notifications, so the notifications overlay cannot
       serve. Run the gui-tools playbook (or `systemctl --user disable --now
       dunst.service` followed by `systemctl --user mask dunst.service`)
+  when: not ansible_check_mode
+
+# The always-on AGS instances (the bar and the notification overlay) must be on
+# the user's AGS bus after provisioning. gui_tools quits EVERY managed instance
+# to force AGS to re-bundle the freshly placed sources, then restarts the
+# always-on subset (start-if-down, detached); both halves are
+# `failed_when: false` (provisioning must not break on a machine without a live
+# AGS session), so this gate is the only place a regression becomes visible. A
+# missing bar is a hidden status bar; a missing overlay means nothing owns
+# org.freedesktop.Notifications (dunst is masked) and every notification is
+# silently dropped. `ags list` prints one live instance name per line. Mirror
+# of the dunst-mask gate shape (command registers rc, assert decides, both
+# check-gated).
+- name: List running AGS instances
+  ansible.builtin.command:
+    cmd: ags list
+  register: verify_ags_list
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert always-on AGS instances are running
+  ansible.builtin.assert:
+    that:
+      - >-
+        (verify_ags_always_on_instances
+         | difference(verify_ags_list.stdout_lines | default([]) | map('trim') | list)
+         | length) == 0
+    fail_msg: >-
+      not running: {{ verify_ags_always_on_instances | join(', ') }} — a
+      provision run must leave the session's always-on AGS instances up. The
+      gui_tools role quits every instance to re-bundle its sources, then
+      restarts this subset (start-if-down, detached); run the gui-tools
+      playbook. Without the notifications overlay nothing owns
+      org.freedesktop.Notifications (dunst is masked on purpose) and every
+      notification is dropped silently
   when: not ansible_check_mode
 
 # "Show in folder" opens a DIRECTORY through xdg-open, so the desktop default

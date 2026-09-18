@@ -144,6 +144,65 @@ class TestGuiToolsTasks:
                 f"task must not use become: {task.get('name')}"
             )
 
+    def _always_on_restart_task(self) -> dict[str, object]:
+        matches = [
+            task
+            for task in _tasks()
+            if task.keys() & {"ansible.builtin.shell"}
+            and "gui_tools_ags_always_on_instances" in str(task.get("loop", ""))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one always-on start-if-down task; found {len(matches)}"
+        )
+        return matches[0]
+
+    def test_quit_loop_iterates_instance_names(self) -> None:
+        """The quit loop now iterates mappings, so it must address `item.name`
+        (not the mapping itself)."""
+        matches = [
+            task
+            for task in _tasks()
+            if task.keys() & {"ansible.builtin.command"}
+            and "gui_tools_ags_instances" in str(task.get("loop", ""))
+        ]
+        assert len(matches) == 1, f"expected exactly one quit loop; found {len(matches)}"
+        cmd = str(_module(matches[0]).get("cmd", ""))
+        assert "ags quit -i {{ item.name }}" in cmd, (
+            f"quit loop must run `ags quit -i item.name`; got {cmd}"
+        )
+
+    def test_always_on_instances_are_restarted_start_if_down(self) -> None:
+        """The always-on instances (bar + notification overlay) are brought back
+        up on the spot after the quit loop — a provision run must never leave
+        the session without its status bar or its only notification daemon. The
+        guard mirrors the cli_tools launchers: skip when already on the bus
+        (`ags list | grep -qx`), so re-running is a no-op."""
+        task = self._always_on_restart_task()
+        text = str(_module(task).get("cmd", ""))
+        assert "ags list" in text and "grep -qx" in text, (
+            "the restart must use the launcher start-if-down guard "
+            "(ags list | grep -qx <name>) so an already-running instance is a no-op"
+        )
+        assert "setsid" in text, (
+            "the restart must fully detach (setsid + redirected stdio) so the "
+            "process survives the playbook exiting"
+        )
+        assert ">/dev/null 2>&1 </dev/null &" in text, (
+            "the detached launch must redirect stdio and background"
+        )
+
+    def test_always_on_restart_is_check_gated_and_non_fatal(self) -> None:
+        """Starting a process is a state mutation: --check must not do it. The
+        task is `failed_when: false` (a machine without a live AGS session must
+        not break provisioning) and `changed_when: false` (start-if-down is
+        idempotent by design) — the verify gate is what makes failure loud."""
+        task = self._always_on_restart_task()
+        assert task.get("when") == "not ansible_check_mode", (
+            "the restart must be gated when: not ansible_check_mode"
+        )
+        assert task.get("failed_when") is False
+        assert task.get("changed_when") is False
+
 
 class TestGuiToolsVars:
     _REQUIRED_KEYS = {
@@ -402,7 +461,7 @@ class TestGuiToolsVars:
     def test_ags_instances_include_wallpaper_selector(self) -> None:
         """The selector instance must be quit after placement (bundles TS at
         startup and holds it in memory — same lifecycle as the siblings)."""
-        instances = list(_vars()["gui_tools_ags_instances"])
+        instances = [str(i["name"]) for i in _vars()["gui_tools_ags_instances"]]
         assert "wallpaper-selector" in instances, (
             f"gui_tools_ags_instances must include wallpaper-selector; got {instances}"
         )
@@ -468,7 +527,81 @@ class TestGuiToolsVars:
         """The notifications instance must be quit after placement (bundles
         TS at startup and holds it in memory — same lifecycle as the
         siblings)."""
-        instances = list(_vars()["gui_tools_ags_instances"])
+        instances = [str(i["name"]) for i in _vars()["gui_tools_ags_instances"]]
         assert "notifications" in instances, (
             f"gui_tools_ags_instances must include notifications; got {instances}"
         )
+
+    def test_ags_instances_are_mappings_tagged_always_on(self) -> None:
+        """Each instance is a mapping carrying a name and a boolean always_on
+        flag (the single source of truth for the lifecycle split)."""
+        instances = [dict(i) for i in _vars()["gui_tools_ags_instances"]]
+        names = [str(i["name"]) for i in instances]
+        assert len(names) == len(set(names)), f"duplicate AGS instance names: {names}"
+        for entry in instances:
+            assert "name" in entry and str(entry["name"]).strip(), (
+                f"every gui_tools_ags_instances entry needs a name: {entry}"
+            )
+            assert isinstance(entry.get("always_on"), bool), (
+                f"every entry needs a boolean always_on flag: {entry}"
+            )
+
+    def test_always_on_instances_are_the_bar_and_overlay(self) -> None:
+        """The always-on set is exactly the status bar and the notification
+        overlay; the four keybind tools are on-demand (quit and left down)."""
+        data = _vars()
+        always_on = [
+            str(i["name"]) for i in data["gui_tools_ags_instances"] if i["always_on"]
+        ]
+        assert always_on == ["ags", "notifications"], (
+            f"the always-on set must be the bar + overlay; got {always_on}"
+        )
+        on_demand = sorted(
+            str(i["name"]) for i in data["gui_tools_ags_instances"] if not i["always_on"]
+        )
+        assert on_demand == [
+            "capture",
+            "hypr-pano",
+            "icon-color-mapping-editor",
+            "wallpaper-selector",
+        ], f"the on-demand set drifted: {on_demand}"
+
+    def test_always_on_entries_carry_a_launch_and_on_demand_do_not(self) -> None:
+        """Only always-on entries carry the `ags run` command the role re-issues
+        when they are down; on-demand entries must not (their keybind launchers
+        start them, so provisioning never opens an unrequested window)."""
+        for entry in _vars()["gui_tools_ags_instances"]:
+            if entry["always_on"]:
+                launch = str(entry.get("launch", "")).strip()
+                assert launch.startswith("ags run"), (
+                    f"always-on {entry['name']!r} needs an `ags run` launch command: {entry}"
+                )
+            else:
+                assert not entry.get("launch"), (
+                    f"on-demand {entry['name']!r} must not carry a launch: {entry}"
+                )
+
+    def test_always_on_view_is_derived_not_duplicated(self) -> None:
+        """gui_tools_ags_always_on_instances must be DERIVED from
+        gui_tools_ags_instances (selectattr always_on) — never a second
+        hand-maintained list (the single-source-of-truth rule)."""
+        value = str(_vars()["gui_tools_ags_always_on_instances"])
+        assert "gui_tools_ags_instances" in value and "selectattr('always_on')" in value, (
+            f"the always-on view must be derived from the instance list; got {value}"
+        )
+
+    def test_notifications_launch_matches_autostart(self) -> None:
+        """The overlay's launch command points at the ~/.config symlink
+        (config_links) with the same stagger-free log file autostart uses, so a
+        provisioning restart is indistinguishable from a login start."""
+        data = _vars()
+        entry = next(
+            i for i in data["gui_tools_ags_instances"] if i["name"] == "notifications"
+        )
+        launch = str(entry["launch"])
+        assert "{{ gui_tools_xdg_config_home }}/ags-notifications" in launch, (
+            f"the overlay must launch from the ~/.config symlink; got {launch}"
+        )
+        assert (
+            "--log-file {{ gui_tools_xdg_state_home }}/ags/notifications.log" in launch
+        ), f"the overlay must log to the state dir like autostart; got {launch}"

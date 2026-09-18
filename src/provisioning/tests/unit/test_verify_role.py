@@ -909,6 +909,23 @@ class TestVerifyTasks:
             "the empty-list guard must cover verify_gtk_skeleton_files"
         )
 
+    def test_empty_list_guard_covers_the_ags_always_on_instances(self) -> None:
+        """The vacuous-pass guard covers verify_ags_always_on_instances — an
+        emptied list would make the difference assert pass 0 == 0 on an
+        unprovisioned machine."""
+        matches = [
+            task
+            for task in _assert_tasks()
+            if "verify_system_binaries | length > 0" in str(_module(task).get("that", ""))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one empty-list guard assert; found {len(matches)}"
+        )
+        that = str(_module(matches[0]).get("that", ""))
+        assert "verify_ags_always_on_instances | length > 0" in that, (
+            "the empty-list guard must cover verify_ags_always_on_instances"
+        )
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere —
         everything the role checks lives under the user's config home and
@@ -964,6 +981,7 @@ class TestVerifyVars:
         "verify_system_binaries",
         "verify_cli_tools",
         "verify_cli_bin_dir",
+        "verify_ags_always_on_instances",
         "verify_settings_files",
         "verify_settings_spine_keys",
         "verify_palette_files",
@@ -1140,6 +1158,30 @@ class TestVerifyVars:
         assert [str(p) for p in data["verify_notifd_binding_packages"]] == [
             "libastal-notifd-git"
         ]
+
+    def test_ags_always_on_instances_are_bar_and_overlay(self) -> None:
+        """The always-on AGS gate pins exactly the status bar and the
+        notification overlay — the two instances the session cannot afford to
+        lose (the overlay is the only notification daemon once dunst is
+        masked)."""
+        data = _vars()
+        assert [str(n) for n in data["verify_ags_always_on_instances"]] == [
+            "ags",
+            "notifications",
+        ]
+
+    def test_ags_always_on_instances_parity_with_gui_tools(self) -> None:
+        """Parity lock: verify_ags_always_on_instances mirrors the gui_tools
+        always_on subset EXACTLY — a new always-on instance (or a flag flip)
+        that verify does not gate would silently ship unasserted."""
+        data = _vars()
+        verify_names = [str(n) for n in data["verify_ags_always_on_instances"]]
+        gui_instances = _sibling_vars("gui_tools")["gui_tools_ags_instances"]
+        gui_always_on = [str(i["name"]) for i in gui_instances if i["always_on"]]
+        assert verify_names == gui_always_on, (
+            "verify_ags_always_on_instances must be parity-EXACT with the "
+            "gui_tools always_on subset"
+        )
 
     def test_system_binaries_are_compositors(self) -> None:
         data = _vars()
@@ -1420,6 +1462,64 @@ class TestVerifyRuntime:
             )
             assert "not masked" in result.stdout or "still active" in result.stdout, (
                 "the failure must be the dunst mask/active assert; recap:\n"
+                + result.stdout
+            )
+
+    def test_verify_fails_when_ags_overlay_is_down(self) -> None:
+        """Negative lock for the always-on AGS gate: gui_tools quits every
+        managed AGS instance (to re-bundle the placed sources) and restarts the
+        always-on subset; both halves are `failed_when: false`, so verify is the
+        only place a regression is caught. The notification overlay is the
+        session's only notification daemon (dunst is masked), so a machine whose
+        overlay never came back drops every notification silently. Model that
+        machine (`ags list` omits notifications) and expect verify to FAIL."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            state_home = Path(tmp) / "state-home"
+            cache_home = Path(tmp) / "cache-home"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+
+            bin_dir = _write_stub_binaries(home)
+            _build_provisioned_layout(home, xdg, install, state_home, cache_home)
+
+            # Model a machine where the overlay was quit and never restarted:
+            # the bar is up, the overlay is gone.
+            (bin_dir / "ags").write_text(
+                "#!/bin/sh\n"
+                'if [ "$1" = "list" ]; then printf "ags\\n"; exit 0; fi\n'
+                "exit 0\n"
+            )
+            (bin_dir / "ags").chmod(0o755)
+
+            env = _test_env(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(xdg),
+                XDG_STATE_HOME=str(state_home),
+                XDG_CACHE_HOME=str(cache_home),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+            )
+            result = subprocess.run(
+                [ansible_playbook, str(self._PATH), "-e", f"install_dir={install}"],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode != 0, (
+                "verify must FAIL when an always-on AGS instance is not running "
+                "(the overlay down drops every notification); recap:\n"
+                + result.stdout
+            )
+            assert "not running" in result.stdout or "always-on AGS" in result.stdout, (
+                "the failure must be the always-on AGS assert; recap:\n"
                 + result.stdout
             )
 
@@ -1710,10 +1810,20 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "ags", "power-options-gtk", "csg", "weg", "itr"):
+    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
+    # ags: the verify role asserts the always-on AGS instances are on the bus
+    # (`ags list`), so the stub reports the provisioned instance names. The bar
+    # and the notification overlay are the always-on pair.
+    ags = bin_dir / "ags"
+    ags.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "list" ]; then printf "ags\\nnotifications\\n"; exit 0; fi\n'
+        "exit 0\n"
+    )
+    ags.chmod(0o755)
     sysctl = bin_dir / "systemctl"
     sysctl.write_text(
         "#!/bin/sh\n"

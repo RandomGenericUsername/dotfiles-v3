@@ -120,7 +120,7 @@
 #     want spurious changed-counts from this step.
 - name: Quit running AGS instances to pick up updated sources on next launch
   ansible.builtin.command:
-    cmd: "ags quit -i {{ item }}"
+    cmd: "ags quit -i {{ item.name }}"
   loop: "{{ gui_tools_ags_instances }}"
   failed_when: false
   changed_when: false
@@ -142,6 +142,49 @@
 - name: Mask the dunst user unit (respawn guard)
   ansible.builtin.command:
     cmd: "systemctl --user mask dunst.service"
+  failed_when: false
+  changed_when: false
+  when: not ansible_check_mode
+
+# Restart the always-on instances on the spot (start-if-down), so a provision
+# run never leaves the session without its status bar or its notification
+# daemon. The quit loop above is what forces AGS to re-bundle the freshly
+# placed sources; a restart here satisfies that contract identically (the
+# handoff: "a restart on the spot satisfies that at least as well").
+#
+# Placement AFTER the dunst stop+mask matters: the overlay can only own
+# org.freedesktop.Notifications once dunst is out of the way, so it must not be
+# (re)started while dunst still holds the name.
+#
+# Semantics mirror the provisioned cli_tools launchers (capture-ui.j2 et al.):
+#   - start-if-down: `ags list | grep -qx <name>` — an instance already on the
+#     bus is left untouched, so re-running is a no-op (AGS refuses a second
+#     instance with the same name on /run/user/$UID/ags.js).
+#   - bounded settle: `ags quit` tears down asynchronously, so wait briefly for
+#     a just-quit instance to leave the bus before deciding it is down — an
+#     instance still exiting must not be mistaken for a healthy one.
+#   - full detachment: `setsid` + redirected stdio + background so the process
+#     SURVIVES the playbook (and the SSH/session that launched it) instead of
+#     dying with the Ansible connection.
+#   - on-demand instances are deliberately NOT started: their keybind launchers
+#     own that (starting them here would open windows nobody asked for).
+#
+# `failed_when: false` keeps provisioning non-brittle on a machine without a
+# live AGS session (no wayland/dbus); the verify role's always-on gate is what
+# makes a real regression loud.
+- name: Ensure always-on AGS instances are running (start-if-down, detached)
+  ansible.builtin.shell:
+    cmd: |
+      name={{ item.name | quote }}
+      for _ in $(seq 1 12); do
+          ags list 2>/dev/null | grep -qx "$name" || break
+          sleep 0.25
+      done
+      if ags list 2>/dev/null | grep -qx "$name"; then
+          exit 0
+      fi
+      setsid {{ item.launch }} >/dev/null 2>&1 </dev/null &
+  loop: "{{ gui_tools_ags_always_on_instances }}"
   failed_when: false
   changed_when: false
   when: not ansible_check_mode

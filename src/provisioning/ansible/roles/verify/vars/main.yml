@@ -190,6 +190,21 @@ verify_notifd_binding_packages:
 verify_masked_user_units:
   - dunst.service
 
+# verify_ags_always_on_instances: the always-on AGS instances the session must
+#   keep running after provisioning — the status bar (`ags`) and the
+#   notifications overlay (`notifications`). gui_tools quits EVERY managed AGS
+#   instance to force a re-bundle of the freshly placed sources, then restarts
+#   this always-on subset (start-if-down, detached). Both the quit and the
+#   restart are `failed_when: false` (provisioning must not break on a machine
+#   without a live session), so this gate is the only place a regression
+#   becomes visible: a missing bar is a hidden status bar, and a missing overlay
+#   means nothing owns org.freedesktop.Notifications (dunst is masked on
+#   purpose) so every notification is silently dropped. Parity with the
+#   gui_tools always_on subset is locked by test.
+verify_ags_always_on_instances:
+  - ags
+  - notifications
+
 # verify_directory_handler: the desktop default handler for directories, which
 #   the capture tool's "Show in folder" action relies on (it xdg-opens the
 #   recording's parent dir). Without an explicit default the mime database

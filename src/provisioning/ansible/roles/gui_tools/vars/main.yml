@@ -27,6 +27,14 @@ gui_tools_repo_root: "{{ playbook_dir }}/../../../.."
 #   top-level ansible_env fact).
 gui_tools_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
 
+# gui_tools_xdg_config_home: the XDG config home the config_links role symlinks
+#   each managed app dir into (~/.config/<app> -> <install>/config/<app>).
+#   IDENTICAL derivation to gui_tools_xdg_state_home (and the sibling roles):
+#   honors $XDG_CONFIG_HOME with the spec default ~/.config. Used to build the
+#   always-on instances' `ags run -d` launch commands — the SAME path autostart
+#   uses (via the symlink), never the spine path directly.
+gui_tools_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+
 # gui_tools_state_dirs: runtime state dirs the apps need beyond the XDG base
 #   homes the filesystem role creates. Currently the AGS per-instance log
 #   dir consumed by autostart's --log-file. Owned here (not in autostart):
@@ -161,20 +169,54 @@ gui_tools_notifications_app_files:
   - { name: notifications-window, source: src/gui-tools/notifications/ui/NotificationsWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/ui/NotificationsWindow.tsx" }
   - { name: notifications-makefile, source: src/gui-tools/notifications/Makefile, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/Makefile" }
 
-# gui_tools_ags_instances: the AGS process instance names (as reported by
-#   `ags list`) that must be restarted after their source files are updated
-#   by this role. AGS bundles TypeScript at startup and holds the compiled
-#   bundle in memory; without a restart the running process keeps serving the
-#   old code even after provisioning has overwritten the sources on disk.
+# gui_tools_ags_instances: the AGS process instances this role manages
+#   (names as reported by `ags list`). AGS bundles TypeScript at startup and
+#   holds the compiled bundle in memory; without a restart the running process
+#   keeps serving the old code even after provisioning has overwritten the
+#   sources on disk — so every entry is quit after placement. Each entry is a
+#   mapping:
+#     name      — the instance name on the AGS bus (`ags quit -i <name>`).
+#     always_on — true for the session-critical instances the machine must
+#                 KEEP running (the status bar `ags`, the notification overlay
+#                 `notifications`); false for the keybind-launched tools
+#                 (`capture`, `icon-color-mapping-editor`, `hypr-pano`,
+#                 `wallpaper-selector`), which provisioning deliberately
+#                 leaves quit (§ per-instance lifecycle below).
+#     launch    — for always_on entries ONLY: the exact `ags run` command this
+#                 role re-issues when the instance is not on the bus (mirror of
+#                 the autostart.lua line). On-demand entries carry no launch —
+#                 their provisioned keybind launchers (cli_tools) start them.
+#   Single source of truth: "which instances are always on" is exactly the
+#   always_on flag here (and its derived view below) — never a second list.
 #
-#   Only the three instances whose source dirs are managed here are listed —
-#   the bar (ags), the capture tool (capture), and the icon color mapping
-#   editor (icon-color-mapping-editor). Each is quit safely: if the instance
-#   is not running `ags quit` exits non-zero and the task ignores that failure.
+#   Lifecycle split (owner intent, provisioning-keeps-ags-instances-running):
+#   - always_on: quit to re-bundle, then brought back UP on the spot (detached
+#     start-if-down below) so a provision run never leaves the session without
+#     its status bar or — worse — without any owner of
+#     org.freedesktop.Notifications (dunst is masked on purpose, so the overlay
+#     is the session's only notification daemon).
+#   - on-demand: quit and left down; the provisioned keybind launchers
+#     (capture-ui, icon-color-mapping-editor, hypr-pano-ui,
+#     wallpaper-selector-ui in cli_tools) start them when the user asks, so
+#     provisioning never opens a window nobody requested.
 gui_tools_ags_instances:
-  - ags
-  - capture
-  - icon-color-mapping-editor
-  - hypr-pano
-  - wallpaper-selector
-  - notifications
+  - name: ags
+    always_on: true
+    launch: "ags run"
+  - name: capture
+    always_on: false
+  - name: icon-color-mapping-editor
+    always_on: false
+  - name: hypr-pano
+    always_on: false
+  - name: wallpaper-selector
+    always_on: false
+  - name: notifications
+    always_on: true
+    launch: "ags run -d {{ gui_tools_xdg_config_home }}/ags-notifications --log-file {{ gui_tools_xdg_state_home }}/ags/notifications.log"
+
+# gui_tools_ags_always_on_instances: DERIVED view of the always_on entries
+#   (the subset the role restarts after the quit loop). Derived, never a
+#   hand-maintained list, so the always-on set has exactly one source of truth
+#   in gui_tools_ags_instances.
+gui_tools_ags_always_on_instances: "{{ gui_tools_ags_instances | selectattr('always_on') | list }}"
