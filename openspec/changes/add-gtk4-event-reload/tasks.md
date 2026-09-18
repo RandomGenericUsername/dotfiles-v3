@@ -62,11 +62,11 @@ Prereqs: sections 1 and 3 ticked (1.4 call-site wiring is completed here).
 
 Prereqs: sections 1 and 3 ticked.
 
-- [ ] 5.1 `_build_reloaders` (`main.py:380-411`) — remove `Gtk4AppReloader()` and its import; update the docstring's pinned consumer order (Hyprland, AGS, Hyprpaper, terminal, kitty)
-- [ ] 5.2 Update composition tests: `tests/unit/test_cli_reconcile.py:168-180` and `tests/unit/test_cli_wallpaper_set.py:366-414` — assert `Gtk4AppReloader` is absent and the remaining five are present in order
-- [ ] 5.3 New CLI command `dotfiles-runtime gtk4 restart` — discover + hardened restart; exit non-zero if any restart fails; works with no hub/daemon; add to the command surface/help and the command registration tests
-- [ ] 5.4 Grep-clean: no stale `Gtk4AppReloader` references in reload-chain wiring or docs claiming it is in the chain
-- [ ] 5.5 Commit: `refactor(runtime): move GTK4 reload out of swap chain; add gtk4 restart`
+- [x] 5.1 `_build_reloaders` (`main.py:380-411`) — remove `Gtk4AppReloader()` and its import; update the docstring's pinned consumer order (Hyprland, AGS, Hyprpaper, terminal, kitty)
+- [x] 5.2 Update composition tests: `tests/unit/test_cli_reconcile.py:168-180` and `tests/unit/test_cli_wallpaper_set.py:366-414` — assert `Gtk4AppReloader` is absent and the remaining five are present in order
+- [x] 5.3 New CLI command `dotfiles-runtime gtk4 restart` — discover + hardened restart; exit non-zero if any restart fails; works with no hub/daemon; add to the command surface/help and the command registration tests
+- [x] 5.4 Grep-clean: no stale `Gtk4AppReloader` references in reload-chain wiring or docs claiming it is in the chain
+- [x] 5.5 Commit: `refactor(runtime): move GTK4 reload out of swap chain; add gtk4 restart`
 
 ## 6. Docs + full verification — Agent B (or C)
 
