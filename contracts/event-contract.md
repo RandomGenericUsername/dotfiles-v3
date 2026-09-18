@@ -109,7 +109,7 @@ the normal lease expiry still yields the synthetic `JobFinished(-1)`.
 | `speedtest.finished` | speed-test job | `{ "down_mbps": d, "up_mbps": d, "latency_ms": d }` |
 | `clipboard.update` | clipboard controller | `{ "type": s (text\|image\|link\|code\|color\|emoji), "hash": s, "path": s, "preview": s }` |
 | `clipboard.state` | clipboard controller | `{ "state": s (idle\|running\|paused), "job_id": s }` |
-| `wallpaper.state` | wallpaper set | `{ "state": s (applying\|visible\|done\|error), "wallpaper_hash": s }` |
+| `wallpaper.state` | wallpaper set | `{ "state": s (applying\|visible\|done\|error), "wallpaper_hash": s, "trigger": s (set\|regenerate\|reconcile\|reactive)? }` |
 
 `clipboard.update` carries no binary: `path` is the cached image file for image
 items (empty otherwise) and `preview` is a bounded text excerpt for text-like
@@ -131,7 +131,11 @@ it as busy (no unlock, no crash; old consumers ignore it as an unknown
 state). `done` still means the pipeline finished (UI may unlock);
 `error` before `visible` means the swap failed (nothing changed on
 screen), `error` after `visible` means theming failed with the new
-wallpaper already live.
+wallpaper already live. `trigger` is an **optional/additive** discriminator
+(old publishers remain valid and old consumers ignore it): it names the
+operation that produced the transition — `set` (wallpaper set),
+`regenerate` (icons regenerate), `reconcile` (standalone reconcile), or
+`reactive` (daemon reactive converge).
 
 The capture controller updates `capture.state` on every transition **and at
 least once per second while recording**, so the bar renders the pushed value

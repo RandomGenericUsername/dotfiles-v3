@@ -84,10 +84,14 @@
     },
     "wallpaper.state": {
       "producer": "dotfiles-runtime wallpaper set",
-      "payload": { "state": "s", "wallpaper_hash": "s" },
-      "enum": { "state": ["applying", "visible", "done", "error"] },
+      "payload": { "state": "s", "wallpaper_hash": "s", "trigger": "s" },
+      "optional": ["trigger"],
+      "enum": {
+        "state": ["applying", "visible", "done", "error"],
+        "trigger": ["set", "regenerate", "reconcile", "reactive"]
+      },
       "cadence": "on transition: applying at set start, visible after the swap, done/error at finish",
-      "notes": "drives the wallpaper selector's progress indicator and LIVE refresh; publish-only, no job lease; wallpaper_hash is empty when the input never validated; visible means pixels swapped while theming is still in flight (busy — UI stays locked until done/error); done/error semantics unchanged"
+      "notes": "drives the wallpaper selector's progress indicator and LIVE refresh; publish-only, no job lease; wallpaper_hash is empty when the input never validated; visible means pixels swapped while theming is still in flight (busy — UI stays locked until done/error); done/error semantics unchanged; trigger is optional/additive (old publishers stay valid) and names the operation that produced the transition: set = wallpaper set, regenerate = icons regenerate, reconcile = standalone reconcile, reactive = daemon reactive converge"
     }
   }
 }

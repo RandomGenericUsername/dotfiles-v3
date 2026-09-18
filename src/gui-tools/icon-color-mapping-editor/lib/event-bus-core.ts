@@ -40,6 +40,15 @@ export type Pair = [number, number];
 export type TopicHandler = (topic: string, payload: DomainPayload) => void;
 export type RestartHandler = () => void;
 
+//: `wallpaper.state` payload (contract topics). `trigger` is an
+//: optional/additive discriminator naming the palette-affecting operation;
+//: older publishers omit it and consumers must tolerate its absence.
+export interface WallpaperStatePayload extends DomainPayload {
+  state: "applying" | "visible" | "done" | "error";
+  wallpaper_hash: string;
+  trigger?: "set" | "regenerate" | "reconcile" | "reactive";
+}
+
 //: Transport seam: the only thing the domain bus needs from Gio. Production
 //: injects the Gio implementation; tests inject a scripted fake (no bus).
 export interface EventBusTransport {

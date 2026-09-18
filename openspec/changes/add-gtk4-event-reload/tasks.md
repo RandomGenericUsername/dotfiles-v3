@@ -21,13 +21,13 @@ after 1.
 
 ## 1. Contract: additive `trigger` on `wallpaper.state` — Agent A
 
-- [ ] 1.1 `contracts/event-contract.json` — `topics["wallpaper.state"].payload` gains `"trigger": "s"`; add `"enum": { "trigger": ["set","regenerate","reconcile","reactive"] }`; update `cadence`/`notes` to state `trigger` is optional/additive and which operation maps to which value
-- [ ] 1.2 `contracts/event-contract.xml` + `contracts/event-contract.md` — mirror the JSON change (keep the three artifacts in lockstep; the drift/conformance tests compare them)
-- [ ] 1.3 `src/runtime/src/runtime/adapters/emit_validation.py` (_TOPIC_SCHEMAS, ~line 165) — add optional `trigger` `{"type":"string","enum":[...]}`; do NOT add it to `required` (old publishers stay valid)
-- [ ] 1.4 `src/runtime/src/runtime/cli/main.py::_publish_wallpaper_state` (line 446) — new `trigger: str` parameter, emitted in the payload; update the two existing call sites here: wallpaper set → `"set"`, icons regenerate → `"regenerate"`. The standalone `reconcile` (`"reconcile"`) and daemon reactive converge (`"reactive"`) call sites are added in section 4.2/4.3 — do NOT add them now
-- [ ] 1.5 GJS pinned literals: `src/gui-tools/wallpaper-selector/lib/event-bus-core.ts` and `src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts` — add optional `trigger` to the wallpaper-state payload type (no behavior change)
-- [ ] 1.6 Tests: runtime embedded-schema tests accept payloads with and without `trigger`, and reject an invalid enum value; both `tests/event-contract-drift.mjs` pass
-- [ ] 1.7 Commit: `feat(contract): add additive trigger discriminator to wallpaper.state`
+- [x] 1.1 `contracts/event-contract.json` — `topics["wallpaper.state"].payload` gains `"trigger": "s"`; add `"enum": { "trigger": ["set","regenerate","reconcile","reactive"] }`; update `cadence`/`notes` to state `trigger` is optional/additive and which operation maps to which value
+- [x] 1.2 `contracts/event-contract.xml` + `contracts/event-contract.md` — mirror the JSON change (keep the three artifacts in lockstep; the drift/conformance tests compare them)
+- [x] 1.3 `src/runtime/src/runtime/adapters/emit_validation.py` (_TOPIC_SCHEMAS, ~line 165) — add optional `trigger` `{"type":"string","enum":[...]}`; do NOT add it to `required` (old publishers stay valid)
+- [x] 1.4 `src/runtime/src/runtime/cli/main.py::_publish_wallpaper_state` (line 446) — new `trigger: str` parameter, emitted in the payload; update the two existing call sites here: wallpaper set → `"set"`, icons regenerate → `"regenerate"`. The standalone `reconcile` (`"reconcile"`) and daemon reactive converge (`"reactive"`) call sites are added in section 4.2/4.3 — do NOT add them now
+- [x] 1.5 GJS pinned literals: `src/gui-tools/wallpaper-selector/lib/event-bus-core.ts` and `src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts` — add optional `trigger` to the wallpaper-state payload type (no behavior change)
+- [x] 1.6 Tests: runtime embedded-schema tests accept payloads with and without `trigger`, and reject an invalid enum value; both `tests/event-contract-drift.mjs` pass
+- [x] 1.7 Commit: `feat(contract): add additive trigger discriminator to wallpaper.state`
 
 ## 2. Restart primitive hardening — Agent B
 
