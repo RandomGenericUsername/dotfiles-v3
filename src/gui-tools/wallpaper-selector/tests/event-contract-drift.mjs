@@ -69,6 +69,7 @@ check(
 );
 check("wallpaper.state enum", contractJson.topics["wallpaper.state"].enum.state, [
   "applying",
+  "visible",
   "done",
   "error",
 ]);

@@ -10,6 +10,19 @@
 
 import { execAsync } from "ags/process";
 
-export function applyWallpaper(imagePath: string): Promise<string> {
-  return execAsync(["dotfiles-runtime", "wallpaper", "set", imagePath]);
+/** Apply a wallpaper (or a WEG variant path).
+ *
+ * `contrast` is the explicit icon-contrast policy for a never-applied
+ * wallpaper whose content hash is still a placeholder: the runtime
+ * computes the real governing hash at set time, persists the choice under
+ * it, and renders accordingly (backend `icon-contrast-opt-out` D2). Omit
+ * it for the normal `auto` path (runtime resolves store → default ON).
+ */
+export function applyWallpaper(
+  imagePath: string,
+  contrast?: "on" | "off",
+): Promise<string> {
+  const args = ["dotfiles-runtime", "wallpaper", "set", imagePath];
+  if (contrast !== undefined) args.push("--contrast", contrast);
+  return execAsync(args);
 }

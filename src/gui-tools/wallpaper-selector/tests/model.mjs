@@ -2,8 +2,13 @@
 // `node tests/model.mjs` from the tool directory.
 import {
   buildModel,
+  cachedContrastPref,
+  contrastScopeLabel,
+  DEFAULT_CONTRAST_ENABLED,
   filterWallpapers,
   isImageFile,
+  isRealHash,
+  isWallpaperLive,
   mapSpineHashes,
   needsRealHash,
   pinTargetHash,
@@ -242,6 +247,44 @@ const CURRENT_VAR = {
 check("image exts", ["a.png", "b.JPG", "c.webp", "d.jpeg", "e.gif"].every(isImageFile), true);
 check("non-image exts", ["a.txt", "a", "a.svg"].some(isImageFile), false);
 check("stem", [stemOf("blur-brightness80.png"), stemOf("noext")], ["blur-brightness80", "noext"]);
+
+// contrast-toggle helpers (lib/model additions)
+{
+  // live wallpaper itself, or the parent of a live promoted variant
+  const parent = { name: "p.png", path: "/p", hash: "h", variantCount: 1, live: false };
+  const live = { name: "l.png", path: "/l", hash: "l", variantCount: 0, live: true };
+  const dead = { name: "d.png", path: "/d", hash: "d", variantCount: 0, live: false };
+  check("directly live", isWallpaperLive(live, []), true);
+  check("parent of live variant", isWallpaperLive(parent, [
+    { name: "v", group: "effect", path: "/c/v", live: true },
+  ]), true);
+  check("parent of non-live variants", isWallpaperLive(parent, [
+    { name: "v", group: "effect", path: "/c/v", live: false },
+  ]), false);
+  check("neither live", isWallpaperLive(dead, []), false);
+
+  // cached pref lookup → default ON when unqueried
+  const prefs = new Map([["h", false]]);
+  check("cached off", cachedContrastPref(prefs, "h"), false);
+  check("unqueried defaults on", cachedContrastPref(prefs, "missing"), true);
+  check("default constant on", DEFAULT_CONTRAST_ENABLED, true);
+
+  // L2 sublabel scope phrase
+  check("scope 3 variants", contrastScopeLabel(3), "applies to all 3 variants");
+  check("scope 1 variant", contrastScopeLabel(1), "applies to all 1 variant");
+  check("scope 0 variants", contrastScopeLabel(0), "no variants yet");
+
+  // isRealHash: the runtime `icons preference` accessor rejects anything
+  // that is not 64 lowercase hex, so the GUI must never shell it for a
+  // placeholder hash (hover on a never-applied wallpaper).
+  check("real hash", isRealHash("a".repeat(64)), true);
+  check("real hash (mixed hex)", isRealHash("0123456789abcdef".repeat(4)), true);
+  check("placeholder hash", isRealHash(unappliedPlaceholder("/w/x.png")), false);
+  check("empty live sentinel", isRealHash(""), false);
+  check("short hash", isRealHash("abc123"), false);
+  check("uppercase hex rejected", isRealHash("A".repeat(64)), false);
+  check("non-hex char rejected", isRealHash(`${"a".repeat(63)}z`), false);
+}
 
 if (failures > 0) {
   console.error(`${failures} failure(s)`);

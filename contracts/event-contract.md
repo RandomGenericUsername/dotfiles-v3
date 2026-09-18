@@ -109,7 +109,7 @@ the normal lease expiry still yields the synthetic `JobFinished(-1)`.
 | `speedtest.finished` | speed-test job | `{ "down_mbps": d, "up_mbps": d, "latency_ms": d }` |
 | `clipboard.update` | clipboard controller | `{ "type": s (text\|image\|link\|code\|color\|emoji), "hash": s, "path": s, "preview": s }` |
 | `clipboard.state` | clipboard controller | `{ "state": s (idle\|running\|paused), "job_id": s }` |
-| `wallpaper.state` | wallpaper set | `{ "state": s (applying\|done\|error), "wallpaper_hash": s }` |
+| `wallpaper.state` | wallpaper set | `{ "state": s (applying\|visible\|done\|error), "wallpaper_hash": s }` |
 
 `clipboard.update` carries no binary: `path` is the cached image file for image
 items (empty otherwise) and `preview` is a bounded text excerpt for text-like
@@ -121,10 +121,17 @@ so the overlay's incognito indicator reflects the daemon's real state and can
 route `Control` to the hub-allocated `job_id`.
 
 `wallpaper.state` is emitted by `dotfiles-runtime wallpaper set` on every
-transition (`applying` at set start, `done`/`error` at finish) so the
-wallpaper selector can show progress and refresh its LIVE badge. It is
-publish-only — the synchronous set registers no job lease. `wallpaper_hash`
-is empty when the input never validated.
+transition (`applying` at set start, `visible` after the swap,
+`done`/`error` at finish) so the wallpaper selector can show progress
+and refresh its LIVE badge. It is publish-only — the synchronous set
+registers no job lease. `wallpaper_hash` is empty when the input never
+validated. `visible` is additive: the new wallpaper is already on screen
+while palette/effects/icons theming is still in flight — consumers treat
+it as busy (no unlock, no crash; old consumers ignore it as an unknown
+state). `done` still means the pipeline finished (UI may unlock);
+`error` before `visible` means the swap failed (nothing changed on
+screen), `error` after `visible` means theming failed with the new
+wallpaper already live.
 
 The capture controller updates `capture.state` on every transition **and at
 least once per second while recording**, so the bar renders the pushed value

@@ -398,14 +398,16 @@ class TestGuiToolsVars:
 
     def test_wallpaper_selector_app_files_exact_list(self) -> None:
         """The wallpaper selector file set, exactly: entry point, stylesheet,
-        P5 window, and every lib module it imports (scan/thumbnails/apply plus
-        the Phase 5 event seam: icon-registry, event-bus-core, event-bus)."""
+        P5 window, and every lib module it imports (scan/thumbnails/apply/
+        contrast plus the Phase 5 event seam: icon-registry, event-bus-core,
+        event-bus)."""
         files = list(_vars()["gui_tools_wallpaper_selector_app_files"])
-        assert len(files) == 10, f"expected exactly 10 selector files; found {len(files)}"
+        assert len(files) == 11, f"expected exactly 11 selector files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/wallpaper-selector/app.tsx",
             "src/gui-tools/wallpaper-selector/lib/apply.ts",
+            "src/gui-tools/wallpaper-selector/lib/contrast.ts",
             "src/gui-tools/wallpaper-selector/lib/event-bus-core.ts",
             "src/gui-tools/wallpaper-selector/lib/event-bus.ts",
             "src/gui-tools/wallpaper-selector/lib/icon-registry.ts",

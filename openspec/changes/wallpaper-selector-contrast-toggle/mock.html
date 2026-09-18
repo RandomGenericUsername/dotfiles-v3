@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wallpaper selector — Auto high-contrast icons mock (contrast-toggle)</title>
+<!--
+  Sally's rationale: L2 crumb-header checkbox is primary because attribution ("for <name>")
+  is unambiguous exactly when deciding on variants; the L1 hover swatch is a shortcut that
+  toggles high-contrast in place (indicator AND control, per 2026-09-18 review), with the
+  tooltip naming the wallpaper so a 208px-card flip is never ambiguous. Busy keeps Apply insensitive but the checkbox live with an honest deferral note,
+  so a preference edit never masquerades as an applied result.
+-->
+<style>
+  :root {
+    /* Approximations of ags/colors.css slots used by style.css (static mock only). */
+    --c00: #16181d; --bg: #0e1013; --fg: #d7dbe2; --muted: rgba(215,219,226,.6);
+    --faint: rgba(215,219,226,.12); --accent: #6ea8fe; --accent-dim: #3f6ea8;
+    --ok: #2ecc71; --ok-fg: #06270f; --warn: #e0a45e;
+    --panel: rgba(22,24,29,.94); --card: rgba(14,16,19,.45);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0d10; color: var(--fg);
+    font: 13px/1.45 "Inter","Cantarell",system-ui,sans-serif; padding: 24px; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .lede { color: var(--muted); max-width: 78ch; margin: 0 0 18px; }
+  .lede b { color: var(--fg); }
+  section { margin: 26px 0 30px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 0 0 10px; }
+  h2 .n { display: inline-block; background: #2c4b7c; color: #fff; border-radius: 6px;
+    padding: 0 7px; margin-right: 8px; }
+  .anno { color: var(--muted); font-size: 12px; max-width: 78ch; margin: 8px 0 0; }
+  .anno b { color: var(--fg); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* ---- reused ws-* visual language (from src/gui-tools/wallpaper-selector/style.css) ---- */
+  .ws-panel { background: var(--panel); border: 2px solid var(--accent-dim);
+    border-radius: 16px; padding: 14px 16px 12px; }
+  .ws-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); margin: 10px 0 8px; }
+  .ws-searchrow { display: flex; gap: 8px; align-items: center; background: var(--card);
+    border-radius: 8px; padding: 4px 8px; color: var(--muted); }
+  .ws-crumb { background: var(--card); border: 1px solid var(--faint);
+    border-radius: 10px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; }
+  .ws-crumb-thumb { width: 84px; height: 52px; border-radius: 8px; flex: none; }
+  .ws-crumb-name { font-size: 15px; font-weight: 700; }
+  .ws-crumb-sub { font-size: 12px; color: var(--muted); }
+  .ws-back { border: 1px solid rgba(215,219,226,.25); border-radius: 8px;
+    padding: 6px 14px; color: var(--fg); background: transparent; white-space: nowrap; }
+  .ws-cards { display: flex; gap: 12px; flex-wrap: wrap; }
+  .ws-card { background: var(--card); border: 1px solid var(--faint);
+    border-radius: 12px; width: 208px; overflow: hidden; }
+  .ws-card.hover { border-color: var(--accent); }
+  .ws-thumb { height: 130px; position: relative; }
+  .t-dune { background: linear-gradient(180deg,#3a4a6b 0%,#8a6a4a 55%,#d8a45e 100%); }
+  .t-fjord { background: linear-gradient(180deg,#10202e 0%,#2a5a6a 55%,#7fd0d0 100%); }
+  .t-bloom { background: linear-gradient(135deg,#3a2a4a 0%,#a64a7a 60%,#e08585 100%); }
+  .t-moss { background: linear-gradient(180deg,#1a2a1a 0%,#3a6a3a 60%,#95d698 100%); }
+  .ws-live { position: absolute; top: 6px; right: 6px; font-size: 10px; font-weight: 700;
+    background: var(--ok); color: var(--ok-fg); border-radius: 6px; padding: 1px 7px; }
+  .ws-hoverbar { position: absolute; right: 6px; bottom: 6px; display: flex; align-items: stretch;
+    background: rgba(10,12,15,.88); border: 1px solid var(--faint); border-radius: 9px; overflow: hidden; }
+  .ws-hoverbar .ws-quick { border-radius: 0; }
+  /* ---- PROPOSED (new for this change; names to be added to style.css on sign-off) ----
+     The swatch is CSS-drawn, never a text glyph: ◐/○ (U+25D0/U+25CB) render
+     inconsistently across fonts (tiny, off-center, blobby at 14px) — that
+     was the "looks weird" in review. A 15px circle with a gradient half-fill
+     renders identically everywhere and keeps the ◐/○ semantics. */
+  .ws-contrast-glyph { width: 32px; min-height: 28px; border: none; border-right: 1px solid var(--faint);
+    background: transparent; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0; }
+  .ws-contrast-glyph .dot { width: 15px; height: 15px; border-radius: 50%;
+    border: 1.5px solid var(--muted); box-sizing: border-box; }
+  .ws-contrast-glyph.on .dot { border-color: var(--accent);
+    background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); }
+  .ws-contrast-glyph.off { opacity: .8; }
+  .ws-contrast-glyph.off .dot { background: transparent; }
+  .ws-quick { background: var(--accent); color: #0e1013; font-weight: 600;
+    border: none; border-radius: 7px; padding: 3px 14px; font-size: 12px; }
+  .ws-card-name { font-size: 12px; margin: 6px 10px 0; }
+  .ws-card-sub { font-size: 11px; color: var(--muted); margin: 0 10px 8px; }
+  .ws-variant { display: flex; gap: 12px; flex-wrap: wrap; }
+  .ws-vtile { width: 208px; }
+  .ws-vtile .ws-thumb { border-radius: 8px; height: 120px; }
+  .ws-vrow { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .ws-variant-name { font-size: 12px; color: rgba(215,219,226,.85); flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ws-variant-apply { font-size: 11px; background: rgba(215,219,226,.14); color: var(--fg);
+    border: none; border-radius: 12px; padding: 2px 14px; }
+  .ws-variant-apply:hover { background: var(--accent-dim); }
+  .ws-variant-apply:disabled { opacity: .38; cursor: not-allowed; }
+  .ws-status { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .ws-status b { color: var(--fg); font-weight: 600; }
+
+  /* ---- PROPOSED, continued ---- */
+  .ws-contrast-row { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px;
+    background: var(--card); border: 1px solid var(--faint); border-radius: 10px; padding: 8px 12px; }
+  .ws-contrast-row input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+  .ws-contrast-label { font-size: 13px; font-weight: 600; }
+  .ws-contrast-sub { font-size: 11.5px; color: var(--muted); }
+  .ws-defer { font-size: 11.5px; color: var(--warn); margin-top: 2px; }
+  .ws-busy .ws-variant-apply, .ws-busy .ws-quick { opacity: .38; cursor: not-allowed; }
+  .kbd { background: #262b33; padding: 1px 5px; border-radius: 4px; font-size: 11px; }
+
+  table.copy { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.copy th { text-align: left; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--faint); }
+  table.copy td { padding: 7px 8px; border-bottom: 1px solid rgba(215,219,226,.07); vertical-align: top; }
+  table.copy td:first-child { white-space: nowrap; color: var(--fg); }
+  code.status { background: #262b33; padding: 1px 6px; border-radius: 4px; font-size: 11.5px; }
+  .tag { font-size: 10px; padding: 1px 7px; border-radius: 5px; background: #2a2f3a; color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>Wallpaper selector — “Auto high-contrast icons” mock</h1>
+<p class="lede">Static mock for the <b>contrast-toggle</b> change (precedes code, per tasks §1).
+All panels reuse the selector’s <b><span class="kbd">ws-*</span></b> classes; thumbnails are CSS gradients.
+<b>View 1</b> L1 hover swatch (toggle) · <b>View 2</b> L2 checkbox ON/OFF · <b>View 3</b> busy/deferred · <b>View 4</b> status-line copy.</p>
+
+<!-- ================= VIEW 1 · L1 ================= -->
+<section>
+  <h2><span class="n">1</span>L1 grid — card hover with contrast swatch (toggle: indicator AND control)</h2>
+  <div class="ws-panel">
+    <div class="ws-searchrow">⌕ &nbsp;Search wallpapers…</div>
+    <div class="ws-title">Wallpapers</div>
+    <div class="ws-cards">
+      <div class="ws-card hover">
+        <div class="ws-thumb t-dune"><span class="ws-live">LIVE</span>
+          <div class="ws-hoverbar" title="Hover row: contrast toggle + quick-Apply">
+            <button class="ws-contrast-glyph on" title="High-contrast ON for dune-ridge.jpg — click to turn off" aria-label="High-contrast ON"><span class="dot"></span></button>
+            <button class="ws-quick">Apply</button>
+          </div>
+        </div>
+        <div class="ws-card-name">dune-ridge.jpg</div>
+        <div class="ws-card-sub">3 variants · hover shows toggle</div>
+      </div>
+      <div class="ws-card hover">
+        <div class="ws-thumb t-fjord">
+          <div class="ws-hoverbar">
+            <button class="ws-contrast-glyph off" title="High-contrast OFF for fjord-night.jpg — click to turn on" aria-label="High-contrast OFF"><span class="dot"></span></button>
+            <button class="ws-quick">Apply</button>
+          </div>
+        </div>
+        <div class="ws-card-name">fjord-night.jpg</div>
+        <div class="ws-card-sub">2 variants · glyph reflects stored pref</div>
+      </div>
+      <div class="ws-card">
+        <div class="ws-thumb t-bloom"></div>
+        <div class="ws-card-name">bloom-static.jpg</div>
+        <div class="ws-card-sub">1 variant · rest state (no hover)</div>
+      </div>
+    </div>
+    <div class="ws-status">Wallpapers — pick one to see its variants.</div>
+  </div>
+  <p class="anno"><b>Rec:</b> swatch keeps the <b>◐ = ON / ○ = OFF</b> semantics but is <b>CSS-drawn</b> (15px circle,
+  gradient half-fill), never the U+25D0/U+25CB text glyphs — those render font-dependent (tiny, off-center, blobby),
+  which was the "looks weird" in review. Swatch + Apply share one compact floating pill toolbar (no gap, no
+  float-over-thumbnail clash); tooltip names the file (“High-contrast ON for fjord-night.jpg — click to turn off”).
+  <b>Clicking the swatch toggles high-contrast in place</b> (2026-09-18 review) — it is both indicator and control
+  from the grid; the tooltip + card sublabel disambiguate which wallpaper is affected.</p>
+</section>
+
+<!-- ================= VIEW 2 · L2 ON/OFF ================= -->
+<section>
+  <h2><span class="n">2</span>L2 variant gallery — crumb header checkbox, ON and OFF (primary control)</h2>
+  <div class="grid2">
+    <div class="ws-panel">
+      <div class="ws-crumb">
+        <div class="ws-crumb-thumb t-dune"></div>
+        <div style="flex:1"><div class="ws-crumb-name">dune-ridge.jpg</div>
+          <div class="ws-crumb-sub">3 variants · LIVE</div></div>
+        <button class="ws-back">◀ Back</button>
+      </div>
+      <label class="ws-contrast-row">
+        <input type="checkbox" checked />
+        <span><span class="ws-contrast-label">Auto high-contrast icons</span><br />
+        <span class="ws-contrast-sub">for <b>dune-ridge.jpg</b> · applies to all 3 variants · stored per wallpaper</span></span>
+      </label>
+      <div class="ws-title">Variants · dune-ridge</div>
+      <div class="ws-variant">
+        <div class="ws-vtile"><div class="ws-thumb t-dune"></div>
+          <div class="ws-vrow"><span class="ws-variant-name">dune-ridge · warm · LIVE</span><button class="ws-variant-apply">Apply</button></div></div>
+        <div class="ws-vtile"><div class="ws-thumb t-fjord"></div>
+          <div class="ws-vrow"><span class="ws-variant-name">dune-ridge · cool</span><button class="ws-variant-apply">Apply</button></div></div>
+      </div>
+      <div class="ws-status"><b>Ready.</b> Box checked → live flip regenerates icons only (no wallpaper re-set).</div>
+    </div>
+    <div class="ws-panel">
+      <div class="ws-crumb">
+        <div class="ws-crumb-thumb t-fjord"></div>
+        <div style="flex:1"><div class="ws-crumb-name">fjord-night.jpg</div>
+          <div class="ws-crumb-sub">2 variants</div></div>
+        <button class="ws-back">◀ Back</button>
+      </div>
+      <label class="ws-contrast-row">
+        <input type="checkbox" />
+        <span><span class="ws-contrast-label">Auto high-contrast icons</span><br />
+        <span class="ws-contrast-sub">for <b>fjord-night.jpg</b> · applies to all 2 variants · stored per wallpaper</span></span>
+      </label>
+      <div class="ws-title">Variants · fjord-night</div>
+      <div class="ws-variant">
+        <div class="ws-vtile"><div class="ws-thumb t-fjord"></div>
+          <div class="ws-vrow"><span class="ws-variant-name">fjord-night · deep</span><button class="ws-variant-apply">Apply</button></div></div>
+        <div class="ws-vtile"><div class="ws-thumb t-moss"></div>
+          <div class="ws-vrow"><span class="ws-variant-name">fjord-night · moss</span><button class="ws-variant-apply">Apply</button></div></div>
+      </div>
+      <div class="ws-status"><b>Ready.</b> Box unchecked → applying any variant persists <code class="status">prefs[H] = false</code> first, then sets in <code class="status">auto</code>.</div>
+    </div>
+  </div>
+  <p class="anno"><b>Rec:</b> checkbox lives <b>directly under the crumb header</b> (not beside Apply pills) with the
+  <b>wallpaper filename in the sublabel</b> — misattribution is the top edge case on a variant grid. Unchecked state keeps
+  the same sublabel so OFF never reads as “missing”. Flipping a <b>non-live</b> wallpaper persists only; flipping the
+  <b>LIVE</b> one persists + runs <code class="status">icons regenerate --contrast on|off</code>.</p>
+</section>
+
+<!-- ================= VIEW 3 · BUSY ================= -->
+<section>
+  <h2><span class="n">3</span>Busy state — Apply locked, checkbox live, deferral note (browse-live, set-locked)</h2>
+  <div class="ws-panel ws-busy">
+    <div class="ws-crumb">
+      <div class="ws-crumb-thumb t-dune"></div>
+      <div style="flex:1"><div class="ws-crumb-name">dune-ridge.jpg</div>
+        <div class="ws-crumb-sub">3 variants · LIVE · <span class="tag">applying…</span></div></div>
+      <button class="ws-back">◀ Back</button>
+    </div>
+    <label class="ws-contrast-row">
+      <input type="checkbox" checked />
+      <span><span class="ws-contrast-label">Auto high-contrast icons</span><br />
+      <span class="ws-contrast-sub">for <b>dune-ridge.jpg</b> · applies to all 3 variants</span>
+      <div class="ws-defer">saved — will apply when ready <span style="color:var(--muted)">(live flip during busy only queues the preference)</span></div></span>
+    </label>
+    <div class="ws-title">Variants · dune-ridge</div>
+    <div class="ws-variant">
+      <div class="ws-vtile"><div class="ws-thumb t-dune"></div>
+        <div class="ws-vrow"><span class="ws-variant-name">dune-ridge · warm · LIVE</span><button class="ws-variant-apply" disabled>Apply</button></div></div>
+      <div class="ws-vtile"><div class="ws-thumb t-fjord"></div>
+        <div class="ws-vrow"><span class="ws-variant-name">dune-ridge · cool</span><button class="ws-variant-apply" disabled>Apply</button></div></div>
+    </div>
+    <div class="ws-status"><b>wallpaper.state → applying…</b> Apply pills insensitive · grid / search / drill-down / checkbox stay interactive.</div>
+  </div>
+  <p class="anno"><b>Rec:</b> while <code class="status">applying</code>/<code class="status">visible</code>, Apply pills go
+  insensitive (opacity + <span class="kbd">not-allowed</span>) but the checkbox <b>never disables</b> — a mid-apply flip writes the
+  pref and shows the <b>amber “saved — will apply when ready”</b> line; the regenerate fires on
+  <code class="status">done</code>/<code class="status">error</code>. Search, grid, Back keep working.</p>
+</section>
+
+<!-- ================= VIEW 4 · STATUS COPY ================= -->
+<section>
+  <h2><span class="n">4</span>Status-line copy per transition (exact strings)</h2>
+  <div class="ws-panel">
+    <table class="copy">
+      <tr><th>Transition</th><th>Status line</th><th>Note</th></tr>
+      <tr><td>idle / open</td><td><code class="status">Wallpapers — pick one to see its variants.</code></td><td>L1 default</td></tr>
+      <tr><td>drill to L2</td><td><code class="status">Variants · dune-ridge.jpg. Back returns to the grid.</code></td><td>existing copy, unchanged</td></tr>
+      <tr><td>local apply start</td><td><code class="status">applying dune-ridge · warm…</code></td><td>existing <span class="kbd">doApply</span> copy</td></tr>
+      <tr><td>event: applying</td><td><code class="status">wallpaper.state → applying…</code></td><td>Apply locked from here</td></tr>
+      <tr><td>event: visible (on-screen-theming)</td><td><code class="status">wallpaper.state → visible · theming…</code></td><td>new intermediate — still busy, still locked</td></tr>
+      <tr><td>event: done</td><td><code class="status">wallpaper.state → done · LIVE refreshed</code></td><td>rescan + chrome refresh, unlock</td></tr>
+      <tr><td>event: error</td><td><code class="status">wallpaper.state → error</code> / <code class="status">failed: &lt;reason&gt;</code></td><td>stays open so the error is seen</td></tr>
+      <tr><td>live flip, idle</td><td><code class="status">contrast on for dune-ridge.jpg · icons refreshed</code></td><td>pref saved + regenerate converged</td></tr>
+      <tr><td>live flip, busy (deferred)</td><td><code class="status">saved — will apply when ready</code></td><td>amber deferral line under checkbox + status; regenerate on done/error</td></tr>
+      <tr><td>non-live flip</td><td><code class="status">saved · applies next time fjord-night.jpg is set</code></td><td>persist-only, no regenerate</td></tr>
+    </table>
+  </div>
+  <p class="anno"><b>Rec:</b> keep existing <code class="status">applying / done / error</code> strings verbatim; add only the
+  <code class="status">visible · theming…</code> intermediate and the two “saved” lines. “Saved” wording is deliberate —
+  it promises persistence without claiming the bar already repainted.</p>
+</section>
+
+<p class="lede" style="margin-top:8px">Resolved in review: <b>◐/○ semantics kept, CSS-drawn</b> (no more text glyphs — see View 1).
+Remaining for sign-off: whether the deferral note should also name the file (“saved for dune-ridge.jpg — will apply
+when ready”). No code until you approve placement + copy (tasks §1.2).</p>
+</body>
+</html>

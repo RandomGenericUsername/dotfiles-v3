@@ -100,7 +100,45 @@ export function mapSpineHashes(
   return out;
 }
 
+/** Preference default for a hash never queried: matches the backend's
+ * store → default-ON resolution (`icon-contrast-opt-out` D1b). */
+export const DEFAULT_CONTRAST_ENABLED = true;
+
+/** Whether `w` governs what is currently live: the live wallpaper itself,
+ * or the parent of a live promoted variant. A variant flip therefore
+ * regenerates icons for its whole gallery. */
+export function isWallpaperLive(
+  w: WallpaperEntry,
+  variants: VariantEntry[],
+): boolean {
+  return w.live || variants.some((v) => v.live);
+}
+
+/** Cached contrast preference for `hash` (render-time map read), falling
+ * back to the default-ON policy while the async lookup is in flight. */
+export function cachedContrastPref(
+  prefs: Map<string, boolean>,
+  hash: string,
+): boolean {
+  return prefs.get(hash) ?? DEFAULT_CONTRAST_ENABLED;
+}
+
+/** L2 sublabel's scope phrase for a wallpaper's variant count. */
+export function contrastScopeLabel(variantCount: number): string {
+  if (variantCount <= 0) return "no variants yet";
+  return `applies to all ${variantCount} ${variantCount === 1 ? "variant" : "variants"}`;
+}
+
 export const UNAPPLIED_PREFIX = "unapplied:";
+
+/** True when `hash` is a real 64-hex content hash — not the `unapplied:`
+ * placeholder and not the `""` empty live-state sentinel. The runtime
+ * `icons preference` accessor rejects anything else, so the GUI must never
+ * shell it for a non-real hash (never-applied wallpaper: no store entry
+ * can exist until the first set computes the content hash). */
+export function isRealHash(hash: string): boolean {
+  return /^[0-9a-f]{64}$/.test(hash);
+}
 
 /** Placeholder hash for never-applied files: no variants exist under an
  * unknown hash and it cannot be live — the placeholder can never equal a

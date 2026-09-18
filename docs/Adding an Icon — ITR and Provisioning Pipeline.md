@@ -724,3 +724,34 @@ The simplest reliable mental model is:
 If any link is missing, the icon may exist in one directory while remaining
 black, stale, invisible, incorrectly scaled, or unavailable after a fresh
 bootstrap.
+
+## 14. Contrast guard
+
+The AGS bar is transparent, so bar icons float directly over the wallpaper.
+Groups pinned to `COLOR_FOREGROUND → color15` (bright) wash out on light
+wallpapers (white-on-white). The runtime therefore retargets low-contrast
+bar icons to a darker palette token before ITR renders.
+
+- **Allowlist (scope guard).** Only group-level `COLOR_FOREGROUND` /
+  `COLOR_JOIN` of bar groups (`battery`, `network`, `btop`, `thunderbird`,
+  `tray`, `ui`, `power-menu`, `email-client`, `wallpaper-selector`) may be
+  rewritten. Variant overrides (e.g. `camera-accent`, `warning-caution`),
+  literal `#rrggbb` values, `bar_mappings`, and non-bar groups are
+  byte-preserved.
+- **Backdrop: sampled, then palette.** The backdrop luminance comes from the
+  wallpaper's top band (~bar height, ~48px) decoded with Pillow
+  (`backdrop_source: "sampled"`). If the image is undecodable, the palette
+  `background` is used instead (`backdrop_source: "palette"`).
+- **Overlay + effective hash.** Retargeted mappings are written to a
+  staging-only overlay `icons.yaml` passed to `itr render`; the spine file
+  stays read-only. The icons cache key hashes the overlay (effective
+  mappings), so a contrast flip produces a new cache entry and identical
+  inputs still hit the cache.
+- **Threshold config.** WCAG 2.1 contrast ratio, default threshold `4.5:1`,
+  overridable with the allowlist via `RUNTIME__ICON_CONTRAST__*` env. The
+  highest-ratio palette-resident token wins; ties keep the original mapping.
+- **Inspection.** Each icons `meta.json` carries an additive `contrast`
+  field (`backdrop_source`, `threshold`, `decisions[]` with
+  `group`/`placeholder`/`from`/`to`/`ratio_before`/`ratio_after`). A guard
+  failure never hard-fails `wallpaper set`: it falls back to the spine
+  mappings with a warning.

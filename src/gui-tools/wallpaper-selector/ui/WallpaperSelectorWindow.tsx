@@ -13,10 +13,16 @@ import GLib from "gi://GLib?version=2.0";
 import Pango from "gi://Pango?version=1.0";
 import { createEffect, createState } from "ags";
 import { applyWallpaper } from "../lib/apply";
+import { getContrastPref, regenerateIcons, setContrastPref } from "../lib/contrast";
 import { domainEvents, WALLPAPER_STATE_TOPIC } from "../lib/event-bus";
 import { reloadIconManifest, resolveIcon } from "../lib/icon-registry";
 import {
+  DEFAULT_CONTRAST_ENABLED,
+  cachedContrastPref,
+  contrastScopeLabel,
   filterWallpapers,
+  isRealHash,
+  isWallpaperLive,
   stemOf,
   variantsFor,
   type SelectorModel,
@@ -38,7 +44,34 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
   const [query, setQuery] = createState("");
   const [selected, setSelected] = createState<WallpaperEntry | null>(null);
   const [status, setStatus] = createState("Ready.");
-  const [applying, setApplying] = createState(false);
+  const [busy, setBusy] = createState(false);
+
+  // Busy = a local set in flight OR the last observed `wallpaper.state`
+  // being `applying`/`visible`. Event-driven so an apply started elsewhere
+  // (or the regenerate arm) locks the Apply controls too.
+  let localApply = false;
+  let eventBusy = false;
+
+  // Apply controls are recreated per render; `clearFlow` resets the list and
+  // `refreshBusy` re-asserts sensitivity on every busy transition.
+  const applyControls: Gtk.Button[] = [];
+
+  // L1 contrast swatches, per rendered card: the swatch is BOTH indicator and
+  // control (user request), so a toggle must repaint every visible card for
+  // that wallpaper (and the L2 checkbox when drilled). Reset in `clearFlow`.
+  const glyphUpdaters: { hash: string; update: () => void }[] = [];
+
+  // Resolved contrast prefs cached by governing wallpaper hash (cheap map
+  // read at render time). `prefEpoch` invalidates in-flight lookups when a
+  // `done`/`error` rescan clears the map.
+  const contrastPrefs = new Map<string, boolean>();
+  // Explicit choices for NEVER-APPLIED wallpapers (placeholder hash, no
+  // store entry possible yet). Persisted by the runtime at set time via
+  // `wallpaper set --contrast on|off` (governing content hash).
+  const pendingContrast = new Map<string, boolean>();
+  let prefEpoch = 0;
+  let syncingContrast = false;
+  let deferredRegenerate: { hash: string; name: string; enabled: boolean } | null = null;
 
   // Magnifier from the shared ITR-rendered `ui` group (palette-tinted),
   // stock symbolic fallback — the hypr-pano search row, verbatim pattern.
@@ -102,6 +135,40 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
   crumbBox.append(crumbText);
   crumbBox.append(backButton);
 
+  // L2 primary control (mock §2): the checkbox lives directly under the
+  // crumb header so attribution to the drilled wallpaper is unambiguous.
+  // The sublabel always names the file (OFF never reads as "missing").
+  const contrastCheck = new Gtk.CheckButton({ css_classes: ["ws-contrast-check"] });
+  const contrastLabel = new Gtk.Label({
+    label: "Auto high-contrast icons",
+    css_classes: ["ws-contrast-label"],
+    xalign: 0,
+  });
+  const contrastSub = new Gtk.Label({
+    css_classes: ["ws-contrast-sub"],
+    xalign: 0,
+    wrap: true,
+  });
+  const contrastDefer = new Gtk.Label({
+    label: "saved — will apply when ready",
+    css_classes: ["ws-defer"],
+    xalign: 0,
+    visible: false,
+  });
+  const contrastText = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: true });
+  contrastText.append(contrastLabel);
+  contrastText.append(contrastSub);
+  contrastText.append(contrastDefer);
+  const contrastRow = new Gtk.Box({
+    orientation: Gtk.Orientation.HORIZONTAL,
+    spacing: 10,
+    css_classes: ["ws-contrast-row"],
+    visible: false,
+  });
+  contrastRow.append(contrastCheck);
+  contrastRow.append(contrastText);
+  contrastCheck.connect("toggled", () => onContrastToggled());
+
   // Non-homogeneous: Gtk.Picture reports the full paintable as its natural
   // size, which would stretch every card to the largest image (2 giant
   // columns). Children size to their requests instead (208px thumbs).
@@ -140,6 +207,7 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
   emptyWrap.set_halign(Gtk.Align.FILL);
   root.append(searchRow);
   root.append(crumbBox);
+  root.append(contrastRow);
   root.append(titleLabel);
   root.append(scrolled);
   root.append(emptyWrap);
@@ -197,6 +265,8 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     thumbGen++;
     thumbQueue = [];
     thumbPumpScheduled = false;
+    applyControls.length = 0;
+    glyphUpdaters.length = 0;
     let child = flow.get_first_child();
     while (child !== null) {
       const next = child.get_next_sibling();
@@ -233,22 +303,212 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     return badge;
   }
 
+  // ── Contrast checkbox + busy/deferral wiring (D2/D3) ──────────────────
+
+  function refreshBusy(): void {
+    const current = localApply || eventBusy;
+    if (current !== busy()) setBusy(current);
+    if (current) root.add_css_class("ws-busy");
+    else root.remove_css_class("ws-busy");
+    for (const control of applyControls) control.set_sensitive(!current);
+  }
+
+  /** Cache invalidation on done/error: the store may have moved (a set
+   * persists its governing hash) and in-flight lookups must be dropped. */
+  function invalidateContrastPrefs(): void {
+    prefEpoch++;
+    contrastPrefs.clear();
+  }
+
+  function syncContrastControl(hash: string, enabled: boolean): void {
+    const w = selected();
+    if (w === null || w.hash !== hash) return;
+    syncingContrast = true;
+    contrastCheck.set_active(enabled);
+    syncingContrast = false;
+  }
+
+  /** Resolve (and cache) a hash's pref. A user flip that already populated
+   * the cache wins over a late lookup result.
+   *
+   * Non-real hashes (never-applied wallpapers) short-circuit to the
+   * default-ON policy: the runtime store is keyed by content hash, so no
+   * entry can exist yet, and `icons preference` rejects placeholders —
+   * shelling it would spam CRITICAL logs on every hover. The explicit
+   * choice is carried by `pendingContrast` and handed to `wallpaper set
+   * --contrast` at apply time. */
+  async function loadContrastPref(hash: string): Promise<boolean | null> {
+    if (!isRealHash(hash)) return DEFAULT_CONTRAST_ENABLED;
+    if (contrastPrefs.has(hash)) return contrastPrefs.get(hash) as boolean;
+    const epoch = prefEpoch;
+    try {
+      const pref = await getContrastPref(hash);
+      if (epoch !== prefEpoch) return null;
+      if (!contrastPrefs.has(hash)) {
+        contrastPrefs.set(hash, pref.enabled);
+        syncContrastControl(hash, pref.enabled);
+      }
+      return contrastPrefs.get(hash) as boolean;
+    } catch (error) {
+      console.error(`wallpaper-selector: contrast preference lookup failed: ${error}`);
+      return null;
+    }
+  }
+
+  function isLiveTarget(w: WallpaperEntry): boolean {
+    const m = model();
+    return isWallpaperLive(w, m === null ? [] : variantsFor(m, w.hash));
+  }
+
+  async function runRegenerate(
+    hash: string,
+    name: string,
+    enabled: boolean,
+  ): Promise<void> {
+    const policy = enabled ? "on" : "off";
+    contrastDefer.set_visible(false);
+    setStatus(`contrast ${policy} for ${name} · refreshing icons…`);
+    try {
+      await regenerateIcons(enabled);
+      setStatus(`contrast ${policy} for ${name} · icons refreshed`);
+    } catch (error) {
+      setStatus(`failed: ${error}`);
+    }
+  }
+
+  /** Busy cleared: fire a deferred regenerate, if one is queued. */
+  function flushDeferredRegenerate(): void {
+    if (localApply || eventBusy) return;
+    const pending = deferredRegenerate;
+    if (pending === null) return;
+    deferredRegenerate = null;
+    void runRegenerate(pending.hash, pending.name, pending.enabled);
+  }
+
+  async function persistContrast(w: WallpaperEntry, enabled: boolean): Promise<void> {
+    if (!isRealHash(w.hash)) {
+      // Never-applied wallpaper: there is no content hash yet, so the
+      // store cannot hold an entry. Remember the choice and hand it to
+      // `wallpaper set --contrast` at apply time (the runtime persists it
+      // under the governing hash it computes).
+      pendingContrast.set(w.hash, enabled);
+      contrastDefer.set_visible(false);
+      setStatus(`saved · applies when ${w.name} is set`);
+      return;
+    }
+    try {
+      await setContrastPref(w.hash, enabled);
+    } catch (error) {
+      setStatus(`failed: ${error}`);
+      return;
+    }
+    if (!isLiveTarget(w)) {
+      // Non-live: persist only — the set will resolve it via `auto`. Do not
+      // touch a regenerate already queued for the live wallpaper.
+      contrastDefer.set_visible(false);
+      setStatus(`saved · applies next time ${w.name} is set`);
+      return;
+    }
+    if (localApply || eventBusy) {
+      // Live but busy: queue the regenerate; it fires on done/error.
+      deferredRegenerate = { hash: w.hash, name: w.name, enabled };
+      contrastDefer.set_visible(true);
+      setStatus("saved — will apply when ready");
+      return;
+    }
+    await runRegenerate(w.hash, w.name, enabled);
+  }
+
+  function onContrastToggled(): void {
+    if (syncingContrast) return;
+    const w = selected();
+    if (w === null) return;
+    const enabled = contrastCheck.get_active();
+    contrastPrefs.set(w.hash, enabled);
+    for (const g of glyphUpdaters) if (g.hash === w.hash) g.update();
+    void persistContrast(w, enabled);
+  }
+
+  /** L1 swatch toggle: indicator AND control on the main grid. Flips the
+   * resolved pref optimistically, repaints every card for that wallpaper,
+   * mirrors the L2 checkbox if drilled, then persists via the shared path
+   * (live ⇒ icons regenerate; never-applied ⇒ carried to the next set). */
+  function onSwatchToggled(w: WallpaperEntry): void {
+    const enabled = !cachedContrastPref(contrastPrefs, w.hash);
+    contrastPrefs.set(w.hash, enabled);
+    for (const g of glyphUpdaters) if (g.hash === w.hash) g.update();
+    syncContrastControl(w.hash, enabled);
+    void persistContrast(w, enabled);
+  }
+
   function wallpaperCard(w: WallpaperEntry): Gtk.Widget {
     const card = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, css_classes: ["ws-card"] });
     const overlay = new Gtk.Overlay();
     overlay.set_child(thumbPicture(w.path, 208, 130));
     if (w.live) overlay.add_overlay(liveBadge());
-    const quick = new Gtk.Button({ label: "Apply", css_classes: ["ws-quick"], visible: false });
-    quick.set_halign(Gtk.Align.END);
-    quick.set_valign(Gtk.Align.END);
-    quick.connect("clicked", () => doApply(w.path, w.name));
-    overlay.add_overlay(quick);
+
+    // L1 swatch: CSS-drawn (never the U+25D0/U+25CB text glyphs) and now a
+    // TOGGLE as well as an indicator (user request) — clicking it flips the
+    // high-contrast mode for this wallpaper without leaving the grid. Apply
+    // shares the same pill. Children stay visible; ONLY the toolbar is
+    // toggled on hover (GTK does not inherit visibility from a parent, so a
+    // child marked visible:false would never reappear).
+    const dot = new Gtk.Box({ css_classes: ["dot"] });
+    // Fixed 15px swatch (mock): centering + no expand keeps the Box at its
+    // size request instead of filling the button's content area (which made
+    // it read as a fat 28px blob).
+    dot.set_size_request(15, 15);
+    dot.set_halign(Gtk.Align.CENTER);
+    dot.set_valign(Gtk.Align.CENTER);
+    dot.set_hexpand(false);
+    dot.set_vexpand(false);
+    const glyph = new Gtk.Button({ css_classes: ["ws-contrast-glyph"] });
+    glyph.set_child(dot);
+    glyph.set_valign(Gtk.Align.FILL);
+    glyph.connect("clicked", () => onSwatchToggled(w));
+    const quick = new Gtk.Button({
+      label: "Apply",
+      css_classes: ["ws-quick", "ws-hover-item"],
+    });
+    quick.connect("clicked", () => doApply(w.path, w.name, w.hash));
+    const hoverbar = new Gtk.Box({
+      orientation: Gtk.Orientation.HORIZONTAL,
+      css_classes: ["ws-hoverbar"],
+      visible: false,
+    });
+    hoverbar.set_halign(Gtk.Align.END);
+    hoverbar.set_valign(Gtk.Align.END);
+    hoverbar.append(glyph);
+    hoverbar.append(quick);
+    overlay.add_overlay(hoverbar);
+    applyControls.push(quick);
+
+    function updateGlyph(): void {
+      const on = cachedContrastPref(contrastPrefs, w.hash);
+      if (on) {
+        glyph.add_css_class("on");
+        glyph.remove_css_class("off");
+      } else {
+        glyph.add_css_class("off");
+        glyph.remove_css_class("on");
+      }
+      glyph.set_tooltip_text(
+        `High-contrast ${on ? "ON" : "OFF"} for ${w.name} — click to turn ${on ? "off" : "on"}`,
+      );
+    }
+    updateGlyph();
+    glyphUpdaters.push({ hash: w.hash, update: updateGlyph });
+
     const motion = new Gtk.EventControllerMotion();
     motion.connect("enter", () => {
-      if (!applying()) quick.set_visible(true);
+      hoverbar.set_visible(true);
+      updateGlyph();
+      // Cheap map read now; resolve the stored pref for the swatch.
+      void loadContrastPref(w.hash).then(() => updateGlyph());
     });
-    motion.connect("leave", () => quick.set_visible(false));
+    motion.connect("leave", () => hoverbar.set_visible(false));
     card.add_controller(motion);
+
     const name = new Gtk.Label({ label: w.name, css_classes: ["ws-card-name"], xalign: 0 });
     const sub = new Gtk.Label({
       label: w.variantCount === 1 ? "1 variant" : `${w.variantCount} variants`,
@@ -261,11 +521,15 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     card.append(sub);
     const click = new Gtk.GestureClick();
     click.connect("pressed", (_gesture, _nPress, x, y) => {
-      // The quick-Apply button lives inside the card: a press landing on it
-      // must apply, not drill (the button's own clicked handler applies).
-      // Coordinates arrive in card space — translate into the button.
-      const [, qx, qy] = card.translate_coordinates(quick, x, y);
-      if (qx >= 0 && qy >= 0 && qx < quick.get_width() && qy < quick.get_height()) return;
+      // Presses landing on the hover toolbar are owned by its children:
+      // Apply applies, the swatch drills. Everything else on the card
+      // drills too. Coordinates arrive in card space.
+      if (hoverbar.get_visible()) {
+        const [, hx, hy] = card.translate_coordinates(hoverbar, x, y);
+        if (hx >= 0 && hy >= 0 && hx < hoverbar.get_width() && hy < hoverbar.get_height()) {
+          return;
+        }
+      }
       drill(w);
     });
     card.add_controller(click);
@@ -289,7 +553,8 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
       ellipsize: Pango.EllipsizeMode.END,
     });
     const apply = new Gtk.Button({ label: "Apply", css_classes: ["ws-variant-apply"] });
-    apply.connect("clicked", () => doApply(v.path, v.name));
+    apply.connect("clicked", () => doApply(v.path, v.name, parent.hash));
+    applyControls.push(apply);
     row.append(name);
     row.append(apply);
     card.append(picture);
@@ -302,11 +567,14 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     setSelected(null);
     searchRow.set_visible(true);
     crumbBox.set_visible(false);
+    contrastRow.set_visible(false);
+    contrastDefer.set_visible(false);
     titleLabel.set_label("WALLPAPERS");
     showEmpty(null);
     clearFlow();
     if (m === null) {
       placeholder("Loading…");
+      refreshBusy();
       return;
     }
     const list = filterWallpapers(m.wallpapers, query());
@@ -316,13 +584,16 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
           ? "No wallpapers in the install spine."
           : "No wallpapers match.",
       );
+      refreshBusy();
       return;
     }
     for (const w of list) flow.append(wallpaperCard(w));
+    refreshBusy();
   }
 
   function drill(w: WallpaperEntry): void {
-    if (applying()) return;
+    // Busy never blocks browsing/drill-down (browse-live, set-locked): only
+    // the Apply controls are locked.
     setSelected(w);
     setQuery("");
     search.set_text("");
@@ -345,6 +616,18 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     if (variants.length === 0) {
       placeholder(`No variants yet — they are generated the first time ${stemOf(w.name)} is applied.`);
     }
+
+    // L2 primary checkbox: reflect the cached pref, then resolve the store.
+    contrastRow.set_visible(true);
+    contrastSub.set_label(
+      `for ${w.name} · ${contrastScopeLabel(variants.length)} · stored per wallpaper`,
+    );
+    syncingContrast = true;
+    contrastCheck.set_active(cachedContrastPref(contrastPrefs, w.hash));
+    syncingContrast = false;
+    contrastDefer.set_visible(deferredRegenerate?.hash === w.hash);
+    void loadContrastPref(w.hash);
+    refreshBusy();
     setStatus(`Variants · ${w.name}. Back returns to the grid.`);
   }
 
@@ -397,21 +680,52 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     renderGrid();
   }
 
-  async function doApply(path: string, label: string): Promise<void> {
-    if (applying()) return;
-    setApplying(true);
+  async function doApply(
+    path: string,
+    label: string,
+    contrastHash?: string,
+  ): Promise<void> {
+    if (localApply || eventBusy) return;
+    localApply = true;
+    refreshBusy();
     setStatus(`applying ${label}…`);
     // Local flag (not the `status` state): state getters may lag the setter,
     // and the collapse decision must be deterministic.
     let ok = false;
+    let explicit: "on" | "off" | undefined;
     try {
-      await applyWallpaper(path);
+      // Persist-then-set: the checkbox state for the focused wallpaper must
+      // land in the store BEFORE `wallpaper set` runs, so its `auto`
+      // resolution is identical with or without explicit flag threading.
+      // Resolve from the store first when the swatch was never hovered
+      // (L1 quick-Apply) so the default-ON fallback can't clobber a
+      // stored OFF.
+      if (contrastHash !== undefined) {
+        if (isRealHash(contrastHash)) {
+          const resolved = contrastPrefs.has(contrastHash)
+            ? (contrastPrefs.get(contrastHash) as boolean)
+            : await loadContrastPref(contrastHash);
+          await setContrastPref(
+            contrastHash,
+            resolved ?? cachedContrastPref(contrastPrefs, contrastHash),
+          );
+        } else if (pendingContrast.has(contrastHash)) {
+          // Never-applied wallpaper with an explicit choice: thread the
+          // policy so the runtime persists it under the governing hash it
+          // computes at set time (no GUI-side hashing).
+          explicit = pendingContrast.get(contrastHash) ? "on" : "off";
+        }
+      }
+      await applyWallpaper(path, explicit);
+      if (contrastHash !== undefined) pendingContrast.delete(contrastHash);
       setStatus(`done · ${label}`);
       ok = true;
     } catch (error) {
       setStatus(`failed: ${error}`);
     } finally {
-      setApplying(false);
+      localApply = false;
+      refreshBusy();
+      flushDeferredRegenerate();
       rescan();
       // Collapse on success (stays open on failure so the error is seen).
       // The runtime no longer restarts this instance (skip list), so no
@@ -437,15 +751,38 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
 
   function onWallpaperEvent(payload: Record<string, unknown>): void {
     const state = payload["state"];
-    if (state === "applying") setStatus("wallpaper.state → applying…");
-    else if (state === "done") {
+    if (state === "applying") {
+      eventBusy = true;
+      refreshBusy();
+      setStatus("wallpaper.state → applying…");
+    } else if (state === "visible") {
+      // New intermediate (Agent A): pixels swapped, theming still in
+      // flight. Busy like `applying`, but honest about what is on screen.
+      eventBusy = true;
+      refreshBusy();
+      setStatus("wallpaper.state → visible · theming…");
+      // Collapse as soon as the wallpaper is actually on screen instead of
+      // blocking the view for the whole derivation (visible-first). Only for
+      // a set THIS instance initiated — an external set must never dismiss
+      // the window. The process keeps running; `done`/`error` still rescans
+      // and unlocks the controls.
+      if (localApply) hideWindow();
+    } else if (state === "done") {
+      eventBusy = false;
+      refreshBusy();
+      invalidateContrastPrefs();
       rescan();
       refreshChrome();
       setStatus("wallpaper.state → done · LIVE refreshed");
+      flushDeferredRegenerate();
     } else if (state === "error") {
+      eventBusy = false;
+      refreshBusy();
+      invalidateContrastPrefs();
       rescan();
       refreshChrome();
       setStatus("wallpaper.state → error");
+      flushDeferredRegenerate();
     }
   }
 
@@ -502,7 +839,7 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
           // Every toggle-open re-scans: the spine, the effects gallery and
           // current.json may all have moved while the window was hidden.
           setSelected(null);
-          if (!applying()) {
+          if (!localApply && !eventBusy) {
             rescan();
             setStatus("Wallpapers — pick one to see its variants.");
           }

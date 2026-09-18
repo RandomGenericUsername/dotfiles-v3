@@ -19,6 +19,7 @@ src/gui-tools/wallpaper-selector/
   lib/scan.ts             spine + effects-cache + current.json scan (GJS)
   lib/thumbnails.ts       disk-cached GdkPixbuf thumbnails (GJS)
   lib/apply.ts            execAsync engine entry point (GJS)
+  lib/contrast.ts         icons preference/regenerate CLI shell (GJS)
   lib/event-bus-core.ts   contract constants + hydration state machine (copy)
   lib/event-bus.ts        Gio transport singleton (copy)
   tests/model.mjs         pure-model tests
@@ -39,6 +40,15 @@ Provisioned as `<install>/config/ags-wallpaper-selector/` with launcher
 ## Lifecycle
 
 - Only the Apply buttons set the wallpaper; thumbnail presses are inert.
+- An "Auto high-contrast icons" checkbox (L2 crumb header, primary) edits
+  the per-wallpaper pref via `dotfiles-runtime icons preference <hash>
+  --set on|off`; the L1 hover swatch is a CSS-drawn shortcut that drills to
+  L2. A live-target flip additionally runs `icons regenerate --contrast
+  on|off` (icons only, no pixel change); a non-live flip persists only.
+- Applies persist the focused wallpaper's checkbox state before
+  `wallpaper set` (`auto` resolution). While `wallpaper.state` is
+  `applying`/`visible`, Apply controls are insensitive; the checkbox stays
+  live and a flip defers its regenerate until `done`/`error`.
 - The window self-hides on successful apply (stays open on failure).
 - The runtime's AGS reloader skips this instance (`DEFAULT_SKIP_CONFIG_DIRS`,
   same as the editor): a restart would pop the visible-on-start window back

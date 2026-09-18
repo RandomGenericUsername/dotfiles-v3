@@ -151,6 +151,7 @@ gui_tools_wallpaper_selector_app_files:
   - { name: wallpaper-selector-lib-scan, source: src/gui-tools/wallpaper-selector/lib/scan.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/scan.ts" }
   - { name: wallpaper-selector-lib-thumbnails, source: src/gui-tools/wallpaper-selector/lib/thumbnails.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/thumbnails.ts" }
   - { name: wallpaper-selector-lib-apply, source: src/gui-tools/wallpaper-selector/lib/apply.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/apply.ts" }
+  - { name: wallpaper-selector-lib-contrast, source: src/gui-tools/wallpaper-selector/lib/contrast.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/contrast.ts" }
   - { name: wallpaper-selector-lib-icon-registry, source: src/gui-tools/wallpaper-selector/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/icon-registry.ts" }
   - { name: wallpaper-selector-lib-event-bus-core, source: src/gui-tools/wallpaper-selector/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus-core.ts" }
   - { name: wallpaper-selector-lib-event-bus, source: src/gui-tools/wallpaper-selector/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus.ts" }
