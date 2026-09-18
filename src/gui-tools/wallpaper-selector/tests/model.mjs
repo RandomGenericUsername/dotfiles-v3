@@ -99,6 +99,14 @@ const CURRENT_VAR = {
   const live = variantsFor(m, "i".repeat(64)).filter((v) => v.live);
   check("variant live by path", live.map((v) => v.name), ["sepia"]);
   check("live variant path", m.liveVariantPath, "/cache/e1/imperial/effect/sepia.jpg");
+  // The live variant is pinned FIRST in its gallery (same behavior as the
+  // main grid pinning the live wallpaper / a live variant's parent); the
+  // rest keep the stable group+name order.
+  check(
+    "live variant pinned first",
+    variantsFor(m, "i".repeat(64)).map((v) => `${v.group}/${v.name}`),
+    ["effect/sepia", "effect/blur", "preset/blur"],
+  );
 }
 
 // no current state: nothing live

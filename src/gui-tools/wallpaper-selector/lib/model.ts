@@ -198,11 +198,6 @@ export function buildModel(
     }
     variants.set(entry.sourceHash, list);
   }
-  for (const list of variants.values()) {
-    list.sort((a, b) =>
-      a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group),
-    );
-  }
   const liveHash = current?.wallpaperHash ?? "";
   const livePath = current?.wallpaperPath ?? "";
   for (const list of variants.values()) {
@@ -213,6 +208,13 @@ export function buildModel(
       // bytes differ), so exactly one of wallpaper/variant is live.
       if (livePath !== "" && v.path === livePath) v.live = true;
     }
+    // The live variant is pinned FIRST in its gallery (same behavior as the
+    // main grid, which pins the live wallpaper / a live variant's parent);
+    // everything else keeps the stable group+name order.
+    list.sort((a, b) => {
+      if (a.live !== b.live) return a.live ? -1 : 1;
+      return a.group === b.group ? a.name.localeCompare(b.name) : a.group.localeCompare(b.group);
+    });
   }
   const wallpapers = spine
     .filter((w) => isImageFile(w.name))

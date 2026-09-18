@@ -296,10 +296,11 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     return thumbPictureAsync(path, width, height);
   }
 
-  function liveBadge(): Gtk.Label {
-    const badge = new Gtk.Label({ label: "LIVE", css_classes: ["ws-live"] });
+  function liveBadge(label = "LIVE", tooltip?: string): Gtk.Label {
+    const badge = new Gtk.Label({ label, css_classes: ["ws-live"] });
     badge.set_halign(Gtk.Align.END);
     badge.set_valign(Gtk.Align.START);
+    if (tooltip !== undefined) badge.set_tooltip_text(tooltip);
     return badge;
   }
 
@@ -445,7 +446,24 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
     const card = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, css_classes: ["ws-card"] });
     const overlay = new Gtk.Overlay();
     overlay.set_child(thumbPicture(w.path, 208, 130));
-    if (w.live) overlay.add_overlay(liveBadge());
+    // LIVE badge: shown for a directly-live wallpaper AND for a wallpaper
+    // whose VARIANT is live (its card is pinned first, but without this it
+    // carried no indicator that it is the source of the live image). The
+    // variant case names the variant in the tooltip.
+    if (w.live) {
+      overlay.add_overlay(liveBadge());
+    } else {
+      const liveSource = model();
+      const liveVariant =
+        liveSource === null
+          ? undefined
+          : variantsFor(liveSource, w.hash).find((v) => v.live);
+      if (liveVariant !== undefined) {
+        // Explicitly a VARIANT, not the original: the message differs from
+        // the plain-live wallpaper badge so the source is unambiguous.
+        overlay.add_overlay(liveBadge("LIVE VARIANT", `Live via variant “${liveVariant.name}”`));
+      }
+    }
 
     // L1 swatch: CSS-drawn (never the U+25D0/U+25CB text glyphs) and now a
     // TOGGLE as well as an indicator (user request) — clicking it flips the
