@@ -1,0 +1,206 @@
+/* GUI unification — HTML mock design system
+ * ==========================================================================
+ * Companion to _bmad-output/planning-artifacts/gui-unification-ux-spec.md.
+ *
+ * Token contract (identical to the shipped mock in spikes/capture-tool-ui):
+ *   --color-00 .. --color-15   ->  @color_00 .. @color_15
+ *   --background / --foreground -> @color_background / @color_foreground
+ * Every colour below is a palette slot, never a literal, so the real AGS port
+ * can lift `var(--color-*)` straight onto `@color_*` with zero structural
+ * change. Two literal exceptions are intentional and named:
+ *   --live  (green LIVE badge)  --record (recording dot)  --brand-* (app icons)
+ * ========================================================================== */
+
+/* --- Palette: the live runtime palette (pywal, high_contrast.jpg) --------- */
+:root,
+[data-palette="live"] {
+  --background: #080711;
+  --foreground: #c1c1c3;
+  --color-00: #080711;
+  --color-01: #0f3868;
+  --color-02: #0f3868;
+  --color-03: #0e4676;
+  --color-04: #0e4676;
+  --color-05: #2a496c;
+  --color-06: #2a496c;
+  --color-07: #59566a;
+  --color-08: #9e4240;
+  --color-09: #9e4240;
+  --color-10: #ea1c60;
+  --color-11: #ea1c60;
+  --color-12: #d39b38;
+  --color-13: #d39b38;
+  --color-14: #c1c1c3;
+  --color-15: #c1c1c3;
+}
+
+/* --- Palette: the one in juan david's screenshots (salmon selection) ------ */
+[data-palette="shot"] {
+  --background: #0d1117;
+  --foreground: #c8ccd2;
+  --color-00: #0d1117;
+  --color-01: #232a33;
+  --color-02: #2b333e;
+  --color-03: #7d5a3c;
+  --color-04: #4a6f96;
+  --color-05: #5a7fa8;
+  --color-06: #6d94bc;
+  --color-07: #9aa3ad;
+  --color-08: #a4544e;
+  --color-09: #c46a5c;
+  --color-10: #ef8a7e;
+  --color-11: #ef8a7e;
+  --color-12: #d8a75a;
+  --color-13: #d8a75a;
+  --color-14: #c8ccd2;
+  --color-15: #c8ccd2;
+}
+
+/* --- Semantic roles (spec §4) -------------------------------------------- */
+:root {
+  --surface-panel: color-mix(in srgb, var(--color-00) 94%, transparent);
+  --surface-frame: var(--color-01);
+  --surface-content: var(--color-00);
+  --surface-field: var(--color-01);
+  --surface-card: color-mix(in srgb, var(--background) 45%, transparent);
+
+  --selection-fill: var(--color-10);
+  --selection-text: var(--background);
+  --selection-ring: var(--color-10);
+  --selection-tint: color-mix(in srgb, var(--color-10) 12%, transparent);
+  --selection-hover: color-mix(in srgb, var(--color-10) 40%, transparent);
+
+  --action-primary: var(--color-06);
+  --action-active: color-mix(in srgb, var(--color-06) 18%, transparent);
+  --action-active-border: var(--color-06);
+
+  --panel-border: var(--color-04);
+  --hairline: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --hairline-strong: color-mix(in srgb, var(--foreground) 22%, transparent);
+
+  --text-dim: color-mix(in srgb, var(--foreground) 62%, transparent);
+  --text-faint: color-mix(in srgb, var(--foreground) 42%, transparent);
+  --text-placeholder: color-mix(in srgb, var(--foreground) 55%, transparent);
+
+  --severity: var(--color-03);
+  --live: #2ecc71;
+  --record: #e0605f;
+
+  --radius-panel: 16px;
+  --radius-card: 12px;
+  --radius-pill: 9px;
+  --radius-field: 8px;
+  --radius-row: 5px;
+
+  --font: "Inter", "Cantarell", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+  --border-w: 1.5px;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+/* Desktop backdrop — simulates the wallpaper behind a floating overlay. */
+body {
+  min-height: 100vh;
+  font-family: var(--font);
+  color: var(--foreground);
+  background:
+    radial-gradient(1200px 700px at 15% 10%, color-mix(in srgb, var(--color-06) 45%, transparent), transparent 60%),
+    radial-gradient(900px 600px at 85% 85%, color-mix(in srgb, var(--color-10) 40%, transparent), transparent 55%),
+    linear-gradient(160deg, #05060a, #0b0d18 60%, #05060a);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 24px;
+}
+
+/* Panel = rofi's near-black mainbox inside a @color04 accent frame. */
+.panel {
+  background: var(--surface-panel);
+  border: var(--border-w) solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  padding: 18px;
+}
+
+/* Field = solid surface, never a translucent hole (spec §3.2). */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-field);
+  border-radius: var(--radius-field);
+  padding: 9px 12px;
+}
+.field .search-icon { width: 18px; height: 18px; flex: none; color: var(--text-faint); }
+.field input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: 14px;
+}
+.field input::placeholder { color: var(--text-placeholder); }
+
+/* Selection vocabulary ---------------------------------------------------- */
+/* Rows / pills: solid fill, text flips to background (rofi's proven model). */
+.sel-fill {
+  background: var(--selection-fill);
+  color: var(--selection-text);
+}
+/* Cards (contain imagery): accent ring + soft tint, never a fill (spec §3.5). */
+.sel-ring {
+  border: 2px solid var(--selection-ring);
+  background: var(--selection-tint);
+}
+.sel-ring:hover { border-color: var(--selection-hover); }
+
+/* Buttons ---------------------------------------------------------------- */
+.btn {
+  border: 1px solid var(--hairline);
+  background: var(--surface-card);
+  color: var(--text-dim);
+  border-radius: var(--radius-pill);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.btn:hover { border-color: var(--hairline-strong); color: var(--foreground); }
+/* Action accent can be dark in some palettes (live @color_06 is dark steel),
+   so action text follows foreground — unlike selection fills, which are bright
+   by construction. Spec §4 text-on-fill rule. */
+.btn-primary {
+  background: var(--action-primary);
+  color: var(--foreground);
+  border-color: transparent;
+}
+.btn-primary:hover { background: var(--color-04); color: var(--foreground); }
+.btn-select { background: var(--selection-fill); color: var(--selection-text); border-color: transparent; }
+
+/* Utility ---------------------------------------------------------------- */
+.hstack { display: flex; align-items: center; }
+.vstack { display: flex; flex-direction: column; }
+.spacer { flex: 1; }
+.muted { color: var(--text-dim); }
+.faint { color: var(--text-faint); }
+.mono { font-family: var(--mono); }
+
+/* Chrome around the mocks (gallery nav, palette switch) ------------------- */
+.mock-title { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); margin: 0 0 14px; }
+.palette-switch {
+  position: fixed; top: 16px; right: 16px; z-index: 50;
+  display: flex; gap: 6px; padding: 6px;
+  background: var(--surface-panel);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+}
+.palette-switch button {
+  border: 0; background: transparent; color: var(--text-dim);
+  font: inherit; font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: 999px; cursor: pointer;
+}
+.palette-switch button[aria-pressed="true"] { background: var(--selection-fill); color: var(--selection-text); }

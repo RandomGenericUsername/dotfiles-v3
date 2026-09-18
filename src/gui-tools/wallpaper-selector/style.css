@@ -24,8 +24,11 @@ window#wallpaper-selector-window {
   padding: 14px 16px 12px;
 }
 
+/* Unified field: a SOLID surface one step above the panel (rofi's inputbar),
+ * not a translucent hole. The search bar now matches rofi/hypr-pano exactly
+ * (gui-unification spec §4 surface-search). */
 .ws-search {
-  background-color: alpha(@color_background, 0.5);
+  background-color: @color_01;
   color: @color_foreground;
   border: none;
   border-radius: 8px;
@@ -90,8 +93,16 @@ window#wallpaper-selector-window {
   padding: 0;
 }
 
+/* Rofi's selection language, adapted to a card: the point/hover target gets
+ * the selection accent ring; the card that is currently live keeps the ring +
+ * a soft tint (a solid fill would erase the thumbnail — spec §3.5). */
 .ws-card:hover {
-  border-color: @color_04;
+  border-color: @color_10;
+}
+
+.ws-card.selected {
+  border: 2px solid @color_10;
+  background-color: alpha(@color_10, 0.12);
 }
 
 .ws-thumb {
@@ -261,7 +272,7 @@ window#wallpaper-selector-window {
 }
 
 .ws-variant-apply:hover {
-  background-color: @color_04;
+  background-color: @color_10;
   color: @color_background;
 }
 

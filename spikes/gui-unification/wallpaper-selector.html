@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en" data-palette="live">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wallpaper-selector — unified</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .ws { width: 920px; min-height: 600px; }
+
+  .ws-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .ws-back { border: 1px solid var(--hairline); background: transparent; color: var(--text-dim); border-radius: var(--radius-pill); padding: 6px 14px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .ws-back:hover { border-color: var(--hairline-strong); color: var(--foreground); }
+  .ws-title { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+
+  .ws-search-row { display: flex; gap: 10px; margin-bottom: 14px; }
+
+  .crumb { display: flex; align-items: center; gap: 12px; background: var(--surface-card); border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+  .crumb-thumb { width: 54px; height: 34px; border-radius: 8px; flex: none; }
+  .crumb-name { font-size: 15px; font-weight: 700; }
+  .crumb-sub { font-size: 12px; color: var(--text-dim); }
+
+  .contrast-row { display: flex; align-items: center; gap: 10px; background: var(--surface-card); border: 1px solid var(--hairline); border-radius: 10px; padding: 8px 12px; margin-bottom: 14px; }
+  .check { width: 16px; height: 16px; border-radius: 5px; border: 1.5px solid var(--hairline-strong); }
+  .check.on { background: var(--selection-fill); border-color: var(--selection-fill); position: relative; }
+  .check.on::after { content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid var(--selection-text); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  .card { border: 1px solid var(--hairline); border-radius: var(--radius-card); background: var(--surface-card); overflow: hidden; cursor: pointer; transition: border-color .12s, background .12s; }
+  .card:hover { border-color: var(--hairline-strong); }
+  /* The spec's card selection: accent ring + soft tint, NOT a solid fill. */
+  .card.selected { border: 2px solid var(--selection-ring); background: var(--selection-tint); }
+  .thumb { height: 118px; width: 100%; display: block; }
+  .card-name { font-size: 12px; margin: 8px 10px 0; }
+  .card-sub { font-size: 11px; color: var(--text-dim); margin: 2px 10px 10px; }
+  .live { display: inline-block; font-size: 10px; font-weight: 700; background: var(--live); color: #06280f; border-radius: 6px; padding: 1px 7px; margin: 6px 6px 0 0; }
+
+  /* Hover pill: the card's action is a selection on this card -> solid fill. */
+  .hoverbar { position: absolute; right: 6px; bottom: 6px; display: flex; border-radius: 9px; overflow: hidden; }
+  .card { position: relative; }
+  .quick { border: 0; background: var(--selection-fill); color: var(--selection-text); font: inherit; font-size: 12px; font-weight: 600; padding: 5px 14px; cursor: pointer; }
+
+  .swatch { width: 34px; display: grid; place-items: center; background: var(--surface-panel); border-right: 1px solid var(--hairline); }
+  .dot { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--hairline-strong); background: linear-gradient(90deg, transparent 50%, transparent 50%); }
+  .dot.on { border-color: var(--selection-fill); background: linear-gradient(90deg, var(--selection-fill) 50%, transparent 50%); }
+
+  .caption { width: 920px; margin-top: 14px; font-size: 12px; color: var(--text-faint); line-height: 1.5; }
+  .caption b { color: var(--text-dim); font-weight: 600; }
+</style>
+</head>
+<body>
+  <main>
+    <p class="mock-title">wallpaper-selector · united with rofi</p>
+    <div class="panel ws">
+      <div class="ws-search-row">
+        <div class="field" style="flex:1">
+          <svg class="search-icon" viewBox="0 0 1024 1024" fill="none" aria-hidden="true">
+            <path d="M357.302 227C278.121 227 213.703 291.457 213.703 370.684C213.703 381.69 222.621 390.612 233.618 390.612C244.617 390.612 253.533 381.69 253.533 370.684C253.533 313.431 300.083 266.854 357.302 266.854C368.301 266.854 377.216 257.933 377.216 246.926C377.216 235.921 368.301 227 357.302 227Z" fill="currentColor"/>
+            <path d="M708.044 596.445C744.043 539.972 764.904 472.971 764.904 401.168C764.904 200.348 601.653 37 400.952 37C329.19 37 262.228 57.874 205.79 93.8943C160.823 122.58 122.556 160.869 93.8868 205.863C57.887 262.336 37 329.363 37 401.168C37 601.961 200.278 765.333 400.952 765.333C472.714 765.333 539.702 744.433 596.142 708.413C641.108 679.727 679.375 641.438 708.044 596.445ZM518.973 631.199C483.58 649.461 443.441 659.779 400.952 659.779C258.458 659.779 142.493 543.747 142.493 401.168C142.493 358.655 152.805 318.492 171.056 283.078C195.767 235.103 235.038 195.836 282.983 171.136C318.376 152.874 358.49 142.556 400.95 142.556C543.473 142.556 659.41 258.562 659.41 401.168C659.41 443.654 649.097 483.792 630.847 519.205C606.163 567.18 566.918 606.473 518.973 631.199Z" fill="currentColor"/>
+            <path d="M963.837 851.838L753.722 642.125C723.814 685.825 685.494 724.14 641.82 754.093L851.936 963.806C867.39 979.269 887.646 987.001 907.874 987.001C928.129 987.001 948.385 979.269 963.839 963.806C994.721 932.877 994.721 882.765 963.837 851.838Z" fill="currentColor"/>
+          </svg>
+          <input placeholder="Search wallpapers..." autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+
+      <div class="crumb">
+        <div class="crumb-thumb" style="background:linear-gradient(135deg,var(--color-06),var(--color-10))"></div>
+        <div>
+          <div class="crumb-name">Wallpapers</div>
+          <div class="crumb-sub">42 wallpapers · 20 variants each</div>
+        </div>
+        <div class="spacer"></div>
+        <button class="ws-back">Back</button>
+      </div>
+
+      <div class="contrast-row">
+        <span class="check on"></span>
+        <div>
+          <div style="font-size:13px;font-weight:600">Auto icon contrast</div>
+          <div class="faint" style="font-size:11.5px">Recolor icon templates against the selected wallpaper</div>
+        </div>
+      </div>
+
+      <div class="ws-title" style="margin-bottom:8px">Wallpapers</div>
+      <div class="grid">
+        <div class="card">
+          <div class="thumb" style="background:linear-gradient(135deg,#1b2a4a,#3d2f5a)"></div>
+          <span class="live">LIVE</span>
+          <div class="card-name">abstract.jpg</div>
+          <div class="card-sub">20 variants</div>
+        </div>
+
+        <div class="card selected">
+          <div class="thumb" style="background:linear-gradient(135deg,#2a1b3d,#8e2f5a)"></div>
+          <div class="card-name">dragon.png</div>
+          <div class="card-sub">20 variants</div>
+          <div class="hoverbar">
+            <span class="swatch"><span class="dot on"></span></span>
+            <button class="quick">Apply</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="thumb" style="background:linear-gradient(135deg,#123a4a,#2e7d8a)"></div>
+          <div class="card-name">aurora.jpg</div>
+          <div class="card-sub">20 variants</div>
+        </div>
+
+        <div class="card">
+          <div class="thumb" style="background:linear-gradient(135deg,#3a2a12,#8a6a2e)"></div>
+          <div class="card-name">wasteland.jpg</div>
+          <div class="card-sub">20 variants</div>
+        </div>
+
+        <div class="card">
+          <div class="thumb" style="background:linear-gradient(135deg,#1a1a2e,#4a4a6a)"></div>
+          <div class="card-name">minimal.png</div>
+          <div class="card-sub">20 variants</div>
+        </div>
+
+        <div class="card">
+          <div class="thumb" style="background:linear-gradient(135deg,#2e1a1a,#8a4a3a)"></div>
+          <div class="card-name">cyberpunk.jpg</div>
+          <div class="card-sub">20 variants</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="caption">
+      <b>Changed vs today:</b> the search field is now a <b>solid <span class="mono">@color_01</span> surface</b>
+      (was translucent <span class="mono">alpha(background, .5)</span>); the selected card uses an
+      <b>accent ring + 12% tint</b> instead of a border whisper; the Apply pill is a solid
+      <span class="mono">@color_10</span> selection. Panel frame now carries <span class="mono">@color_04</span>.
+    </p>
+  </main>
+  <script src="switcher.js"></script>
+</body>
+</html>

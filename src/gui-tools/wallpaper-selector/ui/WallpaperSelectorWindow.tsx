@@ -444,6 +444,9 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
 
   function wallpaperCard(w: WallpaperEntry): Gtk.Widget {
     const card = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, css_classes: ["ws-card"] });
+    // The live wallpaper is the "selected" card: accent ring + tint, matching
+    // rofi's selection language (gui-unification spec §4 selection-ring).
+    if (w.live) card.add_css_class("selected");
     const overlay = new Gtk.Overlay();
     overlay.set_child(thumbPicture(w.path, 208, 130));
     // LIVE badge: shown for a directly-live wallpaper AND for a wallpaper

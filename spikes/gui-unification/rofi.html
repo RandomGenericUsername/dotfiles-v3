@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en" data-palette="live">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rofi launcher — unified</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  /* rofi launcher — the reference surface, plus the one fix: the ITR search
+     icon at the left of the field (rofi 2.0.0 `icon` widget inside inputbar). */
+  .rofi { width: 548px; }
+  .rofi .field { margin-bottom: 16px; }
+
+  .rofi-list { display: flex; flex-direction: column; }
+  .row {
+    display: flex; align-items: center; gap: 10px;
+    height: 36px; padding: 0 10px 0 14px;
+    border-radius: var(--radius-row);
+    color: var(--foreground); font-size: 14px;
+    cursor: default;
+  }
+  .row .app { width: 24px; height: 24px; flex: none; }
+  .row.selected { background: var(--selection-fill); color: var(--selection-text); font-weight: 600; }
+  .row:not(.selected):hover { background: color-mix(in srgb, var(--foreground) 8%, transparent); }
+
+  .tip { display: flex; align-items: center; gap: 8px; margin-top: 16px; margin-left: 2px; font-size: 13px; color: var(--text-dim); }
+  .tip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-12); flex: none; }
+  .caption { width: 548px; margin-top: 14px; font-size: 12px; color: var(--text-faint); line-height: 1.5; }
+  .caption b { color: var(--text-dim); font-weight: 600; }
+</style>
+</head>
+<body>
+  <main>
+    <p class="mock-title">rofi launcher · unified language</p>
+
+    <div class="panel rofi">
+      <div class="field">
+        <!-- The real ITR-rendered ui-search.svg (inlined; fill=currentColor so
+             the mock can demonstrate palette-following — ITR bakes this in). -->
+        <svg class="search-icon" viewBox="0 0 1024 1024" fill="none" aria-hidden="true">
+          <path d="M357.302 227C278.121 227 213.703 291.457 213.703 370.684C213.703 381.69 222.621 390.612 233.618 390.612C244.617 390.612 253.533 381.69 253.533 370.684C253.533 313.431 300.083 266.854 357.302 266.854C368.301 266.854 377.216 257.933 377.216 246.926C377.216 235.921 368.301 227 357.302 227Z" fill="currentColor"/>
+          <path d="M708.044 596.445C744.043 539.972 764.904 472.971 764.904 401.168C764.904 200.348 601.653 37 400.952 37C329.19 37 262.228 57.874 205.79 93.8943C160.823 122.58 122.556 160.869 93.8868 205.863C57.887 262.336 37 329.363 37 401.168C37 601.961 200.278 765.333 400.952 765.333C472.714 765.333 539.702 744.433 596.142 708.413C641.108 679.727 679.375 641.438 708.044 596.445ZM518.973 631.199C483.58 649.461 443.441 659.779 400.952 659.779C258.458 659.779 142.493 543.747 142.493 401.168C142.493 358.655 152.805 318.492 171.056 283.078C195.767 235.103 235.038 195.836 282.983 171.136C318.376 152.874 358.49 142.556 400.95 142.556C543.473 142.556 659.41 258.562 659.41 401.168C659.41 443.654 649.097 483.792 630.847 519.205C606.163 567.18 566.918 606.473 518.973 631.199Z" fill="currentColor"/>
+          <path d="M963.837 851.838L753.722 642.125C723.814 685.825 685.494 724.14 641.82 754.093L851.936 963.806C867.39 979.269 887.646 987.001 907.874 987.001C928.129 987.001 948.385 979.269 963.839 963.806C994.721 932.877 994.721 882.765 963.837 851.838Z" fill="currentColor"/>
+        </svg>
+        <input placeholder="Search..." autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="rofi-list">
+        <div class="row selected">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <circle cx="24" cy="24" r="22" fill="#fff"/>
+            <path d="M24 2a22 22 0 0 0-19 11h19z" fill="#ea4335"/>
+            <path d="M5 13a22 22 0 0 0 0 22l9.5-16.5z" fill="#34a853"/>
+            <path d="M14.5 35a22 22 0 0 0 19 0L24 19z" fill="#fbbc05"/>
+            <circle cx="24" cy="24" r="8.5" fill="#4285f4"/>
+          </svg>
+          <span>Google Chrome</span>
+        </div>
+
+        <div class="row">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" rx="10" fill="#0f0f0f"/>
+            <path d="M12 24l12-9v6.2l12-6.2-12 9V18z" fill="#fff"/>
+            <path d="M12 24l12 9v-6.2l12 6.2-12-9V30z" fill="#9aa0a6"/>
+          </svg>
+          <span>TIDAL Hi-Fi</span>
+        </div>
+
+        <div class="row">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" rx="10" fill="#3d5afe"/>
+            <path d="M24 13a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm0 5.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11z" fill="#fff"/>
+          </svg>
+          <span>HyprMod</span>
+        </div>
+
+        <div class="row">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" rx="10" fill="#fff"/>
+            <path d="M24 24V6a18 18 0 0 1 18 18z" fill="#fbbc05"/>
+            <path d="M24 24h18a18 18 0 0 1-18 18z" fill="#34a853"/>
+            <path d="M24 24V6A18 18 0 0 0 6 24z" fill="#4285f4"/>
+            <path d="M24 24H6a18 18 0 0 0 18 18z" fill="#ea4335"/>
+          </svg>
+          <span>Google Photos</span>
+        </div>
+
+        <div class="row">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" rx="10" fill="#4a5a6a"/>
+            <rect x="9" y="13" width="30" height="19" rx="2" fill="#e8eaed"/>
+            <rect x="14" y="34" width="20" height="3" rx="1.5" fill="#e8eaed"/>
+          </svg>
+          <span>Advanced Network Configuration</span>
+        </div>
+
+        <div class="row">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" rx="10" fill="#e8eaed"/>
+            <rect x="10" y="12" width="28" height="10" rx="2" fill="#4a5a6a"/>
+            <g fill="#4a5a6a">
+              <rect x="10" y="26" width="6" height="6" rx="1"/><rect x="21" y="26" width="6" height="6" rx="1"/><rect x="32" y="26" width="6" height="6" rx="1"/>
+              <rect x="10" y="34" width="6" height="6" rx="1"/><rect x="21" y="34" width="6" height="6" rx="1"/><rect x="32" y="34" width="6" height="6" rx="1"/>
+            </g>
+          </svg>
+          <span>Calculator</span>
+        </div>
+
+        <div class="row">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" rx="10" fill="#2e7d32"/>
+            <path d="M24 10l3.3 3.1 4.4-1.2 1 4.5 4.2 1.8-2.2 4 2.2 4-4.2 1.8-1 4.5-4.4-1.2L24 38l-3.3-3.1-4.4 1.2-1-4.5-4.2-1.8 2.2-4-2.2-4 4.2-1.8 1-4.5 4.4 1.2z" fill="#fff"/>
+          </svg>
+          <span>YAD settings</span>
+        </div>
+
+        <div class="row">
+          <svg class="app" viewBox="0 0 48 48" aria-hidden="true">
+            <rect width="48" height="48" rx="10" fill="#8d6e63"/>
+            <path d="M10 16h28v18H10z" fill="#efebe9"/>
+            <path d="M10 16h28v5H10z" fill="#5d4037"/>
+            <path d="M18 27l4 4 4-4" stroke="#5d4037" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            <path d="M26 27l4 4 4-4" stroke="#5d4037" stroke-width="2.5" fill="none" stroke-linecap="round" transform="translate(-8 0)"/>
+          </svg>
+          <span>Xarchiver</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip"><span class="dot"></span> Tip &nbsp;Type <b>@</b> followed by a filename to fuzzy search and attach files</div>
+
+    <p class="caption">
+      <b>Changed vs today:</b> the en-dash prompt is replaced by the same ITR
+      <span class="mono">ui-search.svg</span> the GTK tools use (rofi 2.0.0 <span class="mono">icon</span>
+      widget in <span class="mono">inputbar.children</span>); panel frame aligned to
+      <span class="mono">@color_04</span> at 2px; radius aligned to 16px. Field and selection
+      already match the spec — this is the reference.
+    </p>
+  </main>
+  <script src="switcher.js"></script>
+</body>
+</html>

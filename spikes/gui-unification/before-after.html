@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-palette="live">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>before / after — unified language</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .wrap { width: 900px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .col { border: 1px solid var(--hairline); border-radius: var(--radius-card); padding: 16px; background: var(--surface-card); }
+  .col h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  .col h3.old { color: var(--text-faint); }
+  .col h3.new { color: var(--color-10); }
+  .col p { margin: 0 0 14px; font-size: 11.5px; color: var(--text-dim); }
+
+  /* --- old treatments (today) --- */
+  .old-field { display: flex; align-items: center; gap: 10px; background: color-mix(in srgb, var(--background) 50%, transparent); border-radius: 8px; padding: 9px 12px; color: var(--text-placeholder); font-size: 14px; }
+  .old-row { display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 5px; background: color-mix(in srgb, var(--color-06) 18%, transparent); border: 1px solid color-mix(in srgb, var(--color-06) 62%, transparent); font-size: 14px; }
+  .old-card { border: 1px solid var(--color-04); border-radius: 12px; background: var(--surface-card); overflow: hidden; }
+  .old-seg { min-height: 36px; display: inline-flex; align-items: center; padding: 0 13px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--color-06) 62%, transparent); background: color-mix(in srgb, var(--color-06) 18%, transparent); color: var(--foreground); font-size: 12px; font-weight: 600; }
+  .new-seg { min-height: 36px; display: inline-flex; align-items: center; padding: 0 13px; border-radius: 9px; background: var(--selection-fill); color: var(--selection-text); font-size: 12px; font-weight: 600; }
+
+  /* --- shared bits --- */
+  .demo-row { display: flex; align-items: center; gap: 10px; }
+  .demo-thumb { width: 100%; height: 82px; }
+  .card-name { font-size: 12px; margin: 8px 10px 10px; }
+  .field { width: 100%; }
+  .row.selected { display: flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 5px; font-size: 14px; }
+  .caption { margin-top: 16px; font-size: 12px; color: var(--text-faint); line-height: 1.55; }
+  .caption b { color: var(--text-dim); }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="mock-title">before / after · the four gestures that changed</p>
+
+    <div class="grid">
+      <div class="col">
+        <h3 class="old">Today — GTK</h3>
+        <p>Field is a translucent hole; selection is a <span class="mono">@color_06</span> tint + thin border.</p>
+        <div class="old-field">
+          <span>Search...</span>
+        </div>
+        <div style="height:10px"></div>
+        <div class="old-row">Google Chrome</div>
+        <div style="height:10px"></div>
+        <div class="old-card"><div class="demo-thumb" style="background:linear-gradient(135deg,#2a1b3d,#8e2f5a)"></div><div class="card-name">dragon.png</div></div>
+        <div style="height:10px"></div>
+        <span class="old-seg">3s</span>
+      </div>
+
+      <div class="col">
+        <h3 class="new">Unified — rofi's language</h3>
+        <p>Field is a solid <span class="mono">@color_01</span> surface; selection is solid <span class="mono">@color_10</span> (or ring+tint over imagery).</p>
+        <div class="field"><span class="muted">Search...</span></div>
+        <div style="height:10px"></div>
+        <div class="row selected sel-fill">Google Chrome</div>
+        <div style="height:10px"></div>
+        <div class="card selected" style="border-width:2px;border-style:solid;border-color:var(--selection-ring);background:var(--selection-tint);border-radius:12px;overflow:hidden"><div class="demo-thumb" style="background:linear-gradient(135deg,#2a1b3d,#8e2f5a)"></div><div class="card-name">dragon.png</div></div>
+        <div style="height:10px"></div>
+        <span class="new-seg">3s</span>
+      </div>
+    </div>
+
+    <p class="caption">
+      Toggle the palette (top right) — <b>both columns restyle with no structural change</b>, because
+      neither uses a literal colour. The difference is not hue; it is <b>gesture</b>: solid surfaces for
+      fields, a solid fill for selection, and a ring+tint only where imagery must stay visible.
+    </p>
+  </main>
+  <script src="switcher.js"></script>
+</body>
+</html>

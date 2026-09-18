@@ -12,11 +12,13 @@ window {
     transparency: "real";
     location: center;
     width: 548px;
-    border: 4px;
+    /* Unified panel frame: same @color04 accent edge + 16px radius as the
+     * GTK tools, so rofi and the AGS windows read as siblings (spec D1/D2). */
+    border: 2px;
     border-color: @color04;
     background-color: @color01;
     padding: 2px;
-    border-radius: 12px;
+    border-radius: 16px;
 }
 
 mainbox {
@@ -31,12 +33,23 @@ inputbar {
     border-radius: 5px;
     padding: 9px 12px;
     spacing: 10px;
-    children: [ prompt, entry ];
+    children: [ icon-search, entry ];
 }
 
-prompt {
-    text-color: @color07;
-    text: "";
+/* Leading search affordance, matching the GTK tools: rofi 2.0.0's `icon`
+ * widget renders the SAME ITR-themed ui-search.svg the AGS windows load
+ * (resolveIcon("ui", "search")), so it recolours with the wallpaper too.
+ * `~` is expanded by rofi (helper_get_theme_path → rofi_expand_path); the
+ * `current/icons` symlink is repointed by the seeder on every palette swap. */
+icon-search {
+    expand: false;
+    filename: "~/.local/state/dotfiles/current/icons/ui-search.svg";
+    size: 18;
+    vertical-align: 0.5;
+    /* Force the glyph to the palette foreground (same colour as the entry
+     * text) so it always contrasts the solid field, independent of how the
+     * icon-contrast guard rendered the source SVG. */
+    tint: @foreground;
 }
 
 entry {

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" data-palette="live">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GUI unification — mocks</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .wrap { width: 980px; }
+  .intro { font-size: 13px; color: var(--text-dim); line-height: 1.6; margin: 0 0 6px; max-width: 760px; }
+  .intro b { color: var(--foreground); }
+  .rules { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 24px; }
+  .rule { font-size: 11px; font-weight: 600; color: var(--text-dim); border: 1px solid var(--hairline); border-radius: 999px; padding: 4px 11px; }
+
+  .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .tilecard { display: block; text-decoration: none; color: inherit; border: 1px solid var(--hairline); border-radius: var(--radius-card); background: var(--surface-card); padding: 16px; transition: border-color .12s, background .12s; }
+  .tilecard:hover { border-color: var(--selection-ring); background: var(--selection-tint); }
+  .tilecard h2 { margin: 0 0 4px; font-size: 15px; }
+  .tilecard p { margin: 0; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .tilecard .kind { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+  .tilecard .swatches { display: flex; gap: 6px; margin-top: 12px; }
+  .tilecard .sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--hairline); }
+
+  .foot { margin-top: 22px; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+  .foot a { color: var(--color-10); }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="mock-title">GUI unification · rofi's colour language, applied everywhere</p>
+    <p class="intro">
+      Five tools, one generated 16-colour palette, five different "dresses". These mocks apply
+      rofi's proven vocabulary — <b>solid search field</b>, <b>solid selection fill</b>, <b>accent frame</b> —
+      across the GTK tools while keeping each tool's layout and hypr-pano's per-type clipboard hues.
+      Use the <b>palette switch</b> (top right) to prove nothing is hardcoded.
+    </p>
+    <div class="rules">
+      <span class="rule">selection = @color_10</span>
+      <span class="rule">action = @color_06</span>
+      <span class="rule">field = solid @color_01</span>
+      <span class="rule">frame = @color_04</span>
+      <span class="rule">imagery → ring + tint</span>
+    </div>
+
+    <div class="gallery">
+      <a class="tilecard" href="rofi.html">
+        <span class="kind">reference</span>
+        <h2>rofi launcher</h2>
+        <p>Unchanged colour language + the search icon fix (ITR <span class="mono">ui-search.svg</span> in the inputbar), frame/radius aligned.</p>
+        <div class="swatches"><span class="sw" style="background:var(--color-00)"></span><span class="sw" style="background:var(--color-04)"></span><span class="sw" style="background:var(--color-10)"></span></div>
+      </a>
+
+      <a class="tilecard" href="wallpaper-selector.html">
+        <span class="kind">changed most</span>
+        <h2>wallpaper-selector</h2>
+        <p>Solid search field; selected card = accent ring + 12% tint; Apply pill = solid selection.</p>
+        <div class="swatches"><span class="sw" style="background:var(--color-01)"></span><span class="sw" style="background:var(--color-10)"></span><span class="sw" style="background:var(--color-04)"></span></div>
+      </a>
+
+      <a class="tilecard" href="hypr-pano.html">
+        <span class="kind">documented exception</span>
+        <h2>hypr-pano clipboard</h2>
+        <p>Solid search field; cards keep per-type hues but adopt the shared ring+tint selection treatment.</p>
+        <div class="swatches"><span class="sw" style="background:var(--color-06)"></span><span class="sw" style="background:var(--color-09)"></span><span class="sw" style="background:var(--color-12)"></span><span class="sw" style="background:var(--color-13)"></span></div>
+      </a>
+
+      <a class="tilecard" href="capture-tool.html">
+        <span class="kind">changed</span>
+        <h2>capture-tool</h2>
+        <p>Selected mode/target/segments move to @color_10; CTA stays @color_06 as the action accent.</p>
+        <div class="swatches"><span class="sw" style="background:var(--color-10)"></span><span class="sw" style="background:var(--color-06)"></span><span class="sw" style="background:var(--color-03)"></span></div>
+      </a>
+
+      <a class="tilecard" href="notifications.html">
+        <span class="kind">minor alignment</span>
+        <h2>notifications</h2>
+        <p>Success = action-active (@color_06), critical = severity (@color_03). Glass already on spec.</p>
+        <div class="swatches"><span class="sw" style="background:var(--color-06)"></span><span class="sw" style="background:var(--color-03)"></span></div>
+      </a>
+
+      <a class="tilecard" href="before-after.html">
+        <span class="kind">comparison</span>
+        <h2>before / after</h2>
+        <p>The four changed gestures, side by side: field, row selection, card selection, segment.</p>
+        <div class="swatches"><span class="sw" style="background:var(--color-06)"></span><span class="sw" style="background:var(--color-10)"></span><span class="sw" style="background:var(--color-01)"></span></div>
+      </a>
+    </div>
+
+    <p class="foot">
+      Specification: <a href="../../_bmad-output/planning-artifacts/gui-unification-ux-spec.md">_bmad-output/planning-artifacts/gui-unification-ux-spec.md</a><br>
+      Token contract: <span class="mono">--color-00..15 / --background / --foreground</span> mirror the runtime
+      <span class="mono">@color_*</span> from <span class="mono">~/.config/ags/colors.css</span>.
+    </p>
+  </main>
+  <script src="switcher.js"></script>
+</body>
+</html>

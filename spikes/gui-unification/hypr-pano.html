@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en" data-palette="live">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hypr-pano — unified</title>
+<link rel="stylesheet" href="mockup.css">
+<style>
+  .pano { width: 1240px; }
+
+  .pano-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .pano-head .field { flex: none; width: 340px; }
+  .btn-clear { background: var(--severity); color: var(--foreground); border-color: transparent; padding: 9px 18px; border-radius: var(--radius-pill); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-clear:hover { filter: brightness(1.1); }
+  .btn-incog { background: var(--action-active); border: 1px solid var(--action-active-border); color: var(--foreground); padding: 9px 16px; border-radius: var(--radius-pill); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-incog:hover { background: color-mix(in srgb, var(--action-active-border) 30%, transparent); }
+
+  .pano-list { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+
+  .pcard { width: 210px; flex: none; border-radius: var(--radius-card); background: var(--surface-card); border: 1px solid var(--hairline); overflow: hidden; }
+  /* Shared treatment, per-type hue (spec §3.7 / documented exception). */
+  .pcard.selected { border: 2px solid var(--type); background: color-mix(in srgb, var(--type) 12%, transparent); }
+  .pcard:not(.selected):hover { border-color: var(--hairline-strong); }
+
+  .phead { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; background: var(--type); color: var(--on-type); }
+  .phead .idx { min-width: 18px; height: 18px; display: grid; place-items: center; border-radius: 6px; font-size: 11px; font-weight: 800; background: color-mix(in srgb, var(--color-00) 32%, transparent); }
+  .phead .lbl { font-size: 13px; font-weight: 700; }
+  .phead .time { margin-left: auto; font-size: 11px; font-weight: 500; opacity: .85; }
+  .pbody { padding: 12px; min-height: 112px; display: flex; align-items: center; }
+
+  .pbody .txt { font-size: 13px; }
+  .pbody .code { font-family: var(--mono); font-size: 11.5px; }
+  .pbody .thumb { width: 100%; height: 88px; border-radius: 8px; }
+
+  .kind-text  { --type: var(--color-06); --on-type: var(--color-15); }
+  .kind-code  { --type: var(--color-00); --on-type: var(--color-15); }
+  .kind-color { --type: var(--color-13); --on-type: var(--color-00); }
+  .kind-image { --type: var(--color-09); --on-type: var(--color-00); }
+  .kind-link  { --type: var(--color-04); --on-type: var(--color-15); }
+  .kind-emoji { --type: var(--color-12); --on-type: var(--color-00); }
+
+  .caption { width: 1240px; margin-top: 14px; font-size: 12px; color: var(--text-faint); line-height: 1.5; }
+  .caption b { color: var(--text-dim); font-weight: 600; }
+</style>
+</head>
+<body>
+  <main>
+    <p class="mock-title">hypr-pano clipboard · united with rofi</p>
+    <div class="panel pano">
+      <div class="pano-head">
+        <div class="field">
+          <svg class="search-icon" viewBox="0 0 1024 1024" fill="none" aria-hidden="true">
+            <path d="M357.302 227C278.121 227 213.703 291.457 213.703 370.684C213.703 381.69 222.621 390.612 233.618 390.612C244.617 390.612 253.533 381.69 253.533 370.684C253.533 313.431 300.083 266.854 357.302 266.854C368.301 266.854 377.216 257.933 377.216 246.926C377.216 235.921 368.301 227 357.302 227Z" fill="currentColor"/>
+            <path d="M708.044 596.445C744.043 539.972 764.904 472.971 764.904 401.168C764.904 200.348 601.653 37 400.952 37C329.19 37 262.228 57.874 205.79 93.8943C160.823 122.58 122.556 160.869 93.8868 205.863C57.887 262.336 37 329.363 37 401.168C37 601.961 200.278 765.333 400.952 765.333C472.714 765.333 539.702 744.433 596.142 708.413C641.108 679.727 679.375 641.438 708.044 596.445ZM518.973 631.199C483.58 649.461 443.441 659.779 400.952 659.779C258.458 659.779 142.493 543.747 142.493 401.168C142.493 358.655 152.805 318.492 171.056 283.078C195.767 235.103 235.038 195.836 282.983 171.136C318.376 152.874 358.49 142.556 400.95 142.556C543.473 142.556 659.41 258.562 659.41 401.168C659.41 443.654 649.097 483.792 630.847 519.205C606.163 567.18 566.918 606.473 518.973 631.199Z" fill="currentColor"/>
+            <path d="M963.837 851.838L753.722 642.125C723.814 685.825 685.494 724.14 641.82 754.093L851.936 963.806C867.39 979.269 887.646 987.001 907.874 987.001C928.129 987.001 948.385 979.269 963.839 963.806C994.721 932.877 994.721 882.765 963.837 851.838Z" fill="currentColor"/>
+          </svg>
+          <input placeholder="Search clipboard..." autocomplete="off" spellcheck="false">
+        </div>
+        <div class="spacer"></div>
+        <button class="btn-clear">Clear</button>
+        <button class="btn-incog">Incognito: off</button>
+      </div>
+
+      <div class="pano-list">
+        <div class="pcard kind-image">
+          <div class="phead"><span class="idx">1</span><span class="lbl">Image</span><span class="time">just now</span></div>
+          <div class="pbody"><div class="thumb" style="background:linear-gradient(135deg,#1b2a4a,#3d2f5a)"></div></div>
+        </div>
+
+        <div class="pcard kind-image">
+          <div class="phead"><span class="idx">2</span><span class="lbl">Image</span><span class="time">just now</span></div>
+          <div class="pbody"><div class="thumb" style="background:linear-gradient(135deg,#2a1b3d,#8e2f5a)"></div></div>
+        </div>
+
+        <div class="pcard kind-text selected">
+          <div class="phead"><span class="idx">3</span><span class="lbl">Text</span><span class="time">7 mins ago</span></div>
+          <div class="pbody"><span class="txt mono">feat/gtk4-app-reloader</span></div>
+        </div>
+
+        <div class="pcard kind-image">
+          <div class="phead"><span class="idx">4</span><span class="lbl">Image</span><span class="time">25 mins ago</span></div>
+          <div class="pbody"><div class="thumb" style="background:linear-gradient(135deg,#123a4a,#2e7d8a)"></div></div>
+        </div>
+
+        <div class="pcard kind-link">
+          <div class="phead"><span class="idx">5</span><span class="lbl">Link</span><span class="time">25 mins ago</span></div>
+          <div class="pbody"><span class="txt" style="color:var(--color-10)">https://opencode.ai/docs</span></div>
+        </div>
+
+        <div class="pcard kind-code">
+          <div class="phead"><span class="idx">6</span><span class="lbl">Code</span><span class="time">26 mins ago</span></div>
+          <div class="pbody"><span class="code">const palette = mt.generate(wallpaper)</span></div>
+        </div>
+
+        <div class="pcard kind-color">
+          <div class="phead"><span class="idx">7</span><span class="lbl">Color</span><span class="time">30 mins ago</span></div>
+          <div class="pbody"><span class="txt mono">#ea1c60</span></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="caption">
+      <b>Changed vs today:</b> search field is a solid <span class="mono">@color_01</span> surface.
+      <b>Documented exception:</b> clipboard cards keep their per-type header hues, but selection adopts the
+      shared <b>ring + 12% tint</b> treatment (here: Text → <span class="mono">@color_06</span>). Clear drops
+      to the palette's caution slot; Incognito uses the shared <b>action-active</b> role.
+    </p>
+  </main>
+  <script src="switcher.js"></script>
+</body>
+</html>

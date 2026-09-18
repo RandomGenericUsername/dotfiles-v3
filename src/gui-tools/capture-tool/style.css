@@ -6,16 +6,17 @@
  * or file changes.
  *
  * GTK4 CSS has no color-mix(): tints below are precomputed with alpha()/mix().
- * Selected = accent tint + accent border (approved design decision; departs
- * from the bar's @color_01 fill).
  *
- * NO literal colors here. ONE accent drives both modes and both primary CTAs
- * (@color_06) — Screenshot and Recording are told apart by their icon and the
- * record dot, not by a second hue; the palette's caution slot (@color_03) is
- * reserved for severity (settings errors). So every surface
- * follows the wallpaper like the rofi launcher's generated colors.rasi does.
- * The only remaining literal in the whole capture stack is the pulsing record
- * dot in the bar stylesheet.
+ * NO literal colors here. TWO accents, two intents (gui-unification spec §3.4):
+ *   @color_10 = SELECTION ("where you are"): solid fill on mode/segments,
+ *               ring + 12% tint on the icon-bearing target tiles.
+ *   @color_06 = ACTION ("what you can do"): the primary CTAs and the toggle-on
+ *               state. Text on @color_06 follows @color_foreground, because the
+ *               action slot is not guaranteed bright (live palette: dark steel).
+ * The palette's caution slot (@color_03) stays reserved for severity (settings
+ * errors). Every surface follows the wallpaper like rofi's generated
+ * colors.rasi. The only remaining literal is the pulsing record dot in the bar
+ * stylesheet.
  * ========================================================================== */
 
 /* The WINDOW stays fully transparent and paints nothing: it is a layer-shell
@@ -72,10 +73,13 @@ window#capture-window {
   background-color: alpha(@color_foreground, 0.1);
 }
 
+/* The selected mode is a selection, so it uses the shared solid selection
+ * fill (@color_10) with text flipped to @color_background — the same gesture
+ * as a rofi row (gui-unification spec §4/§5.4). */
 .mode-switch button.active {
-  background-color: alpha(@color_06, 0.18);
-  border-color: alpha(@color_06, 0.55);
-  color: @color_foreground;
+  background-color: @color_10;
+  border-color: transparent;
+  color: @color_background;
 }
 
 /* Recording shares the SAME accent as Screenshot: the two modes are told
@@ -125,9 +129,11 @@ window#capture-window {
   color: @color_foreground;
 }
 
+/* Target tiles carry an icon, so selection is the shared ring + 12% tint
+ * (@color_10), not a solid fill (spec §3.5). */
 .target.selected {
-  background-color: alpha(@color_06, 0.16);
-  border-color: @color_06;
+  background-color: alpha(@color_10, 0.12);
+  border: 2px solid @color_10;
   color: @color_foreground;
 }
 
@@ -155,9 +161,9 @@ window#capture-window {
 }
 
 .segment.selected {
-  background-color: alpha(@color_06, 0.18);
-  border-color: alpha(@color_06, 0.62);
-  color: @color_foreground;
+  background-color: @color_10;
+  border-color: transparent;
+  color: @color_background;
 }
 
 /* Inline custom-duration editor (revealed by the Custom pill). */
@@ -179,7 +185,10 @@ window#capture-window {
   border: none;
   border-radius: 12px;
   background-color: @color_06;
-  color: @color_00;
+  /* @color_06 is not guaranteed bright (live palette: dark steel #2a496c), so
+     action text follows the foreground — unlike selection fills, which are
+     bright by construction (spec §4 text-on-fill rule). */
+  color: @color_foreground;
   font-size: 14px;
   font-weight: 700;
   box-shadow: 0 8px 22px alpha(@color_06, 0.3);
@@ -189,16 +198,16 @@ window#capture-window {
    `.record` class is kept by the view for the record-dot glyph only. */
 .primary.record {
   background-color: @color_06;
-  color: @color_00;
+  color: @color_foreground;
   box-shadow: 0 8px 22px alpha(@color_06, 0.3);
 }
 
-/* Record "dot" glyph on the recording CTA (dark on the accent). */
+/* Record "dot" glyph on the recording CTA (light on the accent). */
 .record-dot {
   min-width: 11px;
   min-height: 11px;
   border-radius: 999px;
-  background-color: @color_00;
+  background-color: @color_foreground;
 }
 
 /* ---------------------------------------------------------------- Footer */
@@ -362,6 +371,6 @@ switch.palette-switch > slider {
 }
 
 switch.palette-switch:checked > slider {
-  background-color: @color_00;
+  background-color: @color_foreground;
   box-shadow: none;
 }

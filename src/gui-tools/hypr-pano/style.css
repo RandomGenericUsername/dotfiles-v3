@@ -15,8 +15,10 @@ window#hypr-pano-window {
   padding: 12px;
 }
 
+/* Unified field: SOLID @color_01 surface (rofi's inputbar), matching the
+ * wallpaper-selector and rofi launcher (gui-unification spec §4). */
 .pano-search {
-  background-color: alpha(@color_background, 0.5);
+  background-color: @color_01;
   color: @color_foreground;
   border: none;
   border-radius: 8px;
@@ -28,26 +30,31 @@ window#hypr-pano-window {
   color: alpha(@color_foreground, 0.55);
 }
 
+/* Incognito is an active toggle: the shared action-active role (@color_06),
+ * so it no longer collides with the selection accent (spec §4). */
 .pano-incognito {
   min-width: 120px;
-  background-color: @color_01;
-  color: @color_background;
+  background-color: alpha(@color_06, 0.18);
+  border: 1px solid @color_06;
+  color: @color_foreground;
   border-radius: 8px;
 }
 
 .pano-incognito:hover {
-  background-color: @color_10;
+  background-color: alpha(@color_06, 0.30);
 }
 
+/* Clear is destructive: the palette's caution slot, light text (spec §4
+ * severity-caution). */
 .pano-clear {
   min-width: 64px;
-  background-color: @color_08;
-  color: @color_background;
+  background-color: @color_03;
+  color: @color_foreground;
   border-radius: 8px;
 }
 
 .pano-clear:hover {
-  background-color: @color_09;
+  background-color: alpha(@color_03, 0.82);
 }
 
 .pano-ui-icon {
@@ -72,34 +79,42 @@ window#hypr-pano-window {
 }
 
 /* Highlight follows the card's TYPE token (same palette token as its header),
- * so the selected outline is dynamic per type, not one shared accent. */
+ * so the selected outline is dynamic per type, not one shared accent. The
+ * GESTURE is the shared one (ring + 12% tint, never a solid fill over the
+ * content), so hypr-pano still reads as the same system (spec §3.7 exception). */
 .kind-text.selected {
   border-color: @color_06;
+  background-color: alpha(@color_06, 0.12);
   box-shadow: 0 0 0 2px alpha(@color_06, 0.6);
 }
 
 .kind-code.selected {
   border-color: @color_00;
+  background-color: alpha(@color_00, 0.12);
   box-shadow: 0 0 0 2px alpha(@color_00, 0.6);
 }
 
 .kind-color.selected {
   border-color: @color_13;
+  background-color: alpha(@color_13, 0.12);
   box-shadow: 0 0 0 2px alpha(@color_13, 0.6);
 }
 
 .kind-image.selected {
   border-color: @color_09;
+  background-color: alpha(@color_09, 0.12);
   box-shadow: 0 0 0 2px alpha(@color_09, 0.6);
 }
 
 .kind-link.selected {
   border-color: @color_04;
+  background-color: alpha(@color_04, 0.12);
   box-shadow: 0 0 0 2px alpha(@color_04, 0.6);
 }
 
 .kind-emoji.selected {
   border-color: @color_12;
+  background-color: alpha(@color_12, 0.12);
   box-shadow: 0 0 0 2px alpha(@color_12, 0.6);
 }
 

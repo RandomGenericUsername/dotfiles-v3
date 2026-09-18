@@ -305,6 +305,14 @@ ui:
     - name: search
       template: ui/search/default/icon.svg
       output: ui-search.svg
+      # The magnifier sits on the SOLID search field (`@color_01`), not directly
+      # on the wallpaper, so it must follow the palette foreground like the
+      # entry text. Variant-level mappings are exempt from the bar-icon contrast
+      # guard (it only retargets group-level placeholders), which otherwise
+      # recolours this glyph against the wallpaper and can wash it out on the
+      # field. See gui-unification-ux-spec §4/§5.
+      color_mappings:
+        COLOR_FOREGROUND: color15
     - name: text
       template: ui/text/default/icon.svg
       output: ui-text.svg
