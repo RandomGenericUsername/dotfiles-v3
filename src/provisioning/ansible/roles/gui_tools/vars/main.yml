@@ -120,6 +120,7 @@ gui_tools_icme_app_files:
   - { name: icme-lib-diff, source: src/gui-tools/icon-color-mapping-editor/lib/diff.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/diff.ts" }
   - { name: icme-lib-templates, source: src/gui-tools/icon-color-mapping-editor/lib/templates.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/templates.ts" }
   - { name: icme-lib-event-contract, source: src/gui-tools/icon-color-mapping-editor/lib/event-contract.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-contract.ts" }
+  - { name: icme-lib-event-bus-core, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus-core.ts" }
   - { name: icme-lib-event-bus, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus.ts" }
 
 # gui_tools_hypr_pano_app_files: the clipboard overlay's app files, deployed

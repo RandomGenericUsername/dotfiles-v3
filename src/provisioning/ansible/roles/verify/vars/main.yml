@@ -68,6 +68,9 @@ verify_bin_scripts:
   # action fails, so their presence is asserted here too.
   - "{{ verify_cli_bin_dir | trim }}/capture-tool"
   - "{{ verify_cli_bin_dir | trim }}/capture-ui"
+  # rofi's toggle launcher: the SUPER+D bind calls `rofi-ui` (open+close), so a
+  # missing launcher would leave the key dead.
+  - "{{ verify_cli_bin_dir | trim }}/rofi-ui"
 verify_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
 
 # verify_xdg_dirs: the three XDG base dirs criterion 8 asserts exist (mirror of
@@ -341,8 +344,9 @@ verify_compositor_skeleton_files:
 #   mirror of gui_tools_app_files + gui_tools_icme_app_files dests). The bar's
 #   old ags/capture/* paths are deliberately absent: the gui_tools role removes
 #   that legacy subtree. The ICME event seam modules (event-contract.ts,
-#   event-bus.ts) are gated here so a real install cannot ship an editor whose
-#   event contract is missing.
+#   event-bus.ts) and the wallpaper.state consumer core (event-bus-core.ts)
+#   are gated here so a real install cannot ship an editor whose event
+#   contract or live palette refresh is missing.
 verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/app.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/style.css"
@@ -356,6 +360,7 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/controllers/TargetResolver.ts"
   - "{{ install_dir | trim }}/config/ags-capture/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
+  - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/app.tsx"
   - "{{ install_dir | trim }}/config/ags-hypr-pano/style.css"

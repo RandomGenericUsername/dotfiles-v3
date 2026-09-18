@@ -23,11 +23,16 @@ hl.bind(
     { description = "Open terminal" }
 )
 
--- Application launcher
+-- Application launcher (rofi)
+-- The launcher is a single toggle-aware entrypoint (provisioned `rofi-ui`):
+-- pressing the bind again closes a open rofi, and ESC closes it natively. The
+-- key lives only here — the launcher never learns which key it is, so changing
+-- this bind keeps open and close in sync (same contract as capture-ui,
+-- hypr-pano-ui, wallpaper-selector-ui, icon-color-mapping-editor).
 hl.bind(
     mod .. " + D",
-    hl.dsp.exec_cmd("rofi -config ~/.config/rofi/launcher/config.rasi -show drun"),
-    { description = "Open application launcher (rofi)" }
+    hl.dsp.exec_cmd("rofi-ui"),
+    { description = "Toggle application launcher (rofi)" }
 )
 
 -- Capture tool (standalone AGS instance `capture`, provisioned launcher)

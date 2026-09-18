@@ -1,6 +1,31 @@
+/* Icon Color Mapping Editor (ICME) — token-bound chrome
+ * ==========================================================================
+ * The editor that AUTHORS the desktop palette must follow it. Every chrome
+ * colour below is a runtime token from colors.css (applied by app.tsx); a
+ * wallpaper change repaints the whole three-pane window.
+ *
+ * Token contract (same as the other GUI tools):
+ *   @color_00 .. @color_15 / @color_background / @color_foreground
+ *
+ * Shared language (gui-unification-ux-spec §4 / icme-ux-spec):
+ *   selection   = @color_10  (solid row/pill fill; ring + 12% tint on cards)
+ *   action      = @color_06  (toggles on, primary button); text follows
+ *                @color_foreground because the action slot is not guaranteed
+ *                bright (live palette: dark steel)
+ *   fields      = solid @color_01; editable fields get the @color_04 frame
+ *   caution     = @color_03  (warnings, bare/missing tokens)
+ *   errors      = @color_08
+ *   borders     = alpha(@color_foreground, 0.12) / 0.22
+ *
+ * The ONLY literals are black shading (alpha(#000000, …)) for inset surfaces
+ * and the diff add/remove glyph colours emitted by lib/diff.ts (content
+ * semantics, like the bar's LIVE green) — never palette chrome.
+ *
+ * Full-window tool: opaque layered neutrals rather than overlay glass, so a
+ * dense text/diff surface stays legible (icme-ux-spec §2). */
 window#icme-window {
-  background-color: #16181d;
-  color: #d7dbe2;
+  background-color: @color_00;
+  color: @color_foreground;
 }
 
 .icme-root {
@@ -8,93 +33,109 @@ window#icme-window {
   min-height: 600px;
 }
 
+/* ---- regions: raised neutrals over the @color_00 window ---- */
 .icme-left {
   min-width: 240px;
-  background-color: #1d2026;
-  border-right: 1px solid #313742;
+  background-color: alpha(@color_01, 0.28);
+  border-right: 1px solid alpha(@color_foreground, 0.12);
 }
 
 .icme-center {
-  background-color: #191c22;
+  background-color: transparent;
 }
 
 .icme-right {
   min-width: 320px;
-  background-color: #1d2026;
-  border-left: 1px solid #313742;
+  background-color: alpha(@color_01, 0.28);
+  border-left: 1px solid alpha(@color_foreground, 0.12);
 }
 
 .icme-pane-title {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.42);
   margin: 12px 14px 6px;
 }
 
+/* Status doubles as load/error text, so it keeps the caution slot. */
 .icme-status {
-  color: #e0a45e;
+  color: @color_03;
   margin: 0 14px;
 }
 
 .canvas-bar {
-  background-color: #1d2026;
-  border-bottom: 1px solid #313742;
+  background-color: alpha(@color_01, 0.16);
+  border-bottom: 1px solid alpha(@color_foreground, 0.12);
   padding: 8px 14px;
 }
 
 .template-path {
   font-family: monospace;
   font-size: 11px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
 }
 
+/* View/scope toggles: quiet outline at rest, action-active when on. */
 .toggle {
-  background-color: #23272f;
-  border: 1px solid #313742;
-  color: #d7dbe2;
+  background-color: transparent;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  color: alpha(@color_foreground, 0.62);
   border-radius: 5px;
   padding: 4px 9px;
   font-size: 12px;
 }
 
+.toggle:hover {
+  border-color: alpha(@color_foreground, 0.22);
+  color: @color_foreground;
+}
+
 .toggle.on {
-  border-color: #6ea8fe;
-  color: #6ea8fe;
+  border-color: @color_06;
+  color: @color_foreground;
+  background-color: alpha(@color_06, 0.18);
 }
 
 .canvas {
   padding: 16px;
-  background-color: #191c22;
+  background-color: transparent;
 }
 
+/* Cards are inset (shaded darker than the canvas), like a well. */
 .vcard {
-  background-color: rgba(0, 0, 0, 0.22);
-  border: 1px solid #313742;
+  background-color: alpha(#000000, 0.14);
+  border: 1px solid alpha(@color_foreground, 0.12);
   border-radius: 8px;
   padding: 8px;
   min-width: 150px;
 }
 
+.vcard:hover {
+  border-color: alpha(@color_foreground, 0.22);
+}
+
+/* Current variant = shared ring + 12% tint (never a fill). */
 .vcard.main {
-  border-color: #6ea8fe;
+  border: 2px solid @color_10;
+  background-color: alpha(@color_10, 0.12);
 }
 
 .vname {
   font-family: monospace;
   font-size: 11px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
   margin-bottom: 6px;
 }
 
 .badge {
   font-size: 10px;
-  color: #e0a45e;
+  color: @color_03;
 }
 
 .diff {
-  border-top: 1px solid #313742;
-  background-color: #14161a;
+  border-top: 1px solid alpha(@color_foreground, 0.12);
+  background-color: alpha(#000000, 0.18);
   padding: 10px 14px;
   font-family: monospace;
   font-size: 12px;
@@ -102,42 +143,47 @@ window#icme-window {
 }
 
 .diff-empty {
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
 }
 
+/* ---- inputs ---- */
 .inputs {
   padding: 0 14px 10px;
 }
 
 .input-label {
   font-size: 11px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
   margin: 9px 0 2px;
 }
 
+/* Fields are solid @color_01 surfaces (shared field rule). */
 .path {
-  background-color: #23272f;
-  border: 1px solid #313742;
+  background-color: @color_01;
+  border: 1px solid alpha(@color_foreground, 0.12);
   border-radius: 5px;
   padding: 5px 7px;
   font-family: monospace;
   font-size: 11px;
 }
 
+/* Editable field: the @color04 frame, so amber stops meaning two things
+ * (icme-ux-spec §4.4). */
 .path.rw {
-  border-color: #e0a45e;
+  border-color: @color_04;
 }
 
 .pick {
-  color: #6ea8fe;
+  color: alpha(@color_foreground, 0.62);
 }
 
+/* ---- tree ---- */
 .tree {
   padding: 0 6px 14px;
 }
 
 .tree .group {
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.42);
   font-size: 11px;
   padding: 6px 8px 2px;
 }
@@ -149,9 +195,20 @@ window#icme-window {
   padding: 5px 8px 5px 20px;
 }
 
+.tree .item:hover {
+  background-color: alpha(@color_foreground, 0.08);
+}
+
+/* Active row = rofi's solid selection row. */
 .tree .item.active {
-  background-color: #2f3947;
-  color: #ffffff;
+  background-color: @color_10;
+  color: @color_background;
+}
+
+/* Badges adapt on the solid fill so they stay legible. */
+.tree .item.active .badge {
+  background-color: alpha(@color_background, 0.18);
+  color: @color_background;
 }
 
 .sel-panel {
@@ -159,20 +216,27 @@ window#icme-window {
 }
 
 .kv-key {
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
 }
 
 .kv-value {
   font-family: monospace;
 }
 
+/* Shape rows are small cards -> ring + tint when active. */
+.shape-item {
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
 .shape-item.active {
-  border-color: #6ea8fe;
+  border: 2px solid @color_10;
+  background-color: alpha(@color_10, 0.12);
 }
 
 .picker-title {
   font-size: 12px;
-  color: #d7dbe2;
+  color: @color_foreground;
   margin: 4px 14px 8px;
 }
 
@@ -180,6 +244,9 @@ window#icme-window {
   margin: 0 14px 10px;
 }
 
+/* Token swatch cell. Current token = selection ring + contrast check (the
+ * check glyph is drawn by the tool), NEVER a fill, so the chosen colour stays
+ * visible (icme-ux-spec §3.2). */
 .cell {
   min-width: 40px;
   min-height: 40px;
@@ -191,10 +258,11 @@ window#icme-window {
 
 .cell .fill {
   border-radius: 3px;
+  border: 1px solid alpha(@color_foreground, 0.12);
 }
 
 .cell.current {
-  border-color: #ffffff;
+  border-color: @color_10;
 }
 
 .cell.missing {
@@ -202,23 +270,24 @@ window#icme-window {
 }
 
 .named-row {
+  border: 1px solid transparent;
   border-radius: 6px;
   margin: 0 14px 4px;
   padding: 6px;
 }
 
 .named-row.current {
-  border: 1px solid #6ea8fe;
-  background-color: #222b38;
+  border: 2px solid @color_10;
+  background-color: alpha(@color_10, 0.12);
 }
 
 .chip {
   border-radius: 5px;
-  border: 1px solid rgba(0, 0, 0, 0.4);
+  border: 1px solid alpha(@color_foreground, 0.12);
 }
 
 .chip.missing {
-  background-color: #333333;
+  background-color: @color_07;
 }
 
 .ph {
@@ -227,14 +296,14 @@ window#icme-window {
 }
 
 .tok {
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
   font-size: 11px;
   font-family: monospace;
 }
 
 .tag {
   font-size: 10px;
-  color: #e0a45e;
+  color: @color_03;
 }
 
 .scope-block {
@@ -243,279 +312,252 @@ window#icme-window {
 
 .scope-hint {
   font-size: 11px;
-  color: #e0a45e;
+  color: @color_03;
   margin: 6px 14px 0;
 }
 
 .scope-warn {
   font-size: 11px;
-  color: #e08585;
+  color: @color_08;
   margin: 4px 14px 0;
 }
+
 .input-warn {
   font-size: 11px;
-  color: #e0a35e;
+  color: @color_03;
   margin: 6px 14px 0;
 }
 
 .diff-text {
   font-family: monospace;
   font-size: 11px;
-  color: #d7dbe2;
+  color: @color_foreground;
 }
 
 .footer {
   padding: 10px 14px;
-  border-top: 1px solid #313742;
+  border-top: 1px solid alpha(@color_foreground, 0.12);
 }
 
 .btn {
   padding: 7px;
   border-radius: 6px;
-  border: 1px solid #313742;
-  background-color: #23272f;
-  color: #d7dbe2;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  background-color: transparent;
+  color: alpha(@color_foreground, 0.62);
   font-size: 12px;
 }
 
+.btn:hover {
+  border-color: alpha(@color_foreground, 0.22);
+  color: @color_foreground;
+}
+
+/* Primary action = action accent; text follows foreground (dark action slot). */
 .btn.primary {
-  background-color: #2c4b7c;
-  border-color: #6ea8fe;
-  color: #ffffff;
+  background-color: @color_06;
+  border-color: transparent;
+  color: @color_foreground;
 }
 
 .save-error {
   font-size: 11px;
-  color: #e08585;
+  color: @color_08;
   margin: 0 14px 6px;
 }
 
-/* ---- tab bar ---- */
-.tabs {
-  background-color: #14161a;
-  border-bottom: 1px solid #313742;
-  padding: 8px 14px 0;
-}
-.tab {
-  background-color: #1d2026;
-  border: 1px solid #313742;
-  border-bottom: none;
-  border-radius: 7px 7px 0 0;
-  color: #8b93a1;
-  padding: 7px 16px;
-  font-size: 12.5px;
-}
-.tab.active {
-  background-color: #23272f;
-  border-color: #6ea8fe;
-  color: #ffffff;
-}
-.tab-label {
-  font-size: 12.5px;
-}
-.tab-sub {
-  font-size: 10px;
-  color: #8b93a1;
-}
-
-/* ---- templates tab ---- */
-.col.left {
-  min-width: 260px;
-  background-color: #1d2026;
-  border-right: 1px solid #313742;
-}
-.col.right {
-  min-width: 330px;
-  background-color: #1d2026;
-  border-left: 1px solid #313742;
-}
-.col.center {
-  background-color: #191c22;
-}
-.path.rw {
-  border-color: #e0a45e;
-}
-.tree .badge {
-  font-size: 9.5px;
-  padding: 1px 5px;
-  border-radius: 4px;
-}
-.tree .badge.t {
-  background-color: #2a3a2c;
-  color: #7bc47f;
-}
-.tree .badge.b {
-  background-color: #463a26;
-  color: #e0a45e;
-}
-.canvas-bar .file {
-  font-family: monospace;
-  font-size: 11px;
-  color: #8b93a1;
-}
+/* ---- mode / templated-vs-bare badges ---- */
 .mode {
   font-size: 10px;
   padding: 2px 8px;
   border-radius: 4px;
 }
+
 .mode.templated {
-  background-color: #2a3a2c;
-  color: #7bc47f;
+  background-color: alpha(@color_06, 0.22);
+  color: @color_06;
 }
+
 .mode.bare {
-  background-color: #463a26;
-  color: #e0a45e;
+  background-color: alpha(@color_03, 0.22);
+  color: @color_03;
 }
+
 .progress {
   margin: 10px 14px 4px;
   font-size: 11px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
 }
+
 .progress-text {
   font-size: 11px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
 }
+
 .progress-bar {
   min-height: 5px;
   margin-top: 4px;
 }
-.sel-info {
-  padding: 4px 14px 10px;
-}
-.assign {
-  padding: 0 14px 6px;
-}
-.assign .current {
-  margin-bottom: 8px;
-}
-.assign .current .label {
-  font-family: monospace;
-  font-size: 12px;
-}
-.chip.missing {
-  background-color: #333333;
-}
+
+/* ---- placeholder assignment (right inspector) ---- */
 .phlist {
   margin-bottom: 4px;
 }
+
 .phrow {
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 6px 8px;
 }
+
 .phrow.picked {
-  border-color: #6ea8fe;
-  background-color: #222b38;
+  border: 2px solid @color_10;
+  background-color: alpha(@color_10, 0.12);
 }
+
 .phrow .name {
   font-family: monospace;
   font-size: 11.5px;
 }
+
 .phrow .tok {
   font-size: 10px;
 }
+
 .phrow .use {
   font-size: 10px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
 }
+
 .phrow .cur {
   font-size: 9.5px;
-  color: #e0a45e;
+  color: @color_03;
 }
+
 .phrow .cur.new {
-  color: #7bc47f;
+  color: @color_06;
 }
+
 .newph {
-  border-top: 1px dashed #313742;
+  border-top: 1px dashed alpha(@color_foreground, 0.12);
   padding-top: 10px;
   margin-top: 10px;
 }
+
 .newph-input {
-  background-color: #23272f;
-  border: 1px solid #313742;
+  background-color: @color_01;
+  border: 1px solid alpha(@color_foreground, 0.12);
   border-radius: 5px;
   padding: 6px 8px;
   font-family: monospace;
   font-size: 12px;
 }
+
 .err {
-  color: #e08585;
+  color: @color_08;
   font-size: 10.5px;
   min-height: 15px;
   padding: 2px 0;
 }
+
 .toklabel {
   font-size: 10.5px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
   margin: 6px 0 4px;
 }
+
 .mini {
   margin: 0 0 6px;
 }
+
 .mini .cell {
   min-width: 24px;
   min-height: 24px;
   border-radius: 4px;
   border: 2px solid transparent;
 }
+
 .mini .cell.picked {
-  border-color: #ffffff;
+  border-color: @color_10;
 }
+
 .mini-fill {
   min-height: 24px;
 }
+
 .assignbar {
   margin-top: 12px;
 }
+
 .hint {
   padding: 6px 14px 12px;
   font-size: 11px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
 }
 
 /* ---- unified inspector switcher & notifications ---- */
 .inspector-nav {
-  background-color: #23272f;
+  background-color: alpha(@color_01, 0.16);
   border-radius: 7px;
   padding: 3px;
   margin: 0 14px 10px;
-  border: 1px solid #313742;
+  border: 1px solid alpha(@color_foreground, 0.12);
 }
+
 .inspector-tab-btn {
   padding: 6px 8px;
   font-size: 11.5px;
   font-weight: 500;
   border-radius: 5px;
-  color: #8b93a1;
+  color: alpha(@color_foreground, 0.62);
   background-color: transparent;
   border: none;
 }
+
+/* Active inspector mode = selection fill (shared selection language). */
 .inspector-tab-btn.active {
-  background-color: #2e3542;
-  color: #ffffff;
+  background-color: @color_10;
+  color: @color_background;
 }
+
 .quick-reassign-btn {
   background-color: transparent;
-  border: 1px solid #313742;
-  color: #6ea8fe;
+  border: 1px solid alpha(@color_foreground, 0.12);
+  color: @color_10;
   padding: 2px 7px;
   border-radius: 4px;
   font-size: 10px;
   margin-left: 8px;
 }
+
 .badge-dot {
   min-width: 6px;
   min-height: 6px;
   border-radius: 50%;
-  background-color: #e0a45e;
+  background-color: @color_03;
   margin-left: 4px;
 }
+
+/* Bare-shape explanation: caution tint (amber), not a hard error. */
 .bare-notice {
-  background-color: rgba(226, 165, 93, 0.1);
-  border: 1px solid rgba(226, 165, 93, 0.3);
-  color: #e0a45e;
+  background-color: alpha(@color_03, 0.12);
+  border: 1px solid alpha(@color_03, 0.30);
+  color: @color_03;
   padding: 8px 10px;
   border-radius: 6px;
   font-size: 11px;
   margin: 0 14px 10px;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Containers referenced by TSX that previously had no rule (icme-ux-spec §6). */
+
+.picker {
+  margin-bottom: 4px;
+}
+
+.diff-pane {
+  /* The visual chrome lives on the .diff wrapper in Preview; this is the
+     scroll container, kept transparent. */
+  background-color: transparent;
 }

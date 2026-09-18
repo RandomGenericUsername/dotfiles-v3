@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as bar from "../../../../dotfiles/config/ags/lib/event-bus-core.ts";
 import * as icme from "../lib/event-contract.ts";
+import * as icmeConsumer from "../lib/event-bus-core.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..", "..", "..");
@@ -87,6 +88,22 @@ check("icme Emit is a contract method", contractJson.methods[icme.EMIT_METHOD] !
 check("icme Emit in xml methods", xmlMethods.includes(icme.EMIT_METHOD), true);
 check("icme.saved is a contract topic", contractJson.topics[icme.ICME_SAVED_TOPIC] !== undefined, true);
 check("icme.saved payload is {path:s}", contractJson.topics["icme.saved"].payload, { path: "s" });
+
+// ── Drift: ICME's domain-event CONSUMER constants ────────────────────────
+// The editor consumes `wallpaper.state` for the live palette refresh, so its
+// copied consumer core must agree with the same machine definition.
+check("icme consumer bus name", icmeConsumer.EVENTS_BUS_NAME, contractJson.well_known_name);
+check("icme consumer object path", icmeConsumer.EVENTS_OBJECT_PATH, contractJson.object_path);
+check("icme consumer interface", icmeConsumer.EVENTS_INTERFACE, contractJson.interface);
+check("icme consumer DomainEvent signal is a contract signal", contractJson.signals[icmeConsumer.DOMAIN_EVENT_SIGNAL] !== undefined, true);
+check("icme consumer DomainEvent in xml signals", xmlSignals.includes(icmeConsumer.DOMAIN_EVENT_SIGNAL), true);
+check("icme consumer JobsCleared signal is a contract signal", contractJson.signals[icmeConsumer.JOBS_CLEARED_SIGNAL] !== undefined, true);
+check("icme consumer Control is a contract method", contractJson.methods[icmeConsumer.CONTROL_METHOD] !== undefined, true);
+check("icme consumer GetTopicState is a contract method", contractJson.methods[icmeConsumer.HYDRATION_METHOD] !== undefined, true);
+check("icme consumer GetTopicState in xml methods", xmlMethods.includes(icmeConsumer.HYDRATION_METHOD), true);
+check("icme consumer wallpaper.state is a contract topic", contractJson.topics[icmeConsumer.WALLPAPER_STATE_TOPIC] !== undefined, true);
+check("wallpaper.state payload keys", Object.keys(contractJson.topics["wallpaper.state"].payload).sort(), ["state", "wallpaper_hash"]);
+check("wallpaper.state enum", contractJson.topics["wallpaper.state"].enum.state, ["applying", "visible", "done", "error"]);
 
 // ── Bar hydration core (scripted fake transport, no bus) ─────────────────
 
@@ -209,6 +226,35 @@ check("asUint floors positive", bar.asUint(3.7), 3);
 check("asUint rejects negatives", bar.asUint(-1), 0);
 check("isNewer epoch beats seq", bar.isNewer([4, 9], 5, 1), true);
 check("isNewer equal is stale", bar.isNewer([4, 9], 4, 9), false);
+
+// ── ICME consumer core (same copied state machine, wallpaper.state) ──────
+{
+  const fake = fakeTransport({});
+  const bus = new icmeConsumer.DomainEventBusCore(fake.transport);
+  bus.subscribe("wallpaper.state", () => {});
+  check(
+    "icme subscribe-before-read order",
+    fake.calls,
+    ["startSignals", "getTopicState:wallpaper.state"],
+  );
+}
+{
+  const fake = fakeTransport({
+    "wallpaper.state": { _epoch: 2, _seq: 1, state: "done", wallpaper_hash: "abc" },
+  });
+  const bus = new icmeConsumer.DomainEventBusCore(fake.transport);
+  const seen = [];
+  bus.subscribe("wallpaper.state", (topic, payload) => seen.push([topic, payload]));
+  check("icme hydration delivers wallpaper.state", seen.length, 1);
+  check("icme hydrated pair", bus.hydratedPair("wallpaper.state"), [2, 1]);
+  const dispatch = (topic, seq, epoch, payload) =>
+    fake.signals.onDomainEvent([topic, "producer", seq, epoch, payload]);
+  dispatch("wallpaper.state", 1, 2, { state: "error", wallpaper_hash: "" });
+  check("icme stale wallpaper.state dropped", seen.length, 1);
+  dispatch("wallpaper.state", 2, 2, { state: "done", wallpaper_hash: "def" });
+  check("icme newer wallpaper.state delivered", seen.length, 2);
+  check("icme newer state payload", seen[1][1].state, "done");
+}
 
 if (failures > 0) {
   console.error(`${failures} assertion(s) failed`);

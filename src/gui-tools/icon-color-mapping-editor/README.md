@@ -43,6 +43,17 @@ edits the spine copy instead. It never touches `generated/` or runs
 `itr render`;
 rendered icons refresh on the next wallpaper/theme run as usual.
 
+## Live palette refresh
+
+The runtime deliberately never restarts this instance on a wallpaper set (its
+config dir `ags-icme` is in `AgsReloader.DEFAULT_SKIP_CONFIG_DIRS`: a restart
+would discard unsaved edits). Instead the editor consumes the hub's
+`wallpaper.state` domain event — the same live-refresh pattern as the wallpaper
+selector — and on `done`/`error` re-applies `colors.css` (the token-bound chrome)
+and rebuilds the show when the scheme fingerprint moved. Pending edits are
+preserved: no restart, no discarded work. The consumer state machine lives in
+`lib/event-bus-core.ts`, the Gio seam in `lib/event-bus.ts`.
+
 ## Editing flow
 
 Picks never write to disk. They accumulate in a pending set (keyed by group,

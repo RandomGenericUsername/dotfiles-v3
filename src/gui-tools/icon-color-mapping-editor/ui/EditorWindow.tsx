@@ -1,5 +1,6 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4";
 import app from "ags/gtk4/app";
+import GLib from "gi://GLib?version=2.0";
 import { createEffect, createState } from "ags";
 import {
   manifestRegister,
@@ -16,7 +17,12 @@ import {
   schemeFingerprint,
   type EditorInputs,
 } from "../lib/inputs";
-import { publishIcmeSaved } from "../lib/event-bus";
+import {
+  domainEvents,
+  publishIcmeSaved,
+  WALLPAPER_STATE_TOPIC,
+  type DomainPayload,
+} from "../lib/event-bus";
 import type {
   PendingEdit,
   Scope,
@@ -155,6 +161,48 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   // fingerprint on each show and rebuilds the show when it moved — no
   // background polling. Pending edits are preserved (refreshShow only
   // swaps the loaded show, never the staging maps).
+
+  // Live palette refresh (event-driven, no restart). The runtime skips this
+  // instance on purpose (`ags-icme` is in AgsReloader.DEFAULT_SKIP_CONFIG_DIRS)
+  // so a wallpaper set can never discard unsaved edits. Mirror the wallpaper
+  // selector: on `wallpaper.state` done/error, re-apply the generated
+  // stylesheet (the token-bound chrome) and rebuild the show when the scheme
+  // fingerprint moved — without restarting, so pending edits survive.
+  function refreshChrome(): void {
+    try {
+      app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`);
+    } catch (error) {
+      console.error(`icme: style refresh failed: ${error}`);
+    }
+  }
+
+  function onWallpaperEvent(payload: DomainPayload): void {
+    const state = payload["state"];
+    if (state !== "done" && state !== "error") return;
+    if (saving() || schemeRefreshing) return;
+    refreshChrome();
+    try {
+      const fp = schemeFingerprint(inputs().colorScheme);
+      if (fp === schemeFp) return;
+      schemeFp = fp;
+      schemeRefreshing = true;
+      refreshShow()
+        .catch((error: unknown) => setLoadError(String(error)))
+        .finally(() => {
+          schemeRefreshing = false;
+        });
+    } catch {
+      // A failed fingerprint check must never break the editor.
+    }
+  }
+
+  try {
+    domainEvents.subscribe(WALLPAPER_STATE_TOPIC, (_topic, payload) =>
+      onWallpaperEvent(payload),
+    );
+  } catch (error) {
+    console.error(`icme: event bus unavailable: ${error}`);
+  }
 
   function pick(token: string): void {
     const sel = selection();

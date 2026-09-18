@@ -1204,6 +1204,7 @@ class TestVerifyVars:
         assert "{{ install_dir | trim }}/config/ags/lib/event-bus-core.ts" in skeletons
         gui = [str(f) for f in data["verify_gui_tools_app_files"]]
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
+        assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts" in gui
@@ -1878,7 +1879,8 @@ def _write_stub_binaries(home: Path) -> Path:
     helper.chmod(0o755)
     # capture-tool / capture-ui: installed by the cli_tools role, asserted by
     # verify (the keybind launcher + the controller every UI action calls).
-    for name in ("capture-tool", "capture-ui"):
+    # rofi-ui: the SUPER+D open/close toggle launcher.
+    for name in ("capture-tool", "capture-ui", "rofi-ui"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -2090,8 +2092,10 @@ def _build_provisioned_layout(
         ).write_text("")
     (install / "config" / "ags-capture" / "lib" / "icon-registry.ts").write_text("")
     # Icon color mapping editor (gui_tools role): verify gates its event seam
-    # modules (Phase 5 event-contract + event-bus).
+    # modules (Phase 5 event-contract + event-bus) and the wallpaper.state
+    # consumer core (event-bus-core) behind the live palette refresh.
     (install / "config" / "ags-icme" / "lib" / "event-contract.ts").write_text("")
+    (install / "config" / "ags-icme" / "lib" / "event-bus-core.ts").write_text("")
     (install / "config" / "ags-icme" / "lib" / "event-bus.ts").write_text("")
     # hypr-pano clipboard overlay (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# rofi launcher — provisioned by the cli_tools role.
+#
+# The single keybind entrypoint both OPENS and CLOSES rofi, mirroring the AGS
+# tool launchers (capture-ui, hypr-pano-ui, wallpaper-selector-ui …). Nothing
+# about the key is baked in here: changing the bind in keybindings.lua keeps
+# open and close in sync because both go through this one command. ESC inside
+# rofi still closes it natively.
+#
+# rofi has no IPC toggle. It writes its PID to the `-pid` file (default
+# $XDG_RUNTIME_DIR/rofi.pid), so:
+#   1. the pidfile names a LIVE `rofi` process -> that instance is closed (SIGTERM)
+#   2. otherwise                               -> a fresh rofi is launched
+# rofi does NOT unlink the pidfile when it is signalled, so the
+# /proc/<pid>/comm check is what makes a stale file safe: only a process
+# actually named `rofi` is signalled, and a stale file is simply overwritten by
+# the fresh launch.
+set -uo pipefail
+
+CONFIG="${HOME}/.config/rofi/launcher/config.rasi"
+PIDFILE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/rofi.pid"
+
+if [[ -f "$PIDFILE" ]]; then
+    PID="$(tr -dc '0-9' <"$PIDFILE" 2>/dev/null)"
+    if [[ -n "$PID" ]] && [[ "$(cat "/proc/$PID/comm" 2>/dev/null)" == "rofi" ]]; then
+        kill -TERM "$PID" 2>/dev/null
+        exit 0
+    fi
+fi
+
+exec rofi -config "$CONFIG" -show drun -pid "$PIDFILE"

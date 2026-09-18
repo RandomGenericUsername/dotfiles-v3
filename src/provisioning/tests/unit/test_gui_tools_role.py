@@ -253,15 +253,17 @@ class TestGuiToolsVars:
     def test_icme_app_files_exact_list(self) -> None:
         """The icon color mapping editor file set, exactly: entry point,
         stylesheet, dialogs, and every lib module the editor imports — including
-        the Phase 5 event seam (event-contract.ts + event-bus.ts). Deployed by
-        the raw-copy task (NOT template: literal {{PLACEHOLDER}} sequences would
-        be destroyed by Jinja2)."""
+        the Phase 5 event seam (event-contract.ts + event-bus.ts) plus the
+        wallpaper.state consumer core (event-bus-core.ts) behind the live
+        palette refresh. Deployed by the raw-copy task (NOT template: literal
+        {{PLACEHOLDER}} sequences would be destroyed by Jinja2)."""
         files = list(_vars()["gui_tools_icme_app_files"])
-        assert len(files) == 20, f"expected exactly 20 icme files; found {len(files)}"
+        assert len(files) == 21, f"expected exactly 21 icme files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/icon-color-mapping-editor/app.tsx",
             "src/gui-tools/icon-color-mapping-editor/lib/diff.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts",
             "src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts",
             "src/gui-tools/icon-color-mapping-editor/lib/event-contract.ts",
             "src/gui-tools/icon-color-mapping-editor/lib/inputs.ts",

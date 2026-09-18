@@ -141,6 +141,25 @@ class TestCliToolsRoleTree:
             "`cd` alone is defeated by `ags run -d` re-rooting"
         )
 
+    def test_rofi_launcher_is_a_keybound_toggle(self) -> None:
+        """`rofi-ui` is the single open/close entrypoint for the SUPER+D bind.
+
+        It closes a live rofi (the pidfile rofi writes + a /proc comm check so
+        a stale/recycled PID is never signalled, then SIGTERM) and launches
+        otherwise. The KEY must not appear in the script — that is exactly what
+        keeps open and close in sync when the bind in keybindings.lua changes.
+        """
+        template = (_ROLES_DIR / "templates" / "rofi-ui.j2").read_text()
+        assert "-pid" in template, "rofi-ui must pin the pidfile rofi writes"
+        assert "kill -TERM" in template, "rofi-ui must close a live rofi"
+        assert "/proc/" in template and "comm" in template, (
+            "rofi-ui must confirm the pid is still rofi before signalling"
+        )
+        assert "exec rofi -config" in template, "rofi-ui must launch rofi when down"
+        assert "SUPER" not in template, (
+            "the key must live only in keybindings.lua; rofi-ui must stay key-agnostic"
+        )
+
 
 class TestCliToolsTasks:
     def test_tasks_parse_to_list_of_named_tasks(self) -> None:

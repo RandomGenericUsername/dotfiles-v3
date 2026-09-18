@@ -78,6 +78,16 @@
     dest: "{{ cli_tools_bin_dir }}/wallpaper-selector-ui"
     mode: "0755"
 
+# rofi is not an AGS instance, but the same "one keybind entrypoint" contract
+# applies: SUPER+D must toggle it closed as well as open, and the bind must not
+# bake in the key. rofi-ui owns both directions (pidfile -> SIGTERM when a live
+# rofi is found, fresh launch otherwise).
+- name: Install the rofi launcher toggle (single keybind entrypoint)
+  ansible.builtin.template:
+    src: rofi-ui.j2
+    dest: "{{ cli_tools_bin_dir }}/rofi-ui"
+    mode: "0755"
+
 - name: Install csg/weg/itr via uv tool install
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:
