@@ -144,6 +144,31 @@ hl.bind(
     { description = "Focus window below" }
 )
 
+-- Arrow-key equivalents for the vim-style focus binds above.
+hl.bind(
+    mod .. " + left",
+    hl.dsp.focus({ direction = "left" }),
+    { description = "Focus window to the left" }
+)
+
+hl.bind(
+    mod .. " + right",
+    hl.dsp.focus({ direction = "right" }),
+    { description = "Focus window to the right" }
+)
+
+hl.bind(
+    mod .. " + up",
+    hl.dsp.focus({ direction = "up" }),
+    { description = "Focus window above" }
+)
+
+hl.bind(
+    mod .. " + down",
+    hl.dsp.focus({ direction = "down" }),
+    { description = "Focus window below" }
+)
+
 
 -- ============================================================
 -- Move Windows
@@ -170,6 +195,31 @@ hl.bind(
 
 hl.bind(
     mod .. " + SHIFT + J",
+    hl.dsp.window.move({ direction = "down" }),
+    { description = "Move window down" }
+)
+
+-- Arrow-key equivalents for the vim-style move binds above.
+hl.bind(
+    mod .. " + SHIFT + left",
+    hl.dsp.window.move({ direction = "left" }),
+    { description = "Move window left" }
+)
+
+hl.bind(
+    mod .. " + SHIFT + right",
+    hl.dsp.window.move({ direction = "right" }),
+    { description = "Move window right" }
+)
+
+hl.bind(
+    mod .. " + SHIFT + up",
+    hl.dsp.window.move({ direction = "up" }),
+    { description = "Move window up" }
+)
+
+hl.bind(
+    mod .. " + SHIFT + down",
     hl.dsp.window.move({ direction = "down" }),
     { description = "Move window down" }
 )
