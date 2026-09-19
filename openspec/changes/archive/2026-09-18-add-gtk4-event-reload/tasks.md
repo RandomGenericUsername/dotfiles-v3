@@ -79,7 +79,7 @@ Prereqs: all prior sections ticked.
 
 ## 7. Archive + merge — Orchestrator (after user sign-off)
 
-- [ ] 7.1 Move `openspec/changes/add-gtk4-event-reload/` to `openspec/changes/archive/2026-09-18-add-gtk4-event-reload/`
+- [x] 7.1 Move `openspec/changes/add-gtk4-event-reload/` to `openspec/changes/archive/2026-09-18-add-gtk4-event-reload/`
 - [ ] 7.2 Merge `feat/gtk4-event-reload` → `master`; remove the worktree
 
 ## 8. Integration fix: installed-layout contract resolution — Agent C
