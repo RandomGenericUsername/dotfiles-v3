@@ -1,0 +1,110 @@
+# Tasks: add-gtk4-event-reload
+
+**Delegation contract.** All work happens in the worktree
+`../dotfiles-repo-v3-gtk4-event-reload` on branch `feat/gtk4-event-reload`.
+Each `## N` section is dispatched as ONE agent. An agent MUST read
+`proposal.md`, `design.md`, and `specs/gtk4-event-reload/spec.md` before
+starting, MUST work only in this worktree, MUST tick each `- [ ]` → `- [x]` in
+this file as it completes it, and MUST make one conventional commit per
+section. Do not start a dependent section before its prerequisites are ticked.
+No OpenSpec CLI is installed; this file is the tracker (mirrors the format of
+`openspec/changes/add-icon-contrast-guard/tasks.md`).
+
+Dependency order: 1 → 2 → 3 → 4 → 5 → 6. (Sections 1 and 2 are independent
+and may run in parallel. Section 4 hosts the subscriber, so it requires
+section 3 — do NOT run 4 before 3.)
+
+## 0. Setup — Orchestrator (done)
+
+- [x] 0.1 `git worktree add ../dotfiles-repo-v3-gtk4-event-reload -b feat/gtk4-event-reload` (from `master` @ `773074f`)
+- [x] 0.2 Immediate stale-install fix on `master`: `uv tool install --force --no-cache <main-repo>/src/runtime`; verified `from runtime.adapters.gtk4_app_reloader import Gtk4AppReloader` succeeds and installed `main.py` references it (3 refs)
+- [x] 0.3 Author change artifacts (`proposal.md`, `design.md`, `tasks.md`, `specs/gtk4-event-reload/spec.md`, `.openspec.yaml`)
+
+## 1. Contract: additive `trigger` on `wallpaper.state` — Agent A
+
+- [x] 1.1 `contracts/event-contract.json` — `topics["wallpaper.state"].payload` gains `"trigger": "s"`; add `"enum": { "trigger": ["set","regenerate","reconcile","reactive"] }`; update `cadence`/`notes` to state `trigger` is optional/additive and which operation maps to which value
+- [x] 1.2 `contracts/event-contract.xml` + `contracts/event-contract.md` — mirror the JSON change (keep the three artifacts in lockstep; the drift/conformance tests compare them)
+- [x] 1.3 `src/runtime/src/runtime/adapters/emit_validation.py` (_TOPIC_SCHEMAS, ~line 165) — add optional `trigger` `{"type":"string","enum":[...]}`; do NOT add it to `required` (old publishers stay valid)
+- [x] 1.4 `src/runtime/src/runtime/cli/main.py::_publish_wallpaper_state` (line 446) — new `trigger: str` parameter, emitted in the payload; update the two existing call sites here: wallpaper set → `"set"`, icons regenerate → `"regenerate"`. The standalone `reconcile` (`"reconcile"`) and daemon reactive converge (`"reactive"`) call sites are added in section 4.2/4.3 — do NOT add them now
+- [x] 1.5 GJS pinned literals: `src/gui-tools/wallpaper-selector/lib/event-bus-core.ts` and `src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts` — add optional `trigger` to the wallpaper-state payload type (no behavior change)
+- [x] 1.6 Tests: runtime embedded-schema tests accept payloads with and without `trigger`, and reject an invalid enum value; both `tests/event-contract-drift.mjs` pass
+- [x] 1.7 Commit: `feat(contract): add additive trigger discriminator to wallpaper.state`
+
+## 2. Restart primitive hardening — Agent B
+
+- [x] 2.1 `src/runtime/src/runtime/adapters/gtk4_app_reloader.py::_restart` — after SIGTERM, poll `os.kill(pid, 0)` until `ProcessLookupError` using the existing `_LIVENESS_POLLS`/`_LIVENESS_POLL_INTERVAL` budget; on timeout send SIGKILL and poll again; only then `Popen(argv, start_new_session=True)`
+- [x] 2.2 Extract the wait-for-death step into a small testable helper (e.g. `_wait_for_exit(pid) -> bool`); keep `_discover_gtk4_apps`, `TARGET_APPS`, `DEFAULT_SKIP_APPS` unchanged
+- [x] 2.3 Module docstring — record the restart-safety contract: allowlist-only, per-target state rationale (`power-options-gtk`: daemon frontend, apply-on-change; `hyprmod`: persists to `hyprland.conf`), SIGTERM = graceful close, SIGKILL only after grace, `skip_apps` opt-out, vacuous success on no targets
+- [x] 2.4 Tests `tests/unit/test_gtk4_app_reloader.py` — wait-before-relaunch ordering (fake pid-alive probe), SIGKILL escalation on timeout, still-alive-after-both → `False`, no-targets → `True`; keep existing restart/skip tests green
+- [x] 2.5 Commit: `fix(runtime): wait for GTK4 app exit before relaunch (GApplication race)`
+
+## 3. Consumer binding: `gtk4_app_subscriber.py` — Agent C
+
+Prereqs: sections 1 and 2 ticked.
+
+- [x] 3.1 New `src/runtime/src/runtime/adapters/gtk4_app_subscriber.py` — mirror `bar_subscriber.py`: jeepney blocking transport, register match rules before `GetTopicState` hydration, `(epoch, seq)` lexicographic discard, `JobsCleared`/`NameOwnerChanged` re-hydration, payload size/depth validation; contract constants read from `contracts/event-contract.json` at import time (never import `runtime.domain`/`runtime.ports`)
+- [x] 3.2 Dispatch logic — on `DomainEvent` topic `wallpaper.state`: only `state == "done"`; skip `trigger == "regenerate"` (log); restart allowlisted apps for `set`/`reconcile`/`reactive` via the hardened primitive; tolerate a missing `trigger` field conservatively (treat as palette-affecting only if `state=="done"`; document the choice)
+- [x] 3.3 Reuse `_discover_gtk4_apps` + hardened restart (import from `gtk4_app_reloader`); no duplicated /proc logic
+- [x] 3.4 Tests `tests/unit/test_gtk4_app_subscriber.py` (mirror `test_bar_subscriber.py`): hydration baseline, stale `(epoch,seq)` dropped, `JobsCleared` re-hydration without replay, oversized/deep payload dropped, trigger gate table (`regenerate` skipped; `set`/`reconcile`/`reactive` restart), missing-trigger behavior, no-targets no-op
+- [x] 3.5 Commit: `feat(runtime): add gtk4_app_subscriber hub consumer binding`
+
+## 4. Daemon hosting + publish coverage — Agent D
+
+Prereqs: sections 1 and 3 ticked (1.4 call-site wiring is completed here).
+
+- [x] 4.1 `src/runtime/src/runtime/cli/main.py::daemon_run` (line ~2074) — start the subscriber read loop in a background thread (own `open_dbus_connection`); ensure clean shutdown on daemon stop; never crash the daemon on subscriber errors (log + continue)
+- [x] 4.2 Standalone `reconcile` command — publish `wallpaper.state done/error` with `trigger="reconcile"` around the use case (mirror `_run_wallpaper_set`'s publish discipline: informational only, never fail the command on publish failure)
+- [x] 4.3 Daemon reactive converge (`_run_reactive_converge`) — after converge, publish `done` with `trigger="reactive"` (same non-fatal discipline)
+- [x] 4.4 Tests: daemon starts/stops the subscriber thread cleanly; a published `set` done causes exactly one restart invocation against fakes; `regenerate` causes none; subscriber failure does not stop the daemon
+- [x] 4.5 Commit: `feat(runtime): host gtk4 subscriber in daemon and publish reconcile/reactive triggers`
+
+## 5. Chain rewiring + escape hatch — Agent A
+
+Prereqs: sections 1 and 3 ticked.
+
+- [x] 5.1 `_build_reloaders` (`main.py:380-411`) — remove `Gtk4AppReloader()` and its import; update the docstring's pinned consumer order (Hyprland, AGS, Hyprpaper, terminal, kitty)
+- [x] 5.2 Update composition tests: `tests/unit/test_cli_reconcile.py:168-180` and `tests/unit/test_cli_wallpaper_set.py:366-414` — assert `Gtk4AppReloader` is absent and the remaining five are present in order
+- [x] 5.3 New CLI command `dotfiles-runtime gtk4 restart` — discover + hardened restart; exit non-zero if any restart fails; works with no hub/daemon; add to the command surface/help and the command registration tests
+- [x] 5.4 Grep-clean: no stale `Gtk4AppReloader` references in reload-chain wiring or docs claiming it is in the chain
+- [x] 5.5 Commit: `refactor(runtime): move GTK4 reload out of swap chain; add gtk4 restart`
+
+## 6. Docs + full verification — Agent B (or C)
+
+Prereqs: all prior sections ticked.
+
+- [x] 6.1 Docs — update the reload/consumer prose (`docs/`, and the runtime architecture-in-spine notes) to state: event-driven GTK4 restart, `trigger` semantics, `done` = synchronous chain then subscribers act, degraded mode + escape hatch, allowlist/safety contract
+- [x] 6.2 Full suite green: `uv run --directory src/runtime pytest -q`; `ruff check` + `ruff format --check` + `mypy --strict` clean on touched runtime modules; GJS drift tests green (`wallpaper-selector`, `icme`)
+- [ ] 6.3 Manual E2E from the worktree (requires the user): `uv tool install --force --no-cache <worktree>/src/runtime`; restart `dotfiles-runtime-daemon.service`; with `power-options-gtk` + `hyprmod` open — (a) change wallpaper → both close/reopen with new palette; (b) contrast toggle → no restart; (c) stop daemon → `dotfiles-runtime gtk4 restart` works; (d) no apps open → no-op. Record outcomes in this file
+- [x] 6.4 Commit: `docs(runtime): document event-driven GTK4 app reload`
+
+## 7. Archive + merge — Orchestrator (after user sign-off)
+
+- [x] 7.1 Move `openspec/changes/add-gtk4-event-reload/` to `openspec/changes/archive/2026-09-18-add-gtk4-event-reload/`
+- [ ] 7.2 Merge `feat/gtk4-event-reload` → `master`; remove the worktree
+
+## 8. Integration fix: installed-layout contract resolution — Agent C
+
+E2E exposed that `gtk4_app_subscriber.py` read `contracts/event-contract.json`
+by walking up from its own file at import time; the installed tool wheel ships
+only the `runtime` package, so the daemon could not import the binding. Fix:
+source the constants from the runtime's embedded, conformance-pinned tables
+(AD-44), exactly as `dbus_event_bus` does. Does NOT re-open section 3.
+
+- [x] 8.1 `gtk4_app_subscriber.py` — delete `_find_contract`/`_CONTRACT`/`_signal_args` and the `Path` import; import `INTERFACE`/`OBJECT_PATH`/`SIGNALS` from `runtime.adapters.dbus_event_bus`, `BUS_NAME` from `runtime.ports.bus_name_owner`, `KNOWN_TOPICS` from `runtime.domain.hub`; keep the signal/method names as literals and set `DOMAIN_EVENT_ARGS = SIGNALS["DomainEvent"]`; adjust the `KNOWN_TOPICS` type annotation to `frozenset`
+- [x] 8.2 Regression test in `tests/unit/test_gtk4_app_subscriber.py` — constants equal the embedded hub tables and `_find_contract`/`_CONTRACT`/`_signal_args` no longer exist (no repo-root `contracts/` dependency)
+- [x] 8.3 Artifact wording — `design.md` §3 and `specs/gtk4-event-reload/spec.md` now mandate embedded constants, naming the three modules and the installed-wheel reason
+- [x] 8.4 Verify: unit + conformance tests green; `make contracts-check`; `uv tool install --force --no-cache <worktree>/src/runtime` then import `Gtk4AppSubscriber` in the installed interpreter prints OK; full `src/runtime` suite green except the known pre-existing `test_ags_reloader_integration_restart_with_shim`; commit `fix(runtime): source gtk4 subscriber constants from embedded hub (installed layout)`
+
+## 9. Fix: interpreter-wrapped app discovery (hyprmod) — Agent B
+
+E2E exposed that `_discover_gtk4_apps` matched only `Path(argv[0]).name`
+against `TARGET_APPS`: `power-options-gtk` (direct ELF) matched, but `hyprmod`
+runs as `/usr/bin/python /usr/bin/hyprmod`, so its argv[0] basename is
+`python` and it was never discovered (and therefore never restarted). Does NOT
+re-open sections 3/8.
+
+- [x] 9.1 `gtk4_app_reloader.py` — add pure `_resolve_app_name(argv)` (direct binary; Python interpreter → next token script/module; `/usr/bin/env python`; no arbitrary-position scanning) and use it in `_discover_gtk4_apps`; keep the full original argv for relaunch
+- [x] 9.2 INFO-level observability — `Gtk4AppReloader.reload` logs the app being restarted and the success/failure outcome (previously a successful restart was silent)
+- [x] 9.3 Tests `tests/unit/test_gtk4_app_reloader.py` — resolve table (direct, `python /usr/bin/hyprmod`, versioned interpreter, `-m`, `env`, and negatives) plus a fake-`/proc` discovery regression asserting `app_name == "hyprmod"` with argv preserved; existing restart/skip/no-target tests stay green
+- [x] 9.4 Verify via `uv run` unit tests + live read-only discovery + `ruff`/`mypy`; commit `fix(runtime): discover interpreter-wrapped GTK4 apps (hyprmod)`
+

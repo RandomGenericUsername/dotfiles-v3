@@ -102,8 +102,10 @@ check("icme consumer Control is a contract method", contractJson.methods[icmeCon
 check("icme consumer GetTopicState is a contract method", contractJson.methods[icmeConsumer.HYDRATION_METHOD] !== undefined, true);
 check("icme consumer GetTopicState in xml methods", xmlMethods.includes(icmeConsumer.HYDRATION_METHOD), true);
 check("icme consumer wallpaper.state is a contract topic", contractJson.topics[icmeConsumer.WALLPAPER_STATE_TOPIC] !== undefined, true);
-check("wallpaper.state payload keys", Object.keys(contractJson.topics["wallpaper.state"].payload).sort(), ["state", "wallpaper_hash"]);
+check("wallpaper.state payload keys", Object.keys(contractJson.topics["wallpaper.state"].payload).sort(), ["state", "trigger", "wallpaper_hash"]);
+check("wallpaper.state optional", contractJson.topics["wallpaper.state"].optional, ["trigger"]);
 check("wallpaper.state enum", contractJson.topics["wallpaper.state"].enum.state, ["applying", "visible", "done", "error"]);
+check("wallpaper.state trigger enum", contractJson.topics["wallpaper.state"].enum.trigger, ["set", "regenerate", "reconcile", "reactive"]);
 
 // ── Bar hydration core (scripted fake transport, no bus) ─────────────────
 

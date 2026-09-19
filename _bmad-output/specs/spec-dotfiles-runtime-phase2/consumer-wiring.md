@@ -30,8 +30,13 @@ System GTK — GTK4/libadwaita apps (gt-4-1, two-channel mechanism)
     custom-properties block (libadwaita ≥ 1.4 / plain-GTK4 Default theme
     ≥ 4.16 resolve variables; chrome surfaces are color-mix blends of the
     wallpaper's k-means mid clusters — visibly wallpaper-tinted).
-    Pickup = process relaunch (no hot reload). REQUIRES the session NOT to
-    export `GTK_THEME` (see hazard below).
+    Pickup = process relaunch (no hot reload). The restart is event-driven,
+    not part of the synchronous reload chain: the daemon-hosted
+    `gtk4_app_subscriber` restarts the allowlisted apps (`power-options-gtk`,
+    `hyprmod`) on `wallpaper.state done` only when the additive `trigger` is
+    `set`/`reconcile`/`reactive` (`regenerate` — icons only — is skipped)
+    (add-gtk4-event-reload). REQUIRES the session NOT to export `GTK_THEME`
+    (see hazard below).
 
 GTK3 apps (gt-4-1 channel, consumer-cooperative)
     ~/.config/gtk-3.0/gtk.css (spine skeleton, gt-3-1)
@@ -77,7 +82,7 @@ Terminal colors: applied from `current/colors.yaml` by the terminal adapter (CAP
 
 ## What the swap changes
 
-Repointing the `current/` symlinks (AD-6) atomically changes what every consumer above resolves to — no per-consumer config rewrite on swap. The reload step (CAP-6) tells each running process to re-read its config.
+Repointing the `current/` symlinks (AD-6) atomically changes what every consumer above resolves to — no per-consumer config rewrite on swap. The reload step (CAP-6) tells each process in the synchronous reload chain (Hyprland, AGS, Hyprpaper, terminal, kitty) to re-read its config. `wallpaper.state done` means that synchronous chain completed; event-driven consumers act afterwards — ICME refreshes live in-process (`apply_css`), and the daemon-hosted GTK4 restart subscriber relaunches the allowlisted GTK4 apps (add-gtk4-event-reload). The GTK4 apps are no longer restarted by the chain; when the daemon/hub is absent, auto-restart does not occur and `dotfiles-runtime gtk4 restart` is the manual escape hatch.
 
 ## Provisioning deltas (AD-17, amended by R2/R3 — cross-domain Phase-2 stories;
 Epic 4 completes R2)

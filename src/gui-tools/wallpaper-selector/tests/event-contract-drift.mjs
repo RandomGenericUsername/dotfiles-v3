@@ -65,13 +65,20 @@ check("wallpaper.state is a contract topic", contractJson.topics[core.WALLPAPER_
 check(
   "wallpaper.state payload keys",
   Object.keys(contractJson.topics["wallpaper.state"].payload).sort(),
-  ["state", "wallpaper_hash"],
+  ["state", "trigger", "wallpaper_hash"],
 );
+check("wallpaper.state optional", contractJson.topics["wallpaper.state"].optional, ["trigger"]);
 check("wallpaper.state enum", contractJson.topics["wallpaper.state"].enum.state, [
   "applying",
   "visible",
   "done",
   "error",
+]);
+check("wallpaper.state trigger enum", contractJson.topics["wallpaper.state"].enum.trigger, [
+  "set",
+  "regenerate",
+  "reconcile",
+  "reactive",
 ]);
 
 if (failures > 0) {
