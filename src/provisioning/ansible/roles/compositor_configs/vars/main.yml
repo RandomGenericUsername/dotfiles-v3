@@ -139,6 +139,7 @@ compositor_configs_skeleton_files:
   - { name: ags-settings-panel-state, source: dotfiles/config/ags/settings-panel/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/state.ts" }
   - { name: ags-settings-panel-primitives, source: dotfiles/config/ags/settings-panel/primitives.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/primitives.tsx" }
   - { name: ags-settings-panel, source: dotfiles/config/ags/settings-panel/SettingsPanel.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/SettingsPanel.tsx" }
+  - { name: ags-settings-panel-bluetooth-agent, source: dotfiles/config/ags/settings-panel/bluetooth-agent.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/bluetooth-agent.ts" }
   - { name: ags-settings-panel-control-wifi, source: dotfiles/config/ags/settings-panel/controls/wifi.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/wifi.tsx" }
   - { name: ags-settings-panel-control-bluetooth, source: dotfiles/config/ags/settings-panel/controls/bluetooth.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/bluetooth.tsx" }
   - { name: ags-settings-panel-control-brightness, source: dotfiles/config/ags/settings-panel/controls/brightness.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls/brightness.tsx" }

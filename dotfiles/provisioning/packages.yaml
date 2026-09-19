@@ -39,6 +39,7 @@ entries:
   - name: ffmpeg             # GIF conversion and general media tooling
   - name: pipewire           # Audio capture backend for recordings
   - name: wireplumber        # Audio device management for PipeWire
+  - name: pipewire-audio     # BlueZ/A2DP SPA — Bluetooth audio sinks (settings panel)
   - name: gpu-screen-recorder # Preferred Wayland recording backend with pause/resume
   - name: wf-recorder        # Fallback Wayland-native recorder
   - name: rofi               # Application launcher

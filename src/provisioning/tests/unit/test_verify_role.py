@@ -1907,6 +1907,7 @@ def _write_stub_binaries(home: Path) -> Path:
         '    libastal-notifd-git) echo "libastal-notifd-git r973.e07013e-1"; exit 0 ;;\n'
         '    libastal-bluetooth-git) echo "libastal-bluetooth-git r786.ca3190d-2"; exit 0 ;;\n'
         '    libastal-wireplumber-git) echo "libastal-wireplumber-git r776.c1bd89a-1"; exit 0 ;;\n'
+        '    pipewire-audio) echo "pipewire-audio 1:1.6.8-1"; exit 0 ;;\n'
         "  esac\n"
         "fi\n"
         "exit 1\n"
@@ -1951,6 +1952,32 @@ def _write_stub_binaries(home: Path) -> Path:
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
+    # rfkill + bluetoothctl: the verify role asserts the Bluetooth radio is not
+    # soft-blocked and the controller is powered (settings panel). Stubbed so
+    # the synthetic machine is hermetic — the real binaries would query the
+    # HOST's radio.
+    rfkill = bin_dir / "rfkill"
+    rfkill.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "-o" ] && [ "$2" = "TYPE,SOFT" ] && [ "$3" = "list" ]; then\n'
+        '  echo "TYPE           SOFT DEVICE"\n'
+        '  echo "bluetooth unblocked hci0"\n'
+        '  echo "wlan      unblocked phy1"\n'
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n"
+    )
+    rfkill.chmod(0o755)
+    btctl = bin_dir / "bluetoothctl"
+    btctl.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "show" ]; then\n'
+        '  printf "Controller AA:BB:CC:DD:EE:FF (public)\\n\\tPowered: yes\\n"\n'
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n"
+    )
+    btctl.chmod(0o755)
     return bin_dir
 
 
@@ -2155,6 +2182,7 @@ def _build_provisioned_layout(
     (install / "config" / "ags" / "settings-panel" / "state.ts").write_text("")
     (install / "config" / "ags" / "settings-panel" / "primitives.tsx").write_text("")
     (install / "config" / "ags" / "settings-panel" / "SettingsPanel.tsx").write_text("")
+    (install / "config" / "ags" / "settings-panel" / "bluetooth-agent.ts").write_text("")
     for control in ("wifi", "bluetooth", "brightness", "volume", "hyprmod"):
         (
             install / "config" / "ags" / "settings-panel" / "controls" / f"{control}.tsx"

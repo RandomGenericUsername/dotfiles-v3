@@ -110,3 +110,21 @@ SHALL NOT add an autostart entry or an always-on instance for it.
 - **WHEN** the AGS process starts
 - **THEN** it loads the panel from deployed sources and performs no installation,
   download, service enablement, or permission change
+
+### Requirement: Bluetooth audio stack provisioned
+
+Provisioning SHALL install the PipeWire package that ships the BlueZ SPA
+(`libspa-bluez5.so`), so WirePlumber creates a Bluetooth audio sink for a
+connected device. Enabling BlueZ/installing the daemon is not sufficient: with
+no bluez5 SPA there is no sink and the panel's audio routing has nothing to
+route to. Verify SHALL assert the package is present and the controller is
+powered.
+
+#### Scenario: bluez5 SPA present
+- **WHEN** the packages role converges
+- **THEN** the PipeWire BlueZ SPA package is installed and `verify` fails if it
+  is missing
+
+#### Scenario: Controller powered after provision
+- **WHEN** provisioning converges with the radio unblocked
+- **THEN** `bluetoothctl show` reports `Powered: yes` and `verify` asserts it

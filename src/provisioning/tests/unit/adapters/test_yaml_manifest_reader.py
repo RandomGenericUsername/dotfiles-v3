@@ -354,6 +354,7 @@ class TestReadRealManifests:
             "ffmpeg",
             "pipewire",
             "wireplumber",
+            "pipewire-audio",
             "gpu-screen-recorder",
             "wf-recorder",
             "rofi",

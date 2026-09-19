@@ -206,6 +206,19 @@ verify_bluetooth_service: bluetooth.service
 #   regression is visible (a HARD block is physical and not asserted).
 verify_bluetooth_rfkill_type: bluetooth
 
+# verify_bluetooth_audio_packages: the PipeWire package shipping the bluez5 SPA
+#   (libspa-bluez5.so). Without it WirePlumber creates NO Bluetooth audio sink,
+#   so a connected headset is silently unroutable — installing bluez alone is
+#   not enough. Checked via `pacman -Q` (Arch package name; mirror of the
+#   AstalNotifd binding gate).
+verify_bluetooth_audio_packages:
+  - pipewire-audio
+
+# verify_bluetooth_powered_marker: the substring `bluetoothctl show` prints for
+#   a powered controller. Kept as a var so the assert has no quoted pattern to
+#   trip Ansible's conditional parser.
+verify_bluetooth_powered_marker: "Powered: yes"
+
 # verify_backlight_binary: the CLI the settings panel's Display slider drives
 #   (`-m` read, `set <pct>%` write). The packages role installs it and its udev
 #   rule grants the session user access; this gate runs the machine-readable
@@ -382,6 +395,7 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/settings-panel/state.ts"
   - "{{ install_dir | trim }}/config/ags/settings-panel/primitives.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/SettingsPanel.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/bluetooth-agent.ts"
   - "{{ install_dir | trim }}/config/ags/settings-panel/controls/wifi.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/controls/bluetooth.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/controls/brightness.tsx"

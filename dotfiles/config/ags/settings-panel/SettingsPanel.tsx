@@ -1,14 +1,18 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import { createComputed, createEffect } from "ags"
-import { activeView, close, panelVisible, viewEpoch } from "./state"
+import { activeView, close, iconCenterX, panelVisible, viewEpoch } from "./state"
 import { MainView } from "./views/MainView"
 import { WifiView } from "./views/WifiView"
 import { BluetoothView } from "./views/BluetoothView"
 
 /**
- * The click-outside catcher: a full-screen transparent layer surface, created
- * BEFORE the panel so the panel stacks above it. Shown only while the panel is
- * visible.
+ * The click-outside catcher: a full-screen layer surface, created BEFORE the
+ * panel so the panel stacks above it. Shown only while the panel is visible.
+ *
+ * It must be hit-testable to receive clicks; a fully transparent layer surface
+ * is not (see the 1%-opacity background in style.css). Covering the whole
+ * screen — including the bar — makes both same-spot (the status-bar icon) and
+ * outside clicks close the panel via this single, deterministic path.
  */
 export function SettingsCatcher(gdkmonitor: Gdk.Monitor) {
   const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
@@ -23,13 +27,17 @@ export function SettingsCatcher(gdkmonitor: Gdk.Monitor) {
       layer={Astal.Layer.OVERLAY}
       keymode={Astal.Keymode.NONE}
       visible={panelVisible}
-      $={(self) => {
-        const click = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
-        click.connect("pressed", () => close())
-        self.add_controller(click)
-      }}
     >
-      <box class="settings-catcher-fill" hexpand vexpand />
+      <box
+        class="settings-catcher-fill"
+        hexpand
+        vexpand
+        $={(self) => {
+          const click = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
+          click.connect("released", () => close())
+          self.add_controller(click)
+        }}
+      />
     </window>
   )
 }
@@ -40,8 +48,21 @@ export function SettingsCatcher(gdkmonitor: Gdk.Monitor) {
  * panel dimensions stay stable.
  */
 export function SettingsPanel(gdkmonitor: Gdk.Monitor) {
-  const { TOP, RIGHT } = Astal.WindowAnchor
+  const { TOP, LEFT } = Astal.WindowAnchor
   let scroll: Gtk.ScrolledWindow | null = null
+
+  // Anchor the panel beneath the status-bar settings icon rather than the
+  // screen's right edge: left margin = icon centre − half the panel width,
+  // clamped to the monitor. The surface width matches the content's 312px.
+  const PANEL_WIDTH = 312
+  const monitorWidth = gdkmonitor.get_geometry().width
+  const marginLeft = createComputed(() => {
+    const rightMost = monitorWidth - PANEL_WIDTH - 8
+    const centre = iconCenterX()
+    if (centre == null) return rightMost
+    const left = Math.round(centre - PANEL_WIDTH / 2)
+    return Math.min(Math.max(left, 8), rightMost)
+  })
 
   createEffect(() => {
     // `show(view)` / `back()` / `open()` bump viewEpoch; reset the scroll then.
@@ -59,27 +80,16 @@ export function SettingsPanel(gdkmonitor: Gdk.Monitor) {
       name="settings-panel"
       class="settings-panel"
       gdkmonitor={gdkmonitor}
-      anchor={TOP | RIGHT}
+      anchor={TOP | LEFT}
       /* IGNORE (not NORMAL): a popup must not request an exclusive zone, or
          Hyprland offsets the overlay surface below the bar's reserved area and
          then applies marginTop — pushing the panel ~48px too low. */
       exclusivity={Astal.Exclusivity.IGNORE}
       layer={Astal.Layer.OVERLAY}
-      keymode={Astal.Keymode.ON_DEMAND}
+      keymode={Astal.Keymode.NONE}
       marginTop={52}
-      marginRight={8}
+      marginLeft={marginLeft}
       visible={panelVisible}
-      $={(self) => {
-        const key = new Gtk.EventControllerKey()
-        key.connect("key-pressed", (_controller, keyval) => {
-          if (keyval === Gdk.KEY_Escape) {
-            close()
-            return true
-          }
-          return false
-        })
-        self.add_controller(key)
-      }}
     >
       <box class="settings-surface" orientation={1} widthRequest={312}>
         <scrolledwindow

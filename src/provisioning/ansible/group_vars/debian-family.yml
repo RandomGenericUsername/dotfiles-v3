@@ -30,6 +30,9 @@ packages:
   ffmpeg: ffmpeg
   pipewire: pipewire
   wireplumber: wireplumber
+  # Debian ships the BlueZ SPA in libspa-0.2-bluetooth (Arch: pipewire-audio) —
+  # no Bluetooth audio sink exists without it (settings panel routing).
+  pipewire-audio: libspa-0.2-bluetooth
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
   # Container engine for the csg container-mode chain (same rationale as Arch).

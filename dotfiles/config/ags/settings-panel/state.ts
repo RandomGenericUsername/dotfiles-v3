@@ -11,11 +11,16 @@ export type SettingsView = "main" | "wifi" | "bluetooth"
 const [panelVisible, setPanelVisible] = createState(false)
 const [activeView, setActiveView] = createState<SettingsView>("main")
 
+// X (monitor-relative) of the status-bar settings icon centre — written by the
+// bar button on realization so the panel can be anchored beneath the icon
+// rather than pinned to the screen's right edge.
+const [iconCenterX, setIconCenterX] = createState<number | null>(null)
+
 // Bumped on every open/show/back so the panel can reset its scroll position
 // even when the view id itself does not change (e.g. reopening on "main").
 const [viewEpoch, setViewEpoch] = createState(0)
 
-export { panelVisible, activeView, viewEpoch }
+export { panelVisible, activeView, viewEpoch, iconCenterX, setIconCenterX }
 
 export function open() {
   setPanelVisible(true)

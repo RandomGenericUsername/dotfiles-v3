@@ -1,10 +1,11 @@
-import { createComputed, For, With } from "ags"
+import { createComputed, createEffect, For, With } from "ags"
 import { NavHeader } from "../primitives"
-import { back } from "../state"
+import { activeView, back } from "../state"
 import {
   WifiRow,
   WifiPasswordPrompt,
   WifiToggle,
+  scanWifi,
   wifiEnabled,
   wifiMessage,
   wifiNetworks,
@@ -14,6 +15,12 @@ import {
 export function WifiView() {
   const target = wifiPasswordTarget
   const showList = createComputed(() => wifiEnabled() && target() === null)
+
+  // Force a fresh scan each time the list is opened (NetworkManager otherwise
+  // refreshes its access-point cache on its own schedule).
+  createEffect(() => {
+    if (activeView() === "wifi") scanWifi()
+  })
 
   return (
     <box orientation={1} spacing={8}>

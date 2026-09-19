@@ -245,6 +245,53 @@
       physical switch.
   when: not ansible_check_mode
 
+# A connected headset is silently unroutable without the bluez5 SPA: WirePlumber
+# then creates NO Bluetooth audio sink (installing bluez alone is not enough).
+# The packages role installs the PipeWire package that ships it; gate it here.
+- name: Check the PipeWire bluez5 SPA package is installed
+  ansible.builtin.command:
+    cmd: "pacman -Q {{ item }}"
+  loop: "{{ verify_bluetooth_audio_packages }}"
+  register: verify_bluetooth_audio_checks
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the Bluetooth audio (bluez5 SPA) package is installed
+  ansible.builtin.assert:
+    that:
+      - verify_bluetooth_audio_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_bluetooth_audio_packages | length
+    fail_msg: >-
+      the PipeWire Bluetooth audio package is missing (expected {{
+      verify_bluetooth_audio_packages | join(', ') }}) — without the bluez5 SPA
+      WirePlumber creates no Bluetooth audio sink, so a connected headset has no
+      audio to route to. The packages role installs it; re-run the packages
+      playbook.
+  when: not ansible_check_mode
+
+# Unblocked is necessary but not sufficient: the controller must be powered for
+# WirePlumber's bluez monitor to create a sink and for the panel to report
+# state. AutoEnable powers it once the block lifts.
+- name: Check the Bluetooth controller is powered
+  ansible.builtin.command:
+    cmd: bluetoothctl show
+  register: verify_bluetooth_show
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the Bluetooth controller is powered
+  ansible.builtin.assert:
+    that:
+      - verify_bluetooth_show.rc == 0
+      - verify_bluetooth_show.stdout is search(verify_bluetooth_powered_marker)
+    fail_msg: >-
+      the Bluetooth controller is not powered (bluetoothctl: {{
+      verify_bluetooth_show.stdout | trim }}) — a connected headset would have
+      no audio sink. The packages role unblocks the radio; a HARD block needs
+      the physical switch.
+  when: not ansible_check_mode
+
 # The settings panel's Display slider drives `brightnessctl set <pct>%` as the
 # session user (and reads with `-m`). The packages role installs brightnessctl
 # and its udev rule grants the session write access; a machine where even the

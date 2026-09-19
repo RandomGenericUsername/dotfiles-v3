@@ -60,6 +60,7 @@ _LOGICAL_PACKAGE_KEYS = (
     "ffmpeg",
     "pipewire",
     "wireplumber",
+    "pipewire-audio",
     "gpu-screen-recorder",
     "wf-recorder",
     "btop",

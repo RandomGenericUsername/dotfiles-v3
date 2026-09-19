@@ -281,8 +281,12 @@ window.settings-panel {
   color: @color_foreground;
 }
 
+/* Click-outside catcher fill. A fully transparent (alpha 0) layer surface is
+   not hit-testable on this compositor, so it carries a 1%-opacity background —
+   imperceptible, but it makes the surface receive pointer events. The surface
+   itself excludes the bar (see SettingsCatcher marginTop). */
 .settings-catcher-fill {
-  background-color: transparent;
+  background-color: alpha(@color_00, 0.01);
 }
 
 .settings-surface {
@@ -531,6 +535,12 @@ window.settings-panel {
   color: @color_foreground;
 }
 
+/* Paired but not currently seen (asleep / out of range): dimmed, Connect is
+   insensitive. Unpair stays available. */
+.settings-net.out-of-range {
+  opacity: 0.45;
+}
+
 .settings-net-name {
   font-size: 12.5px;
   font-weight: 600;
@@ -575,6 +585,23 @@ window.settings-panel {
 
 .settings-rowact:hover {
   border-color: @color_10;
+}
+
+/* Secondary row action (Unpair) — quieter than the primary action */
+.settings-rowact.subtle {
+  opacity: 0.68;
+}
+
+.settings-rowact.subtle:hover {
+  opacity: 1;
+  border-color: alpha(@color_foreground, 0.4);
+}
+
+/* In-flight action spinner (connect / pair / disconnect) */
+.settings-spinner {
+  min-width: 14px;
+  min-height: 14px;
+  color: @color_13;
 }
 
 /* Signal strength bars */

@@ -183,3 +183,104 @@ without restructuring the panel.
 - **WHEN** a new capability card is added to the section list
 - **THEN** it renders in the panel with the existing primitives and tokens, and
   no existing section requires modification
+
+### Requirement: Bluetooth discovery and pairing
+
+Because BlueZ only reports devices it already knows, the Bluetooth subview SHALL
+start discovery while it is shown with the adapter powered, and stop on leave.
+Pairing SHALL register a session `org.bluez.Agent1` (headless, NoInputNoOutput)
+so BlueZ can complete authentication; a successful pair SHALL trust the device
+and connect it. Wi-Fi SHALL force a scan when its list opens.
+
+#### Scenario: Nearby devices appear
+- **WHEN** the Bluetooth subview is open, the adapter is on, and a device is in
+  discoverable/pairing mode
+- **THEN** discovery runs (a "Scanning…" state shows) and the device appears in
+  the list
+
+#### Scenario: Pairing completes
+- **WHEN** the user activates Pair on an available device
+- **THEN** the session agent answers the authentication, the device is trusted
+  and connected, and the row shows Connected
+
+#### Scenario: No agent means no pair
+- **WHEN** no `org.bluez.Agent1` is registered on the system bus
+- **THEN** pairing fails (the row briefly flips then reverts to Pair), which is
+  why the AGS session registers a default agent at startup
+
+#### Scenario: Wi-Fi list is current
+- **WHEN** the Wi-Fi subview opens
+- **THEN** a NetworkManager scan is requested (rate-limited failures ignored)
+
+### Requirement: Bluetooth audio routing and device actions
+
+On a successful Bluetooth connect (from the panel or on view-open for an
+auto-connected device), the panel SHALL make that device's PipeWire sink the
+default and move active streams to it, so audio actually plays through the
+headset. Paired devices SHALL offer an Unpair action in addition to
+Connect/Disconnect. In-flight connect/pair/disconnect actions SHALL show a
+spinner so a press is acknowledged (no repeated clicking).
+
+#### Scenario: Audio follows the headset
+- **WHEN** a Bluetooth headset connects
+- **THEN** its sink becomes the default and active streams move to it
+
+#### Scenario: Unpair is available
+- **WHEN** a device is paired
+- **THEN** the row offers Unpair (alongside Connect/Disconnect)
+
+#### Scenario: Action shows progress
+- **WHEN** the user presses Connect/Pair/Disconnect
+- **THEN** a spinner replaces the action label until the operation resolves
+
+### Requirement: Out-of-range paired devices
+
+A paired device that has not been seen on the current scan (BlueZ RSSI 0) SHALL
+be shown dimmed and labelled "Not in range", and its Connect action SHALL be
+disabled; Unpair SHALL remain available. Dismissal SHALL be reliable when
+clicking the exact same status-bar spot that opened the panel (the click-outside
+catcher consumes the whole click, not just the press).
+
+#### Scenario: Absent device is dimmed and not connectable
+- **WHEN** a paired device is out of range (RSSI 0)
+- **THEN** its row is dimmed, reads "Not in range", and Connect is insensitive
+  while Unpair stays enabled
+
+#### Scenario: Same-spot click collapses
+- **WHEN** the panel is opened from the status-bar settings icon and the user
+  clicks that same icon again
+- **THEN** the panel collapses (no pixel movement required)
+
+#### Scenario: Click outside collapses
+- **WHEN** the panel is open and the user clicks anywhere outside it
+- **THEN** the panel collapses
+
+### Requirement: Anchored under the trigger icon
+
+The panel SHALL be positioned beneath the status-bar settings icon (centred on
+the icon's x, clamped to the monitor), not pinned to the screen's right edge.
+The icon's position SHALL be re-read on each activation so moving the icon
+within the bar is followed.
+
+#### Scenario: Icon in the middle
+- **WHEN** the settings icon is placed mid-bar and clicked
+- **THEN** the panel spans beneath it (clamped only at the screen edges)
+
+#### Scenario: Icon at the right edge
+- **WHEN** the icon is at the far right
+- **THEN** the panel clamps to the right edge and stays under the icon
+
+### Requirement: Deterministic dismissal
+
+Clicking the status-bar settings icon again (the exact same spot) SHALL collapse
+the panel, and clicking anywhere outside SHALL collapse it. The panel SHALL NOT
+grab keyboard focus in a way that makes the bar swallow the first click (the
+panel uses keyboard mode NONE; Esc-to-close is therefore not bound in v1).
+
+#### Scenario: Same-spot collapses
+- **WHEN** the panel is open and the settings icon is clicked again
+- **THEN** the panel collapses
+
+#### Scenario: Outside collapses
+- **WHEN** the panel is open and any point outside it is clicked
+- **THEN** the panel collapses

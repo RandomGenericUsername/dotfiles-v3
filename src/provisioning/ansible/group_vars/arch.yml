@@ -30,6 +30,11 @@ packages:
   ffmpeg: ffmpeg
   pipewire: pipewire
   wireplumber: wireplumber
+  # pipewire-audio ships the bluez5 SPA (libspa-bluez5.so) — without it
+  # WirePlumber creates NO Bluetooth audio sink, so a connected headset has no
+  # audio to route to (verified: the file is owned by this package, and the
+  # Panel's audio routing is a no-op without it).
+  pipewire-audio: pipewire-audio
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
   # Container engine for the csg container-mode chain (cli_tools builds the

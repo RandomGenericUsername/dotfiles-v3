@@ -102,6 +102,22 @@ export function toggleWifi() {
   if (device) device.enabled = !device.enabled
 }
 
+/**
+ * Force a fresh NetworkManager scan when the list opens. `access_points` is
+ * NM's cache and refreshes on its own schedule; a scan makes the list current.
+ * NM rate-limits scans (a too-soon call errors), so failures are ignored — the
+ * reactive cache still updates.
+ */
+export function scanWifi() {
+  const device = network?.wifi
+  if (!device) return
+  try {
+    device.scan()
+  } catch {
+    /* NM throttled the scan; the access-point cache still refreshes */
+  }
+}
+
 function connectToNetwork(name: string, password?: string): Promise<void> {
   const args = ["nmcli", "device", "wifi", "connect", name]
   if (password !== undefined && password !== "") {
