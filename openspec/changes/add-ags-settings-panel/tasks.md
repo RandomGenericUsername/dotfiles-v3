@@ -135,3 +135,15 @@
 - [x] 8.5 Converge provisioning + regenerate the runtime icon cache; verify
   `current/icons/` contains `settings-panel-wifi-off.svg` / `-bluetooth-off.svg`
   with the accent/muted fills
+- [x] 8.6 Fix panel launch offset: `exclusivity=NORMAL` made Hyprland place the
+  overlay below the bar's 48px exclusive zone *and then* apply `marginTop`
+  (measured top = 104 = 56 + 48). Set `IGNORE` (no exclusive-zone request, like
+  the catcher) and `marginTop=52` so the panel sits ~4px under the bar
+- [x] 8.7 Bluetooth: the radio can be rfkill SOFT-blocked (vendor WMI killswitch
+  / persisted `systemd-rfkill` state), so BlueZ refuses to power it and the
+  `powered` setter fails silently — the toggle looked dead. Fix at both layers:
+  the packages role clears a soft block at provision time (`rfkill unblock
+  bluetooth`) and verify pins the unblocked state; the panel's toggle also
+  clears a soft block before enabling, for a later user-triggered block.
+  Proven by soft-blocking the radio, re-running the packages role, and
+  confirming it powers on

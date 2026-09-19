@@ -198,6 +198,14 @@ verify_astal_binding_packages:
 #   unit would silently drop Bluetooth from the panel after a reboot.
 verify_bluetooth_service: bluetooth.service
 
+# verify_bluetooth_rfkill_type: the rfkill type whose SOFT-block state the
+#   packages role clears at provision time. A soft block (vendor WMI
+#   killswitch / persisted systemd-rfkill state) makes BlueZ refuse to power
+#   the controller, and the settings panel's `adapter.powered` setter then
+#   fails silently — the toggle looks dead. Gate the unblocked state so a
+#   regression is visible (a HARD block is physical and not asserted).
+verify_bluetooth_rfkill_type: bluetooth
+
 # verify_backlight_binary: the CLI the settings panel's Display slider drives
 #   (`-m` read, `set <pct>%` write). The packages role installs it and its udev
 #   rule grants the session user access; this gate runs the machine-readable

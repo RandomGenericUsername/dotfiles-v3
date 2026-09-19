@@ -218,6 +218,33 @@
       `systemctl enable --now {{ verify_bluetooth_service }}`
   when: not ansible_check_mode
 
+# The daemon can be up while the RADIO is rfkill SOFT-blocked (vendor WMI
+# killswitch state, or a block systemd-rfkill persisted from a previous
+# session) — BlueZ refuses to power a blocked controller and the panel's
+# `adapter.powered` setter fails silently. The packages role clears a soft
+# block at provision time; gate it here so the silent no-op cannot regress.
+- name: Check the Bluetooth radio is not rfkill soft-blocked
+  ansible.builtin.command:
+    argv: ["rfkill", "-o", "TYPE,SOFT", "list"]
+  register: verify_bluetooth_rfkill
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the Bluetooth radio is not soft-blocked
+  ansible.builtin.assert:
+    that:
+      - verify_bluetooth_rfkill.rc == 0
+      - verify_bluetooth_rfkill.stdout is search('(?m)^' ~ verify_bluetooth_rfkill_type ~ '\s+unblocked')
+    fail_msg: >-
+      the Bluetooth radio is rfkill soft-blocked (rfkill output: {{
+      verify_bluetooth_rfkill.stdout | trim }}) — BlueZ cannot power a blocked
+      controller and the settings panel's toggle would be a silent no-op. The
+      packages role runs `rfkill unblock bluetooth`; re-run the packages
+      playbook or run `sudo rfkill unblock bluetooth`. A HARD block needs the
+      physical switch.
+  when: not ansible_check_mode
+
 # The settings panel's Display slider drives `brightnessctl set <pct>%` as the
 # session user (and reads with `-m`). The packages role installs brightnessctl
 # and its udev rule grants the session write access; a machine where even the

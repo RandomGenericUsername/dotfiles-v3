@@ -34,8 +34,8 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
           <NetworkStatus />
           <Btop />
           <Thunderbird />
-          <PowerMenu />
           <Settings />
+          <PowerMenu />
         </box>
       </centerbox>
     </window>

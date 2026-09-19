@@ -60,10 +60,13 @@ export function SettingsPanel(gdkmonitor: Gdk.Monitor) {
       class="settings-panel"
       gdkmonitor={gdkmonitor}
       anchor={TOP | RIGHT}
-      exclusivity={Astal.Exclusivity.NORMAL}
+      /* IGNORE (not NORMAL): a popup must not request an exclusive zone, or
+         Hyprland offsets the overlay surface below the bar's reserved area and
+         then applies marginTop — pushing the panel ~48px too low. */
+      exclusivity={Astal.Exclusivity.IGNORE}
       layer={Astal.Layer.OVERLAY}
       keymode={Astal.Keymode.ON_DEMAND}
-      marginTop={56}
+      marginTop={52}
       marginRight={8}
       visible={panelVisible}
       $={(self) => {

@@ -218,3 +218,19 @@
     state: started
   become: true
   when: not ansible_check_mode
+
+# Enabling the service is not enough: the radio can be rfkill SOFT-blocked at
+# first boot (firmware / vendor WMI killswitch state, or a block persisted by
+# systemd-rfkill from a previous session). BlueZ refuses to power a
+# soft-blocked controller and the Astal `powered` setter then fails silently,
+# so the settings panel's Bluetooth toggle looks dead. Clear a soft block at
+# provision time so a freshly provisioned machine has a usable radio; this
+# also writes the persisted rfkill state, which systemd-rfkill restores on
+# later boots. A HARD block is a physical switch and cannot be cleared here.
+- name: Unblock the Bluetooth radio (rfkill soft block)
+  ansible.builtin.command:
+    cmd: rfkill unblock bluetooth
+  changed_when: false
+  become: true
+  when: not ansible_check_mode
+

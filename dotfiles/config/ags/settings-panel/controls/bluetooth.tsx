@@ -1,5 +1,6 @@
 import Bluetooth from "gi://AstalBluetooth?version=0.1"
 import { Accessor, createBinding, createComputed, For } from "ags"
+import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import { CapabilityTile, IconToggle } from "../primitives"
 import { show } from "../state"
@@ -45,10 +46,32 @@ export function bluetoothIconOff(): string | null {
   return registry.resolve("settings-panel", "bluetooth-off")
 }
 
+/**
+ * Toggle adapter power.
+ *
+ * BlueZ cannot power the adapter ON while rfkill soft-blocks it (the HCI shows
+ * `PowerState: off-blocked`) and the `powered` setter fails silently, so the
+ * icon press looks like a no-op. When enabling, clear a soft block first (the
+ * Fn-key / airplane-mode state) — `rfkill unblock` is a control action against
+ * the provisioned stack, not setup.
+ */
 export function toggleBluetooth() {
   if (!bluetooth) return
   const adapter = bluetooth.adapter
-  if (adapter) adapter.powered = !adapter.powered
+  if (!adapter) return
+
+  if (adapter.powered) {
+    adapter.powered = false
+    return
+  }
+
+  // Off → on: clear any soft block, then power on (BlueZ AutoEnable also
+  // powers on once the block lifts).
+  execAsync(["rfkill", "unblock", "bluetooth"])
+    .catch(() => "")
+    .finally(() => {
+      adapter.powered = true
+    })
 }
 
 function deviceConnect(device: AnyDevice) {

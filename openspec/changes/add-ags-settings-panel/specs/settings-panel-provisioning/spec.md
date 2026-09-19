@@ -39,6 +39,32 @@ runtime action.
 - **WHEN** the `verify` role runs
 - **THEN** it fails if `bluetooth.service` is not enabled
 
+### Requirement: Bluetooth radio usable after provision
+
+Provisioning SHALL ensure the Bluetooth radio is not rfkill **soft**-blocked at
+the end of a provision, because BlueZ refuses to power a soft-blocked
+controller and the panel's `adapter.powered` setter then fails silently (the
+toggle appears dead). Installing/enabling BlueZ is not sufficient: the radio can
+be soft-blocked by the vendor WMI killswitch or a block persisted by
+`systemd-rfkill` from a previous session. A hard block is physical and out of
+scope. The runtime SHALL additionally tolerate a later soft block by clearing it
+when the user enables Bluetooth from the panel.
+
+#### Scenario: Soft block cleared at provision
+- **WHEN** provisioning converges on a machine whose Bluetooth radio is rfkill
+  soft-blocked
+- **THEN** the packages role runs `rfkill unblock bluetooth` and the radio
+  reports unblocked and can power on
+
+#### Scenario: Verify pins the radio state
+- **WHEN** the `verify` role runs
+- **THEN** it fails if the Bluetooth radio is rfkill soft-blocked
+
+#### Scenario: Runtime tolerates a later soft block
+- **WHEN** the panel's Bluetooth icon is pressed to enable a soft-blocked radio
+- **THEN** the handler clears the soft block before setting `powered`, so the
+  toggle works instead of silently no-op'ing
+
 ### Requirement: Backlight control permission
 
 Provisioning SHALL ensure the user can change display brightness with the
