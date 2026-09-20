@@ -1,4 +1,5 @@
 import Network from "gi://AstalNetwork"
+import Gio from "gi://Gio?version=2.0"
 import GLib from "gi://GLib?version=2.0"
 import { Accessor, createBinding, createComputed, createEffect, createState } from "ags"
 import { execAsync } from "ags/process"
@@ -47,74 +48,115 @@ export interface WifiNetwork {
   connected: boolean
 }
 
-function splitEscaped(line: string): string[] {
-  const out: string[] = []
-  let cur = ""
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === "\\") {
-      cur += line[++i] ?? ""
-      continue
-    }
-    if (ch === ":") {
-      out.push(cur)
-      cur = ""
-      continue
-    }
-    cur += ch
+function decodeSsid(value: unknown): string {
+  try {
+    if (typeof value === "string") return value
+    const bytes = Uint8Array.from(Array.from(value as ArrayLike<number>))
+    const TD = (globalThis as { TextDecoder?: typeof TextDecoder }).TextDecoder
+    if (TD) return new TD().decode(bytes)
+    return String.fromCharCode(...bytes)
+  } catch {
+    return ""
   }
-  out.push(cur)
-  return out
 }
 
 const [wifiList, setWifiList] = createState<WifiNetwork[]>([])
 
-// Source the list from `nmcli`, not AstalNetwork's `access-points`: on this
-// stack Astal's access-point objects never refresh (their `last-seen` and
-// strength stay frozen), so the panel showed a stale list — e.g. a switched-off
-// hotspot lingered and stayed clickable. nmcli reflects NetworkManager's live
-// cache and updates as networks appear and disappear.
+// The list is read straight from NetworkManager's D-Bus and filtered by
+// LastSeen. AstalNetwork's access-point objects never refresh (their last-seen
+// and strength stay frozen), and nmcli's cache hides nothing, so a switched-off
+// hotspot lingered and could still be clicked. NM's own LastSeen does advance
+// (verified), so an AP not seen in the recent scans is dropped here.
+const NM = "org.freedesktop.NetworkManager"
+const NM_DEVICE = "org.freedesktop.NetworkManager.Device"
+const NM_WIRELESS = "org.freedesktop.NetworkManager.Device.Wireless"
+const NM_AP = "org.freedesktop.NetworkManager.AccessPoint"
+//: NM_DEVICE_TYPE_WIFI
+const DEVICE_TYPE_WIFI = 2
+const AP_STALE_SECONDS = 20
+
+let nmBus: Gio.DBusConnection | null = null
+function bus(): Gio.DBusConnection {
+  if (!nmBus) nmBus = Gio.bus_get_sync(Gio.BusType.SYSTEM, null)
+  return nmBus
+}
+
+function getAll(path: string, iface: string): Record<string, unknown> {
+  const reply = bus().call_sync(
+    NM,
+    path,
+    "org.freedesktop.DBus.Properties",
+    "GetAll",
+    new GLib.Variant("(s)", [iface]),
+    null,
+    Gio.DBusCallFlags.NONE,
+    -1,
+    null,
+  )
+  const [dict] = reply.recursiveUnpack() as [Record<string, unknown>]
+  return dict ?? {}
+}
+
+function wifiDevicePath(): string | null {
+  const nm = getAll("/org/freedesktop/NetworkManager", NM)
+  const devices = (nm.Devices as string[]) ?? []
+  for (const path of devices) {
+    if (Number(getAll(path, NM_DEVICE).DeviceType) === DEVICE_TYPE_WIFI) return path
+  }
+  return null
+}
+
 export function refreshWifiList() {
-  execAsync([
-    "nmcli",
-    "-t",
-    "-f",
-    "IN-USE,SSID,BSSID,SIGNAL,SECURITY",
-    "device",
-    "wifi",
-    "list",
-  ])
-    .then((out) => {
-      const strongest = new Map<string, WifiNetwork>()
-      for (const line of out.split("\n")) {
-        if (!line.trim()) continue
-        const fields = splitEscaped(line)
-        if (fields.length < 5) continue
-        const [inUse, ssid, , signal, security] = fields
-        if (!ssid) continue
-        const net: WifiNetwork = {
-          ssid,
-          strength: Number(signal) || 0,
-          secured: security !== "" && security !== "--",
-          connected: inUse === "*",
-        }
-        const prev = strongest.get(ssid)
-        if (!prev || net.connected || net.strength > prev.strength) {
-          strongest.set(ssid, net)
-        }
+  try {
+    const devicePath = wifiDevicePath()
+    if (!devicePath) return
+    const wireless = getAll(devicePath, NM_WIRELESS)
+    const paths = (wireless.AccessPoints as string[]) ?? []
+    const activePath = (wireless.ActiveAccessPoint as string) ?? ""
+
+    const aps = paths.map((path) => ({
+      path,
+      props: getAll(path, NM_AP),
+    }))
+    const newest = aps.reduce(
+      (max, ap) => Math.max(max, Number(ap.props.LastSeen) || 0),
+      0,
+    )
+
+    const strongest = new Map<string, WifiNetwork>()
+    for (const { path, props } of aps) {
+      const ssid = decodeSsid(props.Ssid)
+      if (!ssid) continue
+      const lastSeen = Number(props.LastSeen) || 0
+      const stale =
+        newest > 0 && lastSeen > 0 && newest - lastSeen > AP_STALE_SECONDS
+      if (stale) continue
+      const net: WifiNetwork = {
+        ssid,
+        strength: Number(props.Strength) || 0,
+        secured:
+          (Number(props.WpaFlags) || 0) > 0 ||
+          (Number(props.RsnFlags) || 0) > 0 ||
+          ((Number(props.Flags) || 0) & 1) === 1,
+        connected: path === activePath,
       }
-      const list = [...strongest.values()].sort((a, b) =>
-        a.connected === b.connected
-          ? b.strength - a.strength
-          : a.connected
-            ? -1
-            : 1,
-      )
-      setWifiList(list)
-    })
-    .catch(() => {
-      /* nmcli unavailable; keep the last list */
-    })
+      const prev = strongest.get(ssid)
+      if (!prev || net.connected || net.strength > prev.strength) {
+        strongest.set(ssid, net)
+      }
+    }
+
+    const list = [...strongest.values()].sort((a, b) =>
+      a.connected === b.connected
+        ? b.strength - a.strength
+        : a.connected
+          ? -1
+          : 1,
+    )
+    setWifiList(list)
+  } catch {
+    /* NM unavailable; keep the last list */
+  }
 }
 
 export { wifiList as wifiNetworks }
@@ -152,11 +194,24 @@ export function toggleWifi() {
  * reactive cache still updates.
  */
 export function scanWifi() {
-  // Ask NetworkManager for a fresh scan (rate-limited; errors ignored) and
-  // re-read its live list.
-  execAsync(["nmcli", "device", "wifi", "rescan"]).catch(() => {
-    /* throttled; the current list is still read below */
-  })
+  try {
+    const devicePath = wifiDevicePath()
+    if (devicePath) {
+      bus().call_sync(
+        NM,
+        devicePath,
+        NM_WIRELESS,
+        "RequestScan",
+        new GLib.Variant("(a{sv})", [{}]),
+        null,
+        Gio.DBusCallFlags.NONE,
+        -1,
+        null,
+      )
+    }
+  } catch {
+    /* NM throttles scans; the list is still read below */
+  }
   refreshWifiList()
 }
 
