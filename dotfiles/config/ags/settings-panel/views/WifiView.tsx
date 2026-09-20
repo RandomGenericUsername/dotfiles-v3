@@ -1,10 +1,12 @@
 import { createComputed, createEffect, For } from "ags"
+import { interval } from "ags/time"
 import { NavHeader } from "../primitives"
 import { activeView, back } from "../state"
 import {
   WifiRow,
   WifiPasswordPrompt,
   WifiToggle,
+  closeWifiPasswordPrompt,
   scanWifi,
   wifiEnabled,
   wifiMessage,
@@ -16,17 +18,26 @@ export function WifiView() {
   const target = wifiPasswordTarget
   const showList = createComputed(() => wifiEnabled() && target() === null)
 
-  // Force a fresh scan each time the list is opened (NetworkManager otherwise
-  // refreshes its access-point cache on its own schedule).
+  // Force a fresh scan on open and keep it fresh while the list is shown — NM's
+  // access-point cache otherwise lags network changes by up to a minute.
   createEffect(() => {
-    if (activeView() === "wifi") scanWifi()
+    if (activeView() !== "wifi") return
+    scanWifi()
+    const timer = interval(5000, scanWifi)
+    return () => timer.cancel()
   })
+
+  // Back from the password prompt returns to the network list, not the panel.
+  function onBack() {
+    if (target() !== null) closeWifiPasswordPrompt()
+    else back()
+  }
 
   return (
     <box orientation={1} spacing={8}>
       <NavHeader
         title={createComputed(() => target() ?? "Wi-Fi")}
-        onBack={back}
+        onBack={onBack}
         trailing={<WifiToggle />}
       />
 

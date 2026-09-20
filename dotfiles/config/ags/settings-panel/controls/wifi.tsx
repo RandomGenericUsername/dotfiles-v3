@@ -87,8 +87,15 @@ export { networkList as wifiNetworks }
 const [passwordTarget, setPasswordTarget] = createState<string | null>(null)
 const [joinError, setJoinError] = createState("")
 const [listMessage, setListMessage] = createState("")
+// SSID currently being connected to — drives the row spinner so a Connect press
+// is visibly acknowledged.
+const [connectingSsid, setConnectingSsid] = createState<string | null>(null)
 
-export { passwordTarget as wifiPasswordTarget, listMessage as wifiMessage }
+export {
+  passwordTarget as wifiPasswordTarget,
+  listMessage as wifiMessage,
+  connectingSsid as wifiConnecting,
+}
 
 export function wifiIconOn(): string | null {
   return registry.resolve("settings-panel", "wifi")
@@ -124,7 +131,16 @@ function connectToNetwork(name: string, password?: string): Promise<void> {
   if (password !== undefined && password !== "") {
     args.push("password", password)
   }
-  return execAsync(args).then(() => undefined)
+  const run = execAsync(args).then(() => undefined)
+  // Never leave the row spinner stuck / the UI silent if nmcli hangs waiting on
+  // NetworkManager.
+  const timeout = new Promise<void>((_resolve, reject) => {
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30000, () => {
+      reject(new Error("connect timed out"))
+      return false
+    })
+  })
+  return Promise.race([run, timeout])
 }
 
 function networkIsKnown(name: string): Promise<boolean> {
@@ -151,6 +167,8 @@ function closeWifiPassword() {
   setPasswordTarget(null)
 }
 
+export { closeWifiPassword as closeWifiPasswordPrompt }
+
 async function activateNetwork(n: WifiNetwork) {
   setListMessage("")
   if (n.connected) return
@@ -161,10 +179,14 @@ async function activateNetwork(n: WifiNetwork) {
     return
   }
 
+  // Saved/open network: connect directly, with a row spinner for feedback.
+  setConnectingSsid(n.ssid)
   try {
     await connectToNetwork(n.ssid)
   } catch {
-    setListMessage("Couldn't connect to that network.")
+    setListMessage(`Couldn't connect to "${n.ssid}". Check the password or try again.`)
+  } finally {
+    if (connectingSsid() === n.ssid) setConnectingSsid(null)
   }
 }
 
@@ -235,6 +257,8 @@ export function WifiRow({ network: item }: { network: WifiNetwork }) {
     void activateNetwork(item)
   }
 
+  const busy = createComputed(() => connectingSsid() === item.ssid)
+
   return (
     <box class={cls} spacing={10}>
       <box orientation={1} hexpand>
@@ -259,8 +283,16 @@ export function WifiRow({ network: item }: { network: WifiNetwork }) {
         onClicked={act}
         canFocus={false}
         visible={createComputed(() => !connected())}
+        sensitive={createComputed(() => !busy())}
       >
-        <label label="Connect" />
+        <box spacing={6}>
+          <Gtk.Spinner
+            class="settings-spinner"
+            visible={busy}
+            spinning={busy}
+          />
+          <label label="Connect" visible={createComputed(() => !busy())} />
+        </box>
       </button>
     </box>
   )

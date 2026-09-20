@@ -99,7 +99,18 @@ export function CapabilityTile({
   toggleTooltip?: string
 }) {
   return (
-    <box class="settings-tile" spacing={10}>
+    <box
+      class="settings-tile"
+      spacing={10}
+      $={(self) => {
+        // The whole card opens the list (except the icon toggle, whose own
+        // button claims its click first). A nested button left the card padding
+        // and the chevron hard to hit precisely.
+        const click = new Gtk.GestureClick({ button: 1 })
+        click.connect("released", () => onOpen())
+        self.add_controller(click)
+      }}
+    >
       <IconToggle
         iconOn={iconOn}
         iconOff={iconOff}
@@ -107,19 +118,17 @@ export function CapabilityTile({
         onClicked={onToggle}
         tooltip={toggleTooltip}
       />
-      <button class="settings-tile-main" hexpand onClicked={onOpen} canFocus={false}>
-        <box spacing={6}>
-          <box orientation={1} valign={Gtk.Align.CENTER} hexpand>
-            <label class="settings-tile-title" xalign={0} label={title} />
-            <label class="settings-tile-sub" xalign={0} label={subtitle} />
-          </box>
-          <label
-            class="settings-chevron"
-            valign={Gtk.Align.CENTER}
-            label={"\u203A"}
-          />
+      <box spacing={6} hexpand>
+        <box orientation={1} valign={Gtk.Align.CENTER} hexpand>
+          <label class="settings-tile-title" xalign={0} label={title} />
+          <label class="settings-tile-sub" xalign={0} label={subtitle} />
         </box>
-      </button>
+        <label
+          class="settings-chevron"
+          valign={Gtk.Align.CENTER}
+          label={"\u203A"}
+        />
+      </box>
     </box>
   )
 }

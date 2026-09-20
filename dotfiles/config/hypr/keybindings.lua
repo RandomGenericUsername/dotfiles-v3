@@ -524,21 +524,18 @@ hl.bind(
     { description = "Toggle touchpad" }
 )
 
--- Settings panel: close it.
+-- Settings panel: close it with Escape or SUPER+Escape.
 --
--- The panel runs with keyboard mode NONE so it does not steal focus (that is
--- what keeps the status-bar same-spot toggle reliable), so plain Escape cannot
--- reach it directly. While the panel is open, AGS switches Hyprland into the
--- "settings" submap (see config/ags/app.tsx + state.ts); there Escape closes
--- it, and any other key falls through to the focused application as usual.
--- SUPER+Escape closes it from anywhere as a universal fallback.
-hl.define_submap("settings", function()
-    hl.bind(
-        "Escape",
-        hl.dsp.exec_cmd("ags request settings-close"),
-        { description = "Close the settings panel" }
-    )
-end)
+-- The panel does not take keyboard focus (keyboard mode NONE) so the status-bar
+-- same-spot toggle stays reliable; Escape is therefore bound globally and marked
+-- non_consuming so it still reaches the focused application. (A submap was tried
+-- but it disabled every other global keybind — e.g. the launcher and capture
+-- binds — while the panel was open.)
+hl.bind(
+    "Escape",
+    hl.dsp.exec_cmd("ags request settings-close"),
+    { description = "Close the settings panel", non_consuming = true }
+)
 
 hl.bind(
     mod .. " + Escape",
