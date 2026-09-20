@@ -27,9 +27,6 @@ const enabledRaw: Accessor<boolean | null> = network
 const ssidRaw: Accessor<string | null> = network
   ? createBinding(network, "wifi", "ssid")
   : createComputed(() => null)
-const accessPoints: Accessor<unknown[]> = network
-  ? createBinding(network, "wifi", "access-points")
-  : createComputed(() => [])
 // Also read the active strength/device state so the tile can show a connecting
 // state instead of a stale "Not connected".
 const strengthRaw: Accessor<number | null> = network
@@ -50,61 +47,77 @@ export interface WifiNetwork {
   connected: boolean
 }
 
-// Bumped on every scan attempt so networkList recomputes (and re-evaluates
-// staleness) even when the access-points binding itself does not re-emit.
-const [scanTick, setScanTick] = createState(0)
-
-// NetworkManager keeps access points it has seen before in its cache, so a
-// switched-off hotspot lingers in `access_points`. `last-seen` stops advancing
-// for a vanished AP, so drop APs whose last-seen lags the newest one by more
-// than this (the connected network is always kept). If `last-seen` is not
-// populated (all zero) nothing is hidden.
-const AP_STALE_SECONDS = 25
-
-const networkList = createComputed<WifiNetwork[]>(() => {
-  scanTick()
-  const current = ssidRaw()
-  const all = (accessPoints() ?? []) as Array<Record<string, unknown>>
-
-  const newestSeen = all.reduce((max, ap) => {
-    const seen = Number(ap.last_seen) || 0
-    return seen > max ? seen : max
-  }, 0)
-
-  const strongest = new Map<string, Record<string, unknown>>()
-  for (const ap of all) {
-    const name = ap.ssid as string | undefined
-    if (!name) continue
-    const connected = current === name
-    const seen = Number(ap.last_seen) || 0
-    const stale =
-      newestSeen > 0 && seen > 0 && newestSeen - seen > AP_STALE_SECONDS
-    if (stale && !connected) continue
-    const existing = strongest.get(name)
-    if (!existing || (Number(ap.strength) || 0) > (Number(existing.strength) || 0)) {
-      strongest.set(name, ap)
+function splitEscaped(line: string): string[] {
+  const out: string[] = []
+  let cur = ""
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === "\\") {
+      cur += line[++i] ?? ""
+      continue
     }
+    if (ch === ":") {
+      out.push(cur)
+      cur = ""
+      continue
+    }
+    cur += ch
   }
+  out.push(cur)
+  return out
+}
 
-  const list: WifiNetwork[] = [...strongest.values()].map((ap) => ({
-    ssid: ap.ssid as string,
-    strength: (ap.strength as number) ?? 0,
-    secured: !!ap.requires_password,
-    connected: current === (ap.ssid as string),
-  }))
+const [wifiList, setWifiList] = createState<WifiNetwork[]>([])
 
-  list.sort((a, b) =>
-    a.connected === b.connected
-      ? b.strength - a.strength
-      : a.connected
-        ? -1
-        : 1,
-  )
+// Source the list from `nmcli`, not AstalNetwork's `access-points`: on this
+// stack Astal's access-point objects never refresh (their `last-seen` and
+// strength stay frozen), so the panel showed a stale list — e.g. a switched-off
+// hotspot lingered and stayed clickable. nmcli reflects NetworkManager's live
+// cache and updates as networks appear and disappear.
+export function refreshWifiList() {
+  execAsync([
+    "nmcli",
+    "-t",
+    "-f",
+    "IN-USE,SSID,BSSID,SIGNAL,SECURITY",
+    "device",
+    "wifi",
+    "list",
+  ])
+    .then((out) => {
+      const strongest = new Map<string, WifiNetwork>()
+      for (const line of out.split("\n")) {
+        if (!line.trim()) continue
+        const fields = splitEscaped(line)
+        if (fields.length < 5) continue
+        const [inUse, ssid, , signal, security] = fields
+        if (!ssid) continue
+        const net: WifiNetwork = {
+          ssid,
+          strength: Number(signal) || 0,
+          secured: security !== "" && security !== "--",
+          connected: inUse === "*",
+        }
+        const prev = strongest.get(ssid)
+        if (!prev || net.connected || net.strength > prev.strength) {
+          strongest.set(ssid, net)
+        }
+      }
+      const list = [...strongest.values()].sort((a, b) =>
+        a.connected === b.connected
+          ? b.strength - a.strength
+          : a.connected
+            ? -1
+            : 1,
+      )
+      setWifiList(list)
+    })
+    .catch(() => {
+      /* nmcli unavailable; keep the last list */
+    })
+}
 
-  return list
-})
-
-export { networkList as wifiNetworks }
+export { wifiList as wifiNetworks }
 
 const [passwordTarget, setPasswordTarget] = createState<string | null>(null)
 const [joinError, setJoinError] = createState("")
@@ -139,14 +152,12 @@ export function toggleWifi() {
  * reactive cache still updates.
  */
 export function scanWifi() {
-  const device = network?.wifi
-  setScanTick((n) => n + 1) // force the list (and staleness) to re-evaluate
-  if (!device) return
-  try {
-    device.scan()
-  } catch {
-    /* NM throttled the scan; the access-point cache still refreshes */
-  }
+  // Ask NetworkManager for a fresh scan (rate-limited; errors ignored) and
+  // re-read its live list.
+  execAsync(["nmcli", "device", "wifi", "rescan"]).catch(() => {
+    /* throttled; the current list is still read below */
+  })
+  refreshWifiList()
 }
 
 // List messages auto-clear; without this a connect error stayed forever (and,
