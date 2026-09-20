@@ -1,4 +1,4 @@
-import { createComputed, createEffect, For, With } from "ags"
+import { createComputed, createEffect, For } from "ags"
 import { NavHeader } from "../primitives"
 import { activeView, back } from "../state"
 import {
@@ -57,9 +57,16 @@ export function WifiView() {
         </For>
       </box>
 
-      <With value={target}>
-        {(ssid) => (ssid ? <WifiPasswordPrompt /> : null)}
-      </With>
+      {/* Mounted always (visibility-toggled) rather than conditionally via
+          <With>: <With> did not render the prompt, so choosing a network left an
+          empty body. The prompt reads the target itself. */}
+      <box
+        orientation={1}
+        spacing={8}
+        visible={createComputed(() => target() !== null)}
+      >
+        <WifiPasswordPrompt />
+      </box>
     </box>
   )
 }

@@ -1,6 +1,6 @@
 import Network from "gi://AstalNetwork"
 import GLib from "gi://GLib?version=2.0"
-import { Accessor, createBinding, createComputed, createState } from "ags"
+import { Accessor, createBinding, createComputed, createEffect, createState } from "ags"
 import { execAsync } from "ags/process"
 import { Gtk } from "ags/gtk4"
 import { registry } from "../../lib/icon-registry"
@@ -128,9 +128,17 @@ function connectToNetwork(name: string, password?: string): Promise<void> {
 }
 
 function networkIsKnown(name: string): Promise<boolean> {
-  return execAsync(["nmcli", "-t", "-f", "NAME", "connection", "show"])
+  const lookup = execAsync(["nmcli", "-t", "-f", "NAME", "connection", "show"])
     .then((out) => out.split("\n").some((line) => line.trim() === name))
     .catch(() => false)
+  // Never let a slow nmcli leave the UI silent — treat a timeout as unknown.
+  const timeout = new Promise<boolean>((resolve) => {
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
+      resolve(false)
+      return false
+    })
+  })
+  return Promise.race([lookup, timeout])
 }
 
 function openWifiPassword(name: string) {
@@ -147,7 +155,8 @@ async function activateNetwork(n: WifiNetwork) {
   setListMessage("")
   if (n.connected) return
 
-  if (n.secured && !(await networkIsKnown(n.ssid))) {
+  const known = await networkIsKnown(n.ssid)
+  if (n.secured && !known) {
     openWifiPassword(n.ssid)
     return
   }
@@ -219,34 +228,60 @@ export function WifiRow({ network: item }: { network: WifiNetwork }) {
     connected() ? "settings-net sel" : "settings-net",
   )
 
+  // Mirror the Bluetooth row: the row is a box and the action is an explicit
+  // button. A whole-row <button> wrapping labels/boxes did not receive clicks
+  // on this GTK build, so the action is a sibling button (which does).
+  function act() {
+    void activateNetwork(item)
+  }
+
   return (
-    <button class={cls} onClicked={() => activateNetwork(item)} canFocus={false}>
-      <box spacing={10}>
-        <box orientation={1} hexpand>
-          <label class="settings-net-name" xalign={0} label={item.ssid} />
-          <label
-            class="settings-net-sub"
-            xalign={0}
-            label={item.secured ? "Secured" : "Open network"}
-          />
-        </box>
+    <box class={cls} spacing={10}>
+      <box orientation={1} hexpand>
+        <label class="settings-net-name" xalign={0} label={item.ssid} />
         <label
-          class="settings-badge conn"
-          label="Connected"
-          valign={Gtk.Align.CENTER}
-          visible={connected}
+          class="settings-net-sub"
+          xalign={0}
+          label={item.secured ? "Secured" : "Open network"}
         />
-        <box visible={createComputed(() => !connected())} valign={Gtk.Align.END}>
-          <SignalBars strength={item.strength} />
-        </box>
       </box>
-    </button>
+      <label
+        class="settings-badge conn"
+        label="Connected"
+        valign={Gtk.Align.CENTER}
+        visible={connected}
+      />
+      <box visible={createComputed(() => !connected())} valign={Gtk.Align.END}>
+        <SignalBars strength={item.strength} />
+      </box>
+      <button
+        class="settings-rowact"
+        onClicked={act}
+        canFocus={false}
+        visible={createComputed(() => !connected())}
+      >
+        <label label="Connect" />
+      </button>
+    </box>
   )
 }
 
 export function WifiPasswordPrompt() {
   const [password, setPassword] = createState("")
   const [busy, setBusy] = createState(false)
+  let entry: Gtk.Entry | null = null
+
+  // Reset the field and focus it each time a network is chosen. The prompt is
+  // mounted permanently and only its container is visibility-toggled, so this
+  // effect (not a mount callback) is what reacts to the target changing.
+  createEffect(() => {
+    if (passwordTarget() === null) return
+    setPassword("")
+    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+      entry?.grab_focus()
+      return false
+    })
+  })
 
   function join() {
     const name = passwordTarget()
@@ -276,12 +311,7 @@ export function WifiPasswordPrompt() {
           onActivate={join}
           onNotifyText={(self: { text: string }) => setPassword(self.text)}
           $={(self) => {
-            // The panel switches to ON_DEMAND keyboard while this prompt is up;
-            // focus the field so typing lands here immediately.
-            GLib.idle_add(() => {
-              self.grab_focus()
-              return false
-            })
+            entry = self
           }}
         />
       </box>
