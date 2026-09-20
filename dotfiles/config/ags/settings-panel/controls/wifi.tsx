@@ -50,17 +50,39 @@ export interface WifiNetwork {
   connected: boolean
 }
 
-const networkList = createComputed<WifiNetwork[]>(() => {
-  const current = ssidRaw()
-  const strongest = new Map<string, Record<string, unknown>>()
+// Bumped on every scan attempt so networkList recomputes (and re-evaluates
+// staleness) even when the access-points binding itself does not re-emit.
+const [scanTick, setScanTick] = createState(0)
 
-  for (const ap of accessPoints() ?? []) {
-    const entry = ap as { ssid?: string; strength?: number; requires_password?: boolean }
-    const name = entry.ssid
+// NetworkManager keeps access points it has seen before in its cache, so a
+// switched-off hotspot lingers in `access_points`. `last-seen` stops advancing
+// for a vanished AP, so drop APs whose last-seen lags the newest one by more
+// than this (the connected network is always kept). If `last-seen` is not
+// populated (all zero) nothing is hidden.
+const AP_STALE_SECONDS = 25
+
+const networkList = createComputed<WifiNetwork[]>(() => {
+  scanTick()
+  const current = ssidRaw()
+  const all = (accessPoints() ?? []) as Array<Record<string, unknown>>
+
+  const newestSeen = all.reduce((max, ap) => {
+    const seen = Number(ap.last_seen) || 0
+    return seen > max ? seen : max
+  }, 0)
+
+  const strongest = new Map<string, Record<string, unknown>>()
+  for (const ap of all) {
+    const name = ap.ssid as string | undefined
     if (!name) continue
+    const connected = current === name
+    const seen = Number(ap.last_seen) || 0
+    const stale =
+      newestSeen > 0 && seen > 0 && newestSeen - seen > AP_STALE_SECONDS
+    if (stale && !connected) continue
     const existing = strongest.get(name)
-    if (!existing || (entry.strength ?? 0) > ((existing.strength as number) ?? 0)) {
-      strongest.set(name, entry as Record<string, unknown>)
+    if (!existing || (Number(ap.strength) || 0) > (Number(existing.strength) || 0)) {
+      strongest.set(name, ap)
     }
   }
 
@@ -118,6 +140,7 @@ export function toggleWifi() {
  */
 export function scanWifi() {
   const device = network?.wifi
+  setScanTick((n) => n + 1) // force the list (and staleness) to re-evaluate
   if (!device) return
   try {
     device.scan()
@@ -125,6 +148,39 @@ export function scanWifi() {
     /* NM throttled the scan; the access-point cache still refreshes */
   }
 }
+
+// List messages auto-clear; without this a connect error stayed forever (and,
+// unwrapped, pushed the layout wide).
+let messageTimer = 0
+function showListMessage(text: string) {
+  setListMessage(text)
+  if (messageTimer) {
+    try {
+      GLib.source_remove(messageTimer)
+    } catch {
+      /* already gone */
+    }
+  }
+  messageTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 6000, () => {
+    messageTimer = 0
+    setListMessage("")
+    return false
+  })
+}
+
+function clearListMessage() {
+  if (messageTimer) {
+    try {
+      GLib.source_remove(messageTimer)
+    } catch {
+      /* already gone */
+    }
+    messageTimer = 0
+  }
+  setListMessage("")
+}
+
+export { clearListMessage as clearWifiMessage }
 
 function connectToNetwork(name: string, password?: string): Promise<void> {
   const args = ["nmcli", "device", "wifi", "connect", name]
@@ -158,6 +214,7 @@ function networkIsKnown(name: string): Promise<boolean> {
 }
 
 function openWifiPassword(name: string) {
+  clearListMessage()
   setJoinError("")
   setPasswordTarget(name)
 }
@@ -170,7 +227,7 @@ function closeWifiPassword() {
 export { closeWifiPassword as closeWifiPasswordPrompt }
 
 async function activateNetwork(n: WifiNetwork) {
-  setListMessage("")
+  clearListMessage()
   if (n.connected) return
 
   const known = await networkIsKnown(n.ssid)
@@ -184,7 +241,7 @@ async function activateNetwork(n: WifiNetwork) {
   try {
     await connectToNetwork(n.ssid)
   } catch {
-    setListMessage(`Couldn't connect to "${n.ssid}". Check the password or try again.`)
+    showListMessage(`Couldn't connect to "${n.ssid}".`)
   } finally {
     if (connectingSsid() === n.ssid) setConnectingSsid(null)
   }

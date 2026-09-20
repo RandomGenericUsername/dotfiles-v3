@@ -6,6 +6,7 @@ import {
   WifiRow,
   WifiPasswordPrompt,
   WifiToggle,
+  clearWifiMessage,
   closeWifiPasswordPrompt,
   scanWifi,
   wifiEnabled,
@@ -22,6 +23,7 @@ export function WifiView() {
   // access-point cache otherwise lags network changes by up to a minute.
   createEffect(() => {
     if (activeView() !== "wifi") return
+    clearWifiMessage()
     scanWifi()
     const timer = interval(5000, scanWifi)
     return () => timer.cancel()
@@ -51,6 +53,8 @@ export function WifiView() {
       <label
         class="settings-message"
         xalign={0}
+        wrap
+        maxWidthChars={34}
         label={wifiMessage}
         visible={createComputed(() => wifiMessage() !== "")}
       />
