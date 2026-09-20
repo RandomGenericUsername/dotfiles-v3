@@ -4,9 +4,21 @@ import style from "./style.css"
 import Bar from "./bar/Bar"
 import { SettingsCatcher, SettingsPanel } from "./settings-panel/SettingsPanel"
 import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
+import { close } from "./settings-panel/state"
 
 app.start({
   css: style,
+  // External control surface for the panel: a Hyprland keybind runs
+  // `ags request settings-close` because the panel itself runs with keyboard
+  // mode NONE (so plain Escape can't reach it without stealing app input).
+  requestHandler(argv: string[], res: (response: unknown) => void) {
+    if (argv[0] === "settings-close") {
+      close()
+      res("ok")
+      return
+    }
+    res(`unknown request: ${argv.join(" ")}`)
+  },
   main() {
     app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)
     // BlueZ needs an org.bluez.Agent1 on the bus to complete pairing; register

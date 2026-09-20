@@ -1,4 +1,5 @@
 import Network from "gi://AstalNetwork"
+import GLib from "gi://GLib?version=2.0"
 import { Accessor, createBinding, createComputed, createState } from "ags"
 import { execAsync } from "ags/process"
 import { Gtk } from "ags/gtk4"
@@ -274,6 +275,14 @@ export function WifiPasswordPrompt() {
           placeholderText="Network password"
           onActivate={join}
           onNotifyText={(self: { text: string }) => setPassword(self.text)}
+          $={(self) => {
+            // The panel switches to ON_DEMAND keyboard while this prompt is up;
+            // focus the field so typing lands here immediately.
+            GLib.idle_add(() => {
+              self.grab_focus()
+              return false
+            })
+          }}
         />
       </box>
       <label

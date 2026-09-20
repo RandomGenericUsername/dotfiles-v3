@@ -22,6 +22,9 @@ export function Settings() {
         toggle()
       }}
       $={(self) => {
+        // Track the pointer x (surface coords == monitor coords; the bar spans
+        // the monitor) so the panel anchors under the icon. A motion controller
+        // does not claim clicks, so the button's own activation is unaffected.
         const motion = new Gtk.EventControllerMotion()
         motion.connect("motion", () => {
           const event = motion.get_current_event()
