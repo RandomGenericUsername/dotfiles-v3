@@ -384,10 +384,13 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/recording.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/tray.tsx"
   # Settings panel sources (add-ags-settings-panel): the bar trigger widget,
-  # the panel window/state/primitives, the five controls, the three views, and
-  # the three D-Bus service modules. Mirror of compositor_configs_skeleton_files
-  # dests — a missing panel source means a window that crashes or silently omits
-  # a section at open.
+  # the panel window/state/primitives, the five controls, and the three views.
+  # Shared AGS sources (extract-ags-shared-components): the three D-Bus service
+  # modules relocated out of the settings-panel services directory into
+  # ags/services/, plus the primitives, wifi, bluetooth, and slider components
+  # under ags/components/.
+  # Mirror of compositor_configs_skeleton_files dests — a missing source means a
+  # window that crashes or silently omits a section at open.
   - "{{ install_dir | trim }}/config/ags/bar/widgets/settings.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/state.ts"
   - "{{ install_dir | trim }}/config/ags/settings-panel/primitives.tsx"
@@ -401,9 +404,17 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/MainView.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/WifiView.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/BluetoothView.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/services/nm-client.ts"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/services/wifi-service.ts"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/services/bluetooth-service.ts"
+  - "{{ install_dir | trim }}/config/ags/services/nm-client.ts"
+  - "{{ install_dir | trim }}/config/ags/services/wifi-service.ts"
+  - "{{ install_dir | trim }}/config/ags/services/bluetooth-service.ts"
+  - "{{ install_dir | trim }}/config/ags/components/primitives/IconToggle.tsx"
+  - "{{ install_dir | trim }}/config/ags/components/primitives/LevelSlider.tsx"
+  - "{{ install_dir | trim }}/config/ags/components/wifi/state.ts"
+  - "{{ install_dir | trim }}/config/ags/components/wifi/WifiContent.tsx"
+  - "{{ install_dir | trim }}/config/ags/components/wifi/WifiPopup.tsx"
+  - "{{ install_dir | trim }}/config/ags/components/bluetooth/BluetoothContent.tsx"
+  - "{{ install_dir | trim }}/config/ags/components/sliders/VolumeSlider.tsx"
+  - "{{ install_dir | trim }}/config/ags/components/sliders/BrightnessSlider.tsx"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —

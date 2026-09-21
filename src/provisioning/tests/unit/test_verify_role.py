@@ -2142,7 +2142,12 @@ def _build_provisioned_layout(
         "ags/settings-panel",
         "ags/settings-panel/controls",
         "ags/settings-panel/views",
-        "ags/settings-panel/services",
+        "ags/services",
+        "ags/components",
+        "ags/components/primitives",
+        "ags/components/wifi",
+        "ags/components/bluetooth",
+        "ags/components/sliders",
         "ags-capture",
         "ags-capture/ui",
         "ags-capture/controllers",
@@ -2191,10 +2196,19 @@ def _build_provisioned_layout(
         (
             install / "config" / "ags" / "settings-panel" / "views" / f"{view}.tsx"
         ).write_text("")
+    # Shared AGS sources (compositor_configs role, extract-ags-shared-components):
+    # the relocated D-Bus services and the primitives/wifi/bluetooth/slider
+    # components — must match verify_compositor_skeleton_files EXACTLY.
     for service in ("nm-client", "wifi-service", "bluetooth-service"):
-        (
-            install / "config" / "ags" / "settings-panel" / "services" / f"{service}.ts"
-        ).write_text("")
+        (install / "config" / "ags" / "services" / f"{service}.ts").write_text("")
+    (install / "config" / "ags" / "components" / "primitives" / "IconToggle.tsx").write_text("")
+    (install / "config" / "ags" / "components" / "primitives" / "LevelSlider.tsx").write_text("")
+    (install / "config" / "ags" / "components" / "wifi" / "state.ts").write_text("")
+    (install / "config" / "ags" / "components" / "wifi" / "WifiContent.tsx").write_text("")
+    (install / "config" / "ags" / "components" / "wifi" / "WifiPopup.tsx").write_text("")
+    (install / "config" / "ags" / "components" / "bluetooth" / "BluetoothContent.tsx").write_text("")
+    (install / "config" / "ags" / "components" / "sliders" / "VolumeSlider.tsx").write_text("")
+    (install / "config" / "ags" / "components" / "sliders" / "BrightnessSlider.tsx").write_text("")
     # Standalone capture app (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.
     (install / "config" / "ags-capture" / "app.tsx").write_text("")

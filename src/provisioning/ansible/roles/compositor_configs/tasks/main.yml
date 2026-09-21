@@ -12,9 +12,10 @@
 #   deliberately never defaulted (group_vars/all.yml), so an undefined spine
 #   root must abort with a friendly message before any task evaluates.
 # - Skeletons are repo-authoritative (`force: true`, idempotent): every
-#   bootstrap converges to the repo, n runs give the same result. A legacy
-#   cleanup task removes superseded same-name files (e.g. hypr/hyprland.conf
-#   → hypr/hyprland.lua). NO `creates:`.
+#   bootstrap converges to the repo, n runs give the same result. Legacy
+#   cleanup tasks remove superseded same-name files (e.g. hypr/hyprland.conf
+#   → hypr/hyprland.lua) and relocated directories (the old settings-panel
+#   services dir → ags/services, extract-ags-shared-components). NO `creates:`.
 # - Skeleton placement uses `ansible.builtin.template` with PER-FILE entries
 #   (compositor_configs_skeleton_files), NOT a directory source: review finding
 #   2026-08-12 proved `copy` with a directory `src` + `force: false` + a
@@ -132,5 +133,11 @@
 - name: Remove legacy hyprland.conf skeleton (superseded by hyprland.lua)
   ansible.builtin.file:
     path: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.conf"
+    state: absent
+  when: not ansible_check_mode
+
+- name: Remove legacy settings-panel services dir (moved to ags/services)
+  ansible.builtin.file:
+    path: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/services"
     state: absent
   when: not ansible_check_mode

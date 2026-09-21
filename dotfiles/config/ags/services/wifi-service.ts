@@ -158,6 +158,7 @@ let pendingAuthSsid: string | null = null
 let lastLoggedActiveSsid: string | null = null
 
 let scanning = false
+let scanUsers = 0
 let scanTimerId = 0
 let apRefreshTimerId = 0
 
@@ -989,13 +990,16 @@ export function cancel(): void {
 }
 
 export function startScanning(): void {
-  if (scanning) return
+  scanUsers++
+  if (scanUsers > 1) return
   scanning = true
   void requestScan()
   scheduleScan()
 }
 
 export function stopScanning(): void {
+  scanUsers = Math.max(0, scanUsers - 1)
+  if (scanUsers > 0) return
   scanning = false
   if (scanTimerId !== 0) {
     try {

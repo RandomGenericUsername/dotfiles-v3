@@ -82,14 +82,23 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/lib"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets"
-  # Settings panel sources (add-ags-settings-panel): the panel window, its
-  # state/primitives, the five controls, the three views, and the D-Bus service
-  # modules live in their own subdirs; copy does NOT create dest parents for
-  # file sources, so the dirs are re-ensured here.
+  # Settings panel sources (add-ags-settings-panel): the panel window and its
+  # state/primitives live in their own subdirs; copy does NOT create dest
+  # parents for file sources, so the dirs are re-ensured here.
   - "{{ compositor_configs_spine_config_dir }}/ags/settings-panel"
   - "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/controls"
   - "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views"
-  - "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/services"
+  # Shared AGS sources (extract-ags-shared-components): the D-Bus service modules
+  # moved out of the settings-panel tree into ags/services, and the reusable
+  # primitives, wifi, bluetooth, and slider components now live under
+  # ags/components/. Re-ensured here for the same reason (copy does NOT create
+  # dest parents for file sources).
+  - "{{ compositor_configs_spine_config_dir }}/ags/services"
+  - "{{ compositor_configs_spine_config_dir }}/ags/components"
+  - "{{ compositor_configs_spine_config_dir }}/ags/components/primitives"
+  - "{{ compositor_configs_spine_config_dir }}/ags/components/wifi"
+  - "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth"
+  - "{{ compositor_configs_spine_config_dir }}/ags/components/sliders"
   - "{{ compositor_configs_spine_config_dir }}/ags-capture"
   - "{{ compositor_configs_spine_config_dir }}/rofi"
   - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
@@ -133,9 +142,10 @@ compositor_configs_skeleton_files:
   - { name: ags-recording, source: dotfiles/config/ags/bar/widgets/recording.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/recording.tsx" }
   - { name: ags-tray, source: dotfiles/config/ags/bar/widgets/tray.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/tray.tsx" }
   # Settings panel (add-ags-settings-panel): the bar trigger widget + the panel
-  # window, state, primitives, five controls, three views, and the three D-Bus
-  # service modules. One per-file entry each (never a directory source — see the
-  # header note), all under the config-in-spine ags/ tree.
+  # window, state, primitives, five controls, and three views. One per-file entry
+  # each (never a directory source — see the header note), all under the
+  # config-in-spine ags/ tree. The three D-Bus service modules and the shared
+  # components moved out (extract-ags-shared-components, entries below).
   - { name: ags-bar-settings, source: dotfiles/config/ags/bar/widgets/settings.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/settings.tsx" }
   - { name: ags-settings-panel-state, source: dotfiles/config/ags/settings-panel/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/state.ts" }
   - { name: ags-settings-panel-primitives, source: dotfiles/config/ags/settings-panel/primitives.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/primitives.tsx" }
@@ -149,9 +159,23 @@ compositor_configs_skeleton_files:
   - { name: ags-settings-panel-view-main, source: dotfiles/config/ags/settings-panel/views/MainView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/MainView.tsx" }
   - { name: ags-settings-panel-view-wifi, source: dotfiles/config/ags/settings-panel/views/WifiView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/WifiView.tsx" }
   - { name: ags-settings-panel-view-bluetooth, source: dotfiles/config/ags/settings-panel/views/BluetoothView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/BluetoothView.tsx" }
-  - { name: ags-settings-panel-service-nm-client, source: dotfiles/config/ags/settings-panel/services/nm-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/services/nm-client.ts" }
-  - { name: ags-settings-panel-service-wifi, source: dotfiles/config/ags/settings-panel/services/wifi-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/services/wifi-service.ts" }
-  - { name: ags-settings-panel-service-bluetooth, source: dotfiles/config/ags/settings-panel/services/bluetooth-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/services/bluetooth-service.ts" }
+  # Shared AGS sources (extract-ags-shared-components): the three D-Bus service
+  # modules relocated out of the settings-panel services directory, plus the
+  # reusable primitives (IconToggle/LevelSlider), the wifi component
+  # (state/content/popup), the bluetooth content, and the volume/brightness
+  # sliders. One per-file entry each (never a directory source — see the header
+  # note), all under the config-in-spine ags/ tree.
+  - { name: ags-service-nm-client, source: dotfiles/config/ags/services/nm-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/nm-client.ts" }
+  - { name: ags-service-wifi, source: dotfiles/config/ags/services/wifi-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/wifi-service.ts" }
+  - { name: ags-service-bluetooth, source: dotfiles/config/ags/services/bluetooth-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/bluetooth-service.ts" }
+  - { name: ags-component-primitive-icon-toggle, source: dotfiles/config/ags/components/primitives/IconToggle.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/IconToggle.tsx" }
+  - { name: ags-component-primitive-level-slider, source: dotfiles/config/ags/components/primitives/LevelSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/LevelSlider.tsx" }
+  - { name: ags-component-wifi-state, source: dotfiles/config/ags/components/wifi/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/state.ts" }
+  - { name: ags-component-wifi-content, source: dotfiles/config/ags/components/wifi/WifiContent.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/WifiContent.tsx" }
+  - { name: ags-component-wifi-popup, source: dotfiles/config/ags/components/wifi/WifiPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/WifiPopup.tsx" }
+  - { name: ags-component-bluetooth-content, source: dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth/BluetoothContent.tsx" }
+  - { name: ags-component-slider-volume, source: dotfiles/config/ags/components/sliders/VolumeSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/VolumeSlider.tsx" }
+  - { name: ags-component-slider-brightness, source: dotfiles/config/ags/components/sliders/BrightnessSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/BrightnessSlider.tsx" }
   - { name: rofi-launcher-config-rasi, source: dotfiles/config/rofi/launcher/config.rasi, dest: "{{ compositor_configs_spine_config_dir }}/rofi/launcher/config.rasi" }
 
 # compositor_configs_bin_scripts: executable desktop helpers the XF86 binds in

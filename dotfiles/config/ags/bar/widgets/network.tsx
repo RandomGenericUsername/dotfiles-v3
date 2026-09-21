@@ -4,7 +4,8 @@ import Gdk from "gi://Gdk?version=4.0"
 import { execAsync } from "ags/process"
 import { createBinding, createComputed, createEffect } from "ags"
 import { registry } from "../../lib/icon-registry"
-import { findNetworkItem, popupItemMenu } from "../../lib/status-notifier"
+import { setWifiIconX, toggleWifiPopup } from "../../components/wifi/state"
+import { close } from "../../settings-panel/state"
 
 const network = Network.get_default()
 const wifi = createBinding(network, "wifi")
@@ -78,19 +79,44 @@ function getNetworkLabel(w: unknown, wd: unknown): string {
   return "No network"
 }
 
+// Last pointer x (surface coords == monitor coords, the bar spans the monitor).
+// Recorded by a motion controller — which does NOT claim clicks — so the
+// button's own activation still fires. Re-recorded on every hover, so moving
+// the icon in the bar just works.
+let lastIconX: number | null = null
+
 export function NetworkStatus() {
   return (
     <button
       class="widget network-widget"
-      onClicked={() => execAsync(["kitty", "--", "wifitui", "tui"])}
+      onClicked={() => {
+        // Left click = the Wi-Fi popup, anchored under this icon. Close the
+        // settings panel first so the two overlays never stack.
+        close()
+        if (lastIconX !== null) setWifiIconX(lastIconX)
+        toggleWifiPopup()
+      }}
       $={(self) => {
-        // Left click = wifitui TUI (onClicked); right click = the nm-applet
-        // StatusNotifier menu, which the tray no longer renders separately.
-        const secondary = new Gtk.GestureClick({ button: Gdk.BUTTON_SECONDARY })
-        secondary.connect("pressed", () => {
-          const item = findNetworkItem()
-          if (item) popupItemMenu(item, self)
+        // Left click opens the Wi-Fi popup (onClicked); right click keeps the
+        // wifitui TUI. A motion controller (which does not claim clicks)
+        // records the pointer x so the popup can be positioned under the icon.
+        const motion = new Gtk.EventControllerMotion()
+        motion.connect("motion", () => {
+          const event = motion.get_current_event()
+          if (!event) return
+          // Gdk.Event.get_position() -> [ok, x, y] in gjs.
+          const pos = event.get_position() as unknown
+          if (Array.isArray(pos) && pos.length >= 3) {
+            const x = Number(pos[1])
+            if (Number.isFinite(x) && x > 0) lastIconX = x
+          }
         })
+        self.add_controller(motion)
+
+        const secondary = new Gtk.GestureClick({ button: Gdk.BUTTON_SECONDARY })
+        secondary.connect("pressed", () =>
+          execAsync(["kitty", "--", "wifitui", "tui"]),
+        )
         self.add_controller(secondary)
       }}
     >

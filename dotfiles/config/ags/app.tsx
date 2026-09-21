@@ -3,6 +3,7 @@ import GLib from "gi://GLib?version=2.0"
 import style from "./style.css"
 import Bar from "./bar/Bar"
 import { SettingsCatcher, SettingsPanel } from "./settings-panel/SettingsPanel"
+import { WifiPopup, WifiPopupCatcher } from "./components/wifi/WifiPopup"
 import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
 import { close } from "./settings-panel/state"
 
@@ -32,6 +33,9 @@ app.start({
       // Catcher first so the panel stacks above it on the overlay layer.
       app.add_window(SettingsCatcher(primary))
       app.add_window(SettingsPanel(primary))
+      // Same ordering rule for the Wi-Fi popup: catcher first, popup above it.
+      app.add_window(WifiPopupCatcher(primary))
+      app.add_window(WifiPopup(primary))
     }
   },
 })

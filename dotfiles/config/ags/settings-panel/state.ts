@@ -1,4 +1,5 @@
 import { createState } from "ags"
+import { closeWifiPopup } from "../components/wifi/state"
 
 /**
  * Shared settings-panel state.
@@ -25,6 +26,9 @@ export { panelVisible, activeView, viewEpoch, iconCenterX, setIconCenterX }
 export function open() {
   setPanelVisible(true)
   setViewEpoch((n) => n + 1)
+  // Keep the two overlays mutually exclusive: opening the panel dismisses the
+  // Wi-Fi popup.
+  closeWifiPopup()
 }
 
 export function close() {

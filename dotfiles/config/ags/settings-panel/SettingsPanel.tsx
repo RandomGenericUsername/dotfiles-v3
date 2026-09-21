@@ -1,7 +1,7 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import { createComputed, createEffect } from "ags"
 import { activeView, close, iconCenterX, panelVisible, viewEpoch } from "./state"
-import { wifiPromptVisible } from "./controls/wifi"
+import { wifiPromptVisible } from "../components/wifi/WifiContent"
 import { MainView } from "./views/MainView"
 import { WifiView } from "./views/WifiView"
 import { BluetoothView } from "./views/BluetoothView"
