@@ -2,7 +2,7 @@
 name: AGS Audio Control
 description: Behavioral contract for the audio bar indicators and the follower-anchored audio popup — information architecture, dynamic stream lifecycle, routing interaction, states, and accessibility floor.
 status: final
-updated: 2026-09-18
+updated: 2026-09-21
 sources:
   - docs/linux-wayland-pipewire-ags-audio-control.md
   - _bmad-output/planning-artifacts/gui-unification-ux-spec.md
@@ -26,7 +26,7 @@ Desktop surface of the Hyprland dotfiles environment, rendered by AGS (GTK4) on 
 | Mic bar indicator | Always in the bar (`microphone` icon group) | Mic mute state; live dot while a recording stream is active; left-click opens the popup focused on Input |
 | Audio popup — Output | Output indicator, or the Input subview's back | Default output: mute glyph, device name, level slider; `Change ›` opens the device subview |
 | Audio popup — Output devices (subview) | `Change ›` in Output | List of sinks from `wp.speakers`; active device checked; selecting sets the default output; `‹` returns |
-| Audio popup — Applications | Popup | One row per `wp.streams` entry: app icon, name/subtitle, mute, level, routing select |
+| Audio popup — Applications | Popup | One row per `wp.streams` entry: app icon, name/subtitle, mute, level, routing select; a transport line (`⏮ ▶/⏸ ⏭ · seek · time`) appears on rows whose stream has an MPRIS player |
 | Audio popup — Input | Popup, or mic indicator (focus) | Default microphone: mute glyph, name, level slider |
 | Audio popup — Recording | Popup | One row per `wp.recorders` entry; header carries the live dot |
 
@@ -59,6 +59,9 @@ Behavioral rules. Visual specs live in `DESIGN.md.Components`.
 | Mic bar indicator | Bar | `mic-off` icon when the default microphone is muted, `mic-on` otherwise. The live dot shows **iff** `wp.recorders` is non-empty. Left-click opens the popup focused on Input; does not toggle mute on the bar (mute is deliberate, in the popup). |
 | Level row | Output, Applications, Input, Recording | Leading mute/level glyph click toggles mute for that node. Title + subtitle; subtitle is the app name for streams, the device description for devices. Slider writes `volume`. Percentage updates live. |
 | Routing select | Applications rows | Trailing control listing the live `wp.speakers`. Selecting a sink sets `stream.target-endpoint` for that stream only. The menu is regenerated from the collection each open; never cached. |
+| Transport line | Applications rows with an MPRIS player | Rendered **iff** the stream links to a player (identity match on `application.name` slug + `application.process.binary`, aliased). `▶/⏸` sends `PlayPause`; prev/next shown only when the player reports `CanGoPrevious`/`CanGoNext` and send `Previous`/`Next`; seek slider shown only when `CanSeek`, and commits its absolute position on **release**, never per tick. Elapsed time interpolates locally between MPRIS syncs; the tick runs only while the popup is open and the player is Playing — no polling. |
+| Master play/pause | Output card | Bordered `▶/⏸` between the name/meta block and `Change ›`. Drives the **most recently active player** (the one that most recently reported Playing; a stopped player never outranks a live one). Glyph is `pause` while that player is Playing, else `play`. Hidden when no player exists. Tooltip names the target. |
+| Active-device check | Output devices subview | The current default sink carries `✓` and the active-row fill. Selecting another row calls `setDefaultSpeaker` (the `wpctl set-default` action path) and returns. Existing routed streams are unaffected. |
 | Device subview | Output card | `Change ›` swaps panel content to the sink list; `‹` returns. Selecting a row sets `wp.default-speaker` and returns. Panel dimensions stay stable across the swap. |
 | Section card | Popup | Rendered iff its backing collection is non-empty. Empty → the card is absent, not disabled or placeholder-filled. |
 | Live dot | Mic indicator, Recording header | Purely additive signal; no text, no count. Absent when no recorder is active. |
@@ -76,6 +79,11 @@ Behavioral rules. Visual specs live in `DESIGN.md.Components`.
 | Stream disappears | Applications | Row is destroyed by `stream-removed`; popup shrinks. No confirmation, no toast. |
 | Two streams, one app | Applications | Two independent rows keyed by stream id; each has its own volume, mute, and routing. |
 | Browser tabs | Applications | Not assumed. A browser may expose one stream for many tabs; the UI never claims per-tab control. |
+| Stream has no MPRIS player | Applications | Row is volume-only, exactly as before transport existed (e.g. Discord). No placeholder, no disabled transport line. |
+| Stream paused (has player) | Applications transport | Transport line dims (fill + labels), knob frozen, glyph flips to `play`. |
+| Player quits mid-session | Applications transport | The transport line disappears with the player (`NameOwnerChanged`); the stream row and its volume/routing stay. No toast. |
+| No players at all | Output card | Master button is hidden; all rows are volume-only. |
+| Generic media name | Applications subtitle | Subtitle is suppressed when `media.name` is the generic `"Playback"` (case-insensitive); a real title is shown otherwise. |
 | Device hotplug | Output devices subview / Output | `speaker-added` / `speaker-removed` add or remove rows live; if the default device disappears WirePlumber picks the next default and the Output card follows. |
 | WirePlumber/AstalWp unavailable | Bar + popup | Indicators render but inert; popup sections collapse. No crash, no error dialog (console log only). Mirrors the settings panel's reduced-functionality posture. |
 
@@ -91,6 +99,9 @@ Behavioral rules. Visual specs live in `DESIGN.md.Components`.
 - Drag/click a slider — set volume for that node.
 - Click `Change ›` / `‹` — enter/leave the output device subview.
 - Click a routing select — open the sink menu for that stream.
+- Click a transport glyph — `Previous` / `PlayPause` / `Next` for that row's player (prev/next only where the player allows).
+- Drag the transport seek slider — scrub; the position commits on release.
+- Click the master button in Output — play/pause the most recently active player.
 - `Esc` or click-outside — dismiss the popup (catcher window, same as the settings panel).
 
 **Banned:** opening the popup on hover; auto-hiding it on a timer; spawning `wpctl` per frame; rebuilding the whole popup on every signal (only the affected row updates).
@@ -144,3 +155,21 @@ Failure: the sink disappears while the menu is open → the menu is rebuilt from
 3. **Climax:** he can confirm both the input level and that the right app holds the mic before he speaks, in one glance from the bar — no `pavucontrol` detour. He reaches for `pavucontrol` (right-click on the output indicator) only when he wants the full routing matrix.
 
 Failure: OBS opens the stream but the mic is muted → Input shows the `Muted` badge, so he unmutes in the popup before recording.
+
+### Flow 4 — Pause the track from the popup (juan david, mid-focus, 16:22)
+
+1. Tidal is playing through headphones while juan david has a Chrome tab open on a separate stream; both rows in Applications carry a transport line, and the Output card shows the master `⏸`.
+2. A message arrives and he wants the music to stop without reaching for the keyboard. He opens the popup and clicks the `⏸` on the tidal row.
+3. The glyph flips to `▶`, the row dims, the knob freezes, and the time stops advancing.
+4. **Climax:** the audio stops on the exact beat he clicked and the popup reflects it immediately — one click from the surface he was already looking at, no window switching, no media-key muscle memory. He clicks `Esc`; the popup vanishes and the bar stays.
+
+Failure: he pauses from the master button instead → it targets the **most recently active** player, not necessarily the one he is looking at; the tooltip names which player it will hit, so the target is never a guess.
+
+### Flow 5 — Skip to the next track (juan david, 22:05)
+
+1. Tidal is playing an intro he does not want; its transport line shows `⏮ ▶/⏸ ⏭` because the player exposes a playlist (`CanGoNext` true).
+2. He opens the popup and clicks `⏭` on the tidal row.
+3. The track changes; within a moment the row's title, duration, and elapsed time update — MPRIS pushes the new metadata and the position re-syncs on the track change, so the seek bar does not lie.
+4. **Climax:** the next track starts from the same surface that shows him which app is playing and how loud — transport, volume, and routing are one gesture away together. A player with no playlist simply omits the `⏮`/`⏭` glyphs rather than showing dead controls.
+
+Failure: the player quits or goes Stopped between opening the popup and clicking → the transport line disappears (event-driven `NameOwnerChanged`); the row stays volume-only and nothing errors.

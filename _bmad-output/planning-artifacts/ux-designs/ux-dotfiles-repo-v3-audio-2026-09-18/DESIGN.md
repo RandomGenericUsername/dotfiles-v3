@@ -2,7 +2,7 @@
 name: AGS Audio Control
 description: PipeWire/WirePlumber audio control for the Hyprland dotfiles desktop — a bar output indicator, a bar mic indicator, and a follower-anchored audio popup (outputs, per-application streams with routing, inputs, recorders). Visual identity inherits the existing GUI-unification language and the AGS settings panel; the runtime wallpaper palette is the only ink.
 status: final
-updated: 2026-09-18
+updated: 2026-09-21
 sources:
   - docs/linux-wayland-pipewire-ags-audio-control.md
   - _bmad-output/planning-artifacts/gui-unification-ux-spec.md
@@ -125,13 +125,17 @@ Panels use a 12px radius, cards 9px, list rows 5px, routing pills 8px. The subvi
 
 These are the audio surface components, built on the settings panel's existing primitives (`PanelCard`, `LevelSlider`, catcher window) rather than new ones.
 
+Transport and master glyphs resolve through the `media-transport` icon group (`play`, `pause`, `previous`, `next`), ITR-rendered like every other system icon — never inline paths. The group maps `COLOR_FOREGROUND: foreground`, so the glyphs inherit the runtime wallpaper palette like the rest of the popup, and it is strictly popup-internal (not in `BAR_GROUPS`, so the bar-icon contrast guard never touches it).
+
 - **Audio bar indicator** — bare glyph (no pill, no background), 28px, using the existing `volume` icon group (level-aware: muted/lowest/low/medium/max) plus the live percentage label. Transparent button; the glyph and text float directly over the wallpaper and are covered by the bar-icon contrast guard.
 - **Microphone bar indicator** — bare glyph, 28px, using the `microphone` icon group (`mic-on` / `mic-off`). When any recording stream is active it carries the `live-dot`; otherwise no dot. Left-click opens the popup focused on the Input section.
 - **Audio popup panel** — the glass panel described above, follower-anchored under the output indicator, dismissed on `Esc` and click-outside.
 - **Section card** — `PanelCard` with a title and one or more rows. Cards: Output, Applications, Input, Recording.
 - **Level row** — a device or stream: leading mute/level glyph, name + subtitle, optional trailing routing select, then a `LevelSlider` row with the percentage. Used by output, applications, input, and recording.
 - **Routing select** — compact trailing control on each playback row; opens a menu of the live speakers collection. Selecting writes `stream.target-endpoint`; volume and mute are untouched.
-- **Device subview** — tapping `Change ›` in the Output card swaps the panel to a device list (each row: icon, name, subtitle, check on the active device) with a `‹` back arrow. Same in-place navigation the settings panel uses for Wi-Fi/Bluetooth; panel dimensions stay stable.
+- **Device subview** — tapping `Change ›` in the Output card swaps the panel to a device list (each row: icon, name, subtitle, check on the active device) with a `‹` back arrow. Same in-place navigation the settings panel uses for Wi-Fi/Bluetooth; panel dimensions stay stable. The **active-device checkmark** (`✓`) plus the active-row fill mark the current default sink; selecting any other row sets the default and returns. Default only governs new/unrouted streams — existing routed streams are untouched.
+- **Transport line** — a fourth line on an Applications row, below the volume `LevelSlider`, rendered **only** when that stream has a matching MPRIS player: `⏮ ▶/⏸ ⏭ · seek slider · elapsed / duration` (`1:24 / 4:02`, elapsed-only when duration is unknown). Prev/next glyphs appear only when the player exposes `CanGoPrevious`/`CanGoNext`; the seek slider appears only when it exposes `CanSeek`. A paused player renders dimmed (fill and title at reduced opacity) with the time frozen. Glyphs come from the `media-transport` icon group.
+- **Master play/pause** — a bordered `▶/⏸` button in the Output card's head row, between the name/meta block and `Change ›`. It reflects the most recently active player and is **hidden** when no player exists. Tooltip: `Play/Pause — <identity> (most recent)`.
 - **Live dot** — the literal-green dot marking active recording, used at most in two places: the mic bar indicator and the Recording card header.
 
 ## Do's and Don'ts
@@ -145,4 +149,6 @@ These are the audio surface components, built on the settings panel's existing p
 | Use `signal-live` only for active recording | Use the green decoratively or for output state |
 | Anchor the popup under its triggering icon | Anchor to a fixed screen edge |
 | Reuse `PanelCard` / `LevelSlider` / catcher / subview patterns | Invent new visual primitives for audio |
+| Render the transport line only when a stream has an MPRIS player | Give every row transport controls, or a disabled transport for no-player rows |
+| Resolve transport/master glyphs through the `media-transport` group | Inline hand-drawn paths or a third icon group |
 | Keep device list navigation in-panel with a back arrow | Open a second window or stack panels |
