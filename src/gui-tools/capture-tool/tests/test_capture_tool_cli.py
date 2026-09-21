@@ -278,8 +278,13 @@ class _LauncherHarness:
         runtime: str | None = "/usr/bin/dotfiles-runtime",
         ffmpeg: str | None = "ffmpeg",
         run=None,
+        tmp_path: Path | None = None,
     ) -> None:
         self.spawned: list[list[str]] = []
+        if tmp_path is not None:
+            monkeypatch.setattr(
+                mod, "_capture_host_log_path", lambda: tmp_path / "host.log"
+            )
         monkeypatch.setattr(mod, "choose_backend", lambda: backend)
         monkeypatch.setattr(mod, "resolve_target", lambda _t: target)
         monkeypatch.setattr(mod.shutil, "which", lambda name: {
@@ -317,8 +322,8 @@ class _LauncherHarness:
 
 
 @pytest.fixture()
-def harness(monkeypatch: pytest.MonkeyPatch) -> _LauncherHarness:
-    return _LauncherHarness(monkeypatch)
+def harness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _LauncherHarness:
+    return _LauncherHarness(monkeypatch, tmp_path=tmp_path)
 
 
 class TestStartRecording:
