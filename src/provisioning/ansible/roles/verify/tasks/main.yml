@@ -107,7 +107,7 @@
       - verify_system_binaries | length > 0
       - verify_cli_tools | length > 0
       - verify_notifd_binding_packages | length > 0
-      - verify_astal_binding_packages | length > 0
+      - verify_astal_wp_binding_packages | length > 0
       - verify_ags_always_on_instances | length > 0
       - verify_install_spine_dirs | length > 0
       - verify_install_spine_files | length > 0
@@ -183,8 +183,8 @@
       packages playbook or start it with `systemctl start NetworkManager`
   when: not ansible_check_mode
 
-# BlueZ is the DBus backend astal-bluetooth (the settings panel) reads
-# (AstalBluetooth). A bare bluez install leaves bluetooth.service disabled and
+# BlueZ is the D-Bus backend the settings panel's own bluetooth-service.ts
+# reads directly. A bare bluez install leaves bluetooth.service disabled and
 # inactive (verified live 2026-09-18), which makes the panel report no adapter
 # and every BT control a no-op. Gate on BOTH enabled (survives reboot) and
 # active (usable now) — mirror of the NetworkManager gate shape.
@@ -213,8 +213,8 @@
       {{ verify_bluetooth_service }} is not enabled and running (enabled={{
       verify_bluetooth_enabled.stdout | trim }}, active={{
       verify_bluetooth_active.stdout | trim }}) — the settings panel's
-      Bluetooth control (AstalBluetooth) needs the BlueZ daemon. The packages
-      role enables+starts it; re-run the packages playbook or run
+      Bluetooth service (bluetooth-service.ts) needs the BlueZ daemon. The
+      packages role enables+starts it; re-run the packages playbook or run
       `systemctl enable --now {{ verify_bluetooth_service }}`
   when: not ansible_check_mode
 
@@ -267,46 +267,6 @@
       WirePlumber creates no Bluetooth audio sink, so a connected headset has no
       audio to route to. The packages role installs it; re-run the packages
       playbook.
-  when: not ansible_check_mode
-
-# The settings panel's Wi-Fi list uses `iw scan` for freshness (NetworkManager's
-# and Astal's caches hide disappeared APs). The packages role installs iw and
-# grants it CAP_NET_ADMIN so the user can scan without sudo; gate both.
-- name: Check iw is installed
-  ansible.builtin.command:
-    cmd: "pacman -Q {{ verify_wifi_scan_binary }}"
-  register: verify_wifi_scan_pkg
-  changed_when: false
-  failed_when: false
-  when: not ansible_check_mode
-
-- name: Assert iw is installed
-  ansible.builtin.assert:
-    that:
-      - verify_wifi_scan_pkg.rc == 0
-    fail_msg: >-
-      {{ verify_wifi_scan_binary }} is not installed — the settings panel's
-      Wi-Fi list uses `iw scan` to detect vanished networks. The packages role
-      installs it.
-  when: not ansible_check_mode
-
-- name: Check iw has scan capabilities
-  ansible.builtin.shell:
-    cmd: "getcap \"$(command -v {{ verify_wifi_scan_binary }})\""
-  register: verify_wifi_scan_caps
-  changed_when: false
-  failed_when: false
-  when: not ansible_check_mode
-
-- name: Assert iw has scan capabilities
-  ansible.builtin.assert:
-    that:
-      - verify_wifi_scan_caps.stdout is search(verify_wifi_scan_capability)
-    fail_msg: >-
-      {{ verify_wifi_scan_binary }} lacks {{ verify_wifi_scan_capability }}
-      (getcap: {{ verify_wifi_scan_caps.stdout | trim }}) — without it the user
-      cannot run `iw scan` and the Wi-Fi list cannot detect vanished networks.
-      The packages role runs setcap; re-run it.
   when: not ansible_check_mode
 
 # The settings panel's Display slider drives `brightnessctl set <pct>%` as the
@@ -379,27 +339,28 @@
       run the packages playbook first (direct-run prerequisite)
   when: not ansible_check_mode
 
-# The settings panel imports AstalBluetooth and AstalWp at startup — a
-# provisioned machine with the panel sources deployed but either binding
-# missing would ship a window that crashes on open (settings-panel-
-# provisioning gate, spec scenario "Namespaces importable"). Gate on the AUR
-# packages the packages role installs (mirror of the AstalNotifd check above).
-- name: Check Astal Bluetooth/Wp binding packages are installed
+# The settings panel imports AstalWp at startup for audio routing — a
+# provisioned machine with the panel sources deployed but the binding missing
+# would ship a window that crashes on open (settings-panel-provisioning gate,
+# spec scenario "Namespaces importable"). Gate on the AUR package the packages
+# role installs (mirror of the AstalNotifd check above). Bluetooth needs no
+# Astal binding — the panel talks BlueZ D-Bus directly.
+- name: Check AstalWp binding package is installed
   ansible.builtin.shell: "pacman -Q {{ item }}"
-  loop: "{{ verify_astal_binding_packages }}"
-  register: verify_astal_binding_checks
+  loop: "{{ verify_astal_wp_binding_packages }}"
+  register: verify_astal_wp_binding_checks
   changed_when: false
   failed_when: false
 
-- name: Assert Astal Bluetooth/Wp bindings are installed
+- name: Assert AstalWp binding is installed
   ansible.builtin.assert:
     that:
-      - verify_astal_binding_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_astal_binding_packages | length
+      - verify_astal_wp_binding_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_astal_wp_binding_packages | length
     fail_msg: >-
-      the Astal Bluetooth/Wp bindings are not installed (expected
-      {{ verify_astal_binding_packages | join(', ') }} — the settings panel's
-      AstalBluetooth/AstalWp imports). The packages role installs them via
-      aur_packages; run the packages playbook first (direct-run prerequisite)
+      the AstalWp binding is not installed (expected
+      {{ verify_astal_wp_binding_packages | join(', ') }} — the settings panel's
+      AstalWp import). The packages role installs it via aur_packages; run the
+      packages playbook first (direct-run prerequisite)
   when: not ansible_check_mode
 
 # dunst must be MASKED, not merely stopped: a stopped-but-enabled unit comes

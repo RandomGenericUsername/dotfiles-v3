@@ -205,12 +205,12 @@
   become: true
   when: not ansible_check_mode
 
-# BlueZ is the DBus backend astal-bluetooth (the settings panel) reads
-# (AstalBluetooth). Installing bluez/bluez-utils alone leaves
-# bluetooth.service disabled and inactive (verified 2026-09-18), so the panel
-# would report no adapter and every BT control would be a no-op. Enable + start
-# it here so the persistent provisioned state is correct — mirror of the
-# NetworkManager task above.
+# BlueZ is the D-Bus backend the settings panel's own bluetooth-service.ts
+# reads directly. Installing bluez/bluez-utils alone leaves bluetooth.service
+# disabled and inactive (verified 2026-09-18), so the panel would report no
+# adapter and every BT control would be a no-op. Enable + start it here so the
+# persistent provisioned state is correct — mirror of the NetworkManager task
+# above.
 - name: Enable and start bluetooth
   ansible.builtin.systemd:
     name: bluetooth.service
@@ -222,8 +222,9 @@
 # Enabling the service is not enough: the radio can be rfkill SOFT-blocked at
 # first boot (firmware / vendor WMI killswitch state, or a block persisted by
 # systemd-rfkill from a previous session). BlueZ refuses to power a
-# soft-blocked controller and the Astal `powered` setter then fails silently,
-# so the settings panel's Bluetooth toggle looks dead. Clear a soft block at
+# soft-blocked controller and the panel's `adapter.powered` setter then fails
+# silently, so the settings panel's Bluetooth toggle looks dead. Clear a soft
+# block at
 # provision time so a freshly provisioned machine has a usable radio; this
 # also writes the persisted rfkill state, which systemd-rfkill restores on
 # later boots. A HARD block is a physical switch and cannot be cleared here.
@@ -233,25 +234,3 @@
   changed_when: false
   become: true
   when: not ansible_check_mode
-
-
-# `iw scan` needs CAP_NET_ADMIN. Grant it on the iw binary so the session user
-# can run an authoritative nl80211 scan without sudo — NetworkManager's and
-# Astal's access-point caches hide disappeared APs, so the settings panel's
-# Wi-Fi list uses iw for freshness. This is a capability on one binary, not a
-# sudoers grant.
-- name: Check iw capabilities
-  ansible.builtin.shell:
-    cmd: "getcap \"$(command -v iw)\""
-  register: packages_iw_getcap
-  changed_when: false
-  failed_when: false
-  when: not ansible_check_mode
-
-- name: Grant iw scan capabilities (setcap)
-  ansible.builtin.shell:
-    cmd: "setcap cap_net_admin,cap_net_raw+ep \"$(command -v iw)\""
-  become: true
-  when:
-    - not ansible_check_mode
-    - "'cap_net_admin' not in (packages_iw_getcap.stdout | default(''))"

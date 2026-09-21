@@ -46,7 +46,6 @@ _LOGICAL_PACKAGE_KEYS = (
     "hyprland",
     "hyprpaper",
     "networkmanager",
-    "iw",
     "wifitui",
     "wlogout",
     "rofi",
@@ -68,9 +67,8 @@ _LOGICAL_PACKAGE_KEYS = (
     "thunderbird",
     "brightnessctl",
     "playerctl",
-    # AGS settings panel (add-ags-settings-panel, wave 1): the Astal bindings
-    # and the BlueZ stack, mapped per-manager in both group_vars.
-    "astal-bluetooth",
+    # AGS settings panel (add-ags-settings-panel): the AstalWp binding and the
+    # BlueZ stack, mapped per-manager in both group_vars.
     "astal-wp",
     "bluez",
     "bluez-utils",

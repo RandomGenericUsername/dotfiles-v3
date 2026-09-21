@@ -16,7 +16,6 @@ entries:
   - name: astal-battery       # UPower battery monitoring (AGS bar)
   - name: astal-network       # NetworkManager wrapper (AGS bar)
   - name: networkmanager      # Network backend for astal-network (bar) + NM stack
-  - name: iw                  # nl80211 scan for the settings panel Wi-Fi list (cap via provisioning)
   - name: wifitui             # WiFi TUI (impala-style) on NetworkManager (bar click)
   - name: uwsm                # systemd-managed Wayland session launcher (fixes SDDM session bounce race)
   - name: fonts
@@ -67,11 +66,12 @@ entries:
   - name: brightnessctl     # screen backlight
   - name: playerctl         # media transport (MPRIS)
 
-  # AGS settings panel (settings-panel-provisioning gate). The Astal bindings
-  # are AUR-only on Arch (see `aur_packages` in roles/packages/vars/arch.yml):
-  # astal-bluetooth -> AstalBluetooth, astal-wp -> AstalWp. bluez/bluez-utils
-  # ship the BlueZ daemon + bluetoothctl; provisioning enables bluetooth.service.
-  - name: astal-bluetooth    # AstalBluetooth — BlueZ over DBus (settings panel BT)
+  # AGS settings panel (settings-panel-provisioning gate). The AstalWp binding
+  # is AUR-only on Arch (see `aur_packages` in roles/packages/vars/arch.yml):
+  # astal-wp -> AstalWp (audio routing). Bluetooth is driven directly over BlueZ
+  # D-Bus by the panel's own bluetooth-service.ts (no Astal Bluetooth binding);
+  # bluez/bluez-utils ship the BlueZ daemon + bluetoothctl, and provisioning
+  # enables bluetooth.service.
   - name: astal-wp           # AstalWp — WirePlumber audio (settings panel volume)
   - name: bluez              # Bluetooth stack / bluetoothd
   - name: bluez-utils        # bluetoothctl + the bluetooth.service unit

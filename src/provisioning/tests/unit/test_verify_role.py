@@ -1160,13 +1160,13 @@ class TestVerifyVars:
             "libastal-notifd-git"
         ]
 
-    def test_astal_binding_packages_pin_bluetooth_and_wp(self) -> None:
-        """Implementation gate (add-ags-settings-panel, wave 1): verify pins the
-        Astal Bluetooth/Wp binding packages the settings panel imports — mirror
-        of the packages role's aur_packages entries."""
+    def test_astal_wp_binding_package_pins_wireplumber(self) -> None:
+        """Implementation gate (add-ags-settings-panel): verify pins the AstalWp
+        binding package the settings panel imports for audio routing — mirror of
+        the packages role's aur_packages entry. Bluetooth needs no Astal binding
+        (the panel talks BlueZ D-Bus directly)."""
         data = _vars()
-        assert [str(p) for p in data["verify_astal_binding_packages"]] == [
-            "libastal-bluetooth-git",
+        assert [str(p) for p in data["verify_astal_wp_binding_packages"]] == [
             "libastal-wireplumber-git",
         ]
 
@@ -1895,20 +1895,18 @@ def _write_stub_binaries(home: Path) -> Path:
     )
     sysctl.chmod(0o755)
     # pacman: the verify role gates the AstalNotifd binding package (capture-
-    # notifications) and the Astal Bluetooth/Wp bindings (settings-panel-
-    # provisioning) via `pacman -Q`. Stub it so the synthetic machine passes
-    # hermetically (the stub dir shadows the real pacman on PATH) — report all
-    # three binding packages as installed.
+    # notifications) and the AstalWp binding (settings-panel-provisioning) via
+    # `pacman -Q`. Stub it so the synthetic machine passes hermetically (the
+    # stub dir shadows the real pacman on PATH) — report every gated package as
+    # installed.
     pacman = bin_dir / "pacman"
     pacman.write_text(
         "#!/bin/sh\n"
         'if [ "$1" = "-Q" ]; then\n'
         '  case "$2" in\n'
         '    libastal-notifd-git) echo "libastal-notifd-git r973.e07013e-1"; exit 0 ;;\n'
-        '    libastal-bluetooth-git) echo "libastal-bluetooth-git r786.ca3190d-2"; exit 0 ;;\n'
         '    libastal-wireplumber-git) echo "libastal-wireplumber-git r776.c1bd89a-1"; exit 0 ;;\n'
         '    pipewire-audio) echo "pipewire-audio 1:1.6.8-1"; exit 0 ;;\n'
-        '    iw) echo "iw 6.17-1"; exit 0 ;;\n'
         "  esac\n"
         "fi\n"
         "exit 1\n"
@@ -1979,15 +1977,6 @@ def _write_stub_binaries(home: Path) -> Path:
         "exit 1\n"
     )
     btctl.chmod(0o755)
-    # getcap: verify gates that iw carries CAP_NET_ADMIN (settings panel scans
-    # unprivileged). Stub the capability output.
-    getcap = bin_dir / "getcap"
-    getcap.write_text(
-        "#!/bin/sh\n"
-        'echo "/usr/bin/iw cap_net_admin,cap_net_raw=ep"\n'
-        "exit 0\n"
-    )
-    getcap.chmod(0o755)
     return bin_dir
 
 
@@ -2153,6 +2142,7 @@ def _build_provisioned_layout(
         "ags/settings-panel",
         "ags/settings-panel/controls",
         "ags/settings-panel/views",
+        "ags/settings-panel/services",
         "ags-capture",
         "ags-capture/ui",
         "ags-capture/controllers",
@@ -2200,6 +2190,10 @@ def _build_provisioned_layout(
     for view in ("MainView", "WifiView", "BluetoothView"):
         (
             install / "config" / "ags" / "settings-panel" / "views" / f"{view}.tsx"
+        ).write_text("")
+    for service in ("nm-client", "wifi-service", "bluetooth-service"):
+        (
+            install / "config" / "ags" / "settings-panel" / "services" / f"{service}.ts"
         ).write_text("")
     # Standalone capture app (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.

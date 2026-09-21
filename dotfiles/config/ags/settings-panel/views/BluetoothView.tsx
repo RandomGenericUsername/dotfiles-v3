@@ -6,6 +6,7 @@ import {
   BluetoothToggle,
   bluetoothDevices,
   bluetoothDiscovering,
+  bluetoothFailure,
   bluetoothPowered,
   routeAudioToDevice,
   startBluetoothDiscovery,
@@ -16,23 +17,29 @@ export function BluetoothView() {
   const hasDevices = createComputed(() => bluetoothDevices().length > 0)
   const showList = createComputed(() => bluetoothPowered() && hasDevices())
 
-  // Discovery is not automatic: start it while this view is shown and the
-  // adapter is powered, stop it when leaving (so BlueZ actually reports
-  // nearby, not-yet-known devices).
+  // Discovery runs while this view is open and the adapter is powered; leaving
+  // the view (or powering off) stops it so BlueZ does not scan forever.
   createEffect(() => {
-    if (activeView() === "bluetooth" && bluetoothPowered()) {
-      startBluetoothDiscovery()
-      // Devices that connected outside the panel (auto-connect) still need the
-      // audio sink defaulted; routing is idempotent.
-      for (const device of bluetoothDevices()) {
-        if (device.connected) {
-          void routeAudioToDevice(device.alias || device.name)
-        }
-      }
-      return () => stopBluetoothDiscovery()
-    }
-    stopBluetoothDiscovery()
+    if (activeView() !== "bluetooth") return
+    if (!bluetoothPowered()) return
+    startBluetoothDiscovery()
+    return () => stopBluetoothDiscovery()
   })
+
+  // Devices that connected outside the panel (auto-connect) still need the
+  // audio sink defaulted; routing is idempotent.
+  createEffect(() => {
+    if (activeView() !== "bluetooth") return
+    if (!bluetoothPowered()) return
+    for (const device of bluetoothDevices()) {
+      if (device.connected) {
+        void routeAudioToDevice(device.alias || device.name)
+      }
+    }
+  })
+
+  // Failure is derived from the service state — no manual message timer.
+  const failure = createComputed(() => bluetoothFailure())
 
   return (
     <box orientation={1} spacing={8}>
@@ -43,6 +50,15 @@ export function BluetoothView() {
         xalign={0}
         label="Bluetooth is off"
         visible={createComputed(() => !bluetoothPowered())}
+      />
+
+      <label
+        class="settings-message"
+        xalign={0}
+        wrap
+        maxWidthChars={34}
+        label={failure}
+        visible={createComputed(() => failure() !== "")}
       />
 
       <label

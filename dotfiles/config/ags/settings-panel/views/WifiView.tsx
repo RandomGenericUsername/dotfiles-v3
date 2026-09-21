@@ -1,49 +1,51 @@
 import { createComputed, createEffect, For } from "ags"
-import { interval } from "ags/time"
 import { NavHeader } from "../primitives"
 import { activeView, back } from "../state"
 import {
   WifiRow,
   WifiPasswordPrompt,
   WifiToggle,
-  clearWifiMessage,
-  closeWifiPasswordPrompt,
-  resetWifiConnecting,
-  scanWifi,
+  cancelWifiPrompt,
+  connectState,
+  startScanning,
+  stopScanning,
   wifiEnabled,
-  wifiMessage,
   wifiNetworks,
-  wifiPasswordTarget,
+  wifiPromptSsid,
+  wifiPromptVisible,
 } from "../controls/wifi"
 
 export function WifiView() {
-  const target = wifiPasswordTarget
-  const showList = createComputed(() => wifiEnabled() && target() === null)
+  const showList = createComputed(
+    () => wifiEnabled() && !wifiPromptVisible(),
+  )
 
-  // Force an authoritative scan on open and keep it fresh while the list is
-  // shown (`iw scan` returns only what is on the air now, so vanished networks
-  // drop promptly instead of lingering in NM's cache).
+  // Scan while the view is open; the service owns the cadence and pauses while a
+  // connect is in flight. Leaving the view stops the timer.
   createEffect(() => {
     if (activeView() !== "wifi") return
-    clearWifiMessage()
-    scanWifi()
-    const timer = interval(8000, scanWifi)
-    return () => {
-      timer.cancel()
-      resetWifiConnecting()
-    }
+    startScanning()
+    return () => stopScanning()
   })
 
   // Back from the password prompt returns to the network list, not the panel.
   function onBack() {
-    if (target() !== null) closeWifiPasswordPrompt()
+    if (wifiPromptVisible()) cancelWifiPrompt()
     else back()
   }
+
+  // Failure is derived from the connect state — no manual message timer. It
+  // clears as soon as the phase leaves `failed`.
+  const failure = createComputed(() => {
+    const conn = connectState()
+    if (conn.phase !== "failed") return ""
+    return conn.reason ?? "Connection failed"
+  })
 
   return (
     <box orientation={1} spacing={8}>
       <NavHeader
-        title={createComputed(() => target() ?? "Wi-Fi")}
+        title={createComputed(() => wifiPromptSsid() ?? "Wi-Fi")}
         onBack={onBack}
         trailing={<WifiToggle />}
       />
@@ -60,8 +62,8 @@ export function WifiView() {
         xalign={0}
         wrap
         maxWidthChars={34}
-        label={wifiMessage}
-        visible={createComputed(() => wifiMessage() !== "")}
+        label={failure}
+        visible={createComputed(() => failure() !== "")}
       />
 
       <label
@@ -80,11 +82,7 @@ export function WifiView() {
       {/* Mounted always (visibility-toggled) rather than conditionally via
           <With>: <With> did not render the prompt, so choosing a network left an
           empty body. The prompt reads the target itself. */}
-      <box
-        orientation={1}
-        spacing={8}
-        visible={createComputed(() => target() !== null)}
-      >
+      <box orientation={1} spacing={8} visible={wifiPromptVisible}>
         <WifiPasswordPrompt />
       </box>
     </box>

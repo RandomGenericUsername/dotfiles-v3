@@ -329,25 +329,6 @@ window.settings-panel {
   padding: 8px 11px 8px 10px;
 }
 
-.settings-tile-main {
-  min-height: 0;
-  padding: 0;
-  background-color: transparent;
-  background-image: none;
-  border: none;
-  box-shadow: none;
-  color: @color_foreground;
-}
-
-.settings-tile-main:hover,
-.settings-tile-main:active,
-.settings-tile-main:focus {
-  background-color: transparent;
-  background-image: none;
-  border: none;
-  box-shadow: none;
-}
-
 .settings-tile-title {
   font-size: 13px;
   font-weight: 600;
@@ -585,6 +566,12 @@ window.settings-panel {
 
 .settings-rowact:hover {
   border-color: @color_10;
+}
+
+/* In-flight / unavailable affordance: the row itself owns the action now, so
+   this is a visual hint only. */
+.settings-rowact.disabled {
+  opacity: 0.5;
 }
 
 /* Secondary row action (Unpair) — quieter than the primary action */

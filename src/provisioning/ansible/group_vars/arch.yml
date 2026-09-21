@@ -8,9 +8,6 @@ packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
-  # iw: authoritative nl80211 scan for the settings panel's Wi-Fi list (NM/Astal
-  # caches hide disappeared APs). The packages role grants scan capabilities.
-  iw: iw
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
   # uwsm: wraps the Hyprland session in a systemd user unit (hyprland-uwsm
@@ -21,13 +18,15 @@ packages:
   # the AUR package name resolves here; the packages role routes it through the
   # aur_packages channel (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
   ags: aylurs-gtk-shell-git
-  # Astal bindings backing the AGS settings panel (AUR-only on Arch, mirroring
-  # ags): the per-manager name resolves here and the packages role routes it
-  # through aur_packages (kewlfft.aur.aur + yay), NOT ansible.builtin.package.
-  astal-bluetooth: libastal-bluetooth-git # AstalBluetooth — BlueZ over DBus (settings panel BT)
+  # AstalWp binding backing the AGS settings panel's audio routing (AUR-only on
+  # Arch, mirroring ags): the per-manager name resolves here and the packages
+  # role routes it through aur_packages (kewlfft.aur.aur + yay), NOT
+  # ansible.builtin.package. Bluetooth needs no Astal binding — the panel talks
+  # BlueZ D-Bus directly.
   astal-wp: libastal-wireplumber-git # AstalWp — WirePlumber audio (settings panel volume)
-  # BlueZ stack backing AstalBluetooth (official repo) — the packages role
-  # enables + starts bluetooth.service after install.
+  # BlueZ stack the panel's own bluetooth-service.ts talks to over D-Bus
+  # (official repo) — the packages role enables + starts bluetooth.service
+  # after install.
   bluez: bluez
   bluez-utils: bluez-utils # bluetoothctl + the bluetooth.service unit
   ffmpeg: ffmpeg

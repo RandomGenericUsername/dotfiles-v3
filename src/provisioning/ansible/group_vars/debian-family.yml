@@ -12,20 +12,20 @@ packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
-  iw: iw # nl80211 scan for the settings panel Wi-Fi list
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
   # uwsm: systemd-managed session launch (same rationale as Arch).
   uwsm: uwsm
   ags: aylurs-gtk-shell-git
-  # Astal bindings backing the AGS settings panel (AUR-only upstream; no Debian
-  # package — must be built from source like ags/hyprland, a packages role
-  # concern, deferred). Kept as the upstream names so the logical set matches
-  # Arch; packages_use_aur is false here so these are not AUR-installed.
-  astal-bluetooth: libastal-bluetooth-git # AstalBluetooth — BlueZ over DBus (settings panel BT)
+  # AstalWp binding backing the AGS settings panel's audio routing (AUR-only
+  # upstream; no Debian package — must be built from source like ags/hyprland, a
+  # packages role concern, deferred). Kept as the upstream name so the logical
+  # set matches Arch; packages_use_aur is false here so it is not AUR-installed.
+  # Bluetooth needs no Astal binding — the panel talks BlueZ D-Bus directly.
   astal-wp: libastal-wireplumber-git # AstalWp — WirePlumber audio (settings panel volume)
-  # BlueZ stack backing AstalBluetooth. bluez-utils is merged into bluez on
-  # Debian — the sane distro mapping for the logical bluez-utils entry.
+  # BlueZ stack the panel's own bluetooth-service.ts talks to over D-Bus.
+  # bluez-utils is merged into bluez on Debian — the sane distro mapping for the
+  # logical bluez-utils entry.
   bluez: bluez
   bluez-utils: bluez
   ffmpeg: ffmpeg

@@ -1,7 +1,7 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import { createComputed, createEffect } from "ags"
 import { activeView, close, iconCenterX, panelVisible, viewEpoch } from "./state"
-import { wifiPasswordTarget } from "./controls/wifi"
+import { wifiPromptVisible } from "./controls/wifi"
 import { MainView } from "./views/MainView"
 import { WifiView } from "./views/WifiView"
 import { BluetoothView } from "./views/BluetoothView"
@@ -97,10 +97,9 @@ export function SettingsPanel(gdkmonitor: Gdk.Monitor) {
         // collapse). Switch to ON_DEMAND only while the Wi-Fi password field is
         // shown, which needs typed input.
         createEffect(() => {
-          self.keymode =
-            wifiPasswordTarget() !== null
-              ? Astal.Keymode.ON_DEMAND
-              : Astal.Keymode.NONE
+          self.keymode = wifiPromptVisible()
+            ? Astal.Keymode.ON_DEMAND
+            : Astal.Keymode.NONE
         })
         // Esc closes while the panel holds keyboard (i.e. password entry).
         const key = new Gtk.EventControllerKey()

@@ -250,12 +250,12 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 44, (
-            f"expected exactly 44 skeleton files (hyprland.lua + gloview.lua + "
+        assert len(files) == 47, (
+            f"expected exactly 47 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+4 lib+Bar.tsx+10 "
             f"bar widgets + the settings panel (SettingsPanel/state/primitives/"
-            f"bluetooth-agent + 5 controls + 3 views) + rofi launcher config.rasi); "
-            f"found {len(files)}"
+            f"bluetooth-agent + 5 controls + 3 views + 3 D-Bus services) + rofi "
+            f"launcher config.rasi); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -283,6 +283,9 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/settings-panel/controls/volume.tsx",
             "dotfiles/config/ags/settings-panel/controls/wifi.tsx",
             "dotfiles/config/ags/settings-panel/primitives.tsx",
+            "dotfiles/config/ags/settings-panel/services/bluetooth-service.ts",
+            "dotfiles/config/ags/settings-panel/services/nm-client.ts",
+            "dotfiles/config/ags/settings-panel/services/wifi-service.ts",
             "dotfiles/config/ags/settings-panel/state.ts",
             "dotfiles/config/ags/settings-panel/views/BluetoothView.tsx",
             "dotfiles/config/ags/settings-panel/views/MainView.tsx",
@@ -644,6 +647,9 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "settings-panel" / "views" / "MainView.tsx",
                 install / "config" / "ags" / "settings-panel" / "views" / "WifiView.tsx",
                 install / "config" / "ags" / "settings-panel" / "views" / "BluetoothView.tsx",
+                install / "config" / "ags" / "settings-panel" / "services" / "nm-client.ts",
+                install / "config" / "ags" / "settings-panel" / "services" / "wifi-service.ts",
+                install / "config" / "ags" / "settings-panel" / "services" / "bluetooth-service.ts",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"

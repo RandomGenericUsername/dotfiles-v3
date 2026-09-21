@@ -181,21 +181,22 @@ verify_cli_tools:
 verify_notifd_binding_packages:
   - libastal-notifd-git
 
-# verify_astal_binding_packages: the AUR packages backing the AstalBluetooth
-#   and AstalWp bindings the settings panel imports (settings-panel-
+# verify_astal_wp_binding_packages: the AUR package backing the AstalWp
+#   binding the settings panel imports for audio routing (settings-panel-
 #   provisioning gate — the panel is never scaffolded against a missing
 #   binding). Checked via `pacman -Q` (importable == installed here: the
 #   package ships the GIR + typelib the girepository loader resolves).
-#   Mirror of the packages role's `aur_packages` entries.
-verify_astal_binding_packages:
-  - libastal-bluetooth-git
+#   Mirror of the packages role's `aur_packages` entry. Bluetooth needs no
+#   Astal binding — the panel talks BlueZ D-Bus directly.
+verify_astal_wp_binding_packages:
   - libastal-wireplumber-git
 
-# verify_bluetooth_service: the system unit backing AstalBluetooth (the
-#   settings panel's Bluetooth control). Installing bluez alone leaves no
-#   daemon running, so the packages role enables + starts it; this gate asserts
-#   BOTH enabled (survives the next boot) and active (usable now) — a disabled
-#   unit would silently drop Bluetooth from the panel after a reboot.
+# verify_bluetooth_service: the system unit the settings panel's own BlueZ
+#   D-Bus service (bluetooth-service.ts) depends on. Installing bluez alone
+#   leaves no daemon running, so the packages role enables + starts it; this
+#   gate asserts BOTH enabled (survives the next boot) and active (usable now)
+#   — a disabled unit would silently drop Bluetooth from the panel after a
+#   reboot.
 verify_bluetooth_service: bluetooth.service
 
 # verify_bluetooth_rfkill_type: the rfkill type whose SOFT-block state the
@@ -213,13 +214,6 @@ verify_bluetooth_rfkill_type: bluetooth
 #   AstalNotifd binding gate).
 verify_bluetooth_audio_packages:
   - pipewire-audio
-
-# verify_wifi_scan_binary / verify_wifi_scan_capability: `iw scan` backs the
-#   settings panel's Wi-Fi list freshness (NM's/Astal's caches hide disappeared
-#   APs). The packages role installs iw and grants it CAP_NET_ADMIN via setcap so
-#   the session user can scan without sudo; both are gated here.
-verify_wifi_scan_binary: iw
-verify_wifi_scan_capability: cap_net_admin
 
 # verify_backlight_binary: the CLI the settings panel's Display slider drives
 #   (`-m` read, `set <pct>%` write). The packages role installs it and its udev
@@ -390,9 +384,10 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/recording.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/tray.tsx"
   # Settings panel sources (add-ags-settings-panel): the bar trigger widget,
-  # the panel window/state/primitives, the five controls, and the three views.
-  # Mirror of compositor_configs_skeleton_files dests — a missing panel source
-  # means a window that crashes or silently omits a section at open.
+  # the panel window/state/primitives, the five controls, the three views, and
+  # the three D-Bus service modules. Mirror of compositor_configs_skeleton_files
+  # dests — a missing panel source means a window that crashes or silently omits
+  # a section at open.
   - "{{ install_dir | trim }}/config/ags/bar/widgets/settings.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/state.ts"
   - "{{ install_dir | trim }}/config/ags/settings-panel/primitives.tsx"
@@ -406,6 +401,9 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/MainView.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/WifiView.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/BluetoothView.tsx"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/services/nm-client.ts"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/services/wifi-service.ts"
+  - "{{ install_dir | trim }}/config/ags/settings-panel/services/bluetooth-service.ts"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
