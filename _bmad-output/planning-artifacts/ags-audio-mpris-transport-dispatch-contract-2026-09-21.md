@@ -276,13 +276,11 @@ PY
    ```
    Place them after `ags-service-bluetooth` (~line 180).
 2. `src/provisioning/ansible/roles/verify/vars/main.yml`: add the new AGS service/core files to the file list; confirm `playerctl` is covered by `verify_system_binaries` (it is provisioned — add only if missing).
+   **RESOLVED (WP-E)**: `playerctl` was **not** actually in `verify_system_binaries` (only in `packages.yaml`); it was added there, pinned in `test_verify_role.py`, and stubbed in `_write_stub_binaries`. The two MPRIS files were added to `verify_compositor_skeleton_files`.
 3. `src/provisioning/tests/unit/test_compositor_configs_role.py` + `test_verify_role.py`: expected lists updated.
    **Exact required edits in `test_compositor_configs_role.py` (this test asserts an EXACT count and list):**
    - `assert len(files) == 58` → `== 60` (line ~254); update its message text to mention the two MPRIS files.
-   - Insert into the sorted `expected` list (line ~263), keeping sort order:
-     - `"dotfiles/config/ags/services/mpris-core.ts"` (before `mpris-service.ts`)
-     - `"dotfiles/config/ags/services/mpris-service.ts"` (after `nm-client.ts`, before `wifi-service.ts` — sorted)
-   - The `sources == expected` assertion is a **sorted** comparison — insert in sorted position or the test fails.
+   - Insert into the sorted `expected` list (line ~263), keeping sort order. **CORRECTED during WP-E**: both MPRIS sources sort *before* `nm-client.ts` (they sit after `bluetooth-service.ts`), not after it — the original note here was wrong. Final order: `…bluetooth-service.ts`, `mpris-core.ts`, `mpris-service.ts`, `nm-client.ts`, `wifi-service.ts…`. The `sources == expected` assertion is a **sorted** comparison — insert in sorted position or the test fails.
    **In `test_verify_role.py`:** the AGS file fixture (~line 2150) writes `app.tsx`/`style.css`/`icons.json`; add the MPRIS service/core paths the verify role now checks, and mirror any `ags/services` directory expectations (~line 2166).
 4. Targeted role runs (never full bootstrap concurrently — I8):
 ```bash
