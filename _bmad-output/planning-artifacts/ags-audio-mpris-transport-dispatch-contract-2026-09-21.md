@@ -3,7 +3,7 @@
 - **Worktree/branch**: `/home/inumaki/Development/dotfiles-new-architectures/dotfiles-repo-v3-audio` @ `feat/pipewire-audio-ags`
 - **Base commit (WP-A)**: `c86b338c` — audio popup graph-snapshot routing + brand app icons
 - **Approved visual reference**: `_bmad-output/planning-artifacts/ux-designs/ux-dotfiles-repo-v3-audio-2026-09-18/mockups/key-audio-transport.html`
-- **Status**: READY FOR DISPATCH. WP-B ∥ WP-D may start immediately; C after B; E after C+D; F last.
+- **Status**: **COMPLETE.** All work packages landed (WP-A `c86b338c` · WP-B/WP-D `bffa66c4` · WP-C `56dfcc03` · WP-E `b0f22636` · regression fix `3eab5e94` · docs `16124e72`). Live gate + functional matrix passed; provisioning suites 81 passed; icon-contrast suites 32 passed; working tree clean.
 
 > **HOW TO USE THIS DOCUMENT**
 > This is the single source of truth. Each work package below is self-contained: an agent
