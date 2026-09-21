@@ -156,14 +156,17 @@ export function identityMatches(identity: string, candidates: string[]): boolean
 export function pickActivePlayer<T extends {identity:string; status:string; lastPlayingAt:number}>(players: T[]): T | null
 ```
 - `ALIAS` maps observed identities: `chromium→google-chrome`, `chrome→google-chrome`, `google-chrome→google-chrome`, `tidal-hifi→tidal-hifi`, `brave-browser→brave-browser`, `firefox→firefox`, `spotify→spotify`, `youtube-music→youtube-music`. Unknown identities pass through unchanged.
-- `identityMatches(identity, candidates)`: normalise both (`lowercase`, strip non-alphanumerics to `-`), apply `ALIAS` to the identity, return true on any equality. This is how a stream row is linked to its player.
+- `identityMatches(identity, candidates)`: normalise both (`lowercase`, strip non-alphanumerics to `-`), apply `ALIAS` to **both** the identity **and** each candidate, return true on any equality. This is how a stream row is linked to its player.
+  **RESOLVED (WP-B review, commit `bffa66c4`)**: the original wording applied `ALIAS` to the identity only, which failed to match a lone `application.process.binary` candidate (`chromium` vs `chrome`). Both sides now canonicalise through `ALIAS` (`chromium`/`chrome`/`google-chrome` → `google-chrome`), so a candidate from *either* snapshot field matches. Covered by tests `identity chromium links process binary chrome` and `identity chromium links either candidate field`.
 - `pickActivePlayer`: highest `lastPlayingAt` among `status === "Playing"`; else highest `lastPlayingAt`; else first. Deterministic.
 - `interpolatePosition`: `playing ? baseUs + (nowMs-baseMs)*1000 : baseUs`.
 
-**`mpris-service.ts` contract**
+**`mpris-service.ts` contract** (as built in `bffa66c4` — WP-C consumes this API verbatim)
 - Session bus: `Gio.bus_get_sync(Gio.BusType.SESSION, null)` (a *new* seam — `services/nm-client.ts` is system-bus; do not reuse it).
-- Discovery: `ListNames` walk + `NameOwnerChanged` subscription (unfiltered rule; filter by `MPRIS_PREFIX` in the handler and drop `MPRIS_EXCLUDED`). Load the interface XML at runtime via `Gio.DBusProxy` **or** use `Gio.DBusConnection.call` + `signal_subscribe` directly — pick the simpler path that keeps I1/I2.
-- Subscribe-before-read: install `PropertiesChanged` + `Seeked` before `GetAll` hydration (mirrors `lib/event-bus-core.ts` discipline).
+- Discovery: `ListNames` walk + `NameOwnerChanged` subscription (unfiltered rule; filter by `MPRIS_PREFIX` in the handler and drop `MPRIS_EXCLUDED`).
+- Subscribe-before-read: install `PropertiesChanged` + `Seeked` before `GetAll` hydration.
+- **`PropertiesChanged` handling includes the `invalidated` list** (resolved in review): a property announced as invalidated with no value in `changed` is treated as changed (value falls back to the prior value), and an invalidated `Position` triggers a one-shot `syncPosition`. Do not regress this.
+- `TrackMeta.artist` joins `xesam:artist` (an array) with `", "`.
 - Exports:
 ```ts
 export interface MprisPlayer {
