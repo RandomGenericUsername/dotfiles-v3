@@ -3,6 +3,7 @@ import { Accessor, createComputed, createEffect } from "ags"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import {
+  clampVolume,
   defaultMicrophoneMute,
   defaultSpeakerMute,
   defaultSpeakerVolume,
