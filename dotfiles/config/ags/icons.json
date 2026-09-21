@@ -274,6 +274,33 @@
       }
     ]
   },
+  "media-transport": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "play",
+        "output": "media-transport-play.svg",
+        "template": "media-transport/default/play.svg"
+      },
+      {
+        "name": "pause",
+        "output": "media-transport-pause.svg",
+        "template": "media-transport/default/pause.svg"
+      },
+      {
+        "name": "previous",
+        "output": "media-transport-previous.svg",
+        "template": "media-transport/default/previous.svg"
+      },
+      {
+        "name": "next",
+        "output": "media-transport-next.svg",
+        "template": "media-transport/default/next.svg"
+      }
+    ]
+  },
   "microphone": {
     "color_mappings": {
       "COLOR_FOREGROUND": "foreground"

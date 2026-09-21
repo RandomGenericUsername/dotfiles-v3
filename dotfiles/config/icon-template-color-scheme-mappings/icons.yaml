@@ -469,3 +469,24 @@ app-icons:
       template: app-icons/default/youtube-music.svg
       output: app-icon-youtube-music.svg
 
+# Transport-control glyphs for the audio popup's per-app MPRIS rows and the
+# Output card's master play/pause button (dispatch contract WP-D). Bar-facing
+# like `microphone`, so COLOR_FOREGROUND resolves through the palette
+# `foreground` token and stays subject to the bar-icon contrast guard.
+media-transport:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: play
+      template: media-transport/default/play.svg
+      output: media-transport-play.svg
+    - name: pause
+      template: media-transport/default/pause.svg
+      output: media-transport-pause.svg
+    - name: previous
+      template: media-transport/default/previous.svg
+      output: media-transport-previous.svg
+    - name: next
+      template: media-transport/default/next.svg
+      output: media-transport-next.svg
+
