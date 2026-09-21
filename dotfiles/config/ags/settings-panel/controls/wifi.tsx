@@ -48,32 +48,17 @@ export interface WifiNetwork {
   connected: boolean
 }
 
-function decodeSsid(value: unknown): string {
-  try {
-    if (typeof value === "string") return value
-    const bytes = Uint8Array.from(Array.from(value as ArrayLike<number>))
-    const TD = (globalThis as { TextDecoder?: typeof TextDecoder }).TextDecoder
-    if (TD) return new TD().decode(bytes)
-    return String.fromCharCode(...bytes)
-  } catch {
-    return ""
-  }
-}
-
 const [wifiList, setWifiList] = createState<WifiNetwork[]>([])
 
-// The list is read straight from NetworkManager's D-Bus and filtered by
-// LastSeen. AstalNetwork's access-point objects never refresh (their last-seen
-// and strength stay frozen), and nmcli's cache hides nothing, so a switched-off
-// hotspot lingered and could still be clicked. NM's own LastSeen does advance
-// (verified), so an AP not seen in the recent scans is dropped here.
+// The list is an authoritative `iw scan` (nl80211). NetworkManager's and Astal's
+// access-point caches hide disappeared APs (Astal's access-point objects never
+// refresh at all), which is why a switched-off hotspot lingered and stayed
+// clickable. Provisioning installs `iw` and grants it CAP_NET_ADMIN so the user
+// can scan without sudo; the interface name comes from NetworkManager's D-Bus.
 const NM = "org.freedesktop.NetworkManager"
 const NM_DEVICE = "org.freedesktop.NetworkManager.Device"
-const NM_WIRELESS = "org.freedesktop.NetworkManager.Device.Wireless"
-const NM_AP = "org.freedesktop.NetworkManager.AccessPoint"
 //: NM_DEVICE_TYPE_WIFI
 const DEVICE_TYPE_WIFI = 2
-const AP_STALE_SECONDS = 20
 
 let nmBus: Gio.DBusConnection | null = null
 function bus(): Gio.DBusConnection {
@@ -97,66 +82,93 @@ function getAll(path: string, iface: string): Record<string, unknown> {
   return dict ?? {}
 }
 
-function wifiDevicePath(): string | null {
+function wifiInterface(): string | null {
   const nm = getAll("/org/freedesktop/NetworkManager", NM)
   const devices = (nm.Devices as string[]) ?? []
   for (const path of devices) {
-    if (Number(getAll(path, NM_DEVICE).DeviceType) === DEVICE_TYPE_WIFI) return path
+    const dev = getAll(path, NM_DEVICE)
+    if (Number(dev.DeviceType) === DEVICE_TYPE_WIFI) {
+      const iface = dev.Interface
+      return typeof iface === "string" && iface ? iface : null
+    }
   }
   return null
 }
 
-export function refreshWifiList() {
-  try {
-    const devicePath = wifiDevicePath()
-    if (!devicePath) return
-    const wireless = getAll(devicePath, NM_WIRELESS)
-    const paths = (wireless.AccessPoints as string[]) ?? []
-    const activePath = (wireless.ActiveAccessPoint as string) ?? ""
+function dbmToPercent(dbm: number): number {
+  if (!Number.isFinite(dbm)) return 0
+  return Math.max(0, Math.min(100, Math.round(2 * (dbm + 100))))
+}
 
-    const aps = paths.map((path) => ({
-      path,
-      props: getAll(path, NM_AP),
-    }))
-    const newest = aps.reduce(
-      (max, ap) => Math.max(max, Number(ap.props.LastSeen) || 0),
-      0,
-    )
+function parseIwScan(out: string): WifiNetwork[] {
+  const strongest = new Map<string, WifiNetwork>()
+  let ssid: string | undefined
+  let dbm = -100
+  let secured = false
+  let associated = false
+  let inBss = false
 
-    const strongest = new Map<string, WifiNetwork>()
-    for (const { path, props } of aps) {
-      const ssid = decodeSsid(props.Ssid)
-      if (!ssid) continue
-      const lastSeen = Number(props.LastSeen) || 0
-      const stale =
-        newest > 0 && lastSeen > 0 && newest - lastSeen > AP_STALE_SECONDS
-      if (stale) continue
+  const flush = () => {
+    if (inBss && ssid) {
       const net: WifiNetwork = {
         ssid,
-        strength: Number(props.Strength) || 0,
-        secured:
-          (Number(props.WpaFlags) || 0) > 0 ||
-          (Number(props.RsnFlags) || 0) > 0 ||
-          ((Number(props.Flags) || 0) & 1) === 1,
-        connected: path === activePath,
+        strength: dbmToPercent(dbm),
+        secured,
+        connected: associated,
       }
       const prev = strongest.get(ssid)
       if (!prev || net.connected || net.strength > prev.strength) {
         strongest.set(ssid, net)
       }
     }
-
-    const list = [...strongest.values()].sort((a, b) =>
-      a.connected === b.connected
-        ? b.strength - a.strength
-        : a.connected
-          ? -1
-          : 1,
-    )
-    setWifiList(list)
-  } catch {
-    /* NM unavailable; keep the last list */
+    ssid = undefined
+    dbm = -100
+    secured = false
+    associated = false
+    inBss = false
   }
+
+  for (const raw of out.split("\n")) {
+    const line = raw.trim()
+    if (line.startsWith("BSS ")) {
+      flush()
+      inBss = true
+      associated = line.includes("-- associated")
+      continue
+    }
+    if (!inBss) continue
+    if (line.startsWith("signal:")) {
+      const match = line.match(/-?\d+(\.\d+)?/)
+      if (match) dbm = Number(match[0])
+    } else if (line.startsWith("SSID:")) {
+      ssid = line.slice(5).trim()
+    } else if (
+      line.startsWith("RSN:") ||
+      line.startsWith("WPA:") ||
+      line.includes("Privacy")
+    ) {
+      secured = true
+    }
+  }
+  flush()
+
+  return [...strongest.values()].sort((a, b) =>
+    a.connected === b.connected
+      ? b.strength - a.strength
+      : a.connected
+        ? -1
+        : 1,
+  )
+}
+
+export function refreshWifiList() {
+  const iface = wifiInterface()
+  if (!iface) return
+  execAsync(["iw", "dev", iface, "scan"])
+    .then((out) => setWifiList(parseIwScan(out)))
+    .catch(() => {
+      /* scan failed or is throttled; keep the last list */
+    })
 }
 
 export { wifiList as wifiNetworks }
@@ -194,24 +206,7 @@ export function toggleWifi() {
  * reactive cache still updates.
  */
 export function scanWifi() {
-  try {
-    const devicePath = wifiDevicePath()
-    if (devicePath) {
-      bus().call_sync(
-        NM,
-        devicePath,
-        NM_WIRELESS,
-        "RequestScan",
-        new GLib.Variant("(a{sv})", [{}]),
-        null,
-        Gio.DBusCallFlags.NONE,
-        -1,
-        null,
-      )
-    }
-  } catch {
-    /* NM throttles scans; the list is still read below */
-  }
+  // `iw scan` performs the scan itself and returns only what is on the air now.
   refreshWifiList()
 }
 

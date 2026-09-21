@@ -214,10 +214,12 @@ verify_bluetooth_rfkill_type: bluetooth
 verify_bluetooth_audio_packages:
   - pipewire-audio
 
-# verify_bluetooth_powered_marker: the substring `bluetoothctl show` prints for
-#   a powered controller. Kept as a var so the assert has no quoted pattern to
-#   trip Ansible's conditional parser.
-verify_bluetooth_powered_marker: "Powered: yes"
+# verify_wifi_scan_binary / verify_wifi_scan_capability: `iw scan` backs the
+#   settings panel's Wi-Fi list freshness (NM's/Astal's caches hide disappeared
+#   APs). The packages role installs iw and grants it CAP_NET_ADMIN via setcap so
+#   the session user can scan without sudo; both are gated here.
+verify_wifi_scan_binary: iw
+verify_wifi_scan_capability: cap_net_admin
 
 # verify_backlight_binary: the CLI the settings panel's Display slider drives
 #   (`-m` read, `set <pct>%` write). The packages role installs it and its udev

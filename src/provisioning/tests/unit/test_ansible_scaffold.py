@@ -46,6 +46,7 @@ _LOGICAL_PACKAGE_KEYS = (
     "hyprland",
     "hyprpaper",
     "networkmanager",
+    "iw",
     "wifitui",
     "wlogout",
     "rofi",

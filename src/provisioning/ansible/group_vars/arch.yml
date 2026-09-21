@@ -8,6 +8,9 @@ packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
+  # iw: authoritative nl80211 scan for the settings panel's Wi-Fi list (NM/Astal
+  # caches hide disappeared APs). The packages role grants scan capabilities.
+  iw: iw
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
   # uwsm: wraps the Hyprland session in a systemd user unit (hyprland-uwsm

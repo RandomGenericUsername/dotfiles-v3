@@ -16,6 +16,7 @@ entries:
   - name: astal-battery       # UPower battery monitoring (AGS bar)
   - name: astal-network       # NetworkManager wrapper (AGS bar)
   - name: networkmanager      # Network backend for astal-network (bar) + NM stack
+  - name: iw                  # nl80211 scan for the settings panel Wi-Fi list (cap via provisioning)
   - name: wifitui             # WiFi TUI (impala-style) on NetworkManager (bar click)
   - name: uwsm                # systemd-managed Wayland session launcher (fixes SDDM session bounce race)
   - name: fonts

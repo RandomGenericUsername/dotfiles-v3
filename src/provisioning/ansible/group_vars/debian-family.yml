@@ -12,6 +12,7 @@ packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
+  iw: iw # nl80211 scan for the settings panel Wi-Fi list
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
   # uwsm: systemd-managed session launch (same rationale as Arch).

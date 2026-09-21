@@ -269,27 +269,44 @@
       playbook.
   when: not ansible_check_mode
 
-# Unblocked is necessary but not sufficient: the controller must be powered for
-# WirePlumber's bluez monitor to create a sink and for the panel to report
-# state. AutoEnable powers it once the block lifts.
-- name: Check the Bluetooth controller is powered
+# The settings panel's Wi-Fi list uses `iw scan` for freshness (NetworkManager's
+# and Astal's caches hide disappeared APs). The packages role installs iw and
+# grants it CAP_NET_ADMIN so the user can scan without sudo; gate both.
+- name: Check iw is installed
   ansible.builtin.command:
-    cmd: bluetoothctl show
-  register: verify_bluetooth_show
+    cmd: "pacman -Q {{ verify_wifi_scan_binary }}"
+  register: verify_wifi_scan_pkg
   changed_when: false
   failed_when: false
   when: not ansible_check_mode
 
-- name: Assert the Bluetooth controller is powered
+- name: Assert iw is installed
   ansible.builtin.assert:
     that:
-      - verify_bluetooth_show.rc == 0
-      - verify_bluetooth_show.stdout is search(verify_bluetooth_powered_marker)
+      - verify_wifi_scan_pkg.rc == 0
     fail_msg: >-
-      the Bluetooth controller is not powered (bluetoothctl: {{
-      verify_bluetooth_show.stdout | trim }}) — a connected headset would have
-      no audio sink. The packages role unblocks the radio; a HARD block needs
-      the physical switch.
+      {{ verify_wifi_scan_binary }} is not installed — the settings panel's
+      Wi-Fi list uses `iw scan` to detect vanished networks. The packages role
+      installs it.
+  when: not ansible_check_mode
+
+- name: Check iw has scan capabilities
+  ansible.builtin.shell:
+    cmd: "getcap \"$(command -v {{ verify_wifi_scan_binary }})\""
+  register: verify_wifi_scan_caps
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert iw has scan capabilities
+  ansible.builtin.assert:
+    that:
+      - verify_wifi_scan_caps.stdout is search(verify_wifi_scan_capability)
+    fail_msg: >-
+      {{ verify_wifi_scan_binary }} lacks {{ verify_wifi_scan_capability }}
+      (getcap: {{ verify_wifi_scan_caps.stdout | trim }}) — without it the user
+      cannot run `iw scan` and the Wi-Fi list cannot detect vanished networks.
+      The packages role runs setcap; re-run it.
   when: not ansible_check_mode
 
 # The settings panel's Display slider drives `brightnessctl set <pct>%` as the

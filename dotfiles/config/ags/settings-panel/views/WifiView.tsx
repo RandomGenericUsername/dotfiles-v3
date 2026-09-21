@@ -19,13 +19,14 @@ export function WifiView() {
   const target = wifiPasswordTarget
   const showList = createComputed(() => wifiEnabled() && target() === null)
 
-  // Force a fresh scan on open and keep it fresh while the list is shown — NM's
-  // access-point cache otherwise lags network changes by up to a minute.
+  // Force an authoritative scan on open and keep it fresh while the list is
+  // shown (`iw scan` returns only what is on the air now, so vanished networks
+  // drop promptly instead of lingering in NM's cache).
   createEffect(() => {
     if (activeView() !== "wifi") return
     clearWifiMessage()
     scanWifi()
-    const timer = interval(5000, scanWifi)
+    const timer = interval(8000, scanWifi)
     return () => timer.cancel()
   })
 

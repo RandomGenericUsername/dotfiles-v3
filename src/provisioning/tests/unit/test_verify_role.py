@@ -1908,6 +1908,7 @@ def _write_stub_binaries(home: Path) -> Path:
         '    libastal-bluetooth-git) echo "libastal-bluetooth-git r786.ca3190d-2"; exit 0 ;;\n'
         '    libastal-wireplumber-git) echo "libastal-wireplumber-git r776.c1bd89a-1"; exit 0 ;;\n'
         '    pipewire-audio) echo "pipewire-audio 1:1.6.8-1"; exit 0 ;;\n'
+        '    iw) echo "iw 6.17-1"; exit 0 ;;\n'
         "  esac\n"
         "fi\n"
         "exit 1\n"
@@ -1978,6 +1979,15 @@ def _write_stub_binaries(home: Path) -> Path:
         "exit 1\n"
     )
     btctl.chmod(0o755)
+    # getcap: verify gates that iw carries CAP_NET_ADMIN (settings panel scans
+    # unprivileged). Stub the capability output.
+    getcap = bin_dir / "getcap"
+    getcap.write_text(
+        "#!/bin/sh\n"
+        'echo "/usr/bin/iw cap_net_admin,cap_net_raw=ep"\n'
+        "exit 0\n"
+    )
+    getcap.chmod(0o755)
     return bin_dir
 
 

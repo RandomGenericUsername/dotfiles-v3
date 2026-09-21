@@ -339,6 +339,7 @@ class TestReadRealManifests:
             "astal-battery",
             "astal-network",
             "networkmanager",
+            "iw",
             "wifitui",
             "uwsm",
             "fonts",
