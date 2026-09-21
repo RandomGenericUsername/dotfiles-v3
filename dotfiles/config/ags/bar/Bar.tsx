@@ -8,6 +8,7 @@ import { Btop } from "./widgets/btop"
 import { Thunderbird } from "./widgets/thunderbird"
 import { Tray } from "./widgets/tray"
 import { Settings } from "./widgets/settings"
+import { MicIndicator, OutputIndicator } from "./widgets/audio"
 
 export default function Bar(gdkmonitor: Gdk.Monitor) {
   const { TOP, LEFT, RIGHT } = Astal.WindowAnchor
@@ -30,6 +31,8 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
         </box>
         <box $type="end" spacing={8}>
           <Tray />
+          <OutputIndicator />
+          <MicIndicator />
           <BatteryIndicator />
           <NetworkStatus />
           <Btop />

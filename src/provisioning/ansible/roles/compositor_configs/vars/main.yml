@@ -99,6 +99,9 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/components/wifi"
   - "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth"
   - "{{ compositor_configs_spine_config_dir }}/ags/components/sliders"
+  # Audio sources (add-pipewire-audio-control): the popup + shared state live in
+  # their own subdir; copy does NOT create dest parents for file sources.
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio"
   - "{{ compositor_configs_spine_config_dir }}/ags-capture"
   - "{{ compositor_configs_spine_config_dir }}/rofi"
   - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
@@ -159,6 +162,13 @@ compositor_configs_skeleton_files:
   - { name: ags-settings-panel-view-main, source: dotfiles/config/ags/settings-panel/views/MainView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/MainView.tsx" }
   - { name: ags-settings-panel-view-wifi, source: dotfiles/config/ags/settings-panel/views/WifiView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/WifiView.tsx" }
   - { name: ags-settings-panel-view-bluetooth, source: dotfiles/config/ags/settings-panel/views/BluetoothView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/BluetoothView.tsx" }
+  # Audio (add-pipewire-audio-control): the bar output/mic widgets, the popup
+  # window, and the shared audio state module. One per-file entry each (never a
+  # directory source — see the header note), all under the config-in-spine ags/
+  # tree. The popup reuses the settings-panel primitives (already deployed).
+  - { name: ags-bar-audio, source: dotfiles/config/ags/bar/widgets/audio.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/audio.tsx" }
+  - { name: ags-audio-state, source: dotfiles/config/ags/audio/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/state.ts" }
+  - { name: ags-audio-popup, source: dotfiles/config/ags/audio/AudioPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/AudioPopup.tsx" }
   # Shared AGS sources (extract-ags-shared-components): the three D-Bus service
   # modules relocated out of the settings-panel services directory, plus the
   # reusable primitives (IconToggle/LevelSlider), the wifi component

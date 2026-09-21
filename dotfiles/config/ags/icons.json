@@ -156,7 +156,7 @@
       {
         "name": "mic",
         "output": "capture-tool-mic.svg",
-        "template": "capture-tool/default/mic.svg"
+        "template": "microphone/default/mic-on.svg"
       },
       {
         "name": "info",
@@ -216,6 +216,23 @@
         "name": "email-client",
         "output": "email-client.svg",
         "template": "status-bar/email-client/default/icon.svg"
+      }
+    ]
+  },
+  "microphone": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "mic-on",
+        "output": "microphone-mic-on.svg",
+        "template": "microphone/default/mic-on.svg"
+      },
+      {
+        "name": "mic-off",
+        "output": "microphone-mic-off.svg",
+        "template": "microphone/default/mic-off.svg"
       }
     ]
   },

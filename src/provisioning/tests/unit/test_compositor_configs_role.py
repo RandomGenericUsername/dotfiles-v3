@@ -250,18 +250,22 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 55, (
-            f"expected exactly 55 skeleton files (hyprland.lua + gloview.lua + "
-            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+4 lib+Bar.tsx+10 "
-            f"bar widgets + the settings panel (SettingsPanel/state/primitives/"
-            f"bluetooth-agent + 5 controls + 3 views) + the 3 relocated D-Bus "
-            f"services + 8 shared components (2 primitives + 3 wifi + 1 bluetooth "
-            f"+ 2 sliders) + rofi launcher config.rasi); found {len(files)}"
+        assert len(files) == 58, (
+            f"expected exactly 58 skeleton files (hyprland.lua + gloview.lua + "
+            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+4 lib+Bar.tsx+11 "
+            f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
+            f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
+            f"D-Bus services + 8 shared components (2 primitives + 3 wifi + 1 "
+            f"bluetooth + 2 sliders) + the audio popup (state + AudioPopup) + rofi "
+            f"launcher config.rasi); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "dotfiles/config/ags/app.tsx",
+            "dotfiles/config/ags/audio/AudioPopup.tsx",
+            "dotfiles/config/ags/audio/state.ts",
             "dotfiles/config/ags/bar/Bar.tsx",
+            "dotfiles/config/ags/bar/widgets/audio.tsx",
             "dotfiles/config/ags/bar/widgets/battery.tsx",
             "dotfiles/config/ags/bar/widgets/btop.tsx",
             "dotfiles/config/ags/bar/widgets/clock.tsx",
@@ -667,6 +671,9 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "components" / "bluetooth" / "BluetoothContent.tsx",
                 install / "config" / "ags" / "components" / "sliders" / "VolumeSlider.tsx",
                 install / "config" / "ags" / "components" / "sliders" / "BrightnessSlider.tsx",
+                install / "config" / "ags" / "bar" / "widgets" / "audio.tsx",
+                install / "config" / "ags" / "audio" / "state.ts",
+                install / "config" / "ags" / "audio" / "AudioPopup.tsx",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"

@@ -219,8 +219,12 @@ capture-tool:
     - name: speaker
       template: capture-tool/default/speaker.svg
       output: capture-tool-speaker.svg
+    # The mic art is single-sourced from the bar-facing `microphone` group
+    # (microphone/default/mic-on.svg); this variant re-exports it under the
+    # capture tool's frozen variant name so the capture UI keeps resolving
+    # `capture-tool/mic` without its own copy of the artwork.
     - name: mic
-      template: capture-tool/default/mic.svg
+      template: microphone/default/mic-on.svg
       output: capture-tool-mic.svg
     - name: info
       template: capture-tool/default/info.svg
@@ -409,4 +413,19 @@ volume:
     - name: max
       template: volume/max/default/icon.svg
       output: volume-max.svg
+
+# Bar-facing microphone indicator. Kept separate from the capture-tool group
+# because the bar-icon contrast guard retargets group-level COLOR_FOREGROUND of
+# bar groups only; capture-tool renders on its own dark panel and must stay
+# byte-identical. Two states: `mic-on` (idle/active) and `mic-off` (muted).
+microphone:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: mic-on
+      template: microphone/default/mic-on.svg
+      output: microphone-mic-on.svg
+    - name: mic-off
+      template: microphone/default/mic-off.svg
+      output: microphone-mic-off.svg
 

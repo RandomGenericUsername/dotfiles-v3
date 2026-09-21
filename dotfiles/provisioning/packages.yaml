@@ -40,6 +40,8 @@ entries:
   - name: pipewire           # Audio capture backend for recordings
   - name: wireplumber        # Audio device management for PipeWire
   - name: pipewire-audio     # BlueZ/A2DP SPA — Bluetooth audio sinks (settings panel)
+  - name: pipewire-pulse     # PulseAudio-compatibility server (pavucontrol + Pulse clients)
+  - name: pavucontrol        # Conventional GUI mixer — debugging/reference surface for the AGS audio popup
   - name: gpu-screen-recorder # Preferred Wayland recording backend with pause/resume
   - name: wf-recorder        # Fallback Wayland-native recorder
   - name: rofi               # Application launcher
