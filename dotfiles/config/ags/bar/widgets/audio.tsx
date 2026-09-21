@@ -3,7 +3,6 @@ import { Accessor, createComputed, createEffect } from "ags"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import {
-  clampVolume,
   defaultMicrophoneMute,
   defaultSpeakerMute,
   defaultSpeakerVolume,
@@ -11,44 +10,74 @@ import {
   micInUse,
   nudgeDefaultOutputVolume,
   open,
+  setAudioIconX,
   toggle,
 } from "../../audio/state"
 
 /**
  * Audio bar indicators (add-pipewire-audio-control).
  *
- * Two bare SVG glyphs (no glyph font, no pill background — the dotfiles bar
- * convention), resolved through IconRegistry:
+ * Two bare SVG glyphs (no glyph font, no pill background, no percentage
+ * label — the dotfiles bar convention), resolved through IconRegistry:
  *
- *   OutputIndicator — level-aware `volume` group + live percentage.
+ *   OutputIndicator — level-aware `volume` group. Always visible.
  *     Left-click  → open the audio popup under this icon.
  *     Right-click → launch pavucontrol (the doc's conventional GUI).
  *     Scroll      → adjust default output volume.
  *
- *   MicIndicator — `microphone` group (mic-on / mic-off).
- *     Green live dot while any recording stream is active.
+ *   MicIndicator — `microphone` group (mic-on / mic-off). Visible ONLY while
+ *     a recording stream is active, carrying the green live dot.
  *     Left-click  → open the popup (the Input section lives in the main view).
  *
  * Both are in the runtime icon-contrast guard BAR_GROUPS, so on a light
  * wallpaper their foreground token is retargeted before ITR renders.
+ *
+ * Follower anchoring mirrors the settings panel: a motion controller records
+ * the pointer x (surface coords == monitor coords) without claiming clicks,
+ * and the click stores it so the popup can anchor beneath the icon.
  */
 
 function glyph(group: string, variant: string): string {
   return registry.resolve(group, variant) ?? ""
 }
 
+// Last pointer x over either audio indicator; re-recorded on every hover.
+let lastIconX: number | null = null
+
+function trackIconX(self: Gtk.Widget) {
+  const motion = new Gtk.EventControllerMotion()
+  motion.connect("motion", () => {
+    const event = motion.get_current_event()
+    if (!event) return
+    // Gdk.Event.get_position() -> [ok, x, y] in gjs.
+    const pos = event.get_position() as unknown
+    if (Array.isArray(pos) && pos.length >= 3) {
+      const x = Number(pos[1])
+      if (Number.isFinite(x) && x > 0) lastIconX = x
+    }
+  })
+  self.add_controller(motion)
+}
+
+function recordIconX() {
+  if (lastIconX !== null) setAudioIconX(lastIconX)
+}
+
 export function OutputIndicator() {
   const muted = createComputed(() => defaultSpeakerMute() === true)
-  const level = createComputed(() => clampVolume(defaultSpeakerVolume()))
+  const level = createComputed(() => defaultSpeakerVolume())
   const variant = createComputed(() => levelVariant(muted(), level()))
-  const percent = createComputed(() => Math.round(level() * 100))
 
   return (
     <button
       class="widget audio-widget"
       tooltipText="Audio — click to open, right-click for pavucontrol, scroll to adjust"
-      onClicked={() => toggle("main")}
+      onClicked={() => {
+        recordIconX()
+        toggle("main")
+      }}
       $={(self) => {
+        trackIconX(self)
         const secondary = new Gtk.GestureClick({ button: Gdk.BUTTON_SECONDARY })
         secondary.connect("pressed", () =>
           execAsync(["pavucontrol"]).catch((e) => console.error("pavucontrol:", e)),
@@ -64,18 +93,15 @@ export function OutputIndicator() {
         self.add_controller(scroll)
       }}
     >
-      <box spacing={4}>
-        <image
-          pixel_size={28}
-          class="widget-icon"
-          $={(self) => {
-            createEffect(() => {
-              self.set_from_file(glyph("volume", variant()))
-            })
-          }}
-        />
-        <label class="audio-bar-percent" label={percent((p) => `${p}%`)} />
-      </box>
+      <image
+        pixel_size={28}
+        class="widget-icon"
+        $={(self) => {
+          createEffect(() => {
+            self.set_from_file(glyph("volume", variant()))
+          })
+        }}
+      />
     </button>
   )
 }
@@ -89,10 +115,15 @@ export function MicIndicator() {
   return (
     <button
       class="widget audio-widget mic-widget"
-      tooltipText={live((l) =>
-        l ? "Microphone — recording in progress" : "Microphone",
-      )}
-      onClicked={() => open("main")}
+      visible={live}
+      tooltipText="Microphone — recording in progress"
+      onClicked={() => {
+        recordIconX()
+        open("main")
+      }}
+      $={(self) => {
+        trackIconX(self)
+      }}
     >
       <box class="audio-mic-wrap">
         <image

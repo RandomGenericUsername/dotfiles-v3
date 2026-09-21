@@ -4,6 +4,7 @@ import { registry } from "../lib/icon-registry"
 import { NavHeader, PanelCard } from "../settings-panel/primitives"
 import {
   activeSection,
+  audioIconX,
   back,
   clampVolume,
   close,
@@ -429,7 +430,7 @@ export function AudioCatcher(gdkmonitor: Gdk.Monitor) {
  * Escape is handled globally via `ags request popup-close`.
  */
 export function AudioPopup(gdkmonitor: Gdk.Monitor) {
-  const { TOP, RIGHT } = Astal.WindowAnchor
+  const { TOP, LEFT } = Astal.WindowAnchor
   let scroll: Gtk.ScrolledWindow | null = null
 
   createEffect(() => {
@@ -441,17 +442,31 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor) {
   const mainVisible = createComputed(() => activeSection() === "main")
   const devicesVisible = createComputed(() => activeSection() === "output-devices")
 
+  // Follower anchor beneath the invoking bar icon (same pattern as the
+  // settings panel / wifi popup): left margin = icon centre − half the popup
+  // width, clamped to the monitor. Falls back to the right edge when the icon
+  // position is unknown (e.g. opened programmatically).
+  const POPUP_WIDTH = 356
+  const monitorWidth = gdkmonitor.get_geometry().width
+  const marginLeft = createComputed(() => {
+    const rightMost = monitorWidth - POPUP_WIDTH - 8
+    const centre = audioIconX()
+    if (centre == null) return rightMost
+    const left = Math.round(centre - POPUP_WIDTH / 2)
+    return Math.min(Math.max(left, 8), rightMost)
+  })
+
   return (
     <window
       name="audio-popup"
       class="audio-popup"
       gdkmonitor={gdkmonitor}
-      anchor={TOP | RIGHT}
+      anchor={TOP | LEFT}
       exclusivity={Astal.Exclusivity.IGNORE}
       layer={Astal.Layer.OVERLAY}
       keymode={Astal.Keymode.NONE}
       marginTop={52}
-      marginRight={72}
+      marginLeft={marginLeft}
       visible={popupVisible}
     >
       <box class="audio-surface" orientation={1} widthRequest={356}>

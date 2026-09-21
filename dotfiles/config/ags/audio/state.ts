@@ -110,18 +110,41 @@ export const defaultSpeaker: Accessor<WpNode | null> = defaultNodeFor(MEDIA_CLAS
 /** The default input node (source). */
 export const defaultMicrophone: Accessor<WpNode | null> = defaultNodeFor(MEDIA_CLASS.AUDIO_SOURCE)
 
-export const defaultSpeakerVolume: Accessor<number> = createComputed(
-  () => defaultSpeaker()?.volume ?? 0,
-)
-export const defaultSpeakerMute: Accessor<boolean> = createComputed(
-  () => defaultSpeaker()?.mute === true,
-)
-export const defaultMicrophoneVolume: Accessor<number> = createComputed(
-  () => defaultMicrophone()?.volume ?? 0,
-)
-export const defaultMicrophoneMute: Accessor<boolean> = createComputed(
-  () => defaultMicrophone()?.mute === true,
-)
+/**
+ * Live level bindings for the default endpoints.
+ *
+ * Verified against the provisioned AstalWp build (r973):
+ * - `notify::nodes` fires on membership change (add/remove) but NOT on
+ *   volume/mute change — so anything derived only from `allNodes()` latches
+ *   (the bar froze after Fn-key/wpctl changes).
+ * - The default endpoint objects are STABLE from t0 and emit per-property
+ *   `notify::volume` / `notify::mute` — so the 3-path binding form tracks
+ *   live (same shape as the settings panel's Sound slider).
+ * - At module load the endpoint may be unhydrated (volume 0), so each level
+ *   also touches `allNodes()`: the hydration burst re-evaluates the computed
+ *   and picks up the real value for a correct first paint.
+ */
+const _spkVol = wp ? createBinding(wp, "default-speaker", "volume") : null
+const _spkMute = wp ? createBinding(wp, "default-speaker", "mute") : null
+const _micVol = wp ? createBinding(wp, "default-microphone", "volume") : null
+const _micMute = wp ? createBinding(wp, "default-microphone", "mute") : null
+
+export const defaultSpeakerVolume: Accessor<number> = createComputed(() => {
+  allNodes()
+  return clampVolume(_spkVol ? Number(_spkVol() ?? 0) : 0)
+})
+export const defaultSpeakerMute: Accessor<boolean> = createComputed(() => {
+  allNodes()
+  return _spkMute ? _spkMute() === true : true
+})
+export const defaultMicrophoneVolume: Accessor<number> = createComputed(() => {
+  allNodes()
+  return clampVolume(_micVol ? Number(_micVol() ?? 0) : 0)
+})
+export const defaultMicrophoneMute: Accessor<boolean> = createComputed(() => {
+  allNodes()
+  return _micMute ? _micMute() === true : true
+})
 
 /** Set the default output volume (fraction 0..1) by mutating the default node. */
 export function setDefaultOutputVolume(fraction: number) {
@@ -154,7 +177,12 @@ const [popupVisible, setPopupVisible] = createState(false)
 const [activeSection, setActiveSection] = createState<AudioSection>("main")
 const [viewEpoch, setViewEpoch] = createState(0)
 
-export { popupVisible, activeSection, viewEpoch }
+// Follower anchor: surface x-centre of the bar indicator that opened the
+// popup (recorded by a motion controller on the buttons, same pattern as the
+// settings panel's iconCenterX). The popup computes marginLeft from it.
+const [audioIconX, setAudioIconX] = createState<number | null>(null)
+
+export { popupVisible, activeSection, viewEpoch, audioIconX, setAudioIconX }
 
 /** Open the popup (optionally jumping straight to a section). */
 export function open(section: AudioSection = "main") {
