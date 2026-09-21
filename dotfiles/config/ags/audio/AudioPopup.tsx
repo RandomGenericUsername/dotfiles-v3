@@ -14,15 +14,18 @@ import {
   defaultSpeaker,
   defaultSpeakerMute,
   defaultSpeakerVolume,
+  effectiveSinkName,
   levelVariant,
   nodeLabel,
   outputDevices,
   playbackStreams,
   popupVisible,
   recordingStreams,
+  refreshStreamTargets,
+  routeStreamTo,
+  setDefaultSpeaker,
   showOutputDevices,
   viewEpoch,
-  wp,
 } from "./state"
 
 /**
@@ -68,6 +71,45 @@ function nodeName(value: unknown, fallback: string): string {
 }
 
 // ── Row building blocks ────────────────────────────────────────────────────
+
+/**
+ * Application/device icon from the node's own `icon` (icon-theme name, e.g.
+ * "google-chrome", "audio-headset-bluetooth"). Falls back to a registry SVG
+ * when the theme lacks the name — so a missing app icon degrades to a
+ * speaker glyph, never a broken image.
+ */
+function NodeIcon({
+  iconName,
+  fallback,
+  size = 20,
+}: {
+  iconName: Accessor<string | null | undefined>
+  fallback: Accessor<string | null>
+  size?: number
+}) {
+  function hasThemeIcon(name: string): boolean {
+    try {
+      const display = Gdk.Display.get_default()
+      const theme = display ? Gtk.IconTheme.get_for_display(display) : null
+      return theme ? theme.has_icon(name) : false
+    } catch {
+      return false
+    }
+  }
+  return (
+    <image
+      pixel_size={size}
+      class="widget-icon"
+      $={(self) => {
+        createEffect(() => {
+          const name = iconName() ?? ""
+          if (name && hasThemeIcon(name)) self.set_from_icon_name(name)
+          else self.set_from_file(fallback() ?? "")
+        })
+      }}
+    />
+  )
+}
 
 /** The level slider + percentage line, identical across every row type. */
 function LevelLine({
@@ -131,13 +173,11 @@ function MuteGlyph({
   )
 }
 
-/** Trailing routing select: move this stream to another output device. */
+/** Trailing routing select: move this stream to another output device.
+ *  The label is the stream's EFFECTIVE sink (explicit target → link-resolved
+ *  sink → default sink name) — never the word "Default". */
 function RoutingSelect({ stream }: { stream: unknown }) {
-  const node = nodeOf(stream)
-  const target = createComputed(() => {
-    const t = nodeOf(node?.target_endpoint)
-    return nodeLabel(t, "Default")
-  })
+  const target = createComputed(() => effectiveSinkName(stream))
 
   function openMenu(anchor: Gtk.Widget) {
     const menu = new Gtk.Popover()
@@ -147,9 +187,7 @@ function RoutingSelect({ stream }: { stream: unknown }) {
       const row = new Gtk.Button({ css_classes: ["audio-route-item"] })
       row.set_child(new Gtk.Label({ label: nodeLabel(device, "Output"), xalign: 0 }))
       row.connect("clicked", () => {
-        // AstalWp Stream.target-endpoint: assigning moves the stream without
-        // touching its volume or mute (doc §16).
-        ;(stream as { target_endpoint?: unknown }).target_endpoint = device
+        routeStreamTo(stream, device)
         menu.popdown()
       })
       list.append(row)
@@ -173,7 +211,8 @@ function RoutingSelect({ stream }: { stream: unknown }) {
   )
 }
 
-/** One playback stream (an application). */
+/** One playback stream (an application). Leading app icon (theme icon-name
+ *  with registry fallback), then name, mute toggle, and routing select. */
 function StreamRow({ stream }: { stream: unknown }) {
   const node = nodeOf(stream)
   const volume: Accessor<number> = createBinding(stream, "volume")
@@ -181,20 +220,26 @@ function StreamRow({ stream }: { stream: unknown }) {
   const muted = createComputed(() => muteRaw() === true)
   const level = createComputed(() => clampVolume(volume()))
   const title = nodeName(stream, "Application")
+  const appIcon = createComputed(() => node?.icon ?? null)
+  const appIconFallback = createComputed<string | null>(() =>
+    systemIcon("volume", muted() ? "muted" : "low"),
+  )
 
   return (
     <box class="audio-row" orientation={1} spacing={6}>
       <box class="audio-row-head" spacing={9}>
+        <NodeIcon iconName={appIcon} fallback={appIconFallback} />
+        <box class="audio-row-meta" orientation={1} hexpand>
+          <label class="audio-row-title" xalign={0} label={title} />
+        </box>
         <MuteGlyph
           muteRaw={muteRaw}
           tooltip={`Mute ${title}`}
+          size={17}
           onToggle={() => {
             if (node) node.mute = !node.mute
           }}
         />
-        <box class="audio-row-meta" orientation={1} hexpand>
-          <label class="audio-row-title" xalign={0} label={title} />
-        </box>
         <RoutingSelect stream={stream} />
       </box>
       <LevelLine
@@ -228,6 +273,22 @@ function DeviceCard({
   const micIcon = createComputed<string | null>(() =>
     systemIcon("microphone", muted() ? "mic-off" : "mic-on"),
   )
+  // Subtitle: the active route ("Headphones", "Analog Output") if present,
+  // else the parent device description when it differs from the title.
+  // Endpoints only carry name+description, so without this the card shows a
+  // bare name with no context (the mock's second line).
+  const subtitle = createComputed(() => {
+    const n = node() as unknown as {
+      route?: { description?: string } | null
+      device?: { description?: string } | null
+    } | null
+    const routeDesc = n?.route?.description
+    if (routeDesc) return routeDesc
+    const title = nodeName(endpoint(), "")
+    const devDesc = n?.device?.description
+    if (devDesc && devDesc !== title) return devDesc
+    return ""
+  })
 
   function toggleMute() {
     const n = node()
@@ -257,12 +318,20 @@ function DeviceCard({
           />
         </button>
         <box class="audio-row-meta" orientation={1} hexpand>
+          <box spacing={6}>
+            <label
+              class="audio-row-title"
+              xalign={0}
+              label={createComputed(() => nodeName(endpoint(), `No ${kind} device`))}
+            />
+            <label class="audio-badge" visible={muted} label="Muted" valign={Gtk.Align.CENTER} />
+          </box>
           <label
-            class="audio-row-title"
+            class="audio-row-sub"
             xalign={0}
-            label={createComputed(() => nodeName(endpoint(), `No ${kind} device`))}
+            visible={createComputed(() => subtitle() !== "")}
+            label={subtitle}
           />
-          <label class="audio-row-sub" xalign={0} visible={muted} label="Muted" />
         </box>
         {kind === "output" ? (
           <button
@@ -302,7 +371,7 @@ function OutputDevicesView() {
               class="audio-device"
               canFocus={false}
               onClicked={() => {
-                if (wp && node) wp.default_speaker = device
+                setDefaultSpeaker(device)
                 back()
               }}
             >
@@ -437,6 +506,14 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor) {
     viewEpoch()
     popupVisible()
     if (scroll) scroll.get_vadjustment().set_value(0)
+  })
+
+  // Re-snapshot link-resolved stream targets whenever streams appear or
+  // disappear while the popup is open (routing itself is covered by open()
+  // and routeStreamTo()'s own refresh).
+  createEffect(() => {
+    const count = (playbackStreams()?.length ?? 0) + (recordingStreams()?.length ?? 0)
+    if (popupVisible() && count >= 0) void refreshStreamTargets()
   })
 
   const mainVisible = createComputed(() => activeSection() === "main")

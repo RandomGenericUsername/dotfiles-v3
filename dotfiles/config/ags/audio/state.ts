@@ -1,41 +1,32 @@
 import Wp from "gi://AstalWp?version=0.1"
 import { Accessor, createBinding, createComputed, createState } from "ags"
+import { execAsync } from "ags/process"
+import GLib from "gi://GLib?version=2.0"
 
 /**
  * Shared audio state + data model for the AGS bar instance
  * (add-pipewire-audio-control).
  *
  * ── The binding we actually have ─────────────────────────────────────────
- * The provisioned `libastal-wireplumber-git` (r973) exposes the post-rewrite
- * AstalWp model: `wp.nodes` (all PipeWire nodes), `wp.devices`,
- * `wp.default-speaker`, `wp.default-microphone`. The convenience collections
- * the upstream docs describe (`speakers`/`microphones`/`streams`/`recorders`)
- * are NOT compiled into this build — `get_speakers()` etc. are `undefined` at
- * runtime even though the GIR lists them. So we derive every collection from
- * `wp.nodes` by `media-class`, which IS populated (verified live: a `pw-play`
- * stream shows up as a class-4 node and vanishes when playback ends).
+ * `Wp.get_default()` returns a session object whose collections live on the
+ * `audio` sub-object: `wp.audio.speakers/microphones/streams/recorders/
+ * devices/default-speaker/default-microphone`. (Probing `wp.speakers` etc.
+ * directly yields `undefined` — an earlier iteration built a nodes-filter
+ * model on that mistake; the doc's collection model was right all along.)
+ * `AstalWp.Endpoint.id` equals the PipeWire node id (verified: default sink
+ * id 104 == `wpctl` sink 104), which is what the link snapshot joins on.
  *
- * MediaClass enum (AstalWp.MediaClass):
- *   0 Unknown, 1 Audio_Source (mic), 2 Audio_Sink (output),
- *   3 Stream_Input_Audio  (recorder), 4 Stream_Output_Audio (playback app),
- *   5+ video.
- *
- * All collections are reactive: `nodes` is a GObject property, so
- * `createBinding` re-fires on every add/remove — no polling, no wpctl
- * (doc §19/§20).
+ * No polling, no `wpctl` loop (doc §19/§20): collections are GObject
+ * properties with add/remove notifies; the one exception is the per-stream
+ * effective-sink snapshot (see `refreshStreamTargets`), which runs on popup
+ * open + graph-membership change + after our own routing writes — never on a
+ * timer.
  */
 
 const wp = Wp.get_default()
+const audio = (wp as unknown as { audio?: unknown } | null)?.audio ?? null
 
-export { wp }
-
-export const MEDIA_CLASS = {
-  UNKNOWN: 0,
-  AUDIO_SOURCE: 1,
-  AUDIO_SINK: 2,
-  STREAM_INPUT: 3,
-  STREAM_OUTPUT: 4,
-} as const
+export { wp, audio }
 
 type WpNode = {
   id?: number
@@ -46,128 +37,154 @@ type WpNode = {
   mute?: boolean
   "media-class"?: number
   target_endpoint?: unknown
+  is_default?: boolean
 }
 
-const allNodes: Accessor<unknown[]> = wp
-  ? createBinding(wp, "nodes")
+/** Output devices (sinks) — the device subview + routing menus. */
+export const outputDevices: Accessor<WpNode[]> = audio
+  ? (createBinding(audio, "speakers") as Accessor<WpNode[]>)
+  : createComputed(() => [])
+/** Input devices (microphones). */
+export const inputDevices: Accessor<WpNode[]> = audio
+  ? (createBinding(audio, "microphones") as Accessor<WpNode[]>)
+  : createComputed(() => [])
+/** Playback application streams (one row per app stream). */
+export const playbackStreams: Accessor<WpNode[]> = audio
+  ? (createBinding(audio, "streams") as Accessor<WpNode[]>)
+  : createComputed(() => [])
+/** Recording application streams. */
+export const recordingStreams: Accessor<WpNode[]> = audio
+  ? (createBinding(audio, "recorders") as Accessor<WpNode[]>)
   : createComputed(() => [])
 
-function byClass(mediaClass: number): Accessor<WpNode[]> {
-  return createComputed(() => {
-    const list = allNodes() ?? []
-    return list.filter((n) => (n as WpNode)["media-class"] === mediaClass) as WpNode[]
-  })
-}
+/** The default output/input endpoints (proven pattern: 3-path bindings). */
+export const defaultSpeaker: Accessor<unknown> = audio
+  ? createBinding(audio, "default-speaker")
+  : createComputed(() => null)
+export const defaultMicrophone: Accessor<unknown> = audio
+  ? createBinding(audio, "default-microphone")
+  : createComputed(() => null)
 
-/** Output devices (sinks) — the surfaces in the Output-devices subview. */
-export const outputDevices = byClass(MEDIA_CLASS.AUDIO_SINK)
-/** Input devices (microphones). */
-export const inputDevices = byClass(MEDIA_CLASS.AUDIO_SOURCE)
-/** Playback application streams (one row per app stream). */
-export const playbackStreams = byClass(MEDIA_CLASS.STREAM_OUTPUT)
-/** Recording application streams. */
-export const recordingStreams = byClass(MEDIA_CLASS.STREAM_INPUT)
+export const defaultSpeakerVolume: Accessor<number> = audio
+  ? createBinding(audio, "default-speaker", "volume")
+  : createComputed(() => 0)
+export const defaultSpeakerMute: Accessor<boolean> = audio
+  ? createBinding(audio, "default-speaker", "mute")
+  : createComputed(() => true)
+export const defaultMicrophoneVolume: Accessor<number> = audio
+  ? createBinding(audio, "default-microphone", "volume")
+  : createComputed(() => 0)
+export const defaultMicrophoneMute: Accessor<boolean> = audio
+  ? createBinding(audio, "default-microphone", "mute")
+  : createComputed(() => true)
 
-/**
- * The default output/input nodes.
- *
- * This build does not emit `notify::default-speaker` / `notify::default-microphone`
- * (their property ids are mis-registered — the same "invalid property id" bug
- * that hits `connected`). A `createBinding` created at module load therefore
- * latches onto the initial `null` — which is exactly why the bar first showed
- * "No output device" and a later attempt showed 0%/muted forever.
- *
- * `wp.nodes` DOES notify, so we resolve the default endpoints from it: read the
- * live `default_speaker`/`default_microphone` for its `.id`, then find the
- * matching node. The result re-evaluates whenever the graph changes, and the
- * node object carries the live `volume`/`mute`.
- */
-type DefaultEndpoint = { id?: number }
-
-function defaultNodeId(kind: "speaker" | "microphone"): number | undefined {
-  if (!wp) return undefined
-  const ep = (wp as unknown as Record<string, DefaultEndpoint | null>)[
-    kind === "speaker" ? "default_speaker" : "default_microphone"
-  ]
-  return ep?.id
-}
-
-function defaultNodeFor(mediaClass: number): Accessor<WpNode | null> {
-  return createComputed(() => {
-    const id = defaultNodeId(mediaClass === MEDIA_CLASS.AUDIO_SINK ? "speaker" : "microphone")
-    const list = allNodes() ?? []
-    if (id !== undefined) {
-      const match = list.find((n) => (n as WpNode).id === id) as WpNode | undefined
-      if (match) return match
-    }
-    // Fallback: first node of the class (mirrors WirePlumber picking a default).
-    return (list.find((n) => (n as WpNode)["media-class"] === mediaClass) as WpNode) ?? null
-  })
-}
-
-/** The default output node (sink). */
-export const defaultSpeaker: Accessor<WpNode | null> = defaultNodeFor(MEDIA_CLASS.AUDIO_SINK)
-/** The default input node (source). */
-export const defaultMicrophone: Accessor<WpNode | null> = defaultNodeFor(MEDIA_CLASS.AUDIO_SOURCE)
-
-/**
- * Live level bindings for the default endpoints.
- *
- * Verified against the provisioned AstalWp build (r973):
- * - `notify::nodes` fires on membership change (add/remove) but NOT on
- *   volume/mute change — so anything derived only from `allNodes()` latches
- *   (the bar froze after Fn-key/wpctl changes).
- * - The default endpoint objects are STABLE from t0 and emit per-property
- *   `notify::volume` / `notify::mute` — so the 3-path binding form tracks
- *   live (same shape as the settings panel's Sound slider).
- * - At module load the endpoint may be unhydrated (volume 0), so each level
- *   also touches `allNodes()`: the hydration burst re-evaluates the computed
- *   and picks up the real value for a correct first paint.
- */
-const _spkVol = wp ? createBinding(wp, "default-speaker", "volume") : null
-const _spkMute = wp ? createBinding(wp, "default-speaker", "mute") : null
-const _micVol = wp ? createBinding(wp, "default-microphone", "volume") : null
-const _micMute = wp ? createBinding(wp, "default-microphone", "mute") : null
-
-export const defaultSpeakerVolume: Accessor<number> = createComputed(() => {
-  allNodes()
-  return clampVolume(_spkVol ? Number(_spkVol() ?? 0) : 0)
-})
-export const defaultSpeakerMute: Accessor<boolean> = createComputed(() => {
-  allNodes()
-  return _spkMute ? _spkMute() === true : true
-})
-export const defaultMicrophoneVolume: Accessor<number> = createComputed(() => {
-  allNodes()
-  return clampVolume(_micVol ? Number(_micVol() ?? 0) : 0)
-})
-export const defaultMicrophoneMute: Accessor<boolean> = createComputed(() => {
-  allNodes()
-  return _micMute ? _micMute() === true : true
-})
-
-/** Set the default output volume (fraction 0..1) by mutating the default node. */
+/** Set the default output volume (fraction 0..1). */
 export function setDefaultOutputVolume(fraction: number) {
-  const n = defaultSpeaker()
-  if (n) n.volume = Math.max(0, Math.min(1, fraction))
+  const speaker = nodeOf(defaultSpeaker())
+  if (speaker) speaker.volume = Math.max(0, Math.min(1, fraction))
 }
 
 /** Adjust the default output volume by `delta` (fraction of full scale). */
 export function nudgeDefaultOutputVolume(delta: number) {
-  const n = defaultSpeaker()
-  if (n) n.volume = Math.max(0, Math.min(1, (n.volume ?? 0) + delta))
+  const speaker = nodeOf(defaultSpeaker())
+  if (speaker) speaker.volume = Math.max(0, Math.min(1, (speaker.volume ?? 0) + delta))
 }
 
 /** Toggle the default output mute. */
 export function toggleDefaultOutputMute() {
-  const n = defaultSpeaker()
-  if (n) n.mute = !n.mute
+  const speaker = nodeOf(defaultSpeaker())
+  if (speaker) speaker.mute = !speaker.mute
+}
+
+/** Switch the default sink (proven pattern: set `is_default` on the endpoint,
+ *  same as the settings panel's Bluetooth audio routing). */
+export function setDefaultSpeaker(device: unknown) {
+  const node = nodeOf(device)
+  if (node) (node as { is_default?: boolean }).is_default = true
 }
 
 /** True while any recorder is consuming the microphone (drives the live dot). */
 export const micInUse: Accessor<boolean> = createComputed(
   () => (recordingStreams()?.length ?? 0) > 0,
 )
+
+export function nodeOf(value: unknown): WpNode | null {
+  return (value as WpNode) ?? null
+}
+
+// ── Effective per-stream sink ─────────────────────────────────────────────
+// AstalWp's `Stream.target_endpoint` is NULL for streams routed outside AstalWp
+// (e.g. via pavucontrol — verified live), so the popup cannot rely on it alone.
+// The ground truth lives in PipeWire Link objects (stream port → sink port).
+// We snapshot links on popup open + membership change + after our own routing
+// writes, and join sink node ids to AstalWp endpoints (ids match PipeWire ids).
+// Display rule: explicit target → link-resolved sink → default sink NAME —
+// never the word "Default".
+
+const [streamTargets, setStreamTargets] = createState<Record<number, number>>({})
+
+export { streamTargets }
+
+export async function refreshStreamTargets(): Promise<void> {
+  try {
+    const out = (await execAsync(["pw-dump"])) as unknown as string
+    const dump = JSON.parse(out) as Array<{
+      id?: number
+      type?: string
+      info?: Record<string, unknown>
+    }>
+    const portToNode: Record<number, number> = {}
+    for (const obj of dump) {
+      if (obj.type === "PipeWire:Interface:Port") {
+        const props = (obj.info?.props ?? {}) as Record<string, unknown>
+        const nodeId = props["node.id"]
+        if (typeof obj.id === "number" && typeof nodeId === "number") {
+          portToNode[obj.id] = nodeId
+        }
+      }
+    }
+    const map: Record<number, number> = {}
+    for (const obj of dump) {
+      if (obj.type !== "PipeWire:Interface:Link") continue
+      const info = (obj.info ?? {}) as Record<string, unknown>
+      if (String(info["state"] ?? "").toLowerCase() !== "active") continue
+      const fromNode = portToNode[info["output-port-id"] as number]
+      const toNode = portToNode[info["input-port-id"] as number]
+      if (fromNode !== undefined && toNode !== undefined) map[fromNode] = toNode
+    }
+    setStreamTargets(map)
+  } catch (e) {
+    console.error("audio: stream-target snapshot failed:", e)
+  }
+}
+
+/** Human name of the sink a stream is effectively playing on. */
+export function effectiveSinkName(stream: unknown): string {
+  const node = nodeOf(stream)
+  // 1. Explicit AstalWp target (set by us or main's BT routing).
+  const explicit = nodeOf(node?.target_endpoint)
+  if (explicit) return nodeLabel(explicit, "Unknown output")
+  // 2. Link-resolved sink.
+  const targets = streamTargets()
+  const sinkId = node?.id !== undefined ? targets[node.id] : undefined
+  if (sinkId !== undefined) {
+    const endpoint = (outputDevices() ?? []).find((s) => nodeOf(s)?.id === sinkId)
+    if (endpoint) return nodeLabel(endpoint, "Unknown output")
+  }
+  // 3. Default sink name — a stream with no explicit target follows it.
+  return nodeLabel(nodeOf(defaultSpeaker()), "No output")
+}
+
+/** Move a stream to another output (proven pattern: assign target_endpoint). */
+export function routeStreamTo(stream: unknown, device: unknown) {
+  const node = nodeOf(stream)
+  if (node) (node as { target_endpoint?: unknown }).target_endpoint = device
+  // Re-snapshot once WirePlumber re-links (one-shot, not a poll).
+  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+    void refreshStreamTargets()
+    return false
+  })
+}
 
 // ── UI state ───────────────────────────────────────────────────────────────
 
@@ -179,7 +196,7 @@ const [viewEpoch, setViewEpoch] = createState(0)
 
 // Follower anchor: surface x-centre of the bar indicator that opened the
 // popup (recorded by a motion controller on the buttons, same pattern as the
-// settings panel's iconCenterX). The popup computes marginLeft from it.
+// settings panel's iconCenterX).
 const [audioIconX, setAudioIconX] = createState<number | null>(null)
 
 export { popupVisible, activeSection, viewEpoch, audioIconX, setAudioIconX }
@@ -189,6 +206,7 @@ export function open(section: AudioSection = "main") {
   setActiveSection(section)
   setPopupVisible(true)
   setViewEpoch((n) => n + 1)
+  void refreshStreamTargets()
 }
 
 export function close() {
