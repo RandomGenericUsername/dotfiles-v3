@@ -25,6 +25,9 @@ import {
   routeStreamTo,
   setDefaultSpeaker,
   showOutputDevices,
+  streamAppIconPath,
+  streamAppName,
+  streamMediaName,
   viewEpoch,
 } from "./state"
 
@@ -36,12 +39,14 @@ import {
  * graph — never hard-coded application names (doc §11/§26):
  *
  *   Output       — default speaker + level, `Change ›` opens the device subview
- *   Applications — one row per playback stream, each with mute, level, routing
+ *   Applications — one row per playback stream, each with mute, level, routing,
+ *                  a brand app icon and the application/media subtitle
  *   Input        — default microphone + level
  *   Recording    — one row per recording stream, header carries the live dot
  *
- * Data comes from `wp.nodes` filtered by media-class (see audio/state.ts for
- * why; this binding does not compile the speakers/streams collections).
+ * Data comes from the `wp.audio.*` collections plus a graph snapshot in
+ * audio/state.ts (link-resolved routing + per-stream app identity); the view is
+ * a thin reader over those accessors and never shells out itself.
  *
  * Empty sections collapse entirely (decision 3A). The device list is an
  * in-place subview with a back arrow (decision 1B), mirroring the settings
@@ -72,43 +77,17 @@ function nodeName(value: unknown, fallback: string): string {
 
 // ── Row building blocks ────────────────────────────────────────────────────
 
-/**
- * Application/device icon from the node's own `icon` (icon-theme name, e.g.
- * "google-chrome", "audio-headset-bluetooth"). Falls back to a registry SVG
- * when the theme lacks the name — so a missing app icon degrades to a
- * speaker glyph, never a broken image.
- */
-function NodeIcon({
-  iconName,
-  fallback,
-  size = 20,
-}: {
-  iconName: Accessor<string | null | undefined>
-  fallback: Accessor<string | null>
-  size?: number
-}) {
-  function hasThemeIcon(name: string): boolean {
-    try {
-      const display = Gdk.Display.get_default()
-      const theme = display ? Gtk.IconTheme.get_for_display(display) : null
-      return theme ? theme.has_icon(name) : false
-    } catch {
-      return false
-    }
-  }
-  return (
-    <image
-      pixel_size={size}
-      class="widget-icon"
-      $={(self) => {
-        createEffect(() => {
-          const name = iconName() ?? ""
-          if (name && hasThemeIcon(name)) self.set_from_icon_name(name)
-          else self.set_from_file(fallback() ?? "")
-        })
-      }}
-    />
-  )
+/** Secondary line for a stream row (doc §25): the media name when the backend
+ *  exposes one (e.g. "YouTube" under Chrome), else the PipeWire application
+ *  name when it differs from the primary label. Empty means "no subtitle", and
+ *  the row collapses it. */
+function streamSubtitle(stream: unknown): string {
+  const title = nodeName(stream, "")
+  const media = streamMediaName(stream)
+  if (media && media !== title) return media
+  const app = streamAppName(stream)
+  if (app && app !== title) return app
+  return ""
 }
 
 /** The level slider + percentage line, identical across every row type. */
@@ -211,8 +190,10 @@ function RoutingSelect({ stream }: { stream: unknown }) {
   )
 }
 
-/** One playback stream (an application). Leading app icon (theme icon-name
- *  with registry fallback), then name, mute toggle, and routing select. */
+/** One playback stream (an application). Leading brand app icon (literal-color
+ *  `app-icons` asset resolved from the stream's own identity), then name with
+ *  the application subtitle (Chrome / YouTube, per doc §25), mute toggle, and
+ *  routing select. */
 function StreamRow({ stream }: { stream: unknown }) {
   const node = nodeOf(stream)
   const volume: Accessor<number> = createBinding(stream, "volume")
@@ -220,17 +201,33 @@ function StreamRow({ stream }: { stream: unknown }) {
   const muted = createComputed(() => muteRaw() === true)
   const level = createComputed(() => clampVolume(volume()))
   const title = nodeName(stream, "Application")
-  const appIcon = createComputed(() => node?.icon ?? null)
-  const appIconFallback = createComputed<string | null>(() =>
-    systemIcon("volume", muted() ? "muted" : "low"),
-  )
+  const subtitle = createComputed(() => streamSubtitle(stream))
+  // Brand icon, falling back to the neutral app-icons/generic asset, then to
+  // the device glyph — a row is never left blank.
+  const appIcon = createComputed<string | null>(() => {
+    const brand = streamAppIconPath(stream)
+    if (brand) return brand
+    return systemIcon("volume", muted() ? "muted" : "low")
+  })
 
   return (
     <box class="audio-row" orientation={1} spacing={6}>
       <box class="audio-row-head" spacing={9}>
-        <NodeIcon iconName={appIcon} fallback={appIconFallback} />
+        <image
+          pixel_size={20}
+          class="widget-icon audio-app-icon"
+          $={(self) => {
+            createEffect(() => self.set_from_file(appIcon() ?? ""))
+          }}
+        />
         <box class="audio-row-meta" orientation={1} hexpand>
           <label class="audio-row-title" xalign={0} label={title} />
+          <label
+            class="audio-row-sub"
+            xalign={0}
+            visible={createComputed(() => subtitle() !== "")}
+            label={subtitle}
+          />
         </box>
         <MuteGlyph
           muteRaw={muteRaw}
@@ -395,7 +392,8 @@ function OutputDevicesView() {
   )
 }
 
-/** One recording stream row — same shape as a playback row, mic glyph. */
+/** One recording stream row — brand app icon (same identity resolution as a
+ *  playback row), mic mute toggle, and the app name as the subtitle. */
 function RecorderRow({ stream }: { stream: unknown }) {
   const node = nodeOf(stream)
   const volume: Accessor<number> = createBinding(stream, "volume")
@@ -405,10 +403,26 @@ function RecorderRow({ stream }: { stream: unknown }) {
   const micOn = createComputed<string | null>(() =>
     systemIcon("microphone", "mic-on"),
   )
+  const appIcon = createComputed<string | null>(() => {
+    const brand = streamAppIconPath(stream)
+    if (brand) return brand
+    return systemIcon("microphone", "mic-on")
+  })
 
   return (
     <box class="audio-row" orientation={1} spacing={6}>
       <box class="audio-row-head" spacing={9}>
+        <image
+          pixel_size={20}
+          class="widget-icon audio-app-icon"
+          $={(self) => {
+            createEffect(() => self.set_from_file(appIcon() ?? ""))
+          }}
+        />
+        <box class="audio-row-meta" orientation={1} hexpand>
+          <label class="audio-row-title" xalign={0} label={title} />
+          <label class="audio-row-sub" xalign={0} label="Using microphone" />
+        </box>
         <MuteGlyph
           muteRaw={muteRaw}
           iconWhenOn={micOn}
@@ -417,10 +431,6 @@ function RecorderRow({ stream }: { stream: unknown }) {
             if (node) node.mute = !node.mute
           }}
         />
-        <box class="audio-row-meta" orientation={1} hexpand>
-          <label class="audio-row-title" xalign={0} label={title} />
-          <label class="audio-row-sub" xalign={0} label="Using microphone" />
-        </box>
       </box>
       <LevelLine
         volume={level}
@@ -508,12 +518,15 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor) {
     if (scroll) scroll.get_vadjustment().set_value(0)
   })
 
-  // Re-snapshot link-resolved stream targets whenever streams appear or
-  // disappear while the popup is open (routing itself is covered by open()
-  // and routeStreamTo()'s own refresh).
+  // Re-snapshot the graph (links + per-stream identity) whenever the graph's
+  // membership changes while the popup is open: a stream appears/disappears or
+  // a sink does (e.g. a Bluetooth sink joining/leaving). Routing writes are
+  // covered by open() and routeStreamTo()'s own one-shot refresh — this is
+  // event-driven, never a timer.
   createEffect(() => {
-    const count = (playbackStreams()?.length ?? 0) + (recordingStreams()?.length ?? 0)
-    if (popupVisible() && count >= 0) void refreshStreamTargets()
+    const streams = (playbackStreams()?.length ?? 0) + (recordingStreams()?.length ?? 0)
+    const sinks = outputDevices()?.length ?? 0
+    if (popupVisible() && (streams >= 0 || sinks >= 0)) void refreshStreamTargets()
   })
 
   const mainVisible = createComputed(() => activeSection() === "main")

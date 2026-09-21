@@ -769,6 +769,18 @@ window.settings-panel {
   color: alpha(@color_foreground, 0.55);
 }
 
+/* Brand app icons are the LITERAL-COLOUR exception (the `app-icons` group is
+   guard-exempt), so they cannot be retargeted for contrast. Several are white
+   knockouts (Tidal, and the inner shapes of Chrome/YouTube/Chromium/Brave) and
+   would vanish on a light wallpaper. A neutral circular backing keeps every
+   mark legible on any wallpaper without altering the brand colours, and reads
+   as an app chip against the popup's glass surface. */
+.audio-app-icon {
+  background-color: alpha(@color_foreground, 0.10);
+  border-radius: 6px;
+  padding: 2px;
+}
+
 .audio-level-line {
   margin-top: 2px;
 }

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audio popup — per-app transport controls (proposal)</title>
+<style>
+  :root{
+    --bg:#d6559b;            /* wallpaper stand-in */
+    --surface:rgba(26,27,38,.94);
+    --card:rgba(255,255,255,.06);
+    --card-active:rgba(245,194,231,.16);
+    --ink:#cdd6f4;
+    --ink-dim:rgba(205,214,244,.55);
+    --border:rgba(205,214,244,.14);
+    --accent:#f5c2e7;        /* palette rose — slider fill, checks */
+    --live:#2ecc71;          /* the only literal signal colour */
+    --track:rgba(205,214,244,.18);
+  }
+  *{box-sizing:border-box;margin:0}
+  body{
+    min-height:100vh;display:flex;gap:48px;align-items:flex-start;justify-content:center;
+    padding:64px 24px 80px;font:14px/1.45 "Inter",system-ui,sans-serif;color:var(--ink);
+    background:radial-gradient(1200px 700px at 30% 20%,#e879b9 0%,#d6559b 45%,#b13d80 100%);
+  }
+  .stage{display:flex;flex-direction:column;gap:14px}
+  h1{position:fixed;top:16px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:600;
+     color:#fff;opacity:.9;text-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap}
+  .caption{max-width:356px;font-size:12px;color:#fff;opacity:.92;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .caption b{color:#ffe3f4}
+
+  /* ── popup surface ─────────────────────────────────────────── */
+  .popup{width:356px;background:var(--surface);border:1.5px solid var(--border);
+         border-radius:12px;padding:11px;box-shadow:0 18px 50px rgba(0,0,0,.45);
+         display:flex;flex-direction:column;gap:9px}
+  .card{background:var(--card);border-radius:10px;padding:10px 11px}
+  .card-title{font-size:12.5px;font-weight:650;letter-spacing:.02em;margin-bottom:8px}
+
+  /* one row-layout rule: head line (glyph · name/sub · trailing) + level line */
+  .row{display:flex;flex-direction:column;gap:5px;padding:6px 0}
+  .row + .row{border-top:1px solid rgba(205,214,244,.07)}
+  .row-head{display:flex;align-items:center;gap:9px;min-height:24px}
+  .meta{min-width:0;flex:1}
+  .title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sub{font-size:11px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .level{display:flex;align-items:center;gap:9px;margin-top:2px}
+
+  .glyph{width:20px;height:20px;flex:none;display:grid;place-items:center}
+  .glyph svg{width:20px;height:20px}
+  .glyph.btn{background:transparent;border:none;padding:0;cursor:pointer}
+  .chip{ /* brand icon backing — keeps white marks legible on light bars */
+    background:rgba(205,214,244,.10);border-radius:6px;padding:2px;width:24px;height:24px;flex:none;
+    display:grid;place-items:center}
+  .chip svg{width:20px;height:20px}
+
+  .badge{font-size:10px;font-weight:650;color:var(--accent);border:1px solid var(--accent);
+         border-radius:5px;padding:1px 5px}
+
+  /* sliders */
+  .slider{position:relative;flex:1;height:14px;display:flex;align-items:center;cursor:pointer}
+  .slider .track{width:100%;height:5px;border-radius:3px;background:var(--track);overflow:hidden}
+  .slider .fill{height:100%;border-radius:3px;background:var(--accent)}
+  .slider .knob{position:absolute;top:50%;width:13px;height:13px;border-radius:50%;
+                background:#fff;transform:translate(-50%,-50%);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .pct{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}
+  .time{font-size:11px;color:var(--ink-dim);font-variant-numeric:tabular-nums;min-width:64px;text-align:right}
+
+  /* transport line (new) — prev · play/pause · next · seek · elapsed/duration */
+  .transport{display:flex;align-items:center;gap:6px;margin-top:1px}
+  .transport .glyph svg{width:17px;height:17px}
+  .transport .glyph.skip svg{width:15px;height:15px}
+  .transport .glyph.skip{opacity:.85}
+  .transport.paused .slider .fill{background:var(--ink-dim)}
+  .transport.paused .title,.transport.paused .sub{opacity:.78}
+  .transport .knob{width:10px;height:10px}
+  .transport .slider{margin:0 2px}
+
+  .routing{display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ink);
+           background:rgba(205,214,244,.08);border:1px solid var(--border);border-radius:7px;
+           padding:3px 7px;cursor:pointer;max-width:130px}
+  .routing span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .routing i{font-style:normal;color:var(--ink-dim)}
+
+  .master{display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex:none;
+          border-radius:7px;border:1px solid var(--border);background:rgba(205,214,244,.08);cursor:pointer}
+  .master:hover{background:var(--card-active)}
+  .master svg{width:15px;height:15px}
+
+  .check{width:16px;flex:none;display:grid;place-items:center;color:var(--accent);font-weight:700}
+
+  .live-dot{width:7px;height:7px;border-radius:50%;background:var(--live);flex:none}
+  .live-head{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:11px;color:var(--ink-dim)}
+
+  /* device subview rows */
+  .device{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer}
+  .device:hover{background:var(--card)}
+  .device.active{background:var(--card-active)}
+  .device .title{flex:1}
+</style>
+</head>
+<body>
+<h1>Per-app transport controls — proposal (356px popup, both panels same width as live)</h1>
+
+<!-- ════════════════ PANEL 1 · main view ════════════════ -->
+<div class="stage">
+  <div class="popup">
+
+    <!-- OUTPUT — master play/pause controls the MOST RECENT player (tidal here) -->
+    <div class="card">
+      <div class="card-title">Output</div>
+      <div class="row">
+        <div class="row-head">
+          <span class="glyph"><!-- speaker -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="var(--accent)" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke-linecap="round"/><path d="M18 6a8.5 8.5 0 0 1 0 12" stroke-linecap="round"/></svg>
+          </span>
+          <div class="meta">
+            <div class="title">C-Media(R) Audio Analog Stereo</div>
+            <div class="sub">Analog Output</div>
+          </div>
+          <span class="master" title="Play/Pause — tidal-hifi (most recent)"><!-- pause bars -->
+            <svg viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          </span>
+          <span class="routing">Change <i>›</i></span>
+        </div>
+        <div class="level">
+          <div class="slider"><div class="track"><div class="fill" style="width:100%"></div></div><div class="knob" style="left:100%"></div></div>
+          <span class="pct">100%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- APPLICATIONS — transport line only where an MPRIS player exists -->
+    <div class="card">
+      <div class="card-title">Applications</div>
+
+      <!-- Chrome: playing, useful subtitle (tab/track), routed to BT -->
+      <div class="row">
+        <div class="row-head">
+          <span class="chip"><!-- chrome -->
+            <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#fff"/><circle cx="24" cy="24" r="9" fill="#1a73e8" stroke="#fff" stroke-width="2"/><path d="M24 2a22 22 0 0 1 19 11l-9 15a13 13 0 0 0-10-15z" fill="#e33b2e"/><path d="M43 13a22 22 0 0 1-19 33l-4-17a13 13 0 0 0 14-16z" fill="#229342"/><path d="M5 13a22 22 0 0 1 19-11l-0 26a13 13 0 0 1-10 0z" fill="#fbc116"/></svg>
+          </span>
+          <div class="meta">
+            <div class="title">Google Chrome</div>
+            <div class="sub">Wild In Saint Antoine</div>
+          </div>
+          <span class="glyph btn" title="Mute"><!-- speaker -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="var(--ink)" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke-linecap="round"/></svg>
+          </span>
+          <span class="routing"><span>TOZO NC9</span><i>›</i></span>
+        </div>
+        <div class="level">
+          <div class="slider"><div class="track"><div class="fill" style="width:68%"></div></div><div class="knob" style="left:68%"></div></div>
+          <span class="pct">68%</span>
+        </div>
+        <div class="transport"><!-- playing -->
+          <span class="glyph btn skip" title="Previous"><!-- prev -->
+            <svg viewBox="0 0 24 24" fill="var(--ink)"><path d="M6 5h2v14H6z"/><path d="M18 5v14l-10-7z"/></svg>
+          </span>
+          <span class="glyph btn" title="Pause"><!-- pause -->
+            <svg viewBox="0 0 24 24" fill="var(--ink)"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          </span>
+          <span class="glyph btn skip" title="Next"><!-- next -->
+            <svg viewBox="0 0 24 24" fill="var(--ink)"><path d="M16 5h2v14h-2z"/><path d="M6 5v14l10-7z"/></svg>
+          </span>
+          <div class="slider"><div class="track"><div class="fill" style="width:35%"></div></div><div class="knob" style="left:35%"></div></div>
+          <span class="time">1:24 / 4:02</span>
+        </div>
+      </div>
+
+      <!-- tidal: PAUSED — play glyph, dimmed fill, position frozen -->
+      <div class="row">
+        <div class="row-head">
+          <span class="chip"><!-- tidal -->
+            <svg viewBox="0 0 24 16" fill="#fff"><path d="M4 0l4 4-4 4-4-4zM12 0l4 4-4 4-4-4zM20 0l4 4-4 4-4-4zM12 8l4 4-4 4-4-4z"/></svg>
+          </span>
+          <div class="meta">
+            <div class="title">tidal-hifi</div>
+            <div class="sub">Blue — Jason Becker</div>
+          </div>
+          <span class="glyph btn" title="Mute"><!-- muted speaker -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="var(--ink)" stroke="none"/><path d="M16 9l5 6M21 9l-5 6" stroke-linecap="round"/></svg>
+          </span>
+          <span class="routing"><span>C-Media(R) Audio Ana…</span><i>›</i></span>
+        </div>
+        <div class="level">
+          <div class="slider"><div class="track"><div class="fill" style="width:100%"></div></div><div class="knob" style="left:100%"></div></div>
+          <span class="pct">100%</span>
+        </div>
+        <div class="transport paused"><!-- paused -->
+          <span class="glyph btn skip" title="Previous"><!-- prev -->
+            <svg viewBox="0 0 24 24" fill="var(--ink)"><path d="M6 5h2v14H6z"/><path d="M18 5v14l-10-7z"/></svg>
+          </span>
+          <span class="glyph btn" title="Play"><!-- play -->
+            <svg viewBox="0 0 24 24" fill="var(--ink)"><path d="M7 4.5v15l13-7.5z"/></svg>
+          </span>
+          <span class="glyph btn skip" title="Next"><!-- next -->
+            <svg viewBox="0 0 24 24" fill="var(--ink)"><path d="M16 5h2v14h-2z"/><path d="M6 5v14l10-7z"/></svg>
+          </span>
+          <div class="slider"><div class="track"><div class="fill" style="width:22%"></div></div><div class="knob" style="left:22%"></div></div>
+          <span class="time">0:47 / 3:31</span>
+        </div>
+      </div>
+
+      <!-- Discord: NO MPRIS player — no transport line, row unchanged -->
+      <div class="row">
+        <div class="row-head">
+          <span class="chip"><!-- generic -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-dim)" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M10 18V6l10-2v12"/></svg>
+          </span>
+          <div class="meta"><div class="title">Discord</div></div>
+          <span class="glyph btn" title="Mute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="var(--ink)" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke-linecap="round"/></svg>
+          </span>
+          <span class="routing"><span>C-Media(R) Audio Ana…</span><i>›</i></span>
+        </div>
+        <div class="level">
+          <div class="slider"><div class="track"><div class="fill" style="width:45%"></div></div><div class="knob" style="left:45%"></div></div>
+          <span class="pct">45%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INPUT -->
+    <div class="card">
+      <div class="card-title">Input</div>
+      <div class="row">
+        <div class="row-head">
+          <span class="glyph"><!-- mic -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </span>
+          <div class="meta">
+            <div class="title">C-Media(R) Audio Analog Stereo</div>
+            <div class="sub">Microphone</div>
+          </div>
+        </div>
+        <div class="level">
+          <div class="slider"><div class="track"><div class="fill" style="width:74%"></div></div><div class="knob" style="left:74%"></div></div>
+          <span class="pct">74%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECORDING (unchanged use case — shown for completeness) -->
+    <div class="card">
+      <div class="live-head"><span class="live-dot"></span>Recording</div>
+      <div class="row">
+        <div class="row-head">
+          <span class="chip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="18" r="3"/><circle cx="17" cy="16" r="3"/><path d="M10 18V6l10-2v12"/></svg>
+          </span>
+          <div class="meta">
+            <div class="title">OBS Studio</div>
+            <div class="sub">Using microphone</div>
+          </div>
+        </div>
+        <div class="level">
+          <div class="slider"><div class="track"><div class="fill" style="width:90%"></div></div><div class="knob" style="left:90%"></div></div>
+          <span class="pct">90%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption"><b>Main view.</b>
+    Master ▶/⏸ in Output = <b>most recently active player</b> (tooltip names it: tidal-hifi).
+    Transport line appears <b>only</b> on rows with an MPRIS player — <b>⏮ ▶/⏸ ⏭ · seek · time</b>:
+    Chrome playing, tidal paused (dimmed fill, frozen knob). Prev/Next call MPRIS
+    <b>Previous</b>/<b>Next</b>. Discord has no player → volume-only, exactly as today.
+    Subtitle hidden when it's the generic "Playback"; shown when meaningful.</div>
+</div>
+
+<!-- ════════════════ PANEL 2 · Output devices subview ════════════════ -->
+<div class="stage">
+  <div class="popup">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="cursor:pointer;color:var(--ink-dim)">‹</span>
+        <div class="card-title" style="margin:0">Output devices</div>
+      </div>
+
+      <div class="device active">
+        <span class="check">✓</span>
+        <span class="glyph">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="var(--accent)" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke-linecap="round"/></svg>
+        </span>
+        <div class="title">C-Media(R) Audio Analog Stereo</div>
+      </div>
+      <div class="device">
+        <span class="check"></span>
+        <span class="glyph">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-dim)" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="var(--ink-dim)" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke-linecap="round"/></svg>
+        </span>
+        <div class="title">TOZO NC9</div>
+      </div>
+      <div class="device">
+        <span class="check"></span>
+        <span class="glyph">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-dim)" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="var(--ink-dim)" stroke="none"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke-linecap="round"/></svg>
+        </span>
+        <div class="title">Built-in Audio</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption"><b>Change › subview.</b> Active default sink carries the <b>✓</b> and the
+    active-row fill (UX spec §Device subview — "active device checked"). Selecting a row sets the
+    default via <b>wpctl set-default</b> (the verified action path) and returns. Existing routed
+    streams are untouched — default only governs new/unrouted streams.</div>
+
+  <div class="caption"><b>All use cases covered:</b> playing · paused · prev/next (skipped when the
+    player exposes no playlist — MPRIS <b>CanGoNext/CanGoPrevious</b>) · seek-drag (commits on
+    release, not per-tick) · no-player app · multiple instances of one app (row controls its
+    most-recent playing instance) · player quits mid-session (transport line disappears, volume
+    stays) · no players at all (master button hidden) · position interpolation between MPRIS syncs
+    (recording-widget pattern; tick runs only while the popup is open — no polling).</div>
+</div>
+</body>
+</html>

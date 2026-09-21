@@ -429,3 +429,43 @@ microphone:
       template: microphone/default/mic-off.svg
       output: microphone-mic-off.svg
 
+# Per-application brand icons for the audio popup's stream rows. Groups a
+# LITERAL-COLOR exception: the variants ship their own fills (brand marks must
+# stay recognisable on any wallpaper), so `color_mappings` is empty and the
+# bar-icon contrast guard never retargets them. Variant names are the PipeWire
+# `application.icon-name` values (`google-chrome`, `tidal-hifi`, …); the audio
+# state module falls back to `generic` then to the device glyph.
+app-icons:
+  color_mappings: {}
+  variants:
+    - name: generic
+      template: app-icons/default/generic.svg
+      output: app-icon-generic.svg
+    - name: google-chrome
+      template: app-icons/default/google-chrome.svg
+      output: app-icon-google-chrome.svg
+    - name: chromium
+      template: app-icons/default/chromium.svg
+      output: app-icon-chromium.svg
+    - name: brave-browser
+      template: app-icons/default/brave-browser.svg
+      output: app-icon-brave-browser.svg
+    - name: firefox
+      template: app-icons/default/firefox.svg
+      output: app-icon-firefox.svg
+    - name: spotify
+      template: app-icons/default/spotify.svg
+      output: app-icon-spotify.svg
+    - name: tidal-hifi
+      template: app-icons/default/tidal-hifi.svg
+      output: app-icon-tidal-hifi.svg
+    - name: whatsapp
+      template: app-icons/default/whatsapp.svg
+      output: app-icon-whatsapp.svg
+    - name: youtube
+      template: app-icons/default/youtube.svg
+      output: app-icon-youtube.svg
+    - name: youtube-music
+      template: app-icons/default/youtube-music.svg
+      output: app-icon-youtube-music.svg
+
