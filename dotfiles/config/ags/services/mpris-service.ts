@@ -105,12 +105,17 @@ function playerFromProps(
   const status = asStatus(props.PlaybackStatus)
   //: Preserve the ordering signal across a re-read: a player already Playing
   //: keeps its original `lastPlayingAt` (resync must not re-rank the master).
+  //: A Stopped player resets to 0 so a stale timestamp can never let it outrank
+  //: a live (paused) player in `pickActivePlayer`'s fallback (found live, WP-F:
+  //: a stopped Chromium instance was chosen over the playing tidal-hifi).
   const lastPlayingAt =
     status === "Playing"
       ? previous !== null && previous.status === "Playing"
         ? previous.lastPlayingAt
         : nowMs()
-      : (previous?.lastPlayingAt ?? 0)
+      : status === "Paused"
+        ? (previous?.lastPlayingAt ?? 0)
+        : 0
   const position = Number(props.Position ?? 0)
   return {
     busName,
@@ -292,6 +297,9 @@ function handlePropertiesChanged(busName: string, parameters: GLib.Variant): voi
         next.positionSyncedAtMs = nowMs()
         synchronise = true
       }
+    } else if (status === "Stopped") {
+      //: A stopped player must not keep a stale rank (see playerFromProps).
+      next.lastPlayingAt = 0
     }
   }
   if (saw("Metadata")) {

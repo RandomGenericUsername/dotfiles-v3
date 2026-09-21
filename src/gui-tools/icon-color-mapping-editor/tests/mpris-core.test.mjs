@@ -183,6 +183,26 @@ check(
   "pick falls back to newest non-playing",
   mpris.pickActivePlayer([
     { identity: "a", status: "Paused", lastPlayingAt: 100 },
+    { identity: "b", status: "Paused", lastPlayingAt: 200 },
+  ]).identity,
+  "b",
+);
+//: Regression (found live, WP-F): a STOPPED player must never outrank a live
+//: (paused) one merely because it carries a stale `lastPlayingAt` — the stopped
+//: Chromium instance was selected over the playing tidal, so `next`/`previous`
+//: were sent to a player that could not handle them.
+check(
+  "pick prefers paused over stopped despite stale timestamp",
+  mpris.pickActivePlayer([
+    { identity: "tidal-hifi", status: "Paused", lastPlayingAt: 100 },
+    { identity: "chromium", status: "Stopped", lastPlayingAt: 999 },
+  ]).identity,
+  "tidal-hifi",
+);
+check(
+  "pick falls back to stopped only when all are stopped",
+  mpris.pickActivePlayer([
+    { identity: "a", status: "Stopped", lastPlayingAt: 100 },
     { identity: "b", status: "Stopped", lastPlayingAt: 200 },
   ]).identity,
   "b",

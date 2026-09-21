@@ -142,14 +142,18 @@ export function identityMatches(identity: string, candidates: string[]): boolean
 }
 
 //: The master-button target (D1): the most recently *playing* player; if none
-//: is playing, the most recently active overall; otherwise the first. Strict
-//: `>` keeps the earliest entry on a tie, so the choice is deterministic.
+//: is playing, the most recently active *non-stopped* player (a paused player is
+//: still a real target — a stopped one is not, and must never outrank it just
+//: because it carries a stale timestamp); otherwise the most recently active
+//: overall; otherwise the first. Strict `>` keeps the earliest entry on a tie,
+//: so the choice is deterministic.
 export function pickActivePlayer<
   T extends { identity: string; status: string; lastPlayingAt: number },
 >(players: T[]): T | null {
   if (players.length === 0) return null
   const playing = players.filter((player) => player.status === "Playing")
-  const pool = playing.length > 0 ? playing : players
+  const live = players.filter((player) => player.status !== "Stopped")
+  const pool = playing.length > 0 ? playing : live.length > 0 ? live : players
   let best = pool[0]
   for (const player of pool) {
     if (player.lastPlayingAt > best.lastPlayingAt) best = player
