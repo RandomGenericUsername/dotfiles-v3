@@ -3,6 +3,8 @@ import { Accessor, createBinding, createComputed, createState } from "ags"
 import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
+import { activePlayer, mprisPlayers, type MprisPlayer } from "../services/mpris-service"
+import { identityMatches, pickActivePlayer } from "../services/mpris-core"
 
 /**
  * Shared audio state + data model for the AGS bar instance
@@ -165,12 +167,14 @@ export function nodeOf(value: unknown): WpNode | null {
 //   streamSink : stream node id  → sink node id   (from active links)
 //   nodeName   : any node id     → human name     (node.description / name)
 //   nodeApp    : stream node id  → application name
+//   nodeBinary : stream node id  → application.process.binary
 //   nodeIcon   : stream node id  → application icon-theme name
 //   nodeMedia  : stream node id  → media/track name (node.description)
 //
 // IMPORTANT: `pw-dump` Node/Port/Link props are keyed by the LITERAL PipeWire
 // property names — DOTTED (`media.class`, `node.id`, `application.name`,
-// `application.icon-name`, `media.name`), NOT hyphenated. Links also carry the
+// `application.process.binary`, `application.icon-name`, `media.name`), NOT
+// hyphenated. Links also carry the
 // node ids directly (`output-node-id` / `input-node-id`), so no port join is
 // needed. The sink-name map is what lets a Bluetooth sink resolve even when it
 // is not enumerated as an AstalWp sink (verified live: `bluez_output.*` was
@@ -185,6 +189,7 @@ interface GraphSnapshot {
   streamSink: Record<number, number>
   nodeName: Record<number, string>
   nodeApp: Record<number, string>
+  nodeBinary: Record<number, string>
   nodeIcon: Record<number, string>
   nodeMedia: Record<number, string>
 }
@@ -193,6 +198,7 @@ const EMPTY_SNAPSHOT: GraphSnapshot = {
   streamSink: {},
   nodeName: {},
   nodeApp: {},
+  nodeBinary: {},
   nodeIcon: {},
   nodeMedia: {},
 }
@@ -216,6 +222,7 @@ export async function refreshStreamTargets(): Promise<void> {
 
     const nodeName: Record<number, string> = {}
     const nodeApp: Record<number, string> = {}
+    const nodeBinary: Record<number, string> = {}
     const nodeIcon: Record<number, string> = {}
     const nodeMedia: Record<number, string> = {}
     const sinkIds = new Set<number>()
@@ -230,8 +237,10 @@ export async function refreshStreamTargets(): Promise<void> {
       if (cls === "Audio/Sink") sinkIds.add(obj.id)
       if (cls.startsWith("Stream/")) {
         const app = asString(props["application.name"])
+        const binary = asString(props["application.process.binary"])
         const icon = asString(props["application.icon-name"])
         if (app) nodeApp[obj.id] = app
+        if (binary) nodeBinary[obj.id] = binary
         if (icon) nodeIcon[obj.id] = icon
         // `media.name` is the track/stream name ("Playback", a tab title, …);
         // only keep it when it adds context over the app name.
@@ -252,7 +261,7 @@ export async function refreshStreamTargets(): Promise<void> {
       if (sinkIds.has(toNode)) streamSink[fromNode] = toNode
     }
 
-    setGraph({ streamSink, nodeName, nodeApp, nodeIcon, nodeMedia })
+    setGraph({ streamSink, nodeName, nodeApp, nodeBinary, nodeIcon, nodeMedia })
   } catch (e) {
     console.error("audio: graph snapshot failed:", e)
   }
@@ -316,6 +325,44 @@ function slugifyAppName(name: string): string | null {
     .replace(/^-+|-+$/g, "")
   return slug === "" ? null : slug
 }
+
+// ── MPRIS ↔ stream linking (WP-C) ──────────────────────────────────────────
+//
+// The MPRIS player for a stream is found from the SAME graph snapshot used for
+// routing, never from a second dump: `application.name` (slugged) and the newly
+// captured `application.process.binary` are the identity candidates. The MPRIS
+// identity is frequently the framework (`chromium`), while the stream carries
+// either the brand name (`Google Chrome` → `google-chrome`) or the process
+// binary (`chrome`); `identityMatches` canonicalises BOTH sides through the
+// alias table, so either field links (contract §5, resolved in bffa66c4).
+
+/** The MPRIS player that owns a playback stream, or null when none matches.
+ *
+ *  When more than one player matches (e.g. two Chromium instances), the row
+ *  picks the most recently *playing* one — the same "row controls its
+ *  most-recent playing instance" rule the mockup caption states, implemented by
+ *  `pickActivePlayer` (deterministic on ties). */
+export function playerForStream(stream: unknown): MprisPlayer | null {
+  const node = nodeOf(stream)
+  if (node?.id === undefined) return null
+  const snap = graph()
+  const candidates: string[] = []
+  const app = snap.nodeApp[node.id]
+  if (app) {
+    const slug = slugifyAppName(app)
+    if (slug) candidates.push(slug)
+  }
+  const binary = snap.nodeBinary[node.id]
+  if (binary) candidates.push(binary)
+  if (candidates.length === 0) return null
+  const matches = mprisPlayers().filter((player) =>
+    identityMatches(player.identity, candidates),
+  )
+  return pickActivePlayer(matches)
+}
+
+/** The Output-card master button target (D1): the most recently active player. */
+export { activePlayer as masterPlayer }
 
 /** Every icon-name candidate for a stream, most specific first: the PipeWire
  *  `application.icon-name`, then the slug of the app name. */

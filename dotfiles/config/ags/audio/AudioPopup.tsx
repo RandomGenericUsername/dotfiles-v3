@@ -1,7 +1,16 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
-import { Accessor, createBinding, createComputed, createEffect, For } from "ags"
+import GLib from "gi://GLib?version=2.0"
+import { Accessor, createBinding, createComputed, createEffect, createState, For } from "ags"
 import { registry } from "../lib/icon-registry"
 import { NavHeader, PanelCard } from "../settings-panel/primitives"
+import {
+  nextPlayer,
+  playPausePlayer,
+  previousPlayer,
+  resyncMpris,
+  seekPlayer,
+} from "../services/mpris-service"
+import { formatClock, interpolatePosition } from "../services/mpris-core"
 import {
   activeSection,
   audioIconX,
@@ -16,9 +25,11 @@ import {
   defaultSpeakerVolume,
   effectiveSinkName,
   levelVariant,
+  masterPlayer,
   nodeLabel,
   outputDevices,
   playbackStreams,
+  playerForStream,
   popupVisible,
   recordingStreams,
   refreshStreamTargets,
@@ -54,6 +65,7 @@ import {
  */
 
 type Node = {
+  id?: number
   name?: string | null
   description?: string | null
   icon?: string | null
@@ -84,7 +96,10 @@ function nodeName(value: unknown, fallback: string): string {
 function streamSubtitle(stream: unknown): string {
   const title = nodeName(stream, "")
   const media = streamMediaName(stream)
-  if (media && media !== title) return media
+  // D6: PipeWire commonly reports the literal media name "Playback" when the
+  // stream exposes no real track title; it is not a subtitle and must not
+  // render as one (the row then falls through to the app name, or no subtitle).
+  if (media && media.toLowerCase() !== "playback" && media !== title) return media
   const app = streamAppName(stream)
   if (app && app !== title) return app
   return ""
@@ -115,6 +130,198 @@ function LevelLine({
       />
       <label class="audio-percent" label={percent((p) => `${p}%`)} />
     </box>
+  )
+}
+
+/** Per-app MPRIS transport line (D2–D5, D9): `⏮ ▶/⏸ ⏭ · seek · time` under
+ *  the volume level line. Rendered only where the stream links to a player
+ *  (`playerForStream`). `seekUs` is a DISPLAY value: it follows the authoritative
+ *  `positionUs` at every MPRIS sync point and is interpolated locally between
+ *  syncs while the popup is open and the player is Playing (I1 — a tick may
+ *  interpolate a display value, never re-read authoritative state). */
+function TransportLine({ stream }: { stream: unknown }) {
+  const player = createComputed(() => playerForStream(stream))
+  const playing = createComputed(() => player()?.status === "Playing")
+  const canSeek = createComputed(() => player()?.canSeek === true)
+  const canGoPrevious = createComputed(() => player()?.canGoPrevious === true)
+  const canGoNext = createComputed(() => player()?.canGoNext === true)
+  const lengthUs = createComputed(() => player()?.metadata.lengthUs ?? 0)
+
+  const [seekUs, setSeekUs] = createState(0)
+  //: True between press/drag-begin and release/drag-end. Suppresses both the
+  //: interpolation tick and the authoritative sync so the thumb tracks the
+  //: pointer rather than the bus while the user is dragging.
+  let interacting = false
+
+  // Authoritative sync: whenever the player object is replaced (initial
+  // hydration, PropertiesChanged, Seeked, resync), reset the display base.
+  createEffect(() => {
+    const p = player()
+    if (!interacting) setSeekUs(p ? p.positionUs : 0)
+  })
+
+  // Display interpolation between bus syncs — the recording-widget pattern: one
+  // 1s tick registered once, its body guarded to popup-open + Playing (I1).
+  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+    const p = player()
+    if (!interacting && popupVisible() && p && p.status === "Playing") {
+      setSeekUs(
+        interpolatePosition(
+          p.positionUs,
+          p.positionSyncedAtMs,
+          true,
+          GLib.get_monotonic_time() / 1000,
+        ),
+      )
+    }
+    return true
+  })
+
+  // D9: combined `elapsed / duration`; elapsed-only when the length is unknown.
+  const timeText = createComputed(() => {
+    const elapsed = formatClock(seekUs()) || "0:00"
+    const total = lengthUs()
+    return total > 0 ? `${elapsed} / ${formatClock(total)}` : elapsed
+  })
+
+  function commit(self: Gtk.Scale) {
+    interacting = false
+    const p = player()
+    if (p && p.canSeek) seekPlayer(p, self.get_value())
+  }
+
+  // The Gtk.Scale's OWN drag/click gestures are the only reliable release hook:
+  // its internal gesture group claims the pointer sequence, which implicitly
+  // denies any gesture we could add to the widget ourselves. `observe_controllers`
+  // exposes those gestures, so we bracket the interaction and commit once on
+  // release — never from `onNotifyValue`, which fires on every drag update (D4).
+  function wireSeekGestures(self: Gtk.Scale) {
+    const controllers = self.observe_controllers()
+    for (let i = 0; i < controllers.get_n_items(); i++) {
+      const controller = controllers.get_item(i) as unknown as {
+        constructor: { $gtype?: { name?: string } }
+        connect: (signal: string, cb: () => void) => number
+      } | null
+      const name = controller?.constructor?.$gtype?.name
+      if (name === "GtkGestureDrag") {
+        controller!.connect("drag-begin", () => {
+          interacting = true
+        })
+        controller!.connect("drag-end", () => commit(self))
+      } else if (name === "GtkGestureClick") {
+        controller!.connect("pressed", () => {
+          interacting = true
+        })
+        controller!.connect("released", () => commit(self))
+      }
+    }
+  }
+
+  return (
+    <box
+      class={createComputed(() => (playing() ? "audio-transport" : "audio-transport paused"))}
+      spacing={6}
+      visible={createComputed(() => player() !== null)}
+    >
+      <button
+        visible={canGoPrevious}
+        tooltipText="Previous"
+        canFocus={false}
+        onClicked={() => {
+          const p = player()
+          if (p) previousPlayer(p)
+        }}
+      >
+        <image
+          pixel_size={15}
+          $={(self: Gtk.Image) =>
+            self.set_from_file(systemIcon("media-transport", "previous") ?? "")
+          }
+        />
+      </button>
+      <button
+        tooltipText={playing((value) => (value ? "Pause" : "Play"))}
+        canFocus={false}
+        onClicked={() => {
+          const p = player()
+          if (p) playPausePlayer(p)
+        }}
+      >
+        <image
+          pixel_size={17}
+          $={(self: Gtk.Image) => {
+            createEffect(() =>
+              self.set_from_file(
+                systemIcon("media-transport", playing() ? "pause" : "play") ?? "",
+              ),
+            )
+          }}
+        />
+      </button>
+      <button
+        visible={canGoNext}
+        tooltipText="Next"
+        canFocus={false}
+        onClicked={() => {
+          const p = player()
+          if (p) nextPlayer(p)
+        }}
+      >
+        <image
+          pixel_size={15}
+          $={(self: Gtk.Image) =>
+            self.set_from_file(systemIcon("media-transport", "next") ?? "")
+          }
+        />
+      </button>
+      <slider
+        class="settings-level-slider"
+        hexpand
+        min={0}
+        max={createComputed(() => Math.max(lengthUs(), 1))}
+        step={1000000}
+        value={seekUs}
+        drawValue={false}
+        visible={canSeek}
+        onNotifyValue={(self: { get_value: () => number }) => setSeekUs(self.get_value())}
+        $={(self: Gtk.Scale) => wireSeekGestures(self)}
+      />
+      <label class="audio-time" label={timeText} />
+    </box>
+  )
+}
+
+/** Output-card master button (D1): toggles the most recently active player.
+ *  Hidden when there is no player; the glyph is `pause` while that player is
+ *  Playing, else `play`. Tooltip names the targeted player. */
+function MasterButton() {
+  const player = createComputed(() => masterPlayer())
+  const playing = createComputed(() => player()?.status === "Playing")
+  return (
+    <button
+      class="audio-master"
+      canFocus={false}
+      visible={createComputed(() => player() !== null)}
+      tooltipText={createComputed(() => {
+        const p = player()
+        return p ? `Play/Pause — ${p.identity} (most recent)` : ""
+      })}
+      onClicked={() => {
+        const p = player()
+        if (p) playPausePlayer(p)
+      }}
+    >
+      <image
+        pixel_size={15}
+        $={(self: Gtk.Image) => {
+          createEffect(() =>
+            self.set_from_file(
+              systemIcon("media-transport", playing() ? "pause" : "play") ?? "",
+            ),
+          )
+        }}
+      />
+    </button>
   )
 }
 
@@ -178,12 +385,17 @@ function RoutingSelect({ stream }: { stream: unknown }) {
   return (
     <button
       class="audio-routing"
-      tooltipText="Route this stream to an output device"
+      tooltipText={target}
       canFocus={false}
       onClicked={(self: Gtk.Button) => openMenu(self)}
     >
       <box spacing={4}>
-        <label label={target} />
+        <label
+          label={target}
+          ellipsize={3}
+          maxWidthChars={14}
+          xalign={0}
+        />
         <label class="audio-routing-chevron" label={"\u203A"} />
       </box>
     </button>
@@ -245,6 +457,9 @@ function StreamRow({ stream }: { stream: unknown }) {
           if (node) node.volume = percent / 100
         }}
       />
+      {/* D2: the transport line renders only where the stream links to a player;
+          a no-player row (Discord) stays volume-only (D8). */}
+      <TransportLine stream={stream} />
     </box>
   )
 }
@@ -330,6 +545,9 @@ function DeviceCard({
             label={subtitle}
           />
         </box>
+        {/* D1: master play/pause sits between the name/meta block and `Change ›`,
+            and controls the most recently active player. Output card only. */}
+        {kind === "output" ? <MasterButton /> : null}
         {kind === "output" ? (
           <button
             class="audio-routing"
@@ -363,9 +581,20 @@ function OutputDevicesView() {
       <For each={outputDevices}>
         {(device) => {
           const node = nodeOf(device)
+          // D7: the current default sink (resolved via `default_speaker.id`)
+          // carries the ✓ and the active-row fill. `is_default` is read-only on
+          // this AstalWp build, so identity-by-id is the reliable check.
+          const active = createComputed(() => {
+            const def = defaultSpeaker()
+            return (
+              def !== null && node !== null && node.id !== undefined && def.id === node.id
+            )
+          })
           return (
             <button
-              class="audio-device"
+              class={createComputed(() =>
+                active() ? "audio-device active" : "audio-device",
+              )}
               canFocus={false}
               onClicked={() => {
                 setDefaultSpeaker(device)
@@ -373,6 +602,10 @@ function OutputDevicesView() {
               }}
             >
               <box spacing={9}>
+                <label
+                  class="audio-check"
+                  label={createComputed(() => (active() ? "✓" : ""))}
+                />
                 <image
                   pixel_size={17}
                   $={(self) => self.set_from_file(systemIcon("volume", "low") ?? "")}
@@ -527,6 +760,13 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor) {
     const streams = (playbackStreams()?.length ?? 0) + (recordingStreams()?.length ?? 0)
     const sinks = outputDevices()?.length ?? 0
     if (popupVisible() && (streams >= 0 || sinks >= 0)) void refreshStreamTargets()
+  })
+
+  // One-shot MPRIS hydration when the popup opens (I1: a user-action read, not
+  // a timer) alongside the graph snapshot above, so transport positions and
+  // capability flags are fresh the moment the popup is shown.
+  createEffect(() => {
+    if (popupVisible()) resyncMpris()
   })
 
   const mainVisible = createComputed(() => activeSection() === "main")

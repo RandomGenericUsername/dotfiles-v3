@@ -820,6 +820,15 @@ window.settings-panel {
   font-size: 11px;
 }
 
+.audio-routing label {
+  /* Cap the chip so a long sink name ("C-Media(R) Audio Analog Stereo")
+     cannot widen the 356px popup and push the transport time off-screen.
+     GTK sizes labels to content, so the truncation itself is done with
+     `maxWidthChars` + `ellipsize` on the label widget (GTK4 CSS has no
+     `max-width` — it logs a CSS Error and is ignored). */
+  min-width: 48px;
+}
+
 .audio-routing:hover,
 .audio-routing:active {
   border-color: @color_10;
@@ -892,4 +901,82 @@ window.settings-panel {
 
 .audio-card-head {
   margin-bottom: 2px;
+}
+
+/* ── Per-app media transport (MPRIS, WP-C) ─────────────────────────────────
+   The transport line sits under each stream's level line and appears only when
+   the stream links to an MPRIS player. It reuses the settings slider vocabulary
+   scaled down to the mockup (5px track, 10px knob vs the level sliders' taller
+   track); the time is an 11px dim tabular readout. All fills stay translucent —
+   the only literal colour in the audio popup remains the live dot. */
+
+.audio-transport {
+  margin-top: 1px;
+}
+
+.audio-transport button {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+.audio-transport button:hover,
+.audio-transport button:active,
+.audio-transport button:focus {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Transport seek: same trough/highlight vocabulary, pared to the mockup. */
+.audio-transport .settings-level-slider trough {
+  min-height: 5px;
+}
+
+.audio-transport .settings-level-slider trough slider {
+  min-width: 10px;
+  min-height: 10px;
+  margin: -3px 0;
+}
+
+/* D5: a paused row dims the fill; the knob is frozen because the interpolation
+   tick only runs while the player is Playing. */
+.audio-transport.paused .settings-level-slider trough highlight {
+  background-color: alpha(@color_foreground, 0.5);
+}
+
+.audio-time {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.55);
+  font-variant-numeric: tabular-nums;
+  min-width: 64px;
+}
+
+/* D1: master play/pause in the Output card — same glass as the routing pill. */
+.audio-master {
+  background-color: alpha(@color_foreground, 0.06);
+  background-image: none;
+  border: 1px solid alpha(@color_foreground, 0.14);
+  border-radius: 7px;
+  box-shadow: none;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+}
+
+.audio-master:hover,
+.audio-master:focus {
+  background-color: @color_10;
+  border-color: @color_10;
+}
+
+/* D7: default-sink check mark in the device subview; the width is reserved even
+   when empty so the rows stay aligned. */
+.audio-check {
+  min-width: 16px;
+  color: @color_13;
+  font-weight: 700;
 }
