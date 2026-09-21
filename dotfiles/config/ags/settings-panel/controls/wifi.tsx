@@ -260,18 +260,63 @@ function connectToNetwork(name: string, password?: string): Promise<void> {
   return Promise.race([run, timeout])
 }
 
-function networkIsKnown(name: string): Promise<boolean> {
-  const lookup = execAsync(["nmcli", "-t", "-f", "NAME", "connection", "show"])
-    .then((out) => out.split("\n").some((line) => line.trim() === name))
-    .catch(() => false)
-  // Never let a slow nmcli leave the UI silent — treat a timeout as unknown.
-  const timeout = new Promise<boolean>((resolve) => {
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
-      resolve(false)
+function splitLastColon(line: string): [string, string] {
+  const idx = line.lastIndexOf(":")
+  if (idx < 0) return [line, ""]
+  return [line.slice(0, idx), line.slice(idx + 1)]
+}
+
+// The saved Wi-Fi connection for an SSID, matched by the profile's SSID (a
+// profile's name can differ from the SSID). Activating that profile is the
+// reliable way to switch between known networks — `device wifi connect` can
+// race/fail when another network is already active.
+async function savedWifiConnection(ssid: string): Promise<string | null> {
+  try {
+    const out = await execAsync([
+      "nmcli",
+      "-t",
+      "-f",
+      "NAME,TYPE",
+      "connection",
+      "show",
+    ])
+    for (const line of out.split("\n")) {
+      if (!line.trim()) continue
+      const [rawName, type] = splitLastColon(line)
+      if (type.trim() !== "802-11-wireless") continue
+      const name = rawName.replace(/\\:/g, ":").replace(/\\\\/g, "\\")
+      if (name === ssid) return name
+      try {
+        const savedSsid = (
+          await execAsync([
+            "nmcli",
+            "-g",
+            "802-11-wireless.ssid",
+            "connection",
+            "show",
+            name,
+          ])
+        ).trim()
+        if (savedSsid === ssid) return name
+      } catch {
+        /* profile has no SSID; skip */
+      }
+    }
+  } catch {
+    /* nmcli unavailable */
+  }
+  return null
+}
+
+// The connected state comes from the periodic iw scan; after issuing a connect,
+// refresh a few times so the switch shows up promptly.
+function scheduleListRefresh() {
+  for (const delay of [1200, 3500, 7000]) {
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
+      refreshWifiList()
       return false
     })
-  })
-  return Promise.race([lookup, timeout])
+  }
 }
 
 function openWifiPassword(name: string) {
@@ -290,17 +335,36 @@ export { closeWifiPassword as closeWifiPasswordPrompt }
 async function activateNetwork(n: WifiNetwork) {
   clearListMessage()
   if (n.connected) return
+  if (connectingSsid() !== null) return // one connect at a time
 
-  const known = await networkIsKnown(n.ssid)
-  if (n.secured && !known) {
+  const saved = await savedWifiConnection(n.ssid)
+  if (n.secured && saved === null) {
     openWifiPassword(n.ssid)
     return
   }
 
-  // Saved/open network: connect directly, with a row spinner for feedback.
+  // Known/open network: switch immediately, with a row spinner for feedback.
   setConnectingSsid(n.ssid)
   try {
-    await connectToNetwork(n.ssid)
+    if (saved !== null) {
+      // `connection up` activates the saved profile but does NOT scan for the
+      // AP, so it fails with "network could not be found" when NM's cache is
+      // cold (the usual "nothing happens"). Scan first, then activate; fall
+      // back to `device wifi connect`, which scans itself.
+      try {
+        await execAsync(["nmcli", "device", "wifi", "rescan"])
+      } catch {
+        /* NM throttles scans */
+      }
+      try {
+        await execAsync(["nmcli", "connection", "up", "id", saved])
+      } catch {
+        await connectToNetwork(n.ssid)
+      }
+    } else {
+      await connectToNetwork(n.ssid)
+    }
+    scheduleListRefresh()
   } catch {
     showListMessage(`Couldn't connect to "${n.ssid}".`)
   } finally {
@@ -401,7 +465,7 @@ export function WifiRow({ network: item }: { network: WifiNetwork }) {
         onClicked={act}
         canFocus={false}
         visible={createComputed(() => !connected())}
-        sensitive={createComputed(() => !busy())}
+        sensitive={createComputed(() => connectingSsid() === null)}
       >
         <box spacing={6}>
           <Gtk.Spinner
@@ -442,6 +506,7 @@ export function WifiPasswordPrompt() {
       .then(() => {
         setListMessage("")
         closeWifiPassword()
+        scheduleListRefresh()
       })
       .catch(() => {
         setJoinError("Couldn't join. Check the password and try again.")
