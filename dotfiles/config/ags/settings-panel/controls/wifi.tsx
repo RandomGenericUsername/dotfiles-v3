@@ -210,6 +210,11 @@ export function scanWifi() {
   refreshWifiList()
 }
 
+/** Clear a pending connect when leaving the list (safety). */
+export function resetWifiConnecting() {
+  setConnectingSsid(null)
+}
+
 // List messages auto-clear; without this a connect error stayed forever (and,
 // unwrapped, pushed the layout wide).
 let messageTimer = 0
@@ -243,21 +248,26 @@ function clearListMessage() {
 
 export { clearListMessage as clearWifiMessage }
 
-function connectToNetwork(name: string, password?: string): Promise<void> {
+// Run a command with a hard timeout so a hung nmcli can never leave the UI
+// stuck (a stuck `connection up` used to leave every Connect button disabled
+// forever, which looked like "clicking does nothing").
+function run(args: string[], timeoutMs = 30000): Promise<string> {
+  const execution = execAsync(args)
+  const timeout = new Promise<string>((_resolve, reject) => {
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeoutMs, () => {
+      reject(new Error(`timed out: ${args.join(" ")}`))
+      return false
+    })
+  })
+  return Promise.race([execution, timeout])
+}
+
+function connectToNetwork(name: string, password?: string): Promise<string> {
   const args = ["nmcli", "device", "wifi", "connect", name]
   if (password !== undefined && password !== "") {
     args.push("password", password)
   }
-  const run = execAsync(args).then(() => undefined)
-  // Never leave the row spinner stuck / the UI silent if nmcli hangs waiting on
-  // NetworkManager.
-  const timeout = new Promise<void>((_resolve, reject) => {
-    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30000, () => {
-      reject(new Error("connect timed out"))
-      return false
-    })
-  })
-  return Promise.race([run, timeout])
+  return run(args)
 }
 
 function splitLastColon(line: string): [string, string] {
@@ -345,19 +355,20 @@ async function activateNetwork(n: WifiNetwork) {
 
   // Known/open network: switch immediately, with a row spinner for feedback.
   setConnectingSsid(n.ssid)
+  // Watchdog: never leave every Connect button disabled if a step misbehaves.
+  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 40000, () => {
+    if (connectingSsid() === n.ssid) setConnectingSsid(null)
+    return false
+  })
   try {
     if (saved !== null) {
       // `connection up` activates the saved profile but does NOT scan for the
       // AP, so it fails with "network could not be found" when NM's cache is
       // cold (the usual "nothing happens"). Scan first, then activate; fall
       // back to `device wifi connect`, which scans itself.
+      await run(["nmcli", "device", "wifi", "rescan"], 10000).catch(() => "")
       try {
-        await execAsync(["nmcli", "device", "wifi", "rescan"])
-      } catch {
-        /* NM throttles scans */
-      }
-      try {
-        await execAsync(["nmcli", "connection", "up", "id", saved])
+        await run(["nmcli", "connection", "up", "id", saved])
       } catch {
         await connectToNetwork(n.ssid)
       }

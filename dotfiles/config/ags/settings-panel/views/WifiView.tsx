@@ -8,6 +8,7 @@ import {
   WifiToggle,
   clearWifiMessage,
   closeWifiPasswordPrompt,
+  resetWifiConnecting,
   scanWifi,
   wifiEnabled,
   wifiMessage,
@@ -27,7 +28,10 @@ export function WifiView() {
     clearWifiMessage()
     scanWifi()
     const timer = interval(8000, scanWifi)
-    return () => timer.cancel()
+    return () => {
+      timer.cancel()
+      resetWifiConnecting()
+    }
   })
 
   // Back from the password prompt returns to the network list, not the panel.
