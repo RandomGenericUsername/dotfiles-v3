@@ -390,6 +390,44 @@ def _build_recording_command(
     return command
 
 
+def _capture_host_log_path():
+    """Where the resident host's stderr/stdout is captured.
+
+    The GUI spawns the host detached and discards its stdio, so a recorder
+    that dies (and the host's own diagnostics) left no trace anywhere —
+    the only clue was a truncated file. Capturing to the state dir makes
+    "why did my recording stop" answerable after the fact.
+    """
+    state = _xdg_dir("XDG_STATE_HOME", os.path.join(".local", "state"))
+    return Path(state) / "capture-tool" / "host.log"
+
+
+def _spawn_capture_host(launcher):
+    """Spawn the detached resident host, capturing its output to a log.
+
+    stdio is redirected to :func:`_capture_host_log_path` (never inherited:
+    the host must not hold the caller's pipes open, and the log is the only
+    post-mortem channel). A log that cannot be opened falls back to
+    ``DEVNULL`` so capture never fails because of logging.
+    """
+    try:
+        log_path = _capture_host_log_path()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(log_path, "a", encoding="utf-8")  # noqa: SIM115 — child owns it
+    except OSError:
+        handle = subprocess.DEVNULL
+    try:
+        return subprocess.Popen(
+            launcher,
+            stdin=subprocess.DEVNULL,
+            stdout=handle,
+            stderr=handle,
+            start_new_session=True,
+        )
+    except OSError:
+        return None
+
+
 def start_recording(args, run=subprocess.run):
     # The resident runtime host owns the recorder and serves hub Control;
     # this launcher only resolves the target and hands the exact recorder
@@ -448,7 +486,7 @@ def start_recording(args, run=subprocess.run):
             "--gif-output", final_path,
             "--gif-size", args.size,
         ])
-    subprocess.Popen(launcher, start_new_session=True)
+    _spawn_capture_host(launcher)
     payload = {
         "state": "recording",
         "backend": backend,
