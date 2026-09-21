@@ -1224,6 +1224,7 @@ class TestVerifyVars:
             "power-options-gtk",
             "wpctl",
             "pavucontrol",
+            "playerctl",
         ]
 
     def test_icons_samples_include_the_settings_panel_glyphs(self) -> None:
@@ -1866,7 +1867,7 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol"):
+    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -2221,7 +2222,7 @@ def _build_provisioned_layout(
     # Shared AGS sources (compositor_configs role, extract-ags-shared-components):
     # the relocated D-Bus services and the primitives/wifi/bluetooth/slider
     # components — must match verify_compositor_skeleton_files EXACTLY.
-    for service in ("nm-client", "wifi-service", "bluetooth-service"):
+    for service in ("nm-client", "wifi-service", "bluetooth-service", "mpris-service", "mpris-core"):
         (install / "config" / "ags" / "services" / f"{service}.ts").write_text("")
     (install / "config" / "ags" / "components" / "primitives" / "IconToggle.tsx").write_text("")
     (install / "config" / "ags" / "components" / "primitives" / "LevelSlider.tsx").write_text("")

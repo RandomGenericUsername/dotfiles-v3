@@ -178,6 +178,11 @@ compositor_configs_skeleton_files:
   - { name: ags-service-nm-client, source: dotfiles/config/ags/services/nm-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/nm-client.ts" }
   - { name: ags-service-wifi, source: dotfiles/config/ags/services/wifi-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/wifi-service.ts" }
   - { name: ags-service-bluetooth, source: dotfiles/config/ags/services/bluetooth-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/bluetooth-service.ts" }
+  # MPRIS transport (ags-audio-mpris-transport): the session-bus service plus
+  # its pure node-testable core. The core is a separate file because it takes
+  # no GJS imports (contract I11) — it cannot be inlined into the service.
+  - { name: ags-service-mpris, source: dotfiles/config/ags/services/mpris-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/mpris-service.ts" }
+  - { name: ags-service-mpris-core, source: dotfiles/config/ags/services/mpris-core.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/mpris-core.ts" }
   - { name: ags-component-primitive-icon-toggle, source: dotfiles/config/ags/components/primitives/IconToggle.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/IconToggle.tsx" }
   - { name: ags-component-primitive-level-slider, source: dotfiles/config/ags/components/primitives/LevelSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/LevelSlider.tsx" }
   - { name: ags-component-wifi-state, source: dotfiles/config/ags/components/wifi/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/state.ts" }

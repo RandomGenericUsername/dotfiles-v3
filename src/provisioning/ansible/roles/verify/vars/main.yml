@@ -169,6 +169,11 @@ verify_system_binaries:
   #   packages role-installed, so they belong to the criterion-2 PATH gate.
   - wpctl
   - pavucontrol
+  # MPRIS transport (ags-audio-mpris-transport): the AGS service shells out to
+  #   playerctl for play/pause/next/prev/seek (actions only — never state reads,
+  #   contract I2). A missing binary silently no-ops every transport control, so
+  #   it belongs to the criterion-2 PATH gate. Packages-role installed.
+  - playerctl
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of
@@ -431,6 +436,11 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/services/nm-client.ts"
   - "{{ install_dir | trim }}/config/ags/services/wifi-service.ts"
   - "{{ install_dir | trim }}/config/ags/services/bluetooth-service.ts"
+  # MPRIS transport (ags-audio-mpris-transport): the session-bus service and
+  # its pure core. Mirror of the compositor_configs skeleton dests — a missing
+  # core makes the service import fail and the popup transport lines vanish.
+  - "{{ install_dir | trim }}/config/ags/services/mpris-service.ts"
+  - "{{ install_dir | trim }}/config/ags/services/mpris-core.ts"
   - "{{ install_dir | trim }}/config/ags/components/primitives/IconToggle.tsx"
   - "{{ install_dir | trim }}/config/ags/components/primitives/LevelSlider.tsx"
   - "{{ install_dir | trim }}/config/ags/components/wifi/state.ts"
