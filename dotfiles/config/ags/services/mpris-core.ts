@@ -25,6 +25,12 @@ export const ALIAS: Record<string, string> = {
   chrome: "google-chrome",
   "google-chrome": "google-chrome",
   "tidal-hifi": "tidal-hifi",
+  //: Tidal's root `Identity` is "Tidal Hi-Fi" while its bus name is
+  //: `tidal-hifi`; without folding, the two interfaces of the one app would not
+  //: share a canonical key (they still collapse by PID, but the alias keeps
+  //: identity-based matching honest).
+  "tidal-hi-fi": "tidal-hifi",
+  tidal: "tidal-hifi",
   "brave-browser": "brave-browser",
   firefox: "firefox",
   spotify: "spotify",
@@ -82,12 +88,12 @@ function asArtist(value: unknown): string {
 //: metadata at all). Missing/ill-typed values degrade to safe empty defaults so
 //: the UI never renders `undefined`.
 export function parseMetadata(raw: Record<string, unknown>): TrackMeta {
-  const length = Number(rawGet(raw, "mpris:length") ?? 0)
+  const length = normaliseLength(rawGet(raw, "mpris:length"))
   return {
     title: asString(rawGet(raw, "xesam:title")),
     artist: asArtist(rawGet(raw, "xesam:artist")),
     album: asString(rawGet(raw, "xesam:album")),
-    lengthUs: Number.isFinite(length) && length > 0 ? length : 0,
+    lengthUs: length,
   }
 }
 
@@ -98,6 +104,31 @@ export function formatClock(us: number): string {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${String(seconds).padStart(2, "0")}`
+}
+
+/** A sane upper bound on a track length (24h, in µs). Players that do not know
+ *  the duration report `mpris:length = INT64_MAX` (9223372036854775807 µs ≈
+ *  292,471 years), which otherwise renders as `153722867280:54` and also trips
+ *  GJS's "cannot be safely stored in a JS Number" warning on unpack. Anything
+ *  beyond this bound is treated as "unknown duration". */
+export const MAX_TRACK_LENGTH_US = 24 * 60 * 60 * 1_000_000
+
+/** Coerce a raw `mpris:length` (int64 µs) to a usable duration, or 0 when it is
+ *  missing, non-positive, or the INT64_MAX "unknown" sentinel. */
+export function normaliseLength(value: unknown): number {
+  const length = Number(value)
+  if (!Number.isFinite(length) || length <= 0) return 0
+  if (length > MAX_TRACK_LENGTH_US) return 0
+  return length
+}
+
+/** Coerce a raw `Position` (int64 µs) to a usable value, or the fallback when it
+ *  is missing, negative, or the INT64_MAX "unknown" sentinel. */
+export function normalisePosition(value: unknown, fallback: number): number {
+  const position = Number(value)
+  if (!Number.isFinite(position) || position < 0) return fallback
+  if (position > MAX_TRACK_LENGTH_US) return fallback
+  return position
 }
 
 //: Display-only position extrapolation (invariant I1: a render tick may

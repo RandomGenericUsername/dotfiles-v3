@@ -3,7 +3,7 @@ import { Accessor, createBinding, createComputed, createState } from "ags"
 import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
-import { activePlayer, mprisPlayers, type MprisPlayer } from "../services/mpris-service"
+import { activePlayer, mprisPlayers, playersByApp, type MprisPlayer } from "../services/mpris-service"
 import { ALIAS, canonicalIdentity, identityMatches, pickActivePlayer } from "../services/mpris-core"
 
 /**
@@ -336,13 +336,13 @@ function slugifyAppName(name: string): string | null {
 // binary (`chrome`); `identityMatches` canonicalises BOTH sides through the
 // alias table, so either field links (contract §5, resolved in bffa66c4).
 
-/** The MPRIS players whose identity matches a stream's app (0..n).
+/** The MPRIS players whose app matches a stream's own identity (0..n).
  *
- *  Two Chrome windows can each expose a separate MPRIS player while PipeWire
- *  reports ONE `Google Chrome` stream — both players report the identity
- *  `chromium`, so both match. Exposing the full match set (rather than a single
- *  pick here) lets the row model claim every matching player and prevents the
- *  unmatched instance from leaking in as a phantom duplicate row. */
+ *  Matching uses the player's canonical IDENTITY (the MPRIS root `Identity`
+ *  property, alias-folded) against the stream's `application.name` /
+ *  `application.process.binary`. The bus-name suffix is NOT used: an Electron
+ *  app publishes `chromium.instance<pid>` for the same playback as its named
+ *  interface, so `chromium` says nothing about the app (measured live). */
 function playersForStream(stream: unknown): MprisPlayer[] {
   const node = nodeOf(stream)
   if (node?.id === undefined) return []
@@ -367,9 +367,8 @@ function playersForStream(stream: unknown): MprisPlayer[] {
     }
   }
   if (candidates.length === 0) return []
-  return mprisPlayers().filter((player) =>
-    identityMatches(player.identity, candidates),
-  )
+  const wanted = new Set(candidates.map((c) => canonicalIdentity(c)))
+  return playersByApp().filter((player) => wanted.has(player.canonical))
 }
 
 /** The MPRIS player that owns a playback stream, or null when none matches.
@@ -437,53 +436,39 @@ export function rowKey(row: unknown): string {
   return `stream:${nodeOf(row)?.id ?? "?"}`
 }
 
-/** Bus names of players already represented by a live stream row, so a player
- *  is never listed twice (once on its stream, once as a stream-less row).
- *
- *  A stream claims EVERY player that matches its app, not just the one the row
- *  happens to control. Two Chrome windows each expose an MPRIS player while
- *  PipeWire reports one `Google Chrome` stream; claiming only the active one
- *  let the other instance leak in as a second, identical-looking Chrome row —
- *  the reported "pausing Chrome shows two chromium icons" bug. */
-function streamedPlayerBusNames(): Set<string> {
+/** Canonical app keys (Identity/ALIAS-folded, plus the process binary) that a
+ *  live stream row already represents. A stream claims EVERY app whose player
+ *  matches it, so no player leaks in as a second row beside its own stream. */
+function streamedAppKeys(): Set<string> {
   const seen = new Set<string>()
   for (const stream of playbackStreams() ?? []) {
-    for (const player of playersForStream(stream)) seen.add(player.busName)
+    for (const player of playersForStream(stream)) {
+      seen.add(player.canonical)
+      if (player.pid > 0) seen.add(`pid:${player.pid}`)
+    }
   }
   return seen
 }
 
-/** Applications rows: live streams first, then stream-less players.
+/** Applications rows: live streams first, then app-level player rows.
  *
- *  Stream-less players are COLLAPSED BY APP IDENTITY: two Chrome windows each
- *  expose a separate MPRIS player but are indistinguishable (`identity ===
- *  "chromium"`), so listing both produced two identical-looking Chrome rows
- *  that paused each other in the user's eyes. Collapsing to one row per
- *  canonical app identity — represented by the most recently active instance —
- *  is the only honest treatment when the instances cannot be told apart. A
- *  player whose app is already shown by a live stream is claimed by that row
- *  (`streamedPlayerBusNames`) and never re-listed. */
+ *  Player rows come from `playersByApp()`, which collapses the two MPRIS
+ *  interfaces an Electron app publishes (measured: Tidal exposes both
+ *  `tidal-hifi` and `chromium.instance<pid>`) into ONE row per process — the
+ *  bug where the same playback appeared twice, once labelled "chromium", and
+ *  stopping either stopped both. An app already shown by a live stream is
+ *  claimed by that row and never re-listed. */
 export const applicationRows: Accessor<Array<unknown | PlayerOnlyRow>> =
   createComputed(() => {
     const rows: Array<unknown | PlayerOnlyRow> = [...(playbackStreams() ?? [])]
-    const seen = streamedPlayerBusNames()
-    // Group unclaimed live players by canonical app identity; the group's most
-    // recently active instance represents the app (one row per app, not per
-    // indistinguishable instance).
-    const groups = new Map<string, MprisPlayer[]>()
-    for (const player of mprisPlayers()) {
-      if (seen.has(player.busName)) continue
+    const seen = streamedAppKeys()
+    for (const player of playersByApp()) {
+      if (player.pid > 0 && seen.has(`pid:${player.pid}`)) continue
+      if (seen.has(player.canonical)) continue
       // A Stopped player with no stream has nothing to control (its transport
       // is inert and its volume target is gone) — only live players get a row.
       if (player.status === "Stopped") continue
-      const key = canonicalIdentity(player.identity)
-      const group = groups.get(key)
-      if (group) group.push(player)
-      else groups.set(key, [player])
-    }
-    for (const group of groups.values()) {
-      const representative = pickActivePlayer(group)
-      if (representative) rows.push({ player: representative })
+      rows.push({ player })
     }
     return rows
   })
