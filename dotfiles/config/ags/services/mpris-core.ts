@@ -135,6 +135,16 @@ function canonicalToken(value: string): string {
   return ALIAS[normalised] ?? normalised
 }
 
+/** The canonical app key for an MPRIS identity.
+ *
+ *  Two Chrome windows expose two players that both report `chromium` and are
+ *  otherwise indistinguishable, so the UI collapses them by this key rather than
+ *  showing a duplicate row. Also folds framework/brand spellings together
+ *  (`chromium`/`chrome`/`google-chrome` → `google-chrome`). */
+export function canonicalIdentity(identity: string): string {
+  return canonicalToken(identity)
+}
+
 export function identityMatches(identity: string, candidates: string[]): boolean {
   const base = canonicalToken(identity)
   if (base === "") return false
@@ -147,6 +157,10 @@ export function identityMatches(identity: string, candidates: string[]): boolean
 //: because it carries a stale timestamp); otherwise the most recently active
 //: overall; otherwise the first. Strict `>` keeps the earliest entry on a tie,
 //: so the choice is deterministic.
+//
+//: Within the chosen tier, a player that carries track metadata outranks one
+//: that does not: two Chrome windows can both be Paused with no play history,
+//: and the empty one must not hide the one that is actually showing a track.
 export function pickActivePlayer<
   T extends { identity: string; status: string; lastPlayingAt: number },
 >(players: T[]): T | null {
@@ -154,9 +168,16 @@ export function pickActivePlayer<
   const playing = players.filter((player) => player.status === "Playing")
   const live = players.filter((player) => player.status !== "Stopped")
   const pool = playing.length > 0 ? playing : live.length > 0 ? live : players
+  const hasTrack = (player: T): boolean => {
+    const title = (player as { metadata?: { title?: string } }).metadata?.title
+    return typeof title === "string" && title !== ""
+  }
   let best = pool[0]
   for (const player of pool) {
     if (player.lastPlayingAt > best.lastPlayingAt) best = player
+    else if (player.lastPlayingAt === best.lastPlayingAt && hasTrack(player) && !hasTrack(best)) {
+      best = player
+    }
   }
   return best
 }

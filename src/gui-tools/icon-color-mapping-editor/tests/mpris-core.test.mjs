@@ -118,6 +118,17 @@ check(
   2_000_000,
 );
 
+// ── canonicalIdentity (apps-row collapsing) ──────────────────────────────
+
+//: Two Chrome windows expose two MPRIS players that are indistinguishable
+//: (`identity === "chromium"`); the UI collapses them by this key so the user
+//: never sees a duplicate Chrome row. Framework/brand spellings all fold here.
+check("canonical chromium → google-chrome", mpris.canonicalIdentity("chromium"), "google-chrome");
+check("canonical chrome → google-chrome", mpris.canonicalIdentity("chrome"), "google-chrome");
+check("canonical google-chrome stays", mpris.canonicalIdentity("google-chrome"), "google-chrome");
+check("canonical tidal-hifi stays", mpris.canonicalIdentity("tidal-hifi"), "tidal-hifi");
+check("canonical empty is empty", mpris.canonicalIdentity(""), "");
+
 // ── identityMatches ──────────────────────────────────────────────────────
 
 check(
@@ -206,6 +217,17 @@ check(
     { identity: "b", status: "Stopped", lastPlayingAt: 200 },
   ]).identity,
   "b",
+);
+//: Two Chrome windows can both be Paused with no play history; the empty one
+//: must not hide the one showing a track (the reported duplicate-Chrome row
+//: showed an empty title because the first instance won the tie).
+check(
+  "pick prefers the tied player with metadata",
+  mpris.pickActivePlayer([
+    { identity: "chromium", status: "Paused", lastPlayingAt: 0, metadata: { title: "" } },
+    { identity: "chromium", status: "Paused", lastPlayingAt: 0, metadata: { title: "Air" } },
+  ]).metadata.title,
+  "Air",
 );
 check(
   "pick tie keeps first",

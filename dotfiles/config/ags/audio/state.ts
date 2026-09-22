@@ -4,7 +4,7 @@ import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
 import { activePlayer, mprisPlayers, type MprisPlayer } from "../services/mpris-service"
-import { ALIAS, identityMatches, pickActivePlayer } from "../services/mpris-core"
+import { ALIAS, canonicalIdentity, identityMatches, pickActivePlayer } from "../services/mpris-core"
 
 /**
  * Shared audio state + data model for the AGS bar instance
@@ -336,15 +336,16 @@ function slugifyAppName(name: string): string | null {
 // binary (`chrome`); `identityMatches` canonicalises BOTH sides through the
 // alias table, so either field links (contract §5, resolved in bffa66c4).
 
-/** The MPRIS player that owns a playback stream, or null when none matches.
+/** The MPRIS players whose identity matches a stream's app (0..n).
  *
- *  When more than one player matches (e.g. two Chromium instances), the row
- *  picks the most recently *playing* one — the same "row controls its
- *  most-recent playing instance" rule the mockup caption states, implemented by
- *  `pickActivePlayer` (deterministic on ties). */
-export function playerForStream(stream: unknown): MprisPlayer | null {
+ *  Two Chrome windows can each expose a separate MPRIS player while PipeWire
+ *  reports ONE `Google Chrome` stream — both players report the identity
+ *  `chromium`, so both match. Exposing the full match set (rather than a single
+ *  pick here) lets the row model claim every matching player and prevents the
+ *  unmatched instance from leaking in as a phantom duplicate row. */
+function playersForStream(stream: unknown): MprisPlayer[] {
   const node = nodeOf(stream)
-  if (node?.id === undefined) return null
+  if (node?.id === undefined) return []
   const snap = graph()
   const candidates: string[] = []
   const app = snap.nodeApp[node.id]
@@ -354,11 +355,31 @@ export function playerForStream(stream: unknown): MprisPlayer | null {
   }
   const binary = snap.nodeBinary[node.id]
   if (binary) candidates.push(binary)
-  if (candidates.length === 0) return null
-  const matches = mprisPlayers().filter((player) =>
+  // Fall back to the node's own props when the async graph snapshot has not
+  // caught up with a stream that just appeared (its app/binary are not in it
+  // yet, but the node themselves always carry the name).
+  if (candidates.length === 0) {
+    for (const v of [node.name, node.description]) {
+      if (typeof v === "string" && v !== "") {
+        const slug = slugifyAppName(v)
+        if (slug) candidates.push(slug)
+      }
+    }
+  }
+  if (candidates.length === 0) return []
+  return mprisPlayers().filter((player) =>
     identityMatches(player.identity, candidates),
   )
-  return pickActivePlayer(matches)
+}
+
+/** The MPRIS player that owns a playback stream, or null when none matches.
+ *
+ *  When more than one player matches (e.g. two Chromium instances), the row
+ *  picks the most recently *playing* one — the same "row controls its
+ *  most-recent playing instance" rule the mockup caption states, implemented by
+ *  `pickActivePlayer` (deterministic on ties). */
+export function playerForStream(stream: unknown): MprisPlayer | null {
+  return pickActivePlayer(playersForStream(stream))
 }
 
 /** The Output-card master button target (D1): the most recently active player. */
@@ -397,37 +418,50 @@ export function isPlayerOnlyRow(row: unknown): row is PlayerOnlyRow {
 /** Bus names of players already represented by a live stream row, so a player
  *  is never listed twice (once on its stream, once as a stream-less row).
  *
- *  This matches on the stream node's OWN props (`name`/`description`) rather
- *  than the enriched graph snapshot: the snapshot is refreshed asynchronously
- *  (popup open / membership change), so a stream that appeared moments ago may
- *  not be in it yet — which would let its player leak in as a duplicate row.
- *  The node props are always present. */
+ *  A stream claims EVERY player that matches its app, not just the one the row
+ *  happens to control. Two Chrome windows each expose an MPRIS player while
+ *  PipeWire reports one `Google Chrome` stream; claiming only the active one
+ *  let the other instance leak in as a second, identical-looking Chrome row —
+ *  the reported "pausing Chrome shows two chromium icons" bug. */
 function streamedPlayerBusNames(): Set<string> {
   const seen = new Set<string>()
-  const players = mprisPlayers()
   for (const stream of playbackStreams() ?? []) {
-    const node = nodeOf(stream)
-    const candidates = [node?.name, node?.description]
-      .filter((v): v is string => typeof v === "string" && v !== "")
-    if (candidates.length === 0) continue
-    for (const player of players) {
-      if (identityMatches(player.identity, candidates)) seen.add(player.busName)
-    }
+    for (const player of playersForStream(stream)) seen.add(player.busName)
   }
   return seen
 }
 
-/** Applications rows: live streams first, then stream-less players. */
+/** Applications rows: live streams first, then stream-less players.
+ *
+ *  Stream-less players are COLLAPSED BY APP IDENTITY: two Chrome windows each
+ *  expose a separate MPRIS player but are indistinguishable (`identity ===
+ *  "chromium"`), so listing both produced two identical-looking Chrome rows
+ *  that paused each other in the user's eyes. Collapsing to one row per
+ *  canonical app identity — represented by the most recently active instance —
+ *  is the only honest treatment when the instances cannot be told apart. A
+ *  player whose app is already shown by a live stream is claimed by that row
+ *  (`streamedPlayerBusNames`) and never re-listed. */
 export const applicationRows: Accessor<Array<unknown | PlayerOnlyRow>> =
   createComputed(() => {
     const rows: Array<unknown | PlayerOnlyRow> = [...(playbackStreams() ?? [])]
     const seen = streamedPlayerBusNames()
+    // Group unclaimed live players by canonical app identity; the group's most
+    // recently active instance represents the app (one row per app, not per
+    // indistinguishable instance).
+    const groups = new Map<string, MprisPlayer[]>()
     for (const player of mprisPlayers()) {
       if (seen.has(player.busName)) continue
       // A Stopped player with no stream has nothing to control (its transport
       // is inert and its volume target is gone) — only live players get a row.
       if (player.status === "Stopped") continue
-      rows.push({ player })
+      const key = canonicalIdentity(player.identity)
+      const group = groups.get(key)
+      if (group) group.push(player)
+      else groups.set(key, [player])
+    }
+    for (const group of groups.values()) {
+      const representative = pickActivePlayer(group)
+      if (representative) rows.push({ player: representative })
     }
     return rows
   })
