@@ -785,6 +785,13 @@ window.settings-panel {
   margin-top: 2px;
 }
 
+/* A stream-less row (the app's stream was torn down at Stopped/track end but its
+   player remains): the volume line has no node to act on, so it is inert and
+   dimmed, while the transport line below stays live. */
+.audio-level-line.disabled .settings-level-slider {
+  opacity: 0.4;
+}
+
 .audio-percent {
   font-size: 12px;
   font-weight: 600;

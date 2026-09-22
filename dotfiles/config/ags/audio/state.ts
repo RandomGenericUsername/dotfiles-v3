@@ -4,7 +4,7 @@ import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
 import { activePlayer, mprisPlayers, type MprisPlayer } from "../services/mpris-service"
-import { identityMatches, pickActivePlayer } from "../services/mpris-core"
+import { ALIAS, identityMatches, pickActivePlayer } from "../services/mpris-core"
 
 /**
  * Shared audio state + data model for the AGS bar instance
@@ -364,6 +364,74 @@ export function playerForStream(stream: unknown): MprisPlayer | null {
 /** The Output-card master button target (D1): the most recently active player. */
 export { activePlayer as masterPlayer }
 
+/**
+ * The Applications section is the UNION of PipeWire streams and MPRIS players
+ * that have no stream.
+ *
+ * The EXPERIENCE contract is explicit that a row persists for an app that still
+ * has a player: "Stream paused (has player) → transport dims" and "the player
+ * quits or goes Stopped → the row stays volume-only" (lines 83/175). A player
+ * tears its PipeWire stream down when it goes Stopped or finishes a track, so a
+ * stream-only list made the row (and its resume control) vanish while the app
+ * was still there — the reported tidal case. This exposes a row per matching
+ * stream PLUS a stream-less row per remaining player.
+ *
+ * A union entry is `{ stream }` (the normal case) or `{ player }` (boundary
+ * row). Both shapes are consumed by `StreamRow`; only the value row is an
+ * `unknown` node when a stream is present.
+ */
+export interface PlayerOnlyRow {
+  player: MprisPlayer
+}
+
+/** True for a stream-less (player-backed) row — narrows the union. */
+export function isPlayerOnlyRow(row: unknown): row is PlayerOnlyRow {
+  return (
+    row !== null &&
+    typeof row === "object" &&
+    "player" in (row as Record<string, unknown>) &&
+    !("id" in (row as Record<string, unknown>))
+  )
+}
+
+/** Bus names of players already represented by a live stream row, so a player
+ *  is never listed twice (once on its stream, once as a stream-less row).
+ *
+ *  This matches on the stream node's OWN props (`name`/`description`) rather
+ *  than the enriched graph snapshot: the snapshot is refreshed asynchronously
+ *  (popup open / membership change), so a stream that appeared moments ago may
+ *  not be in it yet — which would let its player leak in as a duplicate row.
+ *  The node props are always present. */
+function streamedPlayerBusNames(): Set<string> {
+  const seen = new Set<string>()
+  const players = mprisPlayers()
+  for (const stream of playbackStreams() ?? []) {
+    const node = nodeOf(stream)
+    const candidates = [node?.name, node?.description]
+      .filter((v): v is string => typeof v === "string" && v !== "")
+    if (candidates.length === 0) continue
+    for (const player of players) {
+      if (identityMatches(player.identity, candidates)) seen.add(player.busName)
+    }
+  }
+  return seen
+}
+
+/** Applications rows: live streams first, then stream-less players. */
+export const applicationRows: Accessor<Array<unknown | PlayerOnlyRow>> =
+  createComputed(() => {
+    const rows: Array<unknown | PlayerOnlyRow> = [...(playbackStreams() ?? [])]
+    const seen = streamedPlayerBusNames()
+    for (const player of mprisPlayers()) {
+      if (seen.has(player.busName)) continue
+      // A Stopped player with no stream has nothing to control (its transport
+      // is inert and its volume target is gone) — only live players get a row.
+      if (player.status === "Stopped") continue
+      rows.push({ player })
+    }
+    return rows
+  })
+
 /** Every icon-name candidate for a stream, most specific first: the PipeWire
  *  `application.icon-name`, then the slug of the app name. */
 function appIconCandidates(stream: unknown): string[] {
@@ -398,6 +466,27 @@ export function streamAppIconPath(stream: unknown): string | null {
   for (const candidate of appIconCandidates(stream)) {
     const path = registry.resolve("app-icons", candidate)
     if (path) return path
+  }
+  return registry.resolve("app-icons", "generic")
+}
+
+/** The brand-icon path for a stream-less row, keyed by an MPRIS identity rather
+ *  than a live stream's props. An MPRIS identity is the framework name
+ *  (`chromium`, `tidal-hifi`), so it is canonicalised through the same `ALIAS`
+ *  table the stream matching uses before the registry lookup — `chromium`
+ *  resolves the `google-chrome` asset, `tidal-hifi` its own. */
+export function streamAppIconPathForIdentity(identity: string): string | null {
+  const slug = slugifyAppName(identity)
+  if (slug) {
+    const path = registry.resolve("app-icons", slug)
+    if (path) return path
+    // The identity may be the framework name; try its brand alias too
+    // (`chromium` → `google-chrome`).
+    const alias = ALIAS[slug]
+    if (alias && alias !== slug) {
+      const aliased = registry.resolve("app-icons", alias)
+      if (aliased) return aliased
+    }
   }
   return registry.resolve("app-icons", "generic")
 }

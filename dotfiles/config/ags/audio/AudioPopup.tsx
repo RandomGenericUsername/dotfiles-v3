@@ -9,10 +9,12 @@ import {
   previousPlayer,
   resyncMpris,
   seekPlayer,
+  type MprisPlayer,
 } from "../services/mpris-service"
 import { formatClock, interpolatePosition } from "../services/mpris-core"
 import {
   activeSection,
+  applicationRows,
   audioIconX,
   back,
   clampVolume,
@@ -24,6 +26,7 @@ import {
   defaultSpeakerMute,
   defaultSpeakerVolume,
   effectiveSinkName,
+  isPlayerOnlyRow,
   levelVariant,
   masterPlayer,
   nodeLabel,
@@ -37,6 +40,7 @@ import {
   setDefaultSpeaker,
   showOutputDevices,
   streamAppIconPath,
+  streamAppIconPathForIdentity,
   streamAppName,
   streamMediaName,
   viewEpoch,
@@ -105,7 +109,18 @@ function streamSubtitle(stream: unknown): string {
   return ""
 }
 
-/** The level slider + percentage line, identical across every row type. */
+/** The level slider + percentage line, identical across every row type.
+ *
+ *  Writes are bracketed to a genuine USER interaction, exactly like the
+ *  transport seek slider. `onNotifyValue` also fires when the binding pushes a
+ *  value *into* the scale (initial render, a sibling stream's update rippling
+ *  through the shared `nodes` binding, a `For` re-render), so writing from it
+ *  unconditionally created a feedback loop: with two streams on different
+ *  outputs, moving one slider echoed into the other (visible flicker, with the
+ *  playback unchanged). The scale's own drag/click gestures are the only
+ *  reliable user signal on this GTK4 build (its internal gesture group claims
+ *  the pointer sequence), so we bracket the interaction and commit once on
+ *  release/click. */
 function LevelLine({
   volume,
   onChange,
@@ -114,6 +129,36 @@ function LevelLine({
   onChange: (percent: number) => void
 }) {
   const percent = createComputed(() => Math.round(clampVolume(volume()) * 100))
+  let interacting = false
+
+  function commit(self: Gtk.Scale) {
+    if (!interacting) return
+    interacting = false
+    onChange(self.get_value())
+  }
+
+  function wireGestures(self: Gtk.Scale) {
+    const controllers = self.observe_controllers()
+    for (let i = 0; i < controllers.get_n_items(); i++) {
+      const controller = controllers.get_item(i) as unknown as {
+        constructor: { $gtype?: { name?: string } }
+        connect: (signal: string, cb: () => void) => number
+      } | null
+      const name = controller?.constructor?.$gtype?.name
+      if (name === "GtkGestureDrag") {
+        controller!.connect("drag-begin", () => {
+          interacting = true
+        })
+        controller!.connect("drag-end", () => commit(self))
+      } else if (name === "GtkGestureClick") {
+        controller!.connect("pressed", () => {
+          interacting = true
+        })
+        controller!.connect("released", () => commit(self))
+      }
+    }
+  }
+
   return (
     <box class="audio-level-line" spacing={9}>
       <slider
@@ -124,9 +169,7 @@ function LevelLine({
         step={1}
         value={percent}
         drawValue={false}
-        onNotifyValue={(self: { get_value: () => number }) =>
-          onChange(self.get_value())
-        }
+        $={(self: Gtk.Scale) => wireGestures(self)}
       />
       <label class="audio-percent" label={percent((p) => `${p}%`)} />
     </box>
@@ -134,13 +177,13 @@ function LevelLine({
 }
 
 /** Per-app MPRIS transport line (D2–D5, D9): `⏮ ▶/⏸ ⏭ · seek · time` under
- *  the volume level line. Rendered only where the stream links to a player
- *  (`playerForStream`). `seekUs` is a DISPLAY value: it follows the authoritative
- *  `positionUs` at every MPRIS sync point and is interpolated locally between
- *  syncs while the popup is open and the player is Playing (I1 — a tick may
- *  interpolate a display value, never re-read authoritative state). */
-function TransportLine({ stream }: { stream: unknown }) {
-  const player = createComputed(() => playerForStream(stream))
+ *  the volume level line. Rendered only where a row links to a player
+ *  (`playerForStream`, or a stream-less row's own player). `seekUs` is a DISPLAY
+ *  value: it follows the authoritative `positionUs` at every MPRIS sync point
+ *  and is interpolated locally between syncs while the popup is open and the
+ *  player is Playing (I1 — a tick may interpolate a display value, never
+ *  re-read authoritative state). */
+function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
   const playing = createComputed(() => player()?.status === "Playing")
   const canSeek = createComputed(() => player()?.canSeek === true)
   const canGoPrevious = createComputed(() => player()?.canGoPrevious === true)
@@ -361,9 +404,12 @@ function MuteGlyph({
 
 /** Trailing routing select: move this stream to another output device.
  *  The label is the stream's EFFECTIVE sink (explicit target → link-resolved
- *  sink → default sink name) — never the word "Default". */
+ *  sink → default sink name) — never the word "Default". Rendered only for a
+ *  real stream: a stream-less row has no PipeWire node to route. */
 function RoutingSelect({ stream }: { stream: unknown }) {
-  const target = createComputed(() => effectiveSinkName(stream))
+  const target = createComputed(() =>
+    stream ? effectiveSinkName(stream) : "",
+  )
 
   function openMenu(anchor: Gtk.Widget) {
     const menu = new Gtk.Popover()
@@ -381,6 +427,8 @@ function RoutingSelect({ stream }: { stream: unknown }) {
     menu.set_child(list)
     menu.popup()
   }
+
+  if (!stream) return null
 
   return (
     <button
@@ -405,19 +453,52 @@ function RoutingSelect({ stream }: { stream: unknown }) {
 /** One playback stream (an application). Leading brand app icon (literal-color
  *  `app-icons` asset resolved from the stream's own identity), then name with
  *  the application subtitle (Chrome / YouTube, per doc §25), mute toggle, and
- *  routing select. */
-function StreamRow({ stream }: { stream: unknown }) {
-  const node = nodeOf(stream)
-  const volume: Accessor<number> = createBinding(stream, "volume")
-  const muteRaw: Accessor<boolean> = createBinding(stream, "mute")
+ *  routing select.
+ *
+ *  Two shapes reach this function (see `applicationRows` in state.ts):
+ *   - a live PipeWire stream (the normal case — volume/mute/routing all act on
+ *     the node);
+ *   - a stream-less player row (the app's stream was torn down at Stopped/track
+ *     end but its MPRIS player remains). Here the title comes from MPRIS
+ *     metadata and the VOLUME line is disabled: there is no node to set, and
+ *     per the owner decision the transport stays usable so the app can be
+ *     resumed from the popup. */
+function StreamRow({ row }: { row: unknown }) {
+  const playerOnly = isPlayerOnlyRow(row)
+  const stream = playerOnly ? null : row
+  const node = stream ? nodeOf(stream) : null
+
+  // The row's player: the stream's linked player, or the boundary row's own.
+  const player: Accessor<MprisPlayer | null> = playerOnly
+    ? createComputed(() => (row as { player: MprisPlayer }).player)
+    : createComputed(() => playerForStream(stream))
+
+  const volume: Accessor<number> = stream
+    ? createBinding(stream, "volume")
+    : createComputed(() => 0)
+  const muteRaw: Accessor<boolean> = stream
+    ? createBinding(stream, "mute")
+    : createComputed(() => false)
   const muted = createComputed(() => muteRaw() === true)
   const level = createComputed(() => clampVolume(volume()))
-  const title = nodeName(stream, "Application")
-  const subtitle = createComputed(() => streamSubtitle(stream))
+
+  const title = createComputed(() => {
+    if (stream) return nodeName(stream, "Application")
+    const p = player()
+    return p && p.identity !== "" ? p.identity : "Application"
+  })
+  const subtitle = createComputed(() => {
+    if (stream) return streamSubtitle(stream)
+    // Stream-less row: lead with the track when the player exposes one.
+    return player()?.metadata.title ?? ""
+  })
   // Brand icon, falling back to the neutral app-icons/generic asset, then to
-  // the device glyph — a row is never left blank.
+  // the device glyph — a row is never left blank. A stream-less row keys the
+  // brand asset off the player identity (its stream fields are gone).
   const appIcon = createComputed<string | null>(() => {
-    const brand = streamAppIconPath(stream)
+    const brand = stream
+      ? streamAppIconPath(stream)
+      : streamAppIconPathForIdentity(player()?.identity ?? "")
     if (brand) return brand
     return systemIcon("volume", muted() ? "muted" : "low")
   })
@@ -443,7 +524,7 @@ function StreamRow({ stream }: { stream: unknown }) {
         </box>
         <MuteGlyph
           muteRaw={muteRaw}
-          tooltip={`Mute ${title}`}
+          tooltip={`Mute ${title()}`}
           size={17}
           onToggle={() => {
             if (node) node.mute = !node.mute
@@ -451,15 +532,41 @@ function StreamRow({ stream }: { stream: unknown }) {
         />
         <RoutingSelect stream={stream} />
       </box>
-      <LevelLine
-        volume={level}
-        onChange={(percent) => {
-          if (node) node.volume = percent / 100
-        }}
-      />
-      {/* D2: the transport line renders only where the stream links to a player;
+      {/* A stream-less row disables the volume line (no node to set): the
+          transport below stays active so the app can still be resumed. */}
+      {stream ? (
+        <LevelLine
+          volume={level}
+          onChange={(percent) => {
+            if (node) node.volume = percent / 100
+          }}
+        />
+      ) : (
+        <DisabledLevelLine />
+      )}
+      {/* D2: the transport line renders only where the row links to a player;
           a no-player row (Discord) stays volume-only (D8). */}
-      <TransportLine stream={stream} />
+      <TransportLine player={player} />
+    </box>
+  )
+}
+
+/** The volume line for a stream-less row: the same geometry, inert and dimmed,
+ *  with a `No audio` badge so the absence of a level is legible rather than
+ *  looking broken. */
+function DisabledLevelLine() {
+  return (
+    <box class="audio-level-line disabled" spacing={9}>
+      <slider
+        class="settings-level-slider"
+        hexpand
+        sensitive={false}
+        min={0}
+        max={100}
+        value={0}
+        drawValue={false}
+      />
+      <label class="audio-percent" label="—" />
     </box>
   )
 }
@@ -678,9 +785,12 @@ function RecorderRow({ stream }: { stream: unknown }) {
 /** Applications section — generated from playback streams; collapses when empty. */
 function ApplicationsCard() {
   return (
-    <box visible={createComputed(() => (playbackStreams()?.length ?? 0) > 0)}>
+    <box visible={createComputed(() => (applicationRows()?.length ?? 0) > 0)}>
       <PanelCard title="Applications">
-        <For each={playbackStreams}>{(stream) => <StreamRow stream={stream} />}</For>
+        {/* Union of live streams and stream-less players (state.ts): a row
+            persists while the app has a player, so pausing/stopping a track
+            never removes its resume control. */}
+        <For each={applicationRows}>{(row) => <StreamRow row={row} />}</For>
       </PanelCard>
     </box>
   )
