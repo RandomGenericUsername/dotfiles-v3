@@ -415,6 +415,28 @@ export function isPlayerOnlyRow(row: unknown): row is PlayerOnlyRow {
   )
 }
 
+/** The live playback-stream node with this id, or null — resolved at read time
+ *  so a reused row never holds a stale node object (the `wp.nodes` binding
+ *  replaces node instances on every notify). */
+export function streamById(id: number): WpNode | null {
+  return (playbackStreams() ?? []).find((s) => nodeOf(s)?.id === id) ?? null
+}
+
+/** The live MPRIS player with this bus name, or null (read-time resolution, same
+ *  reason as `streamById` — an MPRIS update replaces the player object). */
+export function playerByBusName(busName: string): MprisPlayer | null {
+  return mprisPlayers().find((p) => p.busName === busName) ?? null
+}
+
+/** The stable row key: a stream id or a player bus name. Used as the `For` id so
+ *  rows are reused in place across `wp.nodes`/MPRIS notifies instead of being
+ *  disposed and recreated (which unrealized a widget mid-gesture and crashed
+ *  GTK: `gtk_widget_real_unrealize: assertion failed (!priv->mapped)`). */
+export function rowKey(row: unknown): string {
+  if (isPlayerOnlyRow(row)) return `player:${(row as PlayerOnlyRow).player.busName}`
+  return `stream:${nodeOf(row)?.id ?? "?"}`
+}
+
 /** Bus names of players already represented by a live stream row, so a player
  *  is never listed twice (once on its stream, once as a stream-less row).
  *

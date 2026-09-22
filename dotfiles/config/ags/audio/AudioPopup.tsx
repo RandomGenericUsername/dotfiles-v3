@@ -42,6 +42,9 @@ import {
   streamAppIconPath,
   streamAppIconPathForIdentity,
   streamAppName,
+  streamById,
+  playerByBusName,
+  rowKey,
   streamMediaName,
   viewEpoch,
 } from "./state"
@@ -406,12 +409,15 @@ function MuteGlyph({
  *  The label is the stream's EFFECTIVE sink (explicit target → link-resolved
  *  sink → default sink name) — never the word "Default". Rendered only for a
  *  real stream: a stream-less row has no PipeWire node to route. */
-function RoutingSelect({ stream }: { stream: unknown }) {
-  const target = createComputed(() =>
-    stream ? effectiveSinkName(stream) : "",
-  )
+function RoutingSelect({ stream }: { stream: Accessor<unknown | null> }) {
+  const target = createComputed(() => {
+    const s = stream()
+    return s ? effectiveSinkName(s) : ""
+  })
 
   function openMenu(anchor: Gtk.Widget) {
+    const s = stream()
+    if (!s) return
     const menu = new Gtk.Popover()
     menu.set_parent(anchor)
     const list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
@@ -419,7 +425,7 @@ function RoutingSelect({ stream }: { stream: unknown }) {
       const row = new Gtk.Button({ css_classes: ["audio-route-item"] })
       row.set_child(new Gtk.Label({ label: nodeLabel(device, "Output"), xalign: 0 }))
       row.connect("clicked", () => {
-        routeStreamTo(stream, device)
+        routeStreamTo(s, device)
         menu.popdown()
       })
       list.append(row)
@@ -428,25 +434,25 @@ function RoutingSelect({ stream }: { stream: unknown }) {
     menu.popup()
   }
 
-  if (!stream) return null
-
   return (
-    <button
-      class="audio-routing"
-      tooltipText={target}
-      canFocus={false}
-      onClicked={(self: Gtk.Button) => openMenu(self)}
-    >
-      <box spacing={4}>
-        <label
-          label={target}
-          ellipsize={3}
-          maxWidthChars={14}
-          xalign={0}
-        />
-        <label class="audio-routing-chevron" label={"\u203A"} />
-      </box>
-    </button>
+    <box visible={createComputed(() => stream() !== null)}>
+      <button
+        class="audio-routing"
+        tooltipText={target}
+        canFocus={false}
+        onClicked={(self: Gtk.Button) => openMenu(self)}
+      >
+        <box spacing={4}>
+          <label
+            label={target}
+            ellipsize={3}
+            maxWidthChars={14}
+            xalign={0}
+          />
+          <label class="audio-routing-chevron" label={"\u203A"} />
+        </box>
+      </button>
+    </box>
   )
 }
 
@@ -464,40 +470,47 @@ function RoutingSelect({ stream }: { stream: unknown }) {
  *     per the owner decision the transport stays usable so the app can be
  *     resumed from the popup. */
 function StreamRow({ row }: { row: unknown }) {
+  //: Resolve live data at READ time from a stable key, never by capturing the
+  //: row object. `For` reuses a row (stable id) while `wp.nodes`/MPRIS replace
+  //: the underlying node/player instances on every notify — a captured object
+  //: (or a binding on it) would go stale or point at a dead node. See the
+  //: crash note on `For` in ApplicationsCard.
   const playerOnly = isPlayerOnlyRow(row)
-  const stream = playerOnly ? null : row
-  const node = stream ? nodeOf(stream) : null
+  const streamKey: number | null = playerOnly ? null : nodeOf(row)?.id ?? null
+  const playerBusName: string | null = playerOnly
+    ? (row as { player: { busName: string } }).player.busName
+    : null
 
-  // The row's player: the stream's linked player, or the boundary row's own.
-  const player: Accessor<MprisPlayer | null> = playerOnly
-    ? createComputed(() => (row as { player: MprisPlayer }).player)
-    : createComputed(() => playerForStream(stream))
+  const stream = createComputed<unknown>(() =>
+    streamKey === null ? null : streamById(streamKey),
+  )
+  const player: Accessor<MprisPlayer | null> = createComputed(() => {
+    if (playerBusName !== null) return playerByBusName(playerBusName)
+    const s = stream()
+    return s ? playerForStream(s) : null
+  })
 
-  const volume: Accessor<number> = stream
-    ? createBinding(stream, "volume")
-    : createComputed(() => 0)
-  const muteRaw: Accessor<boolean> = stream
-    ? createBinding(stream, "mute")
-    : createComputed(() => false)
-  const muted = createComputed(() => muteRaw() === true)
-  const level = createComputed(() => clampVolume(volume()))
+  //: Volume/mute read through a computed on the LIVE node, so a slider drag
+  //: writes to the current node object, not a replaced one.
+  const volume = createComputed(() => clampVolume(nodeOf(stream())?.volume ?? 0))
+  const muteRaw = createComputed(() => nodeOf(stream())?.mute === true)
+  const muted = muteRaw
 
   const title = createComputed(() => {
-    if (stream) return nodeName(stream, "Application")
+    const s = stream()
+    if (s) return nodeName(s, "Application")
     const p = player()
     return p && p.identity !== "" ? p.identity : "Application"
   })
   const subtitle = createComputed(() => {
-    if (stream) return streamSubtitle(stream)
-    // Stream-less row: lead with the track when the player exposes one.
+    const s = stream()
+    if (s) return streamSubtitle(s)
     return player()?.metadata.title ?? ""
   })
-  // Brand icon, falling back to the neutral app-icons/generic asset, then to
-  // the device glyph — a row is never left blank. A stream-less row keys the
-  // brand asset off the player identity (its stream fields are gone).
   const appIcon = createComputed<string | null>(() => {
-    const brand = stream
-      ? streamAppIconPath(stream)
+    const s = stream()
+    const brand = s
+      ? streamAppIconPath(s)
       : streamAppIconPathForIdentity(player()?.identity ?? "")
     if (brand) return brand
     return systemIcon("volume", muted() ? "muted" : "low")
@@ -524,28 +537,27 @@ function StreamRow({ row }: { row: unknown }) {
         </box>
         <MuteGlyph
           muteRaw={muteRaw}
-          tooltip={`Mute ${title()}`}
+          tooltip={title((t: string) => `Mute ${t}`)}
           size={17}
           onToggle={() => {
-            if (node) node.mute = !node.mute
+            const n = nodeOf(stream())
+            if (n) n.mute = !n.mute
           }}
         />
         <RoutingSelect stream={stream} />
       </box>
-      {/* A stream-less row disables the volume line (no node to set): the
-          transport below stays active so the app can still be resumed. */}
-      {stream ? (
+      <box visible={createComputed(() => stream() !== null)}>
         <LevelLine
-          volume={level}
+          volume={volume}
           onChange={(percent) => {
-            if (node) node.volume = percent / 100
+            const n = nodeOf(stream())
+            if (n) n.volume = percent / 100
           }}
         />
-      ) : (
+      </box>
+      <box visible={createComputed(() => stream() === null)}>
         <DisabledLevelLine />
-      )}
-      {/* D2: the transport line renders only where the row links to a player;
-          a no-player row (Discord) stays volume-only (D8). */}
+      </box>
       <TransportLine player={player} />
     </box>
   )
@@ -685,7 +697,9 @@ function OutputDevicesView() {
   return (
     <box orientation={1} spacing={8}>
       <NavHeader title="Output devices" onBack={back} />
-      <For each={outputDevices}>
+      {/* Stable key: `byClass` rebuilds its array on every `wp.nodes` notify,
+          so reference identity would recreate the rows (see ApplicationsCard). */}
+      <For each={outputDevices} id={(device) => `sink:${nodeOf(device)?.id ?? "?"}`}>
         {(device) => {
           const node = nodeOf(device)
           // D7: the current default sink (resolved via `default_speaker.id`)
@@ -784,13 +798,22 @@ function RecorderRow({ stream }: { stream: unknown }) {
 
 /** Applications section — generated from playback streams; collapses when empty. */
 function ApplicationsCard() {
+  //: `For`'s default id is the ITEM REFERENCE, and every `applicationRows()`
+  //: evaluation yields fresh references (byClass rebuilds its array on each
+  //: `wp.nodes` notify). Without a stable id, writing a slider's volume made
+  //: `wp.nodes` emit, the list re-evaluated, and EVERY row was disposed and
+  //: recreated mid-gesture — whose unrealize tripped a GTK assertion and killed
+  //: the bar (`gtk_widget_real_unrealize: assertion failed (!priv->mapped)`).
+  //: `rowKey` keys by stream id / player bus name so rows are reused in place.
   return (
     <box visible={createComputed(() => (applicationRows()?.length ?? 0) > 0)}>
       <PanelCard title="Applications">
         {/* Union of live streams and stream-less players (state.ts): a row
             persists while the app has a player, so pausing/stopping a track
             never removes its resume control. */}
-        <For each={applicationRows}>{(row) => <StreamRow row={row} />}</For>
+        <For each={applicationRows} id={rowKey}>
+          {(row) => <StreamRow row={row} />}
+        </For>
       </PanelCard>
     </box>
   )
@@ -805,7 +828,9 @@ function RecordingCard() {
           <box class="audio-live-dot" valign={Gtk.Align.CENTER} />
           <label class="audio-row-sub" label="Recording" />
         </box>
-        <For each={recordingStreams}>
+        {/* Stable key for the same reason as Applications: the list rebuilds on
+            every `wp.nodes` notify and reference identity is not stable. */}
+        <For each={recordingStreams} id={(stream) => `rec:${nodeOf(stream)?.id ?? "?"}`}>
           {(stream) => <RecorderRow stream={stream} />}
         </For>
       </PanelCard>
