@@ -127,9 +127,15 @@ function streamSubtitle(stream: unknown): string {
 function LevelLine({
   volume,
   onChange,
+  disabled = false,
 }: {
   volume: Accessor<number>
   onChange: (percent: number) => void
+  /** A stream-less row has no node to set: render the line inert and dimmed
+   *  instead of swapping in a different component. Keeping ONE widget shape
+   *  per row avoids the container/child churn that tripped GTK's box assertions
+   *  (a conditional sibling box inside a `For` row). */
+  disabled?: boolean
 }) {
   const percent = createComputed(() => Math.round(clampVolume(volume()) * 100))
   let interacting = false
@@ -167,14 +173,18 @@ function LevelLine({
       <slider
         class="settings-level-slider"
         hexpand
+        sensitive={!disabled}
         min={0}
         max={100}
         step={1}
-        value={percent}
+        value={disabled ? 0 : percent}
         drawValue={false}
         $={(self: Gtk.Scale) => wireGestures(self)}
       />
-      <label class="audio-percent" label={percent((p) => `${p}%`)} />
+      <label
+        class="audio-percent"
+        label={disabled ? "—" : percent((p) => `${p}%`)}
+      />
     </box>
   )
 }
@@ -193,17 +203,35 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
   const canGoNext = createComputed(() => player()?.canGoNext === true)
   const lengthUs = createComputed(() => player()?.metadata.lengthUs ?? 0)
 
-  const [seekUs, setSeekUs] = createState(0)
+  //: The slider works on a NORMALISED 0..1000 integer range, never raw µs.
+  //: Raw µs values (up to INT64-ish) plus a `max` that recomputed from the
+  //: track length churned the Gtk.Scale's adjustment while its row was being
+  //: reused, and seeking then tripped GTK's box/unrealize assertions and killed
+  //: the bar. A fixed 0..1000 range has no dynamic `max` and no huge values;
+  //: microseconds are converted only at the boundaries.
+  const SEEK_STEPS = 1000
+  const [seekStep, setSeekStep] = createState(0)
   //: True between press/drag-begin and release/drag-end. Suppresses both the
   //: interpolation tick and the authoritative sync so the thumb tracks the
   //: pointer rather than the bus while the user is dragging.
   let interacting = false
 
+  const usToStep = (us: number): number => {
+    const total = lengthUs()
+    if (total <= 0) return 0
+    return Math.max(0, Math.min(SEEK_STEPS, Math.round((us / total) * SEEK_STEPS)))
+  }
+  const stepToUs = (step: number): number => {
+    const total = lengthUs()
+    if (total <= 0) return 0
+    return Math.round((step / SEEK_STEPS) * total)
+  }
+
   // Authoritative sync: whenever the player object is replaced (initial
   // hydration, PropertiesChanged, Seeked, resync), reset the display base.
   createEffect(() => {
     const p = player()
-    if (!interacting) setSeekUs(p ? p.positionUs : 0)
+    if (!interacting) setSeekStep(p ? usToStep(p.positionUs) : 0)
   })
 
   // Display interpolation between bus syncs — the recording-widget pattern: one
@@ -211,12 +239,14 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
   GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
     const p = player()
     if (!interacting && popupVisible() && p && p.status === "Playing") {
-      setSeekUs(
-        interpolatePosition(
-          p.positionUs,
-          p.positionSyncedAtMs,
-          true,
-          GLib.get_monotonic_time() / 1000,
+      setSeekStep(
+        usToStep(
+          interpolatePosition(
+            p.positionUs,
+            p.positionSyncedAtMs,
+            true,
+            GLib.get_monotonic_time() / 1000,
+          ),
         ),
       )
     }
@@ -225,15 +255,16 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
 
   // D9: combined `elapsed / duration`; elapsed-only when the length is unknown.
   const timeText = createComputed(() => {
-    const elapsed = formatClock(seekUs()) || "0:00"
     const total = lengthUs()
+    const elapsedUs = stepToUs(seekStep())
+    const elapsed = formatClock(elapsedUs) || "0:00"
     return total > 0 ? `${elapsed} / ${formatClock(total)}` : elapsed
   })
 
   function commit(self: Gtk.Scale) {
     interacting = false
     const p = player()
-    if (p && p.canSeek) seekPlayer(p, self.get_value())
+    if (p && p.canSeek) seekPlayer(p, stepToUs(Math.round(self.get_value())))
   }
 
   // The Gtk.Scale's OWN drag/click gestures are the only reliable release hook:
@@ -324,12 +355,14 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
         class="settings-level-slider"
         hexpand
         min={0}
-        max={createComputed(() => Math.max(lengthUs(), 1))}
-        step={1000000}
-        value={seekUs}
+        max={SEEK_STEPS}
+        step={1}
+        value={seekStep}
         drawValue={false}
         visible={canSeek}
-        onNotifyValue={(self: { get_value: () => number }) => setSeekUs(self.get_value())}
+        onNotifyValue={(self: { get_value: () => number }) =>
+          setSeekStep(Math.round(self.get_value()))
+        }
         $={(self: Gtk.Scale) => wireSeekGestures(self)}
       />
       <label class="audio-time" label={timeText} />
@@ -546,42 +579,19 @@ function StreamRow({ row }: { row: unknown }) {
         />
         <RoutingSelect stream={stream} />
       </box>
-      <box visible={createComputed(() => stream() !== null)}>
-        <LevelLine
-          volume={volume}
-          onChange={(percent) => {
-            const n = nodeOf(stream())
-            if (n) n.volume = percent / 100
-          }}
-        />
-      </box>
-      <box visible={createComputed(() => stream() === null)}>
-        <DisabledLevelLine />
-      </box>
+      <LevelLine
+        volume={volume}
+        disabled={createComputed(() => stream() === null)}
+        onChange={(percent) => {
+          const n = nodeOf(stream())
+          if (n) n.volume = percent / 100
+        }}
+      />
       <TransportLine player={player} />
     </box>
   )
 }
 
-/** The volume line for a stream-less row: the same geometry, inert and dimmed,
- *  with a `No audio` badge so the absence of a level is legible rather than
- *  looking broken. */
-function DisabledLevelLine() {
-  return (
-    <box class="audio-level-line disabled" spacing={9}>
-      <slider
-        class="settings-level-slider"
-        hexpand
-        sensitive={false}
-        min={0}
-        max={100}
-        value={0}
-        drawValue={false}
-      />
-      <label class="audio-percent" label="—" />
-    </box>
-  )
-}
 
 /** The default output / input card. */
 function DeviceCard({

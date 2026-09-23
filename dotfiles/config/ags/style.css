@@ -786,9 +786,10 @@ window.settings-panel {
 }
 
 /* A stream-less row (the app's stream was torn down at Stopped/track end but its
-   player remains): the volume line has no node to act on, so it is inert and
-   dimmed, while the transport line below stays live. */
-.audio-level-line.disabled .settings-level-slider {
+   player remains): the volume line has no node to act on. It is made
+   insensitive (plus a dimmed slider) rather than swapped for another widget, so
+   every row keeps one stable widget shape. */
+.audio-level-line .settings-level-slider:disabled {
   opacity: 0.4;
 }
 
