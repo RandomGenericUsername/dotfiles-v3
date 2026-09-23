@@ -785,6 +785,28 @@ window.settings-panel {
   margin-top: 2px;
 }
 
+/* "Muted" badge beside the row title (spec: badge, never "Volume: 0"). Mirrors
+   the mockup's muted-red pill and the settings `.settings-badge` geometry. */
+.audio-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background-color: rgba(162, 30, 36, 0.22);
+  color: @color_15;
+}
+
+/* Muted (but present) stream: dim the slider fill, keep the value and the
+   interaction — mute never destroys the level. Distinct from `:disabled`
+   (stream-less row), which also drops interaction. */
+.audio-level-line.muted .settings-level-slider trough highlight {
+  background-color: alpha(@color_foreground, 0.35);
+}
+
+.audio-level-line.muted .settings-level-slider trough slider {
+  opacity: 0.55;
+}
+
 /* A stream-less row (the app's stream was torn down at Stopped/track end but its
    player remains): the volume line has no node to act on. It is made
    insensitive (plus a dimmed slider) rather than swapped for another widget, so

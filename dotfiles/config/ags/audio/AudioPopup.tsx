@@ -133,6 +133,7 @@ function LevelLine({
   volume,
   onChange,
   disabled = false,
+  muted = false,
 }: {
   volume: Accessor<number>
   onChange: (percent: number) => void
@@ -147,12 +148,19 @@ function LevelLine({
    *  `—` — and neither `ags bundle` (esbuild strips types unchecked) nor the
    *  symbol checker catch a type-level lie. */
   disabled?: Accessor<boolean> | boolean
+  /** Muted state: dims the slider fill (value retained — mute never destroys
+   *  the level) without disabling interaction. Same accessor discipline as
+   *  `disabled`. */
+  muted?: Accessor<boolean> | boolean
 }) {
   const percent = createComputed(() => Math.round(clampVolume(volume()) * 100))
   const isDisabled: Accessor<boolean> = createComputed(() =>
     typeof disabled === "function"
       ? (disabled as Accessor<boolean>)()
       : disabled,
+  )
+  const isMuted: Accessor<boolean> = createComputed(() =>
+    typeof muted === "function" ? (muted as Accessor<boolean>)() : muted,
   )
   let interacting = false
 
@@ -184,8 +192,11 @@ function LevelLine({
     }
   }
 
+  const lineClass = createComputed(() =>
+    isDisabled() ? "audio-level-line" : isMuted() ? "audio-level-line muted" : "audio-level-line",
+  )
   return (
-    <box class="audio-level-line" spacing={9}>
+    <box class={lineClass} spacing={9}>
       <slider
         class="settings-level-slider"
         hexpand
@@ -597,7 +608,10 @@ function StreamRow({ row }: { row: AppRow }) {
           }}
         />
         <box class="audio-row-meta" orientation={1} hexpand>
-          <label class="audio-row-title" xalign={0} label={title} />
+          <box spacing={6}>
+            <label class="audio-row-title" xalign={0} label={title} />
+            <label class="audio-badge" visible={muted} label="Muted" valign={Gtk.Align.CENTER} />
+          </box>
           <label
             class="audio-row-sub"
             xalign={0}
@@ -617,6 +631,7 @@ function StreamRow({ row }: { row: AppRow }) {
       <LevelLine
         volume={volume}
         disabled={createComputed(() => stream() === null)}
+        muted={muted}
         onChange={(percent) => setAppVolume(app, percent / 100)}
       />
       <TransportLine player={player} />
@@ -725,6 +740,7 @@ function DeviceCard({
       </box>
       <LevelLine
         volume={level}
+        muted={muted}
         onChange={(percent) => {
           const n = node()
           if (n) n.volume = percent / 100
@@ -830,6 +846,7 @@ function RecorderRow({ stream }: { stream: unknown }) {
       </box>
       <LevelLine
         volume={level}
+        muted={muteRaw}
         onChange={(percent) => {
           if (node) node.volume = percent / 100
         }}
