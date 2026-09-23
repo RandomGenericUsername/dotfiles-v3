@@ -49,6 +49,7 @@ import {
   streamAppName,
   streamMediaName,
   toggleAppMute,
+  useEndpointEpoch,
   viewEpoch,
   type AppRow,
 } from "./state"
@@ -436,33 +437,45 @@ function MasterButton() {
   )
 }
 
-/** Mute toggle glyph (bare, no pill). `iconWhenOn` lets the mic use its own art. */
+/**
+ * Mute toggle glyph (bare, no pill). `iconWhenOn` lets the mic use its own
+ * art. `level` (0..1, live) makes the unmuted glyph track volume through the
+ * same five thresholds as everywhere else (`muted/lowest/low/medium/max`);
+ * callers that omit it keep the legacy static `low` glyph.
+ */
 function MuteGlyph({
   muteRaw,
   onToggle,
   tooltip,
   size = 20,
   iconWhenOn,
+  level,
 }: {
   muteRaw: Accessor<boolean>
   onToggle: () => void
   tooltip: string
   size?: number
   iconWhenOn?: Accessor<string | null>
+  level?: Accessor<number>
 }) {
   const muted = createComputed(() => muteRaw() === true)
+  const path = createComputed<string | null>(() => {
+    if (muted()) {
+      return iconWhenOn
+        ? systemIcon("microphone", "mic-off")
+        : systemIcon("volume", "muted")
+    }
+    if (iconWhenOn) return iconWhenOn()
+    if (!level) return systemIcon("volume", "low")
+    return systemIcon("volume", levelVariant(false, clampVolume(level())))
+  })
   return (
     <button class="audio-mute" tooltipText={tooltip} onClicked={onToggle} canFocus={false}>
       <image
         pixel_size={size}
         $={(self) => {
           createEffect(() => {
-            const path = muted()
-              ? iconWhenOn
-                ? systemIcon("microphone", "mic-off")
-                : systemIcon("volume", "muted")
-              : (iconWhenOn ? iconWhenOn() : systemIcon("volume", "low"))
-            self.set_from_file(path ?? "")
+            self.set_from_file(path() ?? "")
           })
         }}
       />
@@ -539,44 +552,10 @@ function StreamRow({ row }: { row: AppRow }) {
 
   //: Volume/mute read through the live node with last-known fallback, so a
   //: slider drag writes to the current node object and the line holds its value
-  //: across transient stream gaps instead of flashing `—`.
-  //:
-  //: LIVE updates need more: `displayVolumeForApp` only depends on list
-  //: membership, so without this the percentage and mute glyph froze at their
-  //: first render (clicking mute toggled audio, but the icon never changed).
-  //: Subscribe to the CURRENT live node's own notify signals and bump an epoch
-  //: the computeds read; the effect re-subscribes whenever node identity
-  //: changes, and onCleanup disconnects the old node (never a stale object).
-  const [nodeEpoch, setNodeEpoch] = createState(0)
-  createEffect(() => {
-    const s = stream()
-    if (!s) return
-    const node = s as unknown as {
-      connect: (signal: string, cb: () => void) => number
-      disconnect: (id: number) => void
-    }
-    const bump = () => setNodeEpoch((n) => n + 1)
-    let hVolume = 0
-    let hMute = 0
-    try {
-      hVolume = node.connect("notify::volume", bump)
-      hMute = node.connect("notify::mute", bump)
-    } catch {
-      return
-    }
-    onCleanup(() => {
-      try {
-        node.disconnect(hVolume)
-      } catch {
-        /* node gone */
-      }
-      try {
-        node.disconnect(hMute)
-      } catch {
-        /* node gone */
-      }
-    })
-  })
+  //: across transient stream gaps instead of flashing `—`. The shared epoch
+  //: hook adds live updates (see state.ts): without it the percentage and mute
+  //: glyph froze at first render.
+  const nodeEpoch = useEndpointEpoch(stream)
   const volume = createComputed(() => {
     nodeEpoch()
     return clampVolume(displayVolumeForApp(app))
@@ -630,6 +609,7 @@ function StreamRow({ row }: { row: AppRow }) {
           muteRaw={muteRaw}
           tooltip={title((t: string) => `Mute ${t}`)}
           size={17}
+          level={volume}
           onToggle={() => toggleAppMute(app)}
         />
         <RoutingSelect app={app} />

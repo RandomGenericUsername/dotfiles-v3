@@ -1,5 +1,5 @@
 import Wp from "gi://AstalWp?version=0.1"
-import { Accessor, createBinding, createComputed, createState } from "ags"
+import { Accessor, createBinding, createComputed, createEffect, createState, onCleanup } from "ags"
 import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
@@ -675,5 +675,83 @@ export function debugAudioState(): Record<string, unknown> {
     displayVolume: displayVolumeForApp(row.app),
     player: playerForApp(row.app)?.busName ?? null,
   }))
-  return { streams, rows }
+  const spk = nodeOf(defaultSpeaker())
+  const mic = nodeOf(defaultMicrophone())
+  return {
+    streams,
+    rows,
+    defaultSpeaker: {
+      id: spk?.id ?? null,
+      volume: spk?.volume ?? null,
+      mute: spk?.mute ?? null,
+      accessorVolume: defaultSpeakerVolume(),
+      accessorMute: defaultSpeakerMute(),
+    },
+    defaultMicrophone: {
+      id: mic?.id ?? null,
+      mute: mic?.mute ?? null,
+      accessorMute: defaultMicrophoneMute(),
+    },
+    endpointEpoch: { ...endpointEpochStats },
+  }
+}
+
+// ── Endpoint live-epoch (shared hook) ────────────────────────────────────────
+
+/**
+ * Diagnostics for the epoch hook below. `runs` counts effect executions,
+ * `subscribes` counts successful notify subscriptions, `bumps` counts signal
+ * deliveries. When a glyph freezes, these three numbers say exactly which link
+ * died: runs=0 means the effect never ran; subscribes<runs means connect
+ * failed; bumps=0 with subscribes>0 means signals never arrive (dead proxy).
+ */
+export const endpointEpochStats: { runs: number; subscribes: number; bumps: number } = {
+  runs: 0,
+  subscribes: 0,
+  bumps: 0,
+}
+
+/**
+ * Live epoch for an endpoint node (`defaultSpeaker()` / `defaultMicrophone()` /
+ * a row's live stream). The volume/mute accessors only depend on list
+ * membership, so without this a glyph freezes at its first render. Subscribes
+ * to the CURRENT node's own notify signals and bumps an epoch the computeds
+ * read; re-subscribes when node identity changes.
+ */
+export function useEndpointEpoch(endpoint: Accessor<unknown>): Accessor<number> {
+  const [epoch, setEpoch] = createState(0)
+  createEffect(() => {
+    endpointEpochStats.runs++
+    const node = endpoint() as unknown as {
+      connect: (signal: string, cb: () => void) => number
+      disconnect: (id: number) => void
+    } | null
+    if (!node) return
+    const bump = () => {
+      endpointEpochStats.bumps++
+      setEpoch((n) => n + 1)
+    }
+    let hVolume = 0
+    let hMute = 0
+    try {
+      hVolume = node.connect("notify::volume", bump)
+      hMute = node.connect("notify::mute", bump)
+      endpointEpochStats.subscribes++
+    } catch {
+      return
+    }
+    onCleanup(() => {
+      try {
+        node.disconnect(hVolume)
+      } catch {
+        /* node gone */
+      }
+      try {
+        node.disconnect(hMute)
+      } catch {
+        /* node gone */
+      }
+    })
+  })
+  return epoch
 }

@@ -3,15 +3,17 @@ import { Accessor, createComputed, createEffect } from "ags"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import {
-  defaultMicrophoneMute,
-  defaultSpeakerMute,
-  defaultSpeakerVolume,
+  clampVolume,
+  defaultMicrophone,
+  defaultSpeaker,
   levelVariant,
   micInUse,
+  nodeOf,
   nudgeDefaultOutputVolume,
   open,
   setAudioIconX,
   toggle,
+  useEndpointEpoch,
 } from "../../audio/state"
 
 /**
@@ -64,8 +66,19 @@ function recordIconX() {
 }
 
 export function OutputIndicator() {
-  const muted = createComputed(() => defaultSpeakerMute() === true)
-  const level = createComputed(() => defaultSpeakerVolume())
+  const spkEpoch = useEndpointEpoch(defaultSpeaker)
+  //: Read the LIVE node props directly — NOT through defaultSpeakerVolume() /
+  //: defaultSpeakerMute(), which memoize independently on list membership and
+  //: stay stale even when this epoch invalidates us (measured: node 0.85 while
+  //: the accessor still said 0.75). GObject property reads are always live.
+  const muted = createComputed(() => {
+    spkEpoch()
+    return nodeOf(defaultSpeaker())?.mute === true
+  })
+  const level = createComputed(() => {
+    spkEpoch()
+    return clampVolume(nodeOf(defaultSpeaker())?.volume ?? 0)
+  })
   const variant = createComputed(() => levelVariant(muted(), level()))
 
   return (
@@ -107,9 +120,11 @@ export function OutputIndicator() {
 }
 
 export function MicIndicator() {
-  const variant = createComputed(() =>
-    defaultMicrophoneMute() === true ? "mic-off" : "mic-on",
-  )
+  const micEpoch = useEndpointEpoch(defaultMicrophone)
+  const variant = createComputed(() => {
+    micEpoch()
+    return nodeOf(defaultMicrophone())?.mute === true ? "mic-off" : "mic-on"
+  })
   const live: Accessor<boolean> = createComputed(() => micInUse() === true)
 
   return (
