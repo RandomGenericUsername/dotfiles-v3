@@ -75,6 +75,7 @@
 | T5 | Editing `icons.json` by hand desyncs from `icons.yaml`. | I6; regen + byte-verify. |
 | T6 | Two provisioning runs against the same spine corrupt state. | I8. |
 | T7 | `pw-dump` graph legitimately empties when idle — treating "no links" as a bug leads to wrong fixes. | Fallback to default-sink name is correct behaviour. |
+| T8 | Seek drag killed the bar: `seekPlayer`'s optimistic `applyPlayers()` ran **synchronously inside the scale's drag-end handler** → `For` unparented the very slider being dragged (active grab held) → `gtk_widget_unrealize: assertion failed (!priv->mapped)` → core dump. Proven by coredump backtrace (`g_signal_emitv → JS → unparent → unrealize`). | `applyPlayers()` is **always idle-deferred** (coalesced; flush reads current cache so nothing is lost). Rule: no state change that can restructure a `For` list may execute inside a gesture/signal emission — defer to idle. |
 
 ---
 

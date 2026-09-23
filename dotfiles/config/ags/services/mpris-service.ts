@@ -218,8 +218,27 @@ function playerSuffix(busName: string): string {
     : busName
 }
 
+let applyScheduled = false
+
+/**
+ * Flush the player cache into the reactive accessor — always deferred to idle.
+ *
+ * A synchronous flush inside a user gesture is fatal: `seekPlayer` runs inside
+ * the scale's drag-end handler, and a sync `setMprisPlayers` re-fires
+ * `applicationRows()` → gnim's `For` unparents every row — including the very
+ * slider being dragged, which still holds an active gesture grab. GTK aborts:
+ * `gtk_widget_unparent` → `gtk_widget_real_unrealize: assertion failed
+ * (!priv->mapped)`. Deferring to idle lets the gesture emission complete first;
+ * the flush always reads the CURRENT cache, so coalesced calls lose nothing.
+ */
 function applyPlayers(): void {
-  setMprisPlayers([...playerCache.values()])
+  if (applyScheduled) return
+  applyScheduled = true
+  GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+    applyScheduled = false
+    setMprisPlayers([...playerCache.values()])
+    return false
+  })
 }
 
 // ── Bus plumbing (async `call` + `signal_subscribe`, mirroring nm-client) ──
