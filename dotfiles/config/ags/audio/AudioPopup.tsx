@@ -15,6 +15,7 @@ import { formatClock, interpolatePosition } from "../services/mpris-core"
 import {
   activeSection,
   applicationRows,
+  appRowKey,
   audioIconX,
   back,
   clampVolume,
@@ -25,28 +26,31 @@ import {
   defaultSpeaker,
   defaultSpeakerMute,
   defaultSpeakerVolume,
-  effectiveSinkName,
-  isPlayerOnlyRow,
+  displayMuteForApp,
+  displayVolumeForApp,
+  effectiveSinkNameForApp,
+  hasLiveStreamForApp,
   levelVariant,
+  liveStreamForApp,
   masterPlayer,
   nodeLabel,
   outputDevices,
   playbackStreams,
-  playerForStream,
+  playerForApp,
   popupVisible,
   recordingStreams,
   refreshStreamTargets,
-  routeStreamTo,
+  routeAppTo,
+  setAppVolume,
   setDefaultSpeaker,
   showOutputDevices,
   streamAppIconPath,
   streamAppIconPathForIdentity,
   streamAppName,
-  streamById,
-  playerByBusName,
-  rowKey,
   streamMediaName,
+  toggleAppMute,
   viewEpoch,
+  type AppRow,
 } from "./state"
 
 /**
@@ -227,11 +231,28 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
     return Math.round((step / SEEK_STEPS) * total)
   }
 
-  // Authoritative sync: whenever the player object is replaced (initial
-  // hydration, PropertiesChanged, Seeked, resync), reset the display base.
+  // Authoritative sync: reset the display base ONLY when the bus truth actually
+  // moved (position or track). The player object is replaced on every MPRIS
+  // rebuild, so syncing on identity alone made the thumb jump between the
+  // divergent positions two interfaces of one app report (tidal resetting
+  // 2:24 → 0:01 after an unrelated seek commit).
+  let lastSyncedUs = -1
+  let lastSyncedTrack = ""
   createEffect(() => {
     const p = player()
-    if (!interacting) setSeekStep(p ? usToStep(p.positionUs) : 0)
+    if (interacting) return
+    if (!p) {
+      lastSyncedUs = -1
+      lastSyncedTrack = ""
+      setSeekStep(0)
+      return
+    }
+    const track = p.metadata.title ?? ""
+    if (p.positionUs !== lastSyncedUs || track !== lastSyncedTrack) {
+      lastSyncedUs = p.positionUs
+      lastSyncedTrack = track
+      setSeekStep(usToStep(p.positionUs))
+    }
   })
 
   // Display interpolation between bus syncs — the recording-widget pattern: one
@@ -438,19 +459,16 @@ function MuteGlyph({
   )
 }
 
-/** Trailing routing select: move this stream to another output device.
+/** Trailing routing select: move this app's stream to another output device.
  *  The label is the stream's EFFECTIVE sink (explicit target → link-resolved
- *  sink → default sink name) — never the word "Default". Rendered only for a
- *  real stream: a stream-less row has no PipeWire node to route. */
-function RoutingSelect({ stream }: { stream: Accessor<unknown | null> }) {
-  const target = createComputed(() => {
-    const s = stream()
-    return s ? effectiveSinkName(s) : ""
-  })
+ *  sink → default sink name) — never the word "Default". Hidden while the app
+ *  has no live stream (re-link gap): there is no node to route. */
+function RoutingSelect({ app }: { app: string }) {
+  const target = createComputed(() => effectiveSinkNameForApp(app))
+  const hasStream = createComputed(() => hasLiveStreamForApp(app))
 
   function openMenu(anchor: Gtk.Widget) {
-    const s = stream()
-    if (!s) return
+    if (!hasLiveStreamForApp(app)) return
     const menu = new Gtk.Popover()
     menu.set_parent(anchor)
     const list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
@@ -458,7 +476,7 @@ function RoutingSelect({ stream }: { stream: Accessor<unknown | null> }) {
       const row = new Gtk.Button({ css_classes: ["audio-route-item"] })
       row.set_child(new Gtk.Label({ label: nodeLabel(device, "Output"), xalign: 0 }))
       row.connect("clicked", () => {
-        routeStreamTo(s, device)
+        routeAppTo(app, device)
         menu.popdown()
       })
       list.append(row)
@@ -468,7 +486,7 @@ function RoutingSelect({ stream }: { stream: Accessor<unknown | null> }) {
   }
 
   return (
-    <box visible={createComputed(() => stream() !== null)}>
+    <box visible={hasStream}>
       <button
         class="audio-routing"
         tooltipText={target}
@@ -489,44 +507,30 @@ function RoutingSelect({ stream }: { stream: Accessor<unknown | null> }) {
   )
 }
 
-/** One playback stream (an application). Leading brand app icon (literal-color
- *  `app-icons` asset resolved from the stream's own identity), then name with
- *  the application subtitle (Chrome / YouTube, per doc §25), mute toggle, and
- *  routing select.
+/** One application row. Leading brand app icon (literal-color `app-icons`
+ *  asset), then name with the application subtitle (Chrome / YouTube, per doc
+ *  §25), mute toggle, routing select, volume line, and transport line.
  *
- *  Two shapes reach this function (see `applicationRows` in state.ts):
- *   - a live PipeWire stream (the normal case — volume/mute/routing all act on
- *     the node);
- *   - a stream-less player row (the app's stream was torn down at Stopped/track
- *     end but its MPRIS player remains). Here the title comes from MPRIS
- *     metadata and the VOLUME line is disabled: there is no node to set, and
- *     per the owner decision the transport stays usable so the app can be
- *     resumed from the popup. */
-function StreamRow({ row }: { row: unknown }) {
-  //: Resolve live data at READ time from a stable key, never by capturing the
-  //: row object. `For` reuses a row (stable id) while `wp.nodes`/MPRIS replace
-  //: the underlying node/player instances on every notify — a captured object
-  //: (or a binding on it) would go stale or point at a dead node. See the
-  //: crash note on `For` in ApplicationsCard.
-  const playerOnly = isPlayerOnlyRow(row)
-  const streamKey: number | null = playerOnly ? null : nodeOf(row)?.id ?? null
-  const playerBusName: string | null = playerOnly
-    ? (row as { player: { busName: string } }).player.busName
-    : null
+ *  The row is keyed by canonical APP (`AppRow.app`), never by node id or bus
+ *  name — both churn (YouTube re-links recreate streams under new ids on seek;
+ *  an app's MPRIS interfaces come and go). Every piece of live data is resolved
+ *  at READ time from the app key (`liveStreamForApp` / `playerForApp`), so a
+ *  reused row never holds a stale node or player object.
+ *
+ *  When the app momentarily has no live stream (re-link gap), the volume line
+ *  shows the last-known level and is disabled, while the transport stays live —
+ *  per the owner decision, the row persists so the app can be resumed. */
+function StreamRow({ row }: { row: AppRow }) {
+  const app = row.app
 
-  const stream = createComputed<unknown>(() =>
-    streamKey === null ? null : streamById(streamKey),
-  )
-  const player: Accessor<MprisPlayer | null> = createComputed(() => {
-    if (playerBusName !== null) return playerByBusName(playerBusName)
-    const s = stream()
-    return s ? playerForStream(s) : null
-  })
+  const stream = createComputed(() => liveStreamForApp(app))
+  const player: Accessor<MprisPlayer | null> = createComputed(() => playerForApp(app))
 
-  //: Volume/mute read through a computed on the LIVE node, so a slider drag
-  //: writes to the current node object, not a replaced one.
-  const volume = createComputed(() => clampVolume(nodeOf(stream())?.volume ?? 0))
-  const muteRaw = createComputed(() => nodeOf(stream())?.mute === true)
+  //: Volume/mute read through the live node with last-known fallback, so a
+  //: slider drag writes to the current node object and the line holds its value
+  //: across transient stream gaps instead of flashing `—`.
+  const volume = createComputed(() => clampVolume(displayVolumeForApp(app)))
+  const muteRaw = createComputed(() => displayMuteForApp(app))
   const muted = muteRaw
 
   const title = createComputed(() => {
@@ -572,20 +576,14 @@ function StreamRow({ row }: { row: unknown }) {
           muteRaw={muteRaw}
           tooltip={title((t: string) => `Mute ${t}`)}
           size={17}
-          onToggle={() => {
-            const n = nodeOf(stream())
-            if (n) n.mute = !n.mute
-          }}
+          onToggle={() => toggleAppMute(app)}
         />
-        <RoutingSelect stream={stream} />
+        <RoutingSelect app={app} />
       </box>
       <LevelLine
         volume={volume}
         disabled={createComputed(() => stream() === null)}
-        onChange={(percent) => {
-          const n = nodeOf(stream())
-          if (n) n.volume = percent / 100
-        }}
+        onChange={(percent) => setAppVolume(app, percent / 100)}
       />
       <TransportLine player={player} />
     </box>
@@ -809,19 +807,18 @@ function RecorderRow({ stream }: { stream: unknown }) {
 /** Applications section — generated from playback streams; collapses when empty. */
 function ApplicationsCard() {
   //: `For`'s default id is the ITEM REFERENCE, and every `applicationRows()`
-  //: evaluation yields fresh references (byClass rebuilds its array on each
-  //: `wp.nodes` notify). Without a stable id, writing a slider's volume made
-  //: `wp.nodes` emit, the list re-evaluated, and EVERY row was disposed and
+  //: evaluation yields fresh references. Without a stable id, writing a
+  //: slider's volume made the list re-evaluate, and EVERY row was disposed and
   //: recreated mid-gesture — whose unrealize tripped a GTK assertion and killed
   //: the bar (`gtk_widget_real_unrealize: assertion failed (!priv->mapped)`).
-  //: `rowKey` keys by stream id / player bus name so rows are reused in place.
+  //: `appRowKey` keys by canonical APP, which never churns (node ids do on
+  //: every YouTube re-link; bus names do across MPRIS rebuilds).
   return (
     <box visible={createComputed(() => (applicationRows()?.length ?? 0) > 0)}>
       <PanelCard title="Applications">
-        {/* Union of live streams and stream-less players (state.ts): a row
-            persists while the app has a player, so pausing/stopping a track
-            never removes its resume control. */}
-        <For each={applicationRows} id={rowKey}>
+        {/* One row per canonical app (state.ts): the row persists across node
+            re-links and interface flips, and its content rebinds. */}
+        <For each={applicationRows} id={appRowKey}>
           {(row) => <StreamRow row={row} />}
         </For>
       </PanelCard>

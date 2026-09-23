@@ -3,8 +3,8 @@ import { Accessor, createBinding, createComputed, createState } from "ags"
 import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
-import { activePlayer, mprisPlayers, playersByApp, type MprisPlayer } from "../services/mpris-service"
-import { ALIAS, canonicalIdentity, identityMatches, pickActivePlayer } from "../services/mpris-core"
+import { activePlayer, playersByApp, type MprisPlayer } from "../services/mpris-service"
+import { ALIAS, canonicalIdentity } from "../services/mpris-core"
 
 /**
  * Shared audio state + data model for the AGS bar instance
@@ -326,152 +326,171 @@ function slugifyAppName(name: string): string | null {
   return slug === "" ? null : slug
 }
 
-// ── MPRIS ↔ stream linking (WP-C) ──────────────────────────────────────────
+// ── App-keyed row model ──────────────────────────────────────────────────────
 //
-// The MPRIS player for a stream is found from the SAME graph snapshot used for
-// routing, never from a second dump: `application.name` (slugged) and the newly
-// captured `application.process.binary` are the identity candidates. The MPRIS
+// Rows are keyed by CANONICAL APP (`google-chrome`, `tidal-hifi`), never by
+// PipeWire node id or MPRIS bus name. Both of those churn: YouTube re-links
+// tear a stream down and recreate it under a new id on every seek, and an
+// Electron app publishes two MPRIS interfaces for one playback. Keying rows by
+// id/bus produced the whole reported bug family — volume `—` with routing
+// visible (tearing between two computeds as `playbackStreams()` flapped),
+// tidal's display resetting when its row flipped interfaces, phantom duplicate
+// rows. An app-keyed row survives all of it; the live node/player are resolved
+// at read time inside the row.
+//
+// Identity candidates come from the SAME graph snapshot used for routing:
+// `application.name` (slugged) and `application.process.binary`. The MPRIS
 // identity is frequently the framework (`chromium`), while the stream carries
 // either the brand name (`Google Chrome` → `google-chrome`) or the process
 // binary (`chrome`); `identityMatches` canonicalises BOTH sides through the
 // alias table, so either field links (contract §5, resolved in bffa66c4).
 
-/** The MPRIS players whose app matches a stream's own identity (0..n).
- *
- *  Matching uses the player's canonical IDENTITY (the MPRIS root `Identity`
- *  property, alias-folded) against the stream's `application.name` /
- *  `application.process.binary`. The bus-name suffix is NOT used: an Electron
- *  app publishes `chromium.instance<pid>` for the same playback as its named
- *  interface, so `chromium` says nothing about the app (measured live). */
-function playersForStream(stream: unknown): MprisPlayer[] {
-  const node = nodeOf(stream)
-  if (node?.id === undefined) return []
+/** Canonical app keys for one stream node (Identity/ALIAS-folded). */
+function appKeysOfNode(node: WpNode | null): Set<string> {
+  const keys = new Set<string>()
+  if (!node) return keys
   const snap = graph()
-  const candidates: string[] = []
-  const app = snap.nodeApp[node.id]
-  if (app) {
-    const slug = slugifyAppName(app)
-    if (slug) candidates.push(slug)
+  const raws: string[] = []
+  if (node.id !== undefined) {
+    const app = snap.nodeApp[node.id]
+    if (app) raws.push(app)
+    const binary = snap.nodeBinary[node.id]
+    if (binary) raws.push(binary)
   }
-  const binary = snap.nodeBinary[node.id]
-  if (binary) candidates.push(binary)
   // Fall back to the node's own props when the async graph snapshot has not
   // caught up with a stream that just appeared (its app/binary are not in it
-  // yet, but the node themselves always carry the name).
-  if (candidates.length === 0) {
+  // yet, but the node itself always carries the name).
+  if (raws.length === 0) {
     for (const v of [node.name, node.description]) {
-      if (typeof v === "string" && v !== "") {
-        const slug = slugifyAppName(v)
-        if (slug) candidates.push(slug)
-      }
+      if (typeof v === "string" && v !== "") raws.push(v)
     }
   }
-  if (candidates.length === 0) return []
-  const wanted = new Set(candidates.map((c) => canonicalIdentity(c)))
-  return playersByApp().filter((player) => wanted.has(player.canonical))
+  for (const raw of raws) {
+    const slug = slugifyAppName(raw)
+    if (slug) keys.add(canonicalIdentity(slug))
+  }
+  return keys
 }
 
-/** The MPRIS player that owns a playback stream, or null when none matches.
- *
- *  When more than one player matches (e.g. two Chromium instances), the row
- *  picks the most recently *playing* one — the same "row controls its
- *  most-recent playing instance" rule the mockup caption states, implemented by
- *  `pickActivePlayer` (deterministic on ties). */
-export function playerForStream(stream: unknown): MprisPlayer | null {
-  return pickActivePlayer(playersForStream(stream))
+/** The MPRIS player for one app (canonical key), or null when the app has no
+ *  live player. Reads from `playersByApp()`, so an Electron app's two
+ *  interfaces resolve to their single representative. */
+export function playerForApp(app: string): MprisPlayer | null {
+  return playersByApp().find((player) => player.canonical === app) ?? null
 }
 
 /** The Output-card master button target (D1): the most recently active player. */
 export { activePlayer as masterPlayer }
 
 /**
- * The Applications section is the UNION of PipeWire streams and MPRIS players
- * that have no stream.
+ * One Applications row per canonical app (`{ app }`), whether the app
+ * currently has a PipeWire stream, an MPRIS player, or both.
  *
  * The EXPERIENCE contract is explicit that a row persists for an app that still
  * has a player: "Stream paused (has player) → transport dims" and "the player
- * quits or goes Stopped → the row stays volume-only" (lines 83/175). A player
- * tears its PipeWire stream down when it goes Stopped or finishes a track, so a
- * stream-only list made the row (and its resume control) vanish while the app
- * was still there — the reported tidal case. This exposes a row per matching
- * stream PLUS a stream-less row per remaining player.
- *
- * A union entry is `{ stream }` (the normal case) or `{ player }` (boundary
- * row). Both shapes are consumed by `StreamRow`; only the value row is an
- * `unknown` node when a stream is present.
+ * quits or goes Stopped → the row stays volume-only" (lines 83/175). Keying by
+ * APP (not node id / bus name) is what makes that robust: YouTube re-links
+ * tear a stream down and recreate it under a new id on seek, and
+ * `playbackStreams()` flaps through transient drops — an id-keyed row then
+ * evaluated `stream() === null` while its sibling routing chip still showed,
+ * i.e. the torn volume-`—` + visible-routing state from the bug video. An
+ * app-keyed row survives node churn; the live node is resolved per read.
  */
-export interface PlayerOnlyRow {
-  player: MprisPlayer
+export interface AppRow {
+  app: string
 }
 
-/** True for a stream-less (player-backed) row — narrows the union. */
-export function isPlayerOnlyRow(row: unknown): row is PlayerOnlyRow {
-  return (
-    row !== null &&
-    typeof row === "object" &&
-    "player" in (row as Record<string, unknown>) &&
-    !("id" in (row as Record<string, unknown>))
-  )
+/** The stable `For` id for an app row. Never changes while the app exists. */
+export function appRowKey(row: AppRow): string {
+  return `app:${row.app}`
 }
 
-/** The live playback-stream node with this id, or null — resolved at read time
- *  so a reused row never holds a stale node object (the `wp.nodes` binding
- *  replaces node instances on every notify). */
-export function streamById(id: number): WpNode | null {
-  return (playbackStreams() ?? []).find((s) => nodeOf(s)?.id === id) ?? null
-}
-
-/** The live MPRIS player with this bus name, or null (read-time resolution, same
- *  reason as `streamById` — an MPRIS update replaces the player object). */
-export function playerByBusName(busName: string): MprisPlayer | null {
-  return mprisPlayers().find((p) => p.busName === busName) ?? null
-}
-
-/** The stable row key: a stream id or a player bus name. Used as the `For` id so
- *  rows are reused in place across `wp.nodes`/MPRIS notifies instead of being
- *  disposed and recreated (which unrealized a widget mid-gesture and crashed
- *  GTK: `gtk_widget_real_unrealize: assertion failed (!priv->mapped)`). */
-export function rowKey(row: unknown): string {
-  if (isPlayerOnlyRow(row)) return `player:${(row as PlayerOnlyRow).player.busName}`
-  return `stream:${nodeOf(row)?.id ?? "?"}`
-}
-
-/** Canonical app keys (Identity/ALIAS-folded, plus the process binary) that a
- *  live stream row already represents. A stream claims EVERY app whose player
- *  matches it, so no player leaks in as a second row beside its own stream. */
-function streamedAppKeys(): Set<string> {
-  const seen = new Set<string>()
-  for (const stream of playbackStreams() ?? []) {
-    for (const player of playersForStream(stream)) {
-      seen.add(player.canonical)
-      if (player.pid > 0) seen.add(`pid:${player.pid}`)
-    }
+/** The live playback-stream node for an app, or null when the app has no
+ *  stream right now (paused player, transient re-link gap). Resolved at read
+ *  time so a reused row never holds a stale node object. */
+export function liveStreamForApp(app: string): WpNode | null {
+  const node =
+    (playbackStreams() ?? []).find((s) => appKeysOfNode(nodeOf(s)).has(app)) ??
+    null
+  if (node) {
+    lastLevel.set(app, {
+      volume: clampVolume(node.volume ?? 0),
+      mute: node.mute === true,
+    })
   }
-  return seen
+  return node
 }
 
-/** Applications rows: live streams first, then app-level player rows.
- *
- *  Player rows come from `playersByApp()`, which collapses the two MPRIS
- *  interfaces an Electron app publishes (measured: Tidal exposes both
- *  `tidal-hifi` and `chromium.instance<pid>`) into ONE row per process — the
- *  bug where the same playback appeared twice, once labelled "chromium", and
- *  stopping either stopped both. An app already shown by a live stream is
- *  claimed by that row and never re-listed. */
-export const applicationRows: Accessor<Array<unknown | PlayerOnlyRow>> =
-  createComputed(() => {
-    const rows: Array<unknown | PlayerOnlyRow> = [...(playbackStreams() ?? [])]
-    const seen = streamedAppKeys()
-    for (const player of playersByApp()) {
-      if (player.pid > 0 && seen.has(`pid:${player.pid}`)) continue
-      if (seen.has(player.canonical)) continue
-      // A Stopped player with no stream has nothing to control (its transport
-      // is inert and its volume target is gone) — only live players get a row.
-      if (player.status === "Stopped") continue
-      rows.push({ player })
-    }
-    return rows
-  })
+/**
+ * Last-known level per app. Updated whenever a live node is read; read when
+ * the app momentarily has no stream (re-link gap) so the volume line holds its
+ * value instead of flashing `—`. A row whose app never had a stream in this
+ * session has no entry and correctly renders the disabled line.
+ */
+const lastLevel = new Map<string, { volume: number; mute: boolean }>()
+
+/** Display volume for an app row: live, else last-known, else 0. */
+export function displayVolumeForApp(app: string): number {
+  return liveStreamForApp(app)?.volume ?? lastLevel.get(app)?.volume ?? 0
+}
+
+/** Display mute for an app row: live, else last-known, else false. */
+export function displayMuteForApp(app: string): boolean {
+  const live = liveStreamForApp(app)
+  if (live) return live.mute === true
+  return lastLevel.get(app)?.mute ?? false
+}
+
+/** True when the app has a live stream node to write volume/mute/routing to. */
+export function hasLiveStreamForApp(app: string): boolean {
+  return liveStreamForApp(app) !== null
+}
+
+/** Write volume to the app's live stream; a no-op when there is none (the row
+ *  is disabled in that state, so this only fires on stale closures). */
+export function setAppVolume(app: string, fraction: number): void {
+  const node = liveStreamForApp(app)
+  if (node) node.volume = Math.max(0, Math.min(1, fraction))
+}
+
+/** Toggle mute on the app's live stream; a no-op when there is none. */
+export function toggleAppMute(app: string): void {
+  const node = liveStreamForApp(app)
+  if (node) node.mute = !node.mute
+}
+
+/** Human name of the sink an app's stream is effectively playing on (routing
+ *  label). Falls back to the default sink name when the app has no live
+ *  stream — never the word "Default". */
+export function effectiveSinkNameForApp(app: string): string {
+  const node = liveStreamForApp(app)
+  if (!node) return nodeLabel(nodeOf(defaultSpeaker()), "No output")
+  return effectiveSinkName(node)
+}
+
+/** Route the app's live stream to another output; a no-op when there is none. */
+export function routeAppTo(app: string, device: unknown): void {
+  const node = liveStreamForApp(app)
+  if (node) routeStreamTo(node, device)
+}
+
+/** Applications rows: one per canonical app that has a live stream, a live
+ *  player, or both. Membership is a pure function of app presence, so transient
+ *  node-id churn (seek re-links) and interface flips never add or remove rows —
+ *  the row persists and its content rebinds. */
+export const applicationRows: Accessor<AppRow[]> = createComputed(() => {
+  const apps = new Map<string, true>()
+  for (const stream of playbackStreams() ?? []) {
+    for (const key of appKeysOfNode(nodeOf(stream))) apps.set(key, true)
+  }
+  for (const player of playersByApp()) {
+    // A Stopped player with no stream has nothing to control (its transport
+    // is inert and its volume target is gone) — only live players get a row.
+    if (player.status === "Stopped") continue
+    apps.set(player.canonical, true)
+  }
+  return [...apps.keys()].map((app) => ({ app }))
+})
 
 /** Every icon-name candidate for a stream, most specific first: the PipeWire
  *  `application.icon-name`, then the slug of the app name. */

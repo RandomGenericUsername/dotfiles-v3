@@ -89,6 +89,24 @@ export { mprisPlayers }
  *  most recently active one, resolved by PID then canonical identity. Without
  *  this the popup showed the same playback twice (once as "tidal-hifi", once as
  *  "chromium") and stopping either appeared to stop both. */
+/**
+ * Last-selected representative bus name per app group. `pickActivePlayer` ties
+ * (same lastPlayingAt, same metadata presence) resolve to array order, which
+ * shifts on every cache rebuild — flipping a row between an app's two
+ * interfaces, whose reported positions diverge (tidal's display resetting
+ * 2:24 → 0:01 after an unrelated commit). Stickiness keeps the representative
+ * while it is still present; only a real change re-picks.
+ */
+const representativeByGroup = new Map<string, string>()
+
+/** True for a framework mirror interface (`chromium.instance<pid>`) as opposed
+ *  to an app's own named interface. On a fresh pick the named interface wins:
+ *  it is the app's own object and its position/metadata are authoritative,
+ *  while the mirror is frequently stale. */
+function isMirrorInterface(busName: string): boolean {
+  return /^org\.mpris\.MediaPlayer2\.chromium\.instance[0-9]+$/.test(busName)
+}
+
 export function playersByApp(): MprisPlayer[] {
   const groups = new Map<string, MprisPlayer[]>()
   for (const player of mprisPlayers()) {
@@ -97,10 +115,37 @@ export function playersByApp(): MprisPlayer[] {
     if (group) group.push(player)
     else groups.set(key, [player])
   }
+  // Prune stickiness for groups that no longer exist.
+  for (const key of [...representativeByGroup.keys()]) {
+    if (!groups.has(key)) representativeByGroup.delete(key)
+  }
   const out: MprisPlayer[] = []
-  for (const group of groups.values()) {
-    const representative = pickActivePlayer(group)
-    if (representative) out.push(representative)
+  for (const [key, group] of groups) {
+    const previous = representativeByGroup.get(key)
+    const sticky =
+      previous !== undefined
+        ? (group.find((player) => player.busName === previous) ?? null)
+        : null;
+    let representative: MprisPlayer | null = null
+    if (sticky) {
+      // Keep the sticky representative unless another member is Playing while
+      // it is not — playback must always win over stickiness.
+      const playing = group.filter((player) => player.status === "Playing")
+      representative =
+        sticky.status === "Playing" || playing.length === 0
+          ? sticky
+          : pickActivePlayer(playing)
+    }
+    if (!representative) {
+      // Fresh pick: the named interface over a framework mirror, then the
+      // standard most-recently-active rule.
+      const named = group.filter((player) => !isMirrorInterface(player.busName))
+      representative = pickActivePlayer(named.length > 0 ? named : group)
+    }
+    if (representative) {
+      representativeByGroup.set(key, representative.busName)
+      out.push(representative)
+    }
   }
   return out
 }
