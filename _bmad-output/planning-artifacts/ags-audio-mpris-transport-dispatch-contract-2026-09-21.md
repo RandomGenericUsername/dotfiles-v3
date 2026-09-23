@@ -76,6 +76,8 @@
 | T6 | Two provisioning runs against the same spine corrupt state. | I8. |
 | T7 | `pw-dump` graph legitimately empties when idle — treating "no links" as a bug leads to wrong fixes. | Fallback to default-sink name is correct behaviour. |
 | T8 | Seek drag killed the bar: `seekPlayer`'s optimistic `applyPlayers()` ran **synchronously inside the scale's drag-end handler** → `For` unparented the very slider being dragged (active grab held) → `gtk_widget_unrealize: assertion failed (!priv->mapped)` → core dump. Proven by coredump backtrace (`g_signal_emitv → JS → unparent → unrealize`). | `applyPlayers()` is **always idle-deferred** (coalesced; flush reads current cache so nothing is lost). Rule: no state change that can restructure a `For` list may execute inside a gesture/signal emission — defer to idle. |
+| T9 | Every volume line permanently disabled (`—`, unclickable): `LevelLine` typed `disabled?: boolean` but received an `Accessor` (always truthy as a function object). Neither `ags bundle` nor the symbol checker catches type-level lies. | Props that may receive accessors must declare `Accessor<T> \| T` and unwrap reactively. When adding an accessor-typed call site, check the callee's declared prop type. |
+| T10 | Phantom `"playback"` app row beside the real one: `appKeysOfNode` slugged AstalWp `node.name`, which is the MEDIA name (`"Playback"`), not the app. | Never use AstalWp `node.name` as app identity; `node.description` carries the application name (snapshot `application.name` remains authoritative). Diagnosed via `ags request audio-debug`. |
 
 ---
 
