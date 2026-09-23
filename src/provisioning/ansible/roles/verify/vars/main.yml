@@ -163,6 +163,17 @@ verify_system_binaries:
   - hyprpaper
   - ags
   - power-options-gtk
+  # Audio stack (add-pipewire-audio-control): wpctl is the WirePlumber CLI
+  #   (proves wireplumber is installed); pavucontrol is the Pulse-compat GUI
+  #   mixer launched by right-clicking the output bar indicator. Both are
+  #   packages role-installed, so they belong to the criterion-2 PATH gate.
+  - wpctl
+  - pavucontrol
+  # MPRIS transport (ags-audio-mpris-transport): the AGS service shells out to
+  #   playerctl for play/pause/next/prev/seek (actions only — never state reads,
+  #   contract I2). A missing binary silently no-ops every transport control, so
+  #   it belongs to the criterion-2 PATH gate. Packages-role installed.
+  - playerctl
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of
@@ -247,6 +258,24 @@ verify_masked_user_units:
 verify_ags_always_on_instances:
   - ags
   - notifications
+
+# verify_audio_user_units: the systemd --user units that back the audio stack
+#   (pipewire + wireplumber for the graph/session, pipewire-pulse for Pulse
+#   clients like pavucontrol). The packages role enables them GLOBALLY
+#   (`systemctl --global enable`), which writes the system-wide
+#   /etc/systemd/user default-target wants — so this gate checks `--global
+#   is-enabled` (survives reboot for every user) rather than session state.
+#   Why it matters: the AGS settings panel and the new audio bar/popup read the
+#   graph through AstalWp over WirePlumber; if the units are not enabled the
+#   session comes up with no audio graph and every audio surface is inert. A
+#   bare package install alone does NOT enable wireplumber.service (not
+#   socket-activated), so a silent failure would ship without this gate. Same
+#   "enable survives reboot" rationale as the bluetooth.service gate. The
+#   wpctl/pavucontrol binaries are covered by verify_system_binaries above.
+verify_audio_user_units:
+  - pipewire.socket
+  - pipewire-pulse.socket
+  - wireplumber.service
 
 # verify_directory_handler: the desktop default handler for directories, which
 #   the capture tool's "Show in folder" action relies on (it xdg-opens the
@@ -407,6 +436,11 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/services/nm-client.ts"
   - "{{ install_dir | trim }}/config/ags/services/wifi-service.ts"
   - "{{ install_dir | trim }}/config/ags/services/bluetooth-service.ts"
+  # MPRIS transport (ags-audio-mpris-transport): the session-bus service and
+  # its pure core. Mirror of the compositor_configs skeleton dests — a missing
+  # core makes the service import fail and the popup transport lines vanish.
+  - "{{ install_dir | trim }}/config/ags/services/mpris-service.ts"
+  - "{{ install_dir | trim }}/config/ags/services/mpris-core.ts"
   - "{{ install_dir | trim }}/config/ags/components/primitives/IconToggle.tsx"
   - "{{ install_dir | trim }}/config/ags/components/primitives/LevelSlider.tsx"
   - "{{ install_dir | trim }}/config/ags/components/wifi/state.ts"
@@ -415,6 +449,13 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/components/bluetooth/BluetoothContent.tsx"
   - "{{ install_dir | trim }}/config/ags/components/sliders/VolumeSlider.tsx"
   - "{{ install_dir | trim }}/config/ags/components/sliders/BrightnessSlider.tsx"
+  # Audio sources (add-pipewire-audio-control): the bar output/mic widgets, the
+  # shared audio state, and the popup window. Mirror of compositor_configs
+  # skeleton dests — a missing source means the bar widget or popup crashes at
+  # open (or silently omits the whole audio surface).
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/audio.tsx"
+  - "{{ install_dir | trim }}/config/ags/audio/state.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/AudioPopup.tsx"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —

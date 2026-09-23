@@ -524,21 +524,22 @@ hl.bind(
     { description = "Toggle touchpad" }
 )
 
--- Settings panel: close it with Escape or SUPER+Escape.
+-- Popups: close whichever is open (settings panel or audio popup) with Escape
+-- or SUPER+Escape.
 --
--- The panel does not take keyboard focus (keyboard mode NONE) so the status-bar
+-- The popups do not take keyboard focus (keyboard mode NONE) so the status-bar
 -- same-spot toggle stays reliable; Escape is therefore bound globally and marked
 -- non_consuming so it still reaches the focused application. (A submap was tried
 -- but it disabled every other global keybind — e.g. the launcher and capture
 -- binds — while the panel was open.)
 hl.bind(
     "Escape",
-    hl.dsp.exec_cmd("ags request settings-close"),
-    { description = "Close the settings panel", non_consuming = true }
+    hl.dsp.exec_cmd("ags request popup-close"),
+    { description = "Close the open popup", non_consuming = true }
 )
 
 hl.bind(
     mod .. " + Escape",
-    hl.dsp.exec_cmd("ags request settings-close"),
-    { description = "Close the settings panel" }
+    hl.dsp.exec_cmd("ags request popup-close"),
+    { description = "Close the open popup" }
 )

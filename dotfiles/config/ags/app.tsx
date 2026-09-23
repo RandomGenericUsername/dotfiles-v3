@@ -5,16 +5,26 @@ import Bar from "./bar/Bar"
 import { SettingsCatcher, SettingsPanel } from "./settings-panel/SettingsPanel"
 import { WifiPopup, WifiPopupCatcher } from "./components/wifi/WifiPopup"
 import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
-import { close } from "./settings-panel/state"
+import { close as closeSettings } from "./settings-panel/state"
+import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
+import { close as closeAudio } from "./audio/state"
 
 app.start({
   css: style,
-  // External control surface for the panel: a Hyprland keybind runs
-  // `ags request settings-close` because the panel itself runs with keyboard
-  // mode NONE (so plain Escape can't reach it without stealing app input).
+  // External control surface for the popups: a Hyprland keybind runs
+  // `ags request popup-close` because the popups run with keyboard mode NONE
+  // (so plain Escape can't reach them without stealing app input). One global
+  // Esc dismisses whichever popup is open — settings or audio.
   requestHandler(argv: string[], res: (response: unknown) => void) {
+    if (argv[0] === "popup-close") {
+      closeSettings()
+      closeAudio()
+      res("ok")
+      return
+    }
+    // Legacy name kept for compatibility with older keybinds.
     if (argv[0] === "settings-close") {
-      close()
+      closeSettings()
       res("ok")
       return
     }
@@ -36,6 +46,9 @@ app.start({
       // Same ordering rule for the Wi-Fi popup: catcher first, popup above it.
       app.add_window(WifiPopupCatcher(primary))
       app.add_window(WifiPopup(primary))
+      // Audio popup: catcher + popup, same stacking order.
+      app.add_window(AudioCatcher(primary))
+      app.add_window(AudioPopup(primary))
     }
   },
 })

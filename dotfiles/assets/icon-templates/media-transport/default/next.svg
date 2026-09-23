@@ -1,0 +1,4 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M256 213.3333V810.6667L682.6667 512Z" fill="{{COLOR_FOREGROUND}}"/>
+<path d="M682.6667 213.3333H768V810.6667H682.6667Z" fill="{{COLOR_FOREGROUND}}"/>
+</svg>

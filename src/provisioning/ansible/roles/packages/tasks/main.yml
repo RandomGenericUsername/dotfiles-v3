@@ -234,3 +234,31 @@
   changed_when: false
   become: true
   when: not ansible_check_mode
+
+# Audio stack (add-pipewire-audio-control). pipewire + wireplumber back both the
+# existing capture stack and the new AGS audio surfaces (AstalWp over
+# WirePlumber); pipewire-pulse is the PulseAudio-compatibility server that lets
+# pavucontrol talk to the graph. Installing the packages is only half of it —
+# the units are USER units, so they are enabled GLOBALLY (`systemctl --global
+# enable`: writes the system-wide /etc/systemd/user default-target wants) rather
+# than per-user, keeping provisioning user-agnostic; socket activation then
+# starts the daemons in every session. `pipewire.socket` + `pipewire-pulse.socket`
+# carry playback/recording and the Pulse client surface; `wireplumber.service` is
+# the session/policy manager and is NOT socket-activated, so it must be enabled
+# explicitly. Same rationale/comment style as the NetworkManager/Bluetooth tasks
+# above.
+- name: Enable audio user units globally (pipewire, pipewire-pulse, wireplumber)
+  ansible.builtin.command:
+    cmd: "systemctl --global enable {{ item }}"
+  loop:
+    - pipewire.socket
+    - pipewire-pulse.socket
+    - wireplumber.service
+  register: packages_audio_global_enable
+  changed_when: >-
+    'Created symlink' in (packages_audio_global_enable.stdout | default(''))
+    or 'Created symlink' in (packages_audio_global_enable.stderr | default(''))
+  failed_when: false
+  become: true
+  when: not ansible_check_mode
+

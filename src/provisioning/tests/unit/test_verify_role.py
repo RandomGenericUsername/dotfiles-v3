@@ -1189,6 +1189,19 @@ class TestVerifyVars:
             "notifications",
         ]
 
+    def test_audio_user_units_are_pinned(self) -> None:
+        """add-pipewire-audio-control: the audio bar/popup read the graph via
+        AstalWp over WirePlumber, so the PipeWire user units must be enabled
+        globally — pin the unit set so a rename or a dropped unit is caught
+        here, not at runtime. The wpctl/pavucontrol binaries are pinned in
+        verify_system_binaries (see test_system_binaries_are_compositors)."""
+        data = _vars()
+        assert [str(u) for u in data["verify_audio_user_units"]] == [
+            "pipewire.socket",
+            "pipewire-pulse.socket",
+            "wireplumber.service",
+        ]
+
     def test_ags_always_on_instances_parity_with_gui_tools(self) -> None:
         """Parity lock: verify_ags_always_on_instances mirrors the gui_tools
         always_on subset EXACTLY — a new always-on instance (or a flag flip)
@@ -1209,6 +1222,9 @@ class TestVerifyVars:
             "hyprpaper",
             "ags",
             "power-options-gtk",
+            "wpctl",
+            "pavucontrol",
+            "playerctl",
         ]
 
     def test_icons_samples_include_the_settings_panel_glyphs(self) -> None:
@@ -1851,7 +1867,7 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr"):
+    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -1879,6 +1895,12 @@ def _write_stub_binaries(home: Path) -> Path:
         "fi\n"
         'if [ "$1" = "is-active" ] && [ "$2" = "bluetooth.service" ]; then\n'
         '  echo active; exit 0\n'
+        "fi\n"
+        # Audio user units (add-pipewire-audio-control): the packages role
+        # enables them GLOBALLY (`systemctl --global enable`), so verify checks
+        # `--global is-enabled`. Report enabled so the synthetic machine passes.
+        'if [ "$1" = "--global" ] && [ "$2" = "is-enabled" ]; then\n'
+        '  echo enabled; exit 0\n'
         "fi\n"
         # Masked/stopped dunst, as a provisioned machine must be: the verify
         # role asserts BOTH (masked so it cannot respawn, inactive so it is not
@@ -2148,6 +2170,7 @@ def _build_provisioned_layout(
         "ags/components/wifi",
         "ags/components/bluetooth",
         "ags/components/sliders",
+        "ags/audio",
         "ags-capture",
         "ags-capture/ui",
         "ags-capture/controllers",
@@ -2199,7 +2222,7 @@ def _build_provisioned_layout(
     # Shared AGS sources (compositor_configs role, extract-ags-shared-components):
     # the relocated D-Bus services and the primitives/wifi/bluetooth/slider
     # components — must match verify_compositor_skeleton_files EXACTLY.
-    for service in ("nm-client", "wifi-service", "bluetooth-service"):
+    for service in ("nm-client", "wifi-service", "bluetooth-service", "mpris-service", "mpris-core"):
         (install / "config" / "ags" / "services" / f"{service}.ts").write_text("")
     (install / "config" / "ags" / "components" / "primitives" / "IconToggle.tsx").write_text("")
     (install / "config" / "ags" / "components" / "primitives" / "LevelSlider.tsx").write_text("")
@@ -2209,6 +2232,12 @@ def _build_provisioned_layout(
     (install / "config" / "ags" / "components" / "bluetooth" / "BluetoothContent.tsx").write_text("")
     (install / "config" / "ags" / "components" / "sliders" / "VolumeSlider.tsx").write_text("")
     (install / "config" / "ags" / "components" / "sliders" / "BrightnessSlider.tsx").write_text("")
+    # Audio sources (compositor_configs role, add-pipewire-audio-control):
+    # the bar output/mic widget, the shared state, and the popup window —
+    # must match verify_compositor_skeleton_files EXACTLY.
+    (install / "config" / "ags" / "bar" / "widgets" / "audio.tsx").write_text("")
+    (install / "config" / "ags" / "audio" / "state.ts").write_text("")
+    (install / "config" / "ags" / "audio" / "AudioPopup.tsx").write_text("")
     # Standalone capture app (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.
     (install / "config" / "ags-capture" / "app.tsx").write_text("")

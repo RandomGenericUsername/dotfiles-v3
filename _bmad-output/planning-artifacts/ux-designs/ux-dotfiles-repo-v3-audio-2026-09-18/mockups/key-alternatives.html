@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Audio Popup — Alternatives (Sally mock)</title>
+<style>
+  /*
+   * MOCK: key-alternatives
+   * Companion to key-audio-popup.html. Shows each of the three open decisions
+   * as A/B side-by-side so juan david can pick. Same DESIGN.md tokens and the
+   * same real rendered repo SVGs (.working/assets/) as the main mock.
+   */
+  :root {
+    --color00: #0c131d; --color01: #293549; --color04: #513f50; --color06: #a41e24;
+    --color10: #c2463e; --color13: #d96451; --color15: #c2c4c6;
+    --fg: #c2c4c6; --hairline: rgba(194,196,198,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif;
+         background: #10131a; color: var(--fg); padding: 34px; }
+  h1 { font-size: 19px; font-weight: 700; }
+  .sub { color: rgba(194,196,198,.6); font-size: 13px; margin: 4px 0 8px; max-width: 900px; }
+
+  .decision { margin-top: 40px; border-top: 1px solid rgba(194,196,198,.12); padding-top: 24px; }
+  .decision h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .decision .q { font-size: 12.5px; color: rgba(194,196,198,.6); margin-bottom: 20px; max-width: 900px; }
+  .pair { display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start; }
+  .opt { display: flex; flex-direction: column; align-items: center; }
+  .opt .label { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+                margin-bottom: 12px; padding: 3px 10px; border-radius: 8px; }
+  .opt .label.a { background: rgba(162,30,36,.18); border: 1px solid var(--color06); }
+  .opt .label.b { background: rgba(194,196,198,.08); border: 1px solid rgba(194,196,198,.2); }
+  .opt .verdict { font-size: 11.5px; color: rgba(194,196,198,.55); margin-top: 12px; max-width: 360px; text-align: center; }
+  .opt .verdict b { color: rgba(194,196,198,.85); }
+
+  .panel { width: 356px; background: rgba(12,19,29,.94); border: 1.5px solid var(--color04);
+           border-radius: 12px; padding: 11px; color: var(--fg); box-shadow: 0 18px 48px rgba(0,0,0,.5); }
+  .card { background: rgba(41,53,73,.18); border: 1px solid var(--hairline);
+          border-radius: 9px; padding: 10px 11px; margin-bottom: 9px; }
+  .card:last-child { margin-bottom: 0; }
+  .card-title { font-size: 12.5px; font-weight: 650; margin-bottom: 9px; }
+  .card-title .back { color: rgba(194,196,198,.7); margin-right: 6px; font-weight: 700; }
+
+  .row { display: flex; align-items: center; gap: 9px; }
+  .row + .row { margin-top: 9px; }
+  .sicon { height: 20px; width: auto; display: block; }
+  .sicon.sm { height: 17px; }
+  .appicon { width: 20px; height: 20px; flex: 0 0 20px; }
+  .meta { flex: 1; min-width: 0; }
+  .title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .subtitle { font-size: 11px; color: rgba(194,196,198,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .glyphbtn { background: none; border: 0; padding: 1px; display: inline-flex; align-items: center; }
+  .glyphbtn img { height: 20px; width: auto; display: block; }
+  .glyphbtn.sm img { height: 17px; }
+  .glyphbtn.off img { opacity: .42; }
+  .slider { display: flex; align-items: center; gap: 9px; margin-top: 8px; }
+  .track { position: relative; flex: 1; height: 4px; border-radius: 4px; background: rgba(194,196,198,.16); }
+  .track .fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--color13); }
+  .track .thumb { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
+                  background: var(--color15); transform: translate(-50%, -50%); box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  .pct { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: rgba(194,196,198,.85);
+         min-width: 34px; text-align: right; }
+  .dev { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 7px; }
+  .dev .dname { font-size: 12.5px; font-weight: 550; }
+  .dev .dsub { font-size: 10.5px; color: rgba(194,196,198,.55); }
+  .dev.active { background: var(--color10); }
+  .dev.active .dname, .dev.active .dsub { color: var(--fg); }
+  .dev .check { margin-left: auto; color: var(--fg); }
+  .divider { height: 1px; background: var(--hairline); margin: 9px 0; }
+  .empty { font-size: 12px; color: rgba(194,196,198,.5); text-align: center; padding: 10px 0; }
+  .routing { display: inline-flex; align-items: center; gap: 4px; background: rgba(194,196,198,.06);
+             border: 1px solid rgba(194,196,198,.14); color: rgba(194,196,198,.9); border-radius: 7px;
+             padding: 3px 6px 3px 8px; font-size: 11px; white-space: nowrap; }
+  .badge { font-size: 10px; padding: 1px 7px; border-radius: 8px; background: rgba(162,30,36,.18);
+           border: 1px solid var(--color06); margin-left: 6px; }
+  .tag { font-size: 10px; padding: 1px 7px; border-radius: 8px; background: rgba(194,196,198,.10);
+         border: 1px solid rgba(194,196,198,.2); color: rgba(194,196,198,.8); margin-left: 6px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background-color: #2ecc71; display: inline-block;
+              box-shadow: 0 0 0 2px rgba(12,19,29,.9); }
+  .ghost { opacity: .4; border-style: dashed; }
+  .swapnote { font-size: 10.5px; color: rgba(194,196,198,.5); margin: 2px 0 6px; text-align: center; }
+  .swapnote b { color: rgba(194,196,198,.75); }
+</style>
+</head>
+<body>
+
+<h1>Audio popup — the three open decisions</h1>
+<div class="sub">Each decision shown as A (what the first mock proposed) vs B (the alternative). Same tokens, same real rendered SVGs. Pick A or B per decision.</div>
+
+<!-- ═══════════ DECISION 1 ═══════════ -->
+<div class="decision">
+  <h2>1 · Where do output devices live?</h2>
+  <div class="q">How the Output card exposes the list of available sinks (Headphones / Speakers / HDMI).</div>
+  <div class="pair">
+
+    <!-- A: inline -->
+    <div class="opt">
+      <div class="label a">A — Inline in the card</div>
+      <div class="panel">
+        <div class="card">
+          <div class="card-title">Output</div>
+          <div class="row">
+            <button class="glyphbtn"><img src="assets/volume-medium.svg" alt="volume" /></button>
+            <div class="meta"><div class="title">Headphones</div><div class="subtitle">Built-in Audio Analog Stereo</div></div>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:72%"></div><div class="thumb" style="left:72%"></div></div>
+            <span class="pct">72%</span>
+          </div>
+          <div class="divider"></div>
+          <div class="dev active">
+            <img class="sicon sm" src="assets/volume-medium.svg" alt="" />
+            <div><div class="dname">Headphones</div><div class="dsub">Built-in Audio</div></div>
+            <span class="check"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></span>
+          </div>
+          <div class="dev">
+            <img class="sicon sm" src="assets/volume-lowest.svg" alt="" style="opacity:.55" />
+            <div><div class="dname">Speakers</div><div class="dsub">Built-in Audio</div></div>
+          </div>
+          <div class="dev">
+            <img class="sicon sm" src="assets/volume-lowest.svg" alt="" style="opacity:.55" />
+            <div><div class="dname">HDMI / DisplayPort</div><div class="dsub">AMD Radeon HDMI</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Applications</div>
+          <div class="row">
+            <span class="appicon"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#1db954"/><path d="M13 19c7-2 15-1 21 3" fill="none" stroke="#0c131d" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+            <div class="meta"><div class="title">Spotify</div><div class="subtitle">Playback</div></div>
+            <button class="glyphbtn sm"><img src="assets/volume-medium.svg" alt="mute" /></button>
+            <span class="routing">Speakers</span>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:42%"></div><div class="thumb" style="left:42%"></div></div>
+            <span class="pct">42%</span>
+          </div>
+        </div>
+      </div>
+      <div class="verdict"><b>Everything visible at once.</b> Device switching is one click, no navigation. Card is taller and repeats the current device in the list.</div>
+    </div>
+
+    <!-- B: subview -->
+    <div class="opt">
+      <div class="label b">B — Subview (settings-panel style)</div>
+      <div class="panel">
+        <div class="card">
+          <div class="card-title">Output</div>
+          <div class="row">
+            <button class="glyphbtn"><img src="assets/volume-medium.svg" alt="volume" /></button>
+            <div class="meta"><div class="title">Headphones</div><div class="subtitle">Built-in Audio Analog Stereo</div></div>
+            <span class="routing">Change ›</span>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:72%"></div><div class="thumb" style="left:72%"></div></div>
+            <span class="pct">72%</span>
+          </div>
+        </div>
+        <div class="swapnote">↓ tapping <b>Change ›</b> swaps the whole panel to:</div>
+        <div class="card ghost">
+          <div class="card-title"><span class="back">‹</span>Output devices</div>
+          <div class="dev active">
+            <img class="sicon sm" src="assets/volume-medium.svg" alt="" />
+            <div><div class="dname">Headphones</div><div class="dsub">Built-in Audio</div></div>
+            <span class="check"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></span>
+          </div>
+          <div class="dev">
+            <img class="sicon sm" src="assets/volume-lowest.svg" alt="" style="opacity:.55" />
+            <div><div class="dname">Speakers</div><div class="dsub">Built-in Audio</div></div>
+          </div>
+          <div class="dev">
+            <img class="sicon sm" src="assets/volume-lowest.svg" alt="" style="opacity:.55" />
+            <div><div class="dname">HDMI / DisplayPort</div><div class="dsub">AMD Radeon HDMI</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="verdict"><b>Compact card.</b> Matches Wi-Fi/Bluetooth navigation already in the panel. Costs one click and a full-panel swap to change output. <i>(Ghost card = the swapped-in view.)</i></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ DECISION 2 ═══════════ -->
+<div class="decision">
+  <h2>2 · Where do recording apps go?</h2>
+  <div class="q">Apps consuming the microphone (OBS, Discord) — separate section or folded into Applications?</div>
+  <div class="pair">
+
+    <!-- A: separate -->
+    <div class="opt">
+      <div class="label a">A — Separate “Recording” card</div>
+      <div class="panel">
+        <div class="card">
+          <div class="card-title">Applications</div>
+          <div class="row">
+            <span class="appicon"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#1db954"/><path d="M13 19c7-2 15-1 21 3" fill="none" stroke="#0c131d" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+            <div class="meta"><div class="title">Spotify</div><div class="subtitle">Playback</div></div>
+            <button class="glyphbtn sm"><img src="assets/volume-medium.svg" alt="mute" /></button>
+            <span class="routing">Speakers</span>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:42%"></div><div class="thumb" style="left:42%"></div></div>
+            <span class="pct">42%</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Recording <span class="live-dot" style="margin-left:4px"></span></div>
+          <div class="row">
+            <span class="appicon"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#16171d"/><circle cx="24" cy="24" r="12" fill="none" stroke="#cfd3d8" stroke-width="3"/><circle cx="24" cy="24" r="5" fill="#cfd3d8"/></svg></span>
+            <div class="meta"><div class="title">OBS Studio</div><div class="subtitle">Recording</div></div>
+            <button class="glyphbtn sm"><img src="assets/microphone-mic-on.svg" alt="mic" /></button>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:90%"></div><div class="thumb" style="left:90%"></div></div>
+            <span class="pct">90%</span>
+          </div>
+        </div>
+      </div>
+      <div class="verdict"><b>Clear split: playing vs recording.</b> Four cards when busy, but each answers one question. Live dot lives on the section header.</div>
+    </div>
+
+    <!-- B: folded -->
+    <div class="opt">
+      <div class="label b">B — Folded into Applications</div>
+      <div class="panel">
+        <div class="card">
+          <div class="card-title">Applications</div>
+          <div class="row">
+            <span class="appicon"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#1db954"/><path d="M13 19c7-2 15-1 21 3" fill="none" stroke="#0c131d" stroke-width="2.6" stroke-linecap="round"/></svg></span>
+            <div class="meta"><div class="title">Spotify</div><div class="subtitle">Playback</div></div>
+            <button class="glyphbtn sm"><img src="assets/volume-medium.svg" alt="mute" /></button>
+            <span class="routing">Speakers</span>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:42%"></div><div class="thumb" style="left:42%"></div></div>
+            <span class="pct">42%</span>
+          </div>
+          <div class="divider"></div>
+          <div class="row">
+            <span class="appicon"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#16171d"/><circle cx="24" cy="24" r="12" fill="none" stroke="#cfd3d8" stroke-width="3"/><circle cx="24" cy="24" r="5" fill="#cfd3d8"/></svg></span>
+            <div class="meta"><div class="title">OBS Studio <span class="tag">recording</span></div><div class="subtitle">Using microphone</div></div>
+            <button class="glyphbtn sm"><img src="assets/microphone-mic-on.svg" alt="mic" /></button>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:90%"></div><div class="thumb" style="left:90%"></div></div>
+            <span class="pct">90%</span>
+          </div>
+        </div>
+      </div>
+      <div class="verdict"><b>Shorter popup, three sections.</b> But mixes two different controls (output volume vs input gain) in one list, and the “recording” tag carries the whole distinction.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════ DECISION 3 ═══════════ -->
+<div class="decision">
+  <h2>3 · What shows when nothing is playing?</h2>
+  <div class="q">The Applications section when there are zero playback streams.</div>
+  <div class="pair">
+
+    <!-- A: collapse -->
+    <div class="opt">
+      <div class="label a">A — Collapse / hide the section</div>
+      <div class="panel">
+        <div class="card">
+          <div class="card-title">Output</div>
+          <div class="row">
+            <button class="glyphbtn"><img src="assets/volume-medium.svg" alt="volume" /></button>
+            <div class="meta"><div class="title">Headphones</div><div class="subtitle">Built-in Audio Analog Stereo</div></div>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:72%"></div><div class="thumb" style="left:72%"></div></div>
+            <span class="pct">72%</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Input</div>
+          <div class="row">
+            <button class="glyphbtn"><img src="assets/microphone-mic-on.svg" alt="mic" /></button>
+            <div class="meta"><div class="title">USB Microphone</div><div class="subtitle">Default input</div></div>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:74%"></div><div class="thumb" style="left:74%"></div></div>
+            <span class="pct">74%</span>
+          </div>
+        </div>
+      </div>
+      <div class="verdict"><b>Popup shrinks to what is real.</b> No dead space, no “empty” row to read past. The popup height changes as apps come and go.</div>
+    </div>
+
+    <!-- B: explicit empty -->
+    <div class="opt">
+      <div class="label b">B — Always show with a line</div>
+      <div class="panel">
+        <div class="card">
+          <div class="card-title">Output</div>
+          <div class="row">
+            <button class="glyphbtn"><img src="assets/volume-medium.svg" alt="volume" /></button>
+            <div class="meta"><div class="title">Headphones</div><div class="subtitle">Built-in Audio Analog Stereo</div></div>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:72%"></div><div class="thumb" style="left:72%"></div></div>
+            <span class="pct">72%</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Applications</div>
+          <div class="empty">No apps playing</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Input</div>
+          <div class="row">
+            <button class="glyphbtn"><img src="assets/microphone-mic-on.svg" alt="mic" /></button>
+            <div class="meta"><div class="title">USB Microphone</div><div class="subtitle">Default input</div></div>
+          </div>
+          <div class="slider">
+            <div class="track"><div class="fill" style="width:74%"></div><div class="thumb" style="left:74%"></div></div>
+            <span class="pct">74%</span>
+          </div>
+        </div>
+      </div>
+      <div class="verdict"><b>Stable shape.</b> Section never moves; popup height is constant. Costs vertical space when there is nothing to control.</div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

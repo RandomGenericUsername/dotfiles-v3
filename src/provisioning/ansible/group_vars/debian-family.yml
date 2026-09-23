@@ -34,6 +34,8 @@ packages:
   # Debian ships the BlueZ SPA in libspa-0.2-bluetooth (Arch: pipewire-audio) —
   # no Bluetooth audio sink exists without it (settings panel routing).
   pipewire-audio: libspa-0.2-bluetooth
+  pipewire-pulse: pipewire-pulse # PulseAudio compatibility server (pavucontrol + Pulse clients)
+  pavucontrol: pavucontrol       # GUI mixer (debugging reference for the AGS audio popup)
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
   # Container engine for the csg container-mode chain (same rationale as Arch).

@@ -269,6 +269,39 @@
       playbook.
   when: not ansible_check_mode
 
+# Audio stack (add-pipewire-audio-control): pipewire + wireplumber are the graph
+# and session layer AstalWp reads for the AGS audio bar/popup; pipewire-pulse is
+# the PulseAudio-compatibility server pavucontrol talks to. The packages role
+# enables the USER units globally (`systemctl --global enable`), which writes
+# the system-wide /etc/systemd/user default-target wants. A bare package install
+# does not enable wireplumber.service (it is not socket-activated), so a machine
+# with the packages but no enabled units comes up with no audio graph and every
+# audio surface is inert. Gate `--global is-enabled` (survives reboot for every
+# user), mirror of the bluetooth.service enabled gate shape.
+- name: Check audio user units are enabled globally
+  ansible.builtin.command:
+    cmd: "systemctl --global is-enabled {{ item }}"
+  loop: "{{ verify_audio_user_units }}"
+  register: verify_audio_unit_checks
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert audio user units are enabled globally
+  ansible.builtin.assert:
+    that:
+      - >-
+        (verify_audio_unit_checks.results | selectattr('stdout', 'equalto', 'enabled') | list | length)
+        == verify_audio_user_units | length
+    fail_msg: >-
+      not globally enabled: {{ verify_audio_user_units | join(', ') }} (states:
+      {{ verify_audio_unit_checks.results | map(attribute='stdout') | map('trim') | join(', ') }})
+      — the AGS audio surfaces (AstalWp over WirePlumber) need the PipeWire
+      user units enabled so the graph exists in every session. The packages
+      role runs `systemctl --global enable`; re-run the packages playbook or run
+      `sudo systemctl --global enable {{ verify_audio_user_units | join(' ') }}`.
+  when: not ansible_check_mode
+
 # The settings panel's Display slider drives `brightnessctl set <pct>%` as the
 # session user (and reads with `-m`). The packages role installs brightnessctl
 # and its udev rule grants the session write access; a machine where even the

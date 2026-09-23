@@ -711,3 +711,280 @@ window.settings-panel {
   font-size: 11.5px;
   color: @color_03;
 }
+
+/* ── Audio (add-pipewire-audio-control) ────────────────────────────────────
+   The bar indicators and the follower-anchored audio popup. Reuses the
+   settings-panel vocabulary (glass surface, cards, sliders) and the existing
+   volume/microphone icon groups. The ONLY literal colour is the live dot
+   (#2ecc71) — the same semantic-signal exception as the recording dot and the
+   wallpaper LIVE badge (a "the mic is being used" signal must survive every
+   wallpaper). The device subview reuses the settings-panel in-place swap. */
+
+.audio-popup,
+.audio-catcher {
+  background-color: transparent;
+  color: @color_foreground;
+}
+
+.audio-catcher-fill {
+  background-color: transparent;
+}
+
+.audio-surface {
+  background-color: alpha(@color_00, 0.94);
+  border: 1.5px solid @color_04;
+  border-radius: 12px;
+  padding: 11px;
+}
+
+.audio-scroll,
+.audio-scroll viewport {
+  background-color: transparent;
+  border: none;
+}
+
+.audio-scroll scrollbar slider {
+  min-width: 5px;
+  border-radius: 5px;
+  background-color: alpha(@color_foreground, 0.25);
+}
+
+/* Rows: one layout rule — head line (glyph · name/sub · trailing), then the
+   level line (track · percentage). */
+.audio-row-head {
+  min-height: 22px;
+}
+
+.audio-row-meta {
+  min-width: 0;
+}
+
+.audio-row-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.audio-row-sub {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.55);
+}
+
+/* Brand app icons are the LITERAL-COLOUR exception (the `app-icons` group is
+   guard-exempt), so they cannot be retargeted for contrast. Several are white
+   knockouts (Tidal, and the inner shapes of Chrome/YouTube/Chromium/Brave) and
+   would vanish on a light wallpaper. A neutral circular backing keeps every
+   mark legible on any wallpaper without altering the brand colours, and reads
+   as an app chip against the popup's glass surface. */
+.audio-app-icon {
+  background-color: alpha(@color_foreground, 0.10);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.audio-level-line {
+  margin-top: 2px;
+}
+
+/* A stream-less row (the app's stream was torn down at Stopped/track end but its
+   player remains): the volume line has no node to act on. It is made
+   insensitive (plus a dimmed slider) rather than swapped for another widget, so
+   every row keeps one stable widget shape. */
+.audio-level-line .settings-level-slider:disabled {
+  opacity: 0.4;
+}
+
+.audio-percent {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+}
+
+/* Mute toggle: a bare glyph, no pill (bar / capability-glyph convention). */
+.audio-mute {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 0 2px;
+  min-width: 22px;
+  min-height: 22px;
+}
+
+.audio-mute:hover,
+.audio-mute:active,
+.audio-mute:focus {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Routing select: the trailing control on each stream row. */
+.audio-routing {
+  background-color: alpha(@color_foreground, 0.06);
+  border: 1px solid alpha(@color_foreground, 0.14);
+  border-radius: 8px;
+  padding: 2px 7px;
+  color: @color_foreground;
+  font-size: 11px;
+}
+
+.audio-routing label {
+  /* Cap the chip so a long sink name ("C-Media(R) Audio Analog Stereo")
+     cannot widen the 356px popup and push the transport time off-screen.
+     GTK sizes labels to content, so the truncation itself is done with
+     `maxWidthChars` + `ellipsize` on the label widget (GTK4 CSS has no
+     `max-width` — it logs a CSS Error and is ignored). */
+  min-width: 48px;
+}
+
+.audio-routing:hover,
+.audio-routing:active {
+  border-color: @color_10;
+}
+
+.audio-routing-chevron {
+  color: alpha(@color_foreground, 0.6);
+}
+
+.audio-route-item {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: @color_foreground;
+}
+
+.audio-route-item:hover,
+.audio-route-item:focus {
+  background-color: @color_10;
+}
+
+/* Device subview rows (decision 1B). */
+.audio-device {
+  background-color: transparent;
+  background-image: none;
+  border: 1px solid alpha(@color_foreground, 0.10);
+  border-radius: 9px;
+  padding: 8px 10px;
+  color: @color_foreground;
+}
+
+.audio-device.active {
+  background-color: @color_10;
+  border-color: @color_10;
+}
+
+.audio-device:hover,
+.audio-device:focus {
+  border-color: alpha(@color_foreground, 0.25);
+}
+
+.audio-device.active:hover,
+.audio-device.active:focus {
+  border-color: @color_10;
+}
+
+/* Bar indicators. */
+.audio-bar-percent {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-mic-wrap {
+  min-width: 28px;
+  min-height: 28px;
+}
+
+/* The live dot: literal green, additive signal only. */
+.audio-live-dot {
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 999px;
+  background-color: #2ecc71;
+  border: 2px solid alpha(@color_00, 0.9);
+}
+
+.audio-card-head {
+  margin-bottom: 2px;
+}
+
+/* ── Per-app media transport (MPRIS, WP-C) ─────────────────────────────────
+   The transport line sits under each stream's level line and appears only when
+   the stream links to an MPRIS player. It reuses the settings slider vocabulary
+   scaled down to the mockup (5px track, 10px knob vs the level sliders' taller
+   track); the time is an 11px dim tabular readout. All fills stay translucent —
+   the only literal colour in the audio popup remains the live dot. */
+
+.audio-transport {
+  margin-top: 1px;
+}
+
+.audio-transport button {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+.audio-transport button:hover,
+.audio-transport button:active,
+.audio-transport button:focus {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Transport seek: same trough/highlight vocabulary, pared to the mockup. */
+.audio-transport .settings-level-slider trough {
+  min-height: 5px;
+}
+
+.audio-transport .settings-level-slider trough slider {
+  min-width: 10px;
+  min-height: 10px;
+  margin: -3px 0;
+}
+
+/* D5: a paused row dims the fill; the knob is frozen because the interpolation
+   tick only runs while the player is Playing. */
+.audio-transport.paused .settings-level-slider trough highlight {
+  background-color: alpha(@color_foreground, 0.5);
+}
+
+.audio-time {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.55);
+  font-variant-numeric: tabular-nums;
+  min-width: 64px;
+}
+
+/* D1: master play/pause in the Output card — same glass as the routing pill. */
+.audio-master {
+  background-color: alpha(@color_foreground, 0.06);
+  background-image: none;
+  border: 1px solid alpha(@color_foreground, 0.14);
+  border-radius: 7px;
+  box-shadow: none;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+}
+
+.audio-master:hover,
+.audio-master:focus {
+  background-color: @color_10;
+  border-color: @color_10;
+}
+
+/* D7: default-sink check mark in the device subview; the width is reserved even
+   when empty so the rows stay aligned. */
+.audio-check {
+  min-width: 16px;
+  color: @color_13;
+  font-weight: 700;
+}

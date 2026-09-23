@@ -1,4 +1,59 @@
 {
+  "app-icons": {
+    "color_mappings": {},
+    "variants": [
+      {
+        "name": "generic",
+        "output": "app-icon-generic.svg",
+        "template": "app-icons/default/generic.svg"
+      },
+      {
+        "name": "google-chrome",
+        "output": "app-icon-google-chrome.svg",
+        "template": "app-icons/default/google-chrome.svg"
+      },
+      {
+        "name": "chromium",
+        "output": "app-icon-chromium.svg",
+        "template": "app-icons/default/chromium.svg"
+      },
+      {
+        "name": "brave-browser",
+        "output": "app-icon-brave-browser.svg",
+        "template": "app-icons/default/brave-browser.svg"
+      },
+      {
+        "name": "firefox",
+        "output": "app-icon-firefox.svg",
+        "template": "app-icons/default/firefox.svg"
+      },
+      {
+        "name": "spotify",
+        "output": "app-icon-spotify.svg",
+        "template": "app-icons/default/spotify.svg"
+      },
+      {
+        "name": "tidal-hifi",
+        "output": "app-icon-tidal-hifi.svg",
+        "template": "app-icons/default/tidal-hifi.svg"
+      },
+      {
+        "name": "whatsapp",
+        "output": "app-icon-whatsapp.svg",
+        "template": "app-icons/default/whatsapp.svg"
+      },
+      {
+        "name": "youtube",
+        "output": "app-icon-youtube.svg",
+        "template": "app-icons/default/youtube.svg"
+      },
+      {
+        "name": "youtube-music",
+        "output": "app-icon-youtube-music.svg",
+        "template": "app-icons/default/youtube-music.svg"
+      }
+    ]
+  },
   "battery": {
     "bar_mappings": {
       "icon_size": 24,
@@ -156,7 +211,7 @@
       {
         "name": "mic",
         "output": "capture-tool-mic.svg",
-        "template": "capture-tool/default/mic.svg"
+        "template": "microphone/default/mic-on.svg"
       },
       {
         "name": "info",
@@ -216,6 +271,50 @@
         "name": "email-client",
         "output": "email-client.svg",
         "template": "status-bar/email-client/default/icon.svg"
+      }
+    ]
+  },
+  "media-transport": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "play",
+        "output": "media-transport-play.svg",
+        "template": "media-transport/default/play.svg"
+      },
+      {
+        "name": "pause",
+        "output": "media-transport-pause.svg",
+        "template": "media-transport/default/pause.svg"
+      },
+      {
+        "name": "previous",
+        "output": "media-transport-previous.svg",
+        "template": "media-transport/default/previous.svg"
+      },
+      {
+        "name": "next",
+        "output": "media-transport-next.svg",
+        "template": "media-transport/default/next.svg"
+      }
+    ]
+  },
+  "microphone": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "mic-on",
+        "output": "microphone-mic-on.svg",
+        "template": "microphone/default/mic-on.svg"
+      },
+      {
+        "name": "mic-off",
+        "output": "microphone-mic-off.svg",
+        "template": "microphone/default/mic-off.svg"
       }
     ]
   },

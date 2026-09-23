@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Audio — Bar Indicators (Sally mock)</title>
+<style>
+  /*
+   * MOCK: key-bar-indicators
+   * Governed by DESIGN.md: colors.surface-*, colors.slider-*, components.bar-indicator;
+   * EXPERIENCE.md (pending Finalize): Information Architecture (bar indicators), State Patterns.
+   * Palette resolved from the live runtime palette (colors.yaml, 2026-09-18).
+   * Icons are the REAL rendered repo SVGs (.working/assets/, produced by itr render)
+   * — not hand-drawn glyphs. The dotfiles bar uses SVG icons via IconRegistry.
+   */
+  :root {
+    --color00: #0c131d;
+    --color01: #293549;
+    --color04: #513f50;
+    --color06: #a41e24;
+    --color10: #c2463e;
+    --color13: #d96451;
+    --color15: #c2c4c6;
+    --fg: #c2c4c6;
+    --hairline: rgba(194,196,198,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif;
+    background: #10131a; color: var(--fg); padding: 32px; line-height: 1.4;
+  }
+  h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .sub { color: rgba(194,196,198,.6); font-size: 13px; margin-bottom: 26px; max-width: 900px; }
+  h2 { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em;
+       color: rgba(194,196,198,.65); margin: 30px 0 12px; }
+  .note { font-size: 12px; color: rgba(194,196,198,.55); margin-top: 10px; max-width: 820px; }
+
+  .wall-dark {
+    border-radius: 14px; overflow: hidden; margin-bottom: 18px;
+    background:
+      radial-gradient(1200px 300px at 20% -10%, #1d2a3d 0%, transparent 60%),
+      radial-gradient(900px 260px at 85% 0%, #3a2630 0%, transparent 55%),
+      linear-gradient(180deg, #0c131d 0%, #0a0f16 100%);
+    padding-bottom: 26px;
+  }
+  .wall-light {
+    border-radius: 14px; overflow: hidden; margin-bottom: 18px;
+    background: linear-gradient(180deg, #d9d5cf 0%, #c4bfb6 55%, #a9a49b 100%);
+    padding-bottom: 26px;
+  }
+
+  .bar {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 48px; padding: 0 16px; background: rgba(12,19,29,.35);
+    backdrop-filter: blur(2px);
+  }
+  .bar .center { font-size: 13px; font-weight: 550; }
+  .bar .left, .bar .right { display: flex; align-items: center; gap: 10px; min-width: 340px; }
+  .bar .right { justify-content: flex-end; }
+  .ws { font-size: 12.5px; color: rgba(194,196,198,.45); }
+  .ws.active { color: var(--fg); font-weight: 650; }
+  .wall-light .bar { background: rgba(255,255,255,.18); }
+  .wall-light .bar, .wall-light .ws.active { color: #1b1f26; }
+  .wall-light .ws { color: rgba(27,31,38,.4); }
+  .wall-light .pct { color: #1b1f26; }
+  .wall-light .bicon { filter: brightness(.28); }
+
+  .bicon { height: 20px; width: auto; display: block; }
+  .ind { display: inline-flex; align-items: center; gap: 5px; }
+  .ind .bicon { height: 22px; }
+  .pct { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* mic + live dot */
+  .mic-wrap { position: relative; display: inline-flex; }
+  .mic-wrap .bicon { height: 19px; }
+  .live-dot {
+    position: absolute; right: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%;
+    background-color: #2ecc71; box-shadow: 0 0 0 2px rgba(12,19,29,.9);
+    animation: live-pulse 1.8s ease-out infinite;
+  }
+  @keyframes live-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(46,204,113,.55), 0 0 0 2px rgba(12,19,29,.9); }
+    70%  { box-shadow: 0 0 0 7px rgba(46,204,113,0), 0 0 0 2px rgba(12,19,29,.9); }
+    100% { box-shadow: 0 0 0 0 rgba(46,204,113,0), 0 0 0 2px rgba(12,19,29,.9); }
+  }
+
+  .anchor-mark { display: inline-flex; flex-direction: column; align-items: center; }
+  .anchor-line { width: 1px; height: 14px; background: var(--color13); }
+  .anchor-cap { width: 7px; height: 7px; border-radius: 50%; background: var(--color13); margin-top: -2px; }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px;
+            color: rgba(194,196,198,.6); margin-top: 6px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px;
+         background: rgba(162,30,36,.18); border: 1px solid var(--color06); color: var(--fg); }
+
+  .gallery { display: flex; flex-wrap: wrap; gap: 28px; }
+  .state { text-align: center; }
+  .state .cap { font-size: 11px; color: rgba(194,196,198,.6); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>Audio — bar indicators</h1>
+<div class="sub">Right cluster of the Hyprland bar, using the <strong>real rendered repo SVGs</strong> (<code>volume-*</code>, <code>microphone-*</code>) resolved through <code>IconRegistry</code> exactly as the bar does — no hand-drawn glyphs. Output glyph is level-aware; mic sits beside it.</div>
+
+<h2>Bar on the live dark wallpaper</h2>
+<div class="wall-dark">
+  <div class="bar">
+    <div class="left">
+      <span class="ws active">1</span><span class="ws">2</span><span class="ws">3</span><span class="ws">4</span>
+    </div>
+    <div class="center">Wed 18 Sep&nbsp;&nbsp;22:41</div>
+    <div class="right">
+      <img class="bicon" src="assets/tray-tidal.svg" alt="tray" />
+
+      <!-- OUTPUT indicator: level-aware volume SVG + percent -->
+      <span class="ind" title="Audio — left-click opens the popup, right-click opens pavucontrol">
+        <img class="bicon" src="assets/volume-medium.svg" alt="volume" />
+        <span class="pct">72%</span>
+      </span>
+
+      <!-- MIC indicator: mic SVG, live dot while a recorder consumes it -->
+      <span class="mic-wrap" title="Microphone — recording">
+        <img class="bicon" src="assets/microphone-mic-on.svg" alt="microphone" />
+        <span class="live-dot"></span>
+      </span>
+
+      <img class="bicon" src="assets/battery-75.svg" alt="battery" />
+      <img class="bicon" src="assets/wifi-full-default.svg" alt="wifi" />
+      <img class="bicon" src="assets/btop.svg" alt="btop" />
+      <img class="bicon" src="assets/email-client.svg" alt="mail" />
+      <img class="bicon" src="assets/status-bar-settings.svg" alt="settings" />
+      <img class="bicon" src="assets/power-menu-default.svg" alt="power" />
+    </div>
+  </div>
+</div>
+<div class="anchor-mark"><div class="anchor-line"></div><div class="anchor-cap"></div></div>
+<div class="legend">
+  <span><span class="tag">anchor</span> the popup drops from the output glyph</span>
+</div>
+
+<h2>Bar on a light wallpaper band — contrast guard proof</h2>
+<div class="wall-light">
+  <div class="bar">
+    <div class="left"><span class="ws active">1</span><span class="ws">2</span><span class="ws">3</span><span class="ws">4</span></div>
+    <div class="center">Wed 18 Sep&nbsp;&nbsp;22:41</div>
+    <div class="right">
+      <img class="bicon" src="assets/tray-tidal.svg" alt="tray" />
+      <span class="ind"><img class="bicon" src="assets/volume-medium.svg" alt="volume" /><span class="pct">72%</span></span>
+      <span class="mic-wrap"><img class="bicon" src="assets/microphone-mic-on.svg" alt="microphone" /><span class="live-dot"></span></span>
+      <img class="bicon" src="assets/battery-75.svg" alt="battery" />
+      <img class="bicon" src="assets/wifi-full-default.svg" alt="wifi" />
+      <img class="bicon" src="assets/btop.svg" alt="btop" />
+      <img class="bicon" src="assets/email-client.svg" alt="mail" />
+      <img class="bicon" src="assets/status-bar-settings.svg" alt="settings" />
+      <img class="bicon" src="assets/power-menu-default.svg" alt="power" />
+    </div>
+  </div>
+</div>
+<div class="note">Both audio indicators are now in the contrast-guard allowlist (<code>volume</code>, <code>microphone</code>), so on a light wallpaper the runtime retargets their foreground token to a darker palette slot before ITR renders. The mock approximates that retarget with a brightness filter; the real path is a re-render, not a CSS filter.</div>
+
+<h2>Output glyph — level states (real volume SVGs)</h2>
+<div class="gallery">
+  <div class="state"><img class="bicon" src="assets/volume-muted.svg" alt="muted" /><div class="cap">muted · 0%</div></div>
+  <div class="state"><img class="bicon" src="assets/volume-lowest.svg" alt="lowest" /><div class="cap">lowest · 1–25%</div></div>
+  <div class="state"><img class="bicon" src="assets/volume-low.svg" alt="low" /><div class="cap">low · 26–50%</div></div>
+  <div class="state"><img class="bicon" src="assets/volume-medium.svg" alt="medium" /><div class="cap">medium · 51–75%</div></div>
+  <div class="state"><img class="bicon" src="assets/volume-max.svg" alt="max" /><div class="cap">max · 76–100%</div></div>
+</div>
+<div class="note">The existing <code>volume</code> icon group and the settings-panel Sound card share these thresholds — one vocabulary, two surfaces.</div>
+
+<h2>Mic glyph — states (real microphone SVGs)</h2>
+<div class="gallery">
+  <div class="state"><img class="bicon" src="assets/microphone-mic-off.svg" alt="mic off" /><div class="cap">muted</div></div>
+  <div class="state"><img class="bicon" src="assets/microphone-mic-on.svg" alt="mic on" /><div class="cap">on / idle</div></div>
+  <div class="state"><span class="mic-wrap"><img class="bicon" src="assets/microphone-mic-on.svg" alt="mic live" /><span class="live-dot"></span></span><div class="cap">a recorder is live</div></div>
+</div>
+<div class="note">New <code>microphone</code> group: <code>mic-on</code> and <code>mic-off</code>, both rendered by ITR. The green live dot (the one literal signal colour the spec allows, like the recording dot) appears when any <code>wp.recorders</code> stream is active. Mic left-click opens the popup's Input section.</div>
+
+</body>
+</html>

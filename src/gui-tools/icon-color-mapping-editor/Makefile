@@ -16,3 +16,5 @@ test:
 	node $(DIR)/tests/templates.mjs
 	node $(DIR)/tests/event-contract-drift.mjs
 	node $(DIR)/tests/icme-saved-smoke.mjs
+	node $(DIR)/tests/mpris-core.test.mjs
+	node $(DIR)/tests/ags-symbol-check.mjs

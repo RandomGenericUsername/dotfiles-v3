@@ -37,6 +37,8 @@ packages:
   # audio to route to (verified: the file is owned by this package, and the
   # Panel's audio routing is a no-op without it).
   pipewire-audio: pipewire-audio
+  pipewire-pulse: pipewire-pulse # PulseAudio compatibility server (pavucontrol + Pulse clients)
+  pavucontrol: pavucontrol       # GUI mixer (debugging reference for the AGS audio popup)
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
   # Container engine for the csg container-mode chain (cli_tools builds the
