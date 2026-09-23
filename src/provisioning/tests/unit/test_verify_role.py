@@ -1238,6 +1238,8 @@ class TestVerifyVars:
             "{{ verify_state_current_dir }}/icons/battery-0.svg",
             "{{ verify_state_current_dir }}/icons/settings-panel-wifi.svg",
             "{{ verify_state_current_dir }}/icons/volume-low.svg",
+            "{{ verify_state_current_dir }}/icons/volume-system-low.svg",
+            "{{ verify_state_current_dir }}/icons/microphone-system-mic-on.svg",
         ]
 
     def test_verify_lists_include_the_phase5_event_modules(self) -> None:
@@ -2123,8 +2125,16 @@ def _build_provisioned_layout(
     state_cache_icons.mkdir(parents=True)
     # The samples verify asserts (verify_icons_samples): battery-0 predates the
     # panel; the settings-panel Wi-Fi and volume-low glyphs prove the new
-    # groups rendered (add-ags-settings-panel).
-    for sample in ("battery-0", "settings-panel-wifi", "volume-low"):
+    # groups rendered (add-ags-settings-panel); volume-system-low and
+    # microphone-system-mic-on prove the dual-surface system-* copies
+    # (add-system-icon-variants) rendered.
+    for sample in (
+        "battery-0",
+        "settings-panel-wifi",
+        "volume-low",
+        "volume-system-low",
+        "microphone-system-mic-on",
+    ):
         (state_cache_icons / f"{sample}.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
         )

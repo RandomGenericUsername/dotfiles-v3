@@ -476,12 +476,12 @@ function MuteGlyph({
   const path = createComputed<string | null>(() => {
     if (muted()) {
       return iconWhenOn
-        ? systemIcon("microphone", "mic-off")
-        : systemIcon("volume", "muted")
+        ? systemIcon("microphone", "system-mic-off")
+        : systemIcon("volume", "system-muted")
     }
     if (iconWhenOn) return iconWhenOn()
-    if (!level) return systemIcon("volume", "low")
-    return systemIcon("volume", levelVariant(false, clampVolume(level())))
+    if (!level) return systemIcon("volume", "system-low")
+    return systemIcon("volume", "system-" + levelVariant(false, clampVolume(level())))
   })
   return (
     <button class="audio-mute" tooltipText={tooltip} onClicked={onToggle} canFocus={false}>
@@ -597,7 +597,7 @@ function StreamRow({ row }: { row: AppRow }) {
       ? streamAppIconPath(s)
       : streamAppIconPathForIdentity(player()?.identity ?? "")
     if (brand) return brand
-    return systemIcon("volume", muted() ? "muted" : "low")
+    return systemIcon("volume", muted() ? "system-muted" : "system-low")
   })
 
   return (
@@ -662,7 +662,7 @@ function DeviceCard({
   const muted = createComputed(() => muteRaw() === true)
   const glyphVariant = createComputed(() => levelVariant(muted(), level()))
   const micIcon = createComputed<string | null>(() =>
-    systemIcon("microphone", muted() ? "mic-off" : "mic-on"),
+    systemIcon("microphone", muted() ? "system-mic-off" : "system-mic-on"),
   )
   // Subtitle: the active route ("Headphones", "Analog Output") if present,
   // else the parent device description when it differs from the title.
@@ -702,7 +702,7 @@ function DeviceCard({
                 const path =
                   kind === "input"
                     ? micIcon()
-                    : systemIcon("volume", glyphVariant())
+                    : systemIcon("volume", "system-" + glyphVariant())
                 self.set_from_file(path ?? "")
               })
             }}
@@ -803,7 +803,7 @@ function OutputDevicesView() {
                 />
                 <image
                   pixel_size={17}
-                  $={(self) => self.set_from_file(systemIcon("volume", "low") ?? "")}
+                  $={(self) => self.set_from_file(systemIcon("volume", "system-low") ?? "")}
                 />
                 <label
                   class="audio-row-title"
@@ -858,7 +858,7 @@ function InputDevicesView() {
                 />
                 <image
                   pixel_size={17}
-                  $={(self) => self.set_from_file(systemIcon("microphone", "mic-on") ?? "")}
+                  $={(self) => self.set_from_file(systemIcon("microphone", "system-mic-on") ?? "")}
                 />
                 <label
                   class="audio-row-title"
@@ -884,12 +884,12 @@ function RecorderRow({ stream }: { stream: unknown }) {
   const level = createComputed(() => clampVolume(volume()))
   const title = nodeName(stream, "Recorder")
   const micOn = createComputed<string | null>(() =>
-    systemIcon("microphone", "mic-on"),
+    systemIcon("microphone", "system-mic-on"),
   )
   const appIcon = createComputed<string | null>(() => {
     const brand = streamAppIconPath(stream)
     if (brand) return brand
-    return systemIcon("microphone", "mic-on")
+    return systemIcon("microphone", "system-mic-on")
   })
 
   return (

@@ -63,7 +63,7 @@ function SpeakerGlyph() {
         pixel_size={17}
         $={(self) => {
           createEffect(() => {
-            self.set_from_file(registry.resolve("volume", variant()) ?? "")
+            self.set_from_file(registry.resolve("volume", "system-" + variant()) ?? "")
           })
         }}
       />

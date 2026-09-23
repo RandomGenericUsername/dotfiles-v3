@@ -413,6 +413,33 @@ volume:
     - name: max
       template: volume/max/default/icon.svg
       output: volume-max.svg
+    # System-surface copies: same art as bar variants; variant-level pin exempts
+    # them from the bar contrast guard.
+    - name: system-muted
+      template: volume/muted/default/icon.svg
+      output: volume-system-muted.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-lowest
+      template: volume/lowest/default/icon.svg
+      output: volume-system-lowest.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-low
+      template: volume/low/default/icon.svg
+      output: volume-system-low.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-medium
+      template: volume/medium/default/icon.svg
+      output: volume-system-medium.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-max
+      template: volume/max/default/icon.svg
+      output: volume-system-max.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
 
 # Bar-facing microphone indicator. Kept separate from the capture-tool group
 # because the bar-icon contrast guard retargets group-level COLOR_FOREGROUND of
@@ -428,6 +455,18 @@ microphone:
     - name: mic-off
       template: microphone/default/mic-off.svg
       output: microphone-mic-off.svg
+    # System-surface copies: same art as bar variants; variant-level pin exempts
+    # them from the bar contrast guard.
+    - name: system-mic-on
+      template: microphone/default/mic-on.svg
+      output: microphone-system-mic-on.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-mic-off
+      template: microphone/default/mic-off.svg
+      output: microphone-system-mic-off.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
 
 # Per-application brand icons for the audio popup's stream rows. Groups a
 # LITERAL-COLOR exception: the variants ship their own fills (brand marks must

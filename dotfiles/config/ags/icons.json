@@ -315,6 +315,22 @@
         "name": "mic-off",
         "output": "microphone-mic-off.svg",
         "template": "microphone/default/mic-off.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-mic-on",
+        "output": "microphone-system-mic-on.svg",
+        "template": "microphone/default/mic-on.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-mic-off",
+        "output": "microphone-system-mic-off.svg",
+        "template": "microphone/default/mic-off.svg"
       }
     ]
   },
@@ -650,6 +666,46 @@
       {
         "name": "max",
         "output": "volume-max.svg",
+        "template": "volume/max/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-muted",
+        "output": "volume-system-muted.svg",
+        "template": "volume/muted/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-lowest",
+        "output": "volume-system-lowest.svg",
+        "template": "volume/lowest/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-low",
+        "output": "volume-system-low.svg",
+        "template": "volume/low/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-medium",
+        "output": "volume-system-medium.svg",
+        "template": "volume/medium/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-max",
+        "output": "volume-system-max.svg",
         "template": "volume/max/default/icon.svg"
       }
     ]

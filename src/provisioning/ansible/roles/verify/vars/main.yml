@@ -368,6 +368,8 @@ verify_icons_samples:
   - "{{ verify_state_current_dir }}/icons/battery-0.svg"
   - "{{ verify_state_current_dir }}/icons/settings-panel-wifi.svg"
   - "{{ verify_state_current_dir }}/icons/volume-low.svg"
+  - "{{ verify_state_current_dir }}/icons/volume-system-low.svg"
+  - "{{ verify_state_current_dir }}/icons/microphone-system-mic-on.svg"
 
 # verify_compositor_config_dirs: the three compositor config dirs under the XDG
 #   config home (criterion 7). config-in-spine (2026-08-16): these are now

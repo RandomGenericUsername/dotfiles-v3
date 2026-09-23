@@ -755,3 +755,11 @@ bar icons to a darker palette token before ITR renders.
   `group`/`placeholder`/`from`/`to`/`ratio_before`/`ratio_after`). A guard
   failure never hard-fails `wallpaper set`: it falls back to the spine
   mappings with a warning.
+- **Dual surfaces (`system-*` copies).** One render serves the transparent
+  bar AND dark-glass system surfaces (settings-panel Sound card, audio
+  popup). The bar resolves bare variants (guard-eligible); system surfaces
+  resolve `system-*` variants — same art, separate outputs with a
+  variant-level `COLOR_FOREGROUND` pin the guard structurally cannot
+  rewrite. Standing rule: Bar resolves bare, system resolves `system-*`.
+  Any group consumed on dark glass MUST expose `system-*` copies from day
+  one.
