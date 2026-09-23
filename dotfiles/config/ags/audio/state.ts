@@ -582,9 +582,26 @@ export function setDefaultSpeaker(device: unknown) {
   )
 }
 
+/** Switch the default microphone.
+ *
+ *  Same action path as outputs (`wpctl set-default <id>` — a one-shot ACTION,
+ *  never a poll; `WpNode.is_default` is read-only on this build). Verified
+ *  end-to-end for sinks; for sources the path is WirePlumber's identical
+ *  default-device machinery (`Default Configured Devices` slot 1 is
+ *  `Audio/Source`). Note: virtual/V4L2 sources are not eligible defaults —
+ *  WirePlumber silently keeps the current one — so only real input devices
+ *  effectively switch. */
+export function setDefaultMicrophone(device: unknown) {
+  const node = nodeOf(device)
+  if (node?.id === undefined) return
+  execAsync(["wpctl", "set-default", String(node.id)]).catch((e) =>
+    console.error("audio: set-default failed:", e),
+  )
+}
+
 // ── UI state ───────────────────────────────────────────────────────────────
 
-export type AudioSection = "main" | "output-devices"
+export type AudioSection = "main" | "output-devices" | "input-devices"
 
 const [popupVisible, setPopupVisible] = createState(false)
 const [activeSection, setActiveSection] = createState<AudioSection>("main")
@@ -618,6 +635,13 @@ export function toggle(section: AudioSection = "main") {
 /** Enter the Output device subview (settings-panel in-place navigation). */
 export function showOutputDevices() {
   setActiveSection("output-devices")
+  setViewEpoch((n) => n + 1)
+}
+
+/** Enter the Input device subview — symmetric to outputs (decision 1B
+ *  extended to inputs): list live sources, check the default microphone. */
+export function showInputDevices() {
+  setActiveSection("input-devices")
   setViewEpoch((n) => n + 1)
 }
 
@@ -677,9 +701,18 @@ export function debugAudioState(): Record<string, unknown> {
   }))
   const spk = nodeOf(defaultSpeaker())
   const mic = nodeOf(defaultMicrophone())
+  const inputs = (inputDevices() ?? []).map((d) => {
+    const n = nodeOf(d)
+    return {
+      id: n?.id ?? null,
+      name: n?.description || n?.name || null,
+      active: mic !== null && n?.id !== undefined && mic.id === n.id,
+    }
+  })
   return {
     streams,
     rows,
+    inputs,
     defaultSpeaker: {
       id: spk?.id ?? null,
       volume: spk?.volume ?? null,

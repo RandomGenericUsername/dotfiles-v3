@@ -30,6 +30,7 @@ import {
   displayVolumeForApp,
   effectiveSinkNameForApp,
   hasLiveStreamForApp,
+  inputDevices,
   levelVariant,
   liveStreamForApp,
   masterPlayer,
@@ -42,7 +43,9 @@ import {
   refreshStreamTargets,
   routeAppTo,
   setAppVolume,
+  setDefaultMicrophone,
   setDefaultSpeaker,
+  showInputDevices,
   showOutputDevices,
   streamAppIconPath,
   streamAppIconPathForIdentity,
@@ -737,6 +740,19 @@ function DeviceCard({
             </box>
           </button>
         ) : null}
+        {kind === "input" ? (
+          <button
+            class="audio-routing"
+            tooltipText="Choose input device"
+            canFocus={false}
+            onClicked={showInputDevices}
+          >
+            <box spacing={4}>
+              <label label="Change" />
+              <label class="audio-routing-chevron" label={"\u203A"} />
+            </box>
+          </button>
+        ) : null}
       </box>
       <LevelLine
         volume={level}
@@ -794,6 +810,61 @@ function OutputDevicesView() {
                   xalign={0}
                   hexpand
                   label={nodeName(device, "Output")}
+                />
+              </box>
+            </button>
+          )
+        }}
+      </For>
+    </box>
+  )
+}
+
+/** Input device subview: list sources, pick the default microphone. Mirrors
+ *  OutputDevicesView exactly (same in-place navigation, same ✓ + active-row
+ *  contract); the only differences are the source collection, the mic glyph,
+ *  and the `wpctl set-default` target. */
+function InputDevicesView() {
+  return (
+    <box orientation={1} spacing={8}>
+      <NavHeader title="Input devices" onBack={back} />
+      {/* Stable key, same reason as everywhere else `byClass` feeds a `For`. */}
+      <For each={inputDevices} id={(device) => `src:${nodeOf(device)?.id ?? "?"}`}>
+        {(device) => {
+          const node = nodeOf(device)
+          // The current default source (resolved via `default_microphone.id`)
+          // carries the ✓ and the active-row fill, like D7 for sinks.
+          const active = createComputed(() => {
+            const def = defaultMicrophone()
+            return (
+              def !== null && node !== null && node.id !== undefined && def.id === node.id
+            )
+          })
+          return (
+            <button
+              class={createComputed(() =>
+                active() ? "audio-device active" : "audio-device",
+              )}
+              canFocus={false}
+              onClicked={() => {
+                setDefaultMicrophone(device)
+                back()
+              }}
+            >
+              <box spacing={9}>
+                <label
+                  class="audio-check"
+                  label={createComputed(() => (active() ? "✓" : ""))}
+                />
+                <image
+                  pixel_size={17}
+                  $={(self) => self.set_from_file(systemIcon("microphone", "mic-on") ?? "")}
+                />
+                <label
+                  class="audio-row-title"
+                  xalign={0}
+                  hexpand
+                  label={nodeName(device, "Input")}
                 />
               </box>
             </button>
@@ -964,6 +1035,7 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor) {
 
   const mainVisible = createComputed(() => activeSection() === "main")
   const devicesVisible = createComputed(() => activeSection() === "output-devices")
+  const inputDevicesVisible = createComputed(() => activeSection() === "input-devices")
 
   // Follower anchor beneath the invoking bar icon (same pattern as the
   // settings panel / wifi popup): left margin = icon centre − half the popup
@@ -1023,6 +1095,9 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor) {
             </box>
             <box orientation={1} spacing={9} visible={devicesVisible}>
               <OutputDevicesView />
+            </box>
+            <box orientation={1} spacing={9} visible={inputDevicesVisible}>
+              <InputDevicesView />
             </box>
           </box>
         </scrolledwindow>
