@@ -1,6 +1,6 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
-import { Accessor, createBinding, createComputed, createEffect, createState, For } from "ags"
+import { Accessor, createBinding, createComputed, createEffect, createState, For, onCleanup } from "ags"
 import { registry } from "../lib/icon-registry"
 import { NavHeader, PanelCard } from "../settings-panel/primitives"
 import {
@@ -540,8 +540,51 @@ function StreamRow({ row }: { row: AppRow }) {
   //: Volume/mute read through the live node with last-known fallback, so a
   //: slider drag writes to the current node object and the line holds its value
   //: across transient stream gaps instead of flashing `—`.
-  const volume = createComputed(() => clampVolume(displayVolumeForApp(app)))
-  const muteRaw = createComputed(() => displayMuteForApp(app))
+  //:
+  //: LIVE updates need more: `displayVolumeForApp` only depends on list
+  //: membership, so without this the percentage and mute glyph froze at their
+  //: first render (clicking mute toggled audio, but the icon never changed).
+  //: Subscribe to the CURRENT live node's own notify signals and bump an epoch
+  //: the computeds read; the effect re-subscribes whenever node identity
+  //: changes, and onCleanup disconnects the old node (never a stale object).
+  const [nodeEpoch, setNodeEpoch] = createState(0)
+  createEffect(() => {
+    const s = stream()
+    if (!s) return
+    const node = s as unknown as {
+      connect: (signal: string, cb: () => void) => number
+      disconnect: (id: number) => void
+    }
+    const bump = () => setNodeEpoch((n) => n + 1)
+    let hVolume = 0
+    let hMute = 0
+    try {
+      hVolume = node.connect("notify::volume", bump)
+      hMute = node.connect("notify::mute", bump)
+    } catch {
+      return
+    }
+    onCleanup(() => {
+      try {
+        node.disconnect(hVolume)
+      } catch {
+        /* node gone */
+      }
+      try {
+        node.disconnect(hMute)
+      } catch {
+        /* node gone */
+      }
+    })
+  })
+  const volume = createComputed(() => {
+    nodeEpoch()
+    return clampVolume(displayVolumeForApp(app))
+  })
+  const muteRaw = createComputed(() => {
+    nodeEpoch()
+    return displayMuteForApp(app)
+  })
   const muted = muteRaw
 
   const title = createComputed(() => {
