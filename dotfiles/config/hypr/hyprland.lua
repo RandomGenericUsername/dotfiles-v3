@@ -4,6 +4,8 @@
 -- Hyprland >= 0.55 uses the Lua config API (hl.* functions). Modules are
 -- included with Lua's dofile(), NOT hyprlang's `source =` directive.
 
+require("hyprland-gui")
+
 local cfg = "{{ compositor_configs_xdg_config_home }}/hypr"
 
 dofile(cfg .. "/env-variables.lua")
