@@ -138,10 +138,21 @@ function LevelLine({
   /** A stream-less row has no node to set: render the line inert and dimmed
    *  instead of swapping in a different component. Keeping ONE widget shape
    *  per row avoids the container/child churn that tripped GTK's box assertions
-   *  (a conditional sibling box inside a `For` row). */
-  disabled?: boolean
+   *  (a conditional sibling box inside a `For` row).
+   *
+   *  WARNING: this MUST stay `Accessor<boolean> | boolean` and be unwrapped
+   *  below. A bare `boolean` type with an accessor passed in is ALWAYS truthy
+   *  (a function object), which permanently disabled every volume line with
+   *  `—` — and neither `ags bundle` (esbuild strips types unchecked) nor the
+   *  symbol checker catch a type-level lie. */
+  disabled?: Accessor<boolean> | boolean
 }) {
   const percent = createComputed(() => Math.round(clampVolume(volume()) * 100))
+  const isDisabled: Accessor<boolean> = createComputed(() =>
+    typeof disabled === "function"
+      ? (disabled as Accessor<boolean>)()
+      : disabled,
+  )
   let interacting = false
 
   function commit(self: Gtk.Scale) {
@@ -177,17 +188,17 @@ function LevelLine({
       <slider
         class="settings-level-slider"
         hexpand
-        sensitive={!disabled}
+        sensitive={isDisabled((d) => !d)}
         min={0}
         max={100}
         step={1}
-        value={disabled ? 0 : percent}
+        value={createComputed(() => (isDisabled() ? 0 : percent()))}
         drawValue={false}
         $={(self: Gtk.Scale) => wireGestures(self)}
       />
       <label
         class="audio-percent"
-        label={disabled ? "—" : percent((p) => `${p}%`)}
+        label={createComputed(() => (isDisabled() ? "—" : `${percent()}%`))}
       />
     </box>
   )

@@ -359,11 +359,13 @@ function appKeysOfNode(node: WpNode | null): Set<string> {
   }
   // Fall back to the node's own props when the async graph snapshot has not
   // caught up with a stream that just appeared (its app/binary are not in it
-  // yet, but the node itself always carries the name).
+  // yet). Uses `description` ONLY — never `name`: AstalWp reports the MEDIA
+  // name in `node.name` (e.g. literally "Playback"), which produced a phantom
+  // "playback" app row beside the real one (caught via `ags request
+  // audio-debug`). `description` carries the application name.
   if (raws.length === 0) {
-    for (const v of [node.name, node.description]) {
-      if (typeof v === "string" && v !== "") raws.push(v)
-    }
+    const v = node.description
+    if (typeof v === "string" && v !== "") raws.push(v)
   }
   for (const raw of raws) {
     const slug = slugifyAppName(raw)
@@ -644,4 +646,34 @@ export function clampVolume(value: number | null | undefined): number {
 /** A stable display label for a node (falls back sensibly on empty fields). */
 export function nodeLabel(node: WpNode | null, fallback: string): string {
   return node?.description || node?.name || fallback
+}
+
+// ── Bar-process introspection (debug IPC) ────────────────────────────────────
+
+/**
+ * Snapshot of the audio state AS THE BAR SEES IT, for `ags request
+ * audio-debug`. Exists because the bar's AstalWp `wp.nodes` binding can go
+ * stale in the long-running process while `pw-dump` shows live streams — when
+ * the popup's volume lines disagree with `pw-dump`, this tells us which side
+ * is blind. Read-only; no side effects.
+ */
+export function debugAudioState(): Record<string, unknown> {
+  const streams = (playbackStreams() ?? []).map((s) => {
+    const n = nodeOf(s)
+    return {
+      id: n?.id ?? null,
+      name: n?.name ?? null,
+      description: n?.description ?? null,
+      appKeys: [...appKeysOfNode(n)],
+      volume: n?.volume ?? null,
+      mute: n?.mute ?? null,
+    }
+  })
+  const rows = (applicationRows() ?? []).map((row) => ({
+    app: row.app,
+    liveStreamId: liveStreamForApp(row.app)?.id ?? null,
+    displayVolume: displayVolumeForApp(row.app),
+    player: playerForApp(row.app)?.busName ?? null,
+  }))
+  return { streams, rows }
 }
