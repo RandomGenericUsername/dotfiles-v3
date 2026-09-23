@@ -7,7 +7,7 @@ import { WifiPopup, WifiPopupCatcher } from "./components/wifi/WifiPopup"
 import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
 import { close as closeSettings } from "./settings-panel/state"
 import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
-import { close as closeAudio } from "./audio/state"
+import { close as closeAudio, debugAudioState } from "./audio/state"
 
 app.start({
   css: style,
@@ -26,6 +26,16 @@ app.start({
     if (argv[0] === "settings-close") {
       closeSettings()
       res("ok")
+      return
+    }
+    // Bar-process introspection: dumps the audio state AS THE BAR SEES IT
+    // (wp.nodes binding contents, row resolution). Read-only.
+    if (argv[0] === "audio-debug") {
+      try {
+        res(JSON.stringify(debugAudioState()))
+      } catch (e) {
+        res(`audio-debug failed: ${String(e)}`)
+      }
       return
     }
     res(`unknown request: ${argv.join(" ")}`)
