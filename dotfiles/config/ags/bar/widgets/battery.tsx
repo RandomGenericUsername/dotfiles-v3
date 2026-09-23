@@ -15,9 +15,9 @@ const timeToEmpty = createBinding(device, "time-to-empty")
 
 // ── Power profiles — power-options (portable defacto) ─────────────────
 // power-options daemon: io.github.thealexdev23.power_daemon /control
-// GetActiveProfileName() / SetProfileOverride(s) — no PropertiesChanged
-// signal, so we poll GetActiveProfileName after a set + on interval for
-// external GUI changes. Left-click launches power-options-gtk (portable).
+// Profile selection is stored through UpdateConfig(profile_override), so it
+// survives reboot. Watch the daemon's config directory for changes made by
+// other frontends instead of polling its active-profile method.
 const PROFILES: [string, string][] = [
     ["Powersave++", "Powersave++"],
     ["Powersave", "Powersave"],
@@ -29,6 +29,7 @@ const PROFILES: [string, string][] = [
 const [profile, setProfile] = createState<string>("Balanced")
 
 let poProxy: Gio.DBusProxy | null = null
+let poConfigMonitor: Gio.FileMonitor | null = null
 function refreshPoProfile() {
     if (!poProxy) return
     poProxy.call("GetActiveProfileName", null, Gio.DBusCallFlags.NONE, -1, null, (_p, res) => {
@@ -39,6 +40,47 @@ function refreshPoProfile() {
         } catch {}
     })
 }
+
+function updateProfileFromConfig(name: string) {
+    if (!poProxy) return
+    poProxy.call("GetConfig", null, Gio.DBusCallFlags.NONE, -1, null, (_p, res) => {
+        try {
+            const ret = poProxy!.call_finish(res) as any
+            const raw: string = ret?.recursiveUnpack?.()?.[0] ?? ret?.unpack?.()?.[0]
+            const config = JSON.parse(raw)
+            config.profile_override = name
+            poProxy!.call("UpdateConfig", new GLib.Variant("(s)", [JSON.stringify(config)]),
+                Gio.DBusCallFlags.NONE, -1, null, (_updateProxy, updateResult) => {
+                    try {
+                        poProxy!.call_finish(updateResult)
+                        setProfile(config.profile_override)
+                    } catch (e) {
+                        console.error("power-options config update failed:", e)
+                    }
+                })
+        } catch (e) {
+            console.error("power-options config read failed:", e)
+        }
+    })
+}
+
+function watchPowerOptionsConfig() {
+    try {
+        const directory = Gio.File.new_for_path("/etc/power-options")
+        poConfigMonitor = directory.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null)
+        poConfigMonitor.connect("changed", (_monitor, file, otherFile) => {
+            const changed = file?.get_basename?.() === "config.toml"
+                || otherFile?.get_basename?.() === "config.toml"
+            if (changed) GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                refreshPoProfile()
+                return GLib.SOURCE_REMOVE
+            })
+        })
+    } catch (err) {
+        console.error("power-options config monitor failed:", err)
+    }
+}
+
 Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM,
     Gio.DBusProxyFlags.NONE, null,
     "io.github.thealexdev23.power_daemon", "/io/github/thealexdev23/power_daemon/control",
@@ -47,22 +89,15 @@ Gio.DBusProxy.new_for_bus(Gio.BusType.SYSTEM,
         try {
             poProxy = Gio.DBusProxy.new_for_bus_finish(result)
             refreshPoProfile()
-            // Poll for external GUI changes (power-options-gtk) — no PropertiesChanged on this iface
-            setInterval(refreshPoProfile, 3000)
+            watchPowerOptionsConfig()
         } catch (err) {
             console.error("power-options proxy failed:", err)
         }
     })
 
 function setPowerProfile(name: string) {
-    if (poProxy) {
-        poProxy.call("SetProfileOverride", new GLib.Variant("(s)", [name]),
-            Gio.DBusCallFlags.NONE, -1, null, (_p, res) => {
-                try { poProxy!.call_finish(res); setProfile(name) } catch (e) { console.error(e) }
-            })
-    } else {
-        execAsync(["power-daemon-mgr", "set-profile-override", name]).then(() => setProfile(name)).catch(console.error)
-    }
+    if (!poProxy) return
+    updateProfileFromConfig(name)
 }
 
 function getBatteryStateKey(pct: number, chg: boolean): string {
