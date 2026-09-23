@@ -250,9 +250,9 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 60, (
-            f"expected exactly 60 skeleton files (hyprland.lua + gloview.lua + "
-            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+4 lib+Bar.tsx+11 "
+        assert len(files) == 61, (
+            f"expected exactly 61 skeleton files (hyprland.lua + gloview.lua + "
+            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+5 lib+Bar.tsx+11 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
             f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
             f"D-Bus services + the 2 MPRIS service/core files + 8 shared components "
@@ -284,6 +284,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/wifi/WifiContent.tsx",
             "dotfiles/config/ags/components/wifi/WifiPopup.tsx",
             "dotfiles/config/ags/components/wifi/state.ts",
+            "dotfiles/config/ags/lib/bar-backdrop.ts",
             "dotfiles/config/ags/lib/event-bus-core.ts",
             "dotfiles/config/ags/lib/event-bus.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",

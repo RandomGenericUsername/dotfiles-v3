@@ -9,9 +9,11 @@ import { Thunderbird } from "./widgets/thunderbird"
 import { Tray } from "./widgets/tray"
 import { Settings } from "./widgets/settings"
 import { MicIndicator, OutputIndicator } from "./widgets/audio"
+import { readBarBackdrop } from "../lib/bar-backdrop"
 
 export default function Bar(gdkmonitor: Gdk.Monitor) {
   const { TOP, LEFT, RIGHT } = Astal.WindowAnchor
+  const backdrop = readBarBackdrop(gdkmonitor.get_connector())
 
   return (
     <window
@@ -32,7 +34,7 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
         <box $type="end" spacing={8}>
           <Tray />
           <OutputIndicator />
-          <MicIndicator />
+          <MicIndicator showLiveDotRing={backdrop !== "dark"} />
           <BatteryIndicator />
           <NetworkStatus />
           <Btop />

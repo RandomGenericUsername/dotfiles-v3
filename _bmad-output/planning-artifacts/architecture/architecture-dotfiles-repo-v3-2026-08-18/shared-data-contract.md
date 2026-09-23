@@ -17,7 +17,8 @@ reader; this prose is descriptive).
       "source_hash": "<sha256-hex>",
       "fit_mode": "cover|contain|fill|tile|center|stretch",
       "mpv_options": "<string-or-null>",
-      "ipc_socket": "<abs-path-or-null>"
+      "ipc_socket": "<abs-path-or-null>",
+      "bar_backdrop": "light|dark|null (optional)"
     }
   },
   "palette":   { "hash": "<sha256-hex>", "generated_at": "<ISO-8601-UTC>" },
@@ -36,6 +37,7 @@ Rules:
 - `fit_mode`: scaling mode for static backends. Default `cover`. Ignored by `mpvpaper`.
 - `mpv_options`: mpv passthrough options string (e.g., `"no-audio --loop-playlist"`). Only for `mpvpaper`.
 - `ipc_socket`: absolute path to mpv IPC socket (e.g., `$XDG_RUNTIME_DIR/mpvpaper-<monitor>.sock`). Only for `mpvpaper`.
+- `bar_backdrop`: optional per-monitor sampled wallpaper top-strip appearance (`light` when average WCAG relative luminance is at least `0.5`, `dark` below `0.5`, or `null` when sampling fails). Older schema-version-2 files may omit it; consumers treat missing/unknown as ring-on. This is active wallpaper state, independent of icon contrast decisions and cache metadata.
 - Any of palette/effects/icons may be absent (`null`) only when that layer was never derived for the current wallpaper; wallpaper is always present once seeded.
 - Written atomically (tmp + `os.replace`).
 - Migration: on read, if `monitors` absent (v1), derive single-monitor config from legacy `wallpaper` for all detected monitors using default backend `hyprpaper`.

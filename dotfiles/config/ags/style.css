@@ -929,6 +929,15 @@ window.settings-panel {
   border: 2px solid alpha(@color_00, 0.9);
 }
 
+/* Bar dot uses its per-monitor wallpaper appearance; popup keeps the base ring. */
+.bar .audio-live-dot {
+  border: none;
+}
+
+.bar .audio-live-dot.bar-live-dot-ring {
+  border: 2px solid alpha(@color_00, 0.9);
+}
+
 .audio-card-head {
   margin-bottom: 2px;
 }

@@ -119,7 +119,7 @@ export function OutputIndicator() {
   )
 }
 
-export function MicIndicator() {
+export function MicIndicator({ showLiveDotRing = true }: { showLiveDotRing?: boolean } = {}) {
   const micEpoch = useEndpointEpoch(defaultMicrophone)
   const variant = createComputed(() => {
     micEpoch()
@@ -151,7 +151,7 @@ export function MicIndicator() {
           }}
         />
         <box
-          class="audio-live-dot"
+          class={showLiveDotRing ? "audio-live-dot bar-live-dot-ring" : "audio-live-dot"}
           visible={live}
           valign={Gtk.Align.START}
           halign={Gtk.Align.END}
