@@ -2,6 +2,7 @@ import { Astal, Gdk, Gtk } from "ags/gtk4";
 import app from "ags/gtk4/app";
 import GLib from "gi://GLib?version=2.0";
 import { createEffect, createState } from "ags";
+import { refreshPaletteCss } from "../lib/theme";
 import {
   manifestRegister,
   mappingSet,
@@ -170,7 +171,7 @@ export function EditorWindow(gdkmonitor: Gdk.Monitor) {
   // fingerprint moved — without restarting, so pending edits survive.
   function refreshChrome(): void {
     try {
-      app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`);
+      refreshPaletteCss();
     } catch (error) {
       console.error(`icme: style refresh failed: ${error}`);
     }

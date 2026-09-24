@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wallpaper update — notification mockup</title>
+  <style>
+    :root { color-scheme: dark; --fg:#eeeaf7; --muted:#aaa6b6; --accent:#b59cff; --panel:rgba(20,19,27,.96); }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; font:14px/1.45 Inter,ui-sans-serif,system-ui,sans-serif; color:var(--fg); background:radial-gradient(ellipse at 75% 30%,#4e3d69 0,#282338 34%,#15151b 72%); }
+    .desktop { width:min(100%,1100px); height:min(720px,100vh); position:relative; padding:36px; overflow:hidden; }
+    .caption { position:absolute; left:38px; bottom:32px; color:#eeeaf7b8; font-size:12px; letter-spacing:.04em }
+    .toast { position:absolute; top:24px; right:24px; width:390px; padding:17px; border:1px solid #eeeaf726; border-radius:15px; background:var(--panel); box-shadow:0 18px 56px #0008; backdrop-filter:blur(18px); }
+    .head { display:flex; align-items:center; gap:13px }
+    .tile { width:48px; height:48px; flex:none; display:grid; place-items:center; border-radius:11px; color:var(--accent); background:#b59cff20; border:1px solid #b59cff55 }
+    .tile svg { width:25px; height:25px }
+    .heading { min-width:0; flex:1 }
+    .heading strong { display:block; font-size:14px; letter-spacing:.01em }
+    .heading small { display:block; margin-top:2px; color:var(--muted); font-size:11px }
+    .close { border:0; background:transparent; color:#aaa6b6; font-size:19px; padding:2px 4px; align-self:flex-start }
+    .wallpaper { margin:15px 0 13px 61px; color:#c5c0cf; font-size:12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis }
+    .bar { height:5px; margin-left:61px; overflow:hidden; border-radius:8px; background:#ffffff18 }
+    .fill { height:100%; width:68%; border-radius:inherit; background:linear-gradient(90deg,#9b7dec,var(--accent)); box-shadow:0 0 12px #b59cff70; transition:width .5s ease }
+    .current { margin:9px 0 12px 61px; color:#d8d3e1; font-size:11px }
+    .steps { list-style:none; padding:11px 0 0 61px; margin:0; border-top:1px solid #ffffff13; display:grid; gap:8px; color:#aaa6b6; font-size:11px }
+    .steps li { display:flex; align-items:center; gap:8px }
+    .mark { width:15px; height:15px; display:grid; place-items:center; border:1px solid #ffffff35; border-radius:50%; font-size:9px }
+    li.done { color:#ded9e8 } li.done .mark { color:#c7b4ff; border-color:#b59cff77; background:#b59cff20 }
+    li.active { color:#f2edff } li.active .mark { border-color:var(--accent); box-shadow:0 0 8px #b59cff66 }
+    .foot { margin:14px 0 0 61px; color:#8f8a9d; font-size:10px }
+    .controls { position:absolute; left:38px; top:35px; display:flex; gap:7px; flex-wrap:wrap; max-width:420px }
+    .controls button { padding:8px 11px; color:#eeeaf7; background:#181720b8; border:1px solid #eeeaf72c; border-radius:8px; cursor:pointer }
+    .controls button:hover { border-color:#b59cff88 }
+    @media(max-width:520px) { .desktop { padding:12px } .toast { top:12px; right:12px; left:12px; width:auto } .controls { top:auto; bottom:64px; left:12px; right:12px } .caption { left:14px; bottom:18px } }
+  </style>
+</head>
+<body>
+  <main class="desktop" aria-label="Desktop notification preview">
+    <div class="controls" aria-label="Preview phases">
+      <button data-state="wallpaper">Wallpaper visible</button>
+      <button data-state="palette">Applying palette</button>
+      <button data-state="done">Finished</button>
+      <button data-state="error">Failed</button>
+    </div>
+    <aside class="toast" role="status" aria-live="polite">
+      <div class="head">
+        <div class="tile" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m4 17 5-5 3 3 3-4 5 6"/></svg></div>
+        <div class="heading"><strong id="title">Updating wallpaper</strong><small>Dotfiles · visual settings</small></div>
+        <button class="close" aria-label="Dismiss preview">×</button>
+      </div>
+      <div class="wallpaper">autumn-evening-mountains.jpg</div>
+      <div class="bar" role="progressbar" aria-label="Wallpaper update progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="68"><div class="fill"></div></div>
+      <div class="current" id="current">Applying generated colors to desktop apps…</div>
+      <ul class="steps" id="steps">
+        <li class="done"><span class="mark">✓</span> Wallpaper is on screen</li>
+        <li class="done"><span class="mark">✓</span> Color palette generated</li>
+        <li class="active"><span class="mark">·</span> Effects and icons processed</li>
+        <li><span class="mark"></span> Desktop consumers updated</li>
+      </ul>
+      <div class="foot" id="foot">The wallpaper is already visible. This can take a little longer.</div>
+    </aside>
+    <div class="caption">Notification concept · preview the update phases with the buttons above</div>
+  </main>
+  <script>
+    const states = {
+      wallpaper:{title:'Updating wallpaper',value:0,current:'Setting the new wallpaper…',steps:[1,0,0,0],foot:'The remaining visual settings will follow.'},
+      palette:{title:'Updating wallpaper',value:35,current:'Color palette generated. Preparing effects and icons…',steps:[1,1,0,0],foot:'The wallpaper is already visible. This can take a little longer.'},
+      done:{title:'Wallpaper updated',value:100,current:'All visual settings are up to date.',steps:[1,1,1,1],foot:'Finished just now.'},
+      error:{title:'Wallpaper update stopped',value:50,current:'The wallpaper is visible, but the color update failed.',steps:[1,0,0,0],foot:'You can retry by setting the wallpaper again.'}
+    };
+    document.querySelectorAll('.controls button').forEach(button=>button.addEventListener('click',()=>{
+      const s=states[button.dataset.state], items=[...document.querySelectorAll('#steps li')], bar=document.querySelector('[role=progressbar]');
+      document.querySelector('#title').textContent=s.title; document.querySelector('#current').textContent=s.current; document.querySelector('#foot').textContent=s.foot;
+      document.querySelector('.fill').style.width=s.value+'%'; bar.setAttribute('aria-valuenow',s.value);
+      items.forEach((item,i)=>{item.className=s.steps[i]?(i<s.steps.filter(Boolean).length-1?'done':'active'):'';item.querySelector('.mark').textContent=s.steps[i]?(item.classList.contains('done')?'✓':'·'):'';});
+      if(button.dataset.state==='done'){ items.forEach(item=>{item.className='done';item.querySelector('.mark').textContent='✓'}); }
+      if(button.dataset.state==='error'){items[2].className='';items[2].querySelector('.mark').textContent='!';}
+    }));
+  </script>
+</body>
+</html>

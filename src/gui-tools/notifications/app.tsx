@@ -3,6 +3,7 @@ import GLib from "gi://GLib?version=2.0"
 import Gio from "gi://Gio?version=2.0"
 import Notifd from "gi://AstalNotifd?version=0.1"
 import style from "./style.css"
+import { refreshPaletteCss } from "./lib/theme"
 import { NotificationsWindow } from "./ui/NotificationsWindow"
 
 //: The well-known bus name this app claims (also used by dunst).
@@ -44,7 +45,11 @@ app.start({
   instanceName: "notifications",
   css: style,
   main() {
-    app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)
+    try {
+      refreshPaletteCss()
+    } catch (error) {
+      console.error(`notifications: palette CSS refresh failed: ${error}`)
+    }
 
     // A foreign daemon (dunst during the transition, or a duplicate instance)
     // holding the name means we cannot serve notifications. Exit cleanly

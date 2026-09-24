@@ -3,6 +3,9 @@ import Notifd from "gi://AstalNotifd?version=0.1"
 import Pango from "gi://Pango?version=1.0"
 import GLib from "gi://GLib?version=2.0"
 import app from "ags/gtk4/app"
+import { refreshPaletteCss } from "../lib/theme"
+import { subscribeWallpaperEvents, type WallpaperPayload, type WallpaperEventSource } from "../lib/wallpaper-events"
+import { resolveIcon } from "../lib/icon-registry"
 
 // AstalNotifd.Urgency wire values (GIR-verified against
 // /usr/share/gir-1.0/AstalNotifd-0.1.gir): LOW=0, NORMAL=1, CRITICAL=2.
@@ -27,6 +30,12 @@ const TILE_ICON = 24
 // dismissed — the mockup's "Capture failed" card. A sender's 0 ("never") or
 // -1 ("server default") is treated as the default so nothing sticks forever.
 const DEFAULT_TIMEOUT_MS = 8000
+const WALLPAPER_STEPS = [
+  "Wallpaper is on screen",
+  "Color palette generated",
+  "Effects and icons processed",
+  "Desktop consumers updated",
+]
 
 const WINDOW_NAME = "notifications-window"
 
@@ -216,8 +225,282 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
   const notifd = Notifd.get_default()
   let stack: Gtk.Box | null = null
   let cards: CardEntry[] = []
+  let wallpaperCard: Gtk.Box | null = null
+  let wallpaperHash: string | null = null
+  let wallpaperTerminal = false
+  let wallpaperProgress: Gtk.ProgressBar | null = null
+  let wallpaperTitle: Gtk.Label | null = null
+  let wallpaperDetail: Gtk.Label | null = null
+  let wallpaperFooter: Gtk.Label | null = null
+  let wallpaperIcon: Gtk.Image | null = null
+  let wallpaperIconTile: Gtk.CenterBox | null = null
+  let wallpaperStepRows: Array<{
+    row: Gtk.Box
+    marker: Gtk.Stack
+    markerGlyph: Gtk.Label
+    markerIcon: Gtk.Image
+  }> = []
+  let wallpaperPulseSource: number | null = null
+  let wallpaperExpirySource: number | null = null
   /** id -> pending GLib timeout source for auto-expiry. */
   const timers = new Map<number, number>()
+
+  function hideIfEmpty(): void {
+    if (cards.length === 0 && wallpaperCard === null) hideWindow()
+  }
+
+  function stopWallpaperTimers(): void {
+    if (wallpaperPulseSource !== null) GLib.source_remove(wallpaperPulseSource)
+    if (wallpaperExpirySource !== null) GLib.source_remove(wallpaperExpirySource)
+    wallpaperPulseSource = null
+    wallpaperExpirySource = null
+  }
+
+  function dismissWallpaperCard(): void {
+    stopWallpaperTimers()
+    if (stack !== null && wallpaperCard !== null) stack.remove(wallpaperCard)
+    wallpaperCard = null
+    wallpaperHash = null
+    wallpaperTerminal = false
+    wallpaperProgress = null
+    wallpaperTitle = null
+    wallpaperDetail = null
+    wallpaperFooter = null
+    wallpaperIcon = null
+    wallpaperIconTile = null
+    wallpaperStepRows = []
+    hideIfEmpty()
+  }
+
+  function wallpaperUpdate(payload: WallpaperPayload, source: WallpaperEventSource): void {
+    if (payload["trigger"] !== "set") return
+    const hash = typeof payload["wallpaper_hash"] === "string" ? payload["wallpaper_hash"] : ""
+    const phase = typeof payload["state"] === "string" ? payload["state"] : ""
+    const stage = typeof payload["stage"] === "string" ? payload["stage"] : ""
+
+    // Startup hydration restores only an operation that is still running.
+    // Live terminal events update a card only when it belongs to that run.
+    if (source === "startup-state" && phase !== "applying" && phase !== "visible") return
+    if (phase === "applying") {
+      if (wallpaperCard !== null && wallpaperHash !== hash) {
+        if (!wallpaperTerminal) return
+        dismissWallpaperCard()
+      }
+      if (wallpaperCard === null) createWallpaperCard(hash)
+      setWallpaperStatus("Updating wallpaper", "Setting the new wallpaper…", stage, true)
+      return
+    }
+    if (wallpaperCard === null || wallpaperHash !== hash) return
+    if (phase === "visible") {
+      setWallpaperStatus("Updating wallpaper", statusForStage(stage), stage, true)
+    } else if (phase === "done") {
+      wallpaperTerminal = true
+      try { refreshPaletteCss() } catch (error) {
+        console.error(`notifications: palette CSS refresh failed: ${error}`)
+      }
+      refreshWallpaperIcon()
+      const failures = Array.isArray(payload["reload_failures"])
+        ? payload["reload_failures"].filter((item): item is string => typeof item === "string")
+        : []
+      if (failures.length > 0) {
+        setWallpaperStatus(
+          "Wallpaper updated with issues",
+          `Could not update: ${failures.join(", ")}`,
+          "reconciling_consumers",
+          false,
+          false,
+          true,
+        )
+      } else {
+        setWallpaperStatus("Wallpaper updated", "All visual settings are up to date.", "finished", false, true)
+      }
+      wallpaperExpirySource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
+        wallpaperExpirySource = null
+        dismissWallpaperCard()
+        return GLib.SOURCE_REMOVE
+      })
+    } else if (phase === "error") {
+      wallpaperTerminal = true
+      setWallpaperStatus("Wallpaper update stopped", `The update stopped while ${failureForStage(stage)}.`, stage, false, false, true)
+    }
+  }
+
+  function createWallpaperCard(hash: string): void {
+    if (stack === null) return
+    showWindow()
+    wallpaperHash = hash
+    const card = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 9 })
+    card.add_css_class("notif-card")
+    card.add_css_class("wallpaper-progress-card")
+    card.set_size_request(CARD_WIDTH, -1)
+    const heading = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 10 })
+    const tile = new Gtk.CenterBox()
+    tile.add_css_class("wallpaper-progress-icon")
+    tile.set_size_request(44, 44)
+    const icon = new Gtk.Image()
+    icon.set_pixel_size(25)
+    const iconPath = resolveIcon("wallpaper-progress", "picture")
+    tile.set_center_widget(icon)
+    if (iconPath === null) {
+      const fallback = new Gtk.Label({ label: "▧" })
+      fallback.add_css_class("notif-fallback")
+      tile.set_center_widget(fallback)
+    }
+    if (iconPath !== null) icon.set_from_file(iconPath)
+    wallpaperIcon = icon
+    wallpaperIconTile = tile
+    const copy = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 3, hexpand: true })
+    const title = new Gtk.Label({ label: "Updating wallpaper", xalign: 0 })
+    title.add_css_class("notif-title")
+    const detail = new Gtk.Label({ label: "", xalign: 0, wrap: true })
+    detail.add_css_class("notif-body")
+    copy.append(title)
+    copy.append(detail)
+    const close = new Gtk.Button({ label: "×" })
+    close.add_css_class("wallpaper-progress-close")
+    close.connect("clicked", dismissWallpaperCard)
+    heading.append(tile)
+    heading.append(copy)
+    heading.append(close)
+    const progress = new Gtk.ProgressBar()
+    progress.add_css_class("wallpaper-progress-bar")
+    progress.set_show_text(false)
+    card.append(heading)
+    card.append(progress)
+    const stepList = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 7 })
+    stepList.add_css_class("wallpaper-progress-steps")
+    for (const stepText of WALLPAPER_STEPS) {
+      const row = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 })
+      row.add_css_class("wallpaper-progress-step")
+      const marker = new Gtk.Stack()
+      marker.add_css_class("wallpaper-progress-marker")
+      const markerGlyph = new Gtk.Label({ label: "○" })
+      const markerIcon = new Gtk.Image()
+      markerIcon.set_pixel_size(15)
+      const checkCirclePath = resolveIcon("wallpaper-progress", "check-circle")
+      if (checkCirclePath !== null) markerIcon.set_from_file(checkCirclePath)
+      marker.add_named(markerGlyph, "glyph")
+      marker.add_named(markerIcon, "check")
+      marker.set_visible_child_name("glyph")
+      const label = new Gtk.Label({ label: stepText, xalign: 0, hexpand: true })
+      label.add_css_class("wallpaper-progress-step-label")
+      row.append(marker)
+      row.append(label)
+      stepList.append(row)
+      wallpaperStepRows.push({ row, marker, markerGlyph, markerIcon })
+    }
+    card.append(stepList)
+    const footer = new Gtk.Label({ label: "The wallpaper is visible while the remaining steps finish.", xalign: 0 })
+    footer.add_css_class("wallpaper-progress-footer")
+    card.append(footer)
+    wallpaperFooter = footer
+    stack.prepend(card)
+    wallpaperCard = card
+    wallpaperProgress = progress
+    wallpaperTitle = title
+    wallpaperDetail = detail
+  }
+
+  function setWallpaperStatus(
+    titleText: string,
+    detailText: string,
+    stage: string,
+    busy: boolean,
+    complete = false,
+    failed = false,
+  ): void {
+    if (wallpaperCard === null || wallpaperProgress === null) return
+    wallpaperTitle?.set_label(titleText)
+    wallpaperDetail?.set_label(detailText)
+    wallpaperFooter?.set_label(complete
+      ? "Finished just now."
+      : failed
+        ? "You can retry by setting the wallpaper again."
+        : "This can take a little longer while desktop apps update.")
+    const activeIndex = stageIndex(stage)
+    wallpaperStepRows.forEach(({ row, marker, markerGlyph }, index) => {
+      row.remove_css_class("done")
+      row.remove_css_class("active")
+      row.remove_css_class("failed")
+      if (complete || index < activeIndex) {
+        row.add_css_class("done")
+        marker.set_visible_child_name("check")
+      } else if (failed && index === activeIndex) {
+        row.add_css_class("failed")
+        marker.set_visible_child_name("glyph")
+        markerGlyph.set_label("!")
+      } else if (!failed && index === activeIndex) {
+        row.add_css_class("active")
+        marker.set_visible_child_name("glyph")
+        markerGlyph.set_label("·")
+      } else {
+        marker.set_visible_child_name("glyph")
+        markerGlyph.set_label("○")
+      }
+    })
+    stopWallpaperTimers()
+    if (complete) wallpaperProgress.set_fraction(1)
+    else if (failed) wallpaperProgress.set_fraction(stageIndex(stage) / WALLPAPER_STEPS.length)
+    else if (busy) {
+      wallpaperProgress.set_fraction(0)
+      wallpaperPulseSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+        wallpaperProgress?.pulse()
+        return GLib.SOURCE_CONTINUE
+      })
+    } else wallpaperProgress.set_fraction(0)
+  }
+
+  function statusForStage(stage: string): string {
+    switch (stage) {
+      case "generating_palette": return "Wallpaper is on screen. Generating the color palette…"
+      case "palette_generated": return "Color palette generated. Preparing effects and icons…"
+      case "preparing_appearance_assets": return "Color palette generated. Preparing effects and icons…"
+      case "appearance_assets_ready": return "Appearance assets prepared. Updating desktop apps…"
+      case "reconciling_consumers": return "Appearance assets prepared. Updating desktop apps…"
+      case "finished": return "All visual settings are up to date."
+      default: return "Setting the new wallpaper…"
+    }
+  }
+
+  function stageIndex(stage: string): number {
+    switch (stage) {
+      case "setting_wallpaper": return 0
+      case "generating_palette": return 1
+      case "palette_generated": return 2
+      case "preparing_appearance_assets": return 2
+      case "appearance_assets_ready": return 3
+      case "reconciling_consumers": return 3
+      case "finished": return WALLPAPER_STEPS.length
+      default: return 0
+    }
+  }
+
+  function failureForStage(stage: string): string {
+    switch (stage) {
+      case "setting_wallpaper": return "setting the wallpaper"
+      case "generating_palette": return "generating the color palette"
+      case "palette_generated":
+      case "preparing_appearance_assets": return "preparing effects and icons"
+      case "appearance_assets_ready":
+      case "reconciling_consumers": return "updating desktop apps"
+      default: return "updating the wallpaper appearance"
+    }
+  }
+
+  function refreshWallpaperIcon(): void {
+    const path = resolveIcon("wallpaper-progress", "picture")
+    if (path !== null && wallpaperIcon !== null) {
+      wallpaperIcon.set_from_file(path)
+      wallpaperIconTile?.set_center_widget(wallpaperIcon)
+    }
+    const checkCirclePath = resolveIcon("wallpaper-progress", "check-circle")
+    if (checkCirclePath !== null) {
+      for (const { markerIcon, marker } of wallpaperStepRows) {
+        markerIcon.set_from_file(checkCirclePath)
+        marker.set_visible_child_name("check")
+      }
+    }
+  }
 
   function removeCard(id: number): void {
     const index = cards.findIndex((entry) => entry.id === id)
@@ -227,7 +510,7 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
     if (entry !== undefined) stack.remove(entry.widget)
     // Unmap once the last card leaves: an empty surface would keep showing the
     // previous frame (see showWindow).
-    if (cards.length === 0) hideWindow()
+    hideIfEmpty()
   }
 
   /**
@@ -324,6 +607,10 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
       // Dismiss the newest card (or hide an empty stack window).
       const newest = cards[cards.length - 1]
       if (newest === undefined) {
+        if (wallpaperCard !== null) {
+          dismissWallpaperCard()
+          return true
+        }
         hideWindow()
         return true
       }
@@ -367,6 +654,7 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
         css_classes={["notif-stack"]}
         $={(self) => {
           stack = self
+          subscribeWallpaperEvents(wallpaperUpdate)
         }}
       />
     </window>

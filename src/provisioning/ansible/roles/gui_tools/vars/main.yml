@@ -68,6 +68,7 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-notifications"
   - "{{ gui_tools_spine_config_dir }}/ags-notifications/ui"
+  - "{{ gui_tools_spine_config_dir }}/ags-notifications/lib"
 
 # gui_tools_app_files: the app FILES, one entry per file with the explicit
 #   target path. Per-file entries (not directory sources) are REQUIRED (see
@@ -122,6 +123,7 @@ gui_tools_icme_app_files:
   - { name: icme-lib-event-contract, source: src/gui-tools/icon-color-mapping-editor/lib/event-contract.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-contract.ts" }
   - { name: icme-lib-event-bus-core, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus-core.ts" }
   - { name: icme-lib-event-bus, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus.ts" }
+  - { name: icme-lib-theme, source: src/gui-tools/icon-color-mapping-editor/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/theme.ts" }
 
 # gui_tools_hypr_pano_app_files: the clipboard overlay's app files, deployed
 #   into their own ags-hypr-pano/ spine dir. Rendered via `template` with
@@ -156,20 +158,23 @@ gui_tools_wallpaper_selector_app_files:
   - { name: wallpaper-selector-lib-icon-registry, source: src/gui-tools/wallpaper-selector/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/icon-registry.ts" }
   - { name: wallpaper-selector-lib-event-bus-core, source: src/gui-tools/wallpaper-selector/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus-core.ts" }
   - { name: wallpaper-selector-lib-event-bus, source: src/gui-tools/wallpaper-selector/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus.ts" }
+  - { name: wallpaper-selector-lib-theme, source: src/gui-tools/wallpaper-selector/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/theme.ts" }
 
 # gui_tools_notifications_app_files: the notifd overlay's app files,
 #   deployed into their own ags-notifications/ spine dir. Rendered via
 #   `template` with force: true (repo-authoritative); the sources contain no
 #   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
 #   test) — same placement discipline as hypr-pano and the wallpaper
-#   selector. The overlay renders the daemon-provided image paths directly,
-#   so it owns no icon registry of its own (the EMITTER resolves
-#   current/icons/ paths in the capture backend).
+#   selector. Wallpaper progress uses the shared ITR icon manifest and a
+#   local resolver to load its palette-rendered picture and check-circle icons.
 gui_tools_notifications_app_files:
   - { name: notifications-app-tsx, source: src/gui-tools/notifications/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/app.tsx" }
   - { name: notifications-style-css, source: src/gui-tools/notifications/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/style.css" }
   - { name: notifications-window, source: src/gui-tools/notifications/ui/NotificationsWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/ui/NotificationsWindow.tsx" }
   - { name: notifications-makefile, source: src/gui-tools/notifications/Makefile, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/Makefile" }
+  - { name: notifications-lib-theme, source: src/gui-tools/notifications/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/theme.ts" }
+  - { name: notifications-lib-icon-registry, source: src/gui-tools/notifications/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/icon-registry.ts" }
+  - { name: notifications-lib-wallpaper-events, source: src/gui-tools/notifications/lib/wallpaper-events.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/wallpaper-events.ts" }
 
 # gui_tools_ags_instances: the AGS process instances this role manages
 #   (names as reported by `ags list`). AGS bundles TypeScript at startup and

@@ -258,7 +258,7 @@ class TestGuiToolsVars:
         palette refresh. Deployed by the raw-copy task (NOT template: literal
         {{PLACEHOLDER}} sequences would be destroyed by Jinja2)."""
         files = list(_vars()["gui_tools_icme_app_files"])
-        assert len(files) == 21, f"expected exactly 21 icme files; found {len(files)}"
+        assert len(files) == 22, f"expected exactly 22 icme files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/icon-color-mapping-editor/app.tsx",
@@ -272,6 +272,7 @@ class TestGuiToolsVars:
             "src/gui-tools/icon-color-mapping-editor/lib/substitute.ts",
             "src/gui-tools/icon-color-mapping-editor/lib/svg.ts",
             "src/gui-tools/icon-color-mapping-editor/lib/templates.ts",
+            "src/gui-tools/icon-color-mapping-editor/lib/theme.ts",
             "src/gui-tools/icon-color-mapping-editor/style.css",
             "src/gui-tools/icon-color-mapping-editor/ui/DiffPane.tsx",
             "src/gui-tools/icon-color-mapping-editor/ui/EditorWindow.tsx",
@@ -404,7 +405,7 @@ class TestGuiToolsVars:
         contrast plus the Phase 5 event seam: icon-registry, event-bus-core,
         event-bus)."""
         files = list(_vars()["gui_tools_wallpaper_selector_app_files"])
-        assert len(files) == 11, f"expected exactly 11 selector files; found {len(files)}"
+        assert len(files) == 12, f"expected exactly 12 selector files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/wallpaper-selector/app.tsx",
@@ -415,6 +416,7 @@ class TestGuiToolsVars:
             "src/gui-tools/wallpaper-selector/lib/icon-registry.ts",
             "src/gui-tools/wallpaper-selector/lib/model.ts",
             "src/gui-tools/wallpaper-selector/lib/scan.ts",
+            "src/gui-tools/wallpaper-selector/lib/theme.ts",
             "src/gui-tools/wallpaper-selector/lib/thumbnails.ts",
             "src/gui-tools/wallpaper-selector/style.css",
             "src/gui-tools/wallpaper-selector/ui/WallpaperSelectorWindow.tsx",
@@ -471,16 +473,17 @@ class TestGuiToolsVars:
         )
 
     def test_notifications_app_files_exact_list(self) -> None:
-        """The notifd overlay file set, exactly: entry point, stylesheet,
-        and the stack window (the overlay renders daemon-provided image
-        paths directly, so it owns no icon registry — the EMITTER resolves
-        current/icons/ paths in the capture backend)."""
+        """The notification app file set includes its event subscriber,
+        palette refresh helper, and rendered-icon resolver."""
         files = list(_vars()["gui_tools_notifications_app_files"])
-        assert len(files) == 4, f"expected exactly 4 notifications files; found {len(files)}"
+        assert len(files) == 7, f"expected exactly 7 notifications files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/notifications/Makefile",
             "src/gui-tools/notifications/app.tsx",
+            "src/gui-tools/notifications/lib/icon-registry.ts",
+            "src/gui-tools/notifications/lib/theme.ts",
+            "src/gui-tools/notifications/lib/wallpaper-events.ts",
             "src/gui-tools/notifications/style.css",
             "src/gui-tools/notifications/ui/NotificationsWindow.tsx",
         ]

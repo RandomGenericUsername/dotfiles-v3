@@ -276,6 +276,17 @@ wallpaper-selector:
       template: status-bar/wallpaper-selector/default/wallpaper-selector.svg
       output: wallpaper-selector.svg
 
+wallpaper-progress:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: picture
+      template: status-bar/wallpaper-progress/default/icon.svg
+      output: wallpaper-progress-picture.svg
+    - name: check-circle
+      template: status-bar/wallpaper-progress/default/check-circle.svg
+      output: wallpaper-progress-check-circle.svg
+
 btop:
   color_mappings:
     COLOR_FOREGROUND: color15
@@ -528,4 +539,3 @@ media-transport:
     - name: next
       template: media-transport/default/next.svg
       output: media-transport-next.svg
-

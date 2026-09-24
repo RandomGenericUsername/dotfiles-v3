@@ -12,6 +12,7 @@ import GdkPixbuf from "gi://GdkPixbuf?version=2.0";
 import GLib from "gi://GLib?version=2.0";
 import Pango from "gi://Pango?version=1.0";
 import { createEffect, createState } from "ags";
+import { refreshPaletteCss } from "../lib/theme";
 import { applyWallpaper } from "../lib/apply";
 import { getContrastPref, regenerateIcons, setContrastPref } from "../lib/contrast";
 import { domainEvents, WALLPAPER_STATE_TOPIC } from "../lib/event-bus";
@@ -760,7 +761,7 @@ export function WallpaperSelectorWindow(gdkmonitor: Gdk.Monitor) {
   // re-rendered search icon whenever a set lands.
   function refreshChrome(): void {
     try {
-      app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`);
+      refreshPaletteCss();
     } catch (error) {
       console.error(`wallpaper-selector: style refresh failed: ${error}`);
     }
