@@ -355,6 +355,8 @@ class TestReadRealManifests:
             "pipewire",
             "wireplumber",
             "pipewire-audio",
+            "pipewire-pulse",
+            "pavucontrol",
             "gpu-screen-recorder",
             "wf-recorder",
             "rofi",
