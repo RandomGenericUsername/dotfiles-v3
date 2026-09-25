@@ -657,9 +657,19 @@ function DeviceCard({
   volume: Accessor<number>
   muteRaw: Accessor<boolean>
 }) {
+  const epoch = useEndpointEpoch(endpoint)
   const node = createComputed(() => nodeOf(endpoint()))
-  const level = createComputed(() => clampVolume(volume()))
-  const muted = createComputed(() => muteRaw() === true)
+  //: Read LIVE GObject props through the epoch (OutputIndicator pattern) —
+  //: the passed volume/muteRaw accessors memoize on list membership only and
+  //: never see notify::volume/notify::mute on the resolved node.
+  const level = createComputed(() => {
+    epoch()
+    return clampVolume(nodeOf(endpoint())?.volume ?? 0)
+  })
+  const muted = createComputed(() => {
+    epoch()
+    return nodeOf(endpoint())?.mute === true
+  })
   const glyphVariant = createComputed(() => levelVariant(muted(), level()))
   const micIcon = createComputed<string | null>(() =>
     systemIcon("microphone", muted() ? "system-mic-off" : "system-mic-on"),
