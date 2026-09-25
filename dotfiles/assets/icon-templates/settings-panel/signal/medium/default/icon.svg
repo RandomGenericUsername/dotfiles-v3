@@ -1,0 +1,6 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M851.285 37V987H986.999V37H851.285Z" fill="{{COLOR_FOREGROUND}}" fill-opacity="0.5"/>
+<path d="M579.857 240.571V987H715.572V240.571H579.857Z" fill="{{COLOR_FOREGROUND}}" fill-opacity="0.5"/>
+<path d="M308.428 987V444.143H444.142V987H308.428Z" fill="{{COLOR_FOREGROUND}}"/>
+<path d="M37 647.714V987H172.714V647.714H37Z" fill="{{COLOR_FOREGROUND}}"/>
+</svg>

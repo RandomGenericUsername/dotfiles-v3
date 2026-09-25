@@ -522,9 +522,13 @@ window.settings-panel {
   opacity: 0.45;
 }
 
+/* min-width keeps the name cell from collapsing while the badge reserves its
+   own width; truncation itself is widget-level (maxWidthChars + ellipsize —
+   GTK4 has no max-width, see `.audio-routing label`). */
 .settings-net-name {
   font-size: 12.5px;
   font-weight: 600;
+  min-width: 48px;
 }
 
 .settings-net-sub {
@@ -589,6 +593,33 @@ window.settings-panel {
   min-width: 14px;
   min-height: 14px;
   color: @color_13;
+}
+
+/* Bluetooth row line 2 (approved mock `l2`): stacked meta block on the left,
+   action buttons on the right. The split is done at the widget level — child
+   `spacing` prop + `hexpand` on the meta cell, which pushes the actions to
+   the row's right edge. GTK4 has no `justify-content` / `spacing` CSS
+   properties (same class of limitation as the `max-width` note in
+   `.audio-routing label`), so the mock's flex declarations are intentionally
+   NOT shipped as CSS. */
+.settings-row-meta {
+}
+
+/* Meta glyph: 14px to match `pixel_size` on the <image>, pinned with
+   min-width/min-height. GTK4 has no `flex` CSS property (same limitation as
+   above), so the mock's `flex: none` is intentionally NOT shipped — the art
+   does not stretch because the widget's natural size is 14px. */
+.settings-meta-icon {
+  min-width: 14px;
+  min-height: 14px;
+}
+
+/* Meta stat rows (battery %, signal dBm): 10.5px at 14px line box, quiet
+   opacity — mock `.stat`. */
+.settings-meta-stat {
+  font-size: 10.5px;
+  opacity: 0.72;
+  line-height: 14px;
 }
 
 /* Signal strength bars */

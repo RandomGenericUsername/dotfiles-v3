@@ -1240,6 +1240,8 @@ class TestVerifyVars:
             "{{ verify_state_current_dir }}/icons/volume-low.svg",
             "{{ verify_state_current_dir }}/icons/volume-system-low.svg",
             "{{ verify_state_current_dir }}/icons/microphone-system-mic-on.svg",
+            "{{ verify_state_current_dir }}/icons/system-battery-100.svg",
+            "{{ verify_state_current_dir }}/icons/settings-panel-signal-good.svg",
         ]
 
     def test_verify_lists_include_the_phase5_event_modules(self) -> None:
@@ -2127,13 +2129,17 @@ def _build_provisioned_layout(
     # panel; the settings-panel Wi-Fi and volume-low glyphs prove the new
     # groups rendered (add-ags-settings-panel); volume-system-low and
     # microphone-system-mic-on prove the dual-surface system-* copies
-    # (add-system-icon-variants) rendered.
+    # (add-system-icon-variants) rendered; system-battery-100 and
+    # settings-panel-signal-good prove the Bluetooth row's glyphs rendered
+    # (bluetooth-row-battery-signal).
     for sample in (
         "battery-0",
         "settings-panel-wifi",
         "volume-low",
         "volume-system-low",
         "microphone-system-mic-on",
+        "system-battery-100",
+        "settings-panel-signal-good",
     ):
         (state_cache_icons / f"{sample}.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"></svg>'

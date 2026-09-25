@@ -1,5 +1,6 @@
 import { Accessor, createComputed, createEffect, For } from "ags"
 import { Gtk } from "ags/gtk4"
+import Pango from "gi://Pango?version=1.0"
 import { registry } from "../../lib/icon-registry"
 import { IconToggle } from "../primitives/IconToggle"
 import {
@@ -44,6 +45,33 @@ function bluetoothIconOn(): string | null {
 
 function bluetoothIconOff(): string | null {
   return registry.resolve("settings-panel", "bluetooth-off")
+}
+
+/**
+ * Battery level (BlueZ integer 0-100) → the panel's guard-exempt glyph
+ * variant. Bucket boundaries mirror the bar's `getBatteryStateKey`
+ * (`<25 / <50 / <75 / <100`, which takes a 0-1 fraction): one threshold
+ * set serves both surfaces. The panel must never resolve bare `battery-*`
+ * — those are guard-subject (status bar only).
+ */
+function batteryVariant(level: number): string {
+  if (level < 25) return "system-battery-0"
+  if (level < 50) return "system-battery-25"
+  if (level < 75) return "system-battery-50"
+  if (level < 100) return "system-battery-75"
+  return "system-battery-100"
+}
+
+/**
+ * RSSI (dBm, negative = present) → `settings-panel` signal level.
+ * Fixed contract thresholds (design D5): ≥−60 high, ≥−70 good,
+ * ≥−80 medium, else low. The row only renders this line when `rssi < 0`.
+ */
+function signalVariant(rssi: number): string {
+  if (rssi >= -60) return "high"
+  if (rssi >= -70) return "good"
+  if (rssi >= -80) return "medium"
+  return "low"
 }
 
 /** Header/standalone power toggle for the Bluetooth capability. */
@@ -105,47 +133,100 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
   }
 
   return (
-    <box class={rowClass} spacing={10}>
-      <box orientation={1} hexpand>
-        <label class="settings-net-name" xalign={0} label={name} />
+    <box class={rowClass} orientation={1} spacing={3}>
+      <box spacing={8}>
         <label
-          class="settings-net-sub"
+          class="settings-net-name"
           xalign={0}
-          label={createComputed(() => {
-            if (absent()) return "Not in range"
-            const status = connected()
-              ? "Connected"
-              : paired()
-                ? "Paired"
-                : "Available"
-            const level = battery()
-            return connected() && level > 0 ? `${status} · ${level}%` : status
-          })}
+          label={name}
+          hexpand
+          maxWidthChars={26}
+          ellipsize={Pango.EllipsizeMode.END}
+          tooltipText={name}
+        />
+        <label
+          class="settings-badge conn"
+          label="Connected"
+          valign={Gtk.Align.CENTER}
+          visible={connected}
         />
       </box>
-      <label class="settings-badge conn" label="Connected" visible={connected} />
-      <Gtk.Spinner class="settings-spinner" visible={busy} spinning={busy} />
-      <button
-        class="settings-rowact"
-        onClicked={act}
-        canFocus={false}
-        visible={createComputed(() => !busy())}
-        sensitive={createComputed(() => inRange() && !anyBusy())}
-      >
-        <label
-          label={createComputed(() =>
-            connected() ? "Disconnect" : paired() ? "Connect" : "Pair",
-          )}
-        />
-      </button>
-      <button
-        class="settings-rowact subtle"
-        onClicked={unpair}
-        canFocus={false}
-        visible={createComputed(() => paired() && !anyBusy())}
-      >
-        <label label="Unpair" />
-      </button>
+      <box class="settings-row-meta" spacing={8}>
+        <box orientation={1} spacing={2} hexpand>
+          <label
+            class="settings-meta-stat"
+            xalign={0}
+            label="Not in range"
+            visible={absent}
+          />
+          <box
+            class="settings-meta-stat"
+            spacing={6}
+            visible={createComputed(() => connected() && battery() > 0)}
+          >
+            <image
+              class="settings-meta-icon"
+              pixel_size={14}
+              $={(self) => {
+                createEffect(() => {
+                  self.set_from_file(
+                    registry.resolve("battery", batteryVariant(battery())) ??
+                      "",
+                  )
+                })
+              }}
+            />
+            <label label={createComputed(() => `${battery()}%`)} />
+          </box>
+          <box
+            class="settings-meta-stat"
+            spacing={6}
+            visible={createComputed(() => rssi() < 0)}
+          >
+            <image
+              class="settings-meta-icon"
+              pixel_size={14}
+              $={(self) => {
+                createEffect(() => {
+                  self.set_from_file(
+                    registry.resolve(
+                      "settings-panel",
+                      "signal-" + signalVariant(rssi()),
+                    ) ?? "",
+                  )
+                })
+              }}
+            />
+            <label label={createComputed(() => `−${Math.abs(rssi())} dBm`)} />
+          </box>
+        </box>
+        <box spacing={8} valign={Gtk.Align.CENTER}>
+          <Gtk.Spinner class="settings-spinner" visible={busy} spinning={busy} />
+          <button
+            class="settings-rowact"
+            onClicked={act}
+            canFocus={false}
+            valign={Gtk.Align.CENTER}
+            visible={createComputed(() => !busy())}
+            sensitive={createComputed(() => inRange() && !anyBusy())}
+          >
+            <label
+              label={createComputed(() =>
+                connected() ? "Disconnect" : paired() ? "Connect" : "Pair",
+              )}
+            />
+          </button>
+          <button
+            class="settings-rowact subtle"
+            onClicked={unpair}
+            canFocus={false}
+            valign={Gtk.Align.CENTER}
+            visible={createComputed(() => paired() && !anyBusy())}
+          >
+            <label label="Unpair" />
+          </button>
+        </box>
+      </box>
     </box>
   )
 }

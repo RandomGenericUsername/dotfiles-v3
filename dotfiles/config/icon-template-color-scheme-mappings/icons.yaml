@@ -39,6 +39,32 @@ battery:
 
       color_mappings:
         COLOR_FOREGROUND: color15
+    # System-surface copies: variant-level pin exempts them from the bar contrast guard.
+    - name: system-battery-0
+      template: status-bar/battery/battery-0/default/icon.svg
+      output: system-battery-0.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-battery-25
+      template: status-bar/battery/battery-25/default/icon.svg
+      output: system-battery-25.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-battery-50
+      template: status-bar/battery/battery-50/default/icon.svg
+      output: system-battery-50.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-battery-75
+      template: status-bar/battery/battery-75/default/icon.svg
+      output: system-battery-75.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
+    - name: system-battery-100
+      template: status-bar/battery/battery-100/default/icon.svg
+      output: system-battery-100.svg
+      color_mappings:
+        COLOR_FOREGROUND: foreground
   bar_mappings:
     widget: battery
     icon_size: 24
@@ -396,6 +422,19 @@ settings-panel:
     - name: hyprmod
       template: settings-panel/hyprmod/default/icon.svg
       output: settings-panel-hyprmod.svg
+    # Signal-strength glyphs for the Bluetooth row (guard-exempt group).
+    - name: signal-low
+      template: settings-panel/signal/low/default/icon.svg
+      output: settings-panel-signal-low.svg
+    - name: signal-medium
+      template: settings-panel/signal/medium/default/icon.svg
+      output: settings-panel-signal-medium.svg
+    - name: signal-good
+      template: settings-panel/signal/good/default/icon.svg
+      output: settings-panel-signal-good.svg
+    - name: signal-high
+      template: settings-panel/signal/high/default/icon.svg
+      output: settings-panel-signal-high.svg
 
 brightness:
   color_mappings:

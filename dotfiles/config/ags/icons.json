@@ -134,6 +134,46 @@
         "name": "plugged",
         "output": "plugged.svg",
         "template": "status-bar/battery/plugged/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-battery-0",
+        "output": "system-battery-0.svg",
+        "template": "status-bar/battery/battery-0/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-battery-25",
+        "output": "system-battery-25.svg",
+        "template": "status-bar/battery/battery-25/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-battery-50",
+        "output": "system-battery-50.svg",
+        "template": "status-bar/battery/battery-50/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-battery-75",
+        "output": "system-battery-75.svg",
+        "template": "status-bar/battery/battery-75/default/icon.svg"
+      },
+      {
+        "color_mappings": {
+          "COLOR_FOREGROUND": "foreground"
+        },
+        "name": "system-battery-100",
+        "output": "system-battery-100.svg",
+        "template": "status-bar/battery/battery-100/default/icon.svg"
       }
     ]
   },
@@ -565,6 +605,26 @@
         "name": "hyprmod",
         "output": "settings-panel-hyprmod.svg",
         "template": "settings-panel/hyprmod/default/icon.svg"
+      },
+      {
+        "name": "signal-low",
+        "output": "settings-panel-signal-low.svg",
+        "template": "settings-panel/signal/low/default/icon.svg"
+      },
+      {
+        "name": "signal-medium",
+        "output": "settings-panel-signal-medium.svg",
+        "template": "settings-panel/signal/medium/default/icon.svg"
+      },
+      {
+        "name": "signal-good",
+        "output": "settings-panel-signal-good.svg",
+        "template": "settings-panel/signal/good/default/icon.svg"
+      },
+      {
+        "name": "signal-high",
+        "output": "settings-panel-signal-high.svg",
+        "template": "settings-panel/signal/high/default/icon.svg"
       }
     ]
   },
@@ -707,6 +767,23 @@
         "name": "system-max",
         "output": "volume-system-max.svg",
         "template": "volume/max/default/icon.svg"
+      }
+    ]
+  },
+  "wallpaper-progress": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "picture",
+        "output": "wallpaper-progress-picture.svg",
+        "template": "status-bar/wallpaper-progress/default/icon.svg"
+      },
+      {
+        "name": "check-circle",
+        "output": "wallpaper-progress-check-circle.svg",
+        "template": "status-bar/wallpaper-progress/default/check-circle.svg"
       }
     ]
   },

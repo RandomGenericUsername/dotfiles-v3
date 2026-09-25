@@ -763,3 +763,20 @@ bar icons to a darker palette token before ITR renders.
   rewrite. Standing rule: Bar resolves bare, system resolves `system-*`.
   Any group consumed on dark glass MUST expose `system-*` copies from day
   one.
+
+### 14.1 Bluetooth row icon sources
+
+The settings-panel Bluetooth row renders two kinds of live glyphs:
+
+- **Signal glyphs** from the guard-exempt `settings-panel` group:
+  `signal-{low,medium,good,high}` → `settings-panel-signal-*.svg`, inheriting
+  the group's `COLOR_FOREGROUND → foreground` (non-bar groups are never
+  rewritten by the contrast guard).
+- **Battery glyphs** from the `battery` group's `system-battery-*` variants
+  (`system-battery-{0,25,50,75,100}`), each carrying a variant-level
+  `COLOR_FOREGROUND → foreground` pin — the same structural exemption as
+  `volume-system-*`.
+
+Standing rule: panel surfaces never resolve bare `battery-*` — those
+outputs are guard-subject (rewritten on light wallpapers for the status
+bar) and would render unreadably on the dark-glass panel.
