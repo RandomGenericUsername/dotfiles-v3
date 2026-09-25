@@ -98,7 +98,7 @@
   `:281-319`): light palette flips bare `battery.COLOR_FOREGROUND`, while
   `system-battery-*` variant blocks and `settings-panel-signal-*` outputs are
   byte-identical in the overlay. No existing test may be modified.
-- [ ] 4.3 Pre-gates green:
+- [x] 4.3 Pre-gates green:
   `uv run --directory src/runtime pytest -q`,
   `uv run --directory src/provisioning pytest -q`,
   `make contracts-check`, `itr list --mappings
@@ -112,7 +112,7 @@
 - [x] 4.5 Live gate (bundle-green ≠ working): after deploy, the AGS log shows
   no TS/bundle error and the row renders real values — set a device battery/
   RSSI, confirm the glyph and number change without rebuilding.
-- [ ] 4.6 Light-wallpaper proof: `dotfiles-runtime wallpaper set <light.png>`
+- [x] 4.6 Light-wallpaper proof: `dotfiles-runtime wallpaper set <light.png>`
   → bar battery glyph goes dark (guard ON) while the panel's battery/signal
   glyphs stay palette `foreground`; then restore the original wallpaper and
   confirm the bar returns to authored colors.
@@ -132,7 +132,7 @@
 - [x] 5.3 `uv run --directory src/provisioning dotfiles-provision verify`
   green — proves `verify_icons_samples` (incl. the 2 new entries) and the
   AGS config file list (`BluetoothContent.tsx`, `style.css`) converged.
-- [ ] 5.4 Final owner-accept gate: `make bootstrap` green, then owner visual
+- [x] 5.4 Final owner-accept gate: `make bootstrap` green, then owner visual
   sign-off on the live panel against `mockups/bluetooth-row-final.html`.
 
 ## 6. Docs (minimal)
