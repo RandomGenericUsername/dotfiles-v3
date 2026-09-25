@@ -4,8 +4,6 @@
 -- Hyprland >= 0.55 uses the Lua config API (hl.* functions). Modules are
 -- included with Lua's dofile(), NOT hyprlang's `source =` directive.
 
-require("hyprland-gui")
-
 local cfg = "{{ compositor_configs_xdg_config_home }}/hypr"
 
 dofile(cfg .. "/env-variables.lua")
@@ -20,3 +18,6 @@ dofile(cfg .. "/cursor.lua")
 dofile(cfg .. "/keybindings.lua")
 dofile(cfg .. "/window-rules.lua")
 dofile(cfg .. "/autostart.lua")
+-- HyprMod owns user-adjustable overrides. Load it last so its values win over
+-- the dotfiles defaults above when both configure the same option.
+require("hyprland-gui")

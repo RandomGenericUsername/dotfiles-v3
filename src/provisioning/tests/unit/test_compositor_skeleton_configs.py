@@ -87,6 +87,12 @@ class TestHyprlandSkeleton:
                 f"hyprland.lua must dofile ../{module}"
             )
 
+    def test_hyprmod_overrides_load_after_dotfiles_defaults(self) -> None:
+        content = _HYPR_LUA.read_text(encoding="utf-8")
+        assert content.rfind('dofile(cfg .. "/') < content.index(
+            'require("hyprland-gui")'
+        ), "HyprMod overrides must load after dotfiles module defaults"
+
 
 class TestAutostartLoginRestore:
     def test_reconcile_hook_exists_and_is_fail_open(self) -> None:
