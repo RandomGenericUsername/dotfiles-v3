@@ -3,14 +3,14 @@ import { NavHeader } from "../primitives"
 import { activeView, back, panelVisible } from "../state"
 import {
   WifiContent,
-  WifiToggle,
   cancelWifiPrompt,
   wifiPromptSsid,
   wifiPromptVisible,
 } from "../../components/wifi/WifiContent"
+import { WifiSwitch } from "../../components/primitives/WifiSwitch"
+import { setWifiEnabled, wifiEnabled, wifiReady } from "../../services/wifi-service"
 
 export function WifiView() {
-  // Back from the password prompt returns to the network list, not the panel.
   function onBack() {
     if (wifiPromptVisible()) cancelWifiPrompt()
     else back()
@@ -21,9 +21,8 @@ export function WifiView() {
       <NavHeader
         title={createComputed(() => wifiPromptSsid() ?? "Wi-Fi")}
         onBack={onBack}
-        trailing={<WifiToggle />}
+        trailing={<WifiSwitch active={wifiEnabled} sensitive={wifiReady} onToggled={(v) => { void setWifiEnabled(v) }} />}
       />
-
       <WifiContent
         visible={createComputed(
           () => panelVisible() && activeView() === "wifi",

@@ -1,0 +1,5 @@
+{
+  "interval_ms": 900000,
+  "run_on_connect": true,
+  "server_mode": "auto"
+}

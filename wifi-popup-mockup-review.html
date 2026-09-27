@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wi-Fi redesign — review mockup</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #100915;
+    --surface: rgba(25, 17, 32, .97);
+    --surface2: #21162b;
+    --line: rgba(195,193,196,.12);
+    --fg: #c3c1c4;
+    --muted: rgba(195,193,196,.52);
+    --dim: rgba(195,193,196,.32);
+    --accent: #c22b5f;
+    --accent-soft: rgba(194,43,95,.2);
+    --blue: #80aaff;
+  }
+  * { box-sizing: border-box }
+  body { margin:0; padding:28px; background:#0b0710; color:var(--fg); font:14px/1.45 Inter,ui-sans-serif,system-ui,sans-serif }
+  h1 { margin:0 0 7px; color:#fff; font-size:23px }
+  .intro { max-width:850px; margin:0 0 25px; color:var(--muted) }
+  .states { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:22px; align-items:start }
+  .state { min-width:0 }
+  .caption { display:flex; align-items:baseline; gap:9px; margin:0 0 9px; color:#fff; font-weight:650 }
+  .caption small { color:var(--muted); font-weight:400; font-size:11px }
+  .flow { display:flex; align-items:center; justify-content:center; gap:9px; margin:0 0 9px; color:var(--dim); font-size:11px }
+  .flow b { color:var(--fg); font-weight:550 }
+  .popup,.panel { width:100%; max-width:360px; overflow:hidden; border:1px solid var(--line); border-radius:13px; background:var(--surface); box-shadow:0 14px 40px #0008 }
+  .header { display:flex; align-items:center; justify-content:space-between; min-height:54px; padding:12px 16px; border-bottom:1px solid var(--line) }
+  .title { color:#fff; font-size:15px; font-weight:650 }
+  .header-right { display:flex; align-items:center; gap:10px }
+  .power { position:relative; width:40px; height:23px; border-radius:20px; background:var(--accent); box-shadow:inset 0 0 0 1px #ffffff1c }
+  .power:after { content:""; position:absolute; top:2px; right:2px; width:19px; height:19px; border-radius:50%; background:#f8f5f8; box-shadow:0 1px 4px #0008 }
+  .power.off { background:#514957 }
+  .power.off:after { left:2px; right:auto; background:#bbb5bf }
+  .body { padding:9px 0 0 }
+  .details { padding:6px 16px 10px; color:var(--muted); font-size:11px }
+  .detail { display:flex; justify-content:space-between; gap:10px; padding:2px 0 }
+  .detail b { color:rgba(235,231,237,.78); font-weight:500; text-align:right }
+  .divider { height:1px; margin:5px 0; background:var(--line) }
+  .section { padding:8px 16px 4px; color:var(--dim); font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase }
+  .network { display:flex; align-items:center; gap:10px; min-height:55px; padding:7px 14px; border-left:2px solid transparent }
+  .network.selected { background:rgba(194,43,95,.11); border-left-color:var(--accent) }
+  .signal { width:27px; height:27px; flex:none }
+  .network-info { min-width:0; flex:1 }
+  .network-name { overflow:hidden; color:#fff; font-size:13px; font-weight:550; text-overflow:ellipsis; white-space:nowrap }
+  .network-sub { color:var(--muted); font-size:10px }
+  .badge { padding:3px 8px; border-radius:12px; background:var(--accent-soft); color:#f094b2; font-size:9px; font-weight:700; text-transform:uppercase }
+  .connect { padding:5px 10px; border:1px solid #c22b5f66; border-radius:7px; color:#ef8bac; font-size:11px; font-weight:600 }
+  .chevron-row,.footer-action { display:flex; align-items:center; justify-content:space-between; min-height:40px; padding:8px 16px; border:0; border-top:1px solid var(--line); background:transparent; color:rgba(235,231,237,.82); font:inherit; text-align:left }
+  .chevron-row { color:rgba(235,231,237,.7); font-size:12px }
+  .footer-action { cursor:pointer; color:#f08cac; font-size:12px; font-weight:600 }
+  .footer-action .arrow { color:var(--dim); font-size:17px }
+  .footer-action:hover { background:#ffffff08 }
+  .speed { margin:8px 12px 10px; padding:11px 12px; border:1px solid var(--line); border-radius:9px; background:rgba(255,255,255,.025) }
+  .speed-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; color:#fff; font-weight:650 }
+  .speed-head span:last-child { color:var(--muted); font-size:11px; font-weight:400 }
+  .setting-line { display:flex; align-items:center; justify-content:space-between; padding:5px 0; color:var(--muted); font-size:11px }
+  .setting-line b { color:rgba(235,231,237,.82); font-weight:550 }
+  .select { padding:3px 8px; border:1px solid var(--line); border-radius:5px; color:#e8e2e9; background:var(--surface2); font-size:10px }
+  .run { padding:5px 10px; border:0; border-radius:6px; background:var(--accent-soft); color:#f094b2; font-size:10px; font-weight:650 }
+  .result { display:flex; gap:12px; padding:2px 16px 9px; color:var(--muted); font-size:10px }
+  .result b { color:rgba(235,231,237,.8); font-weight:550 }
+  .off-state { padding:35px 16px; color:var(--muted); text-align:center }
+  .desktop { position:relative; width:100%; max-width:470px; min-height:285px; overflow:hidden; border:1px solid #ffffff17; border-radius:12px; background:radial-gradient(ellipse at 30% 30%,#36213c 0,#1c1223 38%,#100915 75%); box-shadow:0 14px 40px #0008 }
+  .bar { height:29px; display:flex; align-items:center; justify-content:space-between; padding:0 11px; background:#100915de; border-bottom:1px solid #ffffff14; color:#e7e1e8; font-size:9px }
+  .bar-left { display:flex; align-items:center; gap:9px }
+  .bar-glyph { color:#d8d3da; font-size:12px }
+  .bar-settings { display:grid; width:21px; height:21px; place-items:center; border-radius:50%; background:var(--accent); color:#170c15; font-size:14px; font-weight:bold }
+  .panel { position:absolute; top:38px; right:10px; width:270px; max-width:calc(100% - 20px); border-radius:11px }
+  .panel .header { min-height:44px; padding:9px 12px }
+  .panel .title { font-size:13px }
+  .tile { display:flex; align-items:center; gap:9px; min-height:48px; margin:7px 9px; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:#ffffff04 }
+  .tile-icon { display:grid; width:27px; height:27px; flex:none; place-items:center; border-radius:50%; background:var(--accent); color:#170c15; font-size:13px }
+  .tile-copy { flex:1 }
+  .tile-title { color:#fff; font-size:11px; font-weight:650 }
+  .tile-sub { color:var(--muted); font-size:9px }
+  .tile-chevron { color:var(--dim); font-size:17px }
+  .tile.wifi { cursor:pointer }
+  .mini-card { margin:7px 9px; padding:9px; border:1px solid var(--line); border-radius:8px; color:var(--muted); font-size:10px }
+  .panel-top { position:absolute; top:38px; right:10px; width:270px; max-width:calc(100% - 20px) }
+  .nav { display:flex; align-items:center; gap:9px; min-height:43px; padding:8px 11px; border-bottom:1px solid var(--line); color:#fff; font-size:12px; font-weight:650 }
+  .nav .back { color:var(--muted); font-size:18px }
+  .nav .power { margin-left:auto; transform:scale(.83); transform-origin:right center }
+  .panel .network { gap:7px; min-height:43px; padding:5px 9px }
+  .panel .signal { width:22px; height:22px }
+  .panel .network-name { font-size:10px }
+  .panel .network-sub { font-size:8px }
+  .desktop-label { position:absolute; left:12px; bottom:12px; color:#ffffffb3; font-size:10px }
+  .desktop-label b { color:#fff }
+  .prompt { margin:8px 12px 12px; padding:10px; border:1px solid var(--line); border-radius:8px }
+  .prompt-label { margin-bottom:5px; color:var(--muted); font-size:9px }
+  .input { height:28px; padding:5px 8px; border:1px solid #ffffff2a; border-radius:5px; color:#eee; font-size:11px }
+  .prompt-buttons { display:flex; justify-content:flex-end; gap:7px; margin-top:8px }
+  .prompt-buttons span { padding:4px 9px; border-radius:5px; color:var(--muted); font-size:9px }
+  .prompt-buttons .join { background:var(--accent); color:#fff; font-weight:650 }
+  .spinner { width:17px; height:17px; flex:none; border:2px solid rgba(240,140,172,.25); border-top-color:#f08cac; border-radius:50%; animation:spin .75s linear infinite }
+  @keyframes spin { to { transform:rotate(360deg) } }
+  .connecting { display:flex; align-items:center; gap:7px; color:#f094b2; font-size:10px; font-weight:550 }
+  .external { margin:10px 12px 12px; padding:9px 11px; border:1px dashed #c22b5f85; border-radius:8px; background:#c22b5f0b; color:var(--muted); font-size:10px }
+  .external b { color:#fff }
+  .external code { color:#f094b2; font-size:10px }
+  @media(max-width:600px) { body{padding:17px} }
+</style>
+</head>
+<body>
+<h1>Wi‑Fi redesign — review mockup</h1>
+<p class="intro">A new pass over the earlier states using your corrections. State 4 is shown as the two-step Settings-panel path. The Wi‑Fi Settings destination is marked as an assumption for review: the repo currently launches <b>wifitui</b> from the bar’s right-click action.</p>
+
+<main class="states">
+  <section class="state">
+    <div class="caption">State 1 <small>Connected · collapsed</small></div>
+    <div class="popup">
+      <div class="header"><span class="title">Wi‑Fi</span><span class="power"></span></div>
+      <div class="body">
+        <div class="details">
+          <div class="detail"><span>MAC</span><b>a4:32:10:f2:c8:3d</b></div>
+          <div class="detail"><span>IP / interface</span><b>192.168.1.42 · wlan0</b></div>
+          <div class="detail"><span>Last speed test</span><b>↓ 342 · ↑ 118 Mbps · 4 ms</b></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section">Known Networks</div>
+        <div class="network selected">
+          <svg class="signal" viewBox="0 0 1024 1024" aria-label="Full Wi-Fi signal"><circle cx="512" cy="512" r="475" fill="#27162e"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="#c3c1c4"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="#c3c1c4"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="#c3c1c4"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="#c3c1c4"/></svg>
+          <div class="network-info"><div class="network-name">Home Network</div><div class="network-sub">Saved · WPA2</div></div><span class="badge">Connected</span>
+        </div>
+        <button class="chevron-row"><span>Other Networks</span><span>▸</span></button>
+        <button class="footer-action"><span>Wi‑Fi Settings <small>(network utility)</small></span><span class="arrow">›</span></button>
+      </div>
+    </div>
+    <div class="external"><b>Wi‑Fi Settings action:</b> launches the NetworkManager Wi‑Fi utility. In this draft, that destination is depicted as a terminal running <code>wifitui tui</code> (the existing repo action).</div>
+  </section>
+
+  <section class="state">
+    <div class="caption">State 2 <small>Speed Test settings expanded</small></div>
+    <div class="flow"><b>State 1</b><span>→</span><span>expand Speed Test</span><span>→</span><b>State 2</b></div>
+    <div class="popup">
+      <div class="header"><span class="title">Wi‑Fi</span><span class="power"></span></div>
+      <div class="body">
+        <div class="result"><span>Last test</span><b>↓ 342 · ↑ 118 Mbps · 4 ms</b></div>
+        <div class="divider"></div>
+        <div class="section">Known Networks</div>
+        <div class="network selected">
+          <svg class="signal" viewBox="0 0 1024 1024" aria-label="Full Wi-Fi signal"><circle cx="512" cy="512" r="475" fill="#27162e"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="#c3c1c4"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="#c3c1c4"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 405.984 512.211 364.258 593.703Z" fill="#c3c1c4"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="#c3c1c4"/></svg>
+          <div class="network-info"><div class="network-name">Home Network</div><div class="network-sub">Saved · WPA2</div></div><span class="badge">Connected</span>
+        </div>
+        <div class="network">
+          <svg class="signal" viewBox="0 0 1024 1024" aria-label="Medium Wi-Fi signal"><circle cx="512" cy="512" r="475" fill="#27162e"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="#c3c1c4" fill-opacity=".5"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="#c3c1c4" fill-opacity=".5"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="#c3c1c4"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="#c3c1c4"/></svg>
+          <div class="network-info"><div class="network-name">Cafe_WiFi</div><div class="network-sub">Open network</div></div><span class="connect">Connect</span>
+        </div>
+        <div class="speed">
+          <div class="speed-head"><span>Speed Test</span><span>⌃</span></div>
+          <div class="setting-line"><span>Run every</span><span class="select">15 minutes ▾</span></div>
+          <div class="setting-line"><span>Run after connecting</span><b>On</b></div>
+          <div class="setting-line"><span>Server</span><b>Automatic</b></div>
+          <div class="setting-line"><span>Run a test now</span><button class="run">Run now</button></div>
+        </div>
+        <button class="footer-action"><span>Wi‑Fi Settings <small>(network utility)</small></span><span class="arrow">›</span></button>
+      </div>
+    </div>
+    <div class="external"><b>Separate destinations:</b> “Speed Test” controls the test schedule; “Wi‑Fi Settings” opens the network utility.</div>
+  </section>
+
+  <section class="state">
+    <div class="caption">State 3 <small>Wi‑Fi off</small></div>
+    <div class="popup">
+      <div class="header"><span class="title">Wi‑Fi</span><span class="power off"></span></div>
+      <div class="off-state">Wi‑Fi is off</div>
+    </div>
+  </section>
+
+  <section class="state">
+    <div class="caption">State 4 <small>Open Settings → select Wi‑Fi</small></div>
+    <div class="flow"><b>1 · Open Settings panel</b><span>→</span><b>2 · Open Wi‑Fi component</b></div>
+    <div style="display:grid;gap:12px">
+      <div class="desktop">
+        <div class="bar"><div class="bar-left"><span class="bar-glyph">◖</span><span class="bar-glyph">ᛒ</span><span>◉</span></div><span>Mon 2:52</span><span class="bar-settings">☷</span></div>
+        <div class="panel">
+          <div class="header"><span class="title">Control Center</span><span style="color:var(--muted);font-size:10px">Settings</span></div>
+          <div class="tile wifi"><span class="tile-icon">⌁</span><span class="tile-copy"><span class="tile-title">Wi‑Fi</span><br><span class="tile-sub">Home Network</span></span><span class="tile-chevron">›</span></div>
+          <div class="tile"><span class="tile-icon" style="background:#534657;color:#ddd">ᛒ</span><span class="tile-copy"><span class="tile-title">Bluetooth</span><br><span class="tile-sub">MX Master connected</span></span><span class="tile-chevron">›</span></div>
+          <div class="mini-card">Display　━━━━━━━━━━━━●━━<br><br>Sound　━━━━━━●━━━━━━</div>
+        </div>
+        <div class="desktop-label"><b>Step 1.</b> Click the bar’s Settings icon. Then select the Wi‑Fi row.</div>
+      </div>
+      <div class="desktop">
+        <div class="bar"><div class="bar-left"><span class="bar-glyph">◖</span></div><span>Mon 2:52</span><span class="bar-settings">☷</span></div>
+        <div class="panel-top">
+          <div class="nav"><span class="back">‹</span><span>Wi‑Fi</span><span class="power"></span></div>
+          <div class="network selected"><svg class="signal" viewBox="0 0 1024 1024" aria-label="Full Wi-Fi signal"><circle cx="512" cy="512" r="475" fill="#27162e"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="#c3c1c4"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="#c3c1c4"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 405.984 512.211 364.258 593.703Z" fill="#c3c1c4"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="#c3c1c4"/></svg><div class="network-info"><div class="network-name">Home Network</div><div class="network-sub">Connected · Secured</div></div><span class="badge">Connected</span></div>
+          <div class="network"><svg class="signal" viewBox="0 0 1024 1024" aria-label="Good Wi-Fi signal"><circle cx="512" cy="512" r="475" fill="#27162e"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="#c3c1c4" fill-opacity=".5"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="#c3c1c4"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="#c3c1c4"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="#c3c1c4"/></svg><div class="network-info"><div class="network-name">Cafe_WiFi</div><div class="network-sub">Secured</div></div><span class="connect">Connect</span></div>
+          <div class="network"><svg class="signal" viewBox="0 0 1024 1024" aria-label="Low Wi-Fi signal"><circle cx="512" cy="512" r="475" fill="#27162e"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="#c3c1c4" fill-opacity=".5"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 628.256 445.525 771.092 588.361L857.451 502.002C666.937 311.503 357.061 311.503 166.547 502.002Z" fill="#c3c1c4" fill-opacity=".5"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="#c3c1c4" fill-opacity=".5"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="#c3c1c4"/></svg><div class="network-info"><div class="network-name">Guest Network</div><div class="network-sub">Open network</div></div><span class="connect">Connect</span></div>
+        </div>
+        <div class="desktop-label"><b>Step 2.</b> The Wi‑Fi component is shown in the same panel, with a back arrow.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="state">
+    <div class="caption">State 5 <small>Connecting to a network</small></div>
+    <div class="popup">
+      <div class="header"><span class="title">Wi‑Fi</span><span class="power"></span></div>
+      <div class="body">
+        <div class="section">Known Networks</div>
+        <div class="network selected">
+          <svg class="signal" viewBox="0 0 1024 1024" aria-label="Full Wi-Fi signal"><circle cx="512" cy="512" r="475" fill="#27162e"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 244.554 900.641 458.832L987 372.457C725.076 110.514 298.942 110.514 37 372.457Z" fill="#c3c1c4"/><path d="M166.547 502.002L252.904 588.361C395.74 445.525 628.256 445.525 771.092 588.361L857.451 502.002C666.937 311.503 357.061 311.503 166.547 502.002Z" fill="#c3c1c4"/><path d="M296.077 631.566L382.453 717.925C453.881 646.497 570.121 646.497 641.547 717.925L727.923 631.566C608.816 512.461 415.183 512.461 296.077 631.566Z" fill="#c3c1c4"/><path d="M425.641 761.096L512 847.471L598.359 761.096C550.696 713.434 473.304 713.434 425.641 761.096Z" fill="#c3c1c4"/></svg>
+          <div class="network-info"><div class="network-name">Home Network</div><div class="network-sub">Saved · WPA2</div></div>
+          <span class="connecting"><i class="spinner"></i>Connecting</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

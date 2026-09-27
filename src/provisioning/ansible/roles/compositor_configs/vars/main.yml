@@ -135,6 +135,7 @@ compositor_configs_skeleton_files:
   - { name: ags-status-notifier, source: dotfiles/config/ags/lib/status-notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/status-notifier.ts" }
   - { name: ags-event-bus, source: dotfiles/config/ags/lib/event-bus.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus.ts" }
   - { name: ags-event-bus-core, source: dotfiles/config/ags/lib/event-bus-core.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus-core.ts" }
+  - { name: ags-wifi-signal, source: dotfiles/config/ags/lib/wifi-signal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/wifi-signal.ts" }
   - { name: ags-bar-tsx, source: dotfiles/config/ags/bar/Bar.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx" }
   - { name: ags-workspaces, source: dotfiles/config/ags/bar/widgets/workspaces.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/workspaces.tsx" }
   - { name: ags-clock, source: dotfiles/config/ags/bar/widgets/clock.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/clock.tsx" }
@@ -179,6 +180,7 @@ compositor_configs_skeleton_files:
   - { name: ags-service-nm-client, source: dotfiles/config/ags/services/nm-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/nm-client.ts" }
   - { name: ags-service-wifi, source: dotfiles/config/ags/services/wifi-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/wifi-service.ts" }
   - { name: ags-service-bluetooth, source: dotfiles/config/ags/services/bluetooth-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/bluetooth-service.ts" }
+  - { name: ags-service-speedtest, source: dotfiles/config/ags/services/speedtest-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/speedtest-service.ts" }
   # MPRIS transport (ags-audio-mpris-transport): the session-bus service plus
   # its pure node-testable core. The core is a separate file because it takes
   # no GJS imports (contract I11) — it cannot be inlined into the service.
@@ -186,6 +188,7 @@ compositor_configs_skeleton_files:
   - { name: ags-service-mpris-core, source: dotfiles/config/ags/services/mpris-core.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/mpris-core.ts" }
   - { name: ags-component-primitive-icon-toggle, source: dotfiles/config/ags/components/primitives/IconToggle.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/IconToggle.tsx" }
   - { name: ags-component-primitive-level-slider, source: dotfiles/config/ags/components/primitives/LevelSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/LevelSlider.tsx" }
+  - { name: ags-component-primitive-wifi-switch, source: dotfiles/config/ags/components/primitives/WifiSwitch.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/WifiSwitch.tsx" }
   - { name: ags-component-wifi-state, source: dotfiles/config/ags/components/wifi/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/state.ts" }
   - { name: ags-component-wifi-content, source: dotfiles/config/ags/components/wifi/WifiContent.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/WifiContent.tsx" }
   - { name: ags-component-wifi-popup, source: dotfiles/config/ags/components/wifi/WifiPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/WifiPopup.tsx" }
@@ -193,6 +196,7 @@ compositor_configs_skeleton_files:
   - { name: ags-component-slider-volume, source: dotfiles/config/ags/components/sliders/VolumeSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/VolumeSlider.tsx" }
   - { name: ags-component-slider-brightness, source: dotfiles/config/ags/components/sliders/BrightnessSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/BrightnessSlider.tsx" }
   - { name: rofi-launcher-config-rasi, source: dotfiles/config/rofi/launcher/config.rasi, dest: "{{ compositor_configs_spine_config_dir }}/rofi/launcher/config.rasi" }
+  - { name: ags-wifi-speedtest-config, source: dotfiles/config/ags/wifi-speedtest.json, dest: "{{ compositor_configs_spine_config_dir }}/ags/wifi-speedtest.json" }
 
 # compositor_configs_bin_scripts: executable desktop helpers the XF86 binds in
 #   keybindings.lua call (deployed to the user's XDG bin dir, 0755). These are

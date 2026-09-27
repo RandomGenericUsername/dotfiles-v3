@@ -7,23 +7,13 @@ import {
 } from "./state"
 import {
   WifiContent,
-  WifiToggle,
   wifiPromptVisible,
 } from "./WifiContent"
+import { WifiSwitch } from "../primitives/WifiSwitch"
+import { setWifiEnabled, wifiEnabled, wifiReady } from "../../services/wifi-service"
 
-/**
- * The click-outside catcher for the Wi-Fi popup: a full-screen layer surface,
- * created BEFORE the popup so the popup stacks above it. Shown only while the
- * popup is visible.
- *
- * It must be hit-testable to receive clicks; a fully transparent layer surface
- * is not (see the 1%-opacity background in style.css). Covering the whole
- * screen — including the bar — makes both same-spot (the Wi-Fi icon) and
- * outside clicks close the popup via this single, deterministic path.
- */
 export function WifiPopupCatcher(gdkmonitor: Gdk.Monitor) {
   const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
-
   return (
     <window
       name="wifi-popup-catcher"
@@ -35,30 +25,18 @@ export function WifiPopupCatcher(gdkmonitor: Gdk.Monitor) {
       keymode={Astal.Keymode.NONE}
       visible={wifiPopupVisible}
     >
-      <box
-        class="settings-catcher-fill"
-        hexpand
-        vexpand
-        $={(self) => {
-          const click = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
-          click.connect("released", () => closeWifiPopup())
-          self.add_controller(click)
-        }}
-      />
+      <box class="settings-catcher-fill" hexpand vexpand $={(self) => {
+        const click = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
+        click.connect("released", () => closeWifiPopup())
+        self.add_controller(click)
+      }} />
     </window>
   )
 }
 
-/**
- * The Wi-Fi popup: a window anchored beneath the status-bar Wi-Fi icon, shown
- * on right-click. It reuses the settings-panel surface styling but is otherwise
- * independent of it (one-way dependency).
- */
 export function WifiPopup(gdkmonitor: Gdk.Monitor) {
+  console.error("WifiPopup: rendered, wifiPopupVisible=" + wifiPopupVisible())
   const { TOP, LEFT } = Astal.WindowAnchor
-
-  // Anchor beneath the Wi-Fi icon rather than an edge: left margin = icon
-  // centre − half the width, clamped to the monitor. Matches the panel's 312px.
   const PANEL_WIDTH = 312
   const monitorWidth = gdkmonitor.get_geometry().width
   const marginLeft = createComputed(() => {
@@ -75,9 +53,6 @@ export function WifiPopup(gdkmonitor: Gdk.Monitor) {
       class="settings-panel"
       gdkmonitor={gdkmonitor}
       anchor={TOP | LEFT}
-      /* IGNORE (not NORMAL): a popup must not request an exclusive zone, or
-         Hyprland offsets the overlay surface below the bar's reserved area and
-         then applies marginTop — pushing the popup ~48px too low. */
       exclusivity={Astal.Exclusivity.IGNORE}
       layer={Astal.Layer.OVERLAY}
       keymode={Astal.Keymode.NONE}
@@ -85,22 +60,12 @@ export function WifiPopup(gdkmonitor: Gdk.Monitor) {
       marginLeft={marginLeft}
       visible={wifiPopupVisible}
       $={(self) => {
-        // Keyboard mode is NONE by default so the popup does not steal focus;
-        // that is what lets the bar keep click activation (reliable same-spot
-        // collapse). Switch to ON_DEMAND only while the Wi-Fi password field is
-        // shown, which needs typed input.
         createEffect(() => {
-          self.keymode = wifiPromptVisible()
-            ? Astal.Keymode.ON_DEMAND
-            : Astal.Keymode.NONE
+          self.keymode = wifiPromptVisible() ? Astal.Keymode.ON_DEMAND : Astal.Keymode.NONE
         })
-        // Esc closes while the popup holds keyboard (i.e. password entry).
         const key = new Gtk.EventControllerKey()
         key.connect("key-pressed", (_controller, keyval) => {
-          if (keyval === Gdk.KEY_Escape) {
-            closeWifiPopup()
-            return true
-          }
+          if (keyval === Gdk.KEY_Escape) { closeWifiPopup(); return true }
           return false
         })
         self.add_controller(key)
@@ -108,17 +73,9 @@ export function WifiPopup(gdkmonitor: Gdk.Monitor) {
     >
       <box class="settings-surface" orientation={1} widthRequest={312}>
         <box class="settings-nav-header" spacing={9}>
-          <label
-            class="settings-nav-title"
-            xalign={0}
-            hexpand
-            label="Wi-Fi"
-          />
-          <WifiToggle />
+          <label class="settings-nav-title" xalign={0} hexpand label="Wi-Fi" />
+          <WifiSwitch active={wifiEnabled} sensitive={wifiReady} onToggled={(v) => { void setWifiEnabled(v) }} />
         </box>
-        {/* Bound the list height and scroll it: the popup must not grow to the
-            full window height when many networks are in range. The header stays
-            fixed; only the content scrolls. */}
         <scrolledwindow
           class="settings-scroll"
           vscrollbarPolicy={Gtk.PolicyType.AUTOMATIC}
