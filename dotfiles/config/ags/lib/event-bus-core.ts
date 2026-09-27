@@ -16,6 +16,7 @@ export const EVENTS_INTERFACE = "org.dotfiles.Events1";
 export const DOMAIN_EVENT_SIGNAL = "DomainEvent";
 export const JOBS_CLEARED_SIGNAL = "JobsCleared";
 export const CONTROL_METHOD = "Control";
+export const EMIT_METHOD = "Emit";
 export const HYDRATION_METHOD = "GetTopicState";
 export const RESERVED_EPOCH = "_epoch";
 export const RESERVED_SEQ = "_seq";

@@ -12,6 +12,8 @@ packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
+  speedtest: speedtest-cli # Debian CLI; UI also supports Ookla JSON when its CLI is present
+  nm-connection-editor: network-manager-gnome # Debian ships the editor inside network-manager-gnome; AGS Wi-Fi Settings footer target
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
   # uwsm: systemd-managed session launch (same rationale as Arch).

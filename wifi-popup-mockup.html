@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wi-Fi Popup Mockup — v2 (approved-spec target)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',-apple-system,sans-serif; background:#1a1a2e; color:#e0e0e0; display:flex; gap:24px; padding:24px; flex-wrap:wrap; min-height:100vh; }
+  h1 { width:100%; font-size:20px; font-weight:600; color:#fff; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:12px; margin-bottom:8px; }
+  .anchor-index { width:100%; font-size:12px; color:rgba(255,255,255,0.55); background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 14px; line-height:1.7; }
+  .anchor-index code { color:#8ab8ff; font-size:11.5px; }
+  .mock-popup { width:320px; background:rgba(18,18,30,0.96); border:1.5px solid rgba(255,255,255,0.1); border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.6); }
+  .mock-header { padding:12px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .mock-header-title { font-size:14px; font-weight:600; color:#fff; }
+  .toggle-wrap { display:flex; align-items:center; }
+  /* Expected switch: blue ON track, white knob — native Gtk.Switch restyled, NOT a custom div */
+  .toggle { position:relative; width:42px; height:24px; background:rgba(255,255,255,0.15); border-radius:12px; cursor:pointer; transition:background 0.2s; border:none; outline:none; }
+  .toggle.on { background:#3a8bfd; }
+  .toggle::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:transform 0.2s; box-shadow:0 1px 4px rgba(0,0,0,0.3); }
+  .toggle.on::after { transform:translateX(18px); }
+  .toggle:disabled { opacity:0.45; cursor:default; }
+  /* Security row uses the REPO info glyph (capture-tool/default/info.svg), caution tint */
+  .security-row { display:flex; align-items:center; gap:8px; padding:6px 16px; font-size:12px; color:#f5a623; }
+  .security-row .info-glyph { width:16px; height:16px; flex-shrink:0; }
+  .security-row .info-glyph svg { width:100%; height:100%; }
+  .security-row .sec-text { font-weight:500; }
+  .details-block { padding:6px 16px; display:flex; flex-direction:column; gap:3px; font-size:11px; color:rgba(255,255,255,0.5); }
+  .detail-row { display:flex; justify-content:space-between; }
+  .detail-row .label { color:rgba(255,255,255,0.4); }
+  .detail-row .value { color:rgba(255,255,255,0.7); font-weight:500; }
+  .net-row { display:flex; align-items:center; gap:10px; padding:8px 16px; cursor:pointer; transition:background 0.15s; }
+  .net-row:hover { background:rgba(255,255,255,0.05); }
+  .net-row.selected { background:rgba(58,139,253,0.15); }
+  .signal-icon { width:18px; height:18px; flex-shrink:0; }
+  .signal-icon svg { width:100%; height:100%; }
+  .net-info { flex:1; min-width:0; }
+  .net-name { font-size:13px; font-weight:500; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .net-sub { font-size:11px; color:rgba(255,255,255,0.4); margin-top:1px; }
+  .net-badge { font-size:10px; font-weight:600; padding:2px 8px; border-radius:10px; background:rgba(58,139,253,0.2); color:#3a8bfd; letter-spacing:0.03em; }
+  .net-action { font-size:12px; font-weight:600; color:#3a8bfd; padding:4px 12px; border-radius:7px; border:1px solid rgba(58,139,253,0.3); flex-shrink:0; }
+  .spinner { width:16px; height:16px; border:2px solid rgba(58,139,253,0.2); border-top-color:#3a8bfd; border-radius:50%; animation:spin 0.8s linear infinite; flex-shrink:0; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .chevron-row { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; cursor:pointer; transition:background 0.15s; }
+  .chevron-row:hover { background:rgba(255,255,255,0.05); }
+  .chevron-label { font-size:13px; color:rgba(255,255,255,0.7); }
+  .chevron-icon { color:rgba(255,255,255,0.3); font-size:16px; }
+  .chevron-row.open .chevron-icon { transform:rotate(180deg); transition:transform 0.2s; }
+  .other-networks { max-height:0; overflow:hidden; transition:max-height 0.3s ease; }
+  .other-networks.open { max-height:300px; }
+  .settings-row { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-top:1px solid rgba(255,255,255,0.06); cursor:pointer; transition:background 0.15s; }
+  .settings-row:hover { background:rgba(255,255,255,0.05); }
+  .settings-row .settings-label { font-size:13px; color:rgba(255,255,255,0.7); }
+  .settings-row .settings-arrow { color:rgba(255,255,255,0.3); font-size:14px; }
+  .settings-row .settings-note { font-size:10px; color:rgba(255,255,255,0.3); }
+  .speedtest-config { padding:8px 16px; display:flex; flex-direction:column; gap:8px; border-top:1px solid rgba(255,255,255,0.06); }
+  .stc-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:rgba(255,255,255,0.4); margin-bottom:4px; }
+  .stc-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .stc-label { font-size:12px; color:rgba(255,255,255,0.6); }
+  .stc-value { font-size:12px; color:rgba(255,255,255,0.8); font-weight:500; }
+  /* Sally: ms entry + unit suffix + live humanized hint + rule caption + preset chips */
+  .ms-field { display:flex; align-items:center; gap:6px; }
+  .ms-entry { width:92px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); border-radius:6px; color:#fff; font-size:11px; padding:4px 8px; outline:none; text-align:right; font-variant-numeric:tabular-nums; }
+  .ms-entry:focus { border-color:rgba(58,139,253,0.6); }
+  .ms-unit { font-size:11px; color:rgba(255,255,255,0.4); }
+  .ms-hint { font-size:11px; color:#8ab8ff; font-weight:500; min-width:52px; text-align:right; }
+  .stc-caption { font-size:10px; color:rgba(255,255,255,0.35); }
+  .chip-row { display:flex; gap:6px; }
+  .chip { font-size:10px; font-weight:600; color:rgba(255,255,255,0.6); background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:2px 9px; cursor:pointer; }
+  .chip:hover { border-color:rgba(58,139,253,0.5); color:#fff; }
+  .chip.active { color:#3a8bfd; border-color:rgba(58,139,253,0.5); background:rgba(58,139,253,0.12); }
+  .stc-run-btn { font-size:11px; font-weight:600; color:#3a8bfd; background:rgba(58,139,253,0.15); border:none; border-radius:6px; padding:6px 12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .stc-run-btn.running { color:rgba(58,139,253,0.7); cursor:default; }
+  .stc-run-btn .spinner { width:12px; height:12px; border-width:2px; }
+  .last-result { display:flex; gap:12px; padding:6px 16px; font-size:11px; }
+  .lr-label { color:rgba(255,255,255,0.35); }
+  .lr-val { color:rgba(255,255,255,0.65); font-weight:500; }
+  .wifi-off-state { padding:20px 16px; text-align:center; font-size:13px; color:rgba(255,255,255,0.4); }
+  .section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:rgba(255,255,255,0.4); padding:8px 16px 4px; }
+  .settings-entry { width:320px; border-radius:12px; background:rgba(20,20,35,0.95); border:1.5px solid rgba(255,255,255,0.08); overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+  .settings-tile-list { padding:8px 0; }
+  .settings-tile { display:flex; align-items:center; gap:10px; padding:10px 16px; cursor:pointer; transition:background 0.15s; }
+  .settings-tile:hover { background:rgba(255,255,255,0.05); }
+  .settings-tile.selected { background:rgba(58,139,253,0.1); }
+  .settings-tile-icon { width:24px; height:24px; flex-shrink:0; }
+  .settings-tile-icon svg { width:100%; height:100%; }
+  .settings-tile-body { flex:1; }
+  .settings-tile-title { font-size:13px; font-weight:500; color:#fff; }
+  .settings-tile-sub { font-size:11px; color:rgba(255,255,255,0.4); margin-top:1px; }
+  .settings-tile-chevron { color:rgba(255,255,255,0.3); font-size:16px; }
+  /* Bar-card note for the running state: status-bar icon gains a card background from the scheme */
+  .bar-demo { display:flex; align-items:center; gap:10px; padding:10px 12px; background:rgba(0,0,0,0.4); border-radius:8px; width:320px; }
+  .bar-icon { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; }
+  .bar-icon.idle svg { width:22px; height:22px; }
+  .bar-icon.testing { border:1px solid rgba(58,139,253,0.45); animation:barcard 1.6s ease-in-out infinite; }
+  .bar-icon.testing svg { width:22px; height:22px; }
+  /* Testing card: animated transition between no background and scheme-color card */
+  @keyframes barcard {
+    0%, 100% { background:transparent; }
+    50% { background:rgba(58,139,253,0.22); }
+  }
+  .bar-caption { font-size:11px; color:rgba(255,255,255,0.5); }
+  .divider { height:1px; background:rgba(255,255,255,0.06); margin:4px 0; }
+  .state-label { width:100%; font-size:11px; font-weight:600; color:rgba(255,255,255,0.3); text-transform:uppercase; letter-spacing:0.06em; padding:16px 16px 4px; border-bottom:1px solid rgba(255,255,255,0.04); margin-bottom:4px; }
+  .state-label code { color:#8ab8ff; text-transform:none; letter-spacing:0; }
+  .password-box { padding:10px 16px; display:flex; flex-direction:column; gap:8px; }
+  .password-box .fld-label { font-size:10px; letter-spacing:0.05em; color:rgba(255,255,255,0.5); }
+  .password-box .fld-input { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 10px; color:#fff; font-size:12px; outline:none; }
+  .password-box .pwd-wrap { display:flex; gap:8px; align-items:stretch; }
+  .password-box .pwd-wrap .fld-input { flex:1; min-width:0; }
+  .password-box .eye-btn { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); border-radius:8px; color:rgba(255,255,255,0.6); font-size:14px; padding:0 10px; cursor:pointer; display:flex; align-items:center; }
+  .password-box .eye-btn:hover { color:#fff; border-color:rgba(58,139,253,0.5); }
+  .password-box .eye-btn svg { width:16px; height:16px; }
+  .password-box .btn-row { display:flex; gap:8px; }
+  .password-box .btn { flex:1; text-align:center; font-size:12px; font-weight:600; border-radius:8px; padding:8px; cursor:pointer; }
+  .password-box .btn.cancel { border:1px solid rgba(255,255,255,0.25); color:#fff; }
+  .password-box .btn.join { background:rgba(58,139,253,0.25); border:1px solid #3a8bfd; color:#fff; }
+  .bottom-bar { width:100%; display:flex; gap:24px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+
+<h1>🎨 Wi-Fi Popup Redesign — v2 Mock (spec target)</h1>
+
+<div class="anchor-index">
+  Stable anchors for openspec citations:
+  <code>state-1-connected</code> · <code>state-2-stc-expanded</code> · <code>state-2b-running</code> ·
+  <code>state-3-off</code> · <code>state-4-panel-tile</code> · <code>state-5-connecting</code> ·
+  <code>state-6-need-auth</code> · <code>bar-testing-card</code><br>
+  Deviations from your earlier images, flagged for approval: (a) security row uses the repo
+  <b>info</b> glyph (circled <i>i</i>, caution tint) per your correction — not the triangle;
+  (b) interval is an <b>ms entry</b> per Sally (entry + live hint + chips), not a dropdown.
+</div>
+
+<!-- STATE 1 -->
+<div class="bottom-bar">
+<div id="state-1-connected">
+<div class="state-label">State 1 — Connected · <code>state-1-connected</code></div>
+<div class="mock-popup">
+  <div class="mock-header"><span class="mock-header-title">Wi-Fi</span><div class="toggle-wrap"><button class="toggle on" aria-label="Toggle Wi-Fi"></button></div></div>
+  <div class="security-row"><span class="info-glyph"><svg viewBox="0 0 1024 1024"><path fill-rule="evenodd" clip-rule="evenodd" d="M512 142.556C463.484 142.556 415.443 152.112 370.62 170.678C325.797 189.244 285.069 216.457 250.763 250.763C216.457 285.069 189.244 325.797 170.678 370.62C152.112 415.443 142.556 463.484 142.556 512C142.556 560.516 152.112 608.557 170.678 653.38C189.244 698.203 216.457 738.931 250.763 773.237C285.069 807.543 325.797 834.756 370.62 853.322C415.443 871.889 463.484 881.444 512 881.444C609.983 881.444 703.952 842.521 773.237 773.237C842.521 703.952 881.444 609.983 881.444 512C881.444 414.017 842.521 320.048 773.237 250.763C703.952 181.479 609.983 142.556 512 142.556ZM37 512C37 386.022 87.0445 265.204 176.124 176.124C265.204 87.0445 386.022 37 512 37C637.978 37 758.796 87.0445 847.876 176.124C936.955 265.204 987 386.022 987 512C987 637.978 936.955 758.796 847.876 847.876C758.796 936.955 637.978 987 512 987C386.022 987 265.204 936.955 176.124 847.876C87.0445 758.796 37 637.978 37 512ZM459.222 300.889C459.222 286.891 464.783 273.467 474.68 263.569C484.578 253.672 498.002 253.672 512 248.111H512.528C526.525 248.111 539.95 253.672 549.847 263.569C559.745 273.467 565.306 286.891 565.306 300.889C565.306 314.886 559.745 328.311 549.847 338.208C539.95 348.106 526.525 353.667 512.528 353.667H512C498.002 353.667 484.578 348.106 474.68 338.208C464.783 328.311 459.222 314.886 459.222 300.889ZM459.75 723.111C459.75 737.109 465.311 750.533 475.208 760.431C485.106 770.328 498.53 775.889 512.528 775.889C526.525 775.889 539.95 770.328 549.847 760.431C559.745 750.533 565.306 737.109 565.306 723.111V459.222C565.306 445.225 559.745 431.8 549.847 421.903C539.95 412.005 526.525 406.444 512.528 406.444C498.53 406.444 485.106 412.005 475.208 421.903C465.311 431.8 459.75 445.225 459.75 459.222V723.111Z" fill="#f5a623"/></svg></span><span class="sec-text">Weak Security (WPA)</span></div>
+  <div class="details-block">
+    <div class="detail-row"><span class="label">MAC</span><span class="value">a4:32:10:f2:c8:3d</span></div>
+    <div class="detail-row"><span class="label">IP / iface</span><span class="value">192.168.1.42 · wlan0</span></div>
+    <div class="detail-row"><span class="label">Speed</span><span class="value">↓ 342 Mbps · ↑ 118 Mbps · 4 ms</span></div>
+    <div class="detail-row"><span class="label">Last test</span><span class="value">↓ 342 · ↑ 118 · 4ms</span></div>
+    <div class="detail-row"><span class="label">Ran</span><span class="value">2 min ago</span></div>
+  </div>
+  <div class="divider"></div>
+  <div class="section-label">Known Networks</div>
+  <div class="net-row selected">
+    <div class="signal-icon"><svg viewBox="0 0 1024 1024"><circle cx="512" cy="512" r="475" fill="rgba(255,255,255,0.08)"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="white"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="white"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="white"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="white"/></svg></div>
+    <div class="net-info"><div class="net-name">Home Network</div><div class="net-sub">Saved · WPA2</div></div>
+    <span class="net-badge">Connected</span>
+  </div>
+  <div class="net-row">
+    <div class="signal-icon"><svg viewBox="0 0 1024 1024"><circle cx="512" cy="512" r="475" fill="rgba(255,255,255,0.08)"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="white" fill-opacity="0.5"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="white" fill-opacity="0.5"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="white"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="white"/></svg></div>
+    <div class="net-info"><div class="net-name">Cafe_WiFi</div><div class="net-sub">Saved · WPA2</div></div>
+  </div>
+  <div class="divider"></div>
+  <div class="chevron-row"><span class="chevron-label">Other Networks</span><span class="chevron-icon">▸</span></div>
+  <div class="settings-row"><span class="settings-label">Speed Test Settings…</span><span class="settings-arrow">›</span></div>
+  <div class="settings-row" style="border-top:none;"><span class="settings-label">Wi-Fi Settings</span><span class="settings-note">opens nm-connection-editor</span><span class="settings-arrow">›</span></div>
+</div>
+</div>
+
+<!-- STATE 2 -->
+<div id="state-2-stc-expanded">
+<div class="state-label">State 2 — Speed Test expanded (Sally: ms entry) · <code>state-2-stc-expanded</code></div>
+<div class="mock-popup">
+  <div class="mock-header"><span class="mock-header-title">Wi-Fi</span><div class="toggle-wrap"><button class="toggle on" aria-label="Toggle Wi-Fi"></button></div></div>
+  <div class="security-row"><span class="info-glyph"><svg viewBox="0 0 1024 1024"><circle cx="512" cy="512" r="440" fill="none" stroke="#f5a623" stroke-width="70"/><rect x="477" y="460" width="70" height="260" rx="35" fill="#f5a623"/><circle cx="512" cy="330" r="42" fill="#f5a623"/></svg></span><span class="sec-text">Weak Security (WPA)</span></div>
+  <div class="details-block">
+    <div class="detail-row"><span class="label">MAC</span><span class="value">a4:32:10:f2:c8:3d</span></div>
+    <div class="detail-row"><span class="label">IP / iface</span><span class="value">192.168.1.42 · wlan0</span></div>
+    <div class="detail-row"><span class="label">Speed</span><span class="value">↓ 342 Mbps · ↑ 118 Mbps · 4 ms</span></div>
+  </div>
+  <div class="divider"></div>
+  <div class="section-label">Known Networks</div>
+  <div class="net-row selected"><div class="signal-icon"><svg viewBox="0 0 1024 1024"><circle cx="512" cy="512" r="475" fill="rgba(255,255,255,0.08)"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="white"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="white"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="white"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="white"/></svg></div><div class="net-info"><div class="net-name">Home Network</div><div class="net-sub">Saved · WPA2</div></div><span class="net-badge">Connected</span></div>
+  <div class="divider"></div>
+  <div class="speedtest-config">
+    <div class="stc-title">Speed Test</div>
+    <div class="stc-row"><span class="stc-label">Interval</span>
+      <span class="ms-field"><input id="msEntry" class="ms-entry" value="900000" inputmode="numeric" aria-label="Interval in milliseconds"><span class="ms-unit">ms</span><span id="msHint" class="ms-hint">15 min</span></span>
+    </div>
+    <div class="stc-caption">Min 1000 ms · 0 = Off · Enter/leave to apply, junk reverts</div>
+    <div class="chip-row"><span class="chip" data-ms="300000">5m</span><span class="chip active" data-ms="900000">15m</span><span class="chip" data-ms="1800000">30m</span><span class="chip" data-ms="0">Off</span></div>
+    <div class="stc-row"><span class="stc-label">Auto-run on connect</span><button class="toggle on" style="width:36px;height:20px;" aria-label="Auto-run toggle"></button></div>
+    <div class="stc-row" style="justify-content:flex-end;"><button class="stc-run-btn" id="runBtn">Run now</button></div>
+  </div>
+  <div class="settings-row" style="border-top:none;"><span class="settings-label">Wi-Fi Settings</span><span class="settings-note">opens nm-connection-editor</span><span class="settings-arrow">›</span></div>
+</div>
+</div>
+</div>
+
+<!-- STATE 2b + BAR -->
+<div id="state-2b-running">
+<div class="state-label">State 2b — Test running + bar card · <code>state-2b-running</code> · <code>bar-testing-card</code></div>
+<div class="mock-popup">
+  <div class="mock-header"><span class="mock-header-title">Wi-Fi</span><div class="toggle-wrap"><button class="toggle on" aria-label="Toggle Wi-Fi"></button></div></div>
+  <div class="speedtest-config" style="border-top:none;">
+    <div class="stc-title">Speed Test</div>
+    <div class="stc-row"><span class="stc-label">Interval</span><span class="ms-field"><input class="ms-entry" value="900000" disabled><span class="ms-unit">ms</span><span class="ms-hint">15 min</span></span></div>
+    <div class="stc-row" style="justify-content:flex-end;"><button class="stc-run-btn running"><span class="spinner"></span>Testing…</button></div>
+  </div>
+</div>
+<br>
+<div class="bar-demo" id="bar-testing-card">
+  <div class="bar-icon idle"><svg viewBox="0 0 1024 1024" fill="white"><path d="M37 372.457L123.359 458.832C337.638 244.554 686.362 244.554 900.641 458.832L987 372.457C725.076 110.514 298.942 110.514 37 372.457Z"/><path d="M166.547 502.002L252.904 588.361C395.74 445.525 628.256 445.525 771.092 588.361L857.451 502.002C666.937 311.503 357.061 311.503 166.547 502.002Z"/><path d="M296.077 631.566L382.453 717.925C453.881 646.497 570.121 646.497 641.547 717.925L727.923 631.566C608.816 512.461 415.183 512.461 296.077 631.566Z"/><path d="M425.641 761.096L512 847.471L598.359 761.096C550.696 713.434 473.304 713.434 425.641 761.096Z"/></svg></div>
+  <div class="bar-icon testing"><svg viewBox="0 0 1024 1024" fill="white"><path d="M37 372.457L123.359 458.832C337.638 244.554 686.362 244.554 900.641 458.832L987 372.457C725.076 110.514 298.942 110.514 37 372.457Z"/><path d="M166.547 502.002L252.904 588.361C395.74 445.525 628.256 445.525 771.092 588.361L857.451 502.002C666.937 311.503 357.061 311.503 166.547 502.002Z"/><path d="M296.077 631.566L382.453 717.925C453.881 646.497 570.121 646.497 641.547 717.925L727.923 631.566C608.816 512.461 415.183 512.461 296.077 631.566Z"/><path d="M425.641 761.096L512 847.471L598.359 761.096C550.696 713.434 473.304 713.434 425.641 761.096Z"/></svg></div>
+  <div class="bar-caption">idle (left) vs testing (right, animated: transparent ↔ scheme card, icon art untouched)</div>
+</div>
+</div>
+
+<!-- STATE 3 -->
+<div id="state-3-off">
+<div class="state-label">State 3 — Wi-Fi OFF · <code>state-3-off</code></div>
+<div class="mock-popup">
+  <div class="mock-header"><span class="mock-header-title">Wi-Fi</span><div class="toggle-wrap"><button class="toggle" aria-label="Toggle Wi-Fi"></button></div></div>
+  <div class="wifi-off-state">Wi-Fi is off</div>
+</div>
+</div>
+
+<!-- STATE 4 -->
+<div id="state-4-panel-tile">
+<div class="state-label">State 4 — Settings panel tile (signal-reactive icon) · <code>state-4-panel-tile</code></div>
+<div class="settings-entry">
+  <div class="settings-tile-list">
+    <div class="settings-tile selected">
+      <div class="settings-tile-icon"><svg viewBox="0 0 1024 1024"><circle cx="512" cy="512" r="475" fill="rgba(255,255,255,0.08)"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="white" fill-opacity="0.5"/><path d="M275.633 505.052L334.719 564.14C432.449 466.41 591.539 466.41 689.269 564.14L748.357 505.052C618.005 374.711 405.984 374.711 275.633 505.052Z" fill="white" fill-opacity="0.5"/><path d="M364.258 593.703L423.357 652.79C472.229 603.919 551.761 603.919 600.632 652.79L659.731 593.703C578.237 512.211 445.752 512.211 364.258 593.703Z" fill="white"/><path d="M452.91 682.329L511.998 741.428L571.086 682.329C538.474 649.719 485.522 649.719 452.91 682.329Z" fill="white"/></svg></div>
+      <div class="settings-tile-body"><div class="settings-tile-title">Wi-Fi</div><div class="settings-tile-sub">Home Network · 78%</div></div>
+      <span class="settings-tile-chevron">›</span>
+    </div>
+    <div class="settings-tile"><div class="settings-tile-icon"><svg viewBox="0 0 1024 1024" fill="white" style="opacity:0.6"><circle cx="512" cy="512" r="475" fill="none" stroke="currentColor" stroke-width="60"/></svg></div><div class="settings-tile-body"><div class="settings-tile-title">Bluetooth</div><div class="settings-tile-sub">Off</div></div><span class="settings-tile-chevron">›</span></div>
+    <div class="settings-tile"><div class="settings-tile-icon"><svg viewBox="0 0 1024 1024" fill="white" style="opacity:0.6"><rect x="384" y="384" width="256" height="256" rx="32" fill="currentColor"/></svg></div><div class="settings-tile-body"><div class="settings-tile-title">Display</div><div class="settings-tile-sub">Built-in Display</div></div><span class="settings-tile-chevron">›</span></div>
+  </div>
+</div>
+</div>
+
+<!-- STATE 5 -->
+<div id="state-5-connecting">
+<div class="state-label">State 5 — Connecting (row spinner) · <code>state-5-connecting</code></div>
+<div class="mock-popup">
+  <div class="mock-header"><span class="mock-header-title">Wi-Fi</span><div class="toggle-wrap"><button class="toggle on" aria-label="Toggle Wi-Fi"></button></div></div>
+  <div class="divider"></div>
+  <div class="section-label">Known Networks</div>
+  <div class="net-row selected">
+    <div class="signal-icon"><svg viewBox="0 0 1024 1024"><circle cx="512" cy="512" r="475" fill="rgba(255,255,255,0.08)"/><path d="M187 416.417L246.088 475.516C392.7 328.905 631.3 328.905 777.912 475.516L837 416.417C657.789 237.194 366.224 237.194 187 416.417Z" fill="white" fill-opacity="0.5"/></svg></div>
+    <div class="net-info"><div class="net-name">Home Network</div><div class="net-sub">Saved · WPA2</div></div>
+    <div class="spinner"></div>
+  </div>
+</div>
+</div>
+
+<!-- STATE 6 -->
+<div id="state-6-need-auth">
+<div class="state-label">State 6 — Password prompt · <code>state-6-need-auth</code></div>
+<div class="mock-popup">
+  <div class="mock-header"><span class="mock-header-title">Wi-Fi</span><div class="toggle-wrap"><button class="toggle on" aria-label="Toggle Wi-Fi"></button></div></div>
+  <div class="password-box">
+    <div class="fld-label">PASSWORD</div>
+    <div class="pwd-wrap">
+      <input id="pwdEntry" class="fld-input" type="password" placeholder="Network password" value="s3cr3t-wifi-pass">
+      <button class="eye-btn" id="eyeBtn" aria-label="Show password"><svg viewBox="0 0 1024 1024" fill="none" stroke="currentColor" stroke-width="70"><path d="M62 512C123 320 300 176 512 176s389 144 450 336c-61 192-238 336-450 336S123 704 62 512Z"/><circle cx="512" cy="512" r="120" fill="currentColor" stroke="none"/></svg></button>
+    </div>
+    <div class="btn-row"><span class="btn cancel">Cancel</span><span class="btn join">Join</span></div>
+  </div>
+</div>
+</div>
+
+<script>
+// Sally demo wiring (mock only): live ms humanizer + preset chips + run-button loader demo.
+(function () {
+  var entry = document.getElementById('msEntry');
+  var hint = document.getElementById('msHint');
+  var LAST_GOOD = 900000;
+  function humanize(ms) {
+    if (!ms || ms <= 0) return 'Off';
+    if (ms < 1000) return ms + ' ms';
+    if (ms < 60000) return Math.round(ms / 1000) + ' s';
+    var m = ms / 60000;
+    return (Math.round(m * 10) / 10) + ' min';
+  }
+  function clamp(v) {
+    if (isNaN(v) || v <= 0) return 0;
+    if (v < 1000) return 1000;
+    return Math.round(v);
+  }
+  function apply() {
+    var raw = parseInt((entry.value || '').replace(/[^0-9]/g, ''), 10);
+    var next = clamp(raw);
+    if (String(next) !== (entry.value || '').replace(/[^0-9]/g, '')) entry.value = next;
+    LAST_GOOD = next;
+    hint.textContent = humanize(next);
+    document.querySelectorAll('.chip').forEach(function (c) {
+      c.classList.toggle('active', parseInt(c.dataset.ms, 10) === next);
+    });
+  }
+  entry.addEventListener('change', apply);
+  entry.addEventListener('keydown', function (e) { if (e.key === 'Enter') { apply(); entry.blur(); } });
+  entry.addEventListener('blur', function () {
+    var raw = parseInt((entry.value || '').replace(/[^0-9]/g, ''), 10);
+    if (isNaN(raw)) { entry.value = LAST_GOOD; hint.textContent = humanize(LAST_GOOD); }
+  });
+  document.querySelectorAll('.chip').forEach(function (c) {
+    c.addEventListener('click', function () { entry.value = c.dataset.ms; apply(); });
+  });
+  var run = document.getElementById('runBtn');
+  if (run) run.addEventListener('click', function () {
+    run.classList.add('running'); run.innerHTML = '<span class="spinner"></span>Testing…';
+    setTimeout(function () { run.classList.remove('running'); run.textContent = 'Run now'; }, 4000);
+  });
+  var pwd = document.getElementById('pwdEntry');
+  var eye = document.getElementById('eyeBtn');
+  if (pwd && eye) eye.addEventListener('click', function () {
+    var show = pwd.type === 'password';
+    pwd.type = show ? 'text' : 'password';
+    eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    eye.style.color = show ? '#3a8bfd' : '';
+  });
+})();
+</script>
+
+</body>
+</html>

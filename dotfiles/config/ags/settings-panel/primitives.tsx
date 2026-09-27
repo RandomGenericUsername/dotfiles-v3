@@ -43,8 +43,8 @@ export function CapabilityTile({
   onOpen,
   toggleTooltip,
 }: {
-  iconOn: string | null
-  iconOff: string | null
+  iconOn: MaybeAccessor<string | null>
+  iconOff: MaybeAccessor<string | null>
   title: string
   subtitle: MaybeAccessor<string>
   active: Accessor<boolean>

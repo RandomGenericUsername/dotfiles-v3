@@ -743,6 +743,230 @@ window.settings-panel {
   color: @color_03;
 }
 
+
+/* ── Wi-Fi redesign ──────────────────────────────────────────────── */
+
+/* macOS-style power switch (native Gtk.Switch) — mock: 42x24 track,
+   radius 12, white 20px knob with slide transition + shadow, blue ON,
+   dimmed insensitive. ON uses @color_10, NOT @color_13: on the owner's
+   wallpaper @color_13 renders #dbab67 (tan/orange) while the mock's ON is
+   #3a8bfd blue; @color_10 (#549ec8) is the palette's true-blue slot and
+   the closest match. Knob is @color_15 (near-white) + the allowed black
+   shadow literal. (GTK has no `cursor` CSS property, so the insensitive
+   "default cursor" reads via the dim alone.) */
+.settings-switch {
+  min-width: 42px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 12px;
+  background-color: alpha(@color_foreground, 0.2);
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  color: @color_foreground;
+  transition: background-color 0.2s ease;
+}
+.settings-switch:checked {
+  background-color: @color_10;
+  background-image: none;
+}
+.settings-switch slider {
+  min-width: 20px;
+  min-height: 20px;
+  margin: 2px;
+  padding: 0;
+  border-radius: 50%;
+  background-color: @color_15;
+  background-image: none;
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.2s ease, margin 0.2s ease;
+}
+.settings-switch:checked slider {
+  background-color: @color_15;
+  background-image: none;
+}
+.settings-switch:disabled {
+  opacity: 0.45;
+}
+
+/* Connection details block (state-1-connected table) */
+.settings-conn-details {
+  padding: 6px 16px;
+}
+.settings-detail-row {
+  min-height: 18px;
+}
+.settings-detail {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.5);
+}
+
+/* Signal icon in rows */
+.settings-net-signal {
+  min-width: 18px;
+  min-height: 18px;
+}
+
+/* Security warning (state-1-connected row: info glyph + text) */
+.settings-security-warn {
+  padding: 6px 16px;
+  min-height: 28px;
+}
+.settings-security-icon {
+  min-width: 16px;
+  min-height: 16px;
+}
+.settings-security-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: @color_03;
+}
+
+/* Section labels */
+.settings-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: alpha(@color_foreground, 0.4);
+  padding: 4px 16px;
+}
+
+/* Chevron row */
+.settings-chevron-row {
+  padding: 8px 16px;
+}
+.settings-chevron-row:hover {
+  background-color: alpha(@color_foreground, 0.05);
+}
+.settings-chevron-label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Other networks (collapsible) */
+.settings-other-networks {
+  padding: 4px 0;
+}
+
+/* Wi-Fi settings footer row */
+.settings-wifi-settings-row {
+  padding: 10px 16px;
+  border-top: 1px solid alpha(@color_foreground, 0.06);
+}
+.settings-wifi-settings-row:hover {
+  background-color: alpha(@color_foreground, 0.05);
+}
+.settings-eye-btn {
+  background-color: alpha(@color_foreground, 0.06);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 6px;
+  color: alpha(@color_foreground, 0.72);
+  font-size: 11px;
+  padding: 3px 8px;
+}
+.settings-eye-btn:hover { border-color: alpha(@color_foreground, 0.28); }
+.settings-eye-btn.active {
+  color: @color_13;
+  border-color: alpha(@color_13, 0.65);
+}
+.settings-wifi-settings-label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+.settings-wifi-settings-arrow {
+  color: rgba(255,255,255,0.3);
+  font-size: 14px;
+}
+
+/* Speed test config */
+.settings-speedtest-config {
+  padding: 8px 16px;
+  border-top: 1px solid alpha(@color_foreground, 0.06);
+}
+.settings-stc-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: alpha(@color_foreground, 0.4);
+  margin-bottom: 6px;
+}
+.settings-stc-row {
+  padding: 3px 0;
+}
+.settings-stc-label {
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.6);
+}
+.settings-stc-value {
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.8);
+  font-weight: 500;
+}
+/* Millisecond interval field: surface per the GUI-family fields rule */
+.settings-stc-entry {
+  background-color: alpha(@color_foreground, 0.08);
+  border: 1px solid alpha(@color_foreground, 0.12);
+  border-radius: 6px;
+  color: @color_foreground;
+  font-size: 12px;
+  padding: 3px 8px;
+  min-height: 22px;
+}
+.settings-stc-hint {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.55);
+}
+.settings-stc-caption {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.4);
+  padding: 2px 0;
+}
+.settings-chip-row {
+  padding: 2px 0;
+}
+.settings-chip {
+  background-color: alpha(@color_foreground, 0.06);
+  border: 1px solid alpha(@color_foreground, 0.1);
+  border-radius: 12px;
+  color: alpha(@color_foreground, 0.7);
+  font-size: 11px;
+  padding: 2px 10px;
+}
+.settings-chip:hover {
+  border-color: alpha(@color_foreground, 0.25);
+}
+.settings-chip.active {
+  background-color: alpha(@color_13, 0.2);
+  border-color: @color_13;
+  color: @color_13;
+}
+.settings-stc-run-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: @color_13;
+  background: alpha(@color_13, 0.15);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+}
+.settings-stc-run-btn.running {
+  opacity: 0.72;
+}
+.settings-stc-error {
+  color: @color_11;
+  font-size: 11px;
+}
+.network-widget.speedtesting {
+  animation: wifi-speedtesting 1.6s ease-in-out infinite;
+}
+@keyframes wifi-speedtesting {
+  0%, 100% { background-color: transparent; border-color: transparent; }
+  50% { background-color: alpha(@color_13, 0.22); border-color: alpha(@color_13, 0.55); }
+}
+
 /* ── Audio (add-pipewire-audio-control) ────────────────────────────────────
    The bar indicators and the follower-anchored audio popup. Reuses the
    settings-panel vocabulary (glass surface, cards, sliders) and the existing

@@ -93,6 +93,16 @@ export interface WifiNetwork {
   secured: boolean
   connected: boolean
   saved: boolean
+  //: True when the network negotiates WPA/WEP-grade security but no RSN
+  //: (WPA2/3) — the only case the UI may show the weak-security warning.
+  //: Unknown (service can't tell) is false: never show a lying warning.
+  weakSecurity: boolean
+}
+
+export interface WifiDeviceInfo {
+  mac: string | null
+  ip: string | null
+  iface: string | null
 }
 
 interface ApInfo {
@@ -100,6 +110,8 @@ interface ApInfo {
   ssid: string
   strength: number
   secured: boolean
+  wpaFlags: number
+  rsnFlags: number
   //: NetworkManager `LastSeen` (CLOCK_BOOTTIME seconds) — used to drop APs that
   //: vanished but linger in NM's cache (a switched-off hotspot must not stay
   //: clickable). Relative lag vs. the newest AP is clock-independent.
@@ -113,8 +125,17 @@ interface StateWaiter {
 }
 
 const [wifiNetworks, setWifiNetworks] = createState<WifiNetwork[]>([])
+const [deviceInfo, setDeviceInfo] = createState<WifiDeviceInfo>({
+  mac: null,
+  ip: null,
+  iface: null,
+})
 const [wirelessEnabled, setWirelessEnabled] = createState(false)
 const [wirelessHardwareEnabled, setWirelessHardwareEnabled] = createState(true)
+//: First authoritative manager read has landed. Until then `wirelessEnabled`
+//: is a boot default (false), NOT the truth — switches stay insensitive so a
+//: programmatic false->true sync can never be mistaken for a user flip.
+const [wifiReady, setWifiReady] = createState(false)
 const [connectState, setConnectState] = createState<WifiConnectState>({
   phase: "idle",
   ssid: null,
@@ -443,6 +464,7 @@ function applyNetworks(): void {
       secured: ap.secured,
       connected: ap.ssid === activeSsid,
       saved: savedWifi.has(ap.ssid),
+      weakSecurity: ap.wpaFlags !== 0 && ap.rsnFlags === 0,
     })
   }
   list.sort((a, b) => {
@@ -487,6 +509,30 @@ async function refreshManager(): Promise<void> {
     setWirelessHardwareEnabled(Boolean(props.WirelessHardwareEnabled))
   } catch (error) {
     console.error(`wifi-service: manager read failed: ${error}`)
+  } finally {
+    setWifiReady(true)
+  }
+}
+
+//: Read-only IPv4 address for the details table (no new subscriptions —
+//: called from refreshDeviceProps only). Unknown stays null so the UI shows
+//: its `—` fallback instead of a placeholder.
+async function refreshDeviceIp(device: string, ip4Path: string): Promise<void> {
+  try {
+    const props = await getAll(ip4Path, "org.freedesktop.NetworkManager.IP4Config")
+    if (device !== devicePath) return
+    const entries = props.AddressData
+    let ip: string | null = null
+    if (Array.isArray(entries) && entries.length > 0) {
+      const first = entries[0] as Record<string, unknown>
+      if (typeof first?.address === "string" && first.address !== "") {
+        ip = first.address
+      }
+    }
+    const current = deviceInfo()
+    if (current.ip !== ip) setDeviceInfo({ ...current, ip })
+  } catch {
+    /* config vanished — keep last known */
   }
 }
 
@@ -497,6 +543,17 @@ async function refreshDeviceProps(): Promise<void> {
     const props = await getAll(path, NM_DEVICE_IFACE)
     if (path !== devicePath) return
     setLastDeviceState(Number(props.State ?? 0))
+    const iface =
+      typeof props.Interface === "string" && props.Interface !== ""
+        ? props.Interface
+        : null
+    const mac =
+      typeof props.HwAddress === "string" && props.HwAddress !== ""
+        ? props.HwAddress
+        : null
+    const ip4Path = normalizePath(props.Ip4Config)
+    setDeviceInfo({ mac, ip: deviceInfo().ip, iface })
+    if (ip4Path !== null) void refreshDeviceIp(path, ip4Path)
     await resolveActiveConnection(normalizePath(props.ActiveConnection))
   } catch {
     /* device vanished */
@@ -537,6 +594,8 @@ async function refreshAccessPoints(): Promise<void> {
         ssid,
         strength: clampStrength(Number(props.Strength ?? 0)),
         secured: isSecured(props),
+        wpaFlags: Number(props.WpaFlags ?? 0),
+        rsnFlags: Number(props.RsnFlags ?? 0),
         lastSeen: Number(props.LastSeen ?? 0),
       })
     } catch {
@@ -574,11 +633,13 @@ async function refreshAccessPoints(): Promise<void> {
   // a connect/switch is in flight, and treat a sustained empty read as real so
   // vanished networks still drop promptly.
   if (next.size === 0 && apCache.size > 0 && (connecting || emptyApReads < 2)) {
+    log(`ap refresh: transient empty (read=${read.length} empties=${emptyApReads} connecting=${connecting}) — keeping ${apCache.size} cached`)
     return
   }
 
   apCache.clear()
   for (const [key, value] of next) apCache.set(key, value)
+  log(`ap refresh: read=${read.length} kept=${next.size} cache=${apCache.size} state=${lastDeviceState} activeAp=${activeApPath ?? "none"} activeConn=${activeConnectionPath ?? "none"}`)
   applyNetworks()
 }
 
@@ -626,7 +687,15 @@ function handleStateChanged(newState: number, reason: number): void {
     state.phase === "preparing" ||
     state.phase === "activating" ||
     state.phase === "needAuth"
-  if (!inFlight) return
+  if (!inFlight) {
+    // No UI attempt to complete, but an external activation (autoconnect,
+    // roam, resume, another client) still changes which network is active.
+    // Re-resolve so the connected row re-renders: without this the list keeps
+    // whatever the last render computed, and the ActiveAccessPoint property
+    // change it would depend on instead can be missed (stale AP path).
+    if (newState === DEVICE_STATE_ACTIVATED) void refreshDeviceProps()
+    return
+  }
 
   // Any real progress means the attempt is alive: drop a lingering need-auth
   // prompt decision and resume the activating phase.
@@ -756,6 +825,7 @@ async function resolveDevice(): Promise<void> {
 
   if (found === null) {
     setWifiNetworks([])
+    setDeviceInfo({ mac: null, ip: null, iface: null })
     return
   }
 
@@ -1030,7 +1100,7 @@ export function toggleWifi(): void {
   void setWifiEnabled(!wifiEnabled())
 }
 
-export { connectState, wifiEnabled, wifiNetworks }
+export { connectState, deviceInfo, wifiEnabled, wifiNetworks, wifiReady }
 
 /** Opt-in tracing hook (`AGS_WIFI_DEBUG=1`) for the thin UI layer. */
 export function wifiLog(message: string): void {

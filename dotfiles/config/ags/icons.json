@@ -625,6 +625,26 @@
         "name": "signal-high",
         "output": "settings-panel-signal-high.svg",
         "template": "settings-panel/signal/high/default/icon.svg"
+      },
+      {
+        "name": "wifi-signal-full",
+        "output": "settings-panel-wifi-signal-full.svg",
+        "template": "settings-panel/wifi-signal-full/default/icon.svg"
+      },
+      {
+        "name": "wifi-signal-good",
+        "output": "settings-panel-wifi-signal-good.svg",
+        "template": "settings-panel/wifi-signal-good/default/icon.svg"
+      },
+      {
+        "name": "wifi-signal-medium",
+        "output": "settings-panel-wifi-signal-medium.svg",
+        "template": "settings-panel/wifi-signal-medium/default/icon.svg"
+      },
+      {
+        "name": "wifi-signal-low",
+        "output": "settings-panel-wifi-signal-low.svg",
+        "template": "settings-panel/wifi-signal-low/default/icon.svg"
       }
     ]
   },

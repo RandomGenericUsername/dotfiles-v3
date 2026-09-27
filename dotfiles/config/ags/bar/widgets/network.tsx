@@ -6,6 +6,7 @@ import { createBinding, createComputed, createEffect } from "ags"
 import { registry } from "../../lib/icon-registry"
 import { setWifiIconX, toggleWifiPopup } from "../../components/wifi/state"
 import { close } from "../../settings-panel/state"
+import { running as speedTestRunning } from "../../services/speedtest-service"
 
 const network = Network.get_default()
 const wifi = createBinding(network, "wifi")
@@ -90,13 +91,16 @@ export function NetworkStatus() {
     <button
       class="widget network-widget"
       onClicked={() => {
-        // Left click = the Wi-Fi popup, anchored under this icon. Close the
-        // settings panel first so the two overlays never stack.
+        console.error("network.tsx: clicked! close + toggleWifiPopup")
         close()
         if (lastIconX !== null) setWifiIconX(lastIconX)
         toggleWifiPopup()
       }}
       $={(self) => {
+        createEffect(() => {
+          if (speedTestRunning()) self.add_css_class("speedtesting")
+          else self.remove_css_class("speedtesting")
+        })
         // Left click opens the Wi-Fi popup (onClicked); right click keeps the
         // wifitui TUI. A motion controller (which does not claim clicks)
         // records the pointer x so the popup can be positioned under the icon.

@@ -1,6 +1,8 @@
 import { Gtk } from "ags/gtk4"
 import { Accessor, createComputed, createEffect } from "ags"
 
+type MaybeAccessor<T> = T | Accessor<T>
+
 /**
  * The bare power glyph — for Wi-Fi/Bluetooth this IS the power toggle.
  *
@@ -17,8 +19,8 @@ export function IconToggle({
   tooltip,
   size = 28,
 }: {
-  iconOn: string | null
-  iconOff: string | null
+  iconOn: MaybeAccessor<string | null>
+  iconOff: MaybeAccessor<string | null>
   active: Accessor<boolean>
   onClicked: () => void
   tooltip?: string
@@ -40,7 +42,18 @@ export function IconToggle({
         class="settings-toggle-glyph"
         $={(self) => {
           createEffect(() => {
-            self.set_from_file((active() ? iconOn : iconOff) ?? "")
+            // Unwrap inside the effect so accessor icons stay subscribed:
+            // the glyph swaps live without a re-mount. Plain strings pass
+            // through unchanged (bluetooth tile).
+            const on =
+              typeof iconOn === "function"
+                ? (iconOn as Accessor<string | null>)()
+                : iconOn
+            const off =
+              typeof iconOff === "function"
+                ? (iconOff as Accessor<string | null>)()
+                : iconOff
+            self.set_from_file((active() ? on : off) ?? "")
           })
         }}
       />

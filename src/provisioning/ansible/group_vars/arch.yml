@@ -8,6 +8,8 @@ packages:
   hyprland: hyprland
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
+  speedtest: speedtest-cli # Official Arch CLI; UI also supports Ookla JSON when its CLI is present
+  nm-connection-editor: nm-connection-editor # standalone extra package (split from network-manager-applet); AGS Wi-Fi Settings footer target
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
   librsvg: librsvg # SVG rendering (gdk-pixbuf loader) for AGS bar icons
   # uwsm: wraps the Hyprland session in a systemd user unit (hyprland-uwsm
