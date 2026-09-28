@@ -6,6 +6,9 @@
 # time (2026-08-09).
 packages:
   hyprland: hyprland
+  # hyprpm split out of the hyprland package upstream (extra repo, same version):
+  # the gloview-plugin role asserts it on PATH to sync headers and rebuild GloView.
+  hyprpm: hyprpm
   hyprpaper: hyprpaper
   networkmanager: networkmanager # NM backend for astal-network (bar); also gives nmtui/nmcli
   wifitui: wifitui # WiFi TUI (impala-style) launched from the bar's network widget
