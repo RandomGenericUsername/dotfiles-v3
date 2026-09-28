@@ -80,6 +80,7 @@ _ARCH_EXTRA_KEYS = (
     "adw_gtk_theme",  # GTK3 theme (Option A 2026-09-09)
     "power-options-gtk",  # AUR-only (portable power management) — Arch
     "hyprmod",  # AUR-only (GTK4 module manager) — Arch (pre-existing drift lock)
+    "nvm",  # repo nvm satisfies tidal-hifi-git's PKGBUILD getnvm() so it never self-bootstraps via makepkg -si
 )
 
 

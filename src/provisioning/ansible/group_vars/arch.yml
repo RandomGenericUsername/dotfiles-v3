@@ -79,6 +79,10 @@ packages:
   adw_gtk_theme: adw-gtk-theme
   power-options-gtk: power-options-gtk # Portable power management (AUR) — defacto, launched from battery widget
   hyprmod: hyprmod # Hyprland module manager (GTK4/libadwaita)
+  nvm: nvm # Node Version Manager (extra repo) — build-time satisfier: tidal-hifi-git's
+    # PKGBUILD getnvm() shells out to `makepkg -si --asdeps` (unflaggable, hangs on an
+    # invisible pacman prompt) when neither `nvm` nor /usr/share/nvm/init-nvm.sh exists.
+    # Installed here, the PKGBUILD sources the system script and never self-bootstraps.
   brightnessctl: brightnessctl # Screen backlight (XF86MonBrightness*)
   playerctl: playerctl # Media transport MPRIS (XF86AudioPlay/Next/Prev)
   wlogout: wlogout # Logout menu (AGS power-menu click target)
