@@ -225,6 +225,25 @@ class TestBootstrapScriptFile:
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
+    def test_auto_become_prompt_probes_and_forwards(self) -> None:
+        """Bare runs must not assume passwordless escalation: the script probes
+        `sudo -n true` (non-interactive), auto-forwards --ask-become-pass on a
+        terminal when the probe fails, and aborts loud (exit 2) when there is
+        no terminal to prompt on. An explicit become flag must never be
+        overridden by the probe."""
+        assert "sudo -n true" in _TEXT, (
+            "the pre-bootstrap probe must use non-interactive `sudo -n true`"
+        )
+        assert "BOOTSTRAP_ARGS+=(--ask-become-pass)" in _TEXT, (
+            "a failed probe on a terminal must auto-forward --ask-become-pass"
+        )
+        assert "[ -t 0 ]" in _TEXT, (
+            "the auto-prompt must be gated on stdin being a terminal"
+        )
+        assert "stdin is not a terminal" in _TEXT, (
+            "a non-terminal run without passwordless escalation must abort loud"
+        )
+
 
 def _require_bash() -> str:
     """bash is a hard requirement of the artifact under test (a bash script).
@@ -303,6 +322,10 @@ class TestBootstrapScriptRuntime:
             home.mkdir()
 
             _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
+            # Silent sudo stub (exit 0, no logging): these smoke tests simulate
+            # a passwordless host, so the pre-bootstrap `sudo -n true` probe
+            # passes and the stage log stays exact.
+            _make_stub(bin_dir / "sudo", "#!/bin/sh\nexit 0\n")
             for name in ("uv", "ansible-galaxy", "dotfiles-provision"):
                 if name == "ansible-galaxy":
                     _make_stub(
@@ -459,6 +482,10 @@ class TestBootstrapScriptRuntime:
             home.mkdir()
 
             _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
+            # Silent sudo stub (exit 0, no logging): the post-preseed run must
+            # clear the pre-bootstrap `sudo -n true` probe so the stage log
+            # stays exact (same passwordless-host simulation as the smoke test).
+            _make_stub(bin_dir / "sudo", "#!/bin/sh\nexit 0\n")
             _make_stub(
                 bin_dir / "uname",
                 '#!/bin/sh\ncase "$1" in\n'
@@ -597,4 +624,63 @@ class TestBootstrapScriptRuntime:
             assert log_lines == [], (
                 "no engine probe or stage may run before the HOME abort; "
                 "got:\n" + "\n".join(log_lines)
+            )
+
+    def test_failing_sudo_probe_aborts_loud_without_terminal(self) -> None:
+        """A host without passwordless escalation running non-interactively
+        (stdin DEVNULL — no terminal to prompt on) must abort with exit 2
+        naming the cause AFTER collections but BEFORE the bootstrap stage —
+        never hang on a prompt and never fail deep in the aggregate."""
+        bash = _require_bash()
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            bin_dir = tmp_path / "bin"
+            home = tmp_path / "home"
+            log = tmp_path / "invocations.log"
+            bin_dir.mkdir()
+            home.mkdir()
+
+            _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
+            _make_stub(bin_dir / "uv", _uv_passthrough_stub())
+            _make_stub(
+                bin_dir / "ansible-galaxy",
+                '#!/bin/sh\necho "ansible-galaxy $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+                'mkdir -p "$HOME/.ansible/collections/ansible_collections"\n'
+                'touch "$HOME/.ansible/collections/ansible_collections/.stub"\n'
+                "exit 0\n",
+            )
+            # Failing sudo stub: simulates a host where escalation needs a
+            # password. Silent (no logging) so the stage log stays exact.
+            _make_stub(bin_dir / "sudo", "#!/bin/sh\nexit 1\n")
+            _make_stub(bin_dir / "dotfiles-provision", _echo_stub("dotfiles-provision", "exit 0"))
+
+            env = _scrubbed_env(
+                PATH=f"{bin_dir}:{os.environ.get('PATH', '/usr/bin:/bin')}",
+                HOME=str(home),
+                BOOTSTRAP_TEST_LOG=str(log),
+            )
+            result = subprocess.run(
+                [bash, str(_SCRIPT)],
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode == 2, (
+                "the non-terminal escalation abort must exit 2; "
+                f"got {result.returncode}"
+            )
+            output = result.stdout + result.stderr
+            assert "stdin is not a terminal" in output, output
+            log_lines = log.read_text().splitlines()
+            assert any(line.startswith("ansible-galaxy") for line in log_lines), (
+                "collections must run before the escalation abort; got:\n"
+                + "\n".join(log_lines)
+            )
+            assert not any(
+                line.startswith("dotfiles-provision bootstrap") for line in log_lines
+            ), (
+                "no bootstrap stage may run after the escalation abort; got:\n"
+                + "\n".join(log_lines)
             )

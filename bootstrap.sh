@@ -18,7 +18,10 @@ set -euo pipefail
 # Usage: ./bootstrap.sh [--ask-become-pass] [--become-password=...] [--check]
 # Become flags are forwarded verbatim to `dotfiles-provision bootstrap`
 # (which injects ANSIBLE_SUDO_PASS for the aggregate's become play, so hosts
-# without passwordless escalation can still provision interactively).
+# without passwordless escalation can still provision interactively). With no
+# become flag the script probes `sudo -n true`: passwordless hosts run
+# unattended, interactive terminals are prompted automatically, and
+# non-terminal runs abort loud instead of failing deep in the aggregate.
 #
 #   → exit 0 only if every stage succeeded
 #
@@ -327,6 +330,31 @@ if [ ! -d "$collections_dir" ] || [ -z "$(ls -A "$collections_dir" 2>/dev/null |
 fi
 
 # ── Stage 3: aggregate bootstrap (AC 3) ──────────────────────────────────
+# Auto become prompt: `make bootstrap` takes no flags by default, so a host
+# without passwordless escalation would die deep in the aggregate become
+# play. Probe with `sudo -n true` (never prompts itself): when it fails AND
+# stdin is a terminal, behave as if --ask-become-pass was given (an explicit
+# flag always wins, so a passed --become-password is never overridden). A
+# non-terminal run without passwordless escalation aborts loud here instead
+# of hanging on a prompt no one can answer.
+_has_become_flag=false
+for _flag in "${BOOTSTRAP_ARGS[@]}"; do
+  case "$_flag" in
+    --ask-become-pass|--become-password|--become-password=*) _has_become_flag=true ;;
+  esac
+done
+if ! $_has_become_flag; then
+  if sudo -n true >/dev/null 2>&1; then
+    : # escalation works without a password; run unattended
+  elif [ -t 0 ]; then
+    BOOTSTRAP_ARGS+=(--ask-become-pass)
+  else
+    red "ERROR: privilege escalation requires a password, but stdin is not a terminal."
+    red "Re-run in a terminal (you will be prompted), pass --ask-become-pass, or configure passwordless escalation for the invoking user."
+    exit 2
+  fi
+fi
+unset _has_become_flag _flag
 # The aggregate bootstrap.yaml (Story 2.12) runs the whole chain:
 # packages → cli_tools → filesystem → assets → compositor_configs →
 # gui_tools → config_copies → settings → zsh_tools → zsh_config →
