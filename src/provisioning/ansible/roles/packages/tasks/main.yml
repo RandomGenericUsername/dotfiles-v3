@@ -200,6 +200,14 @@
     name: "{{ aur_packages }}"
     state: present
     use: yay
+    # --mflags --noconfirm: yay builds each AUR *dependency* with
+    # `makepkg -si --asdeps` WITHOUT --noconfirm, and makepkg only forwards
+    # --noconfirm to its internal `pacman -U` when it receives the flag
+    # itself. Without this, a dep install blocks forever on an invisible
+    # "Proceed with installation? [Y/n]" prompt (stdout is captured, stdin is
+    # not the terminal). The module appends extra_args before the package
+    # name, so yay parses --mflags correctly.
+    extra_args: "--mflags --noconfirm"
   become: true
   become_user: "{{ aur_builder_user }}"
   vars:

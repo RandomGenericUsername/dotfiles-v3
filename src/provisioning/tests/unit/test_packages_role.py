@@ -252,6 +252,21 @@ class TestPackagesTasks:
         )
         assert "power-profiles-daemon" in backends
 
+    def test_aur_install_forwards_noconfirm_to_makepkg_dep_builds(self) -> None:
+        """yay builds each AUR dependency with `makepkg -si --asdeps` without
+        --noconfirm, so a dep install blocks forever on an invisible pacman
+        prompt. The task must pass --mflags --noconfirm through the module's
+        extra_args so every dep makepkg build is non-interactive."""
+        tasks = _load_tasks()
+        install = next(t for t in tasks if _module_key(t) == "kewlfft.aur.aur")
+        body = install.get("kewlfft.aur.aur", {})
+        assert isinstance(body, dict)
+        assert body.get("use") == "yay"
+        extra_args = str(body.get("extra_args", ""))
+        assert "--mflags" in extra_args and "--noconfirm" in extra_args, (
+            "the AUR install must forward --noconfirm to makepkg via yay --mflags"
+        )
+
 
 class TestPackagesVars:
     def test_vars_parse_with_required_keys(self) -> None:
