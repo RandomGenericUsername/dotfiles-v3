@@ -8,11 +8,15 @@ keys the caller supplies are passed through — no additions, no removal (AC 4).
 
 from __future__ import annotations
 
+import codecs
+import io
 import json
 import logging
 import os
 import re
 import subprocess
+import sys
+import threading
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
@@ -43,12 +47,81 @@ class ProvisionTimeoutError(ProvisionExecutorError):
     """Raised when ``ansible-playbook`` exceeds the configured timeout."""
 
 
+def _pump_stream(stream: io.RawIOBase | io.BytesIO, chunks: list[str]) -> None:
+    """Forward one child pipe to stderr chunk by chunk, keeping every byte.
+
+    The pipes are unbuffered binary (``bufsize=0``): ``read`` returns whatever
+    is available instead of waiting for a full buffer the way ``TextIOWrapper``
+    does on pipes, so output surfaces while the playbook is still running.
+    Chunked (not line) reads also surface newline-free output (e.g. a sudo
+    password request) immediately. Decoding is incremental UTF-8 with
+    replacement, so a multibyte character split across two reads still
+    decodes. Runs in a helper thread; the main thread joins it before the
+    result is built, so no output is lost.
+    """
+    decode = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    try:
+        for raw in iter(lambda: stream.read(4096), b""):
+            text = decode.decode(raw)
+            if text:
+                chunks.append(text)
+                sys.stderr.write(text)
+        tail = decode.decode(b"", final=True)
+        if tail:
+            chunks.append(tail)
+            sys.stderr.write(tail)
+    finally:
+        stream.close()
+
+
 def _default_runner(
     command: list[str],
     timeout: float | None = None,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, capture_output=True, text=True, timeout=timeout, env=env)
+    """Run ``ansible-playbook`` streaming its transcript to stderr as it arrives.
+
+    Waiting silently for the whole playbook made a ten-minute AUR compile look
+    hung. Both child pipes are pumped to stderr while the transcript is still
+    accumulated for the task parsers — stdout stays clean for the
+    machine-readable result views. ``PYTHONUNBUFFERED`` defeats the
+    writer-side block buffering ansible inherits when its stdout is a pipe.
+    ``OSError``/``TimeoutExpired`` propagate raw so ``run()`` converts them
+    exactly as it does for injected runners.
+    """
+    base_env = env if env is not None else os.environ
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        bufsize=0,
+        env={**base_env, "PYTHONUNBUFFERED": "1"},
+    )
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+    assert proc.stdout is not None and proc.stderr is not None  # PIPE requested
+    pumpers = [
+        threading.Thread(target=_pump_stream, args=(proc.stdout, stdout_chunks), daemon=True),
+        threading.Thread(target=_pump_stream, args=(proc.stderr, stderr_chunks), daemon=True),
+    ]
+    for thread in pumpers:
+        thread.start()
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        for thread in pumpers:
+            thread.join()
+        raise
+    for thread in pumpers:
+        thread.join()
+    return subprocess.CompletedProcess[str](
+        args=command,
+        returncode=proc.returncode,
+        stdout="".join(stdout_chunks),
+        stderr="".join(stderr_chunks),
+    )
 
 
 def _ansible_env(

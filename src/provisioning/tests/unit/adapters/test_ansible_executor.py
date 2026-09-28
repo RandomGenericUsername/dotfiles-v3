@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
@@ -27,6 +28,61 @@ def _completed(
         stdout=stdout,
         stderr=stderr,
     )
+
+
+class _FakePopen:
+    """Minimal ``Popen`` double for the default runner: serves canned pipes,
+    records its kwargs (notably ``env``), and honors ``kill``."""
+
+    def __init__(self, command: list[str], **kwargs: object) -> None:
+        self.command = command
+        self.kwargs = {key: value for key, value in kwargs.items() if not key.startswith("canned_")}
+        self._stdout = io.BytesIO(str(kwargs.get("canned_stdout", "")).encode())
+        self._stderr = io.BytesIO(str(kwargs.get("canned_stderr", "")).encode())
+        self.returncode: int | None = int(str(kwargs.get("canned_returncode", 0)))
+        self.killed = False
+
+    @property
+    def stdout(self) -> io.BytesIO:
+        return self._stdout
+
+    @property
+    def stderr(self) -> io.BytesIO:
+        return self._stderr
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def wait(self, timeout: float | None = None) -> int | None:
+        return self.returncode
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+def _install_fake_popen(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
+) -> list[_FakePopen]:
+    """Patch ``Popen`` in the executor module; returns the created doubles."""
+    created: list[_FakePopen] = []
+
+    def factory(command: list[str], **kwargs: object) -> _FakePopen:
+        proc = _FakePopen(
+            command,
+            **kwargs,
+            canned_stdout=stdout,
+            canned_stderr=stderr,
+            canned_returncode=returncode,
+        )
+        created.append(proc)
+        return proc
+
+    monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.Popen", factory)
+    return created
 
 
 class TestAnsibleExecutor:
@@ -172,8 +228,7 @@ class TestAnsibleExecutor:
 
     def test_failure_detail_empty_on_clean_run(self) -> None:
         stdout = (
-            "TASK [packages : install hyprland] *************************\n"
-            "changed: [localhost]\n"
+            "TASK [packages : install hyprland] *************************\nchanged: [localhost]\n"
         )
         commands: list[list[str]] = []
         executor = self._executor(commands, stdout=stdout)
@@ -318,39 +373,22 @@ class TestAnsibleEnv:
     def test_default_runner_forwards_ansible_config_env(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        captured: dict[str, object] = {}
-
-        def fake_run(
-            command: list[str],
-            **kwargs: object,
-        ) -> subprocess.CompletedProcess[str]:
-            captured["env"] = kwargs.get("env")
-            return _completed(0, stdout="", stderr="")
-
-        monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.run", fake_run)
+        procs = _install_fake_popen(monkeypatch)
         executor = AnsibleExecutor(
             inventory=Path("inventory/localhost.yaml"),
             tags="all",
             config_file=Path("ansible.cfg"),
         )
         executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
-        env = captured["env"]
+        assert len(procs) == 1
+        env = procs[0].kwargs.get("env")
         assert isinstance(env, dict)
         assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
 
     def test_default_runner_forwards_become_password_env(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        captured: dict[str, object] = {}
-
-        def fake_run(
-            command: list[str],
-            **kwargs: object,
-        ) -> subprocess.CompletedProcess[str]:
-            captured["env"] = kwargs.get("env")
-            return _completed(0, stdout="", stderr="")
-
-        monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.run", fake_run)
+        procs = _install_fake_popen(monkeypatch)
         executor = AnsibleExecutor(
             inventory=Path("inventory/localhost.yaml"),
             tags="all",
@@ -358,7 +396,8 @@ class TestAnsibleEnv:
             become_password="secret",
         )
         executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
-        env = captured["env"]
+        assert len(procs) == 1
+        env = procs[0].kwargs.get("env")
         assert isinstance(env, dict)
         assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
         assert env["ANSIBLE_SUDO_PASS"] == "secret"
@@ -366,19 +405,91 @@ class TestAnsibleEnv:
     def test_default_runner_inherits_env_without_config_file(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        captured: dict[str, object] = {}
-
-        def fake_run(
-            command: list[str],
-            **kwargs: object,
-        ) -> subprocess.CompletedProcess[str]:
-            captured["env"] = kwargs.get("env")
-            return _completed(0, stdout="", stderr="")
-
-        monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.run", fake_run)
+        procs = _install_fake_popen(monkeypatch)
         executor = AnsibleExecutor(inventory=Path("inventory/localhost.yaml"), tags="all")
         executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
-        assert captured["env"] is None
+        assert len(procs) == 1
+        env = procs[0].kwargs.get("env")
+        assert isinstance(env, dict)
+        assert env["PYTHONUNBUFFERED"] == "1"
+        assert env["PATH"] == os.environ["PATH"]
+        assert "ANSIBLE_CONFIG" not in env
+
+    def test_default_runner_forces_unbuffered_child_output(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Live streaming needs writer-side unbuffered output — a piped
+        ansible-playbook would otherwise block-buffer and arrive in bursts."""
+        procs = _install_fake_popen(monkeypatch)
+        executor = AnsibleExecutor(
+            inventory=Path("inventory/localhost.yaml"),
+            tags="all",
+            config_file=Path("ansible.cfg"),
+        )
+        executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        env = procs[0].kwargs.get("env")
+        assert isinstance(env, dict)
+        assert env["PYTHONUNBUFFERED"] == "1"
+        assert env["ANSIBLE_CONFIG"] == "ansible.cfg"
+
+    def test_default_runner_streams_transcript_to_stderr_live(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The playbook transcript must reach stderr while the run is in
+        flight (not just in the parsed result) — and parsing still works off
+        the accumulated transcript. Stdout stays clean for the result views."""
+        stdout = (
+            "TASK [packages : install hyprland] *************************\nchanged: [localhost]\n"
+        )
+        _install_fake_popen(monkeypatch, stdout=stdout, stderr="some warning\n")
+        executor = AnsibleExecutor(inventory=Path("inventory/localhost.yaml"), tags="all")
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        captured = capsys.readouterr()
+        assert "TASK [packages : install hyprland]" in captured.err
+        assert "changed: [localhost]" in captured.err
+        assert "some warning" in captured.err
+        assert captured.out == ""
+        assert result.tasks == (("packages : install hyprland", "changed"),)
+        assert result.success is True
+
+    def test_default_runner_timeout_kills_and_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A hung playbook is killed and surfaces as ProvisionTimeoutError,
+        exactly like the old subprocess.run path."""
+
+        class HangingPopen(_FakePopen):
+            def wait(self, timeout: float | None = None) -> int | None:
+                raise subprocess.TimeoutExpired(self.command, timeout or 0)
+
+        created: list[_FakePopen] = []
+
+        def factory(command: list[str], **kwargs: object) -> HangingPopen:
+            proc = HangingPopen(command, **kwargs)
+            created.append(proc)
+            return proc
+
+        monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.Popen", factory)
+        executor = AnsibleExecutor(
+            inventory=Path("inventory/localhost.yaml"), tags="all", timeout=5
+        )
+        with pytest.raises(ProvisionTimeoutError):
+            executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert created[0].killed is True
+
+    def test_injected_runner_does_not_stream(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Streaming is a default-runner behavior only — injected fakes stay
+        silent so unit tests never pollute captured output."""
+
+        def runner(command: list[str]) -> subprocess.CompletedProcess[str]:
+            return _completed(0, stdout="TASK [x] ***\nchanged: [localhost]\n")
+
+        executor = AnsibleExecutor(
+            inventory=Path("inventory/localhost.yaml"), tags="all", runner=runner
+        )
+        result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
+        assert result.success is True
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == ""
 
     def test_config_file_with_injected_runner_keeps_injected_contract(self) -> None:
         calls: list[tuple[list[str], dict[str, object]]] = []

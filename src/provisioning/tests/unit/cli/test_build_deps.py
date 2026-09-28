@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import subprocess
+import io
 from pathlib import Path
 
 import pytest
@@ -46,19 +46,40 @@ def test_build_deps_defaults_become_password_to_none() -> None:
     assert executor._become_password is None
 
 
+class _FakePopen:
+    """Minimal ``Popen`` double: canned empty pipes, records kwargs."""
+
+    def __init__(self, command: list[str], **kwargs: object) -> None:
+        self.command = command
+        self.kwargs = kwargs
+        self.returncode: int | None = 0
+
+    @property
+    def stdout(self) -> io.BytesIO:
+        return io.BytesIO(b"")
+
+    @property
+    def stderr(self) -> io.BytesIO:
+        return io.BytesIO(b"")
+
+    def wait(self, timeout: float | None = None) -> int | None:
+        return self.returncode
+
+    def kill(self) -> None:
+        pass
+
+
 def test_build_deps_executor_forwards_scaffold_ansible_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured: dict[str, object] = {}
+    created: list[_FakePopen] = []
 
-    def fake_run(
-        command: list[str],
-        **kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        captured["env"] = kwargs.get("env")
-        return subprocess.CompletedProcess[str](args=command, returncode=0, stdout="", stderr="")
+    def factory(command: list[str], **kwargs: object) -> _FakePopen:
+        proc = _FakePopen(command, **kwargs)
+        created.append(proc)
+        return proc
 
-    monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.run", fake_run)
+    monkeypatch.setattr("provisioning.adapters.ansible_executor.subprocess.Popen", factory)
     deps = build_deps()
     executor = deps.plan._executor
     assert isinstance(executor, AnsibleExecutor)
@@ -67,6 +88,7 @@ def test_build_deps_executor_forwards_scaffold_ansible_config(
         check=True,
         extra_vars={"install_dir": "/x", "os_family": "arch"},
     )
-    env = captured["env"]
+    assert len(created) == 1
+    env = created[0].kwargs.get("env")
     assert isinstance(env, dict)
     assert env["ANSIBLE_CONFIG"] == str(_ANSIBLE_ROOT / "ansible.cfg")
