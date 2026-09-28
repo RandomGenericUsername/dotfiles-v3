@@ -1,8 +1,9 @@
 .PHONY: bootstrap contracts-check dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-help
 
-# Bootstrap the host machine (full provisioning)
+# Bootstrap the host machine (full provisioning).
+# Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
 bootstrap:
-	./bootstrap.sh
+	./bootstrap.sh $(ARGS)
 
 # Contract conformance (AD-44): embedded schemas equal their canonical
 # definitions, the D-Bus wire XML agrees with the event contract JSON, and

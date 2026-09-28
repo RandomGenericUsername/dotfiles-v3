@@ -15,6 +15,11 @@ set -euo pipefail
 #   3. bootstrap      — uv run dotfiles-provision bootstrap (aggregate, Story 2.12)
 #   4. verify         — uv run dotfiles-provision verify (hard gate, all ten criteria)
 #
+# Usage: ./bootstrap.sh [--ask-become-pass] [--become-password=...] [--check]
+# Become flags are forwarded verbatim to `dotfiles-provision bootstrap`
+# (which injects ANSIBLE_SUDO_PASS for the aggregate's become play, so hosts
+# without passwordless escalation can still provision interactively).
+#
 #   → exit 0 only if every stage succeeded
 #
 # The chicken-and-egg this solves (plan §3 "Bootstrap"): uv pre-seeds Python
@@ -92,6 +97,43 @@ run_stage() {
   bold "── stage ${stage} ──"
   "$@" || stage_failed "$stage" "$?"
 }
+
+# ── Arg forwarding: become/check flags for the aggregate run ─────────────
+# The aggregate contains a become:true play, so a host without passwordless
+# escalation needs a password path. These flags are forwarded verbatim to
+# `dotfiles-provision bootstrap` (which prompts for --ask-become-pass with
+# hidden input and injects the secret without echo). Unknown flags abort loud
+# instead of silently dropping a security-sensitive option.
+BOOTSTRAP_ARGS=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --ask-become-pass|--check)
+      BOOTSTRAP_ARGS+=("$1")
+      shift
+      ;;
+    --become-password=*)
+      BOOTSTRAP_ARGS+=("$1")
+      shift
+      ;;
+    --become-password)
+      if [ "$#" -lt 2 ]; then
+        red "ERROR: --become-password requires a value."
+        exit 2
+      fi
+      BOOTSTRAP_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    -h|--help)
+      bold "Usage: $0 [--ask-become-pass] [--become-password=...] [--check]"
+      exit 0
+      ;;
+    *)
+      red "ERROR: unknown argument '$1'."
+      red "Usage: $0 [--ask-become-pass] [--become-password=...] [--check]"
+      exit 2
+      ;;
+  esac
+done
 
 # ── Preflight: HOME must be set ─────────────────────────────────────────
 # Cron/systemd/sudo -H contexts can run with no $HOME — without a guard the
@@ -290,8 +332,10 @@ fi
 # gui_tools → config_copies → settings → zsh_tools → zsh_config →
 # wlogout_config → config_links → runtime-seed → display_manager →
 # gloview-plugin → verify. BootstrapUseCase
-# passes the install_dir + os_family seam extra-vars.
-run_stage "bootstrap" uv run --directory "$PROVISION_DIR" dotfiles-provision bootstrap
+# passes the install_dir + os_family seam extra-vars. Flags collected in
+# BOOTSTRAP_ARGS above are forwarded verbatim so the aggregate can escalate
+# on hosts without passwordless setup.
+run_stage "bootstrap" uv run --directory "$PROVISION_DIR" dotfiles-provision bootstrap "${BOOTSTRAP_ARGS[@]}"
 
 # ── Stage 4: verify hard gate (AC 4) ─────────────────────────────────────
 # The aggregate's internal verify import is plan-gated (check mode); this
