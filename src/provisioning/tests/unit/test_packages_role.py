@@ -38,6 +38,7 @@ _VARS_REQUIRED_KEYS = {
         "aur_packages",
         "yay_repo",
         "aur_conflict_probe_paths",
+        "packages_conflicting_host_packages",
     },
     "debian.yml": {"packages_use_aur"},
 }
@@ -215,6 +216,41 @@ class TestPackagesTasks:
         assert isinstance(paths, list) and paths, (
             "aur_conflict_probe_paths must be a non-empty list"
         )
+
+    def test_conflicting_host_backends_removed_before_the_aur_install(self) -> None:
+        """Power-options-gtk conflicts with host-default power backends
+        (power-profiles-daemon); yay --noconfirm pre-answers N to the removal
+        prompt, so the role must remove them declaratively BEFORE the
+        kewlfft.aur.aur install instead of dying with 'unresolvable package
+        conflicts' on every fresh host."""
+        tasks = _load_tasks()
+        removal = next(
+            t for t in tasks if "conflicting with the AUR power stack" in str(t.get("name", ""))
+        )
+        assert _module_key(removal) == "ansible.builtin.package"
+        body = removal.get("ansible.builtin.package", {})
+        assert isinstance(body, dict)
+        assert body.get("state") == "absent"
+        assert "packages_conflicting_host_packages" in str(body.get("name", ""))
+        assert removal.get("become") is True
+        when = str(removal.get("when", ""))
+        assert "packages_use_aur" in when
+        assert "ansible_os_family" not in when
+        assert "not ansible_check_mode" in when, (
+            "the conflict removal must be --check-gated (dry-run must not mutate)"
+        )
+        install_idx = tasks.index(next(t for t in tasks if _module_key(t) == "kewlfft.aur.aur"))
+        assert tasks.index(removal) < install_idx, (
+            "the conflict removal must run before the AUR install"
+        )
+
+    def test_conflicting_host_backends_are_non_empty_on_arch(self) -> None:
+        data = yaml.safe_load((_ROLES_DIR / "vars" / "arch.yml").read_text())
+        backends = data.get("packages_conflicting_host_packages", [])
+        assert isinstance(backends, list) and backends, (
+            "packages_conflicting_host_packages must be a non-empty list on Arch"
+        )
+        assert "power-profiles-daemon" in backends
 
 
 class TestPackagesVars:

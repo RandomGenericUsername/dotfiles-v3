@@ -9,6 +9,16 @@ aur_builder_group: wheel
 aur_packages: [aylurs-gtk-shell-git, astal-hyprland, astal-battery, astal-network, astal-tray, wlogout, wifitui, power-options-gtk, hyprmod, tidal-hifi-git, libastal-notifd-git, libastal-wireplumber-git]
 yay_repo: https://aur.archlinux.org/yay-bin.git
 
+# packages_conflicting_host_packages: host-default packages that declare a
+# pacman-level conflict with the AUR stack above (power-options-gtk pulls its
+# own power-options-daemon backend, conflicting with the power-profiles-daemon
+# EndeavourOS ships). yay installs with --noconfirm, which answers N to
+# pacman's "Remove ...? [y/N]" conflict question, so these are removed
+# declaratively before the AUR install instead of failing deep inside it.
+# Removal-routing config (like aur_packages above), not install names.
+packages_conflicting_host_packages:
+  - power-profiles-daemon
+
 # aur_conflict_probe_paths: system python site-packages paths that AUR/repo
 # deps may claim during the AUR install (yay runs `pacman -S` for transitive
 # repo deps). If a path here is NOT owned by any pacman package, it is a

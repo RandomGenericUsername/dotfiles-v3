@@ -178,6 +178,23 @@
     - aur_packages | length > 0
     - not ansible_check_mode
 
+# Host-default power backends (e.g. the power-profiles-daemon EndeavourOS
+# ships) declare a pacman-level conflict with the AUR power stack
+# (power-options-gtk pulls its own power-options-daemon). yay installs with
+# --noconfirm, which pre-answers N to pacman's "Remove ...? [y/N]" conflict
+# question, so leaving them installed fails the AUR install with
+# "unresolvable package conflicts" on every fresh host. Remove the
+# known-conflicting backends declaratively first (nothing in the provisioned
+# set requires them). Check-gated: a dry-run must not mutate.
+- name: Remove host power backends conflicting with the AUR power stack
+  ansible.builtin.package:
+    name: "{{ packages_conflicting_host_packages }}"
+    state: absent
+  become: true
+  when:
+    - packages_use_aur | bool
+    - not ansible_check_mode
+
 - name: Install AUR packages via yay
   kewlfft.aur.aur:
     name: "{{ aur_packages }}"
