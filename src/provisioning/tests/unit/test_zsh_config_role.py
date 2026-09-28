@@ -133,10 +133,39 @@ class TestZshConfigTasks:
         assert task.get("when") is None, "render must not be --check-gated (template is check-safe)"
 
     def test_no_become_anywhere_in_role(self) -> None:
+        """Only the login-shell task may escalate: chsh authenticates via PAM
+        on /dev/tty, which does not exist under Ansible, so an unprivileged
+        chsh dies on every fresh bash machine. Every other task stays
+        unprivileged (user-scoped role)."""
         for task in _load_tasks():
+            name = str(task.get("name", ""))
+            if "login shell" in name:
+                assert task.get("become", False) is True, (
+                    "the login-shell task must run become:true (chsh needs root)"
+                )
+                continue
             assert not task.get("become", False), (
-                f"zsh_config must not use become (task {task.get('name')!r})"
+                f"zsh_config must not use become outside the login-shell task (task {name!r})"
             )
+
+    def test_login_shell_targets_login_user_not_environment(self) -> None:
+        """Under become $USER is root — the script must resolve the login user
+        from the ansible_user_id fact and pass it explicitly to chsh, or it
+        would check and change root's shell."""
+        tasks = _load_tasks()
+        task = next(t for t in tasks if "login shell" in str(t.get("name", "")))
+        cmd = str(_module(task).get("cmd", ""))
+        assert "ansible_user_id" in cmd, (
+            "the login-shell script must use {{ ansible_user_id }}, never $USER"
+        )
+        assert 'chsh -s "$zsh_bin" "$target_user"' in cmd
+        assert "not ansible_check_mode" in str(task.get("when", "")), (
+            "the login-shell task mutates and must be --check-gated"
+        )
+        assert "login_shell" in (task.get("tags") or []), (
+            "the login-shell task must carry the login_shell tag so it runs "
+            "under the orchestrator's --tags all yet stays skippable in tests"
+        )
 
 
 class TestZshConfigVars:
@@ -294,6 +323,11 @@ class TestZshConfigPlaybook:
                 [
                     ansible_playbook,
                     str(_PLAYBOOKS_DIR / "zsh-config.yaml"),
+                    # The login-shell task needs root (chsh has no non-interactive
+                    # path) and this test carries no become credential — skip
+                    # just that tagged step; the render is what is asserted.
+                    "--skip-tags",
+                    "login_shell",
                     "-e",
                     f"install_dir={install}",
                     "-e",

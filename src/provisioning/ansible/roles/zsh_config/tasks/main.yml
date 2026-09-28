@@ -23,7 +23,11 @@
 #   only-what's-real output).
 # - The `template` module has full check-mode support (predicts changed without
 #   writing) — no `when: not ansible_check_mode` gate needed.
-# - User-scoped: NO become.
+# - User-scoped, with ONE privileged exception: changing the login shell
+#   requires root (chsh authenticates via PAM on /dev/tty, which does not
+#   exist under Ansible — an unprivileged chsh dies with "Authentication token
+#   manipulation error" on every fresh bash machine). Only the login-shell
+#   task below uses become; everything else stays unprivileged.
 
 - name: Assert install_dir seam is provided
   ansible.builtin.assert:
@@ -64,7 +68,10 @@
   ansible.builtin.shell:
     cmd: |
       set -e
-      current="$(getent passwd "$USER" 2>/dev/null | cut -d: -f7 || echo "")"
+      # NOTE: this task runs become:true (root), so $USER is root — the login
+      # user comes from the ansible_user_id fact, never the environment.
+      target_user="{{ ansible_user_id }}"
+      current="$(getent passwd "$target_user" 2>/dev/null | cut -d: -f7 || echo "")"
       if [ "$current" = "/bin/zsh" ] || [ "$current" = "/usr/bin/zsh" ]; then
         echo "already zsh ($current)"
         exit 0
@@ -75,9 +82,12 @@
       if ! tr ' ' '\n' < /etc/shells 2>/dev/null | grep -qxF "$zsh_bin"; then
         echo "not in /etc/shells: $zsh_bin" >&2; exit 1
       fi
-      chsh -s "$zsh_bin"
+      chsh -s "$zsh_bin" "$target_user"
   args:
     executable: /bin/bash
+  become: true
+  when: not ansible_check_mode
+  tags: [login_shell]
   register: zsh_config_chsh
   changed_when: "'already zsh' not in zsh_config_chsh.stdout"
   failed_when: zsh_config_chsh.rc != 0
