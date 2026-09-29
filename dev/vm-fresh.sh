@@ -296,9 +296,13 @@ APSVC
 "
 
 echo "== vm-fresh: pushing repo =="
-# Use tar to preserve symlinks (incus file push -r resolves them)
+# Use tar to preserve symlinks (incus file push -r resolves them).
+# NEVER push virtualenvs or bytecode: a host .venv carries host-absolute
+# interpreter symlinks, so the guest's `uv run` syncs into a broken env
+# (ansible-galaxy missing → collections stage dies with "Failed to spawn").
+# The guest rebuilds its env from uv.lock (network verified above).
 sudo incus exec "$VM_NAME" -- mkdir -p /home/arch/dotfiles-repo-v3
-tar -C "$REPO_ROOT" --exclude='.images' -cf - . | sudo incus exec "$VM_NAME" -- tar -C /home/arch/dotfiles-repo-v3 -xf -
+tar -C "$REPO_ROOT" --exclude='.images' --exclude='.venv' --exclude='__pycache__' --exclude='*.pyc' -cf - . | sudo incus exec "$VM_NAME" -- tar -C /home/arch/dotfiles-repo-v3 -xf -
 sudo incus exec "$VM_NAME" -- chown -R arch:arch /home/arch/dotfiles-repo-v3
 
 echo "== vm-fresh: running bootstrap (full provision) =="
