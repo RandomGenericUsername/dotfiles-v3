@@ -90,8 +90,20 @@ class TestHyprlandSkeleton:
     def test_hyprmod_overrides_load_after_dotfiles_defaults(self) -> None:
         content = _HYPR_LUA.read_text(encoding="utf-8")
         assert content.rfind('dofile(cfg .. "/') < content.index(
-            'require("hyprland-gui")'
+            'pcall(require, "hyprland-gui")'
         ), "HyprMod overrides must load after dotfiles module defaults"
+
+    def test_hyprmod_overrides_tolerate_absence(self) -> None:
+        """The overrides file only exists once HyprMod has saved something —
+        a hard require would error every fresh machine, so the load must be
+        a pcall (warn, never fail)."""
+        content = _HYPR_LUA.read_text(encoding="utf-8")
+        assert 'pcall(require, "hyprland-gui")' in content, (
+            "hyprland-gui must load via pcall (fresh machines have no overrides file)"
+        )
+        assert 'require("hyprland-gui")' not in content.replace(
+            'pcall(require, "hyprland-gui")', ""
+        ), "no bare require of the optional overrides file may remain"
 
 
 class TestAutostartLoginRestore:

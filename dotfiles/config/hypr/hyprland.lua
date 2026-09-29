@@ -19,5 +19,10 @@ dofile(cfg .. "/keybindings.lua")
 dofile(cfg .. "/window-rules.lua")
 dofile(cfg .. "/autostart.lua")
 -- HyprMod owns user-adjustable overrides. Load it last so its values win over
--- the dotfiles defaults above when both configure the same option.
-require("hyprland-gui")
+-- the dotfiles defaults above when both configure the same option. The file
+-- only exists once HyprMod has saved something, so tolerate its absence —
+-- a fresh machine must boot clean defaults, not error.
+local hyprmod_ok, hyprmod_err = pcall(require, "hyprland-gui")
+if not hyprmod_ok then
+  print("hyprland-gui overrides not present yet (open HyprMod to create them)")
+end
