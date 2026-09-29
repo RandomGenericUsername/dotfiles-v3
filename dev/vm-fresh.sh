@@ -43,6 +43,45 @@ if [ "${1:-}" = "--clean" ]; then
   sudo incus delete -f "$VM_NAME" 2>/dev/null || true
 fi
 
+# Ensure daemon building blocks. A fresh `make dev-deps` installs incus but a
+# never-initialized daemon has no storage pool, no bridge, and no root disk
+# in the default profile — the launch `-d root,...` override then fails with
+# 'Device not found in profile devices'. All idempotent.
+echo "== vm-fresh: ensuring incus storage/network/profile =="
+POOL="$(sudo incus storage list --format=csv 2>/dev/null | head -n 1 | cut -d, -f1)"
+if [ -z "$POOL" ]; then
+  echo "  No storage pool — creating 'default' (dir driver)"
+  sudo incus storage create default dir
+  POOL="default"
+fi
+if ! sudo incus network list --format=csv 2>/dev/null | grep -q "^incusbr0,"; then
+  echo "  No incusbr0 bridge — creating it (auto subnet)"
+  sudo incus network create incusbr0
+fi
+if ! sudo incus profile show default 2>/dev/null | grep -q "^  root:"; then
+  echo "  Default profile lacks a root disk — adding one on pool '$POOL'"
+  sudo incus profile device add default root disk "path=/" "pool=$POOL"
+fi
+
+# Subnet for the host firewall rules, derived from the bridge (never
+# hardcoded: `incus network create` auto-assigns it). Falls back to the
+# historical default when derivation is unavailable.
+BRIDGE_ADDR="$(sudo incus network get incusbr0 ipv4.address 2>/dev/null || echo "")"
+VM_SUBNET=""
+if [ -n "$BRIDGE_ADDR" ] && command -v python3 >/dev/null 2>&1; then
+  VM_SUBNET="$(python3 -c "import ipaddress,sys; print(ipaddress.ip_interface(sys.argv[1]).network)" "$BRIDGE_ADDR" 2>/dev/null || echo "")"
+fi
+if [ -z "$VM_SUBNET" ]; then
+  VM_SUBNET="10.27.121.0/24"
+fi
+echo "== vm-fresh: guest subnet is $VM_SUBNET =="
+# Static fallback addressing inside the guest derives from the same subnet
+# (assumes the /24 incus auto-assigns): .1 gateway, .100 fallback address.
+VM_NETBASE="${VM_SUBNET%/*}"
+VM_NETBASE="${VM_NETBASE%.*}"
+VM_GATEWAY="$VM_NETBASE.1"
+VM_STATIC_IP="$VM_NETBASE.100/24"
+
 # Ensure host firewall allows Incus VM traffic (FORWARD + NAT)
 echo "== vm-fresh: checking host firewall for Incus =="
 if ! sudo iptables -C FORWARD -i incusbr0 -j ACCEPT 2>/dev/null; then
@@ -50,9 +89,9 @@ if ! sudo iptables -C FORWARD -i incusbr0 -j ACCEPT 2>/dev/null; then
   sudo iptables -I FORWARD -i incusbr0 -j ACCEPT
   sudo iptables -I FORWARD -o incusbr0 -j ACCEPT
 fi
-if ! sudo iptables -t nat -C POSTROUTING -s 10.27.121.0/24 ! -o incusbr0 -j MASQUERADE 2>/dev/null; then
+if ! sudo iptables -t nat -C POSTROUTING -s "$VM_SUBNET" ! -o incusbr0 -j MASQUERADE 2>/dev/null; then
   echo "  Adding MASQUERADE for incusbr0"
-  sudo iptables -t nat -A POSTROUTING -s 10.27.121.0/24 ! -o incusbr0 -j MASQUERADE
+  sudo iptables -t nat -A POSTROUTING -s "$VM_SUBNET" ! -o incusbr0 -j MASQUERADE
 fi
 sudo mkdir -p /etc/iptables
 sudo iptables-save | sudo tee /etc/iptables/iptables.rules > /dev/null
@@ -99,13 +138,13 @@ NETCONF
   # on every boot, not just this provisioning run.
   if ! ip -4 addr show enp5s0 | grep -q 'scope global'; then
     echo 'DHCP failed, assigning static config persistently...'
-    cat > /etc/systemd/network/enp5s0.network << 'NETCONF'
+    cat > /etc/systemd/network/enp5s0.network << NETCONF
 [Match]
 Name=enp5s0
 
 [Network]
-Address=10.27.121.100/24
-Gateway=10.27.121.1
+Address=$VM_STATIC_IP
+Gateway=$VM_GATEWAY
 DNS=8.8.8.8
 IPv6AcceptRA=yes
 NETCONF
