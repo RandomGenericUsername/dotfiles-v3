@@ -7,6 +7,25 @@ set -euo pipefail
 VM_NAME="dotfiles-test"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Authenticate ONCE up front. Dozens of sudo calls follow across a run that
+# lasts tens of minutes; without a cached timestamp the FIRST failed entry
+# re-prompts at every step (tallying failures toward a faillock lockout)
+# instead of failing fast here with a clear message.
+if ! sudo -v; then
+  echo "ERROR: sudo authentication failed — fix it (password, account lock), then retry."
+  exit 1
+fi
+# Keep the timestamp fresh for the whole run (default timeout is minutes,
+# provisioning is not). Killed automatically on exit, including Ctrl-C.
+(
+  while true; do
+    sleep 45
+    sudo -n true 2>/dev/null || break
+  done
+) &
+_SUDO_KEEPALIVE=$!
+trap 'kill $_SUDO_KEEPALIVE 2>/dev/null || true' EXIT
+
 wait_for_agent() {
   echo "== vm-fresh: waiting for VM agent to be ready =="
   for i in $(seq 1 90); do
