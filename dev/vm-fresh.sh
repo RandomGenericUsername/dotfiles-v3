@@ -81,6 +81,10 @@ if ! sudo incus profile show default 2>/dev/null | grep -q "^  root:"; then
   echo "  Default profile lacks a root disk — adding one on pool '$POOL'"
   sudo incus profile device add default root disk "path=/" "pool=$POOL"
 fi
+if ! sudo incus profile show default 2>/dev/null | grep -q "^  eth0:"; then
+  echo "  Default profile lacks a NIC — attaching eth0 to incusbr0"
+  sudo incus profile device add default eth0 nic network=incusbr0 name=eth0
+fi
 
 # Subnet for the host firewall rules, derived from the bridge (never
 # hardcoded: `incus network create` auto-assigns it). Falls back to the
