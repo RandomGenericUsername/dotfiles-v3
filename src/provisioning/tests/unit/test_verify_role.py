@@ -1215,6 +1215,32 @@ class TestVerifyVars:
             "gui_tools always_on subset"
         )
 
+    def test_ags_gate_is_session_aware(self) -> None:
+        """The bar and overlay are Hyprland-session apps (autostart.lua); a
+        machine provisioned from another session has no Hyprland IPC yet, so
+        the gate must pass vacuously there instead of failing the provision."""
+        tasks = _load_tasks()
+        check = next(
+            t for t in tasks if "Hyprland IPC is reachable" in str(t.get("name", ""))
+        )
+        assert "hyprctl" in str(check), "the IPC check must run hyprctl"
+        assert_tasks = [
+            t
+            for t in _assert_tasks()
+            if "difference(verify_ags_list" in str(_module(t).get("that", ""))
+        ]
+        assert len(assert_tasks) == 1, "expected exactly one always-on AGS assert"
+        that = str(_module(assert_tasks[0]).get("that", ""))
+        assert "verify_hyprland_check.rc != 0 or" in that, (
+            "the always-on assert must pass vacuously without Hyprland IPC"
+        )
+        warn = next(
+            t for t in tasks if "without Hyprland" in str(t.get("name", ""))
+        )
+        assert "autostart" in str(warn.get("msg", warn)), (
+            "the skip must name the first-login autostart that launches them"
+        )
+
     def test_system_binaries_are_compositors(self) -> None:
         data = _vars()
         assert [str(b) for b in data["verify_system_binaries"]] == [
@@ -1558,6 +1584,11 @@ class TestVerifyRuntime:
                 "exit 0\n"
             )
             (bin_dir / "ags").chmod(0o755)
+            # Simulate a Hyprland session (hyprctl reachable) so the
+            # session-aware gate is active — without IPC the gate passes
+            # vacuously and this negative lock could never trip.
+            (bin_dir / "hyprctl").write_text("#!/bin/sh\nexit 0\n")
+            (bin_dir / "hyprctl").chmod(0o755)
 
             env = _test_env(
                 HOME=str(home),

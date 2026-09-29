@@ -458,6 +458,29 @@
 # silently dropped. `ags list` prints one live instance name per line. Mirror
 # of the dunst-mask gate shape (command registers rc, assert decides, both
 # check-gated).
+#
+# Session-aware (like the gloview live-load assert): the bar and the overlay
+# are Hyprland-session apps launched at login by autostart.lua. A machine
+# provisioned from another session (or a TTY) has no Hyprland IPC yet, so
+# absence there is EXPECTED, not a regression — the assert passes vacuously
+# and a warning names the reason instead of failing the whole provision.
+- name: Check whether Hyprland IPC is reachable
+  ansible.builtin.command:
+    argv:
+      - hyprctl
+      - version
+  register: verify_hyprland_check
+  changed_when: false
+  failed_when: false
+
+- name: Warn when the AGS gate is skipped without Hyprland
+  ansible.builtin.debug:
+    msg: >-
+      no Hyprland IPC in this session — the bar and notifications overlay
+      start at first Hyprland login via autostart.lua; the always-on AGS gate
+      below is skipped meanwhile.
+  when: verify_hyprland_check.rc != 0
+
 - name: List running AGS instances
   ansible.builtin.command:
     cmd: ags list
@@ -470,9 +493,10 @@
   ansible.builtin.assert:
     that:
       - >-
-        (verify_ags_always_on_instances
+        verify_hyprland_check.rc != 0 or
+        ((verify_ags_always_on_instances
          | difference(verify_ags_list.stdout_lines | default([]) | map('trim') | list)
-         | length) == 0
+         | length) == 0)
     fail_msg: >-
       not running: {{ verify_ags_always_on_instances | join(', ') }} — a
       provision run must leave the session's always-on AGS instances up. The
