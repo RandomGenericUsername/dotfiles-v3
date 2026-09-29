@@ -13,12 +13,13 @@ bootstrap:
 contracts-check:
 	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_event_contract_drift.py tests/unit/test_history_trigger_enum.py -q
 
-# Dev dependencies for the VM harness
+# Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
+# when incus is missing and the terminal is interactive).
 dev-deps:
 	sudo pacman -S --noconfirm incus spice-gtk
 	sudo systemctl enable --now incus
 	sudo usermod -aG incus-admin $(USER)
-	@echo "Log out/in for incus-admin group to take effect."
+	@echo "Log out/in for plain 'incus' use; 'make vm-*' activates the group itself (no re-login needed)."
 
 # VM commands
 vm-fresh:   dev/vm

@@ -19,6 +19,23 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VM_NAME="dotfiles-test"
 
+# Group activation without re-login: `make dev-deps` adds the user to
+# incus-admin, but a running session keeps its old groups. When the user is a
+# member on record (id listing the USER, not the session) yet the session
+# lacks it, re-exec under `newgrp` so every subcommand inherits the group —
+# no logout required. (Arch has no `sg`; newgrp runs the heredoc as the new
+# shell's stdin script.) Args are fixed single-word subcommands, so the
+# re-invocation needs no extra quoting. sudo remains the fallback below.
+_LOGIN_USER="${USER:-$(id -un)}"
+if ! id -nG 2>/dev/null | tr ' ' '\n' | grep -qx "incus-admin" \
+  && id -nG "$_LOGIN_USER" 2>/dev/null | tr ' ' '\n' | grep -qx "incus-admin"; then
+  # shellcheck disable=SC2094: intentional stdin script for newgrp
+  exec newgrp incus-admin <<REEXEC_VM
+exec "$0" "$@"
+REEXEC_VM
+fi
+unset _LOGIN_USER
+
 red()   { printf "\033[31m%s\033[0m\n" "$*"; }
 green() { printf "\033[32m%s\033[0m\n" "$*"; }
 

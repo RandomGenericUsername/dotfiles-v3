@@ -11,12 +11,35 @@ set -euo pipefail
 warn() { printf "\033[33mWARNING: %s\033[0m\n" "$*"; }
 ok() { printf "%s\n" "$*"; }
 
-# 1. incus binary — the single hard blocker.
+# 1. incus binary — install on first use when interactive, else fail loud.
 if ! command -v incus >/dev/null 2>&1; then
-  printf "\033[31mERROR: 'incus' is not installed on this host.\033[0m\n" >&2
-  printf "Run:  make dev-deps\n" >&2
-  printf "then log out and back in (incus-admin group), and retry.\n" >&2
-  exit 1
+  REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  if [ -t 0 ]; then
+    printf "incus is not installed on this host. Install now via 'make dev-deps'? [Y/n] "
+    read -r answer || answer="n"
+    case "$answer" in
+      ""|[yY]*)
+        if make -C "$REPO_ROOT" dev-deps; then
+          command -v incus >/dev/null 2>&1 || {
+            printf "\033[31mERROR: install ran but incus is still missing.\033[0m\n" >&2
+            exit 1
+          }
+        else
+          printf "\033[31mERROR: prerequisite install failed — fix it, then retry.\033[0m\n" >&2
+          exit 1
+        fi
+        ;;
+      *)
+        printf "Skipped. Run 'make dev-deps' (then log out/in) and retry.\n" >&2
+        exit 1
+        ;;
+    esac
+  else
+    printf "\033[31mERROR: 'incus' is not installed on this host.\033[0m\n" >&2
+    printf "Run:  make dev-deps\n" >&2
+    printf "then log out and back in (incus-admin group), and retry.\n" >&2
+    exit 1
+  fi
 fi
 ok "prereq: incus binary present"
 
@@ -39,12 +62,13 @@ else
   warn "Enable virtualization in firmware / check kvm kernel modules."
 fi
 
-# 4. Group membership — informational only; sudo remains a fallback.
+# 4. Group membership — informational only; `dev/vm` self-activates the
+# group via `newgrp` (no re-login needed for make targets), sudo stays fallback.
 if id -nG 2>/dev/null | tr ' ' '\n' | grep -qx "incus-admin"; then
   ok "prereq: user in incus-admin"
 else
-  warn "user is not in incus-admin — falling back to 'sudo incus'."
-  warn "For passwordless use: 'make dev-deps', then log out and back in."
+  warn "user session lacks incus-admin (dev/vm activates it via newgrp; plain"
+  warn "'incus' outside make still needs a re-login after 'make dev-deps')."
 fi
 
 # 5. SPICE viewer — only needed for `vm console`, advisory here.
