@@ -102,7 +102,7 @@ Canonical spine: `~/.local/share/dotfiles/`
 ## VM Details
 
 - **Image:** Arch Linux (latest cloud image)
-- **Resources:** 2 CPU, 4 GiB RAM, 10 GiB disk
+- **Resources:** 2 CPU, 4 GiB RAM, 20 GiB disk (auto-expanded on reuse)
 - **User:** `arch` (sudo NOPASSWD)
 - **Password:** `arch` (for SDDM login)
 - **Network:** Incus bridge (NAT), DHCP

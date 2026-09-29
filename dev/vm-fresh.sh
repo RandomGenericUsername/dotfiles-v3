@@ -123,15 +123,29 @@ sudo iptables-save | sudo tee /etc/iptables/iptables.rules > /dev/null
 if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
   echo "== vm-fresh: launching fresh Incus VM =="
   sudo incus launch images:archlinux/current "$VM_NAME" --vm \
-    -d root,size=10GiB \
+    -d root,size=20GiB \
     -c limits.cpu=2 -c limits.memory=4GiB \
     -c security.secureboot=false
 else
-  echo "== vm-fresh: reusing existing VM =="
+  echo "== vm-fresh: reusing existing VM, expanding disk to 20GiB =="
+  sudo incus stop "$VM_NAME" 2>/dev/null || true
+  sudo incus storage volume resize default "$VM_NAME" size=20GiB
   sudo incus start "$VM_NAME" 2>/dev/null || true
 fi
 
 wait_for_agent
+
+# Grow root partition/filesystem to fill the (possibly expanded) volume.
+# Idempotent: growpart/resize2fs are no-ops if already at max size.
+sudo incus exec "$VM_NAME" -- bash -c '
+  for dev in /dev/sda /dev/vda; do
+    if [ -b "$dev" ]; then
+      growpart "$dev" 2 2>/dev/null || true
+      resize2fs "${dev}2" 2>/dev/null || resize2fs "${dev}p2" 2>/dev/null || true
+      break
+    fi
+  done
+'
 
 echo "== vm-fresh: base setup inside VM =="
 sudo incus exec "$VM_NAME" -- bash -c "
@@ -206,7 +220,7 @@ DNSCONF
   # 2. Packages
   printf 'Server = https://mirror.rackspace.com/archlinux/\$repo/os/\$arch\nServer = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch\n' > /etc/pacman.d/mirrorlist
   pacman -Syu --noconfirm
-  pacman -S --noconfirm git base-devel sudo podman iw hostapd dnsmasq
+  pacman -S --noconfirm git base-devel sudo podman iw hostapd dnsmasq rsync
 
   # 3. Virtual AP (hostapd on wlan1) so wlan0 can associate and the bar shows a
   #    real connected SSID. WPA2 network "DotfilesHome" served on 192.168.50.x
@@ -304,6 +318,13 @@ echo "== vm-fresh: pushing repo =="
 sudo incus exec "$VM_NAME" -- mkdir -p /home/arch/dotfiles-repo-v3
 tar -C "$REPO_ROOT" --exclude='.images' --exclude='.venv' --exclude='__pycache__' --exclude='*.pyc' -cf - . | sudo incus exec "$VM_NAME" -- tar -C /home/arch/dotfiles-repo-v3 -xf -
 sudo incus exec "$VM_NAME" -- chown -R arch:arch /home/arch/dotfiles-repo-v3
+
+echo "== vm-fresh: pruning podman storage =="
+sudo incus exec "$VM_NAME" -- bash -c '
+  podman image prune -a -f 2>/dev/null || true
+  podman container prune -f 2>/dev/null || true
+  podman volume prune -f 2>/dev/null || true
+'
 
 echo "== vm-fresh: running bootstrap (full provision) =="
 sudo incus exec "$VM_NAME" -- su - arch -c "

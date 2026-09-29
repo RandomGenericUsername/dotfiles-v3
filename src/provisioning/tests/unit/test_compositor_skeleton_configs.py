@@ -33,6 +33,7 @@ _CONFIG_DIR = _REPO_ROOT / "dotfiles" / "config"
 
 _HYPR_LUA = _CONFIG_DIR / "hypr" / "hyprland.lua"
 _HYPR_AUTOSTART = _CONFIG_DIR / "hypr" / "autostart.lua"
+_HYPR_ENV = _CONFIG_DIR / "hypr" / "env-variables.lua"
 _AGS_APP = _CONFIG_DIR / "ags" / "app.tsx"
 _AGS_CSS = _CONFIG_DIR / "ags" / "style.css"
 _HYPRPAPER_CONF = _CONFIG_DIR / "hyprpaper" / "hyprpaper.conf"
@@ -221,3 +222,31 @@ class TestSkeletonsAreStatic:
         assert (_CONFIG_DIR / "hypr").is_dir()
         assert (_CONFIG_DIR / "ags").is_dir()
         assert (_CONFIG_DIR / "hyprpaper").is_dir()
+
+
+class TestSessionUserBinPath:
+    def test_env_prepends_user_bin_dir_with_reload_guard(self) -> None:
+        """Session PATH: provisioning installs every keybind launcher to
+        ~/.local/bin, but display-manager/uwsm sessions never source shell
+        init files — without a session-level PATH, Hyprland resolves none of
+        rofi-ui/capture-ui/hypr-pano-ui/wallpaper-selector-ui (live 2026-09-29:
+        bare `rofi-ui` under Hyprland's environ failed `command not found`).
+        The prepend must derive from $HOME at runtime (no per-user template),
+        target PATH via hl.env, and guard against stacking on `hyprctl
+        reload` (which re-executes this file)."""
+        content = _HYPR_ENV.read_text(encoding="utf-8")
+        assert 'hl.env("PATH"' in content, (
+            "env-variables.lua must set PATH for the Hyprland session"
+        )
+        assert 'os.getenv("HOME")' in content, (
+            "the user bin dir must derive from $HOME at runtime, never hardcoded"
+        )
+        assert '"/.local/bin"' in content, (
+            "the session PATH must include the provisioned user bin dir"
+        )
+        assert "/home/inumaki" not in content and "/root" not in content, (
+            "no hardcoded home dir may appear in the shared skeleton"
+        )
+        assert "string.find" in content, (
+            "the prepend must be contains-guarded so reloads do not stack duplicates"
+        )
