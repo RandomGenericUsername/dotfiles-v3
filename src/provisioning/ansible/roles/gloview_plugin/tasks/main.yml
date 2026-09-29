@@ -17,12 +17,12 @@
 #   trailing verify role does not assert GloView, so a skip stays green.
 - name: Allow passwordless hyprpm helper escalation
   ansible.builtin.copy:
-    dest: "/etc/sudoers.d/20-hyprpm-{{ ansible_user_id }}"
+    dest: "/etc/sudoers.d/20-hyprpm-{{ ansible_facts['user_id'] }}"
     content: |
-      {{ ansible_user_id }} ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p -m [0-7]* /var/cache/hyprpm*
-      {{ ansible_user_id }} ALL=(ALL) NOPASSWD: /usr/bin/install -m[0-7]* -o 0 -g 0 * /var/cache/hyprpm/*
-      {{ ansible_user_id }} ALL=(ALL) NOPASSWD: /usr/bin/rm -fr /var/cache/hyprpm*
-      {{ ansible_user_id }} ALL=(ALL) NOPASSWD: /usr/bin/echo hyprland
+      {{ ansible_facts['user_id'] }} ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p -m [0-7]* /var/cache/hyprpm*
+      {{ ansible_facts['user_id'] }} ALL=(ALL) NOPASSWD: /usr/bin/install -m[0-7]* -o 0 -g 0 * /var/cache/hyprpm/*
+      {{ ansible_facts['user_id'] }} ALL=(ALL) NOPASSWD: /usr/bin/rm -fr /var/cache/hyprpm*
+      {{ ansible_facts['user_id'] }} ALL=(ALL) NOPASSWD: /usr/bin/echo hyprland
     mode: "0440"
     validate: "visudo -cf %s"
   become: true
@@ -30,7 +30,7 @@
 
 - name: Check whether hyprpm headers are synced
   ansible.builtin.stat:
-    path: "/var/cache/hyprpm/{{ ansible_user_id }}/headersRoot/share/pkgconfig/hyprland.pc"
+    path: "/var/cache/hyprpm/{{ ansible_facts['user_id'] }}/headersRoot/share/pkgconfig/hyprland.pc"
   register: gloview_store_check
   changed_when: false
 

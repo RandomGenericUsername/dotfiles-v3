@@ -26,6 +26,7 @@ from provisioning.ports import IProvisionExecutor
 _TASK_HEADER_RE = re.compile(r"^TASK \[(.+)\]")
 _RESULT_STATUS_RE = re.compile(r"^(ok|changed|failed|skipped|unreachable|ignored|rescued):")
 _FATAL_RE = re.compile(r"^fatal: \[[^\]]+\]: (FAILED!|UNREACHABLE!)")
+_WARNING_RE = re.compile(r"^\[(WARNING|DEPRECATION WARNING)\]")
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 _LOGGER = logging.getLogger(__name__)
 _STATUS_PRIORITY = {
@@ -170,6 +171,27 @@ def _extract_failure_detail(stdout: str) -> str:
     return "\n".join(detail)
 
 
+def _extract_warnings(*texts: str) -> tuple[str, ...]:
+    """Return the deduped ``[WARNING]`` / ``[DEPRECATION WARNING]`` header
+    lines across the given transcripts, in first-seen order.
+
+    Ansible routes warnings to stderr while the transcript streams there live,
+    so a human watching the run sees them — but nothing in the result carried
+    them, and a green run's warnings (e.g. a deprecation that hard-errors in
+    the next ansible-core) scrolled by unnoticed. Only the bracketed header
+    lines are kept (continuation/code-excerpt lines carry no ``[...]`` marker
+    and would bloat the result); ANSI escapes are stripped first so colored
+    output matches the same way piped output does.
+    """
+    found: list[str] = []
+    for text in texts:
+        for raw_line in text.splitlines():
+            line = _strip_ansi(raw_line.strip())
+            if _WARNING_RE.match(line) and line not in found:
+                found.append(line)
+    return tuple(found)
+
+
 def _parse_tasks(stdout: str) -> tuple[tuple[str, str], ...]:
     """Extract ``(task_label, status)`` pairs from the play output.
 
@@ -281,6 +303,7 @@ class AnsibleExecutor(IProvisionExecutor):
             returncode=proc.returncode,
             stderr=proc.stderr or "",
             failure_detail=_extract_failure_detail(proc.stdout),
+            warnings=_extract_warnings(proc.stdout, proc.stderr),
         )
 
 

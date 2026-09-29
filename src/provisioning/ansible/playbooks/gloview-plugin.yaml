@@ -1,8 +1,13 @@
 ---
 # GloView installation through Hyprland's plugin manager.
 
+# gather_facts: true REQUIRED — the role derives the login user
+# (ansible_facts['user_id'] for the sudoers path/content and the header
+# store path) from discovered facts. With false, direct runs of this
+# playbook abort on undefined facts (the aggregate only worked because
+# earlier plays had already gathered them).
 - name: Install and enable GloView
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   roles:
     - gloview_plugin

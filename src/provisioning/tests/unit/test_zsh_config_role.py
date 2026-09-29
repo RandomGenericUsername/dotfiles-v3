@@ -150,13 +150,17 @@ class TestZshConfigTasks:
 
     def test_login_shell_targets_login_user_not_environment(self) -> None:
         """Under become $USER is root — the script must resolve the login user
-        from the ansible_user_id fact and pass it explicitly to chsh, or it
-        would check and change root's shell."""
+        from the user_id fact (`ansible_facts['user_id']`, never the
+        deprecated top-level `ansible_user_id`) and pass it explicitly to
+        chsh, or it would check and change root's shell."""
         tasks = _load_tasks()
         task = next(t for t in tasks if "login shell" in str(t.get("name", "")))
         cmd = str(_module(task).get("cmd", ""))
-        assert "ansible_user_id" in cmd, (
-            "the login-shell script must use {{ ansible_user_id }}, never $USER"
+        assert "ansible_facts['user_id']" in cmd, (
+            "the login-shell script must use {{ ansible_facts['user_id'] }}, never $USER"
+        )
+        assert "ansible_user_id" not in cmd.replace("ansible_facts['user_id']", ""), (
+            "the deprecated top-level ansible_user_id fact must not appear"
         )
         assert 'chsh -s "$zsh_bin" "$target_user"' in cmd
         assert "not ansible_check_mode" in str(task.get("when", "")), (

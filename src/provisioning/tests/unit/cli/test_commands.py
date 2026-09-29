@@ -128,6 +128,55 @@ def _expected_call(playbook: str, check: bool) -> tuple[Path, bool, dict[str, st
     )
 
 
+class TestWarningsSurfaced:
+    def test_success_payload_carries_warnings_when_present(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A green run with ansible warnings must carry them in the
+        machine-readable payload — warnings must be captured, not just
+        streamed past on stderr."""
+        deps = FakeDeps(
+            ProvisionResult(
+                success=True,
+                tasks=(("install base packages", "ok"),),
+                returncode=0,
+                stderr="",
+                warnings=("[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated.",),
+            )
+        )
+        result = _invoke(runner, deps, ["plan"], monkeypatch)
+        assert result.exit_code == 0, result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["warnings"] == [
+            "[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated."
+        ]
+
+    def test_success_payload_omits_warnings_when_absent(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        deps = FakeDeps(_ok_result())
+        result = _invoke(runner, deps, ["plan"], monkeypatch)
+        assert result.exit_code == 0, result.stderr
+        assert "warnings" not in json.loads(result.stdout)
+
+    def test_failed_payload_carries_warnings_in_details(
+        self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        deps = FakeDeps(
+            ProvisionResult(
+                success=False,
+                tasks=(("packages : install hyprland", "failed"),),
+                returncode=2,
+                stderr="",
+                failure_detail="fatal: [localhost]: FAILED!",
+                warnings=("[WARNING]: something looked off.",),
+            )
+        )
+        result = _invoke(runner, deps, ["plan"], monkeypatch)
+        assert result.exit_code == 1
+        assert json.loads(result.stderr)["details"]["warnings"] == "[WARNING]: something looked off."
+
+
 class TestAppHelp:
     def test_help_advertises_all_four_commands(
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch

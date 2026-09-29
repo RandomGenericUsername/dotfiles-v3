@@ -134,3 +134,18 @@ class TestGloviewPrivilegeArchitecture:
         assert "hyprpm update" in str(warn.get("msg", warn)), (
             "the skip warning must name the manual command"
         )
+
+
+class TestGloviewPlaybook:
+    _PATH = _ANSIBLE_DIR / "playbooks" / "gloview-plugin.yaml"
+
+    def test_parses_with_simple_localhost_structure(self) -> None:
+        """The playbook must gather facts: the role derives the login user
+        (ansible_facts['user_id']) from discovered facts, so direct runs
+        abort on undefined facts with gather_facts: false (live 2026-09-29)."""
+        plays = yaml.safe_load(self._PATH.read_text())
+        assert isinstance(plays, list) and len(plays) == 1
+        play = plays[0]
+        assert play["hosts"] == "localhost"
+        assert play["gather_facts"] is True
+        assert play["roles"] == ["gloview_plugin"]

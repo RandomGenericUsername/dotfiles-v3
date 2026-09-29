@@ -45,7 +45,11 @@ class ProvisionResult:
     re-reaching into the adapter. ``failure_detail`` carries the per-task
     failure lines ansible writes to *stdout* (``fatal:`` / ``failed:``) — the
     only place a task's error text lives, since ansible's stderr is typically
-    empty for a failed task.
+    empty for a failed task. ``warnings`` carries the deduped ``[WARNING]`` /
+    ``[DEPRECATION WARNING]`` header lines from both streams, so warnings a
+    human would only catch by reading the full transcript (e.g. a deprecation
+    that becomes a hard error in the next ansible-core) are captured in the
+    machine-readable result instead of scrolling by unnoticed.
     """
 
     success: bool
@@ -53,6 +57,7 @@ class ProvisionResult:
     returncode: int = 0
     stderr: str = ""
     failure_detail: str = ""
+    warnings: tuple[str, ...] = field(default_factory=tuple)
 
 
 __all__ = [

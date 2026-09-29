@@ -69,8 +69,9 @@
     cmd: |
       set -e
       # NOTE: this task runs become:true (root), so $USER is root — the login
-      # user comes from the ansible_user_id fact, never the environment.
-      target_user="{{ ansible_user_id }}"
+      # user comes from the user_id fact (`ansible_facts['user_id']`), never
+      # the environment.
+      target_user="{{ ansible_facts['user_id'] }}"
       current="$(getent passwd "$target_user" 2>/dev/null | cut -d: -f7 || echo "")"
       if [ "$current" = "/bin/zsh" ] || [ "$current" = "/usr/bin/zsh" ]; then
         echo "already zsh ($current)"

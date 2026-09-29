@@ -130,6 +130,8 @@ def _render_run(
         }
         if result.failure_detail:
             details["failure_detail"] = result.failure_detail
+        if result.warnings:
+            details["warnings"] = "\n".join(result.warnings)
         renderer.error(
             ErrorView(
                 kind="ProvisionFailed",
@@ -142,16 +144,19 @@ def _render_run(
         install_dir = str(resolve_install_dir())
     except (OSError, RuntimeError):
         install_dir = "unresolved"
+    fields: dict[str, object] = {
+        "command": command,
+        "install_dir": install_dir,
+        "returncode": result.returncode,
+        "tasks": dict(result.tasks),
+    }
+    if result.warnings:
+        fields["warnings"] = list(result.warnings)
     renderer.result(
         ResultView(
             success=True,
             title=command,
-            fields={
-                "command": command,
-                "install_dir": install_dir,
-                "returncode": result.returncode,
-                "tasks": dict(result.tasks),
-            },
+            fields=fields,
         )
     )
 

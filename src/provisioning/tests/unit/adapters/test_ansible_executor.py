@@ -235,6 +235,35 @@ class TestAnsibleExecutor:
         result = executor.run(Path("bootstrap.yaml"), check=True, extra_vars={})
         assert result.failure_detail == ""
 
+    def test_warnings_captured_from_both_streams_deduped(self) -> None:
+        """`[WARNING]`/`[DEPRECATION WARNING]` headers from either stream must
+        land on the result (deduped, first-seen order) — a green run's
+        warnings must not scroll by unnoticed the way the INJECT_FACTS
+        deprecation did."""
+        stdout = (
+            "TASK [zsh_config : Ensure zsh is the login shell] ************\n"
+            "changed: [localhost]\n"
+        )
+        stderr = (
+            "[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.\n"
+            "[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated.\n"
+            "[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated.\n"
+        )
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout=stdout, stderr=stderr)
+        result = executor.run(Path("bootstrap.yaml"), check=False, extra_vars={})
+        assert result.success is True
+        assert result.warnings == (
+            "[WARNING]: Deprecation warnings can be disabled by setting `deprecation_warnings=False` in ansible.cfg.",
+            "[DEPRECATION WARNING]: INJECT_FACTS_AS_VARS default to `True` is deprecated.",
+        )
+
+    def test_warnings_empty_on_clean_run(self) -> None:
+        commands: list[list[str]] = []
+        executor = self._executor(commands, stdout="ok: [localhost]\n", stderr="")
+        result = executor.run(Path("bootstrap.yaml"), check=False, extra_vars={})
+        assert result.warnings == ()
+
     def test_failed_task_with_ignore_errors_yields_success_false(self) -> None:
         stdout = (
             "TASK [packages : install hyprland] *************************\n"

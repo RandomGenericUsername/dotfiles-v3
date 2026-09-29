@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import re
 from pathlib import Path
 
 import pytest
@@ -199,3 +200,65 @@ class TestGroupVars:
         for key, value in packages.items():
             names = value if isinstance(value, list) else [value]
             assert all(str(n).strip() for n in names), f"empty name under {key}"
+
+
+# Discovered facts that must ALWAYS be namespaced (`ansible_facts['x']` /
+# `ansible_facts.x`), never referenced as top-level `ansible_x` vars: the
+# INJECT_FACTS_AS_VARS default-True is deprecated and top-level injection
+# disappears in ansible-core 2.24, turning every bare access into an
+# "undefined variable" abort plus a deprecation warning today (caught live
+# 2026-09-29 via `ansible_user_id` in zsh_config/gloview_plugin). Magic vars
+# (`ansible_check_mode`, `ansible_python_interpreter`, ...) are NOT facts and
+# are unaffected — only the names below are banned bare.
+_BANNED_BARE_FACTS = (
+    "user_id",
+    "env",
+    "os_family",
+    "distribution",
+    "distribution_major_version",
+    "distribution_release",
+    "hostname",
+    "fqdn",
+    "nodename",
+    "domain",
+    "architecture",
+    "machine",
+    "processor",
+    "kernel",
+    "system",
+    "users",
+    "date_time",
+    "local",
+)
+
+def _strip_yml_comment(line: str) -> str:
+    """Cut comments: full-line `# …` plus trailing `# comment`
+    (whitespace-prefixed only, so `#rrggbb` color literals and URL fragments
+    survive)."""
+    if re.match(r"^\s*#", line):
+        return ""
+    return re.sub(r"\s+#.*$", "", line)
+
+
+class TestNoTopLevelFacts:
+    def test_no_bare_discovered_fact_access(self) -> None:
+        """No playbook/role/group_vars line may reference a discovered fact
+        bare (`ansible_user_id`, `ansible_env`, `ansible_os_family`, ...):
+        use `ansible_facts['…']` so the 2.24 removal is a non-event and no
+        deprecation warning is ever emitted."""
+        pattern = re.compile(
+            r"\bansible_(" + "|".join(_BANNED_BARE_FACTS) + r")\b"
+        )
+        offenders = []
+        for path in sorted(_ANSIBLE_DIR.rglob("*.yml")):
+            for i, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), 1
+            ):
+                code = _strip_yml_comment(line)
+                for match in pattern.finditer(code):
+                    offenders.append(f"{path.relative_to(_ANSIBLE_DIR)}:{i}: {match.group(0)}")
+        assert offenders == [], (
+            "bare discovered-fact access (deprecated INJECT_FACTS_AS_VARS, "
+            "removed in ansible-core 2.24) — namespace via ansible_facts:\n"
+            + "\n".join(offenders)
+        )
