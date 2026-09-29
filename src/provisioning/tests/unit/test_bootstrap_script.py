@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import os
+import pty
 import re
+import select
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -225,20 +228,31 @@ class TestBootstrapScriptFile:
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
-    def test_auto_become_prompt_probes_and_forwards(self) -> None:
-        """Bare runs must not assume passwordless escalation: the script probes
-        `sudo -n true` (non-interactive), auto-forwards --ask-become-pass on a
-        terminal when the probe fails, and aborts loud (exit 2) when there is
-        no terminal to prompt on. An explicit become flag must never be
-        overridden by the probe."""
-        assert "sudo -n true" in _TEXT, (
-            "the pre-bootstrap probe must use non-interactive `sudo -n true`"
+    def test_single_prompt_reuses_secret_for_whole_run(self) -> None:
+        """Bare runs must not assume passwordless escalation and must never
+        trust a warm terminal ticket: the probe runs detached (setsid, the
+        same no-terminal context ansible's piped become runs in), a terminal
+        prompts ONCE (hidden input) with up to three validation attempts, and
+        the secret is exported for the aggregates (ANSIBLE_SUDO_PASS) instead
+        of forwarding per-invocation flags. A non-terminal run without
+        passwordless escalation aborts loud (exit 2)."""
+        assert "setsid sudo -n true" in _TEXT, (
+            "the probe must run detached (setsid), matching ansible's piped context"
         )
-        assert "BOOTSTRAP_ARGS+=(--ask-become-pass)" in _TEXT, (
-            "a failed probe on a terminal must auto-forward --ask-become-pass"
+        assert "BOOTSTRAP_ARGS+=(--ask-become-pass)" not in _TEXT, (
+            "no per-invocation become prompt may survive — one prompt covers all runs"
+        )
+        assert "read -rsp" in _TEXT, (
+            "the terminal prompt must use hidden input"
+        )
+        assert "sudo -Sv" in _TEXT, (
+            "the entered secret must be validated (warming the terminal ticket)"
+        )
+        assert "ANSIBLE_SUDO_PASS" in _TEXT, (
+            "the secret must reach the aggregates via ANSIBLE_SUDO_PASS"
         )
         assert "[ -t 0 ]" in _TEXT, (
-            "the auto-prompt must be gated on stdin being a terminal"
+            "the prompt must be gated on stdin being a terminal"
         )
         assert "stdin is not a terminal" in _TEXT, (
             "a non-terminal run without passwordless escalation must abort loud"
@@ -683,4 +697,345 @@ class TestBootstrapScriptRuntime:
             ), (
                 "no bootstrap stage may run after the escalation abort; got:\n"
                 + "\n".join(log_lines)
+            )
+
+
+def _hyprpm_present_stub() -> str:
+    """A hyprpm stub reporting GloView as installed (fresh-machine probe hit)."""
+    return (
+        "#!/bin/sh\n"
+        'echo "hyprpm $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+        'if [ "$1" = "list" ]; then\n'
+        '  echo "Repository gloview (https://github.com/fedsfarm/gloview)"\n'
+        '  echo "  Plugin gloview enabled: true"\n'
+        "  exit 0\n"
+        "fi\n"
+        "exit 0\n"
+    )
+
+
+def _hyprpm_missing_stub() -> str:
+    """A hyprpm stub with no state store (fresh machine): `list` fails."""
+    return (
+        "#!/bin/sh\n"
+        'echo "hyprpm $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+        'echo "hyprpm: state store missing" >&2\n'
+        "exit 1\n"
+    )
+
+
+def _hyprpm_stateful_stub() -> str:
+    """A hyprpm stub that gains the gloview repo once `update` ran (sentinel
+    file under $BOOTSTRAP_TEST_TMP): models the fresh-machine heal for the
+    pty-driven interactive test."""
+    return (
+        "#!/bin/sh\n"
+        'echo "hyprpm $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+        'if [ "$1" = "list" ]; then\n'
+        '  if [ -f "$BOOTSTRAP_TEST_TMP/updated" ]; then\n'
+        '    echo "Repository gloview (https://github.com/fedsfarm/gloview)"\n'
+        "    exit 0\n"
+        "  fi\n"
+        '  echo "hyprpm: state store missing" >&2\n'
+        "  exit 1\n"
+        "fi\n"
+        'if [ "$1" = "update" ]; then\n'
+        '  : > "$BOOTSTRAP_TEST_TMP/updated"\n'
+        "  exit 0\n"
+        "fi\n"
+        "exit 0\n"
+    )
+
+
+def _stubbed_provision_env(
+    tmp_path: Path, *, hyprpm_stub: str, sudo_stub: str = "#!/bin/sh\nexit 0\n"
+) -> tuple[Path, Path, dict[str, str]]:
+    """Shared hermetic env for the gloview-sync tests: stubbed podman/sudo
+    (passwordless host), uv passthrough, collections, provisioner, hyprpm and
+    hyprctl (no Hyprland IPC, so the session signal stays silent). Returns
+    (bin_dir, log, env)."""
+    import os as _os
+
+    bin_dir = tmp_path / "bin"
+    home = tmp_path / "home"
+    log = tmp_path / "invocations.log"
+    state = tmp_path / "state"
+    bin_dir.mkdir()
+    home.mkdir()
+    state.mkdir()
+
+    _make_stub(bin_dir / "podman", _echo_stub("podman", "exit 0"))
+    _make_stub(bin_dir / "sudo", sudo_stub)
+    _make_stub(bin_dir / "uv", _uv_passthrough_stub())
+    _make_stub(
+        bin_dir / "ansible-galaxy",
+        '#!/bin/sh\necho "ansible-galaxy $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+        'mkdir -p "$HOME/.ansible/collections/ansible_collections"\n'
+        'touch "$HOME/.ansible/collections/ansible_collections/.stub"\n'
+        "exit 0\n",
+    )
+    _make_stub(bin_dir / "dotfiles-provision", _echo_stub("dotfiles-provision", "exit 0"))
+    _make_stub(bin_dir / "hyprpm", hyprpm_stub)
+    _make_stub(bin_dir / "hyprctl", _echo_stub("hyprctl", "exit 1"))
+
+    env = _scrubbed_env(
+        PATH=f"{bin_dir}:{_os.environ.get('PATH', '/usr/bin:/bin')}",
+        HOME=str(home),
+        BOOTSTRAP_TEST_LOG=str(log),
+        BOOTSTRAP_TEST_TMP=str(state),
+    )
+    return bin_dir, log, env
+
+
+class TestGloviewSyncStageFile:
+    def test_stage_probes_reports_and_heals(self) -> None:
+        """The gloview-sync stage probes via PATH-resolved `hyprpm list`,
+        runs the foreground `hyprpm update` on a terminal, re-runs the
+        aggregate afterwards, and reports the session signal via
+        `hyprctl plugin list` — all without hardcoded system paths."""
+        assert "hyprpm list" in _TEXT, "the stage must probe via `hyprpm list`"
+        assert "hyprpm update" in _TEXT, "the stage must run the interactive update"
+        assert "gloview retry" in _TEXT, "the aggregate must re-run after a sync"
+        assert "hyprctl plugin list" in _TEXT, "the session signal must probe the loaded plugins"
+        assert "DEGRADED" in _TEXT, "a loaded-but-absent plugin must be named DEGRADED"
+
+    def test_stage_is_tty_and_check_gated(self) -> None:
+        """The interactive sync must only run on a terminal and never under
+        --check (dry-run must not mutate); otherwise it warns and continues."""
+        assert "[ -t 0 ]" in _TEXT, "the interactive sync must be gated on terminal stdin"
+        assert "--check" in _TEXT, "the stage must know about check mode"
+        assert "stdin is not a terminal" in _TEXT, (
+            "the non-terminal skip must warn loud"
+        )
+
+    def test_single_password_entry_with_timestamp_keepalive(self) -> None:
+        """Stage 3 prompts once and reuses the secret: `sudo -Sv` validation
+        (three attempts), ANSIBLE_SUDO_PASS export for the aggregates, and a
+        timestamp keepalive (killed on exit) for hyprpm's late sudo calls."""
+        assert "sudo -Sv" in _TEXT, "the entered secret must be validated up front"
+        assert "ANSIBLE_SUDO_PASS" in _TEXT, "the secret must be exported for reuse"
+        assert "_sudo_keepalive_pid" in _TEXT, "the keepalive pid must be tracked"
+        assert 'kill "$_sudo_keepalive_pid"' in _TEXT, (
+            "the exit trap must kill the keepalive so no refresh loop outlives the run"
+        )
+
+
+class TestGloviewSyncStageRuntime:
+    def test_skips_sync_when_gloview_present(self) -> None:
+        """GloView installed → single aggregate run, no `hyprpm update`, exit 0."""
+        bash = _require_bash()
+        with tempfile.TemporaryDirectory() as tmp:
+            _, log, env = _stubbed_provision_env(
+                Path(tmp), hyprpm_stub=_hyprpm_present_stub()
+            )
+            result = subprocess.run(
+                [bash, str(_SCRIPT)],
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            lines = log.read_text().splitlines()
+            assert sum(1 for l in lines if l == "dotfiles-provision bootstrap") == 1
+            assert not any(l == "hyprpm update" for l in lines), (
+                "no interactive sync may run when GloView is present; got:\n"
+                + "\n".join(lines)
+            )
+
+    def test_warns_and_continues_without_terminal_when_missing(self) -> None:
+        """GloView missing + no terminal → loud warning, exit 0, single
+        aggregate run, no `hyprpm update` (the login activator retries later)."""
+        bash = _require_bash()
+        with tempfile.TemporaryDirectory() as tmp:
+            _, log, env = _stubbed_provision_env(
+                Path(tmp), hyprpm_stub=_hyprpm_missing_stub()
+            )
+            result = subprocess.run(
+                [bash, str(_SCRIPT)],
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                timeout=120,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            output = result.stdout + result.stderr
+            assert "stdin is not a terminal" in output, output
+            lines = log.read_text().splitlines()
+            assert sum(1 for l in lines if l == "dotfiles-provision bootstrap") == 1
+            assert not any(l == "hyprpm update" for l in lines), (
+                "no interactive sync may run without a terminal; got:\n"
+                + "\n".join(lines)
+            )
+
+    def test_interactive_sync_updates_and_reruns_aggregate(self) -> None:
+        """GloView missing + terminal stdin → `hyprpm update` runs once and
+        the aggregate re-runs (two bootstrap invocations), exit 0. Driven
+        under a pty via `script(1)` so `[ -t 0 ]` holds."""
+        script_bin = shutil.which("script")
+        if script_bin is None:
+            pytest.skip("util-linux `script` is required for the pty-driven test")
+        bash = _require_bash()
+        with tempfile.TemporaryDirectory() as tmp:
+            _, log, env = _stubbed_provision_env(
+                Path(tmp), hyprpm_stub=_hyprpm_stateful_stub()
+            )
+            result = subprocess.run(
+                [script_bin, "-qec", f"{bash} {_SCRIPT}", "/dev/null"],
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                env=env,
+                timeout=180,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+            lines = log.read_text().splitlines()
+            assert lines.count("hyprpm update") == 1, (
+                "the interactive sync must run exactly once; got:\n" + "\n".join(lines)
+            )
+            assert lines.count("dotfiles-provision bootstrap") == 2, (
+                "the aggregate must run, then re-run after the sync; got:\n"
+                + "\n".join(lines)
+            )
+            first_bootstrap = lines.index("dotfiles-provision bootstrap")
+            assert lines.index("hyprpm update") > first_bootstrap, (
+                "the sync must run AFTER the first aggregate; got:\n" + "\n".join(lines)
+            )
+            assert lines.index("dotfiles-provision verify") > lines.index("hyprpm update"), (
+                "verify must run after the sync; got:\n" + "\n".join(lines)
+            )
+
+    def _sudo_tty_only_stub(self) -> str:
+        """A sudo stub modeling a password host where terminal sudo works but
+        detached sudo never does (the live 2026-09-29 finding: a warm terminal
+        ticket is invisible to piped sudo). `sudo -Sv` (password validation
+        over a pipe) always succeeds; ticket checks (`-n`, attached or not)
+        succeed only on a tty."""
+        return (
+            "#!/bin/sh\n"
+            'echo "sudo $*" >> "$BOOTSTRAP_TEST_LOG"\n'
+            'if [ "$1" = "-Sv" ]; then exit 0; fi\n'
+            "if [ -t 0 ]; then exit 0; else exit 1; fi\n"
+        )
+
+    def _run_under_pty(
+        self, env: dict[str, str], stdin_text: str = ""
+    ) -> subprocess.CompletedProcess[str]:
+        """Run the script with terminal stdin via a python pty (deterministic:
+        waits for the BECOME prompt, answers with `stdin_text`, drains to
+        exit). `script(1)` cannot drive this — it never delivers piped stdin
+        to the child, so `read` blocks forever under it."""
+        bash = _require_bash()
+        master, slave = pty.openpty()
+        proc = subprocess.Popen(
+            [bash, str(_SCRIPT)],
+            stdin=slave,
+            stdout=slave,
+            stderr=subprocess.STDOUT,
+            env=env,
+            close_fds=True,
+        )
+        os.close(slave)
+        chunks: list[bytes] = []
+        seen = b""
+        password_lines = stdin_text.splitlines()
+        sent = 0
+        deadline = time.monotonic() + 150
+        try:
+            os.set_blocking(master, False)
+            while True:
+                if proc.poll() is not None:
+                    try:
+                        while True:
+                            chunk = os.read(master, 65536)
+                            if not chunk:
+                                break
+                            chunks.append(chunk)
+                    except OSError:
+                        pass
+                    break
+                ready, _, _ = select.select([master], [], [], 1.0)
+                if ready:
+                    try:
+                        chunk = os.read(master, 65536)
+                    except OSError:
+                        break
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    seen += chunk
+                    prompts = seen.count(b"BECOME password:")
+                    while sent < prompts and sent < len(password_lines):
+                        os.write(master, (password_lines[sent] + "\n").encode())
+                        sent += 1
+                if time.monotonic() > deadline:
+                    proc.kill()
+                    proc.wait()
+                    text = (
+                        b"".join(chunks).decode("utf-8", errors="replace").replace("\r\n", "\n")
+                    )
+                    pytest.fail(f"pty run exceeded deadline; output:\n{text}")
+        finally:
+            os.close(master)
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
+        text = b"".join(chunks).decode("utf-8", errors="replace").replace("\r\n", "\n")
+        return subprocess.CompletedProcess(
+            args=[bash, str(_SCRIPT)],
+            returncode=proc.returncode,
+            stdout=text,
+            stderr="",
+        )
+
+    def test_password_asked_once_up_front_on_tty(self) -> None:
+        """Password host + terminal: the single hidden prompt reads one line,
+        the secret validates once (`sudo -Sv`), and no --ask-become-pass
+        appears on either aggregate invocation — the full fresh-machine flow
+        (aggregate, sync, re-run, verify) exits 0."""
+        with tempfile.TemporaryDirectory() as tmp:
+            _, log, env = _stubbed_provision_env(
+                Path(tmp),
+                hyprpm_stub=_hyprpm_stateful_stub(),
+                sudo_stub=self._sudo_tty_only_stub(),
+            )
+            result = self._run_under_pty(env, stdin_text="testpass\ntestpass\ntestpass\n")
+            assert result.returncode == 0, result.stdout + result.stderr
+            lines = log.read_text().splitlines()
+            assert lines.count("sudo -Sv") == 1, (
+                "the entered secret must validate exactly once up front; got:\n"
+                + "\n".join(lines)
+            )
+            assert not any("ask-become-pass" in l for l in lines), (
+                "no per-invocation become prompt may survive the single prompt; got:\n"
+                + "\n".join(lines)
+            )
+            assert lines.count("dotfiles-provision bootstrap") == 2, (
+                "fresh machine must run the aggregate, sync, then re-run; got:\n"
+                + "\n".join(lines)
+            )
+
+    def test_warm_terminal_ticket_still_prompts_on_tty(self) -> None:
+        """Regression (live 2026-09-29 failure): a warm terminal ticket must
+        NOT skip the prompt — detached sudo stays failing, so the detached
+        probe fails and the single prompt runs. The stub grants every
+        terminal-attached sudo (warm from the start) yet denies detached ones;
+        the script must still validate once via `sudo -Sv`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            _, log, env = _stubbed_provision_env(
+                Path(tmp),
+                hyprpm_stub=_hyprpm_present_stub(),
+                sudo_stub=self._sudo_tty_only_stub(),
+            )
+            result = self._run_under_pty(env, stdin_text="testpass\ntestpass\ntestpass\n")
+            assert result.returncode == 0, result.stdout + result.stderr
+            lines = log.read_text().splitlines()
+            assert lines.count("sudo -Sv") == 1, (
+                "a warm terminal ticket must still prompt+validate once; got:\n"
+                + "\n".join(lines)
+            )
+            assert not any("ask-become-pass" in l for l in lines), (
+                "no per-invocation become prompt may appear; got:\n" + "\n".join(lines)
             )
