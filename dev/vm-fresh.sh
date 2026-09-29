@@ -7,6 +7,37 @@ set -euo pipefail
 VM_NAME="dotfiles-test"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+wait_for_agent() {
+  echo "== vm-fresh: waiting for VM agent to be ready =="
+  for i in $(seq 1 90); do
+    if sudo incus info "$VM_NAME" 2>/dev/null | grep -q "Status: RUNNING"; then
+      if sudo incus exec "$VM_NAME" -- true 2>/dev/null; then
+        echo "Agent ready"
+        return 0
+      fi
+    fi
+    sleep 2
+    [ $i -eq 90 ] && { echo "Agent never became ready"; exit 1; }
+  done
+}
+
+wait_for_session() {
+  echo "== vm-fresh: waiting for Hyprland session and GloView activation =="
+  for i in $(seq 1 120); do
+    if sudo incus exec "$VM_NAME" -- test -f /home/arch/.local/state/dotfiles/gloview-active 2>/dev/null; then
+      echo "Hyprland session active and GloView loaded"
+      return 0
+    fi
+    sleep 2
+    [ "$i" -eq 120 ] && {
+      echo "ERROR: Hyprland/GloView activation did not complete"
+      sudo incus exec "$VM_NAME" -- journalctl -u sddm --no-pager -n 80 || true
+      sudo incus exec "$VM_NAME" -- su - arch -c 'pgrep -a Hyprland || true; hyprpm list 2>&1 || true'
+      exit 1
+    }
+  done
+}
+
 if [ "${1:-}" = "--clean" ]; then
   echo "== vm-fresh: cleaning existing VM =="
   sudo incus delete -f "$VM_NAME" 2>/dev/null || true
@@ -38,17 +69,7 @@ else
   sudo incus start "$VM_NAME" 2>/dev/null || true
 fi
 
-echo "== vm-fresh: waiting for VM agent to be ready =="
-for i in $(seq 1 90); do
-  if sudo incus info "$VM_NAME" 2>/dev/null | grep -q "Status: RUNNING"; then
-    if sudo incus exec "$VM_NAME" -- true 2>/dev/null; then
-      echo "Agent ready"
-      break
-    fi
-  fi
-  sleep 2
-  [ $i -eq 90 ] && { echo "Agent never became ready"; exit 1; }
-done
+wait_for_agent
 
 echo "== vm-fresh: base setup inside VM =="
 sudo incus exec "$VM_NAME" -- bash -c "
@@ -246,20 +267,21 @@ AUTLOGIN
 echo "== vm-fresh: starting SDDM =="
 sudo incus exec "$VM_NAME" -- systemctl start sddm 2>/dev/null || true
 
-echo "== vm-fresh: waiting for Hyprland session and GloView activation =="
-for i in $(seq 1 120); do
-  if sudo incus exec "$VM_NAME" -- test -f /home/arch/.local/state/dotfiles/gloview-active 2>/dev/null; then
-    echo "Hyprland session active and GloView loaded"
-    break
-  fi
-  sleep 2
-  [ "$i" -eq 120 ] && {
-    echo "ERROR: Hyprland/GloView activation did not complete"
-    sudo incus exec "$VM_NAME" -- journalctl -u sddm --no-pager -n 80 || true
-    sudo incus exec "$VM_NAME" -- su - arch -c 'pgrep -a Hyprland || true; hyprpm list 2>&1 || true'
-    exit 1
-  }
-done
+wait_for_session
+
+# P1: assert the provision actually converged (verify green, SDDM, Hyprland,
+# AGS instances, icons, GloView, Wi-Fi) — not just the activation marker.
+echo "== vm-fresh: running post-provision assertions =="
+bash "$REPO_ROOT/dev/vm-assert.sh"
+
+# P2: reboot to prove boot persistence — services enabled, autologin intact,
+# session self-heals. Then assert everything AGAIN on the fresh boot.
+echo "== vm-fresh: rebooting to prove boot persistence (P2) =="
+sudo incus restart "$VM_NAME"
+wait_for_agent
+wait_for_session
+echo "== vm-fresh: re-running post-provision assertions after reboot =="
+bash "$REPO_ROOT/dev/vm-assert.sh"
 
 echo "== vm-fresh: provision complete. VM ready for testing =="
 echo "  Console:  sudo incus console $VM_NAME --type=vga"

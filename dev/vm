@@ -10,6 +10,11 @@ set -euo pipefail
 #   shell     get a shell inside the VM
 #   destroy   delete the VM entirely
 #   status    show VM state
+#   verify    run post-provision assertions inside the VM (P1)
+#
+# Every command first runs check-prereqs.sh so a missing host prerequisite
+# (incus never installed, daemon down) fails with the exact remediation
+# instead of a cryptic error deep in a subcommand.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VM_NAME="dotfiles-test"
@@ -29,6 +34,7 @@ Commands:
   shell     Get a shell inside the VM
   destroy   Delete the VM entirely
   status    Show VM state
+  verify    Run post-provision assertions inside the VM (P1)
 EOF
   exit 1
 }
@@ -95,14 +101,23 @@ cmd_destroy() {
 }
 
 cmd_status() {
-  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+  if ! sudo incus info "$VM_NAME" 2>/dev/null | grep -E "Name:|Status:|IPv4:|Resources:" | head -5; then
     echo "VM '$VM_NAME' does not exist."
-    exit 0
   fi
-  sudo incus info "$VM_NAME" 2>/dev/null | grep -E "Name:|Status:|IPv4:|Resources:" | head -5
+}
+
+cmd_verify() {
+  if ! sudo incus info "$VM_NAME" >/dev/null 2>&1; then
+    red "VM '$VM_NAME' does not exist. Run 'vm fresh' first."
+    exit 1
+  fi
+  bash "$SCRIPT_DIR/vm-assert.sh"
 }
 
 [ $# -eq 0 ] && usage
+
+# Gate every command on host prerequisites (friendly errors, never cryptic).
+bash "$SCRIPT_DIR/check-prereqs.sh" || exit 1
 
 case "$1" in
   fresh)   cmd_fresh ;;
@@ -112,5 +127,6 @@ case "$1" in
   shell)   cmd_shell ;;
   destroy) cmd_destroy ;;
   status)  cmd_status ;;
+  verify)  cmd_verify ;;
   *)       red "Unknown command: $1"; usage ;;
 esac

@@ -29,10 +29,15 @@ sudo pacman -S spice-gtk
 ## Quick Start
 
 ```bash
-cd ~/Development/dotfiles-new-architectures/dotfiles-repo-v3
+cd ~/Development/dotfiles-v3
 
-# Create VM + full provision (first run takes ~5-10 min)
+# Create VM + full provision (first run takes ~5-10 min), then asserts the
+# result (verify green, SDDM, Hyprland, AGS, icons, GloView, Wi-Fi), reboots
+# to prove boot persistence, and asserts again:
 ./dev/vm fresh
+
+# Re-run just the post-provision assertions any time:
+./dev/vm verify
 ```
 
 ## Usage
@@ -47,6 +52,7 @@ vm console     # open SPICE graphical console
 vm shell       # get a shell inside the VM
 vm destroy     # delete the VM entirely
 vm status      # show VM state
+vm verify      # post-provision assertions inside the VM (P1)
 ```
 
 ### Graphical Console
@@ -103,6 +109,21 @@ Canonical spine: `~/.local/share/dotfiles/`
 - **DNS:** Google (8.8.8.8, 8.8.4.4)
 - **Mirrors:** mirror.rackspace.com, geo.mirror.pkgbuild.com
 
+## What the VM Cannot Test
+
+Two things need bare metal, in any VM software (not an Incus limitation):
+
+- **Trackpad gestures** — laptop trackpads are PS/2- or I2C-attached, so they
+  cannot be passed through to a guest; the VM only ever sees a generic mouse.
+  The GloView plugin *build + load* is asserted in the VM (`vm verify`), but
+  finger input needs real hardware.
+- **Physical radios** — the guest gets virtual Ethernet (plus a simulated
+  Wi-Fi AP for the bar's connected state), never your Wi-Fi/Bluetooth card.
+
+For hardware truth, provision a throwaway user account on the host instead:
+fresh `$HOME`, same kernel/trackpad/radios, SDDM login into Hyprland gives
+the genuine first-login flow. Delete it afterwards.
+
 ## Troubleshooting
 
 ### Super key doesn't work in VM
@@ -125,6 +146,8 @@ vm fresh
 ## Files
 
 - `vm` — single entry point for all VM operations
+- `check-prereqs.sh` — host prerequisite gate (incus, daemon, KVM, group, viewer)
+- `vm-assert.sh` — post-provision assertions inside the guest (P1, re-run after P2 reboot)
 - `vm-fresh.sh` — creates VM, sets up network/packages, pushes repo, runs bootstrap
 - `vm-continue.sh` — resume an existing provisioned VM
 

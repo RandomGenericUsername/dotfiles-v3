@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-help
+.PHONY: bootstrap contracts-check dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -23,7 +23,6 @@ dev-deps:
 # VM commands
 vm-fresh:   dev/vm
 	./dev/vm fresh
-
 vm-up:      dev/vm
 	./dev/vm up
 
@@ -42,6 +41,9 @@ vm-destroy: dev/vm
 vm-status:  dev/vm
 	./dev/vm status
 
+vm-verify:  dev/vm
+	./dev/vm verify
+
 vm-help:
 	@echo "VM Usage:"
 	@echo "  make vm-fresh    — wipe + recreate + full provision"
@@ -51,6 +53,7 @@ vm-help:
 	@echo "  make vm-shell    — get a shell inside the VM"
 	@echo "  make vm-destroy  — delete the VM entirely"
 	@echo "  make vm-status   — show VM state"
+	@echo "  make vm-verify   — post-provision assertions inside the VM"
 	@echo ""
 	@echo "Inside the SPICE console:"
 	@echo "  Ctrl+Alt+G       — grab/ungrab keyboard (Super key goes to VM)"
