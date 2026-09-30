@@ -417,6 +417,16 @@ window.settings-panel {
 /* Nav header (subviews) */
 .settings-nav-header {
   min-height: 26px;
+  /* The switch inside is correctly centred in this 26px row, but the row was
+     not centred in the section a human actually sees (inner-top of the surface
+     down to the .settings-divider grey line). The surface's 11px padding all
+     lands ABOVE the header while only the divider's 4px margin lands below,
+     so the pill measured 12px from the top and 5px from the bottom — a 7px
+     asymmetry that read as the toggle sitting on the floor. 7px of bottom
+     padding balances it: 11+1 above, 1+7+4 below. Do NOT try to fix this by
+     nudging the switch itself (margin/valign on .settings-switch): the widget
+     is already centred, and GTK4 CSS has no `valign` property at all. */
+  padding-bottom: 7px;
 }
 
 .settings-back {

@@ -34,6 +34,16 @@ export function WifiSwitch({
       class="settings-switch"
       active={active}
       sensitive={sensitive}
+      // Pin the cross-axis so the container can never stretch the track off
+      // its 24px design height. Gtk.Box children default to valign FILL, and
+      // NavHeader's row is min-height 26px — so in WifiView the switch was
+      // being stretched to 26px: track flush to both row edges with no
+      // breathing room, and the 12px border-radius (tuned for a 24px pill)
+      // no longer closing into a circle. WifiPopup happened to wrap this in a
+      // valign=CENTER box, so the two surfaces rendered the toggle at
+      // different sizes. This must be a widget property, not CSS: GTK4's CSS
+      // parser has no `valign` and rejects the whole stylesheet on it.
+      valign={Gtk.Align.CENTER}
       onNotifyActive={(self) => {
         const now = self.active
         if (lastHandled === null) {
