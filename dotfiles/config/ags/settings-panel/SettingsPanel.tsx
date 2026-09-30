@@ -1,7 +1,11 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import { createComputed, createEffect } from "ags"
 import { activeView, close, iconCenterX, panelVisible, viewEpoch } from "./state"
-import { wifiPromptVisible } from "../components/wifi/WifiContent"
+import {
+  stcExpanded,
+  wifiPromptVisible,
+} from "../components/wifi/WifiContent"
+import { wifiEnabled } from "../services/wifi-service"
 import { MainView } from "./views/MainView"
 import { WifiView } from "./views/WifiView"
 import { BluetoothView } from "./views/BluetoothView"
@@ -95,10 +99,25 @@ export function SettingsPanel(gdkmonitor: Gdk.Monitor) {
       $={(self) => {
         // Keyboard mode is NONE by default so the panel does not steal focus —
         // that is what lets the bar keep click activation (reliable same-spot
-        // collapse). Switch to ON_DEMAND only while the Wi-Fi password field is
-        // shown, which needs typed input.
+        // collapse). Switch to ON_DEMAND only while a field that needs typed
+        // input is actually on screen.
+        //
+        // BOTH conditions are required, not just the password prompt: the
+        // speed-test interval control is a Gtk.Entry too (WifiContent.tsx,
+        // IntervalMsControl), and with keymode NONE the panel holds no
+        // keyboard, so clicking it focused nothing and every keystroke went to
+        // the bar instead — the field looked clickable but was inert. The tray
+        // popup was unaffected because it sets ON_DEMAND unconditionally.
+        //
+        // stcExpanded gates the interval entry, hence the dependency on it.
         createEffect(() => {
-          self.keymode = wifiPromptVisible()
+          // stcExpanded alone is not quite the visibility test: the speed-test
+          // block also requires Wi-Fi to be on and no password prompt, so
+          // collapse the section while the radio is off and the panel must NOT
+          // keep the keyboard. Mirrors the block's own visible= condition.
+          const stcFieldVisible = stcExpanded() && wifiEnabled() && !wifiPromptVisible()
+          const needsKeyboard = wifiPromptVisible() || stcFieldVisible
+          self.keymode = needsKeyboard
             ? Astal.Keymode.ON_DEMAND
             : Astal.Keymode.NONE
         })

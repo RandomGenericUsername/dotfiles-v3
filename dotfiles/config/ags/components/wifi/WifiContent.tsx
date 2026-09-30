@@ -40,6 +40,10 @@ export type { WifiNetwork }
 const [selectedSsid, setSelectedSsid] = createState<string | null>(null)
 const [otherExpanded, setOtherExpanded] = createState(false)
 const [stcExpanded, setStcExpanded] = createState(false)
+// Exported so SettingsPanel can grant keyboard focus while the speed-test
+// interval Gtk.Entry is on screen. Without ON_DEMAND the panel holds no
+// keyboard, so that entry is clickable but inert — keystrokes go to the bar.
+export { stcExpanded }
 // Ticking clock so relative `Ran` ages past "just now" (30s cadence,
 // session-lifetime — one source for both popup and settings-view instances).
 const [nowMs, setNowMs] = createState(Date.now())
