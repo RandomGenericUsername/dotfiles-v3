@@ -1,4 +1,5 @@
 import { Accessor, createComputed, createEffect, createState, For } from "ags"
+import GLib from "gi://GLib?version=2.0"
 import { Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
@@ -21,7 +22,6 @@ import {
   getConfig,
   setConfigValue,
   startSpeedTestService,
-  stopSpeedTestService,
   runSpeedTest,
   lastResult,
   lastRunAt,
@@ -39,6 +39,13 @@ export type { WifiNetwork }
 const [selectedSsid, setSelectedSsid] = createState<string | null>(null)
 const [otherExpanded, setOtherExpanded] = createState(false)
 const [stcExpanded, setStcExpanded] = createState(false)
+// Ticking clock so relative `Ran` ages past "just now" (30s cadence,
+// session-lifetime — one source for both popup and settings-view instances).
+const [nowMs, setNowMs] = createState(Date.now())
+GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30000, () => {
+  setNowMs(Date.now())
+  return true
+})
 const stcIntervalMs = createComputed(() => getConfig().interval_ms)
 const stcRunOnConnect = createComputed(() => getConfig().run_on_connect)
 let observedConnectedSsid: string | null = null
@@ -175,11 +182,6 @@ function formatSpeedFull(r: SpeedTestResult | null): string {
   return `↓ ${r.down_mbps} Mbps · ↑ ${r.up_mbps} Mbps · ${r.latency_ms} ms`
 }
 
-function formatSpeedCompact(r: SpeedTestResult | null): string {
-  if (!r) return "—"
-  return `↓ ${r.down_mbps} · ↑ ${r.up_mbps} · ${r.latency_ms}ms`
-}
-
 function formatRanAt(ranAt: number | null): string {
   if (ranAt === null) return "—"
   const mins = Math.round((Date.now() - ranAt) / 60000)
@@ -226,18 +228,16 @@ function ConnectionDetails() {
     return info.ip ?? info.iface ?? "—"
   })
   const speed = createComputed(() => formatSpeedFull(lastResult()))
-  const lastTest = createComputed(() => formatSpeedCompact(lastResult()))
-  const ran = createComputed(() => formatRanAt(lastRunAt()))
-  //: state-2-stc-expanded mock variant: with the section open, the table
-  //: drops Last-test/Ran (results context lives in the open section).
-  const showFullDetails = createComputed(() => !stcExpanded())
+  const ran = createComputed(() => {
+    nowMs()
+    return formatRanAt(lastRunAt())
+  })
   return (
     <box class="settings-conn-details" orientation={1} spacing={2}>
       <DetailRow name="MAC" value={mac} />
       <DetailRow name="IP / iface" value={ipIface} />
       <DetailRow name="Speed" value={speed} />
-      <DetailRow name="Last test" value={lastTest} visible={showFullDetails} />
-      <DetailRow name="Ran" value={ran} visible={showFullDetails} />
+      <DetailRow name="Ran" value={ran} />
     </box>
   )
 }
@@ -358,7 +358,12 @@ export function WifiPasswordPrompt() {
           tooltipText={createComputed(() => revealed() ? "Hide password" : "Show password")}
           onClicked={() => setRevealed(!revealed())}
           canFocus={false}
-        ><label label={createComputed(() => revealed() ? "Hide" : "Show")} /></button>
+        ><image class="settings-eye-icon" pixel_size={16} $={(self) => {
+          createEffect(() => {
+            const src = registry.resolve("settings-panel", revealed() ? "password-hide" : "password-show")
+            if (src !== null) self.set_from_file(src)
+          })
+        }} /></button>
       </box>
       <label class="settings-field-error" xalign={0} label={createComputed(() => promptError() ?? "")} visible={createComputed(() => promptError() !== "")} />
       <box class="settings-btnrow" spacing={8} homogeneous>
@@ -380,6 +385,7 @@ function OtherNetworksExpand() {
     <box orientation={1} spacing={4} visible={createComputed(() => wifiEnabled() && !wifiPromptVisible())}>
       <SecurityRow />
       <ConnectionDetails />
+      <box class="settings-divider" />
       <label class="settings-section-label" xalign={0} label="Known Networks" />
       <box orientation={1} spacing={4}>
         <For each={connected} id={(n) => n.ssid}>
@@ -389,6 +395,7 @@ function OtherNetworksExpand() {
           {(network) => <WifiRow network={network} />}
         </For>
       </box>
+      <box class="settings-divider" />
       <button
         class="settings-chevron-row"
         onClicked={() => setOtherExpanded(!otherExpanded())}
@@ -404,6 +411,11 @@ function OtherNetworksExpand() {
     </box>
   )
 }
+
+// Scheduler runs for the whole session, not just while the popup is open:
+// it is started once at import (serviceUsers=1 forever), so the configured
+// period fires in the background. Only Wi-Fi scanning stays visibility-tied.
+startSpeedTestService()
 
 export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
   const [settingsMessage, setSettingsMessage] = createState("")
@@ -425,8 +437,7 @@ export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
     createEffect(() => {
       if (!visible()) return
       startScanning()
-      startSpeedTestService()
-      return () => { stopScanning(); stopSpeedTestService() }
+      return () => { stopScanning() }
     })
 
   const showList = createComputed(() => wifiEnabled() && !wifiPromptVisible())
@@ -457,8 +468,10 @@ export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
         canFocus={false}
         visible={createComputed(() => wifiEnabled() && !wifiPromptVisible())}
       >
-        <label class="settings-chevron-label" xalign={0} label={stcExpanded() ? "Speed Test Settings… ▾" : "Speed Test Settings… ▸"} />
+        <label class="settings-chevron-label" xalign={0} label={stcExpanded() ? "Speed Test Settings ▾" : "Speed Test Settings ▸"} />
       </button>
+
+      <box class="settings-divider" visible={createComputed(() => wifiEnabled() && !wifiPromptVisible())} />
 
       <box class="settings-speedtest-config" orientation={1} spacing={6} visible={createComputed(() => wifiEnabled() && !wifiPromptVisible() && stcExpanded())}>
         <label class="settings-stc-title" xalign={0} label="Speed Test" />
@@ -471,9 +484,9 @@ export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
           />
         </box>
         <label class="settings-stc-error" label={createComputed(() => lastError() ?? "")} visible={createComputed(() => lastError() !== null)} />
-        <button class={createComputed(() => speedTestRunning() ? "settings-stc-run-btn running" : "settings-stc-run-btn")} sensitive={createComputed(() => !speedTestRunning())} onClicked={() => { void runSpeedTest() }} canFocus={false}>
+        <button class={createComputed(() => speedTestRunning() ? "settings-stc-run-btn running" : "settings-stc-run-btn")} onClicked={() => { if (!speedTestRunning()) void runSpeedTest() }} canFocus={false}>
           <box spacing={6} halign={Gtk.Align.CENTER}>
-            <Gtk.Spinner class="settings-spinner" spinning={speedTestRunning()} visible={speedTestRunning()} />
+            <Gtk.Spinner class="settings-spinner" spinning={speedTestRunning} visible={speedTestRunning} />
             <label label={createComputed(() => speedTestRunning() ? "Testing…" : "Run now")} />
           </box>
         </button>
@@ -490,7 +503,8 @@ export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
         })
         self.add_controller(click)
       }}>
-        <label class="settings-wifi-settings-label" hexpand label="Wi-Fi Settings" />
+        <label class="settings-wifi-settings-label" hexpand xalign={0} label="Wi-Fi Settings" />
+        <label class="settings-wifi-settings-note" valign={Gtk.Align.CENTER} label="opens nm-connection-editor" />
         <label class="settings-wifi-settings-arrow" label="›" />
       </box>
     </box>

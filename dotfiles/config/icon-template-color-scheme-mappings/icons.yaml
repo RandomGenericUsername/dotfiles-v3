@@ -469,6 +469,14 @@ settings-panel:
       output: settings-panel-info-caution.svg
       color_mappings:
         COLOR_FOREGROUND: color15
+    # Password visibility eye icons for the Wi-Fi prompt (owner-supplied art,
+    # group foreground — no bar_mappings, system icons).
+    - name: password-show
+      template: settings-panel/password-show/default/icon.svg
+      output: settings-panel-password-show.svg
+    - name: password-hide
+      template: settings-panel/password-hide/default/icon.svg
+      output: settings-panel-password-hide.svg
 
 brightness:
   color_mappings:

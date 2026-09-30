@@ -791,6 +791,11 @@ window.settings-panel {
 }
 
 /* Connection details block (state-1-connected table) */
+.settings-divider {
+  min-height: 1px;
+  background-color: alpha(@color_foreground, 0.06);
+  margin: 4px 0;
+}
 .settings-conn-details {
   padding: 6px 16px;
 }
@@ -871,9 +876,17 @@ window.settings-panel {
   color: @color_13;
   border-color: alpha(@color_13, 0.65);
 }
+.settings-eye-icon {
+  min-width: 16px;
+  min-height: 16px;
+}
 .settings-wifi-settings-label {
   font-size: 13px;
   color: rgba(255,255,255,0.7);
+}
+.settings-wifi-settings-note {
+  font-size: 10px;
+  color: rgba(255,255,255,0.3);
 }
 .settings-wifi-settings-arrow {
   color: rgba(255,255,255,0.3);
@@ -946,14 +959,18 @@ window.settings-panel {
 .settings-stc-run-btn {
   font-size: 11px;
   font-weight: 600;
-  color: @color_13;
-  background: alpha(@color_13, 0.15);
+  color: @color_10;
+  background: alpha(@color_10, 0.15);
   border: none;
   border-radius: 6px;
   padding: 4px 12px;
 }
+.settings-stc-run-btn .settings-spinner {
+  color: @color_10;
+}
 .settings-stc-run-btn.running {
-  opacity: 0.72;
+  opacity: 1;
+  color: alpha(@color_10, 0.7);
 }
 .settings-stc-error {
   color: @color_11;

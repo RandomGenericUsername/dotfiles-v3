@@ -645,6 +645,24 @@
         "name": "wifi-signal-low",
         "output": "settings-panel-wifi-signal-low.svg",
         "template": "settings-panel/wifi-signal-low/default/icon.svg"
+      },
+      {
+        "name": "info-caution",
+        "template": "capture-tool/default/info.svg",
+        "output": "settings-panel-info-caution.svg",
+        "color_mappings": {
+          "COLOR_FOREGROUND": "color15"
+        }
+      },
+      {
+        "name": "password-show",
+        "template": "settings-panel/password-show/default/icon.svg",
+        "output": "settings-panel-password-show.svg"
+      },
+      {
+        "name": "password-hide",
+        "template": "settings-panel/password-hide/default/icon.svg",
+        "output": "settings-panel-password-hide.svg"
       }
     ]
   },

@@ -161,6 +161,12 @@ function runSpeedTest(): void {
   if (running()) return
   setRunning(true)
   setLastError(null)
+  // NOTE: on Arch/Debian `/usr/bin/speedtest` is the Python speedtest-cli
+  // wrapper (same as `speedtest-cli`, `--json`), NOT Ookla (`--format=json`).
+  // Detecting Ookla by basename alone sends `--format=json` to the Python
+  // tool, which exits non-zero / prints usage, surfacing as
+  // "unrecognized result". Prefer the explicit `speedtest-cli` binary;
+  // only treat `speedtest` as Ookla when `speedtest-cli` is absent.
   const ookla = GLib.find_program_in_path("speedtest")
   const compatible = GLib.find_program_in_path("speedtest-cli")
   if (ookla === null && compatible === null) {
@@ -169,12 +175,17 @@ function runSpeedTest(): void {
     setRunning(false)
     return
   }
-  const useOokla = ookla !== null
+  const useOokla = compatible === null && ookla !== null
   const command = useOokla ? [ookla, "--format=json"] : [compatible!, "--json"]
   execAsync(command)
     .then((out: string) => {
-      const result = useOokla ? parseOoklaResult(out) : parseSpeedtestCliResult(out)
+      // Dual-parse: mis-detected binaries still resolve instead of
+      // "unrecognized result".
+      const result = useOokla
+        ? (parseOoklaResult(out) ?? parseSpeedtestCliResult(out))
+        : (parseSpeedtestCliResult(out) ?? parseOoklaResult(out))
       if (result === null) {
+        console.error(`speedtest-service: unparseable output: ${out.slice(0, 500)}`)
         setLastError("Speed test returned an unrecognized result.")
       } else {
         setLastResult(result)

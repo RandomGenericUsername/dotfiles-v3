@@ -7,7 +7,6 @@ import {
 } from "./state"
 import {
   WifiContent,
-  wifiPromptVisible,
 } from "./WifiContent"
 import { WifiSwitch } from "../primitives/WifiSwitch"
 import { setWifiEnabled, wifiEnabled, wifiReady } from "../../services/wifi-service"
@@ -61,7 +60,7 @@ export function WifiPopup(gdkmonitor: Gdk.Monitor) {
       visible={wifiPopupVisible}
       $={(self) => {
         createEffect(() => {
-          self.keymode = wifiPromptVisible() ? Astal.Keymode.ON_DEMAND : Astal.Keymode.NONE
+          self.keymode = Astal.Keymode.ON_DEMAND
         })
         const key = new Gtk.EventControllerKey()
         key.connect("key-pressed", (_controller, keyval) => {
@@ -74,7 +73,9 @@ export function WifiPopup(gdkmonitor: Gdk.Monitor) {
       <box class="settings-surface" orientation={1} widthRequest={312}>
         <box class="settings-nav-header" spacing={9}>
           <label class="settings-nav-title" xalign={0} hexpand label="Wi-Fi" />
-          <WifiSwitch active={wifiEnabled} sensitive={wifiReady} onToggled={(v) => { void setWifiEnabled(v) }} />
+          <box valign={Gtk.Align.CENTER}>
+            <WifiSwitch active={wifiEnabled} sensitive={wifiReady} onToggled={(v) => { void setWifiEnabled(v) }} />
+          </box>
         </box>
         <scrolledwindow
           class="settings-scroll"
