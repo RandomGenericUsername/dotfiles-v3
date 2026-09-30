@@ -139,6 +139,14 @@ export type SpeedTestMeasurements = {
   down_mbps: number
   up_mbps: number
   latency_ms: number
+  //: The CONTEXT of the measurement, so the card can name what it measured
+  //: rather than only that something ran. Both are strings and BOTH MAY BE
+  //: EMPTY: "" is the honest value for "unavailable" (a wired connection has no
+  //: SSID, some backends report no server name), and it is what a consumer can
+  //: test on. Making them optional instead would let an absent key and an empty
+  //: value mean different things, and nothing downstream distinguishes them.
+  ssid: string
+  server_name: string
 }
 
 //: One-line, human-readable. Never a traceback: the card has ~44 wrapped
@@ -175,6 +183,11 @@ export function publishSpeedTestState(
     payload.down_mbps = new GLib.Variant("d", measured.down_mbps)
     payload.up_mbps = new GLib.Variant("d", measured.up_mbps)
     payload.latency_ms = new GLib.Variant("d", measured.latency_ms)
+    // Always sent, even when empty. The contract carries them on `done` and the
+    // card falls back on an empty string, so omitting them would leave the
+    // consumer guessing whether "" means "unavailable" or "never sent".
+    payload.ssid = new GLib.Variant("s", measured.ssid ?? "")
+    payload.server_name = new GLib.Variant("s", measured.server_name ?? "")
   } else if (state === "error") {
     payload.reason = new GLib.Variant("s", terminal as SpeedTestReason)
   }

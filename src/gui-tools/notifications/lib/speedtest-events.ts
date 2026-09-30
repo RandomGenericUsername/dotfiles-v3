@@ -10,6 +10,18 @@ const DBUS_PATH = "/org/freedesktop/DBus"
 const DBUS_INTERFACE = "org.freedesktop.DBus"
 
 export type SpeedTestEventSource = "signal" | "startup-state"
+//: The `done` members this consumer reads. `ssid` and `server_name` are card
+//: CONTEXT (what was measured), not measurements, and both MAY be "" — see the
+//: contract's notes. Deliberately a narrow view over the wire payload rather
+//: than the full record: the card needs these six and nothing else, and every
+//: key it reads is pinned by the contract's TS-ahead drift leg.
+export type SpeedTestDonePayload = {
+  down_mbps?: unknown
+  up_mbps?: unknown
+  latency_ms?: unknown
+  ssid?: unknown
+  server_name?: unknown
+}
 export type SpeedTestPayload = Record<string, unknown>
 export type SpeedTestEventHandler = (
   payload: SpeedTestPayload,

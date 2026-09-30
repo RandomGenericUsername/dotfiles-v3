@@ -90,6 +90,11 @@ function asNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
+/** A payload string, trimmed; "" for anything else, including null/undefined. */
+function asText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : ""
+}
+
 function mbpsLabel(value: number | undefined): string {
   return value === undefined ? "—" : `${value.toFixed(1)} Mbps`
 }
@@ -616,6 +621,8 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
         down_mbps: asNumber(payload["down_mbps"]),
         up_mbps: asNumber(payload["up_mbps"]),
         latency_ms: asNumber(payload["latency_ms"]),
+        ssid: asText(payload["ssid"]),
+        server_name: asText(payload["server_name"]),
         trigger: typeof payload["trigger"] === "string" ? payload["trigger"] : "",
       })
       // Success is informational and already visible in the panel, so the card
@@ -756,6 +763,8 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
       down_mbps?: number
       up_mbps?: number
       latency_ms?: number
+      ssid?: string
+      server_name?: string
       reason?: string
       trigger: string
     },
@@ -782,9 +791,7 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
 
     if (state === "done") {
       speedtestTitle?.set_label("Speed test complete")
-      speedtestDetail?.set_label(
-        `${triggerPhrase(terminal?.trigger)} · also shown in the Wi-Fi panel`,
-      )
+      speedtestDetail?.set_label(speedtestContextLine(terminal))
       speedtestFooter?.set_label("Finished just now.")
       setSpeedtestSteps(SPEEDTEST_STEPS.length, false)
       const [down, up, ping] = speedtestCells
@@ -838,6 +845,28 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
       case "connect": return "Run after connecting"
       default: return "Scheduled run"
     }
+  }
+
+  /**
+   * The success body: what was measured, joined the way the mock joins it
+   * ("Canela&Dulce · CableVivo Envigado").
+   *
+   * The spec says to fall back to the trigger phrase when EITHER value is empty.
+   * This keeps whichever half IS known instead, because the rule's stated
+   * purpose is "rather than render a blank": dropping the SSID because the
+   * backend reported no server name would throw away a fact we measured. Only
+   * when NEITHER is present does the line fall back, and then to the trigger
+   * phrase alone.
+   */
+  function speedtestContextLine(
+    terminal?: { ssid?: string; server_name?: string; trigger: string },
+  ): string {
+    const ssid = asText(terminal?.ssid)
+    const server = asText(terminal?.server_name)
+    if (ssid !== "" && server !== "") return `${ssid} · ${server}`
+    if (ssid !== "") return ssid
+    if (server !== "") return server
+    return `${triggerPhrase(terminal?.trigger ?? "")} · also shown in the Wi-Fi panel`
   }
 
 

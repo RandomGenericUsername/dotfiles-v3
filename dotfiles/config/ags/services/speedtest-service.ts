@@ -2,11 +2,30 @@ import GLib from "gi://GLib?version=2.0"
 import { createState } from "ags"
 import { publishSpeedTestState, type SpeedTestTrigger } from "../lib/event-bus"
 import { execAsync } from "ags/process"
+//: The connected network's SSID rides on the `done` event so the notification
+//: card can name what it measured. Reading it HERE is the whole reason this is
+//: a payload change and not consumer-side coupling: the service already lives
+//: in the same AGS process as the Wi-Fi service, so the state is one accessor
+//: away, whereas the notifications app is a SEPARATE instance that has no
+//: business importing Wi-Fi state. Import direction matters: service -> service
+//: is a pass-through, notification-app -> wifi-service would be new coupling
+//: across an instance boundary.
+import { wifiNetworks } from "./wifi-service"
 
 export type SpeedTestResult = {
   down_mbps: number
   up_mbps: number
   latency_ms: number
+}
+
+//: A parsed run: the measurement the panel renders, plus the server it was
+//: measured against. Kept OUT of `SpeedTestResult` deliberately — that type is
+//: persisted to `wifi-speedtest-last.json` and read back on restart, so adding a
+//: field to it would change the on-disk shape of every existing measurement for
+//: a value only the card consumes.
+type ParsedRun = {
+  result: SpeedTestResult
+  server_name: string
 }
 
 export type SpeedTestConfig = {
@@ -199,7 +218,48 @@ function toLatencyMs(latency: unknown): number | null {
   return Math.round(latency * 10) / 10
 }
 
-function parseOoklaResult(out: string): SpeedTestResult | null {
+/**
+ * Human label for the server a run was measured against.
+ *
+ * Both backends report a `server` object but spell the sponsor differently:
+ * the Ookla CLI uses `{name, host}` (name = the ISP), while `speedtest-cli`
+ * uses `{sponsor, name, host, url}` (sponsor = the ISP, name = the city). The
+ * approved mock's "CableVivo Envigado" is the latter's `sponsor` + `name`, so
+ * both are joined when both exist.
+ *
+ * Returns "" rather than null when nothing usable is present: the contract
+ * allows an empty string for "unavailable", and "" is what a consumer can test
+ * on. A null here would have to become "" one layer up anyway.
+ */
+function serverLabel(server: unknown): string {
+  if (server === null || typeof server !== "object") return ""
+  const record = server as Record<string, unknown>
+  const text = (key: string): string => {
+    const value = record[key]
+    return typeof value === "string" ? value.trim() : ""
+  }
+  const sponsor = text("sponsor")
+  const name = text("name")
+  if (sponsor !== "" && name !== "") return `${sponsor} ${name}`
+  // `host` is `speedtest.cablevivo.com:8080` on one backend and a bare host on
+  // the other; either reads better than an empty body line.
+  return name !== "" ? name : (text("host") || sponsor || text("url"))
+}
+
+/**
+ * The network a run STARTED on.
+ *
+ * Read at run start, not at settle: the run measured the link that was up when
+ * it began, so re-reading on completion would mislabel a result whenever the
+ * connection changed mid-run. Empty when Wi-Fi is off, the list has not been
+ * populated yet, or the service is running where the Wi-Fi accessor is idle —
+ * all of which are the honest "no associated network".
+ */
+function connectedSsid(): string {
+  return wifiNetworks().find((network) => network.connected)?.ssid ?? ""
+}
+
+function parseOoklaResult(out: string): ParsedRun | null {
   let raw: unknown
   try {
     raw = JSON.parse(out) as unknown
@@ -211,17 +271,21 @@ function parseOoklaResult(out: string): SpeedTestResult | null {
     download?: { bandwidth?: unknown }
     upload?: { bandwidth?: unknown }
     ping?: { latency?: unknown }
+    server?: unknown
   }
   const down_mbps = toMbps(payload.download?.bandwidth)
   const up_mbps = toMbps(payload.upload?.bandwidth)
   const latency_ms = toLatencyMs(payload.ping?.latency)
   if (down_mbps === null || up_mbps === null || latency_ms === null) return null
-  return { down_mbps, up_mbps, latency_ms }
+  return {
+    result: { down_mbps, up_mbps, latency_ms },
+    server_name: serverLabel(payload.server),
+  }
 }
 
 // Arch/Debian ship the compatible `speedtest-cli` under a separate command.
 // Its JSON reports download/upload in bits per second at the top level.
-function parseSpeedtestCliResult(out: string): SpeedTestResult | null {
+function parseSpeedtestCliResult(out: string): ParsedRun | null {
   let raw: unknown
   try {
     raw = JSON.parse(out) as unknown
@@ -229,7 +293,12 @@ function parseSpeedtestCliResult(out: string): SpeedTestResult | null {
     return null
   }
   if (raw === null || typeof raw !== "object") return null
-  const payload = raw as { download?: unknown; upload?: unknown; ping?: unknown }
+  const payload = raw as {
+    download?: unknown
+    upload?: unknown
+    ping?: unknown
+    server?: unknown
+  }
   const down = payload.download
   const up = payload.upload
   const ping = payload.ping
@@ -239,9 +308,12 @@ function parseSpeedtestCliResult(out: string): SpeedTestResult | null {
     typeof ping !== "number" || !Number.isFinite(ping) || ping < 0
   ) return null
   return {
-    down_mbps: Math.round((down / 1_000_000) * 10) / 10,
-    up_mbps: Math.round((up / 1_000_000) * 10) / 10,
-    latency_ms: Math.round(ping * 10) / 10,
+    result: {
+      down_mbps: Math.round((down / 1_000_000) * 10) / 10,
+      up_mbps: Math.round((up / 1_000_000) * 10) / 10,
+      latency_ms: Math.round(ping * 10) / 10,
+    },
+    server_name: serverLabel(payload.server),
   }
 }
 
@@ -271,6 +343,10 @@ function runSpeedTest(trigger: SpeedTestTrigger = "scheduled"): void {
   if (running()) return
   setRunning(true)
   setLastError(null)
+  //: Captured ONCE, here, before the subprocess is even spawned: the card must
+  //: name the network this run actually measured. Read at start, so a link that
+  //: drops and comes back mid-run cannot relabel the result.
+  const ssid = connectedSsid()
   publish("starting", trigger)
   // Set on the FIRST terminal event and never cleared, so a later path in the
   // same run cannot emit a second one.
@@ -322,20 +398,28 @@ function runSpeedTest(trigger: SpeedTestTrigger = "scheduled"): void {
     .then((out: string) => {
       // Dual-parse: mis-detected binaries still resolve instead of
       // "unrecognized result".
-      const result = useOokla
+      const parsed = useOokla
         ? (parseOoklaResult(out) ?? parseSpeedtestCliResult(out))
         : (parseSpeedtestCliResult(out) ?? parseOoklaResult(out))
-      if (result === null) {
+      if (parsed === null) {
         console.error(`speedtest-service: unparseable output: ${out.slice(0, 500)}`)
         setLastError("Speed test returned an unrecognized result.")
         finish("error", "Speed test returned an unrecognized result.")
       } else {
-        setLastResult(result)
+        setLastResult(parsed.result)
         // Persist on success only. A failed run must not overwrite the last
         // good measurement — otherwise a transient network blip would blank
-        // the Speed rows until the next successful test.
-        saveLastRun(result, Date.now())
-        finish("done", result)
+        // the Speed rows until the next successful test. The persisted shape is
+        // the MEASUREMENT only — the server label is card context and would be
+        // stale the moment the next run picks a different server.
+        saveLastRun(parsed.result, Date.now())
+        finish("done", {
+          down_mbps: parsed.result.down_mbps,
+          up_mbps: parsed.result.up_mbps,
+          latency_ms: parsed.result.latency_ms,
+          ssid,
+          server_name: parsed.server_name,
+        })
       }
       setLastRunAt(Date.now())
     })

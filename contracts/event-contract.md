@@ -106,7 +106,7 @@ the normal lease expiry still yields the synthetic `JobFinished(-1)`.
 | --- | --- | --- |
 | `icme.saved` | ICME (on save) | `{ "path": s }` |
 | `capture.state` | capture controller | `{ "state": s (idle\|recording\|paused), "elapsed_seconds": x }` |
-| `speedtest.state` | speed-test service | `{ "state": s (starting\|done\|error), "trigger": s (scheduled\|manual\|connect), "down_mbps": d?, "up_mbps": d?, "latency_ms": d?, "reason": s? }` |
+| `speedtest.state` | speed-test service | `{ "state": s (starting\|done\|error), "trigger": s (scheduled\|manual\|connect), "ssid": s?, "server_name": s?, "down_mbps": d?, "up_mbps": d?, "latency_ms": d?, "reason": s? }` |
 | `clipboard.update` | clipboard controller | `{ "type": s (text\|image\|link\|code\|color\|emoji), "hash": s, "path": s, "preview": s }` |
 | `clipboard.state` | clipboard controller | `{ "state": s (idle\|running\|paused), "job_id": s }` |
 | `wallpaper.state` | wallpaper set | `{ "state": s (applying\|visible\|done\|error), "wallpaper_hash": s, "trigger": s (set\|regenerate\|reconcile\|reactive)? }` |
@@ -141,10 +141,22 @@ operation that produced the transition — `set` (wallpaper set),
 emitted by the speed-test service on every transition — `starting` when a run
 begins, then exactly one `done` or `error` when it settles, including when the
 run's watchdog abandons it. `done` additionally carries the three measurement
-doubles; `error` additionally carries a single-line human-readable `reason`
-(never a traceback). `trigger` names the operation that started the run:
-`scheduled` (the interval timer), `manual` (the panel's Run now), or `connect`
-(the run-on-connect watcher). There is deliberately **no** progress fraction:
+doubles and the two context strings; `error` additionally carries a
+single-line human-readable `reason` (never a traceback). `trigger` names the
+operation that started the run: `scheduled` (the interval timer), `manual`
+(the panel's Run now), or `connect` (the run-on-connect watcher).
+
+`ssid` and `server_name` are the **context of a measurement**: which network
+was up when the run started, and which server it measured against. They exist
+so the notification card can name what it measured instead of pointing at the
+panel — a card that says a speed test happened is not as useful as one that
+says *what* it measured. Both MAY be empty strings when the information is
+unavailable (no associated network, a backend that reports no server name), and
+a consumer MUST fall back rather than render a blank. `ssid` is captured when
+the run **starts**, not when it settles: the run measured the network that was
+up at the time, so a link that changed mid-run would otherwise be mislabelled.
+
+There is deliberately **no** progress fraction:
 `speedtest-cli --json` returns one blob at the end, so the producer has no
 intermediate value to publish and any determinate percentage a consumer drew
 would be fabricated — consumers must render the in-flight run as indeterminate.

@@ -134,13 +134,60 @@ mock, so the card matches the approved design. See R1.
 
 ## Phase 6 — Rework (post-review decision)
 
-- [ ] R1 **Widen the payload with `ssid` and `server_name`, then name them on the card.** The spec's own card requirement and payload requirement contradicted each other; the requester chose payload fidelity to the approved mock. GATE: `make contracts-check` green, both new harnesses green, `wifi-mock-parity` still green.
-  - R1.1 `contracts/event-contract.json` — add `ssid` and `server_name` to the `speedtest.state` payload. They are carried on `done` and MAY be empty strings when unavailable. Update `event-contract.md` to match.
-  - R1.2 `src/runtime/tests/unit/test_event_contract_drift.py` — pin the two new keys; confirm the TS-ahead scan does not flag them (it must now see them as pinned).
-  - R1.3 Producer: `speedtest-service.ts` — read the connected SSID from the already-imported `wifiNetworks()` and the server name from the parsed result, and pass both through `publishSpeedTestState`. **Do NOT add a new import of Wi-Fi state into the notifications app** — the producer is the correct side, which is why this is a payload change rather than coupling.
-  - R1.4 Consumer: `speedtest-events.ts` types + `NotificationsWindow.tsx` — set the body to `"<ssid> · <server>"`, falling back to the existing trigger phrase when either is empty.
-  - R1.5 Update the mock if the exact separator or copy differs from `mock.html`; re-run `speedtest-mock-parity.py`.
-  - R1.6 Verify live: a completed run's card body names the network and server, and `make gates` is green.
+- [x] R1 **Widen the payload with `ssid` and `server_name`, then name them on the card.** The spec's own card requirement and payload requirement contradicted each other; the requester chose payload fidelity to the approved mock. GATE: `make contracts-check` green, both new harnesses green, `wifi-mock-parity` still green.
+  - [x] R1.1 `contracts/event-contract.json` — `ssid` and `server_name` added to the `speedtest.state` payload (both `s`), listed in `optional` because they ride on `done` rather than on every transition. `event-contract.md` updated with the same prose rule. **`emit_validation.TOPIC_SCHEMAS` also needed them** — the hub's validator is a per-topic property set, so without the two keys the hub would have rejected every `done` payload as a schema failure and the symptom would have been a silently missing card, not an error.
+  - [x] R1.2 `test_event_contract_drift.py` — the two keys pinned with their types and their presence in `optional`, plus an assertion that the embedded schema ACCEPTS them. **Proved the TS-ahead scan actually covers them** by deleting each key from the contract and confirming the scan fails naming it.
+  - [x] R1.3 Producer: `speedtest-service.ts` — `connectedSsid()` reads the already-exported `wifiNetworks()` accessor; `serverLabel()` reads the parsed result's `server` object. Both passed through `publishSpeedTestState`.
+  - [x] R1.4 Consumer: `speedtest-events.ts` types + `NotificationsWindow.tsx` — body is `"<ssid> · <server>"`, falling back to the trigger phrase when neither is available.
+  - [x] R1.5 No mock edit needed: the shipped copy is `"<ssid> · <server>"` with the same ` · ` separator `mock.html` uses, so the mock is unchanged and `speedtest-mock-parity.py` still passes with zero known-gap warnings.
+  - [x] R1.6 Verified live (evidence below).
+
+**The scan I shipped in phase 0 was covering nothing — found while doing R1.2.**
+The TS-ahead leg keyed its scope on the literal `"speedtest.state"`, but the
+only file that READS the payload keys — `NotificationsWindow.tsx` — never
+contains that literal; the topic lives in `speedtest-events.ts` and the
+consumer imports it. So the scan audited zero files and reported success:
+the worst thing a drift gate can do, and the exact failure the self-test was
+written to prevent. Caught because R1.2 asked to *confirm* the scan sees the
+new keys, which could not be confirmed.
+
+Fixed by scoping the scan to the `speedtestUpdate` handler's BODY rather than
+to the file. Two things had to be right, and both are now pinned by tests:
+the scope must reach the importing consumer, and it must not judge the
+WALLPAPER handler in the same file (which reads `stage`, the known
+pre-existing gap, and `reload_failures`). Scoping by a fixed indent was wrong
+in both directions — a module-level helper at column 0 would not terminate the
+span, and a deeper helper would truncate it early — so the span ends at the
+next function declared at an indentation no deeper than the handler's own.
+Negative-tested against the live tree by removing each new key from the
+contract and confirming the failure names it.
+
+**The premise that the producer "already imports `wifiNetworks()` and already
+parses the server name" was not accurate.** `speedtest-service.ts` imported
+neither: it parsed only `ping`/`download`/`upload`, and the connected SSID was
+read in `WifiContent.tsx` (the panel), not in the service. The rework is
+still a pass-through in shape — one accessor call and one new `serverLabel()`
+helper — but it is additive work, not the reuse of code that was already
+there. The IMPORT DIRECTION is the part that mattered and did hold: the
+service now reads `wifiNetworks` from `wifi-service` (same AGS process), and
+the notifications app still imports no Wi-Fi state at all.
+
+**One deliberate deviation from the spec's literal fallback rule.** The spec
+says to fall back to the trigger phrase when EITHER value is empty. The card
+instead keeps whichever half IS known (`ssid` alone, or `server_name` alone)
+and only falls back when NEITHER is present — because the rule's stated purpose
+is "rather than render a blank", and discarding the SSID because a backend
+reported no server name would throw away a fact we measured. No dangling
+separator is ever rendered. Verified live in all three cases.
+
+**Operational note for whoever tests this next.** The installed
+`dotfiles-runtime` is a real (non-editable) `uv tool install`, and
+`uv tool install --force` was a NO-OP — it reported "Installed 1 package" and
+left the previous copy in place, so the hub kept validating against the old
+property set. `--reinstall` is the flag that actually works. The hub must be
+restarted afterwards regardless, because its baked `KNOWN_TOPICS` and
+`TOPIC_SCHEMAS` are read at import.
+
 
 **No percentage anywhere.** The bar is pulsed from a 100 ms timer while in
 flight, `set_show_text(false)` so Gtk prints no `0%` either, `set_fraction(1)`
@@ -216,7 +263,35 @@ live hub's baked `KNOWN_TOPICS` would have rejected `speedtest.state` as
   `WifiSwitch.tsx`, a clean `ags bundle`, and a live read of the persisted
   value. The row's LAYOUT should be eyeballed once by the requester.
 - **Live wallpaper palette swap** (task 5.5) — see above.
-- **The `connect` trigger** was never exercised: the run-on-connect watcher
-  needs a network transition. The `manual` and `scheduled` triggers were both
-  observed on the wire.
+- **The `connect` trigger** was never exercised from the real run-on-connect
+  watcher (it needs a network transition). It appears only in the synthetic
+  R1 fallback capture below; `manual` and `scheduled` were both observed on
+  the wire from real runs.
+
+### R1 live evidence (add-speedtest-notifications rework)
+
+Observed on the running desktop after deploying the widened payload and
+reinstalling the runtime.
+
+1. **Real scheduled run, wire payload** — `busctl monitor` on
+   `org.dotfiles.Events` shows the `done` event the hub accepted:
+   `state="done"`, `trigger="scheduled"`, three doubles, plus
+   `ssid="Canela&Dulce"` and `server_name="CABLEVIVO Envigado"`.
+2. **Real card body** — the card reads `Canela&Dulce · CABLEVIVO Envigado`,
+   matching `mock.html`'s `Canela&Dulce · CableVivo Envigado` (the mock's
+   capitalisation is cosmetic; the string is the backend's own `sponsor`).
+   Three cells filled, four steps done, bar at fraction 1.
+3. **Both values empty** — `Started by you · also shown in the Wi-Fi panel`.
+   No blank line, no dangling separator.
+4. **SSID only** — `Canela&Dulce`, server half omitted rather than rendering a
+   trailing ` · `.
+5. **A synthetic `done` with no preceding `starting` was IGNORED** — no orphan
+   card. The untracked-run guard still holds for externally emitted payloads.
+6. **Gates after R1** — `contracts-check` 34 passed; full runtime suite 1844
+   passed, 1 skipped; `wifi-mock-parity` PASS 103 tokens / 0 known gaps;
+   `speedtest-mock-parity` PASS 55 tokens / 0 known gaps;
+   `speedtest-no-new-architecture` PASS on all 5 checks; `ags list` unchanged
+   at 6 instances; the session bus still carries only `org.dotfiles.Events`
+   and `org.freedesktop.Notifications`.
+
 
