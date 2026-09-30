@@ -5,6 +5,7 @@ import { wifiPromptVisible } from "../components/wifi/WifiContent"
 import { MainView } from "./views/MainView"
 import { WifiView } from "./views/WifiView"
 import { BluetoothView } from "./views/BluetoothView"
+import { SubviewHeader } from "./views/SubviewHeader"
 
 /**
  * The click-outside catcher: a full-screen layer surface, created BEFORE the
@@ -114,23 +115,48 @@ export function SettingsPanel(gdkmonitor: Gdk.Monitor) {
       }}
     >
       <box class="settings-surface" orientation={1} widthRequest={312}>
+        {/* Pinned above the scroll, matching the tray popup: the header is a
+            SIBLING of the scrolled window there, so it stays put. Hidden on
+            "main", which has no header. */}
+        <SubviewHeader />
         <scrolledwindow
           class="settings-scroll"
-          heightRequest={372}
+          /* 372 was the full panel height back when the header scrolled INSIDE
+             this area. The pinned header now sits above it, so the scroll
+             region is reduced by the header's height (26px row + 7px bottom
+             padding, see .settings-nav-header) to keep the overall panel the
+             same size and stop it growing past the bar. */
+          heightRequest={339}
           hscrollbarPolicy={Gtk.PolicyType.NEVER}
           vscrollbarPolicy={Gtk.PolicyType.AUTOMATIC}
+          /* Without this the scrolled window propagates its child's natural
+             width upward, so any row wider than 312 (a long SSID, the net
+             action button) grows the surface past the PANEL_WIDTH the margin
+             math assumes. marginLeft only clamps the LEFT edge to >= 8, so the
+             grown panel runs off the right of the monitor. Stopping width
+             propagation pins the surface at 312 and lets overlong content clip
+             in the viewport instead. The tray popup sets the height equivalent
+             (propagateNaturalHeight) but never needed this — its content is
+             width-bounded already. GTK4 CSS cannot express this: it has no
+             `width`/`max-width` properties, only min-*. */
+          propagateNaturalWidth={false}
           $={(self) => {
             scroll = self
           }}
         >
-          <box orientation={1} spacing={8}>
-            <box orientation={1} spacing={8} visible={mainVisible}>
+          {/* spacing 0: this is the top of the scroll viewport, directly under
+              the pinned header. The old spacing={8} wrappers existed to separate
+              the (then-scrolling) header from the body; with the header hoisted
+              out they would just indent every view by 8px at the top of the
+              scroll area. MainView keeps its own internal spacing. */}
+          <box orientation={1}>
+            <box visible={mainVisible}>
               <MainView />
             </box>
-            <box orientation={1} spacing={8} visible={wifiVisible}>
+            <box visible={wifiVisible}>
               <WifiView />
             </box>
-            <box orientation={1} spacing={8} visible={bluetoothVisible}>
+            <box visible={bluetoothVisible}>
               <BluetoothView />
             </box>
           </box>

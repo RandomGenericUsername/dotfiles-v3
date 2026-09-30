@@ -1,5 +1,6 @@
 import { Accessor, createComputed, createEffect, createState, For } from "ags"
 import GLib from "gi://GLib?version=2.0"
+import Pango from "gi://Pango?version=1.0"
 import { Gtk } from "ags/gtk4"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
@@ -127,7 +128,17 @@ function IntervalMsControl() {
           <label class="settings-stc-value settings-stc-hint" xalign={0} valign={Gtk.Align.CENTER} label={hint} />
         </box>
       </box>
-      <label class="settings-stc-caption" xalign={0} label="Min 1000 ms · 0 = Off · Enter/leave to apply, junk reverts" />
+      {/* 57 chars unguarded is the other row that can outgrow the 312px
+          surface. wrap + maxWidthChars keeps the whole rule readable across two
+          lines rather than ellipsizing away the "junk reverts" half, which is
+          the part that tells you what will happen. */}
+      <label
+        class="settings-stc-caption"
+        xalign={0}
+        wrap
+        maxWidthChars={40}
+        label="Min 1000 ms · 0 = Off · Enter/leave to apply, junk reverts"
+      />
       <box class="settings-chip-row" spacing={6}>
         {STC_CHIPS.map((chip) => (
           <button
@@ -171,7 +182,7 @@ function SignalIcon({ strength }: { strength: number }) {
   const key = getSignalIconKey(strength)
   const src = registry.resolve("settings-panel", key)
   return src ? (
-    <image class="settings-net-signal" pixel_size={18} $={(self) => {
+    <image class="settings-net-signal" pixel_size={24} $={(self) => {
       createEffect(() => self.set_from_file(src ?? ""))
     }} />
   ) : null
@@ -202,7 +213,17 @@ function SecurityRow() {
           createEffect(() => self.set_from_file(src ?? ""))
         }} />
       ) : null}
-      <label class="settings-security-text" xalign={0} valign={Gtk.Align.CENTER} label="Weak Security (WPA)" />
+      {/* Wraps rather than truncates: a security state is the one string that
+          must never be cut mid-word. Short enough that it stays on one line at
+          the current font; the wrap is only a guard. */}
+      <label
+        class="settings-security-text"
+        xalign={0}
+        valign={Gtk.Align.CENTER}
+        wrap
+        maxWidthChars={24}
+        label="Weak Security (WPA)"
+      />
     </box>
   )
 }
@@ -503,8 +524,38 @@ export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
         })
         self.add_controller(click)
       }}>
-        <label class="settings-wifi-settings-label" hexpand xalign={0} label="Wi-Fi Settings" />
-        <label class="settings-wifi-settings-note" valign={Gtk.Align.CENTER} label="opens nm-connection-editor" />
+        {/* WHY maxWidthChars IS REQUIRED HERE: an unwrapped Gtk.Label reports
+            its FULL text width as natural width, so this row's fixed strings
+            ("opens nm-connection-editor", ~150px at 10px) plus 32px of row
+            padding exceeded the surface's 312px and grew the whole panel off
+            the right edge of the monitor. hexpand on the row label alone does
+            not help — the note still refuses to shrink.
+            Ellipsize is kept ONLY on the short row label, where a long
+            translation may need to yield and losing the tail is acceptable.
+            Everything carrying information wraps instead — see below. */}
+        <label
+          class="settings-wifi-settings-label"
+          hexpand
+          xalign={0}
+          maxWidthChars={14}
+          ellipsize={Pango.EllipsizeMode.END}
+          label="Wi-Fi Settings"
+        />
+        {/* wrap, NOT ellipsize. This note is the actionable part of the row —
+            truncating it to "opens nm-connection-edit…" destroys the only
+            information it carries. maxWidthChars sets the wrap column so the
+            label still cannot demand more width than the surface has (an
+            unwrapped Gtk.Label reports its full text width as natural width,
+            which is what pushed the panel off the monitor). Wrapping costs one
+            extra line instead of losing content. */}
+        <label
+          class="settings-wifi-settings-note"
+          valign={Gtk.Align.CENTER}
+          xalign={1}
+          wrap
+          maxWidthChars={22}
+          label="opens nm-connection-editor"
+        />
         <label class="settings-wifi-settings-arrow" label="›" />
       </box>
     </box>
