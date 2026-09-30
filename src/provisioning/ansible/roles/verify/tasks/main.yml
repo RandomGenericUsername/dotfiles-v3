@@ -34,7 +34,9 @@
 #       (zsh_tools role)
 #   12. zsh config rendered+wired   → .zshrc wires starship + a cat of the
 #       state-root current/colors.sequences (gt-3-2: the runtime's current
-#       pointer, NOT the orphaned generated/palettes tree) (zsh_config role)
+#       pointer, NOT the orphaned generated/palettes tree) + ~/.zshenv sets
+#       ZDOTDIR at the managed zsh dir (shell-entry seam) + .zshrc sources the
+#       .zshrc.local overlay (zsh_config role)
 #   13. wlogout config rendered+wired → style.css imports the palette
 #       (wlogout_config role)
 #   14. §12 preconditions           → criteria 2/3 + 4 + 8 + 5 — the whole role;
@@ -1061,6 +1063,55 @@
       the orphaned provisioning-era tree fails loud). The zsh_config role
       renders .zshrc.j2 → .zshrc; run the zsh-config playbook (needs
       packages + zsh_tools first)
+  when: not ansible_check_mode
+
+- name: Check zshenv shell-entry pointer sets ZDOTDIR
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -E
+      - '^export ZDOTDIR='
+      - "{{ ansible_facts.env.HOME }}/.zshenv"
+  register: verify_zshenv_wiring
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert zshenv shell-entry pointer targets the managed zsh dir
+  ansible.builtin.assert:
+    that:
+      - verify_zshenv_wiring.rc == 0
+      - verify_zshenv_wiring.stdout is search(verify_xdg_config_home | trim ~ '/zsh')
+    fail_msg: >-
+      the shell-entry pointer does not set ZDOTDIR at the managed zsh dir
+      (expected an `export ZDOTDIR=` line resolving under
+      {{ verify_xdg_config_home }}/zsh — done-criterion 12, shell-entry seam;
+      without it zsh reads the home dir, finds no zshrc, and shows the
+      new-user prompt). The zsh_config role owns the pointer; run the
+      zsh-config playbook
+  when: not ansible_check_mode
+
+- name: Check rendered zshrc sources the local overlay
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -E
+      - '\.zshrc\.local'
+      - "{{ verify_xdg_config_home }}/zsh/.zshrc"
+  register: verify_zshrc_overlay
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert rendered zshrc sources the local overlay
+  ansible.builtin.assert:
+    that: verify_zshrc_overlay.rc == 0
+    fail_msg: >-
+      the rendered .zshrc does not source the local overlay (expected a
+      `.zshrc.local` source line under {{ verify_xdg_config_home }}/zsh —
+      done-criterion 12; external installers append there so re-provisioning
+      never clobbers them). The zsh_config role renders the zshrc template;
+      run the zsh-config playbook
   when: not ansible_check_mode
 
 - name: Check rendered wlogout style.css imports the palette colors
