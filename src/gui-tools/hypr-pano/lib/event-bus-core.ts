@@ -23,6 +23,11 @@ export const RESERVED_EPOCH = "_epoch";
 export const RESERVED_SEQ = "_seq";
 export const CAPTURE_STATE_TOPIC = "capture.state";
 export const SPEEDTEST_FINISHED_TOPIC = "speedtest.finished";
+//: SUPERSEDES `speedtest.finished`, which had no subscriber. The topic now
+//: covers the whole run lifecycle (`{state, trigger}`) so a consumer can build
+//: one card and mutate it in place, exactly as the wallpaper change does,
+//: instead of learning only that something finished.
+export const SPEEDTEST_STATE_TOPIC = "speedtest.state";
 export const CLIPBOARD_UPDATE_TOPIC = "clipboard.update";
 export const CLIPBOARD_STATE_TOPIC = "clipboard.state";
 

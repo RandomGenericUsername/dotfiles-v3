@@ -1,6 +1,6 @@
 import GLib from "gi://GLib?version=2.0"
 import { createState } from "ags"
-import { publishSpeedTestFinished } from "../lib/event-bus"
+import { publishSpeedTestState, type SpeedTestTrigger } from "../lib/event-bus"
 import { execAsync } from "ags/process"
 
 export type SpeedTestResult = {
@@ -13,6 +13,8 @@ export type SpeedTestConfig = {
   interval_ms: number
   run_on_connect: boolean
   server_mode: "auto"
+  /** Emit `speedtest.state` so the notifications app can show a card per run. */
+  notify_on_test: boolean
 }
 
 //: Minimum committable interval (recorded assumption: 1000 ms, 0 = Off).
@@ -22,6 +24,11 @@ const DEFAULT_CONFIG: SpeedTestConfig = {
   interval_ms: 900000,
   run_on_connect: true,
   server_mode: "auto",
+  //: Default ON: a measurement that happens silently is the problem this
+  //: setting exists to fix. It only gates the CARD — the run still executes and
+  //: the panel rows still update, so turning it off is never a way to stop
+  //: measuring.
+  notify_on_test: true,
 }
 
 const [config, setConfig] = createState<SpeedTestConfig>(DEFAULT_CONFIG)
@@ -100,6 +107,12 @@ function loadConfig(): SpeedTestConfig {
         interval_ms: interval_ms ?? DEFAULT_CONFIG.interval_ms,
         run_on_connect: parsed.run_on_connect ?? DEFAULT_CONFIG.run_on_connect,
         server_mode: parsed.server_mode ?? DEFAULT_CONFIG.server_mode,
+        //: `?? default`, NOT `|| true`: a hand-edited `false` must survive the
+        //: round trip, and a file written before this key existed must load as
+        //: true WITHOUT being rewritten (the migration write below is reserved
+        //: for the interval_min rename, so merely starting AGS does not touch
+        //: the user's file).
+        notify_on_test: parsed.notify_on_test ?? DEFAULT_CONFIG.notify_on_test,
       }
       if (parsed.interval_min !== undefined) {
         //: Legacy file migrated (interval_min → interval_ms); save back so
@@ -135,10 +148,37 @@ export function setConfigValue(partial: Partial<SpeedTestConfig>): void {
   setConfig(next)
   saveConfig(next)
   console.error(`speedtest-service: setConfigValue done, config=${JSON.stringify(config())}, file check...`)
-  if (serviceUsers > 0) {
+  //: Only `interval_ms` and `run_on_connect` are scheduler inputs. Without this
+  //: guard, flipping `notify_on_test` — a purely presentational preference —
+  //: would tear down and re-arm the interval timer, silently resetting how long
+  //: is left until the next scheduled run. A preference switch must not move the
+  //: measurement schedule.
+  const schedulerInput = Object.keys(partial).some(
+    (key) => key === "interval_ms" || key === "run_on_connect",
+  )
+  if (schedulerInput && serviceUsers > 0) {
     stopScheduler()
     startScheduler()
   }
+}
+
+/**
+ * Announce a lifecycle transition on the domain bus — but only when the
+ * preference is on.
+ *
+ * The gate lives HERE, in the producer, and before anything is constructed: the
+ * fail-open rule the capture tool uses. When the preference is off, no event is
+ * built and none is sent, while the run itself still executes and the panel
+ * rows still update. Gating in the consumer instead would mean the events keep
+ * crossing the bus for a feature nobody is looking at.
+ */
+function publish(state: "starting" | "done" | "error", trigger: SpeedTestTrigger, terminal?: unknown): void {
+  if (!config().notify_on_test) return
+  publishSpeedTestState(
+    state,
+    trigger,
+    terminal as Parameters<typeof publishSpeedTestState>[2],
+  )
 }
 
 //: Real Ookla `speedtest --format=json` result shape:
@@ -214,16 +254,43 @@ function parseSpeedtestCliResult(out: string): SpeedTestResult | null {
 //: than a healthy run (~20-30s here) and still bounded.
 const RUN_TIMEOUT_MS = 120000
 
-function runSpeedTest(): void {
+/**
+ * One measurement, with every lifecycle edge announced on `speedtest.state`.
+ *
+ * `trigger` is THREADED, not inferred: it is the only thing that distinguishes a
+ * run you asked for from one the timer started, and the notification card's
+ * footer reads it. Inferring it here (e.g. "was the panel open?") would be a
+ * guess the service cannot actually make.
+ *
+ * Exactly ONE terminal event per run, on every exit path including the
+ * watchdog. `settled` is the guard: the watchdog and the promise race, and
+ * whichever loses would otherwise publish a second terminal event and leave the
+ * card showing a result that the other path already overwrote.
+ */
+function runSpeedTest(trigger: SpeedTestTrigger = "scheduled"): void {
   if (running()) return
   setRunning(true)
   setLastError(null)
+  publish("starting", trigger)
+  // Set on the FIRST terminal event and never cleared, so a later path in the
+  // same run cannot emit a second one.
+  let settled = false
+  const finish = (state: "done" | "error", terminal?: unknown): void => {
+    if (settled) return
+    settled = true
+    publish(state, trigger, terminal)
+  }
   // Watchdog: clears `running` if the subprocess never settles. Removed on
   // every normal exit path below, so it only ever fires on a genuine hang.
   let watchdog = GLib.timeout_add(GLib.PRIORITY_DEFAULT, RUN_TIMEOUT_MS, () => {
     console.error(`speedtest-service: run exceeded ${RUN_TIMEOUT_MS}ms; abandoning`)
     setLastError("Speed test timed out.")
     setLastRunAt(Date.now())
+    // An abandoned run is a FAILED run for the card: the user asked (or the
+    // timer did) and nothing came back, so the sticky caution treatment is the
+    // honest one. The panel keeps the previous measurement, same as any other
+    // failure.
+    finish("error", "Speed test timed out.")
     setRunning(false)
     return false
   })
@@ -245,6 +312,7 @@ function runSpeedTest(): void {
     clearWatchdog()
     setLastError("Speedtest CLI is not installed; provision the speedtest package.")
     setLastRunAt(Date.now())
+    finish("error", "Speedtest CLI is not installed.")
     setRunning(false)
     return
   }
@@ -260,22 +328,28 @@ function runSpeedTest(): void {
       if (result === null) {
         console.error(`speedtest-service: unparseable output: ${out.slice(0, 500)}`)
         setLastError("Speed test returned an unrecognized result.")
+        finish("error", "Speed test returned an unrecognized result.")
       } else {
         setLastResult(result)
         // Persist on success only. A failed run must not overwrite the last
         // good measurement — otherwise a transient network blip would blank
         // the Speed rows until the next successful test.
         saveLastRun(result, Date.now())
-        publishSpeedTestFinished(result)
+        finish("done", result)
       }
       setLastRunAt(Date.now())
     })
     .catch((error: unknown) => {
-      setLastError(`Speed test failed: ${error instanceof Error ? error.message : String(error)}`)
+      // `error.message` only: a spawn failure string can carry a newline and a
+      // stack, and the contract requires a single line with no traceback. The
+      // panel's `lastError` row still gets the full text.
+      const message = error instanceof Error ? error.message : String(error)
+      setLastError(`Speed test failed: ${message}`)
       // Timestamp updated but the previous measurement deliberately kept, so
       // "Ran" answers "when did we last try" while the numbers stay truthful.
       setLastRunAt(Date.now())
       console.error(`speedtest-service: run failed: ${error}`)
+      finish("error", message)
     })
     .finally(() => {
       clearWatchdog()
@@ -290,7 +364,10 @@ function startScheduler(): void {
     GLib.PRIORITY_DEFAULT,
     c.interval_ms,
     () => {
-      runSpeedTest()
+      // The timer's own run is what `scheduled` means; the default argument
+      // would also cover it, but naming it at the call site keeps the three
+      // trigger origins visible in one place.
+      runSpeedTest("scheduled")
       return true
     },
   )

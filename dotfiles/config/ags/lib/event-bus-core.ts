@@ -21,7 +21,11 @@ export const HYDRATION_METHOD = "GetTopicState";
 export const RESERVED_EPOCH = "_epoch";
 export const RESERVED_SEQ = "_seq";
 export const CAPTURE_STATE_TOPIC = "capture.state";
-export const SPEEDTEST_FINISHED_TOPIC = "speedtest.finished";
+//: SUPERSEDES `speedtest.finished`, which had no subscriber. The topic now
+//: covers the whole run lifecycle (`{state, trigger}`) so the notifications app
+//: can build one card and mutate it in place, exactly as the wallpaper change
+//: does, instead of learning only that something finished.
+export const SPEEDTEST_STATE_TOPIC = "speedtest.state";
 
 //: Bus-daemon interface/object/signal used as the restart fallback.
 export const DBUS_BUS_NAME = "org.freedesktop.DBus";

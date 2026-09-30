@@ -80,7 +80,11 @@ check("bar GetTopicState in xml methods", xmlMethods.includes(bar.HYDRATION_METH
 check("bar hydration returns reserved _epoch/_seq", contractJson.methods.GetTopicState.out, ["state:a{sv}"]);
 
 check("bar capture.state is a contract topic", contractJson.topics[bar.CAPTURE_STATE_TOPIC] !== undefined, true);
-check("bar speedtest.finished is a contract topic", contractJson.topics[bar.SPEEDTEST_FINISHED_TOPIC] !== undefined, true);
+check("bar speedtest.state is a contract topic", contractJson.topics[bar.SPEEDTEST_STATE_TOPIC] !== undefined, true);
+check("speedtest.finished is superseded, not extended", contractJson.topics["speedtest.finished"], undefined);
+check("speedtest.state payload keys", Object.keys(contractJson.topics["speedtest.state"].payload).sort(), ["down_mbps", "latency_ms", "reason", "state", "trigger", "up_mbps"]);
+check("speedtest.state enum.state", contractJson.topics["speedtest.state"].enum.state, ["starting", "done", "error"]);
+check("speedtest.state enum.trigger", contractJson.topics["speedtest.state"].enum.trigger, ["scheduled", "manual", "connect"]);
 check("capture.state payload keys", Object.keys(contractJson.topics["capture.state"].payload).sort(), ["elapsed_seconds", "state"]);
 check("capture.state enum", contractJson.topics["capture.state"].enum.state, ["idle", "recording", "paused"]);
 

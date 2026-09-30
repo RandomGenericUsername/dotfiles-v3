@@ -186,3 +186,132 @@ window#notifications-window {
   border-radius: 3px;
   background-color: @color_06;
 }
+
+/* ------------------------------------------------- Speed-test progress card
+ *
+ * The wallpaper progress card's twin, and deliberately a copy rather than a
+ * generalization: the two cards are independent subsystems that may be on screen
+ * at once, so sharing one rule set would have meant one card's lifecycle
+ * deciding the other's appearance. Everything below is @color_* tokens, so the
+ * card restyles with the wallpaper exactly like every other card here — no
+ * literal colour appears, which is what makes that true.
+ *
+ * The checklist's marker/step/label rules are NOT duplicated from
+ * `.wallpaper-progress-*`: GTK4 has no way to alias a selector, so the shared
+ * intent is expressed by naming both selectors in one rule. Two blocks of
+ * identical declarations would be the thing to drift.
+ */
+
+/* Same plate as the wallpaper card's icon tile. */
+.speedtest-progress-tile {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+  background-color: alpha(@color_06, 0.18);
+  border: 1px solid alpha(@color_06, 0.45);
+  color: @color_06;
+  font-size: 19px;
+}
+
+/* In flight: the stack accent. The result reuses it (the measurement IS the
+   success here), so `busy` and the settled state share a tint rather than
+   inventing a second "success" hue. */
+.speedtest-progress-tile.busy {
+  background-color: alpha(@color_06, 0.18);
+}
+
+/* Failure: the palette's caution slot — the same @color_03 the critical
+   notification cards use, so severity still follows the wallpaper. */
+.speedtest-progress-tile.failed {
+  background-color: alpha(@color_03, 0.16);
+  border-color: alpha(@color_03, 0.5);
+  color: @color_03;
+}
+
+.speedtest-progress-steps {
+  padding-top: 11px;
+  border-top: 1px solid alpha(@color_foreground, 0.12);
+}
+
+.speedtest-progress-step-label {
+  font-size: 11px;
+  color: alpha(@color_foreground, 0.58);
+}
+
+.speedtest-progress-marker {
+  min-width: 18px;
+  min-height: 18px;
+  border: none;
+  color: alpha(@color_foreground, 0.55);
+}
+
+.speedtest-progress-step.active .speedtest-progress-step-label {
+  color: @color_foreground;
+}
+
+.speedtest-progress-step.active .speedtest-progress-marker,
+.speedtest-progress-step.done .speedtest-progress-marker {
+  color: @color_06;
+}
+
+.speedtest-progress-step.done .speedtest-progress-step-label {
+  color: alpha(@color_foreground, 0.82);
+}
+
+.speedtest-progress-step.failed .speedtest-progress-marker,
+.speedtest-progress-step.failed .speedtest-progress-step-label {
+  color: @color_03;
+  border-color: alpha(@color_03, 0.6);
+}
+
+.speedtest-progress-footer {
+  margin-top: 3px;
+  font-size: 10px;
+  color: alpha(@color_foreground, 0.48);
+}
+
+/* The bar is INDETERMINATE while a run is in flight (pulsed from a 100ms
+   timer, never a fraction — the CLI reports nothing until the run ends), so the
+   progress child is only ever seen at 0 or 1. */
+.speedtest-progress-bar trough {
+  min-height: 4px;
+  border-radius: 3px;
+  background-color: alpha(@color_foreground, 0.12);
+}
+
+.speedtest-progress-bar progress {
+  min-height: 4px;
+  border-radius: 3px;
+  background-color: @color_06;
+}
+
+/* The three measured values as separate cells — the card mirrors the panel's
+   Download / Upload / Ping row split so the two read identically. */
+.speedtest-progress-grid {
+  margin-top: 12px;
+}
+
+.speedtest-progress-cell {
+  padding: 9px 10px;
+  border-radius: 9px;
+  background-color: alpha(@color_foreground, 0.05);
+  border: 1px solid alpha(@color_foreground, 0.08);
+}
+
+/* Download and Upload carry the headline numbers, so they get the accent tint;
+   Ping is context and stays neutral. */
+.speedtest-progress-cell.highlight {
+  background-color: alpha(@color_06, 0.12);
+  border-color: alpha(@color_06, 0.3);
+}
+
+.speedtest-progress-cell-key {
+  font-size: 9.5px;
+  color: alpha(@color_foreground, 0.42);
+}
+
+.speedtest-progress-cell-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: @color_foreground;
+}

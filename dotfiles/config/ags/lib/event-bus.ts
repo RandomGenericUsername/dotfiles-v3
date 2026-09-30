@@ -28,7 +28,7 @@ import {
   HYDRATION_TIMEOUT_MS,
   JOBS_CLEARED_SIGNAL,
   NAME_OWNER_CHANGED_SIGNAL,
-  SPEEDTEST_FINISHED_TOPIC,
+  SPEEDTEST_STATE_TOPIC,
   type EventBusTransport,
 } from "./event-bus-core";
 
@@ -126,32 +126,72 @@ class GioEventBusTransport implements EventBusTransport {
 // One shared consumer for the whole bar; `subscribe` lazily connects.
 export const domainEvents = new DomainEventBusCore(new GioEventBusTransport());
 
-// Publish the contract-shaped result event. The hub validates the topic and
-// requires doubles for all three measurements; a missing hub is non-fatal to
-// the speed test UI.
-export function publishSpeedTestFinished(result: {
+//: Lifecycle states of `speedtest.state` (mirrors the contract enum).
+export type SpeedTestState = "starting" | "done" | "error";
+
+//: What started the run. The notification card's footer and its failure copy
+//: both distinguish a scheduled run from one you asked for, and `wallpaper.state`
+//: already established `trigger` as the contract's name for "the operation that
+//: produced this transition".
+export type SpeedTestTrigger = "scheduled" | "manual" | "connect";
+
+export type SpeedTestMeasurements = {
   down_mbps: number
   up_mbps: number
   latency_ms: number
-}): void {
+}
+
+//: One-line, human-readable. Never a traceback: the card has ~44 wrapped
+//: characters of body text and the panel's `lastError` row already carries the
+//: detail for anyone who wants it.
+export type SpeedTestReason = string
+
+/**
+ * Publish the contract-shaped speed-test lifecycle event.
+ *
+ * The hub validates the topic: `state` and `trigger` are required on every
+ * payload, the three measurements must be doubles, and both are enums — a
+ * value outside them is rejected as a schema failure, not silently coerced.
+ *
+ * `measurements` rides only on `done` and `reason` only on `error`; the
+ * signatures make that a compile error rather than a payload the hub rejects at
+ * runtime, so an `error` can never be published carrying numbers or a `done`
+ * carrying a failure string.
+ *
+ * A missing hub is non-fatal to the speed-test UI, exactly as the publisher
+ * this replaces: the run still executes, the panel rows still update.
+ */
+export function publishSpeedTestState(
+  state: SpeedTestState,
+  trigger: SpeedTestTrigger,
+  terminal?: SpeedTestMeasurements | SpeedTestReason,
+): void {
+  const payload: Record<string, GLib.Variant> = {
+    state: new GLib.Variant("s", state),
+    trigger: new GLib.Variant("s", trigger),
+  }
+  if (state === "done") {
+    const measured = terminal as SpeedTestMeasurements
+    payload.down_mbps = new GLib.Variant("d", measured.down_mbps)
+    payload.up_mbps = new GLib.Variant("d", measured.up_mbps)
+    payload.latency_ms = new GLib.Variant("d", measured.latency_ms)
+  } else if (state === "error") {
+    payload.reason = new GLib.Variant("s", terminal as SpeedTestReason)
+  }
   try {
     Gio.bus_get_sync(Gio.BusType.SESSION, null).call_sync(
       EVENTS_BUS_NAME,
       EVENTS_OBJECT_PATH,
       EVENTS_INTERFACE,
       EMIT_METHOD,
-      new GLib.Variant("(sa{sv})", [SPEEDTEST_FINISHED_TOPIC, {
-        down_mbps: new GLib.Variant("d", result.down_mbps),
-        up_mbps: new GLib.Variant("d", result.up_mbps),
-        latency_ms: new GLib.Variant("d", result.latency_ms),
-      }]),
+      new GLib.Variant("(sa{sv})", [SPEEDTEST_STATE_TOPIC, payload]),
       null,
       Gio.DBusCallFlags.NONE,
       2000,
       null,
     );
   } catch (error) {
-    console.error(`event-bus: publish ${SPEEDTEST_FINISHED_TOPIC} failed: ${error}`);
+    console.error(`event-bus: publish ${SPEEDTEST_STATE_TOPIC} (${state}) failed: ${error}`);
   }
 }
 
@@ -164,6 +204,6 @@ export {
   EVENTS_OBJECT_PATH,
   HYDRATION_METHOD,
   JOBS_CLEARED_SIGNAL,
-  SPEEDTEST_FINISHED_TOPIC,
+  SPEEDTEST_STATE_TOPIC,
 } from "./event-bus-core";
 export type { DomainPayload, RestartHandler, TopicHandler } from "./event-bus-core";

@@ -42,6 +42,11 @@ const [stcExpanded, setStcExpanded] = createState(false)
 // Exported so SettingsPanel can grant keyboard focus while the speed-test
 // interval Gtk.Entry is on screen. Without ON_DEMAND the panel holds no
 // keyboard, so that entry is clickable but inert — keystrokes go to the bar.
+// SCOPE, deliberately narrow: exactly the two Gtk.Entry fields need this. The
+// speed-test section's Gtk.Switch rows (run_on_connect, notify_on_test) take no
+// typed input, so widening the condition to cover the whole expanded section
+// would grab the panel's keyboard for nothing and cost every keystroke
+// elsewhere while the section is open.
 export { stcExpanded }
 // Ticking clock so relative `Ran` stays live. One source for both the popup and
 // the settings-view instance (they share this module, so a single timer serves
@@ -73,6 +78,7 @@ let lastTimePeriod = 0
 // owned by a root and is disposed with the widget.
 const stcIntervalMs = createComputed(() => getConfig().interval_ms)
 const stcRunOnConnect = createComputed(() => getConfig().run_on_connect)
+const stcNotifyOnTest = createComputed(() => getConfig().notify_on_test)
 let observedConnectedSsid: string | null = null
 let connectionObserved = false
 
@@ -500,7 +506,7 @@ export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
       return
     }
     if (connectedSsid !== null && connectedSsid !== observedConnectedSsid && getConfig().run_on_connect) {
-      void runSpeedTest()
+      void runSpeedTest("connect")
     }
     observedConnectedSsid = connectedSsid
   })
@@ -553,8 +559,32 @@ export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
             onToggled={(v) => setConfigValue({ run_on_connect: v })}
           />
         </box>
+        {/* WHY NO SUB-LABEL ON THE ROW ABOVE BUT ONE HERE: `run_on_connect`
+            needs no explanation, `notify_on_test` does — "off" sounds like it
+            stops measuring, and it does not. The sub-label says what turning it
+            off actually skips. It is why the panel's keyboard mode is NOT
+            widened for this row: a Gtk.Switch needs no typed input, and the
+            ON_DEMAND condition exists for the two Gtk.Entry fields only (the
+            password prompt and the interval). */}
+        <box class="settings-stc-row" spacing={8}>
+          <box orientation={1} spacing={2} hexpand>
+            <label class="settings-stc-label" xalign={0} hexpand label="Notify on each test" />
+            <label
+              class="settings-stc-hint"
+              xalign={0}
+              hexpand
+              wrap
+              maxWidthChars={26}
+              label="A card per run, in the notification stack"
+            />
+          </box>
+          <WifiSwitch
+            active={stcNotifyOnTest}
+            onToggled={(v) => setConfigValue({ notify_on_test: v })}
+          />
+        </box>
         <label class="settings-stc-error" label={createComputed(() => lastError() ?? "")} visible={createComputed(() => lastError() !== null)} />
-        <button class={createComputed(() => speedTestRunning() ? "settings-stc-run-btn running" : "settings-stc-run-btn")} onClicked={() => { if (!speedTestRunning()) void runSpeedTest() }} canFocus={false}>
+        <button class={createComputed(() => speedTestRunning() ? "settings-stc-run-btn running" : "settings-stc-run-btn")} onClicked={() => { if (!speedTestRunning()) void runSpeedTest("manual") }} canFocus={false}>
           <box spacing={6} halign={Gtk.Align.CENTER}>
             <Gtk.Spinner class="settings-spinner" spinning={speedTestRunning} visible={speedTestRunning} />
             <label label={createComputed(() => speedTestRunning() ? "Testing…" : "Run now")} />

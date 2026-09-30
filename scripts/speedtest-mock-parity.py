@@ -81,6 +81,9 @@ STATE_TSX = {
     ],
     "state-stc-setting": [
         "dotfiles/config/ags/components/wifi/WifiContent.tsx",  # the toggle row
+        #: The switch's class lives on the primitive, not the row — the same
+        #: split the wifi harness encodes by mapping several files per state.
+        "dotfiles/config/ags/components/primitives/WifiSwitch.tsx",
     ],
 }
 
@@ -96,6 +99,7 @@ ALLOWLIST = {
     "state-label": "mock page per-state caption bar",
     "settings": "mock settings-panel frame; shipped as the settings-panel surface",
     "s-div": "mock hairline separator; shipped separation via container spacing",
+    "sm": "mock-only small-toggle size; the shipped panel has ONE switch size (.settings-switch) for every row",
     "heading": "mock flex heading row; shipped card lays out via box spacing",
     "copy": "mock text column; shipped as the anonymous hexpand box (title/body mapped individually)",
     "note": "mock page design-rationale block, not a component",
@@ -121,6 +125,9 @@ CLASS_MAP = {
     "m": ("speedtest-progress-marker", "modelled on wallpaper-progress-marker"),
     "grid": ("speedtest-progress-grid", "the three-cell result grid"),
     "cell": ("speedtest-progress-cell", "shipped result cell"),
+    "hl": ("speedtest-progress-cell.highlight", "accent-tinted measurement cell"),
+    "ok": ("speedtest-progress-tile.busy", "the mock's result tint IS its in-flight tint (same accent), so the code ships one modifier, not a dead second one"),
+    "fail": ("speedtest-progress-tile.failed", "caution slot, matching the wallpaper card's .failed naming"),
     "k": ("speedtest-progress-cell-key", "result cell's key line"),
     "v": ("speedtest-progress-cell-value", "result cell's value line"),
     "footer": ("speedtest-progress-footer", "modelled on wallpaper-progress-footer"),
@@ -174,37 +181,17 @@ RUNTIME_BEHAVIOUR = {
 # would FAIL on a class that has simply not shipped yet. The two tables are
 # kept DISJOINT, so a token can never be reported as a warning while its
 # mapping sits untested behind it.
+# Real gaps: mock concepts with NO shipped class yet. Non-failing but printed as
+# loud warnings; the owning change must ship the class and clear the entry
+# (moving the token to CLASS_MAP). Format: token -> owner.
+#
+# DRAINED. Phase 3 shipped the card classes and phase 4 shipped the toggle row,
+# so every token now resolves through CLASS_MAP, RUNTIME_BEHAVIOUR, the
+# modifier resolver, or the ALLOWLIST — the table is empty and the final gate
+# requires zero entries. Re-seed it if a later change adds a class: the harness
+# must prove it still fails, and an empty table plus a passing run proves
+# nothing on its own (see the three scenarios asserted against this harness).
 KNOWN_GAPS = {
-    "stack": "add-speedtest-notifications phase 3 (notif-stack reuse)",
-    "notif-card": "add-speedtest-notifications phase 3 (notif-card reuse)",
-    "progress-card": "add-speedtest-notifications phase 3 (speedtest-progress-card)",
-    "tile": "add-speedtest-notifications phase 3 (speedtest-progress-tile)",
-    "busy": "add-speedtest-notifications phase 3 (running tile tint)",
-    "ok": "add-speedtest-notifications phase 3 (result tile tint)",
-    "fail": "add-speedtest-notifications phase 3 (failure tile tint)",
-    "title": "add-speedtest-notifications phase 3 (notif-title reuse)",
-    "body": "add-speedtest-notifications phase 3 (notif-body reuse)",
-    "close": "add-speedtest-notifications phase 3 (close button reuse)",
-    "bar": "add-speedtest-notifications phase 3 (speedtest-progress-bar)",
-    "pulse": "add-speedtest-notifications phase 3 (indeterminate pulse call)",
-    "steps": "add-speedtest-notifications phase 3 (speedtest-progress-steps)",
-    "step": "add-speedtest-notifications phase 3 (speedtest-progress-step)",
-    "m": "add-speedtest-notifications phase 3 (speedtest-progress-marker)",
-    "active": "add-speedtest-notifications phase 3 (active step state)",
-    "done": "add-speedtest-notifications phase 3 (done step state)",
-    "grid": "add-speedtest-notifications phase 3 (speedtest-progress-grid)",
-    "cell": "add-speedtest-notifications phase 3 (speedtest-progress-cell)",
-    "k": "add-speedtest-notifications phase 3 (cell key line)",
-    "v": "add-speedtest-notifications phase 3 (cell value line)",
-    "hl": "add-speedtest-notifications phase 3 (cell highlight modifier)",
-    "footer": "add-speedtest-notifications phase 3 (speedtest-progress-footer)",
-    "s-title": "add-speedtest-notifications phase 4 (settings-stc-title reuse)",
-    "s-row": "add-speedtest-notifications phase 4 (settings-stc-row reuse)",
-    "s-label": "add-speedtest-notifications phase 4 (settings-stc-label reuse)",
-    "s-sub": "add-speedtest-notifications phase 4 (row sub-label)",
-    "toggle": "add-speedtest-notifications phase 4 (settings-switch reuse)",
-    "on": "add-speedtest-notifications phase 4 (Gtk.Switch active state)",
-    "sm": "add-speedtest-notifications phase 4 (WifiSwitch sizing)",
 }
 
 MOCK_FILE = "openspec/changes/add-speedtest-notifications/mock.html"
@@ -309,9 +296,17 @@ def main() -> int:
     src_sets = {f: source_tokens(t) for f, t in src_texts.items()}
 
     def shipped_in_state(token: str, anchor: str) -> bool:
-        if css_has_class(css_text, token):
+        # A dotted token is a COMPOUND selector (`.base.modifier`): every part
+        # must be present, so a mapping can name a state modifier without the
+        # harness having to know which file it lives in.
+        parts = token.split(".")
+        if all(css_has_class(css_text, part) for part in parts):
             return True
-        return any(token in src_sets[f] for f in STATE_TSX[anchor] if f in src_sets)
+        return any(
+            all(part in src_sets[f] for part in parts)
+            for f in STATE_TSX[anchor]
+            if f in src_sets
+        )
 
     def resolve_modifier(tok: str, anchor: str) -> str | None:
         """Resolve a bare state modifier (`active`, `done`, `on`, ...).

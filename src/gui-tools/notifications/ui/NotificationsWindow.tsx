@@ -5,6 +5,7 @@ import GLib from "gi://GLib?version=2.0"
 import app from "ags/gtk4/app"
 import { refreshPaletteCss } from "../lib/theme"
 import { subscribeWallpaperEvents, type WallpaperPayload, type WallpaperEventSource } from "../lib/wallpaper-events"
+import { subscribeSpeedTestEvents, type SpeedTestPayload, type SpeedTestEventSource } from "../lib/speedtest-events"
 import { resolveIcon } from "../lib/icon-registry"
 
 // AstalNotifd.Urgency wire values (GIR-verified against
@@ -37,6 +38,29 @@ const WALLPAPER_STEPS = [
   "Desktop consumers updated",
 ]
 
+// The speed test's four steps, in the order `speedtest-cli` actually performs
+// them (latency, then download, then upload) — not invented progress. The bar
+// pulses while they run because the CLI returns ONE JSON blob at the end and
+// the producer has no intermediate fraction to publish; a determinate
+// percentage here would be a number the system made up.
+const SPEEDTEST_STEPS = [
+  "Test scheduled",
+  "Latency measured",
+  "Download measured",
+  "Upload measured",
+]
+
+// Auto-dismiss delay after a SUCCESSFUL run (the shipped wallpaper completion
+// delay, so the two progress cards behave alike). A failure is sticky.
+const SPEEDTEST_COMPLETE_MS = 5000
+
+// Pulse period while a run is in flight. Matches the wallpaper card's 100ms.
+const SPEEDTEST_PULSE_MS = 100
+
+// One-line failure reasons are written for the card's ~44 wrapped characters.
+const SPEEDTEST_REASON_MAX_CHARS = 44
+const SPEEDTEST_NETWORK_MAX_CHARS = 30
+
 const WINDOW_NAME = "notifications-window"
 
 interface CardEntry {
@@ -59,6 +83,19 @@ function hideWindow(): void {
 function showWindow(): void {
   const window = app.get_window(WINDOW_NAME)
   if (window) window.visible = true
+}
+
+/** A finite payload number, or null — never a coerced NaN on screen. */
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
+}
+
+function mbpsLabel(value: number | undefined): string {
+  return value === undefined ? "—" : `${value.toFixed(1)} Mbps`
+}
+
+function msLabel(value: number | undefined): string {
+  return value === undefined ? "—" : `${Math.round(value)} ms`
 }
 
 /** Absolute on-disk image for the notification, or null (fallback tile). */
@@ -246,7 +283,7 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
   const timers = new Map<number, number>()
 
   function hideIfEmpty(): void {
-    if (cards.length === 0 && wallpaperCard === null) hideWindow()
+    if (cards.length === 0 && wallpaperCard === null && speedtestCard === null) hideWindow()
   }
 
   function stopWallpaperTimers(): void {
@@ -502,6 +539,308 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
     }
   }
 
+  // ── Speed test ─────────────────────────────────────────────────────────
+  //
+  // The wallpaper model, copied: ONE card per run, mutated in place across the
+  // run's lifetime. It is never a daemon notification — no `Notify`, no
+  // `replaces_id` — because a run is a single logical operation and four
+  // separate toasts would each need their own dismissal.
+  //
+  // COLLISION WITH THE WALLPAPER CARD: the two are independent and may be on
+  // screen at once (newest `prepend`ed, on top). Neither dismisses the other:
+  // a speed test says nothing about the wallpaper's lifecycle, and dropping the
+  // wallpaper card because a measurement started would be a lie about what
+  // happened. A *previous speed-test* card IS superseded by a new run, though —
+  // its steps and result are about a run that no longer exists.
+  let speedtestCard: Gtk.Box | null = null
+  let speedtestTerminal = false
+  let speedtestProgress: Gtk.ProgressBar | null = null
+  let speedtestTitle: Gtk.Label | null = null
+  let speedtestDetail: Gtk.Label | null = null
+  let speedtestFooter: Gtk.Label | null = null
+  let speedtestTile: Gtk.CenterBox | null = null
+  let speedtestGrid: Gtk.Box | null = null
+  let speedtestCells: Array<{ box: Gtk.Box; value: Gtk.Label }> = []
+  let speedtestStepRows: Array<{
+    row: Gtk.Box
+    marker: Gtk.Stack
+    markerGlyph: Gtk.Label
+    markerIcon: Gtk.Image
+  }> = []
+  let speedtestPulseSource: number | null = null
+  let speedtestExpirySource: number | null = null
+
+  function stopSpeedtestTimers(): void {
+    if (speedtestPulseSource !== null) GLib.source_remove(speedtestPulseSource)
+    if (speedtestExpirySource !== null) GLib.source_remove(speedtestExpirySource)
+    speedtestPulseSource = null
+    speedtestExpirySource = null
+  }
+
+  function dismissSpeedtestCard(): void {
+    stopSpeedtestTimers()
+    if (stack !== null && speedtestCard !== null) stack.remove(speedtestCard)
+    speedtestCard = null
+    speedtestTerminal = false
+    speedtestProgress = null
+    speedtestTitle = null
+    speedtestDetail = null
+    speedtestFooter = null
+    speedtestTile = null
+    speedtestGrid = null
+    speedtestCells = []
+    speedtestStepRows = []
+    hideIfEmpty()
+  }
+
+  function speedtestUpdate(payload: SpeedTestPayload, source: SpeedTestEventSource): void {
+    const state = typeof payload["state"] === "string" ? payload["state"] : ""
+    // Hydration restores only a run that is still going. A terminal payload read
+    // back at startup is a run this process never saw start, so there is no
+    // card to settle and no baseline to attribute its measurements to.
+    if (source === "startup-state" && state !== "starting") return
+    if (state === "starting") {
+      // A new run supersedes any card we are still holding for an older one.
+      if (speedtestCard !== null) dismissSpeedtestCard()
+      createSpeedtestCard()
+      setSpeedtestStatus("starting")
+      return
+    }
+    // A terminal event for a run we are not tracking is ignored, never
+    // rendered as an orphan card: the notifications app may have started after
+    // the run began, or the card may already have been dismissed by the user.
+    if (speedtestCard === null) return
+    if (state === "done") {
+      speedtestTerminal = true
+      setSpeedtestStatus("done", {
+        down_mbps: asNumber(payload["down_mbps"]),
+        up_mbps: asNumber(payload["up_mbps"]),
+        latency_ms: asNumber(payload["latency_ms"]),
+        trigger: typeof payload["trigger"] === "string" ? payload["trigger"] : "",
+      })
+      // Success is informational and already visible in the panel, so the card
+      // clears itself on the wallpaper card's completion delay.
+      speedtestExpirySource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SPEEDTEST_COMPLETE_MS, () => {
+        speedtestExpirySource = null
+        dismissSpeedtestCard()
+        return GLib.SOURCE_REMOVE
+      })
+    } else if (state === "error") {
+      speedtestTerminal = true
+      setSpeedtestStatus("error", {
+        reason: typeof payload["reason"] === "string" ? payload["reason"] : "Speed test failed.",
+        trigger: typeof payload["trigger"] === "string" ? payload["trigger"] : "",
+      })
+    }
+  }
+
+  function createSpeedtestCard(): void {
+    if (stack === null) return
+    showWindow()
+    const card = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 9 })
+    card.add_css_class("notif-card")
+    card.add_css_class("speedtest-progress-card")
+    card.set_size_request(CARD_WIDTH, -1)
+
+    const heading = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 10 })
+    const tile = new Gtk.CenterBox()
+    tile.add_css_class("speedtest-progress-tile")
+    tile.add_css_class("busy")
+    tile.set_size_request(44, 44)
+    // CenterBox centers its centre widget by construction; a plain Box would
+    // pack a non-expanding child at the START of its main axis and top-align the
+    // glyph (same reason the wallpaper card uses CenterBox).
+    tile.set_center_widget(new Gtk.Label({ label: "⇅" }))
+    speedtestTile = tile
+    const copy = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 3, hexpand: true })
+    const title = new Gtk.Label({ label: "Speed test running", xalign: 0 })
+    title.add_css_class("notif-title")
+    const detail = new Gtk.Label({ label: "Measuring your connection…", xalign: 0, wrap: true })
+    detail.add_css_class("notif-body")
+    // Gtk.Label reports its FULL unwrapped text as natural width, so without
+    // maxWidthChars a long reason (a spawn failure can be a whole sentence)
+    // would grow the card past CARD_WIDTH. Wrap, never ellipsize: the reason
+    // carries the only information the card has.
+    detail.set_max_width_chars(SPEEDTEST_REASON_MAX_CHARS)
+    copy.append(title)
+    copy.append(detail)
+    const close = new Gtk.Button({ label: "×" })
+    close.add_css_class("wallpaper-progress-close")
+    close.connect("clicked", dismissSpeedtestCard)
+    heading.append(tile)
+    heading.append(copy)
+    heading.append(close)
+
+    const progress = new Gtk.ProgressBar()
+    progress.add_css_class("speedtest-progress-bar")
+    // No percentage, ever: the CLI hands back one JSON blob when the run ends,
+    // so any fraction shown mid-run would be fabricated. show_text(false) also
+    // keeps Gtk from printing its own 0% while the bar pulses.
+    progress.set_show_text(false)
+    card.append(heading)
+    card.append(progress)
+
+    // The three result cells, hidden until a run succeeds. Download / Upload /
+    // Ping, matching the panel's own row split so the two read identically.
+    const grid = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 })
+    grid.add_css_class("speedtest-progress-grid")
+    for (const [key, highlight] of [["Download", true], ["Upload", true], ["Ping", false]] as const) {
+      const cell = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 3, hexpand: true })
+      cell.add_css_class("speedtest-progress-cell")
+      if (highlight) cell.add_css_class("highlight")
+      const keyLabel = new Gtk.Label({ label: key, xalign: 0 })
+      keyLabel.add_css_class("speedtest-progress-cell-key")
+      const value = new Gtk.Label({ label: "—", xalign: 0 })
+      value.add_css_class("speedtest-progress-cell-value")
+      // Three cells across a 380px card is ~118px each; the value line carries
+      // a number and a unit, so it wraps rather than forcing the row wider.
+      value.set_max_width_chars(9)
+      cell.append(keyLabel)
+      cell.append(value)
+      grid.append(cell)
+      speedtestCells.push({ box: cell, value })
+    }
+    grid.set_visible(false)
+    speedtestGrid = grid
+    card.append(grid)
+
+    // The four-step checklist, built exactly as the wallpaper card builds its
+    // own (a Gtk.Stack per marker so the done state can swap a glyph for the
+    // palette-rendered check icon).
+    const stepList = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 7 })
+    stepList.add_css_class("speedtest-progress-steps")
+    for (const stepText of SPEEDTEST_STEPS) {
+      const row = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 })
+      row.add_css_class("speedtest-progress-step")
+      const marker = new Gtk.Stack()
+      marker.add_css_class("speedtest-progress-marker")
+      const markerGlyph = new Gtk.Label({ label: "○" })
+      const markerIcon = new Gtk.Image()
+      markerIcon.set_pixel_size(15)
+      const checkCirclePath = resolveIcon("wallpaper-progress", "check-circle")
+      if (checkCirclePath !== null) markerIcon.set_from_file(checkCirclePath)
+      marker.add_named(markerGlyph, "glyph")
+      marker.add_named(markerIcon, "check")
+      marker.set_visible_child_name("glyph")
+      const label = new Gtk.Label({ label: stepText, xalign: 0, hexpand: true })
+      label.add_css_class("speedtest-progress-step-label")
+      row.append(marker)
+      row.append(label)
+      stepList.append(row)
+      speedtestStepRows.push({ row, marker, markerGlyph, markerIcon })
+    }
+    card.append(stepList)
+
+    const footer = new Gtk.Label({ label: "Runs in the background.", xalign: 0 })
+    footer.add_css_class("speedtest-progress-footer")
+    card.append(footer)
+
+    stack.prepend(card)
+    speedtestCard = card
+    speedtestProgress = progress
+    speedtestTitle = title
+    speedtestDetail = detail
+    speedtestFooter = footer
+  }
+
+  /**
+   * Settle the card into `starting` / `done` / `error`.
+   *
+   * `activeStep` is the step the run is ON, not a fraction: the producer
+   * publishes no intermediate progress, so the checklist's active row is the
+   * honest "where are we" signal, and everything before it is genuinely done.
+   */
+  function setSpeedtestStatus(
+    state: "starting" | "done" | "error",
+    terminal?: {
+      down_mbps?: number
+      up_mbps?: number
+      latency_ms?: number
+      reason?: string
+      trigger: string
+    },
+  ): void {
+    if (speedtestCard === null || speedtestProgress === null) return
+    stopSpeedtestTimers()
+    // A terminal card is never BUSY: the tile keeps its result/failure tint and
+    // the bar stops pulsing even though the failure card is sticky.
+    speedtestTile?.remove_css_class("busy")
+
+    if (state === "starting") {
+      speedtestTerminal = false
+      speedtestTitle?.set_label("Speed test running")
+      speedtestDetail?.set_label(`${triggerPhrase(terminal?.trigger)} · measuring your connection…`)
+      speedtestFooter?.set_label("Runs in the background; the result is in the Wi-Fi panel.")
+      setSpeedtestSteps(1, false)
+      speedtestProgress.set_fraction(0)
+      speedtestPulseSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SPEEDTEST_PULSE_MS, () => {
+        speedtestProgress?.pulse()
+        return GLib.SOURCE_CONTINUE
+      })
+      return
+    }
+
+    if (state === "done") {
+      speedtestTitle?.set_label("Speed test complete")
+      speedtestDetail?.set_label(
+        `${triggerPhrase(terminal?.trigger)} · also shown in the Wi-Fi panel`,
+      )
+      speedtestFooter?.set_label("Finished just now.")
+      setSpeedtestSteps(SPEEDTEST_STEPS.length, false)
+      const [down, up, ping] = speedtestCells
+      if (down !== undefined) down.value.set_label(mbpsLabel(terminal?.down_mbps))
+      if (up !== undefined) up.value.set_label(mbpsLabel(terminal?.up_mbps))
+      if (ping !== undefined) ping.value.set_label(msLabel(terminal?.latency_ms))
+      speedtestGrid?.set_visible(true)
+      speedtestProgress.set_fraction(1)
+      return
+    }
+
+    // error: sticky, cautious, and it names the step it stopped at.
+    speedtestCard.add_css_class("critical")
+    speedtestTile?.add_css_class("failed")
+    speedtestTitle?.set_label("Speed test failed")
+    speedtestDetail?.set_label(terminal?.reason ?? "Speed test failed.")
+    speedtestFooter?.set_label("It will retry on the next interval.")
+    // The failure is attributed to the step the run was on. We cannot know
+    // WHICH phase the CLI died in — it reports one blob at the end — so the
+    // second step ("Latency measured") is the truthful claim: the measurement
+    // never completed. Saying "download failed" would be a guess.
+    setSpeedtestSteps(1, true)
+    // Deliberately NOT fraction(1): the run did not finish. Left at 0 with the
+    // bar no longer pulsing, so the card reads "stopped", not "done".
+    speedtestProgress.set_fraction(0)
+  }
+
+  /** Mark steps `<activeStep` done, `activeStep` active-or-failed, the rest pending. */
+  function setSpeedtestSteps(activeStep: number, failed: boolean): void {
+    speedtestStepRows.forEach(({ row, marker, markerGlyph }, index) => {
+      row.remove_css_class("done")
+      row.remove_css_class("active")
+      row.remove_css_class("failed")
+      if (index < activeStep) {
+        row.add_css_class("done")
+        marker.set_visible_child_name("check")
+      } else if (index === activeStep) {
+        row.add_css_class(failed ? "failed" : "active")
+        marker.set_visible_child_name("glyph")
+        markerGlyph.set_label(failed ? "!" : "·")
+      } else {
+        marker.set_visible_child_name("glyph")
+        markerGlyph.set_label("○")
+      }
+    })
+  }
+
+  function triggerPhrase(trigger: string): string {
+    switch (trigger) {
+      case "manual": return "Started by you"
+      case "connect": return "Run after connecting"
+      default: return "Scheduled run"
+    }
+  }
+
+
   function removeCard(id: number): void {
     const index = cards.findIndex((entry) => entry.id === id)
     if (index === -1 || stack === null) return
@@ -607,6 +946,13 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
       // Dismiss the newest card (or hide an empty stack window).
       const newest = cards[cards.length - 1]
       if (newest === undefined) {
+        // With no daemon cards left, Escape falls through the two progress
+        // cards newest-first, then hides an empty stack. A sticky speed-test
+        // failure is dismissible this way even though it never expires.
+        if (speedtestCard !== null) {
+          dismissSpeedtestCard()
+          return true
+        }
         if (wallpaperCard !== null) {
           dismissWallpaperCard()
           return true
@@ -655,6 +1001,7 @@ export function NotificationsWindow(gdkmonitor: Gdk.Monitor) {
         $={(self) => {
           stack = self
           subscribeWallpaperEvents(wallpaperUpdate)
+          subscribeSpeedTestEvents(speedtestUpdate)
         }}
       />
     </window>
