@@ -65,9 +65,16 @@
       "cadence": "on every transition and at least once per second while recording",
       "notes": "the bar renders the pushed elapsed_seconds (may interpolate locally); it derives no time from a file or shared wall clock"
     },
-    "speedtest.finished": {
-      "producer": "speed-test job",
-      "payload": { "down_mbps": "d", "up_mbps": "d", "latency_ms": "d" }
+    "speedtest.state": {
+      "producer": "speed-test service",
+      "payload": { "state": "s", "trigger": "s", "down_mbps": "d", "up_mbps": "d", "latency_ms": "d", "reason": "s" },
+      "optional": ["down_mbps", "up_mbps", "latency_ms", "reason"],
+      "enum": {
+        "state": ["starting", "done", "error"],
+        "trigger": ["scheduled", "manual", "connect"]
+      },
+      "cadence": "on transition: starting at run start, done/error at the single terminal settle (including watchdog abandonment)",
+      "notes": "SUPERSEDES speedtest.finished, which had no subscriber, so the widening is observationally free and there is exactly one way to say a speed test happened. state=starting carries only state+trigger; done additionally requires the three measurement doubles; error additionally requires a single-line reason, never a traceback. Exactly one done OR error is emitted per run. The progress bar is INDETERMINATE by construction: speedtest-cli --json returns one blob at the end, so no intermediate fraction exists to publish and any determinate value would be fabricated. trigger names the operation that started the run: scheduled = the interval timer, manual = the panel's Run now, connect = the run-on-connect watcher"
     },
     "clipboard.update": {
       "producer": "clipboard controller",

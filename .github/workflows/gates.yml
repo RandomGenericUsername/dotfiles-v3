@@ -1,0 +1,46 @@
+name: gates
+
+# The repo's executable gates. "Reuse the existing architecture" and
+# "the mock matches the code" are only real if something runs them, so this
+# workflow is the place a future change cannot quietly drop one.
+#
+# Layout: one job per gate, so a failure names the gate that broke instead of
+# hiding behind a combined command's exit code.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contracts:
+    name: contracts-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Run the event-contract drift gate
+        run: make contracts-check
+
+  wifi-mock-parity:
+    name: wifi-mock-parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wi-Fi mock<->code parity
+        run: python3 scripts/wifi-mock-parity.py
+
+  speedtest-mock-parity:
+    name: speedtest-mock-parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Speed-test mock<->code parity
+        run: python3 scripts/speedtest-mock-parity.py
+
+  speedtest-no-new-architecture:
+    name: speedtest-no-new-architecture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Speed-test path reuses the existing seams
+        run: python3 scripts/speedtest-no-new-architecture.py

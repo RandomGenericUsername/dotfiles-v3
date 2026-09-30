@@ -106,7 +106,7 @@ the normal lease expiry still yields the synthetic `JobFinished(-1)`.
 | --- | --- | --- |
 | `icme.saved` | ICME (on save) | `{ "path": s }` |
 | `capture.state` | capture controller | `{ "state": s (idle\|recording\|paused), "elapsed_seconds": x }` |
-| `speedtest.finished` | speed-test job | `{ "down_mbps": d, "up_mbps": d, "latency_ms": d }` |
+| `speedtest.state` | speed-test service | `{ "state": s (starting\|done\|error), "trigger": s (scheduled\|manual\|connect), "down_mbps": d?, "up_mbps": d?, "latency_ms": d?, "reason": s? }` |
 | `clipboard.update` | clipboard controller | `{ "type": s (text\|image\|link\|code\|color\|emoji), "hash": s, "path": s, "preview": s }` |
 | `clipboard.state` | clipboard controller | `{ "state": s (idle\|running\|paused), "job_id": s }` |
 | `wallpaper.state` | wallpaper set | `{ "state": s (applying\|visible\|done\|error), "wallpaper_hash": s, "trigger": s (set\|regenerate\|reconcile\|reactive)? }` |
@@ -136,6 +136,20 @@ wallpaper already live. `trigger` is an **optional/additive** discriminator
 operation that produced the transition — `set` (wallpaper set),
 `regenerate` (icons regenerate), `reconcile` (standalone reconcile), or
 `reactive` (daemon reactive converge).
+
+`speedtest.state` supersedes the old terminal-only `speedtest.finished`. It is
+emitted by the speed-test service on every transition — `starting` when a run
+begins, then exactly one `done` or `error` when it settles, including when the
+run's watchdog abandons it. `done` additionally carries the three measurement
+doubles; `error` additionally carries a single-line human-readable `reason`
+(never a traceback). `trigger` names the operation that started the run:
+`scheduled` (the interval timer), `manual` (the panel's Run now), or `connect`
+(the run-on-connect watcher). There is deliberately **no** progress fraction:
+`speedtest-cli --json` returns one blob at the end, so the producer has no
+intermediate value to publish and any determinate percentage a consumer drew
+would be fabricated — consumers must render the in-flight run as indeterminate.
+The service honours a user preference (`notify_on_test`) and emits nothing at
+all when it is off; the measurement itself is still taken and stored.
 
 The capture controller updates `capture.state` on every transition **and at
 least once per second while recording**, so the bar renders the pushed value

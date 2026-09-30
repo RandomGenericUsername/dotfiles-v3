@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -12,6 +12,21 @@ bootstrap:
 # Runs by execution, never by reading prose.
 contracts-check:
 	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_event_contract_drift.py tests/unit/test_history_trigger_enum.py -q
+
+# Every executable gate, in the order a reviewer should read them: contract
+# first (it is the source of truth), then mock/code parity, then the
+# anti-invention check. Same four commands as .github/workflows/gates.yml, so
+# a green run locally is a green run in CI.
+gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture
+
+wifi-mock-parity:
+	python3 scripts/wifi-mock-parity.py
+
+speedtest-mock-parity:
+	python3 scripts/speedtest-mock-parity.py
+
+speedtest-no-new-architecture:
+	python3 scripts/speedtest-no-new-architecture.py
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).
