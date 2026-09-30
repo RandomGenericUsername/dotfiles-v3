@@ -35,12 +35,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("bash -lc 'sleep 4 && ags run -d $HOME/.config/ags-notifications --log-file $HOME/.local/state/ags/notifications.log'")
 
     -- Polkit authentication agent (hyprpolkitagent)
-    -- NOTE: Currently disabled due to Arch package dependency issue:
-    -- hyprpolkitagent 0.2.0-1 requires libhyprtoolkit.so.6 but system has
-    -- hyprtoolkit 0.5.4-5 (provides libhyprtoolkit.so.5). When packages sync,
-    -- this should be re-enabled. Once functional, migrate to systemd user
-    -- service integration following the existing dotfiles pattern.
-    -- hl.exec_cmd("/usr/lib/hyprpolkitagent/hyprpolkitagent &")
+    hl.exec_cmd("systemctl --user start hyprpolkitagent")
 
     -- XDG Desktop Portal (for screen sharing, file picking, etc.)
     hl.exec_cmd("systemctl --user start xdg-desktop-portal-hyprland")

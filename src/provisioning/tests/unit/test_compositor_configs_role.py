@@ -250,14 +250,16 @@ class TestCompositorConfigsTasks:
         # types.ts, and 4 controllers) are standalone under
         # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
         # no longer part of the compositor_configs skeletons.
-        assert len(files) == 61, (
-            f"expected exactly 61 skeleton files (hyprland.lua + gloview.lua + "
-            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+5 lib+Bar.tsx+11 "
+        assert len(files) == 65, (
+            f"expected exactly 65 skeleton files (hyprland.lua + gloview.lua + "
+            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+6 lib (incl. "
+            f"wifi-signal)+Bar.tsx+11 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
             f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
-            f"D-Bus services + the 2 MPRIS service/core files + 8 shared components "
-            f"(2 primitives + 3 wifi + 1 bluetooth + 2 sliders) + the audio popup "
-            f"(state + AudioPopup) + rofi launcher config.rasi); found {len(files)}"
+            f"D-Bus services + speedtest service + the 2 MPRIS service/core files "
+            f"+ 9 shared components "
+            f"(3 primitives (incl. WifiSwitch) + 3 wifi + 1 bluetooth + 2 sliders) + the audio popup "
+            f"(state + AudioPopup) + ags wifi-speedtest.json + rofi launcher config.rasi); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -279,6 +281,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx",
             "dotfiles/config/ags/components/primitives/IconToggle.tsx",
             "dotfiles/config/ags/components/primitives/LevelSlider.tsx",
+            "dotfiles/config/ags/components/primitives/WifiSwitch.tsx",
             "dotfiles/config/ags/components/sliders/BrightnessSlider.tsx",
             "dotfiles/config/ags/components/sliders/VolumeSlider.tsx",
             "dotfiles/config/ags/components/wifi/WifiContent.tsx",
@@ -289,10 +292,12 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/lib/event-bus.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/lib/status-notifier.ts",
+            "dotfiles/config/ags/lib/wifi-signal.ts",
             "dotfiles/config/ags/services/bluetooth-service.ts",
             "dotfiles/config/ags/services/mpris-core.ts",
             "dotfiles/config/ags/services/mpris-service.ts",
             "dotfiles/config/ags/services/nm-client.ts",
+            "dotfiles/config/ags/services/speedtest-service.ts",
             "dotfiles/config/ags/services/wifi-service.ts",
             "dotfiles/config/ags/settings-panel/SettingsPanel.tsx",
             "dotfiles/config/ags/settings-panel/bluetooth-agent.ts",
@@ -307,6 +312,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/settings-panel/views/MainView.tsx",
             "dotfiles/config/ags/settings-panel/views/WifiView.tsx",
             "dotfiles/config/ags/style.css",
+            "dotfiles/config/ags/wifi-speedtest.json",
             "dotfiles/config/hypr/animations.lua",
             "dotfiles/config/hypr/autostart.lua",
             "dotfiles/config/hypr/colors.lua",
