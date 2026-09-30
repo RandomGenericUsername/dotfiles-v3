@@ -37,6 +37,54 @@ let serviceUsers = 0
 
 let configPath = `${GLib.get_user_config_dir()}/ags/wifi-speedtest.json`
 
+//: The last measurement is persisted separately from the config. The interval
+//: is a *setting* and must survive restarts; the measurement is *data* and used
+//: to live only in `lastResult`/`lastRunAt`, so every AGS restart blanked the
+//: Speed/Ran rows to "—" and left them empty until the next scheduled run a
+//: whole interval away. Kept in its own file so a corrupt or hand-edited
+//: measurement can never take the interval down with it.
+let lastRunPath = `${GLib.get_user_config_dir()}/ags/wifi-speedtest-last.json`
+
+type PersistedRun = {
+  result: SpeedTestResult
+  ran_at: number
+}
+
+function loadLastRun(): PersistedRun | null {
+  try {
+    const data = GLib.file_get_contents(lastRunPath)?.[1]
+    if (!data) return null
+    const parsed = JSON.parse(new TextDecoder().decode(data)) as Partial<PersistedRun>
+    const r = parsed.result
+    if (
+      typeof parsed.ran_at !== "number" ||
+      !Number.isFinite(parsed.ran_at) ||
+      r === undefined ||
+      typeof r.down_mbps !== "number" ||
+      typeof r.up_mbps !== "number" ||
+      typeof r.latency_ms !== "number"
+    ) {
+      return null
+    }
+    return {
+      result: { down_mbps: r.down_mbps, up_mbps: r.up_mbps, latency_ms: r.latency_ms },
+      ran_at: parsed.ran_at,
+    }
+  } catch {
+    return null
+  }
+}
+
+function saveLastRun(result: SpeedTestResult, ranAt: number): void {
+  try {
+    const payload: PersistedRun = { result, ran_at: ranAt }
+    const ok = GLib.file_set_contents(lastRunPath, JSON.stringify(payload, null, 2))
+    if (!ok) console.error(`speedtest-service: saveLastRun write failed for ${lastRunPath}`)
+  } catch (error) {
+    console.error(`speedtest-service: saveLastRun failed for ${lastRunPath}: ${error}`)
+  }
+}
+
 function loadConfig(): SpeedTestConfig {
   try {
     const data = GLib.file_get_contents(configPath)?.[1]
@@ -157,10 +205,34 @@ function parseSpeedtestCliResult(out: string): SpeedTestResult | null {
   }
 }
 
+//: Hard ceiling on one measurement. execAsync has no timeout of its own, so a
+//: stalled transfer (server accepts the connection then goes quiet) leaves the
+//: promise pending forever. That wedges `running` permanently: the Run button
+//: stays on "Testing…" AND the `if (running()) return` guard at the top of
+//: runSpeedTest then rejects every subsequent scheduled run, so the whole
+//: feature dies silently until the process is restarted. 120s is far longer
+//: than a healthy run (~20-30s here) and still bounded.
+const RUN_TIMEOUT_MS = 120000
+
 function runSpeedTest(): void {
   if (running()) return
   setRunning(true)
   setLastError(null)
+  // Watchdog: clears `running` if the subprocess never settles. Removed on
+  // every normal exit path below, so it only ever fires on a genuine hang.
+  let watchdog = GLib.timeout_add(GLib.PRIORITY_DEFAULT, RUN_TIMEOUT_MS, () => {
+    console.error(`speedtest-service: run exceeded ${RUN_TIMEOUT_MS}ms; abandoning`)
+    setLastError("Speed test timed out.")
+    setLastRunAt(Date.now())
+    setRunning(false)
+    return false
+  })
+  const clearWatchdog = () => {
+    if (watchdog !== 0) {
+      try { GLib.source_remove(watchdog) } catch { /* already fired */ }
+      watchdog = 0
+    }
+  }
   // NOTE: on Arch/Debian `/usr/bin/speedtest` is the Python speedtest-cli
   // wrapper (same as `speedtest-cli`, `--json`), NOT Ookla (`--format=json`).
   // Detecting Ookla by basename alone sends `--format=json` to the Python
@@ -170,6 +242,7 @@ function runSpeedTest(): void {
   const ookla = GLib.find_program_in_path("speedtest")
   const compatible = GLib.find_program_in_path("speedtest-cli")
   if (ookla === null && compatible === null) {
+    clearWatchdog()
     setLastError("Speedtest CLI is not installed; provision the speedtest package.")
     setLastRunAt(Date.now())
     setRunning(false)
@@ -189,16 +262,25 @@ function runSpeedTest(): void {
         setLastError("Speed test returned an unrecognized result.")
       } else {
         setLastResult(result)
+        // Persist on success only. A failed run must not overwrite the last
+        // good measurement — otherwise a transient network blip would blank
+        // the Speed rows until the next successful test.
+        saveLastRun(result, Date.now())
         publishSpeedTestFinished(result)
       }
       setLastRunAt(Date.now())
     })
     .catch((error: unknown) => {
       setLastError(`Speed test failed: ${error instanceof Error ? error.message : String(error)}`)
+      // Timestamp updated but the previous measurement deliberately kept, so
+      // "Ran" answers "when did we last try" while the numbers stay truthful.
       setLastRunAt(Date.now())
       console.error(`speedtest-service: run failed: ${error}`)
     })
-    .finally(() => setRunning(false))
+    .finally(() => {
+      clearWatchdog()
+      setRunning(false)
+    })
 }
 
 function startScheduler(): void {
@@ -228,6 +310,18 @@ export function startSpeedTestService(): void {
   if (serviceUsers > 1) return
   const c = loadConfig()
   setConfig(c)
+  // Restore the last measurement so the Speed/Ran rows are populated
+  // immediately after a restart instead of reading "—" until the next
+  // scheduled run. Only applied when there is genuinely nothing yet, so a
+  // measurement taken during this session is never overwritten by a stale
+  // file.
+  if (lastResult() === null && lastRunAt() === null) {
+    const persisted = loadLastRun()
+    if (persisted) {
+      setLastResult(persisted.result)
+      setLastRunAt(persisted.ran_at)
+    }
+  }
   if (c.interval_ms > 0) startScheduler()
 }
 

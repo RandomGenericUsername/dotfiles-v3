@@ -28,7 +28,6 @@ import {
   lastRunAt,
   lastError,
   running as speedTestRunning,
-  type SpeedTestResult,
 } from "../../services/speedtest-service"
 
 export {
@@ -44,13 +43,34 @@ const [stcExpanded, setStcExpanded] = createState(false)
 // interval Gtk.Entry is on screen. Without ON_DEMAND the panel holds no
 // keyboard, so that entry is clickable but inert — keystrokes go to the bar.
 export { stcExpanded }
-// Ticking clock so relative `Ran` ages past "just now" (30s cadence,
-// session-lifetime — one source for both popup and settings-view instances).
+// Ticking clock so relative `Ran` stays live. One source for both the popup and
+// the settings-view instance (they share this module, so a single timer serves
+// both). 1s while a surface is actually on screen, 30s otherwise: seconds
+// granularity needs a 1s tick, but paying that forever for a hidden panel
+// would keep the CPU awake for nothing. Opening either surface bumps the clock
+// immediately so "Ran" never shows a stale age on first paint.
 const [nowMs, setNowMs] = createState(Date.now())
-GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30000, () => {
-  setNowMs(Date.now())
-  return true
-})
+const [timeVisible, setTimeVisible] = createState(false)
+let timeTimerId = 0
+function ensureTimeTimer(): void {
+  const period = timeVisible() ? 1000 : 30000
+  if (timeTimerId !== 0 && lastTimePeriod === period) return
+  if (timeTimerId !== 0) {
+    try { GLib.source_remove(timeTimerId) } catch { /* already removed */ }
+  }
+  lastTimePeriod = period
+  timeTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, period, () => {
+    setNowMs(Date.now())
+    return true
+  })
+}
+let lastTimePeriod = 0
+// NOTE: deliberately NOT wrapped in a module-level createEffect. Effects
+// created outside a createRoot are never disposed (gjs logs
+// "effects created outside a `createRoot` will never be disposed"), and a
+// leaked 1s GLib timer would outlive every surface. ensureTimeTimer is called
+// from the per-instance visible effect in WifiContent instead, which IS
+// owned by a root and is disposed with the widget.
 const stcIntervalMs = createComputed(() => getConfig().interval_ms)
 const stcRunOnConnect = createComputed(() => getConfig().run_on_connect)
 let observedConnectedSsid: string | null = null
@@ -186,21 +206,20 @@ function SignalIcon({ strength }: { strength: number }) {
   const key = getSignalIconKey(strength)
   const src = registry.resolve("settings-panel", key)
   return src ? (
-    <image class="settings-net-signal" pixel_size={24} $={(self) => {
+    <image class="settings-net-signal" pixel_size={30} $={(self) => {
       createEffect(() => self.set_from_file(src ?? ""))
     }} />
   ) : null
 }
 
-function formatSpeedFull(r: SpeedTestResult | null): string {
-  if (!r) return "—"
-  return `↓ ${r.down_mbps} Mbps · ↑ ${r.up_mbps} Mbps · ${r.latency_ms} ms`
-}
-
 function formatRanAt(ranAt: number | null): string {
   if (ranAt === null) return "—"
-  const mins = Math.round((Date.now() - ranAt) / 60000)
-  if (mins < 1) return "just now"
+  const seconds = Math.max(0, Math.round((Date.now() - ranAt) / 1000))
+  // Seconds below a minute: "just now" hides the fact that the value is live
+  // and re-read on every open, and gives no way to tell a 5s-old reading from
+  // a 55s-old one.
+  if (seconds < 60) return seconds <= 1 ? "just now" : `${seconds} s ago`
+  const mins = Math.round(seconds / 60)
   if (mins < 60) return `${mins} min ago`
   return `${Math.round(mins / 60)} h ago`
 }
@@ -252,7 +271,18 @@ function ConnectionDetails() {
     if (info.ip && info.iface) return `${info.ip} · ${info.iface}`
     return info.ip ?? info.iface ?? "—"
   })
-  const speed = createComputed(() => formatSpeedFull(lastResult()))
+  // Download / Upload / Ping as their own rows rather than one crammed
+  // "Speed" line: the combined string needed ~200px and was the widest value in
+  // the details block, which is what made it the row most at risk of forcing
+  // the surface wider than 312px. Split, each value is short and the block
+  // reads as a clean spec sheet.
+  const mbps = (v: number | undefined) => (v === undefined ? "—" : `${Math.round(v)} Mbps`)
+  const download = createComputed(() => mbps(lastResult()?.down_mbps))
+  const upload = createComputed(() => mbps(lastResult()?.up_mbps))
+  const ping = createComputed(() => {
+    const ms = lastResult()?.latency_ms
+    return ms === undefined ? "—" : `${Math.round(ms)} ms`
+  })
   const ran = createComputed(() => {
     nowMs()
     return formatRanAt(lastRunAt())
@@ -261,7 +291,9 @@ function ConnectionDetails() {
     <box class="settings-conn-details" orientation={1} spacing={2}>
       <DetailRow name="MAC" value={mac} />
       <DetailRow name="IP / iface" value={ipIface} />
-      <DetailRow name="Speed" value={speed} />
+      <DetailRow name="Download" value={download} />
+      <DetailRow name="Upload" value={upload} />
+      <DetailRow name="Ping" value={ping} />
       <DetailRow name="Ran" value={ran} />
     </box>
   )
@@ -444,6 +476,19 @@ startSpeedTestService()
 
 export function WifiContent({ visible }: { visible: Accessor<boolean> }) {
   const [settingsMessage, setSettingsMessage] = createState("")
+  // Opening a surface: bump the clock so "Ran" re-reads immediately rather than
+  // showing whatever age was computed while the surface was hidden, and drive
+  // the shared clock to its 1s cadence while anything is on screen.
+  createEffect(() => {
+    if (!visible()) return
+    setTimeVisible(true)
+    setNowMs(Date.now())
+    ensureTimeTimer()
+    return () => {
+      setTimeVisible(false)
+      ensureTimeTimer()
+    }
+  })
   // One module-level baseline lets popup and settings-view instances share
   // this watcher without firing duplicate automatic runs.
   createEffect(() => {
