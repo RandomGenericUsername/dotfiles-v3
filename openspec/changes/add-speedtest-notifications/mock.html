@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speed Test Notifications — design proposal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',system-ui,sans-serif; background:#16161f; color:#e0e0e0; padding:28px; display:flex; flex-wrap:wrap; gap:28px; }
+
+  h1 { width:100%; font-size:21px; font-weight:700; color:#fff; border-bottom:1px solid rgba(255,255,255,.1); padding-bottom:12px; }
+  .intro { width:100%; font-size:13px; line-height:1.75; color:rgba(255,255,255,.6); background:rgba(255,255,255,.03);
+           border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:14px 18px; }
+  .intro b { color:#8ab8ff; font-weight:600; }
+  .intro code { background:rgba(138,184,255,.12); color:#8ab8ff; padding:1px 5px; border-radius:4px; font-size:12px; }
+  .col { display:flex; flex-direction:column; gap:22px; }
+  .state-label { font-size:12px; color:rgba(255,255,255,.5); }
+  .state-label code { color:#8ab8ff; }
+
+  /* ── Mock chrome: the real notification stack, right-aligned ────────── */
+  .stack { width:380px; display:flex; flex-direction:column; gap:12px; }
+
+  .notif-card { padding:13px; border-radius:14px; background:rgba(24,24,38,.94);
+                border:1px solid rgba(255,255,255,.12); box-shadow:0 16px 40px rgba(0,0,0,.5); }
+  .notif-card.progress-card { padding:18px; }
+
+  .heading { display:flex; align-items:center; gap:10px; }
+  .tile { width:44px; height:44px; border-radius:8px; display:grid; place-items:center;
+          background:rgba(156,98,151,.18); color:#9c6297; font-size:20px; flex:0 0 auto; }
+  .tile.busy  { background:rgba(58,139,253,.16);  color:#3a8bfd; }
+  .tile.ok    { background:rgba(58,139,253,.18);  color:#3a8bfd; }
+  .tile.fail  { background:rgba(245,166,35,.16);  color:#f5a623; }
+  .copy { flex:1; min-width:0; }
+  .title { font-size:13px; font-weight:700; color:#e0e0e0; }
+  .body  { font-size:11.5px; color:rgba(255,255,255,.62); margin-top:3px; line-height:1.5; }
+  .close { width:24px; height:24px; border:0; background:transparent; color:rgba(255,255,255,.62);
+           font-size:15px; cursor:pointer; border-radius:6px; flex:0 0 auto; }
+  .close:hover { background:rgba(255,255,255,.08); }
+
+  /* Progress bar — 4px trough, matches .wallpaper-progress-bar */
+  .bar { height:4px; border-radius:3px; background:rgba(255,255,255,.12); margin-top:12px; overflow:hidden; }
+  .bar > i { display:block; height:100%; width:0; background:#3a8bfd; border-radius:3px; transition:width .3s ease; }
+  .bar.pulse > i { width:38% !important; animation:pulse 1.15s ease-in-out infinite; }
+  @keyframes pulse { 0%{margin-left:0} 50%{margin-left:62%} 100%{margin-left:0} }
+
+  /* Step checklist — the wallpaper model */
+  .steps { padding-top:11px; margin-top:11px; border-top:1px solid rgba(255,255,255,.12);
+           display:flex; flex-direction:column; gap:7px; }
+  .step { display:flex; align-items:center; gap:8px; font-size:11px; color:rgba(255,255,255,.58); }
+  .step .m { width:18px; height:18px; display:grid; place-items:center; color:rgba(255,255,255,.55); font-size:12px; flex:0 0 auto; }
+  .step.active { color:#e0e0e0; }
+  .step.active .m, .step.done .m { color:#3a8bfd; }
+  .step.done { color:rgba(255,255,255,.82); }
+  .step.fail { color:#f5a623; }
+  .step.fail .m { color:#f5a623; }
+  .footer { margin-top:9px; font-size:10px; color:rgba(255,255,255,.48); }
+
+  /* Result grid — the 3 separate values */
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
+  .cell { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);
+          border-radius:9px; padding:9px 10px; }
+  .cell .k { font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:rgba(255,255,255,.42); }
+  .cell .v { font-size:15px; font-weight:700; color:#fff; margin-top:3px; }
+  .cell .v small { font-size:10px; font-weight:500; color:rgba(255,255,255,.5); margin-left:2px; }
+  .cell.hl { background:rgba(58,139,253,.12); border-color:rgba(58,139,253,.3); }
+
+  /* The settings row (proposal) */
+  .settings { width:312px; background:rgba(18,18,30,.96); border:1.5px solid rgba(255,255,255,.1);
+              border-radius:12px; overflow:hidden; }
+  .s-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
+             color:rgba(255,255,255,.4); padding:14px 16px 8px; }
+  .s-row { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; gap:10px; }
+  .s-label { font-size:12px; color:rgba(255,255,255,.6); }
+  .s-sub { font-size:10px; color:rgba(255,255,255,.35); margin-top:2px; }
+  .s-div { height:1px; background:rgba(255,255,255,.07); margin:4px 0; }
+  .toggle { position:relative; width:42px; height:24px; background:rgba(255,255,255,.15);
+            border-radius:12px; border:0; cursor:pointer; flex:0 0 auto; }
+  .toggle.on { background:#3a8bfd; }
+  .toggle::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px;
+                   background:#fff; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.3); transition:transform .2s; }
+  .toggle.on::after { transform:translateX(18px); }
+  .toggle.sm { width:36px; height:20px; }
+  .toggle.sm::after { width:16px; height:16px; }
+  .toggle.sm.on::after { transform:translateX(16px); }
+
+  .note { width:100%; font-size:12px; line-height:1.8; color:rgba(255,255,255,.55);
+          background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+          border-radius:10px; padding:16px 20px; }
+  .note h3 { font-size:13px; color:#fff; margin-bottom:8px; }
+  .note li { margin-left:18px; margin-bottom:5px; }
+  .note b { color:#8ab8ff; }
+  .warn { color:#f5a623; }
+</style>
+</head>
+<body>
+
+<h1>Speed Test Notifications — proposal</h1>
+
+<div class="intro">
+  <b>What exists today.</b> The wallpaper change already does progress reporting, and it does it in a specific way:
+  the notifications app <b>subscribes to the <code>wallpaper.state</code> domain event</b> and builds a
+  <b>bespoke card it mutates in place</b> — one card, a 4-step checklist, an indeterminate
+  <code>ProgressBar.pulse()</code> while busy, then <code>set_fraction(1)</code> and a 5&nbsp;s auto-dismiss.
+  It never calls <code>Notify</code> and never uses <code>replaces_id</code>.<br><br>
+  <b>What already exists for us.</b> <code>publishSpeedTestFinished()</code> is already wired in
+  <code>speedtest-service.ts</code> and emits <code>speedtest.finished</code> on <code>org.dotfiles.Events</code>
+  — but <b>nothing subscribes to it</b>. So the plumbing is half-built: a producer with no consumer.<br><br>
+  <b>The proposal.</b> Extend that event to a <code>speedtest.state</code> topic with phases
+  (<code>starting → measuring → done | error</code>) and give the notifications app a progress card
+  modelled directly on the wallpaper one. One card, mutated in place, auto-dismissing — <b>not</b> a burst of
+  separate toasts.
+</div>
+
+<!-- ══ 1. STARTING ══════════════════════════════════════════════════ -->
+<div id="state-stc-running" class="col">
+  <div class="state-label">1 — Run starts · <code>speedtest.started</code></div>
+  <div class="stack">
+    <div class="notif-card progress-card">
+      <div class="heading">
+        <div class="tile busy">⇅</div>
+        <div class="copy">
+          <div class="title">Speed test running</div>
+          <div class="body">Measuring your connection…</div>
+        </div>
+        <button class="close">×</button>
+      </div>
+      <div class="bar pulse"><i></i></div>
+      <div class="steps">
+        <div class="step done"><span class="m">✓</span>Test scheduled</div>
+        <div class="step active"><span class="m">·</span>Measuring latency</div>
+        <div class="step"><span class="m">○</span>Measuring download</div>
+        <div class="step"><span class="m">○</span>Measuring upload</div>
+      </div>
+      <div class="footer">Started just now · runs in the background</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 2. RESULT ════════════════════════════════════════════════════ -->
+<div id="state-stc-result" class="col">
+  <div class="state-label">2 — Result · <code>speedtest.finished</code></div>
+  <div class="stack">
+    <div class="notif-card progress-card">
+      <div class="heading">
+        <div class="tile ok">⇅</div>
+        <div class="copy">
+          <div class="title">Speed test complete</div>
+          <div class="body">Canela&amp;Dulce · CableVivo Envigado</div>
+        </div>
+        <button class="close">×</button>
+      </div>
+      <div class="bar"><i style="width:100%"></i></div>
+      <div class="grid">
+        <div class="cell hl"><div class="k">Download</div><div class="v">156<small>Mbps</small></div></div>
+        <div class="cell hl"><div class="k">Upload</div><div class="v">116<small>Mbps</small></div></div>
+        <div class="cell"><div class="k">Ping</div><div class="v">22<small>ms</small></div></div>
+      </div>
+      <div class="steps">
+        <div class="step done"><span class="m">✓</span>Test scheduled</div>
+        <div class="step done"><span class="m">✓</span>Latency measured</div>
+        <div class="step done"><span class="m">✓</span>Download measured</div>
+        <div class="step done"><span class="m">✓</span>Upload measured</div>
+      </div>
+      <div class="footer">Finished just now · dismisses in 8s</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 3. ERROR ═════════════════════════════════════════════════════ -->
+<div id="state-stc-error" class="col">
+  <div class="state-label">3 — Failure · <code>speedtest.error</code> (critical, sticky)</div>
+  <div class="stack">
+    <div class="notif-card progress-card" style="border-color:rgba(245,166,35,.4)">
+      <div class="heading">
+        <div class="tile fail">!</div>
+        <div class="copy">
+          <div class="title">Speed test failed</div>
+          <div class="body">Could not reach the test server. Check your connection.</div>
+        </div>
+        <button class="close">×</button>
+      </div>
+      <div class="bar"><i style="width:25%;background:#f5a623"></i></div>
+      <div class="steps">
+        <div class="step done"><span class="m">✓</span>Test scheduled</div>
+        <div class="step fail"><span class="m">!</span>Stopped while measuring latency</div>
+        <div class="step"><span class="m">○</span>Measuring download</div>
+        <div class="step"><span class="m">○</span>Measuring upload</div>
+      </div>
+      <div class="footer">It will retry on the next interval</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 4. SETTINGS ══════════════════════════════════════════════════ -->
+<div id="state-stc-setting" class="col">
+  <div class="state-label">4 — The setting</div>
+  <div class="settings">
+    <div class="s-title">Speed Test</div>
+    <div class="s-row">
+      <div>
+        <div class="s-label">Interval</div>
+        <div class="s-sub">15 min · 0 = Off</div>
+      </div>
+      <button class="toggle sm on"></button>
+    </div>
+    <div class="s-row">
+      <div>
+        <div class="s-label">Auto-run on connect</div>
+        <div class="s-sub">Test when a network comes up</div>
+      </div>
+      <button class="toggle sm on"></button>
+    </div>
+    <div class="s-row">
+      <div>
+        <div class="s-label">Notify on each test</div>
+        <div class="s-sub">A card per run, in the notification stack</div>
+      </div>
+      <button class="toggle sm on" id="tgl"></button>
+    </div>
+    <div class="s-div"></div>
+    <div class="s-row" style="justify-content:flex-end">
+      <span class="s-label" style="color:#3a8bfd;font-weight:600;font-size:11px">Run now</span>
+    </div>
+  </div>
+  <div class="state-label" style="margin-top:-8px">off → the run still happens and still updates the panel; only the card is skipped</div>
+</div>
+
+<!-- ══ NOTES ═══════════════════════════════════════════════════════ -->
+<div class="note">
+  <h3>Design decisions, and why</h3>
+  <ul>
+    <li><b>One card mutated in place, not a burst of toasts.</b> This copies the wallpaper model exactly.
+        A run is a single logical operation; four separate notifications would be noise and would each need
+        their own dismissal.</li>
+    <li><b>Progress bar pulses rather than showing a percentage.</b> <code>speedtest-cli</code> gives us one
+        JSON blob at the end — it reports no intermediate progress. A fake percentage would be a lie.
+        The pulse is honest: we genuinely do not know how far along it is.</li>
+    <li><b>Steps are speculative-but-scoped.</b> Latency → download → upload is the real order the tool
+        performs, and it gives the eye something to land on. The copy never claims a number it lacks.</li>
+    <li><b>Auto-dismiss: 5s on success (like wallpaper), sticky on failure.</b> Success is informational and
+        self-evident from the panel; a failure needs a decision, so it stays like the capture tool's
+        critical cards.</li>
+    <li><b>Result mirrors the panel's new three rows</b> — Download / Upload / Ping as separate cells,
+        so the card and the panel read identically.</li>
+    <li><b>Server name in the body</b> for context, matching the detail level of the capture cards.</li>
+  </ul>
+
+  <h3 style="margin-top:18px">Implementation shape</h3>
+  <ul>
+    <li>Extend the existing event: <code>speedtest.finished</code> → <code>speedtest.state</code> with
+        <code>{ state, trigger }</code>, mirroring the <code>wallpaper.state</code> contract in
+        <code>contracts/event-contract.json</code>. <span class="warn">Note: the wallpaper card already reads
+        a <code>stage</code> key that is not in the pinned contract — I would not repeat that; the new keys
+        need adding to the contract, or the drift gate will fail.</span></li>
+    <li>Producer: <code>speedtest-service.ts</code> emits <code>started</code> / <code>finished</code> /
+        <code>error</code>. It already has <code>publishSpeedTestFinished</code> and the exact state
+        transitions needed.</li>
+    <li>Consumer: a <code>speedtest-events.ts</code> beside the existing <code>wallpaper-events.ts</code>,
+        and a <code>speedtestUpdate()</code> handler in <code>NotificationsWindow.tsx</code> built from the
+        existing wallpaper card code.</li>
+    <li>Setting: add <code>notify_on_test: boolean</code> to <code>SpeedTestConfig</code> +
+        <code>DEFAULT_CONFIG</code> + the <code>loadConfig</code> merge, and a row matching the existing
+        <code>run_on_connect</code> pattern (<code>settings-stc-row</code> + <code>WifiSwitch</code>).
+        Gating happens in the producer, so nothing is built or spawned when it is off — the same
+        fail-open rule the capture tool uses.</li>
+  </ul>
+</div>
+
+<script>
+  // Live toggle so the "on" state is verifiable, matching the mock's other toggles.
+  document.getElementById('tgl').addEventListener('click', function () {
+    this.classList.toggle('on');
+  });
+</script>
+</body>
+</html>
