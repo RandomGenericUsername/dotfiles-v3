@@ -41,8 +41,8 @@ _REQUIRED_FILES = (
 
 # Every logical key in the group_vars `packages` map (Story 2.1 parity lock).
 # Shared base must be identical across arch.yml and debian-family.yml;
-# distro-specific extras are pinned separately (gloview_build is Arch-only:
-# cmake build deps for the gloview Hyprland plugin).
+# distro-specific extras are pinned separately (adw-gtk-theme is Arch-only,
+# Option A 2026-09-09).
 _LOGICAL_PACKAGE_KEYS = (
     "hyprland",
     "hyprpaper",
@@ -77,11 +77,9 @@ _LOGICAL_PACKAGE_KEYS = (
     "bluez-utils",
 )
 _ARCH_EXTRA_KEYS = (
-    "gloview_build",
     "adw_gtk_theme",  # GTK3 theme (Option A 2026-09-09)
     "power-options-gtk",  # AUR-only (portable power management) — Arch
     "hyprmod",  # AUR-only (GTK4 module manager) — Arch (pre-existing drift lock)
-    "hyprpm",  # split out of the hyprland package upstream (extra repo) — Arch
     "nvm",  # repo nvm satisfies tidal-hifi-git's PKGBUILD getnvm() so it never self-bootstraps via makepkg -si
 )
 

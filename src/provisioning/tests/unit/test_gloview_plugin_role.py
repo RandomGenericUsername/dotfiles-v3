@@ -50,6 +50,12 @@ def _load_tasks() -> list[dict[str, object]]:
     return data
 
 
+def _load_vars() -> dict[str, object]:
+    data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
+    assert isinstance(data, dict)
+    return data
+
+
 def _module_key(task: dict[str, object]) -> str | None:
     for key in task:
         if key not in _TASK_KEYWORDS and key != "with_items":
@@ -57,110 +63,57 @@ def _module_key(task: dict[str, object]) -> str | None:
     return None
 
 
-def _sudoers_task() -> dict[str, object]:
-    matches = [t for t in _load_tasks() if "passwordless hyprpm" in str(t.get("name", ""))]
-    assert len(matches) == 1, "expected exactly one hyprpm sudoers task"
-    return matches[0]
+def _task_text() -> str:
+    return (_ROLES_DIR / "tasks" / "main.yml").read_text()
 
 
-def _invokes_hyprpm(task: dict[str, object]) -> bool:
-    """True when the task executes hyprpm (shell cmd or command argv)."""
-    for value in task.values():
-        if isinstance(value, dict) and "hyprpm" in str(value.get("cmd", value.get("argv", ""))):
-            return True
-    return False
+class TestGloviewAurContract:
+    """GloView ships as /usr/lib/gloview.so via the gloview-git AUR package —
+    no hyprpm anywhere in this flow (it requires a live Hyprland IPC session
+    even for add/update, which a TTY provision can never provide). The role
+    only asserts the artifact is present: fully headless-checkable."""
 
+    def test_vars_point_at_aur_artifact(self) -> None:
+        assert _load_vars()["gloview_plugin_so_path"] == "/usr/lib/gloview.so"
 
-class TestGloviewPrivilegeArchitecture:
-    """The rewritten hyprpm escalates internally via sudo and DIES as root, so
-    no hyprpm invocation may use become — only the sudoers authoring (which
-    grants exactly hyprpm's helper surface under /var/cache/hyprpm) runs
-    privileged."""
-
-    def test_sudoers_task_is_first_and_privileged(self) -> None:
-        tasks = _load_tasks()
-        first_hyprpm = next(i for i, t in enumerate(tasks) if _invokes_hyprpm(t))
-        task = _sudoers_task()
-        assert tasks.index(task) < first_hyprpm, (
-            "the sudoers rule must land before any hyprpm invocation"
-        )
-        assert task.get("become") is True
-        body = task.get("ansible.builtin.copy", {})
-        assert isinstance(body, dict)
-        assert "sudoers.d" in str(body.get("dest", ""))
-        assert "visudo" in str(body.get("validate", "")), (
-            "the sudoers file must be visudo-validated"
-        )
-        assert str(body.get("mode", "")) == "0440"
-        content = str(body.get("content", ""))
-        for helper in ("/usr/bin/mkdir", "/usr/bin/install", "/usr/bin/rm", "/usr/bin/echo"):
-            assert helper in content, f"sudoers must cover the hyprpm helper {helper}"
-        assert "/var/cache/hyprpm" in content
-        assert "not ansible_check_mode" in str(task.get("when", "")), (
-            "the sudoers task mutates and must be --check-gated"
-        )
-
-    def test_no_become_on_hyprpm_invocations(self) -> None:
+    def test_no_hyprpm_invocation(self) -> None:
+        """No task may execute the hyprpm binary (the legacy cleanup task
+        only removes its sudoers file — a path string, not an invocation)."""
         for task in _load_tasks():
-            if _invokes_hyprpm(task):
+            for key, value in task.items():
+                if key.startswith("ansible.builtin.command") or key.startswith(
+                    "ansible.builtin.shell"
+                ):
+                    assert "hyprpm" not in str(value), (
+                        f"task {task.get('name')!r} must not invoke hyprpm"
+                    )
+
+    def test_stats_then_asserts_artifact(self) -> None:
+        tasks = _load_tasks()
+        stat = next(t for t in tasks if "artifact" in str(t.get("name", "")))
+        assert _module_key(stat) == "ansible.builtin.stat"
+        assert "gloview_plugin_so_path" in str(stat.get("ansible.builtin.stat", ""))
+        names = [str(t.get("name", "")) for t in tasks]
+        assert any("Assert GloView installed" in n for n in names)
+
+    def test_no_become_except_legacy_cleanup(self) -> None:
+        """Only the legacy hyprpm-sudoers removal runs privileged; the
+        stat/assert pair is read-only user context."""
+        for task in _load_tasks():
+            name = str(task.get("name", ""))
+            if "legacy" in name and "sudoers" in name:
+                assert task.get("become") is True
+            else:
                 assert not task.get("become", False), (
-                    f"hyprpm dies as superuser — task {task.get('name')!r} must not use become"
+                    f"task {name!r} must not use become"
                 )
 
-    def test_mutating_tasks_skip_without_synced_headers(self) -> None:
-        """The header sync needs an interactive sudo, so every mutating task
-        (and the assert) must skip when the synced headers are absent instead
-        of dying on an invisible prompt."""
+    def test_legacy_sudoers_cleanup_is_check_gated(self) -> None:
         tasks = _load_tasks()
-        check = next(t for t in tasks if "headers are synced" in str(t.get("name", "")))
-        assert _module_key(check) == "ansible.builtin.stat"
-        gated = [
-            "Add the GloView repository",
-            "Synchronize hyprpm headers",
-            "Enable GloView",
-            "Verify GloView is enabled",
-            "Assert GloView installed",
-        ]
-        for task in tasks:
-            name = str(task.get("name", ""))
-            if any(want in name for want in gated):
-                assert "gloview_store_check.stat.exists" in str(task.get("when", "")), (
-                    f"task {name!r} must skip without synced headers"
-                )
-
-    def test_mutating_tasks_skip_without_ipc_deferred_green(self) -> None:
-        """hyprpm needs a LIVE Hyprland IPC session even for add/update, so a
-        TTY provision must skip deferred-green instead of failing red: every
-        mutating task and the assert must gate on the hyprland IPC check."""
-        tasks = _load_tasks()
-        gated = [
-            "Add the GloView repository",
-            "Synchronize hyprpm headers",
-            "Enable GloView",
-            "Verify GloView is enabled",
-            "Reload Hyprland plugins",
-            "Verify GloView is loaded",
-            "Assert GloView installed",
-        ]
-        for task in tasks:
-            name = str(task.get("name", ""))
-            if any(want in name for want in gated):
-                assert "gloview_hyprland_check.rc" in str(task.get("when", "")), (
-                    f"task {name!r} must skip without Hyprland IPC (deferred-green)"
-                )
-
-    def test_deferred_warn_names_relogin(self) -> None:
-        tasks = _load_tasks()
-        warn = next(t for t in tasks if "deferred (no Hyprland IPC)" in str(t.get("name", "")))
-        assert "gloview-activate" in str(warn.get("msg", warn)), (
-            "the deferred warning must name the login activator path"
-        )
-
-    def test_skip_warns_with_manual_command(self) -> None:
-        tasks = _load_tasks()
-        warn = next(t for t in tasks if "interactive header sync" in str(t.get("name", "")))
-        assert "hyprpm update" in str(warn.get("msg", warn)), (
-            "the skip warning must name the manual command"
+        cleanup = next(t for t in tasks if "legacy" in str(t.get("name", "")))
+        assert _module_key(cleanup) == "ansible.builtin.file"
+        assert "not ansible_check_mode" in str(cleanup.get("when", "")), (
+            "the sudoers removal mutates and must be --check-gated"
         )
 
 
@@ -169,8 +122,9 @@ class TestGloviewPlaybook:
 
     def test_parses_with_simple_localhost_structure(self) -> None:
         """The playbook must gather facts: the role derives the login user
-        (ansible_facts['user_id']) from discovered facts, so direct runs
-        abort on undefined facts with gather_facts: false (live 2026-09-29)."""
+        (ansible_facts['user_id']) from discovered facts for the legacy
+        sudoers path, so direct runs abort on undefined facts with
+        gather_facts: false (live 2026-09-29)."""
         plays = yaml.safe_load(self._PATH.read_text())
         assert isinstance(plays, list) and len(plays) == 1
         play = plays[0]

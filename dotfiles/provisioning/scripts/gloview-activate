@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repository="https://github.com/fedsfarm/gloview"
+# gloview-activate — load the GloView plugin into the running Hyprland session.
+#
+# The plugin ships as /usr/lib/gloview.so via the gloview-git AUR package
+# (installed by provisioning — no hyprpm involved anywhere in this flow).
+# Hyprland does not auto-load it, so this activator (fired by autostart.lua
+# at session start) loads it once per session, then reloads the config so
+# the pcall-guarded binds in gloview.lua register against the live plugin.
+#
+# ABI contract: the .so must match the running Hyprland EXACTLY. After a
+# Hyprland upgrade the load fails — rebuild with `yay -S gloview-git`
+# (`-git` packages rebuild on every `yay -Syu --devel`) and relog. This
+# script deliberately never rebuilds itself: installing packages needs sudo
+# and a background login task must never block on a password prompt — it
+# warns loud (stderr + desktop notification when available) instead.
+
+plugin_so="/usr/lib/gloview.so"
 lock_dir="${XDG_RUNTIME_DIR:-/tmp}/dotfiles-gloview-activate.lock"
 
 if ! mkdir "$lock_dir" 2>/dev/null; then
@@ -21,29 +36,34 @@ if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || ! hyprctl version >/dev/null 2>&
   exit 1
 fi
 
-hyprpm remove Hyprspace >/dev/null 2>&1 || true
-hyprpm remove hyprexpo >/dev/null 2>&1 || true
+stale_warn() {
+  printf '%s\n' "gloview-activate: $1" >&2
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send -a gloview-activate -u critical "GloView unavailable" "$1" || true
+  fi
+}
 
-if ! hyprpm list 2>&1 | grep -E -q 'Repository gloview|Plugin gloview'; then
-  printf 'y\n' | hyprpm add "$repository"
+if hyprctl plugin list 2>/dev/null | grep -qi gloview; then
+  : # already loaded (e.g. manual `hyprctl plugin load` earlier in this session)
+else
+  if [ ! -f "$plugin_so" ]; then
+    stale_warn "plugin artifact $plugin_so is missing — re-run provisioning (gloview-git AUR package), then relog."
+    exit 1
+  fi
+  if ! hyprctl plugin load "$plugin_so" >/dev/null 2>&1; then
+    stale_warn "hyprctl plugin load failed — the .so is almost certainly ABI-stale after a Hyprland upgrade. Rebuild with \`yay -S gloview-git\`, then relog."
+    exit 1
+  fi
+  # The session config pcall-guards every gloview bind on the live plugin
+  # (gloview.lua), so a freshly loaded plugin needs one re-parse before
+  # gestures and SUPER+TAB exist.
+  hyprctl reload >/dev/null 2>&1 || true
 fi
 
-# Self-heal after Hyprland upgrades (unconditional): every Hyprland update
-# invalidates the hyprpm headers AND the built plugin, and `hyprpm reload`
-# refuses to load anything until `hyprpm update` re-syncs the headers and
-# rebuilds stale plugins. The previous shape ran `update` only when the repo
-# was missing, so the first Hyprland upgrade after install silently killed
-# every gesture/keybind backed by GloView (provision-owned gesture config in
-# dotfiles/config/hypr/{input,gloview}.lua). A fresh `update` is a cheap
-# no-op, so run it on every login.
-hyprpm update
-
-hyprpm enable gloview
-hyprpm reload
-hyprctl reload
-
-hyprpm list 2>&1 | grep -E -A2 'Repository gloview|Plugin gloview' | grep -q 'enabled:'
-hyprctl plugin list 2>&1 | grep -qi gloview
+if ! hyprctl plugin list 2>/dev/null | grep -qi gloview; then
+  stale_warn "GloView is still not listed after load — see above; gestures stay dead until it loads."
+  exit 1
+fi
 
 state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
 mkdir -p "$state_home/dotfiles"

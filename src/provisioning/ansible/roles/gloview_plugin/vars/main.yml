@@ -1,2 +1,7 @@
 ---
-gloview_repository: https://github.com/fedsfarm/gloview
+# Install path of the plugin artifact. This is the gloview-git AUR package's
+# install location (upstream PKGBUILD: install -Dm755 build/gloview.so
+# /usr/lib/gloview.so). Arch-only reality, documented here: if a Debian
+# build of the plugin ever exists, override per-distro (NFR-3) instead of
+# branching in tasks.
+gloview_plugin_so_path: /usr/lib/gloview.so

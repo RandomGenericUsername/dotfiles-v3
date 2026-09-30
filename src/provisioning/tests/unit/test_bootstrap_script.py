@@ -700,58 +700,11 @@ class TestBootstrapScriptRuntime:
             )
 
 
-def _hyprpm_present_stub() -> str:
-    """A hyprpm stub reporting GloView as installed (fresh-machine probe hit)."""
-    return (
-        "#!/bin/sh\n"
-        'echo "hyprpm $*" >> "$BOOTSTRAP_TEST_LOG"\n'
-        'if [ "$1" = "list" ]; then\n'
-        '  echo "Repository gloview (https://github.com/fedsfarm/gloview)"\n'
-        '  echo "  Plugin gloview enabled: true"\n'
-        "  exit 0\n"
-        "fi\n"
-        "exit 0\n"
-    )
-
-
-def _hyprpm_missing_stub() -> str:
-    """A hyprpm stub with no state store (fresh machine): `list` fails."""
-    return (
-        "#!/bin/sh\n"
-        'echo "hyprpm $*" >> "$BOOTSTRAP_TEST_LOG"\n'
-        'echo "hyprpm: state store missing" >&2\n'
-        "exit 1\n"
-    )
-
-
-def _hyprpm_stateful_stub() -> str:
-    """A hyprpm stub that gains the gloview repo once `update` ran (sentinel
-    file under $BOOTSTRAP_TEST_TMP): models the fresh-machine heal for the
-    pty-driven interactive test."""
-    return (
-        "#!/bin/sh\n"
-        'echo "hyprpm $*" >> "$BOOTSTRAP_TEST_LOG"\n'
-        'if [ "$1" = "list" ]; then\n'
-        '  if [ -f "$BOOTSTRAP_TEST_TMP/updated" ]; then\n'
-        '    echo "Repository gloview (https://github.com/fedsfarm/gloview)"\n'
-        "    exit 0\n"
-        "  fi\n"
-        '  echo "hyprpm: state store missing" >&2\n'
-        "  exit 1\n"
-        "fi\n"
-        'if [ "$1" = "update" ]; then\n'
-        '  : > "$BOOTSTRAP_TEST_TMP/updated"\n'
-        "  exit 0\n"
-        "fi\n"
-        "exit 0\n"
-    )
-
-
 def _stubbed_provision_env(
-    tmp_path: Path, *, hyprpm_stub: str, sudo_stub: str = "#!/bin/sh\nexit 0\n"
+    tmp_path: Path, *, sudo_stub: str = "#!/bin/sh\nexit 0\n"
 ) -> tuple[Path, Path, dict[str, str]]:
-    """Shared hermetic env for the gloview-sync tests: stubbed podman/sudo
-    (passwordless host), uv passthrough, collections, provisioner, hyprpm and
+    """Shared hermetic env for the session-signal tests: stubbed podman/sudo
+    (passwordless host), uv passthrough, collections, provisioner and
     hyprctl (no Hyprland IPC, so the session signal stays silent). Returns
     (bin_dir, log, env)."""
     import os as _os
@@ -775,7 +728,6 @@ def _stubbed_provision_env(
         "exit 0\n",
     )
     _make_stub(bin_dir / "dotfiles-provision", _echo_stub("dotfiles-provision", "exit 0"))
-    _make_stub(bin_dir / "hyprpm", hyprpm_stub)
     _make_stub(bin_dir / "hyprctl", _echo_stub("hyprctl", "exit 1"))
 
     env = _scrubbed_env(
@@ -787,31 +739,33 @@ def _stubbed_provision_env(
     return bin_dir, log, env
 
 
-class TestGloviewSyncStageFile:
-    def test_stage_probes_reports_and_heals(self) -> None:
-        """The gloview-sync stage probes via PATH-resolved `hyprpm list`,
-        runs the foreground `hyprpm update` on a terminal, re-runs the
-        aggregate afterwards, and reports the session signal via
-        `hyprctl plugin list` — all without hardcoded system paths."""
-        assert "hyprpm list" in _TEXT, "the stage must probe via `hyprpm list`"
-        assert "hyprpm update" in _TEXT, "the stage must run the interactive update"
-        assert "gloview retry" in _TEXT, "the aggregate must re-run after a sync"
+class TestGloviewSessionSignalFile:
+    def test_signal_probes_reports_without_sync_stage(self) -> None:
+        """The post-verify session signal probes via PATH-resolved
+        `hyprctl plugin list`, reports loaded vs DEGRADED, and names the
+        login activator — with no sync stage anywhere: no `hyprpm`
+        invocation, no aggregate re-run, all without hardcoded system paths."""
         assert "hyprctl plugin list" in _TEXT, "the session signal must probe the loaded plugins"
         assert "DEGRADED" in _TEXT, "a loaded-but-absent plugin must be named DEGRADED"
+        assert "gloview-activate" in _TEXT, "recovery must name the login activator"
+        assert "hyprpm update" not in _TEXT, "no foreground hyprpm sync may remain"
+        assert "hyprpm list" not in _TEXT, "no hyprpm probe may remain"
+        assert "gloview retry" not in _TEXT, "the aggregate must never re-run for GloView"
+        assert "gloview-sync" not in _TEXT, "the sync stage must be gone entirely"
 
-    def test_stage_is_tty_and_check_gated(self) -> None:
-        """The interactive sync must only run on a terminal and never under
-        --check (dry-run must not mutate); otherwise it warns and continues."""
-        assert "[ -t 0 ]" in _TEXT, "the interactive sync must be gated on terminal stdin"
-        assert "--check" in _TEXT, "the stage must know about check mode"
-        assert "stdin is not a terminal" in _TEXT, (
-            "the non-terminal skip must warn loud"
+    def test_signal_never_fails_the_run(self) -> None:
+        """The session signal is report-only: the post-verify block must not
+        call stage_failed — a TTY provision stays green with the plugin
+        loading at first login."""
+        signal_block = _TEXT.split("Post-verify GloView session signal", 1)[1]
+        assert "stage_failed" not in signal_block, (
+            "the session signal must report, never fail the run"
         )
 
     def test_single_password_entry_with_timestamp_keepalive(self) -> None:
         """Stage 3 prompts once and reuses the secret: `sudo -Sv` validation
-        (three attempts), ANSIBLE_SUDO_PASS export for the aggregates, and a
-        timestamp keepalive (killed on exit) for hyprpm's late sudo calls."""
+        (three attempts), ANSIBLE_SUDO_PASS export for the aggregate, and a
+        timestamp keepalive (killed on exit) for late sudo calls."""
         assert "sudo -Sv" in _TEXT, "the entered secret must be validated up front"
         assert "ANSIBLE_SUDO_PASS" in _TEXT, "the secret must be exported for reuse"
         assert "_sudo_keepalive_pid" in _TEXT, "the keepalive pid must be tracked"
@@ -820,14 +774,13 @@ class TestGloviewSyncStageFile:
         )
 
 
-class TestGloviewSyncStageRuntime:
-    def test_skips_sync_when_gloview_present(self) -> None:
-        """GloView installed → single aggregate run, no `hyprpm update`, exit 0."""
+class TestGloviewSessionSignalRuntime:
+    def test_single_aggregate_run_no_sync_stage(self) -> None:
+        """No sync stage exists anymore: one aggregate run, one verify,
+        exit 0, no hyprpm invocation in the log."""
         bash = _require_bash()
         with tempfile.TemporaryDirectory() as tmp:
-            _, log, env = _stubbed_provision_env(
-                Path(tmp), hyprpm_stub=_hyprpm_present_stub()
-            )
+            _, log, env = _stubbed_provision_env(Path(tmp))
             result = subprocess.run(
                 [bash, str(_SCRIPT)],
                 capture_output=True,
@@ -839,19 +792,17 @@ class TestGloviewSyncStageRuntime:
             assert result.returncode == 0, result.stdout + result.stderr
             lines = log.read_text().splitlines()
             assert sum(1 for l in lines if l == "dotfiles-provision bootstrap") == 1
-            assert not any(l == "hyprpm update" for l in lines), (
-                "no interactive sync may run when GloView is present; got:\n"
-                + "\n".join(lines)
+            assert sum(1 for l in lines if l == "dotfiles-provision verify") == 1
+            assert not any(l.startswith("hyprpm") for l in lines), (
+                "no hyprpm invocation may remain; got:\n" + "\n".join(lines)
             )
 
-    def test_warns_and_continues_without_terminal_when_missing(self) -> None:
-        """GloView missing + no terminal → loud warning, exit 0, single
-        aggregate run, no `hyprpm update` (the login activator retries later)."""
+    def test_session_signal_silent_without_ipc(self) -> None:
+        """No Hyprland IPC (stubbed hyprctl fails) → the session signal stays
+        silent: no DEGRADED, still exit 0 with the Bootstrap complete line."""
         bash = _require_bash()
         with tempfile.TemporaryDirectory() as tmp:
-            _, log, env = _stubbed_provision_env(
-                Path(tmp), hyprpm_stub=_hyprpm_missing_stub()
-            )
+            _, _, env = _stubbed_provision_env(Path(tmp))
             result = subprocess.run(
                 [bash, str(_SCRIPT)],
                 capture_output=True,
@@ -862,50 +813,8 @@ class TestGloviewSyncStageRuntime:
             )
             assert result.returncode == 0, result.stdout + result.stderr
             output = result.stdout + result.stderr
-            assert "stdin is not a terminal" in output, output
-            lines = log.read_text().splitlines()
-            assert sum(1 for l in lines if l == "dotfiles-provision bootstrap") == 1
-            assert not any(l == "hyprpm update" for l in lines), (
-                "no interactive sync may run without a terminal; got:\n"
-                + "\n".join(lines)
-            )
-
-    def test_interactive_sync_updates_and_reruns_aggregate(self) -> None:
-        """GloView missing + terminal stdin → `hyprpm update` runs once and
-        the aggregate re-runs (two bootstrap invocations), exit 0. Driven
-        under a pty via `script(1)` so `[ -t 0 ]` holds."""
-        script_bin = shutil.which("script")
-        if script_bin is None:
-            pytest.skip("util-linux `script` is required for the pty-driven test")
-        bash = _require_bash()
-        with tempfile.TemporaryDirectory() as tmp:
-            _, log, env = _stubbed_provision_env(
-                Path(tmp), hyprpm_stub=_hyprpm_stateful_stub()
-            )
-            result = subprocess.run(
-                [script_bin, "-qec", f"{bash} {_SCRIPT}", "/dev/null"],
-                capture_output=True,
-                text=True,
-                stdin=subprocess.DEVNULL,
-                env=env,
-                timeout=180,
-            )
-            assert result.returncode == 0, result.stdout + result.stderr
-            lines = log.read_text().splitlines()
-            assert lines.count("hyprpm update") == 1, (
-                "the interactive sync must run exactly once; got:\n" + "\n".join(lines)
-            )
-            assert lines.count("dotfiles-provision bootstrap") == 2, (
-                "the aggregate must run, then re-run after the sync; got:\n"
-                + "\n".join(lines)
-            )
-            first_bootstrap = lines.index("dotfiles-provision bootstrap")
-            assert lines.index("hyprpm update") > first_bootstrap, (
-                "the sync must run AFTER the first aggregate; got:\n" + "\n".join(lines)
-            )
-            assert lines.index("dotfiles-provision verify") > lines.index("hyprpm update"), (
-                "verify must run after the sync; got:\n" + "\n".join(lines)
-            )
+            assert "DEGRADED" not in output, output
+            assert "Bootstrap complete" in output, output
 
     def _sudo_tty_only_stub(self) -> str:
         """A sudo stub modeling a password host where terminal sudo works but
@@ -993,12 +902,11 @@ class TestGloviewSyncStageRuntime:
     def test_password_asked_once_up_front_on_tty(self) -> None:
         """Password host + terminal: the single hidden prompt reads one line,
         the secret validates once (`sudo -Sv`), and no --ask-become-pass
-        appears on either aggregate invocation — the full fresh-machine flow
-        (aggregate, sync, re-run, verify) exits 0."""
+        appears on the aggregate invocation — the full fresh-machine flow
+        (aggregate, verify) exits 0."""
         with tempfile.TemporaryDirectory() as tmp:
             _, log, env = _stubbed_provision_env(
                 Path(tmp),
-                hyprpm_stub=_hyprpm_stateful_stub(),
                 sudo_stub=self._sudo_tty_only_stub(),
             )
             result = self._run_under_pty(env, stdin_text="testpass\ntestpass\ntestpass\n")
@@ -1012,8 +920,8 @@ class TestGloviewSyncStageRuntime:
                 "no per-invocation become prompt may survive the single prompt; got:\n"
                 + "\n".join(lines)
             )
-            assert lines.count("dotfiles-provision bootstrap") == 2, (
-                "fresh machine must run the aggregate, sync, then re-run; got:\n"
+            assert lines.count("dotfiles-provision bootstrap") == 1, (
+                "fresh machine must run the aggregate exactly once; got:\n"
                 + "\n".join(lines)
             )
 
@@ -1026,7 +934,6 @@ class TestGloviewSyncStageRuntime:
         with tempfile.TemporaryDirectory() as tmp:
             _, log, env = _stubbed_provision_env(
                 Path(tmp),
-                hyprpm_stub=_hyprpm_present_stub(),
                 sudo_stub=self._sudo_tty_only_stub(),
             )
             result = self._run_under_pty(env, stdin_text="testpass\ntestpass\ntestpass\n")

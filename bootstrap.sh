@@ -13,13 +13,15 @@ set -euo pipefail
 #   1. uv preseed     — pinned release tarball, sha256-verified, if absent
 #   2. collections    — ansible-galaxy collection install -r (loud abort)
 #   3. bootstrap      — uv run dotfiles-provision bootstrap (aggregate, Story 2.12)
-#   3.5 gloview-sync  — one-time interactive `hyprpm update` + aggregate re-run
-#                       when the GloView repo is absent (fresh machine or
-#                       Hyprland upgrade); skipped when present, under --check,
-#                       or without a terminal (the login activator retries then)
 #   4. verify         — uv run dotfiles-provision verify (hard gate, all ten criteria)
 #   + session signal  — after verify, when Hyprland IPC is reachable, report
 #                       whether GloView is actually loaded (green vs DEGRADED)
+#
+# GloView needs NO sync stage: it ships via the gloview-git AUR package
+# (installed inside the aggregate by the packages role — no hyprpm anywhere
+# in this flow) and loads at the first Hyprland login via gloview-activate
+# (autostart.lua). A TTY provision is therefore green in a single run;
+# gestures come alive on first login with no re-run.
 #
 # Usage: ./bootstrap.sh [--ask-become-pass] [--become-password=...] [--check]
 # Become flags are forwarded verbatim to `dotfiles-provision bootstrap`
@@ -343,10 +345,9 @@ fi
 # ── Stage 3: aggregate bootstrap (AC 3) ──────────────────────────────────
 # Single password entry: `make bootstrap` takes no flags by default, so a host
 # without passwordless escalation would die deep in the aggregate become
-# play — and a fresh machine would then prompt THREE times (BECOME for the
-# first aggregate, sudo for hyprpm's own escalation in gloview-sync, BECOME
-# again for the retry). Instead this block prompts ONCE here (hidden input)
-# and reuses the secret for the whole run.
+# play — and a fresh machine would then prompt TWICE (BECOME for the
+# aggregate, sudo again after the ticket expires mid-run). Instead this block
+# prompts ONCE here (hidden input) and reuses the secret for the whole run.
 #
 # Design (verified live 2026-09-29 — read before touching):
 # - The escalation probe runs DETACHED (setsid, stdin /dev/null): that is the
@@ -355,15 +356,14 @@ fi
 #   trusted — on this machine a warm terminal ticket is invisible to piped
 #   sudo, and trusting it failed the run deep in the aggregate with "a
 #   password is required" seconds after the probe passed.
-# - The secret is exported as ANSIBLE_SUDO_PASS for both aggregates (ansible's
-#   sudo become plugin reads become_pass from ANSIBLE_BECOME_PASS /
-#   ANSIBLE_SUDO_PASS env — ticket-independent, so piped become always works)
-#   and used to warm the terminal ticket the foreground `hyprpm update` in
-#   gloview-sync relies on (three attempts, then abort loud — a wrong password
-#   must never fail deep in the aggregate).
-# - The timestamp keepalive covers hyprpm's late terminal-attached sudo calls
-#   during the long header build (ansible itself needs no ticket — it has the
-#   password). Killed on exit (cleanup trap).
+# - The secret is exported as ANSIBLE_SUDO_PASS (ansible's sudo become plugin
+#   reads become_pass from ANSIBLE_BECOME_PASS / ANSIBLE_SUDO_PASS env —
+#   ticket-independent, so piped become always works) and used to warm the
+#   terminal ticket for the long aggregate run (three attempts, then abort
+#   loud — a wrong password must never fail deep in the aggregate).
+# - The timestamp keepalive covers late terminal-attached sudo calls during
+#   the long run (ansible itself needs no ticket — it has the password).
+#   Killed on exit (cleanup trap).
 # An explicit become flag always wins (the block is skipped, so a passed
 # --become-password is never overridden). A non-terminal run without
 # passwordless escalation aborts loud here instead of hanging on a prompt no
@@ -414,76 +414,6 @@ unset _has_become_flag _flag
 # on hosts without passwordless setup.
 run_stage "bootstrap" uv run --directory "$PROVISION_DIR" dotfiles-provision bootstrap "${BOOTSTRAP_ARGS[@]}"
 
-# ── Stage 3.5: hyprpm header sync (fresh-machine GloView gap) ──────────────
-# The gloview_plugin role SKIPS its mutating tasks when the hyprpm headers are
-# not synced (fresh machine or Hyprland upgrade): the header sync is a source
-# clone + header build hyprpm performs internally via its OWN `sudo`
-# escalation, and the aggregate runs ansible with pipes (no pty), so that child
-# sudo prompt can never be answered from inside the run. This script DOES have
-# the user's terminal, so it closes the gap here instead of leaving the
-# trackpad gestures (and SUPER+TAB) silently dead behind a green provision:
-#   - probe: `hyprpm list` names the gloview repo → store/headers present,
-#     nothing to do (PATH-resolved probe — no system paths are hardcoded here,
-#     per the no-absolute-paths lock below).
-#   - miss + real (non-check) run + terminal stdin → run `hyprpm update` in the
-#     FOREGROUND (the multi-minute source clone stays visible; escalation was
-#     authenticated once up front in Stage 3, so its sudo prompt usually never
-#     appears), then re-run the aggregate (idempotent by contract) so the
-#     role's add/enable/reload/assert execute for real instead of skipping.
-#   - miss + --check → skip silently-in-word (a loud WARNING): dry-run must
-#     never mutate.
-#   - miss + non-terminal stdin → warn loud and continue: CI/VM contexts cannot
-#     answer a sudo prompt. The role already warned, verify stays green by
-#     design, and the login activator (gloview-activate) retries the sync at
-#     the next Hyprland login.
-# An interactive update FAILURE aborts loud (stage_failed): on a terminal the
-# user is present and the cause (network, disk, version skew) is actionable —
-# a green exit must keep meaning "gestures work", not "gestures maybe work".
-gloview_check_mode=false
-for _gflag in "${BOOTSTRAP_ARGS[@]}"; do
-  case "$_gflag" in
-    --check) gloview_check_mode=true ;;
-  esac
-done
-unset _gflag
-gloview_installed=false
-if command -v hyprpm >/dev/null 2>&1 \
-  && hyprpm list 2>/dev/null | grep -E -q 'Repository gloview|Plugin gloview'; then
-  gloview_installed=true
-fi
-# hyprpm needs a LIVE Hyprland IPC session even for `add`/`update` (verified
-# 2026-09-29: headless calls fail with "failed to get the current hyprland
-# version"). Probing IPC here keeps the foreground retry from repeating that
-# failure when bootstrap itself runs from a TTY: deferred-green, and the
-# first Hyprland login (gloview-activate) plus a re-run inside Hyprland
-# completes phase 2.
-gloview_ipc=false
-if command -v hyprctl >/dev/null 2>&1 && hyprctl version >/dev/null 2>&1; then
-  gloview_ipc=true
-fi
-if $gloview_installed; then
-  green "GloView already present (hyprpm) — skipping interactive header sync."
-elif $gloview_check_mode; then
-  red "WARNING: GloView is not installed and this is a --check run — dry-run performs no header sync; the gloview_plugin role stays skipped by design."
-elif ! $gloview_ipc; then
-  red "WARNING: GloView is not installed and Hyprland IPC is not reachable (TTY/X11 provision) —"
-  red "hyprpm requires a live compositor even for add/update, so no foreground sync is attempted (DEFERRED, not failed)."
-  red 'Log into Hyprland once (autostart runs gloview-activate with IPC present),'
-  red "then re-run $0 from a terminal inside Hyprland to assert green."
-elif [ -t 0 ]; then
-  bold "── stage gloview-sync: one-time hyprpm header sync (needs sudo, several minutes) ──"
-  bold 'Hyprland plugin headers are not synced (fresh machine or Hyprland upgrade).'
-  bold 'Running `hyprpm update` in the foreground now,'
-  bold 'then provisioning re-runs automatically so GloView is added, enabled and asserted.'
-  hyprpm update || stage_failed "gloview-sync (hyprpm update)" "$?"
-  run_stage "bootstrap (gloview retry)" uv run --directory "$PROVISION_DIR" dotfiles-provision bootstrap "${BOOTSTRAP_ARGS[@]}"
-else
-  red "WARNING: GloView is not installed and stdin is not a terminal — no interactive header sync is possible."
-  red 'The gloview_plugin role stays skipped; run `hyprpm update` once in a terminal, then re-run $0.'
-  red "(At the next Hyprland login, gloview-activate retries the sync automatically.)"
-fi
-unset gloview_check_mode gloview_installed gloview_ipc
-
 # ── Stage 4: verify hard gate (AC 4) ─────────────────────────────────────
 # The aggregate's internal verify import is plan-gated (check mode); this
 # explicit trailing verify is a REAL check (VerifyCapabilityUseCase runs with
@@ -491,13 +421,14 @@ unset gloview_check_mode gloview_installed gloview_ipc
 run_stage "verify" uv run --directory "$PROVISION_DIR" dotfiles-provision verify
 
 # ── Post-verify GloView session signal: green vs green-but-degraded ────────
-# Verify passes vacuously without Hyprland IPC (TTY provision) and never
-# asserts GloView, so a bare "Bootstrap complete" can hide dead gestures. When
-# this script runs INSIDE a Hyprland session (IPC reachable) the plugin must
-# be loaded — otherwise say DEGRADED loudly. The exit code stays 0 (verify's
-# contract holds; the message, not the code, carries the warning) with the
-# exact recovery command. Without IPC this stays silent: a TTY provision has
-# no compositor yet and the plugin loads at first login via gloview-activate.
+# Verify asserts the plugin artifact is installed but cannot assert it is
+# LOADED without a compositor (TTY provision), so a bare "Bootstrap complete"
+# can hide dead gestures. When this script runs INSIDE a Hyprland session
+# (IPC reachable) the plugin must be loaded — otherwise say DEGRADED loudly.
+# The exit code stays 0 (verify's contract holds; the message, not the code,
+# carries the warning) with the exact recovery command. Without IPC this
+# stays silent: a TTY provision has no compositor yet and the plugin loads at
+# first login via gloview-activate.
 # PATH-resolved probes only — no system paths hardcoded (lock below).
 gloview_degraded=false
 if command -v hyprctl >/dev/null 2>&1; then
@@ -508,7 +439,7 @@ if command -v hyprctl >/dev/null 2>&1; then
       gloview_degraded=true
       red "WARNING: stages are green but GloView is NOT loaded in this Hyprland session —"
       red "trackpad gestures and SUPER+TAB are dead until it loads (DEGRADED, not failed)."
-      red 'Run `hyprpm update` once in a terminal, then re-run $0 (or relog — gloview-activate retries at login).'
+      red 'Rebuild with `yay -S gloview-git` if this survives a relog (ABI-stale .so after a Hyprland upgrade), then relog — gloview-activate loads it at login.'
     fi
   fi
 fi

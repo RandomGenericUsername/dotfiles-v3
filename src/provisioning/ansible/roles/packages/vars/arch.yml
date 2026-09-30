@@ -6,7 +6,7 @@
 packages_use_aur: true
 aur_builder_user: aur_builder
 aur_builder_group: wheel
-aur_packages: [aylurs-gtk-shell-git, astal-hyprland, astal-battery, astal-network, astal-tray, wlogout, wifitui, power-options-gtk, hyprmod, tidal-hifi-git, libastal-notifd-git, libastal-wireplumber-git]
+aur_packages: [aylurs-gtk-shell-git, astal-hyprland, astal-battery, astal-network, astal-tray, wlogout, wifitui, power-options-gtk, hyprmod, tidal-hifi-git, libastal-notifd-git, libastal-wireplumber-git, gloview-git]
 yay_repo: https://aur.archlinux.org/yay-bin.git
 
 # packages_conflicting_host_packages: host-default packages that declare a

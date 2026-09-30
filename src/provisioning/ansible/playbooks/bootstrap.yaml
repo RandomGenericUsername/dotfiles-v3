@@ -8,15 +8,14 @@
 #   compositor_configs → gui_tools → config_copies → settings → zsh_tools → zsh_config →
 #   wlogout_config → kitty_config → config_links → runtime-seed → display_manager →
 #   gloview-plugin → verify
-# `packages` first (it installs the system packages everything else assumes —
-# including the cmake build deps the gloview Hyprland plugin compiles
-# against), `verify` last (it asserts every done-criterion after all roles
-# placed their outputs). `gloview-plugin` runs after display_manager so the
-# full desktop stack exists, and before verify: it synchronizes the hyprpm
-# headers and rebuilds/reloads GloView, which backs the provision-owned
-# touchpad gestures (dotfiles/config/hypr/{input,gloview}.lua). Without it in
-# the chain, the first Hyprland upgrade after install silently kills every
-# gesture until a manual `hyprpm update`.
+# `packages` first (it installs the system packages everything else assumes),
+# `verify` last (it asserts every done-criterion after all roles placed their
+# outputs). `gloview-plugin` runs after display_manager so the full desktop
+# stack exists, and before verify: it asserts the gloview-git artifact
+# (/usr/lib/gloview.so) is installed. Loading needs no provisioning step —
+# the plugin loads at the first Hyprland login via gloview-activate, which
+# backs the provision-owned touchpad gestures
+# (dotfiles/config/hypr/{input,gloview}.lua).
 # icons roles — the runtime-seed step (`dotfiles-runtime wallpaper set
 # <install>/wallpapers/default.png`) is the single producer of generated
 # artifacts (cache entries, current.json, current/ + R2 consumer symlinks).
