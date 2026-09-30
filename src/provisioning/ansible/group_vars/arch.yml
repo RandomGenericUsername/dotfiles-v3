@@ -48,6 +48,25 @@ packages:
     - grim
     - slurp
     - wl-clipboard
+  # Session services the compositor autostart expects (autostart.lua starts
+  # them at login): hyprpolkitagent (polkit agent) + the portal backends.
+  # Absent units made those starts fail silently — broken auth dialogs and no
+  # Hyprland portal backend (screen-share/screencast).
+  portals:
+    - hyprpolkitagent
+    - xdg-desktop-portal-hyprland
+    - xdg-desktop-portal-gtk
+  # Screen-lock stack (documented must-haves). Presence only until lock/idle
+  # binds + config land — no role consumes them yet.
+  lock:
+    - hyprlock
+    - hypridle
+  # dunst: installed ONLY to be masked (gui_tools masks it; the AGS overlay
+  # owns notifications). verify's mask gate hard-requires the unit file, so an
+  # undeclared dunst fails fresh machines without a host default.
+  dunst: dunst
+  # thunar: file manager launched by keybindings.lua — host-default luck only.
+  thunar: thunar
   # Container engine for the csg container-mode chain (cli_tools builds the
   # image + runtime-seed runs csg generate under podman). DOCUMENTED DEPENDENCY — must be provisioned on
   # a fresh machine (VM-verified 2026-08-19: a fresh Arch cloud image has no

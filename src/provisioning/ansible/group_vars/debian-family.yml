@@ -44,6 +44,22 @@ packages:
     - grim
     - slurp
     - wl-clipboard
+  # Session services (same consumers as Arch). Upstream names kept per this
+  # file's convention — availability is a packages-role concern (cf. hyprland
+  # above), not resolved here.
+  portals:
+    - hyprpolkitagent
+    - xdg-desktop-portal-hyprland
+    - xdg-desktop-portal-gtk
+  # Screen-lock stack (presence only, same as Arch).
+  lock:
+    - hyprlock
+    - hypridle
+  # dunst: install-to-mask (same rationale as Arch — verify's mask gate
+  # hard-requires the unit file).
+  dunst: dunst
+  # thunar: file manager launched by keybindings.lua.
+  thunar: thunar
   # Container engine for the csg container-mode chain (same rationale as Arch).
   # Debian package names; rootless podman deps.
   container_engine:

@@ -182,6 +182,13 @@ verify_system_binaries:
   - slurp
   - wl-copy
   - wl-paste
+  # Session infrastructure (autostart.lua + compositor session): hyprlock /
+  #   hypridle (screen lock + idle) and hyprpolkitagent (polkit agent). Absent
+  #   binaries left no locker and broken auth dialogs while the gate stayed
+  #   green. Packages-role installed (lock key + portals key).
+  - hyprlock
+  - hypridle
+  - hyprpolkitagent
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of

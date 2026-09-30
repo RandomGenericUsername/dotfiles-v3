@@ -407,3 +407,19 @@ class TestGroupVarsValueShape:
         for basename in (Distro.ARCH.value, Distro.DEBIAN_FAMILY.value):
             data = yaml.safe_load((_ANSIBLE_DIR / "group_vars" / f"{basename}.yml").read_text())
             assert data["packages"]["capture"] == ["grim", "slurp", "wl-clipboard"]
+
+    def test_session_and_lock_stacks_mapped_on_both_distros(self) -> None:
+        """The session services (autostart.lua starts them), lock stack,
+        install-to-mask dunst (verify's mask gate hard-requires the unit),
+        and thunar (keybindings.lua launches it) map in BOTH group_vars."""
+        for basename in (Distro.ARCH.value, Distro.DEBIAN_FAMILY.value):
+            data = yaml.safe_load((_ANSIBLE_DIR / "group_vars" / f"{basename}.yml").read_text())
+            packages = data["packages"]
+            assert packages["portals"] == [
+                "hyprpolkitagent",
+                "xdg-desktop-portal-hyprland",
+                "xdg-desktop-portal-gtk",
+            ]
+            assert packages["lock"] == ["hyprlock", "hypridle"]
+            assert packages["dunst"] == "dunst"
+            assert packages["thunar"] == "thunar"
