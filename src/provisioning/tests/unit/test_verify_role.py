@@ -1251,6 +1251,10 @@ class TestVerifyVars:
             "wpctl",
             "pavucontrol",
             "playerctl",
+            "grim",
+            "slurp",
+            "wl-copy",
+            "wl-paste",
         ]
 
     def test_icons_samples_include_the_settings_panel_glyphs(self) -> None:
@@ -1902,7 +1906,7 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl"):
+    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl", "grim", "slurp", "wl-copy", "wl-paste"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)

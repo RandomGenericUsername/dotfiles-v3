@@ -174,6 +174,14 @@ verify_system_binaries:
   #   contract I2). A missing binary silently no-ops every transport control, so
   #   it belongs to the criterion-2 PATH gate. Packages-role installed.
   - playerctl
+  # Screenshot + clipboard stack (capture-tool + runtime clipboard watcher):
+  #   capture-tool shells grim/slurp/wl-copy and the watcher needs
+  #   `wl-paste --watch` — absent binaries failed as [Errno 2] at runtime
+  #   while the gate stayed green. Packages-role installed (capture key).
+  - grim
+  - slurp
+  - wl-copy
+  - wl-paste
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of

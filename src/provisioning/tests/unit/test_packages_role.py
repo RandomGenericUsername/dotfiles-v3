@@ -398,3 +398,12 @@ class TestGroupVarsValueShape:
         for basename in (Distro.ARCH.value, Distro.DEBIAN_FAMILY.value):
             data = yaml.safe_load((_ANSIBLE_DIR / "group_vars" / f"{basename}.yml").read_text())
             assert data["packages"]["rofi"] == "rofi"
+
+    def test_capture_stack_mapped_on_both_distros(self) -> None:
+        """The screenshot + clipboard stack maps in BOTH group_vars
+        (capture-tool shells grim/slurp/wl-copy; the runtime clipboard watcher
+        needs wl-paste --watch). Missing these broke capture ([Errno 2]
+        slurp) and left clipboard history empty while verify stayed green."""
+        for basename in (Distro.ARCH.value, Distro.DEBIAN_FAMILY.value):
+            data = yaml.safe_load((_ANSIBLE_DIR / "group_vars" / f"{basename}.yml").read_text())
+            assert data["packages"]["capture"] == ["grim", "slurp", "wl-clipboard"]

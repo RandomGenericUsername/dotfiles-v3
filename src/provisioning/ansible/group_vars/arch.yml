@@ -41,6 +41,13 @@ packages:
   pavucontrol: pavucontrol       # GUI mixer (debugging reference for the AGS audio popup)
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
+  # Screenshot + clipboard stack (capture-tool shells grim/slurp/wl-copy;
+  # the runtime clipboard watcher needs `wl-paste --watch`). These were
+  # missing while verify stayed green — pinned in verify_system_binaries.
+  capture:
+    - grim
+    - slurp
+    - wl-clipboard
   # Container engine for the csg container-mode chain (cli_tools builds the
   # image + runtime-seed runs csg generate under podman). DOCUMENTED DEPENDENCY — must be provisioned on
   # a fresh machine (VM-verified 2026-08-19: a fresh Arch cloud image has no

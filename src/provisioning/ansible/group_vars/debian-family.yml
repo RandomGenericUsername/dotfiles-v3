@@ -38,6 +38,12 @@ packages:
   pavucontrol: pavucontrol       # GUI mixer (debugging reference for the AGS audio popup)
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
+  # Screenshot + clipboard stack (same consumers as Arch; Debian names are
+  # identical — all three exist under these names in the Debian archive).
+  capture:
+    - grim
+    - slurp
+    - wl-clipboard
   # Container engine for the csg container-mode chain (same rationale as Arch).
   # Debian package names; rootless podman deps.
   container_engine:
