@@ -34,6 +34,30 @@ zsh_config_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansibl
 #   read per role, downstream consumption is this derived var.
 zsh_config_state_current_dir: "{{ zsh_config_xdg_state_home | trim }}/dotfiles/current"
 
+# zsh_config_xdg_config_home: the config home whose zsh subdir ZDOTDIR points
+#   at. Identical derivation to config_links_xdg_config_home /
+#   verify_xdg_config_home / filesystem_xdg_config_home: honors
+#   $XDG_CONFIG_HOME with the spec default ~/.config. Uses
+#   ansible_facts.env.* (F4 lock).
+zsh_config_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+
+# zsh_config_zdotdir: the dir zsh must read startup files from. zsh looks in
+#   $ZDOTDIR else $HOME; the rendered .zshrc lives at <spine>/config/zsh and is
+#   exposed as ~/.config/zsh via config_links, so ZDOTDIR must point there —
+#   without it zsh finds no .zshrc and shows zsh-newuser-install. Derived from
+#   zsh_config_xdg_config_home with the trim lock — no second XDG resolution.
+zsh_config_zdotdir: "{{ zsh_config_xdg_config_home | trim }}/zsh"
+
+# zsh_config_zshenv_path: the shell-entry file zsh always reads from $HOME
+#   (even when ZDOTDIR is set, ~/.zshenv runs first). A one-export pointer —
+#   provisioning never places shell content in $HOME beyond this.
+zsh_config_zshenv_path: "{{ ansible_facts.env.HOME }}/.zshenv"
+
+# zsh_config_backup_root: where a pre-existing non-managed ~/.zshenv is moved
+#   aside before the pointer replaces it. Mirrors config_links_backup_root
+#   (timestamped subdir per run so re-runs never clobber a prior backup).
+zsh_config_backup_root: "{{ zsh_config_xdg_config_home }}/.dotfiles-backups"
+
 # ── Plugin file paths (distro-resolved) ─────────────────────────────────────
 # Each is the FILE the .zshrc.j2 `{% if VAR %}` block sources. Empty string =
 # plugin absent → block omitted. Arch paths verified 2026-08-16.

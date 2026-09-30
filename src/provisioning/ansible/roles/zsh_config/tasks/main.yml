@@ -23,6 +23,15 @@
 #   only-what's-real output).
 # - The `template` module has full check-mode support (predicts changed without
 #   writing) — no `when: not ansible_check_mode` gate needed.
+# - The ~/.zshenv pointer (shell-entry seam): zsh reads $ZDOTDIR else $HOME,
+#   so without ZDOTDIR the spine-rendered .zshrc (~/.config/zsh/.zshrc) is
+#   invisible and fresh shells show zsh-newuser-install. This role owns the
+#   one-line pointer file (user-scoped, no become); config_links owns only the
+#   ~/.config/<name> symlinks and never touches $HOME dotfiles.
+# - Pre-existing ~/.zshenv content is never destroyed: a file lacking our
+#   managed marker is moved aside timestamped (mirror of the config_links
+#   backup guard) before the pointer is written. An already-correct pointer is
+#   a no-op (idempotent re-run).
 # - User-scoped, with ONE privileged exception: changing the login shell
 #   requires root (chsh authenticates via PAM on /dev/tty, which does not
 #   exist under Ansible — an unprivileged chsh dies with "Authentication token
@@ -63,6 +72,65 @@
     ZSH_HISTORY_SUBSTRING_SEARCH: "{{ zsh_config_plugin_paths.history_substring_search }}"
     FZF_KEY_BINDINGS: "{{ zsh_config_plugin_paths.fzf_key_bindings }}"
     FZF_COMPLETION: "{{ zsh_config_plugin_paths.fzf_completion }}"
+
+- name: Check current ~/.zshenv state
+  ansible.builtin.stat:
+    path: "{{ zsh_config_zshenv_path }}"
+    follow: false
+  register: zsh_config_zshenv_check
+
+- name: Check ~/.zshenv already carries our managed pointer
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -q
+      - DOTFILES_MANAGED_ZDOTDIR
+      - "{{ zsh_config_zshenv_path }}"
+  register: zsh_config_zshenv_marker
+  changed_when: false
+  failed_when: false
+  when: zsh_config_zshenv_check.stat.exists
+
+- name: Determine backup timestamp for ~/.zshenv
+  ansible.builtin.set_fact:
+    zsh_config_backup_ts: "{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}"
+  when:
+    - zsh_config_zshenv_check.stat.exists
+    - zsh_config_zshenv_marker.rc is defined
+    - zsh_config_zshenv_marker.rc != 0
+
+- name: Ensure backup root exists
+  ansible.builtin.file:
+    path: "{{ zsh_config_backup_root }}"
+    state: directory
+  when:
+    - zsh_config_zshenv_check.stat.exists
+    - zsh_config_zshenv_marker.rc is defined
+    - zsh_config_zshenv_marker.rc != 0
+
+- name: Back up pre-existing non-managed ~/.zshenv
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ zsh_config_zshenv_path }}"
+      - "{{ zsh_config_backup_root }}/zshenv-{{ zsh_config_backup_ts }}"
+  when:
+    - zsh_config_zshenv_check.stat.exists
+    - zsh_config_zshenv_marker.rc is defined
+    - zsh_config_zshenv_marker.rc != 0
+    - not ansible_check_mode
+
+- name: Write managed ~/.zshenv pointer (ZDOTDIR)
+  ansible.builtin.copy:
+    dest: "{{ zsh_config_zshenv_path }}"
+    content: |
+      # DOTFILES_MANAGED_ZDOTDIR — provisioned by the zsh_config role. Points
+      # zsh at the config-in-spine dir; do not hand-edit (re-rendered).
+      export ZDOTDIR="{{ zsh_config_zdotdir }}"
+  when: >-
+    not zsh_config_zshenv_check.stat.exists
+    or zsh_config_zshenv_marker.rc is not defined
+    or zsh_config_zshenv_marker.rc != 0
 
 - name: Ensure zsh is the login shell
   ansible.builtin.shell:

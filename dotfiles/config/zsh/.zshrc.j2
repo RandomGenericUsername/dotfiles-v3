@@ -91,3 +91,10 @@ fi
 # Suppress IPython virtualenv warning (we're using global pyenv Python, not a venv)
 export PYTHONWARNINGS="ignore::UserWarning:IPython.core.interactiveshell"
 {% endif %}
+
+# Local overlay (provision-never-writes): external installers (opencode,
+# future tools) append PATH / env lines to ~/.config/zsh/.zshrc.local instead
+# of mutating this rendered file — the next provision re-render would clobber
+# in-file appends (NFR-1: Ansible is state authority). Sourced last so overlay
+# entries win.
+[ -f "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc.local" ] && source "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc.local"

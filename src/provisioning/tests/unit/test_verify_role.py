@@ -2358,7 +2358,12 @@ def _build_provisioned_layout(
     (install / "config" / "zsh" / ".zshrc").write_text(
         'command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"\n'
         '(cat "<STATE>/dotfiles/current/colors.sequences" &)\n'
+        '[ -f "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc.local" ] && source "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc.local"\n'
     )
+    # Shell-entry seam (zsh_config role — done-criterion 12): the managed
+    # ~/.zshenv pointer sets ZDOTDIR at the config-home zsh dir, so zsh finds
+    # the spine-rendered .zshrc through the symlink.
+    (home / ".zshenv").write_text(f'export ZDOTDIR="{xdg}/zsh"\n')
     (install / "config" / "wlogout" / "style.css").write_text(
         '@import url("<INSTALL>/config/ags/colors.css");\nbutton { color: @color_15; }\n'
     )
