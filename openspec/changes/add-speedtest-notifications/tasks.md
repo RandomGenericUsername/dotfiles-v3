@@ -28,7 +28,7 @@ schedules the run, which is the AGS service.
 
 ## Phase 1 — Harnesses before code (GATE)
 
-- [x] 1.0 Move the approved mock to `openspec/changes/add-speedtest-notifications/mock.html` with stable anchors `state-stc-running`, `state-stc-result`, `state-stc-error`, `state-stc-setting`. Confirm the render in Firefox and record the approval in the change.
+- [x] 1.0 Move the approved mock to `openspec/changes/add-speedtest-notifications/mock.html` with stable anchors `state-stc-running`, `state-stc-result`, `state-stc-error`, `state-stc-setting`. Confirm the render in Firefox and record the approval in the change. *(Already satisfied on arrival — the mock was moved and approved in the change's setup commit. Not re-rendered here.)*
 - [x] 1.1 Write `scripts/speedtest-mock-parity.py` modelled line-for-line on `scripts/wifi-mock-parity.py`. GATE verified: exits 0 on the unimplemented tree with **56** known-gap warnings, and it was separately proven to fail on all three spec scenarios (uncovered token, broken mapping, missing mapped file) by running it against a scratch tree with `KNOWN_GAPS` emptied.
 - [x] 1.2 Write `scripts/speedtest-no-new-architecture.py`. GATE verified: exits 0 today, and separately proven to fail on all six spec scenarios by injecting each violation into a scratch tree.
 - [x] 1.3 Wire both into CI alongside the existing wifi parity gate, so a future change cannot quietly drop them.
