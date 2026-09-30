@@ -441,30 +441,34 @@ settings-panel:
       template: settings-panel/wifi-signal-full/default/icon.svg
       output: settings-panel-wifi-signal-full.svg
       color_mappings:
-        COLOR_BACKGROUND: background
+        COLOR_BACKGROUND: color12
+        COLOR_FOREGROUND: color0
     - name: wifi-signal-good
       template: settings-panel/wifi-signal-good/default/icon.svg
       output: settings-panel-wifi-signal-good.svg
       color_mappings:
-        COLOR_BACKGROUND: background
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
     - name: wifi-signal-medium
       template: settings-panel/wifi-signal-medium/default/icon.svg
       output: settings-panel-wifi-signal-medium.svg
       color_mappings:
-        COLOR_BACKGROUND: background
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
     - name: wifi-signal-low
       template: settings-panel/wifi-signal-low/default/icon.svg
       output: settings-panel-wifi-signal-low.svg
       color_mappings:
-        COLOR_BACKGROUND: background
+        COLOR_BACKGROUND: color13
     # Info glyph re-export for the Wi-Fi weak-security row (guard-exempt
     # group, no bar_mappings — system icon). Caution tint follows the
     # warning-caution precedent.
+        COLOR_FOREGROUND: color0
     - name: info-caution
       template: capture-tool/default/info.svg
       output: settings-panel-info-caution.svg
       color_mappings:
-        COLOR_FOREGROUND: color3
+        COLOR_FOREGROUND: color15
 
 brightness:
   color_mappings:
