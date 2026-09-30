@@ -47,3 +47,28 @@ cross-capability repair described above.
 `contracts/event-contract.json`, and add a gate that cross-checks each contract
 topic's `payload` block against `emit_validation.TOPIC_SCHEMAS`' property set so
 this class of drift fails everywhere, not just where someone remembered to look.
+
+## Resolved during review: the spec contradicted its own payload
+
+**Symptom.** Task 3.4 asked the success card body to name "the connected network
+and test server" (the approved mock reads `Canela&Dulce · CableVivo Envigado`),
+but the payload pinned in this same change — `{state, trigger}` plus three
+measurements and `reason` — had nowhere to put either value. Both ways of
+making it true were excluded: adding the fields contradicted the spec's own
+payload requirement, and having the consumer read Wi-Fi state is exactly the
+coupling `speedtest-no-new-architecture.py` exists to prevent. Implemented as
+the trigger phrase plus a panel pointer, and raised rather than guessed at.
+
+**Root cause.** Not a runtime bug — an authoring error. The card requirement and
+the payload requirement were written in the same document and were never checked
+against each other, so the plan shipped internally inconsistent.
+
+**Resolution (requester decision).** Widen the payload with `ssid` and
+`server_name` rather than drop the line from the mock, keeping the card faithful
+to the approved design. The producer already imports Wi-Fi state and already
+parses the server name from the result, so this is a pass-through — which is why
+a payload change is the right shape and consumer-side coupling is not.
+
+Tracked as rework task **R1** in `tasks.md`. The spec's lifecycle-event and
+in-place-card requirements have been updated to agree, and the card requirement
+now explicitly states that the payload and the card must not disagree.

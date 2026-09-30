@@ -24,9 +24,9 @@ The speed-test notification SHALL be delivered by the existing notification app 
 
 ### Requirement: Speed-test lifecycle event
 
-`contracts/event-contract.json` SHALL define a `speedtest.state` topic, superseding `speedtest.finished`, with payload `{ state, trigger }` where `state ∈ { starting, done, error }` and `trigger ∈ { scheduled, manual, connect }`. Every key and enum value SHALL be pinned by the event-contract drift gate, and the gate SHALL be green before the producer or consumer is implemented.
+`contracts/event-contract.json` SHALL define a `speedtest.state` topic, superseding `speedtest.finished`, with payload `{ state, trigger, ssid, server_name }` where `state ∈ { starting, done, error }` and `trigger ∈ { scheduled, manual, connect }`. Every key and enum value SHALL be pinned by the event-contract drift gate, and the gate SHALL be green before the producer or consumer is implemented.
 
-The producer SHALL emit `starting` when a run begins and exactly one terminal `done` or `error` when it settles — including when the run is abandoned by the watchdog. The `done` payload SHALL carry `down_mbps`, `up_mbps`, and `latency_ms`; the `error` payload SHALL carry a short human-readable reason with no traceback.
+The producer SHALL emit `starting` when a run begins and exactly one terminal `done` or `error` when it settles — including when the run is abandoned by the watchdog. The `done` payload SHALL carry `down_mbps`, `up_mbps`, and `latency_ms`, plus `ssid` and `server_name` so the card can name the network and test server it measured (the card requirement below depends on these; the payload and the card MUST NOT disagree). `ssid` and `server_name` MAY be empty strings when the information is unavailable — the card SHALL fall back to the trigger phrase rather than render a blank. The `error` payload SHALL carry a short human-readable reason with no traceback.
 
 The producer SHALL remain non-fatal to the speed-test UI when the hub is absent, matching the existing `publishSpeedTestFinished` behaviour.
 
@@ -34,9 +34,13 @@ The producer SHALL remain non-fatal to the speed-test UI when the hub is absent,
 - **WHEN** a scheduled or manual run begins
 - **THEN** `speedtest.state` is emitted with `state: starting` and the matching `trigger`
 
-#### Scenario: Result carries all three measurements
+#### Scenario: Result carries all three measurements and its context
 - **WHEN** a run completes successfully
-- **THEN** `speedtest.state` is emitted with `state: done` and numeric `down_mbps`, `up_mbps`, `latency_ms`
+- **THEN** `speedtest.state` is emitted with `state: done`, numeric `down_mbps`, `up_mbps`, `latency_ms`, and the measured `ssid` and `server_name`
+
+#### Scenario: Card names the network and server
+- **WHEN** a run completes and the card renders
+- **THEN** the body shows the measured network and server, matching the approved mock, rather than a generic pointer to the panel
 
 #### Scenario: Failure is a terminal event with a short reason
 - **WHEN** a run fails, is rejected by the parser, or is abandoned by the watchdog

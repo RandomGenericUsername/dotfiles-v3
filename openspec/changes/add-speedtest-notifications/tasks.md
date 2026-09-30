@@ -79,13 +79,13 @@ scheduler input. Adding a presentational field meant a notification-preference
 flip would silently reset how long was left on the interval timer. Now only
 `interval_ms` and `run_on_connect` restart it.
 
-**One place the plan's spec and its own payload definition conflict — see
-`known-issues.md` and the note under task 3.4.** The spec asks the success body
-to name "the connected network and test server"; the payload it pins
-(`{state, trigger}` + three measurements + `reason`) has nowhere to put either,
-and the no-new-architecture rule forbids the consumer reaching for Wi-Fi state.
-Implemented as the trigger phrase plus a pointer to the panel, and flagged
-rather than silently widened.
+**The plan's spec contradicted its own payload definition — RESOLVED, see
+rework task R1.** The spec asked the success body to name "the connected network
+and test server"; the payload it pinned (`{state, trigger}` + three measurements
++ `reason`) had nowhere to put either, and the no-new-architecture rule forbids
+the consumer reaching for Wi-Fi state. The requester chose to widen the payload
+with `ssid` and `server_name` rather than drop the line from the mock, so the
+card matches the approved design. Tracked as rework task R1 below.
 
 
 ## Phase 3 — Consumer
@@ -93,7 +93,7 @@ rather than silently widened.
 - [x] 3.1 Add `src/gui-tools/notifications/lib/speedtest-events.ts` as a sibling of `wallpaper-events.ts`. A SIBLING, not a generalization: two single-topic clients each owning their connection and stale-replay baseline. A shared baseline would let one topic's replay suppress another's fresh event; a per-topic map plus a registry is real machinery for a second subscriber. The duplication is the cheaper end, and it is documented as such at the module.
 - [x] 3.2 In `NotificationsWindow.tsx`, add `speedtestUpdate(payload, source)` following `wallpaperUpdate`'s structure.
 - [x] 3.3 Build the card from the shipped wallpaper card primitives.
-- [x] 3.4 On `done`: fill the three result cells, `set_fraction(1)`, schedule the 5 s auto-dismiss.
+- [x] 3.4 On `done`: fill the three result cells, `set_fraction(1)`, schedule the 5 s auto-dismiss. **Partially done — the body line is rework task R1.**
 - [x] 3.5 On `error`: mark the step failed with `!`, render the caution treatment, state that the next interval will retry, do not auto-dismiss.
 - [x] 3.6 Add `speedtest-progress-*` rules to the notifications `style.css` on `@color_*` tokens only.
 - [x] 3.7 GATE: `speedtest-no-new-architecture.py` exits 0; `speedtest-mock-parity.py` passes with `KNOWN_GAPS` drained to zero entries.
@@ -123,15 +123,24 @@ run, though — its steps and result describe a run that no longer exists — so
 `starting` dismisses it before creating the replacement. Verified live: two
 consecutive failures leave exactly one card.
 
-**Task 3.4's "set the body to the connected network and server" — NOT DONE, and
-this is the one place reality contradicted the plan.** The pinned payload has no
-member for either value, and the two available "make it true" routes are both
-excluded: putting them in the payload contradicts the spec's own payload
-definition, and having the consumer read Wi-Fi state is new coupling the
-no-new-architecture rule exists to prevent. The success body reads the trigger
-phrase plus a pointer to the panel instead ("Scheduled run · also shown in the
-Wi-Fi panel"). Closing this properly needs a payload change, which is a spec
-change, not an implementation detail — raised rather than guessed at.
+**Task 3.4's body line — deferred to rework task R1 by requester decision.** The
+pinned payload had no member for the network or server name, and both
+"make it true" routes were excluded: putting them in the payload contradicted
+the spec's own payload definition, and having the consumer read Wi-Fi state is
+new coupling the no-new-architecture rule exists to prevent. The success body
+read the trigger phrase plus a pointer to the panel. The requester chose to
+widen the payload (`ssid`, `server_name`) rather than drop the line from the
+mock, so the card matches the approved design. See R1.
+
+## Phase 6 — Rework (post-review decision)
+
+- [ ] R1 **Widen the payload with `ssid` and `server_name`, then name them on the card.** The spec's own card requirement and payload requirement contradicted each other; the requester chose payload fidelity to the approved mock. GATE: `make contracts-check` green, both new harnesses green, `wifi-mock-parity` still green.
+  - R1.1 `contracts/event-contract.json` — add `ssid` and `server_name` to the `speedtest.state` payload. They are carried on `done` and MAY be empty strings when unavailable. Update `event-contract.md` to match.
+  - R1.2 `src/runtime/tests/unit/test_event_contract_drift.py` — pin the two new keys; confirm the TS-ahead scan does not flag them (it must now see them as pinned).
+  - R1.3 Producer: `speedtest-service.ts` — read the connected SSID from the already-imported `wifiNetworks()` and the server name from the parsed result, and pass both through `publishSpeedTestState`. **Do NOT add a new import of Wi-Fi state into the notifications app** — the producer is the correct side, which is why this is a payload change rather than coupling.
+  - R1.4 Consumer: `speedtest-events.ts` types + `NotificationsWindow.tsx` — set the body to `"<ssid> · <server>"`, falling back to the existing trigger phrase when either is empty.
+  - R1.5 Update the mock if the exact separator or copy differs from `mock.html`; re-run `speedtest-mock-parity.py`.
+  - R1.6 Verify live: a completed run's card body names the network and server, and `make gates` is green.
 
 **No percentage anywhere.** The bar is pulsed from a 100 ms timer while in
 flight, `set_show_text(false)` so Gtk prints no `0%` either, `set_fraction(1)`
