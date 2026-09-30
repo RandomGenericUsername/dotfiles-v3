@@ -183,12 +183,13 @@ verify_system_binaries:
   - wl-copy
   - wl-paste
   # Session infrastructure (autostart.lua + compositor session): hyprlock /
-  #   hypridle (screen lock + idle) and hyprpolkitagent (polkit agent). Absent
-  #   binaries left no locker and broken auth dialogs while the gate stayed
-  #   green. Packages-role installed (lock key + portals key).
+  #   hypridle (screen lock + idle) ship PATH binaries and belong to this
+  #   gate. hyprpolkitagent ships NO PATH binary (it lives at
+  #   /usr/lib/hyprpolkitagent/ and runs via its user unit), so it is gated
+  #   separately below via `systemctl --user list-unit-files`.
+  #   Packages-role installed (lock key + portals key).
   - hyprlock
   - hypridle
-  - hyprpolkitagent
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of

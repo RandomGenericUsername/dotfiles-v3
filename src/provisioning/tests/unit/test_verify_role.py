@@ -1257,7 +1257,6 @@ class TestVerifyVars:
             "wl-paste",
             "hyprlock",
             "hypridle",
-            "hyprpolkitagent",
         ]
 
     def test_icons_samples_include_the_settings_panel_glyphs(self) -> None:
@@ -1531,6 +1530,11 @@ class TestVerifyRuntime:
                 "fi\n"
                 'if [ "$2" = "is-enabled" ]; then echo enabled; exit 0; fi\n'
                 'if [ "$2" = "is-active" ]; then echo active; exit 0; fi\n'
+                # Polkit agent unit stays reported (unrelated to the dunst
+                # under test) so the failure is attributable to dunst.
+                'if [ "$1" = "--user" ] && [ "$2" = "list-unit-files" ]; then\n'
+                '  echo "hyprpolkitagent.service enabled"; exit 0\n'
+                "fi\n"
                 "exit 1\n"
             )
             (bin_dir / "systemctl").chmod(0o755)
@@ -1909,7 +1913,7 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl", "grim", "slurp", "wl-copy", "wl-paste", "hyprlock", "hypridle", "hyprpolkitagent"):
+    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl", "grim", "slurp", "wl-copy", "wl-paste", "hyprlock", "hypridle"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -1954,6 +1958,12 @@ def _write_stub_binaries(home: Path) -> Path:
         "fi\n"
         'if [ "$1" = "--user" ] && [ "$2" = "is-active" ] && [ "$3" = "dunst.service" ]; then\n'
         '  echo inactive; exit 3\n'
+        "fi\n"
+        # Polkit agent (portals key): verify gates the hyprpolkitagent user unit
+        # via `systemctl --user list-unit-files` (it ships no PATH binary).
+        # Report it so the synthetic machine passes.
+        'if [ "$1" = "--user" ] && [ "$2" = "list-unit-files" ]; then\n'
+        '  echo "hyprpolkitagent.service enabled"; exit 0\n'
         "fi\n"
         "exit 1\n"
     )

@@ -220,6 +220,30 @@
       `systemctl enable --now {{ verify_bluetooth_service }}`
   when: not ansible_check_mode
 
+# hyprpolkitagent ships no PATH binary (it runs from /usr/lib via its user
+# unit), so `command -v` cannot gate it. Gate on unit presence instead:
+# autostart.lua starts it at login, and a missing install fails that start
+# silently (broken polkit dialogs). Presence — not active — is asserted: at
+# provision time there may be no graphical session running it yet.
+- name: Check polkit agent user unit is installed
+  ansible.builtin.command:
+    argv: ["systemctl", "--user", "list-unit-files", "hyprpolkitagent.service"]
+  register: verify_polkit_unit
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert polkit agent user unit is installed
+  ansible.builtin.assert:
+    that:
+      - verify_polkit_unit.stdout is search('hyprpolkitagent.service')
+    fail_msg: >-
+      the hyprpolkitagent user unit is not installed — autostart.lua starts
+      it at login and polkit authentication has no agent without it. The
+      packages role installs it (portals key); run the packages playbook
+      first (direct-run prerequisite)
+  when: not ansible_check_mode
+
 # The daemon can be up while the RADIO is rfkill SOFT-blocked (vendor WMI
 # killswitch state, or a block systemd-rfkill persisted from a previous
 # session) — BlueZ refuses to power a blocked controller and the panel's
