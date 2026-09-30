@@ -451,10 +451,25 @@ if command -v hyprpm >/dev/null 2>&1 \
   && hyprpm list 2>/dev/null | grep -E -q 'Repository gloview|Plugin gloview'; then
   gloview_installed=true
 fi
+# hyprpm needs a LIVE Hyprland IPC session even for `add`/`update` (verified
+# 2026-09-29: headless calls fail with "failed to get the current hyprland
+# version"). Probing IPC here keeps the foreground retry from repeating that
+# failure when bootstrap itself runs from a TTY: deferred-green, and the
+# first Hyprland login (gloview-activate) plus a re-run inside Hyprland
+# completes phase 2.
+gloview_ipc=false
+if command -v hyprctl >/dev/null 2>&1 && hyprctl version >/dev/null 2>&1; then
+  gloview_ipc=true
+fi
 if $gloview_installed; then
   green "GloView already present (hyprpm) — skipping interactive header sync."
 elif $gloview_check_mode; then
   red "WARNING: GloView is not installed and this is a --check run — dry-run performs no header sync; the gloview_plugin role stays skipped by design."
+elif ! $gloview_ipc; then
+  red "WARNING: GloView is not installed and Hyprland IPC is not reachable (TTY/X11 provision) —"
+  red "hyprpm requires a live compositor even for add/update, so no foreground sync is attempted (DEFERRED, not failed)."
+  red 'Log into Hyprland once (autostart runs gloview-activate with IPC present),'
+  red "then re-run $0 from a terminal inside Hyprland to assert green."
 elif [ -t 0 ]; then
   bold "── stage gloview-sync: one-time hyprpm header sync (needs sudo, several minutes) ──"
   bold 'Hyprland plugin headers are not synced (fresh machine or Hyprland upgrade).'
@@ -467,7 +482,7 @@ else
   red 'The gloview_plugin role stays skipped; run `hyprpm update` once in a terminal, then re-run $0.'
   red "(At the next Hyprland login, gloview-activate retries the sync automatically.)"
 fi
-unset gloview_check_mode gloview_installed
+unset gloview_check_mode gloview_installed gloview_ipc
 
 # ── Stage 4: verify hard gate (AC 4) ─────────────────────────────────────
 # The aggregate's internal verify import is plan-gated (check mode); this

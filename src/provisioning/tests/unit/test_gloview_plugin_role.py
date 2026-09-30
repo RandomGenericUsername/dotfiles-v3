@@ -128,6 +128,34 @@ class TestGloviewPrivilegeArchitecture:
                     f"task {name!r} must skip without synced headers"
                 )
 
+    def test_mutating_tasks_skip_without_ipc_deferred_green(self) -> None:
+        """hyprpm needs a LIVE Hyprland IPC session even for add/update, so a
+        TTY provision must skip deferred-green instead of failing red: every
+        mutating task and the assert must gate on the hyprland IPC check."""
+        tasks = _load_tasks()
+        gated = [
+            "Add the GloView repository",
+            "Synchronize hyprpm headers",
+            "Enable GloView",
+            "Verify GloView is enabled",
+            "Reload Hyprland plugins",
+            "Verify GloView is loaded",
+            "Assert GloView installed",
+        ]
+        for task in tasks:
+            name = str(task.get("name", ""))
+            if any(want in name for want in gated):
+                assert "gloview_hyprland_check.rc" in str(task.get("when", "")), (
+                    f"task {name!r} must skip without Hyprland IPC (deferred-green)"
+                )
+
+    def test_deferred_warn_names_relogin(self) -> None:
+        tasks = _load_tasks()
+        warn = next(t for t in tasks if "deferred (no Hyprland IPC)" in str(t.get("name", "")))
+        assert "gloview-activate" in str(warn.get("msg", warn)), (
+            "the deferred warning must name the login activator path"
+        )
+
     def test_skip_warns_with_manual_command(self) -> None:
         tasks = _load_tasks()
         warn = next(t for t in tasks if "interactive header sync" in str(t.get("name", "")))

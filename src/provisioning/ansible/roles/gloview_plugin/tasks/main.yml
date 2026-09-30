@@ -9,12 +9,16 @@
 #   hyprpm's helper surface (mkdir/install/rm confined to /var/cache/hyprpm*,
 #   plus the fixed timestamp-priming echo), so steady-state add/update/enable
 #   runs unattended. This mirrors the aur_builder NOPASSWD pacman precedent.
-# - The header sync (`make ... installheaders` as root via an UNSCOPABLE
-#   compound shell command) cannot be allowlisted: on a fresh machine or after
-#   a Hyprland upgrade it needs an interactive terminal. When the synced
-#   headers are absent the mutating tasks SKIP with a loud warning naming the
-#   one manual command (`hyprpm update`); the re-run then goes green. The
-#   trailing verify role does not assert GloView, so a skip stays green.
+# - DEFERRED-GREEN (B contract): hyprpm needs a LIVE Hyprland IPC session
+#   even for `add`/`update` (verified 2026-09-29: headless `add` fails with
+#   "failed to get the current hyprland version", `--force` does not bypass
+#   it). A TTY provision therefore cannot build the plugin. When the headers
+#   are synced but `hyprctl version` fails, every mutating task below SKIPS
+#   with a loud warning (deferred, NOT failed): the first graphical login
+#   runs `gloview-activate` (via autostart.lua) with IPC present and does the
+#   real add/update/enable/reload, and the re-run *inside* Hyprland asserts
+#   green. The trailing verify role does not assert GloView, so a skip stays
+#   green by design.
 - name: Allow passwordless hyprpm helper escalation
   ansible.builtin.copy:
     dest: "/etc/sudoers.d/20-hyprpm-{{ ansible_facts['user_id'] }}"
@@ -91,6 +95,18 @@
   changed_when: false
   failed_when: false
 
+- name: Warn when GloView is deferred (no Hyprland IPC)
+  ansible.builtin.debug:
+    msg: >-
+      Hyprland IPC is not reachable (TTY/X11 provision) and hyprpm requires a
+      live compositor even for `add`/`update`, so the GloView add/enable tasks
+      below are SKIPPED (DEFERRED, not failed). Log into Hyprland once —
+      autostart runs `gloview-activate` with IPC present — then re-run
+      provisioning from a terminal inside Hyprland to assert green.
+  when:
+    - gloview_store_check.stat.exists
+    - gloview_hyprland_check.rc != 0
+
 - name: Check whether GloView is already installed
   ansible.builtin.shell: hyprpm list 2>&1 | grep -E -q 'Repository gloview|Plugin gloview'
   register: gloview_installed
@@ -112,6 +128,7 @@
   when:
     - not ansible_check_mode
     - gloview_store_check.stat.exists
+    - gloview_hyprland_check.rc == 0
     - gloview_installed.rc | default(1) != 0
 
 - name: Synchronize hyprpm headers and rebuild stale plugins
@@ -125,6 +142,7 @@
   when:
     - not ansible_check_mode
     - gloview_store_check.stat.exists
+    - gloview_hyprland_check.rc == 0
 
 - name: Enable GloView
   ansible.builtin.command:
@@ -138,6 +156,7 @@
   when:
     - not ansible_check_mode
     - gloview_store_check.stat.exists
+    - gloview_hyprland_check.rc == 0
 
 - name: Reload Hyprland plugins
   ansible.builtin.command:
@@ -160,6 +179,7 @@
   when:
     - not ansible_check_mode
     - gloview_store_check.stat.exists
+    - gloview_hyprland_check.rc == 0
 
 - name: Verify GloView is loaded in Hyprland
   ansible.builtin.shell: hyprctl plugin list 2>&1 | grep -qi gloview
@@ -178,12 +198,7 @@
       - gloview_update.rc == 0
       - gloview_enable.rc == 0
       - gloview_status.rc == 0
-      # Live-load is asserted ONLY when Hyprland IPC is reachable: a fresh
-      # machine provisioned from a TTY has no compositor yet, and failing
-      # there would be a false red. The session activator
-      # (~/.local/bin/gloview-activate, via autostart.lua) loads the freshly
-      # built plugin at first login.
-      - gloview_hyprland_check.rc != 0 or (gloview_reload.rc == 0 and gloview_loaded.rc == 0)
+      - gloview_reload.rc == 0 and gloview_loaded.rc == 0
     fail_msg: >-
       GloView did not install and load successfully.
       add={{ gloview_add.rc | default('skipped') }},
@@ -192,7 +207,8 @@
       status={{ gloview_status.rc }}, loaded={{ gloview_loaded.rc | default('skipped: no Hyprland IPC') }}.
       If update failed, check network access and that the hyprpm headers match
       the installed Hyprland (a Hyprland upgrade always requires a rebuild:
-      run `hyprpm update` once in a terminal, then re-run provisioning).
+      run `hyprpm update` once in a terminal inside Hyprland, then re-run provisioning).
   when:
     - not ansible_check_mode
     - gloview_store_check.stat.exists
+    - gloview_hyprland_check.rc == 0
