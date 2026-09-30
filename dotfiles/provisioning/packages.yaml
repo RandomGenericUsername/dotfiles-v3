@@ -16,6 +16,7 @@ entries:
   - name: astal-battery       # UPower battery monitoring (AGS bar)
   - name: astal-network       # NetworkManager wrapper (AGS bar)
   - name: networkmanager      # Network backend for astal-network (bar) + NM stack
+  - name: nm-connection-editor  # NM GUI connection editor (AGS Wi-Fi Settings footer target)
   - name: wifitui             # WiFi TUI (impala-style) on NetworkManager (bar click)
   - name: uwsm                # systemd-managed Wayland session launcher (fixes SDDM session bounce race)
   - name: fonts
@@ -78,8 +79,9 @@ entries:
   - name: bluez              # Bluetooth stack / bluetoothd
   - name: bluez-utils        # bluetoothctl + the bluetooth.service unit
 
-  # Additional useful tools
-  - name: hyprcursor         # Cursor themes
-  - name: hyprlock           # Screen locker
-  - name: hypridle           # Idle management
-  - name: wlogout            # Logout menu (AGS power-menu action)
+   # Additional useful tools
+   - name: hyprcursor         # Cursor themes
+   - name: hyprlock           # Screen locker
+   - name: hypridle           # Idle management
+   - name: wlogout            # Logout menu (AGS power-menu action)
+   - name: speedtest          # Ookla speedtest CLI (network speed measurements)

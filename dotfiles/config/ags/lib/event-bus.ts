@@ -19,6 +19,7 @@ import {
   DBUS_BUS_NAME,
   DBUS_OBJECT_PATH,
   DOMAIN_EVENT_SIGNAL,
+  EMIT_METHOD,
   DomainEventBusCore,
   EVENTS_BUS_NAME,
   EVENTS_INTERFACE,
@@ -27,6 +28,7 @@ import {
   HYDRATION_TIMEOUT_MS,
   JOBS_CLEARED_SIGNAL,
   NAME_OWNER_CHANGED_SIGNAL,
+  SPEEDTEST_FINISHED_TOPIC,
   type EventBusTransport,
 } from "./event-bus-core";
 
@@ -123,6 +125,35 @@ class GioEventBusTransport implements EventBusTransport {
 
 // One shared consumer for the whole bar; `subscribe` lazily connects.
 export const domainEvents = new DomainEventBusCore(new GioEventBusTransport());
+
+// Publish the contract-shaped result event. The hub validates the topic and
+// requires doubles for all three measurements; a missing hub is non-fatal to
+// the speed test UI.
+export function publishSpeedTestFinished(result: {
+  down_mbps: number
+  up_mbps: number
+  latency_ms: number
+}): void {
+  try {
+    Gio.bus_get_sync(Gio.BusType.SESSION, null).call_sync(
+      EVENTS_BUS_NAME,
+      EVENTS_OBJECT_PATH,
+      EVENTS_INTERFACE,
+      EMIT_METHOD,
+      new GLib.Variant("(sa{sv})", [SPEEDTEST_FINISHED_TOPIC, {
+        down_mbps: new GLib.Variant("d", result.down_mbps),
+        up_mbps: new GLib.Variant("d", result.up_mbps),
+        latency_ms: new GLib.Variant("d", result.latency_ms),
+      }]),
+      null,
+      Gio.DBusCallFlags.NONE,
+      2000,
+      null,
+    );
+  } catch (error) {
+    console.error(`event-bus: publish ${SPEEDTEST_FINISHED_TOPIC} failed: ${error}`);
+  }
+}
 
 export {
   CAPTURE_STATE_TOPIC,

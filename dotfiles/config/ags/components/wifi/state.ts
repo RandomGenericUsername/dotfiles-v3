@@ -18,14 +18,17 @@ const [wifiIconX, setWifiIconXState] = createState<number | null>(null)
 export { wifiPopupVisible, wifiIconX }
 
 export function openWifiPopup(): void {
+  console.error("state.ts: openWifiPopup -> setWifiPopupVisible(true)")
   setWifiPopupVisible(true)
 }
 
 export function closeWifiPopup(): void {
+  console.error("state.ts: closeWifiPopup -> setWifiPopupVisible(false)")
   setWifiPopupVisible(false)
 }
 
 export function toggleWifiPopup(): void {
+  console.error("state.ts: toggleWifiPopup, current=" + wifiPopupVisible())
   if (wifiPopupVisible()) closeWifiPopup()
   else openWifiPopup()
 }
