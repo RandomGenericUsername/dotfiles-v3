@@ -10,6 +10,7 @@ import {
 } from "./WifiContent"
 import { WifiSwitch } from "../primitives/WifiSwitch"
 import { setWifiEnabled, wifiEnabled, wifiReady } from "../../services/wifi-service"
+import { stcExpanded, wifiPromptVisible } from "./WifiContent"
 
 export function WifiPopupCatcher(gdkmonitor: Gdk.Monitor) {
   const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
@@ -59,8 +60,28 @@ export function WifiPopup(gdkmonitor: Gdk.Monitor) {
       marginLeft={marginLeft}
       visible={wifiPopupVisible}
       $={(self) => {
+        // Keyboard mode NONE unless a field that needs TYPED input is on
+        // screen — the same rule the settings panel uses, and the reason the
+        // settings icon's same-spot collapse works there.
+        //
+        // This effect previously forced ON_DEMAND unconditionally, which is why
+        // the Wi-Fi icon alone would not collapse on a second same-spot click:
+        // grabbing keyboard focus makes the bar swallow the first click. The
+        // spec states it outright (add-ags-settings-panel/spec.md, "The panel
+        // SHALL NOT grab keyboard focus in a way that makes the bar swallow the
+        // first click"), and task 8.16 records the fix. The settings panel and
+        // the audio popup both honour it; this popup was the one outlier.
+        //
+        // ON_DEMAND is still required at the two moments that actually accept
+        // keystrokes: the Wi-Fi password prompt, and the speed-test interval
+        // Gtk.Entry (which only exists while that section is expanded, with the
+        // radio on and no prompt up — mirroring the block's own visible=).
         createEffect(() => {
-          self.keymode = Astal.Keymode.ON_DEMAND
+          const stcFieldVisible = stcExpanded() && wifiEnabled() && !wifiPromptVisible()
+          const needsKeyboard = wifiPromptVisible() || stcFieldVisible
+          self.keymode = needsKeyboard
+            ? Astal.Keymode.ON_DEMAND
+            : Astal.Keymode.NONE
         })
         const key = new Gtk.EventControllerKey()
         key.connect("key-pressed", (_controller, keyval) => {
