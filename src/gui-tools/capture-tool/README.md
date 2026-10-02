@@ -25,7 +25,11 @@ capture-tool/
 │   ├── glib-ui-state-store.ts   # the same, for capture-ui.json
 │   ├── exec-capture-launcher.ts # execAsync + the hide-then-wait-150ms delay
 │   └── exec-backend-probe.ts    # execAsync(["capture-tool","backend"]) + parse
-├── ui/CaptureWindow.tsx# the dialog — window, panels, settings
+├── ui/classic/          # today's layout: the dialog, as it renders
+│   ├── ClassicWindow.tsx  #   the shell — window, mode switch, key controller
+│   ├── ScreenshotPage.tsx #   the screenshot view
+│   ├── RecordingPage.tsx  #   the recording view (GIF-conditional rows)
+│   └── SettingsPage.tsx   #   the three settings groups
 ├── ui/shared/           # the builder kit BOTH layouts import
 │   ├── rows.ts          #   settingsLabel/Item/Group, path/toggle/pill rows
 │   ├── groups.ts        #   select/applyGroup/clearChildren

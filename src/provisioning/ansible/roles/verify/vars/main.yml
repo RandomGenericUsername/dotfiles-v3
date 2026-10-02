@@ -489,15 +489,23 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/app.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/style.css"
   - "{{ install_dir | trim }}/config/ags-capture/types.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/CaptureWindow.tsx"
+  # The classic layout (refactor-capture-tool-hexagonal A8): the window shell
+  # and the three top-level views. Asserted for the same reason as the rest of
+  # the capture set -- gui_tools placement is per-file, and ClassicWindow
+  # reaches all three pages only through its own imports, so a missing one is a
+  # panel that cannot bundle.
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/ClassicWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/ScreenshotPage.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/RecordingPage.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/SettingsPage.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/lib/icon-registry.ts"
-  # The PURE domain layer CaptureWindow imports (refactor-capture-tool-hexagonal
+  # The PURE domain layer ClassicWindow imports (refactor-capture-tool-hexagonal
   # A3). Asserted for the same reason as the rest of the capture set: gui_tools
   # placement is per-file, so an undeployed domain/ module means the dialog
   # cannot even bundle.
   - "{{ install_dir | trim }}/config/ags-capture/domain/settings.ts"
   - "{{ install_dir | trim }}/config/ags-capture/domain/ui-state.ts"
-  # The ports/ and adapters/ layers CaptureWindow and the composition root
+  # The ports/ and adapters/ layers ClassicWindow and the composition root
   # import (refactor-capture-tool-hexagonal A5). Asserted for the same reason
   # as the rest of the capture set: gui_tools placement is per-file, so an
   # undeployed module means the capture panel cannot even bundle.

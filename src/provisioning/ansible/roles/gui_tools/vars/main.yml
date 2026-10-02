@@ -61,6 +61,7 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ports"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/adapters"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic"
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
@@ -83,7 +84,16 @@ gui_tools_app_files:
   - { name: capture-app-tsx, source: src/gui-tools/capture-tool/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/app.tsx" }
   - { name: capture-style-css, source: src/gui-tools/capture-tool/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/style.css" }
   - { name: capture-types, source: src/gui-tools/capture-tool/types.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/types.ts" }
-  - { name: capture-window, source: src/gui-tools/capture-tool/ui/CaptureWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/CaptureWindow.tsx" }
+  # The classic layout (refactor-capture-tool-hexagonal A8): the window shell
+  # and the three top-level views. One file used to be all four, so an
+  # undeployed member of this set is a capture panel that cannot bundle at
+  # runtime -- the whole app is reachable only through ClassicWindow's import
+  # of the three pages. Per-file placement, so each is listed; ui/classic is in
+  # gui_tools_config_dirs above because copy does not create dest parents.
+  - { name: capture-classic-window, source: src/gui-tools/capture-tool/ui/classic/ClassicWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/ClassicWindow.tsx" }
+  - { name: capture-classic-screenshot-page, source: src/gui-tools/capture-tool/ui/classic/ScreenshotPage.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/ScreenshotPage.tsx" }
+  - { name: capture-classic-recording-page, source: src/gui-tools/capture-tool/ui/classic/RecordingPage.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/RecordingPage.tsx" }
+  - { name: capture-classic-settings-page, source: src/gui-tools/capture-tool/ui/classic/SettingsPage.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/SettingsPage.tsx" }
   # The pure domain layer (refactor-capture-tool-hexagonal A3): settings
   # vocabulary/merge/validation and the UI-state shape/merge. No GTK, no GLib,
   # no I/O — which is what lets A4 unit-test them and A5/A6 reuse them from

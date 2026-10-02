@@ -220,11 +220,11 @@ class TestGuiToolsVars:
 
     def test_app_files_exact_list(self) -> None:
         """The capture app file set, exactly: entry point, stylesheet,
-        types, the dialog, the capture-owned icon registry (hypr-pano
+        types, the classic layout, the capture-owned icon registry (hypr-pano
         pattern) deployed beside the app sources so the instance resolves
         palette-aware icons with fallback to the shared bar manifest, and the
-        PURE domain layer the dialog now imports (refactor-capture-tool-hexagonal
-        A3 task 3.6 — the dialog has no runtime meaning without it).
+        PURE domain layer the layout now imports (refactor-capture-tool-hexagonal
+        A3 task 3.6 — the layout has no runtime meaning without it).
 
         The pre-hexagonal views + controllers were removed by
         refactor-capture-tool-hexagonal (A1 task 1.4): they were unimplemented
@@ -236,7 +236,7 @@ class TestGuiToolsVars:
         placement is per-file, so an unregistered file silently never deploys.
 
         The ports/ and adapters/ layers joined them next (A5 tasks 5.1-5.8):
-        CaptureWindow imports ports/ and the composition root injects
+        the layout imports ports/ and the composition root injects
         adapters/, so a missing member of either layer is a panel that cannot
         bundle at runtime. This exact list is the only thing standing between
         A5 and a role that passes against a tree whose adapters are absent.
@@ -248,9 +248,16 @@ class TestGuiToolsVars:
         and cli-args.ts carries the two tokens the backend's argparse rejects
         (--size 75 not 75%, --audio mic not microphone) -- so an unregistered
         member of this pair is a capture that silently never happens, not a
-        build error someone would notice."""
+        build error someone would notice.
+
+        ui/classic/ replaced the single ui/CaptureWindow.tsx in the same
+        change (A8 tasks 8.1-8.6): ClassicWindow.tsx (the shell) plus the
+        three top-level views it renders. ClassicWindow reaches all three
+        pages only through its own imports, so an unregistered page is a
+        capture panel that cannot bundle -- the same failure the ports and
+        adapters entries guard against."""
         files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 21, f"expected exactly 21 app files; found {len(files)}"
+        assert len(files) == 24, f"expected exactly 24 app files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/capture-tool/adapters/exec-backend-probe.ts",
@@ -270,7 +277,10 @@ class TestGuiToolsVars:
             "src/gui-tools/capture-tool/ports/ui-state-store.ts",
             "src/gui-tools/capture-tool/style.css",
             "src/gui-tools/capture-tool/types.ts",
-            "src/gui-tools/capture-tool/ui/CaptureWindow.tsx",
+            "src/gui-tools/capture-tool/ui/classic/ClassicWindow.tsx",
+            "src/gui-tools/capture-tool/ui/classic/RecordingPage.tsx",
+            "src/gui-tools/capture-tool/ui/classic/ScreenshotPage.tsx",
+            "src/gui-tools/capture-tool/ui/classic/SettingsPage.tsx",
             "src/gui-tools/capture-tool/ui/shared/groups.ts",
             "src/gui-tools/capture-tool/ui/shared/icons.ts",
             "src/gui-tools/capture-tool/ui/shared/rows.ts",

@@ -2307,13 +2307,22 @@ def _build_provisioned_layout(
     (install / "config" / "ags-capture" / "app.tsx").write_text("")
     (install / "config" / "ags-capture" / "style.css").write_text("")
     (install / "config" / "ags-capture" / "types.ts").write_text("")
-    (install / "config" / "ags-capture" / "ui" / "CaptureWindow.tsx").write_text("")
     (install / "config" / "ags-capture" / "lib" / "icon-registry.ts").write_text("")
-    # The pure domain layer CaptureWindow imports (hexagonal refactor A3).
+    # The classic layout (hexagonal refactor A8): the window shell and the
+    # three top-level views.
+    (install / "config" / "ags-capture" / "ui" / "classic").mkdir(parents=True, exist_ok=True)
+    for capture_page in (
+        "ClassicWindow.tsx",
+        "ScreenshotPage.tsx",
+        "RecordingPage.tsx",
+        "SettingsPage.tsx",
+    ):
+        (install / "config" / "ags-capture" / "ui" / "classic" / capture_page).write_text("")
+    # The pure domain layer ClassicWindow imports (hexagonal refactor A3).
     (install / "config" / "ags-capture" / "domain").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags-capture" / "domain" / "settings.ts").write_text("")
     (install / "config" / "ags-capture" / "domain" / "ui-state.ts").write_text("")
-    # The ports/ and adapters/ layers (hexagonal refactor A5): CaptureWindow
+    # The ports/ and adapters/ layers (hexagonal refactor A5): ClassicWindow
     # imports ports/, the composition root injects adapters/.
     for capture_layer in ("ports", "adapters"):
         (install / "config" / "ags-capture" / capture_layer).mkdir(parents=True, exist_ok=True)
