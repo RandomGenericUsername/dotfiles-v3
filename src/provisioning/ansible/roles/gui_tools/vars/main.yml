@@ -58,6 +58,7 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/domain"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared"
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
@@ -94,6 +95,15 @@ gui_tools_app_files:
   # compositor_configs role generates into the same spine dir) and falls back
   # to the shared bar manifest. Repo-authoritative, force: true.
   - { name: capture-lib-icon-registry, source: src/gui-tools/capture-tool/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/lib/icon-registry.ts" }
+  # The shared builder kit (refactor-capture-tool-hexagonal A7): the row
+  # builders, the group/selection helpers and the icon resolver that BOTH
+  # layouts share. Extracting them before a second layout exists is what stops
+  # that layout growing its own divergent row builders. ui/shared is listed in
+  # gui_tools_config_dirs above because placement is per-file and `copy` does
+  # not create dest parents.
+  - { name: capture-ui-shared-rows, source: src/gui-tools/capture-tool/ui/shared/rows.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared/rows.ts" }
+  - { name: capture-ui-shared-groups, source: src/gui-tools/capture-tool/ui/shared/groups.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared/groups.ts" }
+  - { name: capture-ui-shared-icons, source: src/gui-tools/capture-tool/ui/shared/icons.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared/icons.ts" }
 
 # gui_tools_icme_app_files: the icon color mapping editor's app files,
 #   deployed into their own ags-icme/ spine dir. RAW COPY (ansible.builtin.copy),

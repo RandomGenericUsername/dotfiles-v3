@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates capture-types capture-typecheck capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates capture-types capture-typecheck capture-test capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -15,8 +15,8 @@ contracts-check:
 
 # Every executable gate, in the order a reviewer should read them: contract
 # first (it is the source of truth), then mock/code parity, then the
-# anti-invention check, then the capture GUI typecheck, then the capture
-# hexagonal structure gate.
+# anti-invention check, then the capture domain unit tests, then the capture GUI
+# typecheck, then the capture hexagonal structure gate.
 #
 # THIS TARGET IS DEVELOPER-RUN, and that is deliberate, not an oversight.
 # `.github/workflows/gates.yml` triggers on `push: branches: [main]`, but this
@@ -24,8 +24,9 @@ contracts-check:
 # remote, so the push trigger cannot fire. There is no working CI for any of
 # these gates; repairing the trigger is a separate change the owner deferred
 # (design.md §7.1). `capture-typecheck` additionally needs the desktop stack,
-# which CI would not have anyway.
-gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-typecheck capture-hexagonal-gate
+# which CI would not have anyway — `capture-test` deliberately does NOT, so it
+# is the one capture gate that would work in CI if it were ever repaired.
+gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-test capture-typecheck capture-hexagonal-gate
 
 CAPTURE_DIR := src/gui-tools/capture-tool
 # tsconfig.capture.json is HAND-WRITTEN and committed. `ags types -u` also
@@ -96,6 +97,42 @@ capture-typecheck: capture-types
 	fi; \
 	echo "    OK: 0 errors in $(CAPTURE_DIR)"; \
 	rm -f "$$log"
+
+# Unit tests for the capture tool's extracted pure domain (workstream A4).
+#
+# WHY THIS GATE EXISTS: `mergeSettings`, `validateSettings`, `configDefaults`,
+# the `loadUiState` merge, `audioToUi` and `GIF_SIZE_ARG` are the code a file
+# move silently breaks. They encode the config/UI/backend vocabulary mismatches
+# (`mic` vs `microphone`, `75%` vs `75`) whose failure mode is NOT an exception
+# — it is a panel that quietly ignores the user's choice, or a backend argparse
+# that rejects the flag after the fact. Before the A3 extraction this logic had
+# ZERO direct coverage; the only thing exercising it was the Python CLI suite,
+# which reads the same config through a DIFFERENT reader.
+#
+# WHY NODE'S BUILT-IN RUNNER AND NOT VITEST/JEST: the domain layer imports
+# nothing from `ags/*` or `gi://*` — that purity is what makes it testable — so
+# plain `node --test` runs it as-is. No bundler, no browser, no GTK, no network,
+# no package.json, and no dependency to drift. Node strips the types natively
+# (>= 22.18 unflagged for .ts; this repo's node is well past that). The suite is
+# offline-capable by construction rather than by convention.
+#
+# DOES NOT NEED THE DESKTOP STACK — unlike capture-typecheck. TIMING: ~0.1s.
+#
+# The tests import the domain modules with an explicit `.ts` suffix because
+# Node's ESM resolver does no extensionless lookup; the `->` suffix is why
+# tsconfig.tests.json sets allowImportingTsExtensions.
+CAPTURE_TS_TESTS := $(CAPTURE_DIR)/tests/ts
+capture-test:
+	@echo "==> capture-test: node --test $(CAPTURE_TS_TESTS)"
+	node --test $(CAPTURE_TS_TESTS)/*.test.ts
+	@if [ -x node_modules/.bin/tsc ]; then \
+		echo "==> capture-test: tsc --noEmit -p $(CAPTURE_DIR)/tests/tsconfig.tests.json"; \
+		npx tsc --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1; \
+		echo "    OK: 0 type errors in the domain unit tests"; \
+	else \
+		echo "NOTE: typescript not installed, skipping the test-file typecheck."; \
+		echo "      (run 'make capture-typecheck' once to install it; the tests above still ran)"; \
+	fi
 
 # Hexagonal structure + class-vocabulary gate for the capture GUI
 # (scripts/capture-hexagonal-gate.py, design.md §5). "Refactor only, zero

@@ -228,9 +228,16 @@ class TestGuiToolsVars:
 
         The pre-hexagonal views + controllers were removed by
         refactor-capture-tool-hexagonal (A1 task 1.4): they were unimplemented
-        scaffolding, and their placement entries went with them."""
+        scaffolding, and their placement entries went with them.
+
+        The shared builder kit in ui/shared/ joined them in the same change
+        (A7 task 7.4). Both layouts import it -- registering it is what stops a
+        second layout from growing its own divergent row builders -- but
+        placement is per-file, so an unregistered file silently never deploys.
+        This exact list is the only thing standing between A7 and a role that
+        passes against a tree whose builder kit is missing at runtime."""
         files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 7, f"expected exactly 7 app files; found {len(files)}"
+        assert len(files) == 10, f"expected exactly 10 app files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/capture-tool/app.tsx",
@@ -240,6 +247,9 @@ class TestGuiToolsVars:
             "src/gui-tools/capture-tool/style.css",
             "src/gui-tools/capture-tool/types.ts",
             "src/gui-tools/capture-tool/ui/CaptureWindow.tsx",
+            "src/gui-tools/capture-tool/ui/shared/groups.ts",
+            "src/gui-tools/capture-tool/ui/shared/icons.ts",
+            "src/gui-tools/capture-tool/ui/shared/rows.ts",
         ]
         assert sources == expected, (
             f"gui_tools_app_files sources must be exactly {expected}; got {sources}"

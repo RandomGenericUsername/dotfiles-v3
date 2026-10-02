@@ -322,11 +322,19 @@ def check_provisioning(root: Path, report: Report) -> None:
 
 def snapshot_classes(root: Path) -> dict:
     """The class-token sets the classic layout uses and style.css styles."""
-    tsx = (root / TOOL / "ui" / "CaptureWindow.tsx")
-    sources = [tsx] if tsx.exists() else []
-    # Post-refactor the classic view may live elsewhere; scan every TSX in ui/.
-    if not sources:
-        sources = sorted((root / TOOL / "ui").rglob("*.tsx"))
+    # Scan EVERY source file under ui/, recursively. It used to read
+    # ui/CaptureWindow.tsx alone and fall back to ui/**/*.tsx, which made the
+    # class vocabulary of the extracted builder kit in ui/shared/*.ts
+    # INVISIBLE: moving `pillRow` out of the 1865-line file reported
+    # `palette-switch`, `path-chip`, `segments`, `selected` ... as "disappeared"
+    # even though nothing about the rendered panel changed. A check whose
+    # result depends on which file a string literal happens to live in is not a
+    # parity check. Unioning over all of ui/ is strictly MORE coverage than
+    # either branch: a token that appears anywhere under ui/ is seen, and one
+    # that appears nowhere is still reported as dropped.
+    sources = sorted(
+        p for p in (root / TOOL / "ui").rglob("*") if p.suffix in (".ts", ".tsx")
+    )
     used: set[str] = set()
     for path in sources:
         text = path.read_text()

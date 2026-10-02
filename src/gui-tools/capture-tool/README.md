@@ -15,6 +15,10 @@ capture-tool/
 │   ├── settings.ts     #   config vocabulary, defaults, merge, validation
 │   └── ui-state.ts     #   UI-state shape, first-run defaults, merge, GIF map
 ├── ui/CaptureWindow.tsx# the dialog — window, panels, settings
+├── ui/shared/           # the builder kit BOTH layouts import
+│   ├── rows.ts          #   settingsLabel/Item/Group, path/toggle/pill rows
+│   ├── groups.ts        #   select/applyGroup/clearChildren
+│   └── icons.ts         #   captureIcon/withIcon over the icon registry
 ├── lib/icon-registry.ts# palette-aware icon lookup for this instance
 ├── types.ts            # shared types (frozen by the parity gate)
 ├── style.css           # the stylesheet (frozen by the parity gate)
@@ -39,8 +43,18 @@ scaffolding. All six were deleted rather than relocated: see
 `design.md` in that directory for the layer-by-layer design, the gates, and the
 decisions. That change restructures the GUI into hexagonal layers
 (`domain/` pure, `ports/`, `adapters/`) with **zero behaviour change** and is in
-progress: `domain/` has landed, `ports/` and `adapters/` have not, so the tree
-above is partly transitional until they do.
+progress: `domain/` and the `ui/shared/` builder kit have landed, `ports/` and
+`adapters/` have not, so the tree above is partly transitional until they do.
+
+`ui/shared/` exists for a reason beyond tidiness. The row builders, the
+selected-state helpers and the icon resolver are already generic and already
+callback-shaped, so they were lifted out *before* a second layout did — that is
+what stops a future layout growing its own divergent row builders instead of
+importing these. The two `Gtk.Switch` and `Gtk.Image` comments in `rows.ts` and
+`icons.ts` are load-bearing: they record two live bugs (`Gtk.Picture` +
+`set_size_request` inflating every icon tile to screen scale, and a hand-rolled
+track+knob that looked identical in both states because a `GtkBox` ignores a
+child's main-axis alignment). They travel with the code, per the spec.
 
 The capture GUI was split out of the shared bar app into this directory
 verbatim (see `openspec/changes/extract-capture-gui-tool/`). `style.css` and
