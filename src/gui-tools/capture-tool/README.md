@@ -11,6 +11,9 @@ UI.
 ```text
 capture-tool/
 ├── app.tsx             # AGS entry point: registers the window
+├── domain/             # PURE: no GTK, no GLib, no I/O
+│   ├── settings.ts     #   config vocabulary, defaults, merge, validation
+│   └── ui-state.ts     #   UI-state shape, first-run defaults, merge, GIF map
 ├── ui/CaptureWindow.tsx# the dialog — window, panels, settings
 ├── lib/icon-registry.ts# palette-aware icon lookup for this instance
 ├── types.ts            # shared types (frozen by the parity gate)
@@ -18,6 +21,12 @@ capture-tool/
 ├── bin/capture-tool    # the backend CLI
 └── tests/              # the Python suites
 ```
+
+`domain/` is pure by rule, not by convention: `scripts/capture-hexagonal-gate.py`
+check 1 fails on any `ags/*` or `gi://*` import there, because the point of the
+layer is that the merge/validation/defaults logic is testable without GTK. It
+holds no I/O — `loadSettings`/`saveSettings`/`loadUiState`/`saveUiState` still
+live in `ui/CaptureWindow.tsx` and are the next thing to move behind a port.
 
 The GUI does not contain the capture logic: it builds a request and hands it to
 the backend over the CLI. So `CaptureWindow` shells out to `capture-tool`
@@ -29,8 +38,9 @@ scaffolding. All six were deleted rather than relocated: see
 `openspec/changes/refactor-capture-tool-hexagonal/` for the proposal, and
 `design.md` in that directory for the layer-by-layer design, the gates, and the
 decisions. That change restructures the GUI into hexagonal layers
-(`domain/` pure, `ports/`, `adapters/`) with **zero behaviour change**; the
-structure above is accurate until it lands.
+(`domain/` pure, `ports/`, `adapters/`) with **zero behaviour change** and is in
+progress: `domain/` has landed, `ports/` and `adapters/` have not, so the tree
+above is partly transitional until they do.
 
 The capture GUI was split out of the shared bar app into this directory
 verbatim (see `openspec/changes/extract-capture-gui-tool/`). `style.css` and

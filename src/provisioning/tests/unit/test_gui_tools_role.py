@@ -220,18 +220,22 @@ class TestGuiToolsVars:
 
     def test_app_files_exact_list(self) -> None:
         """The capture app file set, exactly: entry point, stylesheet,
-        types, the dialog, plus the capture-owned icon registry (hypr-pano
+        types, the dialog, the capture-owned icon registry (hypr-pano
         pattern) deployed beside the app sources so the instance resolves
-        palette-aware icons with fallback to the shared bar manifest.
+        palette-aware icons with fallback to the shared bar manifest, and the
+        PURE domain layer the dialog now imports (refactor-capture-tool-hexagonal
+        A3 task 3.6 — the dialog has no runtime meaning without it).
 
         The pre-hexagonal views + controllers were removed by
         refactor-capture-tool-hexagonal (A1 task 1.4): they were unimplemented
         scaffolding, and their placement entries went with them."""
         files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 5, f"expected exactly 5 app files; found {len(files)}"
+        assert len(files) == 7, f"expected exactly 7 app files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/capture-tool/app.tsx",
+            "src/gui-tools/capture-tool/domain/settings.ts",
+            "src/gui-tools/capture-tool/domain/ui-state.ts",
             "src/gui-tools/capture-tool/lib/icon-registry.ts",
             "src/gui-tools/capture-tool/style.css",
             "src/gui-tools/capture-tool/types.ts",

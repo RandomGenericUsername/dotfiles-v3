@@ -57,6 +57,7 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/lib"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/domain"
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
@@ -80,6 +81,12 @@ gui_tools_app_files:
   - { name: capture-style-css, source: src/gui-tools/capture-tool/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/style.css" }
   - { name: capture-types, source: src/gui-tools/capture-tool/types.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/types.ts" }
   - { name: capture-window, source: src/gui-tools/capture-tool/ui/CaptureWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/CaptureWindow.tsx" }
+  # The pure domain layer (refactor-capture-tool-hexagonal A3): settings
+  # vocabulary/merge/validation and the UI-state shape/merge. No GTK, no GLib,
+  # no I/O — which is what lets A4 unit-test them and A5/A6 reuse them from
+  # both layouts. Per-file placement like every other capture source.
+  - { name: capture-domain-settings, source: src/gui-tools/capture-tool/domain/settings.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/settings.ts" }
+  - { name: capture-domain-ui-state, source: src/gui-tools/capture-tool/domain/ui-state.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/ui-state.ts" }
   # The capture instance resolves palette-aware icons through its own
   # registry (hypr-pano pattern: each GUI app owns its lib/ in src and the
   # role deploys it per-file). The capture registry prefers the instance's

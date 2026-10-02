@@ -2309,6 +2309,10 @@ def _build_provisioned_layout(
     (install / "config" / "ags-capture" / "types.ts").write_text("")
     (install / "config" / "ags-capture" / "ui" / "CaptureWindow.tsx").write_text("")
     (install / "config" / "ags-capture" / "lib" / "icon-registry.ts").write_text("")
+    # The pure domain layer CaptureWindow imports (hexagonal refactor A3).
+    (install / "config" / "ags-capture" / "domain").mkdir(parents=True, exist_ok=True)
+    (install / "config" / "ags-capture" / "domain" / "settings.ts").write_text("")
+    (install / "config" / "ags-capture" / "domain" / "ui-state.ts").write_text("")
     # Icon color mapping editor (gui_tools role): verify gates its event seam
     # modules (Phase 5 event-contract + event-bus) and the wallpaper.state
     # consumer core (event-bus-core) behind the live palette refresh.

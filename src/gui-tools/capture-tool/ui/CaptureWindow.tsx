@@ -3,6 +3,31 @@ import GLib from "gi://GLib?version=2.0"
 import app from "ags/gtk4/app"
 import { execAsync } from "ags/process"
 import { registry } from "../lib/icon-registry"
+import {
+  type CaptureSettings,
+  type ConfigRecordingAudio,
+  type ConfigRecordingFps,
+  type ConfigRecordingQuality,
+  type ConfigScreenshotFormat,
+  type ConfigScreenshotOutput,
+  type Environment,
+  defaultSettings,
+  expandDir,
+  mergeSettings,
+  validateSettings,
+} from "../domain/settings"
+import {
+  DEFAULT_RECORDING,
+  DEFAULT_SCREENSHOT,
+  GIF_SIZE_ARG,
+  type PersistedUiState,
+  type RecordingUiState,
+  type ScreenshotUiState,
+  configDefaults,
+  durationSelection,
+  isGif,
+  mergeUiState,
+} from "../domain/ui-state"
 import type {
   AudioSource,
   CaptureTarget,
@@ -22,116 +47,27 @@ type View = Mode | "settings"
 // Settings config (add-capture-settings): the app-owned
 // `$XDG_CONFIG_HOME/capture-tool/config.json` contract (design.md §1/§3).
 //
-// Kept inline (not a new lib module) because the provisioning role places the
-// capture app per-file — a new file would not deploy. The GUI owns writes;
-// the backend reads on every invocation. Reads are always safe: missing is
-// first-run (silent defaults), corrupt degrades to defaults with a loud log.
+// The GUI owns writes; the backend reads on every invocation. Reads are always
+// safe: missing is first-run (silent defaults), corrupt degrades to defaults
+// with a loud log.
+//
+// The vocabulary and the merge live in `domain/settings.ts` (A3). What is left
+// here is the persistence half — the `GLib.file_*`/`mkdir_with_parents` calls —
+// which moves to `adapters/glib-settings-store.ts` at A5 behind a port.
 // ---------------------------------------------------------------------------
-
-type ConfigScreenshotFormat = "png" | "jpeg"
-type ConfigScreenshotOutput = "clipboard" | "save"
-type ConfigRecordingFps = 24 | 30 | 60
-type ConfigRecordingQuality = "low" | "medium" | "high"
-type ConfigRecordingAudio = "none" | "system" | "mic"
-
-interface CaptureSettings {
-  screenshot_dir: string
-  recording_dir: string
-  filename_pattern: string
-  notifications: boolean
-  /** Bar feedback mode: true = bar shows the dot + timer only and the popup
-   *  carries pause/resume/stop; false = the bar carries the buttons itself. */
-  bar_compact_controls: boolean
-  screenshot: {
-    format: ConfigScreenshotFormat
-    output: ConfigScreenshotOutput
-    cursor: boolean
-  }
-  recording: {
-    fps: ConfigRecordingFps
-    quality: ConfigRecordingQuality
-    audio: ConfigRecordingAudio
-    cursor: boolean
-  }
-}
 
 const CONFIG_DIR = `${
   GLib.getenv("XDG_CONFIG_HOME") || `${GLib.get_home_dir()}/.config`
 }/capture-tool`
 const CONFIG_PATH = `${CONFIG_DIR}/config.json`
 
-const DEFAULT_SETTINGS: CaptureSettings = {
-  screenshot_dir: "~/Pictures/Screenshots",
-  recording_dir: "~/Videos/Recordings",
-  filename_pattern: "{kind}_%Y-%m-%d_%H-%M-%S",
-  notifications: true,
-  bar_compact_controls: false,
-  screenshot: { format: "png", output: "clipboard", cursor: false },
-  recording: { fps: 60, quality: "high", audio: "system", cursor: true },
-}
-
-const CONFIG_SCREENSHOT_FORMATS: readonly ConfigScreenshotFormat[] = ["png", "jpeg"]
-const CONFIG_SCREENSHOT_OUTPUTS: readonly ConfigScreenshotOutput[] = ["clipboard", "save"]
-const CONFIG_RECORDING_FPS: readonly ConfigRecordingFps[] = [24, 30, 60]
-const CONFIG_RECORDING_QUALITIES: readonly ConfigRecordingQuality[] = [
-  "low",
-  "medium",
-  "high",
-]
-const CONFIG_RECORDING_AUDIO: readonly ConfigRecordingAudio[] = ["none", "system", "mic"]
-
-function configOneOf<T>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return allowed.includes(value as T) ? (value as T) : fallback
-}
-
-function configBool(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback
-}
-
-function configString(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() !== "" ? value : fallback
-}
-
-/** A fresh deep copy of the defaults (GJS has no structuredClone). */
-function defaultSettings(): CaptureSettings {
-  return {
-    ...DEFAULT_SETTINGS,
-    screenshot: { ...DEFAULT_SETTINGS.screenshot },
-    recording: { ...DEFAULT_SETTINGS.recording },
-  }
-}
-
-function mergeSettings(raw: unknown): CaptureSettings {
-  const record = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
-  const shot =
-    record.screenshot !== null && typeof record.screenshot === "object"
-      ? (record.screenshot as Record<string, unknown>)
-      : {}
-  const rec =
-    record.recording !== null && typeof record.recording === "object"
-      ? (record.recording as Record<string, unknown>)
-      : {}
-  return {
-    screenshot_dir: configString(record.screenshot_dir, DEFAULT_SETTINGS.screenshot_dir),
-    recording_dir: configString(record.recording_dir, DEFAULT_SETTINGS.recording_dir),
-    filename_pattern: configString(record.filename_pattern, DEFAULT_SETTINGS.filename_pattern),
-    notifications: configBool(record.notifications, DEFAULT_SETTINGS.notifications),
-    bar_compact_controls: configBool(
-      record.bar_compact_controls,
-      DEFAULT_SETTINGS.bar_compact_controls,
-    ),
-    screenshot: {
-      format: configOneOf(shot.format, CONFIG_SCREENSHOT_FORMATS, DEFAULT_SETTINGS.screenshot.format),
-      output: configOneOf(shot.output, CONFIG_SCREENSHOT_OUTPUTS, DEFAULT_SETTINGS.screenshot.output),
-      cursor: configBool(shot.cursor, DEFAULT_SETTINGS.screenshot.cursor),
-    },
-    recording: {
-      fps: configOneOf(rec.fps, CONFIG_RECORDING_FPS, DEFAULT_SETTINGS.recording.fps),
-      quality: configOneOf(rec.quality, CONFIG_RECORDING_QUALITIES, DEFAULT_SETTINGS.recording.quality),
-      audio: configOneOf(rec.audio, CONFIG_RECORDING_AUDIO, DEFAULT_SETTINGS.recording.audio),
-      cursor: configBool(rec.cursor, DEFAULT_SETTINGS.recording.cursor),
-    },
-  }
+// Environment seam for domain's pure `expandDir` (design.md §7.2, A3 task 3.3):
+// `getenv`/`home` mirror GLib exactly and are resolved at call time, so the
+// expansion results are unchanged. A5 replaces this with the adapter's own
+// Environment, constructed in `adapters/glib-settings-store.ts`.
+const ENVIRONMENT: Environment = {
+  getenv: (name) => GLib.getenv(name),
+  home: () => GLib.get_home_dir(),
 }
 
 /** Read the config; missing/corrupt degrade to defaults (corrupt logs loudly). */
@@ -147,32 +83,6 @@ function loadSettings(): CaptureSettings {
   }
 }
 
-/** Expand `~` and `$VAR`/`${VAR}` references in a configured directory. */
-function expandDir(value: string): string {
-  let expanded = value
-  if (expanded === "~" || expanded.startsWith("~/")) {
-    expanded = `${GLib.get_home_dir()}${expanded.slice(1)}`
-  }
-  expanded = expanded.replace(/\$\{(\w+)\}|\$(\w+)/g, (match, braced, bare) => {
-    const name = braced ?? bare
-    const resolved = GLib.getenv(name)
-    return resolved ?? match
-  })
-  return expanded
-}
-
-/** Validate settings before persisting; returns an error string or null. */
-function validateSettings(settings: CaptureSettings): string | null {
-  if (settings.screenshot_dir.trim() === "") return "Screenshot folder cannot be empty."
-  if (settings.recording_dir.trim() === "") return "Recording folder cannot be empty."
-  const pattern = settings.filename_pattern.trim()
-  if (pattern === "") return "Filename pattern cannot be empty."
-  if (pattern.includes("/") || pattern.includes("\0")) {
-    return "Filename pattern cannot contain a path separator."
-  }
-  return null
-}
-
 /**
  * Persist settings (validated), creating the config dir and both output
  * directories with parents. Returns an error string, or null on success.
@@ -183,7 +93,7 @@ function saveSettings(settings: CaptureSettings): string | null {
   try {
     GLib.mkdir_with_parents(CONFIG_DIR, 0o755)
     for (const dir of [settings.screenshot_dir, settings.recording_dir]) {
-      const expanded = expandDir(dir).trim()
+      const expanded = expandDir(dir, ENVIRONMENT).trim()
       if (expanded !== "") GLib.mkdir_with_parents(expanded, 0o755)
     }
     GLib.file_set_contents(CONFIG_PATH, `${JSON.stringify(settings, null, 2)}\n`)
@@ -241,95 +151,18 @@ function withIcon(variant: IconVariant, size: number) {
 
 // ---------------------------------------------------------------------------
 // Persisted UI state (GUI-local JSON; no provisioning surface).
+//
+// The state shape, first-run constants, option vocabularies, the
+// settings→defaults precedence rule and the merge all live in
+// `domain/ui-state.ts` (A3). What is left here is the read and the write — the
+// `GLib.file_*`/`mkdir_with_parents` calls — which move to
+// `adapters/glib-ui-state-store.ts` at A5 behind a port.
 // ---------------------------------------------------------------------------
 
 const UI_STATE_DIR = `${
   GLib.getenv("XDG_STATE_HOME") || `${GLib.get_home_dir()}/.local/state`
 }/capture-tool`
 const UI_STATE_PATH = `${UI_STATE_DIR}/capture-ui.json`
-
-interface ScreenshotUiState {
-  target: CaptureTarget
-  delay: number
-  format: ScreenshotFormat
-  save: boolean
-}
-
-interface RecordingUiState {
-  target: CaptureTarget
-  fps: number
-  format: RecordingFormat
-  audio: AudioSource
-  quality: RecordingQuality
-  duration: number
-  gifFps: number
-  size: GifScale
-  customDuration: number
-}
-
-// First-run defaults per spec: Region/PNG/Clipboard and
-// Region/60fps/MP4/System/High/∞ (GIF extras: 15fps, Original, 120s custom).
-const DEFAULT_SCREENSHOT: ScreenshotUiState = {
-  target: "region",
-  delay: 0,
-  format: "png",
-  save: false,
-}
-
-const DEFAULT_RECORDING: RecordingUiState = {
-  target: "region",
-  fps: 60,
-  format: "mp4",
-  audio: "system",
-  quality: "high",
-  duration: 0,
-  gifFps: 15,
-  size: "original",
-  customDuration: 120,
-}
-
-function oneOf<T>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return allowed.includes(value as T) ? (value as T) : fallback
-}
-
-const TARGETS = ["region", "screen", "window"] as const
-const SCREENSHOT_DELAYS = [0, 3, 5, 10] as const
-const SCREENSHOT_FORMATS = ["png", "jpeg"] as const
-const RECORDING_FPS = [24, 30, 60] as const
-const GIF_FPS = [10, 15, 20, 30] as const
-const RECORDING_FORMATS = ["mp4", "webm", "gif"] as const
-const AUDIO_SOURCES = ["system", "microphone", "none"] as const
-const QUALITIES = ["low", "medium", "high"] as const
-const DURATIONS = [0, 10, 30, 60] as const
-const GIF_SIZES = ["original", "75%", "50%"] as const
-
-/** Config `mic` ↔ UI `microphone` (the two vocabularies in play). */
-function audioToUi(audio: ConfigRecordingAudio): AudioSource {
-  return audio === "mic" ? "microphone" : audio
-}
-
-/**
- * Initial-selection defaults sourced from the settings config (precedence:
- * last-used UI state > settings defaults > hardcoded constants).
- */
-function configDefaults(config: CaptureSettings): {
-  screenshot: ScreenshotUiState
-  recording: RecordingUiState
-} {
-  return {
-    screenshot: {
-      ...DEFAULT_SCREENSHOT,
-      format: config.screenshot.format as ScreenshotFormat,
-      save: config.screenshot.output === "save",
-    },
-    recording: {
-      ...DEFAULT_RECORDING,
-      fps: config.recording.fps,
-      quality: config.recording.quality as RecordingQuality,
-      audio: audioToUi(config.recording.audio),
-    },
-  }
-}
 
 function loadUiState(base: {
   screenshot: ScreenshotUiState
@@ -344,37 +177,8 @@ function loadUiState(base: {
     if (!GLib.file_test(UI_STATE_PATH, GLib.FileTest.EXISTS)) return fallback
     const [ok, bytes] = GLib.file_get_contents(UI_STATE_PATH)
     if (!ok || bytes === null) return fallback
-    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as {
-      screenshot?: Partial<ScreenshotUiState>
-      recording?: Partial<RecordingUiState>
-    }
-    const screenshot = { ...base.screenshot, ...parsed.screenshot }
-    const recording = { ...base.recording, ...parsed.recording }
-    return {
-      screenshot: {
-        target: oneOf(screenshot.target, TARGETS, base.screenshot.target),
-        delay: oneOf(screenshot.delay, SCREENSHOT_DELAYS, base.screenshot.delay),
-        format: oneOf(screenshot.format, SCREENSHOT_FORMATS, base.screenshot.format),
-        save: typeof screenshot.save === "boolean" ? screenshot.save : base.screenshot.save,
-      },
-      recording: {
-        target: oneOf(recording.target, TARGETS, base.recording.target),
-        fps: oneOf(recording.fps, RECORDING_FPS, base.recording.fps),
-        format: oneOf(recording.format, RECORDING_FORMATS, base.recording.format),
-        audio: oneOf(recording.audio, AUDIO_SOURCES, base.recording.audio),
-        quality: oneOf(recording.quality, QUALITIES, base.recording.quality),
-        duration:
-          typeof recording.duration === "number" && recording.duration >= 0
-            ? recording.duration
-            : base.recording.duration,
-        gifFps: oneOf(recording.gifFps, GIF_FPS, base.recording.gifFps),
-        size: oneOf(recording.size, GIF_SIZES, base.recording.size),
-        customDuration:
-          typeof recording.customDuration === "number" && recording.customDuration >= 5
-            ? Math.min(3600, Math.round(recording.customDuration))
-            : base.recording.customDuration,
-      },
-    }
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as PersistedUiState
+    return mergeUiState(base, parsed)
   } catch (error) {
     console.error(`capture-tool: cannot read UI state: ${error}`)
     return fallback
@@ -388,15 +192,6 @@ function saveUiState(screenshot: ScreenshotUiState, recording: RecordingUiState)
   } catch (error) {
     console.error(`capture-tool: cannot write UI state: ${error}`)
   }
-}
-
-// CLI contract (design.md §4): --audio {none,system,mic}, --duration <seconds>
-// (0 = infinite). GIF additionally takes --size {original,75,50} (backend
-// contract — NOT percents; the backend argparse rejects anything else).
-const GIF_SIZE_ARG: Record<GifScale, string> = {
-  original: "original",
-  "75%": "75",
-  "50%": "50",
 }
 
 const WINDOW_NAME = "capture-window"
@@ -499,12 +294,8 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
     }
   }
 
-  function isGif(): boolean {
-    return recording.format === "gif"
-  }
-
   function applyGifMode() {
-    const gif = isGif()
+    const gif = isGif(recording)
     if (audioRow) audioRow.visible = !gif
     if (stdFpsRow) stdFpsRow.visible = !gif
     if (gifFpsRow) gifFpsRow.visible = gif
@@ -515,14 +306,8 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
     syncWindowSize()
   }
 
-  function durationSelection(): number {
-    return DURATIONS.includes(recording.duration as (typeof DURATIONS)[number])
-      ? recording.duration
-      : -1
-  }
-
   function refreshCustomBox() {
-    if (customBox) customBox.visible = durationSelection() === -1
+    if (customBox) customBox.visible = durationSelection(recording) === -1
   }
 
   function selectMode(next: Mode) {
@@ -583,7 +368,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
       "--target",
       recording.target,
       "--fps",
-      String(isGif() ? recording.gifFps : recording.fps),
+      String(isGif(recording) ? recording.gifFps : recording.fps),
       "--format",
       recording.format,
       "--quality",
@@ -593,7 +378,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
       "--duration",
       String(recording.duration),
     ]
-    if (isGif()) args.push("--size", GIF_SIZE_ARG[recording.size])
+    if (isGif(recording)) args.push("--size", GIF_SIZE_ARG[recording.size])
     if (config.recording.cursor) args.push("--cursor")
     hideCaptureWindow()
     setTimeout(() => execAsync(args).catch(console.error), 150)
@@ -644,7 +429,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
       applyGroup(recordingFormatGroup, recording.format)
       applyGroup(recordingAudioGroup, recording.audio)
       applyGroup(recordingQualityGroup, recording.quality)
-      applyGroup(recordingDurationGroup, durationSelection())
+      applyGroup(recordingDurationGroup, durationSelection(recording))
       applyGroup(recordingSizeGroup, recording.size)
       if (customSpin) customSpin.set_value(recording.customDuration)
       applyGifMode()

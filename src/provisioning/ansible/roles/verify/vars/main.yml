@@ -491,6 +491,12 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/types.ts"
   - "{{ install_dir | trim }}/config/ags-capture/ui/CaptureWindow.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/lib/icon-registry.ts"
+  # The PURE domain layer CaptureWindow imports (refactor-capture-tool-hexagonal
+  # A3). Asserted for the same reason as the rest of the capture set: gui_tools
+  # placement is per-file, so an undeployed domain/ module means the dialog
+  # cannot even bundle.
+  - "{{ install_dir | trim }}/config/ags-capture/domain/settings.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/domain/ui-state.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"
