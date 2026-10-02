@@ -1,5 +1,22 @@
 __pycache__/
 *.pyc
+
+# AGS/TS typecheck artifacts. `ags types -u` regenerates all of these from the
+# GTK/Astal libraries installed on THIS machine: @girs/ is 168 .d.ts files and
+# ~49 MB, and node_modules/ holds symlinks into /usr/share/ags/js. They describe
+# the local toolchain, not the repo, so they are rebuilt on demand via
+# `make capture-types` and never committed. node_modules must never be deployed
+# — placement is per-file (gui_tools_app_files), so an unregistered directory
+# simply never ships, but it also must never reach a commit.
+/src/gui-tools/capture-tool/@girs/
+/src/gui-tools/capture-tool/node_modules/
+/src/gui-tools/capture-tool/tsconfig.json
+/src/gui-tools/capture-tool/env.d.ts
+# TypeScript itself, installed with `npm install --no-save typescript` so that
+# `npx tsc` resolves from the tool directory without a package.json.
+/node_modules/
+/package-lock.json
+/package.json
 /src/cli-tools/wallpaper-effects-generator/feedback.md
 /src/cli-tools/wallpaper-effects-generator/test.sh
 

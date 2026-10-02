@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates capture-types capture-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -15,9 +15,86 @@ contracts-check:
 
 # Every executable gate, in the order a reviewer should read them: contract
 # first (it is the source of truth), then mock/code parity, then the
-# anti-invention check. Same four commands as .github/workflows/gates.yml, so
-# a green run locally is a green run in CI.
-gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture
+# anti-invention check, then the capture GUI typecheck.
+#
+# THIS TARGET IS DEVELOPER-RUN, and that is deliberate, not an oversight.
+# `.github/workflows/gates.yml` triggers on `push: branches: [main]`, but this
+# repository's default branch is `master` and `main` does not exist on the
+# remote, so the push trigger cannot fire. There is no working CI for any of
+# these gates; repairing the trigger is a separate change the owner deferred
+# (design.md §7.1). `capture-typecheck` additionally needs the desktop stack,
+# which CI would not have anyway.
+gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-typecheck
+
+CAPTURE_DIR := src/gui-tools/capture-tool
+# tsconfig.capture.json is HAND-WRITTEN and committed. `ags types -u` also
+# writes its own tsconfig.json into $(CAPTURE_DIR) and overwrites it on every
+# run, so the committed settings must live under a name that does not collide;
+# the generated one is gitignored and is NOT what the typecheck reads.
+CAPTURE_TSCONFIG := $(CAPTURE_DIR)/tsconfig.capture.json
+
+# Generate the AGS/TypeScript type definitions for the capture GUI.
+#
+# REQUIRES THE DESKTOP STACK: `ags` on PATH plus the Astal/GIR libraries it
+# describes. This target does nothing at all without them.
+#
+# `ags types -u` writes $(CAPTURE_DIR)/@girs/ (168 .d.ts files, ~49 MB),
+# env.d.ts, tsconfig.json, and node_modules/{ags,gnim} symlinks into
+# /usr/share/ags/js. All of it is gitignored and machine-specific — it
+# describes the GTK/Astal version installed here and is rebuilt from scratch
+# on demand rather than committed.
+#
+# TIMING: first run takes ~2-4 minutes and needs network (npx pulls
+# ts-for-gir). Subsequent runs skip: the definitions only change when the
+# system's libraries do, which is rare. Force a rebuild with `rm -rf
+# $(CAPTURE_DIR)/@girs`.
+capture-types:
+	@if [ -d "$(CAPTURE_DIR)/@girs" ]; then \
+		echo "==> capture-types: @girs/ already generated, skipping (rm -rf $(CAPTURE_DIR)/@girs to force)"; \
+	else \
+		echo "==> capture-types: generating GIR types (~2-4 min, needs network, requires the desktop stack)"; \
+		ags types -d "$(CURDIR)/$(CAPTURE_DIR)" -u || exit 1; \
+	fi
+
+# Typecheck the capture GUI: zero errors allowed in our own files.
+#
+# WHY THIS GATE EXISTS: `ags bundle` TRANSPILES WITHOUT TYPE CHECKING.
+# Verified — a file assigning a string to a `number` bundles with exit 0, so a
+# wrong signature otherwise reaches production silently. A missing module IS
+# caught; a wrong type is not (design.md §1.1).
+#
+# REQUIRES THE DESKTOP STACK (`ags` + Astal) and runs `capture-types` first.
+# TIMING: ~30s once @girs/ exists; the first run pays the 2-4 min generation.
+# It needs `tsc`, which this repo does not vendor — installed into an ignored
+# ./node_modules on first run.
+#
+# The AGS runtime and gnim ship 28 errors of their own under
+# /usr/share/ags/js. Those are third-party and tolerated BY LOCATION, exactly
+# as scripts/wifi-mock-parity.py uses its ALLOWLIST. Zero tolerance for
+# src/gui-tools/capture-tool/. Errors in neither bucket fail the gate too —
+# "tolerated because it was third-party" must never become a silent pass.
+capture-typecheck: capture-types
+	@if [ ! -x node_modules/.bin/tsc ]; then \
+		echo "==> installing typescript (npm install --no-save, ignored by git)"; \
+		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
+	fi
+	@echo "==> capture-typecheck: tsc --noEmit -p $(CAPTURE_TSCONFIG)"
+	@log=$$(mktemp); \
+	npx tsc --noEmit -p "$(CAPTURE_TSCONFIG)" > "$$log" 2>&1; \
+	ours=$$(grep 'error TS' "$$log" | grep -F "$(CAPTURE_DIR)/" || true); \
+	thirdparty=$$(grep 'error TS' "$$log" | grep -F '/usr/share/ags/js/' || true); \
+	other=$$(grep 'error TS' "$$log" | grep -vF "$(CAPTURE_DIR)/" | grep -vF '/usr/share/ags/js/' || true); \
+	echo "    tolerated third-party errors (/usr/share/ags/js): $$(printf '%s\n' "$$thirdparty" | grep -c . || true)"; \
+	if [ -n "$$other" ]; then \
+		echo "FAIL: errors in neither the capture tool nor the known ags runtime:"; \
+		printf '%s\n' "$$other"; rm -f "$$log"; exit 1; \
+	fi; \
+	if [ -n "$$ours" ]; then \
+		echo "FAIL: type errors in $(CAPTURE_DIR):"; \
+		printf '%s\n' "$$ours"; rm -f "$$log"; exit 1; \
+	fi; \
+	echo "    OK: 0 errors in $(CAPTURE_DIR)"; \
+	rm -f "$$log"
 
 wifi-mock-parity:
 	python3 scripts/wifi-mock-parity.py

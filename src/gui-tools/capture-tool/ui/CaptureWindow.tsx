@@ -430,7 +430,11 @@ function syncWindowSize() {
   window.set_default_size(width, height)
 }
 
-export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
+// The return type is annotated because the JSX runtime's inferred element type
+// widens to `Object`, which `app.add_window` rejects. `<window>` maps to
+// Astal.Window (see ags/gtk4/jsx-runtime), so the annotation names the real
+// type; see the cast on the return below for why TS cannot infer it.
+export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
   let mode: Mode = "screenshot"
 
   let screenshotView: Gtk.Box | null = null
@@ -1010,7 +1014,13 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
       class="capture-window"
       namespace="capture"
       gdkmonitor={gdkmonitor}
-      anchor={0}
+      // NONE, not 0. `Astal.WindowAnchor` is a bitfield with no zero member
+      // (NONE=1, TOP=2, RIGHT=4, LEFT=8, BOTTOM=16), so the bare literal was
+      // never a valid value. It anchored to no edge, and so does NONE:
+      // astal_window_set_anchor() reads only bits 1/2/3/4 and never tests bit 0,
+      // so 0 and NONE both hand gtk_layer_shell four anchored=false edges.
+      // Behaviour is identical; only the type is now honest.
+      anchor={Astal.WindowAnchor.NONE}
       layer={Astal.Layer.OVERLAY}
       keymode={Astal.Keymode.ON_DEMAND}
       halign={Gtk.Align.CENTER}
@@ -1861,5 +1871,12 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor) {
         </box>
       </centerbox>
     </window>
-  )
+    // Type-level only. gnim types every intrinsic element as `CC | FC`, i.e.
+    // a constructor yielding `GObject.Object`, so the JSX expression widens to
+    // `GObject.Object` no matter which tag is used — gnim's own source says
+    // "intrinsicElements always resolve as FC / so we can't narrow it down".
+    // `<window>` really is an Astal.Window (ags/gtk4/jsx-runtime maps it), so
+    // this cast records a fact rather than hiding a bug. Nothing at runtime
+    // changes: `jsx()` already called `new Astal.Window(props)`.
+  ) as unknown as Astal.Window
 }
