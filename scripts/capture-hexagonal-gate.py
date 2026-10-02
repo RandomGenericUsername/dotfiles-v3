@@ -13,9 +13,12 @@ rewrite:
      ``execAsync`` / ``GLib.file_*``. A UI file shelling out directly is a
      second, un-gated capture path that bypasses the request->argv port.
   3. REQUEST->ARGV PURITY -- exactly ONE module translates a capture request
-     into argv. Two layouts sharing an engine is only real while they share
-     that translator; a second one is how the GIF size token ("75", not "75%")
-     and the audio vocabulary (mic vs microphone) drift apart.
+     into argv, AND it lives in ``domain/``. Two layouts sharing an engine is
+     only real while they share that translator; a second one is how the GIF
+     size token ("75", not "75%") and the audio vocabulary (mic vs
+     microphone) drift apart. Finding a translator is not enough -- a
+     translator in ``ui/`` is welded to the view and is untestable without
+     GTK, so the location clause is what makes the seam real (design.md §5).
   4. NO DEAD SCAFFOLD -- ``ui/ScreenshotView.tsx``, ``ui/RecordingView.tsx``
      and ``controllers/*`` are the unused pre-hexagonal stubs. They are deleted
      by this refactor; leaving them re-creates a parallel, unimplemented
@@ -23,7 +26,11 @@ rewrite:
   5. PROVISIONING REGISTRATION -- every file under the capture tool appears in
      ``gui_tools_app_files``. Placement is PER-FILE, so an unregistered file
      silently never deploys (the exact silent-no-op class of bug the role's
-     own header warns about).
+     own header warns about). The walk skips dot-prefixed dirs
+     (``.pytest_cache``), ``__pycache__``, symlinks, and anything
+     ``.gitignore`` excludes (A2's generated ``@girs/``, ``env.d.ts``,
+     ``tsconfig.json``) -- it judges the tree the role deploys, not the
+     developer's local artefacts.
   6. CLASSIC-LAYOUT PARITY -- the set of CSS class tokens the classic layout
      uses, and the set ``style.css`` styles, are snapshotted in
      ``capture-classic-parity.json`` and must be UNCHANGED. The refactor moves
@@ -32,7 +39,8 @@ rewrite:
 
 Checks 1-4 are expected to FAIL against the pre-refactor tree (one 1865-line
 inline file imports everything); that is the point -- the gate bites before it
-bites you. Check 5 passes today and must keep passing.
+bites you. Check 5 must pass against the pre-refactor tree and must keep
+passing: every failure it reports is a real placement bug.
 
 Usage: ``python3 scripts/capture-hexagonal-gate.py [--root REPO_ROOT] [--update-parity]``
 Exit 0 = gate green. Exit 1 = violations, each printed naming file and line.
@@ -46,6 +54,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -86,6 +95,23 @@ CSS_NOISE = frozenset({"css", "html", "rasi", "on", "toggle", "Switch"})
 CLASS_ATTR = re.compile(r'class="([^"]*)"')
 ADD_CSS_CLASS = re.compile(r'add_css_class\(\s*"([^"]*)"\s*\)')
 CSS_SELECTOR = re.compile(r"(?<![\w-])\.([a-zA-Z][\w-]*)")
+
+#: Directories that are never part of the deployed app. Dot-prefixed dirs are
+#: skipped wholesale (``.pytest_cache`` is created by a bare ``pytest`` run in
+#: the tool dir; ``__pycache__`` by any import), so a developer artefact can
+#: never be mistaken for an unregistered source file. ``@girs`` and
+#: ``node_modules`` are A2's ``ags types`` output (design.md task 2.3: 49 MB of
+#: machine-specific definitions, gitignored, never committed or deployed).
+SKIP_DIRS = frozenset({"__pycache__", "@girs", "node_modules"})
+
+#: Individual files that are build-time only and are never deployed. These are
+#: NOT exceptions to check 5 -- they are the tool's non-runtime surface, in the
+#: same class as ``tests/``, ``README.md`` and ``bin/`` (the latter is placed by
+#: cli_tools, not gui_tools). ``tsconfig.capture.json`` is hand-written (A2
+#: task 2.3) but is a typecheck config for the repo; deploying it into a live
+#: ~/.config/ags-capture would be meaningless. Its generated siblings
+#: (``tsconfig.json``, ``env.d.ts``) are already covered by .gitignore below.
+NOT_DEPLOYED = frozenset({"tsconfig.capture.json"})
 
 
 class Report:
@@ -160,7 +186,13 @@ def check_adapter_ownership(root: Path, report: Report) -> None:
 
 
 def check_single_argv_translator(root: Path, report: Report) -> None:
-    """Check 3: exactly one request->argv translator across the whole tool."""
+    """Check 3: exactly one request->argv translator, and it lives in domain/.
+
+    The LOCATION clause is what makes the seam real (design.md §5): a
+    translator sitting in ``ui/`` is welded to the view, cannot be unit-tested
+    without GTK, and is exactly the thing that drifts when a second layout
+    arrives. Finding one is not enough -- it has to be pure.
+    """
     hits = []
     for path in sorted((root / TOOL).rglob("*.ts")) + sorted((root / TOOL).rglob("*.tsx")):
         rel = path.relative_to(root)
@@ -185,7 +217,17 @@ def check_single_argv_translator(root: Path, report: Report) -> None:
             "or the GIF size token and audio vocabulary drift",
         )
     else:
-        report.ok(f"check 3: single argv translator at {hits[0]}")
+        rel = hits[0]
+        if not rel.is_relative_to(f"{TOOL}/domain/"):
+            report.fail(
+                "argv-translator",
+                f"{rel}",
+                "the request->argv translator is not in domain/ -- the engine seam must be "
+                "pure so both layouts share it and it is testable without GTK; a translator "
+                "in ui/ is welded to the view and will drift when a second layout lands",
+            )
+        else:
+            report.ok(f"check 3: single pure argv translator at {rel}")
 
 
 def check_no_dead_scaffold(root: Path, report: Report) -> None:
@@ -203,19 +245,67 @@ def check_no_dead_scaffold(root: Path, report: Report) -> None:
         report.ok("check 4: dead scaffold absent")
 
 
+def gitignored(root: Path, rel_paths: list[str]) -> set[str]:
+    """Which of ``rel_paths`` (repo-relative) ``.gitignore`` excludes.
+
+    Placement is per-file from tracked sources, so the gate must judge the tree
+    the role actually deploys -- the committed one. Anything git ignores (A2's
+    generated ``@girs``/``env.d.ts``/``tsconfig.json``) is a local artefact by
+    construction. Degrades to "nothing ignored" if git is unavailable.
+    """
+    if not rel_paths:
+        return set()
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "-z", "--stdin"],
+            input="\0".join(rel_paths) + "\0",
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError):
+        return set()
+    return {p for p in proc.stdout.split("\0") if p}
+
+
+def deployed_candidates(root: Path) -> set[str]:
+    """Repo-relative paths under the tool that are candidate deploy sources."""
+    tool = root / TOOL
+    candidates: set[str] = set()
+    stack = [tool]
+    while stack:
+        d = stack.pop()
+        for p in d.iterdir():
+            # Skip symlinks: node_modules/ entries are symlinks into
+            # /usr/share/ags/js and are never deploy sources.
+            if p.is_symlink():
+                continue
+            if p.is_dir():
+                # A dot-prefixed dir is tool/editor state, never a source.
+                if p.name.startswith(".") or p.name in SKIP_DIRS:
+                    continue
+                stack.append(p)
+                continue
+            # tests/ and README are not deployed; the bin/ CLI is placed by
+            # cli_tools. Matched on the full relative path so a future
+            # ``ui/bin/`` is not silently skipped.
+            rel = p.relative_to(root)
+            parts = rel.parts
+            if p.name == "README.md" or p.name in NOT_DEPLOYED:
+                continue
+            if len(parts) > 2 and parts[2] in ("tests", "bin"):
+                continue
+            if any(part == "tests" or part == "bin" for part in parts[3:]):
+                continue
+            candidates.add(str(rel))
+    return candidates - gitignored(root, sorted(candidates))
+
+
 def check_provisioning(root: Path, report: Report) -> None:
     """Check 5: every capture file is registered for per-file placement."""
     vars_text = (root / VARS).read_text()
     registered = set(re.findall(r"source:\s*(src/gui-tools/capture-tool/\S+?),\s*dest:", vars_text))
-    on_disk = {
-        str(p.relative_to(root))
-        for p in (root / TOOL).rglob("*")
-        if p.is_file()
-        # tests/ and README are not deployed; the bin/ CLI is placed by cli_tools.
-        and "tests" not in p.parts
-        and p.name != "README.md"
-        and "bin" not in p.parts
-    }
+    on_disk = deployed_candidates(root)
     missing = sorted(on_disk - registered)
     stale = sorted(registered - on_disk)
     for m in missing:

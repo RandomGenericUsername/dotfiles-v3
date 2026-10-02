@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates capture-types capture-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates capture-types capture-typecheck capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -15,7 +15,8 @@ contracts-check:
 
 # Every executable gate, in the order a reviewer should read them: contract
 # first (it is the source of truth), then mock/code parity, then the
-# anti-invention check, then the capture GUI typecheck.
+# anti-invention check, then the capture GUI typecheck, then the capture
+# hexagonal structure gate.
 #
 # THIS TARGET IS DEVELOPER-RUN, and that is deliberate, not an oversight.
 # `.github/workflows/gates.yml` triggers on `push: branches: [main]`, but this
@@ -24,7 +25,7 @@ contracts-check:
 # these gates; repairing the trigger is a separate change the owner deferred
 # (design.md §7.1). `capture-typecheck` additionally needs the desktop stack,
 # which CI would not have anyway.
-gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-typecheck
+gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-typecheck capture-hexagonal-gate
 
 CAPTURE_DIR := src/gui-tools/capture-tool
 # tsconfig.capture.json is HAND-WRITTEN and committed. `ags types -u` also
@@ -95,6 +96,22 @@ capture-typecheck: capture-types
 	fi; \
 	echo "    OK: 0 errors in $(CAPTURE_DIR)"; \
 	rm -f "$$log"
+
+# Hexagonal structure + class-vocabulary gate for the capture GUI
+# (scripts/capture-hexagonal-gate.py, design.md §5). "Refactor only, zero
+# behaviour change" is otherwise unenforceable prose, so the layering
+# invariants, the single pure request->argv translator, the absence of the
+# dead pre-hexagonal scaffolding, per-file provisioning registration and the
+# classic layout's CSS class vocabulary are all checked BY EXECUTION.
+#
+# RED UNTIL THE REFACTOR LANDS. The gate counts down to zero across the
+# refactor-capture-tool-hexagonal workstreams and only goes green at A8. A red
+# run in the meantime is the expected state, NOT a regression — read the
+# per-check `ok` lines and the violation count rather than the exit code.
+#
+# Stdlib-only Python; needs no desktop stack (unlike capture-typecheck).
+capture-hexagonal-gate:
+	python3 scripts/capture-hexagonal-gate.py
 
 wifi-mock-parity:
 	python3 scripts/wifi-mock-parity.py

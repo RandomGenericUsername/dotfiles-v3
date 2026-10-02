@@ -2308,17 +2308,6 @@ def _build_provisioned_layout(
     (install / "config" / "ags-capture" / "style.css").write_text("")
     (install / "config" / "ags-capture" / "types.ts").write_text("")
     (install / "config" / "ags-capture" / "ui" / "CaptureWindow.tsx").write_text("")
-    (install / "config" / "ags-capture" / "ui" / "RecordingView.tsx").write_text("")
-    (install / "config" / "ags-capture" / "ui" / "ScreenshotView.tsx").write_text("")
-    for controller in (
-        "CaptureController",
-        "RecordingController",
-        "ScreenshotController",
-        "TargetResolver",
-    ):
-        (
-            install / "config" / "ags-capture" / "controllers" / f"{controller}.ts"
-        ).write_text("")
     (install / "config" / "ags-capture" / "lib" / "icon-registry.ts").write_text("")
     # Icon color mapping editor (gui_tools role): verify gates its event seam
     # modules (Phase 5 event-contract + event-bus) and the wallpaper.state
