@@ -2313,6 +2313,25 @@ def _build_provisioned_layout(
     (install / "config" / "ags-capture" / "domain").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags-capture" / "domain" / "settings.ts").write_text("")
     (install / "config" / "ags-capture" / "domain" / "ui-state.ts").write_text("")
+    # The ports/ and adapters/ layers (hexagonal refactor A5): CaptureWindow
+    # imports ports/, the composition root injects adapters/.
+    for capture_layer in ("ports", "adapters"):
+        (install / "config" / "ags-capture" / capture_layer).mkdir(parents=True, exist_ok=True)
+    for capture_port in (
+        "settings-store.ts",
+        "ui-state-store.ts",
+        "capture-launcher.ts",
+        "backend-probe.ts",
+        "capture-ports.ts",
+    ):
+        (install / "config" / "ags-capture" / "ports" / capture_port).write_text("")
+    for capture_adapter in (
+        "glib-settings-store.ts",
+        "glib-ui-state-store.ts",
+        "exec-capture-launcher.ts",
+        "exec-backend-probe.ts",
+    ):
+        (install / "config" / "ags-capture" / "adapters" / capture_adapter).write_text("")
     # Icon color mapping editor (gui_tools role): verify gates its event seam
     # modules (Phase 5 event-contract + event-bus) and the wallpaper.state
     # consumer core (event-bus-core) behind the live palette refresh.

@@ -58,6 +58,8 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/domain"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/ports"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/adapters"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared"
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
@@ -88,6 +90,22 @@ gui_tools_app_files:
   # both layouts. Per-file placement like every other capture source.
   - { name: capture-domain-settings, source: src/gui-tools/capture-tool/domain/settings.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/settings.ts" }
   - { name: capture-domain-ui-state, source: src/gui-tools/capture-tool/domain/ui-state.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/ui-state.ts" }
+  # The ports and adapters layers (refactor-capture-tool-hexagonal A5). ports/
+  # is interfaces only; adapters/ owns every GLib file read/write, the
+  # execAsync spawn and the hide-then-wait-150ms delay. The dialog imports
+  # ports/ and receives adapters/ injected by the composition root, so an
+  # undeployed member of either layer breaks the bundle at runtime. Per-file
+  # placement, so every file is listed; both dirs are in
+  # gui_tools_config_dirs above because copy does not create dest parents.
+  - { name: capture-ports-settings-store, source: src/gui-tools/capture-tool/ports/settings-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/settings-store.ts" }
+  - { name: capture-ports-ui-state-store, source: src/gui-tools/capture-tool/ports/ui-state-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/ui-state-store.ts" }
+  - { name: capture-ports-capture-launcher, source: src/gui-tools/capture-tool/ports/capture-launcher.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/capture-launcher.ts" }
+  - { name: capture-ports-backend-probe, source: src/gui-tools/capture-tool/ports/backend-probe.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/backend-probe.ts" }
+  - { name: capture-ports-capture-ports, source: src/gui-tools/capture-tool/ports/capture-ports.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/capture-ports.ts" }
+  - { name: capture-adapters-glib-settings-store, source: src/gui-tools/capture-tool/adapters/glib-settings-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/glib-settings-store.ts" }
+  - { name: capture-adapters-glib-ui-state-store, source: src/gui-tools/capture-tool/adapters/glib-ui-state-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/glib-ui-state-store.ts" }
+  - { name: capture-adapters-exec-capture-launcher, source: src/gui-tools/capture-tool/adapters/exec-capture-launcher.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/exec-capture-launcher.ts" }
+  - { name: capture-adapters-exec-backend-probe, source: src/gui-tools/capture-tool/adapters/exec-backend-probe.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/exec-backend-probe.ts" }
   # The capture instance resolves palette-aware icons through its own
   # registry (hypr-pano pattern: each GUI app owns its lib/ in src and the
   # role deploys it per-file). The capture registry prefers the instance's

@@ -136,11 +136,10 @@ export function validateSettings(settings: CaptureSettings): string | null {
 // call time exactly as the pre-move `GLib.getenv`/`GLib.get_home_dir` calls
 // inside `expandDir` were.
 //
-// A5 wiring: `saveSettings` moves to `adapters/glib-settings-store.ts`, and
-// that adapter (the only layer allowed to touch GLib's environment) constructs
-// this object — `{ getenv: (name) => GLib.getenv(name), home: () => GLib.get_home_dir() }`
-// — and passes it here. Until then `ui/CaptureWindow.tsx` supplies it from its
-// own GLib import; that call site is replaced, not extended, at A5.
+// Wiring (A5, landed): `adapters/glib-settings-store.ts` — the only layer
+// allowed to touch GLib's environment — constructs this object as
+// `{ getenv: (name) => GLib.getenv(name), home: () => GLib.get_home_dir() }`
+// and passes it in. `ui/CaptureWindow.tsx` no longer supplies it.
 // ---------------------------------------------------------------------------
 
 export interface Environment {

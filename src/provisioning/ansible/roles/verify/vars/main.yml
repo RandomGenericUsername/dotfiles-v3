@@ -497,6 +497,19 @@ verify_gui_tools_app_files:
   # cannot even bundle.
   - "{{ install_dir | trim }}/config/ags-capture/domain/settings.ts"
   - "{{ install_dir | trim }}/config/ags-capture/domain/ui-state.ts"
+  # The ports/ and adapters/ layers CaptureWindow and the composition root
+  # import (refactor-capture-tool-hexagonal A5). Asserted for the same reason
+  # as the rest of the capture set: gui_tools placement is per-file, so an
+  # undeployed module means the capture panel cannot even bundle.
+  - "{{ install_dir | trim }}/config/ags-capture/ports/settings-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/ui-state-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/capture-launcher.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/backend-probe.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/capture-ports.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/glib-settings-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/glib-ui-state-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/exec-capture-launcher.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/exec-backend-probe.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"

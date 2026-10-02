@@ -1,8 +1,7 @@
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import GLib from "gi://GLib?version=2.0"
 import app from "ags/gtk4/app"
-import { execAsync } from "ags/process"
 import { registry } from "../lib/icon-registry"
+import { type CapturePorts } from "../ports/capture-ports"
 import {
   type CaptureSettings,
   type ConfigRecordingAudio,
@@ -10,23 +9,16 @@ import {
   type ConfigRecordingQuality,
   type ConfigScreenshotFormat,
   type ConfigScreenshotOutput,
-  type Environment,
-  defaultSettings,
-  expandDir,
-  mergeSettings,
-  validateSettings,
 } from "../domain/settings"
 import {
   DEFAULT_RECORDING,
   DEFAULT_SCREENSHOT,
   GIF_SIZE_ARG,
-  type PersistedUiState,
   type RecordingUiState,
   type ScreenshotUiState,
   configDefaults,
   durationSelection,
   isGif,
-  mergeUiState,
 } from "../domain/ui-state"
 import type {
   AudioSource,
@@ -51,58 +43,13 @@ type View = Mode | "settings"
 // safe: missing is first-run (silent defaults), corrupt degrades to defaults
 // with a loud log.
 //
-// The vocabulary and the merge live in `domain/settings.ts` (A3). What is left
-// here is the persistence half — the `GLib.file_*`/`mkdir_with_parents` calls —
-// which moves to `adapters/glib-settings-store.ts` at A5 behind a port.
+// Split three ways as of A5. The vocabulary, defaults, merge and validation
+// are pure and live in `domain/settings.ts` (A3). The `GLib.file_*` /
+// `mkdir_with_parents` persistence and the `expandDir` Environment live in
+// `adapters/glib-settings-store.ts` (A5). What remains HERE is the port type
+// in `ports/settings-store.ts` and, below, the calls into the injected store.
+// The view no longer knows the config lives in a file at all.
 // ---------------------------------------------------------------------------
-
-const CONFIG_DIR = `${
-  GLib.getenv("XDG_CONFIG_HOME") || `${GLib.get_home_dir()}/.config`
-}/capture-tool`
-const CONFIG_PATH = `${CONFIG_DIR}/config.json`
-
-// Environment seam for domain's pure `expandDir` (design.md §7.2, A3 task 3.3):
-// `getenv`/`home` mirror GLib exactly and are resolved at call time, so the
-// expansion results are unchanged. A5 replaces this with the adapter's own
-// Environment, constructed in `adapters/glib-settings-store.ts`.
-const ENVIRONMENT: Environment = {
-  getenv: (name) => GLib.getenv(name),
-  home: () => GLib.get_home_dir(),
-}
-
-/** Read the config; missing/corrupt degrade to defaults (corrupt logs loudly). */
-function loadSettings(): CaptureSettings {
-  try {
-    if (!GLib.file_test(CONFIG_PATH, GLib.FileTest.EXISTS)) return defaultSettings()
-    const [ok, bytes] = GLib.file_get_contents(CONFIG_PATH)
-    if (!ok || bytes === null) return defaultSettings()
-    return mergeSettings(JSON.parse(new TextDecoder().decode(bytes)))
-  } catch (error) {
-    console.error(`capture-tool: cannot read settings config: ${error}`)
-    return defaultSettings()
-  }
-}
-
-/**
- * Persist settings (validated), creating the config dir and both output
- * directories with parents. Returns an error string, or null on success.
- */
-function saveSettings(settings: CaptureSettings): string | null {
-  const error = validateSettings(settings)
-  if (error !== null) return error
-  try {
-    GLib.mkdir_with_parents(CONFIG_DIR, 0o755)
-    for (const dir of [settings.screenshot_dir, settings.recording_dir]) {
-      const expanded = expandDir(dir, ENVIRONMENT).trim()
-      if (expanded !== "") GLib.mkdir_with_parents(expanded, 0o755)
-    }
-    GLib.file_set_contents(CONFIG_PATH, `${JSON.stringify(settings, null, 2)}\n`)
-    return null
-  } catch (cause) {
-    console.error(`capture-tool: cannot write settings config: ${cause}`)
-    return `Could not save settings: ${cause}`
-  }
-}
 
 // Frozen `capture-tool` icon variants (design.md §1).
 type IconVariant =
@@ -154,45 +101,11 @@ function withIcon(variant: IconVariant, size: number) {
 //
 // The state shape, first-run constants, option vocabularies, the
 // settings→defaults precedence rule and the merge all live in
-// `domain/ui-state.ts` (A3). What is left here is the read and the write — the
-// `GLib.file_*`/`mkdir_with_parents` calls — which move to
-// `adapters/glib-ui-state-store.ts` at A5 behind a port.
+// `domain/ui-state.ts` (A3). The read, the write and the
+// missing-is-silent / corrupt-is-loud degradation live in
+// `adapters/glib-ui-state-store.ts` (A5), behind `ports/ui-state-store.ts`.
+// The calls are the only trace of persistence left in this file.
 // ---------------------------------------------------------------------------
-
-const UI_STATE_DIR = `${
-  GLib.getenv("XDG_STATE_HOME") || `${GLib.get_home_dir()}/.local/state`
-}/capture-tool`
-const UI_STATE_PATH = `${UI_STATE_DIR}/capture-ui.json`
-
-function loadUiState(base: {
-  screenshot: ScreenshotUiState
-  recording: RecordingUiState
-}): { screenshot: ScreenshotUiState; recording: RecordingUiState } {
-  const fallback = {
-    screenshot: { ...base.screenshot },
-    recording: { ...base.recording },
-  }
-  try {
-    // First run has no state file yet — fall back silently, not loudly.
-    if (!GLib.file_test(UI_STATE_PATH, GLib.FileTest.EXISTS)) return fallback
-    const [ok, bytes] = GLib.file_get_contents(UI_STATE_PATH)
-    if (!ok || bytes === null) return fallback
-    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as PersistedUiState
-    return mergeUiState(base, parsed)
-  } catch (error) {
-    console.error(`capture-tool: cannot read UI state: ${error}`)
-    return fallback
-  }
-}
-
-function saveUiState(screenshot: ScreenshotUiState, recording: RecordingUiState): void {
-  try {
-    GLib.mkdir_with_parents(UI_STATE_DIR, 0o755)
-    GLib.file_set_contents(UI_STATE_PATH, JSON.stringify({ screenshot, recording }))
-  } catch (error) {
-    console.error(`capture-tool: cannot write UI state: ${error}`)
-  }
-}
 
 const WINDOW_NAME = "capture-window"
 
@@ -229,7 +142,15 @@ function syncWindowSize() {
 // widens to `Object`, which `app.add_window` rejects. `<window>` maps to
 // Astal.Window (see ags/gtk4/jsx-runtime), so the annotation names the real
 // type; see the cast on the return below for why TS cannot infer it.
-export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
+//
+// `ports` (design.md §2, task 5.9) is the injected hexagon: settings
+// persistence, UI-state persistence, capture launching and the backend probe.
+// The composition root builds the adapters and passes them in, so this file
+// contains no filesystem access and no process spawning — only calls into
+// interfaces it was handed.
+export function CaptureWindow(gdkmonitor: Gdk.Monitor, ports: CapturePorts): Astal.Window {
+  const { settingsStore, uiStateStore, launcher, backendProbe } = ports
+
   let mode: Mode = "screenshot"
 
   let screenshotView: Gtk.Box | null = null
@@ -254,7 +175,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
   let backendReadout: Gtk.Label | null = null
   let view: View = "screenshot"
   // Draft settings edited in the view; persisted on Back/Escape/Enter.
-  let settingsConfig: CaptureSettings = loadSettings()
+  let settingsConfig: CaptureSettings = settingsStore.load()
   // Active inline path editor, so Enter/Escape commit/cancel it instead of
   // being swallowed by the window's capture-phase key controller.
   let pathEditor: { commit: () => void; cancel: () => void } | null = null
@@ -338,8 +259,8 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
   }
 
   function takeScreenshot() {
-    saveUiState(screenshot, recording)
-    const config = loadSettings()
+    uiStateStore.save(screenshot, recording)
+    const config = settingsStore.load()
     const args = [
       "capture-tool",
       "screenshot",
@@ -355,12 +276,14 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
     if (screenshot.save) args.push("--save")
     if (config.screenshot.cursor) args.push("--cursor")
     hideCaptureWindow()
-    setTimeout(() => execAsync(args).catch(console.error), 150)
+    // The 150ms hide-then-spawn delay lives in the launcher (A5), not here:
+    // it is a compositor fact, so a second layout inherits it for free.
+    launcher.launch(args)
   }
 
   function startRecording() {
-    saveUiState(screenshot, recording)
-    const config = loadSettings()
+    uiStateStore.save(screenshot, recording)
+    const config = settingsStore.load()
     const audioFlag = recording.audio === "microphone" ? "mic" : recording.audio
     const args = [
       "capture-tool",
@@ -381,7 +304,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
     if (isGif(recording)) args.push("--size", GIF_SIZE_ARG[recording.size])
     if (config.recording.cursor) args.push("--cursor")
     hideCaptureWindow()
-    setTimeout(() => execAsync(args).catch(console.error), 150)
+    launcher.launch(args)
   }
 
   function onKey(keyval: number): boolean {
@@ -416,7 +339,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
     applyingState = true
     try {
       // Last-used UI state > settings defaults > hardcoded constants.
-      const state = loadUiState(configDefaults(loadSettings()))
+      const state = uiStateStore.load(configDefaults(settingsStore.load()))
       screenshot = state.screenshot
       recording = state.recording
       applyGroup(screenshotTargetGroup, screenshot.target)
@@ -491,7 +414,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
    * cursor toggle does nothing": the screenshot kept using the old value.
    */
   function persistSettings(): void {
-    const error = saveSettings(settingsConfig)
+    const error = settingsStore.save(settingsConfig)
     if (settingsError) {
       settingsError.set_label(error ?? "")
       settingsError.visible = error !== null
@@ -606,14 +529,13 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
 
   function refreshBackendReadout() {
     const readout = backendReadout
-    execAsync(["capture-tool", "backend"])
-      .then((out) => {
-        let name = "none"
-        try {
-          name = (JSON.parse(out) as { backend?: string }).backend ?? "none"
-        } catch {
-          name = "none"
-        }
+    // The probe, the spawn and the `?? "none"` fallback are the adapter's
+    // (A5). All that is left here is rendering. Note the `readout ===` re-check:
+    // settings can be rebuilt while the probe is in flight, and a stale label
+    // would outlive its view.
+    backendProbe
+      .backend()
+      .then((name) => {
         if (readout !== null && readout === backendReadout) {
           readout.set_label(name === "none" ? "Automatic (unavailable)" : `Automatic (${name})`)
         }
@@ -625,7 +547,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
 
   function renderSettings() {
     if (settingsBody === null) return
-    settingsConfig = loadSettings()
+    settingsConfig = settingsStore.load()
     clearChildren(settingsBody)
     if (settingsError) {
       settingsError.set_label("")
@@ -780,7 +702,7 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor): Astal.Window {
   }
 
   function closeSettings() {
-    const error = saveSettings(settingsConfig)
+    const error = settingsStore.save(settingsConfig)
     if (error !== null) {
       if (settingsError) {
         settingsError.set_label(error)

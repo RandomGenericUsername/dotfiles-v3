@@ -234,16 +234,29 @@ class TestGuiToolsVars:
         (A7 task 7.4). Both layouts import it -- registering it is what stops a
         second layout from growing its own divergent row builders -- but
         placement is per-file, so an unregistered file silently never deploys.
-        This exact list is the only thing standing between A7 and a role that
-        passes against a tree whose builder kit is missing at runtime."""
+
+        The ports/ and adapters/ layers joined them next (A5 tasks 5.1-5.8):
+        CaptureWindow imports ports/ and the composition root injects
+        adapters/, so a missing member of either layer is a panel that cannot
+        bundle at runtime. This exact list is the only thing standing between
+        A5 and a role that passes against a tree whose adapters are absent."""
         files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 10, f"expected exactly 10 app files; found {len(files)}"
+        assert len(files) == 19, f"expected exactly 19 app files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
+            "src/gui-tools/capture-tool/adapters/exec-backend-probe.ts",
+            "src/gui-tools/capture-tool/adapters/exec-capture-launcher.ts",
+            "src/gui-tools/capture-tool/adapters/glib-settings-store.ts",
+            "src/gui-tools/capture-tool/adapters/glib-ui-state-store.ts",
             "src/gui-tools/capture-tool/app.tsx",
             "src/gui-tools/capture-tool/domain/settings.ts",
             "src/gui-tools/capture-tool/domain/ui-state.ts",
             "src/gui-tools/capture-tool/lib/icon-registry.ts",
+            "src/gui-tools/capture-tool/ports/backend-probe.ts",
+            "src/gui-tools/capture-tool/ports/capture-launcher.ts",
+            "src/gui-tools/capture-tool/ports/capture-ports.ts",
+            "src/gui-tools/capture-tool/ports/settings-store.ts",
+            "src/gui-tools/capture-tool/ports/ui-state-store.ts",
             "src/gui-tools/capture-tool/style.css",
             "src/gui-tools/capture-tool/types.ts",
             "src/gui-tools/capture-tool/ui/CaptureWindow.tsx",
