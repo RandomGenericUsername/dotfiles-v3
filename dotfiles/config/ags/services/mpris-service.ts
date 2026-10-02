@@ -1,6 +1,6 @@
 import Gio from "gi://Gio?version=2.0"
 import GLib from "gi://GLib?version=2.0"
-import { Accessor, createComputed, createState } from "ags"
+import { createState } from "ags"
 import { execAsync } from "ags/process"
 import {
   AppIdentityResolver,
@@ -189,11 +189,6 @@ export function playersByApp(): MprisPlayer[] {
   }
   return out
 }
-
-/** The master-button target (D1): the most recently active app. */
-export const activePlayer: Accessor<MprisPlayer | null> = createComputed(() =>
-  pickActivePlayer(playersByApp()),
-)
 
 // ── Mutable service state ────────────────────────────────────────────────
 

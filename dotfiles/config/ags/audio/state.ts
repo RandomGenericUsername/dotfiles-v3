@@ -4,7 +4,6 @@ import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
 import {
-  activePlayer,
   heldPositionsSnapshot,
   playersByApp,
   setAppIdentitySource,
@@ -634,17 +633,12 @@ export function playerForApp(app: string): MprisPlayer | null {
   return playersByApp().find((player) => player.appKeys.includes(app)) ?? null
 }
 
-/** True when any live stream claims this app key (drives the per-app icon
- *  choice and the debug dump). */
+/** True when any live stream claims this app key. Diagnostic seam for the
+ *  `audio-debug` dump; the row model reaches the same answer through
+ *  `liveStreamForApp`. */
 export function isStreamClaimed(app: string): boolean {
   return (playbackStreams() ?? []).some((s) => appKeysOfNode(nodeOf(s)).has(app))
 }
-
-/** The most recently active player. NOT a UI target: the Output card's transport
- *  is device-scoped (see `defaultSinkPlayers`) since the owner ruling of
- *  2026-09-30 superseded D1's "most recent player" button. Kept as the service's
- *  own notion of recency, which `lastPlayingAt` still models honestly. */
-export { activePlayer }
 
 /**
  * One Applications row per canonical app (`{ app }`), whether the app
@@ -1127,10 +1121,12 @@ export function nodeLabel(node: WpNode | null, fallback: string): string {
  * is blind. Read-only; no side effects.
  */
 export function debugAudioState(): Record<string, unknown> {
-  //: The players the Output card's transport acts on, plus each player's
-  //: recency stamp. Without this, "what will that button touch?" can only be
-  //: answered by guessing; `lastPlayingAt: 0` on a Playing player is the honest
-  //: "we never saw it start" marker.
+  //: The players the Output card's transport acts on, plus the service's own
+  //: recency stamp — which ranks the REPRESENTATIVE interface when two of one
+  //: app's interfaces share a PID (an Electron app publishes both a named
+  //: interface and a framework mirror). `lastPlayingAt: 0` on a Playing player
+  //: is the honest "we never saw it start" marker, and is what stops a
+  //: re-registered bus name from claiming to be the newest playback of all.
   const players = playersByApp().map((p) => ({
     busName: p.busName,
     identity: p.identity,

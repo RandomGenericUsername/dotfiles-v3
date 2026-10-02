@@ -1,7 +1,7 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
 import Pango from "gi://Pango?version=1.0"
-import { Accessor, createBinding, createComputed, createEffect, createState, For, onCleanup } from "ags"
+import { Accessor, createBinding, createComputed, createEffect, createState, For } from "ags"
 import { registry } from "../lib/icon-registry"
 import { NavHeader, PanelCard } from "../settings-panel/primitives"
 import {
