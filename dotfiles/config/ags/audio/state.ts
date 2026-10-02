@@ -297,82 +297,27 @@ export function nodeOf(value: unknown): WpNode | null {
 // (doc §19/§20). When idle, the graph legitimately has no links and the maps
 // are empty; the display falls back to the default-sink NAME, never "Default".
 
-// ── Graph snapshot: THREE states, split by how often they change ───────────
-//
-// One `pw-dump` pass fills all six maps, but they do NOT change together, and
-// publishing them as one object made every reader recompute on every churn:
-//
-//   identity (nodeApp/nodeBinary/nodeIcon) — changes only when an app starts or
-//     stops streaming. Decides whether a row is BOUND to its stream.
-//   media names (nodeName/nodeMedia)      — a track title changing.
-//   links (streamSink)                    — the most volatile by far: Firefox
-//     re-links on every seek and every ad transition, so this changes ~1×/s
-//     while a video plays (measured: 22 published snapshots in 25s).
-//
-// With one state, a link change re-rendered `appKeysOfNode`, so the row
-// recomputed its own binding on every re-link — and a node id that had just
-// changed was momentarily unnameable, painting the row in its transport-only
-// form for a single frame. A 10Hz poll cannot see a 16ms paint, which is why the
-// dips were gone from the data while the flicker was still on screen.
-//
-// So each concern is its own state, and readers subscribe only to what they use.
-
-interface GraphIdentity {
+interface GraphSnapshot {
+  streamSink: Record<number, number>
+  nodeName: Record<number, string>
   nodeApp: Record<number, string>
   nodeBinary: Record<number, string>
   nodeIcon: Record<number, string>
-}
-
-interface GraphNames {
-  nodeName: Record<number, string>
   nodeMedia: Record<number, string>
 }
 
-interface GraphLinks {
-  streamSink: Record<number, number>
+const EMPTY_SNAPSHOT: GraphSnapshot = {
+  streamSink: {},
+  nodeName: {},
+  nodeApp: {},
+  nodeBinary: {},
+  nodeIcon: {},
+  nodeMedia: {},
 }
 
-const EMPTY_IDENTITY: GraphIdentity = { nodeApp: {}, nodeBinary: {}, nodeIcon: {} }
-const EMPTY_NAMES: GraphNames = { nodeName: {}, nodeMedia: {} }
-const EMPTY_LINKS: GraphLinks = { streamSink: {} }
+const [graph, setGraph] = createState<GraphSnapshot>(EMPTY_SNAPSHOT)
 
-const [identity, setIdentity] = createState<GraphIdentity>(EMPTY_IDENTITY)
-const [names, setNames] = createState<GraphNames>(EMPTY_NAMES)
-const [links, setLinks] = createState<GraphLinks>(EMPTY_LINKS)
-
-export { identity as graphIdentity, names as graphNames, links as graphLinks }
-
-//: Cap on remembered identities. Node ids increase monotonically and Firefox
-//: churns them, so the merge below is bounded by dropping the LOWEST ids — the
-//: ones least likely to still exist.
-const IDENTITY_MEMORY_LIMIT = 96
-
-/**
- * Merge freshly parsed identities into what we already know.
- *
- * A node's application identity is immutable while it exists, so a parse that
- * omits an id we have already named is not a retraction — it is the snapshot
- * lagging behind a graph that just re-linked. Replacing wholesale (or clearing)
- * is what let a row lose its binding for a frame. Merging makes that structurally
- * impossible: an entry, once learned, cannot disappear.
- */
-function mergeIdentity(next: GraphIdentity): GraphIdentity {
-  const current = identity()
-  const merged: GraphIdentity = {
-    nodeApp: { ...current.nodeApp, ...next.nodeApp },
-    nodeBinary: { ...current.nodeBinary, ...next.nodeBinary },
-    nodeIcon: { ...current.nodeIcon, ...next.nodeIcon },
-  }
-  const ids = Object.keys(merged.nodeApp).map(Number).sort((a, b) => a - b)
-  if (ids.length > IDENTITY_MEMORY_LIMIT) {
-    for (const id of ids.slice(0, ids.length - IDENTITY_MEMORY_LIMIT)) {
-      delete merged.nodeApp[id]
-      delete merged.nodeBinary[id]
-      delete merged.nodeIcon[id]
-    }
-  }
-  return merged
-}
+export { graph }
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : ""
@@ -387,51 +332,42 @@ function asString(value: unknown): string {
 let snapshotInFlight = false
 let snapshotQueued = false
 
-/** Snapshot diagnostics, exposed via `ags request audio-debug`: how many dumps
- *  were started, and how many published — split by concern, because "the links
- *  changed" and "an app started streaming" have very different consequences.
- *  When a row's identity looks wrong, these say immediately whether the snapshot
- *  is stale, churning, or simply never taken. */
-export const snapshotStats: {
-  started: number
-  publishedIdentity: number
-  publishedNames: number
-  publishedLinks: number
-  unchanged: number
-  coalesced: number
-} = {
+/** Snapshot diagnostics, exposed via `ags request audio-debug`: how many times a
+ *  dump was actually started, how many published a change, and how many were
+ *  skipped because an identical snapshot was already held. When a row's identity
+ *  looks wrong, these say immediately whether the snapshot is stale, churning, or
+ *  simply never taken. */
+export const snapshotStats: { started: number; published: number; skipped: number; coalesced: number } = {
   started: 0,
-  publishedIdentity: 0,
-  publishedNames: 0,
-  publishedLinks: 0,
-  unchanged: 0,
+  published: 0,
+  skipped: 0,
   coalesced: 0,
 }
 
-/** Does this map pair say anything new? Compared BY VALUE: each setter installs a
- *  new object and gnim notifies on identity, so publishing an unchanged map
- *  re-renders every reader of it for nothing. That churn was itself visible: the
- *  Applications card blinked whenever a busy graph produced a dump identical to
- *  the one already held. */
-function sameMap(
-  x: Record<number, string | number>,
-  y: Record<number, string | number>,
-): boolean {
-  const keys = Object.keys(x)
-  if (keys.length !== Object.keys(y).length) return false
-  return keys.every((key) => x[Number(key)] === y[Number(key)])
-}
-
-function sameIdentity(a: GraphIdentity, b: GraphIdentity): boolean {
+/** Do the parsed maps say anything new? Compared BY VALUE: `setGraph` installs a
+ *  new object and gnim notifies on identity, so publishing an identical snapshot
+ *  re-renders every row that reads it for nothing. That churn was itself visible:
+ *  the Applications card blinked whenever a busy graph produced a dump identical
+ *  to the one already held. */
+function sameSnapshot(a: GraphSnapshot, b: GraphSnapshot): boolean {
+  const sameMap = (x: Record<number, string>, y: Record<number, string>): boolean => {
+    const keys = Object.keys(x)
+    if (keys.length !== Object.keys(y).length) return false
+    return keys.every((key) => x[Number(key)] === y[Number(key)])
+  }
+  const sameNumMap = (x: Record<number, number>, y: Record<number, number>): boolean => {
+    const keys = Object.keys(x)
+    if (keys.length !== Object.keys(y).length) return false
+    return keys.every((key) => x[Number(key)] === y[Number(key)])
+  }
   return (
+    sameNumMap(a.streamSink, b.streamSink) &&
+    sameMap(a.nodeName, b.nodeName) &&
     sameMap(a.nodeApp, b.nodeApp) &&
     sameMap(a.nodeBinary, b.nodeBinary) &&
-    sameMap(a.nodeIcon, b.nodeIcon)
+    sameMap(a.nodeIcon, b.nodeIcon) &&
+    sameMap(a.nodeMedia, b.nodeMedia)
   )
-}
-
-function sameNames(a: GraphNames, b: GraphNames): boolean {
-  return sameMap(a.nodeName, b.nodeName) && sameMap(a.nodeMedia, b.nodeMedia)
 }
 
 export async function refreshStreamTargets(): Promise<void> {
@@ -491,31 +427,12 @@ export async function refreshStreamTargets(): Promise<void> {
       if (sinkIds.has(toNode)) streamSink[fromNode] = toNode
     }
 
-    //: Published per concern, so a re-link (links only) does not invalidate the
-    //: readers that decide a row's identity or its track title. Identity is
-    //: MERGED, so it can never transiently lose a node it already named.
-    const nextIdentity: GraphIdentity = { nodeApp, nodeBinary, nodeIcon }
-    const merged = mergeIdentity(nextIdentity)
-    if (!sameIdentity(identity(), merged)) {
-      snapshotStats.publishedIdentity++
-      setIdentity(merged)
-    }
-    const nextNames: GraphNames = { nodeName, nodeMedia }
-    if (!sameNames(names(), nextNames)) {
-      snapshotStats.publishedNames++
-      setNames(nextNames)
-    }
-    const nextLinks: GraphLinks = { streamSink }
-    if (!sameMap(links().streamSink, nextLinks.streamSink)) {
-      snapshotStats.publishedLinks++
-      setLinks(nextLinks)
-    }
-    if (
-      sameIdentity(identity(), merged) &&
-      sameNames(names(), nextNames) &&
-      sameMap(links().streamSink, nextLinks.streamSink)
-    ) {
-      snapshotStats.unchanged++
+    const next: GraphSnapshot = { streamSink, nodeName, nodeApp, nodeBinary, nodeIcon, nodeMedia }
+    if (sameSnapshot(graph(), next)) {
+      snapshotStats.skipped++
+    } else {
+      snapshotStats.published++
+      setGraph(next)
     }
   } catch (e) {
     console.error("audio: graph snapshot failed:", e)
@@ -533,7 +450,8 @@ export async function refreshStreamTargets(): Promise<void> {
 function sinkNameById(sinkId: number): string | null {
   const fromEndpoints = (outputDevices() ?? []).find((s) => nodeOf(s)?.id === sinkId)
   if (fromEndpoints) return nodeLabel(nodeOf(fromEndpoints), "")
-  return names().nodeName[sinkId] ?? null
+  const snap = graph()
+  return snap.nodeName[sinkId] ?? null
 }
 
 /** Human name of the sink a stream is effectively playing on. */
@@ -543,7 +461,8 @@ export function effectiveSinkName(stream: unknown): string {
   const explicit = nodeOf(node?.target_endpoint)
   if (explicit) return nodeLabel(explicit, "Unknown output")
   // 2. Link-resolved sink — the ground truth for externally-routed streams.
-  const sinkId = node?.id !== undefined ? links().streamSink[node.id] : undefined
+  const snap = graph()
+  const sinkId = node?.id !== undefined ? snap.streamSink[node.id] : undefined
   if (sinkId !== undefined) {
     const name = sinkNameById(sinkId)
     if (name) return name
@@ -555,8 +474,9 @@ export function effectiveSinkName(stream: unknown): string {
 /** The application name a stream reports (Chrome, tidal-hifi, …). */
 export function streamAppName(stream: unknown): string {
   const node = nodeOf(stream)
+  const snap = graph()
   if (node?.id !== undefined) {
-    const app = identity().nodeApp[node.id]
+    const app = snap.nodeApp[node.id]
     if (app) return app
   }
   return nodeLabel(nodeOf(stream), "")
@@ -567,8 +487,9 @@ export function streamAppName(stream: unknown): string {
  *  from the snapshot's `node.description`. */
 export function streamMediaName(stream: unknown): string {
   const node = nodeOf(stream)
+  const snap = graph()
   if (node?.id === undefined) return ""
-  return names().nodeMedia[node.id] ?? ""
+  return snap.nodeMedia[node.id] ?? ""
 }
 
 /** True once a graph snapshot has actually been parsed.
@@ -582,7 +503,8 @@ export function streamMediaName(stream: unknown): string {
  *  up with. Refreshing until the first snapshot exists keeps identity available
  *  everywhere; afterwards the popup's own gate is enough. */
 export function hasGraphSnapshot(): boolean {
-  return Object.keys(identity().nodeApp).length > 0
+  const snapshot = graph()
+  return Object.keys(snapshot.nodeApp).length > 0
 }
 
 /** Slug an application name to an icon-name candidate: lowercase, spaces and
@@ -636,13 +558,7 @@ const streamKeysByNodeId = new Map<number, string[]>()
 function appKeysOfNode(node: WpNode | null): Set<string> {
   const keys = new Set<string>()
   if (!node) return keys
-  //: Subscribes to the IDENTITY state ONLY — the slowest-changing of the three.
-  //: Under the old single shared state this function was re-evaluated on every
-  //: re-link (~1/s while a Firefox video plays, measured), and a node id that had
-  //: just changed was momentarily unnameable, so the row painted itself unbound
-  //: for a single frame. A data poll cannot see a 16ms paint; splitting the state
-  //: means this function is not even called when only the links moved.
-  const snap = identity()
+  const snap = graph()
   const raws: string[] = []
   if (node.id !== undefined) {
     const app = snap.nodeApp[node.id]
@@ -688,19 +604,16 @@ function appKeysOfNode(node: WpNode | null): Set<string> {
  * MPRIS service can resolve an unclaimed player onto the stream's key, which is
  * what collapses a Firefox-style double row into one.
  */
-//: The parameter is deliberately NOT named `identity`: that is the snapshot state
-//: below, and a same-named parameter shadows it for the bundler, which then emits
-//: a renamed binding and fails at runtime with `identity2 is not a function`.
-setAppIdentitySource((appIdentity) => {
+setAppIdentitySource((identity) => {
   const keys: string[] = []
   for (const stream of playbackStreams() ?? []) {
     const node = nodeOf(stream)
     if (node === null || node.id === undefined) continue
-    const snap = identity()
+    const snap = graph()
     const candidates = [snap.nodeApp[node.id], snap.nodeBinary[node.id]]
       .filter((value): value is string => typeof value === "string" && value !== "")
     if (candidates.length === 0) continue
-    if (!identityMatches(appIdentity, candidates)) continue
+    if (!identityMatches(identity, candidates)) continue
     for (const key of appKeysOfNode(node)) {
       if (!keys.includes(key)) keys.push(key)
     }
@@ -898,7 +811,8 @@ export function effectiveSinkIdForApp(app: string): number | null {
   if (!node) return null
   const explicit = nodeOf(node.target_endpoint)
   if (explicit?.id !== undefined) return explicit.id
-  const linked = node.id !== undefined ? links().streamSink[node.id] : undefined
+  const snap = graph()
+  const linked = node.id !== undefined ? snap.streamSink[node.id] : undefined
   if (linked !== undefined) return linked
   return nodeOf(defaultSpeaker())?.id ?? null
 }
@@ -966,7 +880,7 @@ export const applicationRows: Accessor<AppRow[]> = createComputed(() => {
  *  `application.icon-name`, then the slug of the app name. */
 function appIconCandidates(stream: unknown): string[] {
   const node = nodeOf(stream)
-  const snap = identity()
+  const snap = graph()
   const candidates: string[] = []
   if (node?.id !== undefined) {
     const iconName = snap.nodeIcon[node.id]
