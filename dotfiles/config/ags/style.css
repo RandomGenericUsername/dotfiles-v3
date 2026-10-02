@@ -1041,6 +1041,18 @@ window.settings-panel {
   min-width: 0;
 }
 
+/* The subtitle line is conditionally rendered (no media name → no line), and a
+   line appearing or disappearing RESIZED the row: the whole Applications card
+   jumped, dragging the volume and transport lines with it. That jump was plainly
+   visible in a screen recording of the panel. Reserving the second line keeps
+   every row the same height whether or not it has a subtitle, so a title change
+   can never move anything else. Two lines: 13px title + 11px subtitle + the
+   2px gap GTK adds between them, rounded up so fractional font metrics cannot
+   clip the descenders. */
+.audio-row-meta {
+  min-height: 34px;
+}
+
 .audio-row-title {
   font-size: 13px;
   font-weight: 600;

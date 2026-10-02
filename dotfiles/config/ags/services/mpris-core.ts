@@ -33,6 +33,15 @@ export const ALIAS: Record<string, string> = {
   tidal: "tidal-hifi",
   "brave-browser": "brave-browser",
   firefox: "firefox",
+  //: Measured live: Firefox's MPRIS root `Identity` is "Mozilla firefox" while
+  //: its PipeWire stream reports `application.name = "Firefox"` /
+  //: `application.process.binary = "firefox"`. Without this fold the two sides
+  //: canonicalise to DIFFERENT keys (`firefox` vs `mozilla-firefox`), so the
+  //: Applications list showed the same playback twice — one row with the
+  //: volume/routing controls and no transport, one with the transport and a
+  //: dead `—` volume line. Folding them is what makes Tidal's single clean row
+  //: the rule for every app, not just the ones already in this table.
+  "mozilla-firefox": "firefox",
   spotify: "spotify",
   "youtube-music": "youtube-music",
 }
@@ -58,6 +67,12 @@ export interface TrackMeta {
   artist: string
   album: string
   lengthUs: number
+  /** `xesam:url` — the media's own locator. Firefox/YouTube report it, and it is
+   *  the only STABLE per-track identity available: `mpris:trackid` is a dummy
+   *  (`/org/mpris/MediaPlayer2/firefox`, identical for every track a tab plays),
+   *  so it cannot tell two videos apart. Carried so a duration can be remembered
+   *  against the track it belongs to. */
+  url: string
 }
 
 //: Reader for `a{sv}` dicts: `recursiveUnpack` yields a plain object, but a
@@ -94,7 +109,47 @@ export function parseMetadata(raw: Record<string, unknown>): TrackMeta {
     artist: asArtist(rawGet(raw, "xesam:artist")),
     album: asString(rawGet(raw, "xesam:album")),
     lengthUs: length,
+    url: asString(rawGet(raw, "xesam:url")),
   }
+}
+
+/**
+ * Do two metadata snapshots describe the same track?
+ *
+ * `mpris:trackid` cannot answer this (it is a per-PLAYER dummy on Firefox and on
+ * Chromium alike), so the media's own locator is the primary key: `xesam:url` is
+ * exact when the app publishes it. A title is a weak fallback — good enough to
+ * keep a duration while an app re-announces the same track, never strong enough
+ * to carry one across genuinely different media.
+ */
+export function isSameTrack(a: TrackMeta, b: TrackMeta): boolean {
+  if (a.url !== "" && b.url !== "") return a.url === b.url
+  if (a.title !== "" && b.title !== "") return a.title === b.title
+  return false
+}
+
+/**
+ * Keep a known duration when a re-announcement drops it.
+ *
+ * Apps publish `mpris:length` once and then re-announce `Metadata` without it —
+ * measured on this machine: Firefox reported `mpris:length = 1043000000` for a
+ * YouTube track, then emitted the SAME track (identical `xesam:url` and title)
+ * with the key simply absent. Taking that at face value dropped the duration to
+ * "unknown", which is what made the seek slider disappear from under the user
+ * after one seek — the only way back was pausing and resuming the app.
+ *
+ * A duration is a property of the TRACK, not of the announcement, so a dropped
+ * one is carried forward for as long as the re-announcement still names the same
+ * track. A genuinely new track (different url, or a different title when no url
+ * is published) is never given the old duration — inheriting one would put the
+ * seek slider on a timeline that belongs to different media, which is the exact
+ * failure this guards against.
+ */
+export function carryDuration(next: TrackMeta, previous: TrackMeta | null | undefined): TrackMeta {
+  if (next.lengthUs > 0 || previous === null || previous === undefined) return next
+  if (previous.lengthUs <= 0) return next
+  if (!isSameTrack(next, previous)) return next
+  return { ...next, lengthUs: previous.lengthUs }
 }
 
 //: `m:ss`; `""` when there is no known positive duration (WP-B contract §5).
@@ -174,6 +229,78 @@ function canonicalToken(value: string): string {
  *  (`chromium`/`chrome`/`google-chrome` → `google-chrome`). */
 export function canonicalIdentity(identity: string): string {
   return canonicalToken(identity)
+}
+
+// ── App identity resolution (one row per real app) ─────────────────────────
+//
+// The Applications list is built from TWO sources that name the same app
+// differently: a PipeWire stream (`application.name` / `application.process.binary`)
+// and an MPRIS player (`Identity`). Both sides canonicalise independently, so
+// whenever the two spellings differ the union produced by the popup shows the
+// SAME playback twice: one row carrying the volume/routing controls and no
+// transport, one carrying the transport and a dead `—` volume line. Measured:
+// stream `Firefox` → key `firefox`, player `Identity "Mozilla firefox"` → key
+// `mozilla-firefox`. Tidal looked fine purely because its spellings already
+// fold onto one key.
+//
+// `resolveAppIdentities` is the seam that makes that impossible: for a player
+// whose canonical key is not already claimed by a stream, it asks the host
+// which live stream it belongs to and yields the STREAM's key. The row is then
+// keyed by that key, and every per-app read (stream lookup, transport, volume,
+// routing) resolves through the SAME key — so the row is unified by
+// construction rather than by coincidence of a maintained alias table.
+//
+// Pure by construction: it takes a resolver callback, so the whole rule is
+// node-testable here (I11) and the GJS side only supplies the closure.
+
+/** Host seam: does a live stream claim this identity? Supplied by the audio
+ *  state, which owns the PipeWire graph; kept as a callback so this core stays
+ *  free of GJS imports. */
+export type AppIdentityResolver = (identity: string) => string[]
+
+/**
+ * Canonical app keys for one MPRIS player, most specific first.
+ *
+ * `taken` are the keys already claimed by a live playback stream. A player's own
+ * canonical key is normally one of them, or folds onto one (`ALIAS`); only when
+ * it does not — the spelling genuinely differs — is the resolver consulted.
+ * `identity` (the raw root property) is offered to the resolver as well as the
+ * canonical form, so a host matcher can use whichever it understands.
+ */
+export function resolveAppIdentities(
+  player: { identity: string; canonical: string },
+  taken: Set<string>,
+  resolve?: AppIdentityResolver,
+): string[] {
+  if (taken.has(player.canonical)) return [player.canonical]
+  const candidates: string[] = []
+  //: Bound to a local so the call site reads as one seam (`ask`) — and so the
+  //: repo's symbol checker resolves it as a definition rather than a free
+  //: identifier (it only harvests simple `(a, b) =>` params).
+  const ask = resolve
+  if (ask !== undefined) {
+    for (const identity of [player.canonical, player.identity]) {
+      if (identity === "") continue
+      for (const key of ask(identity) ?? []) {
+        if (key !== "" && !candidates.includes(key)) candidates.push(key)
+      }
+    }
+  }
+  if (candidates.length === 0) return [player.canonical]
+  //: The canonical key stays as a fallback so `playerForApp(<canonical>)` keeps
+  //: working for a caller that only knows the player's own spelling — but only
+  //: when the resolver did not already hand it back.
+  if (!candidates.includes(player.canonical)) candidates.push(player.canonical)
+  return candidates
+}
+
+/** The row key an app row uses (I1: a stable identity, never an object). */
+export function keyForPlayer(
+  player: { identity: string; canonical: string },
+  taken: Set<string>,
+  resolve?: AppIdentityResolver,
+): string {
+  return resolveAppIdentities(player, taken, resolve)[0]
 }
 
 export function identityMatches(identity: string, candidates: string[]): boolean {

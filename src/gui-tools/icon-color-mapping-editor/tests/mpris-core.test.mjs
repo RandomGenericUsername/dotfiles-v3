@@ -54,6 +54,9 @@ check("alias google-chrome", mpris.ALIAS["google-chrome"], "google-chrome");
 check("alias tidal-hifi", mpris.ALIAS["tidal-hifi"], "tidal-hifi");
 check("alias brave-browser", mpris.ALIAS["brave-browser"], "brave-browser");
 check("alias firefox", mpris.ALIAS.firefox, "firefox");
+//: Measured live: the stream says "Firefox", the MPRIS root Identity says
+//: "Mozilla firefox". Unfolded, the popup listed the same playback twice.
+check("alias mozilla-firefox → firefox", mpris.ALIAS["mozilla-firefox"], "firefox");
 check("alias spotify", mpris.ALIAS.spotify, "spotify");
 check("alias youtube-music", mpris.ALIAS["youtube-music"], "youtube-music");
 
@@ -64,6 +67,7 @@ check("metadata missing keys default", mpris.parseMetadata({}), {
   artist: "",
   album: "",
   lengthUs: 0,
+  url: "",
 });
 check(
   "metadata full values",
@@ -72,8 +76,15 @@ check(
     "xesam:artist": ["A", "B"],
     "xesam:album": "Album",
     "mpris:length": 4_020_000,
+    "xesam:url": "https://example.test/watch?v=1",
   }),
-  { title: "Song", artist: "A, B", album: "Album", lengthUs: 4_020_000 },
+  {
+    title: "Song",
+    artist: "A, B",
+    album: "Album",
+    lengthUs: 4_020_000,
+    url: "https://example.test/watch?v=1",
+  },
 );
 check(
   "metadata artist string tolerated",
@@ -250,6 +261,162 @@ check(
     { identity: "b", status: "Paused", lastPlayingAt: 100 },
   ]).identity,
   "a",
+);
+
+// ── resolveAppIdentities / keyForPlayer (one row per real app) ───────────
+//
+// The reported duplicate row: one playback, two names. The stream claims
+// `firefox`; the player's root Identity is "Mozilla firefox". Without
+// resolution the Applications list unioned both keys into two rows — one with
+// the volume/routing controls and no transport, one with the transport and a
+// dead `—` volume line.
+
+const firefoxPlayer = { identity: "Mozilla firefox", canonical: "mozilla-firefox" };
+//: A resolver shaped like the one audio/state.ts installs: given an identity,
+//: the canonical app keys of the live streams that claim it (matched through
+//: ALIAS against the stream's `application.name` / process binary).
+const streamClaims = (claims) => (identity) => {
+  const keys = [];
+  for (const [key, candidates] of Object.entries(claims)) {
+    if (candidates.some((candidate) => mpris.identityMatches(identity, [candidate]))) {
+      keys.push(key);
+    }
+  }
+  return keys;
+};
+
+check(
+  "unclaimed key folds through ALIAS to the stream's key",
+  mpris.keyForPlayer(firefoxPlayer, new Set(), streamClaims({ firefox: ["firefox"] })),
+  "firefox",
+);
+check(
+  "an already-claimed key is used verbatim (resolver not consulted)",
+  mpris.keyForPlayer(
+    { identity: "Tidal Hi-Fi", canonical: "tidal-hifi" },
+    new Set(["tidal-hifi"]),
+    () => {
+      throw new Error("resolver must not run for a claimed key");
+    },
+  ),
+  "tidal-hifi",
+);
+//: A player whose app has no stream at all keeps its own key — a player-only row
+//: (D8) must still appear, and must not be folded into an unrelated app.
+check(
+  "player with no stream keeps its own canonical key",
+  mpris.keyForPlayer(
+    { identity: "Discord", canonical: "discord" },
+    new Set(["firefox"]),
+    streamClaims({ firefox: ["firefox"] }),
+  ),
+  "discord",
+);
+check(
+  "no resolver installed keeps the canonical key",
+  mpris.keyForPlayer(firefoxPlayer, new Set()),
+  "mozilla-firefox",
+);
+check(
+  "an empty identity never matches",
+  mpris.keyForPlayer({ identity: "", canonical: "" }, new Set(), streamClaims({ firefox: ["firefox"] })),
+  "",
+);
+//: Both spellings offered to the resolver: the raw Identity AND the canonical
+//: form, so a host matcher may use either. Duplicates collapse, order preserved.
+check(
+  "resolve returns the stream key first, canonical as fallback",
+  mpris.resolveAppIdentities(firefoxPlayer, new Set(), streamClaims({ firefox: ["Firefox", "firefox"] })),
+  ["firefox", "mozilla-firefox"],
+);
+check(
+  "resolve dedupes a resolver that answers twice",
+  mpris.resolveAppIdentities(
+    { identity: "chromium", canonical: "google-chrome" },
+    new Set(),
+    () => ["google-chrome", "google-chrome"],
+  ),
+  ["google-chrome"],
+);
+check("resolve without a resolver is the canonical key", mpris.resolveAppIdentities(firefoxPlayer, new Set()), [
+  "mozilla-firefox",
+]);
+
+// ── isSameTrack / carryDuration (a duration belongs to the TRACK) ─────────
+//
+// Measured: Firefox published `mpris:length = 1043000000` for a YouTube track,
+// then re-announced the SAME track (identical `xesam:url` and title) with the key
+// absent. Read literally that is "duration unknown", which is what removed the
+// seek slider from under the user mid-playback.
+
+const track = (over) => ({
+  title: "Garuda Linux GNOME came!",
+  artist: "",
+  album: "",
+  lengthUs: 0,
+  url: "https://www.youtube.com/watch?v=Wk2rTYhn71I",
+  ...over,
+});
+const known = track({ lengthUs: 1_043_000_000 });
+
+check(
+  "same track by url even when the title moved on",
+  mpris.isSameTrack(known, track({ title: "renamed by the site" })),
+  true,
+);
+check(
+  "different url is a different track",
+  mpris.isSameTrack(known, track({ url: "https://www.youtube.com/watch?v=other" })),
+  false,
+);
+check(
+  "no url falls back to the title",
+  mpris.isSameTrack(
+    { title: "Song", artist: "", album: "", lengthUs: 0, url: "" },
+    { title: "Song", artist: "", album: "", lengthUs: 0, url: "" },
+  ),
+  true,
+);
+check(
+  "no url and a different title is a different track",
+  mpris.isSameTrack(
+    { title: "Song", artist: "", album: "", lengthUs: 0, url: "" },
+    { title: "Other", artist: "", album: "", lengthUs: 0, url: "" },
+  ),
+  false,
+);
+//: Neither side names the track → no opinion, so nothing is carried across.
+check(
+  "unidentifiable tracks are never the same",
+  mpris.isSameTrack(track({ url: "", title: "" }), track({ url: "", title: "" })),
+  false,
+);
+
+check(
+  "dropped length is carried forward for the same track",
+  mpris.carryDuration(track({}), known).lengthUs,
+  1_043_000_000,
+);
+check(
+  "a new track inherits nothing",
+  mpris.carryDuration(track({ url: "https://www.youtube.com/watch?v=other" }), known).lengthUs,
+  0,
+);
+check(
+  "an announced length always wins",
+  mpris.carryDuration(track({ lengthUs: 5_000 }), known).lengthUs,
+  5_000,
+);
+check(
+  "no previous metadata to carry from",
+  mpris.carryDuration(track({}), null).lengthUs,
+  0,
+);
+check(
+  "carry is per-track, not global: a second video starts unknown",
+  mpris.carryDuration(track({ url: "https://www.youtube.com/watch?v=second" }), track({ lengthUs: 0, url: "https://www.youtube.com/watch?v=second" }))
+    .lengthUs,
+  0,
 );
 
 if (failures > 0) {

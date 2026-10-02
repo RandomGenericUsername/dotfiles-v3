@@ -3,8 +3,16 @@ import { Accessor, createBinding, createComputed, createEffect, createState, onC
 import { execAsync } from "ags/process"
 import GLib from "gi://GLib?version=2.0"
 import { registry } from "../lib/icon-registry"
-import { activePlayer, playersByApp, type MprisPlayer } from "../services/mpris-service"
-import { ALIAS, canonicalIdentity } from "../services/mpris-core"
+import {
+  activePlayer,
+  heldPositionsSnapshot,
+  playersByApp,
+  setAppIdentitySource,
+  setClaimedStreamKeys,
+  setPlayerPlaying,
+  type MprisPlayer,
+} from "../services/mpris-service"
+import { ALIAS, canonicalIdentity, identityMatches } from "../services/mpris-core"
 
 /**
  * Shared audio state + data model for the AGS bar instance
@@ -86,8 +94,110 @@ export const recordingStreams = byClass(MEDIA_CLASS.STREAM_INPUT)
  * live `default_speaker`/`default_microphone` for its `.id`, then find the
  * matching node. The result re-evaluates whenever the graph changes, and the
  * node object carries the live `volume`/`mute`.
+ *
+ * ── Why `defaultEndpointEpoch` exists (measured, not inferred) ──────────────
+ * The sentence above is true but INSUFFICIENT, and the gap was the reported
+ * "the main Output never changes — it is always the speakers" bug. Measured
+ * live with a throwaway null sink (created, set as default, removed):
+ *
+ *   `wpctl set-default <other sink>`  →  `wp.default_speaker.id` updates
+ *                                         IN-PROCESS and immediately, and
+ *   `wp.nodes`                        →  UNCHANGED (both sinks stay enumerated)
+ *   `notify::default-speaker`         →  NEVER FIRES
+ *
+ * So a computed that depends only on `wp.nodes` membership never re-evaluates
+ * when the default changes, and the Output card stayed pinned to whichever sink
+ * happened to be resolved first — forever. Per-app routing was unaffected
+ * because it goes through `target_endpoint` + a fresh `pw-dump` snapshot.
+ *
+ * The fix is a locally-owned epoch, bumped by every signal that can move a
+ * default: our own `wpctl set-default` writes, any `wp.nodes` notify (a sink
+ * connecting/leaving re-resolves the default), and the popup opening (a
+ * user-action read, which also picks up a default changed outside the panel —
+ * pavucontrol, a keybind, a hotplug). No polling (I1): these are events and one
+ * user action.
+ *
+ * ── …and why the write alone was not enough ──────────────────────────────
+ * Bumping the epoch the moment `wpctl` exits re-reads `wp.default_speaker` too
+ * early: WirePlumber applies the change in its own daemon, AFTER the client
+ * process is gone. Measured on this machine, 7ms after the `wpctl` process
+ * exited the property still named the OLD sink; the flip landed ~20ms later.
+ * So the re-resolve ran, read the stale value, and the card stayed on the old
+ * device until some LATER trigger arrived — which is exactly the reported
+ * "I have to change it twice, or play something, before it updates (even
+ * though the audio actually switched)". A write is therefore followed by a
+ * BOUNDED settle: re-resolve until the default really is the target, or the
+ * budget expires. Bounded, started by a user action, and it stops the moment
+ * the graph agrees — the same one-shot-after-a-write shape `routeStreamTo`
+ * already uses for its own snapshot.
  */
 type DefaultEndpoint = { id?: number }
+
+//: Settle budget for a default WE just wrote. 15 × 100ms = 1.5s, far above the
+//: measured ~20ms, and it aborts the moment the target is seen.
+const DEFAULT_SETTLE_MS = 100
+const DEFAULT_SETTLE_ATTEMPTS = 15
+
+//: Bumped whenever the default endpoint may have changed. Read by
+//: `defaultNodeFor` so the resolution re-runs even though `wp.nodes` did not.
+const [defaultEndpointEpoch, bumpDefaultEndpoint] = createState(0)
+
+/** Invalidate the resolved default endpoint. Called by the actions that write a
+ *  default, by the `wp.nodes` notifier, and on popup open. */
+export function invalidateDefaultEndpoint(): void {
+  bumpDefaultEndpoint((n) => n + 1)
+}
+
+/** Re-resolve until a default we just wrote is actually in force.
+ *
+ *  Bumps immediately (the daemon may already have applied it) and then retries
+ *  on a short timer, aborting as soon as `default_speaker`/`default_microphone`
+ *  names the requested node — or when the budget runs out, which leaves the
+ *  panel no worse off than before. Purely a re-resolution: no state is read
+ *  into the UI from here, and the timer never outlives the budget.
+ *
+ *  On completion it also re-snapshots the graph. Changing the default makes
+ *  WirePlumber re-link every stream to the new sink, and the per-app routing
+ *  labels are resolved from that `pw-dump` snapshot — so without this the cards
+ *  would update while the rows still advertised the old device until the next
+ *  popup open. Same one-shot-after-a-write shape as `routeStreamTo`. */
+function settleDefault(kind: "speaker" | "microphone", targetId: number): void {
+  let attempts = 0
+  const recheck = (): boolean => {
+    invalidateDefaultEndpoint()
+    attempts += 1
+    const settled = defaultNodeId(kind) === targetId
+    if (settled) void refreshStreamTargets()
+    if (settled) return false
+    return attempts < DEFAULT_SETTLE_ATTEMPTS
+  }
+  GLib.timeout_add(GLib.PRIORITY_DEFAULT, DEFAULT_SETTLE_MS, recheck)
+}
+
+//: A sink appearing or disappearing re-points WirePlumber's default (measured:
+//: disconnecting the configured Bluetooth sink fell back to the analog one), so
+//: the default must be re-resolved when the graph changes — but ONLY when the
+//: default actually moved. Bumping on every notify was a regression of its own:
+//: an app whose streams churn (Firefox re-links on every seek and ad transition,
+//: measured) fires `wp.nodes` notifications constantly, and each one re-resolved
+//: the Output card. AstalWp hands back a FRESH GObject wrapper per lookup, so the
+//: card re-rendered against a new object identity on every notification — the
+//: flicker recorded in the Output section of the user's screen recording.
+//: Comparing the resolved id is what distinguishes "the default moved" from
+//: "the graph is busy", and only the former needs the UI to change.
+if (wp) {
+  let lastSpk: number | undefined
+  let lastMic: number | undefined
+  createEffect(() => {
+    allNodes()
+    const spk = defaultNodeId("speaker")
+    const mic = defaultNodeId("microphone")
+    const moved = spk !== lastSpk || mic !== lastMic
+    lastSpk = spk
+    lastMic = mic
+    if (moved) invalidateDefaultEndpoint()
+  })
+}
 
 function defaultNodeId(kind: "speaker" | "microphone"): number | undefined {
   if (!wp) return undefined
@@ -99,6 +209,9 @@ function defaultNodeId(kind: "speaker" | "microphone"): number | undefined {
 
 function defaultNodeFor(mediaClass: number): Accessor<WpNode | null> {
   return createComputed(() => {
+    //: The epoch is the ONLY dependency that moves when the default changes —
+    //: `wp.nodes` membership demonstrably does not (see the note above).
+    defaultEndpointEpoch()
     const id = defaultNodeId(mediaClass === MEDIA_CLASS.AUDIO_SINK ? "speaker" : "microphone")
     const list = allNodes() ?? []
     if (id !== undefined) {
@@ -211,7 +324,61 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : ""
 }
 
+//: In-flight/queued bookkeeping for the graph snapshot. Firefox re-links its
+//: stream on every seek and every ad transition, so while the popup is open the
+//: `wp.nodes` binding can fire many times a second. Spawning a `pw-dump` per
+//: notification means dozens of concurrent processes whose results land in an
+//: arbitrary order — and the LAST one to land wins, so a stale parse could
+//: overwrite a fresher one. One in flight, at most one queued behind it.
+let snapshotInFlight = false
+let snapshotQueued = false
+
+/** Snapshot diagnostics, exposed via `ags request audio-debug`: how many times a
+ *  dump was actually started, how many published a change, and how many were
+ *  skipped because an identical snapshot was already held. When a row's identity
+ *  looks wrong, these say immediately whether the snapshot is stale, churning, or
+ *  simply never taken. */
+export const snapshotStats: { started: number; published: number; skipped: number; coalesced: number } = {
+  started: 0,
+  published: 0,
+  skipped: 0,
+  coalesced: 0,
+}
+
+/** Do the parsed maps say anything new? Compared BY VALUE: `setGraph` installs a
+ *  new object and gnim notifies on identity, so publishing an identical snapshot
+ *  re-renders every row that reads it for nothing. That churn was itself visible:
+ *  the Applications card blinked whenever a busy graph produced a dump identical
+ *  to the one already held. */
+function sameSnapshot(a: GraphSnapshot, b: GraphSnapshot): boolean {
+  const sameMap = (x: Record<number, string>, y: Record<number, string>): boolean => {
+    const keys = Object.keys(x)
+    if (keys.length !== Object.keys(y).length) return false
+    return keys.every((key) => x[Number(key)] === y[Number(key)])
+  }
+  const sameNumMap = (x: Record<number, number>, y: Record<number, number>): boolean => {
+    const keys = Object.keys(x)
+    if (keys.length !== Object.keys(y).length) return false
+    return keys.every((key) => x[Number(key)] === y[Number(key)])
+  }
+  return (
+    sameNumMap(a.streamSink, b.streamSink) &&
+    sameMap(a.nodeName, b.nodeName) &&
+    sameMap(a.nodeApp, b.nodeApp) &&
+    sameMap(a.nodeBinary, b.nodeBinary) &&
+    sameMap(a.nodeIcon, b.nodeIcon) &&
+    sameMap(a.nodeMedia, b.nodeMedia)
+  )
+}
+
 export async function refreshStreamTargets(): Promise<void> {
+  if (snapshotInFlight) {
+    snapshotQueued = true
+    snapshotStats.coalesced++
+    return
+  }
+  snapshotInFlight = true
+  snapshotStats.started++
   try {
     const out = (await execAsync(["pw-dump"])) as unknown as string
     const dump = JSON.parse(out) as Array<{
@@ -261,9 +428,21 @@ export async function refreshStreamTargets(): Promise<void> {
       if (sinkIds.has(toNode)) streamSink[fromNode] = toNode
     }
 
-    setGraph({ streamSink, nodeName, nodeApp, nodeBinary, nodeIcon, nodeMedia })
+    const next: GraphSnapshot = { streamSink, nodeName, nodeApp, nodeBinary, nodeIcon, nodeMedia }
+    if (sameSnapshot(graph(), next)) {
+      snapshotStats.skipped++
+    } else {
+      snapshotStats.published++
+      setGraph(next)
+    }
   } catch (e) {
     console.error("audio: graph snapshot failed:", e)
+  } finally {
+    snapshotInFlight = false
+    if (snapshotQueued) {
+      snapshotQueued = false
+      void refreshStreamTargets()
+    }
   }
 }
 
@@ -314,6 +493,21 @@ export function streamMediaName(stream: unknown): string {
   return snap.nodeMedia[node.id] ?? ""
 }
 
+/** True once a graph snapshot has actually been parsed.
+ *
+ *  A stream's app identity lives ONLY in the `pw-dump` snapshot (AstalWp exposes
+ *  no `application.name`, and `node.description` is null for Firefox), so a panel
+ *  that has never snapshotted cannot name any stream. Without this, the snapshot
+ *  was taken solely while the popup was open, which left the rest of the surface
+ *  — and `ags request audio-debug` — reporting an active stream with no identity
+ *  at all, and the first popup open paying for a snapshot it then had to catch
+ *  up with. Refreshing until the first snapshot exists keeps identity available
+ *  everywhere; afterwards the popup's own gate is enough. */
+export function hasGraphSnapshot(): boolean {
+  const snapshot = graph()
+  return Object.keys(snapshot.nodeApp).length > 0
+}
+
 /** Slug an application name to an icon-name candidate: lowercase, spaces and
  *  punctuation → `-` (e.g. "YouTube Music" → `youtube-music`). Lets an app with
  *  no `application.icon-name` still match a brand asset by its display name. */
@@ -345,6 +539,22 @@ function slugifyAppName(name: string): string | null {
 // binary (`chrome`); `identityMatches` canonicalises BOTH sides through the
 // alias table, so either field links (contract §5, resolved in bffa66c4).
 
+/** Canonical keys last resolved for each stream node id.
+ *
+ *  The keys come from the `pw-dump` snapshot, which is refreshed ASYNCHRONOUSLY
+ *  and therefore lags the graph by one round-trip. Measured across a seek: the
+ *  Firefox stream's node id stayed 76 the whole time, yet for ~120ms the row had
+ *  no keys at all — the snapshot momentarily carried no `application.name` for
+ *  that id — so the row unbound from its stream, fell back to the player's
+ *  identity for its title, and showed a dead `—` volume line. That is the reset
+ *  in the screen recording, and it lasted exactly one dump.
+ *
+ *  Because the node id is STABLE across a re-link (the links change, the node
+ *  does not — measured), the resolved identity is cached per id and reused when
+ *  a snapshot comes back incomplete. The cache only fills a gap: a genuinely new
+ *  node still has to be named by a snapshot, and a key is never invented. */
+const streamKeysByNodeId = new Map<number, string[]>()
+
 /** Canonical app keys for one stream node (Identity/ALIAS-folded). */
 function appKeysOfNode(node: WpNode | null): Set<string> {
   const keys = new Set<string>()
@@ -371,18 +581,70 @@ function appKeysOfNode(node: WpNode | null): Set<string> {
     const slug = slugifyAppName(raw)
     if (slug) keys.add(canonicalIdentity(slug))
   }
+  //: Last resort, and the one that matters in practice: a snapshot taken while
+  //: the node was mid-re-link. The id is unchanged across that window, so the
+  //: identity we already resolved for it is still true — using it keeps the row
+  //: bound instead of dropping to the player-only rendering for a frame.
+  if (keys.size === 0 && node.id !== undefined) {
+    const cached = streamKeysByNodeId.get(node.id)
+    if (cached !== undefined) for (const key of cached) keys.add(key)
+  }
+  if (keys.size > 0 && node.id !== undefined) {
+    streamKeysByNodeId.set(node.id, [...keys])
+  }
   return keys
 }
 
-/** The MPRIS player for one app (canonical key), or null when the app has no
+/**
+ * Close the identity loop between the two naming sources.
+ *
+ * A stream claims an app under its OWN canonical keys; this answers the mirror
+ * question — "which app keys do the live streams claim for THIS identity?" — by
+ * matching the identity against every stream's raw identity candidates through
+ * the same `ALIAS` fold `identityMatches` uses. Installed at module load so the
+ * MPRIS service can resolve an unclaimed player onto the stream's key, which is
+ * what collapses a Firefox-style double row into one.
+ */
+setAppIdentitySource((identity) => {
+  const keys: string[] = []
+  for (const stream of playbackStreams() ?? []) {
+    const node = nodeOf(stream)
+    if (node === null || node.id === undefined) continue
+    const snap = graph()
+    const candidates = [snap.nodeApp[node.id], snap.nodeBinary[node.id]]
+      .filter((value): value is string => typeof value === "string" && value !== "")
+    if (candidates.length === 0) continue
+    if (!identityMatches(identity, candidates)) continue
+    for (const key of appKeysOfNode(node)) {
+      if (!keys.includes(key)) keys.push(key)
+    }
+  }
+  return keys
+})
+
+/** The MPRIS player for one app (resolved key), or null when the app has no
  *  live player. Reads from `playersByApp()`, so an Electron app's two
  *  interfaces resolve to their single representative. */
 export function playerForApp(app: string): MprisPlayer | null {
-  return playersByApp().find((player) => player.canonical === app) ?? null
+  //: Match on the player's resolved `appKeys`, not its `canonical`: when a
+  //: stream spells the app differently from MPRIS (`Firefox` vs
+  //: `Identity "Mozilla firefox"`), the player is listed under the STREAM's key
+  //: and this row must still find it — otherwise the one unified row loses its
+  //: transport line and the phantom row comes back.
+  return playersByApp().find((player) => player.appKeys.includes(app)) ?? null
 }
 
-/** The Output-card master button target (D1): the most recently active player. */
-export { activePlayer as masterPlayer }
+/** True when any live stream claims this app key (drives the per-app icon
+ *  choice and the debug dump). */
+export function isStreamClaimed(app: string): boolean {
+  return (playbackStreams() ?? []).some((s) => appKeysOfNode(nodeOf(s)).has(app))
+}
+
+/** The most recently active player. NOT a UI target: the Output card's transport
+ *  is device-scoped (see `defaultSinkPlayers`) since the owner ruling of
+ *  2026-09-30 superseded D1's "most recent player" button. Kept as the service's
+ *  own notion of recency, which `lastPlayingAt` still models honestly. */
+export { activePlayer }
 
 /**
  * One Applications row per canonical app (`{ app }`), whether the app
@@ -411,16 +673,11 @@ export function appRowKey(row: AppRow): string {
  *  stream right now (paused player, transient re-link gap). Resolved at read
  *  time so a reused row never holds a stale node object. */
 export function liveStreamForApp(app: string): WpNode | null {
-  const node =
-    (playbackStreams() ?? []).find((s) => appKeysOfNode(nodeOf(s)).has(app)) ??
-    null
-  if (node) {
-    lastLevel.set(app, {
-      volume: clampVolume(node.volume ?? 0),
-      mute: node.mute === true,
-    })
-  }
-  return node
+  //: Deliberately does NOT record the level: `displayVolumeForApp` /
+  //: `displayMuteForApp` own level bookkeeping (the momentary-zero hold), and
+  //: this resolver is also used by pure lookups (routing, icons) that must not
+  //: move the display state as a side effect.
+  return streamNodeForApp(app)
 }
 
 /**
@@ -431,16 +688,55 @@ export function liveStreamForApp(app: string): WpNode | null {
  */
 const lastLevel = new Map<string, { volume: number; mute: boolean }>()
 
-/** Display volume for an app row: live, else last-known, else 0. */
-export function displayVolumeForApp(app: string): number {
-  return liveStreamForApp(app)?.volume ?? lastLevel.get(app)?.volume ?? 0
+//: A live node's OWN `volume` can read 0 for a frame or two while the graph
+//: re-links. Measured on the same seek that unbound the row: the level line
+//: blinked to 0% and back within ~120ms, with the node id unchanged throughout.
+//: A real drop to zero PERSISTS — a user dragging to zero, or a mute elsewhere,
+//: keeps reporting 0 on every later read — so a short hold on an implausible
+//: fall to zero is invisible in use, and costs one re-read of latency in the
+//: rare case a genuine zero arrives that fast.
+//: Our own writes bypass the hold (see `setAppVolume`/`toggleAppMute`), so
+//: dragging the slider to zero is never second-guessed.
+const LEVEL_HOLD_MS = 500
+const lastLevelAt = new Map<string, number>()
+
+/** Record the level we are showing for an app. */
+function recordLevel(app: string, volume: number, mute: boolean, holdable: boolean): void {
+  lastLevel.set(app, { volume, mute })
+  lastLevelAt.set(app, holdable ? GLib.get_monotonic_time() / 1000 : 0)
 }
 
-/** Display mute for an app row: live, else last-known, else false. */
+/** The level to show, holding an implausible momentary zero. */
+function displayLevelFor(app: string, node: WpNode | null): { volume: number; mute: boolean } {
+  if (node === null) return lastLevel.get(app) ?? { volume: 0, mute: false }
+  const volume = clampVolume(node.volume ?? 0)
+  const mute = node.mute === true
+  const previous = lastLevel.get(app)
+  const since = lastLevelAt.get(app) ?? 0
+  const withinHold = since > 0 && GLib.get_monotonic_time() / 1000 - since < LEVEL_HOLD_MS
+  if (
+    volume <= 0 &&
+    previous !== undefined &&
+    previous.volume > 0 &&
+    withinHold
+  ) {
+    //: Implausible dip: keep showing what we had, and do NOT refresh the
+    //: timestamp — the hold must expire on its own even if more zeros arrive.
+    return previous
+  }
+  recordLevel(app, volume, mute, true)
+  return lastLevel.get(app) as { volume: number; mute: boolean }
+}
+
+/** Display volume for an app row: live (with the momentary-zero hold), else
+ *  last-known, else 0. */
+export function displayVolumeForApp(app: string): number {
+  return displayLevelFor(app, liveStreamForApp(app)).volume
+}
+
+/** Display mute for an app row: live (with the same hold), else last-known. */
 export function displayMuteForApp(app: string): boolean {
-  const live = liveStreamForApp(app)
-  if (live) return live.mute === true
-  return lastLevel.get(app)?.mute ?? false
+  return displayLevelFor(app, liveStreamForApp(app)).mute
 }
 
 /** True when the app has a live stream node to write volume/mute/routing to. */
@@ -452,13 +748,20 @@ export function hasLiveStreamForApp(app: string): boolean {
  *  is disabled in that state, so this only fires on stale closures). */
 export function setAppVolume(app: string, fraction: number): void {
   const node = liveStreamForApp(app)
-  if (node) node.volume = Math.max(0, Math.min(1, fraction))
+  if (!node) return
+  const value = Math.max(0, Math.min(1, fraction))
+  node.volume = value
+  //: The user chose this value; record it as non-holdable so dragging to zero is
+  //: shown immediately instead of being masked by the momentary-zero hold.
+  recordLevel(app, clampVolume(value), node.mute === true, false)
 }
 
 /** Toggle mute on the app's live stream; a no-op when there is none. */
 export function toggleAppMute(app: string): void {
   const node = liveStreamForApp(app)
-  if (node) node.mute = !node.mute
+  if (!node) return
+  node.mute = !node.mute
+  recordLevel(app, clampVolume(node.volume ?? 0), node.mute === true, false)
 }
 
 /** Human name of the sink an app's stream is effectively playing on (routing
@@ -476,6 +779,87 @@ export function routeAppTo(app: string, device: unknown): void {
   if (node) routeStreamTo(node, device)
 }
 
+// ── Selected-output aggregate transport (device-scoped) ────────────────────
+//
+// The Output card's transport is a control of the SELECTED DEVICE, not of any
+// one application: with headphones selected, pausing it pauses everything routed
+// through them — whether the other apps sit on other interfaces or on the same
+// one. That makes it the mirror image of the per-app rows: same action, opposite
+// scope (one app / one device).
+//
+// Attribution comes from the graph snapshot, which is the only place a
+// stream→sink link exists (`target_endpoint` is NULL for streams routed outside
+// AstalWp). A player with no live stream cannot be attributed and is therefore
+// NOT touched: it is not demonstrably playing through that device, and guessing
+// would be exactly the "invisible target" this control exists to avoid.
+
+/** The live playback-stream node for an app, WITHOUT the `lastLevel` write of
+ *  `liveStreamForApp` — for callers that only need the graph identity. */
+function streamNodeForApp(app: string): WpNode | null {
+  return (
+    (playbackStreams() ?? []).find((s) => appKeysOfNode(nodeOf(s)).has(app)) ?? null
+  )
+}
+
+/** The sink node id a stream is EFFECTIVELY playing on — the id behind
+ *  `effectiveSinkName`, and deliberately kept in lockstep with it.
+ *
+ *  Same three steps, same order: explicit AstalWp target → the link-resolved
+ *  sink from the graph snapshot → the default sink. The fallback is what makes
+ *  the Output card's transport consistent with the UI: a PAUSED stream has only
+ *  `init` links (measured — Firefox's links to the speakers are `init`, not
+ *  `active`, while it is paused), so an active-link-only rule would exclude it
+ *  and the button's blast radius would disagree with the routing chip on its own
+ *  row, which shows the default device for exactly that case. One resolution,
+ *  two consumers: the chip and the button can never name different devices. */
+export function effectiveSinkIdForApp(app: string): number | null {
+  const node = streamNodeForApp(app)
+  if (!node) return null
+  const explicit = nodeOf(node.target_endpoint)
+  if (explicit?.id !== undefined) return explicit.id
+  const snap = graph()
+  const linked = node.id !== undefined ? snap.streamSink[node.id] : undefined
+  if (linked !== undefined) return linked
+  return nodeOf(defaultSpeaker())?.id ?? null
+}
+
+/** Every live MPRIS player whose effective sink is `sinkId` — i.e. exactly the
+ *  rows whose routing chip names that device. */
+export function playersOnSink(sinkId: number): MprisPlayer[] {
+  return playersByApp().filter(
+    (player) =>
+      player.status !== "Stopped" &&
+      player.appKeys.some((key) => effectiveSinkIdForApp(key) === sinkId),
+  )
+}
+
+/** The players the Output card's transport acts on: everything routed to the
+ *  SELECTED output right now. Empty when nothing plays through it. */
+export const defaultSinkPlayers: Accessor<MprisPlayer[]> = createComputed(() => {
+  const id = nodeOf(defaultSpeaker())?.id
+  if (id === undefined) return []
+  return playersOnSink(id)
+})
+
+/** True while at least one app routed to the selected output is playing — the
+ *  aggregate state the button's glyph reflects (pause wins when mixed, so one
+ *  press silences the device rather than starting the apps already paused). */
+export const sinkAggregatePlaying: Accessor<boolean> = createComputed(() =>
+  defaultSinkPlayers().some((player) => player.status === "Playing"),
+)
+
+/** Pause every app routed to the selected output, or resume them all.
+ *
+ *  Explicit per-app state, NOT a toggle: a naive `playPausePlayer` loop would
+ *  START the apps that were already paused while pausing the ones that were
+ *  playing. */
+export function toggleSelectedOutputPlayback(): void {
+  const players = defaultSinkPlayers()
+  if (players.length === 0) return
+  const playing = players.some((player) => player.status === "Playing")
+  for (const player of players) setPlayerPlaying(player, !playing)
+}
+
 /** Applications rows: one per canonical app that has a live stream, a live
  *  player, or both. Membership is a pure function of app presence, so transient
  *  node-id churn (seek re-links) and interface flips never add or remove rows —
@@ -485,11 +869,15 @@ export const applicationRows: Accessor<AppRow[]> = createComputed(() => {
   for (const stream of playbackStreams() ?? []) {
     for (const key of appKeysOfNode(nodeOf(stream))) apps.set(key, true)
   }
+  // Publish what the streams claim BEFORE deriving the players, so a player
+  // whose own canonical spelling differs is resolved onto the stream's key and
+  // merges into the row above instead of adding a second one.
+  setClaimedStreamKeys(new Set(apps.keys()))
   for (const player of playersByApp()) {
     // A Stopped player with no stream has nothing to control (its transport
     // is inert and its volume target is gone) — only live players get a row.
     if (player.status === "Stopped") continue
-    apps.set(player.canonical, true)
+    for (const key of player.appKeys) apps.set(key, true)
   }
   return [...apps.keys()].map((app) => ({ app }))
 })
@@ -577,9 +965,19 @@ export function routeStreamTo(stream: unknown, device: unknown) {
 export function setDefaultSpeaker(device: unknown) {
   const node = nodeOf(device)
   if (node?.id === undefined) return
-  execAsync(["wpctl", "set-default", String(node.id)]).catch((e) =>
-    console.error("audio: set-default failed:", e),
-  )
+  //: Captured in a const: property narrowing does not survive into the
+  //: callback, and the settle needs the id the write ASKED for, not whatever
+  //: the node object reports later.
+  const targetId = node.id
+  execAsync(["wpctl", "set-default", String(targetId)])
+    .then(() => {
+      //: Re-resolve on OUR write (see `defaultEndpointEpoch`): the write is the
+      //: one moment we know a default moved and no signal will tell us — but the
+      //: daemon applies it AFTER this process exits, so the re-resolve has to
+      //: settle rather than fire once.
+      settleDefault("speaker", targetId)
+    })
+    .catch((e) => console.error("audio: set-default failed:", e))
 }
 
 /** Switch the default microphone.
@@ -594,9 +992,13 @@ export function setDefaultSpeaker(device: unknown) {
 export function setDefaultMicrophone(device: unknown) {
   const node = nodeOf(device)
   if (node?.id === undefined) return
-  execAsync(["wpctl", "set-default", String(node.id)]).catch((e) =>
-    console.error("audio: set-default failed:", e),
-  )
+  //: Captured in a const: property narrowing does not survive into the
+  //: callback, and the settle needs the id the write ASKED for, not whatever
+  //: the node object reports later.
+  const targetId = node.id
+  execAsync(["wpctl", "set-default", String(targetId)])
+    .then(() => settleDefault("microphone", targetId))
+    .catch((e) => console.error("audio: set-default failed:", e))
 }
 
 // ── UI state ───────────────────────────────────────────────────────────────
@@ -619,6 +1021,10 @@ export function open(section: AudioSection = "main") {
   setActiveSection(section)
   setPopupVisible(true)
   setViewEpoch((n) => n + 1)
+  //: A default changed OUTSIDE the panel (pavucontrol, a keybind, `wpctl`,
+  //: a hotplug) reaches us only here — this is a user-action read, not a poll
+  //: (I1), and it is what makes the Output/Input cards truthful on open.
+  invalidateDefaultEndpoint()
   void refreshStreamTargets()
 }
 
@@ -627,6 +1033,45 @@ export function close() {
   setActiveSection("main")
 }
 
+// ── Graph snapshot scheduling ───────────────────────────────────────────────
+//
+// WHEN to take a `pw-dump` belongs to the state module, not to a view. This
+// effect used to live inside the `AudioPopup` component, and that was a real
+// defect rather than a style choice: gnim warns "effects created outside a
+// `createRoot` will never be disposed", and measured behaviour matched — the
+// effect ran ONCE at bar start and never again, so the snapshot was whatever the
+// graph looked like before the first app had played, and stayed that way until
+// the popup happened to open (which is why `open()` calling `refreshStreamTargets`
+// had been carrying this feature on its back). Symptom: a live stream reported
+// with NO app identity (`appKeys: []`), so its row could not bind to it.
+//
+// The trigger is the node ID SET, not the counts. Counts were strictly worse: an
+// app that re-links its stream (Firefox does this on every seek and every ad
+// transition, measured) keeps the count identical while replacing the node, so a
+// count-gated effect missed the change that mattered, and a count that flapped
+// instead re-snapshotted for nothing.
+//
+// Refreshing while the popup is CLOSED is deliberate only until the first
+// snapshot exists: a stream's app identity lives nowhere else (AstalWp exposes no
+// `application.name`, and `node.description` is null for Firefox), so without it
+// the rest of the surface — and `ags request audio-debug` — cannot name any
+// stream. After that, the popup's visibility is the gate, as before.
+let lastGraphSignature: string | null = null
+
+createEffect(() => {
+  const signature = [
+    ...(playbackStreams() ?? []).map((s) => `p${nodeOf(s)?.id ?? "?"}`),
+    ...(recordingStreams() ?? []).map((s) => `r${nodeOf(s)?.id ?? "?"}`),
+    ...(outputDevices() ?? []).map((s) => `o${nodeOf(s)?.id ?? "?"}`),
+    `d${nodeOf(defaultSpeaker())?.id ?? "?"}`,
+  ].join(",")
+  if (!popupVisible() && hasGraphSnapshot()) return
+  if (signature === lastGraphSignature) return
+  lastGraphSignature = signature
+  void refreshStreamTargets()
+})
+
+/** Toggle the popup (or jump straight to a section). */
 export function toggle(section: AudioSection = "main") {
   if (popupVisible()) close()
   else open(section)
@@ -682,6 +1127,19 @@ export function nodeLabel(node: WpNode | null, fallback: string): string {
  * is blind. Read-only; no side effects.
  */
 export function debugAudioState(): Record<string, unknown> {
+  //: The players the Output card's transport acts on, plus each player's
+  //: recency stamp. Without this, "what will that button touch?" can only be
+  //: answered by guessing; `lastPlayingAt: 0` on a Playing player is the honest
+  //: "we never saw it start" marker.
+  const players = playersByApp().map((p) => ({
+    busName: p.busName,
+    identity: p.identity,
+    appKeys: p.appKeys,
+    pid: p.pid,
+    status: p.status,
+    lastPlayingAt: Math.round(p.lastPlayingAt),
+    title: p.metadata.title,
+  }))
   const streams = (playbackStreams() ?? []).map((s) => {
     const n = nodeOf(s)
     return {
@@ -710,6 +1168,14 @@ export function debugAudioState(): Record<string, unknown> {
     }
   })
   return {
+    players,
+    //: The Output card's transport blast radius, as the bar sees it: the apps
+    //: whose routing chip names the SELECTED output.
+    defaultSinkPlayers: defaultSinkPlayers().map((p) => ({
+      identity: p.identity,
+      appKeys: p.appKeys,
+      status: p.status,
+    })),
     streams,
     rows,
     inputs,
@@ -726,6 +1192,13 @@ export function debugAudioState(): Record<string, unknown> {
       accessorMute: defaultMicrophoneMute(),
     },
     endpointEpoch: { ...endpointEpochStats },
+    //: Called, not referenced: the bare accessor is a function and would be
+    //: dropped by the JSON this dump is serialised into.
+    defaultEndpointEpoch: defaultEndpointEpoch(),
+    //: A position the panel is holding because the app has not reported a
+    //: plausible one — the diagnostic for "the thumb jumped back to the start".
+    heldPositions: heldPositionsSnapshot(),
+    snapshot: { ...snapshotStats },
   }
 }
 

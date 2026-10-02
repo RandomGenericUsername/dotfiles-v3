@@ -1,5 +1,6 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
+import Pango from "gi://Pango?version=1.0"
 import { Accessor, createBinding, createComputed, createEffect, createState, For, onCleanup } from "ags"
 import { registry } from "../lib/icon-registry"
 import { NavHeader, PanelCard } from "../settings-panel/primitives"
@@ -25,6 +26,7 @@ import {
   defaultMicrophoneVolume,
   defaultSpeaker,
   defaultSpeakerMute,
+  defaultSinkPlayers,
   defaultSpeakerVolume,
   displayMuteForApp,
   displayVolumeForApp,
@@ -33,7 +35,6 @@ import {
   inputDevices,
   levelVariant,
   liveStreamForApp,
-  masterPlayer,
   nodeLabel,
   outputDevices,
   playbackStreams,
@@ -47,11 +48,13 @@ import {
   setDefaultSpeaker,
   showInputDevices,
   showOutputDevices,
+  sinkAggregatePlaying,
   streamAppIconPath,
   streamAppIconPathForIdentity,
   streamAppName,
   streamMediaName,
   toggleAppMute,
+  toggleSelectedOutputPlayback,
   useEndpointEpoch,
   viewEpoch,
   type AppRow,
@@ -232,6 +235,20 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
   const canGoPrevious = createComputed(() => player()?.canGoPrevious === true)
   const canGoNext = createComputed(() => player()?.canGoNext === true)
   const lengthUs = createComputed(() => player()?.metadata.lengthUs ?? 0)
+  //: A seek needs a DURATION, and this is the one place the panel used to lie
+  //: about having one. `canSeek` alone let the slider render for a player whose
+  //: `mpris:length` is unknown — the normal case for a live stream, and the case
+  //: behind "a live video restarts no matter where I drop the slider": with
+  //: `total <= 0` BOTH conversions collapse to 0, so the thumb was pinned at the
+  //: start and every release committed an ABSOLUTE seek to 0. A guaranteed
+  //: restart, manufactured entirely by our own maths, with no app defect
+  //: involved. An absolute seek is meaningless without a duration, so the honest
+  //: control is no slider at all (D9 already renders elapsed-only in that case).
+  //:
+  //: Note this is a DIFFERENT failure from Firefox's: there, a known-length video
+  //: computes and sends the right position and the app still destroys the media
+  //: (Chrome seeks correctly through this identical path).
+  const canSeekSlider = createComputed(() => canSeek() && lengthUs() > 0)
 
   //: The slider works on a NORMALISED 0..1000 integer range, never raw µs.
   //: Raw µs values (up to INT64-ish) plus a `max` that recomputed from the
@@ -311,7 +328,9 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
   function commit(self: Gtk.Scale) {
     interacting = false
     const p = player()
-    if (p && p.canSeek) seekPlayer(p, stepToUs(Math.round(self.get_value())))
+    //: Both conditions, not just `canSeek`: without a duration the conversion
+    //: yields 0 and the commit would be an unconditional "go to the start".
+    if (p && canSeekSlider()) seekPlayer(p, stepToUs(Math.round(self.get_value())))
   }
 
   // The Gtk.Scale's OWN drag/click gestures are the only reliable release hook:
@@ -406,7 +425,7 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
         step={1}
         value={seekStep}
         drawValue={false}
-        visible={canSeek}
+        visible={canSeekSlider}
         onNotifyValue={(self: { get_value: () => number }) =>
           setSeekStep(Math.round(self.get_value()))
         }
@@ -417,25 +436,33 @@ function TransportLine({ player }: { player: Accessor<MprisPlayer | null> }) {
   )
 }
 
-/** Output-card master button (D1): toggles the most recently active player.
- *  Hidden when there is no player; the glyph is `pause` while that player is
- *  Playing, else `play`. Tooltip names the targeted player. */
-function MasterButton() {
-  const player = createComputed(() => masterPlayer())
-  const playing = createComputed(() => player()?.status === "Playing")
+/** Output-card transport: the control of the SELECTED OUTPUT DEVICE, not of any
+ *  one application (owner ruling 2026-09-30 — it supersedes D1's "most recently
+ *  active player", which made the button act on a target the UI never showed).
+ *
+ *  With headphones selected, pressing pause pauses EVERY app routed through
+ *  them — the same whether the other apps sit on other interfaces or share this
+ *  one. So it is the mirror of the per-app rows: same action, opposite scope.
+ *  The glyph reflects the AGGREGATE (pause wins when mixed, so one press
+ *  silences the device instead of starting the apps already paused) and the
+ *  tooltip names the device and how many apps it will touch, so the blast
+ *  radius is never a surprise. Hidden when nothing is routed to it. */
+function SinkTransportButton() {
+  const count = createComputed(() => defaultSinkPlayers().length)
+  const playing = sinkAggregatePlaying
   return (
     <button
       class="audio-master"
       canFocus={false}
-      visible={createComputed(() => player() !== null)}
+      visible={createComputed(() => count() > 0)}
       tooltipText={createComputed(() => {
-        const p = player()
-        return p ? `Play/Pause — ${p.identity} (most recent)` : ""
+        const n = count()
+        if (n === 0) return ""
+        const verb = playing() ? `Pause ${n}` : `Resume ${n}`
+        const apps = n === 1 ? "app" : "apps"
+        return `${verb} ${apps} on ${nodeName(defaultSpeaker(), "this output")}`
       })}
-      onClicked={() => {
-        const p = player()
-        if (p) playPausePlayer(p)
-      }}
+      onClicked={toggleSelectedOutputPlayback}
     >
       <image
         pixel_size={15}
@@ -512,7 +539,17 @@ function RoutingSelect({ app }: { app: string }) {
     const list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 2 })
     for (const device of outputDevices() ?? []) {
       const row = new Gtk.Button({ css_classes: ["audio-route-item"] })
-      row.set_child(new Gtk.Label({ label: nodeLabel(device, "Output"), xalign: 0 }))
+      //: Clamped for the same reason as the rows above: the popover is
+      //: content-sized, so an un-clamped device name ("C-Media(R) Audio Analog
+      //: Stereo") would widen it past the screen edge.
+      row.set_child(
+        new Gtk.Label({
+          label: nodeLabel(device, "Output"),
+          xalign: 0,
+          max_width_chars: 26,
+          ellipsize: Pango.EllipsizeMode.END,
+        }),
+      )
       row.connect("clicked", () => {
         routeAppTo(app, device)
         menu.popdown()
@@ -612,12 +649,30 @@ function StreamRow({ row }: { row: AppRow }) {
         />
         <box class="audio-row-meta" orientation={1} hexpand>
           <box spacing={6}>
-            <label class="audio-row-title" xalign={0} label={title} />
+            {/* `maxWidthChars` + `ellipsize` are REQUIRED, not cosmetic: an
+                unwrapped Gtk.Label reports its FULL text as natural width, and
+                `hexpand` alone does not make a label yield. A long media title
+                ("(13) Curso completo de OpenCode desde cero: Modelos gratis,
+                Comandos, Agentes y mucho mas...") therefore demanded more width
+                than the 356px surface and spilled past the window edge, which is
+                what made the whole card look broken. The full text stays
+                available as the row tooltip. */}
+            <label
+              class="audio-row-title"
+              xalign={0}
+              maxWidthChars={20}
+              ellipsize={Pango.EllipsizeMode.END}
+              tooltipText={title}
+              label={title}
+            />
             <label class="audio-badge" visible={muted} label="Muted" valign={Gtk.Align.CENTER} />
           </box>
           <label
             class="audio-row-sub"
             xalign={0}
+            maxWidthChars={28}
+            ellipsize={Pango.EllipsizeMode.END}
+            tooltipText={subtitle}
             visible={createComputed(() => subtitle() !== "")}
             label={subtitle}
           />
@@ -723,6 +778,9 @@ function DeviceCard({
             <label
               class="audio-row-title"
               xalign={0}
+              maxWidthChars={20}
+              ellipsize={Pango.EllipsizeMode.END}
+              tooltipText={createComputed(() => nodeName(endpoint(), `No ${kind} device`))}
               label={createComputed(() => nodeName(endpoint(), `No ${kind} device`))}
             />
             <label class="audio-badge" visible={muted} label="Muted" valign={Gtk.Align.CENTER} />
@@ -730,13 +788,16 @@ function DeviceCard({
           <label
             class="audio-row-sub"
             xalign={0}
+            maxWidthChars={28}
+            ellipsize={Pango.EllipsizeMode.END}
+            tooltipText={subtitle}
             visible={createComputed(() => subtitle() !== "")}
             label={subtitle}
           />
         </box>
-        {/* D1: master play/pause sits between the name/meta block and `Change ›`,
-            and controls the most recently active player. Output card only. */}
-        {kind === "output" ? <MasterButton /> : null}
+        {/* Device-scoped transport: sits between the name/meta block and
+            `Change ›`, and controls every app routed through THIS output. */}
+        {kind === "output" ? <SinkTransportButton /> : null}
         {kind === "output" ? (
           <button
             class="audio-routing"
@@ -819,6 +880,9 @@ function OutputDevicesView() {
                   class="audio-row-title"
                   xalign={0}
                   hexpand
+                  maxWidthChars={26}
+                  ellipsize={Pango.EllipsizeMode.END}
+                  tooltipText={nodeName(device, "Output")}
                   label={nodeName(device, "Output")}
                 />
               </box>
@@ -874,6 +938,9 @@ function InputDevicesView() {
                   class="audio-row-title"
                   xalign={0}
                   hexpand
+                  maxWidthChars={26}
+                  ellipsize={Pango.EllipsizeMode.END}
+                  tooltipText={nodeName(device, "Input")}
                   label={nodeName(device, "Input")}
                 />
               </box>
@@ -1025,16 +1092,15 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor) {
     if (scroll) scroll.get_vadjustment().set_value(0)
   })
 
-  // Re-snapshot the graph (links + per-stream identity) whenever the graph's
-  // membership changes while the popup is open: a stream appears/disappears or
+  // The graph-snapshot scheduler lives in `state.ts`: WHEN to take a `pw-dump` is a
+  // state concern, and an effect created here (outside a `createRoot`) ran once at
+  // startup and never again — see the note above `lastGraphSignature` there.
+  //
+  // Re-snapshot the graph (links + per-stream identity) whenever the SET of
+  // graph members changes while the popup is open: a stream appears/disappears or
   // a sink does (e.g. a Bluetooth sink joining/leaving). Routing writes are
   // covered by open() and routeStreamTo()'s own one-shot refresh — this is
   // event-driven, never a timer.
-  createEffect(() => {
-    const streams = (playbackStreams()?.length ?? 0) + (recordingStreams()?.length ?? 0)
-    const sinks = outputDevices()?.length ?? 0
-    if (popupVisible() && (streams >= 0 || sinks >= 0)) void refreshStreamTargets()
-  })
 
   // One-shot MPRIS hydration when the popup opens (I1: a user-action read, not
   // a timer) alongside the graph snapshot above, so transport positions and

@@ -3,15 +3,19 @@ import GLib from "gi://GLib?version=2.0"
 import { Accessor, createComputed, createState } from "ags"
 import { execAsync } from "ags/process"
 import {
+  AppIdentityResolver,
   MPRIS_EXCLUDED,
   MPRIS_PREFIX,
   TrackMeta,
   canonicalIdentity,
+  carryDuration,
   interpolatePosition,
+  isSameTrack,
   normalisePosition,
   parseBusName,
   parseMetadata,
   pickActivePlayer,
+  resolveAppIdentities,
 } from "./mpris-core"
 
 /**
@@ -64,6 +68,13 @@ export interface MprisPlayer {
   identity: string
   /** Canonical identity (ALIAS-folded) — the app key for matching and rows. */
   canonical: string
+  /** Every app key this player may be listed under, most specific first.
+   *  Normally `[canonical]`; when the PipeWire stream of the same app spells its
+   *  identity differently (`Firefox` vs `Identity "Mozilla firefox"`), the
+   *  STREAM's key is put first so the popup lists the app ONCE. Resolved by the
+   *  pure `resolveAppIdentities` core against the keys live streams already
+   *  claim, so the two naming sources cannot drift into two rows. */
+  appKeys: string[]
   /** Owning process id, the reliable join between two interfaces of one app
    *  (both interfaces of an Electron app share the PID). 0 when unknown. */
   pid: number
@@ -107,6 +118,35 @@ function isMirrorInterface(busName: string): boolean {
   return /^org\.mpris\.MediaPlayer2\.chromium\.instance[0-9]+$/.test(busName)
 }
 
+/** Resolves a playback IDENTITY to the canonical app keys of the live streams
+ *  that claim it. The audio state installs this (it owns the PipeWire graph);
+ *  until it does, a player that is not already claimed by a stream simply keeps
+ *  its own canonical key — the pre-existing behaviour, so this service stays
+ *  correct standalone. */
+let identitySource: AppIdentityResolver | null = null
+
+export function setAppIdentitySource(source: AppIdentityResolver | null): void {
+  identitySource = source
+}
+
+/** The canonical app keys live playback streams currently claim. The audio
+ *  state pushes this on every graph change; a player whose own canonical key is
+ *  in here is listed under it verbatim, and only an UNCLAIMED player goes
+ *  through the resolver. */
+let claimedStreamKeys: Set<string> = new Set()
+
+export function setClaimedStreamKeys(keys: Set<string>): void {
+  claimedStreamKeys = keys
+}
+
+/** Recompute each representative's `appKeys` for THIS derivation. Idempotent and
+ *  cheap; keeps the field honest without a second cache to invalidate when a
+ *  stream appears, vanishes, or is renamed. */
+function withAppKeys(player: MprisPlayer): MprisPlayer {
+  player.appKeys = resolveAppIdentities(player, claimedStreamKeys, identitySource ?? undefined)
+  return player
+}
+
 export function playersByApp(): MprisPlayer[] {
   const groups = new Map<string, MprisPlayer[]>()
   for (const player of mprisPlayers()) {
@@ -144,7 +184,7 @@ export function playersByApp(): MprisPlayer[] {
     }
     if (representative) {
       representativeByGroup.set(key, representative.busName)
-      out.push(representative)
+      out.push(withAppKeys(representative))
     }
   }
   return out
@@ -226,32 +266,85 @@ function playerFromProps(
 ): MprisPlayer {
   const { instance } = parseBusName(busName)
   const status = asStatus(props.PlaybackStatus)
-  //: Preserve the ordering signal across a re-read: a player already Playing
-  //: keeps its original `lastPlayingAt` (resync must not re-rank the master).
-  //: A Stopped player resets to 0 so a stale timestamp can never let it outrank
-  //: a live (paused) player in `pickActivePlayer`'s fallback (found live, WP-F:
-  //: a stopped Chromium instance was chosen over the playing tidal-hifi).
+  //: `lastPlayingAt` models recency of PLAYING — "a Playing transition we
+  //: actually witnessed, or one the user just performed" — and must never mean
+  //: "a moment ago we happened to read this bus name". (The Output card's
+  //: transport stopped consuming it on 2026-09-30, when the owner ruled that the
+  //: control follows the selected device rather than a hidden most-recent app;
+  //: the field stays honest because anything ranking on it inherits the same
+  //: lie otherwise.)
+  //:
+  //: Preserve the signal across a re-read: a player already Playing keeps its
+  //: original stamp (a resync must not re-rank anything). A Stopped player
+  //: resets to 0 so a stale timestamp can never let it outrank a live (paused)
+  //: one in `pickActivePlayer`'s fallback (found live, WP-F: a stopped Chromium
+  //: instance was chosen over the playing tidal-hifi).
+  //:
+  //: A FRESH hydration of an already-Playing player gets NO stamp (0). It was
+  //: playing before we ever looked at it, so any timestamp would be a
+  //: fabrication — and a self-refreshing one, because a bus name that leaves and
+  //: reappears is re-hydrated from scratch. Measured on this machine: Firefox's
+  //: MPRIS interface leaves the session bus entirely after an MPRIS seek while
+  //: the process keeps running, and Tidal re-registered under a NEW pid
+  //: mid-session. Each re-registration therefore re-stamped that app as "the
+  //: most recent playback of all", which is what made a control change target
+  //: between two consecutive presses (reported as "it alternated"). With 0 an
+  //: app earns recency only by being seen starting, or by the user acting on it.
   const lastPlayingAt =
     status === "Playing"
       ? previous !== null && previous.status === "Playing"
         ? previous.lastPlayingAt
-        : nowMs()
+        : 0
       : status === "Paused"
         ? (previous?.lastPlayingAt ?? 0)
         : 0
+  const metadata = carryDuration(
+    parseMetadata((props.Metadata ?? {}) as Record<string, unknown>),
+    previous?.metadata,
+  )
+  const sameTrack = previous !== null && isSameTrack(metadata, previous.metadata)
+  //: Falls back to what we already knew, NOT to 0. A resync (popup open) that
+  //: caught an app mid-seek would otherwise reset the display to the start —
+  //: the same symptom as the stale-report hold above, reached by a different
+  //: path. A genuine hydrate (`previous === null`) still starts at 0.
+  const positionUs = adoptReportedPosition(
+    busName,
+    normalisePosition(props.Position, previous?.positionUs ?? 0),
+    previous ?? {
+      busName,
+      identity,
+      canonical: canonicalIdentity(identity),
+      appKeys: [canonicalIdentity(identity)],
+      pid,
+      instance,
+      status,
+      metadata,
+      canSeek: false,
+      canGoNext: false,
+      canGoPrevious: false,
+      canPause: false,
+      positionUs: 0,
+      positionSyncedAtMs: 0,
+      lastPlayingAt: 0,
+    },
+    sameTrack,
+  )
   return {
     busName,
     identity,
     canonical: canonicalIdentity(identity),
+    // Provisional: `playersByApp` recomputes this per derivation against the
+    // keys live streams claim, which is the only place the answer is final.
+    appKeys: [canonicalIdentity(identity)],
     pid,
     instance,
     status,
-    metadata: parseMetadata((props.Metadata ?? {}) as Record<string, unknown>),
+    metadata,
     canSeek: Boolean(props.CanSeek),
     canGoNext: Boolean(props.CanGoNext),
     canGoPrevious: Boolean(props.CanGoPrevious),
     canPause: Boolean(props.CanPause),
-    positionUs: normalisePosition(props.Position, 0),
+    positionUs,
     positionSyncedAtMs: nowMs(),
     lastPlayingAt,
   }
@@ -405,9 +498,12 @@ async function syncPosition(busName: string): Promise<void> {
     const value = await getProperty(busName, PLAYER_IFACE, "Position")
     const player = playerCache.get(busName)
     if (player === undefined) return
+    const reported = normalisePosition(value, player.positionUs)
     playerCache.set(busName, {
       ...player,
-      positionUs: normalisePosition(value, player.positionUs),
+      //: Never a blind write — see `adoptReportedPosition` for the measured
+      //: oscillation this guards against.
+      positionUs: adoptReportedPosition(busName, reported, player),
       positionSyncedAtMs: nowMs(),
     })
     applyPlayers()
@@ -465,8 +561,13 @@ function handlePropertiesChanged(busName: string, parameters: GLib.Variant): voi
   }
   if (saw("Metadata")) {
     if ("Metadata" in changed) {
-      next.metadata = parseMetadata(
-        (changed.Metadata ?? {}) as Record<string, unknown>,
+      //: `carryDuration`: Firefox re-announces the SAME track with `mpris:length`
+      //: simply absent (measured), which read as "duration unknown" and took the
+      //: seek slider away mid-playback. The duration belongs to the track, not to
+      //: the announcement.
+      next.metadata = carryDuration(
+        parseMetadata((changed.Metadata ?? {}) as Record<string, unknown>),
+        player.metadata,
       )
     }
     synchronise = true
@@ -494,9 +595,13 @@ function handleSeeked(busName: string, parameters: GLib.Variant): void {
   const [position] = parameters.recursiveUnpack() as [number]
   const player = playerCache.get(busName)
   if (player === undefined) return
+  const reported = normalisePosition(position, player.positionUs)
   playerCache.set(busName, {
     ...player,
-    positionUs: normalisePosition(position, player.positionUs),
+    //: `Seeked` is the spec's authoritative confirmation, but a player whose
+    //: `Position` is broken has been measured publishing a broken `Seeked` too
+    //: — hence the same hold as every other report.
+    positionUs: adoptReportedPosition(busName, reported, player),
     positionSyncedAtMs: nowMs(),
   })
   applyPlayers()
@@ -626,6 +731,43 @@ export function playPausePlayer(p: MprisPlayer): void {
   runPlayerctl(p.busName, ["play-pause"])
 }
 
+/** Force a player into `Playing`/`Paused` — NOT a toggle.
+ *
+ *  The Output card's transport is device-scoped: it pauses every app routed
+ *  through the selected output and resumes them all. A toggle would be wrong
+ *  there — an app already paused would be STARTED while its sibling was paused.
+ *  So the aggregate control states the target explicitly and this performs it,
+ *  with the same optimistic bookkeeping `playPausePlayer` uses so the rows react
+ *  immediately. */
+export function setPlayerPlaying(p: MprisPlayer, playing: boolean): void {
+  const current = playerCache.get(p.busName) ?? p
+  const now = nowMs()
+  if (playing) {
+    playerCache.set(p.busName, {
+      ...current,
+      status: "Playing",
+      lastPlayingAt: now,
+      positionSyncedAtMs: now,
+    })
+  } else {
+    //: Freezing the interpolated position into the base mirrors `playPausePlayer`
+    //: and the PlaybackStatus handler, so a paused display never snaps back.
+    playerCache.set(p.busName, {
+      ...current,
+      status: "Paused",
+      positionUs: interpolatePosition(
+        current.positionUs,
+        current.positionSyncedAtMs,
+        true,
+        now,
+      ),
+      positionSyncedAtMs: now,
+    })
+  }
+  applyPlayers()
+  runPlayerctl(p.busName, [playing ? "play" : "pause"])
+}
+
 export function nextPlayer(p: MprisPlayer): void {
   runPlayerctl(p.busName, ["next"])
 }
@@ -634,9 +776,87 @@ export function previousPlayer(p: MprisPlayer): void {
   runPlayerctl(p.busName, ["previous"])
 }
 
+// ── Position trust ────────────────────────────────────────────────────────
+//
+// The panel can only show a position the app reports, and some apps report
+// nonsense. Measured on this machine, one Firefox session while a video played,
+// sampled once a second:
+//
+//     0.000005 → 265.000006 → 0.000007 → 0.000007 → 268.000007 → 270.000006
+//
+// Roughly every other report was ZERO while the video was plainly at 4:25 and
+// climbing — so the thumb followed the app to the start, which is the whole of
+// the reported "the slider resets to 0". The same collapse happens on the
+// transition to Playing and immediately after a seek; and while PAUSED the same
+// app reports the true absolute position. Firefox has also been seen reporting
+// the PREVIOUS seek's target — one seek behind — so a single re-read cannot
+// declare the app wrong either.
+//
+// The invariant the panel can rely on: **a playing media's clock cannot
+// legitimately jump backwards**, and a zero it reports after a position it
+// already reported is a broken clock, not a restart. So a report that is far
+// behind the last trusted position is held, for a bounded window, while a report
+// at or past it is accepted immediately. A healthy app therefore behaves
+// identically — it agrees at once — and the hold only ever survives on reports
+// that were going to be wrong anyway.
+//
+// The one legitimate way back is a genuine restart (a live stream ending), and
+// that is exactly what a track change looks like, so a different track always
+// wins immediately: the hold is never allowed to outlive the media it described.
+
+const POSITION_TRUST_TOLERANCE_US = 2_500_000
+const POSITION_TRUST_WINDOW_MS = 4_000
+
+const heldPositions = new Map<string, { us: number; untilMs: number }>()
+
+/** The position to store for `busName`, given what the app just reported.
+ *  `sameTrack = false` means the app is announcing different media, which voids
+ *  any hold — a new item may legitimately start at zero. */
+function adoptReportedPosition(
+  busName: string,
+  reportedUs: number,
+  previous: MprisPlayer,
+  sameTrack = true,
+): number {
+  const now = nowMs()
+  let hold = heldPositions.get(busName)
+  if (hold !== undefined && (!sameTrack || now > hold.untilMs)) {
+    heldPositions.delete(busName)
+    hold = undefined
+  }
+  if (hold !== undefined) {
+    if (reportedUs >= hold.us - POSITION_TRUST_TOLERANCE_US) {
+      heldPositions.delete(busName)
+      return reportedUs
+    }
+    return hold.us
+  }
+  if (
+    sameTrack &&
+    previous.status === "Playing" &&
+    reportedUs < previous.positionUs - POSITION_TRUST_TOLERANCE_US
+  ) {
+    heldPositions.set(busName, { us: previous.positionUs, untilMs: now + POSITION_TRUST_WINDOW_MS })
+    return previous.positionUs
+  }
+  return reportedUs
+}
+
+/** Exposed for `ags request audio-debug`: a position the panel is holding
+ *  because the app has not reported a plausible one yet. */
+export function heldPositionsSnapshot(): Array<{ busName: string; positionUs: number }> {
+  const now = nowMs()
+  return [...heldPositions.entries()]
+    .filter(([, hold]) => hold.untilMs > now)
+    .map(([busName, hold]) => ({ busName, positionUs: hold.us }))
+}
+
 export function seekPlayer(p: MprisPlayer, absoluteUs: number): void {
   const current = playerCache.get(p.busName) ?? p
   const positionUs = Math.max(0, absoluteUs)
+  //: Seed the hold with the position the user just committed — the video visibly
+  //: moved there, so it outranks whatever the app reports for the next moments.
+  heldPositions.set(p.busName, { us: positionUs, untilMs: nowMs() + POSITION_TRUST_WINDOW_MS })
   playerCache.set(p.busName, { ...current, positionUs, positionSyncedAtMs: nowMs() })
   applyPlayers()
   //: Absolute seek, µs → s (WP-B contract §5).
