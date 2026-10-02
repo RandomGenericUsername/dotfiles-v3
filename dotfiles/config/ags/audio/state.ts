@@ -878,7 +878,53 @@ export function toggleSelectedOutputPlayback(): void {
 const rowOrder = new Map<string, number>()
 let nextRowSlot = 0
 
-export const applicationRows: Accessor<AppRow[]> = createComputed(() => {
+// ── Stable reactive lists (for `For`) ──────────────────────────────────────
+//
+// gnim's `createComputed` re-notifies EVERY subscriber whenever ANY dependency
+// notifies — it never compares its value — and `For` responds to a notification
+// by unparenting and re-appending every child, unconditionally:
+//
+//     for (const [key, value] of map.entries()) fragment.remove(value.child)
+//     … fragment.append(child)
+//
+// In GTK4, unparenting and re-appending a widget destroys and recreates its
+// surface, so every row flashes. The trigger is ordinary: a seek, a metadata
+// change, a status change, a new player appearing — anything touching
+// `mprisPlayers` or the node list. Firefox emits a burst of those per seek, which
+// is why it was the visible offender; Chrome and Tidal flickered too, just less
+// often. The DATA was never wrong, which is exactly why polling the panel showed
+// a clean 200/200 while the screen flickered: the widgets were being rebuilt, not
+// the values changing.
+//
+// `createState` compares with `Object.is` before notifying, so a list held in
+// state and written ONLY when its ordered keys actually differ never notifies
+// `For` for a no-op. The effect still runs on every notification — it is a key
+// computation and a string compare — but no widget is touched.
+function stableList<T>(
+  computeKeys: () => T[],
+  keyOf: (item: T) => string,
+): Accessor<T[]> {
+  //: Rebound to a local because the repo's symbol checker only harvests params of
+  //: `function f(a, b)` and `(a, b) =>` shapes — a parameter invoked from inside a
+  //: zero-argument arrow reads as an undefined free identifier to it.
+  const compute = computeKeys
+  const [items, setItems] = createState<T[]>([])
+  let shape: string | null = null
+  createEffect(
+    () => {
+      const next = compute()
+      const nextShape = next.map(keyOf).join("\u0000")
+      if (nextShape === shape) return
+      shape = nextShape
+      setItems(next)
+    },
+    { immediate: true },
+  )
+  return items
+}
+
+export const applicationRows: Accessor<AppRow[]> = stableList<AppRow>(
+  () => {
   const apps = new Set<string>()
   for (const stream of playbackStreams() ?? []) {
     for (const key of appKeysOfNode(nodeOf(stream))) apps.add(key)
@@ -909,7 +955,25 @@ export const applicationRows: Accessor<AppRow[]> = createComputed(() => {
     })
     .sort((a, b) => a.slot - b.slot)
     .map(({ app }) => ({ app }))
-})
+  },
+  appRowKey,
+)
+
+/** Device/recording lists for `For`, stabilised the same way. The device subviews
+ *  re-parented every row on every node-list notification — which is most of
+ *  them — so the Output/Input cards flickered on a churning graph too. */
+export const outputDeviceList = stableList(
+  () => outputDevices() ?? [],
+  (device) => `sink:${nodeOf(device)?.id ?? "?"}`,
+)
+export const inputDeviceList = stableList(
+  () => inputDevices() ?? [],
+  (device) => `src:${nodeOf(device)?.id ?? "?"}`,
+)
+export const recordingList = stableList(
+  () => recordingStreams() ?? [],
+  (stream) => `rec:${nodeOf(stream)?.id ?? "?"}`,
+)
 
 /** Every icon-name candidate for a stream, most specific first: the PipeWire
  *  `application.icon-name`, then the slug of the app name. */

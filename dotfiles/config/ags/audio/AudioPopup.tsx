@@ -32,14 +32,17 @@ import {
   displayVolumeForApp,
   effectiveSinkNameForApp,
   hasLiveStreamForApp,
+  inputDeviceList,
   inputDevices,
   levelVariant,
   liveStreamForApp,
   nodeLabel,
+  outputDeviceList,
   outputDevices,
   playbackStreams,
   playerForApp,
   popupVisible,
+  recordingList,
   recordingStreams,
   refreshStreamTargets,
   routeAppTo,
@@ -844,7 +847,12 @@ function OutputDevicesView() {
       <NavHeader title="Output devices" onBack={back} />
       {/* Stable key: `byClass` rebuilds its array on every `wp.nodes` notify,
           so reference identity would recreate the rows (see ApplicationsCard). */}
-      <For each={outputDevices} id={(device) => `sink:${nodeOf(device)?.id ?? "?"}`}>
+      {/* `outputDeviceList` / `inputDeviceList` / `recordingList` are the
+          STABILISED lists (see `stableList` in state.ts): a plain computed
+          re-notifies on every graph change and `For` then unparents and
+          re-appends every row, which flashes the whole card. The `id` stays as
+          the second line of defence for a real list change. */}
+      <For each={outputDeviceList} id={(device) => `sink:${nodeOf(device)?.id ?? "?"}`}>
         {(device) => {
           const node = nodeOf(device)
           // D7: the current default sink (resolved via `default_speaker.id`)
@@ -903,7 +911,7 @@ function InputDevicesView() {
     <box orientation={1} spacing={8}>
       <NavHeader title="Input devices" onBack={back} />
       {/* Stable key, same reason as everywhere else `byClass` feeds a `For`. */}
-      <For each={inputDevices} id={(device) => `src:${nodeOf(device)?.id ?? "?"}`}>
+      <For each={inputDeviceList} id={(device) => `src:${nodeOf(device)?.id ?? "?"}`}>
         {(device) => {
           const node = nodeOf(device)
           // The current default source (resolved via `default_microphone.id`)
@@ -1036,7 +1044,7 @@ function RecordingCard() {
         </box>
         {/* Stable key for the same reason as Applications: the list rebuilds on
             every `wp.nodes` notify and reference identity is not stable. */}
-        <For each={recordingStreams} id={(stream) => `rec:${nodeOf(stream)?.id ?? "?"}`}>
+        <For each={recordingList} id={(stream) => `rec:${nodeOf(stream)?.id ?? "?"}`}>
           {(stream) => <RecorderRow stream={stream} />}
         </For>
       </PanelCard>
