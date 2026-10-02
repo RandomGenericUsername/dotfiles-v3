@@ -858,22 +858,57 @@ export function toggleSelectedOutputPlayback(): void {
  *  player, or both. Membership is a pure function of app presence, so transient
  *  node-id churn (seek re-links) and interface flips never add or remove rows —
  *  the row persists and its content rebinds. */
+// ── Stable presentation order ──────────────────────────────────────────────
+//
+// Rows are keyed by app (so a row survives node and bus-name churn), but the
+// ORDER they came out in was an accident of WHICH source contributed the key:
+// the union adds stream-derived keys first and player-derived keys second, so an
+// app whose stream momentarily vanishes (Firefox re-links on every seek —
+// measured) is re-contributed by its player and lands at a different index.
+//
+// Measured across one Firefox seek: `[[firefox], [chrome], [tidal]]` became
+// `[[chrome], [tidal], [firefox]]`. `For` reorders its widgets on a list change,
+// so every row below the moved one physically shifted — a whole-panel flicker
+// reported as "moving Firefox makes everything flicker", while Chrome and Tidal
+// were innocent bystanders being displaced.
+//
+// The order is therefore pinned per app for as long as the app exists: first
+// appearance claims a slot, and nothing can move it. An app that leaves gives its
+// slot back, so a returning app does not accumulate stale positions forever.
+const rowOrder = new Map<string, number>()
+let nextRowSlot = 0
+
 export const applicationRows: Accessor<AppRow[]> = createComputed(() => {
-  const apps = new Map<string, true>()
+  const apps = new Set<string>()
   for (const stream of playbackStreams() ?? []) {
-    for (const key of appKeysOfNode(nodeOf(stream))) apps.set(key, true)
+    for (const key of appKeysOfNode(nodeOf(stream))) apps.add(key)
   }
   // Publish what the streams claim BEFORE deriving the players, so a player
   // whose own canonical spelling differs is resolved onto the stream's key and
   // merges into the row above instead of adding a second one.
-  setClaimedStreamKeys(new Set(apps.keys()))
+  setClaimedStreamKeys(new Set(apps))
   for (const player of playersByApp()) {
     // A Stopped player with no stream has nothing to control (its transport
     // is inert and its volume target is gone) — only live players get a row.
     if (player.status === "Stopped") continue
-    for (const key of player.appKeys) apps.set(key, true)
+    for (const key of player.appKeys) apps.add(key)
   }
-  return [...apps.keys()].map((app) => ({ app }))
+  // Release the slots of apps that are gone BEFORE new ones claim them, so a
+  // returning app is ordered by its arrival rather than by an abandoned index.
+  for (const key of [...rowOrder.keys()]) {
+    if (!apps.has(key)) rowOrder.delete(key)
+  }
+  return [...apps]
+    .map((app) => {
+      let slot = rowOrder.get(app)
+      if (slot === undefined) {
+        slot = nextRowSlot++
+        rowOrder.set(app, slot)
+      }
+      return { app, slot }
+    })
+    .sort((a, b) => a.slot - b.slot)
+    .map(({ app }) => ({ app }))
 })
 
 /** Every icon-name candidate for a stream, most specific first: the PipeWire
