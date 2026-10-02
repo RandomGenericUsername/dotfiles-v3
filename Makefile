@@ -121,10 +121,17 @@ capture-typecheck: capture-types
 # The tests import the domain modules with an explicit `.ts` suffix because
 # Node's ESM resolver does no extensionless lookup; the `->` suffix is why
 # tsconfig.tests.json sets allowImportingTsExtensions.
+#
+# resolve-hooks.mjs covers the OTHER direction, added in A6: now that
+# domain/cli-args.ts really imports domain/ui-state.ts (isGif + GIF_SIZE_ARG),
+# the DOMAIN's own extensionless `./ui-state` import has to survive Node too.
+# The hook teaches the test runner the one thing `ags bundle` already does, so
+# the app sources stay idiomatic. See the file for why this is not solved by
+# rewriting app imports to `./x.ts`.
 CAPTURE_TS_TESTS := $(CAPTURE_DIR)/tests/ts
 capture-test:
 	@echo "==> capture-test: node --test $(CAPTURE_TS_TESTS)"
-	node --test $(CAPTURE_TS_TESTS)/*.test.ts
+	node --import ./$(CAPTURE_TS_TESTS)/resolve-hooks.mjs --test $(CAPTURE_TS_TESTS)/*.test.ts
 	@if [ -x node_modules/.bin/tsc ]; then \
 		echo "==> capture-test: tsc --noEmit -p $(CAPTURE_DIR)/tests/tsconfig.tests.json"; \
 		npx tsc --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1; \

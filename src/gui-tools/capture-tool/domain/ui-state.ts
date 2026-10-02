@@ -166,8 +166,15 @@ export const GIF_SIZE_ARG: Record<GifScale, string> = {
 // the same `recording` they used to capture.
 // ---------------------------------------------------------------------------
 
-/** GIF mode, i.e. the format that routes through the GIF special pipeline. */
-export function isGif(recording: RecordingUiState): boolean {
+/**
+ * GIF mode, i.e. the format that routes through the GIF special pipeline.
+ *
+ * Takes the structural minimum ({ format }) rather than the whole state, so the
+ * request→argv translator (`domain/cli-args.ts`, A6) asks the SAME predicate the
+ * view does instead of re-deriving `format === "gif"`. Two copies of the GIF
+ * branch is precisely the drift this layer exists to prevent.
+ */
+export function isGif(recording: { format: RecordingFormat }): boolean {
   return recording.format === "gif"
 }
 

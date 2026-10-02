@@ -90,6 +90,17 @@ gui_tools_app_files:
   # both layouts. Per-file placement like every other capture source.
   - { name: capture-domain-settings, source: src/gui-tools/capture-tool/domain/settings.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/settings.ts" }
   - { name: capture-domain-ui-state, source: src/gui-tools/capture-tool/domain/ui-state.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/ui-state.ts" }
+  # The request->argv translator (refactor-capture-tool-hexagonal A6). THE
+  # single module in the whole tool that writes an argv literal for
+  # `capture-tool screenshot|start`; both capture actions call it, and the next
+  # capture layout must call it too rather than re-deriving the flags. It
+  # carries the two vocabulary traps the backend's argparse rejects (--size 75
+  # not 75%, --audio mic not microphone), so a missing deployment is a capture
+  # that silently does not happen. Values + types only: no GTK, no GLib, no
+  # execAsync. Per-file placement like every other capture source; domain/ is
+  # already in gui_tools_config_dirs above (A3).
+  - { name: capture-domain-capture-request, source: src/gui-tools/capture-tool/domain/capture-request.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/capture-request.ts" }
+  - { name: capture-domain-cli-args, source: src/gui-tools/capture-tool/domain/cli-args.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/cli-args.ts" }
   # The ports and adapters layers (refactor-capture-tool-hexagonal A5). ports/
   # is interfaces only; adapters/ owns every GLib file read/write, the
   # execAsync spawn and the hide-then-wait-150ms delay. The dialog imports

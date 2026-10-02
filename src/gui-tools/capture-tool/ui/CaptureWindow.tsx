@@ -10,10 +10,11 @@ import {
   type ConfigScreenshotFormat,
   type ConfigScreenshotOutput,
 } from "../domain/settings"
+import { recordingArgs, screenshotArgs } from "../domain/cli-args"
+import type { RecordingRequest, ScreenshotRequest } from "../domain/capture-request"
 import {
   DEFAULT_RECORDING,
   DEFAULT_SCREENSHOT,
-  GIF_SIZE_ARG,
   type RecordingUiState,
   type ScreenshotUiState,
   configDefaults,
@@ -261,50 +262,44 @@ export function CaptureWindow(gdkmonitor: Gdk.Monitor, ports: CapturePorts): Ast
   function takeScreenshot() {
     uiStateStore.save(screenshot, recording)
     const config = settingsStore.load()
-    const args = [
-      "capture-tool",
-      "screenshot",
-      "--target",
-      screenshot.target,
-      "--delay",
-      String(screenshot.delay),
-      "--format",
-      screenshot.format,
-    ]
-    // The backend owns the default save path (config dir + pattern); the
-    // clipboard default is preserved unless Save was chosen.
-    if (screenshot.save) args.push("--save")
-    if (config.screenshot.cursor) args.push("--cursor")
+    // Build the request, then TRANSLATE it. The argv vocabulary -- including
+    // the `--size 75` (not `75%`) and `--audio mic` (not `microphone`) traps --
+    // belongs to `domain/cli-args.ts` (A6), the one module that owns it, so the
+    // next layout shares it instead of re-deriving it here.
+    const request: ScreenshotRequest = {
+      target: screenshot.target,
+      delay: screenshot.delay,
+      format: screenshot.format,
+      // The backend owns the default save path (config dir + pattern); the
+      // clipboard default is preserved unless Save was chosen.
+      save: screenshot.save,
+      cursor: config.screenshot.cursor,
+    }
     hideCaptureWindow()
     // The 150ms hide-then-spawn delay lives in the launcher (A5), not here:
     // it is a compositor fact, so a second layout inherits it for free.
-    launcher.launch(args)
+    launcher.launch(screenshotArgs(request))
   }
 
   function startRecording() {
     uiStateStore.save(screenshot, recording)
     const config = settingsStore.load()
-    const audioFlag = recording.audio === "microphone" ? "mic" : recording.audio
-    const args = [
-      "capture-tool",
-      "start",
-      "--target",
-      recording.target,
-      "--fps",
-      String(isGif(recording) ? recording.gifFps : recording.fps),
-      "--format",
-      recording.format,
-      "--quality",
-      recording.quality,
-      "--audio",
-      audioFlag,
-      "--duration",
-      String(recording.duration),
-    ]
-    if (isGif(recording)) args.push("--size", GIF_SIZE_ARG[recording.size])
-    if (config.recording.cursor) args.push("--cursor")
+    // Same seam as takeScreenshot: the GIF fps branch, the `--size` scale
+    // mapping and the `microphone`→`mic` conversion are the translator's, not
+    // the view's.
+    const request: RecordingRequest = {
+      target: recording.target,
+      fps: recording.fps,
+      gifFps: recording.gifFps,
+      format: recording.format,
+      audio: recording.audio,
+      quality: recording.quality,
+      duration: recording.duration,
+      size: recording.size,
+      cursor: config.recording.cursor,
+    }
     hideCaptureWindow()
-    launcher.launch(args)
+    launcher.launch(recordingArgs(request))
   }
 
   function onKey(keyval: number): boolean {

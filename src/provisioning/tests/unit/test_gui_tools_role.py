@@ -239,9 +239,18 @@ class TestGuiToolsVars:
         CaptureWindow imports ports/ and the composition root injects
         adapters/, so a missing member of either layer is a panel that cannot
         bundle at runtime. This exact list is the only thing standing between
-        A5 and a role that passes against a tree whose adapters are absent."""
+        A5 and a role that passes against a tree whose adapters are absent.
+
+        The request->argv translator joined them in the same change (A6 tasks
+        6.1-6.3): domain/capture-request.ts (the value objects) and
+        domain/cli-args.ts (the SINGLE module that writes an argv literal for
+        `capture-tool screenshot|start`). Both are loaded through the bundle,
+        and cli-args.ts carries the two tokens the backend's argparse rejects
+        (--size 75 not 75%, --audio mic not microphone) -- so an unregistered
+        member of this pair is a capture that silently never happens, not a
+        build error someone would notice."""
         files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 19, f"expected exactly 19 app files; found {len(files)}"
+        assert len(files) == 21, f"expected exactly 21 app files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/capture-tool/adapters/exec-backend-probe.ts",
@@ -249,6 +258,8 @@ class TestGuiToolsVars:
             "src/gui-tools/capture-tool/adapters/glib-settings-store.ts",
             "src/gui-tools/capture-tool/adapters/glib-ui-state-store.ts",
             "src/gui-tools/capture-tool/app.tsx",
+            "src/gui-tools/capture-tool/domain/capture-request.ts",
+            "src/gui-tools/capture-tool/domain/cli-args.ts",
             "src/gui-tools/capture-tool/domain/settings.ts",
             "src/gui-tools/capture-tool/domain/ui-state.ts",
             "src/gui-tools/capture-tool/lib/icon-registry.ts",
