@@ -152,7 +152,35 @@ stale**: its palette artifact set (`:198`) lists six artifacts and omits
 change 2 refreshes the artifact list, change 3 adds the three pointer rows. This is
 a doc update to a known-stale table, not a re-decision of its contents.
 
-## Reload: deliberately deferred
+## Provisioning order constraint (learned the hard way)
+
+**`assets` MUST run before `runtime-seed`, or the palette silently does not regenerate.**
+
+The runtime does not read templates from the repo — it reads them from the **spine**
+(`~/.local/share/dotfiles/config/color-scheme-generator/templates/`), and only the
+`assets` role syncs repo templates into that directory. Adding a template to
+`defaults/templates/` therefore has **no effect** until `assets` re-runs.
+
+Observed on this host: after merging the btop change and running `cli-tools`,
+`btop-config`, `config-links`, `runtime-seed` in that order, `runtime-seed` reported
+`changed=0` and the spine still held 11 templates. The palette entry hash is
+`sha256(wallpaper_hash ‖ template_set_hash)`, so an unchanged spine means an
+unchanged hash, a valid cache hit, and a clean no-op. **Nothing errors. The feature
+is simply absent.**
+
+The full coupling for adding a format is therefore four steps, in this order:
+
+1. `cli-tools` — reinstall the CLI and rebuild its container images (CSG runs in a
+   container; the **enum is baked into `Dockerfile.base`**, so a plain reinstall is
+   not enough. Only *templates* are bind-mounted from the host.)
+2. `assets` — copy the new templates into the spine
+3. `runtime-seed` — re-derive the palette (now sees the new templates)
+4. `config-links` / the tool's own role — expose the result
+
+Step 1 is also easy to miss because `csg generate --help` is the only visible
+tell; until it lists the new format, every later step silently no-ops.
+
+## Reload: feasible via SIGUSR2 (supersedes "deferred")
 
 btop resolves its theme once at startup and exposes no reload signal. A running
 instance keeps its colours until relaunch. Restarting a foreground TUI on every

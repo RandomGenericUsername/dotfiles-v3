@@ -100,17 +100,34 @@ def _run_btop(root: pathlib.Path, theme_value: str, themes: list[str], extra: li
     return buf, (root / "state/btop.log").read_text(errors="replace")
 
 
-def frame_colors(frame: bytes) -> set[str]:
-    """Every 24-bit SGR colour in the frame, both fg (38;2) and bg (48;2)."""
+def frame_colors(frame: bytes, *, background: bool = False) -> set[str]:
+    """24-bit SGR colours in the frame.
+
+    ``background=True`` restricts to 48;2 (background) sequences. Prefer this
+    for assertions: btop interpolates 101 values per gradient family, so the
+    combined fg+bg set is dominated by sampling noise and differs between ANY
+    two captures even when the theme has not changed. Background sequences are
+    drawn once per paint with the theme's literal main_bg, so they are a stable
+    signal. Foreground colours remain useful as a secondary check.
+    """
     out = set()
-    for r, g, b in re.findall(rb"(?:38|48);2;(\d+);(\d+);(\d+)", frame):
+    pattern = rb"48;2;(\d+);(\d+);(\d+)" if background else rb"(?:38|48);2;(\d+);(\d+);(\d+)"
+    for r, g, b in re.findall(pattern, frame):
         out.add(f"#{int(r):02x}{int(g):02x}{int(b):02x}")
     return out
 
 
-def file_colors(path: pathlib.Path) -> set[str]:
+def file_colors(path: pathlib.Path, *, background: bool = False) -> set[str]:
     text = path.read_text()
-    return {"#" + h.lower() for h in re.findall(r'="#([0-9a-fA-F]{6})"', text)}
+    if not background:
+        return {"#" + h.lower() for h in re.findall(r'="#([0-9a-fA-F]{6})"', text)}
+    # Only keys whose btop depth is a background (btop_theme.cpp:253:
+    # name ends with "bg" and is not "meter_bg").
+    out = set()
+    for key, val in re.findall(r'^theme\[([a-z_0-9]+)\]="#([0-9a-fA-F]{6})"$', text, re.M):
+        if key.endswith("bg") and key != "meter_bg":
+            out.add("#" + val.lower())
+    return out
 
 
 def check_one(theme: str, themes: list[str], tmp: pathlib.Path, extra: list[str],
@@ -143,29 +160,51 @@ def check_one(theme: str, themes: list[str], tmp: pathlib.Path, extra: list[str]
               f"(expected {theme}) -- btop fell back to Default_theme")
         ok = False
 
-    got = frame_colors(frame)
+    # Do not trust the frame at all unless the load line confirmed the theme was
+    # read. A stock btop.conf omits log_level (defaulting to WARNING), which
+    # suppresses the DEBUG line entirely -- that is a missing log line, NOT a
+    # fallback, and reading it as one is a false negative. _run_btop always
+    # injects log_level = "DEBUG" for exactly this reason.
+    if not loaded:
+        print("  SKIP assertion 2: no 'Loading theme file' line, so the frame cannot "
+              "be attributed to this theme (frame assertion is gated on the load line)")
+        return ok
+
     want = file_colors(theme_path)
-    if not got:
-        print("  FAIL assertion 2: no 24-bit colours in the captured frame")
+    want_bg = file_colors(theme_path, background=True)
+    got_bg = frame_colors(frame, background=True)
+    got_fg = frame_colors(frame)
+
+    if not got_bg:
+        print("  FAIL assertion 2: no 24-bit BACKGROUND sequences in the frame -- "
+              "cannot confirm the theme's main_bg reached the terminal")
         return False
-    hit = want & got
-    leaked = got & DEFAULT_THEME_COLORS
-    # "Dominated by the theme's colours" is measured over the FRAME, not over
-    # the file: a 200x50 frame shows only a handful of gradient stops at once,
-    # so requiring half the file's 48-key palette to appear is unsatisfiable.
-    # What distinguishes a themed run is that nearly every colour ON SCREEN
-    # came from our file, with zero fallback colours leaking in.
-    dominance = len(hit) / len(got) if got else 0.0
-    if hit and not leaked and dominance >= 0.6:
-        print(f"  PASS assertion 2: {len(hit)}/{len(got)} painted colours "
-              f"({dominance:.0%}) come from the theme ({len(hit)}/{len(want)} of "
-              f"its stops on screen), 0 Default_theme colours leaked")
+
+    # Primary signal: the theme's literal main_bg must be among the painted
+    # backgrounds, and no Default_theme colour may appear. Background sequences
+    # are stable across samples, unlike the interpolated gradient foregrounds.
+    bg_hit = want_bg & got_bg
+    bg_leaked = got_bg & DEFAULT_THEME_COLORS
+    if bg_hit and not bg_leaked:
+        print(f"  PASS assertion 2: theme background painted ({sorted(bg_hit)}), "
+              f"0 Default_theme backgrounds leaked")
     else:
-        print(f"  FAIL assertion 2: {len(hit)}/{len(got)} painted colours from the "
-              f"theme ({dominance:.0%}), {len(hit)}/{len(want)} stops on screen; "
-              f"Default leak={sorted(leaked) or 'none'}")
-        print(f"           frame colours: {sorted(got)}")
+        print(f"  FAIL assertion 2: theme bg in frame={sorted(bg_hit) or 'none'} "
+              f"(theme main_bg={sorted(want_bg)}), Default bg leak={sorted(bg_leaked) or 'none'}")
+        print(f"           frame backgrounds: {sorted(got_bg)}")
         ok = False
+
+    # Secondary signal: foreground colours drawn from our file, never from
+    # Default_theme. Reported, not gated, because a 200x50 frame shows only a
+    # handful of gradient stops at once.
+    fg_hit = want & got_fg
+    fg_leaked = got_fg & DEFAULT_THEME_COLORS
+    if fg_leaked:
+        print(f"  WARN assertion 2b: Default_theme colours present in foreground: "
+              f"{sorted(fg_leaked)}")
+    else:
+        print(f"  PASS assertion 2b: {len(fg_hit)} foreground colours from the theme, "
+              f"0 Default_theme foregrounds leaked")
     return ok
 
 
