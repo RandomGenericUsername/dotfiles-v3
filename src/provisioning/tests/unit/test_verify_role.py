@@ -169,6 +169,30 @@ def _sibling_vars(role: str) -> Any:
     return data
 
 
+# The capture app's spine subtree, as a suffix marker. Both roles place capture
+# files under it, so the marker is what makes one list comparable to the other
+# across the seam-spelling difference (see the derived coverage tests).
+_CAPTURE_SUBTREE = "ags-capture/"
+
+
+def _capture_spine_tails(paths: list[str]) -> set[str]:
+    """Return the spine-relative tail of each path under `ags-capture/`,
+    discarding paths outside that subtree.
+
+    The two roles reach the same spine dir by different seam vocabulary —
+    gui_tools spells it `{{ gui_tools_spine_config_dir }}`, verify spells it
+    `{{ install_dir | trim }}/config` — so only the tail after the subtree marker
+    is comparable. A full-dest comparison never matches, which reads as "every
+    file unasserted"; a filename-only comparison collides across the app's
+    layers."""
+    tails = set()
+    for path in paths:
+        index = path.find(_CAPTURE_SUBTREE)
+        if index != -1:
+            tails.add(path[index + len(_CAPTURE_SUBTREE) :])
+    return tails
+
+
 def _manifest_entries() -> list[dict[str, str]]:
     data = yaml.safe_load(_MANIFEST_PATH.read_text())
     assert isinstance(data, dict)
@@ -1213,6 +1237,76 @@ class TestVerifyVars:
         assert verify_names == gui_always_on, (
             "verify_ags_always_on_instances must be parity-EXACT with the "
             "gui_tools always_on subset"
+        )
+
+    def test_every_placed_capture_file_is_asserted(self) -> None:
+        """Derived coverage lock (verify-capture-placement-coverage): EVERY
+        ags-capture/ dest in gui_tools_app_files must appear in
+        verify_gui_tools_app_files.
+
+        Placement is per-file and silent — the gui_tools role just loops the
+        list, so a source missing from it is never written to the spine, with no
+        error and no warning. verify_gui_tools_app_files is the only thing that
+        turns that omission into a failed run, and both lists are maintained by
+        hand and independently. That is how five placed files shipped unasserted
+        (domain/cli-args.ts — the single request->argv translator, so every
+        capture dies at bundle time — plus domain/capture-request.ts and the
+        three ui/shared/ builder-kit modules).
+
+        The expected set is DERIVED from the placement manifest, not hardcoded: a
+        test listing the five would pass the moment a sixth placement entry landed
+        without a matching verify entry, reproducing the same silent gap under a
+        new name.
+
+        Compared as the spine-relative tail after ags-capture/, because the two
+        roles spell the seam differently (`{{ gui_tools_spine_config_dir }}` vs
+        `{{ install_dir | trim }}/config`) — a full-dest string never matches."""
+        placed = _capture_spine_tails(
+            [
+                str(entry["dest"])
+                for entry in _sibling_vars("gui_tools")["gui_tools_app_files"]
+            ]
+        )
+        verified = _capture_spine_tails(
+            [str(f) for f in _vars()["verify_gui_tools_app_files"]]
+        )
+
+        unasserted = placed - verified
+        assert not unasserted, (
+            "capture files placed by gui_tools_app_files but NOT asserted by "
+            f"verify_gui_tools_app_files: {sorted(unasserted)} — an unasserted "
+            "placement is a source that silently never deploys, while verify "
+            "stays green"
+        )
+
+    def test_capture_assertions_all_have_a_placement(self) -> None:
+        """The reverse direction of the coverage lock, plus the duplicate check.
+
+        A verify entry with no matching placement is a path verify demands that no
+        task ever creates — a guaranteed false failure on a correctly provisioned
+        machine, because the gate asserts the stat count equals the list length.
+        Duplicates are asserted separately so a repeated dest cannot be collapsed
+        away by the set and read as covered."""
+        placed_raw = [
+            str(entry["dest"])
+            for entry in _sibling_vars("gui_tools")["gui_tools_app_files"]
+            if "ags-capture/" in str(entry["dest"])
+        ]
+        verified_raw = [
+            str(f) for f in _vars()["verify_gui_tools_app_files"] if "ags-capture/" in str(f)
+        ]
+        assert len(placed_raw) == len(set(placed_raw)), (
+            "gui_tools_app_files places an ags-capture/ dest twice"
+        )
+        assert len(verified_raw) == len(set(verified_raw)), (
+            "verify_gui_tools_app_files asserts an ags-capture/ dest twice"
+        )
+
+        phantom = _capture_spine_tails(verified_raw) - _capture_spine_tails(placed_raw)
+        assert not phantom, (
+            "verify_gui_tools_app_files asserts ags-capture/ paths that no "
+            f"placement task creates: {sorted(phantom)} — verify would fail "
+            "forever on a correctly provisioned machine"
         )
 
     def test_ags_gate_is_session_aware(self) -> None:
@@ -2322,6 +2416,16 @@ def _build_provisioned_layout(
     (install / "config" / "ags-capture" / "domain").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags-capture" / "domain" / "settings.ts").write_text("")
     (install / "config" / "ags-capture" / "domain" / "ui-state.ts").write_text("")
+    # The request->argv half of the domain layer (hexagonal refactor A6): the
+    # capture intent value objects and the single module that writes an argv
+    # literal for `capture-tool screenshot|start`.
+    (install / "config" / "ags-capture" / "domain" / "capture-request.ts").write_text("")
+    (install / "config" / "ags-capture" / "domain" / "cli-args.ts").write_text("")
+    # The shared builder kit BOTH layouts import (hexagonal refactor A7): the
+    # row builders, the group/selection helpers and the icon resolver.
+    (install / "config" / "ags-capture" / "ui" / "shared").mkdir(parents=True, exist_ok=True)
+    for capture_shared in ("rows.ts", "groups.ts", "icons.ts"):
+        (install / "config" / "ags-capture" / "ui" / "shared" / capture_shared).write_text("")
     # The ports/ and adapters/ layers (hexagonal refactor A5): ClassicWindow
     # imports ports/, the composition root injects adapters/.
     for capture_layer in ("ports", "adapters"):
