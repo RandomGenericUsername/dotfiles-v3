@@ -234,7 +234,9 @@ passwordless sudo.
 | 9 | `zsh_tools` | git-clones oh-my-zsh/pyenv/nvm (`~/.oh-my-zsh`, `~/.pyenv`, `~/.nvm`) |
 | 10 | `zsh_config` | renders `.zshrc.j2` → spine `config/zsh/.zshrc` (starship, plugins, colors) |
 | 11 | `wlogout_config` | renders `style.css.tpl` → spine `config/wlogout/style.css` (palette import) |
-| 12 | `config_links` | `~/.config/<name>` → spine symlinks + backup guard |
+| 12 | `kitty_config` | renders `kitty.conf` into spine `config/kitty/` (absolute `include` of the runtime palette) |
+| 13 | `btop_config` | renders `btop.conf` into spine `config/btop/` + creates `btop/themes/` (see "btop" below) |
+| 14 | `config_links` | `~/.config/<name>` → spine symlinks + backup guard |
 | 13 | ~~`icons`~~ | REMOVED (Epic 4 — runtime derives icons per wallpaper; no `generated/icons/`) |
 | 14 | `display_manager` | **SDDM + Pixie theme** (Wayland greeter, no X11 GPU grab) → `/etc/sddm.conf.d/`; enables sddm, disables greetd/lightdm |
 | 15 | `verify` | the fourteen done-criteria gate |
@@ -269,6 +271,54 @@ each tool's native XDG discovery works while the spine stays the single home.
 A backup/migration guard moves any pre-existing user config aside (timestamped
 backup) before a symlink replaces it.
 
+### btop is not an `include` — it needs real files in its own theme dir
+
+`kitty` themes by `include <absolute path>` to the runtime's `current/`, so its
+config is a rendered string and its palette is a pointer. **btop cannot do
+that.** `Theme::setTheme` (`btop_theme.cpp:451-471`) matches `color_theme`
+only against the themes btop discovered while scanning its theme dirs at
+startup, by full path / filename / stem. An absolute path to a file OUTSIDE
+those dirs resolves to nothing and falls back to the built-in `Default` theme
+**silently** — no error, no warning, no log line.
+
+So btop's integration is a role **plus** three consumer pointers:
+
+```
+<install>/config/btop/btop.conf            ← btop_config role (rendered)
+<install>/config/btop/themes/              ← btop_config role (state: directory)
+    colors.btop-minimal.theme   -> <state>/dotfiles/current/colors.btop-minimal.theme
+    colors.btop-balanced.theme  -> <state>/dotfiles/current/colors.btop-balanced.theme
+    colors.btop-full.theme      -> <state>/dotfiles/current/colors.btop-full.theme
+~/.config/btop -> <install>/config/btop    ← config_links
+```
+
+Two facts make the pointers sufficient. `Theme::updateThemes` (`:430-442`)
+admits an entry iff `file.path().extension() == ".theme"` (LEXICAL — reads the
+LINK's own name) and `access(path, R_OK) != -1` (FOLLOWS the chain), and btop
+never canonicalizes. So a spine → `current/` → cache-entry chain is invisible
+to it, and all three difficulties show up in btop's theme menu.
+
+**`config/btop/themes/` is provisioning's to create.** The runtime's
+`repoint_consumer_symlinks` skips a pointer whose destination parent is missing
+and NEVER `mkdir`s into the spine (`skip_on_missing_parent`). Without the
+role's `state: directory` task, the first wallpaper swap silently drops all
+three pointers.
+
+**`save_config_on_exit = false` is mandatory, not cosmetic.** btop defaults it
+`true` (`btop_config.cpp:379`) and `Config::write()` truncates and rewrites the
+whole config on exit (`:836-845`). `~/.config/btop` is a symlink into the
+git-tracked spine, so with the default every btop quit would overwrite the
+provisioning-owned `btop.conf` through the symlink and land the user's UI
+changes in version control. `verify` pins the setting and the e2e suite
+asserts it by hashing the file across a real btop run (with a negative control
+that flips the setting back to `true` and requires the hash to CHANGE).
+
+**Reload: none.** btop resolves its theme once at startup and exposes no
+reload signal, so a wallpaper change reaches btop on its **next launch**.
+Provisioning never terminates, signals, or relaunches a running btop; the
+reloader is deferred to a later change (the `Gtk4AppReloader` pattern is the
+likely template).
+
 ## The fourteen done-criteria (verify)
 
 1. install spine exists (dirs + file nodes)
@@ -278,6 +328,9 @@ backup) before a symlink replaces it.
 5. settings files render + parse (`csg info`, `weg info`, `itr list`)
 6. runtime palette present (`current/`)
 7. compositor configs + R2 consumer symlink present with correct types
+7b. btop config rendered + wired (`btop.conf` selects
+`colors.btop-minimal.theme` with `save_config_on_exit = false`; the spine's
+`btop/themes/` dir exists with all three generated themes)
 8. XDG base dirs exist
 9. config copies are symlinks into the spine (5-layer check)
 10. icons rendered (`current/icons/` populated)
@@ -337,7 +390,13 @@ dump-effects --output <install>/config/weg/effects.yaml`, consumed via
 writes its settings.toml directly (4 keys).
 
 **CSG `default_formats = []`** (empty = all catalog formats on interactive
-generate); the chain passes explicit `-f conf -f gtk.css -f yaml`.
+generate); the chain passes the format set EXPLICITLY, one `--format` flag per
+artifact the runtime consumes. Never assume the three historic formats
+(`conf`, `gtk.css`, `yaml`): the authoritative list is the runtime's csg
+adapter argv (`src/runtime/src/runtime/adapters/csg_adapter.py`), mirrored by
+`verify_csg_template_files` — a format with no `--format` flag is never
+requested, and a `--format` flag whose `colors.<fmt>.j2` template is missing
+makes CSG silently omit the artifact.
 
 ---
 

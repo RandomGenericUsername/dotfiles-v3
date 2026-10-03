@@ -1,0 +1,15 @@
+# Btop-config playbook — one-per-role playbook.
+#
+# Renders btop's btop.conf into <install>/config/btop/btop.conf (selecting the
+# generated csg-minimal theme and pinning save_config_on_exit = false) and
+# ensures <install>/config/btop/themes/ exists, because the runtime's consumer
+# pointers never mkdir into the spine. Runs BEFORE config-links (which symlinks
+# ~/.config/btop -> <install>/config/btop).
+#
+# User-scoped: NO become. Distro-agnostic at the play level.
+# gather_facts: true REQUIRED — vars derive ansible_facts + the seam.
+- name: Render user btop config
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - btop_config
