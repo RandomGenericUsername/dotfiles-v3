@@ -75,6 +75,9 @@ _LOGICAL_PACKAGE_KEYS = (
     "astal-wp",
     "bluez",
     "bluez-utils",
+    # The GTK Bluetooth manager — the "Bluetooth Settings" target, and the only
+    # agent able to answer a PIN/passkey request.
+    "blueman",
 )
 _ARCH_EXTRA_KEYS = (
     "adw_gtk_theme",  # GTK3 theme (Option A 2026-09-09)

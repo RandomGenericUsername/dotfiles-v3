@@ -79,9 +79,20 @@ entries:
   # D-Bus by the panel's own bluetooth-service.ts (no Astal Bluetooth binding);
   # bluez/bluez-utils ship the BlueZ daemon + bluetoothctl, and provisioning
   # enables bluetooth.service.
+  #
+  # blueman is the FULL Bluetooth GUI and the target of the panel's
+  # "Bluetooth Settings" row. It is not the panel's dependency — the panel
+  # drives BlueZ over D-Bus directly — but it is what makes a PIN/passkey
+  # pairing completable, because the panel's own agent registers with the
+  # `NoInputNoOutput` capability (Just Works) and cannot satisfy a PIN
+  # request. Blueman supplies a `KeyboardDisplay` agent, so BlueZ can fall
+  # back to it for the methods the panel cannot answer. Deliberately NOT
+  # autostarted: its tray applet would sit in the bar owning a second agent
+  # role for a GUI the user only opens deliberately.
   - name: astal-wp           # AstalWp — WirePlumber audio (settings panel volume)
   - name: bluez              # Bluetooth stack / bluetoothd
   - name: bluez-utils        # bluetoothctl + the bluetooth.service unit
+  - name: blueman            # GTK Bluetooth manager — the "Bluetooth Settings" target
 
   # Additional useful tools
   - name: hyprcursor         # Cursor themes

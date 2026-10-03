@@ -376,6 +376,7 @@ class TestReadRealManifests:
             "astal-wp",
             "bluez",
             "bluez-utils",
+            "blueman",
         }
 
     def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:

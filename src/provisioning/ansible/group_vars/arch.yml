@@ -31,6 +31,10 @@ packages:
   # after install.
   bluez: bluez
   bluez-utils: bluez-utils # bluetoothctl + the bluetooth.service unit
+  # The GTK Bluetooth manager: the target of the panel's "Bluetooth Settings"
+  # row, and the only agent on the system that can answer a PIN/passkey
+  # request (the panel's own agent is NoInputNoOutput / Just Works).
+  blueman: blueman
   ffmpeg: ffmpeg
   pipewire: pipewire
   wireplumber: wireplumber
