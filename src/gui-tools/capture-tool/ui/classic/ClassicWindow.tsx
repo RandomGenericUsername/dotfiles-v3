@@ -35,12 +35,9 @@ import app from "ags/gtk4/app"
 import { recordingArgs, screenshotArgs } from "../../domain/cli-args"
 import type { RecordingRequest, ScreenshotRequest } from "../../domain/capture-request"
 import {
-  DEFAULT_RECORDING,
-  DEFAULT_SCREENSHOT,
   configDefaults,
   durationSelection,
-  type RecordingUiState,
-  type ScreenshotUiState,
+  type UiState,
 } from "../../domain/ui-state"
 import type { CapturePorts } from "../../ports/capture-ports"
 import type {
@@ -118,10 +115,19 @@ function syncWindowSize() {
 //
 // `ports` (design.md §2, task 5.9) is the injected hexagon: settings
 // persistence, UI-state persistence, capture launching and the backend probe.
+// `state` is the ONE live UI state, also injected by the composition root and
+// SHARED by every window it builds — the state belongs to the app, not to a
+// window, and a window that allocated its own would be a second writer to the
+// same `capture-ui.json`. Both are required parameters on purpose: a window
+// cannot be constructed without being told which state it mutates.
 // The composition root builds the adapters and passes them in, so this file
 // contains no filesystem access and no process spawning — only calls into
 // interfaces it was handed.
-export function ClassicWindow(gdkmonitor: Gdk.Monitor, ports: CapturePorts): Astal.Window {
+export function ClassicWindow(
+  gdkmonitor: Gdk.Monitor,
+  ports: CapturePorts,
+  state: UiState,
+): Astal.Window {
   const { settingsStore, uiStateStore, launcher } = ports
 
   let mode: Mode = "screenshot"
@@ -139,13 +145,20 @@ export function ClassicWindow(gdkmonitor: Gdk.Monitor, ports: CapturePorts): Ast
   let settingsPage: SettingsPageHandle | null = null
   let view: View = "screenshot"
 
-  // Live UI state. MUTATED IN PLACE, never rebound — the three pages were
-  // handed these exact objects when they were constructed, so a rebind would
-  // leave every page mutating an object the window had already replaced. The
-  // store's merge always returns every field, so `Object.assign` below lands
-  // the same key set, and the same values, a rebind would have.
-  const screenshot: ScreenshotUiState = { ...DEFAULT_SCREENSHOT }
-  const recording: RecordingUiState = { ...DEFAULT_RECORDING }
+  // Live UI state, INJECTED (fix-capture-per-monitor-state). The composition
+  // root builds one state and passes the SAME object to every window it
+  // creates, because the state is per-application: one `capture-ui.json`, one
+  // precedence chain, one set of last-used selections. A window that allocated
+  // its own copy would be a second owner of that value, and the two copies
+  // would diverge the moment either was mutated — with the last `save()` to
+  // run silently discarding the other's selection.
+  //
+  // Still MUTATED IN PLACE, never rebound — the three pages were handed these
+  // exact objects when they were constructed, so a rebind would leave every
+  // page mutating an object the window had already replaced. The store's merge
+  // always returns every field, so `Object.assign` below lands the same key
+  // set, and the same values, a rebind would have.
+  const { screenshot, recording } = state
 
   // Button groups carry their value so persisted state can re-select them.
   const screenshotTargetGroup: Array<{ value: CaptureTarget; button: Gtk.Button }> = []

@@ -5,6 +5,7 @@ import { execBackendProbe } from "./adapters/exec-backend-probe"
 import { execCaptureLauncher } from "./adapters/exec-capture-launcher"
 import { glibSettingsStore } from "./adapters/glib-settings-store"
 import { glibUiStateStore } from "./adapters/glib-ui-state-store"
+import { createUiState } from "./domain/ui-state"
 import type { CapturePorts } from "./ports/capture-ports"
 import { ClassicWindow } from "./ui/classic/ClassicWindow"
 
@@ -36,8 +37,19 @@ app.start({
   main() {
     app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)
     const ports = buildPorts()
+    // ONE live UI state for the whole app, built here and handed to every
+    // window (fix-capture-per-monitor-state). The persisted selections belong
+    // to the application — there is a single `capture-ui.json` and a single
+    // settings→defaults→last-used precedence chain — so the loop must NOT give
+    // each monitor's window its own copy: two copies diverge on first
+    // mutation, and whichever window saves last silently discards the other
+    // one's selection. `createUiState()` stays a factory (not a module-level
+    // constant) for the same reason `buildPorts()` does: the sharing is this
+    // composition root's decision, visible in one place, and swap-able by a
+    // test or a second entry point.
+    const state = createUiState()
     for (const monitor of app.get_monitors()) {
-      app.add_window(ClassicWindow(monitor, ports))
+      app.add_window(ClassicWindow(monitor, ports, state))
     }
   },
 })
