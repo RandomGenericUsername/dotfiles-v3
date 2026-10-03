@@ -780,6 +780,116 @@ class TestVerifyTasks:
         assert "verify_config_copy_content | length" in that
         assert content_assert.get("when") == "not ansible_check_mode"
 
+    def _btop_theme_stat_task(self) -> dict[str, object]:
+        matches = [
+            task
+            for task in _stat_tasks()
+            if "verify_btop_theme_checks" == str(task.get("register"))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one btop themes-dir + theme-files stat; found {len(matches)}"
+        )
+        return matches[0]
+
+    def test_btop_integration_is_verified(self) -> None:
+        """provision-btop-config: verify gates the rendered btop.conf, the
+        spine's themes/ dir, and all three generated themes. The themes are
+        statted with follow: true so a DANGLING consumer pointer fails — which
+        is precisely the state in which btop silently falls back to
+        Default_theme with no error."""
+        conf_stat = [
+            task for task in _stat_tasks() if "verify_btop_conf_stat" == str(task.get("register"))
+        ]
+        assert len(conf_stat) == 1
+        assert _module(conf_stat[0]).get("follow") is True
+        assert "{{ verify_btop_config_path }}" in str(_module(conf_stat[0]).get("path"))
+
+        theme_stat = self._btop_theme_stat_task()
+        assert _module(theme_stat).get("follow") is True
+        loop = str(theme_stat.get("loop", ""))
+        assert "verify_btop_themes_dir" in loop and "verify_btop_theme_paths" in loop
+        theme_asserts = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_theme_checks" in str(_module(task).get("that", ""))
+        ]
+        assert theme_asserts[0].get("when") == "not ansible_check_mode", (
+            "the theme-files assert must be check-gated (bootstrap --check must "
+            "stay clean on a partially-provisioned host)"
+        )
+
+        grep_tasks = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.command"
+            and "verify_btop_conf_grep" in str(task.get("register", ""))
+        ]
+        assert len(grep_tasks) == 1
+        assert grep_tasks[0].get("failed_when") is False, (
+            "the btop.conf grep must not hard-fail the play — the ASSERTS below "
+            "own the failure message (same pattern as the kitty/wlogout gates)"
+        )
+
+        themed = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_theme_selected" in str(_module(task).get("that", ""))
+        ]
+        assert len(themed) == 1, "exactly one assert must pin the selected theme"
+        assert "verify_btop_conf_grep" in str(_module(themed[0]).get("that", ""))
+        assert "btop_theme.cpp" in str(_module(themed[0]).get("fail_msg", ""))
+
+        saved = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_save_config_on_exit" in str(_module(task).get("that", ""))
+        ]
+        assert len(saved) == 1, "exactly one assert must pin save_config_on_exit"
+        assert "btop_config.cpp" in str(_module(saved[0]).get("fail_msg", "")), (
+            "the save_config_on_exit failure must carry the btop source citation "
+            "— it is the one non-cosmetic setting in the whole integration"
+        )
+
+        asserts = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_theme_checks" in str(_module(task).get("that", ""))
+        ]
+        assert len(asserts) == 1
+        that = str(_module(asserts[0]).get("that"))
+        assert "stat.isdir" in that, "the themes/ DIR itself must be gated"
+        assert "selectattr('isreg')" in that, (
+            "all three theme files must be gated as regular files after "
+            "following the pointer chain"
+        )
+        assert "verify_btop_theme_files | length" in that, (
+            "the count assert must be anchored to the LIST LENGTH — a list "
+            "shrunk to 0 would otherwise make the gate vacuously green"
+        )
+
+    def test_btop_vars_pin_the_two_critical_values(self) -> None:
+        data = _vars()
+        assert data["verify_btop_theme_selected"] == "colors.btop-minimal.theme", (
+            "verify must pin the theme by the FILE NAME btop matches on — a "
+            "csg-prefixed alias would never match a discovered entry"
+        )
+        assert str(data["verify_btop_save_config_on_exit"]) == "false"
+        assert [str(f) for f in data["verify_btop_theme_files"]] == [
+            "colors.btop-minimal.theme",
+            "colors.btop-balanced.theme",
+            "colors.btop-full.theme",
+        ]
+        assert str(data["verify_btop_spine_dir"]) == "{{ install_dir | trim }}/config/btop"
+        assert str(data["verify_btop_config_path"]) == "{{ verify_btop_spine_dir }}/btop.conf"
+        assert str(data["verify_btop_themes_dir"]) == "{{ verify_btop_spine_dir }}/themes"
+
+    def test_btop_is_in_the_managed_dir_lists(self) -> None:
+        """btop joins BOTH managed-dir lists — they are compared EXACTLY by
+        test_managed_link_dirs_parity_with_config_links, so both must change
+        together."""
+        assert "btop" in list(_vars()["verify_managed_link_dirs"])
+        assert "btop" in list(_sibling_vars("config_links")["config_links_managed_dirs"])
+
     def test_managed_link_dirs_parity_with_config_links(self) -> None:
         """Parity lock: verify_managed_link_dirs mirrors the config_links
         role's managed dir set EXACTLY — the symlink check must cover every
@@ -995,6 +1105,13 @@ class TestVerifyVars:
         "verify_config_copy_content",
         "verify_managed_link_dirs",
         "verify_gtk_skeleton_files",
+        "verify_btop_spine_dir",
+        "verify_btop_config_path",
+        "verify_btop_themes_dir",
+        "verify_btop_theme_files",
+        "verify_btop_theme_paths",
+        "verify_btop_theme_selected",
+        "verify_btop_save_config_on_exit",
         "verify_itr_list_target",
     }
 
@@ -1319,6 +1436,11 @@ class TestVerifyVars:
             "verify_config_copy_content",
             "verify_managed_link_dirs",
             "verify_gtk_skeleton_files",
+            "verify_btop_spine_dir",
+            "verify_btop_config_path",
+            "verify_btop_themes_dir",
+            "verify_btop_theme_files",
+            "verify_btop_theme_paths",
             "verify_cli_bin_dir",
             "verify_bin_scripts",
             "install_dir",
@@ -2092,6 +2214,8 @@ def _build_provisioned_layout(
         "config/gtk-4.0",
         "config/rofi",
         "config/rofi/launcher",
+        "config/btop",
+        "config/btop/themes",
     )
     for rel in spine_dirs:
         (install / rel).mkdir(parents=True, exist_ok=True)
@@ -2393,6 +2517,22 @@ def _build_provisioned_layout(
         "include local.conf\n"
         "auto_reload_config -1\n"
     )
+    # Rendered btop config (btop_config role): verify pins BOTH non-default
+    # settings — the selected theme NAME and save_config_on_exit = false — and
+    # the three generated theme files, which are consumer POINTERS at
+    # current/ (stat'ed with follow: true, so a dangling pointer fails).
+    (install / "config" / "btop" / "btop.conf").write_text(
+        "#? managed by provisioning\n"
+        'color_theme = "colors.btop-minimal.theme"\n'
+        "save_config_on_exit = false\n"
+    )
+    for difficulty in ("minimal", "balanced", "full"):
+        name = f"colors.btop-{difficulty}.theme"
+        (state_cache_palette / name).write_text("")
+        (state_current / name).symlink_to(state_cache_palette / name)
+        (install / "config" / "btop" / "themes" / name).symlink_to(
+            state_current / name
+        )
 
     # Shell-tools clones (zsh_tools role — done-criterion 11): verify checks
     # ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist as dirs (in the HOME the playbook
@@ -2423,6 +2563,7 @@ def _build_provisioned_layout(
         "gtk-3.0",
         "gtk-4.0",
         "rofi",
+        "btop",
     ):
         (xdg / name).symlink_to(install / "config" / name, target_is_directory=True)
 

@@ -1,0 +1,52 @@
+# Btop-config role — renders btop's btop.conf from the authored Jinja template
+# (roles/btop_config/templates/btop.conf.j2) into the config-in-spine home
+# <install>/config/btop/btop.conf, and ensures the spine's themes/ dir exists.
+#
+# Design:
+# - The FIRST task is the fail-loud install_dir seam assert, verbatim from the
+#   sibling roles (zsh_config / wlogout_config / kitty_config). install_dir is
+#   deliberately never defaulted (group_vars/all.yml), so a missing spine root
+#   aborts before anything evaluates.
+# - The rendered btop.conf carries exactly TWO settings:
+#     color_theme = "csg-minimal.theme"
+#     save_config_on_exit = false
+#   Every other btop setting is deliberately ABSENT so btop applies its own
+#   defaults (design D6 — stock values, auditable surface).
+# - NO absolute theme path: btop resolves `color_theme` only against the
+#   themes it discovered while scanning its theme dirs at startup
+#   (btop_theme.cpp:451-471); anything else silently falls back to
+#   Default_theme. The themes therefore live in <install>/config/btop/themes/
+#   as runtime consumer pointers and are matched BY FILENAME.
+# - Runs BEFORE config_links (which symlinks ~/.config/btop ->
+#   <install>/config/btop) and before runtime-seed (which seeds current/ and
+#   lays down the three theme pointers).
+# - `template` has full check-mode support — no --check gate.
+# - User-scoped: NO become.
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the btop_config role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure btop config dir exists in the spine
+  ansible.builtin.file:
+    path: "{{ btop_config_spine_dir }}"
+    state: directory
+
+# D4: the runtime's repoint_consumer_symlinks SKIPS a pointer whose
+# destination parent is missing and never mkdirs into the install spine
+# (rule `skip_on_missing_parent`), so the themes/ dir is provisioning's job.
+# Without it the first wallpaper swap silently drops all three btop pointers
+# and btop's theme menu stays empty.
+- name: Ensure btop themes dir exists in the spine
+  ansible.builtin.file:
+    path: "{{ btop_config_spine_themes_dir }}"
+    state: directory
+
+- name: Render btop.conf
+  ansible.builtin.template:
+    src: btop.conf.j2
+    dest: "{{ btop_config_spine_dir }}/btop.conf"

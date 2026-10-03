@@ -15,6 +15,15 @@
 #      icon-mappings/ + csg-templates/ + weg-effects.yaml
 #   5. settings render and parse    → settings files exist AND spine targets
 #      resolve AND csg/weg/itr gates exit 0
+#   5b. btop config rendered+wired  → btop.conf selects
+#      colors.btop-minimal.theme,
+#      save_config_on_exit = false (the one non-cosmetic setting in the whole
+#      btop integration — see btop_config/vars), the spine btop/themes/ dir
+#      exists, and all three generated themes are present in it.
+#   5b. btop config rendered+wired  → btop.conf selects csg-minimal.theme,
+#      save_config_on_exit = false (the one non-cosmetic setting in the whole
+#      btop integration — see btop_config/vars), the spine btop/themes/ dir
+#      exists, and all three generated themes are present in it.
 #   6. default palette generated    → the runtime-consumed palette at
 #      <state>/dotfiles/current/{colors.conf, colors.yaml, colors.gtk.css}
 #      (current-only, Epic 4 — the default_palette role is deleted; the
@@ -121,6 +130,7 @@
       - verify_xdg_dirs | length > 0
       - verify_config_copies_targets | length > 0
       - verify_gtk_skeleton_files | length > 0
+      - verify_btop_theme_files | length > 0
       - verify_icons_samples | length > 0
       - verify_derivation_template_dirs | length > 0
     fail_msg: >-
@@ -1180,6 +1190,101 @@
       colors.kitty artifact to be included from the runtime state current dir —
       kitty terminal config). The kitty_config role renders kitty.conf.j2 →
       kitty.conf; run the kitty-config playbook first
+  when: not ansible_check_mode
+
+# ── btop integration (provision-btop-config) ────────────────────────────────
+# Three layers, in dependency order:
+#   1. the rendered btop.conf exists AND pins color_theme/save_config_on_exit
+#   2. the spine btop/themes/ dir exists (provisioning's, not the runtime's)
+#   3. all three generated themes are present and RESOLVE through the pointer
+#      chain into a palette cache entry (follow: true — a dangling pointer is
+#      exactly the failure btop would silently degrade to Default_theme on)
+- name: Check rendered btop.conf exists
+  ansible.builtin.stat:
+    path: "{{ verify_btop_config_path }}"
+    follow: true
+  register: verify_btop_conf_stat
+
+- name: Assert rendered btop.conf exists
+  ansible.builtin.assert:
+    that: verify_btop_conf_stat.stat.exists and verify_btop_conf_stat.stat.isreg
+    fail_msg: >-
+      the rendered btop.conf is missing or not a regular file at
+      {{ verify_btop_config_path }}. The btop_config role renders
+      templates/btop.conf.j2 → btop.conf; run the btop-config playbook first
+  when: not ansible_check_mode
+
+- name: Check btop.conf pins color_theme and save_config_on_exit
+  ansible.builtin.command:
+    argv:
+      - grep
+      - -E
+      - ^(color_theme|save_config_on_exit)\s*=
+      - "{{ verify_btop_config_path }}"
+  register: verify_btop_conf_grep
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert btop.conf selects the minimal theme
+  ansible.builtin.assert:
+    that: >-
+      verify_btop_conf_grep.stdout is search(
+        'color_theme\s*=\s*["'']{{ verify_btop_theme_selected }}["'']')
+    fail_msg: >-
+      the rendered btop.conf does not select
+      "{{ verify_btop_theme_selected }}". btop resolves `color_theme` ONLY
+      against themes it discovered while scanning its theme dirs at startup
+      (btop_theme.cpp:451-471) — a wrong or absent value falls back to the
+      built-in Default_theme SILENTLY, with no error. Re-run the btop-config
+      playbook.
+  when: not ansible_check_mode
+
+- name: Assert btop.conf disables save_config_on_exit
+  ansible.builtin.assert:
+    that: >-
+      verify_btop_conf_grep.stdout is search(
+        'save_config_on_exit\s*=\s*{{ verify_btop_save_config_on_exit }}')
+    fail_msg: >-
+      the rendered btop.conf does not set
+      save_config_on_exit = {{ verify_btop_save_config_on_exit }}. This setting
+      is MANDATORY, not cosmetic: btop defaults it to TRUE
+      (btop_config.cpp:379) and Config::write() truncates and rewrites the
+      whole config on exit (:836-845). btop's own config home is a symlink
+      into the git-tracked spine (config_links), so with the default every
+      btop quit would overwrite the provisioning-owned btop.conf through that
+      symlink and land the user's UI changes in version control. Re-run the
+      btop-config playbook.
+  when: not ansible_check_mode
+
+- name: Check btop themes dir and the three generated themes
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: true
+  loop: "{{ [verify_btop_themes_dir] + verify_btop_theme_paths }}"
+  register: verify_btop_theme_checks
+
+- name: Assert btop themes dir exists and all three themes are present
+  ansible.builtin.assert:
+    that:
+      - verify_btop_theme_checks.results[0].stat.isdir | default(false)
+      - verify_btop_theme_checks.results | length == (verify_btop_theme_files | length) + 1
+      - >-
+        verify_btop_theme_checks.results[1:] | map(attribute='stat')
+        | selectattr('isreg') | list
+        | length == verify_btop_theme_files | length
+    fail_msg: >-
+      the btop themes integration is incomplete under {{ verify_btop_spine_dir }}
+      (expected the themes/ DIRECTORY plus
+      {{ verify_btop_theme_files | join(', ') }} as regular files). Two
+      independent causes: (a) the btop_config role did not create
+      {{ verify_btop_themes_dir }} — the runtime's
+      repoint_consumer_symlinks skips a pointer whose parent is missing and
+      NEVER mkdirs into the spine, so the first swap would silently drop all
+      three pointers; run the btop-config playbook. (b) the pointers exist but
+      DANGLE (no palette cache entry behind them) — run
+      `dotfiles-runtime wallpaper set <install>/wallpapers/default.png`. A
+      dangling theme makes btop fall back to Default_theme with no error.
   when: not ansible_check_mode
 
 - name: Stat shell-tools clone dirs (zsh_tools)

@@ -29,7 +29,7 @@
 |-------|---------|
 | `Backend` enum | `CUSTOM` / `PYWAL` / `WALLUST`; `image_suffix` property → `"custom"`, `"pywal"`, `"wallust"`. **No `AUTO` member** (D10) |
 | `ColorAlgorithm` enum | Per-backend algorithm selectors (KMEANS / THIEF / SOLARIZED / etc.) — informational; actual valid values are enforced by `BackendParameterDefinition.choices` |
-| `ColorFormat` enum | JSON / SH / CSS / GTK_CSS / ADW_CSS (`"adw.css"`) / YAML / RASI / SCSS / SEQUENCES / HYPRLAND (`"conf"`) — output file formats the user can request via `-f` |
+| `ColorFormat` enum | JSON / SH / CSS / GTK_CSS / ADW_CSS (`"adw.css"`) / YAML / RASI / SCSS / SEQUENCES / HYPRLAND (`"conf"`) / KITTY (`"kitty"`) — output file formats the user can request via `-f`. Each `colors.<fmt>.j2` template maps 1:1 to its artifact; a missing template means CSG SILENTLY OMITS the format |
 | `RuntimeMode` enum | LOCAL / CONTAINER |
 | `ContainerEngine` enum | DOCKER / PODMAN |
 | `OutputFormat` enum | JSON / RICH / PLAIN (default: JSON) — CLI status rendering format |
