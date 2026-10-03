@@ -133,6 +133,25 @@ Notable non-visual assertions:
   `PALETTE_ARTIFACT_NAMES` membership, `resolve().is_relative_to(entry_dir)` for
   each `current/` symlink, and schema round-trip — all against a temp state root.
 
+## Open decisions — CLOSED
+
+**Templates: hand-written, with the test suite as the drift guard.**
+Generating the three from one source would prevent drift, but it adds a build step
+CSG does not have and cuts against the repo's "the enum and a data file, not a
+build pipeline" philosophy. Instead the spec's dial assertions (task 2.4) *are* the
+drift guard: a test asserts minimal-vs-balanced differ only in `temp_*`/`cached_*`
+and balanced-vs-full only in `cpu_*`. If a future edit desynchronizes the three
+templates, that test fails. Hand-writing plus a structural test beats a generator
+plus a build step.
+
+**`shared-data-contract.md` is IN scope for changes 2 and 3.** The consumer-pointer
+table there (`shared-data-contract.md:180-186`) is the canonical transcription of
+`consumer_path_spec.py`, and change 3 adds three rows to it. It is also **already
+stale**: its palette artifact set (`:198`) lists six artifacts and omits
+`colors.kitty`. Both are corrected as part of this work rather than deferred:
+change 2 refreshes the artifact list, change 3 adds the three pointer rows. This is
+a doc update to a known-stale table, not a re-decision of its contents.
+
 ## Reload: deliberately deferred
 
 btop resolves its theme once at startup and exposes no reload signal. A running
