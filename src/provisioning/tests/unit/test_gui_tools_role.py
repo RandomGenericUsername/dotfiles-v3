@@ -295,6 +295,61 @@ class TestGuiToolsVars:
             path = _REPO_ROOT / str(entry["source"])
             assert path.is_file(), f"app source missing from repo: {entry['source']}"
 
+    def test_retired_capture_sources_are_removed_from_the_spine(self) -> None:
+        """Per-file placement only WRITES, so a source dropped from
+        gui_tools_app_files leaves its placed copy on disk forever. The capture
+        app's hexagonal refactor retired four pre-refactor sources; without an
+        explicit removal task they persist in derived state, where they are the
+        exact "parallel, never-exercised architecture" the refactor deleted,
+        invisible to every gate (the gates read the repo, not the spine)."""
+        obsolete = _vars()["gui_tools_capture_obsolete"]
+        assert len(obsolete) == 4, f"expected 4 retired paths; found {len(obsolete)}"
+
+        removal_tasks = [
+            t
+            for t in _tasks()
+            if t.get("ansible.builtin.file", {}).get("state") == "absent"
+            and "gui_tools_capture_obsolete" in str(t.get("loop", ""))
+        ]
+        assert len(removal_tasks) == 1, (
+            "expected exactly one task looping gui_tools_capture_obsolete with "
+            f"state: absent; found {len(removal_tasks)}"
+        )
+        task = removal_tasks[0]
+        assert task.get("when") == "not ansible_check_mode", (
+            "the removal must be check-gated: under --check it reports what "
+            "would go without deleting it"
+        )
+
+    def test_retired_capture_sources_are_not_also_placed(self) -> None:
+        """A path cannot be both placed and removed in the same run. This is the
+        ordering that would silently no-op one of the two tasks."""
+        placed = {str(e["dest"]) for e in _vars()["gui_tools_app_files"]}
+        obsolete = set(_vars()["gui_tools_capture_obsolete"])
+        overlap = placed & obsolete
+        assert not overlap, f"paths both placed and removed: {sorted(overlap)}"
+
+    def test_retired_capture_paths_are_the_real_pre_refactor_ones(self) -> None:
+        """Pins WHICH paths are retired, so a future layout move that retires a
+        different set cannot pass by editing the list silently. Each entry must
+        name a spine path under ags-capture/ that is no longer a placed dest."""
+        placed = {str(e["dest"]) for e in _vars()["gui_tools_app_files"]}
+        expected_suffixes = {
+            "ui/CaptureWindow.tsx",
+            "ui/RecordingView.tsx",
+            "ui/ScreenshotView.tsx",
+            "controllers",
+        }
+        suffixes = {
+            str(p).split("ags-capture/", 1)[1] for p in _vars()["gui_tools_capture_obsolete"]
+        }
+        assert suffixes == expected_suffixes, (
+            f"gui_tools_capture_obsolete must be exactly {sorted(expected_suffixes)}; "
+            f"got {sorted(suffixes)}"
+        )
+        for path in _vars()["gui_tools_capture_obsolete"]:
+            assert str(path) not in placed, f"still placed, do not remove: {path}"
+
     def test_icme_app_files_exact_list(self) -> None:
         """The icon color mapping editor file set, exactly: entry point,
         stylesheet, dialogs, and every lib module the editor imports — including

@@ -55,7 +55,6 @@ gui_tools_spine_config_dir: "{{ install_dir | trim }}/config"
 gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-capture"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ui"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/domain"
   - "{{ gui_tools_spine_config_dir }}/ags-capture/ports"
@@ -74,6 +73,33 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-notifications"
   - "{{ gui_tools_spine_config_dir }}/ags-notifications/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-notifications/lib"
+
+# gui_tools_capture_obsolete: spine paths the capture app no longer ships, which
+# MUST be actively removed rather than left to rot.
+#
+# Why this exists: placement is PER-FILE (`gui_tools_app_files`), and per-file
+# placement only ever WRITES. It has no notion of "this source no longer
+# exists", so a file dropped from the manifest stays on disk forever. The
+# capture app's hexagonal refactor retired four spine paths:
+#
+#   ui/CaptureWindow.tsx   -> split into ui/classic/{ClassicWindow,ScreenshotPage,
+#                            RecordingPage,SettingsPage}.tsx
+#   ui/RecordingView.tsx   -> dead scaffold stub (deleted in the refactor)
+#   ui/ScreenshotView.tsx  -> dead scaffold stub (deleted in the refactor)
+#   controllers/           -> four dead scaffold stubs, superseded by
+#                             ports/ + adapters/
+#
+# Left behind they are inert -- app.tsx imports ./ui/classic/ClassicWindow and
+# nothing references them -- but they are the exact "parallel, never-exercised
+# architecture" the refactor set out to delete, now sitting in derived state
+# where no gate can see them (the gates read the repo, never the spine).
+# `state: absent` is idempotent, and the sibling legacy-capture removal task is
+# the established precedent for this shape.
+gui_tools_capture_obsolete:
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/CaptureWindow.tsx"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/RecordingView.tsx"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/ScreenshotView.tsx"
+  - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
 
 # gui_tools_app_files: the app FILES, one entry per file with the explicit
 #   target path. Per-file entries (not directory sources) are REQUIRED (see
