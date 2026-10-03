@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>③ Bluetooth popup — actions &amp; feedback — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+<!--
+  MOCK: key-actions   (coverage #3 — interaction + feedback layer)
+  Governed by DESIGN.md: components.row-action, components.badge, §New CSS,
+                         §Components (Row action, Unpair confirm, Failure line).
+  EXPERIENCE.md: Component Patterns (Row action, Unpair, Unpair confirm, Device row),
+                  State Patterns (Pairing in progress, Pairing failed, Pairing timed
+                  out, Unpairing, Soft-blocked, Adapter absent), Interaction Primitives.
+
+  Every icon is a REAL ITR-rendered repository SVG from assets/, resolved through the
+  exact icons.json keys named below. Nothing is hand-drawn or substituted.
+
+  The one class this design adds is ALREADY in mock.css: `.rowact.danger`
+  (mock.css:233, mirroring `.settings-rowact.danger` in style.css). Nothing here
+  invents a second class.
+
+  Live in this file: click `Unpair` to open the inline confirm, `Keep` to dismiss,
+  `Unpair device` to run the row away. The spinners animate. `data-demo="anybusy"`
+  rows go insensitive whenever anything in the surface is busy.
+-->
+
+<h1>③ Bluetooth popup — actions &amp; feedback</h1>
+<div class="sub">
+  What the row does while it is thinking, what it says when it fails, and the inline
+  unpair confirm. The design rule behind all of it: <b>every wait is legible, every failure is
+  verbatim, and nothing the surface does ever moves the layout underneath it.</b>
+  Click <code>Unpair</code> in any row to open the confirm for real.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>popup-pairing</code> · <code>popup-watchdog</code> · <code>popup-unpair</code> ·
+  <code>popup-unpair-confirm</code> · <code>popup-failure</code> · <code>popup-success</code><br>
+  <b>Interactive:</b> <code>Unpair</code> → confirm · <code>Keep</code> → dismiss ·
+  <code>Unpair device</code> → row removed · click any non-button part of a row → its primary action ·
+  <code>Available Devices ▸/▾</code> · <code>Bluetooth Settings ›</code>.
+</div>
+
+<!-- ══ popup-pairing ════════════════════════════════════════════════════ -->
+<div class="state-label">Busy rows — spinner replaces the action, one BlueZ call at a time · <code>popup-pairing</code></div>
+<div class="cols">
+
+  <!-- Pairing… -->
+  <div class="col">
+    <div class="popup" data-power="on" data-state="pairing">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+
+          <!-- the busy row: action button swapped for spinner + <Action>ing… -->
+          <div class="net" data-busy="1" data-name="HONOR 400 Smart" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −84 dBm (settings-panel/signal-medium)">
+                <img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" />
+              </span>
+              <span class="name" title="HONOR 400 Smart">HONOR 400 Smart</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Ready to pair</span>
+                <span class="stat">Can take up to 30 s</span>
+              </div>
+              <div class="actions">
+                <span class="spinner" style="margin:0 4px"></span><span class="sub" style="opacity:.85">Pairing…</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- anyBusy(): every other row's primary action is INSENSITIVE, Unpair is GONE -->
+          <div class="net" data-demo="anybusy" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −66 dBm"><img src="assets/settings-panel-signal-good.svg" alt="settings-panel/signal-good" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions"><button class="rowact disabled">Connect</button></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b><code>Pairing…</code></b> — <code>bluetoothBusy() = { address, action: "pair" }</code>.
+      The action button is <b>replaced</b>, not disabled, so the row never shows two states at once.
+      <code>Can take up to 30 s</code> sits in the meta stack beneath the subtitle.
+    </div>
+  </div>
+
+  <!-- Connecting… -->
+  <div class="col">
+    <div class="popup" data-power="on" data-state="connecting">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-busy="1" data-name="LG OM7560(07)" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −78 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat">Can take up to 30 s</span>
+              </div>
+              <div class="actions">
+                <span class="spinner" style="margin:0 4px"></span><span class="sub" style="opacity:.85">Connecting…</span>
+              </div>
+            </div>
+          </div>
+          <div class="net" data-demo="anybusy" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions"><button class="rowact disabled">Disconnect</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b><code>Connecting…</code></b> — same geometry as <code>Pair</code>. The connected row above is
+      *unaffected in appearance*: a second connection while one is live keeps its
+      <code>.sel</code> fill and <code>Connected</code> badge, and merely loses its own button.
+    </div>
+  </div>
+
+  <!-- Disconnecting… -->
+  <div class="col">
+    <div class="popup" data-power="on" data-state="disconnecting">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net sel" data-busy="1" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat">Can take up to 30 s</span>
+              </div>
+              <div class="actions">
+                <span class="spinner" style="margin:0 4px"></span><span class="sub" style="opacity:.85">Disconnecting…</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b><code>Disconnecting…</code></b> — the row <b>keeps its fill and its badge</b> for the duration.
+      Demoting it to plain while the disconnect is in flight would tell the user the device is gone
+      before BlueZ says so.
+    </div>
+  </div>
+
+  <!-- Unpairing… -->
+  <div class="col">
+    <div class="popup" data-power="on" data-state="unpairing">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-busy="1" data-name="LG OM7560(07)" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −83 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat">Can take up to 30 s</span>
+              </div>
+              <div class="actions">
+                <span class="spinner" style="margin:0 4px"></span><span class="sub" style="opacity:.85">Unpairing…</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b><code>Unpairing…</code></b> — and then the row is simply <b>gone</b>:
+      <code>RemoveDevice</code> completes → device leaves the cache → <code>InterfacesRemoved</code> →
+      row destroyed. No farewell animation, no undo, no toast.
+    </div>
+  </div>
+
+</div>
+
+<h3>Why <code>Can take up to 30 s</code> is a fixed string</h3>
+<p class="note">
+  The watchdog is 30&nbsp;s. A <b>countdown</b> would be the better sentence — but it needs a timer
+  running in the view, and the view is a strictly thin reader. <code>bluetoothBusy()</code> carries
+  <i>no</i> remaining time, so a countdown would be a second, unsourced source of truth for a number
+  the service already owns. The static line says the same thing ("this takes a while, and I am not
+  going to pretend to know when it ends") at a fraction of the architectural cost.
+  <b>It is one line of copy, not a widget.</b>
+</p>
+
+<h3>Single-flight — <code>anyBusy()</code></h3>
+<p class="note">
+  <code>runAction</code> returns early when <code>bluetoothBusy().address !== null</code>. So while one
+  row works, <b>every other row's primary action is insensitive</b> — otherwise the second click would
+  look accepted and then silently do nothing. <code>Unpair</code> goes further than insensitive: it is
+  <b>hidden entirely</b>, because a visible dead control is a trap and a half-visible row action pair
+  reads as a bug. The service being single-flight is not an implementation detail to hide; it is the
+  behaviour the surface has to show.
+</p>
+
+<!-- ══ popup-unpair / popup-unpair-confirm ══════════════════════════════ -->
+<div class="state-label">Unpair, and the inline confirm · <code>popup-unpair</code> → <code>popup-unpair-confirm</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="unpair-closed">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-confirm-host data-name="LG OM7560(07)" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −83 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+          <div class="net" data-confirm-host data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Closed.</b> Click either <code>Unpair</code> to open that row's confirm in place.
+      <code>settings-rowact subtle</code> — <code>opacity .68</code>, the deliberately quieter half of
+      the pair, so the destructive-adjacent control never competes with the primary action.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="unpair-open">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+
+          <!-- OPEN: meta stack swapped in place, action pair swapped, geometry unchanged.
+               data-stashed/data-closed-* carry the closed state so `Keep` can restore it. -->
+          <div class="net confirming" data-confirm-host data-open="1" data-stashed="1"
+               data-closed-meta="&lt;span class=&quot;sub&quot;&gt;Paired&lt;/span&gt;"
+               data-closed-actions="&lt;button class=&quot;rowact&quot;&gt;Connect&lt;/button&gt; &lt;button class=&quot;rowact subtle&quot; data-unpair&gt;Unpair&lt;/button&gt;"
+               data-name="LG OM7560(07)">
+            <div class="l1">
+              <span class="sig" title="Signal: −83 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="stat">Remove from paired devices</span></div>
+              <div class="actions">
+                <button class="rowact" data-keep>Keep</button>
+                <button class="rowact danger" data-unpair-confirm>Unpair device</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="net" data-confirm-host data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Open.</b> The meta stack becomes one <code>.settings-meta-stat</code> line,
+      <code>Remove from paired devices</code>; the pair becomes <code>Keep</code>
+      (<code>settings-rowact</code>) and <code>Unpair device</code>
+      (<b><code>settings-rowact danger</code></b> — the design's only new class, border + text on
+      <code>@color_03</code>, hover lifting to <code>@color_11</code>).
+      <b>The row does not resize and does not reflow:</b> same two lines, same 8px/9px padding, same
+      3px line gap. Nothing above or below the row moves a pixel. Click <code>Unpair device</code>
+      and the row is gone; click <code>Keep</code> and it is exactly as it was.
+    </div>
+  </div>
+
+</div>
+
+<h3>Why inline and not a modal</h3>
+<p class="note">
+  The popup is a surface with <b>no modal stack</b>, and a modal would grab a keyboard the surface
+  otherwise does not hold — the exact thing <code>Keymode.NONE</code> exists to avoid. An inline
+  confirm in the existing action slot is one row: no new window, no reflow, no focus trap.
+  <code>Keep</code> sits beside <code>Unpair device</code>, so the destructive path is
+  <b>one click longer than the safe one</b> — the only asymmetry that matters — and the confirm is not
+  colour-alone: the button says <code>Unpair device</code> in words.
+  Opening a confirm on one row closes any other open confirm; the popup's <code>Esc</code> /
+  click-outside dismisses an open confirm <i>before</i> the surface closes.
+</p>
+
+<!-- ══ popup-watchdog / popup-failure ═══════════════════════════════════ -->
+<div class="state-label">Failure line — service strings verbatim · <code>popup-watchdog</code> · <code>popup-failure</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="fail-timeout">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="message">Pairing timed out</div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-action="Pair" data-name="HONOR 400 Smart" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −84 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="HONOR 400 Smart">HONOR 400 Smart</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Ready to pair</span></div>
+              <div class="actions"><button class="rowact">Pair</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>30&nbsp;s watchdog fired.</b> One line, top of the body, <code>.settings-message</code>.
+      The action has <b>returned to <code>Pair</code></b> — retry <i>is</i> the restored action. No
+      toast, no modal, no separate retry button.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="fail-bus">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="message">Pairing failed: org.bluez.Error.AuthenticationRejected</div>
+      <div class="scroll-clip">
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-action="Pair" data-name="HONOR 400 Smart" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −84 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="HONOR 400 Smart">HONOR 400 Smart</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Ready to pair</span></div>
+              <div class="actions"><button class="rowact">Pair</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Bus error surfaced as-is.</b> <code>&lt;bus error&gt;</code> is
+      <code>bluetoothFailure()</code> verbatim — <code>failAction</code> stores the D-Bus error name
+      and the view prints it. Never reworded, never prefixed <code>Error:</code>. A user who
+      googles <code>AuthenticationRejected</code> finds the answer; a user who reads
+      "Pairing did not work" does not.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="fail-softblock">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="false" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="message">Could not turn Bluetooth on (adapter may be soft-blocked)</div>
+      <div class="empty">Bluetooth is off</div>
+    </div>
+    <div class="cap">
+      <b><code>Set(Powered)</code> rejected.</b> The switch sprang back to its previous value and the
+      body collapsed to the one-line off state. The string tells him the truth is
+      <b>outside the panel</b> — <code>rfkill</code>, a BIOS switch, a policy — which is exactly the
+      class of problem he cannot fix from here and would otherwise debug blind.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="n/a" data-state="fail-no-adapter">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="false" aria-label="Toggle Bluetooth" disabled></button>
+      </div>
+      <div class="caution-row">
+        <img src="assets/settings-panel-info-caution.svg" alt="settings-panel/info-caution" />
+        <span class="caution-text">No Bluetooth adapter available</span>
+      </div>
+    </div>
+    <div class="cap">
+      <b>No <code>Adapter1</code> on the bus.</b> The switch is <b>insensitive</b> — visibly so — and
+      the real <code>settings-panel/info-caution</code> glyph carries the line, reusing the Wi-Fi
+      weak-security precedent. Never a crash, never a dead-looking-but-clickable switch.
+    </div>
+  </div>
+
+</div>
+
+<p class="note">
+  Every one of these strings is produced by the <b>service</b> and printed by the <b>view without
+  edits</b>. That is the whole feedback contract: one line, at the top of the body, in the caution
+  slot, with no timer, no toast and no dismissal step. Nothing in the popup below the message line
+  moves when a failure arrives — the row simply stops spinning.
+</p>
+
+<!-- ══ popup-success ═════════════════════════════════════════════════════ -->
+<div class="state-label">The success transition — fill, badge, action, and the audio row that tells the truth · <code>popup-success</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="before">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −84 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Before</b> — plain row, no fill, no badge, <code>Audio output</code> reads <code>—</code>.
+    </div>
+  </div>
+
+  <div style="align-self:center;color:rgba(194,194,197,.35);font-size:22px;padding-top:60px">→</div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="after">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">TOZO NC9</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net sel" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>After</b> — four things change at once, and they are the reason the state is legible:
+      the row takes the <code>.sel</code> fill (<code>@color_10</code>), the <code>Connected</code>
+      badge appears, the action reads <code>Disconnect</code>, and
+      <code>Audio output</code> in the details block now names the endpoint. That last row is the
+      whole point: it is the line that stops the panel claiming "Connected" while the sound is still
+      on the speakers.
+    </div>
+  </div>
+
+</div>
+
+<p class="note">
+  <b>Three independent signals, never colour alone.</b> Fill + badge + word <code>Disconnect</code>.
+  The bar indicator flips to <code>active</code> in the same beat — rune with a <b>filled</b> dot —
+  because <code>bluetoothAudioTarget</code> now has a value. Three surfaces, one truth, one click
+  from the bar.
+</p>
+
+<script>
+/* ── header switch ───────────────────────────────────────────────────── */
+document.querySelectorAll('.switch').forEach(function (sw) {
+  sw.addEventListener('click', function () {
+    if (sw.disabled) return;
+    sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+  });
+});
+
+/* ── the whole row is the primary action (WifiRow's hit-target rule) ──── */
+document.querySelectorAll('.net').forEach(function (row) {
+  row.addEventListener('click', function (e) {
+    if (e.target.closest('button')) return;   /* the action button claims its own click */
+    if (row.classList.contains('out-of-range') || row.classList.contains('confirming')) return;
+    if (row.hasAttribute('data-busy')) return; /* busy: act() is a no-op by contract */
+    var btn = row.querySelector('.actions .rowact:not(.disabled)');
+    if (!btn) return;
+    btn.style.borderColor = 'var(--selected)';
+    setTimeout(function () { btn.style.borderColor = ''; }, 700);
+  });
+  row.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+  });
+});
+
+/* ── the inline unpair confirm ──────────────────────────────────────────
+   Closed ⇄ open, in the row's existing action slot. Geometry is never
+   touched — the meta stack swaps in place and the action pair swaps. Only
+   one confirm may be open at a time (EXPERIENCE.md §Unpair confirm).     */
+
+/* remember the closed state once, the first time a row is touched */
+function stashRow(row) {
+  if (row.hasAttribute('data-stashed')) return;
+  row.setAttribute('data-stashed', '1');
+  row.setAttribute('data-closed-meta', row.querySelector('.meta').innerHTML);
+  row.setAttribute('data-closed-actions', row.querySelector('.actions').innerHTML);
+}
+
+function closeConfirms() {
+  document.querySelectorAll('.net[data-open]').forEach(function (row) {
+    row.querySelector('.meta').innerHTML = row.getAttribute('data-closed-meta');
+    row.querySelector('.actions').innerHTML = row.getAttribute('data-closed-actions');
+    row.removeAttribute('data-open');
+    row.classList.remove('confirming');
+    wireRow(row);
+  });
+}
+
+function openConfirm(row) {
+  closeConfirms();
+  stashRow(row);
+  row.querySelector('.meta').innerHTML = '<span class="stat">Remove from paired devices</span>';
+  row.querySelector('.actions').innerHTML =
+    '<button class="rowact" data-keep>Keep</button>' +
+    '<button class="rowact danger" data-unpair-confirm>Unpair device</button>';
+  row.setAttribute('data-open', '1');
+  row.classList.add('confirming');
+  wireRow(row);
+}
+
+function wireRow(row) {
+  var unpair = row.querySelector('[data-unpair]');
+  if (unpair) unpair.addEventListener('click', function (e) {
+    e.stopPropagation();
+    openConfirm(row);
+  });
+  var keep = row.querySelector('[data-keep]');
+  if (keep) keep.addEventListener('click', function (e) {
+    e.stopPropagation();
+    closeConfirms();
+  });
+  var confirm = row.querySelector('[data-unpair-confirm]');
+  if (confirm) confirm.addEventListener('click', function (e) {
+    e.stopPropagation();
+    row.remove();   /* RemoveDevice → InterfacesRemoved → row destroyed. No undo, no toast. */
+  });
+}
+
+document.querySelectorAll('[data-confirm-host]').forEach(function (row) {
+  stashRow(row);
+  wireRow(row);
+  row.addEventListener('click', function (e) {
+    if (e.target.closest('button')) return;
+    if (row.classList.contains('confirming')) return;
+    openConfirm(row);
+  });
+});
+
+/* ── Available Devices chevron ───────────────────────────────────────── */
+document.querySelectorAll('[data-chevron]').forEach(function (btn) {
+  var popup = btn.closest('.popup');
+  var target = popup.querySelector('[data-nearby]');
+  var mark = btn.querySelector('.chevmark');
+  btn.addEventListener('click', function () {
+    var open = !target.hasAttribute('hidden');
+    if (open) target.setAttribute('hidden', ''); else target.removeAttribute('hidden');
+    mark.textContent = open ? '▸' : '▾';
+  });
+});
+
+/* ── footer row ──────────────────────────────────────────────────────── */
+document.querySelectorAll('[data-footer]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var note = btn.querySelector('.footer-note');
+    var was = note.textContent;
+    note.textContent = 'launching bluetoothctl…';
+    setTimeout(function () { note.textContent = was; }, 1400);
+  });
+});
+</script>
+</body>
+</html>

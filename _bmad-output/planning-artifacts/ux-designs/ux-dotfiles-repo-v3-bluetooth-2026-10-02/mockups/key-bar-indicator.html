@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>① Bluetooth bar indicator — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+<!--
+  MOCK: key-bar-indicator   (coverage #1)
+  Governed by DESIGN.md: components.bar-indicator, §Bar indicator states, §Icon plan §2.
+  EXPERIENCE.md: Component Patterns (Bluetooth bar indicator, Follower anchoring),
+                 State Patterns, Interaction Primitives.
+
+  ICON REALITY NOTE — read this before reading the images.
+  There is NO bluetooth icon group for the status bar today, so there is no rendered
+  bar Bluetooth SVG to inline. The four images below are therefore the REAL rendered
+  `settings-panel/bluetooth{,-off}.svg` (guard-exempt group, assets/) shown at bar size,
+  and the "art" for the connected/active states is annotated rather than drawn: the
+  connected/active dot is the additive SIGNAL convention already shipped as
+  `.audio-live-dot` (a 8px circle, ringed against the backdrop). Building the four real
+  templates is task work; DESIGN.md §Icon plan specifies their exact keys, paths and
+  manifest block.
+-->
+
+<h1>① Bluetooth bar indicator</h1>
+<div class="sub">
+  A bare glyph — no pill, no background, no label — in the <code>end</code> box of
+  <code>bar/Bar.tsx</code>, <b>immediately left of <code>NetworkStatus</code></b>. The two
+  connectivity glyphs sit together because they answer the same question. Left-click records the
+  pointer x and opens the popup; that x is what makes the popup follower-anchored.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>bar-off</code> · <code>bar-idle</code> · <code>bar-connected</code> ·
+  <code>bar-active</code> · <code>bar-anchor</code><br>
+  Try it: <b>hover any glyph</b> to see the follower-anchor stem appear under the pointer, and
+  <b>click a glyph</b> to open the real popup mock anchored beneath it.
+</div>
+
+<!-- ══ bar-off ══════════════════════════════════════════════════════════ -->
+<div class="state-label">Powered off · <code>bar-off</code></div>
+<div class="col" style="align-items:flex-start">
+  <div class="bar-strip">
+    <span class="bar-label">end box</span>
+    <span class="bar-pair">
+      <span class="tag">wifi</span>
+      <img class="widget" src="assets/wifi-medium-default.svg" alt="settings: network/wifi-medium-default" />
+    </span>
+    <span class="sep"></span>
+    <button class="bar-pair" id="bt-off" data-state="off" aria-label="Bluetooth — off" style="background:none;border:none;cursor:pointer;padding:0">
+      <img class="widget" src="assets/settings-panel-bluetooth-off.svg" alt="settings-panel/bluetooth-off — OFF" />
+    </button>
+    <span class="sep"></span>
+    <img class="widget" src="assets/battery-75.svg" alt="settings: battery/battery-75" />
+  </div>
+</div>
+<p class="note">
+  Variant <code>bluetooth/bluetooth-off-default</code>. The real staged asset is
+  <code>settings-panel/bluetooth-off.svg</code> (foreground <code>#c2c2c5</code>); the shipped bar
+  template adds the slash so <b>off reads as shape</b>. The panel's off treatment is the opposite —
+  a tint plus <code>opacity: .4</code> — because the panel glyph sits on opaque glass and is never
+  retargeted. Both are correct for their backdrop.
+</p>
+
+<!-- ══ bar-idle ═════════════════════════════════════════════════════════ -->
+<div class="state-label">Powered on, nothing connected · <code>bar-idle</code></div>
+<div class="col" style="align-items:flex-start">
+  <div class="bar-strip">
+    <span class="bar-label">end box</span>
+    <span class="bar-pair">
+      <span class="tag">wifi</span>
+      <img class="widget" src="assets/wifi-medium-default.svg" alt="settings: network/wifi-medium-default" />
+    </span>
+    <span class="sep"></span>
+    <button class="bar-pair" id="bt-idle" data-state="idle" aria-label="Bluetooth — on, nothing connected" style="background:none;border:none;cursor:pointer;padding:0">
+      <img class="widget" src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth — ON" />
+    </button>
+    <span class="sep"></span>
+    <img class="widget" src="assets/battery-75.svg" alt="settings: battery/battery-75" />
+  </div>
+</div>
+<p class="note">
+  Variant <code>bluetooth/bluetooth-default</code> — the bare rune, tinted <code>@color_13</code>
+  (<code>#dbab67</code>) at panel rendering; guard-managed to a wallpaper-safe token at bar rendering.
+  <b>No dot.</b> A dot here would say "something is happening" when nothing is.
+</p>
+
+<!-- ══ bar-connected ════════════════════════════════════════════════════ -->
+<div class="state-label">On, a device is connected, audio NOT routed · <code>bar-connected</code></div>
+<div class="col" style="align-items:flex-start">
+  <div class="bar-strip">
+    <span class="bar-label">end box</span>
+    <span class="bar-pair">
+      <span class="tag">wifi</span>
+      <img class="widget" src="assets/wifi-medium-default.svg" alt="settings: network/wifi-medium-default" />
+    </span>
+    <span class="sep"></span>
+    <button class="bar-pair" id="bt-connected" data-state="connected" aria-label="Bluetooth — TOZO NC9 connected" style="background:none;border:none;cursor:pointer;padding:0;position:relative">
+      <img class="widget" src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth — ON" />
+      <span style="position:absolute;right:1px;bottom:3px;width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;box-sizing:border-box"></span>
+    </button>
+    <span class="sep"></span>
+    <img class="widget" src="assets/battery-75.svg" alt="settings: battery/battery-75" />
+  </div>
+</div>
+<p class="note">
+  Variant <code>bluetooth/bluetooth-connected-default</code> — rune plus a <b>hollow</b> 8px dot,
+  the additive signal convention from <code>.audio-live-dot</code>. This is the one state that
+  distinguishes "a device is paired up" from "the dot is decorative".
+</p>
+
+<!-- ══ bar-active ═══════════════════════════════════════════════════════ -->
+<div class="state-label">On, the routed device is connected · <code>bar-active</code></div>
+<div class="col" style="align-items:flex-start">
+  <div class="bar-strip">
+    <span class="bar-label">end box</span>
+    <span class="bar-pair">
+      <span class="tag">wifi</span>
+      <img class="widget" src="assets/wifi-medium-default.svg" alt="settings: network/wifi-medium-default" />
+    </span>
+    <span class="sep"></span>
+    <button class="bar-pair" id="bt-active" data-state="active" aria-label="Bluetooth — audio routed to TOZO NC9" style="background:none;border:none;cursor:pointer;padding:0;position:relative">
+      <img class="widget" src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth — ON" />
+      <span style="position:absolute;right:1px;bottom:3px;width:8px;height:8px;border-radius:50%;background:currentColor"></span>
+    </button>
+    <span class="sep"></span>
+    <img class="widget" src="assets/battery-75.svg" alt="settings: battery/battery-75" />
+  </div>
+</div>
+<p class="note">
+  Variant <code>bluetooth/bluetooth-active-default</code> — rune plus a <b>filled</b> dot.
+  <b>This is the state Wi-Fi cannot express.</b> "Your audio is on Bluetooth right now" is the
+  single most valuable thing a Bluetooth bar indicator can say, and it is exactly the fact that
+  `routeAudioToDevice` used to leave invisible — the headphones read "Connected" while the sound
+  stayed on the speakers. It needs the new <code>bluetoothAudioTarget</code> accessor.
+  A second connection while one is routed keeps the indicator on <code>active</code>: the routed
+  device wins.
+</p>
+
+<!-- ══ bar-anchor ══════════════════════════════════════════════════════ -->
+<div class="state-label">Follower anchoring · <code>bar-anchor</code></div>
+<div class="anchor-wrap">
+  <div class="bar-strip" id="anchor-strip" style="position:relative">
+    <span class="bar-label">end box</span>
+    <span class="bar-pair"><span class="tag">wifi</span><img class="widget" src="assets/wifi-medium-default.svg" alt="network/wifi-medium-default" /></span>
+    <span class="sep"></span>
+    <button class="bar-pair" id="bt-anchor" data-state="active" aria-label="Bluetooth — audio routed to TOZO NC9" style="background:none;border:none;cursor:pointer;padding:0;position:relative">
+      <img class="widget" src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth — ON" />
+      <span style="position:absolute;right:1px;bottom:3px;width:8px;height:8px;border-radius:50%;background:currentColor"></span>
+    </button>
+    <span class="sep"></span>
+    <img class="widget" src="assets/battery-75.svg" alt="battery/battery-75" />
+    <span class="sep"></span>
+    <img class="widget" src="assets/settings-default.svg" alt="settings/default" />
+    <span id="stem-a" style="position:absolute;bottom:-14px;width:2px;height:14px;background:var(--accent);display:none"></span>
+  </div>
+  <div id="popup-anchor-slot" style="margin-top:14px"></div>
+</div>
+<p class="note">
+  <b>How it works (identical to <code>bar/widgets/network.tsx</code>).</b> A
+  <code>Gtk.EventControllerMotion</code> records <code>get_position()[1]</code> on every hover and
+  does <b>not</b> claim clicks, so the button's own <code>onClicked</code> still fires. The click
+  stores that x into <code>bluetoothIconX</code> <i>before</i> toggling, and
+  <code>BluetoothPopup</code> computes
+  <code>marginLeft = iconCentre − 156</code>, clamped to <code>[8, monitorWidth − 320]</code>.
+  <b>Click the glyph above to see the real 312&nbsp;px popup drop beneath the pointer</b> — and
+  click it again to watch the same-spot collapse work.
+  A <code>null</code> x (programmatic open) falls back to the right edge, exactly as
+  <code>WifiPopup</code> does.
+</p>
+
+<div class="state-label">Why no right-click and no scroll</div>
+<p class="note">
+  <code>OutputIndicator</code> has a right-click (<code>pavucontrol</code>) and a scroll (volume).
+  <code>NetworkStatus</code> has a right-click (<code>wifitui</code>). Bluetooth deliberately has
+  <b>neither</b>: there is no continuous value to nudge, and the one external tool that matters
+  (<code>bluetoothctl</code>) is already one click away in the popup's footer row — which is where
+  the Wi-Fi popup puts <code>nm-connection-editor</code>. A gesture that exists on two of three
+  connectivity glyphs and silently does nothing on the third is worse than no gesture.
+</p>
+
+<div class="state-label">Contrast guard</div>
+<p class="note">
+  All four variants declare <code>color_mappings</code> at <b>group level only</b>, and
+  <code>"bluetooth"</code> is added to <code>BAR_GROUPS</code> in
+  <code>src/runtime/src/runtime/domain/icon_contrast.py</code>. On a light wallpaper the runtime
+  retargets the group's <code>COLOR_FOREGROUND</code> to a darker palette slot <i>before</i> ITR
+  renders — so all four stay legible. The mock approximates that retarget with a CSS
+  <code>filter: brightness(.62)</code>; the real path is a re-render, not a filter.
+</p>
+<div class="bar-strip" style="background:rgba(238,238,240,.92);margin-top:12px">
+  <span class="bar-label" style="color:#3a3a44">light wallpaper</span>
+  <span class="bar-pair"><span class="tag" style="color:#3a3a44">wifi</span><img class="widget" src="assets/wifi-medium-default.svg" alt="network/wifi-medium-default" style="filter:brightness(.5)" /></span>
+  <span class="sep"></span>
+  <span class="bar-pair"><span class="tag" style="color:#3a3a44">bt off</span><img class="widget" src="assets/settings-panel-bluetooth-off.svg" alt="bluetooth-off" style="filter:brightness(.5)" /></span>
+  <span class="sep"></span>
+  <span class="bar-pair"><span class="tag" style="color:#3a3a44">bt on</span><img class="widget" src="assets/settings-panel-bluetooth.svg" alt="bluetooth" style="filter:brightness(.5)" /></span>
+  <span class="sep"></span>
+  <span style="font-size:11px;color:#3a3a44">guard-managed → retargeted → legible</span>
+</div>
+
+<script>
+/* Mock-only wiring. In AGS this is a Gtk.EventControllerMotion that does not claim
+   clicks, plus an onClicked that stores lastIconX then toggles. */
+(function () {
+  var slot = document.getElementById('popup-anchor-slot');
+  var strip = document.getElementById('anchor-strip');
+  var stem = document.getElementById('stem-a');
+  var open = false;
+
+  var POPUP = '' +
+    '<div class="popup">' +
+      '<div class="nav-header">' +
+        '<span class="nav-title">Bluetooth</span>' +
+        '<button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>' +
+      '</div>' +
+      '<div class="scroll-clip">' +
+        '<div class="details">' +
+          '<div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>' +
+          '<div class="detail-row"><span class="detail">Audio output</span><span class="detail">TOZO NC9</span></div>' +
+        '</div>' +
+        '<div class="divider"></div>' +
+        '<div class="section-label">Paired</div>' +
+        '<div style="padding:0 7px">' +
+          '<div class="net sel">' +
+            '<div class="l1">' +
+              '<span class="sig"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>' +
+              '<span class="name">TOZO NC9</span>' +
+              '<span class="badge conn">Connected</span>' +
+            '</div>' +
+            '<div class="l2"><div class="meta">' +
+              '<span class="sub">Paired</span>' +
+              '<span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>' +
+            '</div><div class="actions">' +
+              '<button class="rowact">Disconnect</button>' +
+              '<button class="rowact subtle">Unpair</button>' +
+            '</div></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  function place(x) {
+    var half = 156;                       /* PANEL_WIDTH / 2 */
+    var left = Math.round(x - half);
+    var maxLeft = strip.clientWidth - 312 - 8;
+    left = Math.min(Math.max(left, 8), Math.max(8, maxLeft));
+    slot.style.paddingLeft = left + 'px';
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('#bt-off,#bt-idle,#bt-connected,#bt-active,#bt-anchor'), function (btn) {
+    btn.addEventListener('mousemove', function (e) {
+      var r = strip.getBoundingClientRect ? strip.getBoundingClientRect() : null;
+      if (!r) return;
+      var x = e.clientX - r.left;
+      stem.style.display = 'block';
+      stem.style.left = (x - 1) + 'px';
+    });
+  });
+
+  function togglePopup(anchorId) {
+    var anchor = document.getElementById(anchorId);
+    var r = anchor.getBoundingClientRect();
+    var sr = strip.getBoundingClientRect();
+    open = !open;
+    if (!open) { slot.innerHTML = ''; stem.style.display = 'none'; return; }
+    slot.innerHTML = POPUP;
+    place(r.left - sr.left + r.width / 2);
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('#bt-off,#bt-idle,#bt-connected,#bt-active,#bt-anchor'), function (btn) {
+    btn.addEventListener('click', function () { togglePopup(btn.id); });
+  });
+})();
+</script>
+</body>
+</html>

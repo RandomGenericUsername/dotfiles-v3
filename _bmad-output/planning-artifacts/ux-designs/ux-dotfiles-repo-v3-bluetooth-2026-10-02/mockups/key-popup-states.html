@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>② Bluetooth popup — states — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+<!--
+  MOCK: key-popup-states   (coverage #2–#6)
+  Governed by DESIGN.md: geometry.*, components.panel/nav-header/row/badge/row-action,
+                         §Bar indicator states, §New CSS.
+  EXPERIENCE.md: Information Architecture, Component Patterns (Device row, Leading signal
+                 glyph, Row subtitle, Adapter details, Discover-then-reveal),
+                 State Patterns.
+
+  Every icon is a REAL ITR-rendered repository SVG from assets/, resolved through the
+  exact icons.json keys named below. Nothing is hand-drawn or substituted.
+
+  Row layout rule (one rule, inherited from the owner-approved 2026-09-25 row):
+    line 1 = leading signal glyph · name (ellipsized, tooltip = full) · Connected badge
+    line 2 = leading meta stack (word subtitle, then battery) · trailing action pair
+-->
+
+<h1>② Bluetooth popup — list states</h1>
+<div class="sub">
+  The 312&nbsp;px glass surface, pinned header, <code>maxContentHeight 420</code> scroll. Five of the
+  eleven BlueZ states, in the fixed body order. The header switch, the
+  <code>Available Devices</code> chevron and every row action are <b>live</b> here — flip the
+  switch, expand the section, click rows.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>popup-powered-off</code> · <code>popup-connected</code> · <code>popup-paired</code> ·
+  <code>popup-out-of-range</code> · <code>popup-discovering</code><br>
+  <b>Interactive:</b> header switch (every mock) · click any row for its primary action ·
+  <code>Available Devices ▸/▾</code> · <code>Bluetooth Settings ›</code>.
+</div>
+
+<!-- ══ popup-powered-off ═══════════════════════════════════════════════ -->
+<div class="state-label">Powered off · <code>popup-powered-off</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="off">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="false" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="empty">Bluetooth is off</div>
+    </div>
+    <div class="cap">
+      The <b>whole body is one line</b>. Adapter details, both sections and the footer are hidden —
+      exactly as <code>WifiContent</code>'s <code>OtherNetworksExpand</code> is
+      <code>visible={wifiEnabled &amp;&amp; …}</code>, so Wi-Fi's off state is also one line.
+      Discovery stops in the same effect that gated the render.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="off" data-adapter="absent">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="false" aria-label="Toggle Bluetooth" disabled></button>
+      </div>
+      <div class="caution-row">
+        <img src="assets/settings-panel-info-caution.svg" alt="settings-panel/info-caution" />
+        <span class="caution-text">No Bluetooth adapter available</span>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Adapter absent.</b> The switch is <b>insensitive</b> — not merely inert, visibly so — and the
+      reason is stated. The <code>info-caution</code> glyph reuses the Wi-Fi weak-security
+      precedent (<code>settings-panel/info-caution</code>). Never a crash, never a disabled-looking
+      but clickable switch.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="off" data-softblock="1">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="message">Could not turn Bluetooth off</div>
+    </div>
+    <div class="cap">
+      <b>Soft-blocked / rejected <code>Set(Powered)</code>.</b> The switch springs back to its
+      previous value and the <code>.settings-message</code> line carries the <b>service string
+      verbatim</b> — <code>bluetoothFailure()</code>, never reworded. The user learns the truth is
+      outside the panel.
+    </div>
+  </div>
+
+</div>
+
+<div class="state-label">Explainer — body order and the two structural rules</div>
+<p class="note">
+  <b>Rule 1: the header is a SIBLING of the scrolledwindow, never a child.</b> This is the single
+  lesson <code>SubviewHeader.tsx</code> documents — a header inside the scrolled window scrolls away,
+  so two surfaces sharing one <code>NavHeader</code> behave differently. Both Bluetooth surfaces put
+  the header outside.
+</p>
+<p class="note">
+  <b>Rule 2: the power control in the header is always a <code>Gtk.Switch</code>.</b> Wi-Fi's popup
+  and subview both put <code>WifiSwitch</code> there; Bluetooth's subview currently puts a 22px bare
+  glyph in the same slot. A user who learned "the pill on the right of this header is the radio"
+  would get a bare glyph in one Bluetooth surface and the pill in the other, at identical screen
+  positions. The glyph is not lost — <code>CapabilityTile</code> keeps <code>IconToggle</code> on the
+  main-view tile, where the glyph's job is to say <i>which capability this is</i> and the switch's is
+  to say <i>is it on</i>.
+</p>
+
+<!-- ══ popup-connected ═════════════════════════════════════════════════ -->
+<div class="state-label">Flagship — powered on, a device is connected · <code>popup-connected</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="connected">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">TOZO NC9</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+
+          <!-- connected: .settings-net.sel + badge + Disconnect -->
+          <div class="net sel" data-action="Disconnect" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm (settings-panel/signal-high)">
+                <img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" />
+              </span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- paired, not connected, in range -->
+          <div class="net" data-action="Connect" data-name="LG OM7560(07)" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −78 dBm (settings-panel/signal-medium)">
+                <img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" />
+              </span>
+              <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden>
+          <div style="padding:4px 7px">
+            <div class="net" data-action="Pair" data-name="HONOR 400 Smart" tabindex="0">
+              <div class="l1">
+                <span class="sig" title="Signal: −88 dBm (settings-panel/signal-low)">
+                  <img src="assets/settings-panel-signal-low.svg" alt="settings-panel/signal-low" />
+                </span>
+                <span class="name" title="HONOR 400 Smart">HONOR 400 Smart</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Ready to pair</span></div>
+                <div class="actions"><button class="rowact">Pair</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      The flagship state. The connected row carries <b>three</b> independent signals —
+      <code>.sel</code> fill, <code>Connected</code> badge, and a <code>Disconnect</code> label —
+      so it never rests on colour alone.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="connected-routing-pending">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net sel" data-action="Disconnect" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden><div style="padding:4px 7px"></div></div>
+        <div class="divider"></div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      <b>The bug this detail block exists for.</b> BlueZ connected, PipeWire did not route, so
+      <code>Audio output</code> reads <code>—</code>. Before this design the failure was completely
+      invisible: the row said "Connected" and the sound stayed on the speakers.
+      The bar indicator reads <code>connected</code> (hollow dot), not <code>active</code>.
+    </div>
+  </div>
+
+</div>
+
+<h3>Why the subtitle says words and not numbers</h3>
+<p class="note">
+  <code>WifiRow</code>'s subtitle is <code>Saved</code> / <code>Secured</code> / <code>Open network</code> —
+  words, never strength percentages, because the leading glyph already <i>is</i> the strength. The
+  shipped Bluetooth row broke that rule: it had <b>no</b> leading glyph, so the dBm number was the only
+  strength cue. Adding the leading <code>settings-panel/signal-*</code> glyph means the number has
+  become redundant — so it moves to the glyph's <b>tooltip</b>. Two encodings of one number is noise.
+  <b>This changes one already-approved row detail and needs owner sign-off</b> (see
+  DESIGN.md §Components, Meta stack).
+</p>
+
+<!-- ══ popup-paired ═══════════════════════════════════════════════════ -->
+<div class="state-label">Paired, not connected, in range · <code>popup-paired</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="paired">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-action="Connect" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −66 dBm (settings-panel/signal-good)">
+                <img src="assets/settings-panel-signal-good.svg" alt="settings-panel/signal-good" />
+              </span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden><div style="padding:4px 7px"></div></div>
+        <div class="divider"></div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      Plain <code>.settings-net</code> — <b>no fill</b>, because nothing is connected. Signal glyph
+      present, <code>Connect</code> enabled, <code>Unpair</code> available.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="paired-no-battery">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+
+          <!-- long name: the 26-char ellipsize budget, tooltip carries the full name -->
+          <div class="net" data-action="Connect" data-name="Sony WH-1000XM5 Wireless Headphones" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −66 dBm"><img src="assets/settings-panel-signal-good.svg" alt="settings-panel/signal-good" /></span>
+              <span class="name" title="Sony WH-1000XM5 Wireless Headphones">Sony WH-1000XM5 Wireless Headphones</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- no Battery1 interface at all -->
+          <div class="net" data-action="Connect" data-name="MX Keys" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −83 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="MX Keys">MX Keys</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden><div style="padding:4px 7px"></div></div>
+        <div class="divider"></div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      <b>No battery line.</b> The shipped gate is <code>connected &amp;&amp; battery &gt; 0</code> and it
+      stays: a paired-but-idle device reports a stale <code>Battery1</code> percentage, and showing it
+      would be a lie. A long name ellipsizes at 26 chars with the full name on the tooltip; with
+      <code>propagateNaturalWidth={false}</code> the row clips instead of growing the surface past 312px.
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ popup-out-of-range ══════════════════════════════════════════════ -->
+<div class="state-label">Paired, out of range · <code>popup-out-of-range</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="out-of-range">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net out-of-range" data-action="Connect" data-name="LG OM7560(07)" tabindex="0">
+            <div class="l1">
+              <!-- NO signal glyph: RSSI >= 0 means BlueZ has not seen it, so there is no signal to draw -->
+              <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Not in range</span></div>
+              <div class="actions">
+                <button class="rowact disabled">Connect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden><div style="padding:4px 7px"></div></div>
+        <div class="divider"></div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      BlueZ reports <code>RSSI = 0</code> for "not seen". Three independent signals:
+      the row is dimmed (<code>opacity .45</code>), the word <b>Not in range</b> is spelled out,
+      and <code>Connect</code> is insensitive. <b>Unpair stays available</b> — forgetting a device
+      you cannot reach is the exact case unpair exists for.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="connected-out-of-range">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net sel" data-action="Disconnect" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-50.svg" alt="battery/system-battery-50" />54%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden><div style="padding:4px 7px"></div></div>
+        <div class="divider"></div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Connected but out of range keeps its fill.</b> <code>inRange()</code> is
+      <code>connected || rssi &lt; 0</code>, so a connected device is by definition in range — it is
+      never dimmed out from under a live connection. BlueZ drops the link on its own schedule; the row
+      just follows.
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ popup-discovering ═══════════════════════════════════════════════ -->
+<div class="state-label">Discovering — scanning, nothing found yet · <code>popup-discovering</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="discovering">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px"></div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden><div style="padding:4px 7px"></div></div>
+        <div class="divider"></div>
+        <div class="empty"><span class="spinner"></span>Scanning…</div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      <code>Scanning…</code> with a spinner while <code>bluetoothDiscovering</code>. The
+      <code>Available Devices ▸</code> row is <b>present even while empty</b> — the scan affordance
+      is never invisible.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="scan-settled-empty">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px"></div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden><div style="padding:4px 7px"></div></div>
+        <div class="divider"></div>
+        <div class="empty">No devices found</div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      Discovery settled empty: <code>Scanning…</code> → <code>No devices found</code>. Both are
+      <code>.settings-empty</code>, exactly the Wi-Fi <code>No networks found</code> pair.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="popup" data-power="on" data-state="discovering-with-devices">
+      <div class="nav-header">
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">—</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net" data-action="Connect" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −72 dBm"><img src="assets/settings-panel-signal-good.svg" alt="settings-panel/signal-good" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle">Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▾</span></span>
+        </button>
+        <div data-nearby>
+          <div style="padding:4px 7px">
+            <div class="net" data-action="Pair" data-name="HONOR 400 Smart" tabindex="0">
+              <div class="l1">
+                <span class="sig" title="Signal: −88 dBm"><img src="assets/settings-panel-signal-low.svg" alt="settings-panel/signal-low" /></span>
+                <span class="name" title="HONOR 400 Smart">HONOR 400 Smart</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Ready to pair</span></div>
+                <div class="actions"><button class="rowact">Pair</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="empty"><span class="spinner"></span>Scanning…</div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Scanning coexists with a populated list</b> — it does not replace it. Discovery runs the
+      whole time the surface is visible, so discovery is the <i>normal</i> condition, not an event.
+    </div>
+  </div>
+
+</div>
+
+<h3>Discover-then-reveal</h3>
+<p class="note">
+  <code>Available Devices</code> expansion is <code>manuallyToggled || nearbyCount &gt; 0</code> — see
+  the third mock above, where the section revealed itself and flipped <code>▸ → ▾</code> the moment
+  a neighbour was found. <b>Why:</b> a discovery run starts the instant the surface becomes visible,
+  so a collapsed section fills within a second or two of opening. A purely manual toggle would show an
+  empty popup and then quietly populate a section the user never opened. Collapsing only while it is
+  <i>genuinely</i> empty gives the audio popup's "quiet when nothing is happening, dense when the graph
+  is busy" behaviour <b>and</b> guarantees the section is never a trap. Toggling it closed while rows
+  exist is allowed — the user's choice wins — and the count is not re-forced until the section empties
+  again.
+</p>
+
+<h3>Footer row</h3>
+<p class="note">
+  <code>Bluetooth Settings ›</code> launches <code>bluetoothctl</code> — the Bluetooth analogue of the
+  Wi-Fi popup's <code>Wi-Fi Settings › opens nm-connection-editor</code> row, down to the
+  <b>wrap-not-ellipsize</b> rule on the note (an unwrapped <code>Gtk.Label</code> reports its full
+  text as natural width and would push the surface off the monitor). If the spawn fails, the message
+  surfaces in the existing <code>.settings-message</code> line — never a dialog.
+</p>
+
+<script>
+/* ── header switch: the only power control in the header slot ─────────── */
+document.querySelectorAll('.switch').forEach(function (sw) {
+  sw.addEventListener('click', function () {
+    if (sw.disabled) return;
+    sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+  });
+});
+
+/* ── the whole row is the primary action (WifiRow's hit-target rule) ──── */
+document.querySelectorAll('.net').forEach(function (row) {
+  row.addEventListener('click', function (e) {
+    if (e.target.closest('button')) return;   /* the action button claims its own click */
+    if (row.classList.contains('out-of-range')) return;
+    var btn = row.querySelector('.actions .rowact:not(.disabled)');
+    if (!btn) return;
+    btn.classList.add('subtle');
+    btn.style.opacity = '.35';
+    setTimeout(function () { btn.classList.remove('subtle'); btn.style.opacity = ''; }, 700);
+  });
+  row.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+  });
+});
+
+/* ── Available Devices chevron ───────────────────────────────────────── */
+document.querySelectorAll('[data-chevron]').forEach(function (btn) {
+  var popup = btn.closest('.popup');
+  var target = popup.querySelector('[data-nearby]');
+  var mark = btn.querySelector('.chevmark');
+  btn.addEventListener('click', function () {
+    var open = !target.hasAttribute('hidden');
+    if (open) target.setAttribute('hidden', ''); else target.removeAttribute('hidden');
+    mark.textContent = open ? '▸' : '▾';
+  });
+});
+
+/* ── footer row: the launch is simulated, the label is real ──────────── */
+document.querySelectorAll('[data-footer]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var popup = btn.closest('.popup');
+    var note = btn.querySelector('.footer-note');
+    var was = note.textContent;
+    note.textContent = 'launching bluetoothctl…';
+    setTimeout(function () { note.textContent = was; }, 1400);
+  });
+});
+</script>
+</body>
+</html>

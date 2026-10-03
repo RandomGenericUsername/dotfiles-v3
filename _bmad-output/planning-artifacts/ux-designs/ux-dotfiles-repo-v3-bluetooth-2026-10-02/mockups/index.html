@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bluetooth Control — Sally mock index</title>
+<link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+<!--
+  MOCK: index
+  Governed by DESIGN.md: colors.*, geometry.*, components.*, §New CSS, §Icon plan.
+  EXPERIENCE.md: Information Architecture, Component Patterns, State Patterns, §Hub.
+  Palette resolved from the LIVE runtime palette (colors.yaml, 2026-10-02) — the
+  same palette the 55 staged SVGs in assets/ were ITR-rendered against, so the
+  inline <img> tags need no colour correction. A wallpaper swap re-derives the
+  palette and re-renders every icon; the chrome here is a snapshot.
+  System glyphs are the REAL rendered repo SVGs. No glyph is hand-drawn.
+-->
+
+<h1>🎨 Bluetooth Control — mock index</h1>
+<div class="sub">
+  A bar indicator, a follower-anchored <b>312&nbsp;px</b> popup, and a reworked settings-panel
+  subview, at <b>full parity with the Wi-Fi panel</b> — which is the mandated reference for
+  geometry, components, styling and interaction. Today Bluetooth has no bar surface at all;
+  that asymmetry is the gap this closes.
+</div>
+
+<div class="anchor-index">
+  <b>Stable anchors</b> (cite these in specs / tasks):<br>
+  <code>bar-off</code> · <code>bar-idle</code> · <code>bar-connected</code> · <code>bar-active</code> ·
+  <code>bar-anchor</code><br>
+  <code>popup-powered-off</code> · <code>popup-connected</code> · <code>popup-paired</code> ·
+  <code>popup-out-of-range</code> · <code>popup-discovering</code><br>
+  <code>popup-pairing</code> · <code>popup-watchdog</code> · <code>popup-unpair</code> ·
+  <code>popup-unpair-confirm</code> · <code>popup-failure</code> · <code>popup-success</code><br>
+  <code>panel-tile</code> · <code>panel-subview</code> · <code>panel-header-parity</code> ·
+  <code>parity-matrix</code> · <code>parity-divergence</code>
+  <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:10px 0">
+  <b>Mock files</b> —<br>
+  <a href="key-bar-indicator.html">① <code>key-bar-indicator.html</code></a> — bar indicator states + follower anchoring ·
+  <a href="key-popup-states.html">② <code>key-popup-states.html</code></a> — powered off, connected (flagship), paired-not-connected,
+  out-of-range, discovering<br>
+  <a href="key-actions.html">③ <code>key-actions.html</code></a> — the interaction + feedback layer: busy rows (<code>Pairing…</code>/<code>Connecting…</code>/<code>Disconnecting…</code>/<code>Unpairing…</code>) with <code>anyBusy()</code> single-flight, the static <code>Can take up to 30&nbsp;s</code> line, the inline unpair confirm, the failure line and the success transition<br>
+  <a href="key-settings-panel.html">④ <code>key-settings-panel.html</code></a> — the settings-panel side: the <code>MainView</code> tile list in its Bluetooth state variants, the Bluetooth subview under its pinned <code>SubviewHeader</code>, and the Wi-Fi subview beside it proving the header-slot parity fix<br>
+  <a href="key-parity.html">⑤ <code>key-parity.html</code></a> — the side-by-side proof of the mandate: element-by-element Wi-Fi ↔ Bluetooth matrix, plus every intentional divergence with its own row
+</div>
+
+<h2>The three surfaces</h2>
+<table class="tokens">
+  <tr><th>Surface</th><th>Reached from</th><th>Glyph group</th><th>Notes</th></tr>
+  <tr><td><b>Bar indicator</b></td><td>always in the bar, <code>end</code> box, left of <code>NetworkStatus</code></td><td><code>bluetooth</code> <i>(NEW group)</i></td><td>bare 28px glyph, guard-managed tint, 4 art-distinguished states</td></tr>
+  <tr><td><b>Popup</b></td><td>bar indicator left-click</td><td><code>settings-panel</code></td><td>312px <code>settings-surface</code>, pinned header, <code>maxContentHeight 420</code></td></tr>
+  <tr><td><b>Settings subview</b></td><td>main-view tile row</td><td><code>settings-panel</code></td><td>same 312px surface, same body component, pinned <code>SubviewHeader</code></td></tr>
+</table>
+
+<h2>Body order (both surfaces, fixed)</h2>
+<p>
+  <code>pinned nav-header · Bluetooth · [switch]</code> → adapter details → divider →
+  <code>PAIRED</code> rows → divider → <code>AVAILABLE DEVICES ▸/▾</code> rows → divider →
+  footer row <code>Bluetooth Settings ›</code>.
+</p>
+<p>
+  Structural twin of <code>WifiContent</code>. The nav header is a <b>sibling</b> of the
+  scrolledwindow, never a child — the one lesson the settings panel learned the hard way.
+</p>
+
+<h2>Design tokens (live palette, 2026-10-02)</h2>
+<table class="tokens">
+  <tr><th>Role</th><th>Slot</th><th>Resolves</th><th>Used for</th></tr>
+  <tr><td><code>surface-panel</code></td><td><code>@color_00</code> @ .94</td><td><code>#0b0b1a</code></td><td>popup / panel glass</td></tr>
+  <tr><td><code>surface-panel-border</code></td><td><code>@color_04</code></td><td><code>#2d6596</code></td><td>1.5px surface border</td></tr>
+  <tr><td><code>surface-row</code></td><td><code>@color_01</code> @ .18</td><td><code>#575660</code></td><td>cards, fields, confirm strip</td></tr>
+  <tr><td><code>ink-primary</code></td><td><code>@color_foreground</code></td><td><code>#c2c2c5</code></td><td>all body text</td></tr>
+  <tr><td><code>ink-muted</code></td><td>fg @ .62</td><td>—</td><td>row subtitle, detail labels</td></tr>
+  <tr><td><code>row-selected</code></td><td><code>@color_10</code></td><td><code>#549ec8</code></td><td>connected row fill · switch ON</td></tr>
+  <tr><td><code>action-accent</code></td><td><code>@color_13</code></td><td><code>#dbab67</code></td><td>bluetooth ON glyph · badge · spinner</td></tr>
+  <tr><td><code>caution</code></td><td><code>@color_03</code></td><td><code>#5a5a6f</code></td><td>failure line · destructive confirm</td></tr>
+</table>
+<p style="margin-top:12px">
+  <b>No literal colours ship.</b> Every value above is a <code>colors.css</code> token. The staged
+  assets carry the resolved hex because ITR baked it in: <code>settings-panel-bluetooth.svg</code>
+  is <code>#dbab67</code>, <code>settings-panel-bluetooth-off.svg</code> is <code>#c2c2c5</code>.
+  ON/OFF is carried <b>by the rendered tint</b>, exactly as <code>IconToggle</code> expects — no CSS
+  filter, no recolour layer.
+</p>
+
+<h2>New CSS — the complete list</h2>
+<table class="tokens">
+  <tr><th>Class</th><th>Status</th><th>Why</th></tr>
+  <tr><td><code>.settings-rowact.danger</code></td><td><b>ADDITION</b></td><td>
+      the one new class in this design: destructive confirm on <code>Unpair device</code>.
+      Border + text take <code>@color_03</code>; hover lifts to <code>@color_11</code>. Sits beside
+      the existing <code>.settings-rowact.subtle</code> at the same geometry.</td></tr>
+  <tr><td colspan="3" style="color:rgba(194,194,197,.55)">Everything else resolves to an
+      existing <code>settings-*</code> class — see DESIGN.md §New CSS for the full 26-row mapping.</td></tr>
+</table>
+
+<h2>New icon group — <code>bluetooth</code></h2>
+<p>
+  There is <b>no Bluetooth icon group for the status bar at all</b> today. <code>bar_mappings</code>
+  exist only on <code>battery</code>, <code>network</code>, <code>btop</code>,
+  <code>power-menu</code> and <code>settings</code> — Wi-Fi rides inside <code>network</code>'s
+  states, so it could not be borrowed. A new group with four variants is required.
+</p>
+<table class="tokens">
+  <tr><th>state key</th><th>condition</th><th>variant</th><th>art</th></tr>
+  <tr><td><code>off</code></td><td><code>!bluetoothPowered()</code></td><td><code>bluetooth-off-default</code></td><td>rune + slash</td></tr>
+  <tr><td><code>idle</code></td><td>powered, nothing connected</td><td><code>bluetooth-default</code></td><td>bare rune</td></tr>
+  <tr><td><code>connected</code></td><td>powered, ≥1 connected</td><td><code>bluetooth-connected-default</code></td><td>rune + <b>hollow</b> dot</td></tr>
+  <tr><td><code>active</code></td><td>the routed device is connected</td><td><code>bluetooth-active-default</code></td><td>rune + <b>filled</b> dot</td></tr>
+</table>
+<p style="margin-top:12px">
+  <b>The load-bearing rule: bar state is carried by ART, never by TINT.</b>
+  <code>icon_contrast.py</code> rewrites only <b>group-level</b> <code>COLOR_FOREGROUND</code> of
+  <code>BAR_GROUPS</code>; a variant-level pin <b>exempts</b> a glyph from the guard — which is what
+  <code>system-battery-*</code> wants (it must render unretargeted on opaque glass) and exactly what a
+  bar glyph must <i>not</i> have. So the new group declares <code>color_mappings</code> at
+  <b>group level only, no variant pins</b>, and adds <code>"bluetooth"</code> to <code>BAR_GROUPS</code>.
+  All four states stay guard-managed and legible on any wallpaper.
+</p>
+<p>
+  <code>bold</code>/<code>rounded</code> weight variants are <b>deliberately omitted</b>: the
+  <code>network</code> group carries three weights because Wi-Fi strength needs weight to read at
+  24px; Bluetooth has four discrete states and none of them is a strength ladder. The
+  <code>settings</code> group already proves a single-<code>default</code> bar group is the house norm.
+</p>
+
+<h2>The hub — decision</h2>
+<p>
+  <b>No new hub topic.</b> Bluetooth stays purely BlueZ-D-Bus, exactly like Wi-Fi, and
+  <code>contracts/event-contract.{json,xml}</code>, <code>hub.KNOWN_TOPICS</code>,
+  <code>emit_validation.py</code> and <code>event-bus-core.ts</code> are all
+  <b>unchanged</b>. The full both-sides argument, and the exact `bluetooth.state` shape that
+  <i>would</i> be correct if a consumer ever appeared outside the AGS bar process, are in
+  <code>EXPERIENCE.md §The hub question</code>.
+</p>
+
+<div class="legend">
+  <span><span class="chip-ok">parity</span> matches the Wi-Fi reference</span>
+  <span><span class="chip-diff">named divergence</span> BlueZ genuinely differs — argued, not accidental</span>
+  <span class="sr">All icons are the real ITR-rendered repository SVGs.</span>
+</div>
+
+</body>
+</html>
