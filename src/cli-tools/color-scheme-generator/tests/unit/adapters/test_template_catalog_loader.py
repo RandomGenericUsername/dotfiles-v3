@@ -84,6 +84,40 @@ def test_load_discovers_kitty_format(tmp_path: Path) -> None:
     assert catalog.templates[0].name == "colors.kitty.j2"
 
 
+def test_load_discovers_all_three_btop_theme_formats(tmp_path: Path) -> None:
+    for name in ("btop-minimal.theme", "btop-balanced.theme", "btop-full.theme"):
+        (tmp_path / f"colors.{name}.j2").write_text("x")
+
+    resolver = MagicMock()
+    loader = DirectoryTemplateCatalogLoader(resolver)
+    catalog = loader.load(explicit_dir=tmp_path)
+
+    assert len(catalog.templates) == 3
+    by_format = {t.format: t for t in catalog.templates}
+    assert set(by_format) == {
+        ColorFormat.BTOP_MINIMAL,
+        ColorFormat.BTOP_BALANCED,
+        ColorFormat.BTOP_FULL,
+    }
+    assert by_format[ColorFormat.BTOP_MINIMAL].name == "colors.btop-minimal.theme.j2"
+    assert by_format[ColorFormat.BTOP_BALANCED].name == "colors.btop-balanced.theme.j2"
+    assert by_format[ColorFormat.BTOP_FULL].name == "colors.btop-full.theme.j2"
+
+
+def test_load_btop_theme_dir_rejects_unknown_sibling(tmp_path: Path) -> None:
+    for name in ("btop-minimal.theme", "btop-balanced.theme", "btop-full.theme"):
+        (tmp_path / f"colors.{name}.j2").write_text("x")
+    (tmp_path / "colors.btop-base.j2").write_text("x")
+
+    resolver = MagicMock()
+    loader = DirectoryTemplateCatalogLoader(resolver)
+
+    # A shared partial would parse as an unknown format and break csg entirely,
+    # so the three templates must stay self-contained.
+    with pytest.raises(TemplatesValidationError):
+        loader.load(explicit_dir=tmp_path)
+
+
 def test_load_unknown_kitty_like_format_raises(tmp_path: Path) -> None:
     (tmp_path / "colors.kitty.j2").write_text("x")
     (tmp_path / "colors.bogus.j2").write_text("x")

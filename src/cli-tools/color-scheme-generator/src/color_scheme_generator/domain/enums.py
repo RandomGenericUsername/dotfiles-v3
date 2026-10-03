@@ -40,6 +40,16 @@ class ColorFormat(Enum):
     SCSS = "scss"
     HYPRLAND = "conf"
     KITTY = "kitty"
+    # btop theme formats. Multi-dot values are fine: the catalog strips the
+    # "colors." prefix and passes the remainder to ColorFormat() (GTK_CSS is
+    # the existing precedent). These three form a difficulty dial -- minimal
+    # is all ramp slices, balanced additionally forces temp_* and cached_*
+    # semantic, full additionally forces cpu_*. A member and its
+    # colors.<value>.j2 template are one inseparable unit: an unregistered
+    # template raises TemplatesValidationError and breaks csg entirely.
+    BTOP_MINIMAL = "btop-minimal.theme"
+    BTOP_BALANCED = "btop-balanced.theme"
+    BTOP_FULL = "btop-full.theme"
 
 
 class RuntimeMode(Enum):

@@ -192,7 +192,11 @@ class TestTemplateCatalogService:
         assert ColorFormat.CSS in fmts
         assert ColorFormat.ADW_CSS in fmts
         assert ColorFormat.KITTY in fmts
-        assert len(catalog.templates) == 11
+        assert ColorFormat.BTOP_MINIMAL in fmts
+        assert ColorFormat.BTOP_BALANCED in fmts
+        assert ColorFormat.BTOP_FULL in fmts
+        # 11 pre-existing formats + the three btop theme variants.
+        assert len(catalog.templates) == 14
 
     def test_derive_unknown_format_raises(self, tmp_path: Path) -> None:
         (tmp_path / "colors.json.j2").write_text("x")

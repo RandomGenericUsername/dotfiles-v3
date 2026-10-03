@@ -113,8 +113,16 @@ def file_colors(path: pathlib.Path) -> set[str]:
     return {"#" + h.lower() for h in re.findall(r'="#([0-9a-fA-F]{6})"', text)}
 
 
-def check_one(theme: str, themes: list[str], tmp: pathlib.Path, extra: list[str]) -> bool:
-    root = tmp / theme.replace(".", "_")
+def check_one(theme: str, themes: list[str], tmp: pathlib.Path, extra: list[str],
+              color_theme: str | None = None) -> bool:
+    """Prove one theme applies. `color_theme` overrides what btop.conf selects.
+
+    Overriding it to a name that is NOT staged is the negative control: every
+    theme file is still present and discoverable, so the only thing that
+    changes is whether btop can resolve the selection. That is the exact
+    silent-fallback path the harness exists to catch.
+    """
+    root = tmp / theme.replace(".", "_") / (color_theme or theme)
     (root / "src").mkdir(parents=True, exist_ok=True)
     for name in themes:
         src = theme_dir_src() / name
@@ -123,7 +131,7 @@ def check_one(theme: str, themes: list[str], tmp: pathlib.Path, extra: list[str]
             return False
         shutil.copy(src, root / "src" / name)
 
-    frame, log = _run_btop(root, theme, themes, extra)
+    frame, log = _run_btop(root, color_theme or theme, themes, extra)
     theme_path = root / "config/btop/themes" / theme
 
     ok = True
@@ -142,13 +150,19 @@ def check_one(theme: str, themes: list[str], tmp: pathlib.Path, extra: list[str]
         return False
     hit = want & got
     leaked = got & DEFAULT_THEME_COLORS
-    # A frame only paints the colours that are on screen at this size, so
-    # require a strong majority of the file's colors AND zero Default leak.
-    if hit and not leaked and len(hit) >= max(3, len(want) // 2):
-        print(f"  PASS assertion 2: {len(hit)}/{len(want)} theme colours painted, "
-              f"0 Default_theme colours leaked")
+    # "Dominated by the theme's colours" is measured over the FRAME, not over
+    # the file: a 200x50 frame shows only a handful of gradient stops at once,
+    # so requiring half the file's 48-key palette to appear is unsatisfiable.
+    # What distinguishes a themed run is that nearly every colour ON SCREEN
+    # came from our file, with zero fallback colours leaking in.
+    dominance = len(hit) / len(got) if got else 0.0
+    if hit and not leaked and dominance >= 0.6:
+        print(f"  PASS assertion 2: {len(hit)}/{len(got)} painted colours "
+              f"({dominance:.0%}) come from the theme ({len(hit)}/{len(want)} of "
+              f"its stops on screen), 0 Default_theme colours leaked")
     else:
-        print(f"  FAIL assertion 2: {len(hit)}/{len(want)} theme colours painted; "
+        print(f"  FAIL assertion 2: {len(hit)}/{len(got)} painted colours from the "
+              f"theme ({dominance:.0%}), {len(hit)}/{len(want)} stops on screen; "
               f"Default leak={sorted(leaked) or 'none'}")
         print(f"           frame colours: {sorted(got)}")
         ok = False
@@ -172,9 +186,19 @@ def main() -> int:
     ap.add_argument("--themes", nargs="+", required=True,
                     help="theme filenames to prove, e.g. csg-minimal.theme")
     ap.add_argument("--btop-bin", default="btop")
+    ap.add_argument("--color-theme", default=None,
+                    help="NEGATIVE CONTROL: write this value to btop.conf's "
+                         "color_theme instead of the theme under test. Pass a name "
+                         "that is not staged to force btop's silent Default_theme "
+                         "fallback; the harness must then FAIL (exit 1).")
     args = ap.parse_args()
     if shutil.which(args.btop_bin) is None:
-        print(f"SKIP: {args.btop_bin} not installed", file=sys.stderr)
+        # Visible skip, not a silent green: exit 0 but say plainly on BOTH
+        # streams that nothing was actually proved.
+        msg = (f"SKIP: {args.btop_bin} not installed -- theme LOAD/APPLY was NOT "
+               f"verified. This is a skip, not a pass.")
+        print(msg, file=sys.stderr)
+        print(msg)
         return 0
     _SRC = args.theme_dir
 
@@ -183,8 +207,10 @@ def main() -> int:
         tmp = pathlib.Path(td)
         for theme in args.themes:
             print(f"\n{theme}")
+            if args.color_theme:
+                print(f"  (negative control: color_theme={args.color_theme!r})")
             try:
-                passed = check_one(theme, args.themes, tmp, [])
+                passed = check_one(theme, args.themes, tmp, [], args.color_theme)
             except Exception as exc:  # a crash must be a FAIL, never a pass
                 print(f"  FAIL: harness error: {type(exc).__name__}: {exc}")
                 passed = False
