@@ -1,154 +1,170 @@
 ---
-name: AGS Audio Control
-description: PipeWire/WirePlumber audio control for the Hyprland dotfiles desktop — a bar output indicator, a bar mic indicator, and a follower-anchored audio popup (outputs, per-application streams with routing, inputs, recorders). Visual identity inherits the existing GUI-unification language and the AGS settings panel; the runtime wallpaper palette is the only ink.
+name: AGS Audio Panel Redesign
+description: Compact, wallpaper-aware audio controls with a preferred output and independent app playback.
 status: final
-updated: 2026-09-21
+updated: 2026-10-02
 sources:
-  - docs/linux-wayland-pipewire-ags-audio-control.md
+  - EXPERIENCE.md
+  - mockups/audio-panel-redesign-concept.html
+  - openspec/changes/redesign-ags-audio-panel/specs/ags-audio-panel/spec.md
   - _bmad-output/planning-artifacts/gui-unification-ux-spec.md
-  - openspec/changes/add-ags-settings-panel/
+  - docs/linux-wayland-pipewire-ags-audio-control.md
 colors:
-  # Semantic roles map onto runtime palette slots 1:1 (values below are the
-  # live palette of 2026-09-18; a wallpaper swap restyles every surface).
-  surface-panel: '{color_00} @ 0.94 alpha'        # #0c131d — glass panel
-  surface-panel-border: '{color_04}'               # #513f50 — 1.5px
-  surface-card: '{color_01} @ 0.18 alpha'          # #293549 — cards
-  surface-row-active: '{color_10}'                 # #c2463e — selected device / list row
-  ink-primary: '{color_foreground}'                # #c2c4c6
-  ink-muted: '{color_foreground} @ 0.55 alpha'
-  hairline: '{color_foreground} @ 0.12 alpha'
-  action-primary: '{color_06}'                     # #a41e24 — primary action / active toggle
-  action-active: '{color_06} @ 0.18 alpha + {color_06} border'
-  slider-track: '{color_foreground} @ 0.16 alpha'
-  slider-fill: '{color_13}'                        # #d96451
-  slider-thumb: '{color_15}'                       # #c2c4c6
-  signal-live: '#2ecc71'                           # literal green — "a recorder is consuming the mic"
+  surface-panel: 'alpha(@color_00, 0.94)'
+  surface-card: 'alpha(@color_01, 0.18)'
+  ink-primary: '@color_foreground'
+  ink-secondary: 'alpha(@color_foreground, 0.72)'
+  ink-muted: 'alpha(@color_foreground, 0.64)'
+  divider: 'alpha(@color_foreground, 0.12)'
+  selection: '@color_10 fill; on-selection text follows GUI-unification contrast rule'
+  action: '@color_06'
+  slider-track: 'alpha(@color_foreground, 0.16)'
+  slider-fill: '@color_13'
+  slider-thumb: '@color_15'
+  focus-ring: '@color_10, 2px'
+  signal-live: '#2ecc71'
 typography:
-  # Inherited from the AGS settings panel; no new type scale.
-  card-title:
-    fontSize: 12.5px
+  panel-title:
+    fontFamily: 'system-ui sans-serif'
+    fontSize: 16px
     fontWeight: '650'
-  row-title:
-    fontSize: 13px
-    fontWeight: '600'
-  row-subtitle:
+    lineHeight: '1.3'
+  section-label:
+    fontFamily: 'system-ui sans-serif'
     fontSize: 11px
+    fontWeight: '700'
+    letterSpacing: '0.075em'
+  media-title:
+    fontFamily: 'system-ui sans-serif'
+    fontSize: 12px
+    fontWeight: '650'
+    lineHeight: '1.3'
+  supporting-label:
+    fontFamily: 'system-ui sans-serif'
+    fontSize: 10px
     fontWeight: '400'
-    color: '{colors.ink-muted}'
-  bar-percent:
-    fontSize: 12.5px
+  numeric-value:
+    fontFamily: 'system-ui sans-serif'
+    fontSize: 11px
     fontWeight: '600'
-    fontVariantNumeric: tabular-nums
+    letterSpacing: '0'
 rounded:
-  panel: 12px
-  card: 9px
-  row: 5px
-  pill: 8px
+  sm: 8px
+  md: 10px
+  lg: 14px
+  xl: 18px
+  full: 9999px
 spacing:
-  panel-padding: 11px
-  card-padding: 10px 11px
-  row-gap: 8px
+  1: 4px
+  2: 8px
+  3: 12px
+  4: 16px
+  5: 20px
+  panel-inset: 12px
 components:
-  panel:
+  audio-popup:
     background: '{colors.surface-panel}'
-    border: '1.5px solid {colors.surface-panel-border}'
-    radius: '{rounded.panel}'
-  card:
+    radius: '{rounded.xl}'
+    max-width: 408px
+    focus: '{colors.focus-ring}'
+  section-card:
     background: '{colors.surface-card}'
-    border: '1px solid {colors.hairline}'
-    radius: '{rounded.card}'
-  level-slider:
-    track: '{colors.slider-track}'
+    border: '{colors.divider}'
+    radius: '{rounded.lg}'
+    padding: '{spacing.3}'
+  preferred-output-selector:
+    radius: '{rounded.md}'
+    active: '{colors.selection}'
+  output-level-control:
     fill: '{colors.slider-fill}'
     thumb: '{colors.slider-thumb}'
-  list-row:
-    background: transparent
-    active-background: '{colors.surface-row-active}'
-    active-foreground: '{colors.ink-primary}'
-    radius: '{rounded.row}'
-  routing-select:
-    background: '{color_foreground} @ 0.06 alpha'
-    border: '1px solid {color_foreground} @ 0.14 alpha'
-    radius: '{rounded.pill}'
-  bar-indicator:
-    background: transparent
+  app-media-row:
+    artwork: '43px square, cropped, rounded {rounded.sm}'
+    divider: '{colors.divider}'
+  route-selector:
+    radius: '{rounded.sm}'
+    selected: '{colors.selection}'
+  app-transport:
+    primary-action: '{colors.action}'
+  seek-slider:
+    fill: '{colors.slider-fill}'
+    thumb: '{colors.slider-thumb}'
+  app-level-control:
+    fill: '{colors.slider-fill}'
+    thumb: '{colors.slider-thumb}'
+  input-device-control:
+    radius: '{rounded.md}'
+  microphone-activity-row:
+    live-signal: '{colors.signal-live}'
+  bar-audio-indicators:
+    background: 'transparent'
     glyph-size: 28px
-  live-dot:
-    background: '{colors.signal-live}'
-    size: 8px
+  settings-sound-control:
+    level-fill: '{colors.slider-fill}'
 ---
 
 ## Brand & Style
 
-The dotfiles desktop is a personal, single-user Hyprland environment whose interface language was set by the GUI-unification effort and the AGS settings panel: translucent glass panels over the wallpaper, the generated wallpaper palette as the *only* ink, and two accents with two fixed meanings. Audio control is not a new product — it is a new room in a house that already has a style. It inherits that style completely and adds no third accent, no new type scale, and no new surface vocabulary.
+The audio panel is a compact desktop control surface, not a second audio-management system. It mirrors PipeWire/WirePlumber and MPRIS state, keeps app and device scopes visually distinct, and inherits the dotfiles' wallpaper-generated palette. It should feel quiet when few apps are active and remain legible when rows and device names are dense.
 
-The governing posture, inherited verbatim from the PipeWire control document, is:
-
-> **AGS is a frontend to the audio system, never a second audio-management system.** PipeWire/WirePlumber own the graph; the UI is generated from the live graph rather than from a fixed list of applications.
-
-Visually this means the popup must never look like a settings form the user maintains. It is a live mirror: sections appear because streams exist and vanish when they end. The interface is quiet when nothing is happening and dense when the graph is busy.
+The approved hierarchy and row composition are shown in [the audio-panel redesign concept](mockups/audio-panel-redesign-concept.html). This mock illustrates layout and interaction. Its hand-built colors are placeholders; the generated runtime palette is authoritative.
 
 ## Colors
 
-The palette is the runtime wallpaper palette. No literal colours appear in any audio surface **except** `signal-live` — the green that means "a recording stream is active." That exception is deliberate and matches the existing recording dot and wallpaper `LIVE` badge: a semantic signal that must survive every wallpaper, not decoration.
+The audio UI inherits the wallpaper-generated runtime palette through AGS `colors.css`, the same source used by the status bar, Settings panel, and GTK surfaces. [`app.tsx`](../../../../dotfiles/config/ags/app.tsx) loads that generated file after AGS starts. New panel styles belong in the shared AGS stylesheet and use its `@color_*` tokens; components must not introduce their own fixed theme or inline hex colors. The palette contract is documented in [GUI unification](../../gui-unification-ux-spec.md), and existing [AGS audio/settings rules](../../../../dotfiles/config/ags/style.css) are the implementation precedent. The browser mock uses a fixed sample palette only to show hierarchy and interaction; it is not evidence of final theme rendering.
 
-- **`surface-panel` (`@color_00` at 0.94)** — the glass body of the popup. Translucency is for the panel only.
-- **`surface-card` (`@color_01` at 0.18)** — each section (Output, Applications, Input, Recording) sits on a card above the panel.
-- **`surface-row-active` (`@color_10`)** — the selected output device or the active list row, filled solid. This is the "where you are" accent. Text on it is `ink-primary` (foreground), never background: the live palette's `@color_10` is bright enough for foreground text and background-on-`@color_10` fails contrast.
-- **`action-primary` (`@color_06`)** — the "what you can do" accent, used for active toggles and primary affordances. Kept distinct from selection on purpose.
-- **Slider** — track is a foreground tint, fill is `@color_13`, thumb is `@color_15`. One slider look across the popup and the settings panel.
-- **`signal-live` (`#2ecc71`)** — literal green, used only for the mic-live dot (bar and Recording card header).
-
-Do not introduce a red "record" colour, a blue "output" colour, or any hue that carries meaning the palette did not assign. The two-accent discipline from the GUI-unification spec holds.
+- `{colors.surface-panel}` is the glass popup surface; `{colors.surface-card}` distinguishes sections.
+- `{colors.ink-primary}`, `{colors.ink-secondary}`, and `{colors.ink-muted}` provide readable information hierarchy. Small text uses at least 64% foreground opacity; lower-emphasis decoration must not carry required information.
+- `{colors.selection}` uses the established AGS selected-row fill, `@color_10`. Its text color is resolved by the [GUI-unification on-selection rule](../../gui-unification-ux-spec.md#text-on-fill-contrast-rule): use `@color_background` when it reaches 4.5:1 against the fill, otherwise use `@color_foreground`. Validate both candidates across generated palettes; if neither passes, the shared palette generator must expose a computed on-selection token. The current Settings row's foreground choice is a precedent for the current wallpaper, not a universal fixed pairing.
+- `{colors.action}` uses `@color_06`, the GUI-unification primary-action role. `{colors.slider-fill}` uses the existing AGS slider slot `@color_13`; `{colors.slider-track}` uses `alpha(@color_foreground, 0.16)`. Slider fill indicates level/position, never mute by itself. Match the shared Settings slider thumb token `{colors.slider-thumb}` (`@color_15`).
+- `{colors.focus-ring}` uses a 2px visible ring in `@color_10`, consistent with existing AGS controls. Focus and control boundaries must reach 3:1 against adjacent colors; small text must reach 4.5:1.
+- `{colors.signal-live}` is the single fixed semantic color for active microphone use. Mute, route intent, and selection are also expressed through icon, text, and selected state, never color alone.
 
 ## Typography
 
-The audio surfaces add no type scale. Card titles use the settings panel's 12.5px/650; row titles 13px/600; row subtitles 11px muted; the bar percentage 12.5px/600 with tabular numerals so the value does not jitter as it changes. Device and stream names are truncated with an ellipsis rather than wrapped — rows keep a fixed height so the popup does not reflow as names change.
+Use the platform sans-serif stack and the compact roles in the frontmatter. Media title and device labels remain readable above supporting metadata. Percentages and playback times use tabular numerals so changing values do not change the row geometry. Text may ellipsize in the row but its full value remains available through a tooltip and accessible description.
 
 ## Layout & Spacing
 
-The popup is a single 356px column, follower-anchored under the output bar indicator on the primary monitor. It grows downward; when it would exceed the monitor it scrolls, matching the settings panel's scroll behaviour. Section order is fixed: **Output · Applications · Input · Recording**.
+The panel is a single-column surface with a 408px maximum design width and `{spacing.panel-inset}` inset. It may narrow to the available monitor work area, with a 320px preferred minimum when available. Its content scrolls vertically; horizontal clipping is not allowed. At constrained widths or increased text scale, supporting labels can wrap and route controls may move below the media header while preserving their association and reachability.
 
-Every row uses one layout rule: **the top line carries the leading control, the name/subtitle, and any trailing control (mute, routing); the slider line carries the track and the percentage.** The percentage never sits on the title line. This is the single rule that keeps output, application, and recording rows visually identical.
+Section order is Preferred output → Playing → Input → Microphone activity. The app row groups media identity and app identity above app-scoped transport/seek and app stream level. Device output gain stays in the preferred-output section and is not placed among an app's controls.
 
-Sections with no content **collapse entirely** — no empty placeholder row and no "No apps playing" line. The popup height therefore follows the live audio graph.
+Historical references are retained but superseded: [key-audio-popup](mockups/key-audio-popup.html), [key-audio-transport](mockups/key-audio-transport.html), [key-alternatives](mockups/key-alternatives.html), and [key-bar-indicators](mockups/key-bar-indicators.html). They are not implementation references for this redesign. [The new concept](mockups/audio-panel-redesign-concept.html) is the current UI reference. Spines win on conflict with any mock.
 
 ## Elevation & Depth
 
-Inherited from the settings panel: the panel casts a soft shadow (`0 18px 48px rgba(0,0,0,.5)`) and sits above a transparent catcher window; cards have no shadow and are separated by a hairline border only. Depth is not used as a hierarchy device beyond the single panel-over-desktop step.
+The panel uses the established settings-surface shadow and a subtle glass border. Cards use tonal separation and a hairline only; avoid adding nested shadows that make each app row look like a separate popup.
 
 ## Shapes
 
-Panels use a 12px radius, cards 9px, list rows 5px, routing pills 8px. The subview (device list) is the same panel with its content swapped — same dimensions, same radius, no shape change on navigation. The live dot is a full circle.
+Use `{rounded.xl}` for the popup, `{rounded.lg}` for section cards, `{rounded.md}` for device controls, and `{rounded.sm}` for route chips/artwork. Pill shapes are limited to compact status indicators.
 
 ## Components
 
-These are the audio surface components, built on the settings panel's existing primitives (`PanelCard`, `LevelSlider`, catcher window) rather than new ones.
+Visual anatomy is shared with the behavioral definitions in [EXPERIENCE.md Component Patterns](EXPERIENCE.md#component-patterns). The [approved concept](mockups/audio-panel-redesign-concept.html) illustrates these components together.
 
-Transport and master glyphs resolve through the `media-transport` icon group (`play`, `pause`, `previous`, `next`), ITR-rendered like every other system icon — never inline paths. The group maps `COLOR_FOREGROUND: foreground`, so the glyphs inherit the runtime wallpaper palette like the rest of the popup, and it is strictly popup-internal (not in `BAR_GROUPS`, so the bar-icon contrast guard never touches it).
-
-- **Audio bar indicator** — bare glyph (no pill, no background), 28px, using the existing `volume` icon group (level-aware: muted/lowest/low/medium/max) plus the live percentage label. Transparent button; the glyph and text float directly over the wallpaper and are covered by the bar-icon contrast guard.
-- **Microphone bar indicator** — bare glyph, 28px, using the `microphone` icon group (`mic-on` / `mic-off`). When any recording stream is active it carries the `live-dot`; otherwise no dot. Left-click opens the popup focused on the Input section.
-- **Audio popup panel** — the glass panel described above, follower-anchored under the output indicator, dismissed on `Esc` and click-outside.
-- **Section card** — `PanelCard` with a title and one or more rows. Cards: Output, Applications, Input, Recording.
-- **Level row** — a device or stream: leading mute/level glyph, name + subtitle, optional trailing routing select, then a `LevelSlider` row with the percentage. Used by output, applications, input, and recording.
-- **Routing select** — compact trailing control on each playback row; opens a menu of the live speakers collection. Selecting writes `stream.target-endpoint`; volume and mute are untouched.
-- **Device subview** — tapping `Change ›` in the Output card swaps the panel to a device list (each row: icon, name, subtitle, check on the active device) with a `‹` back arrow. Same in-place navigation the settings panel uses for Wi-Fi/Bluetooth; panel dimensions stay stable. The **active-device checkmark** (`✓`) plus the active-row fill mark the current default sink; selecting any other row sets the default and returns. Default only governs new/unrouted streams — existing routed streams are untouched.
-- **Transport line** — a fourth line on an Applications row, below the volume `LevelSlider`, rendered **only** when that stream has a matching MPRIS player: `⏮ ▶/⏸ ⏭ · seek slider · elapsed / duration` (`1:24 / 4:02`, elapsed-only when duration is unknown). Prev/next glyphs appear only when the player exposes `CanGoPrevious`/`CanGoNext`; the seek slider appears only when it exposes `CanSeek`. A paused player renders dimmed (fill and title at reduced opacity) with the time frozen. Glyphs come from the `media-transport` icon group.
-- **Master play/pause** — a bordered `▶/⏸` button in the Output card's head row, between the name/meta block and `Change ›`. It reflects the most recently active player and is **hidden** when no player exists. Tooltip: `Play/Pause — <identity> (most recent)`.
-- **Live dot** — the literal-green dot marking active recording, used at most in two places: the mic bar indicator and the Recording card header.
+| Component | Visual rule |
+|---|---|
+| Audio popup | One narrow, anchored surface; scrolls vertically; never clips controls. |
+| Section card | Tonal surface, hairline edge, compact inset, uppercase section label. |
+| Preferred output selector | Full-width device row with output mark, selected device name, device description, and disclosure indicator. |
+| Output level control | Speaker mute glyph, continuous slider, numeric percent; labelled as device output level. Reuse the Settings slider's runtime track/fill/thumb palette tokens. |
+| App media row | Artwork, visible app name, title/artist, route chip; app identity is text, not badge-only. |
+| Route selector | Compact visible selected value; separates “Follow preferred · C” from “C · Override”. When intent cannot be confirmed, shows “Route unknown · C” so the observed endpoint remains visible without claiming a follow/override choice. |
+| App transport | Compact previous/play/next controls when supported, kept with that app's media. |
+| Seek slider | Flexible track with elapsed/total time; no displacement of adjacent row controls. |
+| App level control | Level-aware speaker icon, slider, numeric percent; visibly distinct from sink level by grouping and label. Reuse the same runtime slider tokens. |
+| Input device control | Device selector, level-aware mic mute, input slider and percent. |
+| Microphone activity row | Visible app identity and input-use signal; separate from screen-capture status. |
+| Bar audio indicators | Bare speaker/mic glyphs following the current endpoint and actual activity/mute state. |
+| Settings sound control | Reuses system output-level behavior; never maintains a separate volume authority. |
 
 ## Do's and Don'ts
 
 | Do | Don't |
 |---|---|
-| Generate sections from the live AstalWp collections | Hard-code application names, or assume one app equals one stream |
-| Keep one row layout rule across output/app/input/recording rows | Put the percentage on the title line or vary row structure per section |
-| Collapse empty sections | Show "No apps playing" placeholder rows |
-| Use `@color_10` for selection and `@color_06` for actions | Collapse the two accents into one or introduce a third |
-| Use `signal-live` only for active recording | Use the green decoratively or for output state |
-| Anchor the popup under its triggering icon | Anchor to a fixed screen edge |
-| Reuse `PanelCard` / `LevelSlider` / catcher / subview patterns | Invent new visual primitives for audio |
-| Render the transport line only when a stream has an MPRIS player | Give every row transport controls, or a disabled transport for no-player rows |
-| Resolve transport/master glyphs through the `media-transport` group | Inline hand-drawn paths or a third icon group |
-| Keep device list navigation in-panel with a back arrow | Open a second window or stack panels |
+| Use `{colors.selection}` with the established AGS foreground for active route/device. | Reuse the historical output-card aggregate player control. |
+| Keep device-level and app-level sliders visibly and semantically separate. | Suggest sink gain affects only apps following the default; it affects all streams on that sink. |
+| Keep app name visible beside media title/artist and artwork. | Rely on an app-icon tooltip for app identity. |
+| Use the runtime `colors.css` palette and shared AGS slider/focus treatments. | Treat the mock's literal colors as the final theme or add fixed color literals to components. |

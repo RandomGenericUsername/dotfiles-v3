@@ -66,7 +66,7 @@ function recordIconX() {
 }
 
 export function OutputIndicator() {
-  const spkEpoch = useEndpointEpoch(defaultSpeaker)
+  const spkEpoch = useEndpointEpoch(defaultSpeaker, "bar:spk")
   //: Read the LIVE node props directly — NOT through defaultSpeakerVolume() /
   //: defaultSpeakerMute(), which memoize independently on list membership and
   //: stay stale even when this epoch invalidates us (measured: node 0.85 while
@@ -120,7 +120,7 @@ export function OutputIndicator() {
 }
 
 export function MicIndicator({ showLiveDotRing = true }: { showLiveDotRing?: boolean } = {}) {
-  const micEpoch = useEndpointEpoch(defaultMicrophone)
+  const micEpoch = useEndpointEpoch(defaultMicrophone, "bar:mic")
   const variant = createComputed(() => {
     micEpoch()
     return nodeOf(defaultMicrophone())?.mute === true ? "mic-off" : "mic-on"

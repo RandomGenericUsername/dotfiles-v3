@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio panel redesign — working concept</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #151923;
+    --surface: rgba(20, 25, 35, .97);
+    --card: #202735;
+    --card-soft: #1c2330;
+    --line: rgba(230, 235, 245, .10);
+    --ink: #eef1f7;
+    --muted: #9ca7b8;
+    --dim: #788397;
+    --accent: #e3ae62;
+    --accent-soft: rgba(227, 174, 98, .14);
+    --green: #65cf9a;
+    --red: #ed7d83;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 38px 24px 56px;
+    color: var(--ink); background: radial-gradient(ellipse at 65% 5%, #272e3c, var(--page) 62%);
+    font: 14px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .page { max-width: 1020px; margin: auto; }
+  .intro { margin: 0 0 24px; max-width: 680px; }
+  h1 { margin: 0 0 7px; font-size: 21px; letter-spacing: -.025em; }
+  .intro p { margin: 0; color: var(--muted); font-size: 13px; }
+  .layout { display: grid; grid-template-columns: minmax(340px, 408px) minmax(270px, 1fr); gap: 32px; align-items: start; }
+  .stage { display: flex; flex-direction: column; align-items: flex-end; }
+  .bar { width: 100%; height: 42px; padding: 0 19px; display: flex; justify-content: flex-end; align-items: center; gap: 17px; color: #bec4d0; background: rgba(10, 13, 19, .72); border-radius: 12px 12px 0 0; }
+  .bar .time { margin-right: auto; color: #8f99a9; font-size: 12px; }
+  .bar svg { width: 19px; height: 19px; }
+  .bar-mic { position: relative; display: inline-flex; color: #bec4d0; }
+  .bar-mic svg { width: 18px; height: 18px; }
+  .bar-mic i { position: absolute; width: 6px; height: 6px; right: -2px; bottom: -1px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 2px #171b22; }
+  .anchor { width: 2px; height: 10px; background: var(--accent); margin-right: 28px; }
+  .panel {
+    width: 100%; border: 1px solid rgba(226, 183, 122, .35); border-radius: var(--radius);
+    background: var(--surface); box-shadow: 0 28px 70px rgba(0,0,0,.52); overflow: visible;
+    backdrop-filter: blur(24px);
+  }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 17px 18px 13px; }
+  .panel-title { font-size: 16px; font-weight: 680; letter-spacing: -.01em; }
+  .head-note { color: var(--muted); font-size: 11px; }
+  .scroll { max-height: min(738px, 75vh); overflow-y: auto; padding: 0 12px 12px; scrollbar-width: thin; scrollbar-color: #485366 transparent; }
+  .section { padding: 12px; background: linear-gradient(145deg, rgba(39,48,64,.86), rgba(28,35,47,.84)); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 9px; }
+  .section:last-child { margin-bottom: 0; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
+  .section-name { color: #d8deea; font-size: 11px; font-weight: 700; letter-spacing: .075em; text-transform: uppercase; }
+  .section-hint { color: var(--dim); font-size: 10px; }
+  button { color: inherit; font: inherit; }
+  .select-wrap { position: relative; }
+  .device-select, .route-select {
+    display: inline-flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer;
+    border: 1px solid rgba(230,235,245,.13); color: var(--ink); background: rgba(255,255,255,.045);
+  }
+  .device-select { width: 100%; padding: 10px 11px; border-radius: 10px; text-align: left; }
+  .device-select:hover, .route-select:hover { border-color: rgba(227,174,98,.58); background: rgba(255,255,255,.07); }
+  .device-icon { width: 31px; height: 31px; flex: 0 0 31px; display: grid; place-items: center; color: var(--accent); background: var(--accent-soft); border-radius: 9px; }
+  .device-icon svg { width: 17px; height: 17px; }
+  .device-copy { flex: 1; min-width: 0; }
+  .device-name { display: block; font-size: 13px; font-weight: 650; }
+  .device-meta { display: block; color: var(--muted); font-size: 10px; }
+  .chev { color: var(--muted); font-size: 12px; }
+  .menu {
+    display: none; position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; min-width: 100%;
+    padding: 5px; background: #202735; border: 1px solid rgba(230,235,245,.17); border-radius: 11px;
+    box-shadow: 0 14px 32px rgba(0,0,0,.45);
+  }
+  .select-wrap.open .menu { display: block; }
+  .option { width: 100%; border: 0; border-radius: 7px; background: transparent; text-align: left; padding: 8px 9px; font-size: 12px; cursor: pointer; }
+  .option:hover { background: rgba(255,255,255,.08); }
+  .option.selected { color: var(--accent); background: var(--accent-soft); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .option:focus-visible { background: rgba(227,174,98,.18); }
+  .sink-volume { display: flex; align-items: center; gap: 10px; margin-top: 11px; }
+  .speaker-button, .icon-button, .transport-button {
+    border: 0; background: transparent; display: grid; place-items: center; padding: 3px; cursor: pointer;
+  }
+  .speaker-button { width: 24px; height: 24px; color: var(--accent); }
+  .speaker-button svg { width: 19px; height: 19px; }
+  .range { appearance: none; -webkit-appearance: none; width: 100%; height: 5px; border-radius: 8px; outline: 0; background: linear-gradient(to right, var(--accent) var(--fill, 50%), rgba(230,235,245,.17) var(--fill, 50%)); cursor: pointer; }
+  .range::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #f5f3ee; box-shadow: 0 1px 4px #0008; }
+  .range::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: #f5f3ee; box-shadow: 0 1px 4px #0008; }
+  .range:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  .value { width: 34px; flex: 0 0 34px; text-align: right; color: #d4dbe7; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .sink-caption { display: flex; justify-content: space-between; margin: 7px 0 0 34px; color: var(--dim); font-size: 10px; }
+  .app { padding: 11px 0 12px; border-top: 1px solid rgba(230,235,245,.075); }
+  .app:first-of-type { border-top: 0; padding-top: 0; }
+  .app:last-child { padding-bottom: 0; }
+  .app-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .art {
+    width: 43px; height: 43px; flex: 0 0 43px; overflow: hidden; border-radius: 9px; position: relative;
+    display: grid; place-items: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,.11);
+  }
+  .art svg { width: 100%; height: 100%; }
+  .art-badge { position: absolute; right: -2px; bottom: -2px; width: 16px; height: 16px; border: 2px solid #252c39; border-radius: 6px; display: grid; place-items: center; background: #e6edf7; }
+  .art-badge svg { width: 10px; height: 10px; }
+  .meta { flex: 1; min-width: 0; }
+  .media-title { overflow: hidden; color: #f1f3f8; font-size: 12px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
+  .media-sub { overflow: hidden; color: var(--muted); font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
+  .app-name { margin-bottom: 1px; color: #e3ae62; font-size: 9px; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
+  .route-select { max-width: 124px; padding: 5px 7px; border-radius: 8px; font-size: 10px; }
+  .route-select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .route-menu { min-width: 180px; right: 0; left: auto; }
+  .opt-note { display: block; margin-top: 1px; color: var(--dim); font-size: 9px; }
+  .app-controls { margin: 9px 0 0 52px; }
+  .transport { display: flex; align-items: center; gap: 7px; }
+  .transport-button { width: 22px; height: 22px; color: #c5cedc; }
+  .transport-button:hover { color: #fff; }
+  .transport-button svg { width: 15px; height: 15px; }
+  .transport-button.main { width: 26px; height: 26px; border-radius: 50%; color: #171b22; background: var(--accent); }
+  .transport-button.main svg { width: 12px; height: 12px; }
+  .time { min-width: 72px; color: var(--muted); text-align: right; font-size: 9px; font-variant-numeric: tabular-nums; }
+  .transport .range { height: 4px; }
+  .volume-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+  .icon-button { flex: 0 0 23px; width: 23px; height: 23px; color: #cbd2df; border-radius: 6px; }
+  .icon-button:hover { color: var(--accent); background: rgba(255,255,255,.07); }
+  .icon-button svg { width: 17px; height: 17px; }
+  .volume-row .range { height: 4px; }
+  .icon-button.muted { color: var(--red); }
+  .status-chip { display: inline-flex; align-items: center; gap: 5px; color: var(--green); font-size: 9px; }
+  .status-chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .input-row { display: flex; align-items: center; gap: 9px; }
+  .input-controls { display: flex; align-items: center; gap: 8px; margin-top: 9px; }
+  .input-mute { width: 24px; height: 24px; color: #cbd2df; }
+  .input-mute.muted { color: var(--red); }
+  .input-mute svg { width: 17px; height: 17px; }
+  .input-mark { width: 33px; height: 33px; display: grid; place-items: center; border-radius: 9px; color: #b9a4e8; background: rgba(185,164,232,.13); }
+  .input-mark svg { width: 17px; height: 17px; }
+  .input-row .meta { flex: 1; }
+  .mini-link { padding: 5px 7px; color: #cbd3e0; font-size: 10px; text-decoration: none; border: 1px solid var(--line); border-radius: 7px; }
+  .recording-row { display: flex; align-items: center; gap: 9px; }
+  .recording-row .meta { flex: 1; }
+  .mic-live { width: 8px; height: 8px; margin-right: 3px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(101,207,154,.12); }
+  .notes { padding-top: 12px; }
+  .notes h2 { margin: 0 0 9px; font-size: 13px; }
+  .note-card { padding: 13px 14px; margin-bottom: 9px; border: 1px solid var(--line); border-radius: 13px; background: rgba(28,35,47,.72); }
+  .note-card h3 { margin: 0 0 5px; font-size: 11px; color: #e8c18c; }
+  .note-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+  .legend { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; }
+  .legend span { padding: 4px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 9px; }
+  @media (max-width: 760px) {
+    body { padding: 22px 12px 36px; }
+    .layout { grid-template-columns: minmax(0, 440px); justify-content: center; gap: 18px; }
+    .stage { align-items: stretch; }
+    .scroll { max-height: 68vh; }
+    .notes { padding: 0 2px; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <h1>Audio panel · redesign concept</h1>
+    <p>Working mockup for the preferred-output and per-app model. The controls are illustrative; the art is placeholder artwork.</p>
+  </header>
+
+  <div class="layout">
+    <section class="stage" aria-label="Audio popup concept">
+      <div class="bar" aria-hidden="true">
+        <span class="time">10:42</span>
+        <span>EN</span><span>87%</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M17 9a5 5 0 0 1 0 6M19 6a9 9 0 0 1 0 12"/></svg>
+        <span class="bar-mic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg><i></i></span>
+      </div>
+      <div class="anchor"></div>
+      <div class="panel">
+        <div class="panel-head"><div class="panel-title">Audio</div><div class="head-note">Output · apps · input</div></div>
+        <div class="scroll">
+          <section class="section">
+            <div class="section-head"><span class="section-name">Preferred output</span><span class="section-hint">Default destination</span></div>
+            <div class="select-wrap" id="preferred-menu">
+              <button class="device-select" aria-haspopup="listbox" aria-controls="preferred-options" aria-expanded="false" aria-label="Preferred output: C · Studio headphones" onclick="toggleMenu('preferred-menu')">
+                <span class="device-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M17 9a5 5 0 0 1 0 6"/></svg></span>
+                <span class="device-copy"><span class="device-name" id="preferred-name">C · Studio headphones</span><span class="device-meta">USB Audio · Analog stereo</span></span>
+                <span class="chev">▾</span>
+              </button>
+              <div class="menu" id="preferred-options" role="listbox" aria-label="Available output devices">
+                <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectPreferred('A · Desk speakers', this)">A · Desk speakers</button>
+                <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectPreferred('B · Bluetooth headset', this)">B · Bluetooth headset</button>
+                <button class="option selected" type="button" role="option" aria-selected="true" tabindex="-1" onclick="selectPreferred('C · Studio headphones', this)">C · Studio headphones</button>
+              </div>
+            </div>
+            <div class="sink-volume">
+              <button class="speaker-button" data-scope="C output" aria-label="Mute C output" aria-pressed="false" onclick="toggleMute(this, 'sink-range')">
+                <svg class="speaker-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M17 9a5 5 0 0 1 0 6"/></svg>
+              </button>
+              <input class="range volume-range" id="sink-range" type="range" min="0" max="100" value="72" aria-label="C output level" aria-describedby="sink-value" oninput="updateRange(this)">
+              <span class="value" id="sink-value">72%</span>
+            </div>
+            <div class="sink-caption"><span>Output level · affects all audio routed to C</span><span>72%</span></div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-name">Playing</span><span class="status-chip"><i></i>2 apps</span></div>
+
+            <article class="app" role="group" aria-label="Chrome, Midnight City by M83">
+              <div class="app-head">
+                <div class="art" aria-label="Album artwork placeholder">
+                  <svg viewBox="0 0 80 80" role="img"><defs><linearGradient id="cover-a" x2="1" y2="1"><stop stop-color="#f3b864"/><stop offset="1" stop-color="#ad4e42"/></linearGradient></defs><rect width="80" height="80" fill="url(#cover-a)"/><circle cx="60" cy="18" r="25" fill="#f8d69c" opacity=".68"/><path d="M0 56 24 38l14 10 17-19 25 28v23H0Z" fill="#28293a" opacity=".85"/><path d="M8 67h64" stroke="#f6e2bd" stroke-width="2" opacity=".8"/></svg>
+                  <span class="art-badge" title="Chrome"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#fff"/><path d="M24 2a22 22 0 0 1 19 11H24l-9 15L5 13A22 22 0 0 1 24 2Z" fill="#e94235"/><path d="M43 13a22 22 0 0 1-19 33l-8-15 8-7h17Z" fill="#34a853"/><path d="M24 46A22 22 0 0 1 5 13l17 2 7 13Z" fill="#fbbc05"/><circle cx="24" cy="24" r="9" fill="#4285f4" stroke="white" stroke-width="2"/></svg></span>
+                </div>
+                <div class="meta"><div class="app-name">Google Chrome</div><div class="media-title">Midnight City</div><div class="media-sub">M83 · Hurry Up, We’re Dreaming</div></div>
+                <div class="select-wrap" id="route-chrome">
+                  <button class="route-select" data-app="Chrome" aria-label="Chrome output route: Follow preferred, currently C" aria-haspopup="listbox" aria-controls="route-chrome-options" aria-expanded="false" onclick="toggleMenu('route-chrome')"><span>Preferred · C</span><span class="chev" aria-hidden="true">▾</span></button>
+                  <div class="menu route-menu" id="route-chrome-options" role="listbox" aria-label="Chrome output route">
+                    <button class="option selected" type="button" role="option" aria-selected="true" tabindex="-1" onclick="selectRoute(this, 'Preferred · C')">Follow preferred <span class="opt-note">Currently C · Studio headphones</span></button>
+                    <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectRoute(this, 'A · Override')">A · Desk speakers</button>
+                    <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectRoute(this, 'B · Override')">B · Bluetooth headset</button>
+                    <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectRoute(this, 'C · Override')">C · Studio headphones</button>
+                  </div>
+                </div>
+              </div>
+              <div class="app-controls">
+                <div class="transport">
+                  <button class="transport-button" aria-label="Previous track in Chrome"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14L8 12z"/></svg></button>
+                  <button class="transport-button main play-toggle" aria-label="Pause Chrome" aria-pressed="true" onclick="togglePlay(this)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM14 5h4v14h-4z"/></svg></button>
+                  <button class="transport-button" aria-label="Next track in Chrome"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5v14l11-7z"/></svg></button>
+                  <input class="range seek-range" type="range" min="0" max="100" value="35" data-duration="243" aria-label="Midnight City playback position in Chrome" aria-describedby="chrome-time" oninput="updateRange(this)">
+                  <span class="time" id="chrome-time">1:25 / 4:03</span>
+                </div>
+                <div class="volume-row">
+                  <button class="icon-button" data-scope="Chrome" aria-label="Mute Chrome" aria-pressed="false" onclick="toggleMute(this, 'chrome-vol')"><svg class="speaker-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M17 9a5 5 0 0 1 0 6"/></svg></button>
+                  <input class="range volume-range" id="chrome-vol" type="range" min="0" max="100" value="63" aria-label="Chrome stream volume" aria-describedby="chrome-volume-value" oninput="updateRange(this)">
+                  <span class="value" id="chrome-volume-value">63%</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="app" role="group" aria-label="Spotify, Weightless by Marconi Union">
+              <div class="app-head">
+                <div class="art" aria-label="Album artwork placeholder">
+                  <svg viewBox="0 0 80 80" role="img"><defs><linearGradient id="cover-b" x2="0.9" y2="1"><stop stop-color="#9d9bdd"/><stop offset="1" stop-color="#423f76"/></linearGradient></defs><rect width="80" height="80" fill="url(#cover-b)"/><circle cx="40" cy="40" r="26" fill="none" stroke="#eee7ff" stroke-width="1" opacity=".55"/><circle cx="40" cy="40" r="19" fill="none" stroke="#eee7ff" stroke-width="1" opacity=".55"/><circle cx="40" cy="40" r="5" fill="#f2e6d2"/><path d="M0 62 25 47l17 10 17-23 21 17v29H0Z" fill="#2b3047" opacity=".8"/></svg>
+                  <span class="art-badge" title="Spotify"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="23" fill="#1ed760"/><path d="M12 18c10-3 20-1 26 3M14 24c8-2 16-1 22 3M16 30c6-1 12 0 17 3" fill="none" stroke="#13251d" stroke-width="3" stroke-linecap="round"/></svg></span>
+                </div>
+                <div class="meta"><div class="app-name">Spotify</div><div class="media-title">Weightless</div><div class="media-sub">Marconi Union · Ambient</div></div>
+                <div class="select-wrap" id="route-spotify">
+                  <button class="route-select" data-app="Spotify" aria-label="Spotify output route: explicit override A" aria-haspopup="listbox" aria-controls="route-spotify-options" aria-expanded="false" onclick="toggleMenu('route-spotify')"><span>A · Override</span><span class="chev" aria-hidden="true">▾</span></button>
+                  <div class="menu route-menu" id="route-spotify-options" role="listbox" aria-label="Spotify output route">
+                    <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectRoute(this, 'Preferred · C')">Follow preferred <span class="opt-note">Currently C · Studio headphones</span></button>
+                    <button class="option selected" type="button" role="option" aria-selected="true" tabindex="-1" onclick="selectRoute(this, 'A · Override')">A · Desk speakers</button>
+                    <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectRoute(this, 'B · Override')">B · Bluetooth headset</button>
+                    <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectRoute(this, 'C · Override')">C · Studio headphones</button>
+                  </div>
+                </div>
+              </div>
+              <div class="app-controls">
+                <div class="transport">
+                  <button class="transport-button" aria-label="Previous track in Spotify"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14L8 12z"/></svg></button>
+                  <button class="transport-button main play-toggle" aria-label="Pause Spotify" aria-pressed="true" onclick="togglePlay(this)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM14 5h4v14h-4z"/></svg></button>
+                  <button class="transport-button" aria-label="Next track in Spotify"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5v14l11-7z"/></svg></button>
+                  <input class="range seek-range" type="range" min="0" max="100" value="51" data-duration="2172" aria-label="Weightless playback position in Spotify" aria-describedby="spotify-time" oninput="updateRange(this)">
+                  <span class="time" id="spotify-time">18:27 / 36:12</span>
+                </div>
+                <div class="volume-row">
+                  <button class="icon-button" data-scope="Spotify" aria-label="Mute Spotify" aria-pressed="false" onclick="toggleMute(this, 'spotify-vol')"><svg class="speaker-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M17 9a5 5 0 0 1 0 6"/></svg></button>
+                  <input class="range volume-range" id="spotify-vol" type="range" min="0" max="100" value="39" aria-label="Spotify stream volume" aria-describedby="spotify-volume-value" oninput="updateRange(this)">
+                  <span class="value" id="spotify-volume-value">39%</span>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-name">Input</span><span class="section-hint">Default microphone</span></div>
+            <div class="select-wrap" id="input-device-menu">
+              <button class="device-select" aria-haspopup="listbox" aria-controls="input-device-options" aria-expanded="false" aria-label="Input device: USB microphone, preferred microphone" onclick="toggleMenu('input-device-menu')">
+                <span class="input-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></span>
+                <span class="device-copy"><span class="device-name">USB microphone</span><span class="device-meta">Default input · Not in use</span></span>
+                <span class="chev" aria-hidden="true">▾</span>
+              </button>
+              <div class="menu" id="input-device-options" role="listbox" aria-label="Available input devices">
+                <button class="option selected" type="button" role="option" aria-selected="true" tabindex="-1" onclick="selectInput(this, 'USB microphone')">USB microphone · Preferred</button>
+                <button class="option" type="button" role="option" aria-selected="false" tabindex="-1" onclick="selectInput(this, 'Built-in microphone')">Built-in microphone</button>
+              </div>
+            </div>
+            <div class="volume-row input-controls">
+              <button class="icon-button input-mute" aria-label="Mute USB microphone input" aria-pressed="false" onclick="toggleInputMute(this)"><svg class="mic-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></button>
+              <input class="range volume-range" id="input-vol" type="range" min="0" max="100" value="74" aria-label="USB microphone input level" aria-describedby="input-value" oninput="updateRange(this)">
+              <span class="value" id="input-value">74%</span>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-head"><span class="section-name">Microphone activity</span><span class="section-hint">App capture streams</span></div>
+            <div class="recording-row">
+              <span class="input-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg></span>
+              <div class="meta"><div class="media-title">Discord</div><div class="media-sub">Using USB microphone</div></div>
+              <span class="mic-live" title="Microphone in use"></span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <aside class="notes">
+      <h2>What this version is showing</h2>
+      <div class="note-card"><h3>Theme follows the desktop palette</h3><p>This browser mock uses a fixed sample palette for layout and interaction only; it does not demonstrate runtime theme or contrast. The GTK panel inherits wallpaper-generated AGS <code>colors.css</code>: surface <code>@color_00</code>, edge <code>@color_04</code>, selection <code>@color_10</code>, primary action <code>@color_06</code>, and slider fill <code>@color_13</code>. Slider track/thumb and text reuse shared AGS tokens. The live microphone signal keeps the established semantic green.</p></div>
+      <div class="note-card"><h3>Destination and level are separate</h3><p>The top selector chooses the preferred output. Its level slider changes that device’s master level, affecting every stream routed there, including explicit app routes to C. Apps routed elsewhere are unaffected.</p></div>
+      <div class="note-card"><h3>Follow default versus override</h3><p>Chrome follows the preferred device and displays “Preferred · C”. Spotify is explicitly routed to A. Changing the preferred device should move Chrome while Spotify stays on A.</p></div>
+      <div class="note-card"><h3>Media first, app identity still visible</h3><p>Artwork, title, and artist describe what is playing. The small badge identifies the app that owns the stream. Missing artwork can fall back to the app icon.</p></div>
+      <div class="note-card"><h3>App controls stay together</h3><p>Each row has its own transport, seek, stream volume, and mute toggle. The volume glyph represents that app’s live stream level and mute state.</p></div>
+      <div class="legend"><span>Click the preferred output menu</span><span>Try the app route menus</span><span>Drag sliders or toggle mute/play</span></div>
+    </aside>
+  </div>
+</main>
+<script>
+  function triggerFor(menu) { return menu.querySelector(':scope > button'); }
+  function closeMenus(exceptId, restoreFocus = false) {
+    document.querySelectorAll('.select-wrap.open').forEach((menu) => {
+      if (menu.id === exceptId) return;
+      menu.classList.remove('open');
+      const trigger = triggerFor(menu);
+      trigger?.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) trigger?.focus();
+    });
+  }
+  function toggleMenu(id) {
+    const menu = document.getElementById(id);
+    const opening = !menu.classList.contains('open');
+    closeMenus(id);
+    menu.classList.toggle('open', opening);
+    const trigger = triggerFor(menu);
+    trigger?.setAttribute('aria-expanded', String(opening));
+    if (opening) {
+      const selected = menu.querySelector('[role="option"][aria-selected="true"]') || menu.querySelector('[role="option"]');
+      selected?.focus();
+    }
+  }
+  function selectOption(option) {
+    option.parentElement.querySelectorAll('[role="option"]').forEach((item) => {
+      const selected = item === option;
+      item.classList.toggle('selected', selected);
+      item.setAttribute('aria-selected', String(selected));
+    });
+  }
+  function selectPreferred(label, option) {
+    const device = label.split(' · ')[0];
+    document.getElementById('preferred-name').textContent = label;
+    const trigger = triggerFor(document.getElementById('preferred-menu'));
+    trigger.setAttribute('aria-label', 'Preferred output: ' + label);
+    document.getElementById('sink-range').setAttribute('aria-label', device + ' output level');
+    selectOption(option);
+    document.querySelectorAll('.opt-note').forEach((item) => item.textContent = 'Currently ' + label);
+    document.querySelectorAll('.route-select').forEach((button) => {
+      const value = button.querySelector('span');
+      if (value.textContent.startsWith('Preferred')) {
+        value.textContent = 'Preferred · ' + device;
+        button.setAttribute('aria-label', `${button.dataset.app} output route: Follow preferred, currently ${device}`);
+      }
+    });
+    document.querySelector('.sink-caption span:first-child').textContent = `Output level · affects all audio routed to ${device}`;
+    const sinkMute = document.querySelector('.speaker-button');
+    sinkMute.dataset.scope = device + ' output';
+    sinkMute.setAttribute('aria-label', (sinkMute.getAttribute('aria-pressed') === 'true' ? 'Unmute ' : 'Mute ') + device + ' output');
+    closeMenus(undefined, true);
+  }
+  function selectRoute(option, label) {
+    const menu = option.closest('.select-wrap');
+    const app = menu.querySelector('.route-select').dataset.app;
+    menu.querySelector('.route-select span').textContent = label;
+    menu.querySelector('.route-select').setAttribute('aria-label', `${app} output route: ${label}`);
+    selectOption(option);
+    closeMenus(undefined, true);
+  }
+  function selectInput(option, label) {
+    selectOption(option);
+    const trigger = triggerFor(document.getElementById('input-device-menu'));
+    trigger.querySelector('.device-name').textContent = label;
+    trigger.setAttribute('aria-label', 'Input device: ' + label + ', preferred microphone');
+    trigger.querySelector('.device-meta').textContent = label + ' · Default input';
+    document.getElementById('input-vol').setAttribute('aria-label', label + ' input level');
+    const mute = document.querySelector('.input-mute');
+    mute.dataset.scope = label + ' input';
+    mute.setAttribute('aria-label', (mute.getAttribute('aria-pressed') === 'true' ? 'Unmute ' : 'Mute ') + label + ' input');
+    closeMenus(undefined, true);
+  }
+  function formatClock(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainder = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return minutes + ':' + remainder;
+  }
+  function updateRange(input) {
+    input.style.setProperty('--fill', input.value + '%');
+    const value = input.parentElement.querySelector('.value');
+    if (value) value.textContent = input.value + '%';
+    if (input.classList.contains('seek-range')) {
+      const duration = Number(input.dataset.duration || 0);
+      const elapsed = Math.round(duration * Number(input.value) / 100);
+      const time = input.parentElement.querySelector('.time');
+      if (time) time.textContent = `${formatClock(elapsed)} / ${formatClock(duration)}`;
+      input.setAttribute('aria-valuetext', `${formatClock(elapsed)} of ${formatClock(duration)}`);
+    } else {
+      input.setAttribute('aria-valuetext', input.value + ' percent');
+    }
+    const captionValue = input.closest('.section')?.querySelector('.sink-caption span:last-child');
+    if (input.id === 'sink-range' && captionValue) captionValue.textContent = input.value + '%';
+  }
+  function speakerMarkup(muted) {
+    return muted
+      ? '<path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="m17 9 5 6m0-6-5 6"/>'
+      : '<path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M17 9a5 5 0 0 1 0 6"/>';
+  }
+  function toggleMute(button, rangeId) {
+    const input = document.getElementById(rangeId);
+    const muted = !button.classList.contains('muted');
+    button.classList.toggle('muted', muted);
+    button.setAttribute('aria-pressed', String(muted));
+    button.setAttribute('aria-label', (muted ? 'Unmute ' : 'Mute ') + button.dataset.scope);
+    button.querySelector('.speaker-svg').innerHTML = speakerMarkup(muted);
+    if (muted) {
+      button.dataset.saved = input.value;
+      input.value = 0;
+    } else {
+      input.value = button.dataset.saved || 55;
+    }
+    updateRange(input);
+  }
+  function toggleInputMute(button) {
+    const muted = !button.classList.contains('muted');
+    button.classList.toggle('muted', muted);
+    button.setAttribute('aria-pressed', String(muted));
+    button.setAttribute('aria-label', (muted ? 'Unmute ' : 'Mute ') + (button.dataset.scope || 'microphone input'));
+    button.querySelector('.mic-svg').innerHTML = muted
+      ? '<rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/><path d="m4 4 16 16"/>'
+      : '<rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/>';
+  }
+  function togglePlay(button) {
+    const playing = button.dataset.playing !== 'false';
+    button.dataset.playing = String(!playing);
+    const app = button.closest('.app')?.querySelector('.app-name')?.textContent || 'app';
+    button.setAttribute('aria-label', (playing ? 'Play ' : 'Pause ') + app);
+    button.setAttribute('aria-pressed', String(!playing));
+    button.innerHTML = playing
+      ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM14 5h4v14h-4z"/></svg>';
+  }
+  document.querySelectorAll('.range').forEach(updateRange);
+  document.querySelector('.input-mute').dataset.scope = 'USB microphone input';
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.select-wrap')) closeMenus();
+  });
+  document.addEventListener('keydown', (event) => {
+    const listbox = event.target.closest('[role="listbox"]');
+    if (!listbox) return;
+    const options = [...listbox.querySelectorAll('[role="option"]')];
+    const index = options.indexOf(document.activeElement);
+    let next = null;
+    if (event.key === 'ArrowDown') next = options[(index + 1 + options.length) % options.length];
+    if (event.key === 'ArrowUp') next = options[(index - 1 + options.length) % options.length];
+    if (event.key === 'Home') next = options[0];
+    if (event.key === 'End') next = options[options.length - 1];
+    if (event.key === 'Escape') { event.preventDefault(); closeMenus(undefined, true); }
+    else if (next) { event.preventDefault(); next.focus(); }
+    else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.activeElement.click(); }
+  });
+</script>
+</body>
+</html>
