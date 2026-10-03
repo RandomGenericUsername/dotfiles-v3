@@ -435,6 +435,42 @@ settings-panel:
     - name: signal-high
       template: settings-panel/signal/high/default/icon.svg
       output: settings-panel-signal-high.svg
+    # Bluetooth signal-strength glyphs WITH the circle badge, so the row leads
+    # with the same circle-badged mark the Wi-Fi network rows use. Art and tint
+    # contract are identical to the wifi-signal-* family below: the badge takes
+    # COLOR_BACKGROUND, the bars take COLOR_FOREGROUND, and the four steps are
+    # a progressive fill-opacity ladder (full → good → medium → low, one more
+    # bar dimmed per step).
+    #
+    # These REPLACE the bare `signal-*` family above for the row's leading slot:
+    # a bare bar glyph next to a circle-badged Wi-Fi row read as two dialects of
+    # the same control. The bare `signal-*` variants are kept in the manifest —
+    # they are still resolved by BluetoothContent.tsx today, and removing them
+    # would be a behaviour change outside this icon addition.
+    - name: bluetooth-signal-full
+      template: settings-panel/bluetooth-signal-full/default/icon.svg
+      output: settings-panel-bluetooth-signal-full.svg
+      color_mappings:
+        COLOR_BACKGROUND: color12
+        COLOR_FOREGROUND: color0
+    - name: bluetooth-signal-good
+      template: settings-panel/bluetooth-signal-good/default/icon.svg
+      output: settings-panel-bluetooth-signal-good.svg
+      color_mappings:
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
+    - name: bluetooth-signal-medium
+      template: settings-panel/bluetooth-signal-medium/default/icon.svg
+      output: settings-panel-bluetooth-signal-medium.svg
+      color_mappings:
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
+    - name: bluetooth-signal-low
+      template: settings-panel/bluetooth-signal-low/default/icon.svg
+      output: settings-panel-bluetooth-signal-low.svg
+      color_mappings:
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
     # WiFi signal-strength glyphs with circle badge for network rows
     # (settings-panel group, guard-exempt, no bar_mappings — system icons).
     - name: wifi-signal-full

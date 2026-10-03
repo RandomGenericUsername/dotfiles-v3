@@ -5,16 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Bluetooth panel — the mockup</title>
 <style>
-  /* Real ITR-rendered repo SVGs from assets/, against the live palette. */
+  /* Real ITR-rendered repo SVGs from assets/. Palette slots mirror
+     ~/.local/state/dotfiles/current/colors.yaml (the LIVE runtime palette):
+     bg=color00, edge=color04, fg=foreground, sel=color10, accent=color12/13.
+     These are tokens, not theme values — a wallpaper swap re-renders the
+     icons and only these six lines need re-reading. */
   :root{
-    --bg:#0b0b1a;
-    --panel:rgba(11,11,26,.94);
-    --edge:#2d6596;
-    --fg:#c2c2c5;
-    --sel:#549ec8;
-    --accent:#dbab67;
-    --hair:rgba(194,194,197,.10);
-    --div:rgba(194,194,197,.06);
+    --bg:#1a243d;
+    --panel:rgba(26,36,61,.94);
+    --edge:#a73c8a;
+    --fg:#c5c8ce;
+    --sel:#e1488f;
+    --accent:#c274c8;
+    --hair:rgba(197,200,206,.10);
+    --div:rgba(197,200,206,.06);
     /* every dimension below is authored at 312px and multiplied by --s */
     --s:2;
   }
@@ -25,11 +29,11 @@
     padding:calc(30px * var(--s) / 2);line-height:1.45;
   }
   h1{font-size:calc(15px * var(--s) / 2);font-weight:700;color:#fff;margin-bottom:calc(4px * var(--s) / 2)}
-  .lead{font-size:calc(11.5px * var(--s) / 2);color:rgba(194,194,197,.5);margin-bottom:calc(20px * var(--s) / 2);max-width:760px}
+  .lead{font-size:calc(11.5px * var(--s) / 2);color:rgba(197,200,206,.5);margin-bottom:calc(20px * var(--s) / 2);max-width:760px}
   .scale{position:fixed;top:14px;right:14px;display:flex;gap:6px;z-index:50}
   .scale button{
     font:inherit;font-size:11px;font-weight:600;cursor:pointer;padding:4px 10px;border-radius:7px;
-    color:var(--fg);background:rgba(194,194,197,.12);border:1px solid rgba(194,194,197,.2)
+    color:var(--fg);background:rgba(197,200,206,.12);border:1px solid rgba(197,200,206,.2)
   }
   .scale button.on{background:rgba(84,158,200,.28);border-color:var(--sel);color:#fff}
 
@@ -47,7 +51,7 @@
   .nav .title{font-size:calc(13.5px * var(--s));font-weight:650;color:#fff;flex:1}
   .switch{
     position:relative;width:calc(42px * var(--s));height:calc(24px * var(--s));
-    border-radius:calc(12px * var(--s));background:rgba(194,194,197,.18);flex:none
+    border-radius:calc(12px * var(--s));background:rgba(197,200,206,.18);flex:none
   }
   .switch::after{
     content:'';position:absolute;top:calc(2px * var(--s));left:calc(2px * var(--s));
@@ -63,12 +67,12 @@
     display:flex;justify-content:space-between;gap:calc(8px * var(--s));
     font-size:calc(11px * var(--s));padding:calc(2px * var(--s)) 0
   }
-  .detail .k{color:rgba(194,194,197,.42)}
-  .detail .v{color:rgba(194,194,197,.72);font-weight:500}
+  .detail .k{color:rgba(197,200,206,.42)}
+  .detail .v{color:rgba(197,200,206,.72);font-weight:500}
   .div{height:calc(1px * var(--s));background:var(--div);margin:calc(9px * var(--s)) 0}
   .sec{
     font-size:calc(11px * var(--s));font-weight:600;text-transform:uppercase;
-    letter-spacing:.05em;color:rgba(194,194,197,.42);margin:calc(2px * var(--s)) 0 calc(5px * var(--s))
+    letter-spacing:.05em;color:rgba(197,200,206,.42);margin:calc(2px * var(--s)) 0 calc(5px * var(--s))
   }
 
   /* Row = the real two-line geometry: a COLUMN of
@@ -95,7 +99,7 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis
   }
   .row.sel .nm{color:#fff}
-  .row .sub{font-size:calc(10.5px * var(--s));color:rgba(194,194,197,.5);margin-top:calc(1px * var(--s))}
+  .row .sub{font-size:calc(10.5px * var(--s));color:rgba(197,200,206,.5);margin-top:calc(1px * var(--s))}
   .row.sel .sub{color:rgba(11,11,26,.62)}
   .row .line2{display:flex!important;align-items:center;gap:calc(7px * var(--s));margin-top:calc(3px * var(--s))}
   .stat{display:flex;align-items:center;gap:calc(4px * var(--s));
@@ -111,27 +115,27 @@
   .act{
     font:inherit;font-size:calc(11px * var(--s));font-weight:600;cursor:pointer;
     padding:calc(4px * var(--s)) calc(10px * var(--s));border-radius:calc(7px * var(--s));
-    color:var(--fg);background:transparent;border:calc(1px * var(--s)) solid rgba(194,194,197,.26);
+    color:var(--fg);background:transparent;border:calc(1px * var(--s)) solid rgba(197,200,206,.26);
     white-space:nowrap
   }
   .act.subtle{opacity:.68}
   .act.dead{opacity:.5}
-  .act.danger{border-color:#5a5a6f;color:#5a5a6f}
+  .act.danger{border-color:#9b448b;color:#9b448b}
 
   .chev{
     display:flex;align-items:center;justify-content:space-between;
     padding:calc(9px * var(--s)) calc(9px * var(--s));cursor:pointer;
     border-radius:calc(7px * var(--s));font-size:calc(13px * var(--s));
-    color:rgba(194,194,197,.72);margin-bottom:calc(4px * var(--s))
+    color:rgba(197,200,206,.72);margin-bottom:calc(4px * var(--s))
   }
-  .chev:hover{background:rgba(194,194,197,.08)}
+  .chev:hover{background:rgba(197,200,206,.08)}
   .foot{
     display:flex;align-items:center;gap:calc(8px * var(--s));
     padding:calc(10px * var(--s)) calc(9px * var(--s)) calc(4px * var(--s));
-    font-size:calc(13px * var(--s));color:rgba(194,194,197,.72)
+    font-size:calc(13px * var(--s));color:rgba(197,200,206,.72)
   }
-  .foot .note{font-size:calc(10.5px * var(--s));color:rgba(194,194,197,.3);margin-left:auto}
-  .foot .arw{color:rgba(194,194,197,.3)}
+  .foot .note{font-size:calc(10.5px * var(--s));color:rgba(197,200,206,.3);margin-left:auto}
+  .foot .arw{color:rgba(197,200,206,.3)}
 
   /* CapabilityTile (.settings-tile) — ONE horizontal row: glyph, then
      title-over-subtitle, then the chevron. Deliberately NOT the two-line
@@ -148,15 +152,15 @@
   .tile .sig img{width:100%;height:100%;display:block}
   .tile .meta{flex:1;min-width:0}
   .tile .meta > *{display:block}
-  .tile .arw{color:rgba(194,194,197,.3);font-size:calc(17px * var(--s));flex:none}
+  .tile .arw{color:rgba(197,200,206,.3);font-size:calc(17px * var(--s));flex:none}
 
   .empty{
     padding:calc(20px * var(--s)) 0;text-align:center;
-    font-size:calc(13px * var(--s));color:rgba(194,194,197,.42)
+    font-size:calc(13px * var(--s));color:rgba(197,200,206,.42)
   }
   .msg{
     display:flex;align-items:center;gap:calc(7px * var(--s));
-    font-size:calc(12px * var(--s));color:#5a5a6f;margin-bottom:calc(8px * var(--s))
+    font-size:calc(12px * var(--s));color:#9b448b;margin-bottom:calc(8px * var(--s))
   }
   .msg img{width:calc(16px * var(--s));height:calc(16px * var(--s));flex:none}
   .spin{
@@ -169,7 +173,7 @@
   /* ── layout of the board ─────────────────────────────────────────────── */
   .board{display:flex;flex-wrap:wrap;gap:calc(26px * var(--s));align-items:flex-start}
   .cell{display:flex;flex-direction:column;align-items:center;gap:calc(9px * var(--s))}
-  .cap{font-size:calc(10.5px * var(--s));color:rgba(194,194,197,.45);letter-spacing:.04em;text-align:center}
+  .cap{font-size:calc(10.5px * var(--s));color:rgba(197,200,206,.45);letter-spacing:.04em;text-align:center}
 
   /* ── the bar ─────────────────────────────────────────────────────────── */
   .bar{
@@ -180,7 +184,7 @@
   }
   .bar img{height:calc(22px * var(--s));width:auto;display:block}
   .bar img.off{opacity:.45}
-  .bar .clock{margin-left:calc(12px * var(--s));font-size:calc(12px * var(--s));color:rgba(194,194,197,.7)}
+  .bar .clock{margin-left:calc(12px * var(--s));font-size:calc(12px * var(--s));color:rgba(197,200,206,.7)}
   .barpair{display:flex;align-items:center;gap:calc(6px * var(--s))}
   .stem{width:calc(2px * var(--s));height:calc(13px * var(--s));background:var(--sel);margin:0 auto}
   .stack{display:flex;flex-direction:column;align-items:center}
@@ -220,11 +224,10 @@
         </div>
         <div class="body">
           <div class="detail"><span class="k">Adapter</span><span class="v">5C:F3:70:9B:AA:BB</span></div>
-          <div class="detail"><span class="k">Audio output</span><span class="v">TOZO NC9</span></div>
           <div class="div"></div>
           <div class="sec">Paired</div>
           <div class="row sel">
-            <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-high.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
+            <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-full.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
             <div class="l2"><div class="meta"><span class="line2"><span class="stat"><img src="assets/system-battery-75.svg" alt="" />78%</span></span> <span class="sub">Paired</span></div><span class="acts">
               <button class="act">Disconnect</button>
               <button class="act subtle">Unpair</button>
@@ -232,7 +235,7 @@
           </div>
           <div class="chev"><span>Available Devices ▾</span></div>
           <div class="row">
-            <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">HONOR 400 Smart</span></span></div>
+            <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">HONOR 400 Smart</span></span></div>
             <div class="l2"><div class="meta"><span class="sub">Ready to pair</span></div><span class="acts"><button class="act">Pair</button></span></div>
           </div>
           <div class="foot">
@@ -264,15 +267,14 @@
       <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
       <div class="body">
         <div class="detail"><span class="k">Adapter</span><span class="v">5C:F3:70:9B:AA:BB</span></div>
-        <div class="detail"><span class="k">Audio output</span><span class="v">—</span></div>
         <div class="div"></div>
         <div class="sec">Paired</div>
         <div class="row">
-          <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">Sony WH-1000XM5</span></span></div>
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">Sony WH-1000XM5</span></span></div>
           <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
         </div>
         <div class="row">
-          <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
           <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
         </div>
         <div class="chev"><span>Available Devices ▸</span></div>
@@ -289,11 +291,11 @@
         <div class="div" style="margin-top:0"></div>
         <div class="sec">Paired</div>
         <div class="row">
-          <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
           <div class="l2"><div class="meta"><span class="line2"><span class="spin"></span><span class="stat">Pairing…</span></span> <span class="sub">Can take up to 30 s</span></div><span class="acts"><button class="act dead">Connect</button></span></div>
         </div>
         <div class="row">
-          <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
           <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act dead">Connect</button></span></div>
         </div>
         <div class="chev"><span>Available Devices ▸</span></div>
@@ -314,7 +316,7 @@
         <div class="div"></div>
         <div class="sec">Paired</div>
         <div class="row">
-          <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
           <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Pair</button></span></div>
         </div>
         <div class="chev"><span>Available Devices ▸</span></div>
@@ -374,21 +376,20 @@
   <div class="cell">
     <div class="surface">
       <div class="nav">
-        <span class="arw" style="font-size:calc(20px * var(--s));color:rgba(194,194,197,.5);line-height:1">‹</span>
+        <span class="arw" style="font-size:calc(20px * var(--s));color:rgba(197,200,206,.5);line-height:1">‹</span>
         <span class="title">Bluetooth</span>
         <span class="switch on"></span>
       </div>
       <div class="body">
         <div class="detail"><span class="k">Adapter</span><span class="v">5C:F3:70:9B:AA:BB</span></div>
-        <div class="detail"><span class="k">Audio output</span><span class="v">TOZO NC9</span></div>
         <div class="div"></div>
         <div class="sec">Paired</div>
         <div class="row sel">
-          <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-high.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-full.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
           <div class="l2"><div class="meta"><span class="line2"><span class="stat"><img src="assets/system-battery-75.svg" alt="" />78%</span></span> <span class="sub">Paired</span></div><span class="acts"><button class="act">Disconnect</button><button class="act subtle">Unpair</button></span></div>
         </div>
         <div class="row">
-          <div class="l1"><span class="sig"><img src="assets/settings-panel-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
           <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
         </div>
         <div class="chev"><span>Available Devices ▾</span></div>
