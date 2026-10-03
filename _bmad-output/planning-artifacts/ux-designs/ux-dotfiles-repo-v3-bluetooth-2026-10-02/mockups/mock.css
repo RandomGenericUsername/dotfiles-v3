@@ -100,7 +100,13 @@ table.tokens th, table.tokens td {
 }
 table.tokens th { color: rgba(194,194,197,.5); font-weight: 600; font-size: 11px;
                   text-transform: uppercase; letter-spacing: .05em; }
-table.tokens td:first-child { white-space: nowrap; }
+/* Keep a key/value table's LABEL cell on one line. Scoped with
+   `:not(:last-child)` so it only applies to genuine two-column tables: a
+   single-cell prose table (the verdict blocks) has its prose in
+   first-child AND last-child, and nowrap there made the whole paragraph
+   unbreakable — the column overflowed its max-width and overlapped its
+   neighbour. */
+table.tokens td:first-child:not(:last-child) { white-space: nowrap; }
 
 /* ══════════════════════════════════════════════════════════════════════
    .settings-* — the 312px popup surface
@@ -188,8 +194,13 @@ table.tokens td:first-child { white-space: nowrap; }
 .net.confirming { background: rgba(194,194,197,.06); }
 
 .net .l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.net .sig { width: 22px; height: 22px; flex: 0 0 22px; display: block; }
-.net .sig img { width: 100%; height: 100%; display: block; }
+/* `.sig` is declared UNSCOPED so a signal glyph also sizes correctly outside a
+   row (the signal-variant gallery in key-signal-meta-change.html uses it
+   standalone). It was previously only defined as `.net .sig`, so a bare
+   `.sig` inherited no size and its 1024x1024 SVG rendered at natural size —
+   a wall of full-bleed glyphs. Keep the 22px box. */
+.sig { width: 22px; height: 22px; flex: 0 0 22px; display: block; }
+.sig img { width: 100%; height: 100%; display: block; }
 .net .name {
   font-size: 12.5px; font-weight: 600; min-width: 48px; flex: 1;
   /* widget-level: maxWidthChars={26} + Pango.EllipsizeMode.END */
