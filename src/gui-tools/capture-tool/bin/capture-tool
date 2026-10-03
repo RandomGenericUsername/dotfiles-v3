@@ -376,6 +376,21 @@ def _build_recording_command(
             "-cursor", "yes" if cursor else "no",
             "-o", output_path,
         ])
+        # gsr's ``-k`` defaults to auto -> h264, but its auto path is
+        # extension-driven: a ``.webm`` output resolves to VP8 (verified live:
+        # "using vp8 encoder because a codec was not specified and the file
+        # extension is .webm"). WebM carries only VP8/VP9, and VP8 is absent from
+        # several GPUs -- including this host's captured display, whose Intel UHD
+        # encoder has no VP8, while the idle RTX 3060 cannot be redirected because
+        # ``-encoder`` accepts only gpu|cpu. The result was a WebM request that
+        # produced NO FILE while the launcher had already reported
+        # {"state": "recording"}. VP9 is WebM-legal everywhere gsr runs, so name
+        # it rather than infer it -- the same lesson as GSR_QUALITY_MAP above.
+        #
+        # Keys off ``args.format``, NOT the ``-c`` override: the GIF path passes
+        # ``-c mp4`` while ``args.format`` is still "gif", so GIF is unaffected.
+        if args.format == "webm":
+            command.extend(["-k", "vp9"])
     else:
         command = [backend, "-f", output_path]
         if args.target != "screen":
