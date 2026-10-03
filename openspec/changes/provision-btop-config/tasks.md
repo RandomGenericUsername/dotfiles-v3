@@ -28,12 +28,24 @@
 - [ ] 4.2 Record the reload deferral explicitly: the theme applies on the next btop launch; no running instance is disturbed
 - [ ] 4.3 Fold in the pre-existing doc drift: `docs/99-dotfiles-hexagonal-architecture.md:340` says 3 formats (it is now 10) and `ARCHITECTURE_PLAN.md:32` omits `KITTY`
 
-## 5. End-to-end verification
+## 5. End-to-end verification — all machine-checkable, no eyes required
+
+The theme-application assertions reuse the harness proven in
+`add-csg-btop-theme-formats` (`assert_theme_applies.py`): btop's DEBUG log must
+name our file, and the captured pty frame must carry our colours with zero
+`Default_theme` colours present.
 
 - [ ] 5.1 `uv run --directory src/provisioning pytest` green
 - [ ] 5.2 `make contracts-check` green
-- [ ] 5.3 Provision; confirm `~/.config/btop/btop.conf` selects `csg-minimal.theme`
-- [ ] 5.4 Confirm `~/.config/btop/themes/` lists all three themes and each resolves into a palette cache entry
-- [ ] 5.5 Launch btop from the ags bar widget and confirm the theme applies and the menu lists all three
-- [ ] 5.6 Change the wallpaper; confirm the three files update and the **next** btop launch is re-themed (a running instance is expected to keep the old colours — D7)
-- [ ] 5.7 Quit btop and confirm `btop.conf` was not rewritten (the `save_config_on_exit` guarantee)
+- [ ] 5.3 **Config assertions, no launching:** assert the rendered `btop.conf` contains `color_theme = "csg-minimal.theme"` and `save_config_on_exit = false`, and that every other key equals btop's stock default
+- [ ] 5.4 **The themes are discoverable:** assert each of the three files exists under `<install>/config/btop/themes/`, has the `.theme` extension, and `resolve()`s into a palette cache entry — this is exactly the predicate `Theme::updateThemes` uses (`extension() == ".theme"` and `access(R_OK)`), so it proves discoverability without running btop
+- [ ] 5.5 **btop actually resolves the theme (end-to-end, headless):** run the application harness against the *provisioned* `~/.config/btop` (isolated via `XDG_CONFIG_HOME`/`XDG_STATE_HOME`) and require exit 0 with our colours painted and zero Default leak
+- [ ] 5.6 **Negative control against the real config:** assert that naming a non-existent theme in that same provisioned config makes the harness fail — proving step 5.5 is not vacuously green. This is the check that would have caught a `config_links` or pointer bug
+- [ ] 5.7 **Palette propagation:** after `wallpaper set`, assert all three theme files' contents changed and that `resolve()` still lands in the new palette entry
+- [ ] 5.8 **`save_config_on_exit` guarantee, asserted not assumed:** record `btop.conf`'s hash, run btop headlessly and terminate it, assert the hash is **unchanged**. This proves btop did not truncate the spine-owned file through the symlink — the risk that made this setting mandatory
+- [ ] 5.9 **Backup guard:** with a pre-existing real `~/.config/btop` containing a marker file, assert after provisioning that the marker is readable under the timestamped backup path and `~/.config/btop` is the spine symlink
+- [ ] 5.10 **Idempotence:** run `config_links` twice and assert no second backup directory is created
+
+A running btop is expected to keep its colours until relaunch (D7). This is
+asserted as a *non*-action: no step kills, signals, or relaunches a running btop,
+and step 5.7 asserts only that the on-disk files changed.

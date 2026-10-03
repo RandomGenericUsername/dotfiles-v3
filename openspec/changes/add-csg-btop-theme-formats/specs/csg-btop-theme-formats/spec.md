@@ -175,3 +175,50 @@ the data gradients.
 - **WHEN** `cpu_box`, `mem_box`, `net_box`, `proc_box`, and `div_line` are read
 - **THEN** `cpu_box`, `mem_box`, `net_box`, and `proc_box` are all equal
 - **AND** all five are drawn from the palette's ramp
+
+### Requirement: Theme application is verifiable without human inspection
+It SHALL be possible to prove, from a command's exit code alone, that btop both
+**loaded** and **applied** a generated theme. The proof SHALL NOT rely on a person
+observing a running btop.
+
+Two assertions SHALL be available:
+
+- **Load assertion.** With btop's log level set to `DEBUG`, the run log SHALL
+  contain a `Loading theme file:` entry naming the generated theme file
+  (`src/btop_theme.cpp:397`). When the configured `color_theme` does not resolve
+  to a discovered theme, btop silently falls back to `Default_theme` and emits no
+  such entry.
+- **Application assertion.** Running btop on a real pseudo-terminal and capturing
+  the rendered frame SHALL yield 24-bit colour sequences attributable to the
+  generated theme, and SHALL NOT yield any of btop's built-in `Default_theme`
+  colours.
+
+A verification that cannot fail SHALL NOT be accepted as evidence: the harness
+SHALL include a negative control that fails when the theme is absent, and SHALL
+treat any internal error as a failure rather than a pass.
+
+#### Scenario: a generated theme is proved applied
+- **GIVEN** the three rendered themes
+- **WHEN** the application harness runs against each
+- **THEN** each produces a `Loading theme file:` entry naming that theme
+- **AND** each frame is dominated by that theme's colours with zero
+  `Default_theme` colours present
+- **AND** the command exits 0
+
+#### Scenario: an unresolvable theme is detected
+- **GIVEN** a `color_theme` naming a theme file that is not present
+- **WHEN** the application harness runs
+- **THEN** the load assertion fails because no `Loading theme file:` entry exists
+- **AND** the frame contains `Default_theme` colours
+- **AND** the command exits non-zero
+
+#### Scenario: an absent btop binary skips visibly
+- **GIVEN** a machine without the `btop` binary
+- **WHEN** the application harness runs
+- **THEN** it skips with a stated reason and exits 0
+- **AND** the skip is visible in its output rather than being silently green
+
+#### Scenario: a harness error is not a pass
+- **GIVEN** any internal error while asserting theme application
+- **WHEN** the harness completes
+- **THEN** it reports a failure and exits non-zero

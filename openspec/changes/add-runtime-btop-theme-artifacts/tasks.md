@@ -27,10 +27,17 @@
 - [ ] 4.4 `repoint_current_symlinks` creates all three `current/` symlinks; a missing source artifact is skipped with a warning and no dangling link
 - [ ] 4.5 Contract schema conformance test covers a `meta.json` with all ten artifacts
 
-## 5. Verification
+## 5. Verification — all machine-checkable
 
 - [ ] 5.1 `uv run --directory src/runtime pytest` green
 - [ ] 5.2 `python tests/architecture/test_layering.py` green
 - [ ] 5.3 `make contracts-check` green
-- [ ] 5.4 On-host: `dotfiles-runtime wallpaper set <img>` then confirm all three `current/colors.btop-*.theme` symlinks exist and resolve into the new cache entry
-- [ ] 5.5 Confirm a pre-existing palette entry was evicted and re-derived (first converge does real work by design)
+- [ ] 5.4 Assert the CSG invocation carries all three `--format` flags: a test on `csg_adapter`'s argv construction asserts each flag is present (not a log read)
+- [ ] 5.5 Assert `PALETTE_ARTIFACT_NAMES` membership directly
+- [ ] 5.6 Integration: after `wallpaper set` against a temp state root, assert all three `current/colors.btop-*.theme` symlinks exist AND `Path.resolve()` lands inside the new palette entry (`assert (cur / name).resolve().is_relative_to(entry_dir)`)
+- [ ] 5.7 Self-heal: assert a pre-existing six-artifact entry is evicted and re-derived by `ensure_palette_entry_complete` (unit-level, no host needed)
+- [ ] 5.8 Round-trip: `meta.json` written with all ten artifacts validates against the palette schema; one missing any of the three fails — proving the schema is the forcing function, not decoration
+
+Note: on-host steps are intentionally omitted. Everything above is assertable in
+CI against a temp state root, so no verification depends on a provisioned machine
+or a person's eyes.

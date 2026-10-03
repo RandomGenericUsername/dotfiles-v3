@@ -124,7 +124,32 @@ because the fallback is guarded on `process_start` alone while
 `generateGradients` reads `rgbs["process_end"]` via `operator[]`
 (`btop_theme.cpp:328`).
 
-### D9. Templates emit comments; the format tolerates them
+### D9. Theme application is asserted from btop's own output, never by eye
+The obvious verification — "launch btop and check it looks themed" — is not
+acceptable: it needs a human, and btop's most likely failure mode is **silent**.
+`setTheme` leaves `theme_path` empty when `color_theme` does not resolve against
+the discovered list, and applies `Default_theme` with **no error and no log
+entry** (`btop_theme.cpp:465`). A theme that never loads looks identical to one
+that does, except for colours.
+
+Two machine-checkable channels exist, both verified against btop 1.4.7:
+
+1. **Log channel.** `Theme::loadFile` logs
+   `Loading theme file: <abs path>` at DEBUG (`btop_theme.cpp:397`). With
+   `log_level = "DEBUG"` and an isolated `XDG_STATE_HOME`, a test asserts that
+   line names *our* file. An unresolvable theme produces no such line at all.
+2. **Frame channel.** Run btop on a real pty (it requires a real terminal size;
+   without one it only emits errors), capture the frame, and extract every
+   24-bit SGR colour from both `38;2` (fg) and `48;2` (bg). Assert a majority of
+   the theme file's colours are painted **and** that none of btop's
+   `Default_theme` colours appear. Measured: with our theme, 5/5 painted colours
+   come from the file and 0 Default colours appear; with an unresolvable
+   `color_theme`, the frame is entirely Default colours.
+
+The harness lives at `spikes/btop-theme-prototype/assert_theme_applies.py` and is
+promoted into the CSG test suite by task 2.9. Its **negative control is part of
+the success criteria** (task 4.9): a verification that cannot fail proves
+nothing, so the harness must exit non-zero when the theme is absent.
 Stock themes carry descriptive comments, and btop's parser skips any line whose
 first character is `#`. Each template emits a header (slug, source image, backend,
 generation time) plus a per-gradient `# name: ramp|SEMANTIC cool->warm` marker, so

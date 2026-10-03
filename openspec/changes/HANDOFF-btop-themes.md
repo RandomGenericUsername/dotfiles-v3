@@ -89,6 +89,50 @@ into `~/.config/btop/themes/`, not a kitty-style `include`.
 the spine symlink, the default would let btop overwrite the provisioning-owned,
 git-tracked `btop.conf` and put UI changes into version control.
 
+## Verification is fully machine-checkable — do not eyeball anything
+
+The obvious check ("launch btop, confirm it looks themed") is **not** acceptable,
+because btop's primary failure mode is silent: when `color_theme` does not resolve
+against the discovered themes, `setTheme` applies `Default_theme` with no error and
+no log line (`btop_theme.cpp:465`). A theme that never loaded looks exactly like one
+that did.
+
+Two assertion channels are proven against btop 1.4.7 and live in
+`spikes/btop-theme-prototype/assert_theme_applies.py`:
+
+1. **Log** — with `log_level = "DEBUG"`, btop emits
+   `Loading theme file: <abs path>` (`btop_theme.cpp:397`). Assert that line names
+   *our* file. An unresolvable theme produces no such line.
+2. **Frame** — run btop on a real pty (it needs a real terminal size), extract every
+   24-bit SGR colour from both `38;2` and `48;2`, and assert the theme's colours
+   dominate with **zero** `Default_theme` colours present. Measured: our theme →
+   5/5 frame colours from the file, 0 Default; unresolvable theme → frame entirely
+   Default colours.
+
+Run it as:
+
+```
+python3 spikes/btop-theme-prototype/assert_theme_applies.py \
+  --theme-dir <rendered dir> \
+  --themes colors.btop-minimal.theme colors.btop-balanced.theme colors.btop-full.theme
+```
+
+**Every change's acceptance criteria are exit codes, not observations.** The harness
+has a negative control as part of the success criteria: a verification that cannot
+fail proves nothing, so it must exit non-zero when the theme is absent. Two bugs
+found while building it are worth not repeating — it crashed instead of failing
+cleanly on a missing file, and it reported success on an exception.
+
+Notable non-visual assertions:
+- **`save_config_on_exit`** is proven by hashing `btop.conf`, running btop to
+  termination, and asserting the hash is unchanged — this is what proves btop did
+  not truncate the spine-owned file through the symlink.
+- **Discoverability** is asserted with btop's own predicates (`.theme` extension +
+  `access(R_OK)` + resolves into a cache entry), so no btop run is needed.
+- The runtime change needs no host at all: assert the `--format` argv, the
+  `PALETTE_ARTIFACT_NAMES` membership, `resolve().is_relative_to(entry_dir)` for
+  each `current/` symlink, and schema round-trip — all against a temp state root.
+
 ## Reload: deliberately deferred
 
 btop resolves its theme once at startup and exposes no reload signal. A running

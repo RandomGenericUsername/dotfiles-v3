@@ -121,3 +121,41 @@ both `config_links_managed_dirs` and `verify_managed_link_dirs`.
 - **GIVEN** `btop` added to `config_links_managed_dirs`
 - **WHEN** the parity test compares it with `verify_managed_link_dirs`
 - **THEN** both lists contain `btop` and the comparison passes
+
+### Requirement: The btop integration is verifiable without human observation
+Every acceptance criterion for the btop integration SHALL be assertable from a
+command's exit code, without a person watching a running btop. Specifically:
+
+- Theme **discoverability** SHALL be assertable from the same predicates btop
+  itself uses: each theme file's extension is `.theme` and it is readable
+  (`access(R_OK)`), and it resolves into a palette cache entry.
+- Theme **application** SHALL be assertable from btop's own output: its DEBUG log
+  names the generated theme file, and a frame captured from a real pseudo-terminal
+  carries the generated theme's colours with none of btop's built-in
+  `Default_theme` colours present.
+- The `save_config_on_exit` guarantee SHALL be assertable by hashing `btop.conf`,
+  running btop to termination, and asserting the hash is unchanged — proving btop
+  did not truncate the spine-owned file through the symlink.
+
+Each such assertion SHALL include a negative control that fails when the condition
+is absent, so a passing result is meaningful.
+
+#### Scenario: the theme is applied, proven from btop's output
+- **GIVEN** a provisioned machine with a generated palette
+- **WHEN** the application harness runs against the provisioned config
+- **THEN** btop's log names the generated theme file
+- **AND** the captured frame carries the theme's colours with zero
+  `Default_theme` colours present
+- **AND** the command exits 0
+
+#### Scenario: a broken wiring is detected rather than silently ignored
+- **GIVEN** the provisioned `~/.config/btop` with `color_theme` renamed to a
+  non-existent theme
+- **WHEN** the same harness runs
+- **THEN** it exits non-zero
+- **AND** the frame shows `Default_theme` colours
+
+#### Scenario: btop cannot clobber the provisioned config
+- **GIVEN** the hash of the rendered `btop.conf`
+- **WHEN** btop is run headlessly and terminated
+- **THEN** the file's hash is unchanged

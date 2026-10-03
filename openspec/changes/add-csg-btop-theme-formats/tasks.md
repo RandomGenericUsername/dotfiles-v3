@@ -18,15 +18,41 @@
 - [ ] 2.6 In that file, assert `cpu_box == mem_box == net_box == proc_box` and all five outline/divider values come from the palette
 - [ ] 2.7 Rendering test: a generation request naming all three formats writes the three `*.theme` files with the expected bytes
 - [ ] 2.8 Semantic-monotonicity test: for each semantic gradient, successive CIELAB stops are not cooler than the previous (guards against a palette that would invert the reading)
+- [ ] 2.9 Promote `spikes/btop-theme-prototype/assert_theme_applies.py` into the CSG suite as `tests/integration/adapters/test_btop_theme_applies.py`, with:
+  - **positive case** — each of the three rendered themes produces `Loading theme file: <our file>` in btop's DEBUG log **and** paints its own colours onto a real pty frame with zero `Default_theme` colours present
+  - **negative control** — when `color_theme` names a theme that is absent, the assertion **fails** (this is what makes the positive case meaningful)
+  - **skip path** — when the `btop` binary is absent, skip with a visible reason rather than passing silently
+  - the harness must never report success on an exception; any error is a failure
 
 ## 3. Count assertions
 
 - [ ] 3.1 Update every `templates_count` assertion from 11 to 14 (CSG `info` command surface and any test asserting catalog size) — grep `templates_count` and the catalog-size assertions
 - [ ] 3.2 `csg info` reports `templates.formats` including the three btop values
 
-## 4. Verification
+## 4. Verification — all machine-checkable, no human eyes
+
+Every criterion below is a command with an exit code. **No step requires a person
+to look at a screen.** Where btop would otherwise be judged visually, the check
+uses the two proven assertion channels (see D9).
 
 - [ ] 4.1 `uv run --directory src/cli-tools/color-scheme-generator pytest` green
-- [ ] 4.2 `csg generate <image> -f btop-minimal.theme -f btop-balanced.theme -f btop-full.theme -o <tmp>` writes three files, each with all 48 keys
-- [ ] 4.3 `cat -A <each file>` — confirm no line begins with a space or tab
-- [ ] 4.4 Optional on-host check: copy a rendered theme to `~/.config/btop/themes/` and confirm `btop --version` plus the in-app theme list shows it (the theme is only *applied* once the provisioning change sets `color_theme`)
+- [ ] 4.2 `csg generate <image> -f btop-minimal.theme -f btop-balanced.theme -f btop-full.theme -o <tmp>` writes exactly three files, each ending `.theme`
+- [ ] 4.3 `validate.py`-equivalent asserts, per file: exactly the 48-key set, valid value grammar, and **no line begins with whitespace** (`assert not any(l[:1] in ' \t' for l in text.splitlines() if l.strip())`)
+- [ ] 4.4 The three-way difference assertions hold: `set(minimal) ^ set(balanced) ⊆ {temp_*, cached_*}` and `set(balanced) ^ set(full) ⊆ {cpu_*}`
+- [ ] 4.5 Semantic monotonicity holds for every semantic gradient (CIELAB: each successive stop not cooler than the previous)
+- [ ] 4.6 `process_start`/`process_mid`/`process_end` all present and non-empty; `download_mid` and `upload_mid` are empty
+- [ ] 4.7 `cpu_box == mem_box == net_box == proc_box`, and all five outline/divider values occur in the palette
+- [ ] 4.8 **Theme application is proven, not eyeballed.** Run
+      `python3 spikes/btop-theme-prototype/assert_theme_applies.py --theme-dir <rendered dir> --themes colors.btop-minimal.theme colors.btop-balanced.theme colors.btop-full.theme`
+      and require exit code 0 with three `OK` lines. This asserts, per theme:
+      (a) btop's DEBUG log contains `Loading theme file: <our file>`
+      (`btop_theme.cpp:397`), and (b) the colours captured from a real pty frame
+      are dominated by the theme's own colours with **zero** `Default_theme`
+      colours present. Both channels are proven to fail when the theme is not
+      applied.
+- [ ] 4.9 The harness's own negative control passes: run it against a directory
+      where `color_theme` names a theme that is not present, and require exit
+      code 1 with `FAILED`. A verification that cannot fail proves nothing.
+- [ ] 4.10 The harness skips cleanly (exit 0, `SKIP`) when `btop` is not
+      installed, so CSG's suite stays green on machines without it — and the
+      skip is visible in output rather than silent.
