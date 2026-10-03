@@ -35,7 +35,10 @@
   <code>popup-pairing</code> · <code>popup-watchdog</code> · <code>popup-unpair</code> ·
   <code>popup-unpair-confirm</code> · <code>popup-failure</code> · <code>popup-success</code><br>
   <code>panel-tile</code> · <code>panel-subview</code> · <code>panel-header-parity</code> ·
-  <code>parity-matrix</code> · <code>parity-divergence</code>
+  <code>parity-matrix</code> · <code>parity-divergence</code><br>
+  <code>signal-three-way</code> · <code>signal-before</code> · <code>signal-after</code> ·
+  <code>signal-diff</code> · <code>signal-tooltip</code> · <code>signal-rssi-zero</code> ·
+  <code>signal-verdict</code>
   <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:10px 0">
   <b>Mock files</b> —<br>
   <a href="key-bar-indicator.html">① <code>key-bar-indicator.html</code></a> — bar indicator states + follower anchoring ·
@@ -43,7 +46,8 @@
   out-of-range, discovering<br>
   <a href="key-actions.html">③ <code>key-actions.html</code></a> — the interaction + feedback layer: busy rows (<code>Pairing…</code>/<code>Connecting…</code>/<code>Disconnecting…</code>/<code>Unpairing…</code>) with <code>anyBusy()</code> single-flight, the static <code>Can take up to 30&nbsp;s</code> line, the inline unpair confirm, the failure line and the success transition<br>
   <a href="key-settings-panel.html">④ <code>key-settings-panel.html</code></a> — the settings-panel side: the <code>MainView</code> tile list in its Bluetooth state variants, the Bluetooth subview under its pinned <code>SubviewHeader</code>, and the Wi-Fi subview beside it proving the header-slot parity fix<br>
-  <a href="key-parity.html">⑤ <code>key-parity.html</code></a> — the side-by-side proof of the mandate: element-by-element Wi-Fi ↔ Bluetooth matrix, plus every intentional divergence with its own row
+  <a href="key-parity.html">⑤ <code>key-parity.html</code></a> — the side-by-side proof of the mandate: element-by-element Wi-Fi ↔ Bluetooth matrix, plus every intentional divergence with its own row<br>
+  <a href="key-signal-meta-change.html">⑥ <code>key-signal-meta-change.html</code></a> — owner decision #2 made visible: the shipped row vs the designed row for one device at true 312&nbsp;px, Wi-Fi's real row overhead, the four <code>signal-*</code> tooltips, the <code>rssi&nbsp;=&nbsp;0</code> case, and an honest gained/lost verdict
 </div>
 
 <h2>The three surfaces</h2>
