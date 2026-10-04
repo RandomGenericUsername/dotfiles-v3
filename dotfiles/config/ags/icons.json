@@ -177,6 +177,31 @@
       }
     ]
   },
+  "bluetooth": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "bluetooth-off": "bluetooth-off",
+        "bluetooth-on": "bluetooth-on"
+      },
+      "widget": "bluetooth"
+    },
+    "color_mappings": {
+      "COLOR_FOREGROUND": "color15"
+    },
+    "variants": [
+      {
+        "name": "bluetooth-on",
+        "output": "bluetooth-on.svg",
+        "template": "status-bar/bluetooth/on/default/icon.svg"
+      },
+      {
+        "name": "bluetooth-off",
+        "output": "bluetooth-off.svg",
+        "template": "status-bar/bluetooth/off/default/icon.svg"
+      }
+    ]
+  },
   "brightness": {
     "color_mappings": {
       "COLOR_FOREGROUND": "foreground"

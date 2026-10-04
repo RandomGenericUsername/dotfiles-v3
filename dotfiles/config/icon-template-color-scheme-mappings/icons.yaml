@@ -387,6 +387,42 @@ settings:
     states:
       default: default
 
+# Bluetooth bar indicator. Two states only — `on` and `off` — because that is
+# what the glyph art distinguishes: the bare rune, and the rune with a slash.
+# "Off" therefore reads as SHAPE, not as dimness, which survives any wallpaper
+# and any colour-vision profile.
+#
+# WHY GROUP-LEVEL MAPPINGS ONLY, AND NO VARIANT-LEVEL PINS: this glyph floats
+# over the wallpaper, so it must stay in the runtime contrast guard
+# (`BAR_GROUPS` in runtime/domain/icon_contrast.py). The guard only rewrites
+# GROUP-level COLOR_FOREGROUND; a variant-level pin would structurally exempt
+# the glyph from retargeting, which is the opposite of what a bar icon needs.
+# This is the same rule the `system-battery-*` variants invert, and the reason
+# the panel's `bluetooth`/`bluetooth-off` variants in `settings-panel` (which
+# DO pin their tint) cannot be reused here.
+bluetooth:
+  color_mappings:
+    COLOR_FOREGROUND: color15
+  variants:
+    - name: bluetooth-on
+      template: status-bar/bluetooth/on/default/icon.svg
+      output: bluetooth-on.svg
+    - name: bluetooth-off
+      template: status-bar/bluetooth/off/default/icon.svg
+      output: bluetooth-off.svg
+
+  bar_mappings:
+    widget: bluetooth
+    icon_size: 24
+    states:
+      # NOTE: the keys are deliberately NOT bare `on:` / `off:`. YAML 1.1
+      # resolves those to booleans, so `states` would come out of the parser
+      # with `True`/`False` keys and every lookup in the bar widget would miss.
+      # The other bar groups dodge this the same way (network uses
+      # `wifi-not-connected`, not `off`), so this follows house style.
+      bluetooth-on: bluetooth-on
+      bluetooth-off: bluetooth-off
+
 settings-panel:
   color_mappings:
     COLOR_FOREGROUND: foreground
