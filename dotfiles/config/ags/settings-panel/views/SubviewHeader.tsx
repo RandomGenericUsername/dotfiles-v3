@@ -9,8 +9,8 @@ import {
 import { WifiSwitch } from "../../components/primitives/WifiSwitch"
 import { setWifiEnabled, wifiEnabled, wifiReady } from "../../services/wifi-service"
 import {
-  bluetoothAdapterAddress,
   bluetoothPowered,
+  bluetoothReady,
   setBluetoothPowered,
 } from "../../services/bluetooth-service"
 
@@ -66,16 +66,21 @@ export function SubviewHeader() {
             only entry point, never the deprecated read-modify-write toggle,
             because the popup header mounts a second power control and a stale
             read would write the inverse of what the user asked for.
-            `sensitive`: no adapter yet means `bluetoothAdapterAddress()` is still
-            "", mirroring Wi-Fi's `wifiReady` — the switch goes insensitive rather
-            than offering a write that cannot land. */}
+            `sensitive`: `bluetoothReady`, mirroring Wi-Fi's `wifiReady` — with
+            no `Adapter1` on the bus a power write cannot land, so the switch
+            goes insensitive rather than offering one. This is ADAPTER PRESENCE
+            read straight off the service, not the old
+            `bluetoothAdapterAddress() !== ""` proxy, which conflated "we have
+            read the address" with "a radio exists" and so answered a different
+            question than the one the spec asks. The popup's header passes the
+            very same accessor, so both surfaces are insensitive for one reason. */}
         <NavHeader
           title="Bluetooth"
           onBack={back}
           trailing={
             <WifiSwitch
               active={bluetoothPowered}
-              sensitive={createComputed(() => bluetoothAdapterAddress() !== "")}
+              sensitive={bluetoothReady}
               onToggled={(v) => {
                 void setBluetoothPowered(v)
               }}

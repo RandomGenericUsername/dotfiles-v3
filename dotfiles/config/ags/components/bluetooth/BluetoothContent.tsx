@@ -3,7 +3,6 @@ import { Gtk } from "ags/gtk4"
 import Pango from "gi://Pango?version=1.0"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
-import { IconToggle } from "../primitives/IconToggle"
 import {
   bluetoothAdapterAddress,
   bluetoothBusy,
@@ -17,7 +16,6 @@ import {
   routeAudioToDevice,
   startBluetoothDiscovery,
   stopBluetoothDiscovery,
-  toggleBluetooth,
   unpairDevice,
   type BluetoothDevice,
 } from "../../services/bluetooth-service"
@@ -39,7 +37,6 @@ export {
   bluetoothDiscovering,
   bluetoothFailure,
   bluetoothPowered,
-  toggleBluetooth,
 }
 export type { BluetoothDevice }
 
@@ -65,13 +62,7 @@ export function dismissUnpairConfirm(): void {
   setConfirmingAddress(null)
 }
 
-function bluetoothIconOn(): string | null {
-  return registry.resolve("settings-panel", "bluetooth")
-}
 
-function bluetoothIconOff(): string | null {
-  return registry.resolve("settings-panel", "bluetooth-off")
-}
 
 /**
  * Battery level (BlueZ integer 0-100) → the panel's guard-exempt glyph
@@ -134,20 +125,6 @@ function BluetoothSignalIcon({ rssi }: { rssi: Accessor<number> }) {
           self.set_from_file(src() ?? "")
         })
       }}
-    />
-  )
-}
-
-/** Header/standalone power toggle for the Bluetooth capability. */
-export function BluetoothToggle() {
-  return (
-    <IconToggle
-      iconOn={bluetoothIconOn()}
-      iconOff={bluetoothIconOff()}
-      active={bluetoothPowered}
-      onClicked={toggleBluetooth}
-      tooltip="Toggle Bluetooth"
-      size={22}
     />
   )
 }

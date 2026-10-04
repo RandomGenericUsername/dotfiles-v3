@@ -68,6 +68,17 @@ const [bluetoothFailure, setBluetoothFailure] = createState("")
 //: device's. Empty string means "not read yet / no adapter"; BlueZ always
 //: publishes it, so `""` is a real absence rather than a formatting default.
 const [bluetoothAdapterAddress, setAdapterAddress] = createState("")
+//: DOES AN ADAPTER OBJECT EXIST ON THE BUS? A different fact from
+//: `bluetoothAdapterAddress`, and deliberately not derived from it.
+//:
+//: The two came apart the moment the header switch needed a `sensitive` flag:
+//: conflating "we have read the address" with "a radio exists" makes the switch
+//: insensitive for two different reasons (no adapter, vs. a first read that has
+//: not landed yet) that demand opposite behaviour, and it makes the flag a
+//: proxy that quietly reports absence when it means lateness. This is the real
+//: signal — `true` the moment `setAdapter` has an `Adapter1` object in hand,
+//: and `false` from `clearAdapter` when `InterfacesRemoved` takes it away.
+const [bluetoothReady, setReadyState] = createState(false)
 //: Where the sound ACTUALLY went. `null` until a routing attempt proves an
 //: endpoint, and `null` again if its bounded window expires — that is the
 //: record of a failure, not a missing value.
@@ -169,6 +180,11 @@ function updateAdapterProps(props: Record<string, unknown>): void {
 
 function setAdapter(path: string, props: Record<string, unknown>): void {
   updateAdapterProps(props)
+  //: An `Adapter1` object is in hand, so a power write can land. Set before the
+  //: `adapterPath === path` early return, for the same reason `Address` is
+  //: forwarded before it: a re-read of the SAME adapter must not be the thing
+  //: that first reports readiness.
+  setReadyState(true)
   if (adapterPath === path) return
   if (unwatchAdapter !== null) {
     unwatchAdapter()
@@ -189,6 +205,10 @@ function clearAdapter(): void {
     unwatchAdapter = null
   }
   adapterPath = null
+  //: No `Adapter1` left on the bus — the honest reason for an insensitive
+  //: header switch, as opposed to `bluetoothAdapterAddress` being merely
+  //: unread, which is not this.
+  setReadyState(false)
   setPoweredState(false)
   setDiscoveringState(false)
   //: The address belonged to the adapter object that just went away; keeping it
@@ -717,6 +737,7 @@ export {
   bluetoothDiscovering,
   bluetoothFailure,
   bluetoothPowered,
+  bluetoothReady,
 }
 
 // ── Bootstrap ────────────────────────────────────────────────────────────

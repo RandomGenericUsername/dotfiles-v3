@@ -5,10 +5,11 @@ import {
   bluetoothPopupVisible,
   closeBluetoothPopup,
 } from "./state"
-import { BluetoothContent } from "./BluetoothContent"
+import { BluetoothContent, dismissUnpairConfirm } from "./BluetoothContent"
 import { WifiSwitch } from "../primitives/WifiSwitch"
 import {
   bluetoothPowered,
+  bluetoothReady,
   setBluetoothPowered,
 } from "../../services/bluetooth-service"
 
@@ -31,7 +32,14 @@ export function BluetoothPopupCatcher(gdkmonitor: Gdk.Monitor) {
     >
       <box class="settings-catcher-fill" hexpand vexpand $={(self) => {
         const click = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
-        click.connect("released", () => closeBluetoothPopup())
+        click.connect("released", () => {
+          // Order is the requirement, not a style preference: an open unpair
+          // confirm is dismissed BEFORE the surface closes, so the two events
+          // are never conflated into one and a confirm can never outlive the
+          // popup it was opened in.
+          dismissUnpairConfirm()
+          closeBluetoothPopup()
+        })
         self.add_controller(click)
       }} />
     </window>
@@ -83,7 +91,13 @@ export function BluetoothPopup(gdkmonitor: Gdk.Monitor) {
         // ON_DEMAND, rather than needing this file reopened then.
         const key = new Gtk.EventControllerKey()
         key.connect("key-pressed", (_controller, keyval) => {
-          if (keyval === Gdk.KEY_Escape) { closeBluetoothPopup(); return true }
+          if (keyval === Gdk.KEY_Escape) {
+            // Same before-the-surface ordering as the catcher: the confirm goes
+            // first, then the window.
+            dismissUnpairConfirm()
+            closeBluetoothPopup()
+            return true
+          }
           return false
         })
         self.add_controller(key)
@@ -95,8 +109,14 @@ export function BluetoothPopup(gdkmonitor: Gdk.Monitor) {
             what SubviewHeader.tsx exists to undo. */}
         <box class="settings-nav-header" spacing={9}>
           <label class="settings-nav-title" xalign={0} hexpand label="Bluetooth" />
+          {/* `sensitive={bluetoothReady}` — the SAME accessor the settings
+              subview's header passes, so both surfaces go insensitive for one
+              and the same reason: no `Adapter1` on the bus, so a power write
+              cannot land. Reading `bluetoothAdapterAddress` here instead would
+              be the proxy bug: it answers "have we read the address yet", not
+              "does a radio exist". */}
           <box valign={Gtk.Align.CENTER}>
-            <WifiSwitch active={bluetoothPowered} onToggled={(v) => { void setBluetoothPowered(v) }} />
+            <WifiSwitch active={bluetoothPowered} sensitive={bluetoothReady} onToggled={(v) => { void setBluetoothPowered(v) }} />
           </box>
         </box>
         <scrolledwindow
