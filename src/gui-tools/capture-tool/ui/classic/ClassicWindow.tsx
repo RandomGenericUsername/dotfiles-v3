@@ -31,7 +31,6 @@
 // ---------------------------------------------------------------------------
 
 import { Astal, Gdk, Gtk } from "ags/gtk4"
-import app from "ags/gtk4/app"
 import { recordingArgs, screenshotArgs } from "../../domain/cli-args"
 import type { RecordingRequest, ScreenshotRequest } from "../../domain/capture-request"
 import {
@@ -77,36 +76,25 @@ type View = Mode | "settings"
 // The calls are the only trace of persistence left in this file.
 // ---------------------------------------------------------------------------
 
+// The name is the window's PUBLIC identity, and it is deliberately NOT unique:
+// `style.css` selects the surface with `window#capture-window` (a GTK id
+// selector, which matches the widget NAME, not the class) and the provisioned
+// launcher `capture-ui.j2` runs `ags toggle capture-window -i capture`. Both
+// hard-code this string, so a per-monitor rename is not a local edit: it needs a
+// stylesheet change AND a provisioning run. See
+// openspec/changes/fix-capture-window-identity/design.md for the full blast
+// radius and for why nothing in this file is allowed to depend on it.
+//
+// What this file used to do instead: resolve "my own window" through
+// `app.get_window(WINDOW_NAME)`. `app.tsx` builds one window per monitor and
+// every one of them carries this name, and AGS resolves the name with
+// `windows.find(...)` over GTK's own window list — so the answer was whichever
+// duplicate GTK happened to list first, a value that CHANGES as windows are
+// mapped and unmapped (measured live: `B,A` before any map, `A,B` after window
+// A had mapped and unmapped). Hiding "the window called capture-window" is
+// therefore not the same thing as hiding THIS window, and with two windows it is
+// demonstrably the wrong one.
 const WINDOW_NAME = "capture-window"
-
-function hideCaptureWindow() {
-  const window = app.get_window(WINDOW_NAME)
-  if (window) window.visible = false
-}
-
-/**
- * Re-assert the layer surface size after a view switch.
- *
- * GTK does not shrink a layer-shell surface when its content gets shorter:
- * measured live, the surface stayed 718px tall after returning to the 590px
- * screenshot view, so the panel ended up glued to the top of a too-tall
- * transparent window.
- *
- * Deliberately SYNCHRONOUS (no idle callback): deferring the size change made
- * GTK paint an intermediate frame with the new, shorter content still inside
- * the OLD surface, and the panel's clipped shadow in that leftover area read as
- * a rectangle trailing the window. Measuring and resizing in the same turn lets
- * GTK resize and repaint atomically. GTK's measure() recomputes on demand, so
- * the visibility changes made just before this are already reflected.
- */
-function syncWindowSize() {
-  const window = app.get_window(WINDOW_NAME)
-  const panel = window?.get_child()
-  if (!window || !panel) return
-  const [, width] = panel.measure(Gtk.Orientation.HORIZONTAL, -1)
-  const [, height] = panel.measure(Gtk.Orientation.VERTICAL, width)
-  window.set_default_size(width, height)
-}
 
 // The return type is annotated because the JSX runtime's inferred element type
 // widens to `Object`, which `app.add_window` rejects. `<window>` maps to
@@ -131,6 +119,58 @@ export function ClassicWindow(
   const { settingsStore, uiStateStore, launcher } = ports
 
   let mode: Mode = "screenshot"
+
+  // THIS window, captured from its own `<window>` `$` handler rather than
+  // looked up by name. It is per-CALL, not per-module: `app.tsx` builds one
+  // window per monitor and they must not share it, or the second construction
+  // would overwrite the first window's self-reference and the defect this
+  // replaces would come straight back (measured: that exact mistake — a
+  // module-level `let` — was made and caught, see
+  // openspec/changes/fix-capture-window-identity/design.md §"The bug I wrote
+  // first").
+  //
+  // Null until gnim runs that handler, and gnim runs it AFTER the children are
+  // appended (jsx.ts evaluates the child array before constructing the parent,
+  // then calls `$` last). So `syncWindowSize()` invoked from a child's own `$`
+  // handler still no-ops — exactly as it did when the name lookup returned
+  // `undefined` because the window had not been added to the app yet. Same
+  // early-return, same reason, no behaviour change on the one-window path.
+  let captureWindow: Astal.Window | null = null
+
+  function hideCaptureWindow() {
+    // The window whose button was pressed is the only window that may be
+    // hidden; every other window is left exactly as it was found.
+    if (captureWindow) captureWindow.visible = false
+  }
+
+  /**
+   * Re-assert the layer surface size after a view switch.
+   *
+   * GTK does not shrink a layer-shell surface when its content gets shorter:
+   * measured live, the surface stayed 718px tall after returning to the 590px
+   * screenshot view, so the panel ended up glued to the top of a too-tall
+   * transparent window.
+   *
+   * Deliberately SYNCHRONOUS (no idle callback): deferring the size change made
+   * GTK paint an intermediate frame with the new, shorter content still inside
+   * the OLD surface, and the panel's clipped shadow in that leftover area read
+   * as a rectangle trailing the window. Measuring and resizing in the same turn
+   * lets GTK resize and repaint atomically. GTK's measure() recomputes on
+   * demand, so the visibility changes made just before this are already
+   * reflected.
+   */
+  function syncWindowSize() {
+    // Scoped to THIS window for the same reason as `hideCaptureWindow()`: a
+    // name lookup resized whichever duplicate GTK listed first, so a view
+    // switch on one monitor left that window at the old height and silently grew
+    // another one.
+    const window = captureWindow
+    const panel = window?.get_child()
+    if (!window || !panel) return
+    const [, width] = panel.measure(Gtk.Orientation.HORIZONTAL, -1)
+    const [, height] = panel.measure(Gtk.Orientation.VERTICAL, width)
+    window.set_default_size(width, height)
+  }
 
   let screenshotTab: Gtk.Button | null = null
   let recordingTab: Gtk.Button | null = null
@@ -333,6 +373,12 @@ export function ClassicWindow(
       halign={Gtk.Align.CENTER}
       valign={Gtk.Align.CENTER}
       $={(self) => {
+        // gnim calls this with the constructed Astal.Window, AFTER the children
+        // are appended — which is exactly when a name lookup would have started
+        // working too (the window is added to the app by the caller). Capturing
+        // it here is what makes `hideCaptureWindow()` / `syncWindowSize()` mean
+        // "this window" instead of "a window with my name".
+        captureWindow = self
         // Capture phase so Enter/Escape fire even when a pill has focus.
         const keys = new Gtk.EventControllerKey()
         keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
