@@ -72,7 +72,7 @@ surface.
 - [ ] 5.4 Remove aggregate output transport and make each player action app-scoped.
 - [ ] 5.5 Keep input-device state and microphone-consuming app rows clear; the bar mic indicator is visible only during actual input use, its glyph reflects default-mic mute state, and its live ornament reflects the active consumer; preserve screen-capture status as a separate feature.
 - [ ] 5.6 Apply repository theme tokens, accessible labels/focus, stable slider/row geometry, and sensible long-name truncation.
-- [ ] 5.7 Confirm new audio styles inherit regenerated `colors.css` and match shared AGS surface, selection, focus, and slider treatments; keep only the established live-mic semantic color exception. `grep -rn "audio-panel.css" dotfiles/config/ags` → at least one real import (currently none, so all 345 lines are dead). `python3 …/validation/check_palette_contrast.py` → every role at or above target; token-level only, so 7.9 still has to render it.
+- [ ] 5.7 Confirm new audio styles inherit regenerated `colors.css` and match shared AGS surface, selection, focus, and slider treatments; keep only the established live-mic semantic color exception. `python3 scripts/audio-mock-parity.py` → PASS, and `grep -rn "audio-panel.css" dotfiles/config/ags` → at least one real import (currently none, so all 345 lines are dead). `python3 …/validation/check_palette_contrast.py` → every role at or above target; token-level only, so 7.9 still has to render it.
 - [ ] 5.8 Ensure visible app labels, route-menu selection semantics, focus return, semantic slider values, and input-device controls match the accessibility contract.
 
 ## 6. Wire the composition root, then integrate the surrounding surfaces
@@ -108,10 +108,17 @@ surface.
   `.github/workflows/gates.yml`.** Root cause, not this instance: `binding?:
   AudioPanelBinding` was passed to components declaring `binding:
   AudioPanelBinding` — a hard `strictNullChecks` error — and nothing caught it,
-  because `gates.yml` runs only `contracts-check` plus the three mock/parity
-  gates and never compiles the AGS tree. Zero errors in our files is the bar
+  because `gates.yml` ran only `contracts-check` plus the three mock/parity
+  gates and never compiled the AGS tree. Zero errors in our files is the bar
   (precedent: `1b24e840`). Record the baseline count if unrelated
   third-party errors exist; do not leave ours silent.
+- [ ] 6.6 **Promote the panel's remaining gates into `gates.yml` and `make
+  gates` once 6.0 lands.** `scripts/audio-mock-parity.py` and the audio unit
+  suites are wired now; `audio-panel-render.test.mjs` and the 6.5 `tsc` gate
+  are deliberately excluded while the panel is unwired, since both are red
+  until 6.0 completes. Move them in the same commit that ticks 6.0, and fix the
+  CI trigger at the same time: `gates.yml` fires on `push: branches: [main]`
+  but the default branch is `master`, so gate results never gate a push today.
 
 ## 7. Verify the approved contract
 

@@ -1,4 +1,6 @@
-.PHONY: bootstrap contracts-check gates dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates audio-mock-parity audio-core-test \
+	audio-presentation-test pipewire-adapter-test audio-session-runtime-test \
+	audio-panel-render-test audio-panel-gates dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -15,8 +17,13 @@ contracts-check:
 
 # Every executable gate, in the order a reviewer should read them: contract
 # first (it is the source of truth), then mock/code parity, then the
-# anti-invention check. Same four commands as .github/workflows/gates.yml, so
+# anti-invention check. Same commands as .github/workflows/gates.yml, so
 # a green run locally is a green run in CI.
+#
+# audio-mock-parity is deliberately NOT in this list: it gates the in-flight
+# redesign-ags-audio-panel change, and the panel is mid-rewire (tasks.md 6.0 is
+# unchecked). Run it via `make audio-panel-gates`; it joins `gates` when the
+# change lands and the panel is wired.
 gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture
 
 wifi-mock-parity:
@@ -27,6 +34,35 @@ speedtest-mock-parity:
 
 speedtest-no-new-architecture:
 	python3 scripts/speedtest-no-new-architecture.py
+
+audio-mock-parity:
+	python3 scripts/audio-mock-parity.py
+
+# Audio panel gates, cheapest and most local first. Order matters: the unit
+# suites are fast and stateless, then mock/code parity (the mock is the source
+# of truth for the surface), then the render gate (is the panel wired at all),
+# then the tsc gate (task 6.5, not yet implemented), then the repo-wide gates.
+# The live checks in openspec/changes/redesign-ags-audio-panel/validation/ are
+# NOT here: they change live playback/routing and must be run deliberately.
+AUDIO_VALIDATION := openspec/changes/redesign-ags-audio-panel/validation
+
+audio-core-test:
+	node $(AUDIO_VALIDATION)/audio-core.test.mjs
+
+audio-presentation-test:
+	node $(AUDIO_VALIDATION)/audio-presentation.test.mjs
+
+pipewire-adapter-test:
+	node $(AUDIO_VALIDATION)/pipewire-adapter.test.mjs
+
+audio-session-runtime-test:
+	node $(AUDIO_VALIDATION)/audio-session-runtime.test.mjs
+
+audio-panel-render-test:
+	node $(AUDIO_VALIDATION)/audio-panel-render.test.mjs
+
+audio-panel-gates: audio-core-test audio-presentation-test pipewire-adapter-test \
+	audio-session-runtime-test audio-panel-render-test audio-mock-parity
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).
