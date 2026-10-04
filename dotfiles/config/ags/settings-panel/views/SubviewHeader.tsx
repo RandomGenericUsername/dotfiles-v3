@@ -6,9 +6,13 @@ import {
   wifiPromptSsid,
   wifiPromptVisible,
 } from "../../components/wifi/WifiContent"
-import { BluetoothToggle } from "../../components/bluetooth/BluetoothContent"
 import { WifiSwitch } from "../../components/primitives/WifiSwitch"
 import { setWifiEnabled, wifiEnabled, wifiReady } from "../../services/wifi-service"
+import {
+  bluetoothAdapterAddress,
+  bluetoothPowered,
+  setBluetoothPowered,
+} from "../../services/bluetooth-service"
 
 /**
  * The pinned subview header for the settings panel.
@@ -53,7 +57,31 @@ export function SubviewHeader() {
         />
       </box>
       <box visible={createComputed(() => activeView() === "bluetooth")}>
-        <NavHeader title="Bluetooth" onBack={back} trailing={<BluetoothToggle />} />
+        {/* Same control as Wi-Fi above: a `Gtk.Switch` in the trailing slot, not
+            a bare 22px glyph. `BluetoothToggle` was an `IconToggle` here, i.e. a
+            header rendered as a button — the opposite of what the pinned-header
+            design calls for, and it is not interchangeable with the switch: the
+            switch suppresses backend echoes, a button never had the problem.
+            `onToggled` forwards the EXPLICIT value; `setBluetoothPowered` is the
+            only entry point, never the deprecated read-modify-write toggle,
+            because the popup header mounts a second power control and a stale
+            read would write the inverse of what the user asked for.
+            `sensitive`: no adapter yet means `bluetoothAdapterAddress()` is still
+            "", mirroring Wi-Fi's `wifiReady` — the switch goes insensitive rather
+            than offering a write that cannot land. */}
+        <NavHeader
+          title="Bluetooth"
+          onBack={back}
+          trailing={
+            <WifiSwitch
+              active={bluetoothPowered}
+              sensitive={createComputed(() => bluetoothAdapterAddress() !== "")}
+              onToggled={(v) => {
+                void setBluetoothPowered(v)
+              }}
+            />
+          }
+        />
       </box>
     </box>
   )

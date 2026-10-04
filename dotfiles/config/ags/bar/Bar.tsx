@@ -2,6 +2,9 @@ import { Astal, Gdk } from "ags/gtk4"
 import { Workspaces } from "./widgets/workspaces"
 import { Clock } from "./widgets/clock"
 import { BatteryIndicator } from "./widgets/battery"
+// Bluetooth sits immediately left of the network widget: the two connectivity
+// glyphs read as one group, matching the mock's bar pair.
+import { BluetoothStatus } from "./widgets/bluetooth"
 import { NetworkStatus } from "./widgets/network"
 import { PowerMenu } from "./widgets/power-menu"
 import { Btop } from "./widgets/btop"
@@ -36,6 +39,7 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
           <OutputIndicator />
           <MicIndicator showLiveDotRing={backdrop !== "dark"} />
           <BatteryIndicator />
+          <BluetoothStatus />
           <NetworkStatus />
           <Btop />
           <Thunderbird />
