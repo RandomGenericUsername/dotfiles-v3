@@ -52,14 +52,26 @@ export interface BluetoothDevice {
   battery: number
 }
 
+//: Naming convention, kept strict because the public API now collides with one
+//: of these: `set<X>State` writes the raw accessor, and a same-named exported
+//: function is an INTENT that validates and talks to BlueZ. `setBluetoothPowered`
+//: is the intent (design §5) and forced the raw writer to be renamed `setPoweredState`.
 const [bluetoothDevices, setBluetoothDevices] = createState<BluetoothDevice[]>([])
-const [bluetoothPowered, setBluetoothPowered] = createState(false)
-const [bluetoothDiscovering, setBluetoothDiscovering] = createState(false)
+const [bluetoothPowered, setPoweredState] = createState(false)
+const [bluetoothDiscovering, setDiscoveringState] = createState(false)
 const [bluetoothBusy, setBluetoothBusy] = createState<BluetoothBusy>({
   address: null,
   action: null,
 })
 const [bluetoothFailure, setBluetoothFailure] = createState("")
+//: The LOCAL CONTROLLER's hardware address (`Adapter1.Address`), never a
+//: device's. Empty string means "not read yet / no adapter"; BlueZ always
+//: publishes it, so `""` is a real absence rather than a formatting default.
+const [bluetoothAdapterAddress, setAdapterAddress] = createState("")
+//: Where the sound ACTUALLY went. `null` until a routing attempt proves an
+//: endpoint, and `null` again if its bounded window expires — that is the
+//: record of a failure, not a missing value.
+const [bluetoothAudioTarget, setAudioTarget] = createState<string | null>(null)
 
 // ── Mutable service state ────────────────────────────────────────────────
 
@@ -71,6 +83,11 @@ const unwatchDevices = new Map<string, () => void>()
 const unwatchBatteries = new Map<string, () => void>()
 
 let watchdogId = 0
+
+//: Number of surfaces currently asking for a scan. NOT a mirror of BlueZ's
+//: `Discovering` property — it counts interested callers, which is why the
+//: increment happens before the already-discovering guard in `runStartDiscovery`.
+let discoveryUsers = 0
 
 const wp = Wp.get_default()
 
@@ -140,8 +157,14 @@ function actionLabel(action: BluetoothAction): string {
 // ── Adapter ──────────────────────────────────────────────────────────────
 
 function updateAdapterProps(props: Record<string, unknown>): void {
-  if ("Powered" in props) setBluetoothPowered(Boolean(props.Powered))
-  if ("Discovering" in props) setBluetoothDiscovering(Boolean(props.Discovering))
+  if ("Powered" in props) setPoweredState(Boolean(props.Powered))
+  if ("Discovering" in props) setDiscoveringState(Boolean(props.Discovering))
+  //: `Address` is read-only on Adapter1, so BlueZ never emits it in a
+  //: PropertiesChanged — the ONLY source is the full property set, which
+  //: `setAdapter` forwards here *before* its `adapterPath === path` early
+  //: return. Removing that ordering would leave the address permanently "",
+  //: so the first read is the one that matters and it must keep flowing.
+  if ("Address" in props) setAdapterAddress(String(props.Address ?? ""))
 }
 
 function setAdapter(path: string, props: Record<string, unknown>): void {
@@ -166,8 +189,11 @@ function clearAdapter(): void {
     unwatchAdapter = null
   }
   adapterPath = null
-  setBluetoothPowered(false)
-  setBluetoothDiscovering(false)
+  setPoweredState(false)
+  setDiscoveringState(false)
+  //: The address belonged to the adapter object that just went away; keeping it
+  //: would show a controller MAC that is no longer this machine's radio.
+  setAdapterAddress("")
 }
 
 // ── Device cache / watches ───────────────────────────────────────────────
@@ -420,8 +446,20 @@ function sleep(ms: number): Promise<void> {
  * look "Connected" but sound stays on the speakers. Poll for the device's
  * speaker endpoint (the audio profile lags the BlueZ connect by a few seconds),
  * make it the default, and move active streams onto it.
+ *
+ * Every exit path records what it actually achieved in `bluetoothAudioTarget`:
+ * a proven endpoint on success, `null` on the early bail and on an exhausted
+ * window. The value is recorded in state and deliberately NOT rendered — the
+ * popup showing a PipeWire row would mix concerns (owner ruling, design §5) —
+ * but its absence from the UI must not be its absence from the service, which
+ * is what made this failure invisible in the first place.
  */
 export async function routeAudioToDevice(label: string): Promise<void> {
+  //: Clear first, unconditionally: the attempt is unproven until an endpoint
+  //: is found and actually defaulted. Setting it after the guards instead
+  //: would let the `!wp || !label` bail inherit the PREVIOUS attempt's answer
+  //: and report a route that is no longer in effect.
+  setAudioTarget(null)
   if (!wp || !label) return
   for (let attempt = 0; attempt < 16; attempt++) {
     const endpoint = (wp.audio?.speakers ?? []).find(
@@ -432,8 +470,13 @@ export async function routeAudioToDevice(label: string): Promise<void> {
       },
     )
     if (endpoint) {
+      //: Track whether the default write landed, separately from finding the
+      //: endpoint: a vanished endpoint throws here, and recording it as the
+      //: target would claim the sound moved when it did not.
+      let defaulted = false
       try {
         endpoint.is_default = true
+        defaulted = true
       } catch {
         /* endpoint vanished */
       }
@@ -444,21 +487,68 @@ export async function routeAudioToDevice(label: string): Promise<void> {
           /* stream may be gone */
         }
       }
+      //: Only a successful `is_default` is a real answer. The PipeWire node name
+      //: first because it is the stable identifier the endpoint is keyed by,
+      //: `description` because it is what WirePlumber shows a human when the
+      //: node name is opaque, and `label` last so the accessor never holds ""
+      //: masquerading as a target. `||`, not `??` — an unset WirePlumber string
+      //: property reads back as "", and `??` treats "" as present.
+      if (defaulted) {
+        setAudioTarget(String(endpoint.name || endpoint.description || label))
+      }
       return
     }
     await sleep(500)
   }
+  //: 16 × 500ms expired with no matching speaker endpoint — the profile never
+  //: materialised. The loop falls through with `bluetoothAudioTarget` still
+  //: `null`; that null IS the record, so there is no throw and no toast.
 }
 
 // ── Discovery ────────────────────────────────────────────────────────────
 
+/**
+ * Reference-counted discovery (design §5).
+ *
+ * INVARIANT: `discoveryUsers` counts surfaces holding a live `visible`-scoped
+ * effect, not whether BlueZ happens to be scanning. Every `start` is matched
+ * by exactly one `stop` from the SAME effect cleanup, so the counter is
+ * incremented unconditionally — before `runStartDiscovery`'s guards, and
+ * crucially before its `if (bluetoothDiscovering()) return`.
+ *
+ * That ordering is the whole point. If the increment sat behind that guard, a
+ * second surface opening while a scan was already running would skip its
+ * increment while still registering a cleanup; its later `stop` would then
+ * decrement a count that never included it, driving the count to zero while
+ * the first surface was still visible, and the next `stop` would clamp at zero
+ * forever — the next scan would never be stopped. Skipping the increment is
+ * what made the leak half-invisible and the double-stop half-real.
+ *
+ * The mirror-image hazard is symmetric: `stop` must clamp at zero rather than
+ * trust its caller, because an unmatched or repeated `stop` would otherwise
+ * go negative and strand a real holder's decrement.
+ *
+ * Deliberately NOT reset by `clearAdapter`. The count tracks mounted effects,
+ * and an adapter disappearing does not unmount them — a `visible`-scoped
+ * effect has no accessor dependency on `adapterPath`, so it does not re-run
+ * when the adapter is yanked and replugged. Zeroing there would orphan a
+ * still-visible surface: its later `stop` would clamp at zero and hand the
+ * `StopDiscovery` to whichever surface stops next, stopping the scan out from
+ * under a live one. Letting the count survive costs at most one `StopDiscovery`
+ * against a fresh, non-scanning adapter, which BlueZ answers with a swallowed
+ * no-op — the cheap direction to be wrong in.
+ */
 export function startBluetoothDiscovery(): void {
+  discoveryUsers++
   void runStartDiscovery()
 }
 
 async function runStartDiscovery(): Promise<void> {
   const path = adapterPath
   if (path === null || !bluetoothPowered()) return
+  //: Now purely an optimisation: skip re-issuing StartDiscovery to an adapter
+  //: BlueZ already reports as scanning. It must NOT gate the reference count
+  //: — the reference is held by a caller, not by the scan.
   if (bluetoothDiscovering()) return
 
   try {
@@ -487,6 +577,16 @@ async function runStartDiscovery(): Promise<void> {
 }
 
 export function stopBluetoothDiscovery(): void {
+  //: Clamp BEFORE the bus call: the count must not go negative on an
+  //: unmatched stop, or a subsequent real holder's decrement is silently lost
+  //: and discovery never stops again.
+  discoveryUsers = Math.max(0, discoveryUsers - 1)
+  //: Other surfaces are still visible and still want the scan. This is the
+  //: popup-close-racing-panel-open case: without the count, the popup's
+  //: cleanup would stop a scan the subview had just started.
+  if (discoveryUsers > 0) return
+  //: Guarded on the adapter, not the count: zero holders means "stop it", and
+  //: there is nothing to stop when BlueZ has no adapter to ask.
   const path = adapterPath
   if (path === null) return
   void call(BLUEZ, path, ADAPTER_IFACE, "StopDiscovery", null).catch(() => {
@@ -515,7 +615,7 @@ async function setAdapterPowered(enabled: boolean): Promise<void> {
         new GLib.Variant("b", enabled),
       ]),
     )
-    setBluetoothPowered(enabled)
+    setPoweredState(enabled)
   } catch (error) {
     console.error(`bluetooth-service: setting Powered failed: ${error}`)
     setBluetoothFailure(
@@ -526,8 +626,31 @@ async function setAdapterPowered(enabled: boolean): Promise<void> {
   }
 }
 
+/**
+ * The power control's only entry point — the mirror of `setWifiEnabled`
+ * (design §5). Explicit value, never a read-modify-write: the popup header
+ * switch and the settings tile glyph are both mounted at once, so each holds
+ * its own copy of the last state it saw. A toggle would read whichever copy
+ * was stale and write the inverse of what the user actually asked for.
+ *
+ * The adapter may have disappeared between render and click, so `enabled` is
+ * what the user asked for even when the write fails — the failure line says
+ * so rather than the radio silently staying where it was.
+ */
+export async function setBluetoothPowered(enabled: boolean): Promise<void> {
+  await setAdapterPowered(enabled)
+}
+
+/**
+ * Back-compat blind toggle, retained for call sites not yet migrated to
+ * `setBluetoothPowered`. It reads `bluetoothPowered()` and inverts, which is
+ * exactly the read-modify-write hazard above — so treat it as deprecated and
+ * migrate rather than reuse. Kept because the popup header and the settings
+ * tile are separate surfaces landing separately, and deleting this before
+ * both are converted would break whichever has not converted yet.
+ */
 export function toggleBluetooth(): void {
-  void setAdapterPowered(!bluetoothPowered())
+  void setBluetoothPowered(!bluetoothPowered())
 }
 
 // ── Device actions ───────────────────────────────────────────────────────
@@ -582,7 +705,13 @@ export function unpairDevice(address: string): void {
   })
 }
 
+// Accessors only; the intent functions (`setBluetoothPowered`,
+// `startBluetoothDiscovery`, `stopBluetoothDiscovery`, `toggleBluetooth`, the
+// device actions) carry `export` at their own declaration, so listing them
+// again here would be a duplicate export.
 export {
+  bluetoothAdapterAddress,
+  bluetoothAudioTarget,
   bluetoothBusy,
   bluetoothDevices,
   bluetoothDiscovering,
