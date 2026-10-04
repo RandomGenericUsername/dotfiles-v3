@@ -26,7 +26,7 @@ contracts-check:
 # (design.md §7.1). `capture-typecheck` additionally needs the desktop stack,
 # which CI would not have anyway — `capture-test` deliberately does NOT, so it
 # is the one capture gate that would work in CI if it were ever repaired.
-gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-test capture-typecheck capture-hexagonal-gate
+gates: contracts-check wifi-mock-parity bluetooth-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-test capture-typecheck capture-hexagonal-gate
 
 CAPTURE_DIR := src/gui-tools/capture-tool
 # tsconfig.capture.json is HAND-WRITTEN and committed. `ags types -u` also
@@ -159,6 +159,18 @@ capture-hexagonal-gate:
 
 wifi-mock-parity:
 	python3 scripts/wifi-mock-parity.py
+
+# Bluetooth mock<->code parity (openspec: add-bluetooth-bar-popup). Same
+# contract as wifi-mock-parity: the owner-approved mock in the change is the
+# acceptance contract, so every class token in each anchored state must resolve
+# to style.css, to the state's mapped TSX, to an allowlisted scaffold, or to a
+# tracked known gap naming the task that ships it.
+#
+# GREEN TODAY, with two KNOWN_GAPS that are the one new class this change adds
+# (.settings-rowact.danger) and the confirm-row background. They clear at
+# tasks.md 6.7; until then the warning count is the countdown, not a failure.
+bluetooth-mock-parity:
+	python3 scripts/bluetooth-mock-parity.py
 
 speedtest-mock-parity:
 	python3 scripts/speedtest-mock-parity.py

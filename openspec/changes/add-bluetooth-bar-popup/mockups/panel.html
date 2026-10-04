@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bluetooth panel — the mockup</title>
+<style>
+  /* Real ITR-rendered repo SVGs from assets/. Palette slots mirror
+     ~/.local/state/dotfiles/current/colors.yaml (the LIVE runtime palette):
+     bg=color00, edge=color04, fg=foreground, sel=color10, accent=color12/13.
+     These are tokens, not theme values — a wallpaper swap re-renders the
+     icons and only these six lines need re-reading. */
+  :root{
+    --bg:#1a243d;
+    --panel:rgba(26,36,61,.94);
+    --edge:#a73c8a;
+    --fg:#c5c8ce;
+    --sel:#e1488f;
+    --accent:#c274c8;
+    --hair:rgba(197,200,206,.10);
+    --div:rgba(197,200,206,.06);
+    /* every dimension below is authored at 312px and multiplied by --s */
+    --s:2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--fg);
+    font-family:-apple-system,"Segoe UI",Ubuntu,Cantarell,sans-serif;
+    padding:calc(30px * var(--s) / 2);line-height:1.45;
+  }
+  h1{font-size:calc(15px * var(--s) / 2);font-weight:700;color:#fff;margin-bottom:calc(4px * var(--s) / 2)}
+  .lead{font-size:calc(11.5px * var(--s) / 2);color:rgba(197,200,206,.5);margin-bottom:calc(20px * var(--s) / 2);max-width:760px}
+  .scale{position:fixed;top:14px;right:14px;display:flex;gap:6px;z-index:50}
+  .scale button{
+    font:inherit;font-size:11px;font-weight:600;cursor:pointer;padding:4px 10px;border-radius:7px;
+    color:var(--fg);background:rgba(197,200,206,.12);border:1px solid rgba(197,200,206,.2)
+  }
+  .scale button.on{background:rgba(84,158,200,.28);border-color:var(--sel);color:#fff}
+
+  /* ── the surface: 312px authored ─────────────────────────────────────── */
+  .surface{
+    width:calc(312px * var(--s));
+    background:var(--panel);border:calc(1.5px * var(--s)) solid var(--edge);
+    border-radius:calc(12px * var(--s));overflow:hidden;
+    box-shadow:0 calc(18px * var(--s)) calc(48px * var(--s)) rgba(0,0,0,.55);
+  }
+  .nav{
+    display:flex;align-items:center;gap:calc(9px * var(--s));
+    padding:calc(10px * var(--s)) calc(11px * var(--s)) calc(7px * var(--s));
+  }
+  .nav .title{font-size:calc(13.5px * var(--s));font-weight:650;color:#fff;flex:1}
+  .switch{
+    position:relative;width:calc(42px * var(--s));height:calc(24px * var(--s));
+    border-radius:calc(12px * var(--s));background:rgba(197,200,206,.18);flex:none
+  }
+  .switch::after{
+    content:'';position:absolute;top:calc(2px * var(--s));left:calc(2px * var(--s));
+    width:calc(20px * var(--s));height:calc(20px * var(--s));border-radius:50%;
+    background:#fff;box-shadow:0 calc(1px * var(--s)) calc(4px * var(--s)) rgba(0,0,0,.35)
+  }
+  .switch.on{background:var(--sel)}
+  .switch.on::after{transform:translateX(calc(18px * var(--s)))}
+  .switch.off-dead{opacity:.4}
+
+  .body{padding:0 calc(11px * var(--s)) calc(11px * var(--s))}
+  .detail{
+    display:flex;justify-content:space-between;gap:calc(8px * var(--s));
+    font-size:calc(11px * var(--s));padding:calc(2px * var(--s)) 0
+  }
+  .detail .k{color:rgba(197,200,206,.42)}
+  .detail .v{color:rgba(197,200,206,.72);font-weight:500}
+  .div{height:calc(1px * var(--s));background:var(--div);margin:calc(9px * var(--s)) 0}
+  .sec{
+    font-size:calc(11px * var(--s));font-weight:600;text-transform:uppercase;
+    letter-spacing:.05em;color:rgba(197,200,206,.42);margin:calc(2px * var(--s)) 0 calc(5px * var(--s))
+  }
+
+  /* Row = the real two-line geometry: a COLUMN of
+       line 1 : signal glyph · name · Connected badge
+       line 2 : meta stack (words / battery) · action pair
+     This mirrors BluetoothContent.tsx's box(orientation=1) → box(line1) +
+     box(row-meta), and WifiRow's single-line equivalent. Laying it out as a
+     column is what keeps the badge from colliding with the meta text. */
+  .row{
+    display:flex;flex-direction:column;gap:calc(3px * var(--s));
+    padding:calc(8px * var(--s)) calc(9px * var(--s));
+    border-radius:calc(7px * var(--s));margin-bottom:calc(4px * var(--s))
+  }
+  .row.sel{background:var(--sel)}
+  .row.ghost{opacity:.45}
+  .row.confirming{background:rgba(197,200,206,.06)}
+  .l1{display:flex;align-items:center;gap:calc(8px * var(--s));min-width:0}
+  .l2{display:flex;align-items:center;gap:calc(8px * var(--s));min-width:0}
+  /* 30px, matching the real Wi-Fi row: style.css `.settings-net-signal`
+     { min-width/min-height: 30px } and WifiContent's <image pixel_size={30}>.
+     The mock previously drew these at 22px, which understated them. */
+  .row .sig{width:calc(30px * var(--s));height:calc(30px * var(--s));flex:none}
+  .row .sig img{width:100%;height:100%;display:block}
+  .row .meta{flex:1;min-width:0}
+  .row .meta > *{display:block}
+  .row .nm{
+    font-size:calc(12.5px * var(--s));font-weight:600;color:#fff;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  }
+  .row.sel .nm{color:#fff}
+  .row .sub{font-size:calc(10.5px * var(--s));color:rgba(197,200,206,.5);margin-top:calc(1px * var(--s))}
+  .row.sel .sub{color:rgba(11,11,26,.62)}
+  .row .line2{display:flex!important;align-items:center;gap:calc(7px * var(--s));margin-top:calc(3px * var(--s))}
+  .stat{display:flex;align-items:center;gap:calc(4px * var(--s));
+    font-size:calc(10.5px * var(--s));opacity:.72;color:inherit}
+  .stat img{width:calc(14px * var(--s));height:calc(14px * var(--s));display:block}
+  .badge{
+    font-size:calc(9.5px * var(--s));font-weight:600;letter-spacing:.05em;
+    padding:calc(2px * var(--s)) calc(8px * var(--s));border-radius:calc(20px * var(--s));
+    background:rgba(219,171,103,.18);border:calc(1px * var(--s)) solid rgba(219,171,103,.45);
+    color:var(--accent);white-space:nowrap;flex:none
+  }
+  .acts{display:flex;gap:calc(6px * var(--s));flex:none}
+  .act{
+    font:inherit;font-size:calc(11px * var(--s));font-weight:600;cursor:pointer;
+    padding:calc(4px * var(--s)) calc(10px * var(--s));border-radius:calc(7px * var(--s));
+    color:var(--fg);background:transparent;border:calc(1px * var(--s)) solid rgba(197,200,206,.26);
+    white-space:nowrap
+  }
+  .act.subtle{opacity:.68}
+  .act.dead{opacity:.5}
+  .act.danger{border-color:#9b448b;color:#9b448b}
+
+  .chev{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:calc(9px * var(--s)) calc(9px * var(--s));cursor:pointer;
+    border-radius:calc(7px * var(--s));font-size:calc(13px * var(--s));
+    color:rgba(197,200,206,.72);margin-bottom:calc(4px * var(--s))
+  }
+  .chev:hover{background:rgba(197,200,206,.08)}
+  .foot{
+    display:flex;align-items:center;gap:calc(8px * var(--s));
+    padding:calc(10px * var(--s)) calc(9px * var(--s)) calc(4px * var(--s));
+    font-size:calc(13px * var(--s));color:rgba(197,200,206,.72)
+  }
+  .foot .note{font-size:calc(10.5px * var(--s));color:rgba(197,200,206,.3);margin-left:auto}
+  .foot .arw{color:rgba(197,200,206,.3)}
+
+  /* CapabilityTile (.settings-tile) — ONE horizontal row: glyph, then
+     title-over-subtitle, then the chevron. Deliberately NOT the two-line
+     device-row geometry above. */
+  .tile{
+    display:flex;align-items:center;gap:calc(10px * var(--s));
+    padding:calc(10px * var(--s)) calc(9px * var(--s));
+    border-radius:calc(7px * var(--s))
+  }
+  .tile.on{background:rgba(84,158,200,.10)}
+  /* the tile's glyph is 24px (CapabilityTile/IconToggle), and needs its own
+     size rule — the .row-scoped one does not reach it */
+  .tile .sig{width:calc(24px * var(--s));height:calc(24px * var(--s));flex:none}
+  .tile .sig img{width:100%;height:100%;display:block}
+  .tile .meta{flex:1;min-width:0}
+  .tile .meta > *{display:block}
+  .tile .arw{color:rgba(197,200,206,.3);font-size:calc(17px * var(--s));flex:none}
+
+  .empty{
+    padding:calc(20px * var(--s)) 0;text-align:center;
+    font-size:calc(13px * var(--s));color:rgba(197,200,206,.42)
+  }
+  .msg{
+    display:flex;align-items:center;gap:calc(7px * var(--s));
+    font-size:calc(12px * var(--s));color:#9b448b;margin-bottom:calc(8px * var(--s))
+  }
+  .msg img{width:calc(16px * var(--s));height:calc(16px * var(--s));flex:none}
+  .spin{
+    width:calc(14px * var(--s));height:calc(14px * var(--s));flex:none;
+    border:calc(2px * var(--s)) solid rgba(219,171,103,.25);
+    border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* ── layout of the board ─────────────────────────────────────────────── */
+  .board{display:flex;flex-wrap:wrap;gap:calc(26px * var(--s));align-items:flex-start}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:calc(9px * var(--s))}
+  .cap{font-size:calc(10.5px * var(--s));color:rgba(197,200,206,.45);letter-spacing:.04em;text-align:center}
+
+  /* ── the bar ─────────────────────────────────────────────────────────── */
+  .bar{
+    display:flex;align-items:center;gap:calc(9px * var(--s));
+    padding:calc(9px * var(--s)) calc(13px * var(--s));
+    background:rgba(11,11,26,.55);border-radius:calc(12px * var(--s)) calc(12px * var(--s)) 0 0;
+    border-bottom:calc(1px * var(--s)) solid var(--hair)
+  }
+  .bar img{height:calc(22px * var(--s));width:auto;display:block}
+  .bar img.off{opacity:.45}
+  .bar .clock{margin-left:calc(12px * var(--s));font-size:calc(12px * var(--s));color:rgba(197,200,206,.7)}
+  .barpair{display:flex;align-items:center;gap:calc(6px * var(--s))}
+  .stem{width:calc(2px * var(--s));height:calc(13px * var(--s));background:var(--sel);margin:0 auto}
+  .stack{display:flex;flex-direction:column;align-items:center}
+</style>
+</head>
+<body>
+
+<div class="scale">
+  <button data-s="1">×1</button>
+  <button data-s="1.5">×1.5</button>
+  <button data-s="2" class="on">×2</button>
+</div>
+
+<h1>Bluetooth panel</h1>
+<div class="lead">
+  The proposed surfaces, drawn at 312&nbsp;px and shown here at ×2 so you can actually see them.
+  Real icons from the repo. Open it in a browser and hit ×1 to check the true size.
+</div>
+
+<!-- ═══ the bar: where it lives and what it opens ═══════════════════════ -->
+<div class="board" style="margin-bottom:calc(26px * var(--s))">
+
+  <div class="cell" id="bar-anchor">
+    <div class="stack">
+      <div class="bar" style="width:calc(312px * var(--s))">
+        <span class="barpair">
+          <img src="assets/bluetooth-on.svg" alt="bluetooth bar — on" />
+          <img src="assets/wifi-medium-default.svg" alt="wifi" />
+        </span>
+        <span class="clock">09:41</span>
+      </div>
+      <div class="stem"></div>
+      <div class="surface">
+        <div class="nav">
+          <span class="title">Bluetooth</span>
+          <span class="switch on"></span>
+        </div>
+        <div class="body">
+          <div class="detail"><span class="k">Adapter</span><span class="v">A0:E7:0B:8B:36:7E</span></div>
+          <div class="div"></div>
+          <div class="sec">Paired</div>
+          <div class="row sel">
+            <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-full.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
+            <div class="l2"><div class="meta"><span class="line2"><span class="stat"><img src="assets/system-battery-75.svg" alt="" />78%</span></span> <span class="sub">Paired</span></div><span class="acts">
+              <button class="act">Disconnect</button>
+              <button class="act subtle">Unpair</button>
+            </span></div>
+          </div>
+          <div class="chev"><span>Available Devices ▾</span></div>
+          <div class="row">
+            <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">HONOR 400 Smart</span></span></div>
+            <div class="l2"><div class="meta"><span class="sub">Ready to pair</span></div><span class="acts"><button class="act">Pair</button></span></div>
+          </div>
+          <div class="foot">
+            <span>Bluetooth Settings</span>
+            <span class="note">opens Blueman</span>
+            <span class="arw">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">click the bar glyph → this</div>
+  </div>
+
+  <div class="cell" id="bar-on">
+    <div class="bar" style="width:calc(160px * var(--s))">
+      <span class="barpair">
+        <img src="assets/bluetooth-on.svg" alt="bluetooth bar — on" />
+        <img src="assets/wifi-medium-default.svg" alt="wifi" />
+      </span>
+    </div>
+    <div class="cap">bar · on</div>
+  </div>
+
+  <div class="cell" id="bar-off">
+    <div class="bar" style="width:calc(160px * var(--s))">
+      <span class="barpair">
+        <img src="assets/bluetooth-off.svg" alt="bluetooth bar — off" />
+        <img src="assets/wifi-medium-default.svg" alt="wifi" />
+      </span>
+    </div>
+    <div class="cap">bar · off</div>
+  </div>
+
+</div>
+
+<!-- ═══ the states ══════════════════════════════════════════════════════ -->
+<div class="board">
+
+  <div class="cell" id="popup-off">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch"></span></div>
+      <div class="body"><div class="empty">Bluetooth is off</div></div>
+    </div>
+    <div class="cap">off</div>
+  </div>
+
+  <div class="cell" id="popup-not-connected">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+      <div class="body">
+        <div class="detail"><span class="k">Adapter</span><span class="v">A0:E7:0B:8B:36:7E</span></div>
+        <div class="div"></div>
+        <div class="sec">Paired</div>
+        <div class="row">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">Sony WH-1000XM5</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
+        </div>
+        <div class="row">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
+        </div>
+        <div class="chev"><span>Available Devices ▸</span></div>
+        <div class="foot"><span>Bluetooth Settings</span><span class="note">opens Blueman</span><span class="arw">›</span></div>
+      </div>
+    </div>
+    <div class="cap">on, nothing connected</div>
+  </div>
+
+  <div class="cell" id="popup-pairing">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+      <div class="body">
+        <div class="div" style="margin-top:0"></div>
+        <div class="sec">Paired</div>
+        <div class="row">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
+          <div class="l2"><div class="meta"><span class="line2"><span class="spin"></span><span class="stat">Pairing…</span></span> <span class="sub">Can take up to 30 s</span></div><span class="acts"><button class="act dead">Connect</button></span></div>
+        </div>
+        <div class="row">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act dead">Connect</button></span></div>
+        </div>
+        <div class="chev"><span>Available Devices ▸</span></div>
+      </div>
+    </div>
+    <div class="cap">pairing</div>
+  </div>
+
+  <div class="cell" id="popup-failed">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+      <div class="body">
+        <div class="msg">
+          <img src="assets/settings-panel-info-caution.svg" alt="" />
+          <span>Pairing timed out</span>
+        </div>
+        <div class="detail"><span class="k">Adapter</span><span class="v">A0:E7:0B:8B:36:7E</span></div>
+        <div class="div"></div>
+        <div class="sec">Paired</div>
+        <div class="row">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Pair</button></span></div>
+        </div>
+        <div class="chev"><span>Available Devices ▸</span></div>
+      </div>
+    </div>
+    <div class="cap">failed</div>
+  </div>
+
+  <div class="cell" id="popup-out-of-range">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+      <div class="body">
+        <div class="detail"><span class="k">Adapter</span><span class="v">A0:E7:0B:8B:36:7E</span></div>
+        <div class="div"></div>
+        <div class="sec">Paired</div>
+        <div class="row ghost">
+          <div class="l1"><span class="meta"><span class="nm">LG OM7560(07)</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Not in range</span></div><span class="acts"><button class="act dead">Connect</button><button class="act subtle">Unpair</button></span></div>
+        </div>
+        <div class="chev"><span>Available Devices ▸</span></div>
+        <div class="foot"><span>Bluetooth Settings</span><span class="note">opens Blueman</span><span class="arw">›</span></div>
+      </div>
+    </div>
+      <div class="cell" id="popup-unpair-confirm">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+      <div class="body">
+        <div class="detail"><span class="k">Adapter</span><span class="v">A0:E7:0B:8B:36:7E</span></div>
+        <div class="div"></div>
+        <div class="sec">Paired</div>
+        <div class="row sel">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-full.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
+          <div class="l2"><div class="meta"><span class="line2"><span class="stat"><img src="assets/system-battery-75.svg" alt="" />78%</span></span><span class="sub">Paired</span></div><span class="acts">
+            <button class="act">Disconnect</button>
+            <button class="act subtle">Unpair</button>
+          </span></div>
+        </div>
+        <div class="row confirming">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Remove from paired devices</span></div><span class="acts">
+            <button class="act">Keep</button>
+            <button class="act danger">Unpair device</button>
+          </span></div>
+        </div>
+        <div class="chev"><span>Available Devices ▸</span></div>
+      </div>
+    </div>
+    <div class="cap">unpair confirm</div>
+  </div>
+
+<div class="cap">asleep / out of range</div>
+  </div>
+
+  <div class="cell" id="popup-scanning">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+      <div class="body">
+        <div class="empty" style="display:flex;align-items:center;justify-content:center;gap:calc(7px * var(--s))">
+          <span class="spin"></span><span>Scanning…</span>
+        </div>
+        <div class="chev"><span>Available Devices ▸</span></div>
+      </div>
+    </div>
+    <div class="cap">scanning</div>
+  </div>
+
+  <div class="cell" id="popup-no-adapter">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch off-dead"></span></div>
+      <div class="body">
+        <div class="msg"><img src="assets/settings-panel-info-caution.svg" alt="" /><span>No Bluetooth adapter available</span></div>
+      </div>
+    </div>
+    <div class="cap">no adapter</div>
+  </div>
+
+</div>
+
+<!-- ═══ inside the settings panel ══════════════════════════════════════ -->
+<h1 style="margin-top:calc(34px * var(--s) / 2)">Settings panel</h1>
+<div class="lead">Same body, reached from the settings gear. Header switch matches the popup header.</div>
+
+<div class="board">
+  <div class="cell" id="panel-subview">
+    <div class="surface">
+      <div class="nav">
+        <span class="arw" style="font-size:calc(20px * var(--s));color:rgba(197,200,206,.5);line-height:1">‹</span>
+        <span class="title">Bluetooth</span>
+        <span class="switch on"></span>
+      </div>
+      <div class="body">
+        <div class="detail"><span class="k">Adapter</span><span class="v">A0:E7:0B:8B:36:7E</span></div>
+        <div class="div"></div>
+        <div class="sec">Paired</div>
+        <div class="row sel">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-full.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
+          <div class="l2"><div class="meta"><span class="line2"><span class="stat"><img src="assets/system-battery-75.svg" alt="" />78%</span></span> <span class="sub">Paired</span></div><span class="acts"><button class="act">Disconnect</button><button class="act subtle">Unpair</button></span></div>
+        </div>
+        <div class="row">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
+        </div>
+        <div class="chev"><span>Available Devices ▾</span></div>
+      </div>
+    </div>
+    <div class="cap">subview</div>
+  </div>
+
+  <div class="cell" id="panel-tile">
+    <div class="surface" style="padding:calc(6px * var(--s))">
+      <!-- CapabilityTile: glyph is the power toggle, label+chevron open the
+           subview. ONE horizontal row — not the two-line device row. -->
+      <div class="tile on">
+        <span class="sig"><img src="assets/settings-panel-bluetooth.svg" alt="" /></span>
+        <span class="meta"><span class="nm">Bluetooth</span><span class="sub">TOZO NC9</span></span>
+        <span class="arw">›</span>
+      </div>
+      <div class="tile">
+        <span class="sig"><img src="assets/settings-panel-wifi.svg" alt="" /></span>
+        <span class="meta"><span class="nm">Wi-Fi</span><span class="sub">ilyushin-5G · 78%</span></span>
+        <span class="arw">›</span>
+      </div>
+    </div>
+    <div class="cap">tile in the main list</div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.scale button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.documentElement.style.setProperty('--s', b.dataset.s);
+    document.querySelectorAll('.scale button').forEach(function (o) { o.classList.remove('on'); });
+    b.classList.add('on');
+  });
+});
+</script>
+</body>
+</html>

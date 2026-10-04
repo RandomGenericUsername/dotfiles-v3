@@ -88,6 +88,7 @@
   }
   .row.sel{background:var(--sel)}
   .row.ghost{opacity:.45}
+  .row.confirming{background:rgba(197,200,206,.06)}
   .l1{display:flex;align-items:center;gap:calc(8px * var(--s));min-width:0}
   .l2{display:flex;align-items:center;gap:calc(8px * var(--s));min-width:0}
   /* 30px, matching the real Wi-Fi row: style.css `.settings-net-signal`
@@ -210,7 +211,7 @@
 <!-- ═══ the bar: where it lives and what it opens ═══════════════════════ -->
 <div class="board" style="margin-bottom:calc(26px * var(--s))">
 
-  <div class="cell">
+  <div class="cell" id="bar-anchor">
     <div class="stack">
       <div class="bar" style="width:calc(312px * var(--s))">
         <span class="barpair">
@@ -252,7 +253,7 @@
     <div class="cap">click the bar glyph → this</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="bar-on">
     <div class="bar" style="width:calc(160px * var(--s))">
       <span class="barpair">
         <img src="assets/bluetooth-on.svg" alt="bluetooth bar — on" />
@@ -262,7 +263,7 @@
     <div class="cap">bar · on</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="bar-off">
     <div class="bar" style="width:calc(160px * var(--s))">
       <span class="barpair">
         <img src="assets/bluetooth-off.svg" alt="bluetooth bar — off" />
@@ -277,7 +278,7 @@
 <!-- ═══ the states ══════════════════════════════════════════════════════ -->
 <div class="board">
 
-  <div class="cell">
+  <div class="cell" id="popup-off">
     <div class="surface">
       <div class="nav"><span class="title">Bluetooth</span><span class="switch"></span></div>
       <div class="body"><div class="empty">Bluetooth is off</div></div>
@@ -285,7 +286,7 @@
     <div class="cap">off</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="popup-not-connected">
     <div class="surface">
       <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
       <div class="body">
@@ -307,7 +308,7 @@
     <div class="cap">on, nothing connected</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="popup-pairing">
     <div class="surface">
       <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
       <div class="body">
@@ -327,7 +328,7 @@
     <div class="cap">pairing</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="popup-failed">
     <div class="surface">
       <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
       <div class="body">
@@ -348,7 +349,7 @@
     <div class="cap">failed</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="popup-out-of-range">
     <div class="surface">
       <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
       <div class="body">
@@ -363,10 +364,37 @@
         <div class="foot"><span>Bluetooth Settings</span><span class="note">opens Blueman</span><span class="arw">›</span></div>
       </div>
     </div>
-    <div class="cap">asleep / out of range</div>
+      <div class="cell" id="popup-unpair-confirm">
+    <div class="surface">
+      <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+      <div class="body">
+        <div class="detail"><span class="k">Adapter</span><span class="v">A0:E7:0B:8B:36:7E</span></div>
+        <div class="div"></div>
+        <div class="sec">Paired</div>
+        <div class="row sel">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-full.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
+          <div class="l2"><div class="meta"><span class="line2"><span class="stat"><img src="assets/system-battery-75.svg" alt="" />78%</span></span><span class="sub">Paired</span></div><span class="acts">
+            <button class="act">Disconnect</button>
+            <button class="act subtle">Unpair</button>
+          </span></div>
+        </div>
+        <div class="row confirming">
+          <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+          <div class="l2"><div class="meta"><span class="sub">Remove from paired devices</span></div><span class="acts">
+            <button class="act">Keep</button>
+            <button class="act danger">Unpair device</button>
+          </span></div>
+        </div>
+        <div class="chev"><span>Available Devices ▸</span></div>
+      </div>
+    </div>
+    <div class="cap">unpair confirm</div>
   </div>
 
-  <div class="cell">
+<div class="cap">asleep / out of range</div>
+  </div>
+
+  <div class="cell" id="popup-scanning">
     <div class="surface">
       <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
       <div class="body">
@@ -379,7 +407,7 @@
     <div class="cap">scanning</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="popup-no-adapter">
     <div class="surface">
       <div class="nav"><span class="title">Bluetooth</span><span class="switch off-dead"></span></div>
       <div class="body">
@@ -396,7 +424,7 @@
 <div class="lead">Same body, reached from the settings gear. Header switch matches the popup header.</div>
 
 <div class="board">
-  <div class="cell">
+  <div class="cell" id="panel-subview">
     <div class="surface">
       <div class="nav">
         <span class="arw" style="font-size:calc(20px * var(--s));color:rgba(197,200,206,.5);line-height:1">‹</span>
@@ -421,7 +449,7 @@
     <div class="cap">subview</div>
   </div>
 
-  <div class="cell">
+  <div class="cell" id="panel-tile">
     <div class="surface" style="padding:calc(6px * var(--s))">
       <!-- CapabilityTile: glyph is the power toggle, label+chevron open the
            subview. ONE horizontal row — not the two-line device row. -->

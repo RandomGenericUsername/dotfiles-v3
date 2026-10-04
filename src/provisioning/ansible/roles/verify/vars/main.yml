@@ -388,6 +388,12 @@ verify_icons_samples:
   - "{{ verify_state_current_dir }}/icons/microphone-system-mic-on.svg"
   - "{{ verify_state_current_dir }}/icons/system-battery-100.svg"
   - "{{ verify_state_current_dir }}/icons/settings-panel-signal-good.svg"
+  # Bluetooth bar indicator + circle-badge row glyphs (add-bluetooth-bar-popup):
+  # prove the new `bluetooth` group actually rendered, and that the bar glyph
+  # resolved through bar_mappings rather than being missing from the output.
+  - "{{ verify_state_current_dir }}/icons/bluetooth-on.svg"
+  - "{{ verify_state_current_dir }}/icons/bluetooth-off.svg"
+  - "{{ verify_state_current_dir }}/icons/settings-panel-bluetooth-signal-full.svg"
 
 # verify_compositor_config_dirs: the three compositor config dirs under the XDG
 #   config home (criterion 7). config-in-spine (2026-08-16): these are now
