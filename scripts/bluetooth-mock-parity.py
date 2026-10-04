@@ -188,15 +188,6 @@ CLASS_MAP = {
 #: must clear the entry when it lands.
 #: Format: token -> owning task
 KNOWN_GAPS = {
-    "danger": (
-        "T6.7 -- .settings-rowact.danger, the ONE new class this change adds "
-        "(destructive confirm). Absent from style.css until that task lands, "
-        "which is why the gate is legitimately red beforehand."
-    ),
-    "confirming": (
-        "T6.7 -- the inline unpair-confirm row background; mock-only until the "
-        "confirm swaps the meta stack in place"
-    ),
     "tile on": (
         "T6.6 -- the settings tile's selected-state fill; the mock previews it, "
         "but the shipped CapabilityTile has no selected modifier today and the "

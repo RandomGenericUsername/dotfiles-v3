@@ -266,13 +266,24 @@ an open confirm **before** the surface closes.
 - **WHEN** the user clicks `Keep`
 - **THEN** the row returns to its normal actions and nothing else changed
 
-### Requirement: Exactly one new CSS class is introduced
+### Requirement: Exactly two new CSS classes are introduced
 
-The change SHALL add `.settings-rowact.danger` to `style.css` and SHALL NOT add
-any other class. Every other element SHALL resolve to an existing `settings-*`
-class already shipped by the settings panel or the Wi-Fi popup. Any new class
-proposed during implementation SHALL be a spec change, not an implementation
-detail.
+The change SHALL add exactly two classes to `style.css` —
+`.settings-rowact.danger` (the destructive confirm action) and
+`.settings-net.confirming` (the inline-confirm row wash) — and SHALL NOT add any
+other. Every other element SHALL resolve to an existing `settings-*` class already
+shipped by the settings panel or the Wi-Fi popup. Any further new class proposed
+during implementation SHALL be a spec change, not an implementation detail.
+
+**Amended from one class to two.** The mock shows a faint wash on the confirming
+row, and the mock is the contract. That wash is not decoration: the confirm
+requirement forbids the row from reflowing, so a mode change that could only be
+signalled by layout is not available, and the background is what carries it
+visually. Declaring the class but shipping no selector would have made the code
+render something the approved mock does not show — which is exactly the
+mock/code divergence `bluetooth-mock-parity` exists to catch. `.confirming` is
+declared after `.settings-net.sel` so it wins over the connected fill: a
+confirming row is a different *mode*, not a different *connection state*.
 
 #### Scenario: the harness proves no class was invented
 
@@ -282,6 +293,7 @@ detail.
   `style.css`, to the state's mapped TSX file, or to an explicit allowlist
   entry
 - **AND** zero tokens are uncovered
+- **AND** zero known gaps remain
 
 ### Requirement: The adapter detail row shows the machine's own adapter address
 

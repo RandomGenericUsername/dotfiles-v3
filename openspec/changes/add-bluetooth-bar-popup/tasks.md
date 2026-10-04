@@ -114,9 +114,12 @@ was verified.
 - [ ] 5.3 Register the catcher BEFORE the popup in `app.tsx`.
 - [ ] 5.4 Extend `app.tsx`'s `popup-close` request handler to call
   `closeBluetoothPopup()`.
-- [ ] 5.5 `settings-panel/state.ts` `open()` calls `closeBluetoothPopup()`; the
-  bar widget calls `close()` then `toggleBluetoothPopup()` (the
-  `bar/widgets/network.tsx` order).
+- [ ] 5.5 `settings-panel/state.ts` `open()` calls `closeBluetoothPopup()` via
+  `import { closeBluetoothPopup } from "../components/bluetooth/state"` —
+  **note the single `../`**: from `dotfiles/config/ags/settings-panel/`,
+  `../../components/...` would resolve to `dotfiles/config/components`, which
+  does not exist. The bar widget calls `close()` then `toggleBluetoothPopup()`
+  (the `bar/widgets/network.tsx` order).
 - [ ] 5.6 Esc handler on an `EventControllerKey` mirroring `WifiPopup` —
   currently unreachable, live the instant a PIN field exists.
 - [ ] 5.7 FORBIDDEN: `exclusivity` MUST NOT be `NORMAL` (Hyprland offsets the
@@ -157,7 +160,9 @@ was verified.
 - [ ] 6.9 Adapter detail row from `bluetoothAdapterAddress`, hidden while
   powered off. **No audio-output row** (owner ruling: PipeWire state inside a
   Bluetooth surface mixes concerns).
-- [ ] 6.10 FORBIDDEN: no new CSS class other than `.settings-rowact.danger`;
+- [ ] 6.10 FORBIDDEN: no new CSS class other than `.settings-rowact.danger` and
+  `.settings-net.confirming` (the spec was amended from one to two — see the
+  requirement's amendment note);
   no `dBm` string in any row label; no timer/interval in the view; no bus call
   or subprocess in the view; no bare `battery-*` variant from the panel.
 - [ ] 6.11 Verify: `make bluetooth-mock-parity` — `KNOWN_GAPS` must reach

@@ -598,6 +598,28 @@ window.settings-panel {
   border-color: alpha(@color_foreground, 0.4);
 }
 
+/* Destructive confirm (Unpair device). The border and the label carry the
+   weight, matching mock `.act.danger`; @color_03 is the palette's destructive
+   slot, @color_11 its muted counterpart for hover. */
+.settings-rowact.danger {
+  border-color: @color_03;
+  color: @color_03;
+}
+
+.settings-rowact.danger:hover {
+  border-color: @color_11;
+  color: @color_11;
+}
+
+/* Row in inline-unpair-confirm state. The mock shows a faint wash so a row that
+   has switched mode is recognisable at a glance WITHOUT relying on the row
+   reflowing — which it must not do. Declared after `.settings-net.sel` so it
+   wins over the connected fill: a confirming row is a different mode, not a
+   different connection state. */
+.settings-net.confirming {
+  background: alpha(@color_foreground, 0.06);
+}
+
 /* In-flight action spinner (connect / pair / disconnect) */
 .settings-spinner {
   min-width: 14px;
