@@ -17,6 +17,22 @@ export function isNetworkItem(item: TrayItem): boolean {
   return id.includes("nm-applet") || id.includes("nm_applet")
 }
 
+//: The Blueman tray applet. Its StatusNotifierItem declares `Id` = "blueman"
+//: and `Title` = "blueman" on the bus path /org/blueman/sni, so "blueman" is
+//: the whole of its identity in every field itemIdentity() concatenates — one
+//: substring covers "blueman", "blueman-applet" and any org.blueman.* id, and
+//: no other tray item on this system claims the vendor name.
+//
+//: GUARD, not the fix. The bar's Bluetooth affordance is the AGS indicator, so
+//: a second one is never wanted; but the fix that stops the item being created
+//: at all is the user-level ~/.config/autostart/blueman.desktop override
+//: (Hidden=true), which survives package upgrades. This filter only keeps the
+//: duplicate out of the bar if the applet is started anyway — same role as
+//: isNetworkItem above.
+export function isBluetoothItem(item: TrayItem): boolean {
+  return itemIdentity(item).includes("blueman")
+}
+
 export function findNetworkItem(): TrayItem | null {
   return (tray.get_items() as TrayItem[]).find(isNetworkItem) ?? null
 }
