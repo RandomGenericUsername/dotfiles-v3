@@ -15,6 +15,14 @@ __pycache__/
 # TypeScript itself, installed with `npm install --no-save typescript` so that
 # `npx tsc` resolves from the tool directory without a package.json.
 /node_modules/
+# The domain unit tests need @types/node (node:test). It MUST stay under tests/
+# and out of the app tree: tsconfig.capture.json declares no "types", so an
+# @types/node anywhere the root typeRoots walk reaches is auto-included, the
+# gnim JSX element types widen, and every app file then fails to typecheck.
+# Verified in both directions at HEAD. tests/ is not in that walk, so this
+# location is safe; the path is ignored explicitly because the capture tool's
+# placement is per-file and a committed node_modules is a deployment hazard.
+/src/gui-tools/capture-tool/tests/node_modules/
 /package-lock.json
 /package.json
 /src/cli-tools/wallpaper-effects-generator/feedback.md

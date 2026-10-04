@@ -59,6 +59,38 @@ export const DEFAULT_RECORDING: RecordingUiState = {
   customDuration: 120,
 }
 
+/**
+ * The ONE live UI state the whole app shares (fix-capture-per-monitor-state).
+ *
+ * The composition root calls this ONCE and hands the result to every window it
+ * builds, because the state is per-APPLICATION, not per-window: there is one
+ * `capture-ui.json`, one settings config and one precedence chain, so two
+ * windows each allocating their own copy would mean two owners of one logical
+ * value writing the same file — last writer wins, and the loser's selection is
+ * silently destroyed (reproduced: two windows, one file, `screen` overwritten
+ * by `window`).
+ *
+ * Two properties are load-bearing, and both are asserted in
+ * `tests/ts/ui-state-ownership.test.ts`:
+ *
+ *   * FRESH OBJECTS, not the constants. Every caller gets objects it may
+ *     mutate; `DEFAULT_SCREENSHOT` / `DEFAULT_RECORDING` stay pristine so the
+ *     next first run is not seeded from another window's leftovers.
+ *   * A REAL FACTORY, not a memoised singleton. Sharing is the composition
+ *     root's decision, made once, visibly — not a hidden module-level global
+ *     that a second window would silently inherit.
+ *
+ * Mutated IN PLACE from then on: `ClassicWindow`'s `applyStateToUi()` assigns
+ * into these objects rather than rebinding, because the three pages hold the
+ * exact objects they were constructed with.
+ */
+export function createUiState(): UiState {
+  return {
+    screenshot: { ...DEFAULT_SCREENSHOT },
+    recording: { ...DEFAULT_RECORDING },
+  }
+}
+
 export function oneOf<T>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback
 }

@@ -503,6 +503,17 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/ui/classic/ScreenshotPage.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/ui/classic/RecordingPage.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/ui/classic/SettingsPage.tsx"
+  # The shared builder kit BOTH layouts import (refactor-capture-tool-hexagonal
+  # A7). Asserted for the same reason as the rest of the capture set: gui_tools
+  # placement is per-file, so an undeployed ui/shared/ module means the capture
+  # panel cannot even bundle -- and this kit is exactly what a SECOND layout is
+  # meant to reuse instead of re-deriving.
+  #   rows.ts    -- the row builders every settings/selection surface composes.
+  #   groups.ts  -- the group + selection helpers the row builders take.
+  #   icons.ts   -- the shared icon resolver the rows render through.
+  - "{{ install_dir | trim }}/config/ags-capture/ui/shared/rows.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/shared/groups.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/shared/icons.ts"
   - "{{ install_dir | trim }}/config/ags-capture/lib/icon-registry.ts"
   # The PURE domain layer ClassicWindow imports (refactor-capture-tool-hexagonal
   # A3). Asserted for the same reason as the rest of the capture set: gui_tools
@@ -510,6 +521,22 @@ verify_gui_tools_app_files:
   # cannot even bundle.
   - "{{ install_dir | trim }}/config/ags-capture/domain/settings.ts"
   - "{{ install_dir | trim }}/config/ags-capture/domain/ui-state.ts"
+  # The request->argv half of the domain layer (refactor-capture-tool-hexagonal
+  # A6) -- the pair the composition root hands to the dialog. Asserted for the
+  # same reason as the rest of the capture set: gui_tools placement is per-file,
+  # so an undeployed domain/ module means the capture panel cannot even bundle.
+  #   capture-request.ts -- the capture intent value objects (target, format,
+  #     quality, duration). The dialog builds one and the launcher consumes one,
+  #     so it is the seam's type contract; absent, there is nothing to bundle.
+  #   cli-args.ts -- THE single module in the whole tool that writes an argv
+  #     literal for `capture-tool screenshot|start`. BOTH capture actions call it
+  #     and the next layout must call it too. It also owns the two tokens the
+  #     backend's argparse rejects (--size 75, not 75%; --audio mic, not
+  #     microphone), so it is the one place a capture can be lost in translation
+  #     rather than merely failing to build. Absent: the bundle fails outright
+  #     and EVERY capture dies at startup, with nothing in verify to say so.
+  - "{{ install_dir | trim }}/config/ags-capture/domain/capture-request.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/domain/cli-args.ts"
   # The ports/ and adapters/ layers ClassicWindow and the composition root
   # import (refactor-capture-tool-hexagonal A5). Asserted for the same reason
   # as the rest of the capture set: gui_tools placement is per-file, so an
