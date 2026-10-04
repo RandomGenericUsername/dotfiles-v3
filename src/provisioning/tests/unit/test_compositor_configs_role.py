@@ -246,10 +246,11 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        # capture tool files (CaptureWindow.tsx, RecordingView.tsx, ScreenshotView.tsx,
-        # types.ts, and 4 controllers) are standalone under
-        # src/gui-tools/capture-tool/ and deploy via the gui_tools role —
-        # no longer part of the compositor_configs skeletons.
+        # capture tool files (CaptureWindow.tsx, types.ts, app.tsx, style.css)
+        # are standalone under src/gui-tools/capture-tool/ and deploy via the
+        # gui_tools role — no longer part of the compositor_configs skeletons.
+        # (The pre-hexagonal views + controllers were deleted by
+        # refactor-capture-tool-hexagonal, task 1.4.)
         assert len(files) == 65, (
             f"expected exactly 65 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+6 lib (incl. "

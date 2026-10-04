@@ -494,14 +494,35 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-capture/app.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/style.css"
   - "{{ install_dir | trim }}/config/ags-capture/types.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/CaptureWindow.tsx"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/RecordingView.tsx"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/ScreenshotView.tsx"
-  - "{{ install_dir | trim }}/config/ags-capture/controllers/CaptureController.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/controllers/RecordingController.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/controllers/ScreenshotController.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/controllers/TargetResolver.ts"
+  # The classic layout (refactor-capture-tool-hexagonal A8): the window shell
+  # and the three top-level views. Asserted for the same reason as the rest of
+  # the capture set -- gui_tools placement is per-file, and ClassicWindow
+  # reaches all three pages only through its own imports, so a missing one is a
+  # panel that cannot bundle.
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/ClassicWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/ScreenshotPage.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/RecordingPage.tsx"
+  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/SettingsPage.tsx"
   - "{{ install_dir | trim }}/config/ags-capture/lib/icon-registry.ts"
+  # The PURE domain layer ClassicWindow imports (refactor-capture-tool-hexagonal
+  # A3). Asserted for the same reason as the rest of the capture set: gui_tools
+  # placement is per-file, so an undeployed domain/ module means the dialog
+  # cannot even bundle.
+  - "{{ install_dir | trim }}/config/ags-capture/domain/settings.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/domain/ui-state.ts"
+  # The ports/ and adapters/ layers ClassicWindow and the composition root
+  # import (refactor-capture-tool-hexagonal A5). Asserted for the same reason
+  # as the rest of the capture set: gui_tools placement is per-file, so an
+  # undeployed module means the capture panel cannot even bundle.
+  - "{{ install_dir | trim }}/config/ags-capture/ports/settings-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/ui-state-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/capture-launcher.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/backend-probe.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/ports/capture-ports.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/glib-settings-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/glib-ui-state-store.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/exec-capture-launcher.ts"
+  - "{{ install_dir | trim }}/config/ags-capture/adapters/exec-backend-probe.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"

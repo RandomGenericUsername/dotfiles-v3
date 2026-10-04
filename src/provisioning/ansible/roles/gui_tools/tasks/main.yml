@@ -103,6 +103,18 @@
     state: absent
   when: not ansible_check_mode
 
+# Per-file placement only WRITES: a source dropped from
+# gui_tools_app_files leaves its previously-placed copy on disk forever, so the
+# capture app's retired pre-refactor sources would linger in derived state where
+# no gate can see them. Actively remove them. `state: absent` is idempotent, and
+# this mirrors the legacy-capture removal directly above.
+- name: Remove the capture app's retired pre-refactor sources from the spine
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ gui_tools_capture_obsolete }}"
+  when: not ansible_check_mode
+
 # Quit known AGS instances so the next invocation picks up the freshly placed
 # sources. AGS bundles TypeScript at startup and holds the result in memory;
 # without a restart the running process keeps serving the old bundle even after

@@ -45,6 +45,10 @@ entries:
   - name: pavucontrol        # Conventional GUI mixer — debugging/reference surface for the AGS audio popup
   - name: gpu-screen-recorder # Preferred Wayland recording backend with pause/resume
   - name: wf-recorder        # Fallback Wayland-native recorder
+  # vainfo — VA-API codec probe. gpu-screen-recorder names it verbatim in its
+  # own "your gpu does not support 'vpX'" failure, so the capture tool can tell a
+  # hardware codec limit (WebM's gsr default is VP8) from a missing VA driver.
+  - name: libva-utils
   - name: rofi               # Application launcher
   - name: thunar             # File manager (GTK-based)
 
@@ -79,9 +83,9 @@ entries:
   - name: bluez              # Bluetooth stack / bluetoothd
   - name: bluez-utils        # bluetoothctl + the bluetooth.service unit
 
-   # Additional useful tools
-   - name: hyprcursor         # Cursor themes
-   - name: hyprlock           # Screen locker
-   - name: hypridle           # Idle management
-   - name: wlogout            # Logout menu (AGS power-menu action)
-   - name: speedtest          # Ookla speedtest CLI (network speed measurements)
+  # Additional useful tools
+  - name: hyprcursor         # Cursor themes
+  - name: hyprlock           # Screen locker
+  - name: hypridle           # Idle management
+  - name: wlogout            # Logout menu (AGS power-menu action)
+  - name: speedtest          # Ookla speedtest CLI (network speed measurements)

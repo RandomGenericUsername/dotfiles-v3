@@ -43,6 +43,13 @@ packages:
   pavucontrol: pavucontrol       # GUI mixer (debugging reference for the AGS audio popup)
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
+  # vainfo (libva-utils) — the VA-API codec probe. gpu-screen-recorder names it
+  # verbatim in its own "your gpu does not support 'vpX'" failure, and the
+  # capture tool cannot otherwise tell "this GPU cannot encode VP8" (a hardware
+  # limit, WebM's gsr default codec) from "the VA driver is not wired up" (a
+  # provisioning defect). From the launcher the two are indistinguishable: the
+  # `start` call reports success and no file ever appears.
+  libva-utils: libva-utils
   # Screenshot + clipboard stack (capture-tool shells grim/slurp/wl-copy;
   # the runtime clipboard watcher needs `wl-paste --watch`). These were
   # missing while verify stayed green — pinned in verify_system_binaries.

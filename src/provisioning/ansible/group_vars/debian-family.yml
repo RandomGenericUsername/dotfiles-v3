@@ -40,6 +40,11 @@ packages:
   pavucontrol: pavucontrol       # GUI mixer (debugging reference for the AGS audio popup)
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
+  # vainfo — VA-API codec probe (Arch: libva-utils; Debian: same name).
+  # Named verbatim in gpu-screen-recorder's "your gpu does not support 'vpX'"
+  # failure, so the capture tool can distinguish a hardware codec limit from a
+  # missing VA driver.
+  libva-utils: libva-utils
   # Screenshot + clipboard stack (same consumers as Arch; Debian names are
   # identical — all three exist under these names in the Debian archive).
   capture:
