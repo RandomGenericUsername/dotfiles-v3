@@ -33,11 +33,12 @@
 #? provisioning-owned btop.conf THROUGH the symlink and land the user's UI
 #? changes in version control. This line is what prevents that.
 #?
-#? Reload: btop resolves its theme at startup and on SIGUSR2
+#? Reload: btop honours SIGUSR2 as a full config + theme hot reload
 #? (btop.cpp:1053 -> reload_conf -> init_config + Theme::updateThemes() +
-#? Theme::setTheme()). Until a BtopReloader is wired, a wallpaper change
-#? reaches btop on its NEXT launch. Provisioning never terminates, signals,
-#? or relaunches a running btop.
+#? Theme::setTheme()). The runtime's BtopReloader sends it on every
+#? palette swap, so an OPEN btop re-themes live. Provisioning itself
+#? never signals a running btop — that is the runtime's job, and it
+#? happens only after the consumer pointer has been repointed.
 
 color_theme = "colors.btop.theme"
 save_config_on_exit = false
