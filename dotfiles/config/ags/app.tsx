@@ -4,20 +4,23 @@ import style from "./style.css"
 import Bar from "./bar/Bar"
 import { SettingsCatcher, SettingsPanel } from "./settings-panel/SettingsPanel"
 import { WifiPopup, WifiPopupCatcher } from "./components/wifi/WifiPopup"
+import { BluetoothPopup, BluetoothPopupCatcher } from "./components/bluetooth/BluetoothPopup"
 import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
 import { close as closeSettings } from "./settings-panel/state"
 import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
 import { close as closeAudio, debugAudioState } from "./audio/state"
+import { closeBluetoothPopup } from "./components/bluetooth/state"
 
 app.start({
   css: style,
   // External control surface for the popups: a Hyprland keybind runs
   // `ags request popup-close` because the popups run with keyboard mode NONE
   // (so plain Escape can't reach them without stealing app input). One global
-  // Esc dismisses whichever popup is open — settings or audio.
+  // Esc dismisses whichever popup is open — settings, Bluetooth or audio.
   requestHandler(argv: string[], res: (response: unknown) => void) {
     if (argv[0] === "popup-close") {
       closeSettings()
+      closeBluetoothPopup()
       closeAudio()
       res("ok")
       return
@@ -56,6 +59,10 @@ app.start({
       // Same ordering rule for the Wi-Fi popup: catcher first, popup above it.
       app.add_window(WifiPopupCatcher(primary))
       app.add_window(WifiPopup(primary))
+      // Same ordering rule for the Bluetooth popup: catcher first, popup above
+      // it.
+      app.add_window(BluetoothPopupCatcher(primary))
+      app.add_window(BluetoothPopup(primary))
       // Audio popup: catcher + popup, same stacking order.
       app.add_window(AudioCatcher(primary))
       app.add_window(AudioPopup(primary))
