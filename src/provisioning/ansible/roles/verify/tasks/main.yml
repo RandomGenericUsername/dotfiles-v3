@@ -16,14 +16,9 @@
 #   5. settings render and parse    → settings files exist AND spine targets
 #      resolve AND csg/weg/itr gates exit 0
 #   5b. btop config rendered+wired  → btop.conf selects
-#      colors.btop-minimal.theme,
-#      save_config_on_exit = false (the one non-cosmetic setting in the whole
-#      btop integration — see btop_config/vars), the spine btop/themes/ dir
-#      exists, and all three generated themes are present in it.
-#   5b. btop config rendered+wired  → btop.conf selects csg-minimal.theme,
-#      save_config_on_exit = false (the one non-cosmetic setting in the whole
-#      btop integration — see btop_config/vars), the spine btop/themes/ dir
-#      exists, and all three generated themes are present in it.
+#      colors.btop.theme, save_config_on_exit = false (the one non-cosmetic
+#      setting in the whole btop integration — see btop_config/vars), the
+#      spine btop/themes/ dir exists, and the generated theme is present in it.
 #   6. default palette generated    → the runtime-consumed palette at
 #      <state>/dotfiles/current/{colors.conf, colors.yaml, colors.gtk.css}
 #      (current-only, Epic 4 — the default_palette role is deleted; the
@@ -1196,7 +1191,7 @@
 # Three layers, in dependency order:
 #   1. the rendered btop.conf exists AND pins color_theme/save_config_on_exit
 #   2. the spine btop/themes/ dir exists (provisioning's, not the runtime's)
-#   3. all three generated themes are present and RESOLVE through the pointer
+#   3. the generated theme is present and RESOLVES through the pointer
 #      chain into a palette cache entry (follow: true — a dangling pointer is
 #      exactly the failure btop would silently degrade to Default_theme on)
 - name: Check rendered btop.conf exists
@@ -1264,7 +1259,7 @@
   loop: "{{ [verify_btop_themes_dir] + verify_btop_theme_paths }}"
   register: verify_btop_theme_checks
 
-- name: Assert btop themes dir exists and all three themes are present
+- name: Assert btop themes dir exists and the generated theme is present
   ansible.builtin.assert:
     that:
       - verify_btop_theme_checks.results[0].stat.isdir | default(false)
@@ -1281,7 +1276,7 @@
       {{ verify_btop_themes_dir }} — the runtime's
       repoint_consumer_symlinks skips a pointer whose parent is missing and
       NEVER mkdirs into the spine, so the first swap would silently drop all
-      three pointers; run the btop-config playbook. (b) the pointers exist but
+      the pointer; run the btop-config playbook. (b) the pointer exists but
       DANGLE (no palette cache entry behind them) — run
       `dotfiles-runtime wallpaper set <install>/wallpapers/default.png`. A
       dangling theme makes btop fall back to Default_theme with no error.

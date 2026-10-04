@@ -69,9 +69,9 @@ DEFAULT_THEME_COLORS: frozenset[str] = frozenset()  # superseded by default_fram
 WIDTH, HEIGHT, SETTLE_SECONDS = 200, 50, 4.0
 
 VARIANTS: tuple[ColorFormat, ...] = (
-    ColorFormat.BTOP_MINIMAL,
-    ColorFormat.BTOP_BALANCED,
-    ColorFormat.BTOP_FULL,
+    ColorFormat.BTOP,
+    ColorFormat.BTOP,
+    ColorFormat.BTOP,
 )
 
 _LIVE_RAMP = (
@@ -389,7 +389,7 @@ def test_harness_error_is_reported_as_failure_not_pass(
     inside ``assert_theme_applied``; that must be converted to ``HarnessError``
     (an AssertionError subclass) so pytest records a failure.
     """
-    theme = rendered_themes[ColorFormat.BTOP_MINIMAL.value]
+    theme = rendered_themes[ColorFormat.BTOP.value]
     staged = list(rendered_themes.values())
     with pytest.raises(HarnessError) as excinfo:
         assert_theme_applied(

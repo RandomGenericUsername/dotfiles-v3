@@ -13,11 +13,14 @@ re-derived from memory:
 * An empty ``<x>_mid`` / ``<x>_end`` is btop's documented two-stop gradient
   idiom (:260-264).
 
-The difficulty-dial assertions are the drift guard. The three templates are
-deliberately near-copies of one another and cannot share a partial (any extra
-``.j2`` in the templates directory is catalog-scanned and would be rejected
-as an unknown format), so "minimal vs balanced differ only in temp_*/cached_*"
-is what keeps the copies honest.
+An earlier revision shipped three templates as a "difficulty dial". That was
+removed: measured on a real host, ``balanced`` and ``full`` rendered BYTE-IDENTICAL
+frames and ``minimal`` differed only in a few gradient stops, because every
+large-area key was identical across all three. There is now ONE theme, so there
+is nothing to drift against -- but the assertions below still pin its gradient
+policy, and a shared partial remains impossible (any extra ``.j2`` in the
+templates directory is catalog-scanned and would be rejected as an unknown
+format).
 """
 
 from __future__ import annotations
@@ -71,20 +74,17 @@ GRADIENTS: tuple[str, ...] = (
 OUTLINE_KEYS: tuple[str, ...] = ("cpu_box", "mem_box", "net_box", "proc_box")
 OUTLINE_AND_DIV: tuple[str, ...] = (*OUTLINE_KEYS, "div_line")
 
-# variant name -> which gradients that variant forces semantic. This is the
-# difficulty dial, and it is asserted against the templates' own marker
-# comments as well as against their colours.
-SEMANTIC_BY_VARIANT: dict[str, tuple[str, ...]] = {
-    "minimal": (),
-    "balanced": ("temp", "cached"),
-    "full": ("temp", "cached", "cpu"),
-}
+# Which gradients the single theme forces to a semantic cool->warm ramp.
+# Asserted against the template's own marker comments as well as against its
+# colours, so the two cannot drift.
+#
+# An earlier three-variant "difficulty dial" (minimal/balanced/full) was
+# removed: measured on a real host, `balanced` and `full` rendered BYTE-IDENTICAL
+# frames and minimal differed only in a few gradient stops, because every
+# large-area key was identical across all three. See the template header.
+SEMANTIC_GRADIENTS: tuple[str, ...] = ("temp", "cached", "cpu")
 
-_VARIANTS: tuple[tuple[ColorFormat, str], ...] = (
-    (ColorFormat.BTOP_MINIMAL, "minimal"),
-    (ColorFormat.BTOP_BALANCED, "balanced"),
-    (ColorFormat.BTOP_FULL, "full"),
-)
+_VARIANTS: tuple[tuple[ColorFormat, str], ...] = ((ColorFormat.BTOP, "csg"),)
 _VARIANT_NAMES: tuple[str, ...] = tuple(n for _, n in _VARIANTS)
 _FMT_BY_NAME: dict[str, ColorFormat] = {n: f for f, n in _VARIANTS}
 
@@ -136,24 +136,27 @@ _LIVE_RAMP = (
 )
 
 
+_SCHEME = ColorScheme(
+    background=_c("#0b0b1a"),
+    foreground=_c("#c2c2c5"),
+    cursor=_c("#c2c2c5"),
+    colors=tuple(_c(h) for h in _LIVE_RAMP),
+    source_image=Path("/input/default.png"),
+    backend=Backend.PYWAL,
+    generated_at=datetime(2026, 9, 30, 13, 38, 39),
+)
+
+
 @pytest.fixture
 def scheme() -> ColorScheme:
-    return ColorScheme(
-        background=_c("#0b0b1a"),
-        foreground=_c("#c2c2c5"),
-        cursor=_c("#c2c2c5"),
-        colors=tuple(_c(h) for h in _LIVE_RAMP),
-        source_image=Path("/input/default.png"),
-        backend=Backend.PYWAL,
-        generated_at=datetime(2026, 9, 30, 13, 38, 39),
-    )
+    return _SCHEME
 
 
 @pytest.fixture
 def render_all(
     bundled_templates_dir: Path, scheme: ColorScheme, tmp_path: Path
 ) -> dict[str, Path]:
-    """Render all three variants through the real renderer."""
+    """Render the single theme through the real renderer."""
     renderer = JinjaTemplateRenderer(_BundledDirResolver(bundled_templates_dir))
     out: dict[str, Path] = {}
     for fmt, name in _VARIANTS:
@@ -277,7 +280,7 @@ class TestParserRules:
     def test_no_template_is_a_shared_partial(self, bundled_templates_dir: Path) -> None:
         """Every *.j2 must be a real format -- a partial would break csg entirely."""
         names = sorted(p.name for p in bundled_templates_dir.glob("*.j2"))
-        assert len(names) == 14
+        assert len(names) == 12
         for fmt, _ in _VARIANTS:
             assert f"colors.{fmt.value}.j2" in names
         for name in names:
@@ -296,74 +299,59 @@ class TestParserRules:
         assert {t.name for t in catalog.templates} == names
 
 
-# --- the difficulty dial ------------------------------------------------
+# --- the single theme's gradient policy ---------------------------------
 
 
-class TestDifficultyDial:
-    def test_minimal_and_balanced_differ_only_in_temp_and_cached(
+class TestGradientPolicy:
+    def test_semantic_gradients_declare_the_expected_set(
         self, render_all: dict[str, Path]
     ) -> None:
-        minimal = parse_theme(render_all["minimal"])
-        balanced = parse_theme(render_all["balanced"])
-        differing = {k for k in minimal if minimal[k] != balanced[k]}
-        allowed = {f"{g}_{s}" for g in ("temp", "cached") for s in ("start", "mid", "end")}
-        assert differing <= allowed, f"balanced drifted outside temp_*/cached_*: {differing}"
-        assert differing, "balanced must actually force something semantic"
+        """The template's own markers must declare exactly SEMANTIC_GRADIENTS."""
+        declared: set[str] = set()
+        for line in render_all["csg"].read_text().splitlines():
+            if line.startswith("# ") and ": SEMANTIC" in line:
+                declared.add(line[1:].split(":", 1)[0].strip())
+        assert declared == set(SEMANTIC_GRADIENTS)
 
-    def test_balanced_and_full_differ_only_in_cpu(
+    def test_non_semantic_gradients_stay_on_the_ramp(
         self, render_all: dict[str, Path]
     ) -> None:
-        balanced = parse_theme(render_all["balanced"])
-        full = parse_theme(render_all["full"])
-        differing = {k for k in balanced if balanced[k] != full[k]}
-        assert differing <= {"cpu_start", "cpu_mid", "cpu_end"}, (
-            f"full drifted outside cpu_*: {differing}"
-        )
-        assert differing, "full must actually force cpu semantic"
-
-    @pytest.mark.parametrize("variant", ["balanced", "full"])
-    def test_non_semantic_gradients_are_identical_to_minimal(
-        self, render_all: dict[str, Path], variant: str
-    ) -> None:
-        minimal = parse_theme(render_all["minimal"])
-        other = parse_theme(render_all[variant])
-        forced = set(SEMANTIC_BY_VARIANT[variant])
+        """A gradient not forced semantic must still be drawn from the palette."""
+        theme = parse_theme(render_all["csg"])
+        ramp = {c.hex for c in _SCHEME.colors}
         for gradient in GRADIENTS:
-            if gradient in forced:
+            if gradient in SEMANTIC_GRADIENTS:
                 continue
-            assert _stops(other, gradient) == _stops(minimal, gradient), (
-                f"{variant}: {gradient} is not forced semantic but changed anyway"
-            )
+            for stop in _stops(theme, gradient):
+                # download/upload omit their _mid on purpose: an empty value is
+                # btop's documented two-stop-gradient idiom, not a colour.
+                if stop == "":
+                    continue
+                assert stop in ramp, f"{gradient}: stop {stop} is not from the palette"
 
-    def test_forced_gradients_actually_change(self, render_all: dict[str, Path]) -> None:
-        """Forcing a gradient semantic must visibly move its stops."""
-        minimal = parse_theme(render_all["minimal"])
-        balanced = parse_theme(render_all["balanced"])
-        full = parse_theme(render_all["full"])
-        for gradient in ("temp", "cached"):
-            assert _stops(balanced, gradient) != _stops(minimal, gradient), gradient
-        assert _stops(full, "cpu") != _stops(balanced, "cpu")
+    def test_forced_gradients_are_not_the_plain_ramp(
+        self, render_all: dict[str, Path]
+    ) -> None:
+        """A forced-semantic gradient must be b*-ordered, not luminance-ordered.
 
-    def test_semantic_set_is_a_superset_chain(self, render_all: dict[str, Path]) -> None:
-        declared: dict[str, set[str]] = {}
-        for variant in _VARIANT_NAMES:
-            found = set()
-            for line in render_all[variant].read_text().splitlines():
-                if line.startswith("# ") and ": SEMANTIC" in line:
-                    found.add(line[1:].split(":", 1)[0].strip())
-            declared[variant] = found
-
-        assert declared["minimal"] == set()
-        assert declared["balanced"] == {"temp", "cached"}
-        assert declared["full"] == {"temp", "cached", "cpu"}
-        assert declared["minimal"] <= declared["balanced"] <= declared["full"]
+        The semantic stops are ranked by CIELAB b* (blue<->warm), so for a
+        palette whose luminance order disagrees with its b* order they must
+        differ. Asserted structurally rather than per-palette: the stops are
+        ordered by b*, which the monotonicity test already pins.
+        """
+        theme = parse_theme(render_all["csg"])
+        for gradient in SEMANTIC_GRADIENTS:
+            stops = _stops(theme, gradient)
+            assert stops, gradient
+            bvals = [_lab_bstar(_rgb(s)) for s in stops]
+            assert bvals == sorted(bvals), f"{gradient}: stops not b*-ordered: {stops}"
 
     @pytest.mark.parametrize("variant", _VARIANT_NAMES)
     def test_markers_name_every_gradient(
         self, render_all: dict[str, Path], variant: str
     ) -> None:
         text = render_all[variant].read_text()
-        semantic = set(SEMANTIC_BY_VARIANT[variant])
+        semantic = set(SEMANTIC_GRADIENTS)
         for gradient in GRADIENTS:
             marker = f"# {gradient}: "
             assert marker in text, f"{variant}: no marker for {gradient}"
@@ -468,9 +456,7 @@ class TestRenderPath:
         assert result.success is True, result.stderr
         produced = sorted(p.name for p in out_dir.iterdir())
         assert produced == [
-            "colors.btop-balanced.theme",
-            "colors.btop-full.theme",
-            "colors.btop-minimal.theme",
+            "colors.btop.theme",
         ]
         assert {out_dir / name for name in produced} == set(result.output_files)
         for name in produced:
@@ -492,10 +478,10 @@ class TestRenderPath:
     ) -> None:
         renderer = JinjaTemplateRenderer(_BundledDirResolver(bundled_templates_dir))
         first = tmp_path / "a.theme"
-        renderer.render("colors.btop-full.theme.j2", scheme, first)
+        renderer.render("colors.btop.theme.j2", scheme, first)
         with tempfile.TemporaryDirectory() as td:
-            other = Path(td) / "colors.btop-full.theme"
-            renderer.render("colors.btop-full.theme.j2", scheme, other)
+            other = Path(td) / "colors.btop.theme"
+            renderer.render("colors.btop.theme.j2", scheme, other)
             second_bytes = other.read_bytes()
         assert first.read_bytes() == second_bytes
 
@@ -509,7 +495,7 @@ class TestSemanticMonotonicity:
         self, render_all: dict[str, Path], variant: str
     ) -> None:
         parsed = parse_theme(render_all[variant])
-        for gradient in SEMANTIC_BY_VARIANT[variant]:
+        for gradient in SEMANTIC_GRADIENTS:
             values = [parsed[f"{gradient}_{s}"] for s in ("start", "mid", "end")]
             assert all(values), f"{gradient}: an empty stop"
             warmths = [_warmth(v) for v in values]
@@ -518,18 +504,17 @@ class TestSemanticMonotonicity:
                 f"{values} -> b* {warmths}"
             )
 
-    @pytest.mark.parametrize("variant", ["balanced", "full"])
     def test_semantic_stops_are_legibly_separated(
-        self, render_all: dict[str, Path], variant: str
+        self, render_all: dict[str, Path]
     ) -> None:
         """A semantic ramp that collapses to one colour is not a semantic ramp."""
-        parsed = parse_theme(render_all[variant])
-        for gradient in SEMANTIC_BY_VARIANT[variant]:
+        parsed = parse_theme(render_all["csg"])
+        for gradient in SEMANTIC_GRADIENTS:
             values = _stops(parsed, gradient)
             assert len(set(values)) >= 2, f"{gradient} collapsed to {values[0]}"
             gaps = [abs(_warmth(values[i + 1]) - _warmth(values[i])) for i in range(2)]
             assert min(gaps) > 5.0, (
-                f"{variant} {gradient}: adjacent semantic stops are within 5 CIELAB b* "
+                f"{gradient}: adjacent semantic stops are within 5 CIELAB b* "
                 f"units, which is not legible: {values}"
             )
 
@@ -561,10 +546,9 @@ class TestSemanticMonotonicity:
             assert parsed["download_mid"] == ""
             assert parsed["process_end"]
             rendered.append(parsed)
-        # The dial collapses -- every semantic pick lands on the same stop --
-        # but it collapses VALIDLY, and all three variants agree on every value.
-        # (The header comments still differ by design: they name the variant.)
-        assert rendered[0] == rendered[1] == rendered[2]
+        # Every semantic pick lands on the same stop, so the theme collapses --
+        # but it collapses VALIDLY: still 48 keys, still a valid value grammar.
+        assert len(rendered) == 1
 
     def test_relative_semantics_survive_a_palette_change(
         self, bundled_templates_dir: Path, tmp_path: Path
@@ -598,7 +582,7 @@ class TestSemanticMonotonicity:
                 path = tmp_path / f"{variant}-{sc.background.hex}.theme"
                 renderer.render(f"colors.{fmt.value}.j2", sc, path)
                 parsed = parse_theme(path)
-                for gradient in SEMANTIC_BY_VARIANT[variant]:
+                for gradient in SEMANTIC_GRADIENTS:
                     values = [parsed[f"{gradient}_{s}"] for s in ("start", "mid", "end")]
                     warmths = [_warmth(v) for v in values]
                     assert warmths[0] <= warmths[1] <= warmths[2], (

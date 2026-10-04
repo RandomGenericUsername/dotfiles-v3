@@ -69,7 +69,7 @@ if _ANSIBLE_PLAYBOOK is None:
     )
 
 _DIFFICULTIES = ("minimal", "balanced", "full")
-_SELECTED = "colors.btop-minimal.theme"
+_SELECTED = "colors.btop.theme"
 
 # btop's Theme parser: `key="#rrggbb"`, `#` comments only at column 0. Colors
 # here are deliberately outside btop's Default_theme palette so "our colors

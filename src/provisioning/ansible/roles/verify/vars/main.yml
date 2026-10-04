@@ -602,26 +602,24 @@ verify_btop_spine_dir: "{{ install_dir | trim }}/config/btop"
 
 # verify_btop_config_path: the RENDERED btop.conf. Read (not just stat'd) so
 #   verify can pin the two settings that matter: color_theme =
-#   "csg-minimal.theme" and save_config_on_exit = false.
+#   "colors.btop.theme" and save_config_on_exit = false.
 verify_btop_config_path: "{{ verify_btop_spine_dir }}/btop.conf"
 
 # verify_btop_themes_dir: the themes subdirectory btop scans at startup. It is
 #   PROVISIONING's to create (the btop_config role `state: directory`s it) —
 #   the runtime's repoint_consumer_symlinks skips a pointer whose parent is
 #   missing and never mkdirs into the spine. Gating it here is what makes a
-#   missing dir fail loudly instead of silently dropping all three pointers on
+#   missing dir fail loudly instead of silently dropping the pointer on
 #   the first swap.
 verify_btop_themes_dir: "{{ verify_btop_spine_dir }}/themes"
 
-# verify_btop_theme_files: the three generated btop themes, by NAME under
-#   verify_btop_themes_dir (Runtime consumer pointers at current/, placed by
-#   the seeder). All three are gated — not just the selected one — because
-#   btop lists every discovered entry in its theme menu and the difficulty dial
-#   (minimal / balanced / full) is only real if all three are reachable.
+# verify_btop_theme_files: the generated btop theme, by NAME under
+#   verify_btop_themes_dir (a Runtime consumer pointer at current/, placed by
+#   the seeder). There is ONE theme: an earlier three-variant "difficulty dial"
+#   was measured to be non-distinguishable (balanced and full rendered
+#   byte-identical frames) and was collapsed.
 verify_btop_theme_files:
-  - colors.btop-minimal.theme
-  - colors.btop-balanced.theme
-  - colors.btop-full.theme
+  - colors.btop.theme
 
 # verify_btop_theme_paths: verify_btop_theme_files resolved under
 #   verify_btop_themes_dir (trim lock — the names stay bare so the theme set
@@ -634,7 +632,7 @@ verify_btop_theme_paths: >-
 #   verify greps out of the rendered btop.conf. Pinned as vars (not inlined in
 #   the task) so the expected values have exactly one home and a test can
 #   compare them against the role's template.
-verify_btop_theme_selected: colors.btop-minimal.theme
+verify_btop_theme_selected: colors.btop.theme
 verify_btop_save_config_on_exit: "false"
 
 # verify_gtk_skeleton_files: the palette-import skeleton files that must be

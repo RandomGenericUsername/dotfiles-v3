@@ -14,14 +14,13 @@
 #? Default_theme SILENTLY (btop_theme.cpp:451-471), which is why this is a
 #? filename and not a path to the runtime's current/. The file it names is a
 #? runtime consumer pointer at
-#? <install>/config/btop/themes/colors.btop-minimal.theme ->
-#? <state>/dotfiles/current/colors.btop-minimal.theme. The other two generated
-#? themes (balanced, full) sit beside it and are one menu selection away.
+#? <install>/config/btop/themes/colors.btop.theme ->
+#? <state>/dotfiles/current/colors.btop.theme.
 #? Theme::updateThemes (:430-442) filters on extension() == ".theme" (lexical,
 #? reads the LINK's own name) and access(R_OK) (follows the chain), so the
 #? symlink is invisible to btop.
 #?
-#? NOTE the value is the FILE's basename (colors.btop-minimal.theme), NOT a
+#? NOTE the value is the FILE's basename (colors.btop.theme), NOT a
 #? csg-prefixed alias. setTheme compares `color_theme` against the discovered
 #? entries by full path, filename, or STEM — a value that matches none of those
 #? is not an error, it is a silent fallback to Default_theme, which is exactly
@@ -34,9 +33,11 @@
 #? provisioning-owned btop.conf THROUGH the symlink and land the user's UI
 #? changes in version control. This line is what prevents that.
 #?
-#? Reload: btop resolves its theme once at startup and exposes no reload
-#? signal, so a wallpaper change reaches btop on its NEXT launch. Provisioning
-#? never terminates, signals, or relaunches a running btop.
+#? Reload: btop resolves its theme at startup and on SIGUSR2
+#? (btop.cpp:1053 -> reload_conf -> init_config + Theme::updateThemes() +
+#? Theme::setTheme()). Until a BtopReloader is wired, a wallpaper change
+#? reaches btop on its NEXT launch. Provisioning never terminates, signals,
+#? or relaunches a running btop.
 
-color_theme = "colors.btop-minimal.theme"
+color_theme = "colors.btop.theme"
 save_config_on_exit = false

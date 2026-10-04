@@ -184,9 +184,7 @@ table entry, never bespoke code):
 | `<install>/config/gtk-3.0/colors.css` | `current/colors.gtk.css` | runtime seeder + reconcile loop |
 | `<install>/config/gtk-4.0/colors.css` | `current/colors.adw.css` | runtime seeder + reconcile loop |
 | `<install>/config/rofi/colors.rasi` | `current/colors.rasi` | runtime seeder + reconcile loop |
-| `<install>/config/btop/themes/colors.btop-minimal.theme` | `current/colors.btop-minimal.theme` | runtime seeder + reconcile loop |
-| `<install>/config/btop/themes/colors.btop-balanced.theme` | `current/colors.btop-balanced.theme` | runtime seeder + reconcile loop |
-| `<install>/config/btop/themes/colors.btop-full.theme` | `current/colors.btop-full.theme` | runtime seeder + reconcile loop |
+| `<install>/config/btop/themes/colors.btop.theme` | `current/colors.btop.theme` | runtime seeder + reconcile loop |
 
 Rules (pinned, implemented once in `CacheSeeder.repoint_consumer_symlinks`):
 palette null → pointer removed (`missing_ok`); regular file at destination →
@@ -195,7 +193,7 @@ skip+warn (never mkdir into the spine); missing target artifact → skip+warn
 (never a dangling consumer link). Health of all pointers is projected by
 `inspect status` from the same spec.
 
-The three `btop/themes/` pointers are the only entries whose destination
+The `btop/themes/` pointer is the only entry whose destination
 basename MUST equal the cache artifact name: btop resolves its
 `color_theme` by matching that name against the themes it discovered while
 scanning its own theme dir at startup, and an unmatched value falls back to
@@ -205,7 +203,7 @@ provisioning's (`btop_config` role — the seeder never mkdirs into the spine).
 
 Palette artifact set (gt-2-1 / add-rofi-app-launcher / add-runtime-btop-theme-artifacts): `colors.yaml`, `colors.conf`, `colors.gtk.css`,
 `colors.adw.css`, `colors.sequences`, `colors.rasi`, `colors.kitty`,
-`colors.btop-minimal.theme`, `colors.btop-balanced.theme`, `colors.btop-full.theme` — all
+`colors.btop.theme` — all
 sha256-addressed in per-entry `meta.json`; keys unchanged (`sha256(ph‖templates)`). Terminal palette is
 applied from `current/colors.sequences`; the rofi root pointer
 (`config/rofi/colors.rasi`) feeds every rofi tool via `@import "../colors.rasi"`;

@@ -8,7 +8,7 @@
 #   deliberately never defaulted (group_vars/all.yml), so a missing spine root
 #   aborts before anything evaluates.
 # - The rendered btop.conf carries exactly TWO settings:
-#     color_theme = "csg-minimal.theme"
+#     color_theme = "colors.btop.theme"
 #     save_config_on_exit = false
 #   Every other btop setting is deliberately ABSENT so btop applies its own
 #   defaults (design D6 — stock values, auditable surface).

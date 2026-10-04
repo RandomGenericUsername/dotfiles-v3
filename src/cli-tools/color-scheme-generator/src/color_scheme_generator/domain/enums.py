@@ -47,9 +47,7 @@ class ColorFormat(Enum):
     # semantic, full additionally forces cpu_*. A member and its
     # colors.<value>.j2 template are one inseparable unit: an unregistered
     # template raises TemplatesValidationError and breaks csg entirely.
-    BTOP_MINIMAL = "btop-minimal.theme"
-    BTOP_BALANCED = "btop-balanced.theme"
-    BTOP_FULL = "btop-full.theme"
+    BTOP = "btop.theme"
 
 
 class RuntimeMode(Enum):

@@ -84,28 +84,28 @@ def test_load_discovers_kitty_format(tmp_path: Path) -> None:
     assert catalog.templates[0].name == "colors.kitty.j2"
 
 
-def test_load_discovers_all_three_btop_theme_formats(tmp_path: Path) -> None:
-    for name in ("btop-minimal.theme", "btop-balanced.theme", "btop-full.theme"):
+def test_load_discovers_the_btop_theme_format(tmp_path: Path) -> None:
+    for name in ("btop.theme",):
         (tmp_path / f"colors.{name}.j2").write_text("x")
 
     resolver = MagicMock()
     loader = DirectoryTemplateCatalogLoader(resolver)
     catalog = loader.load(explicit_dir=tmp_path)
 
-    assert len(catalog.templates) == 3
+    assert len(catalog.templates) == 1
     by_format = {t.format: t for t in catalog.templates}
     assert set(by_format) == {
-        ColorFormat.BTOP_MINIMAL,
-        ColorFormat.BTOP_BALANCED,
-        ColorFormat.BTOP_FULL,
+        ColorFormat.BTOP,
+        ColorFormat.BTOP,
+        ColorFormat.BTOP,
     }
-    assert by_format[ColorFormat.BTOP_MINIMAL].name == "colors.btop-minimal.theme.j2"
-    assert by_format[ColorFormat.BTOP_BALANCED].name == "colors.btop-balanced.theme.j2"
-    assert by_format[ColorFormat.BTOP_FULL].name == "colors.btop-full.theme.j2"
+    assert by_format[ColorFormat.BTOP].name == "colors.btop.theme.j2"
+    assert by_format[ColorFormat.BTOP].name == "colors.btop.theme.j2"
+    assert by_format[ColorFormat.BTOP].name == "colors.btop.theme.j2"
 
 
 def test_load_btop_theme_dir_rejects_unknown_sibling(tmp_path: Path) -> None:
-    for name in ("btop-minimal.theme", "btop-balanced.theme", "btop-full.theme"):
+    for name in ("btop.theme",):
         (tmp_path / f"colors.{name}.j2").write_text("x")
     (tmp_path / "colors.btop-base.j2").write_text("x")
 

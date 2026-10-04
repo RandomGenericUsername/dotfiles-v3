@@ -869,15 +869,13 @@ class TestVerifyTasks:
 
     def test_btop_vars_pin_the_two_critical_values(self) -> None:
         data = _vars()
-        assert data["verify_btop_theme_selected"] == "colors.btop-minimal.theme", (
+        assert data["verify_btop_theme_selected"] == "colors.btop.theme", (
             "verify must pin the theme by the FILE NAME btop matches on — a "
             "csg-prefixed alias would never match a discovered entry"
         )
         assert str(data["verify_btop_save_config_on_exit"]) == "false"
         assert [str(f) for f in data["verify_btop_theme_files"]] == [
-            "colors.btop-minimal.theme",
-            "colors.btop-balanced.theme",
-            "colors.btop-full.theme",
+            "colors.btop.theme",
         ]
         assert str(data["verify_btop_spine_dir"]) == "{{ install_dir | trim }}/config/btop"
         assert str(data["verify_btop_config_path"]) == "{{ verify_btop_spine_dir }}/btop.conf"
@@ -2519,20 +2517,19 @@ def _build_provisioned_layout(
     )
     # Rendered btop config (btop_config role): verify pins BOTH non-default
     # settings — the selected theme NAME and save_config_on_exit = false — and
-    # the three generated theme files, which are consumer POINTERS at
-    # current/ (stat'ed with follow: true, so a dangling pointer fails).
+    # the generated theme file, which is a consumer POINTER at current/
+    # (stat'ed with follow: true, so a dangling pointer fails).
     (install / "config" / "btop" / "btop.conf").write_text(
         "#? managed by provisioning\n"
-        'color_theme = "colors.btop-minimal.theme"\n'
+        'color_theme = "colors.btop.theme"\n'
         "save_config_on_exit = false\n"
     )
-    for difficulty in ("minimal", "balanced", "full"):
-        name = f"colors.btop-{difficulty}.theme"
-        (state_cache_palette / name).write_text("")
-        (state_current / name).symlink_to(state_cache_palette / name)
-        (install / "config" / "btop" / "themes" / name).symlink_to(
-            state_current / name
-        )
+    _btop_theme = "colors.btop.theme"
+    (state_cache_palette / _btop_theme).write_text("")
+    (state_current / _btop_theme).symlink_to(state_cache_palette / _btop_theme)
+    (install / "config" / "btop" / "themes" / _btop_theme).symlink_to(
+        state_current / _btop_theme
+    )
 
     # Shell-tools clones (zsh_tools role — done-criterion 11): verify checks
     # ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist as dirs (in the HOME the playbook
