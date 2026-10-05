@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates gates-ci capture-types capture-typecheck capture-test capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates gates-ci capture-types capture-typecheck capture-test capture-test-deps capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -144,17 +144,45 @@ capture-typecheck: capture-types
 # the app sources stay idiomatic. See the file for why this is not solved by
 # rewriting app imports to `./x.ts`.
 CAPTURE_TS_TESTS := $(CAPTURE_DIR)/tests/ts
-capture-test:
+
+# The dependencies this gate needs, installed on demand, in the same shape
+# `capture-typecheck` already uses for typescript (`npm install --no-save
+# --no-package-lock`, into gitignored node_modules, no package.json committed).
+# A gate that cannot run on a clean checkout is not a gate, so it DECLARES what
+# it needs rather than inheriting whatever the machine happens to have. Both
+# installs are idempotent: the guards skip the network round-trip when the
+# package is already there.
+#
+# @types/node MUST land under $(CAPTURE_DIR)/tests/ and nowhere else. The app
+# config pins `"types": []` (harden-capture-typecheck-config), so a reachable
+# @types/node no longer widens the GJS program — but keeping it out of the
+# typeRoots walk is the second half of that fix, not an optional extra. Moving
+# it to the repo root or to capture-tool/ puts 66 of its files one
+# accidentally-deleted pin away from being ambient in app code. tests/ is below
+# the app config's directory, so the upward walk never descends into it. The
+# path is gitignored explicitly (see .gitignore) because the capture tool's
+# placement is per-file and a committed node_modules is a deployment hazard.
+#
+# A separate npm project (--prefix, no package.json) also means this install
+# cannot PRUNE the root one: `npm install --no-save X` at the repo root removes
+# previously --no-save'd packages, which is how a previous measurement in this
+# repo's history turned into a false green.
+capture-test-deps:
+	@if [ ! -x node_modules/.bin/tsc ]; then \
+		echo "==> capture-test: installing typescript (npm install --no-save, ignored by git)"; \
+		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
+	fi
+	@if [ ! -d $(CAPTURE_DIR)/tests/node_modules/@types/node ]; then \
+		echo "==> capture-test: installing @types/node under $(CAPTURE_DIR)/tests/ (gitignored)"; \
+		npm install --no-save --no-package-lock --prefix $(CAPTURE_DIR)/tests @types/node@24 >/dev/null || exit 1; \
+	fi
+
+capture-test: capture-test-deps
 	@echo "==> capture-test: node --test $(CAPTURE_TS_TESTS)"
 	node --import ./$(CAPTURE_TS_TESTS)/resolve-hooks.mjs --test $(CAPTURE_TS_TESTS)/*.test.ts
-	@if [ -x node_modules/.bin/tsc ]; then \
-		echo "==> capture-test: tsc --noEmit -p $(CAPTURE_DIR)/tests/tsconfig.tests.json"; \
-		npx tsc --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1; \
-		echo "    OK: 0 type errors in the domain unit tests"; \
-	else \
-		echo "NOTE: typescript not installed, skipping the test-file typecheck."; \
-		echo "      (run 'make capture-typecheck' once to install it; the tests above still ran)"; \
-	fi
+	@echo "==> capture-test: tsc --noEmit -p $(CAPTURE_DIR)/tests/tsconfig.tests.json"
+	npx tsc --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1
+	@echo "    OK: 0 type errors in the domain unit tests"
 
 # Hexagonal structure + class-vocabulary gate for the capture GUI
 # (scripts/capture-hexagonal-gate.py, design.md §5). "Refactor only, zero

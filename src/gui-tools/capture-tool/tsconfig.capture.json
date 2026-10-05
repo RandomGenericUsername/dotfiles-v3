@@ -45,14 +45,18 @@
     // directory upwards — so the app's ambient surface silently depended on
     // where a directory happened to live.
     //
-    // Today @types/node sits at tests/node_modules/, which that walk does not
-    // descend into, so the app is clean BY LUCK. Move @types/node anywhere the
-    // walk reaches (capture-tool/node_modules/, or the repo root) and 83 of its
-    // files join the app program — verified with `tsc --listFiles`. That puts
-    // Node's globals in scope for GJS code that must not use them.
+    // Today @types/node sits at tests/node_modules/ — installed there on demand
+    // by `make capture-test` — which that walk does not descend into, so the app
+    // is clean by TWO independent guards rather than by luck. Move @types/node
+    // anywhere the walk reaches (capture-tool/node_modules/, or the repo root)
+    // and 66 of its files join the app program — verified with `tsc --listFiles`
+    // at this revision. That puts Node's globals in scope for GJS code that must
+    // not use them, so the install location below is a real constraint and not
+    // a preference.
     //
     // `[]` makes that arrangement stop mattering: the surface is empty whether
-    // or not @types/node is reachable. The tests are a SEPARATE project
+    // or not @types/node is reachable, and `make capture-test` keeps the install
+    // out of the walk anyway. Two guards, deliberately. The tests are a SEPARATE project
     // (tests/tsconfig.tests.json) which asks for `"types": ["node"]` by name,
     // so they still get exactly what they need.
     //

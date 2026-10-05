@@ -92,9 +92,13 @@ The test SHALL ALSO include an assertion measured by the real compiler: running
 from `@types/node` are in the program. This measures what the config actually
 admitted rather than re-deriving `typeRoots` resolution.
 
-Where TypeScript is not resolvable, that compiler-evidence case SHALL skip with a
-console note, matching the `capture-test` target's existing behaviour, and the
-static assertions SHALL still run.
+**Superseded** by `declare-capture-test-dependencies`, which removed the
+skip-if-TypeScript-absent branch and replaced the non-vacuity guard with a
+positive control. That change also scoped the 0-app-errors assertion to the
+desktop-free layer, because the full app program needs the generated `@girs/`
+closure and therefore cannot be asserted on a CI runner. The requirement to
+assert zero `@types/node` files in the app program, measured by the real
+compiler, is unchanged and still in force.
 
 #### Scenario: The guard fails when the pin is removed
 
@@ -109,16 +113,3 @@ static assertions SHALL still run.
 - **WHEN** the regression test runs
 - **THEN** the compiler-evidence case fails, reporting that `@types/node` leaked
   into the app program and how many files
-
-#### Scenario: The guard passes when the fix is in place regardless of layout
-
-- **GIVEN** `tsconfig.capture.json` as committed with `"types": []`
-- **AND** `@types/node` installed at any location the default walk reaches
-- **WHEN** the regression test runs
-- **THEN** all cases pass
-
-#### Scenario: The compiler-evidence case cannot pass vacuously
-
-- **WHEN** the compiler-evidence case runs
-- **THEN** it also asserts that `tsc --listFiles` returned a non-trivial program, so
-  an empty result cannot satisfy it

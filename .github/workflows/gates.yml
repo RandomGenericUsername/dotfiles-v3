@@ -87,13 +87,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      # No `npm install` here, on purpose. `make capture-test` runs the 115
-      # domain assertions with `node --test` and nothing else is needed. Its
-      # optional tsc pass over the test files is guarded by `if [ -x
-      # node_modules/.bin/tsc ]` inside the target and self-skips with a printed
-      # NOTE when TypeScript is absent, which is exactly what happens on a clean
-      # checkout. Installing TypeScript here would also surface the pre-existing
-      # missing-@types/node failure (TS2688) described in the openspec change —
-      # a real finding, but a separate fix from "make CI run".
+      # No `npm install` step here, on purpose: `make capture-test` DECLARES its
+      # own dependencies and installs them on demand via its capture-test-deps
+      # target — typescript at the repo root, @types/node under
+      # src/gui-tools/capture-tool/tests/ — in the same
+      # `npm install --no-save --no-package-lock` shape `capture-typecheck`
+      # already uses for typescript. A gate that installs what it needs cannot
+      # be run at reduced strength by a clean checkout, and CI runs exactly the
+      # same 115 assertions and the same tsc pass a developer does: 115 pass,
+      # 0 fail, 0 skipped.
       - name: Capture domain unit tests
         run: make capture-test
