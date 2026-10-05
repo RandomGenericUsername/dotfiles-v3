@@ -63,6 +63,14 @@ ANCHORS = [
     # settings panel
     "panel-subview",
     "panel-tile",
+    # pairing flows: the four scenarios behind the owner's "if I stop blueman,
+    # do I lose PIN pairing?" question, then the decision table. Placed after
+    # the settings panel, which is the last cell before them.
+    "flow-a-justworks",
+    "flow-b-pin-blueman",
+    "flow-c-pin-noapplet",
+    "flow-d-pin-inpanel",
+    "pairing-decision",
 ]
 
 #: State -> owning TSX file(s), paths relative to the AGS root
@@ -114,6 +122,38 @@ STATE_TSX = {
         "settings-panel/controls/bluetooth.tsx",  # CapabilityTile
         "settings-panel/primitives.tsx",  # CapabilityTile body
     ],
+    # The four pairing scenarios. Every panel inside them is one of the popup
+    # states already mapped above (popup-not-connected / popup-pairing /
+    # popup-failed), so BluetoothContent.tsx is the owner. bluetooth-agent.ts
+    # is mapped too because it is the file that decides WHICH scenario you are
+    # in: its registered capability is the only difference between A, B and C.
+    "flow-a-justworks": [
+        "components/bluetooth/BluetoothContent.tsx",  # the pairing row states
+        "settings-panel/bluetooth-agent.ts",  # NoInputNoOutput auto-accept
+    ],
+    "flow-b-pin-blueman": [
+        "components/bluetooth/BluetoothContent.tsx",  # "Pairing…" + 30s hint
+        "settings-panel/bluetooth-agent.ts",  # why the panel is NOT asked
+    ],
+    "flow-c-pin-noapplet": [
+        "components/bluetooth/BluetoothContent.tsx",  # "Pairing timed out"
+        "services/bluetooth-service.ts",  # WATCHDOG_MS = 30000
+        "settings-panel/bluetooth-agent.ts",  # no capable agent anywhere
+    ],
+    # PROPOSAL, not built. Mapped to the files that WOULD own it so the gap
+    # entries below have a real target rather than a vague one.
+    "flow-d-pin-inpanel": [
+        "components/bluetooth/BluetoothContent.tsx",  # would host the prompt
+        "components/bluetooth/BluetoothPopup.tsx",  # would lift Keymode.NONE
+        "settings-panel/bluetooth-agent.ts",  # would need KeyboardOnly
+    ],
+    # The decision table. It describes the code's behaviour rather than adding
+    # surface, so it maps to the same owners as the scenarios it compares.
+    "pairing-decision": [
+        "components/bluetooth/BluetoothContent.tsx",
+        "services/bluetooth-service.ts",
+        "settings-panel/bluetooth-agent.ts",
+    ],
 }
 
 #: Mock-only scaffolding: page chrome and structural glue with no shipped
@@ -164,6 +204,35 @@ ALLOWLIST = {
         "mock-only dimming for the insensitive switch in the no-adapter state; "
         "shipped as the Gtk.Switch `sensitive={false}` property, not a class"
     ),
+    # ── pairing-flows annotation chrome ────────────────────────────────────
+    # These exist ONLY to lay out the four pairing scenarios side by side and
+    # to caption them. None of them describes a widget, and none may ever be
+    # read as a shippable design: strip the .surface out of a .step and there
+    # is nothing left. The only classes in that section which DO describe a
+    # would-be surface are .pinbox / .pinfld, and those are KNOWN_GAPS below.
+    "flow": "mock pairing-flows scenario wrapper (header + strip); no shipped counterpart",
+    "strip": "mock left-to-right run of pairing steps; no shipped counterpart",
+    "step": "mock one step of a pairing strip (panel + caption); no shipped counterpart",
+    "arrow": "mock separator between pairing steps, optionally captioned; no shipped counterpart",
+    "deadend": (
+        "mock marker for a path that cannot complete (dashed edge + hatch, no "
+        "opacity drop so the shipped failure line stays legible). NOT a shipped "
+        "state; it annotates popup-failed, which is itself already covered"
+    ),
+    "prov": (
+        "mock marker for 'drawn but not built' — the dashed ribbon on option D "
+        "and the pair/scenario header chips. Ships nothing; it exists so no "
+        "reader mistakes a proposal for a shipped surface"
+    ),
+    "bad": "mock negative modifier on a .badge verdict chip; ships as no badge variant today",
+    "win": (
+        "mock frame for the Blueman PIN window in scenario B. Deliberately "
+        "un-themed, because it is a GTK app and NOT an AGS surface -- the "
+        "visual mismatch IS the finding. No shipped counterpart, none wanted"
+    ),
+    "wintitle": "mock title bar of the .win foreign-window sketch; no shipped counterpart",
+    "winbody": "mock body box of the .win foreign-window sketch; no shipped counterpart",
+    "tbl": "mock decision table for the three options; a comparison, not a surface",
 }
 
 #: Mock token -> shipped equivalent class, where the code uses a renamed or
@@ -192,6 +261,31 @@ KNOWN_GAPS = {
         "T6.6 -- the settings tile's selected-state fill; the mock previews it, "
         "but the shipped CapabilityTile has no selected modifier today and the "
         "subview is reached by navigation rather than by a persistent selection"
+    ),
+    # ── option D: PIN entry in the panel ───────────────────────────────────
+    # NOT SCHEDULED, and there is no task to name. This is deliberate rather
+    # than an oversight: "No PIN/passkey entry in the panel" is an explicit
+    # non-goal in proposal.md, so option D is drawn in the mock as a PROPOSAL
+    # (dashed surface border + .prov ribbon) purely so the owner can compare
+    # it against A and C. Shipping it would be a NEW change needing all three
+    # of: the agent's registered capability raised from NoInputNoOutput to
+    # KeyboardOnly/KeyboardDisplay (bluetooth-agent.ts), a PIN prompt in
+    # BluetoothContent.tsx, and BluetoothPopup.tsx's Keymode.NONE lifted to
+    # ON_DEMAND -- the last being a consequence of having a typed field at all.
+    "pinbox": (
+        "NOT SCHEDULED / explicit non-goal in proposal.md -- option D's PIN "
+        "prompt card. Needs the agent capability raised to KeyboardOnly in "
+        "bluetooth-agent.ts, a prompt in BluetoothContent.tsx, and "
+        "BluetoothPopup.tsx's Keymode.NONE lifted to ON_DEMAND. A new change, "
+        "not a task in add-bluetooth-bar-popup"
+    ),
+    "pinfld": (
+        "NOT SCHEDULED / explicit non-goal in proposal.md -- option D's PIN "
+        "entry, drawn in the shape of WifiContent.tsx's WifiPasswordPrompt "
+        "(.settings-field-input) so the Wi-Fi parallel is visible. Whether it "
+        "would be a Gtk.PinEntry or an entry plus keypad is undecided; the mock "
+        "deliberately draws neither keypad nor hide/reveal eye, so it does not "
+        "over-specify the proposal"
     ),
 }
 

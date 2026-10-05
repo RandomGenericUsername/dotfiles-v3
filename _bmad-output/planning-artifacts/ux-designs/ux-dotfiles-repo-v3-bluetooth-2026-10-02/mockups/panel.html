@@ -192,6 +192,119 @@
   .barpair{display:flex;align-items:center;gap:calc(6px * var(--s))}
   .stem{width:calc(2px * var(--s));height:calc(13px * var(--s));background:var(--sel);margin:0 auto}
   .stack{display:flex;flex-direction:column;align-items:center}
+
+  /* ═══ pairing-flows — mock-only annotation chrome ═════════════════════
+     Everything in this block is DOCUMENTATION, not a surface. Nothing here
+     may be read as a shippable design; the only classes that describe a
+     would-be surface are .pinbox / .pinfld (option D) and those are
+     registered in KNOWN_GAPS of scripts/bluetooth-mock-parity.py, because
+     PIN entry in the panel is an explicit non-goal in proposal.md.
+
+     TWO NEW VISUALS live in this section and exist nowhere in the code:
+
+       1. .win / .wintitle / .winbody -- the Blueman PIN window. Drawn with
+          deliberately un-themed, light "native" widgets: it is a GTK app, not
+          an AGS surface, and the visual difference IS the finding of
+          scenario B. Nothing about it is a design proposal.
+       2. .pinbox / .pinfld -- the option-D PIN prompt, drawn in the shape of
+          WifiContent.tsx's WifiPasswordPrompt (which ships as
+          .settings-password > .settings-field-label + .settings-field-input,
+          with .settings-btnrow/.settings-btn for the buttons) so the
+          parallelism with Wi-Fi is the whole point. NOT IMPLEMENTED; the
+          popup's Keymode.NONE would have to become ON_DEMAND, and that is
+          the only thing in this file that would force it.
+
+     No numeric keypad is drawn on purpose: whether option D would use a
+     Gtk.PinEntry or an entry plus an on-screen keypad is undecided, and
+     drawing one would over-specify a proposal that is not scheduled.
+
+     Every dimension is still authored at 312px and multiplied by --s. */
+  .flow{display:flex;flex-direction:column;align-items:stretch;gap:calc(11px * var(--s))}
+  .strip{display:flex;align-items:stretch;gap:calc(4px * var(--s));flex-wrap:wrap}
+  .step{display:flex;flex-direction:column;align-items:center;gap:calc(8px * var(--s));
+    width:calc(312px * var(--s));flex:none}
+  .arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:calc(5px * var(--s));width:calc(74px * var(--s));flex:none;align-self:stretch;
+    font-size:calc(15px * var(--s));color:rgba(197,200,206,.3);text-align:center}
+  .arrow span{font-size:calc(9px * var(--s));line-height:1.35;color:rgba(197,200,206,.45)}
+
+  /* the marker for a path that cannot complete: dashed edge + hatch. The
+     saturation is only pulled part way, on purpose — the SHIPPED failure line
+     inside it is real and must keep its real colour. */
+  .deadend{position:relative;filter:saturate(.5)}
+  .deadend::after{
+    content:'';position:absolute;inset:0;pointer-events:none;
+    border-radius:calc(12px * var(--s));
+    border:calc(1.5px * var(--s)) dashed rgba(155,68,139,.9);
+    background:repeating-linear-gradient(135deg,
+      transparent 0 calc(7px * var(--s)),
+      rgba(155,68,139,.13) calc(7px * var(--s)) calc(8px * var(--s)))
+  }
+  /* the marker for "drawn, but not built" */
+  .prov{
+    display:inline-flex;align-items:center;gap:calc(5px * var(--s));
+    font-size:calc(9.5px * var(--s));font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    padding:calc(3px * var(--s)) calc(9px * var(--s));border-radius:calc(5px * var(--s));
+    color:#c973bb;border:calc(1px * var(--s)) dashed #9b448b;background:rgba(155,68,139,.12);
+    white-space:nowrap
+  }
+  .prov img{width:calc(12px * var(--s));height:calc(12px * var(--s));flex:none}
+  /* the negative verdict on a .badge chip */
+  .badge.bad{background:rgba(155,68,139,.18);border-color:rgba(155,68,139,.6);color:#e08ad6}
+
+  /* the foreign window — scenario B's whole point */
+  .win{width:calc(250px * var(--s));background:#f2f1f7;color:#22202c;
+    border-radius:calc(7px * var(--s));overflow:hidden;
+    box-shadow:0 calc(10px * var(--s)) calc(26px * var(--s)) rgba(0,0,0,.55)}
+  .wintitle{display:flex;align-items:center;gap:calc(6px * var(--s));
+    padding:calc(5px * var(--s)) calc(9px * var(--s));
+    background:linear-gradient(#fbfaff,#e7e5f1);
+    border-bottom:calc(1px * var(--s)) solid rgba(0,0,0,.15);
+    font-size:calc(10.5px * var(--s));font-weight:600;color:#3a3746}
+  .wintitle span{margin-left:auto;font-weight:400;font-size:calc(9.5px * var(--s));opacity:.6}
+  .winbody{padding:calc(11px * var(--s));display:flex;flex-direction:column;
+    gap:calc(9px * var(--s));font-size:calc(11px * var(--s));line-height:1.4}
+  .win input,.win button{font:inherit;font-size:calc(11px * var(--s));
+    padding:calc(4px * var(--s)) calc(10px * var(--s));border-radius:calc(6px * var(--s));
+    border:calc(1px * var(--s)) solid rgba(0,0,0,.24);background:#fff;color:#22202c}
+  .win input{width:100%;text-align:center;font-weight:700;letter-spacing:calc(4px * var(--s))}
+
+  /* option D's PIN prompt -- PROPOSAL ONLY, see the header comment above */
+  .pinbox{display:flex;flex-direction:column;gap:calc(7px * var(--s));
+    padding:calc(10px * var(--s)) calc(11px * var(--s));border-radius:calc(9px * var(--s));
+    background:rgba(197,200,206,.06);border:calc(1px * var(--s)) solid rgba(197,200,206,.12)}
+  .pinfld{display:flex;align-items:center;justify-content:center;height:calc(30px * var(--s));
+    padding-left:calc(4px * var(--s));border-radius:calc(8px * var(--s));
+    background:rgba(11,11,26,.5);border:calc(1px * var(--s)) solid rgba(197,200,206,.24);
+    font-size:calc(15px * var(--s));letter-spacing:calc(5px * var(--s));color:#fff}
+
+  /* the decision table */
+  .tbl{width:100%;border-collapse:separate;border-spacing:0}
+  .tbl th,.tbl td{text-align:left;vertical-align:top;
+    padding:calc(8px * var(--s)) calc(11px * var(--s));
+    border-bottom:calc(1px * var(--s)) solid var(--hair)}
+  .tbl th{white-space:nowrap;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+  .tbl .nm{white-space:normal;overflow:visible;text-overflow:clip;
+    font-size:calc(12.5px * var(--s))}
+  /* the task/status tag under an option name gets its own line, or it reads as
+     part of the name ("hide its tray icontask 8.1") */
+  .tbl .nm .sub{display:block;margin-top:calc(3px * var(--s))}
+  .tbl .v{color:rgba(197,200,206,.74);font-weight:400}
+  .tbl tbody tr:last-child th,.tbl tbody tr:last-child td{border-bottom:none}
+
+  /* the "where each claim comes from" rows reuse .detail; .k gets a fixed
+     column so the two-column rhythm of the panel's detail row survives */
+  .flow .detail{align-items:baseline;gap:calc(16px * var(--s));font-size:calc(11px * var(--s))}
+  .flow .detail .k{flex:none;width:calc(92px * var(--s))}
+  .flow .detail .v{flex:1;min-width:0;font-weight:400}
+
+  code{font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;
+    font-size:.92em;color:#fff}
+
+  /* The pairing-flows cells hold a wide strip rather than a single 312px
+     state, so they size to their content and let .flow stretch. Scoped by id
+     prefix so it adds no class token to the parity gate. */
+  .cell[id^="flow-"],.cell[id^="pairing-"]{width:max-content;align-items:stretch}
 </style>
 </head>
 <body>
@@ -466,6 +579,371 @@
     </div>
     <div class="cap">tile in the main list</div>
   </div>
+</div>
+
+<!-- ═══ pairing flows ═══════════════════════════════════════════════════
+     The open question this page answers: "if I stop blueman autostarting,
+     will I lose PIN / passkey pairing?" Every panel drawn below is a real,
+     shipped state of the popup as it exists today. The only exception is
+     scenario D, which carries a PROPOSAL ribbon because PIN entry in the
+     panel is an explicit non-goal in proposal.md and is NOT scheduled.
+
+     What this section asserts, and where each assertion comes from, is
+     listed in the "drawn from code" table at the very bottom. Read that
+     before treating any strip as a guarantee. -->
+<h1 style="margin-top:calc(34px * var(--s) / 2)">Pairing flows</h1>
+<div class="lead">
+  <b>The answer, short:</b> Just Works devices pair the same way in every option — the panel's own agent
+  handles those and nothing else is involved. PIN-requiring devices are the entire question: BlueZ only
+  asks an agent whose <i>declared capability</i> satisfies the method, so it never asks the panel
+  (which registers <code>NoInputNoOutput</code>). The only capable agent on this system is
+  <code>blueman-applet</code>. So <b>yes — stop autostarting blueman and PIN pairing stops working</b>,
+  and no other option loses it.
+  <br/><br/>
+  <b>How to read the strips:</b> each one is a scenario, left to right — tap Pair, wait, land. The
+  panels are 312&nbsp;px like everywhere else, so ×1 is the true size. Where two options look identical
+  for part of the strip, that is drawn as identical, because that is exactly what the user sees.
+</div>
+
+<div class="board">
+
+  <!-- ── A ────────────────────────────────────────────────────────────── -->
+  <div class="cell" id="flow-a-justworks">
+    <div class="flow">
+      <div style="display:flex;align-items:center;gap:calc(9px * var(--s));flex-wrap:wrap">
+        <span class="badge">A · Just Works</span>
+        <span style="font-size:calc(11px * var(--s));color:rgba(197,200,206,.55);line-height:1.45;flex:1;min-width:calc(430px * var(--s))">
+          <b style="color:#fff">TOZO NC9 — the same in A, C and D. Nothing to decide.</b>
+          The panel registers its own <code>NoInputNoOutput</code> agent, which auto-accepts, so BlueZ
+          has no reason to ask anyone for a PIN. No second window appears, in any option.
+        </span>
+      </div>
+      <div class="strip">
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="sec">Available Devices ▾</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
+                <div class="l2"><div class="meta"><span class="sub">Ready to pair</span></div><span class="acts"><button class="act">Pair</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>1</b> tap <b>Pair</b></div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="div" style="margin-top:0"></div>
+              <div class="sec">Paired</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span></div>
+                <div class="l2"><div class="meta"><span class="line2"><span class="spin"></span><span class="stat">Pairing…</span></span> <span class="sub">Can take up to 30 s</span></div><span class="acts"><button class="act dead">Connect</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>2</b> spinner · <code>Can take up to 30 s</code></div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="div" style="margin-top:0"></div>
+              <div class="sec">Paired</div>
+              <div class="row sel">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-full.svg" alt="" /></span><span class="meta"><span class="nm">TOZO NC9</span></span><span class="badge">Connected</span></div>
+                <div class="l2"><div class="meta"><span class="line2"><span class="stat"><img src="assets/system-battery-75.svg" alt="" />78%</span></span> <span class="sub">Paired</span></div><span class="acts"><button class="act">Disconnect</button><button class="act subtle">Unpair</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>3</b> connected — no prompt ever appeared</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── B ────────────────────────────────────────────────────────────── -->
+  <div class="cell" id="flow-b-pin-blueman">
+    <div class="flow">
+      <div style="display:flex;align-items:center;gap:calc(9px * var(--s));flex-wrap:wrap">
+        <span class="badge">B · PIN device, applet running</span>
+        <span style="font-size:calc(11px * var(--s));color:rgba(197,200,206,.55);line-height:1.45;flex:1;min-width:calc(430px * var(--s))">
+          <b style="color:#fff">MX Keys — pairs, but the PIN is not where you clicked.</b>
+          BlueZ needs a PIN, the panel's agent cannot supply one, so the request is routed to
+          <code>blueman-applet</code>, which can. The prompt lands in <i>that</i> window. This window
+          switch is the entire cost of option A.
+        </span>
+      </div>
+      <div class="strip">
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="sec">Available Devices ▾</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                <div class="l2"><div class="meta"><span class="sub">Ready to pair</span></div><span class="acts"><button class="act">Pair</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>1</b> tap <b>Pair</b></div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="div" style="margin-top:0"></div>
+              <div class="sec">Paired</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                <div class="l2"><div class="meta"><span class="line2"><span class="spin"></span><span class="stat">Pairing…</span></span> <span class="sub">Can take up to 30 s</span></div><span class="acts"><button class="act dead">Connect</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>2</b> the panel is <i>waiting</i> — it is not waiting on you</div>
+        </div>
+        <div class="arrow">→<span>BlueZ asks the only capable agent on the bus</span></div>
+        <div class="step">
+          <div class="win">
+            <div class="wintitle">Enter PIN <span>blueman</span></div>
+            <div class="winbody">
+              <div style="color:#4a4756;font-size:calc(10.5px * var(--s))">
+                Enter the PIN shown on<br /><b style="color:#22202c">MX Keys</b><br />
+                <span style="opacity:.55">A0:E7:0B:8B:36:7E</span>
+              </div>
+              <input value="482913" readonly aria-label="PIN" />
+              <div style="display:flex;gap:calc(7px * var(--s));justify-content:flex-end">
+                <button>Cancel</button><button>OK</button>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>3</b> the PIN lives in <b>a different app's window</b></div>
+        </div>
+        <div class="arrow">→<span>user switches windows and confirms</span></div>
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="div" style="margin-top:0"></div>
+              <div class="sec">Paired</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>4</b> paired — you had to leave this panel to finish</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── C ────────────────────────────────────────────────────────────── -->
+  <div class="cell" id="flow-c-pin-noapplet">
+    <div class="flow">
+      <div style="display:flex;align-items:center;gap:calc(9px * var(--s));flex-wrap:wrap">
+        <span class="badge bad">C · PIN device, applet suppressed</span>
+        <span style="font-size:calc(11px * var(--s));color:rgba(197,200,206,.55);line-height:1.45;flex:1;min-width:calc(430px * var(--s))">
+          <b style="color:#fff">MX Keys — dead end. Steps 1 and 2 are pixel-identical to B.</b>
+          With no capable agent registered, BlueZ's PIN request has nowhere to go. Nothing happens, the
+          watchdog fires at 30&nbsp;s, and the row fails. Note how little the screen tells you on the way.
+        </span>
+      </div>
+      <div class="strip">
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="sec">Available Devices ▾</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                <div class="l2"><div class="meta"><span class="sub">Ready to pair</span></div><span class="acts"><button class="act">Pair</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>1</b> identical to A and B — the tap is correct either way</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="div" style="margin-top:0"></div>
+              <div class="sec">Paired</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                <div class="l2"><div class="meta"><span class="line2"><span class="spin"></span><span class="stat">Pairing…</span></span> <span class="sub">Can take up to 30 s</span></div><span class="acts"><button class="act dead">Connect</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>2</b> identical to B for 30&nbsp;s — <b>nothing here says "this will fail"</b></div>
+        </div>
+        <div class="arrow">→<span>30&nbsp;s watchdog fires</span></div>
+        <div class="step">
+          <div class="deadend">
+            <div class="surface">
+              <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+              <div class="body">
+                <div class="msg"><img src="assets/settings-panel-info-caution.svg" alt="" /><span>Pairing timed out</span></div>
+                <div class="div"></div>
+                <div class="sec">Paired</div>
+                <div class="row">
+                  <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                  <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Pair</button></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>3</b> dead end. <b>Recovery:</b> open Blueman and pair from there, or re-enable the autostart</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── D ────────────────────────────────────────────────────────────── -->
+  <div class="cell" id="flow-d-pin-inpanel">
+    <div class="flow">
+      <div style="display:flex;align-items:center;gap:calc(9px * var(--s));flex-wrap:wrap">
+        <span class="badge">D · PIN entry in the panel</span>
+        <span class="prov"><img src="assets/settings-panel-info-caution.svg" alt="" />not built · not scheduled</span>
+        <span style="font-size:calc(11px * var(--s));color:rgba(197,200,206,.55);line-height:1.45;flex:1;min-width:calc(430px * var(--s))">
+          <b style="color:#fff">The structural fix, drawn so you can judge it — steps 1 and 3 are real, step 2 is not.</b>
+          Answering the PIN in-panel means raising the agent's declared capability to
+          <code>KeyboardOnly</code>/<code>KeyboardDisplay</code> and adding a
+          <code>Gtk.Entry</code> prompt shaped like Wi-Fi's. That entry is the one thing that would
+          force the popup's <code>Keymode.NONE</code> to <code>ON_DEMAND</code>.
+        </span>
+      </div>
+      <div class="strip">
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="sec">Available Devices ▾</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-medium.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                <div class="l2"><div class="meta"><span class="sub">Ready to pair</span></div><span class="acts"><button class="act">Pair</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>1</b> real today — unchanged from A, B and C</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <div class="prov"><img src="assets/settings-panel-info-caution.svg" alt="" />proposal — does not exist</div>
+          <div class="surface" style="border-style:dashed;border-color:rgba(155,68,139,.55)">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="div" style="margin-top:0"></div>
+              <div class="sec">Pairing MX Keys</div>
+              <div class="pinbox">
+                <div class="sec" style="margin:0">Enter PIN</div>
+                <div class="pinfld">••••</div>
+                <div class="acts" style="justify-content:flex-end">
+                  <button class="act">Cancel</button><button class="act">Pair</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>2</b> drawn in the shape of <code>WifiPasswordPrompt</code> — the PIN is now where you clicked</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <div class="surface">
+            <div class="nav"><span class="title">Bluetooth</span><span class="switch on"></span></div>
+            <div class="body">
+              <div class="div" style="margin-top:0"></div>
+              <div class="sec">Paired</div>
+              <div class="row">
+                <div class="l1"><span class="sig"><img src="assets/settings-panel-bluetooth-signal-good.svg" alt="" /></span><span class="meta"><span class="nm">MX Keys</span></span></div>
+                <div class="l2"><div class="meta"><span class="sub">Paired</span></div><span class="acts"><button class="act">Connect</button><button class="act subtle">Unpair</button></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><b>3</b> real — the panel's keymode would have to lift to accept the entry</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── the comparison, the verdict, and the receipts ────────────────── -->
+  <div class="cell" id="pairing-decision">
+    <div class="flow">
+      <div class="lead" style="margin-bottom:0">
+        <b>Side by side.</b> All three options give a clean bar. They differ only in what happens to a
+        device that wants a PIN — which is why this is worth getting right before touching the autostart.
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th class="k">Option</th>
+            <th class="k">Bar stays clean</th>
+            <th class="k">PIN / passkey pairing</th>
+            <th class="k">The user must</th>
+            <th class="k">What it costs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="nm">A — keep the applet,<br />hide its tray icon<span class="sub">task 8.1</span></td>
+            <td class="v"><span class="badge">Yes</span></td>
+            <td class="v"><span class="badge">Works</span><br />The applet's agent answers the PIN — in the applet's window.</td>
+            <td class="v">Tap Pair, then <b>switch to the other window</b> and type the PIN.</td>
+            <td class="v">One window switch. The PIN UI is not where you clicked.</td>
+          </tr>
+          <tr>
+            <td class="nm">C — suppress the autostart<span class="sub">task 8.2</span></td>
+            <td class="v"><span class="badge">Yes</span></td>
+            <td class="v"><span class="badge bad">Broken</span><br />No capable agent on the bus. After 30&nbsp;s the row fails with <code>Pairing timed out</code>.</td>
+            <td class="v">Notice the failure, then open Blueman and pair from there.</td>
+            <td class="v">A real capability loss for PIN devices, plus a manual detour to recover.</td>
+          </tr>
+          <tr>
+            <td class="nm">D — PIN entry in the panel<span class="sub">not scheduled</span></td>
+            <td class="v"><span class="badge">Yes</span></td>
+            <td class="v"><span class="badge">Works</span><br />In place, in this panel. No second window at all.</td>
+            <td class="v">Type the PIN in the panel.</td>
+            <td class="v">The largest change by far: agent capability → <code>KeyboardOnly</code>, a PIN field, popup keymode <code>NONE</code> → <code>ON_DEMAND</code>. An explicit non-goal today.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="lead" style="margin-bottom:0">
+        <b>Verdict — option A.</b> Keeping <code>blueman-applet</code> running and hiding only its tray
+        icon is the one choice that gives up nothing. Just Works devices pair through the panel's own
+        agent either way, so A is not buying PIN support at any cost to the common case — it is buying it
+        for the cost of one window switch, and only for devices that actually ask. C buys the same clean
+        bar by deleting a capability: pairing still <i>looks</i> like it is working for a full 30 seconds,
+        and then it fails without explaining itself. That is a worse trade than it appears, because the
+        device you most need to pair — one you have just unboxed and are standing over — is exactly the
+        device that will want a PIN. D is the only option that removes the blueman dependency and puts
+        the PIN where you clicked; it is also several times the work, it is not scheduled, and PIN entry
+        in the panel is written down as a non-goal in <code>proposal.md</code>. If the window switch in B
+        ever turns out to annoy you in practice, D is the answer — but take A now and revisit.
+      </div>
+      <div class="lead" style="margin-bottom:0">
+        <b>Honesty note — what is drawn from code and what is not.</b> Every panel above is a real state
+        of the popup as it ships today, and the receipts are below. The one thing this page cannot show
+        you is the <i>existence</i> of the applet's agent: BlueZ 5.87 exposes no <code>GetAgents</code>
+        and the system bus cannot be eavesdropped unprivileged, so "a capable agent is registered while
+        <code>blueman-applet</code> runs" is blueman's documented behaviour, taken on trust rather than
+        measured. Scenarios B and C both rest on that premise. If it were wrong, B would fail exactly
+        the way C does — which is the honest size of the risk.
+      </div>
+      <div class="flow" style="gap:calc(2px * var(--s))">
+        <div class="detail"><span class="k">panel agent</span><span class="v"><code>settings-panel/bluetooth-agent.ts</code> — <code>RegisterAgent(…, "NoInputNoOutput")</code> then <code>RequestDefaultAgent</code>. Just Works: it auto-accepts and is never asked for a PIN.</span></div>
+        <div class="detail"><span class="k">routing rule</span><span class="v">BlueZ asks only agents whose <i>declared capability</i> satisfies the method. This is BlueZ behaviour, not something in this repo, and it is why step 2 of C cannot resolve.</span></div>
+        <div class="detail"><span class="k">30 seconds</span><span class="v"><code>services/bluetooth-service.ts</code> — <code>WATCHDOG_MS = 30000</code> per action, surfacing <code>"&lt;action&gt; timed out"</code>, hence <code>Pairing timed out</code>.</span></div>
+        <div class="detail"><span class="k">keymode</span><span class="v"><code>components/bluetooth/BluetoothPopup.tsx</code> — <code>Keymode.NONE</code> on both windows, and there is no entry to type into. That is what D would have to lift.</span></div>
+        <div class="detail"><span class="k">the applet</span><span class="v">Autostarts from <code>/etc/xdg/autostart/blueman.desktop</code> and is the process that keeps a capable agent registered. Documented behaviour — <b>not verifiable from this machine</b>, for the reason above.</span></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
