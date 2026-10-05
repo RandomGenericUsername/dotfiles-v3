@@ -53,6 +53,9 @@ AGS_AGENT_PATH = "/org/dotfiles/BlueZAgent"
 CAPABILITY = "KeyboardDisplay"
 
 calls = []
+# Whether Pair was actually issued. Distinguishes "BlueZ declined to call us"
+# (a real negative) from "the device was never there" (no test performed).
+attempted = {"pair": False}
 
 
 class E2EAgent(dbus.service.Object):
@@ -145,45 +148,124 @@ def main() -> int:
         return 1
 
     try:
-        # Discovery so the Device1 object exists, then Pair.
-        def go():  # noqa: D401
+        # dbus-python has no Bus.call(). Method calls go through a
+        # dbus.Interface proxy over the remote object; the proxy method
+        # accepts timeout= in SECONDS.
+        adapter = dbus.Interface(bus.get_object(BLUEZ, "/org/bluez/hci0"),
+                                 "org.bluez.Adapter1")
+
+        def go():
             try:
-                bus.call(BLUEZ, "/org/bluez/hci0", "org.bluez.Adapter1",
-                         "StartDiscovery", None, None,
-                         dbus.DBusCallFlags.NONE, 10000, None)
-            except dbus.DBusException:
-                pass
-            def pair():
+                adapter.StartDiscovery(timeout=10)
+                print("  StartDiscovery()            -> OK")
+            except dbus.DBusException as e:
+                print(f"  StartDiscovery() -> {e.get_dbus_message()}")
+
+            state = {"tries": 0, "paired": False}
+
+            def poll():
+                """Wait for the Device1 object to actually exist, then Pair.
+
+                A fixed sleep is wrong here: the object only appears once
+                BlueZ has resolved an advertisement, and on this machine that
+                has already been observed to take longer than any sleep
+                worth choosing -- a previous run's `info` reported the device
+                as gone between two commands. So poll the ObjectManager and
+                report explicitly if it never turns up, rather than pairing
+                an object that is not there and blaming the method.
+                """
+                state["tries"] += 1
                 try:
-                    bus.call(BLUEZ, dev_path, "org.bluez.Device1", "Pair",
-                             None, None, dbus.DBusCallFlags.NONE,
-                             args.timeout * 1000, None)
-                    print("  Pair() returned")
+                    objs = bus.get_object(BLUEZ, "/")
+                    mgr_if = dbus.Interface(objs,
+                        "org.freedesktop.DBus.ObjectManager")
+                    managed = mgr_if.GetManagedObjects(timeout=8)
                 except dbus.DBusException as e:
-                    print(f"  Pair() -> {e.get_dbus_message()}")
-                return False
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, pair)
-            return GLib.SOURCE_REMOVE
+                    print(f"  GetManagedObjects -> "
+                          f"{e.get_dbus_message()}")
+                    return False
+
+                if dev_path in managed:
+                    alias = ""
+                    props = managed[dev_path].get("org.bluez.Device1")
+                    if props:
+                        alias = str(props.get("Alias", ""))
+                    print(f"  device object present after "
+                          f"{state['tries']} poll(s)  [{alias or dev}]")
+                    try:
+                        attempted["pair"] = True
+                        dev = dbus.Interface(
+                            bus.get_object(BLUEZ, dev_path),
+                            "org.bluez.Device1")
+                        dev.Pair(timeout=args.timeout)
+                        print("  Pair() returned OK")
+                    except dbus.DBusException as e:
+                        print(f"  Pair() -> {e.get_dbus_message()}")
+                    state["paired"] = True
+                    return False
+
+                if state["tries"] % 3 == 0:
+                    print(f"  ...not discovered yet "
+                          f"({state['tries']} polls, "
+                          f"{len(managed)} objects on the bus)")
+                if state["tries"] >= 30:
+                    print("  device never appeared. The target is out of")
+                    print("  range, not in pairing mode, or already bonded.")
+                    print("  RESULT IS INCONCLUSIVE -- not a negative.")
+                    return False
+                return True
+
+            # NOTE: dbus-python's GLib override is
+            #   timeout_add(interval, function, *user_data, priority=...)
+            # with priority KEYWORD-ONLY and last -- NOT the C ordering
+            # (priority, interval, func). Passing it positionally makes
+            # `function` receive the interval int and raises
+            # "Callback needs to be a function or method not int".
+            GLib.timeout_add(2000, poll)
+            return False
 
         def bail():
             loop.quit()
             return False
 
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, go)
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, args.timeout * 1000, bail)
+        GLib.timeout_add(300, go)
+        # Budget: up to ~60s of discovery polling, plus the Pair timeout.
+        GLib.timeout_add((args.timeout + 90) * 1000, bail)
         loop.run()
     finally:
-        print("\n  restoring AGS as the default agent...")
+        # Restore is best-effort and, on this machine, a NO-OP by design.
+        # MEASURED: no agent is registered at AGS_AGENT_PATH (the panel's own
+        # agent is dead -- see the prototype header), and BlueZ keys agents by
+        # path alone, so "Does Not Exist" here is the EXPECTED, correct answer,
+        # not a failed restore. There is no displaced agent to give back.
+        print("\n  restoring default-agent state...")
         try:
             mgr.RequestDefaultAgent(AGS_AGENT_PATH)
-            print("  RequestDefaultAgent(AGS) -> OK, panel pairing is yours again")
+            print(f"  RequestDefaultAgent({AGS_AGENT_PATH}) -> OK")
         except dbus.DBusException as e:
-            print(f"  !! restore FAILED: {e.get_dbus_message()}")
+            msg = e.get_dbus_message()
+            if "Does Not Exist" in str(msg):
+                print(f"  RequestDefaultAgent(AGS) -> {msg}")
+                print("     expected: the panel's agent was never registered,")
+                print("     so there was nothing to displace. No harm done.")
+            else:
+                print(f"  !! unexpected restore error: {msg}")
         try:
             mgr.UnregisterAgent(AGENT_PATH)
             print("  probe agent unregistered")
         except dbus.DBusException:
             pass
+        # Stop the discovery this probe started. BlueZ refcounts
+        # Start/StopDiscovery, and an unbalanced Start leaves the adapter
+        # scanning forever -- an earlier version of this script did exactly
+        # that, and the controller was left reporting Discovering=yes while
+        # resolving nothing. Always balance it.
+        try:
+            dbus.Interface(bus.get_object(BLUEZ, "/org/bluez/hci0"),
+                           "org.bluez.Adapter1").StopDiscovery(timeout=8)
+            print("  StopDiscovery()            -> OK (discovery refcount balanced)")
+        except dbus.DBusException as e:
+            print(f"  StopDiscovery() -> {e.get_dbus_message()}")
 
     # ---- report ----------------------------------------------------------
     print("\n" + "=" * 70)
@@ -192,6 +274,9 @@ def main() -> int:
     if calls:
         for kind, arg in calls:
             print(f"  {kind}({arg})")
+    elif not attempted["pair"]:
+        print("  (nothing — the device object never appeared, so Pair was")
+        print("   never issued. NO agent method was tested. Inconclusive.)")
     else:
         print("  (nothing — our agent was never invoked)")
 
@@ -200,15 +285,27 @@ def main() -> int:
                   "DisplayPasskey", "RequestConfirmation"}
     reached = bool(kinds & pin_family)
 
+    inconclusive = not attempted["pair"]
+
     print("\n" + "=" * 70)
     print("ASSERTIONS")
     print("=" * 70)
-    print(f"1. agent registered AND made default      {'PASS' if (registered and made_default) else 'FAIL'}")
-    print(f"2. BlueZ invoked our agent at all         {'PASS' if calls else 'FAIL'}")
-    print(f"3. a PIN-FAMILY method was requested       {'PASS' if reached else 'FAIL'}"
+    print(f"0. Pair was actually issued                "
+          f"{'PASS' if attempted['pair'] else 'FAIL -- NO TEST PERFORMED'}")
+    print(f"1. agent registered AND made default      "
+          f"{'PASS' if (registered and made_default) else 'FAIL'}")
+    print(f"2. BlueZ invoked our agent at all         "
+          f"{'PASS' if calls else 'FAIL'}")
+    print(f"3. a PIN-FAMILY method was requested      "
+          f"{'PASS' if reached else 'FAIL'}"
           + ("" if reached else "   (device paired via Just Works)"))
     print("\n" + "=" * 70)
-    if reached:
+    if inconclusive:
+        print("VERDICT: INCONCLUSIVE. The device object never appeared on the")
+        print("bus, so Pair was never issued and no agent method was exercised.")
+        print("This measures nothing about PIN routing. Put the target in")
+        print("pairing mode and re-run.")
+    elif reached:
         print("VERDICT: BlueZ DID route a PIN-family method to an agent that")
         print("declared KeyboardDisplay. The panel's NoInputNoOutput agent could")
         print("not have served it. Option C's premise is now OBSERVED.")
@@ -217,7 +314,7 @@ def main() -> int:
         print("NoInputNoOutput already covers. This device paired via Just Works")
         print("and is NOT a witness for the PIN path.")
     else:
-        print("VERDICT: our agent was never invoked.")
+        print("VERDICT: Pair was issued and BlueZ still never called our agent.")
     return 0
 
 
