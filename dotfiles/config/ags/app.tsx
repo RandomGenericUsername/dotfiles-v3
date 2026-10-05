@@ -39,6 +39,50 @@ app.start({
       }
       return
     }
+    // Dumps the NEW hexagonal projection (audio/composition.ts) to
+    // ~/.local/state/ags/panel-debug.json. Exists because the panel rendered
+    // with an empty session while every static gate passed: reading the source
+    // could not tell us whether volume/position data was absent, zero, or never
+    // refreshed. This asks the running pipeline instead. Read-only.
+    if (argv[0] === "audio-panel-debug") {
+      try {
+        const model = audioPanelBinding().model()
+        const dump = {
+          outputs: model.outputs.map((o) => ({ id: o.id, name: o.name, available: o.available, volume: o.volume })),
+          inputs: model.inputs.map((i) => ({ id: i.id, name: i.name, available: i.available, volume: i.volume })),
+          input: model.input,
+          inputConsumers: model.inputConsumers,
+          rows: model.rows.map((r) => ({
+            appId: r.appId,
+            appName: r.appName,
+            title: r.title,
+            artist: r.artist,
+            routeLabel: r.routeLabel,
+            routeIntent: r.routeIntent,
+            observedEndpointId: r.observedEndpointId,
+            streamIds: r.streamIds,
+            streams: r.streams,
+            volume: r.volume,
+            mixedLevel: r.mixedLevel,
+            positionUs: r.positionUs,
+            durationUs: r.durationUs,
+            canSeek: r.canSeek,
+            hasCurrentPlayer: r.hasCurrentPlayer,
+            hasCurrentStream: r.hasCurrentStream,
+            playback: r.playback,
+            artworkUri: r.artworkUri,
+            artworkPath: r.artworkPath,
+            iconName: r.iconName,
+          })),
+        }
+        const text = JSON.stringify(dump, null, 2)
+        GLib.file_set_contents(`${GLib.get_user_state_dir()}/ags/panel-debug.json`, text)
+        res(`wrote ${text.length} bytes`)
+      } catch (e) {
+        res(`audio-panel-debug failed: ${String(e)}`)
+      }
+      return
+    }
     res(`unknown request: ${argv.join(" ")}`)
   },
   main() {

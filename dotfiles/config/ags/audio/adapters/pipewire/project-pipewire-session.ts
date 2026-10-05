@@ -42,6 +42,28 @@ export interface PipeWireGraph {
   requestedTarget: ReadonlyMap<number, string>
 }
 
+/**
+ * Stream nodes that are not applications playing or capturing audio.
+ *
+ * `pavucontrol` opens one Stream/Input/Audio node per output device purely to
+ * render its own level meters, all named "PulseAudio Volume Control". They are
+ * genuine capture requests, so they exist in PipeWire, and projecting every
+ * Stream/* node put them in the panel as mic consumers and as an app row --
+ * including inside the pavucontrol window the user opened to check the panel,
+ * which then listed itself.
+ *
+ * Monitor nodes (Stream/Input/Audio/Internal, e.g. a Bluetooth headset's
+ * internal capture) are not consumers either: they are the device echoing
+ * playback back. Screen-capture status stays on the dotfiles event hub and is
+ * deliberately not inferred here.
+ */
+const NON_APPLICATION_BINARIES = new Set(["pavucontrol", "wpctl", "pw-cat"])
+
+function isApplicationStream(props: Readonly<Record<string, unknown>>): boolean {
+  const binary = text(props["application.process.binary"])
+  return !(binary && NON_APPLICATION_BINARIES.has(binary))
+}
+
 const text = (value: unknown): string => typeof value === "string" ? value : ""
 const number = (value: unknown): number | null => {
   const n = typeof value === "number" ? value : Number(value)
@@ -134,6 +156,8 @@ export function projectPipeWireSession(input: {
     const direction = node["media-class"] === 4 ? "output" : node["media-class"] === 3 ? "input" : null
     if (direction === null || typeof node.id !== "number") continue
     const props = input.graph.streamProperties.get(node.id) ?? {}
+    // Skip level-meter and monitor streams: not applications using audio.
+    if (!isApplicationStream(props)) continue
     const processId = number(props["application.process.id"])
     const rawName = text(props["application.name"]) || text(props["application.process.binary"]) ||
       node.description || node.name || `Application ${node.id}`

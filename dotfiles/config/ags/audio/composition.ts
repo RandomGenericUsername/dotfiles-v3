@@ -105,28 +105,31 @@ export function audioPanelBinding(): AudioPanelBinding {
   // Artwork resolution is async and per-URI, so it cannot live in the pure
   // projection: `projectAudioPanel` leaves `artworkPath` null by design
   // (see the field comment there). The resolved paths are held here and
-  // overlaid onto the projection, and `artworkRevision` is bumped so the
-  // computed re-runs once a URI lands. A miss simply leaves the app icon.
+  // overlaid onto the projection. A miss simply leaves the app icon.
   const resolvedArtwork = new Map<string, string>()
-  const [artworkRevision, setArtworkRevision] = createState(0)
 
-  const model = createComputed(() => {
-    artworkRevision()
-    const projected = projectAudioPanel(runtime.current())
-    if (resolvedArtwork.size === 0) return projected
-    return {
-      ...projected,
-      rows: projected.rows.map((row) => {
-        const path = row.artworkUri ? resolvedArtwork.get(row.artworkUri) : undefined
-        return path && path !== row.artworkPath ? { ...row, artworkPath: path } : row
-      }),
-    }
-  })
+  // THE reactive edge.
+  //
+  // `runtime.current()` is a plain method returning a clone, so reading it
+  // inside createComputed registers no reactive dependency: the computed would
+  // evaluate exactly once, at first render -- before the async PipeWire/MPRIS
+  // hydration had resolved -- and never re-run. That shipped a panel with the
+  // correct structure and permanently empty data ("No output available",
+  // "No apps playing") while every gate passed, because nothing observable had
+  // changed on disk.
+  //
+  // So the runtime's publish() is bridged onto a reactive revision. Bumping it
+  // is what makes the projection recompute. One signal for both session updates
+  // and artwork arrivals, so the two can never disagree.
+  const [revision, setRevision] = createState(0)
+  const bump = () => setRevision((value) => value + 1)
 
   // Serialised so a burst of session events cannot launch overlapping resolve
   // passes; each pass only looks at URIs it has not seen yet.
   let artworkPass: Promise<void> = Promise.resolve()
+
   runtime.subscribe(() => {
+    bump()
     artworkPass = artworkPass.then(async () => {
       const pending = runtime.current().players
         .map((player) => player.media.artworkUri)
@@ -144,8 +147,25 @@ export function audioPanelBinding(): AudioPanelBinding {
           console.error("audio artwork resolve failed:", error)
         }
       }
-      if (changed) setArtworkRevision((value) => value + 1)
+      if (changed) bump()
     }).catch(() => {})
+  })
+
+  // Declared before first use: the artwork pass is chained onto it from the
+// subscribe callback above, which is registered before this assignment.
+// Recomputed whenever `revision` moves. Reads the revision FIRST so the
+  // reactive dependency is registered before any early return.
+  const model = createComputed(() => {
+    revision()
+    const projected = projectAudioPanel(runtime.current())
+    if (resolvedArtwork.size === 0) return projected
+    return {
+      ...projected,
+      rows: projected.rows.map((row) => {
+        const path = row.artworkUri ? resolvedArtwork.get(row.artworkUri) : undefined
+        return path && path !== row.artworkPath ? { ...row, artworkPath: path } : row
+      }),
+    }
   })
 
   runtime.start().catch((error) => console.error("audio runtime start failed:", error))
