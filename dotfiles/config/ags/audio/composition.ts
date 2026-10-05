@@ -1,0 +1,155 @@
+import { createComputed, createState } from "ags"
+import { PipeWireObservationAdapter } from "./adapters/pipewire/pipewire-observation"
+import { createPipeWireCommands } from "./adapters/pipewire/pipewire-commands"
+import { MprisAdapter, MprisArtworkAdapter } from "./adapters/mpris/mpris-adapter"
+import { AudioSessionRuntime } from "./application/runtime/audio-session-runtime"
+import {
+  playPausePlayer, nextPlayer, previousPlayer, seekPlayer, selectPreferredInput,
+  selectPreferredOutput, setAppRoute, setAppVolume, setInputVolume, setPreferredOutputVolume,
+  toggleAppMute, toggleInputMute, togglePreferredOutputMute,
+} from "./application/audio-actions"
+import type { ActionResult, AudioPorts } from "./application/ports"
+import { projectAudioPanel } from "./presentation/audio-panel-view-model"
+import type { AudioPanelActions, AudioPanelBinding, RouteChoice, TransportAction } from "./AudioPopup"
+import type { EndpointId } from "./domain/audio-model"
+
+/**
+ * The audio composition root (tasks.md 6.0).
+ *
+ * This is the single place the new boundary is assembled. Before this existed,
+ * nothing constructed the session runtime, so `AudioPopup` received no binding
+ * and rendered only its "connecting" placeholder -- the panel and every layer
+ * beneath it were present but unreachable from `app.tsx`.
+ *
+ * Division of labour it depends on:
+ *   adapters   own AstalWp / D-Bus / wpctl and the measured API constraints
+ *   runtime    owns session state, route-intent history, event reconciliation
+ *   actions    own the use cases; they take a port bag and return ActionResult
+ *   view model is a pure projection of the session
+ *   AudioPopup owns no audio policy -- it renders and dispatches only
+ *
+ * Failures here are contained rather than fatal: hydration uses
+ * allSettled internally, and an artwork miss degrades to the app icon. A panel
+ * that cannot reach MPRIS must still show routes and levels.
+ */
+
+/**
+ * The view speaks percent (0-100); the use cases take a gain level (0-1) and
+ * clamp it. Converting here keeps both sides honest -- the actions can never be
+ * handed 72 meaning 7200% gain.
+ */
+const percentToLevel = (percent: number): number => percent / 100
+
+/** Reports a failed action once instead of spamming per keystroke while dragging a slider. */
+function reportAction(label: string, result: ActionResult): void {
+  if (result.ok) return
+  console.error(`audio action ${label} failed:`, result.reason ?? `${result.failed} target(s)`)
+}
+
+// Wrapped in Promise.resolve because some use cases return synchronously, and
+// `.catch` must exist on the chain whatever they return.
+function run(label: string, action: () => ActionResult | Promise<ActionResult>): void {
+  Promise.resolve(action()).then((result) => reportAction(label, result)).catch((error: unknown) => {
+    console.error(`audio action ${label} threw:`, error)
+  })
+}
+
+let binding: AudioPanelBinding | null = null
+
+export function audioPanelBinding(): AudioPanelBinding {
+  if (binding) return binding
+
+  const pipeWireObservation = new PipeWireObservationAdapter()
+  const pipeWireCommands = createPipeWireCommands()
+  const mprisAdapter = new MprisAdapter()
+  const artwork = new MprisArtworkAdapter()
+
+  const runtime = new AudioSessionRuntime(pipeWireObservation, mprisAdapter, pipeWireCommands)
+
+  const ports: AudioPorts = {
+    session: runtime,
+    pipewireObservation: pipeWireObservation,
+    mprisObservation: mprisAdapter,
+    pipewire: pipeWireCommands,
+    routeIntents: runtime,
+    mpris: mprisAdapter,
+    artwork,
+  }
+
+  const actions: AudioPanelActions = {
+    selectPreferredOutput: (endpointId) => run("selectPreferredOutput", () =>
+      selectPreferredOutput(ports, endpointId as EndpointId)),
+    setOutputVolume: (endpointId, percent) => run("setOutputVolume", () =>
+      setPreferredOutputVolume(ports, endpointId as EndpointId, percentToLevel(percent))),
+    toggleOutputMute: (endpointId) => run("toggleOutputMute", () =>
+      togglePreferredOutputMute(ports, endpointId as EndpointId)),
+    setAppRoute: (appId, route: RouteChoice) => run("setAppRoute", () =>
+      setAppRoute(ports, appId, route.kind === "follow-preferred"
+        ? { kind: "follow-preferred" }
+        : { kind: "explicit", endpointId: route.endpointId as EndpointId })),
+    setAppVolume: (appId, percent) => run("setAppVolume", () => setAppVolume(ports, appId, percentToLevel(percent))),
+    toggleAppMute: (appId) => run("toggleAppMute", () => toggleAppMute(ports, appId)),
+    playerAction: (playerId, action: TransportAction) => run("playerAction", () => {
+      if (action === "play-pause") return playPausePlayer(ports, playerId)
+      if (action === "next") return nextPlayer(ports, playerId)
+      return previousPlayer(ports, playerId)
+    }),
+    seek: (playerId, positionUs) => run("seek", () => seekPlayer(ports, playerId, positionUs)),
+    selectInput: (endpointId) => run("selectInput", () => selectPreferredInput(ports, endpointId as EndpointId)),
+    // The view passes an endpoint id for uniformity with the other level
+    // controls, but the input use case acts on the session's own default input.
+    setInputVolume: (_endpointId, percent) => run("setInputVolume", () => setInputVolume(ports, percentToLevel(percent))),
+    toggleInputMute: () => run("toggleInputMute", () => toggleInputMute(ports)),
+  }
+
+  // Artwork resolution is async and per-URI, so it cannot live in the pure
+  // projection: `projectAudioPanel` leaves `artworkPath` null by design
+  // (see the field comment there). The resolved paths are held here and
+  // overlaid onto the projection, and `artworkRevision` is bumped so the
+  // computed re-runs once a URI lands. A miss simply leaves the app icon.
+  const resolvedArtwork = new Map<string, string>()
+  const [artworkRevision, setArtworkRevision] = createState(0)
+
+  const model = createComputed(() => {
+    artworkRevision()
+    const projected = projectAudioPanel(runtime.current())
+    if (resolvedArtwork.size === 0) return projected
+    return {
+      ...projected,
+      rows: projected.rows.map((row) => {
+        const path = row.artworkUri ? resolvedArtwork.get(row.artworkUri) : undefined
+        return path && path !== row.artworkPath ? { ...row, artworkPath: path } : row
+      }),
+    }
+  })
+
+  // Serialised so a burst of session events cannot launch overlapping resolve
+  // passes; each pass only looks at URIs it has not seen yet.
+  let artworkPass: Promise<void> = Promise.resolve()
+  runtime.subscribe(() => {
+    artworkPass = artworkPass.then(async () => {
+      const pending = runtime.current().players
+        .map((player) => player.media.artworkUri)
+        .filter((uri): uri is string => !!uri && !resolvedArtwork.has(uri))
+      if (pending.length === 0) return
+      let changed = false
+      for (const uri of pending) {
+        try {
+          const resolved = await artwork.resolve(uri)
+          if (resolved) {
+            resolvedArtwork.set(uri, resolved.localPath)
+            changed = true
+          }
+        } catch (error) {
+          console.error("audio artwork resolve failed:", error)
+        }
+      }
+      if (changed) setArtworkRevision((value) => value + 1)
+    }).catch(() => {})
+  })
+
+  runtime.start().catch((error) => console.error("audio runtime start failed:", error))
+
+  binding = { model, actions }
+  return binding
+}

@@ -7,6 +7,7 @@ import { WifiPopup, WifiPopupCatcher } from "./components/wifi/WifiPopup"
 import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
 import { close as closeSettings } from "./settings-panel/state"
 import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
+import { audioPanelBinding } from "./audio/composition"
 import { close as closeAudio, debugAudioState } from "./audio/state"
 
 app.start({
@@ -42,6 +43,17 @@ app.start({
   },
   main() {
     app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)
+    // The redesigned panel's stylesheet (tasks.md 6.0e). It was written but
+    // imported by nothing, so all 345 lines were dead and the popup fell back
+    // to the pre-existing `.audio-*` rules in style.css that styled the panel
+    // this change replaces.
+    //
+    // Applied at runtime from the deployed config dir, alongside colors.css,
+    // rather than via a static `import ... from "./audio/audio-panel.css"`.
+    // `ags bundle` strips CSS entirely -- it emitted no rule for either
+    // stylesheet -- so bundling cannot verify a CSS import here, and this
+    // file already has a proven runtime path for generated CSS.
+    app.apply_css(`${GLib.get_user_config_dir()}/ags/audio/audio-panel.css`)
     // BlueZ needs an org.bluez.Agent1 on the bus to complete pairing; register
     // our headless (NoInputNoOutput) agent once for the session.
     registerBluetoothAgent()
@@ -56,9 +68,14 @@ app.start({
       // Same ordering rule for the Wi-Fi popup: catcher first, popup above it.
       app.add_window(WifiPopupCatcher(primary))
       app.add_window(WifiPopup(primary))
-      // Audio popup: catcher + popup, same stacking order.
+      // Audio popup: catcher + popup, same stacking order. The binding comes
+      // from the composition root (audio/composition.ts), which is what
+      // assembles the session runtime, adapters and view model. Passing it here
+      // is the whole of tasks.md 6.0: without it the popup had no data source
+      // and rendered only its placeholder.
+      const audio = audioPanelBinding()
       app.add_window(AudioCatcher(primary))
-      app.add_window(AudioPopup(primary))
+      app.add_window(AudioPopup(primary, audio))
     }
   },
 })

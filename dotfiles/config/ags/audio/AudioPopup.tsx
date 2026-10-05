@@ -1,11 +1,12 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
+import Pango from "gi://Pango?version=1.0"
 import { Accessor, For, createComputed, createEffect, createState } from "ags"
 import { registry } from "../lib/icon-registry"
 import { close, popupVisible, audioIconX } from "./state"
 import type { AudioPanelViewModel, AudioAppRowView } from "./presentation/audio-panel-view-model"
 
-type RouteChoice = { kind: "follow-preferred" } | { kind: "explicit"; endpointId: string }
-type TransportAction = "play-pause" | "previous" | "next"
+export type RouteChoice = { kind: "follow-preferred" } | { kind: "explicit"; endpointId: string }
+export type TransportAction = "play-pause" | "previous" | "next"
 
 /** Commands are injected by the application composition root; the GTK view owns no audio policy. */
 export interface AudioPanelActions {
@@ -19,7 +20,8 @@ export interface AudioPanelActions {
   seek(playerId: string, positionUs: number): void
   selectInput(endpointId: string): void
   setInputVolume(endpointId: string, percent: number): void
-  toggleInputMute(endpointId: string): void
+  /** Acts on the session's default input, so no endpoint argument is needed. */
+  toggleInputMute(): void
 }
 
 export interface AudioPanelBinding {
@@ -107,12 +109,15 @@ function LevelControl({
 }: {
   label: Accessor<string>
   volume: Accessor<VolumeState>
-  disabled?: Accessor<boolean>
+  // Same shape as IconButton: a plain boolean when the caller has no live
+  // state, or an Accessor when it does. Typing this as Accessor-only made the
+  // `false` default a type error under strict mode.
+  disabled?: boolean | Accessor<boolean>
   onChange: (percent: number) => void
 }) {
   let interacting = false
   const percent = createComputed(() => asPercent(volume().level))
-  const isDisabled = createComputed(() => disabled?.() ?? false)
+  const isDisabled = createComputed(() => (typeof disabled === "function" ? disabled() : disabled) ?? false)
 
   function wireGestures(scale: Gtk.Scale) {
     const controllers = scale.observe_controllers()
@@ -189,7 +194,7 @@ function openChoicePopover(
     const row = new Gtk.Box({ spacing: 8 })
     const mark = new Gtk.Label({ label: option.selected ? "✓" : "", xalign: 0 })
     mark.add_css_class("audio-option-mark")
-    const label = new Gtk.Label({ label: option.label, xalign: 0, hexpand: true, ellipsize: Gtk.EllipsizeMode.END })
+    const label = new Gtk.Label({ label: option.label, xalign: 0, hexpand: true, ellipsize: Pango.EllipsizeMode.END })
     row.append(mark)
     row.append(label)
     button.set_child(row)
@@ -238,7 +243,7 @@ function DeviceSelector({
     >
       <box spacing={10} hexpand>
         <image pixel_size={18} $={(self: Gtk.Image) => setImageOnce(self, icon(iconName, "system-low"))} />
-        <label class="audio-device-select-name" xalign={0} hexpand ellipsize={Gtk.EllipsizeMode.END} label={value} />
+        <label class="audio-device-select-name" xalign={0} hexpand ellipsize={Pango.EllipsizeMode.END} label={value} />
         <label class="audio-device-chevron" label="▾" />
       </box>
     </button>
@@ -383,9 +388,9 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
           <label class="audio-art-fallback" label={createComputed(() => row().appName.slice(0, 1).toUpperCase())} visible={createComputed(() => !artworkPath() && !appIconPath())} />
         </box>
         <box class="audio-app-meta" orientation={Gtk.Orientation.VERTICAL} spacing={1} hexpand>
-          <label class="audio-app-name" xalign={0} ellipsize={Gtk.EllipsizeMode.END} maxWidthChars={24} tooltipText={appName} label={appName} />
-          <label class="audio-media-title" xalign={0} ellipsize={Gtk.EllipsizeMode.END} maxWidthChars={30} tooltipText={title} label={title} />
-          <label class="audio-media-artist" xalign={0} ellipsize={Gtk.EllipsizeMode.END} maxWidthChars={30} tooltipText={artist} label={createComputed(() => artist() || "Media details unavailable")} />
+          <label class="audio-app-name" xalign={0} ellipsize={Pango.EllipsizeMode.END} maxWidthChars={24} tooltipText={appName} label={appName} />
+          <label class="audio-media-title" xalign={0} ellipsize={Pango.EllipsizeMode.END} maxWidthChars={30} tooltipText={title} label={title} />
+          <label class="audio-media-artist" xalign={0} ellipsize={Pango.EllipsizeMode.END} maxWidthChars={30} tooltipText={artist} label={createComputed(() => artist() || "Media details unavailable")} />
         </box>
         <button
           class="audio-route-selector"
@@ -394,7 +399,7 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
           $={(self: Gtk.Button) => createEffect(() => accessibleLabel(self, `${appName()} output route: ${routeMenuLabel(row())}`))}
         >
           <box spacing={4}>
-            <label class="audio-route-label" maxWidthChars={15} ellipsize={Gtk.EllipsizeMode.END} label={createComputed(() => routeMenuLabel(row()))} />
+            <label class="audio-route-label" maxWidthChars={15} ellipsize={Pango.EllipsizeMode.END} label={createComputed(() => routeMenuLabel(row()))} />
             <label class="audio-device-chevron" label="▾" />
           </box>
         </button>
@@ -562,8 +567,16 @@ export function AudioCatcher(gdkmonitor: Gdk.Monitor) {
   )
 }
 
-/** Popup shell. Runtime composition will provide the binding when the new application boundary is wired. */
-export function AudioPopup(gdkmonitor: Gdk.Monitor, binding?: AudioPanelBinding) {
+/**
+ * Popup shell. The binding is REQUIRED: it carries the session view model and
+ * the application actions, and this view owns no audio policy of its own.
+ *
+ * It was optional once, with an `Audio controls are connecting` placeholder for
+ * the unbound case. That made an unwired panel indistinguishable from a starting
+ * one, and the popup shipped rendering nothing at all. A required parameter
+ * turns that class of omission into a typecheck error (tasks.md 6.0d).
+ */
+export function AudioPopup(gdkmonitor: Gdk.Monitor, binding: AudioPanelBinding) {
   const { TOP, LEFT } = Astal.WindowAnchor
   const geometry = gdkmonitor.get_geometry()
   const width = Math.max(280, Math.min(408, geometry.width - 16))
@@ -595,7 +608,7 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor, binding?: AudioPanelBinding)
           hscrollbarPolicy={Gtk.PolicyType.NEVER}
           vscrollbarPolicy={Gtk.PolicyType.AUTOMATIC}
         >
-          {binding ? <AudioPanelContent binding={binding} /> : <label class="audio-empty-state" label="Audio controls are connecting" />}
+          <AudioPanelContent binding={binding} />
         </scrolledwindow>
       </box>
     </window>

@@ -1,6 +1,6 @@
-.PHONY: bootstrap contracts-check gates audio-mock-parity audio-core-test \
-	audio-presentation-test pipewire-adapter-test audio-session-runtime-test \
-	audio-panel-render-test audio-panel-gates dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates audio-mock-parity ags-typecheck \
+	audio-core-test audio-presentation-test pipewire-adapter-test \
+	audio-session-runtime-test audio-panel-render-test audio-panel-gates dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -38,6 +38,17 @@ speedtest-no-new-architecture:
 audio-mock-parity:
 	python3 scripts/audio-mock-parity.py
 
+# Typecheck the AGS layer (tasks.md 6.5). `ags bundle` transpiles without
+# typechecking, which is how a mis-cased shorthand property shipped through
+# every other gate and died on startup.
+#
+# Baseline is 32: errors that exist on master today, untouched by this change
+# (battery, tray, wifi-service, ...). Verified by diffing the error file list
+# against master -- this change introduces none and removes 5. Do not raise the
+# baseline to make the gate green; fix the error or record why it is foreign.
+ags-typecheck:
+	python3 scripts/ags-typecheck.py --baseline 31
+
 # Audio panel gates, cheapest and most local first. Order matters: the unit
 # suites are fast and stateless, then mock/code parity (the mock is the source
 # of truth for the surface), then the render gate (is the panel wired at all),
@@ -62,7 +73,7 @@ audio-panel-render-test:
 	node $(AUDIO_VALIDATION)/audio-panel-render.test.mjs
 
 audio-panel-gates: audio-core-test audio-presentation-test pipewire-adapter-test \
-	audio-session-runtime-test audio-panel-render-test audio-mock-parity
+	audio-session-runtime-test audio-panel-render-test audio-mock-parity ags-typecheck
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).

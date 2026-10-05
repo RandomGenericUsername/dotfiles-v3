@@ -128,7 +128,9 @@ export class MprisAdapter implements MprisObservationPort, MprisPort {
     return new Promise((resolve, reject) => {
       this.connection.call(destination, path, iface, method, parameters, null, Gio.DBusCallFlags.NONE,
         10000, null, (connection, result) => {
-          try { resolve(connection.call_finish(result)) } catch (error) { reject(error) }
+          try {
+            if (!connection) throw new Error("D-Bus call delivered no connection")
+            resolve(connection.call_finish(result)) } catch (error) { reject(error) }
         })
     })
   }
@@ -403,16 +405,24 @@ function queryInfo(file: Gio.File): Promise<Gio.FileInfo> {
   return new Promise((resolve, reject) => file.query_info_async(
     "standard::size,standard::content-type,standard::name", Gio.FileQueryInfoFlags.NONE,
     GLib.PRIORITY_DEFAULT, null, (source, result) => {
-      try { resolve(source.query_info_finish(result)) } catch (error) { reject(error) }
+      try {
+        if (!source) throw new Error("query_info_async delivered no source object")
+        resolve(source.query_info_finish(result)) } catch (error) { reject(error) }
     }))
 }
 function copyFile(source: Gio.File, target: Gio.File, maxBytes: number): Promise<void> {
   const cancellable = new Gio.Cancellable()
+  // copy_async takes SIX arguments. A seventh (a stray `null`) throws
+  // TypeError at the call site, so every artwork copy failed and rows silently
+  // fell back to the app icon. Caught by the 6.5 typecheck gate, not by any
+  // runtime test -- there is no live artwork test in this change.
   return new Promise((resolve, reject) => source.copy_async(
     target, Gio.FileCopyFlags.OVERWRITE, GLib.PRIORITY_DEFAULT, cancellable,
-    (currentBytes) => { if (currentBytes > maxBytes) cancellable.cancel() }, null,
+    (currentBytes) => { if (currentBytes > maxBytes) cancellable.cancel() },
     (file, result) => {
-      try { file.copy_finish(result); resolve() } catch (error) {
+      try {
+        if (!file) throw new Error("copy_async delivered no source object")
+        file.copy_finish(result); resolve() } catch (error) {
         try { target.delete(null) } catch { /* partial target absent */ }
         reject(error)
       }

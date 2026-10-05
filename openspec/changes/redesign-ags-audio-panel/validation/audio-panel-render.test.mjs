@@ -28,7 +28,6 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
-import { execFileSync } from "node:child_process";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "../../../..");
@@ -37,8 +36,36 @@ const AUDIO = join(AGS, "audio");
 
 const read = (p) => readFileSync(p, "utf8");
 
-const appTsx = read(join(AGS, "app.tsx"));
-const popupSrc = read(join(AUDIO, "AudioPopup.tsx"));
+/**
+ * Strip comments before scanning.
+ *
+ * A check like "the connecting fallback is gone" must not be satisfied or
+ * defeated by prose about it: AudioPopup.tsx documents that the placeholder
+ * existed and why, in a comment. Scanning raw text made that documentation read
+ * as the defect it describes. Block and line comments are removed; string
+ * literals are left alone, since the placeholder ships inside one.
+ */
+function stripComments(text) {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const two = text.slice(i, i + 2);
+    if (two === "/*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end === -1 ? text.length : end + 1;
+      continue;
+    }
+    if (two === "//") {
+      const end = text.indexOf("\n", i);
+      i = end === -1 ? text.length : end;
+      continue;
+    }
+    out += text[i];
+  }
+  return out;
+}
+
+const appTsx = stripComments(read(join(AGS, "app.tsx")));
+const popupSrc = stripComments(read(join(AUDIO, "AudioPopup.tsx")));
 const styleSrc = existsSync(join(AGS, "style.css")) ? read(join(AGS, "style.css")) : "";
 
 const checks = [];
@@ -122,16 +149,48 @@ check("no consumer outside the new boundary imports ./state", () => {
 });
 
 check("the new boundary is reachable from app.tsx", () => {
-  const layers = [
-    "application/runtime/audio-session-runtime",
-    "presentation/audio-panel-view-model",
+  // Reachability, not a literal import in app.tsx: the composition root is
+  // expected to assemble the layers, so follow the import graph transitively
+  // from app.tsx rather than demanding app.tsx name each one.
+  const seen = new Set();
+  const queue = [join(AGS, "app.tsx")];
+  const LAYERS = [
+    "audio/domain/audio-model.ts",
+    "audio/application/ports.ts",
+    "audio/application/audio-actions.ts",
+    "audio/application/runtime/audio-session-runtime.ts",
+    "audio/adapters/pipewire/pipewire-observation.ts",
+    "audio/adapters/mpris/mpris-adapter.ts",
+    "audio/presentation/audio-panel-view-model.ts",
   ];
-  const missing = layers.filter((l) => !appTsx.includes(l));
+  const IMPORT_RE = /from\s+["']([^"']+)["']/g;
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file) || !existsSync(file)) continue;
+    seen.add(file);
+    const src = stripComments(read(file));
+    for (const m of src.matchAll(IMPORT_RE)) {
+      const spec = m[1];
+      if (!spec.startsWith(".")) continue; // ags/, gi://, node builtins
+      // Extensionless relative imports, as AGS/GJS writes them.
+      const base = resolve(dirname(file), spec);
+      const target = existsSync(base)
+        ? base
+        : [base + ".ts", base + ".tsx", join(base, "index.ts")].find((c) =>
+            existsSync(c)
+          );
+      if (target) queue.push(target);
+    }
+  }
+  const missing = LAYERS.filter(
+    (rel) => !seen.has(join(AGS, rel))
+  );
   assert.deepEqual(
     missing,
     [],
-    `app.tsx never references: ${missing.join(", ")}. The composition root ` +
-      "does not construct them, so they are orphaned code."
+    `unreachable from app.tsx: ${missing.join(", ")}. These modules exist but ` +
+      "nothing imports them, so the panel has no data source -- orphaned " +
+      "architecture that compiles and renders nothing."
   );
 });
 

@@ -50,10 +50,9 @@ jobs:
   # claim mechanical rather than a review opinion -- the same role as the Wi-Fi
   # and speed-test parity gates above.
   #
-  # The render gate (audio-panel-render.test.mjs) and the tsc gate are NOT wired
-  # here yet: the panel is mid-rewire under redesign-ags-audio-panel (tasks.md
-  # 6.0 is unchecked) and both are red until it is wired. They join this
-  # workflow when that change lands.
+  # The render gate (audio-panel-render.test.mjs) is NOT wired here yet: it is
+  # in `make audio-panel-gates` and joins CI when the panel is confirmed
+  # rendering live (tasks.md 6.6).
   audio-mock-parity:
     name: audio-mock-parity
     runs-on: ubuntu-latest
@@ -61,3 +60,24 @@ jobs:
       - uses: actions/checkout@v4
       - name: Audio mock<->code parity
         run: python3 scripts/audio-mock-parity.py
+
+  # Typecheck the AGS layer (tasks.md 6.5). `ags bundle` transpiles without
+  # typechecking, which is how a mis-cased shorthand property in the composition
+  # root passed every other gate and died on startup.
+  #
+  # Needs `ags types` for the GObject-introspection typings, so this is the one
+  # gate that cannot run on a bare ubuntu-latest runner; it is wired to the
+  # self-hosted runner where ags is installed. Until then `make ags-typecheck`
+  # is the authoritative local run.
+  ags-typecheck:
+    name: ags-typecheck
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install TypeScript
+        run: npm ci --no-save typescript@5.9.3 || npm i --no-save typescript@5.9.3
+      - name: Typecheck the AGS layer
+        run: make ags-typecheck

@@ -82,7 +82,9 @@ export class PipeWireObservationAdapter implements PipeWireObservationPort {
         ["pw-dump", "--monitor"],
         Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_SILENCE,
       )
-      this.monitorReader = Gio.DataInputStream.new(this.monitor.get_stdout_pipe())
+      const stdout = this.monitor.get_stdout_pipe()
+      if (!stdout) throw new Error("pw-dump --monitor exposed no stdout pipe")
+      this.monitorReader = Gio.DataInputStream.new(stdout)
       this.readMonitorLine()
     } catch (error) {
       console.error("audio PipeWire monitor could not start:", error)
@@ -92,8 +94,11 @@ export class PipeWireObservationAdapter implements PipeWireObservationPort {
   private readMonitorLine(): void {
     const reader = this.monitorReader
     if (!reader || !this.listeners.size) return
-    reader.read_line_async(Gio.PRIORITY_DEFAULT, null, (source, result) => {
+    // Gio.PRIORITY_DEFAULT does not exist; the io_priority constants live on
+    // GLib. Reading it off Gio yields undefined at the call site.
+    reader.read_line_async(GLib.PRIORITY_DEFAULT, null, (source, result) => {
       try {
+        if (!source) throw new Error("read_line_async delivered no source object")
         const [line] = source.read_line_finish_utf8(result)
         if (line === null) {
           this.monitorReader = null
