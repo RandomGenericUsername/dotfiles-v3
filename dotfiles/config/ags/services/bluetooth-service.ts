@@ -616,7 +616,40 @@ function sleep(ms: number): Promise<void> {
  * but its absence from the UI must not be its absence from the service, which
  * is what made this failure invisible in the first place.
  */
+/**
+ * In-flight routing attempts, keyed by device label.
+ *
+ * WHY THIS EXISTS. `routeAudioToDevice` polls — up to 16 attempts 500 ms apart —
+ * because WirePlumber's speaker endpoint lags the BlueZ connect by seconds. Its
+ * caller is a `createEffect` over `bluetoothDevices()`, and during an active scan
+ * RSSI updates mutate that list constantly, so the effect re-ran on almost every
+ * advertisement tick. With no guard, each re-run started ANOTHER 8-second poll
+ * and began by calling `setAudioTarget(null)` — so the audio target was being
+ * repeatedly nulled while overlapping polls competed to set it. That is the
+ * sluggishness reported from the panel.
+ *
+ * The old comment on that caller claimed "routing is idempotent". It was not,
+ * and could not be: the unconditional `setAudioTarget(null)` at the top of this
+ * function is the opposite of idempotent.
+ *
+ * The guard is here rather than at the call site so every caller is protected,
+ * including future ones. Re-entry for the SAME label is dropped; a DIFFERENT
+ * label still proceeds immediately, because switching the default sink to
+ * another device must not queue behind an attempt for the first.
+ */
+const routeInFlight = new Set<string>()
+
 export async function routeAudioToDevice(label: string): Promise<void> {
+  if (label && routeInFlight.has(label)) return
+  if (label) routeInFlight.add(label)
+  try {
+    await routeAudioToDeviceImpl(label)
+  } finally {
+    if (label) routeInFlight.delete(label)
+  }
+}
+
+async function routeAudioToDeviceImpl(label: string): Promise<void> {
   //: Clear first, unconditionally: the attempt is unproven until an endpoint
   //: is found and actually defaulted. Setting it after the guards instead
   //: would let the `!wp || !label` bail inherit the PREVIOUS attempt's answer

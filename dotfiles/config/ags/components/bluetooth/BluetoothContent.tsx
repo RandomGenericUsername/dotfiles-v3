@@ -527,15 +527,32 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
     return () => stopBluetoothDiscovery()
   })
 
-  // Devices that connected outside the panel (auto-connect) still need the
-  // audio sink defaulted; routing is idempotent.
+  // Devices that connected outside the panel (auto-connect) still need the audio
+  // sink defaulted.
+  //
+  // Transition-triggered, NOT on every device-list change. `bluetoothDevices()`
+  // is re-published on every RSSI update, and an active scan produces those
+  // constantly, so an effect that routed on each run would re-route the same
+  // headset over and over. Each re-route calls `setAudioTarget(null)` before it
+  // finds the endpoint again, so the default sink would flicker between "unset"
+  // and the headset on every advertisement frame.
+  //
+  // The old comment here said "routing is idempotent". It was not — see the
+  // routeInFlight guard in bluetooth-service.ts.
+  const routedAddresses = new Set<string>()
   createEffect(() => {
     if (!visible()) return
     if (!bluetoothPowered()) return
-    for (const device of bluetoothDevices()) {
-      if (device.connected) {
-        void routeAudioToDevice(device.alias || device.name)
-      }
+    const connected = bluetoothDevices().filter((device) => device.connected)
+    const stillConnected = new Set(connected.map((device) => device.address))
+    for (const device of connected) {
+      if (routedAddresses.has(device.address)) continue
+      routedAddresses.add(device.address)
+      void routeAudioToDevice(device.alias || device.name)
+    }
+    // Forget devices that dropped, so reconnecting routes again.
+    for (const address of [...routedAddresses]) {
+      if (!stillConnected.has(address)) routedAddresses.delete(address)
     }
   })
 
