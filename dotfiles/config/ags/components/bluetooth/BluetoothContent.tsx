@@ -13,6 +13,7 @@ import {
   connectDevice,
   disconnectDevice,
   pairDevice,
+  refreshBluetoothDevices,
   routeAudioToDevice,
   startBluetoothDiscovery,
   stopBluetoothDiscovery,
@@ -594,6 +595,18 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
   const failure = createComputed(() =>
     settingsMessage() ? settingsMessage() : bluetoothFailure(),
   )
+
+  // Re-read reachability whenever the panel becomes visible.
+  //
+  // BlueZ emits no event when a paired device merely stops advertising — it just
+  // stops reporting RSSI — so the cached value can be minutes or hours old, and
+  // the row offers a live Connect button for hardware that is switched off. A
+  // fresh read costs one GetAll per cached device and only happens while someone
+  // is looking, which is the only time the answer is read. NOT a timer.
+  createEffect(() => {
+    if (!visible()) return
+    void refreshBluetoothDevices()
+  })
 
   // ── scanning indicator ───────────────────────────────────────────────
   // NOT IMPLEMENTED. The mock (`popup-scanning`, `popup-scanning-devices`) now

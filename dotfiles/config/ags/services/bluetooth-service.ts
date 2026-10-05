@@ -5,6 +5,7 @@ import {
   DBUS_PROPERTIES_IFACE,
   asBusError,
   call,
+  getAll,
   subscribe,
   watchProperties,
 } from "./nm-client"
@@ -244,6 +245,67 @@ function installBatteryWatch(path: string): void {
       BLUEZ,
     ),
   )
+}
+
+/**
+ * Re-read every cached device's properties from BlueZ.
+ *
+ * WHY THIS EXISTS. Reachability is derived from `RSSI`:
+ * `inRange = connected() || rssi() < 0`, and an absent RSSI normalises to 0, so
+ * a FRESH read shows a quiet device as out of range. But BlueZ does not emit
+ * PropertiesChanged when a device merely stops advertising — it just stops
+ * reporting the property. So with events alone the row keeps the last in-range
+ * value it ever saw.
+ *
+ * MEASURED, on a real TOZO NC9 sitting in its charging case:
+ *
+ *   device                 RSSI     Paired  Connected
+ *   Infinix NOTE 40 Pro    None     1       0
+ *   TOZO NC9               None     1       0
+ *   51-21-D7-6B-40-B6      -38      0       0     <- heard by the scan
+ *
+ * Both paired devices have NO RSSI property at all; the devices the scan just
+ * heard do. The Infinix row read correctly only because the scan had just
+ * rediscovered it and pushed a fresh value through the event path; the TOZO had
+ * not been rediscovered, so its row offered a live Connect button for hardware
+ * that was switched off.
+ *
+ * WHY THIS IS CALLED ON VIEW, NOT ON A TIMER. The reading only matters while
+ * someone is looking at the panel, and every event that can change it still
+ * arrives normally in between — RSSI during an active scan, plus
+ * connect/disconnect/pairing. A timer would be paying for an answer nobody reads.
+ *
+ * An ABSENT property is deliberately destructive here, unlike
+ * `applyDeviceProps` which only applies keys present in `changed`: for RSSI,
+ * absence is the signal, so it must overwrite the stale value rather than skip.
+ */
+export async function refreshBluetoothDevices(): Promise<void> {
+  const entries = [...deviceCache.entries()]
+  if (entries.length === 0) return
+  await Promise.all(
+    entries.map(async ([path, device]) => {
+      let props: Record<string, unknown>
+      try {
+        props = await getAll(path, DEVICE_IFACE, BLUEZ)
+      } catch {
+        // BlueZ no longer has the object: drop it rather than leave a row whose
+        // state can never be updated again.
+        removeDevice(path)
+        return
+      }
+      const next: BluetoothDevice = { ...device }
+      if ("Alias" in props) next.alias = String(props.Alias)
+      if ("Name" in props) next.name = String(props.Name)
+      if ("Connected" in props) next.connected = Boolean(props.Connected)
+      if ("Paired" in props) next.paired = Boolean(props.Paired)
+      if ("Trusted" in props) next.trusted = Boolean(props.Trusted)
+      if ("Icon" in props) next.icon = String(props.Icon)
+      // `?? 0` rather than a presence check: absence IS the signal.
+      next.rssi = Number(props.RSSI ?? 0)
+      deviceCache.set(path, next)
+    }),
+  )
+  applyDevices()
 }
 
 function applyDeviceProps(
