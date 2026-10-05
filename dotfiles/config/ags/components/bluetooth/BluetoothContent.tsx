@@ -215,11 +215,13 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
   }
 
   function openConfirm() {
+    console.error(`BluetoothContent: openConfirm(${item.address}) busy=${anyBusy()}`)
     if (anyBusy()) return
     setConfirmingAddress(item.address)
   }
 
   function confirmUnpair() {
+    console.error(`BluetoothContent: confirmUnpair(${item.address}) busy=${anyBusy()}`)
     if (anyBusy()) return
     setConfirmingAddress(null)
     unpairDevice(item.address)
@@ -327,59 +329,74 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
           valign={Gtk.Align.CENTER}
           visible={createComputed(() => !busy())}
         >
-          {confirming() ? (
-            <button
-              class="settings-rowact"
-              onClicked={() => setConfirmingAddress(null)}
-              canFocus={false}
-              valign={Gtk.Align.CENTER}
-            >
-              <label label="Keep" />
-            </button>
-          ) : (
-            /* `disabled` is a visual hint only — `.settings-rowact.disabled`'s
-               comment says as much. The row gesture above no-ops in exactly the
-               same conditions, so no `sensitive` prop is needed, and adding one
-               would stack libadwaita's own disabled opacity on top of ours. */
-            <button
-              class={createComputed(() =>
-                primaryAvailable() ? "settings-rowact" : "settings-rowact disabled",
-              )}
-              onClicked={act}
-              canFocus={false}
-              valign={Gtk.Align.CENTER}
-            >
-              <label label={actionLabel} />
-            </button>
-          )}
-          {confirming() ? (
-            /* The ONE new class this change introduces (design §2/§7).
-               `confirmUnpair` re-checks `anyBusy()` rather than trusting the
-               button's visibility: a confirm can already be open when a
-               different row's action starts, and BlueZ's single-flight
-               `runAction` would drop the unpair silently. Better to refuse
-               loudly than to look like it worked. */
-            <button
-              class="settings-rowact danger"
-              onClicked={confirmUnpair}
-              canFocus={false}
-              valign={Gtk.Align.CENTER}
-            >
-              <label label="Unpair device" />
-            </button>
-          ) : (
-            /* Hidden entirely while busy: `runAction` is single-flight, so an
-               Unpair issued during another row's action would be dropped. */
-            <button
-              class="settings-rowact subtle"
-              onClicked={openConfirm}
-              canFocus={false}
-              valign={Gtk.Align.CENTER}
-              visible={createComputed(() => paired() && !anyBusy())}
-            >
-              <label label="Unpair" />
-            </button>
-          )}
+          {/* WHY ALL FOUR ARE ALWAYS MOUNTED AND ONLY `visible` TOGGLES.
+              This was a structural `{cond ? <A/> : <B/>}` pair, which is the
+              bug this comment exists to prevent repeating: AGS builds a STATIC
+              widget tree, so a JSX ternary is evaluated once, at construction.
+              Nothing subscribes to `confirming()`, so whichever branch was
+              chosen when the row was built was chosen forever. MEASURED
+              consequence: clicking `Unpair` called `openConfirm` (logged nine
+              times) but `confirmUnpair` was NEVER reached -- the confirm
+              buttons did not exist, so unpairing was impossible and nothing on
+              screen or in the log said why.
+
+              The fix is the idiom this file already uses 22 times: mount both
+              branches and drive `visible` from a computed. That subscribes, so
+              the swap actually happens. Kept as four explicit buttons rather
+              than a computed-wrapped fragment because `visible` is reactive
+              here and JSX shape is not. */}
+          <button
+            class="settings-rowact"
+            onClicked={() => setConfirmingAddress(null)}
+            canFocus={false}
+            valign={Gtk.Align.CENTER}
+            visible={createComputed(() => confirming())}
+          >
+            <label label="Keep" />
+          </button>
+          {/* `disabled` is a visual hint only — `.settings-rowact.disabled`'s
+              comment says as much. The row gesture above no-ops in exactly the
+              same conditions, so no `sensitive` prop is needed, and adding one
+              would stack libadwaita's own disabled opacity on top of ours. */}
+          <button
+            class={createComputed(() =>
+              primaryAvailable() ? "settings-rowact" : "settings-rowact disabled",
+            )}
+            onClicked={act}
+            canFocus={false}
+            valign={Gtk.Align.CENTER}
+            visible={createComputed(() => !confirming())}
+          >
+            <label label={actionLabel} />
+          </button>
+          {/* The ONE new class this change introduces (design §2/§7).
+              `confirmUnpair` re-checks `anyBusy()` rather than trusting the
+              button's visibility: a confirm can already be open when a
+              different row's action starts, and BlueZ's single-flight
+              `runAction` would drop the unpair silently. Better to refuse
+              loudly than to look like it worked. */}
+          <button
+            class="settings-rowact danger"
+            onClicked={confirmUnpair}
+            canFocus={false}
+            valign={Gtk.Align.CENTER}
+            visible={createComputed(() => confirming())}
+          >
+            <label label="Unpair device" />
+          </button>
+          {/* Hidden entirely while busy: `runAction` is single-flight, so an
+              Unpair issued during another row's action would be dropped. */}
+          <button
+            class="settings-rowact subtle"
+            onClicked={openConfirm}
+            canFocus={false}
+            valign={Gtk.Align.CENTER}
+            visible={createComputed(() =>
+              !confirming() && paired() && !anyBusy(),
+            )}
+          >
+            <label label="Unpair" />
+          </button>
         </box>
       </box>
     </box>
@@ -454,7 +471,21 @@ function BluetoothSettingsFooter({
 /** The embeddable body: off/failure/scanning states + the device sections. */
 export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
   const [settingsMessage, setSettingsMessage] = createState("")
-  const [manuallyToggled, setManuallyToggled] = createState(false)
+  // WHY THIS IS A TRI-STATE (`boolean | null`) AND NOT A PLAIN BOOLEAN.
+// With `createState(false)` the expansion rule was
+// `manuallyToggled() || nearbyDevices().length > 0`, which is
+// unconditionally TRUE whenever any device is in range. MEASURED
+// consequence: the chevron was inert. Clicking it set the flag to `true`
+// (still expanded, no visible change) and clicking again set it to `false`
+// (still expanded, because `nearbyCount > 0` won) -- so the section could
+// never be collapsed and the arrow was a control that did nothing.
+//
+// `null` means "the user has not expressed an intent yet", so the section
+// still auto-opens when devices are found. A real boolean means the user has
+// decided and wins from then on. That is what an arrow is supposed to do.
+const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
+  null,
+)
 
   const powered = createComputed(() => bluetoothPowered())
   const pairedDevices = createComputed(() =>
@@ -468,17 +499,21 @@ export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
   const hasDevices = createComputed(() => bluetoothDevices().length > 0)
   const hasPaired = createComputed(() => pairedDevices().length > 0)
 
-  // WHY the section is not purely a manual toggle: a discovery run starts the
-  // moment the surface becomes visible, so a section that only opened on a
-  // click would show an empty popup and then silently populate a section the
-  // user never opened. Collapsing is therefore the default ONLY when there is
-  // nothing in it — `manuallyToggled || nearbyCount > 0`. The corollary, fixed
-  // by the same formula: a section with devices in it cannot be collapsed by
-  // the chevron, because hiding devices the user is being offered is the worse
-  // default. The chevron expresses intent only for the empty case.
-  const expanded = createComputed(
-    () => manuallyToggled() || nearbyDevices().length > 0,
-  )
+  // WHY the section AUTO-OPENS on discovery: a discovery run starts the moment
+  // the surface becomes visible, so a section that only opened on a click
+  // would show an empty popup and then silently populate a section the user
+  // never opened. So with no manual decision recorded, it opens as soon as
+  // devices are found, and closes again when they go away.
+  //
+  // What it does NOT do any more: refuse to collapse while devices are
+  // present. That was the previous rule and it made the chevron inert -- see
+  // the tri-state note above. The user can now always collapse what they are
+  // looking at, which is the whole point of an arrow.
+  const expanded = createComputed(() => {
+    const manual = manuallyToggled()
+    if (manual !== null) return manual
+    return nearbyDevices().length > 0
+  })
 
   // Discovery runs while this content is visible and the adapter is powered;
   // hiding it (or powering off) stops it so BlueZ does not scan forever. The
@@ -514,12 +549,65 @@ export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
     setConfirmingAddress(null)
   })
 
+  // The scanning indicator. `Gtk.Spinner`, deliberately NOT a bespoke loader:
+  // the supplied spinner pack's artwork cannot be animated smoothly here (GTK
+  // 4.22.5 exposes no widget rotation, and this stylesheet records that GTK
+  // honours @keyframes only best-effort), and the native widget is one boolean
+  // with no timer and no assets. It is the same widget and the same class as
+  // the in-flight action spinner on each row, and as WifiContent.tsx:366.
+  // Findings, measurements and the bespoke-loader cost:
+  // docs/Animated_Icon_Loader_Findings.md
+  //
+  // ONE indicator, TWO positions (owner rulings, 2026-10-05), keyed on whether
+  // the Available Devices section is OPEN and whether its list has items:
+  //
+  //   open,   empty -> spinner + "Scanning..." as the list's empty state, in the
+  //                     rows' place. There is nothing else on screen saying a
+  //                     scan is running.
+  //   open,   items -> spinner in the section header. The list already shows the
+  //                     scan by growing, so a centred line between two populated
+  //                     lists is noise.
+  //   CLOSED, any  -> spinner in the section header. The list is not on screen,
+  //                     so the header is the only visible part of the section and
+  //                     the only place the indicator can live.
+  //
+  // The `CLOSED` case is why the header is not simply "the list has items" case:
+  // collapsing the section used to leave BOTH wrong -- the placeholder stayed
+  // visible below a collapsed header, and the header spinner went away, so a
+  // collapsed list during a scan showed nothing at all.
+  //
+  // The two are exhaustive and mutually exclusive: exactly one shows while
+  // scanning, and neither shows when not scanning.
+  const scanning = createComputed(() => powered() && bluetoothDiscovering())
+  const scanningPlaceholder = createComputed(
+    () => scanning() && expanded() && nearbyDevices().length === 0,
+  )
+  const scanningInHeader = createComputed(
+    () =>
+      scanning() &&
+      (!expanded() || nearbyDevices().length > 0),
+  )
+
   // Failure is derived from the service state — no manual message timer. The
   // footer row's spawn failure reuses the same line, so a failed launch is
   // reported where every other failure is reported.
   const failure = createComputed(() =>
     settingsMessage() ? settingsMessage() : bluetoothFailure(),
   )
+
+  // ── scanning indicator ───────────────────────────────────────────────
+  // NOT IMPLEMENTED. The mock (`popup-scanning`, `popup-scanning-devices`) now
+  // specifies an animated indicator and `bluetooth-mock-parity` reports the
+  // tokens as a tracked gap, but no artwork ships here on purpose: the owner
+  // deferred implementation until the variant is chosen and it is agreed
+  // whether the frame-cycling engine is acceptable at all. Do not "fix" this
+  // by adding a spinner without that decision -- see the mock and proposal.
+  //
+  // The bug this was meant to address is ALSO still present, deliberately: the
+  // `Scanning…` label below is gated on `!hasDevices()`, so it disappears the
+  // moment one device is found while the scan is still running. That is a
+  // one-line gate change with no artwork and no engine, and it is awaiting the
+  // same decision.
 
   return (
     <box
@@ -542,32 +630,32 @@ export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
         visible={createComputed(() => !powered())}
       />
 
-      <label
-        class="settings-message"
-        xalign={0}
-        wrap
-        maxWidthChars={34}
-        label={failure}
-        visible={createComputed(() => failure() !== "")}
-      />
-
-      <label
-        class="settings-empty"
-        xalign={0}
-        label="Scanning…"
-        visible={createComputed(
-          () => powered() && bluetoothDiscovering() && !hasDevices(),
-        )}
-      />
-
-      <label
-        class="settings-empty"
-        xalign={0}
-        label="No devices found"
-        visible={createComputed(
-          () => powered() && !bluetoothDiscovering() && !hasDevices(),
-        )}
-      />
+      {/* Failure row. The mock draws a caution glyph before the text
+          (`popup-failed`); this used to be a bare label, so the row rendered the
+          message with no marker at all. Same `.msg` shape as the mock: icon on
+          the left, wrapping text beside it. */}
+      <box class="settings-msg" spacing={8} visible={createComputed(() => failure() !== "")}>
+        <image
+          class="settings-msg-icon"
+          pixel_size={16}
+          valign={Gtk.Align.START}
+          visible={createComputed(() => failure() !== "")}
+          $={(self) => {
+            createEffect(() => {
+              if (failure() === "") return
+              self.set_from_file(registry.resolve("settings-panel", "info-caution") ?? "")
+            })
+          }}
+        />
+        <label
+          class="settings-message"
+          xalign={0}
+          wrap
+          maxWidthChars={30}
+          label={failure}
+          visible={createComputed(() => failure() !== "")}
+        />
+      </box>
 
       {/* Adapter detail row — the LOCAL CONTROLLER's own address
           (`Adapter1.Address`), never a device's. Hidden entirely while powered
@@ -615,17 +703,36 @@ export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
 
       <button
         class="settings-chevron-row"
-        onClicked={() => setManuallyToggled(!manuallyToggled())}
+        onClicked={() => setManuallyToggled(!expanded())}
         canFocus={false}
         visible={powered}
       >
-        <label
-          class="settings-chevron-label"
-          xalign={0}
-          label={createComputed(() =>
-            expanded() ? "Available Devices ▾" : "Available Devices ▸",
-          )}
-        />
+        {/* ONE child, always: a Gtk.Button takes a single child. An earlier version
+            put the label and a spinner here as siblings; the label was dropped
+            and the spinner was left alone in the row, which rendered as a large
+            empty box. Both contents go inside one box instead.
+
+            `hexpand` on the label pushes the spinner to the right edge, which
+            is what the mock's `.chev` does with `justify-content:space-between`.
+
+            This is the SECOND position of the one indicator: it is visible only
+            while the Available Devices list is non-empty, in which case the
+            centred placeholder is hidden (see `scanningPlaceholder`). */}
+        <box>
+          <label
+            class="settings-chevron-label"
+            xalign={0}
+            hexpand
+            label={createComputed(() =>
+              expanded() ? "Available Devices ▾" : "Available Devices ▸",
+            )}
+          />
+          <Gtk.Spinner
+            class="settings-spinner"
+            spinning={scanningInHeader}
+            visible={scanningInHeader}
+          />
+        </box>
       </button>
 
       <box
@@ -641,6 +748,47 @@ export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
           {(device: BluetoothDevice) => <BluetoothRow device={device} />}
         </For>
       </box>
+
+      {/* The Available Devices EMPTY STATE, directly under the list it belongs
+          to, replacing "No devices found" (owner ruling, 2026-10-05). It is the
+          list's placeholder, so it lives where the list's rows would be -- not
+          up between the paired section and the section header, which is where it
+          used to sit and where it read as a stray status line between two lists.
+
+          One indicator, two positions: while the list is empty this is the only
+          one showing; once the list has items, `scanningInHeader` puts the
+          spinner in the section header instead and this row is hidden.
+
+          The mock centres this row (`justify-content:center`). The OUTER box
+          must be vertical for that to work: `halign` positions a child on its
+          parent's CROSS axis, so in a horizontal box -- which is AGS's default
+          -- it is main-axis packing and is ignored and the row sits at the start
+          with its natural width. MEASURED, see
+          prototypes/halign-centring-probe.js. */}
+      <box orientation={1} class="settings-empty" hexpand visible={scanningPlaceholder}>
+        <box spacing={7} halign={Gtk.Align.CENTER}>
+          <Gtk.Spinner
+            class="settings-spinner"
+            spinning={scanningPlaceholder}
+          />
+          <label label="Scanning…" />
+        </box>
+      </box>
+
+      <label
+        class="settings-empty"
+        xalign={0}
+        label="No devices found"
+        visible={createComputed(
+          // Also gated on `expanded()`: this is the same slot as the scanning
+          // placeholder, so it must not appear under a collapsed header either.
+          () =>
+            powered() &&
+            expanded() &&
+            !bluetoothDiscovering() &&
+            !hasDevices(),
+        )}
+      />
 
       <BluetoothSettingsFooter
         visible={powered}

@@ -412,6 +412,67 @@ function finishAction(address: string): void {
   setBluetoothBusy({ address: null, action: null })
 }
 
+/**
+ * BlueZ error names → something a person can act on.
+ *
+ * WHY THIS EXISTS: the failure row used to interpolate the raw D-Bus string, so
+ * a failed pairing rendered as
+ *
+ *   Pairing failed: GDBus.Error:org.bluez.Error.ConnectionAttemptFailed: Page Timeout
+ *
+ * which is three lines of protocol noise, names an API the user cannot see, and
+ * says nothing they can do. MEASURED on a real TOZO NC9 asleep in its case. The
+ * mock has always specified the alternative — `popup-failed` says "Pairing timed
+ * out", behind a caution glyph.
+ *
+ * Only the NAME is mapped, because that is the stable machine-readable part; the
+ * message string is free-form and can be anything the daemon felt like saying.
+ * The raw text is still logged, so the diagnosis survives without being shown.
+ */
+// Terse on purpose. The failure row is 312px wide with the text wrapping to two
+// lines at ~30 characters; the earlier draft ("timed out — the device may be out
+// of range or asleep") wrapped to three and was the complaint that prompted this
+// table. The row says what happened; the LOG line below says why.
+const BLUEZ_ERROR_TEXT: Record<string, string> = {
+  ConnectionAttemptFailed: "timed out",
+  AuthenticationTimeout: "timed out",
+  AuthenticationFailed: "was rejected — wrong PIN or passkey",
+  AuthenticationRejected: "was rejected",
+  AuthenticationCanceled: "was cancelled",
+  AuthenticationRequired: "needs a PIN or passkey",
+  NotAvailable: "is not available",
+  AlreadyExists: "is already paired",
+  InProgress: "is already in progress",
+  Rejected: "was rejected",
+  NotSupported: "is not supported by this device",
+  NotReady: "could not start — adapter not ready",
+  Busy: "could not start — adapter is busy",
+  NoDefaultAdapter: "could not start — no adapter",
+  NotPermitted: "was refused by the system",
+  InvalidArguments: "was rejected as invalid",
+  Failed: "failed",
+}
+
+function humanBusMessage(error: unknown): string {
+  const bus = asBusError(error)
+  // `dbusName`, NOT `name`: NMBusError sets `name` to the literal "NMBusError"
+  // and keeps the remote error in `dbusName`. Reading `.name` here would yield
+  // "NMBusError", match nothing in the table, and silently fall through to the
+  // raw message — which is the bug this whole function exists to remove.
+  const name = bus.dbusName
+    .replace(/^org\.bluez\.Error\./, "")
+    .replace(/^org\.freedesktop\.DBus\.Error\./, "")
+  const mapped = BLUEZ_ERROR_TEXT[name]
+  if (mapped !== undefined) return mapped
+  // Unmapped: fall back to the daemon's own text with the transport wrapper
+  // stripped — never the raw `GDBus.Error:...` form.
+  const text = bus.message
+    .replace(/^GDBus\.Error:[^:]*:\s*/, "")
+    .replace(/^org\.bluez\.Error\.\w+:\s*/, "")
+    .trim()
+  return text.length > 0 ? text : "failed"
+}
+
 function failAction(
   address: string,
   action: BluetoothAction,
@@ -420,7 +481,14 @@ function failAction(
   if (bluetoothBusy().address !== address) return
   clearWatchdog()
   setBluetoothBusy({ address: null, action: null })
-  setBluetoothFailure(`${actionLabel(action)} failed: ${asBusError(error).message}`)
+  const message = `${actionLabel(action)} ${humanBusMessage(error)}`
+  // The raw protocol error is logged even though the user never sees it: this is
+  // the only place the underlying cause survives.
+  console.error(
+    `bluetooth-service: ${action} ${address} -> ${message}` +
+      `  [raw: ${asBusError(error).dbusName} ${asBusError(error).message}]`,
+  )
+  setBluetoothFailure(message)
 }
 
 async function runAction(
@@ -428,9 +496,21 @@ async function runAction(
   action: BluetoothAction,
   fn: (device: BluetoothDevice) => Promise<void>,
 ): Promise<void> {
-  if (bluetoothBusy().address !== null) return
+  if (bluetoothBusy().address !== null) {
+    console.error(
+      `bluetooth-service: ${action}(${address}) dropped, ${bluetoothBusy().action} already busy`,
+    )
+    return
+  }
   const device = deviceByAddress(address)
-  if (device === null) return
+  if (device === null) {
+    // Was a SILENT return: the row's button no-ops and the user is told
+    // nothing at all, which is indistinguishable from a broken button.
+    console.error(
+      `bluetooth-service: ${action}(${address}) dropped, no such device in the cache`,
+    )
+    return
+  }
 
   setBluetoothFailure("")
   setBluetoothBusy({ address, action })
@@ -566,10 +646,32 @@ export function startBluetoothDiscovery(): void {
 async function runStartDiscovery(): Promise<void> {
   const path = adapterPath
   if (path === null || !bluetoothPowered()) return
-  //: Now purely an optimisation: skip re-issuing StartDiscovery to an adapter
-  //: BlueZ already reports as scanning. It must NOT gate the reference count
-  //: — the reference is held by a caller, not by the scan.
-  if (bluetoothDiscovering()) return
+  //: NO GATE ON `bluetoothDiscovering()` HERE. This used to read
+  //: `if (bluetoothDiscovering()) return`, on the reasoning that re-issuing
+  //: `StartDiscovery` to an already-scanning adapter was merely redundant.
+  //: It was not redundant, it was load-bearing in the wrong direction:
+  //: `bluetoothDiscovering` is a LOCAL MIRROR of BlueZ's `Discovering`
+  //: property, seeded at module load and thereafter updated only from
+  //: PropertiesChanged notifications -- it is never re-read from BlueZ.
+  //:
+  //: MEASURED on this machine: `StopDiscovery` answers "No discovery started"
+  //: while `Discovering` simultaneously reads 1. The mirror and the adapter
+  //: desync. Once the mirror stuck at `true`, every `startBluetoothDiscovery`
+  //: short-circuited, `StartDiscovery` was NEVER issued again, and the panel
+  //: could not discover anything for the rest of the session. The only thing
+  //: that recovered it was toggling the adapter's power, because that forces
+  //: BlueZ to re-emit `Discovering` and resets the mirror -- which is exactly
+  //: why the reported workaround was "I have to toggle enable/disable bt".
+  //:
+  //: Balance is unaffected. `StartDiscovery`/`StopDiscovery` are refcounted by
+  //: BlueZ per connection, and `discoveryUsers` here is incremented
+  //: unconditionally and decremented by exactly one matching `stop` from each
+  //: surface's own effect cleanup. So issuing a start per surface-open keeps
+  //: BlueZ's count equal to ours, which is strictly better than skipping it:
+  //: the old gate let BlueZ's count run LOWER than ours, so the first surface
+  //: to hide stopped the scan out from under a surface that was still visible.
+  //: The mirror is still worth keeping -- it drives the UI's scanning
+  //: indicator -- it just must not decide whether to scan.
 
   try {
     await call(
@@ -715,6 +817,9 @@ export function unpairDevice(address: string): void {
   void runAction(address, "unpair", async (device) => {
     const path = adapterPath
     if (path === null) throw new Error("No Bluetooth adapter")
+    console.error(
+      `bluetooth-service: Adapter1.RemoveDevice(${device.path}) via ${path}`,
+    )
     await call(
       BLUEZ,
       path,
@@ -722,6 +827,7 @@ export function unpairDevice(address: string): void {
       "RemoveDevice",
       new GLib.Variant("(o)", [device.path]),
     )
+    console.error(`bluetooth-service: RemoveDevice returned for ${address}`)
   })
 }
 

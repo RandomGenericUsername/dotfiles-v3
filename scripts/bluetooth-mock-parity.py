@@ -59,6 +59,11 @@ ANCHORS = [
     "popup-unpair-confirm",
     "popup-out-of-range",
     "popup-scanning",
+    # Added 2026-10-05 with the scanning indicator. The code gated the
+    # scanning row on `!hasDevices()`, so the ONLY feedback disappeared the
+    # moment one device was found while the scan was still running, and the
+    # mock had no anchor for that state -- so nothing could object.
+    "popup-scanning-devices",
     "popup-no-adapter",
     # settings panel
     "panel-subview",
@@ -109,6 +114,10 @@ STATE_TSX = {
     ],
     "popup-scanning": [
         "components/bluetooth/BluetoothContent.tsx",  # spinner + empty state
+    ],
+    "popup-scanning-devices": [
+        "components/bluetooth/BluetoothContent.tsx",  # indicator stays up once
+        # devices exist; the old `!hasDevices()` gate hid it.
     ],
     "popup-no-adapter": [
         "components/bluetooth/BluetoothPopup.tsx",  # insensitive switch
@@ -166,6 +175,14 @@ ALLOWLIST = {
     "cap": "mock page per-state caption",
     "stack": "mock page vertical stack (bar over popup)",
     "lead": "mock page intro paragraph",
+    # scanning indicator (2026-10-05). The shipped indicator is ONE <image>
+    # whose file is swapped between the pack's 12 frames; it has no per-dot
+    # elements and no size classes, because size is the image's pixel_size prop.
+    # spinner variant board (2026-10-05). The board is a DECISION aid, the same
+    # kind of cell as `pairing-decision`: it exists so the owner can compare the
+    # four supplied styles by looking. It is not a surface, and none of its
+    # layout classes will ever ship. What ships, if anything, is the single
+    # indicator in the popup states.
     # bar strip illustration
     "bar": "mock bar strip frame; the shipped bar is Bar.tsx layout",
     "barpair": "mock bar icon grouping; shipped via Bar.tsx box spacing",
@@ -187,7 +204,6 @@ ALLOWLIST = {
     "detail": "mock detail row; shipped as .settings-detail-row",
     "empty": "mock empty-state line; shipped as .settings-empty",
     "msg": "mock failure line; shipped as .settings-message",
-    "spin": "mock spinner; shipped as .settings-spinner",
     "acts": "mock action group; shipped as buttons with .settings-rowact",
     "k": "mock detail key; shipped as .settings-detail",
     "v": "mock detail value; shipped as .settings-detail",
@@ -250,6 +266,13 @@ CLASS_MAP = {
         "mock .subtle is the shipped .settings-rowact.subtle (Unpair)",
     ),
     "sel": ("settings-net.sel", "mock .sel is the shipped .settings-net.sel connected fill"),
+    "spin": (
+        "settings-spinner",
+        "mock .spin is the shipped .settings-spinner Gtk.Spinner -- the SAME "
+        "widget as WifiContent.tsx:366, not a bespoke loader. Mapped rather "
+        "than allowlisted so the mock cannot imply a second kind of spinner "
+        "without the stylesheet having to back it",
+    ),
 }
 
 #: Real gaps: mock concepts with NO shipped equivalent yet. Non-failing, but
@@ -356,6 +379,29 @@ def main() -> int:  # noqa: C901 - a gate reads better as one linear pass
         print("      Each state must carry a <code>ANCHOR</code> caption cell.")
         return 1
 
+    # The mirror image, which was silently unchecked until 2026-10-05: a cell
+    # added to the mock but never registered in ANCHORS is not an unenforced
+    # contract, it is an invisible one. The scanning indicator is the proof --
+    # `popup-scanning-devices` was added to the HTML first and the gate said
+    # nothing at all, because it only ever walked ANCHORS forward.
+    #
+    # NOTE: this must scan the mock TEXT for cell ids, not diff the keys of
+    # `sections`. `state_sections()` iterates ANCHORS and only ANCHORS, so
+    # `set(sections) - set(ANCHORS)` is empty by construction -- the first
+    # version of this check was dead code that passed unconditionally.
+    mock_cell_ids = set(re.findall(r'<div class="cell[^"]*"\s+id="([^"]+)"', mock_text))
+    untracked = sorted(mock_cell_ids - set(ANCHORS))
+    if untracked:
+        print(f"FAIL: mock cell(s) not registered in ANCHORS: {', '.join(untracked)}")
+        print("      Every state drawn in the mock is part of the contract.")
+        print("      Add it to ANCHORS (and to STATE_TSX) or delete the cell.")
+        return 1
+
+    stale = sorted(set(ANCHORS) - mock_cell_ids)
+    if stale:
+        print(f"FAIL: ANCHORS entries with no cell in the mock: {', '.join(stale)}")
+        return 1
+
     # Cache the shipped class universe per state (its TSX files + global CSS).
     tsx_cache: dict[str, set[str]] = {}
 
@@ -398,12 +444,22 @@ def main() -> int:  # noqa: C901 - a gate reads better as one linear pass
                 # The mapped class must actually exist somewhere real.
                 if css_has_class(css_text, shipped) or shipped in shipped_tokens(anchor):
                     continue
+                # A CLASS_MAP entry records what the mock's token WILL be called
+                # once shipped; it is not a claim that it ships today. So when
+                # the mapped class is absent, fall through to the KNOWN_GAPS
+                # check before failing. Without this, declaring an intentional
+                # deferral in KNOWN_GAPS is unreachable for any token that also
+                # has a CLASS_MAP entry -- the mapping branch failed first and
+                # the gap was never consulted.
+                if token in KNOWN_GAPS:
+                    gaps.append((token, KNOWN_GAPS[token]))
+                    continue
                 uncovered.append(f"{anchor}: {token!r} -> mapped to {shipped!r}, which does not exist")
                 ok = False
                 continue
 
             if token in KNOWN_GAPS:
-                gaps.append(f"{anchor}: {token!r}  -> {KNOWN_GAPS[token]}")
+                gaps.append((token, KNOWN_GAPS[token]))
                 continue
 
             if css_has_class(css_text, token) or token in shipped_tokens(anchor):
@@ -417,9 +473,15 @@ def main() -> int:  # noqa: C901 - a gate reads better as one linear pass
 
     print()
     if gaps:
-        print(f"KNOWN GAPS ({len(gaps)}) -- tracked, must clear as tasks land:")
-        for gap in gaps:
-            print(f"  - {gap}")
+        # Deduplicate: one token can be uncovered in several states, and the
+        # states it appears in are already listed per-anchor above. Printing the
+        # same paragraph once per state buries the other gaps.
+        seen: dict[str, str] = {}
+        for token, reason in gaps:
+            seen.setdefault(token, reason)
+        print(f"KNOWN GAPS ({len(seen)}) -- tracked, must clear as tasks land:")
+        for token, reason in seen.items():
+            print(f"  - {token}: {reason}")
         print()
 
     if uncovered:

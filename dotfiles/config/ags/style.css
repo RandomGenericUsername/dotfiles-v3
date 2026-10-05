@@ -627,6 +627,19 @@ window.settings-panel {
   color: @color_13;
 }
 
+/* Failure row (mock `.msg`): a caution glyph then the message text. The row is
+   a horizontal box with the icon at the top so wrapped lines do not ride up
+   beside the glyph. */
+.settings-msg {
+  margin-bottom: 8px;
+}
+.settings-msg-icon {
+  flex: none;
+}
+
+
+
+
 /* Bluetooth row line 2 (approved mock `l2`): stacked meta block on the left,
    action buttons on the right. The split is done at the widget level — child
    `spacing` prop + `hexpand` on the meta cell, which pushes the actions to
