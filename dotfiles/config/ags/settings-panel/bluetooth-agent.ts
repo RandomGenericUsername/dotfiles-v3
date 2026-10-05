@@ -1,6 +1,6 @@
 import Gio from "gi://Gio?version=2.0"
 import GLib from "gi://GLib?version=2.0"
-import { call, systemBus } from "../services/nm-client"
+import { systemBus } from "../services/nm-client"
 
 /**
  * Minimal headless BlueZ pairing agent.
@@ -22,6 +22,18 @@ const BLUEZ = "org.bluez"
 const AGENT_MANAGER_IFACE = "org.bluez.AgentManager1"
 const AGENT_MANAGER_PATH = "/org/bluez"
 
+/**
+ * Capability we declare to BlueZ.
+ *
+ * `NoInputNoOutput` means Just Works only: BlueZ will never ask this agent for
+ * a PIN or passkey, because we could not answer one anyway. Raising it is what
+ * in-panel PIN entry would require -- see the `flow-d-pin-inpanel` known gap.
+ */
+const AGENT_CAPABILITY = "NoInputNoOutput"
+
+/** Cap on the two one-shot registration calls. BlueZ answers in single-digit ms. */
+const REGISTER_TIMEOUT_MS = 5000
+
 const AGENT_XML = `
 <node>
   <interface name="org.bluez.Agent1">
@@ -39,25 +51,72 @@ const AGENT_XML = `
 
 let started = false
 
-async function registerOnBus(): Promise<void> {
+/**
+ * Register the exported object with BlueZ and make it the default agent.
+ *
+ * WHY THIS IS NOW SYNCHRONOUS AND LOUD, which it was not before:
+ *
+ * The original version was `async`, fire-and-forget (`void registerOnBus()`),
+ * with every failure swallowed by a bare `catch {}`. MEASURED consequence on a
+ * live session: the agent silently never registered, so pairing any new device
+ * failed with no message anywhere -- and because AGS's own stdout/stderr was
+ * not captured, nothing could be seen. `bluetooth-mock-parity` and the unit
+ * tests cannot catch this class of bug: it only exists at runtime, against a
+ * real bluetoothd.
+ *
+ * Two changes, both load-bearing:
+ *   - `call_sync` instead of an async promise. This is a one-shot startup step
+ *     that must have happened before any pairing is attempted; making it
+ *     synchronous removes the question of whether the reply was dispatched
+ *     before the main loop began iterating, and it lets us report the outcome
+ *     of the call rather than fire and forget.
+ *   - every failure logs the actual error. A silent catch here is a bug
+ *     factory: it converts "this feature is broken" into "this feature is
+ *     absent", which is far more expensive to diagnose.
+ */
+function registerOnBus(bus: Gio.DBusConnection): void {
   try {
-    await call(
+    bus.call_sync(
       BLUEZ,
       AGENT_MANAGER_PATH,
       AGENT_MANAGER_IFACE,
       "RegisterAgent",
-      new GLib.Variant("(os)", [AGENT_PATH, "NoInputNoOutput"]),
+      new GLib.Variant("(os)", [AGENT_PATH, AGENT_CAPABILITY]),
+      null,
+      Gio.DBusCallFlags.NONE,
+      REGISTER_TIMEOUT_MS,
+      null,
     )
-    await call(
+  } catch (error) {
+    console.error(
+      `bluetooth-agent: RegisterAgent(${AGENT_PATH}, ${AGENT_CAPABILITY}) failed: ${String(error)}`,
+    )
+    console.error(
+      "bluetooth-agent: pairing a NEW device will fail until this succeeds.",
+    )
+    return
+  }
+
+  try {
+    bus.call_sync(
       BLUEZ,
       AGENT_MANAGER_PATH,
       AGENT_MANAGER_IFACE,
       "RequestDefaultAgent",
       new GLib.Variant("(o)", [AGENT_PATH]),
+      null,
+      Gio.DBusCallFlags.NONE,
+      REGISTER_TIMEOUT_MS,
+      null,
     )
-  } catch {
-    /* no bluetoothd on the bus, or an agent is already registered */
+  } catch (error) {
+    console.error(`bluetooth-agent: RequestDefaultAgent failed: ${String(error)}`)
+    return
   }
+
+  console.log(
+    `bluetooth-agent: registered and default (${AGENT_CAPABILITY}) at ${AGENT_PATH}`,
+  )
 }
 
 /** Register the agent once per session. Safe to call repeatedly. */
@@ -68,7 +127,8 @@ export function registerBluetoothAgent(): void {
   let bus: Gio.DBusConnection
   try {
     bus = systemBus()
-  } catch {
+  } catch (error) {
+    console.error(`bluetooth-agent: no system bus, agent not registered: ${String(error)}`)
     started = false
     return
   }
@@ -100,10 +160,12 @@ export function registerBluetoothAgent(): void {
       null,
       null,
     )
-  } catch {
+  } catch (error) {
+    console.error(`bluetooth-agent: register_object failed: ${String(error)}`)
+    console.error("bluetooth-agent: no org.bluez.Agent1 exported; pairing will fail.")
     started = false
     return
   }
 
-  void registerOnBus()
+  registerOnBus(bus)
 }
