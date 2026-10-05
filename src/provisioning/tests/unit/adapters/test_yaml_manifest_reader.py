@@ -341,6 +341,22 @@ class TestReadRealManifests:
         #                       settings footer / speedtest service
         # They were present in the MANIFEST and missing from THIS expectation,
         # which is why the data needed no edit — only the lock did.
+        #
+        # Re-snapshotted 2026-10-04 by openspec change
+        # harden-verify-probes-and-manifest, which resolved the three
+        # orphans repair-package-manifest-drift had found (evidence table in
+        # that change's design.md):
+        #   lf          REMOVED from packages.yaml — no consumer anywhere
+        #               (no keybind, autostart, desktop file, config, spec).
+        #   hyprcursor  REMOVED from packages.yaml — no consumer, and already
+        #               a direct pacman dependency of hyprland, so it arrives
+        #               transitively; declaring it separately implied a
+        #               consumer that does not exist.
+        #   xdg-utils   RETAINED in the manifest and ADDED to both group_vars
+        #               maps — it has hard consumers (gui_tools `xdg-mime
+        #               default`, verify `xdg-mime query default`, capture-tool
+        #               and hypr-pano `xdg-open`), so removing it would have
+        #               broken a real path.
         assert set(names) == {
             "hyprland",
             "hyprpaper",
@@ -372,7 +388,6 @@ class TestReadRealManifests:
             "libva-utils",
             "rofi",
             "thunar",
-            "lf",
             "btop",
             "thunderbird",
             "tidal-hifi",
@@ -380,7 +395,6 @@ class TestReadRealManifests:
             "playerctl",
             "power-options-gtk",
             "hyprmod",
-            "hyprcursor",
             "hyprlock",
             "hypridle",
             "wlogout",

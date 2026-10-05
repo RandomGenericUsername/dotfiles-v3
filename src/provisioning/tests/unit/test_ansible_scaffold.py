@@ -111,6 +111,12 @@ _LOGICAL_PACKAGE_KEYS = (
     "nm-connection-editor",
     # speedtest: speedtest-cli, driven by the AGS speedtest service.
     "speedtest",
+    # xdg-utils: owns xdg-mime/xdg-open. Consumed by gui_tools (`xdg-mime
+    # default thunar.desktop inode/directory`), gated by verify (`xdg-mime
+    # query default inode/directory`), and shelled by the capture tool's
+    # "Show in folder" and hypr-pano's URL opener. Was a manifest entry no
+    # provisioning path installed (harden-verify-probes-and-manifest).
+    "xdg-utils",
 )
 _ARCH_EXTRA_KEYS = (
     "adw_gtk_theme",  # GTK3 theme (Option A 2026-09-09)
@@ -278,13 +284,34 @@ _INTENTIONAL_DUPLICATE_KEY_PAIRS = {
 
 # Manifest entries that NO provisioning path installs: they are not a
 # group_vars key, not a group_vars value, and not in the AUR channel. They are
-# host-installed by hand (hyprcursor/xdg-utils are present on this machine —
-# `pacman -Qi hyprcursor xdg-utils`) and nothing else, so a fresh machine would
-# lack them while the manifest claims them. Pinned as an EXACT set: growing it
-# is a deliberate edit to this line, and an unlisted orphan fails the test.
-# Left unfixed here on purpose — adding them means choosing Debian package
-# names that cannot be verified without a Debian host.
-_DECLARED_NOT_PROVISIONED = frozenset({"lf", "hyprcursor", "xdg-utils"})
+# host-installed by hand and nothing else, so a fresh machine would lack them
+# while the manifest claims them.
+#
+# This set was EMPTY as of harden-verify-probes-and-manifest, which resolved
+# all three of the orphans repair-package-manifest-drift had pinned here
+# (`lf`, `hyprcursor`, `xdg-utils`) — per-package evidence table in that
+# change's design.md:
+#   xdg-utils   ADDED to both group_vars maps (option a). It has hard
+#               consumers: gui_tools runs `xdg-mime default`, verify gates
+#               `xdg-mime query default`, and the capture tool / hypr-pano
+#               shell `xdg-open`. Debian name verified via the Debian
+#               archive's madison API (1.2.1-2, arch all).
+#   hyprcursor  REMOVED from packages.yaml (option b). Nothing calls it, and
+#               it is already a direct pacman dependency of hyprland, so it
+#               arrives transitively — declaring it separately would imply a
+#               consumer that does not exist.
+#   lf          REMOVED from packages.yaml (option b). Not host-installed, no
+#               keybind, no autostart entry, no desktop file, no config, no
+#               spec or plan-doc requirement. A leftover from the same
+#               e00a6773 bulk Lua-migration "must-have packages" list as
+#               `cliphist`, which a1de8bfa later dropped once hypr-pano
+#               superseded it.
+#
+# It stays a pinned EXACT set rather than being deleted: it is now EMPTY, and
+# the assertion still fails on any NEW orphan while naming both directions
+# (unexpected orphan / no-longer-orphaned). Deleting it would remove the pin
+# that makes the next drift visible.
+_DECLARED_NOT_PROVISIONED: frozenset[str] = frozenset()
 
 
 def _find_manifest_dir() -> Path:

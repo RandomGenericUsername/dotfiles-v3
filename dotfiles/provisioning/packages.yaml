@@ -52,9 +52,6 @@ entries:
   - name: rofi               # Application launcher
   - name: thunar             # File manager (GTK-based)
 
-  # Terminal file manager
-  - name: lf
-
   # System monitor (AGS bar icon launcher)
   - name: btop
 
@@ -84,7 +81,13 @@ entries:
   - name: bluez-utils        # bluetoothctl + the bluetooth.service unit
 
   # Additional useful tools
-  - name: hyprcursor         # Cursor themes
+  # hyprcursor is deliberately NOT listed: hyprland Depends On it directly
+  # (pacman -Qi hyprland -> Depends On: ... hyprcursor libhyprcursor.so=0-64),
+  # so it arrives transitively with the hyprland package below, and nothing in
+  # this repo configures a hyprcursor theme (cursor.lua only sets
+  # no_hardware_cursors; XCURSOR_THEME is a plain Xcursor name). Listing it as
+  # a standalone provision entry would duplicate a transitive dependency and
+  # imply a consumer that does not exist.
   - name: hyprlock           # Screen locker
   - name: hypridle           # Idle management
   - name: wlogout            # Logout menu (AGS power-menu action)

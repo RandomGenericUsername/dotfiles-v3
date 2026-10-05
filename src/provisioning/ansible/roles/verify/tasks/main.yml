@@ -147,12 +147,26 @@
       names must match ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ (defense against a
       metacharacter-bearing override executing in the shell)
 
+# Check-gate discipline (the role's ungated-shell sweep; see the AstalNotifd
+# block below for the full rationale, and
+# openspec/changes/harden-verify-probes-and-manifest/ for the mechanism
+# evidence). `shell` is documented check_mode: support: PARTIAL just like
+# `command`, so the gate is DECLARED here rather than inherited from
+# ansible-core's short-circuit. The short-circuit fabricates `rc: 0` — a probe
+# that never ran reports success — and it is what kept this task ungated in the
+# first place. The assert below is already gated
+# `when: not ansible_check_mode`, which is what makes this safe: a
+# conditionally-skipped register carries NO `results` key, so the assert must
+# never dereference it under --check. It does not, so no consumer change is
+# needed here (contrast the Hyprland probe at `verify_hyprland_check`, whose
+# debug consumer did need `not ansible_check_mode and <reg>.rc != 0`).
 - name: Check system binaries on PATH
   ansible.builtin.shell: "command -v {{ item }}"
   loop: "{{ verify_system_binaries }}"
   register: verify_system_binary_checks
   changed_when: false
   failed_when: false
+  when: not ansible_check_mode
 
 - name: Assert system binaries are on PATH
   ansible.builtin.assert:
@@ -359,6 +373,9 @@
       playbook or check `{{ verify_backlight_binary }} -m` as the user
   when: not ansible_check_mode
 
+# Sibling of the system-binary probe above: same declared gate, same already-
+# gated consumer (the assert below), so the register's missing `results` key
+# under --check is never dereferenced.
 - name: Check CLI tools on PATH
   ansible.builtin.shell: "command -v {{ item }}"
   loop: "{{ verify_cli_tools }}"
@@ -367,6 +384,7 @@
   failed_when: false
   environment:
     PATH: "{{ verify_cli_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  when: not ansible_check_mode
 
 - name: Assert CLI tools are on PATH
   ansible.builtin.assert:
@@ -385,12 +403,28 @@
 # daemon that crashes on launch. Gate on the AUR package the packages role
 # installs (capture-notifications implementation gate, spec scenario
 # "Binding present after provision").
+#
+# Check-gate discipline (this task and the AstalWp probe below were the two
+# `shell` probes the command-only invariant could not see — see
+# openspec/changes/harden-verify-probes-and-manifest/). `when: not
+# ansible_check_mode` mirrors every sibling probe, so the gate is declared
+# rather than inherited from the library: ansible-core already short-circuits
+# `shell` under --check ("Command would have run if not in check mode",
+# skipped=True, rc=0 — see the file header), and `shell` is documented
+# check_mode: support: PARTIAL, so relying on that short-circuit is not a
+# declared invariant. The short-circuit FABRICATES rc: 0 — a probe that never
+# ran reports success — which is harmless only because the consuming assert is
+# already gated `when: not ansible_check_mode`: a conditionally-skipped
+# register carries NO `results` key, so an ungated consumer would hard-fail
+# with "object of type 'dict' has no attribute 'results'" and abort
+# bootstrap.yaml --check. Reproduced both directions with a probe playbook.
 - name: Check AstalNotifd binding package is installed
   ansible.builtin.shell: "pacman -Q {{ item }}"
   loop: "{{ verify_notifd_binding_packages }}"
   register: verify_notifd_binding_checks
   changed_when: false
   failed_when: false
+  when: not ansible_check_mode
 
 - name: Assert AstalNotifd binding is installed
   ansible.builtin.assert:
@@ -415,6 +449,7 @@
   register: verify_astal_wp_binding_checks
   changed_when: false
   failed_when: false
+  when: not ansible_check_mode
 
 - name: Assert AstalWp binding is installed
   ansible.builtin.assert:

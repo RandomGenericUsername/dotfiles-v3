@@ -163,6 +163,36 @@ def _command_tasks() -> list[dict[str, object]]:
     return _tasks_with_module("ansible.builtin.command")
 
 
+# Every host-state PROBE module. Both are documented check_mode: support:
+# PARTIAL, and ansible-core short-circuits both under --check while FABRICATING
+# rc: 0 — so both must declare `when: not ansible_check_mode` rather than
+# inherit it. Widening this tuple is the durable fix for the gate invariant:
+# an invariant that only iterates `command` cannot see an ungated `shell`
+# probe, which is exactly how the four pacman -Q / command -v probes stayed
+# ungated through the command-only gate (harden-verify-probes-and-manifest).
+_PROBE_MODULES = ("ansible.builtin.command", "ansible.builtin.shell")
+
+
+def _probe_tasks() -> list[dict[str, object]]:
+    """Every `command`/`shell` host-state probe in the role, in file order."""
+    return [task for task in _load_tasks() if _module_key(task) in _PROBE_MODULES]
+
+
+def _ungated_probe_problems(tasks: list[dict[str, object]]) -> list[str]:
+    """Probe tasks in ``tasks`` that do not declare the check gate.
+
+    Split out from the test so the negative case can feed it a synthetic
+    ungated `shell` task — a defect detector nobody proved fires on the module
+    it widened to is a comment.
+    """
+    return [
+        f"{_module_key(task)} {task.get('name')!r}"
+        for task in tasks
+        if _module_key(task) in _PROBE_MODULES
+        and task.get("when") != "not ansible_check_mode"
+    ]
+
+
 def _sibling_vars(role: str) -> Any:
     data = yaml.safe_load((_ANSIBLE_DIR / "roles" / role / "vars" / "main.yml").read_text())
     assert isinstance(data, dict)
@@ -455,9 +485,19 @@ class TestVerifyTasks:
             )
             assert task.get("changed_when") is False
             assert task.get("failed_when") is False
-            assert task.get("when") is None, (
-                "shell checks are skipped under --check by ansible-core; the assert is "
-                "the gated half"
+            # This assertion used to require `when is None`, with the rationale
+            # "shell checks are skipped under --check by ansible-core; the assert
+            # is the gated half". That pinned the DEFECT as intended behaviour:
+            # it is why these two probes survived every gate sweep, and it is
+            # strictly weaker than the invariant they now satisfy — leaning on
+            # the library short-circuit means the gate is inherited, not
+            # declared, and `shell` is documented check_mode: support: PARTIAL.
+            # The short-circuit also FABRICATES rc: 0 for a probe that never
+            # ran. Requiring the explicit gate is therefore a strengthening, not
+            # a relaxation (harden-verify-probes-and-manifest).
+            assert task.get("when") == "not ansible_check_mode", (
+                f"{task.get('name')!r} must declare its check gate rather than "
+                "inherit ansible-core's short-circuit"
             )
 
     def test_cli_tool_check_prepends_cli_bin_dir_to_path(self) -> None:
@@ -476,7 +516,14 @@ class TestVerifyTasks:
     def test_shell_check_asserts_are_check_gated(self) -> None:
         """The assert halves of both shell checks must be gated
         `when: not ansible_check_mode` (a dry run must never fail on
-        host-state preconditions)."""
+        host-state preconditions).
+
+        This gate is what makes gating the PROBE safe (see
+        `test_every_probe_task_is_check_gated`): a conditionally-skipped
+        register carries no `results` key, so the assert must be skipped in the
+        same breath as the probe, or `bootstrap.yaml --check` aborts with
+        "object of type 'dict' has no attribute 'results'".
+        """
         for register in ("verify_system_binary_checks", "verify_cli_tool_checks"):
             assert_task = _shell_assert_task(register)
             assert assert_task.get("when") == "not ansible_check_mode", (
@@ -562,22 +609,54 @@ class TestVerifyTasks:
             "remedy, not a deleted playbook)"
         )
 
+    def test_every_probe_task_is_check_gated(self) -> None:
+        """The role-wide check-gate invariant: EVERY host-state probe — BOTH
+        `ansible.builtin.command` AND `ansible.builtin.shell` — declares
+        `when: not ansible_check_mode`.
+
+        Why this must cover `shell` (harden-verify-probes-and-manifest): the
+        command-only form of this invariant was green while four probes were
+        ungated — the two `pacman -Q` Astal binding probes, and the two
+        `command -v` PATH probes. `shell` is documented check_mode: support:
+        PARTIAL exactly like `command`, and ansible-core's short-circuit
+        FABRICATES rc: 0 for a probe that never ran, so the gate must be
+        declared rather than inherited from the library. An invariant scoped
+        to `command` cannot see a `shell` defect at all, which is the failure
+        mode that let them through.
+        """
+        probes = _probe_tasks()
+        assert probes, "expected the role to have command/shell probes"
+        ungated = _ungated_probe_problems(probes)
+        assert ungated == [], (
+            "every host-state probe must declare when: not ansible_check_mode "
+            "(a short-circuited probe fabricates rc: 0, and a conditionally "
+            "skipped register carries no rc/results key at all, so an "
+            "ungated consumer aborts bootstrap.yaml --check):\n"
+            + "\n".join(ungated)
+        )
+
     def test_settings_parse_gate_tasks_exist_and_are_check_gated(self) -> None:
         """AC 3: the three settings parse-gate command tasks (csg info / weg
         info / itr list) exist, are `ansible.builtin.command`, and are gated
-        `when: not ansible_check_mode` (command tasks skip under --check)."""
+        `when: not ansible_check_mode` (command tasks skip under --check).
+
+        The loop iterates PROBE tasks (command AND shell), not just command:
+        the narrowed loop was the reason an ungated `shell` probe was
+        invisible. Kept as its own test so the AC-3 parse gate keeps its own
+        failure message distinct from the role-wide invariant's."""
         gate_names = {
             "Gate csg settings parse",
             "Gate weg settings parse",
             "Gate itr list against icons.yaml",
         }
-        names = {str(task.get("name")) for task in _command_tasks()}
+        names = {str(task.get("name")) for task in _probe_tasks()}
         assert gate_names.issubset(names), (
             f"expected the three parse-gate command tasks; found {names}"
         )
-        for task in _command_tasks():
+        for task in _probe_tasks():
             assert task.get("when") == "not ansible_check_mode", (
-                f"parse gate {task.get('name')!r} must be check-gated"
+                f"probe {task.get('name')!r} ({_module_key(task)}) must be "
+                "check-gated"
             )
         parse_asserts = [
             task
@@ -1056,6 +1135,98 @@ class TestVerifyTasks:
         that = str(_module(matches[0]).get("that", ""))
         assert "verify_ags_always_on_instances | length > 0" in that, (
             "the empty-list guard must cover verify_ags_always_on_instances"
+        )
+
+    def test_probe_gate_invariant_bites_on_an_ungated_shell_task(self) -> None:
+        """NEGATIVE lock: the widened probe-gate invariant must actually FIRE
+        on a `shell` task.
+
+        This is the whole point of widening the invariant from `command` to
+        `_PROBE_MODULES`. The four real defects it now catches were all
+        `ansible.builtin.shell` probes; against the old command-only loop they
+        were invisible. So a `command`-only negative test would prove nothing.
+        """
+        ungated_shell = {
+            "name": "Check AstalWp binding package is installed",
+            "ansible.builtin.shell": "pacman -Q {{ item }}",
+            "loop": "{{ verify_astal_wp_binding_packages }}",
+            "register": "verify_astal_wp_binding_checks",
+            "changed_when": False,
+            "failed_when": False,
+        }
+        problems = _ungated_probe_problems([ungated_shell])
+        assert problems == [
+            "ansible.builtin.shell 'Check AstalWp binding package is installed'"
+        ], (
+            "the widened invariant must flag an ungated shell probe; got "
+            f"{problems}. The historical command-only form of this invariant "
+            "returned [] for exactly this task — that blind spot is the defect."
+        )
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            None,
+            "ansible_check_mode",
+            "not ansible_check_mode and something",
+            "verify_probe.rc != 0",
+        ],
+    )
+    def test_probe_gate_invariant_rejects_wrong_gate_values(self, gate: str | None) -> None:
+        """The invariant demands the EXACT gate `not ansible_check_mode`.
+
+        A near-miss is not a pass: no gate at all inherits the library
+        short-circuit (fabricated rc: 0), a reversed gate runs the probe during
+        a dry run, a compound expression makes the gate depend on probe state
+        the dry run has no way to know, and a bare `verify_probe.rc != 0`
+        dereferences a register that has no `rc` under --check.
+        """
+        task: dict[str, object] = {
+            "name": "Check something",
+            "ansible.builtin.command": "true",
+            "register": "verify_probe",
+            "changed_when": False,
+            "failed_when": False,
+        }
+        if gate is not None:
+            task["when"] = gate
+        assert _ungated_probe_problems([task]) == [
+            "ansible.builtin.command 'Check something'"
+        ]
+
+    def test_probe_gate_invariant_accepts_the_correct_gate(self) -> None:
+        """The helper must not be a tautology: a correctly gated probe of BOTH
+        modules is clean."""
+        gated = [
+            {
+                "name": f"probe {index}",
+                "ansible.builtin.shell" if index % 2 else "ansible.builtin.command": "true",
+                "when": "not ansible_check_mode",
+            }
+            for index in range(4)
+        ]
+        assert _ungated_probe_problems(gated) == []
+
+    def test_probe_gate_invariant_ignores_non_probe_modules(self) -> None:
+        """The invariant is scoped to host-state probes. `stat` runs honestly
+        under --check with no mutation (the role header says so explicitly),
+        and the CONFIG seam asserts must fail under --check too — so a `stat`
+        or ungated `assert` is NOT this invariant's business and must not be
+        reported as a violation."""
+        tasks: list[dict[str, object]] = [
+            {"name": "stat a file", "ansible.builtin.stat": {"path": "/tmp/x"}},
+            {"name": "Assert install_dir is sane", "ansible.builtin.assert": {"that": ["x"]}},
+            {"name": "copy a file", "ansible.builtin.copy": {"src": "a", "dest": "b"}},
+        ]
+        assert _ungated_probe_problems(tasks) == []
+
+    def test_probe_gate_invariant_covers_the_real_role_both_modules(self) -> None:
+        """Sanity on the real file: the role's probe population actually
+        includes `shell` tasks, so the widened invariant has teeth on real
+        data rather than only on synthetic input."""
+        modules = {_module_key(task) for task in _probe_tasks()}
+        assert modules == set(_PROBE_MODULES), (
+            f"expected both probe modules among the role's probes; found {modules}"
         )
 
     def test_no_become_anywhere_in_role(self) -> None:

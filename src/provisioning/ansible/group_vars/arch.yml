@@ -76,6 +76,18 @@ packages:
   dunst: dunst
   # thunar: file manager launched by keybindings.lua — host-default luck only.
   thunar: thunar
+  # xdg-utils: owns the `xdg-mime` and `xdg-open` binaries TWO provisioning
+  # paths and two runtime consumers hard-depend on:
+  #   * gui_tools runs `xdg-mime default thunar.desktop inode/directory` to pin
+  #     the directory handler (with no explicit default the mime database
+  #     resolved inode/directory to kitty-open.desktop, so the capture tool's
+  #     "Show in folder" opened a terminal instead of a file manager);
+  #   * verify gates `xdg-mime query default inode/directory` against that pin;
+  #   * the capture tool's "Show in folder" and hypr-pano's URL opener shell
+  #     `xdg-open`.
+  # Undeclared, the gui_tools task failed outright (no such binary) and the
+  # verify assert failed with it — a fresh machine could not reach the gate.
+  xdg-utils: xdg-utils
   # Container engine for the csg container-mode chain (cli_tools builds the
   # image + runtime-seed runs csg generate under podman). DOCUMENTED DEPENDENCY — must be provisioned on
   # a fresh machine (VM-verified 2026-08-19: a fresh Arch cloud image has no
