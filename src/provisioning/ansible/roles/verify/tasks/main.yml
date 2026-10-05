@@ -495,6 +495,19 @@
 # provisioned from another session (or a TTY) has no Hyprland IPC yet, so
 # absence there is EXPECTED, not a regression — the assert passes vacuously
 # and a warning names the reason instead of failing the whole provision.
+#
+# Check-gate discipline (this task was the role's only ungated command task):
+# `when: not ansible_check_mode` mirrors every sibling probe, so the gate is
+# declared rather than inherited from the library. ansible-core already
+# short-circuits command under --check ("Command would have run if not in
+# check mode", skipped=True, rc=0 — see the file header), so before this gate
+# the probe reported rc=0 — "Hyprland IPC is reachable" — for a command that
+# never ran. That fabricated rc=0 is exactly why the warn half below must be
+# gated too: a conditionally-skipped register carries no `rc` key at all, so
+# `verify_hyprland_check.rc` would hard-fail the `when` with
+# "object of type 'dict' has no attribute 'rc'" and abort bootstrap.yaml
+# --check. `not ansible_check_mode and ...` short-circuits first, keeping the
+# dereference reachable only where the probe actually ran.
 - name: Check whether Hyprland IPC is reachable
   ansible.builtin.command:
     argv:
@@ -503,6 +516,7 @@
   register: verify_hyprland_check
   changed_when: false
   failed_when: false
+  when: not ansible_check_mode
 
 - name: Warn when the AGS gate is skipped without Hyprland
   ansible.builtin.debug:
@@ -510,7 +524,7 @@
       no Hyprland IPC in this session — the bar and notifications overlay
       start at first Hyprland login via autostart.lua; the always-on AGS gate
       below is skipped meanwhile.
-  when: verify_hyprland_check.rc != 0
+  when: not ansible_check_mode and verify_hyprland_check.rc != 0
 
 - name: List running AGS instances
   ansible.builtin.command:
