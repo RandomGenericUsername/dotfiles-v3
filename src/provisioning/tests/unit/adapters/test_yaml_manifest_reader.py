@@ -331,6 +331,16 @@ class TestReadRealManifests:
         # Strip trailing inline comments — the manifest annotates entries.
         names = [name.split("#")[0].strip() for name in names]
         assert len(names) == len(set(names)), f"duplicate package entries: {names}"
+        # Drift lock, re-snapshotted 2026-10-04 by openspec change
+        # repair-package-manifest-drift after a per-key `git log -S<key>`
+        # review (per-key table in that change's design.md):
+        #   libva-utils        e9beedc4 — VA-API codec probe (vainfo)
+        #   nm-connection-editor / speedtest  predate this snapshot (bulk AGS
+        #                       import 496a0b4d); both are installed by
+        #                       group_vars and consumed by the AGS Wi-Fi
+        #                       settings footer / speedtest service
+        # They were present in the MANIFEST and missing from THIS expectation,
+        # which is why the data needed no edit — only the lock did.
         assert set(names) == {
             "hyprland",
             "hyprpaper",
@@ -359,6 +369,7 @@ class TestReadRealManifests:
             "pavucontrol",
             "gpu-screen-recorder",
             "wf-recorder",
+            "libva-utils",
             "rofi",
             "thunar",
             "lf",
@@ -376,6 +387,8 @@ class TestReadRealManifests:
             "astal-wp",
             "bluez",
             "bluez-utils",
+            "nm-connection-editor",
+            "speedtest",
         }
 
     def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:
