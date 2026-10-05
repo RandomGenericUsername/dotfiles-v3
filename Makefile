@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates capture-types capture-typecheck capture-test capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates gates-ci capture-types capture-typecheck capture-test capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -18,15 +18,30 @@ contracts-check:
 # anti-invention check, then the capture domain unit tests, then the capture GUI
 # typecheck, then the capture hexagonal structure gate.
 #
-# THIS TARGET IS DEVELOPER-RUN, and that is deliberate, not an oversight.
-# `.github/workflows/gates.yml` triggers on `push: branches: [main]`, but this
-# repository's default branch is `master` and `main` does not exist on the
-# remote, so the push trigger cannot fire. There is no working CI for any of
-# these gates; repairing the trigger is a separate change the owner deferred
-# (design.md §7.1). `capture-typecheck` additionally needs the desktop stack,
-# which CI would not have anyway — `capture-test` deliberately does NOT, so it
-# is the one capture gate that would work in CI if it were ever repaired.
-gates: contracts-check wifi-mock-parity speedtest-mock-parity speedtest-no-new-architecture capture-test capture-typecheck capture-hexagonal-gate
+# `gates` is the DEVELOPER gate set and runs ALL SEVEN, including the one that
+# needs the desktop stack. Nothing is dropped for convenience: a gate that is not
+# run here is a gate nobody runs.
+GATES := contracts-check wifi-mock-parity speedtest-mock-parity \
+         speedtest-no-new-architecture capture-test capture-typecheck \
+         capture-hexagonal-gate
+gates: $(GATES)
+
+# The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
+#
+# ONE gate is excluded — `capture-typecheck` — and it is excluded because it
+# CANNOT run there, not because it is inconvenient there (openspec change
+# `enable-ci-gates`, design.md §"Why capture-typecheck cannot run in CI"). It
+# needs `ags` on PATH plus the Astal/GIR libraries it describes, and `ags types`
+# writes ~49 MB of machine-specific .d.ts describing THIS host's GTK/Astal
+# version. A GitHub-hosted runner has no AGS, no Astal and no GTK4, so the target
+# has nothing to typecheck against. Its third-party error bucket is keyed to the
+# literal path /usr/share/ags/js/ as well, which only exists on a provisioned
+# desktop. It stays a developer gate. See the comment on the target below.
+#
+# This target exists so a developer can reproduce a CI run without the desktop
+# stack, and so the split is stated in ONE place that cannot drift from the
+# workflow: `.github/workflows/gates.yml` runs these six as one job per gate.
+gates-ci: $(filter-out capture-typecheck,$(GATES))
 
 CAPTURE_DIR := src/gui-tools/capture-tool
 # tsconfig.capture.json is HAND-WRITTEN and committed. `ags types -u` also

@@ -6,10 +6,32 @@ name: gates
 #
 # Layout: one job per gate, so a failure names the gate that broke instead of
 # hiding behind a combined command's exit code.
+#
+# WHICH GATES, AND WHY NOT MORE. The set here is exactly `make gates-ci` in the
+# Makefile. Six of the repo's seven gates run on a stock `ubuntu-latest` runner.
+# The seventh, `capture-typecheck`, is NOT here because it cannot run there at
+# all: it needs `ags` on PATH plus the Astal/GIR libraries it describes, and
+# `ags types` generates ~49 MB of machine-specific .d.ts from THIS host's
+# GTK/Astal install. A hosted runner has no AGS, no Astal and no GTK4, so the
+# target has nothing to check against, and its tolerated-third-party bucket is
+# keyed to the literal /usr/share/ags/js/ path. Listing it here would not make it
+# stricter — it would make every push red on a missing binary, which is how a
+# broken gate trains people to ignore the gate list.
+#
+# `make gates` still runs all seven for a developer on a provisioned desktop.
+# Nothing is dropped, only relocated: the honest statement is "this gate does not
+# run in CI", never "this gate passes in CI".
+#
+# TRIGGER. This repository's default branch is `master` (`origin/HEAD ->
+# origin/master`); `main` does not exist locally or on the remote, so a
+# `push: branches: [main]` trigger can never fire. Every gate in this file had
+# therefore only ever run by hand. `pull_request` is kept unfiltered so a PR from
+# any branch is still checked.
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   contracts:
@@ -44,3 +66,34 @@ jobs:
       - uses: actions/checkout@v4
       - name: Speed-test path reuses the existing seams
         run: python3 scripts/speedtest-no-new-architecture.py
+
+  capture-hexagonal:
+    name: capture-hexagonal-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture GUI hexagonal structure + class vocabulary
+        run: python3 scripts/capture-hexagonal-gate.py
+
+  capture-test:
+    name: capture-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned, not inherited. The capture domain tests are .ts files run
+      # natively by Node's built-in type-stripping, which is only unflagged from
+      # Node 22.18 — so the runner's preinstalled Node cannot be assumed to be
+      # new enough. 24.x is the current LTS and well past that floor.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # No `npm install` here, on purpose. `make capture-test` runs the 115
+      # domain assertions with `node --test` and nothing else is needed. Its
+      # optional tsc pass over the test files is guarded by `if [ -x
+      # node_modules/.bin/tsc ]` inside the target and self-skips with a printed
+      # NOTE when TypeScript is absent, which is exactly what happens on a clean
+      # checkout. Installing TypeScript here would also surface the pre-existing
+      # missing-@types/node failure (TS2688) described in the openspec change —
+      # a real finding, but a separate fix from "make CI run".
+      - name: Capture domain unit tests
+        run: make capture-test
