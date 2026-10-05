@@ -40,6 +40,12 @@ import {
 
 const APP = fileURLToPath(new URL("../../app.tsx", import.meta.url))
 const WINDOW = fileURLToPath(new URL("../../ui/classic/ClassicWindow.tsx", import.meta.url))
+// The per-monitor window construction moved here when hotplug support landed
+// (fix-capture-monitor-lifecycle); the shared-state invariant is asserted
+// against it below.
+const WINDOW_SET = fileURLToPath(
+  new URL("../../adapters/monitor-window-set.ts", import.meta.url),
+)
 
 /**
  * Source with `//` comment lines removed, so a rationale that NAMES the factory
@@ -194,11 +200,27 @@ test("the composition root builds ONE state and passes it to every window", () =
     /,\s*state\s*\)/,
     "the window must receive the shared state, not just the ports",
   )
-  const loop = /for \(const monitor of app\.get_monitors\(\)\) \{([\s\S]*?)\n {4}\}/.exec(source)
-  assert.ok(loop, "the per-monitor window loop disappeared")
+  // Where the per-monitor construction now happens. It was the body of
+  // `for (const monitor of app.get_monitors())` in app.tsx; it is now the
+  // `createWindow` factory the composition root hands the window set
+  // (fix-capture-monitor-lifecycle moved the loop into the set, so that hotplug
+  // can add and remove windows). The invariant being protected is UNCHANGED --
+  // "the state is built outside the per-monitor construction" -- and it is now
+  // checked against the call that replaced the loop, which is if anything
+  // stronger: this would catch a `createUiState()` smuggled into the factory,
+  // which the old "is it inside the loop body" check could not see at all.
+  assert.match(
+    source,
+    /createWindow:\s*\(monitor\)\s*=>\s*ClassicWindow\(monitor, ports, state\)/,
+    "the window factory must still hand every window the SAME shared state object",
+  )
+  // The window set itself must never construct a state: it is a pure adapter
+  // over the domain's plan, and a state factory here would be a second owner of
+  // the same value.
+  const windowSet = code(WINDOW_SET)
   assert.equal(
-    /\bcreateUiState\b/.test(loop[1]),
+    /\bcreateUiState\b/.test(windowSet),
     false,
-    "the state must be built OUTSIDE the monitor loop, not per monitor",
+    "the window set must not build a UI state — the composition root owns it",
   )
 })

@@ -2714,6 +2714,9 @@ def _build_provisioned_layout(
     # literal for `capture-tool screenshot|start`.
     (install / "config" / "ags-capture" / "domain" / "capture-request.ts").write_text("")
     (install / "config" / "ags-capture" / "domain" / "cli-args.ts").write_text("")
+    # The monitor lifecycle (fix-capture-monitor-lifecycle): the pure decision
+    # layer, and the two ports app.tsx reads monitors and focus through.
+    (install / "config" / "ags-capture" / "domain" / "monitor-registry.ts").write_text("")
     # The shared builder kit BOTH layouts import (hexagonal refactor A7): the
     # row builders, the group/selection helpers and the icon resolver.
     (install / "config" / "ags-capture" / "ui" / "shared").mkdir(parents=True, exist_ok=True)
@@ -2729,6 +2732,8 @@ def _build_provisioned_layout(
         "capture-launcher.ts",
         "backend-probe.ts",
         "capture-ports.ts",
+        "monitor-topology.ts",
+        "monitor-focus.ts",
     ):
         (install / "config" / "ags-capture" / "ports" / capture_port).write_text("")
     for capture_adapter in (
@@ -2736,6 +2741,9 @@ def _build_provisioned_layout(
         "glib-ui-state-store.ts",
         "exec-capture-launcher.ts",
         "exec-backend-probe.ts",
+        "gdk-monitor-topology.ts",
+        "hyprland-monitor-focus.ts",
+        "monitor-window-set.ts",
     ):
         (install / "config" / "ags-capture" / "adapters" / capture_adapter).write_text("")
     # Icon color mapping editor (gui_tools role): verify gates its event seam

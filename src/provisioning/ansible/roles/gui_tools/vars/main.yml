@@ -137,6 +137,13 @@ gui_tools_app_files:
   # already in gui_tools_config_dirs above (A3).
   - { name: capture-domain-capture-request, source: src/gui-tools/capture-tool/domain/capture-request.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/capture-request.ts" }
   - { name: capture-domain-cli-args, source: src/gui-tools/capture-tool/domain/cli-args.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/cli-args.ts" }
+  # The monitor registry (fix-capture-monitor-lifecycle). PURE: it decides
+  # which windows a monitor change means (planSync) and which window a name
+  # lookup should reach first (orderedForFocus). That decision is the whole of
+  # two deferred bugs, and it lives in domain/ precisely so `node --test` can
+  # execute it -- GTK-touching code is untestable here, and app.tsx's own
+  # contract forbids logic. Values + types only.
+  - { name: capture-domain-monitor-registry, source: src/gui-tools/capture-tool/domain/monitor-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/monitor-registry.ts" }
   # The ports and adapters layers (refactor-capture-tool-hexagonal A5). ports/
   # is interfaces only; adapters/ owns every GLib file read/write, the
   # execAsync spawn and the hide-then-wait-150ms delay. The dialog imports
@@ -149,10 +156,27 @@ gui_tools_app_files:
   - { name: capture-ports-capture-launcher, source: src/gui-tools/capture-tool/ports/capture-launcher.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/capture-launcher.ts" }
   - { name: capture-ports-backend-probe, source: src/gui-tools/capture-tool/ports/backend-probe.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/backend-probe.ts" }
   - { name: capture-ports-capture-ports, source: src/gui-tools/capture-tool/ports/capture-ports.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/capture-ports.ts" }
+  # The two monitor ports (fix-capture-monitor-lifecycle). Interfaces only.
+  # monitor-topology is "the monitors that exist, and be told when that
+  # changes"; monitor-focus is "which monitor is the user on", which GTK4
+  # cannot answer at all (the measured negative result is recorded in the file).
+  - { name: capture-ports-monitor-topology, source: src/gui-tools/capture-tool/ports/monitor-topology.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/monitor-topology.ts" }
+  - { name: capture-ports-monitor-focus, source: src/gui-tools/capture-tool/ports/monitor-focus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/monitor-focus.ts" }
   - { name: capture-adapters-glib-settings-store, source: src/gui-tools/capture-tool/adapters/glib-settings-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/glib-settings-store.ts" }
   - { name: capture-adapters-glib-ui-state-store, source: src/gui-tools/capture-tool/adapters/glib-ui-state-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/glib-ui-state-store.ts" }
   - { name: capture-adapters-exec-capture-launcher, source: src/gui-tools/capture-tool/adapters/exec-capture-launcher.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/exec-capture-launcher.ts" }
   - { name: capture-adapters-exec-backend-probe, source: src/gui-tools/capture-tool/adapters/exec-backend-probe.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/exec-backend-probe.ts" }
+  # The monitor adapters and the window set (fix-capture-monitor-lifecycle).
+  # gdk-monitor-topology is the ONLY place that subscribes to monitor hotplug
+  # (Gdk.Display has no monitor-added/monitor-removed; the delivery is the
+  # Gio.ListModel's items-changed). hyprland-monitor-focus answers "which
+  # monitor is focused", which GTK 4.22 cannot do at all. monitor-window-set owns
+  # one window per monitor across hotplug AND replaces the name lookup the
+  # provisioned `ags toggle capture-window` launcher resolves through, so the
+  # panel opens on the focused monitor without a provision run.
+  - { name: capture-adapters-gdk-monitor-topology, source: src/gui-tools/capture-tool/adapters/gdk-monitor-topology.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/gdk-monitor-topology.ts" }
+  - { name: capture-adapters-hyprland-monitor-focus, source: src/gui-tools/capture-tool/adapters/hyprland-monitor-focus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/hyprland-monitor-focus.ts" }
+  - { name: capture-adapters-monitor-window-set, source: src/gui-tools/capture-tool/adapters/monitor-window-set.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/monitor-window-set.ts" }
   # The capture instance resolves palette-aware icons through its own
   # registry (hypr-pano pattern: each GUI app owns its lib/ in src and the
   # role deploys it per-file). The capture registry prefers the instance's
