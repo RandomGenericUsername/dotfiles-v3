@@ -1,9 +1,11 @@
 import { Accessor, createComputed, createEffect, createState, For } from "ags"
 import { Gtk } from "ags/gtk4"
+import GLib from "gi://GLib?version=2.0"
 import Pango from "gi://Pango?version=1.0"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import {
+  ageOutStaleReadings,
   bluetoothAdapterAddress,
   bluetoothBusy,
   bluetoothDevices,
@@ -21,15 +23,24 @@ import {
   type BluetoothDevice,
 } from "../../services/bluetooth-service"
 
+/** How often the RSSI staleness rule is re-applied while the panel is visible. */
+const TICK_MS = 10000
+
 /**
  * Bluetooth capability body (design §4, mock `mockups/panel.html`).
  *
  * State is owned by BlueZ D-Bus and exposed through the service's accessors;
  * this component only reads them and forwards user intent (`pairDevice`,
  * `connectDevice`, `disconnectDevice`, `unpairDevice`). There is no subprocess,
- * no bus call, no agent plumbing and no timer here — the ONE subprocess is the
- * footer row's `execAsync(["blueman-manager"])`, the same single escape hatch
+ * no bus call and no agent plumbing here — the ONE subprocess is the footer
+ * row's `execAsync(["blueman-manager"])`, the same single escape hatch
  * `WifiContent`'s `nm-connection-editor` row uses.
+ *
+ * The one timer is the RSSI re-age tick, and it exists because of a BlueZ
+ * property: RSSI has no timestamp, no expiry and no heartbeat, so a frozen
+ * value looks live forever. The tick is a timestamp comparison over the local
+ * cache — it never touches the bus — and it exists only while the panel is
+ * visible. See `ageOutStaleReadings` in the service.
  */
 
 export {
@@ -209,7 +220,15 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
       setConfirmingAddress(null)
       return
     }
-    if (busy() || !inRange()) return
+    // `busy()` is the only refusal left. There used to be `|| !inRange()` here,
+    // paired with `sensitive={primaryAvailable}` on the button -- and together
+    // they made an out-of-range Connect a dead end: dimmed, unclickable, and
+    // silent. The user cannot tell whether the panel is broken, the device is
+    // gone, or BlueZ rejected it. Letting the press through costs one BlueZ call
+    // and returns BlueZ's actual reason through `humanBusMessage`, which is the
+    // only thing the user wanted in the first place. `runAction` is single-
+    // flight anyway, so a press that genuinely cannot proceed still reports.
+    if (busy()) return
     if (connected()) disconnectDevice(item.address)
     else if (paired()) connectDevice(item.address)
     else pairDevice(item.address)
@@ -355,14 +374,32 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
           >
             <label label="Keep" />
           </button>
-          {/* `disabled` is a visual hint only — `.settings-rowact.disabled`'s
-              comment says as much. The row gesture above no-ops in exactly the
-              same conditions, so no `sensitive` prop is needed, and adding one
-              would stack libadwaita's own disabled opacity on top of ours. */}
+          {/* `disabled` is visual only. It stays because it is what the approved mock
+              draws (`.settings-rowact.disabled`, resolved by the parity gate's
+              CLASS_MAP) -- but it is NOT the guard, and it must not be promoted
+              into one again.
+
+              History, because this has now been got wrong twice:
+              - 64078268 (pre-rework) had BOTH the class and
+                `sensitive={inRange() && !anyBusy()}`. Correct, but it made an
+                out-of-range Connect silently inert -- the reported symptom was
+                "it shows Connect but nothing happens".
+              - The rework dropped `sensitive` on the argument that the class was
+                enough. Wrong: a CSS class does not disable a GTK button, so the
+                button stayed activatable and focusable while looking disabled.
+              - Now: the class for looks, `sensitive` ONLY for BlueZ's
+                single-flight window. `!inRange()` is deliberately absent from
+                both, so pressing an out-of-range Connect reaches BlueZ and
+                surfaces its real reason instead of silence.
+
+              During `anyBusy()` the label already reads "Connecting…" beside a
+              spinner, so the button being inert there is self-explanatory --
+              unlike the out-of-range case, which looked actionable and was not. */}
           <button
             class={createComputed(() =>
               primaryAvailable() ? "settings-rowact" : "settings-rowact disabled",
             )}
+            sensitive={createComputed(() => !anyBusy())}
             onClicked={act}
             canFocus={false}
             valign={Gtk.Align.CENTER}
@@ -619,25 +656,42 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
   // stops reporting RSSI — so the cached value can be minutes or hours old, and
   // the row offers a live Connect button for hardware that is switched off. A
   // fresh read costs one GetAll per cached device and only happens while someone
-  // is looking, which is the only time the answer is read. NOT a timer.
+  // is looking, which is the only time the answer is read.
+  //
+  // The D-Bus read is NOT on a timer, deliberately — polling BlueZ forever for a
+  // panel nobody is watching is the thing this design avoids. The separate
+  // `ageOutStaleReadings` tick below is not a substitute for it: that one is a
+  // local timestamp comparison that never touches the bus. You need both. The
+  // read picks up a device that came back; the tick notices one that went away.
   createEffect(() => {
     if (!visible()) return
     void refreshBluetoothDevices()
   })
 
-  // ── scanning indicator ───────────────────────────────────────────────
-  // NOT IMPLEMENTED. The mock (`popup-scanning`, `popup-scanning-devices`) now
-  // specifies an animated indicator and `bluetooth-mock-parity` reports the
-  // tokens as a tracked gap, but no artwork ships here on purpose: the owner
-  // deferred implementation until the variant is chosen and it is agreed
-  // whether the frame-cycling engine is acceptable at all. Do not "fix" this
-  // by adding a spinner without that decision -- see the mock and proposal.
+  // ── live RSSI ageing ─────────────────────────────────────────────────
+  // The refresh above only runs on visibility, so a device that falls silent
+  // while the panel is already open would keep offering Connect until the panel
+  // is closed and reopened. `ageOutStaleReadings` walks the cache and re-applies
+  // the staleness rule: a timestamp comparison per cached device, no D-Bus, no
+  // discovery. It is the only ticker in this component.
   //
-  // The bug this was meant to address is ALSO still present, deliberately: the
-  // `Scanning…` label below is gated on `!hasDevices()`, so it disappears the
-  // moment one device is found while the scan is still running. That is a
-  // one-line gate change with no artwork and no engine, and it is awaiting the
-  // same decision.
+  // TICK_MS is deliberately equal to BlueZ's ~10s discovery cycle rather than to
+  // RSSI_STALE_MS. Polling faster than the value can change would re-render for
+  // no reason; polling far slower would leave a visibly wrong row up.
+  //
+  // The source is created INSIDE the effect, matching the discovery effect
+  // above. Creating it out here and removing it in the cleanup would leave the
+  // ticker permanently dead after the first hide — the cleanup can remove a
+  // source but the effect body is what recreates one.
+  createEffect(() => {
+    if (!visible()) return
+    ageOutStaleReadings()
+    const ticker = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_MS, () => {
+      ageOutStaleReadings()
+      return GLib.SOURCE_CONTINUE
+    })
+    return () => GLib.source_remove(ticker)
+  })
 
   return (
     <box
