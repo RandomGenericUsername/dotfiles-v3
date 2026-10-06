@@ -220,15 +220,25 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
       setConfirmingAddress(null)
       return
     }
-    // `busy()` is the only refusal left. There used to be `|| !inRange()` here,
-    // paired with `sensitive={primaryAvailable}` on the button -- and together
-    // they made an out-of-range Connect a dead end: dimmed, unclickable, and
-    // silent. The user cannot tell whether the panel is broken, the device is
-    // gone, or BlueZ rejected it. Letting the press through costs one BlueZ call
-    // and returns BlueZ's actual reason through `humanBusMessage`, which is the
-    // only thing the user wanted in the first place. `runAction` is single-
-    // flight anyway, so a press that genuinely cannot proceed still reports.
-    if (busy()) return
+    // `!inRange()` IS a refusal again. It was lifted so that pressing an
+    // out-of-range Connect would surface BlueZ's real reason instead of doing
+    // nothing -- and that was wrong, because it made unreachable hardware look
+    // actionable. OWNER DECISION 2026-10-05: out of range means you cannot
+    // click Connect, full stop.
+    //
+    // The reasoning that lifted it had a hidden dependency. It was only sound
+    // while the ageing did NOT exist: back then a row could sit showing a live
+    // Connect for hardware that was switched off, and pressing it was the sole
+    // way to discover why. That is no longer true. RSSI_STALE_MS (20s) means
+    // the row now reaches "Not in range" by itself, without being poked, so a
+    // disabled Connect is self-explanatory -- there is nothing left to learn by
+    // pressing it. Ageing is what makes the guard honest; do not remove one
+    // without re-checking the other.
+    //
+    // The residual case is deliberate and narrow: a device that goes quiet keeps
+    // its last reading for up to 20s, and inside that window Connect still works
+    // and a press returns BlueZ's real answer. That is a feature, not a leak.
+    if (busy() || !inRange()) return
     if (connected()) disconnectDevice(item.address)
     else if (paired()) connectDevice(item.address)
     else pairDevice(item.address)
@@ -374,32 +384,28 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
           >
             <label label="Keep" />
           </button>
-          {/* `disabled` is visual only. It stays because it is what the approved mock
-              draws (`.settings-rowact.disabled`, resolved by the parity gate's
-              CLASS_MAP) -- but it is NOT the guard, and it must not be promoted
-              into one again.
+          {/* `disabled` is the visual; `sensitive` is the guard. BOTH are required and
+              they must agree -- this has now been got wrong three times, so:
+                64078268  class + sensitive={inRange() && !anyBusy()}   correct
+                rework    class only, sensitive deleted                 wrong: a CSS
+                          class does not disable a GTK button, so the button
+                          stayed activatable and focusable while looking dead
+                6ec8202d  sensitive narrowed to !anyBusy()              wrong: made
+                          unreachable hardware look clickable. OWNER REJECTED.
+              FINAL: class for looks, sensitive for truth, both driven by the
+              same `primaryAvailable`. Never "simplify" one into the other.
 
-              History, because this has now been got wrong twice:
-              - 64078268 (pre-rework) had BOTH the class and
-                `sensitive={inRange() && !anyBusy()}`. Correct, but it made an
-                out-of-range Connect silently inert -- the reported symptom was
-                "it shows Connect but nothing happens".
-              - The rework dropped `sensitive` on the argument that the class was
-                enough. Wrong: a CSS class does not disable a GTK button, so the
-                button stayed activatable and focusable while looking disabled.
-              - Now: the class for looks, `sensitive` ONLY for BlueZ's
-                single-flight window. `!inRange()` is deliberately absent from
-                both, so pressing an out-of-range Connect reaches BlueZ and
-                surfaces its real reason instead of silence.
-
-              During `anyBusy()` the label already reads "Connecting…" beside a
-              spinner, so the button being inert there is self-explanatory --
-              unlike the out-of-range case, which looked actionable and was not. */}
+              The load-bearing dependency: `sensitive` is only safe now because
+              RSSI_STALE_MS ages a frozen reading out within 20s, so the row
+              reaches "Not in range" without being pressed. A disabled Connect
+              is therefore self-explanatory. Remove the ageing and this guard
+              becomes the silent dead end it was before -- check the other before
+              changing either. */}
           <button
             class={createComputed(() =>
               primaryAvailable() ? "settings-rowact" : "settings-rowact disabled",
             )}
-            sensitive={createComputed(() => !anyBusy())}
+            sensitive={primaryAvailable}
             onClicked={act}
             canFocus={false}
             valign={Gtk.Align.CENTER}
