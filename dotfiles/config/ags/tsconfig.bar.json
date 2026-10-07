@@ -53,5 +53,16 @@
     // Generated ambient declarations for `*.css` (the `style` imports).
     "../../../src/gui-tools/capture-tool/env.d.ts"
   ],
-  "exclude": ["node_modules"]
+  // `tests/` is a SEPARATE tsc project with its OWN config and its OWN gate.
+  // `tests/tsconfig.tests.json` owns these files and `make ags-test` runs it;
+  // the tests there need `@types/node` and `allowImportingTsExtensions`, which
+  // belong to that config and NOT to an app program. The `**/*.ts` glob above
+  // would sweep them in anyway, where they fail for exactly those two missing
+  // things — and, worse, would put them in a program whose ambient surface is
+  // the app's rather than Node's. This is the same class of defect
+  // `harden-capture-typecheck-config` fixed in the capture config: coverage
+  // that is not a property of what the config is supposed to check. Excluding
+  // them is NOT how they are typechecked — `make ags-test` still compiles them
+  // against `tests/tsconfig.tests.json`, which still declares both.
+  "exclude": ["node_modules", "tests"]
 }
