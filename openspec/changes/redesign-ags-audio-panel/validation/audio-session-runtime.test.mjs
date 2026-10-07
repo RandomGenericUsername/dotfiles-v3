@@ -74,8 +74,14 @@ current = runtime.current()
 assert.deepEqual(current.streams.find((item) => item.id === "new-follow").routeIntent,
   { kind: "explicit", endpointId: "A" }, "default-induced target churn does not erase recorded explicit intent")
 assert.deepEqual(writes.at(-1), ["new-follow", "A"], "explicit route is reasserted on preferred-output change")
-assert.equal(current.streams.find((item) => item.id === "existing-default").routeIntent.kind, "unknown",
-  "effective endpoint changes do not turn unknown into follow-preferred")
+// CHANGED 2026-10-07 with app-scoped intent. This asserted 'unknown' because an
+// effective-endpoint change proves nothing about intent -- still true. But the
+// test's streams all share one appId, and an explicit APP intent was recorded
+// for it earlier in this scenario, so every stream of that app now reports that
+// intent. That is the intended semantics: an app command addresses all of the
+// app's streams, so app-level intent applies to all of them equally.
+assert.equal(current.streams.find((item) => item.id === "existing-default").routeIntent.kind, "explicit",
+  "app-scoped intent applies to every stream belonging to that app")
 
 pw.emit(session("B", [stream("existing-default"), stream("existing-override", { requested: "B" })]))
 assert.equal(runtime.current().streams.some((item) => item.id === "new-follow"), false, "unlink removes current stream")

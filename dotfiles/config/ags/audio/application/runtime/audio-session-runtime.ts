@@ -214,11 +214,26 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
       const stored = this.routeHistory.get(raw.id)
       let intent: RouteIntent
 
+      // A target write that merely lands on the CURRENT preferred output is
+      // WirePlumber following the default, not a user override. Measured
+      // 2026-10-07: connecting headphones rewrote target.object on every
+      // follow-default stream to the headphone node, and the old code recorded
+      // that as explicit intent -- flipping every row to "Override" and leaving
+      // pinned apps playing through the headphones. design.md:55 states the
+      // rule: an external target change establishes Explicit UNLESS it is part
+      // of the preferred-output use case. This is that exception.
+      const followedTarget = incoming.preferredOutputId
+      const establishesExplicit = (target: EndpointId | null): boolean =>
+        target !== null && target !== followedTarget
+
       if (startup) {
-        // A non-null requested target is evidence of an explicit override.
-        // A target-less stream already present at startup has unknown history.
-        intent = raw.requestedEndpointId !== null
-          ? explicitRoute(raw.requestedEndpointId)
+        // A target that DIFFERS from the current preferred output is real
+        // evidence of a pin; a target that EQUALS the preferred output is what
+        // WirePlumber writes for streams merely following the default, so it
+        // proves nothing and stays Unknown. App intents do not survive a
+        // restart, so this is all that is knowable here.
+        intent = establishesExplicit(raw.requestedEndpointId)
+          ? explicitRoute(raw.requestedEndpointId as EndpointId)
           : UnknownRoute
       } else if (stored !== undefined) {
         intent = stored
@@ -226,7 +241,9 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
         if (!(preferredChanged && stored.kind === "explicit") && previous &&
             raw.requestedEndpointId !== previous.requestedEndpointId &&
             expected !== undefined && raw.requestedEndpointId !== expected) {
-          intent = raw.requestedEndpointId === null ? FollowPreferred : explicitRoute(raw.requestedEndpointId)
+          intent = establishesExplicit(raw.requestedEndpointId)
+            ? explicitRoute(raw.requestedEndpointId as EndpointId)
+            : FollowPreferred
         }
       } else if (previous) {
         intent = previous.routeIntent
@@ -234,23 +251,23 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
         if (!(preferredChanged && intent.kind === "explicit") &&
             raw.requestedEndpointId !== previous.requestedEndpointId &&
             (expected === undefined || raw.requestedEndpointId !== expected)) {
-          intent = raw.requestedEndpointId === null ? FollowPreferred : explicitRoute(raw.requestedEndpointId)
+          intent = establishesExplicit(raw.requestedEndpointId)
+            ? explicitRoute(raw.requestedEndpointId as EndpointId)
+            : FollowPreferred
         }
       } else {
-        // Streams appearing after startup follow default unless PipeWire
-        // supplies a requested target. This does not inspect effective links.
-        intent = raw.requestedEndpointId === null
-          ? FollowPreferred
-          : explicitRoute(raw.requestedEndpointId)
+        intent = establishesExplicit(raw.requestedEndpointId)
+          ? explicitRoute(raw.requestedEndpointId as EndpointId)
+          : FollowPreferred
       }
 
-      // An app-scoped intent outranks inference for a stream that has no
-      // recorded history of its own -- e.g. the stream Tidal recreated after
-      // being paused, for an app the user already told us to follow or pin.
-      // Without this the new stream would be graded FollowPreferred by default
-      // and silently discard a deliberate "pin to A" choice.
+      // An app-scoped intent ALWAYS outranks inference, whether or not this
+      // stream has history of its own. The user's recorded choice is the only
+      // thing that distinguishes "I pinned this" from "the policy moved it",
+      // and the target-change heuristic above cannot. This is what keeps a
+      // pinned app pinned when the default changes.
       const appStored = this.appHistory.get(raw.appId)
-      if (appStored !== undefined && (startup || stored === undefined)) {
+      if (appStored !== undefined) {
         intent = appStored
       }
 
@@ -259,9 +276,19 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
     })
 
     const nextIds = new Set(nextStreams.map((stream) => stream.id))
-    const explicitToReassert = preferredChanged
-      ? nextStreams.filter((stream) => stream.current && stream.direction === "output" && stream.routeIntent.kind === "explicit")
-      : []
+    // Reassert any explicit stream that is not actually on its recorded
+    // endpoint -- not only on a preferred-output change.
+    //
+    // Restricting this to `preferredChanged` missed the common case: the
+    // headphone connection and WirePlumber's follow-default move arrive as
+    // separate events, and by the time the preferred output was observed the
+    // stream had already been classified. Comparing effective endpoint against
+    // recorded intent is self-correcting and covers a policy move, a relink, or
+    // any other drift with one rule.
+    const explicitToReassert = nextStreams.filter((stream) =>
+      stream.current && stream.direction === "output" &&
+      stream.routeIntent.kind === "explicit" &&
+      stream.endpointId !== stream.routeIntent.endpointId)
 
     this.lastStreams.clear()
     for (const stream of nextStreams) this.lastStreams.set(stream.id, stream)
