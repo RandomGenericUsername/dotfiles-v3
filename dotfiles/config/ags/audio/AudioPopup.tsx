@@ -256,9 +256,7 @@ function PreferredOutput({ binding }: { binding: AudioPanelBinding }) {
     return model.outputs.find((output) => output.id === model.preferredOutputId) ?? null
   })
   const value = createComputed(() => currentOutput()?.name ?? "No output available")
-  const volume = createComputed<VolumeState>(() => currentOutput()?.volume ?? { level: 0, muted: false })
   const outputs = createComputed(() => binding.model().outputs)
-  const endpointId = createComputed(() => binding.model().preferredOutputId ?? "")
   return (
     <box class="audio-section" orientation={Gtk.Orientation.VERTICAL}>
       <box class="audio-section-heading">
@@ -272,23 +270,19 @@ function PreferredOutput({ binding }: { binding: AudioPanelBinding }) {
         iconName="volume"
         onSelect={(id) => binding.actions.selectPreferredOutput(id)}
       />
-      <box class="audio-output-caption">
-        <label class="audio-scope-label" label={createComputed(() => `Output level · affects all audio routed to ${value()}`)} />
-      </box>
-      <box class="audio-control-line" spacing={8}>
-        <IconButton
-          name={createComputed(() => `${value()} output ${volume().muted ? "muted" : "unmuted"}`)}
-          tooltip={createComputed(() => `${volume().muted ? "Unmute" : "Mute"} ${value()}`)}
-          imagePath={createComputed(() => icon("volume", volume().muted ? "system-muted" : `system-${volume().level === 0 ? "muted" : volume().level < 0.34 ? "low" : volume().level < 0.67 ? "medium" : "high"}`))}
-          onClicked={() => binding.actions.toggleOutputMute(endpointId())}
-        />
-        <LevelControl
-          label={createComputed(() => `${value()} output level`)}
-          volume={volume}
-          disabled={createComputed(() => !currentOutput()?.available)}
-          onChange={(percent) => binding.actions.setOutputVolume(endpointId(), percent)}
-        />
-      </box>
+      {/* No device-level output level here, by owner decision 2026-10-04.
+          The preferred-output SELECTOR stays: WirePlumber still moves every
+          app following the default when the default changes, so removing the
+          control would have hidden real behaviour the panel must expose -- and
+          the owner found exactly that by plugging in headphones and watching
+          every row move with no control explaining why.
+
+          What was dropped is the device-level volume/mute line. It read as a
+          second, competing volume control next to each app's own, and every
+          level is now set per app where it is unambiguous what it affects.
+          Sink gain is still reachable outside this panel (the Settings panel,
+          task 6.2), which keeps one implementation of that use case rather
+          than two that can drift. */}
     </box>
   )
 }
@@ -311,7 +305,8 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
   const streamLive = createComputed(() => row().hasCurrentStream)
   const currentPlayer = createComputed(() => row().hasCurrentPlayer && row().playerId ? row().playerId : null)
   const outputs = createComputed(() => binding.model().outputs)
-  const preferred = createComputed(() => binding.model().outputs.find((output) => output.id === binding.model().preferredOutputId)?.name ?? "Unavailable")
+  const preferred = createComputed(() =>
+    binding.model().outputs.find((output) => output.id === binding.model().preferredOutputId)?.name ?? "Unavailable")
 
   function routeOptions(anchor: Gtk.Widget) {
     const current = row()
