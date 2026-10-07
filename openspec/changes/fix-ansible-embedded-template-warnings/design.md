@@ -163,3 +163,39 @@ supported form rather than a workaround.
 - **`ansible-lint`.** Not installed, and the construct has no lint rule today;
   adding a linter to catch one pattern is heavier than the ~40-line lint, and a
   linter's rule set would then be a second thing to keep current.
+
+## §7 Measurement notes (recorded during implementation)
+
+Three claims above did not survive re-measurement. The fix is correct anyway;
+these are corrections to the *explanation*, kept so the next reader does not
+build on the wrong model.
+
+- **The warning is NOT deduped across tasks.** A clean `verify` emits TWO
+  embedded-template lines, each with its own origin:
+  `roles/verify/tasks/main.yml:1275:11` (color_theme) and `:1289:11`
+  (save_config_on_exit). §1 says one deduped line and the proposal quoted only
+  `:1289:11`. What is true is narrower: the two emissions carry identical
+  message text, so the provisioning executor's `_extract_warnings` (which keeps
+  `[WARNING]` header lines, deduped) collapses them to one entry in the
+  `warnings` field of the JSON result. The raw stderr has both.
+
+- **`["'']` is not an escaped quote, and the regex class is `["]`, not
+  `["']`.** Jinja has no doubled-quote escape (in a single-quoted literal `''`
+  is just two adjacent literals, which Jinja concatenates), so
+  `'color_theme\s*=\s*["'']'` parses as `'color_theme\s*=\s*["'` + `']'`, i.e.
+  the regex class `["]` — a DOUBLE quote only. The original and the fixed
+  expressions evaluate to the byte-identical
+  `color_theme\s*=\s*["]colors.btop.theme["]`; it matches the rendered
+  `color_theme = "colors.btop.theme"` line and deliberately not a single-quoted
+  variant. The change is a token-preserving split and does not alter this. §3's
+  description of `["'']` as an escaped quote / `["']` class is wrong on both
+  counts, but nothing in the fix depends on which reading is true.
+
+- **The trigger is expression contexts only, not top-level templates.** A
+  `set_fact` whose value is a top-level `{{ '...{{ v }}...' }}` template leaves
+  the inner `{{ v }}` LITERAL (it does not resolve), while the same nested form
+  in `assert.that` resolves it (and warns). §1's "Ansible resolves the inner
+  `{{ }}` before the outer expression is evaluated" holds for expression
+  contexts — which is exactly where the real sites are — and not for `set_fact`.
+  That is the measured justification for the lint's context restriction.
+

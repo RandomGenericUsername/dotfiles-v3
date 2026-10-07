@@ -1274,7 +1274,7 @@
   ansible.builtin.assert:
     that: >-
       verify_btop_conf_grep.stdout is search(
-        'color_theme\s*=\s*["'']{{ verify_btop_theme_selected }}["'']')
+        'color_theme\s*=\s*["'']' ~ verify_btop_theme_selected ~ '["'']')
     fail_msg: >-
       the rendered btop.conf does not select
       "{{ verify_btop_theme_selected }}". btop resolves `color_theme` ONLY
@@ -1288,7 +1288,7 @@
   ansible.builtin.assert:
     that: >-
       verify_btop_conf_grep.stdout is search(
-        'save_config_on_exit\s*=\s*{{ verify_btop_save_config_on_exit }}')
+        'save_config_on_exit\s*=\s*' ~ verify_btop_save_config_on_exit)
     fail_msg: >-
       the rendered btop.conf does not set
       save_config_on_exit = {{ verify_btop_save_config_on_exit }}. This setting

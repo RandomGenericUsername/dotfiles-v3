@@ -7,22 +7,23 @@ name: gates
 # Layout: one job per gate, so a failure names the gate that broke instead of
 # hiding behind a combined command's exit code.
 #
-# WHICH GATES, AND WHY NOT MORE. The set here is exactly `make gates-ci` in the
-# Makefile. Nine of the repo's ten gates run on a stock `ubuntu-latest` runner.
-# The tenth, `capture-typecheck`, is NOT here because it cannot run there at
-# all: it needs `ags` on PATH plus the Astal/GIR libraries it describes, and
-# `ags types` generates ~49 MB of machine-specific .d.ts from THIS host's
-# GTK/Astal install. A hosted runner has no AGS, no Astal and no GTK4, so the
-# target has nothing to check against, and its tolerated-third-party bucket is
-# keyed to the literal /usr/share/ags/js/ path. Listing it here would not make it
-# stricter — it would make every push red on a missing binary, which is how a
-# broken gate trains people to ignore the gate list.
+# WHICH GATES, AND WHY NOT MORE. This file carries one job per runner-capable
+# gate; `make gates-ci` in the Makefile is the authoritative set. Two gates are
+# excluded because they CANNOT run on a stock `ubuntu-latest` runner at all:
+# `capture-typecheck` and `bar-typecheck`. They need `ags` on PATH plus the
+# Astal/GIR libraries it describes, and `ags types` generates ~49 MB of
+# machine-specific .d.ts from THIS host's GTK/Astal install. A hosted runner has
+# no AGS, no Astal and no GTK4, so the targets have nothing to check against, and
+# their tolerated-third-party buckets are keyed to the literal /usr/share/ags/js/
+# path. Listing them here would not make them stricter — it would make every push
+# red on a missing binary, which is how a broken gate trains people to ignore the
+# gate list.
 #
 # `ags-test` is NOT in that exclusion, and the difference is worth stating: it
 # also runs .ts natively, but everything it typechecks is PURE (no `gi://*`, no
 # `ags/*`), so it needs Node and tsc and nothing else.
 #
-# `make gates` still runs all ten for a developer on a provisioned desktop.
+# `make gates` still runs all of them for a developer on a provisioned desktop.
 # Nothing is dropped, only relocated: the honest statement is "this gate does not
 # run in CI", never "this gate passes in CI".
 #
@@ -77,6 +78,19 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Generated icons.json matches to_nice_json(icons.yaml)
         run: make icons-json-drift
+
+  ansible-embedded-template-lint:
+    name: ansible-embedded-template-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # uv, because the lint PARSES the YAML with PyYAML (both real offenders
+      # are folded `>-` block scalars spanning two lines, so a line grep cannot
+      # see them) and PyYAML ships with the provisioning project — the same
+      # runner capability `icons-json-drift` uses above. Needs no desktop stack.
+      - uses: astral-sh/setup-uv@v5
+      - name: Ansible tree has no template nested in a Jinja string literal
+        run: make ansible-embedded-template-lint
 
   speedtest-mock-parity:
     name: speedtest-mock-parity
