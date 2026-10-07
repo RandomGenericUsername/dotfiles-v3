@@ -55,6 +55,18 @@ export interface PipeWireGraph {
    */
   defaultSinkName: string | null
   defaultSourceName: string | null
+  /**
+   * PipeWire node id -> `node.name`, for every Node in the dump.
+   *
+   * Needed because WirePlumber's default metadata names the node by its
+   * PipeWire `node.name` (e.g. `bluez_output.94_4B_F8_4B_5B_16.1`), while
+   * AstalWp's wrapper exposes a different or absent `name` (its description is
+   * the human label, "TOZO NC9"). Matching the metadata against AstalWp's name
+   * therefore failed for Bluetooth sinks, the default fell back to AstalWp's
+   * stale `default_speaker`, and the panel showed the previous device while
+   * audio played through the new one.
+   */
+  pipewireNodeName: ReadonlyMap<number, string>
 }
 
 /**
@@ -91,6 +103,7 @@ const id = (value: number | null | undefined): EndpointId | null =>
 export function parsePipeWireGraph(json: string): PipeWireGraph {
   const dump = JSON.parse(json) as DumpObject[]
   const nodeName = new Map<number, string>()
+  const pipewireNodeName = new Map<number, string>()
   const streamProperties = new Map<number, Readonly<Record<string, unknown>>>()
   const streamSerial = new Map<number, string>()
   const sinks = new Set<number>()
@@ -101,6 +114,8 @@ export function parsePipeWireGraph(json: string): PipeWireGraph {
     const props = object.info?.props ?? {}
     const name = text(props["node.description"]) || text(props["node.name"])
     if (name) nodeName.set(object.id, name)
+    const wireName = text(props["node.name"])
+    if (wireName) pipewireNodeName.set(object.id, wireName)
     const mediaClass = text(props["media.class"])
     if (mediaClass === "Audio/Sink") sinks.add(object.id)
     if (mediaClass === "Audio/Source") sources.add(object.id)
@@ -148,7 +163,7 @@ export function parsePipeWireGraph(json: string): PipeWireGraph {
     else if (sources.has(output) && streamProperties.has(input)) streamEndpoint.set(input, output)
   }
 
-  return { streamEndpoint, nodeName, streamProperties, streamSerial, requestedTarget, defaultSinkName, defaultSourceName }
+  return { streamEndpoint, nodeName, pipewireNodeName, streamProperties, streamSerial, requestedTarget, defaultSinkName, defaultSourceName }
 }
 
 function endpoint(node: RawNode, available = true) {
@@ -183,6 +198,15 @@ export function projectPipeWireSession(input: {
   // is the case AstalWp handles, not the case it misses.
   const resolveDefault = (name: string | null, mediaClass: number): string | null => {
     if (!name) return null
+    // Prefer PipeWire's own node.name: that is the identifier WirePlumber's
+    // default metadata actually uses, and it is reliable for Bluetooth sinks
+    // where AstalWp's name/description do not match it.
+    const allowed = new Set(input.nodes
+      .filter((node) => node["media-class"] === mediaClass && typeof node.id === "number")
+      .map((node) => node.id as number))
+    for (const [nodeId, wireName] of input.graph.pipewireNodeName) {
+      if (wireName === name && allowed.has(nodeId)) return id(nodeId)
+    }
     const match = input.nodes.find((node) =>
       node["media-class"] === mediaClass && (node.name === name || node.description === name))
     return match ? id(match.id) : null
