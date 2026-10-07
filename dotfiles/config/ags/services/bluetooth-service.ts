@@ -1,4 +1,5 @@
 import GLib from "gi://GLib?version=2.0"
+import Gio from "gi://Gio?version=2.0"
 import Wp from "gi://AstalWp?version=0.1"
 import { createState } from "ags"
 import {
@@ -94,7 +95,14 @@ const [bluetoothBusy, setBluetoothBusy] = createState<BluetoothBusy>({
   address: null,
   action: null,
 })
-const [bluetoothFailure, setBluetoothFailure] = createState("")
+//: Action failures are NOT panel state. They used to render as an in-panel
+//: `.settings-msg` row (`popup-failed` in the mock); the owner rejected that —
+//: a failure is a transient message and belongs on the notification surface,
+//: the same one that already reports a successful connect (Blueman posts that
+//: card via `org.freedesktop.Notifications`, rendered by the session's AGS
+//: notifd host). There is deliberately no `bluetoothFailure` accessor: if a
+//: failure needs showing and the notification is missed, the row simply reads
+//: as it did before the attempt. See `postBluetoothNotification`.
 //: The LOCAL CONTROLLER's hardware address (`Adapter1.Address`), never a
 //: device's. Empty string means "not read yet / no adapter"; BlueZ always
 //: publishes it, so `""` is a real absence rather than a formatting default.
@@ -576,7 +584,11 @@ function armWatchdog(address: string, action: BluetoothAction): void {
     watchdogId = 0
     if (bluetoothBusy().address !== address) return false
     setBluetoothBusy({ address: null, action: null })
-    setBluetoothFailure(`${actionLabel(action)} timed out`)
+    const device = deviceByAddress(address)
+    postBluetoothNotification(
+      device?.alias || device?.name || "Bluetooth",
+      `${actionLabel(action)} timed out`,
+    )
     return false
   })
 }
@@ -648,6 +660,59 @@ function humanBusMessage(error: unknown): string {
   return text.length > 0 ? text : "failed"
 }
 
+/**
+ * Post a transient failure card on the session notification surface.
+ *
+ * PRECEDENT, not invention: this is the capture-tool emission contract
+ * (`src/gui-tools/capture-tool/bin/capture-tool`, "Notifications" section) —
+ * a one-shot `Notify` on `org.freedesktop.Notifications`, rendered by the
+ * session's AGS notifd host. It is deliberately NOT the speedtest/wallpaper
+ * domain-event path (`org.dotfiles.Events` + bespoke in-place card): that one
+ * exists for live-updating progress, and its gate forbids `Notify` on its own
+ * path. A pairing failure is a single transient message — exactly what
+ * freedesktop notifications are for — and the success card the user already
+ * sees comes down this same wire (Blueman is the sender there).
+ *
+ * Fire-and-forget, and every failure is swallowed: a toast must never fail an
+ * action that already failed. `app_name` carries the device-facing identity so
+ * the host's fallback tile (initial letter) reads the same as a connect
+ * success; `app_icon` is empty for the same reason — icon NAMES fall through
+ * to that tile (`NotificationsWindow.tileContent`), and only absolute paths
+ * resolve to files.
+ */
+export function postBluetoothNotification(
+  summary: string,
+  body: string,
+): void {
+  try {
+    const bus = Gio.bus_get_sync(Gio.BusType.SESSION, null)
+    bus.call_sync(
+      "org.freedesktop.Notifications",
+      "/org/freedesktop/Notifications",
+      "org.freedesktop.Notifications",
+      "Notify",
+      new GLib.Variant("(susssasa{sv}i)", [
+        "Bluetooth",
+        0,
+        "",
+        summary,
+        body,
+        [],
+        {},
+        8000,
+      ]),
+      null,
+      Gio.DBusCallFlags.NONE,
+      5000,
+      null,
+    )
+  } catch (error) {
+    // The action already failed; a toast failing too must not add a second
+    // error. The raw cause is already in the log via the caller.
+    console.error(`bluetooth-service: notification failed: ${error}`)
+  }
+}
+
 function failAction(
   address: string,
   action: BluetoothAction,
@@ -663,7 +728,11 @@ function failAction(
     `bluetooth-service: ${action} ${address} -> ${message}` +
       `  [raw: ${asBusError(error).dbusName} ${asBusError(error).message}]`,
   )
-  setBluetoothFailure(message)
+  const device = deviceByAddress(address)
+  postBluetoothNotification(
+    device?.alias || device?.name || "Bluetooth",
+    message,
+  )
 }
 
 async function runAction(
@@ -687,7 +756,6 @@ async function runAction(
     return
   }
 
-  setBluetoothFailure("")
   setBluetoothBusy({ address, action })
   armWatchdog(address, action)
   try {
@@ -929,10 +997,12 @@ export function stopBluetoothDiscovery(): void {
 async function setAdapterPowered(enabled: boolean): Promise<void> {
   const path = adapterPath
   if (path === null) {
-    setBluetoothFailure("No Bluetooth adapter available")
+    postBluetoothNotification(
+      "Bluetooth",
+      "No Bluetooth adapter available",
+    )
     return
   }
-  setBluetoothFailure("")
   try {
     await call(
       BLUEZ,
@@ -948,7 +1018,8 @@ async function setAdapterPowered(enabled: boolean): Promise<void> {
     setPoweredState(enabled)
   } catch (error) {
     console.error(`bluetooth-service: setting Powered failed: ${error}`)
-    setBluetoothFailure(
+    postBluetoothNotification(
+      "Bluetooth",
       enabled
         ? "Could not turn Bluetooth on (adapter may be soft-blocked)"
         : "Could not turn Bluetooth off",
@@ -1049,7 +1120,6 @@ export {
   bluetoothBusy,
   bluetoothDevices,
   bluetoothDiscovering,
-  bluetoothFailure,
   bluetoothPowered,
   bluetoothReady,
 }

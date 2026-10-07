@@ -10,11 +10,11 @@ import {
   bluetoothBusy,
   bluetoothDevices,
   bluetoothDiscovering,
-  bluetoothFailure,
   bluetoothPowered,
   connectDevice,
   disconnectDevice,
   pairDevice,
+  postBluetoothNotification,
   refreshBluetoothDevices,
   routeAudioToDevice,
   startBluetoothDiscovery,
@@ -457,10 +457,8 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
  */
 function BluetoothSettingsFooter({
   visible,
-  onFailure,
 }: {
   visible: Accessor<boolean>
-  onFailure: (message: string) => void
 }) {
   return (
     <box
@@ -470,12 +468,12 @@ function BluetoothSettingsFooter({
       $={(self) => {
         const click = new Gtk.GestureClick({ button: 1 })
         click.connect("released", () => {
-          onFailure("")
           execAsync(["blueman-manager"]).catch((error) => {
             console.error(
               `BluetoothContent: could not launch blueman-manager: ${error}`,
             )
-            onFailure(
+            postBluetoothNotification(
+              "Bluetooth",
               "blueman-manager is unavailable — run provisioning to install it.",
             )
           })
@@ -512,9 +510,8 @@ function BluetoothSettingsFooter({
   )
 }
 
-/** The embeddable body: off/failure/scanning states + the device sections. */
+/** The embeddable body: off/scanning states + the device sections. */
 export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
-  const [settingsMessage, setSettingsMessage] = createState("")
   // WHY THIS IS A TRI-STATE (`boolean | null`) AND NOT A PLAIN BOOLEAN.
 // With `createState(false)` the expansion rule was
 // `manuallyToggled() || nearbyDevices().length > 0`, which is
@@ -649,13 +646,6 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
       (!expanded() || nearbyDevices().length > 0),
   )
 
-  // Failure is derived from the service state — no manual message timer. The
-  // footer row's spawn failure reuses the same line, so a failed launch is
-  // reported where every other failure is reported.
-  const failure = createComputed(() =>
-    settingsMessage() ? settingsMessage() : bluetoothFailure(),
-  )
-
   // Re-read reachability whenever the panel becomes visible.
   //
   // BlueZ emits no event when a paired device merely stops advertising — it just
@@ -719,33 +709,6 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
         label="Bluetooth is off"
         visible={createComputed(() => !powered())}
       />
-
-      {/* Failure row. The mock draws a caution glyph before the text
-          (`popup-failed`); this used to be a bare label, so the row rendered the
-          message with no marker at all. Same `.msg` shape as the mock: icon on
-          the left, wrapping text beside it. */}
-      <box class="settings-msg" spacing={8} visible={createComputed(() => failure() !== "")}>
-        <image
-          class="settings-msg-icon"
-          pixel_size={16}
-          valign={Gtk.Align.START}
-          visible={createComputed(() => failure() !== "")}
-          $={(self) => {
-            createEffect(() => {
-              if (failure() === "") return
-              self.set_from_file(registry.resolve("settings-panel", "info-caution") ?? "")
-            })
-          }}
-        />
-        <label
-          class="settings-message"
-          xalign={0}
-          wrap
-          maxWidthChars={30}
-          label={failure}
-          visible={createComputed(() => failure() !== "")}
-        />
-      </box>
 
       {/* Adapter detail row — the LOCAL CONTROLLER's own address
           (`Adapter1.Address`), never a device's. Hidden entirely while powered
@@ -882,7 +845,6 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
 
       <BluetoothSettingsFooter
         visible={powered}
-        onFailure={setSettingsMessage}
       />
     </box>
   )
