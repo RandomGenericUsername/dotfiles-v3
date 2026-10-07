@@ -1,9 +1,11 @@
 import { Accessor, createComputed, createEffect, createState, For } from "ags"
 import { Gtk } from "ags/gtk4"
+import GLib from "gi://GLib?version=2.0"
 import Pango from "gi://Pango?version=1.0"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import {
+  ageOutStaleReadings,
   bluetoothAdapterAddress,
   bluetoothBusy,
   bluetoothDevices,
@@ -21,15 +23,24 @@ import {
   type BluetoothDevice,
 } from "../../services/bluetooth-service"
 
+/** How often the reachability clock is re-checked while the panel is visible. */
+const TICK_MS = 10000
+
 /**
  * Bluetooth capability body (design §4, mock `mockups/panel.html`).
  *
  * State is owned by BlueZ D-Bus and exposed through the service's accessors;
  * this component only reads them and forwards user intent (`pairDevice`,
- * `connectDevice`, `disconnectDevice`, `unpairDevice`). There is no subprocess,
- * no bus call, no agent plumbing and no timer here — the ONE subprocess is the
- * footer row's `execAsync(["blueman-manager"])`, the same single escape hatch
+ * `connectDevice`, `disconnectDevice`, `unpairDevice`). There is no subprocess
+ * and no bus call here — the ONE subprocess is the footer row's
+ * `execAsync(["blueman-manager"])`, the same single escape hatch
  * `WifiContent`'s `nm-connection-editor` row uses.
+ *
+ * The one timer is the reachability tick, and it exists because BlueZ emits
+ * `RSSI` only when the value CHANGES — so silence is ambiguous and the panel
+ * has to decide when to stop believing a reading. The tick is a timestamp
+ * comparison over the local cache, never a bus call, and it refuses to run
+ * unless a scan is active (see `ageOutStaleReadings`).
  */
 
 export {
@@ -212,18 +223,16 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
     // you cannot click Connect, full stop.
     //
     // History, because this guard and the reachability rule are load-bearing on
-    // each other and both have been changed twice:
+    // each other and both have been changed repeatedly:
     // - The guard was once lifted so a press would surface BlueZ's real reason
     //   instead of silence. Rejected: unreachable hardware looked actionable.
-    // - The reachability rule once had a 20s staleness clock (`rssiAt`), so a
-    //   row reached "Not in range" unprompted. Removed 2026-10-07: a stationary
-    //   device holds one RSSI for minutes and the clock manufactured dead ends
-    //   for hardware sitting right there (MEASURED: `-55` stable 30s+).
-    // What remains is the honest pair: the rule errs toward in-range (a present
-    // reading counts however old; only absence clears it), and a press on a
-    // stale-but-present reading reaches BlueZ and explains itself through the
-    // notification card. Do not tighten either half without re-reading the
-    // note above `BluetoothDevice` in the service.
+    // - The reachability rule has been through: no clock (off devices offered
+    //   Connect forever), a 20s clock (present devices read "Not in range" ~half
+    //   the time — MEASURED `-55` stable 30s+ and a present device silent 59.5s),
+    //   and now a 120s clock that only runs while a scan is active.
+    // The two are one decision: "Not in range" is what disables this button, so
+    // the window must be sized from measured reception gaps (see RSSI_STALE_MS
+    // in the service), not chosen for how quickly it looks responsive.
     if (busy() || !inRange()) return
     if (connected()) disconnectDevice(item.address)
     else if (paired()) connectDevice(item.address)
@@ -382,14 +391,15 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
               FINAL: class for looks, sensitive for truth, both driven by the
               same `primaryAvailable`. Never "simplify" one into the other.
 
-              The load-bearing dependency, updated 2026-10-07: there is no
-              staleness clock anymore (see the service note), so a present
-              reading counts however old it is and only absence reads "Not in
-              range". A disabled Connect is therefore self-explanatory only in
-              the absent case; in the stale-but-present case the press is what
-              corrects the record, via the notification card. That is the
-              intended pair — do not re-add a clock without re-reading the
-              service note. */}
+              The load-bearing dependency, updated 2026-10-07: "Not in range"
+              is now driven by a 120s reachability clock that only runs while a
+              scan is active (RSSI_STALE_MS + ageOutStaleReadings in the
+              service). A disabled Connect is therefore self-explanatory — the
+              panel has genuinely failed to hear the device across two minutes
+              of scanning. The window is sized from MEASURED reception gaps, not
+              from how responsive it looks; shrinking it below the real gap
+              distribution turns present hardware into a disabled button, which
+              is the dead end the owner already rejected once. */}
           <button
             class={createComputed(() =>
               primaryAvailable() ? "settings-rowact" : "settings-rowact disabled",
@@ -641,14 +651,39 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
   // just stops reporting RSSI — so the cached value can be minutes or hours
   // old. A fresh read costs one GetAll per cached device and only happens
   // while someone is looking, which is the only time the answer is read.
-  // There is deliberately no timer here at all: a staleness clock was built
-  // and removed 2026-10-07, because a stationary device holds one RSSI for
-  // minutes and any timeout manufactures "Not in range" dead ends for
-  // hardware that is sitting right there. See the note above
-  // `BluetoothDevice` in the service.
+  //
+  // This read restores the frozen BlueZ value but deliberately does NOT touch
+  // `lastHeardAt`: a re-read is not a reception, and treating it as one would
+  // make a switched-off device look freshly heard on every open. The separate
+  // tick below is what eventually stops believing the value.
   createEffect(() => {
     if (!visible()) return
     void refreshBluetoothDevices()
+  })
+
+  // ── reachability tick ────────────────────────────────────────────────
+  // The refresh above runs once on open; this keeps the reachability answer
+  // honest while the panel stays open. `ageOutStaleReadings` is a timestamp
+  // comparison over the local cache — no D-Bus, no discovery — and it no-ops
+  // unless a scan is running, so a closed or non-scanning panel never ages
+  // anything out on the strength of its own silence.
+  //
+  // TICK_MS is far shorter than RSSI_STALE_MS on purpose: the tick is the
+  // resolution at which a 120s deadline can be noticed, not the deadline
+  // itself. At 10s the row corrects within ~130s rather than up to ~240s.
+  //
+  // The source is created INSIDE the effect, matching the discovery effect
+  // above. Creating it out here and removing it in the cleanup would leave the
+  // ticker permanently dead after the first hide — the cleanup can remove a
+  // source, but only the effect body recreates one.
+  createEffect(() => {
+    if (!visible()) return
+    ageOutStaleReadings()
+    const ticker = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_MS, () => {
+      ageOutStaleReadings()
+      return GLib.SOURCE_CONTINUE
+    })
+    return () => GLib.source_remove(ticker)
   })
 
   return (

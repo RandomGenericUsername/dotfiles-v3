@@ -35,28 +35,41 @@ const DEFAULT_ADAPTER_PATH = "/org/bluez/hci0"
 const WATCHDOG_MS = 30000
 
 /**
- * Reachability is the RSSI value and nothing else: `rssi < 0` means heard,
- * `0` (absent) means not. There is deliberately NO staleness clock on the
- * reading.
+ * How long we wait in silence before deciding a paired device is gone.
  *
- * History, because a clock was built here and removed 2026-10-07: `rssiAt`
- * plus a 20s window aged a reading out when it stopped CHANGING. That is
- * wrong for the common case — a phone lying still on a desk holds one RSSI
- * for minutes, BlueZ emits nothing (it only reports change), and the row
- * fell to "Not in range" while a second laptop heard the phone fine
- * (MEASURED: `-55` stable 30s+). "Present and stable" and "gone with a
- * frozen value" are indistinguishable in BlueZ's API — no timestamp, no
- * expiry, paired objects never evicted — so any timeout manufactures dead
- * ends for stationary devices, and no timeout length fixes that.
+ * Silence is ambiguous, and that is the whole problem. BlueZ emits
+ * `PropertiesChanged` for `RSSI` only when the VALUE CHANGES, so a device
+ * sitting still emits nothing while sitting right there. "Present but quiet"
+ * and "switched off" look identical until enough time passes.
  *
- * The errors are asymmetric, which is what decides it: a false "in range"
- * self-corrects (press Connect, BlueZ fails fast, the notification card
- * says why), while a false "out of range" is unclickable by owner ruling
- * and nothing corrects it. So the rule errs toward in-range. A device that
- * is switched off after being heard keeps its last number and offers
- * Connect until pressed — and the press explains itself now, which is what
- * makes this tolerable. Do not re-add a clock without re-reading this.
+ * 120s is sized from MEASUREMENT, not taste (2026-10-07, 4-minute trace):
+ * a device that was demonstrably present for 170s still went 59.5s between
+ * RSSI reports, and another went 35.5s. A previous 20s window was below both
+ * AND below the ~20-30s floor set by BlueZ's scan duty cycle plus LE
+ * advertising intervals, so it reported present devices out-of-range roughly
+ * half the time (MEASURED `-55` stable for 30s+). 120s is ~2x the worst
+ * observed gap.
+ *
+ * What it costs, stated plainly: an off device still offers Connect for up
+ * to this long, and a device that somehow stays silent past it reads
+ * "Not in range" with Connect disabled. One window for both means both
+ * costs are paid at this value; the alternative (a short window for the
+ * glyph, a long one for the button) buys a faster-looking row at the price
+ * of a new visual state.
+ *
+ * THE CLOCK ONLY RUNS WHILE A SCAN IS ACTUALLY RUNNING. That is not a
+ * detail — aging on wall-clock was a real bug in an earlier version. A
+ * closed panel runs no scan, so nothing can be heard, so nothing may be
+ * declared gone; and right after a scan STARTS there must be grace, or
+ * every paired device reads "Not in range" the instant the panel opens.
+ * `scanStartedAt` supplies that grace. See `applyRssiAgeing`.
  */
+const RSSI_STALE_MS = 120000
+
+/** Monotonic milliseconds; immune to wall-clock jumps. */
+function nowMonoMs(): number {
+  return Math.trunc(GLib.get_monotonic_time() / 1000)
+}
 
 export type BluetoothAction = "pair" | "connect" | "disconnect" | "unpair"
 
@@ -74,6 +87,13 @@ export interface BluetoothDevice {
   paired: boolean
   trusted: boolean
   rssi: number
+  /**
+   * Monotonic ms of the last time BlueZ SAID SOMETHING about this device —
+   * an `InterfacesAdded`, or a `PropertiesChanged` carrying `RSSI`. This is
+   * the only evidence of presence there is; a re-read of the frozen value
+   * must never touch it, or a silent device would look freshly heard.
+   */
+  lastHeardAt: number
   icon: string
   adapter: string
   battery: number
@@ -134,6 +154,13 @@ let watchdogId = 0
 //: increment happens before the already-discovering guard in `runStartDiscovery`.
 let discoveryUsers = 0
 
+//: Monotonic ms at which the CURRENT scan run began, or 0 for no run. The
+//: reachability clock is anchored to `max(lastHeardAt, scanStartedAt)` so a
+//: fresh scan grants grace before any device may be declared gone. Set on the
+//: 0 -> 1 holder transition only: a second surface joining a running scan must
+//: not extend the grace window and thereby prolong a stale "in range".
+let scanStartedAt = 0
+
 const wp = Wp.get_default()
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -162,6 +189,7 @@ function deviceFromProps(
     paired: Boolean(props.Paired),
     trusted: Boolean(props.Trusted),
     rssi: Number(props.RSSI ?? 0),
+    lastHeardAt: nowMonoMs(),
     icon: String(props.Icon ?? ""),
     adapter: String(props.Adapter ?? ""),
     battery: 0,
@@ -358,6 +386,52 @@ export async function refreshBluetoothDevices(): Promise<void> {
   applyDevices()
 }
 
+/**
+ * Mark a device gone once a running scan has failed to hear it for too long.
+ *
+ * The anchor is `max(lastHeardAt, scanStartedAt)`, and both halves matter:
+ * `lastHeardAt` is the last real reception, and `scanStartedAt` grants grace
+ * after a scan begins. Without the second, every paired device reads
+ * "Not in range" the moment the panel opens — the scan has had no chance to
+ * hear anything yet. Without the first, a device heard a moment ago would be
+ * aged out against the scan's start time instead of its own.
+ *
+ * A re-read of the frozen BlueZ value must NEVER advance `lastHeardAt`, or a
+ * switched-off device would look freshly heard every time the panel opened.
+ * That is why `refreshBluetoothDevices` sets `rssi` but not this.
+ *
+ * Returns whether anything changed, so the caller can skip a re-render.
+ */
+function applyRssiAgeing(device: BluetoothDevice): boolean {
+  // Nothing to age when there is no live reading: `rssi >= 0` already means
+  // "absent", and the row is already showing "Not in range".
+  if (device.rssi >= 0) return false
+  const anchor = Math.max(device.lastHeardAt, scanStartedAt)
+  if (nowMonoMs() - anchor <= RSSI_STALE_MS) return false
+  device.rssi = 0
+  return true
+}
+
+/**
+ * Re-age cached readings. No bus traffic — a timestamp comparison per device.
+ *
+ * REFUSES TO RUN WHILE NO SCAN IS ACTIVE, deliberately. With no scan there is
+ * no chance to hear anything, so declaring a device gone would be measuring
+ * our own silence, not the device's. This is the bug an earlier version had
+ * and it is the reason a closed panel never ages anything out.
+ *
+ * `lastHeardAt` survives the aging, so a device that comes back is judged
+ * from the moment it was last actually heard.
+ */
+export function ageOutStaleReadings(): void {
+  if (discoveryUsers === 0) return
+  let changed = false
+  for (const device of deviceCache.values()) {
+    if (applyRssiAgeing(device)) changed = true
+  }
+  if (changed) applyDevices()
+}
+
 function applyDeviceProps(
   path: string,
   changed: Record<string, unknown>,
@@ -370,7 +444,13 @@ function applyDeviceProps(
   if ("Connected" in changed) next.connected = Boolean(changed.Connected)
   if ("Paired" in changed) next.paired = Boolean(changed.Paired)
   if ("Trusted" in changed) next.trusted = Boolean(changed.Trusted)
-  if ("RSSI" in changed) next.rssi = Number(changed.RSSI)
+  if ("RSSI" in changed) {
+    next.rssi = Number(changed.RSSI)
+    // The one place a reading is known to be FRESH: BlueZ told us it moved.
+    // This is a reception event, not a value change — it is the evidence of
+    // presence the whole reachability clock is anchored to.
+    next.lastHeardAt = nowMonoMs()
+  }
   if ("Icon" in changed) next.icon = String(changed.Icon)
   deviceCache.set(path, next)
   applyDevices()
@@ -854,6 +934,11 @@ async function routeAudioToDeviceImpl(label: string): Promise<void> {
  * no-op — the cheap direction to be wrong in.
  */
 export function startBluetoothDiscovery(): void {
+  //: Anchor the reachability grace to the RUNNING scan, not to each caller.
+  //: Only the 0 -> 1 transition resets it: a second surface joining a scan
+  //: that is already running must not extend the grace window, or a stale
+  //: "in range" would be prolonged every time a panel reopened.
+  if (discoveryUsers === 0) scanStartedAt = nowMonoMs()
   discoveryUsers++
   void runStartDiscovery()
 }
@@ -922,6 +1007,11 @@ export function stopBluetoothDiscovery(): void {
   //: popup-close-racing-panel-open case: without the count, the popup's
   //: cleanup would stop a scan the subview had just started.
   if (discoveryUsers > 0) return
+  //: The scan run is over. The reachability clock refuses to run without one
+  //: (see `ageOutStaleReadings`), so this only clears stale bookkeeping — a
+  //: closed panel must never age a device out on the strength of its own
+  //: silence.
+  scanStartedAt = 0
   //: Guarded on the adapter, not the count: zero holders means "stop it", and
   //: there is nothing to stop when BlueZ has no adapter to ask.
   const path = adapterPath
