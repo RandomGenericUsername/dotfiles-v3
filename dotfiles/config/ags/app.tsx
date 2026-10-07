@@ -10,18 +10,32 @@ import { close as closeSettings } from "./settings-panel/state"
 import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
 import { close as closeAudio, debugAudioState } from "./audio/state"
 import { closeBluetoothPopup } from "./components/bluetooth/state"
+import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
+import { closeBatteryPopup } from "./components/battery/state"
+import { closeWifiPopup } from "./components/wifi/state"
 
 app.start({
   css: style,
   // External control surface for the popups: a Hyprland keybind runs
   // `ags request popup-close` because the popups run with keyboard mode NONE
   // (so plain Escape can't reach them without stealing app input). One global
-  // Esc dismisses whichever popup is open — settings, Bluetooth or audio.
+  // Esc dismisses whichever popup is open.
+  //
+  // EVERY overlay that can be opened from the bar must be closed here, or Esc
+  // strands it: the request handler is the only dismissal path that does not
+  // depend on the pointer being over the popup, and the popups hold no keyboard
+  // to catch Escape themselves. That is why this list enumerates the surfaces
+  // rather than calling a shared "close everything" helper — a helper would have
+  // to know the full set anyway, and each name here is a visible obligation to
+  // add the next one. (The Wi-Fi popup was missing from this list before this
+  // change; it is a pre-existing gap of exactly this class, not a new one.)
   requestHandler(argv: string[], res: (response: unknown) => void) {
     if (argv[0] === "popup-close") {
       closeSettings()
       closeBluetoothPopup()
       closeAudio()
+      closeWifiPopup()
+      closeBatteryPopup()
       res("ok")
       return
     }
@@ -63,6 +77,9 @@ app.start({
       // it.
       app.add_window(BluetoothPopupCatcher(primary))
       app.add_window(BluetoothPopup(primary))
+      // Battery popup: catcher first, popup above it, same rule again.
+      app.add_window(BatteryPopupCatcher(primary))
+      app.add_window(BatteryPopup(primary))
       // Audio popup: catcher + popup, same stacking order.
       app.add_window(AudioCatcher(primary))
       app.add_window(AudioPopup(primary))

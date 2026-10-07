@@ -35,7 +35,36 @@
     // REQUIRED. gnim (pulled in via the node_modules symlink) calls
     // String.replaceAll, which is ES2021+. Without DOM/ES2022 lib, gnim fails
     // to compile. (design.md §1.2)
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+
+    // REQUIRED — PINS THE AMBIENT-TYPE SURFACE TO EMPTY, ON PURPOSE.
+    //
+    // This app runs under GJS, not Node. It has no `process`, no `Buffer`,
+    // no `require`. Declaring no "types" makes TypeScript auto-include EVERY
+    // @types/* package reachable by the default typeRoots walk from THIS
+    // directory upwards — so the app's ambient surface silently depended on
+    // where a directory happened to live.
+    //
+    // Today @types/node sits at tests/node_modules/ — installed there on demand
+    // by `make capture-test` — which that walk does not descend into, so the app
+    // is clean by TWO independent guards rather than by luck. Move @types/node
+    // anywhere the walk reaches (capture-tool/node_modules/, or the repo root)
+    // and 66 of its files join the app program — verified with `tsc --listFiles`
+    // at this revision. That puts Node's globals in scope for GJS code that must
+    // not use them, so the install location below is a real constraint and not
+    // a preference.
+    //
+    // `[]` makes that arrangement stop mattering: the surface is empty whether
+    // or not @types/node is reachable, and `make capture-test` keeps the install
+    // out of the walk anyway. Two guards, deliberately. The tests are a SEPARATE project
+    // (tests/tsconfig.tests.json) which asks for `"types": ["node"]` by name,
+    // so they still get exactly what they need.
+    //
+    // NOTE: this pins the surface but was NOT, by itself, causing ~96 app
+    // errors — see design.md §2 ("The phantom") for what actually happens.
+    // Verified: 0 errors in src/gui-tools/capture-tool either way. The leak
+    // was real; the catastrophic blast radius was not.
+    "types": []
   },
   "include": [
     // App sources. Globs, not a file list, so the A3–A8 layer directories are

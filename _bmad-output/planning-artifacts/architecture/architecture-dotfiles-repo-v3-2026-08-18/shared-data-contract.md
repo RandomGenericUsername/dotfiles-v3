@@ -184,6 +184,7 @@ table entry, never bespoke code):
 | `<install>/config/gtk-3.0/colors.css` | `current/colors.gtk.css` | runtime seeder + reconcile loop |
 | `<install>/config/gtk-4.0/colors.css` | `current/colors.adw.css` | runtime seeder + reconcile loop |
 | `<install>/config/rofi/colors.rasi` | `current/colors.rasi` | runtime seeder + reconcile loop |
+| `<install>/config/btop/themes/colors.btop.theme` | `current/colors.btop.theme` | runtime seeder + reconcile loop |
 
 Rules (pinned, implemented once in `CacheSeeder.repoint_consumer_symlinks`):
 palette null → pointer removed (`missing_ok`); regular file at destination →
@@ -192,10 +193,34 @@ skip+warn (never mkdir into the spine); missing target artifact → skip+warn
 (never a dangling consumer link). Health of all pointers is projected by
 `inspect status` from the same spec.
 
-Palette artifact set (gt-2-1 / add-rofi-app-launcher): `colors.yaml`, `colors.conf`, `colors.gtk.css`,
-`colors.adw.css`, `colors.sequences`, `colors.rasi` — all sha256-addressed in per-entry
-`meta.json`; keys unchanged (`sha256(ph‖templates)`). Terminal palette is
+The `btop/themes/` pointer is the only entry whose destination
+basename MUST equal the cache artifact name: btop resolves its
+`color_theme` by matching that name against the themes it discovered while
+scanning its own theme dir at startup, and an unmatched value falls back to
+the built-in `Default` theme **silently** (no error). `~/.config/btop` is a
+symlink into the spine (`config_links`) and the spine's `btop/themes/` dir is
+provisioning's (`btop_config` role — the seeder never mkdirs into the spine).
+
+Palette artifact set (gt-2-1 / add-rofi-app-launcher / add-runtime-btop-theme-artifacts): `colors.yaml`, `colors.conf`, `colors.gtk.css`,
+`colors.adw.css`, `colors.sequences`, `colors.rasi`, `colors.kitty`,
+`colors.btop.theme` — all
+sha256-addressed in per-entry `meta.json`; keys unchanged (`sha256(ph‖templates)`). Terminal palette is
 applied from `current/colors.sequences`; the rofi root pointer
 (`config/rofi/colors.rasi`) feeds every rofi tool via `@import "../colors.rasi"`;
 the two-channel GTK mechanism and the `GTK_THEME` hazard are recorded in
 `consumer-wiring.md`.
+
+`PaletteArtifacts` is threaded through exactly seven code sites plus the closed
+schema: `csg_adapter` (argv / existence assert / construction), `models.PaletteArtifacts`,
+`seeder.load_palette_entry`, `seeder.repoint_current_symlinks`,
+`derive.PALETTE_ARTIFACT_NAMES` + the `artifact_hashes` write,
+`reconcile` (three lists), `reconcile`/`inspect`/`doctor` expected-target lists, and
+`contracts/schemas/meta.schema.json`. `meta.json` `artifact_hashes` is closed
+(`additionalProperties: false` + closed `required`), so the schema edit and the
+runtime edit are one atomic change in either direction (design D1 of
+`add-runtime-btop-theme-artifacts`). Adding an artifact to
+`PALETTE_ARTIFACT_NAMES` is the migration mechanism: existing entries lacking it
+are evicted and re-derived by `ensure_palette_entry_complete`, with no manual step.
+Distributing `current/colors.btop-*.theme` into `~/.config/btop/themes/` is NOT
+runtime's job — btop resolves `color_theme` only against themes discovered at
+startup, so it needs a real file there (a provisioning concern).

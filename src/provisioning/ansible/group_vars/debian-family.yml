@@ -71,6 +71,13 @@ packages:
   dunst: dunst
   # thunar: file manager launched by keybindings.lua.
   thunar: thunar
+  # xdg-utils: same consumers as Arch — gui_tools runs `xdg-mime default
+  # thunar.desktop inode/directory` to pin the directory handler, verify gates
+  # `xdg-mime query default inode/directory`, and the capture tool's "Show in
+  # folder" plus hypr-pano's URL opener shell `xdg-open`. Same name on Debian
+  # (verified against the Debian archive's madison API 2026-10-04:
+  # xdg-utils 1.2.1-2 in stable/testing, architecture all).
+  xdg-utils: xdg-utils
   # Container engine for the csg container-mode chain (same rationale as Arch).
   # Debian package names; rootless podman deps.
   container_engine:

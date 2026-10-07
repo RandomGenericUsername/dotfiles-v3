@@ -163,10 +163,64 @@ def _command_tasks() -> list[dict[str, object]]:
     return _tasks_with_module("ansible.builtin.command")
 
 
+# Every host-state PROBE module. Both are documented check_mode: support:
+# PARTIAL, and ansible-core short-circuits both under --check while FABRICATING
+# rc: 0 — so both must declare `when: not ansible_check_mode` rather than
+# inherit it. Widening this tuple is the durable fix for the gate invariant:
+# an invariant that only iterates `command` cannot see an ungated `shell`
+# probe, which is exactly how the four pacman -Q / command -v probes stayed
+# ungated through the command-only gate (harden-verify-probes-and-manifest).
+_PROBE_MODULES = ("ansible.builtin.command", "ansible.builtin.shell")
+
+
+def _probe_tasks() -> list[dict[str, object]]:
+    """Every `command`/`shell` host-state probe in the role, in file order."""
+    return [task for task in _load_tasks() if _module_key(task) in _PROBE_MODULES]
+
+
+def _ungated_probe_problems(tasks: list[dict[str, object]]) -> list[str]:
+    """Probe tasks in ``tasks`` that do not declare the check gate.
+
+    Split out from the test so the negative case can feed it a synthetic
+    ungated `shell` task — a defect detector nobody proved fires on the module
+    it widened to is a comment.
+    """
+    return [
+        f"{_module_key(task)} {task.get('name')!r}"
+        for task in tasks
+        if _module_key(task) in _PROBE_MODULES
+        and task.get("when") != "not ansible_check_mode"
+    ]
+
+
 def _sibling_vars(role: str) -> Any:
     data = yaml.safe_load((_ANSIBLE_DIR / "roles" / role / "vars" / "main.yml").read_text())
     assert isinstance(data, dict)
     return data
+
+
+# The capture app's spine subtree, as a suffix marker. Both roles place capture
+# files under it, so the marker is what makes one list comparable to the other
+# across the seam-spelling difference (see the derived coverage tests).
+_CAPTURE_SUBTREE = "ags-capture/"
+
+
+def _capture_spine_tails(paths: list[str]) -> set[str]:
+    """Return the spine-relative tail of each path under `ags-capture/`,
+    discarding paths outside that subtree.
+
+    The two roles reach the same spine dir by different seam vocabulary —
+    gui_tools spells it `{{ gui_tools_spine_config_dir }}`, verify spells it
+    `{{ install_dir | trim }}/config` — so only the tail after the subtree marker
+    is comparable. A full-dest comparison never matches, which reads as "every
+    file unasserted"; a filename-only comparison collides across the app's
+    layers."""
+    tails = set()
+    for path in paths:
+        index = path.find(_CAPTURE_SUBTREE)
+        if index != -1:
+            tails.add(path[index + len(_CAPTURE_SUBTREE) :])
+    return tails
 
 
 def _manifest_entries() -> list[dict[str, str]]:
@@ -431,9 +485,19 @@ class TestVerifyTasks:
             )
             assert task.get("changed_when") is False
             assert task.get("failed_when") is False
-            assert task.get("when") is None, (
-                "shell checks are skipped under --check by ansible-core; the assert is "
-                "the gated half"
+            # This assertion used to require `when is None`, with the rationale
+            # "shell checks are skipped under --check by ansible-core; the assert
+            # is the gated half". That pinned the DEFECT as intended behaviour:
+            # it is why these two probes survived every gate sweep, and it is
+            # strictly weaker than the invariant they now satisfy — leaning on
+            # the library short-circuit means the gate is inherited, not
+            # declared, and `shell` is documented check_mode: support: PARTIAL.
+            # The short-circuit also FABRICATES rc: 0 for a probe that never
+            # ran. Requiring the explicit gate is therefore a strengthening, not
+            # a relaxation (harden-verify-probes-and-manifest).
+            assert task.get("when") == "not ansible_check_mode", (
+                f"{task.get('name')!r} must declare its check gate rather than "
+                "inherit ansible-core's short-circuit"
             )
 
     def test_cli_tool_check_prepends_cli_bin_dir_to_path(self) -> None:
@@ -452,7 +516,14 @@ class TestVerifyTasks:
     def test_shell_check_asserts_are_check_gated(self) -> None:
         """The assert halves of both shell checks must be gated
         `when: not ansible_check_mode` (a dry run must never fail on
-        host-state preconditions)."""
+        host-state preconditions).
+
+        This gate is what makes gating the PROBE safe (see
+        `test_every_probe_task_is_check_gated`): a conditionally-skipped
+        register carries no `results` key, so the assert must be skipped in the
+        same breath as the probe, or `bootstrap.yaml --check` aborts with
+        "object of type 'dict' has no attribute 'results'".
+        """
         for register in ("verify_system_binary_checks", "verify_cli_tool_checks"):
             assert_task = _shell_assert_task(register)
             assert assert_task.get("when") == "not ansible_check_mode", (
@@ -538,22 +609,54 @@ class TestVerifyTasks:
             "remedy, not a deleted playbook)"
         )
 
+    def test_every_probe_task_is_check_gated(self) -> None:
+        """The role-wide check-gate invariant: EVERY host-state probe — BOTH
+        `ansible.builtin.command` AND `ansible.builtin.shell` — declares
+        `when: not ansible_check_mode`.
+
+        Why this must cover `shell` (harden-verify-probes-and-manifest): the
+        command-only form of this invariant was green while four probes were
+        ungated — the two `pacman -Q` Astal binding probes, and the two
+        `command -v` PATH probes. `shell` is documented check_mode: support:
+        PARTIAL exactly like `command`, and ansible-core's short-circuit
+        FABRICATES rc: 0 for a probe that never ran, so the gate must be
+        declared rather than inherited from the library. An invariant scoped
+        to `command` cannot see a `shell` defect at all, which is the failure
+        mode that let them through.
+        """
+        probes = _probe_tasks()
+        assert probes, "expected the role to have command/shell probes"
+        ungated = _ungated_probe_problems(probes)
+        assert ungated == [], (
+            "every host-state probe must declare when: not ansible_check_mode "
+            "(a short-circuited probe fabricates rc: 0, and a conditionally "
+            "skipped register carries no rc/results key at all, so an "
+            "ungated consumer aborts bootstrap.yaml --check):\n"
+            + "\n".join(ungated)
+        )
+
     def test_settings_parse_gate_tasks_exist_and_are_check_gated(self) -> None:
         """AC 3: the three settings parse-gate command tasks (csg info / weg
         info / itr list) exist, are `ansible.builtin.command`, and are gated
-        `when: not ansible_check_mode` (command tasks skip under --check)."""
+        `when: not ansible_check_mode` (command tasks skip under --check).
+
+        The loop iterates PROBE tasks (command AND shell), not just command:
+        the narrowed loop was the reason an ungated `shell` probe was
+        invisible. Kept as its own test so the AC-3 parse gate keeps its own
+        failure message distinct from the role-wide invariant's."""
         gate_names = {
             "Gate csg settings parse",
             "Gate weg settings parse",
             "Gate itr list against icons.yaml",
         }
-        names = {str(task.get("name")) for task in _command_tasks()}
+        names = {str(task.get("name")) for task in _probe_tasks()}
         assert gate_names.issubset(names), (
             f"expected the three parse-gate command tasks; found {names}"
         )
-        for task in _command_tasks():
+        for task in _probe_tasks():
             assert task.get("when") == "not ansible_check_mode", (
-                f"parse gate {task.get('name')!r} must be check-gated"
+                f"probe {task.get('name')!r} ({_module_key(task)}) must be "
+                "check-gated"
             )
         parse_asserts = [
             task
@@ -780,6 +883,114 @@ class TestVerifyTasks:
         assert "verify_config_copy_content | length" in that
         assert content_assert.get("when") == "not ansible_check_mode"
 
+    def _btop_theme_stat_task(self) -> dict[str, object]:
+        matches = [
+            task
+            for task in _stat_tasks()
+            if "verify_btop_theme_checks" == str(task.get("register"))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one btop themes-dir + theme-files stat; found {len(matches)}"
+        )
+        return matches[0]
+
+    def test_btop_integration_is_verified(self) -> None:
+        """provision-btop-config: verify gates the rendered btop.conf, the
+        spine's themes/ dir, and all three generated themes. The themes are
+        statted with follow: true so a DANGLING consumer pointer fails — which
+        is precisely the state in which btop silently falls back to
+        Default_theme with no error."""
+        conf_stat = [
+            task for task in _stat_tasks() if "verify_btop_conf_stat" == str(task.get("register"))
+        ]
+        assert len(conf_stat) == 1
+        assert _module(conf_stat[0]).get("follow") is True
+        assert "{{ verify_btop_config_path }}" in str(_module(conf_stat[0]).get("path"))
+
+        theme_stat = self._btop_theme_stat_task()
+        assert _module(theme_stat).get("follow") is True
+        loop = str(theme_stat.get("loop", ""))
+        assert "verify_btop_themes_dir" in loop and "verify_btop_theme_paths" in loop
+        theme_asserts = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_theme_checks" in str(_module(task).get("that", ""))
+        ]
+        assert theme_asserts[0].get("when") == "not ansible_check_mode", (
+            "the theme-files assert must be check-gated (bootstrap --check must "
+            "stay clean on a partially-provisioned host)"
+        )
+
+        grep_tasks = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.command"
+            and "verify_btop_conf_grep" in str(task.get("register", ""))
+        ]
+        assert len(grep_tasks) == 1
+        assert grep_tasks[0].get("failed_when") is False, (
+            "the btop.conf grep must not hard-fail the play — the ASSERTS below "
+            "own the failure message (same pattern as the kitty/wlogout gates)"
+        )
+
+        themed = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_theme_selected" in str(_module(task).get("that", ""))
+        ]
+        assert len(themed) == 1, "exactly one assert must pin the selected theme"
+        assert "verify_btop_conf_grep" in str(_module(themed[0]).get("that", ""))
+        assert "btop_theme.cpp" in str(_module(themed[0]).get("fail_msg", ""))
+
+        saved = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_save_config_on_exit" in str(_module(task).get("that", ""))
+        ]
+        assert len(saved) == 1, "exactly one assert must pin save_config_on_exit"
+        assert "btop_config.cpp" in str(_module(saved[0]).get("fail_msg", "")), (
+            "the save_config_on_exit failure must carry the btop source citation "
+            "— it is the one non-cosmetic setting in the whole integration"
+        )
+
+        asserts = [
+            task
+            for task in _assert_tasks()
+            if "verify_btop_theme_checks" in str(_module(task).get("that", ""))
+        ]
+        assert len(asserts) == 1
+        that = str(_module(asserts[0]).get("that"))
+        assert "stat.isdir" in that, "the themes/ DIR itself must be gated"
+        assert "selectattr('isreg')" in that, (
+            "all three theme files must be gated as regular files after "
+            "following the pointer chain"
+        )
+        assert "verify_btop_theme_files | length" in that, (
+            "the count assert must be anchored to the LIST LENGTH — a list "
+            "shrunk to 0 would otherwise make the gate vacuously green"
+        )
+
+    def test_btop_vars_pin_the_two_critical_values(self) -> None:
+        data = _vars()
+        assert data["verify_btop_theme_selected"] == "colors.btop.theme", (
+            "verify must pin the theme by the FILE NAME btop matches on — a "
+            "csg-prefixed alias would never match a discovered entry"
+        )
+        assert str(data["verify_btop_save_config_on_exit"]) == "false"
+        assert [str(f) for f in data["verify_btop_theme_files"]] == [
+            "colors.btop.theme",
+        ]
+        assert str(data["verify_btop_spine_dir"]) == "{{ install_dir | trim }}/config/btop"
+        assert str(data["verify_btop_config_path"]) == "{{ verify_btop_spine_dir }}/btop.conf"
+        assert str(data["verify_btop_themes_dir"]) == "{{ verify_btop_spine_dir }}/themes"
+
+    def test_btop_is_in_the_managed_dir_lists(self) -> None:
+        """btop joins BOTH managed-dir lists — they are compared EXACTLY by
+        test_managed_link_dirs_parity_with_config_links, so both must change
+        together."""
+        assert "btop" in list(_vars()["verify_managed_link_dirs"])
+        assert "btop" in list(_sibling_vars("config_links")["config_links_managed_dirs"])
+
     def test_managed_link_dirs_parity_with_config_links(self) -> None:
         """Parity lock: verify_managed_link_dirs mirrors the config_links
         role's managed dir set EXACTLY — the symlink check must cover every
@@ -926,6 +1137,98 @@ class TestVerifyTasks:
             "the empty-list guard must cover verify_ags_always_on_instances"
         )
 
+    def test_probe_gate_invariant_bites_on_an_ungated_shell_task(self) -> None:
+        """NEGATIVE lock: the widened probe-gate invariant must actually FIRE
+        on a `shell` task.
+
+        This is the whole point of widening the invariant from `command` to
+        `_PROBE_MODULES`. The four real defects it now catches were all
+        `ansible.builtin.shell` probes; against the old command-only loop they
+        were invisible. So a `command`-only negative test would prove nothing.
+        """
+        ungated_shell = {
+            "name": "Check AstalWp binding package is installed",
+            "ansible.builtin.shell": "pacman -Q {{ item }}",
+            "loop": "{{ verify_astal_wp_binding_packages }}",
+            "register": "verify_astal_wp_binding_checks",
+            "changed_when": False,
+            "failed_when": False,
+        }
+        problems = _ungated_probe_problems([ungated_shell])
+        assert problems == [
+            "ansible.builtin.shell 'Check AstalWp binding package is installed'"
+        ], (
+            "the widened invariant must flag an ungated shell probe; got "
+            f"{problems}. The historical command-only form of this invariant "
+            "returned [] for exactly this task — that blind spot is the defect."
+        )
+
+    @pytest.mark.parametrize(
+        "gate",
+        [
+            None,
+            "ansible_check_mode",
+            "not ansible_check_mode and something",
+            "verify_probe.rc != 0",
+        ],
+    )
+    def test_probe_gate_invariant_rejects_wrong_gate_values(self, gate: str | None) -> None:
+        """The invariant demands the EXACT gate `not ansible_check_mode`.
+
+        A near-miss is not a pass: no gate at all inherits the library
+        short-circuit (fabricated rc: 0), a reversed gate runs the probe during
+        a dry run, a compound expression makes the gate depend on probe state
+        the dry run has no way to know, and a bare `verify_probe.rc != 0`
+        dereferences a register that has no `rc` under --check.
+        """
+        task: dict[str, object] = {
+            "name": "Check something",
+            "ansible.builtin.command": "true",
+            "register": "verify_probe",
+            "changed_when": False,
+            "failed_when": False,
+        }
+        if gate is not None:
+            task["when"] = gate
+        assert _ungated_probe_problems([task]) == [
+            "ansible.builtin.command 'Check something'"
+        ]
+
+    def test_probe_gate_invariant_accepts_the_correct_gate(self) -> None:
+        """The helper must not be a tautology: a correctly gated probe of BOTH
+        modules is clean."""
+        gated = [
+            {
+                "name": f"probe {index}",
+                "ansible.builtin.shell" if index % 2 else "ansible.builtin.command": "true",
+                "when": "not ansible_check_mode",
+            }
+            for index in range(4)
+        ]
+        assert _ungated_probe_problems(gated) == []
+
+    def test_probe_gate_invariant_ignores_non_probe_modules(self) -> None:
+        """The invariant is scoped to host-state probes. `stat` runs honestly
+        under --check with no mutation (the role header says so explicitly),
+        and the CONFIG seam asserts must fail under --check too — so a `stat`
+        or ungated `assert` is NOT this invariant's business and must not be
+        reported as a violation."""
+        tasks: list[dict[str, object]] = [
+            {"name": "stat a file", "ansible.builtin.stat": {"path": "/tmp/x"}},
+            {"name": "Assert install_dir is sane", "ansible.builtin.assert": {"that": ["x"]}},
+            {"name": "copy a file", "ansible.builtin.copy": {"src": "a", "dest": "b"}},
+        ]
+        assert _ungated_probe_problems(tasks) == []
+
+    def test_probe_gate_invariant_covers_the_real_role_both_modules(self) -> None:
+        """Sanity on the real file: the role's probe population actually
+        includes `shell` tasks, so the widened invariant has teeth on real
+        data rather than only on synthetic input."""
+        modules = {_module_key(task) for task in _probe_tasks()}
+        assert modules == set(_PROBE_MODULES), (
+            f"expected both probe modules among the role's probes; found {modules}"
+        )
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere —
         everything the role checks lives under the user's config home and
@@ -995,6 +1298,13 @@ class TestVerifyVars:
         "verify_config_copy_content",
         "verify_managed_link_dirs",
         "verify_gtk_skeleton_files",
+        "verify_btop_spine_dir",
+        "verify_btop_config_path",
+        "verify_btop_themes_dir",
+        "verify_btop_theme_files",
+        "verify_btop_theme_paths",
+        "verify_btop_theme_selected",
+        "verify_btop_save_config_on_exit",
         "verify_itr_list_target",
     }
 
@@ -1215,6 +1525,76 @@ class TestVerifyVars:
             "gui_tools always_on subset"
         )
 
+    def test_every_placed_capture_file_is_asserted(self) -> None:
+        """Derived coverage lock (verify-capture-placement-coverage): EVERY
+        ags-capture/ dest in gui_tools_app_files must appear in
+        verify_gui_tools_app_files.
+
+        Placement is per-file and silent — the gui_tools role just loops the
+        list, so a source missing from it is never written to the spine, with no
+        error and no warning. verify_gui_tools_app_files is the only thing that
+        turns that omission into a failed run, and both lists are maintained by
+        hand and independently. That is how five placed files shipped unasserted
+        (domain/cli-args.ts — the single request->argv translator, so every
+        capture dies at bundle time — plus domain/capture-request.ts and the
+        three ui/shared/ builder-kit modules).
+
+        The expected set is DERIVED from the placement manifest, not hardcoded: a
+        test listing the five would pass the moment a sixth placement entry landed
+        without a matching verify entry, reproducing the same silent gap under a
+        new name.
+
+        Compared as the spine-relative tail after ags-capture/, because the two
+        roles spell the seam differently (`{{ gui_tools_spine_config_dir }}` vs
+        `{{ install_dir | trim }}/config`) — a full-dest string never matches."""
+        placed = _capture_spine_tails(
+            [
+                str(entry["dest"])
+                for entry in _sibling_vars("gui_tools")["gui_tools_app_files"]
+            ]
+        )
+        verified = _capture_spine_tails(
+            [str(f) for f in _vars()["verify_gui_tools_app_files"]]
+        )
+
+        unasserted = placed - verified
+        assert not unasserted, (
+            "capture files placed by gui_tools_app_files but NOT asserted by "
+            f"verify_gui_tools_app_files: {sorted(unasserted)} — an unasserted "
+            "placement is a source that silently never deploys, while verify "
+            "stays green"
+        )
+
+    def test_capture_assertions_all_have_a_placement(self) -> None:
+        """The reverse direction of the coverage lock, plus the duplicate check.
+
+        A verify entry with no matching placement is a path verify demands that no
+        task ever creates — a guaranteed false failure on a correctly provisioned
+        machine, because the gate asserts the stat count equals the list length.
+        Duplicates are asserted separately so a repeated dest cannot be collapsed
+        away by the set and read as covered."""
+        placed_raw = [
+            str(entry["dest"])
+            for entry in _sibling_vars("gui_tools")["gui_tools_app_files"]
+            if "ags-capture/" in str(entry["dest"])
+        ]
+        verified_raw = [
+            str(f) for f in _vars()["verify_gui_tools_app_files"] if "ags-capture/" in str(f)
+        ]
+        assert len(placed_raw) == len(set(placed_raw)), (
+            "gui_tools_app_files places an ags-capture/ dest twice"
+        )
+        assert len(verified_raw) == len(set(verified_raw)), (
+            "verify_gui_tools_app_files asserts an ags-capture/ dest twice"
+        )
+
+        phantom = _capture_spine_tails(verified_raw) - _capture_spine_tails(placed_raw)
+        assert not phantom, (
+            "verify_gui_tools_app_files asserts ags-capture/ paths that no "
+            f"placement task creates: {sorted(phantom)} — verify would fail "
+            "forever on a correctly provisioned machine"
+        )
+
     def test_ags_gate_is_session_aware(self) -> None:
         """The bar and overlay are Hyprland-session apps (autostart.lua); a
         machine provisioned from another session has no Hyprland IPC yet, so
@@ -1319,6 +1699,11 @@ class TestVerifyVars:
             "verify_config_copy_content",
             "verify_managed_link_dirs",
             "verify_gtk_skeleton_files",
+            "verify_btop_spine_dir",
+            "verify_btop_config_path",
+            "verify_btop_themes_dir",
+            "verify_btop_theme_files",
+            "verify_btop_theme_paths",
             "verify_cli_bin_dir",
             "verify_bin_scripts",
             "install_dir",
@@ -2092,6 +2477,8 @@ def _build_provisioned_layout(
         "config/gtk-4.0",
         "config/rofi",
         "config/rofi/launcher",
+        "config/btop",
+        "config/btop/themes",
     )
     for rel in spine_dirs:
         (install / rel).mkdir(parents=True, exist_ok=True)
@@ -2322,6 +2709,19 @@ def _build_provisioned_layout(
     (install / "config" / "ags-capture" / "domain").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags-capture" / "domain" / "settings.ts").write_text("")
     (install / "config" / "ags-capture" / "domain" / "ui-state.ts").write_text("")
+    # The request->argv half of the domain layer (hexagonal refactor A6): the
+    # capture intent value objects and the single module that writes an argv
+    # literal for `capture-tool screenshot|start`.
+    (install / "config" / "ags-capture" / "domain" / "capture-request.ts").write_text("")
+    (install / "config" / "ags-capture" / "domain" / "cli-args.ts").write_text("")
+    # The monitor lifecycle (fix-capture-monitor-lifecycle): the pure decision
+    # layer, and the two ports app.tsx reads monitors and focus through.
+    (install / "config" / "ags-capture" / "domain" / "monitor-registry.ts").write_text("")
+    # The shared builder kit BOTH layouts import (hexagonal refactor A7): the
+    # row builders, the group/selection helpers and the icon resolver.
+    (install / "config" / "ags-capture" / "ui" / "shared").mkdir(parents=True, exist_ok=True)
+    for capture_shared in ("rows.ts", "groups.ts", "icons.ts"):
+        (install / "config" / "ags-capture" / "ui" / "shared" / capture_shared).write_text("")
     # The ports/ and adapters/ layers (hexagonal refactor A5): ClassicWindow
     # imports ports/, the composition root injects adapters/.
     for capture_layer in ("ports", "adapters"):
@@ -2332,6 +2732,8 @@ def _build_provisioned_layout(
         "capture-launcher.ts",
         "backend-probe.ts",
         "capture-ports.ts",
+        "monitor-topology.ts",
+        "monitor-focus.ts",
     ):
         (install / "config" / "ags-capture" / "ports" / capture_port).write_text("")
     for capture_adapter in (
@@ -2339,6 +2741,9 @@ def _build_provisioned_layout(
         "glib-ui-state-store.ts",
         "exec-capture-launcher.ts",
         "exec-backend-probe.ts",
+        "gdk-monitor-topology.ts",
+        "hyprland-monitor-focus.ts",
+        "monitor-window-set.ts",
     ):
         (install / "config" / "ags-capture" / "adapters" / capture_adapter).write_text("")
     # Icon color mapping editor (gui_tools role): verify gates its event seam
@@ -2414,6 +2819,21 @@ def _build_provisioned_layout(
         "include local.conf\n"
         "auto_reload_config -1\n"
     )
+    # Rendered btop config (btop_config role): verify pins BOTH non-default
+    # settings — the selected theme NAME and save_config_on_exit = false — and
+    # the generated theme file, which is a consumer POINTER at current/
+    # (stat'ed with follow: true, so a dangling pointer fails).
+    (install / "config" / "btop" / "btop.conf").write_text(
+        "#? managed by provisioning\n"
+        'color_theme = "colors.btop.theme"\n'
+        "save_config_on_exit = false\n"
+    )
+    _btop_theme = "colors.btop.theme"
+    (state_cache_palette / _btop_theme).write_text("")
+    (state_current / _btop_theme).symlink_to(state_cache_palette / _btop_theme)
+    (install / "config" / "btop" / "themes" / _btop_theme).symlink_to(
+        state_current / _btop_theme
+    )
 
     # Shell-tools clones (zsh_tools role — done-criterion 11): verify checks
     # ~/.oh-my-zsh, ~/.pyenv, ~/.nvm exist as dirs (in the HOME the playbook
@@ -2444,6 +2864,7 @@ def _build_provisioned_layout(
         "gtk-3.0",
         "gtk-4.0",
         "rofi",
+        "btop",
     ):
         (xdg / name).symlink_to(install / "config" / name, target_is_directory=True)
 

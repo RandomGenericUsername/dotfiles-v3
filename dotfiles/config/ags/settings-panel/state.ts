@@ -1,6 +1,7 @@
 import { createState } from "ags"
 import { closeWifiPopup } from "../components/wifi/state"
 import { closeBluetoothPopup } from "../components/bluetooth/state"
+import { closeBatteryPopup } from "../components/battery/state"
 
 /**
  * Shared settings-panel state.
@@ -27,12 +28,14 @@ export { panelVisible, activeView, viewEpoch, iconCenterX, setIconCenterX }
 export function open() {
   setPanelVisible(true)
   setViewEpoch((n) => n + 1)
-  // Keep the overlays mutually exclusive: opening the panel dismisses the
-  // Wi-Fi and Bluetooth popups. Coordinated here (a caller), never inside
-  // `components/*/state.ts` — the popup state modules must not import from
-  // `settings-panel/**`, or the one-way dependency inverts.
+  // Keep the overlays mutually exclusive: opening the panel dismisses whichever
+  // popup is up. The dependency is ONE-WAY — the popups' own `state.ts` must
+  // not import from `settings-panel/**`, so the exclusion is driven from the
+  // side that is allowed to know about the others. Each popup closes the panel
+  // itself when its bar icon is clicked, which covers the reverse direction.
   closeWifiPopup()
   closeBluetoothPopup()
+  closeBatteryPopup()
 }
 
 export function close() {

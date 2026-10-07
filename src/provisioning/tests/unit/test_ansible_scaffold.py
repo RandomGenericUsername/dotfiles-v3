@@ -43,6 +43,19 @@ _REQUIRED_FILES = (
 # Shared base must be identical across arch.yml and debian-family.yml;
 # distro-specific extras are pinned separately (adw-gtk-theme is Arch-only,
 # Option A 2026-09-09).
+#
+# DRIFT LOCK, re-snapshotted 2026-10-04 by openspec change
+# repair-package-manifest-drift. Every key below was reviewed against its
+# introducing commit (`git log -S<key>`) — see that change's design.md for the
+# per-key table. Briefly: capture/portals/lock/dunst/thunar came from the
+# 2026-09-30 "these were installed on the host but never declared" fixes, and
+# libva-utils/nm-connection-editor/speedtest predate this lock's original
+# snapshot (the bulk AGS import) or arrived with the VA-API codec-probe fix
+# (e9beedc4). The lock is KEPT on purpose: it is what turns "a package was
+# installed from three different copies of one list" into a red test instead
+# of a silent provisioning gap. The machine-checkable invariants that catch
+# real defects live in TestPackageListInvariants below — the exact-set lock
+# cannot catch them.
 _LOGICAL_PACKAGE_KEYS = (
     "hyprland",
     "hyprpaper",
@@ -78,6 +91,35 @@ _LOGICAL_PACKAGE_KEYS = (
     # The GTK Bluetooth manager — the "Bluetooth Settings" target, and the only
     # agent able to answer a PIN/passkey request.
     "blueman",
+    # Session/capture stack (rollups + singles). Introduced by the two
+    # 2026-09-30 "declared nothing, host-only install" fixes on this branch:
+    #   capture  grim/slurp/wl-clipboard — the capture tool shells them and the
+    #            runtime clipboard watcher needs `wl-paste --watch`
+    #   portals  hyprpolkitagent + the two portal backends — autostart.lua
+    #            starts them at login; undeclared means silent failure
+    #   lock     hyprlock/hypridle — no locker without them
+    "capture",
+    "portals",
+    "lock",
+    # dunst is installed ONLY to be masked (the AGS overlay owns notifications);
+    # thunar is launched by keybindings.lua. Both were host-only luck.
+    "dunst",
+    "thunar",
+    # libva-utils: the VA-API codec probe (vainfo) gpu-screen-recorder names
+    # verbatim in its "your gpu does not support 'vpX'" failure — declared in
+    # e9beedc4 so the capture tool can tell a hardware codec limit from a
+    # missing VA driver.
+    "libva-utils",
+    # nm-connection-editor: the AGS Wi-Fi Settings footer target.
+    "nm-connection-editor",
+    # speedtest: speedtest-cli, driven by the AGS speedtest service.
+    "speedtest",
+    # xdg-utils: owns xdg-mime/xdg-open. Consumed by gui_tools (`xdg-mime
+    # default thunar.desktop inode/directory`), gated by verify (`xdg-mime
+    # query default inode/directory`), and shelled by the capture tool's
+    # "Show in folder" and hypr-pano's URL opener. Was a manifest entry no
+    # provisioning path installed (harden-verify-probes-and-manifest).
+    "xdg-utils",
 )
 _ARCH_EXTRA_KEYS = (
     "adw_gtk_theme",  # GTK3 theme (Option A 2026-09-09)
@@ -203,6 +245,297 @@ class TestGroupVars:
             assert all(str(n).strip() for n in names), f"empty name under {key}"
 
 
+# ---------------------------------------------------------------------------
+# Machine-checkable package-list invariants (repair-package-manifest-drift)
+#
+# The exact-set locks above are pure BOOKKEEPING: they can only say "a key is
+# in a group_vars map and not in this tuple". They have now fired three times
+# without anyone acting, because fixing them means hand-diffing three copies of
+# one list — low-value noise. What they CANNOT catch is the class of defect
+# that actually bites a user:
+#
+#   * a rollup key whose list is empty or holds one glued string
+#     (`capture: [grim, "slurp wl-copy"]`) — installs nothing, or installs a
+#     package literally named "slurp wl-copy", and the key still shows up in
+#     every set comparison, so the lock stays GREEN
+#   * a key with an empty value — the packages role's
+#     `reject('equalto', '')` drops it silently, so the key is present in
+#     every set comparison while installing nothing
+#   * one package declared under two keys — installed twice, and a later edit
+#     to one key silently diverges from the other
+#   * a manifest entry no provisioning path installs — the manifest promises a
+#     package that only exists because someone ran pacman by hand
+#
+# Each of those is invisible to an exact-set comparison and cheap to assert, so
+# the lock stays AND these are added on top.
+# ---------------------------------------------------------------------------
+
+# One package name: what pacman/apt actually accept. Anchored, no whitespace,
+# no commas/colons (a comma- or space-joined string is the classic "forgot the
+# list dash" YAML bug), no leading dash.
+_PACKAGE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._-]{0,99}$")
+
+# The Debian merge is a DOCUMENTED, deliberate exception to the
+# one-name-one-key invariant: "bluez-utils is merged into bluez on Debian —
+# the sane distro mapping for the logical bluez-utils entry" (see
+# group_vars/debian-family.yml). Asserted as an exact pair so it can neither
+# grow nor be silently re-pointed.
+_INTENTIONAL_DUPLICATE_KEY_PAIRS = {
+    "debian-family.yml": frozenset({"bluez", "bluez-utils"}),
+    "arch.yml": frozenset(),
+}
+
+# Manifest entries that NO provisioning path installs: they are not a
+# group_vars key, not a group_vars value, and not in the AUR channel. They are
+# host-installed by hand and nothing else, so a fresh machine would lack them
+# while the manifest claims them.
+#
+# This set was EMPTY as of harden-verify-probes-and-manifest, which resolved
+# all three of the orphans repair-package-manifest-drift had pinned here
+# (`lf`, `hyprcursor`, `xdg-utils`) — per-package evidence table in that
+# change's design.md:
+#   xdg-utils   ADDED to both group_vars maps (option a). It has hard
+#               consumers: gui_tools runs `xdg-mime default`, verify gates
+#               `xdg-mime query default`, and the capture tool / hypr-pano
+#               shell `xdg-open`. Debian name verified via the Debian
+#               archive's madison API (1.2.1-2, arch all).
+#   hyprcursor  REMOVED from packages.yaml (option b). Nothing calls it, and
+#               it is already a direct pacman dependency of hyprland, so it
+#               arrives transitively — declaring it separately would imply a
+#               consumer that does not exist.
+#   lf          REMOVED from packages.yaml (option b). Not host-installed, no
+#               keybind, no autostart entry, no desktop file, no config, no
+#               spec or plan-doc requirement. A leftover from the same
+#               e00a6773 bulk Lua-migration "must-have packages" list as
+#               `cliphist`, which a1de8bfa later dropped once hypr-pano
+#               superseded it.
+#
+# It stays a pinned EXACT set rather than being deleted: it is now EMPTY, and
+# the assertion still fails on any NEW orphan while naming both directions
+# (unexpected orphan / no-longer-orphaned). Deleting it would remove the pin
+# that makes the next drift visible.
+_DECLARED_NOT_PROVISIONED: frozenset[str] = frozenset()
+
+
+def _find_manifest_dir() -> Path:
+    """Locate dotfiles/provisioning/ (the logical manifest dir) from this file."""
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "dotfiles" / "provisioning" / "packages.yaml"
+        if candidate.is_file():
+            return candidate.parent
+    raise FileNotFoundError("dotfiles/provisioning/packages.yaml not found walking up")
+
+
+_MANIFEST_DIR = _find_manifest_dir()
+
+
+def _names_of(value: object) -> list[object]:
+    return list(value) if isinstance(value, list) else [value]
+
+
+def _empty_value_problems(packages: dict[str, object]) -> list[str]:
+    """Keys whose value installs nothing.
+
+    The packages role flattens with `reject('equalto', '')`, so an empty or
+    whitespace value is dropped without a word — and a bare `key:` parses as
+    None. Both keep the KEY present, so every exact-set lock stays green.
+    """
+    problems = []
+    for key, value in packages.items():
+        if value is None:
+            problems.append(f"{key}: value is empty (`{key}:` with no value)")
+        elif isinstance(value, str) and not value.strip():
+            problems.append(f"{key}: value is blank {value!r}")
+        elif not isinstance(value, (str, list)):
+            problems.append(f"{key}: value {value!r} is not a package name or list of them")
+        elif isinstance(value, list):
+            problems.extend(
+                f"{key}: member {item!r} is not a package name" for item in value if not item
+            )
+    return problems
+
+
+def _rollup_problems(packages: dict[str, object]) -> list[str]:
+    """List-valued keys must be non-empty lists of single plausible names."""
+    problems = []
+    for key, value in packages.items():
+        if not isinstance(value, list):
+            continue
+        if not value:
+            problems.append(f"{key}: rollup list is EMPTY — nothing installs under this key")
+        for item in value:
+            if not isinstance(item, str) or not _PACKAGE_NAME_RE.match(item):
+                problems.append(
+                    f"{key}: {item!r} is not a single plausible package name — a "
+                    "space/comma-joined or padded string installs nothing (or a "
+                    "package literally named that)"
+                )
+    return problems
+
+
+def _duplicate_problems(
+    packages: dict[str, object], allowed: frozenset[str] = frozenset()
+) -> list[str]:
+    """Package names installed under more than one key in the same map."""
+    owners: dict[str, list[str]] = {}
+    for key, value in packages.items():
+        for name in _names_of(value):
+            if isinstance(name, str):
+                owners.setdefault(name, []).append(key)
+    return [
+        f"{name} declared under {keys}"
+        for name, keys in sorted(owners.items())
+        if len(keys) > 1 and frozenset(keys) - allowed
+    ]
+
+
+class TestPackageListInvariants:
+    """Assertions that fail for real defects, not just for bookkeeping."""
+
+    @staticmethod
+    def _packages_map(basename: str) -> dict[str, object]:
+        data = yaml.safe_load((_ANSIBLE_DIR / "group_vars" / basename).read_text())
+        packages = data["packages"]
+        assert isinstance(packages, dict)
+        return packages
+
+    @pytest.mark.parametrize("basename", ["arch.yml", "debian-family.yml"])
+    def test_no_key_has_an_empty_value(self, basename: str) -> None:
+        problems = _empty_value_problems(self._packages_map(basename))
+        assert problems == [], (
+            f"{basename}: keys whose value installs nothing (the packages "
+            "role's reject('equalto','') drops them silently):\n" + "\n".join(problems)
+        )
+
+    @pytest.mark.parametrize("basename", ["arch.yml", "debian-family.yml"])
+    def test_rollup_lists_are_non_empty_single_names(self, basename: str) -> None:
+        packages = self._packages_map(basename)
+        rollups = {k: v for k, v in packages.items() if isinstance(v, list)}
+        assert rollups, "expected rollup keys (capture/portals/lock/zsh/...) to exist"
+        problems = _rollup_problems(packages)
+        assert problems == [], f"{basename}:\n" + "\n".join(problems)
+
+    @pytest.mark.parametrize("basename", ["arch.yml", "debian-family.yml"])
+    def test_no_package_declared_under_two_keys(self, basename: str) -> None:
+        allowed = _INTENTIONAL_DUPLICATE_KEY_PAIRS[basename]
+        problems = _duplicate_problems(self._packages_map(basename), allowed)
+        assert problems == [], (
+            f"{basename}: one package under two keys installs twice and lets "
+            "the copies drift (documented exception: "
+            f"{sorted(allowed) or 'none'}):\n" + "\n".join(problems)
+        )
+
+    def test_debian_bluez_merge_is_the_only_intentional_duplicate(self) -> None:
+        """The exception must stay exactly the one documented merge."""
+        assert _duplicate_problems(self._packages_map("debian-family.yml")) == [
+            "bluez declared under ['bluez', 'bluez-utils']"
+        ]
+
+    def test_every_manifest_entry_is_reachable_from_a_provisioning_path(self) -> None:
+        """A manifest entry nothing installs is a promise the fresh machine breaks.
+
+        Reachable = a group_vars `packages` key, a group_vars value, or the AUR
+        channel (roles/packages/vars/arch.yml `aur_packages`, which the role
+        installs via yay and subtracts from the pacman/apt list).
+        """
+        reachable: set[str] = set()
+        for basename in ("arch.yml", "debian-family.yml"):
+            for key, value in self._packages_map(basename).items():
+                reachable.add(key)
+                reachable.update(n for n in _names_of(value) if isinstance(n, str))
+        aur_vars = yaml.safe_load(
+            (_ANSIBLE_DIR / "roles" / "packages" / "vars" / "arch.yml").read_text()
+        )
+        # AUR names carry the upstream `-git` suffix the logical manifest omits
+        # (logical `tidal-hifi` -> AUR `tidal-hifi-git`), so both spellings are
+        # reachable.
+        reachable.update(aur_vars["aur_packages"])
+        reachable.update(name.removesuffix("-git") for name in aur_vars["aur_packages"])
+
+        manifest = yaml.safe_load((_MANIFEST_DIR / "packages.yaml").read_text())
+        declared = {entry["name"].split("#")[0].strip() for entry in manifest["entries"]}
+        orphans = sorted(declared - reachable)
+        assert orphans == sorted(_DECLARED_NOT_PROVISIONED), (
+            "packages.yaml declares entries no provisioning path installs (a "
+            "fresh machine gets them only if someone ran the manager by hand). "
+            f"Unexpected: {sorted(set(orphans) - _DECLARED_NOT_PROVISIONED)}; "
+            f"no-longer-orphaned (delete from _DECLARED_NOT_PROVISIONED): "
+            f"{sorted(_DECLARED_NOT_PROVISIONED - set(orphans))}"
+        )
+
+
+class TestPackageListInvariantsNegative:
+    """Each invariant must BITE. A defect detector nobody proved fires is a
+    comment. Each case below is a real authoring mistake, fed to the same
+    helper the real-data tests use."""
+
+    @pytest.mark.parametrize(
+        ("packages", "expected_fragment"),
+        [
+            ({"dunst": None}, "value is empty"),
+            ({"thunar": "   "}, "value is blank"),
+            ({"ags": 42}, "is not a package name or list"),
+            ({"rofi": ["rofi", ""]}, "is not a package name"),
+        ],
+    )
+    def test_empty_value_invariant_bites(
+        self, packages: dict[str, object], expected_fragment: str
+    ) -> None:
+        problems = _empty_value_problems(packages)
+        assert any(expected_fragment in problem for problem in problems), (
+            f"expected {expected_fragment!r} in {problems}"
+        )
+
+    def test_empty_value_invariant_accepts_the_real_shape(self) -> None:
+        assert _empty_value_problems({"a": "a", "b": ["b1", "b2"]}) == []
+
+    @pytest.mark.parametrize(
+        ("packages", "expected_fragment"),
+        [
+            ({"capture": []}, "rollup list is EMPTY"),
+            ({"capture": ["grim", "slurp wl-clipboard"]}, "not a single plausible package name"),
+            ({"capture": ["grim,slurp"]}, "not a single plausible package name"),
+            ({"capture": [" grim"]}, "not a single plausible package name"),
+            ({"capture": ["grim", 7]}, "not a single plausible package name"),
+        ],
+    )
+    def test_rollup_invariant_bites(
+        self, packages: dict[str, object], expected_fragment: str
+    ) -> None:
+        problems = _rollup_problems(packages)
+        assert any(expected_fragment in problem for problem in problems), (
+            f"expected {expected_fragment!r} in {problems}"
+        )
+
+    def test_rollup_invariant_accepts_scalars_and_real_names(self) -> None:
+        assert (
+            _rollup_problems({"ags": "aylurs-gtk-shell-git", "zsh": ["zsh-autosuggestions", "bat"]})
+            == []
+        )
+
+    def test_duplicate_invariant_bites_on_a_second_key(self) -> None:
+        problems = _duplicate_problems({"rofi": "rofi", "launcher": "rofi"})
+        assert problems == ["rofi declared under ['rofi', 'launcher']"]
+
+    def test_duplicate_invariant_bites_across_rollup_and_scalar(self) -> None:
+        problems = _duplicate_problems({"capture": ["grim"], "screenshot": "grim"})
+        assert problems == ["grim declared under ['capture', 'screenshot']"]
+
+    def test_duplicate_invariant_honours_the_documented_exemption(self) -> None:
+        allowed = _INTENTIONAL_DUPLICATE_KEY_PAIRS["debian-family.yml"]
+        packages = {"bluez": "bluez", "bluez-utils": "bluez"}
+        assert _duplicate_problems(packages) == ["bluez declared under ['bluez', 'bluez-utils']"]
+        assert _duplicate_problems(packages, allowed) == []
+
+    def test_reachability_invariant_would_flag_an_unprovisioned_entry(self) -> None:
+        """The orphan set is computed, not hardcoded — prove a NEW orphan bites."""
+        reachable = {"hyprland", "rofi"}
+        declared = {"hyprland", "rofi", "brand-new-thing"}
+        orphans = sorted(declared - reachable)
+        assert orphans == ["brand-new-thing"]
+        assert orphans != sorted(_DECLARED_NOT_PROVISIONED)
+
+
 # Discovered facts that must ALWAYS be namespaced (`ansible_facts['x']` /
 # `ansible_facts.x`), never referenced as top-level `ansible_x` vars: the
 # INJECT_FACTS_AS_VARS default-True is deprecated and top-level injection
@@ -232,6 +565,7 @@ _BANNED_BARE_FACTS = (
     "local",
 )
 
+
 def _strip_yml_comment(line: str) -> str:
     """Cut comments: full-line `# …` plus trailing `# comment`
     (whitespace-prefixed only, so `#rrggbb` color literals and URL fragments
@@ -247,19 +581,14 @@ class TestNoTopLevelFacts:
         bare (`ansible_user_id`, `ansible_env`, `ansible_os_family`, ...):
         use `ansible_facts['…']` so the 2.24 removal is a non-event and no
         deprecation warning is ever emitted."""
-        pattern = re.compile(
-            r"\bansible_(" + "|".join(_BANNED_BARE_FACTS) + r")\b"
-        )
+        pattern = re.compile(r"\bansible_(" + "|".join(_BANNED_BARE_FACTS) + r")\b")
         offenders = []
         for path in sorted(_ANSIBLE_DIR.rglob("*.yml")):
-            for i, line in enumerate(
-                path.read_text(encoding="utf-8").splitlines(), 1
-            ):
+            for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 code = _strip_yml_comment(line)
                 for match in pattern.finditer(code):
                     offenders.append(f"{path.relative_to(_ANSIBLE_DIR)}:{i}: {match.group(0)}")
         assert offenders == [], (
             "bare discovered-fact access (deprecated INJECT_FACTS_AS_VARS, "
-            "removed in ansible-core 2.24) — namespace via ansible_facts:\n"
-            + "\n".join(offenders)
+            "removed in ansible-core 2.24) — namespace via ansible_facts:\n" + "\n".join(offenders)
         )

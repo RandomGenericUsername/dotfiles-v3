@@ -255,24 +255,42 @@ class TestGuiToolsVars:
         three top-level views it renders. ClassicWindow reaches all three
         pages only through its own imports, so an unregistered page is a
         capture panel that cannot bundle -- the same failure the ports and
-        adapters entries guard against."""
+        adapters entries guard against.
+
+        The monitor lifecycle joined them in fix-capture-monitor-lifecycle,
+        with the same argument and one more: app.tsx now IMPORTS these
+        directly rather than calling get_monitors() itself, so an undeployed
+        member does not fail a build check -- it fails at bundle time, on the
+        host, with a capture panel that never opens. Six files:
+          domain/monitor-registry.ts   the pure plan/order decisions
+          ports/monitor-topology.ts    read the monitors, be told when they change
+          ports/monitor-focus.ts       which monitor the user is on
+          adapters/gdk-monitor-topology.ts   the hotplug subscription
+          adapters/hyprland-monitor-focus.ts  the focus source GTK4 lacks
+          adapters/monitor-window-set.ts      one window per monitor, always"""
         files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 24, f"expected exactly 24 app files; found {len(files)}"
+        assert len(files) == 30, f"expected exactly 30 app files; found {len(files)}"
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "src/gui-tools/capture-tool/adapters/exec-backend-probe.ts",
             "src/gui-tools/capture-tool/adapters/exec-capture-launcher.ts",
+            "src/gui-tools/capture-tool/adapters/gdk-monitor-topology.ts",
             "src/gui-tools/capture-tool/adapters/glib-settings-store.ts",
             "src/gui-tools/capture-tool/adapters/glib-ui-state-store.ts",
+            "src/gui-tools/capture-tool/adapters/hyprland-monitor-focus.ts",
+            "src/gui-tools/capture-tool/adapters/monitor-window-set.ts",
             "src/gui-tools/capture-tool/app.tsx",
             "src/gui-tools/capture-tool/domain/capture-request.ts",
             "src/gui-tools/capture-tool/domain/cli-args.ts",
+            "src/gui-tools/capture-tool/domain/monitor-registry.ts",
             "src/gui-tools/capture-tool/domain/settings.ts",
             "src/gui-tools/capture-tool/domain/ui-state.ts",
             "src/gui-tools/capture-tool/lib/icon-registry.ts",
             "src/gui-tools/capture-tool/ports/backend-probe.ts",
             "src/gui-tools/capture-tool/ports/capture-launcher.ts",
             "src/gui-tools/capture-tool/ports/capture-ports.ts",
+            "src/gui-tools/capture-tool/ports/monitor-focus.ts",
+            "src/gui-tools/capture-tool/ports/monitor-topology.ts",
             "src/gui-tools/capture-tool/ports/settings-store.ts",
             "src/gui-tools/capture-tool/ports/ui-state-store.ts",
             "src/gui-tools/capture-tool/style.css",

@@ -570,6 +570,28 @@
       }
     ]
   },
+  "power-mode": {
+    "color_mappings": {
+      "COLOR_FOREGROUND": "foreground"
+    },
+    "variants": [
+      {
+        "name": "powersave",
+        "output": "power-mode-powersave.svg",
+        "template": "power-mode/powersave/default/icon.svg"
+      },
+      {
+        "name": "balanced",
+        "output": "power-mode-balanced.svg",
+        "template": "power-mode/balanced/default/icon.svg"
+      },
+      {
+        "name": "performance",
+        "output": "power-mode-performance.svg",
+        "template": "power-mode/performance/default/icon.svg"
+      }
+    ]
+  },
   "settings": {
     "bar_mappings": {
       "icon_size": 24,

@@ -331,6 +331,32 @@ class TestReadRealManifests:
         # Strip trailing inline comments — the manifest annotates entries.
         names = [name.split("#")[0].strip() for name in names]
         assert len(names) == len(set(names)), f"duplicate package entries: {names}"
+        # Drift lock, re-snapshotted 2026-10-04 by openspec change
+        # repair-package-manifest-drift after a per-key `git log -S<key>`
+        # review (per-key table in that change's design.md):
+        #   libva-utils        e9beedc4 — VA-API codec probe (vainfo)
+        #   nm-connection-editor / speedtest  predate this snapshot (bulk AGS
+        #                       import 496a0b4d); both are installed by
+        #                       group_vars and consumed by the AGS Wi-Fi
+        #                       settings footer / speedtest service
+        # They were present in the MANIFEST and missing from THIS expectation,
+        # which is why the data needed no edit — only the lock did.
+        #
+        # Re-snapshotted 2026-10-04 by openspec change
+        # harden-verify-probes-and-manifest, which resolved the three
+        # orphans repair-package-manifest-drift had found (evidence table in
+        # that change's design.md):
+        #   lf          REMOVED from packages.yaml — no consumer anywhere
+        #               (no keybind, autostart, desktop file, config, spec).
+        #   hyprcursor  REMOVED from packages.yaml — no consumer, and already
+        #               a direct pacman dependency of hyprland, so it arrives
+        #               transitively; declaring it separately implied a
+        #               consumer that does not exist.
+        #   xdg-utils   RETAINED in the manifest and ADDED to both group_vars
+        #               maps — it has hard consumers (gui_tools `xdg-mime
+        #               default`, verify `xdg-mime query default`, capture-tool
+        #               and hypr-pano `xdg-open`), so removing it would have
+        #               broken a real path.
         assert set(names) == {
             "hyprland",
             "hyprpaper",
@@ -359,9 +385,9 @@ class TestReadRealManifests:
             "pavucontrol",
             "gpu-screen-recorder",
             "wf-recorder",
+            "libva-utils",
             "rofi",
             "thunar",
-            "lf",
             "btop",
             "thunderbird",
             "tidal-hifi",
@@ -369,7 +395,6 @@ class TestReadRealManifests:
             "playerctl",
             "power-options-gtk",
             "hyprmod",
-            "hyprcursor",
             "hyprlock",
             "hypridle",
             "wlogout",
@@ -377,6 +402,8 @@ class TestReadRealManifests:
             "bluez",
             "bluez-utils",
             "blueman",
+            "nm-connection-editor",
+            "speedtest",
         }
 
     def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:
