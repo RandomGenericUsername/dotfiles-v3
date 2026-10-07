@@ -21,10 +21,10 @@ What runs for real
 DEVIATION (stated, not silent) — task 5.7 "after ``wallpaper set``"
 ------------------------------------------------------------------
 This test drives the swap at the layer the swap is defined at: it repoints
-``current/`` at a NEW palette cache entry and re-places the three consumer
-pointers, which is verbatim what ``CacheSeeder.repoint_consumer_symlinks``
+``current/`` at a NEW palette cache entry and re-places the btop consumer
+pointer, which is verbatim what ``CacheSeeder.repoint_consumer_symlinks``
 does. It does NOT shell out to ``dotfiles-runtime wallpaper set``, because
-the CSG ``btop-*.theme`` backends that command needs are a SIBLING change
+the CSG ``btop.theme`` backend that command needs is a SIBLING change
 that does not exist in this worktree — invoking it here would fail on a
 missing template, not on a broken pointer. The palette CONTENT is synthetic
 (crafted in ``_THEME_BODY``) for the same reason: btop's theme FILE format is
@@ -68,30 +68,20 @@ if _ANSIBLE_PLAYBOOK is None:
         allow_module_level=True,
     )
 
-_DIFFICULTIES = ("minimal", "balanced", "full")
 _SELECTED = "colors.btop.theme"
 
 # btop's Theme parser: `key="#rrggbb"`, `#` comments only at column 0. Colors
 # here are deliberately outside btop's Default_theme palette so "our colors
-# painted, zero Default leak" is a real signal, and they differ per difficulty
-# so a stale palette entry is detectable by content (task 5.7).
+# painted, zero Default leak" is a real signal. The runtime collapsed the
+# former minimal/balanced/full theme variants into a SINGLE colors.btop.theme
+# (commit ac0a3780 — artifact set 10 -> 8; the pointer basename MUST equal the
+# cache artifact name or btop silently falls back to Default_theme), so the
+# palette cache holds one btop artifact and this fixture seeds one theme.
 # fmt: off
-_THEME_BODY: dict[str, dict[str, str]] = {
-    "minimal": {
-        "main_bg": "#101418", "main_fg": "#c8d0d8", "title": "#e05561",
-        "hi_fg": "#4aa5d8", "selected_bg": "#1c242c", "inactive_fg": "#586470",
-        "cpu_mid": "#4aa5d8", "cpu_end": "#9ad0e8",
-    },
-    "balanced": {
-        "main_bg": "#14100c", "main_fg": "#d8cec0", "title": "#d8734a",
-        "hi_fg": "#d8a04a", "selected_bg": "#241c14", "inactive_fg": "#706450",
-        "cpu_mid": "#d8a04a", "cpu_end": "#f0d0a0",
-    },
-    "full": {
-        "main_bg": "#0c1010", "main_fg": "#c0d8d0", "title": "#3ad8a0",
-        "hi_fg": "#3ad8c0", "selected_bg": "#142420", "inactive_fg": "#507060",
-        "cpu_mid": "#3ad8a0", "cpu_end": "#a0f0d8",
-    },
+_THEME_BODY: dict[str, str] = {
+    "main_bg": "#0c1010", "main_fg": "#c0d8d0", "title": "#3ad8a0",
+    "hi_fg": "#3ad8c0", "selected_bg": "#142420", "inactive_fg": "#507060",
+    "cpu_mid": "#3ad8a0", "cpu_end": "#a0f0d8",
 }
 # fmt: on
 
@@ -108,14 +98,14 @@ _ANSIBLE_DIR = _find_ansible_dir()
 _PLAYBOOKS_DIR = _ANSIBLE_DIR / "playbooks"
 
 
-def _theme_text(difficulty: str, salt: str = "") -> str:
-    """A renderable .theme file for one difficulty.
+def _theme_text(salt: str = "") -> str:
+    """A renderable .theme file for the single generated btop theme.
 
     ``salt`` shifts the accent pair so a swapped palette entry is
     content-distinguishable (task 5.7 asserts contents CHANGED, not just that
     the files still exist).
     """
-    palette = dict(_THEME_BODY[difficulty])
+    palette = dict(_THEME_BODY)
     if salt:
         base = int(salt, 16)
         palette["hi_fg"] = f"#{(base & 0xFFFFFF):06x}"
@@ -172,26 +162,33 @@ class _Machine:
 
     def seed_palette(self, entry_hash: str, salt: str = "") -> Path:
         """Write a palette cache entry and point ``current/`` at it, then place
-        the three consumer pointers — the exact topology
+        the btop consumer pointer — the exact topology
         ``CacheSeeder.repoint_consumer_symlinks`` produces (spine pointer ->
-        ``current/`` -> cache entry)."""
+        ``current/`` -> cache entry).
+
+        The runtime collapsed the three btop theme variants into a SINGLE
+        ``colors.btop.theme`` (commit ac0a3780): one cache artifact, one
+        ``current/`` entry, one spine pointer. Seeding three would model a
+        runtime that no longer exists — and because ``btop.conf`` selects
+        ``colors.btop.theme`` by name, the unmatched pointer would leave btop
+        silently on ``Default_theme``.
+        """
         cache_entry = self.state / "dotfiles" / "cache" / "palettes" / entry_hash
         cache_entry.mkdir(parents=True, exist_ok=True)
         current = self.state / "dotfiles" / "current"
         current.mkdir(parents=True, exist_ok=True)
         themes_dir = self.btop_spine / "themes"
         themes_dir.mkdir(parents=True, exist_ok=True)
-        for difficulty in _DIFFICULTIES:
-            name = f"colors.btop-{difficulty}.theme"
-            (cache_entry / name).write_text(_theme_text(difficulty, salt))
-            link = current / name
-            if link.is_symlink() or link.exists():
-                link.unlink()
-            link.symlink_to(cache_entry / name)
-            pointer = themes_dir / name
-            if pointer.is_symlink() or pointer.exists():
-                pointer.unlink()
-            pointer.symlink_to(current / name)
+        name = _SELECTED
+        (cache_entry / name).write_text(_theme_text(salt))
+        link = current / name
+        if link.is_symlink() or link.exists():
+            link.unlink()
+        link.symlink_to(cache_entry / name)
+        pointer = themes_dir / name
+        if pointer.is_symlink() or pointer.exists():
+            pointer.unlink()
+        pointer.symlink_to(current / name)
         return cache_entry
 
 
@@ -300,11 +297,10 @@ class TestThemeDiscovery:
     exactly those two predicates on the real 3-hop chain proves discoverability
     without launching btop."""
 
-    @pytest.mark.parametrize("difficulty", _DIFFICULTIES)
-    def test_meets_btops_discovery_predicates(self, machine: _Machine, difficulty: str) -> None:
+    def test_meets_btops_discovery_predicates(self, machine: _Machine) -> None:
         import os as _os
 
-        name = f"colors.btop-{difficulty}.theme"
+        name = _SELECTED
         pointer = machine.btop_spine / "themes" / name
         assert pointer.is_symlink(), "the theme must be a POINTER, not a copy"
         assert pointer.suffix == ".theme", (
@@ -319,10 +315,9 @@ class TestThemeDiscovery:
             f"the chain must land in a palette cache entry; got {resolved}"
         )
 
-    def test_all_three_are_listed_in_the_themes_dir(self, machine: _Machine) -> None:
+    def test_the_generated_theme_is_listed_in_the_themes_dir(self, machine: _Machine) -> None:
         names = {p.name for p in (machine.btop_spine / "themes").iterdir()}
-        for difficulty in _DIFFICULTIES:
-            assert f"colors.btop-{difficulty}.theme" in names
+        assert _SELECTED in names
 
 
 # ── 5.5 / 5.6 application, proven from btop's own output ───────────────────
@@ -361,10 +356,9 @@ class TestThemeApplication:
         """Same proof from the other end: break the runtime's pointer (the
         seeder's `missing target` skip) and the harness must fail too."""
         machine.seed_palette("b" * 64)
-        for difficulty in _DIFFICULTIES:
-            pointer = machine.btop_spine / "themes" / f"colors.btop-{difficulty}.theme"
-            target = machine.state / "dotfiles" / "current" / pointer.name
-            target.unlink()
+        pointer = machine.btop_spine / "themes" / _SELECTED
+        target = machine.state / "dotfiles" / "current" / pointer.name
+        target.unlink()
         with pytest.raises(ThemeApplicationError):
             assert_theme_applied(
                 config_home=machine.xdg,
@@ -379,11 +373,11 @@ class TestThemeApplication:
 
 
 class TestPalettePropagation:
-    def test_a_swap_updates_all_three_theme_files_in_place(self, machine: _Machine) -> None:
-        """After a palette swap every theme file reflects the NEW entry and
-        still resolves. The reload deferral (D7) is asserted as a NON-action:
-        this test writes files and never signals, kills, or relaunches btop,
-        and no btop is running here at all."""
+    def test_a_swap_updates_the_theme_file_in_place(self, machine: _Machine) -> None:
+        """After a palette swap the generated theme file reflects the NEW entry
+        and still resolves. The reload deferral (D7) is asserted as a
+        NON-action: this test writes files and never signals, kills, or
+        relaunches btop, and no btop is running here at all."""
         themes = machine.btop_spine / "themes"
         before = {p.name: p.read_text() for p in themes.iterdir()}
         old_entry = (machine.btop_spine / "themes" / _SELECTED).resolve().parent

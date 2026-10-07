@@ -1643,7 +1643,13 @@ class TestVerifyVars:
         """add-ags-settings-panel: the icons gate asserts one known render per
         new icon group (settings-panel-wifi, volume-low) on top of the
         pre-existing battery-0 sample, so a runtime render that silently
-        skipped the new groups fails verify rather than only the live UI."""
+        skipped the new groups fails verify rather than only the live UI.
+
+        The list also pins the add-bluetooth-bar-popup group
+        (bluetooth-on/off + the settings-panel bluetooth-signal-full glyph),
+        which verify_icons_samples gained in 969974d6 — the hardcoded copy
+        here must track the role's var exactly or verify's real requirement
+        drifts out of the structural gate."""
         data = _vars()
         samples = [str(s) for s in data["verify_icons_samples"]]
         assert samples == [
@@ -1654,6 +1660,9 @@ class TestVerifyVars:
             "{{ verify_state_current_dir }}/icons/microphone-system-mic-on.svg",
             "{{ verify_state_current_dir }}/icons/system-battery-100.svg",
             "{{ verify_state_current_dir }}/icons/settings-panel-signal-good.svg",
+            "{{ verify_state_current_dir }}/icons/bluetooth-on.svg",
+            "{{ verify_state_current_dir }}/icons/bluetooth-off.svg",
+            "{{ verify_state_current_dir }}/icons/settings-panel-bluetooth-signal-full.svg",
         ]
 
     def test_verify_lists_include_the_phase5_event_modules(self) -> None:
@@ -2566,7 +2575,9 @@ def _build_provisioned_layout(
     # microphone-system-mic-on prove the dual-surface system-* copies
     # (add-system-icon-variants) rendered; system-battery-100 and
     # settings-panel-signal-good prove the Bluetooth row's glyphs rendered
-    # (bluetooth-row-battery-signal).
+    # (bluetooth-row-battery-signal); bluetooth-on/off and the settings-panel
+    # bluetooth-signal-full glyph prove the add-bluetooth-bar-popup group
+    # rendered (mirror of verify_icons_samples — the fixture IS the machine).
     for sample in (
         "battery-0",
         "settings-panel-wifi",
@@ -2575,6 +2586,9 @@ def _build_provisioned_layout(
         "microphone-system-mic-on",
         "system-battery-100",
         "settings-panel-signal-good",
+        "bluetooth-on",
+        "bluetooth-off",
+        "settings-panel-bluetooth-signal-full",
     ):
         (state_cache_icons / f"{sample}.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
