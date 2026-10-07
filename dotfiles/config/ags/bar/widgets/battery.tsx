@@ -35,9 +35,9 @@ import { activeProfile } from "../../services/power-service"
 const device = Battery.get_default()
 const percentage = createBinding(device, "percentage")
 const charging = createBinding(device, "charging")
-const isPresent = createBinding(device, "is-present")
-const timeToFull = createBinding(device, "time-to-full")
-const timeToEmpty = createBinding(device, "time-to-empty")
+const isPresent = createBinding(device, "isPresent")
+const timeToFull = createBinding(device, "timeToFull")
+const timeToEmpty = createBinding(device, "timeToEmpty")
 
 function getBatteryIconPath(): string | null {
   const mappings = registry.getBarMappings("battery")

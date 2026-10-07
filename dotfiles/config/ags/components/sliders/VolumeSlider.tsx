@@ -18,10 +18,10 @@ import { LevelSlider } from "../primitives/LevelSlider"
 
 const wp = Wp.get_default()
 const rawVolume = wp
-  ? createBinding(wp, "default-speaker", "volume")
+  ? createBinding(wp, "defaultSpeaker", "volume")
   : createComputed(() => 0)
 const rawMute = wp
-  ? createBinding(wp, "default-speaker", "mute")
+  ? createBinding(wp, "defaultSpeaker", "mute")
   : createComputed(() => true)
 
 const volume = createComputed(() =>

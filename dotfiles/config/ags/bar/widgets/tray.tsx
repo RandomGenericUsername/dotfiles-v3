@@ -65,7 +65,7 @@ function TrayItem({ item }: { item: Item }) {
   return (
     <box
       class="tray-item"
-      tooltipMarkup={createBinding(item, "tooltip-markup")}
+      tooltipMarkup={createBinding(item, "tooltipMarkup")}
       $={(self) => {
         const primary = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
         primary.connect("pressed", (_gesture, _n, x, y) => item.activate(x, y))
