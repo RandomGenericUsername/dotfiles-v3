@@ -40,6 +40,21 @@ export interface PipeWireGraph {
   streamSerial: ReadonlyMap<number, string>
   /** PipeWire stream-node IDs → authoritative requested `target.object`, if set. */
   requestedTarget: ReadonlyMap<number, string>
+  /**
+   * WirePlumber's own `default.audio.sink` / `default.audio.source`, as node
+   * NAMES. This is the authoritative default.
+   *
+   * AstalWp's `default_speaker` is NOT reliable for it: it returns null when
+   * the default is a Bluetooth sink, because AstalWp does not enumerate
+   * `bluez_output.*` nodes (measured 2026-10-07: WirePlumber reported
+   * `default.audio.sink = bluez_output.94_4B_F8_4B_5B_16.1` while
+   * `wp.default_speaker` was null). Reading only AstalWp therefore made
+   * `preferredOutputId` null, so the panel could never display the headset as
+   * the preferred output no matter how many times it was selected -- the
+   * "I have to select it multiple times" report.
+   */
+  defaultSinkName: string | null
+  defaultSourceName: string | null
 }
 
 /**
@@ -96,6 +111,22 @@ export function parsePipeWireGraph(json: string): PipeWireGraph {
     }
   }
 
+  // WirePlumber's default endpoints live in a Metadata object, not on a Node.
+  // `value` is `{ name: "node.name" }` for both sink and source.
+  let defaultSinkName: string | null = null
+  let defaultSourceName: string | null = null
+  for (const object of dump) {
+    if (object.type !== "PipeWire:Interface:Metadata") continue
+    const entries = (object as { metadata?: { key?: string; value?: unknown }[] }).metadata ?? []
+    for (const entry of entries) {
+      const value = entry.value as { name?: unknown } | undefined
+      const name = value && typeof value.name === "string" ? value.name : null
+      if (!name) continue
+      if (entry.key === "default.audio.sink") defaultSinkName = name
+      if (entry.key === "default.audio.source") defaultSourceName = name
+    }
+  }
+
   const streamEndpoint = new Map<number, number>()
   const requestedTarget = new Map<number, string>()
   for (const [streamId, props] of streamProperties) {
@@ -117,7 +148,7 @@ export function parsePipeWireGraph(json: string): PipeWireGraph {
     else if (sources.has(output) && streamProperties.has(input)) streamEndpoint.set(input, output)
   }
 
-  return { streamEndpoint, nodeName, streamProperties, streamSerial, requestedTarget }
+  return { streamEndpoint, nodeName, streamProperties, streamSerial, requestedTarget, defaultSinkName, defaultSourceName }
 }
 
 function endpoint(node: RawNode, available = true) {
@@ -146,8 +177,21 @@ export function projectPipeWireSession(input: {
     .filter((node) => node["media-class"] === 1)
     .map((node) => endpoint(node))
     .filter((item): item is NonNullable<typeof item> => item !== null)
-  const preferredOutputId = id(input.defaultSpeakerId)
-  const microphoneId = id(input.defaultMicrophoneId)
+  // Resolve WirePlumber's default node NAME to a node id, matching either the
+  // PipeWire `node.name` or AstalWp's human description. Fall back to AstalWp's
+  // `default_speaker` only when the metadata names nothing we can find -- which
+  // is the case AstalWp handles, not the case it misses.
+  const resolveDefault = (name: string | null, mediaClass: number): string | null => {
+    if (!name) return null
+    const match = input.nodes.find((node) =>
+      node["media-class"] === mediaClass && (node.name === name || node.description === name))
+    return match ? id(match.id) : null
+  }
+
+  const preferredOutputId =
+    resolveDefault(input.graph.defaultSinkName, 2) ?? id(input.defaultSpeakerId)
+  const microphoneId =
+    resolveDefault(input.graph.defaultSourceName, 1) ?? id(input.defaultMicrophoneId)
   const inputEndpoint = inputs.find((item) => item.id === microphoneId) ?? null
   const appsById = new Map<string, AppIdentity>()
   const streams: AudioStream[] = []
