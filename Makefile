@@ -312,6 +312,17 @@ bar-typecheck: capture-types
 		echo "==> installing typescript (npm install --no-save, ignored by git)"; \
 		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
 	fi
+	@# The bar reuses the capture tool's GENERATED declarations, but it still
+	@# needs its OWN `node_modules` symlinks: module resolution for `ags/*` and
+	@# `gnim` is per-directory, they are gitignored, and `ags types` only writes
+	@# them into the directory it is pointed at (the capture one). Without this
+	@# the gate fails with `Cannot find module 'ags'` on every fresh clone or
+	@# worktree — MEASURED, and only noticed because `make gates` was first run
+	@# from a second worktree. Same targets `ags types` creates in the capture
+	@# directory.
+	@mkdir -p "$(BAR_DIR)/node_modules"
+	@[ -e "$(BAR_DIR)/node_modules/ags" ] || ln -sfn /usr/share/ags/js "$(BAR_DIR)/node_modules/ags"
+	@[ -e "$(BAR_DIR)/node_modules/gnim" ] || ln -sfn /usr/share/ags/js/node_modules/gnim "$(BAR_DIR)/node_modules/gnim"
 	@echo "==> bar-typecheck: tsc --noEmit -p $(BAR_DIR)/tsconfig.bar.json"
 	@log=$$(mktemp); \
 	npx tsc --noEmit -p "$(BAR_DIR)/tsconfig.bar.json" > "$$log" 2>&1; \
