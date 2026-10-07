@@ -349,10 +349,24 @@ export async function refreshBluetoothDevices(): Promise<void> {
       let props: Record<string, unknown>
       try {
         props = await getAll(path, DEVICE_IFACE, BLUEZ)
-      } catch {
-        // BlueZ no longer has the object: drop it rather than leave a row whose
-        // state can never be updated again.
-        removeDevice(path)
+      } catch (error) {
+        // KEEP the cached entry. A failed read is not evidence of absence:
+        // BlueZ can fail a `GetAll` transiently (mid-teardown, under load)
+        // while the object still exists, and the only reliable absence
+        // signal is `InterfacesRemoved`, which has its own handler. The old
+        // code dropped the device here — silently, with an empty catch — and
+        // the drop was PERMANENT BY CONSTRUCTION: this refresh only iterates
+        // the cache (self-sealing, a dropped device is never re-read) and
+        // the full resync `refreshManagedObjects` runs once at bootstrap, so
+        // nothing ever re-added it short of a bar restart. That is exactly
+        // the reported symptom: disconnect, reopen the panel, the phone is
+        // gone although BlueZ still has it (`Paired=1`). MEASURED 2026-10-07:
+        // the disconnect sequence keeps `Device1` (only `Battery1` and the
+        // media endpoints are removed), so the disappearance was never in
+        // the disconnect path at all — it was in this reopen path.
+        console.error(
+          `bluetooth-service: refresh of ${path} failed, keeping cached entry: ${error}`,
+        )
         return
       }
       const next: BluetoothDevice = { ...device }

@@ -339,8 +339,9 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
           {/* Slot 2: the watchdog note while busy, else the word layer. The
               note is STATIC on purpose — a countdown needs a timer in the view,
               which the architecture forbids. The watchdog itself stays in
-              `bluetooth-service`, bounded and self-cancelling, and its failure
-              surfaces as text in the message line. */}
+              `bluetooth-service`, bounded and self-cancelling; its failure
+              surfaces as a notification card (`postBluetoothNotification`),
+              never as panel text — there is deliberately no failure row. */}
           <label
             class="settings-net-sub"
             xalign={0}
