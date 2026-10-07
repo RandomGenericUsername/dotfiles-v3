@@ -1,0 +1,476 @@
+/*
+ * mock.css — shared chrome for the Battery panel mockups.
+ *
+ * COPIED VERBATIM from the sibling run
+ * `ux-dotfiles-repo-v3-bluetooth-2026-10-02/mockups/mock.css` (the house
+ * reference), then extended ONLY with the battery-panel block at the bottom of
+ * this file. The palette below is therefore the same live wallpaper palette
+ * resolved from colors.yaml (2026-10-02), so the staged SVGs in assets/ sit in
+ * this chrome with no colour correction.
+ *
+ * NOTE ON GLYPH INK. The power-mode and battery assets in assets/ are rendered
+ * at `foreground = #c5c8ce` (the value the runtime resolved for the battery
+ * group on 2026-10-02), exactly as the sibling run's own `battery-*.svg`
+ * assets are. The chrome's `--ink-primary` stays `#c2c2c5` per the sibling
+ * palette; the 3-unit difference is the same one the sibling run already
+ * carries between its battery assets and its CSS.
+ *
+ * Governed by DESIGN.md: colors.*, components.*, geometry.*.
+ * Every token below is the LIVE wallpaper palette resolved from colors.yaml
+ * (2026-10-02) — the exact palette the staged SVGs in assets/ were ITR-rendered
+ * against, so `settings-panel-bluetooth.svg` (#dbab67 = color13) sits in this
+ * chrome with no colour correction.
+ *
+ * Every `.s-*` class is the CSS-LITERAL mirror of a real `settings-*` class in
+ * dotfiles/config/ags/style.css. Nothing here invents a visual rule; if a class
+ * is not in style.css it is declared as an ADDITION in DESIGN.md §New CSS.
+ * GTK4 CSS cannot express width/height/line-height on text the way the web can,
+ * so the widget-level properties (maxWidthChars, ellipsize, pixel_size) are
+ * approximated here with max-width/overflow/text-overflow and are annotated at
+ * each use site.
+ */
+
+:root {
+  /* ── palette (live, 2026-10-02) ─────────────────────────────────────── */
+  --color00: #0b0b1a;   /* surface-panel fill */
+  --color01: #575660;   /* surface-row fill  */
+  --color03: #5a5a6f;   /* caution / failure text */
+  --color04: #2d6596;   /* surface-panel border */
+  --color06: #557690;   /* primary button fill */
+  --color10: #549ec8;   /* row-selected, switch ON */
+  --color11: #dbab67;   /* caution-strong slot */
+  --color13: #dbab67;   /* action-accent, bluetooth ON */
+  --color15: #c2c2c5;
+  --fg:      #c2c2c5;   /* foreground */
+  --bg:      #0b0b1a;
+
+  /* ── semantic roles (DESIGN.md colors.*) ─────────────────────────────── */
+  --surface-panel: rgba(11,11,26,.94);
+  --surface-row:   rgba(87,86,96,.18);
+  --hairline:      rgba(194,194,197,.10);
+  --divider:       rgba(194,194,197,.06);
+  --ink-primary:   #c2c2c5;
+  --ink-muted:     rgba(194,194,197,.62);
+  --ink-faint:     rgba(194,194,197,.40);
+  --accent:        #dbab67;
+  --selected:      #549ec8;
+  --caution:       #5a5a6f;
+
+  /* ── geometry (DESIGN.md geometry.*) ─────────────────────────────────── */
+  --popup-width: 312px;
+  --popup-scroll-max: 420px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Inter", -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif;
+  background: #101019; color: var(--ink-primary);
+  padding: 34px 34px 70px;
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-size: 19px; font-weight: 700; color: #fff; letter-spacing: -.01em; }
+h2 { font-size: 15px; font-weight: 650; margin: 38px 0 4px; color: #fff; }
+h3 { font-size: 12px; font-weight: 650; margin: 22px 0 4px;
+     color: rgba(194,194,197,.72); text-transform: uppercase; letter-spacing: .06em; }
+p, li { font-size: 13px; line-height: 1.65; color: rgba(194,194,197,.72); }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px;
+       color: #7fc4ff; }
+a { color: #7fc4ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.sub { color: rgba(194,194,197,.6); font-size: 13px; margin: 6px 0 20px; max-width: 900px; }
+
+/* ── anchor index ─────────────────────────────────────────────────────── */
+.anchor-index {
+  font-size: 12px; color: rgba(194,194,197,.62);
+  background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 9px; padding: 12px 15px; line-height: 1.85; margin: 16px 0 4px;
+  max-width: 1000px;
+}
+.anchor-index b { color: rgba(194,194,197,.85); font-weight: 600; }
+.anchor-index a { margin-right: 4px; }
+
+/* ── layout helpers ───────────────────────────────────────────────────── */
+.cols { display: flex; gap: 30px; flex-wrap: wrap; align-items: flex-start; margin-top: 14px; }
+.col  { display: flex; flex-direction: column; align-items: center; }
+.cap  { font-size: 11.5px; color: rgba(194,194,197,.6); margin-top: 12px;
+        max-width: 340px; text-align: center; line-height: 1.6; }
+.cap code { font-size: 10.5px; }
+
+/* state label — the wifi-popup-mockup.html convention */
+.state-label {
+  width: 100%; font-size: 11px; font-weight: 600; color: rgba(194,194,197,.42);
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 20px 0 8px; border-bottom: 1px solid rgba(255,255,255,.06); margin-bottom: 6px;
+}
+.state-label code { text-transform: none; letter-spacing: 0; }
+
+.note { font-size: 12.5px; color: rgba(194,194,197,.6); max-width: 900px; line-height: 1.7;
+        margin-top: 14px; }
+.note b { color: rgba(194,194,197,.85); }
+table.tokens { border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+table.tokens th, table.tokens td {
+  text-align: left; padding: 5px 14px 5px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+  vertical-align: top; color: rgba(194,194,197,.72);
+}
+table.tokens th { color: rgba(194,194,197,.5); font-weight: 600; font-size: 11px;
+                  text-transform: uppercase; letter-spacing: .05em; }
+/* Keep a key/value table's LABEL cell on one line. Scoped with
+   `:not(:last-child)` so it only applies to genuine two-column tables: a
+   single-cell prose table (the verdict blocks) has its prose in
+   first-child AND last-child, and nowrap there made the whole paragraph
+   unbreakable — the column overflowed its max-width and overlapped its
+   neighbour. */
+table.tokens td:first-child:not(:last-child) { white-space: nowrap; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   .settings-* — the 312px popup surface
+   ══════════════════════════════════════════════════════════════════════ */
+.popup {
+  width: var(--popup-width);
+  background: var(--surface-panel);
+  border: 1.5px solid var(--color04);
+  border-radius: 12px;
+  padding: 11px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.5);
+  position: relative;
+}
+/* blue guide line = maxContentHeight 420px on the scrolledwindow */
+.popup .scroll-guide::after {
+  content: "maxContentHeight = 420px";
+  position: absolute; left: 0; right: 0; pointer-events: none;
+  border-top: 1px dashed rgba(194,194,197,.30);
+  font-size: 9px; color: rgba(194,194,197,.45);
+  letter-spacing: .04em; text-align: right; padding-right: 2px;
+}
+
+/* ── .settings-nav-header — SIBLING of the scrolledwindow, never inside ── */
+.nav-header {
+  min-height: 26px; padding-bottom: 7px;
+  display: flex; align-items: center; gap: 9px;
+}
+.nav-title { font-size: 13.5px; font-weight: 650; flex: 1; text-align: left; }
+.nav-back {
+  min-width: 26px; min-height: 26px; padding: 0; border: none; border-radius: 8px;
+  background: rgba(194,194,197,.12); color: var(--ink-primary);
+  font-size: 18px; line-height: 1; cursor: pointer;
+}
+.nav-back:hover { background: rgba(194,194,197,.20); }
+
+/* ── .settings-switch — native Gtk.Switch restyled, NOT a div ─────────── */
+.switch {
+  position: relative; width: 42px; height: 24px; flex: 0 0 42px;
+  background: rgba(194,194,197,.20); border: none; border-radius: 12px;
+  cursor: pointer; transition: background .2s; padding: 0;
+}
+.switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+  background: var(--color15); border-radius: 50%;
+  transition: transform .2s; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.switch[aria-checked="true"] { background: var(--color10); }
+.switch[aria-checked="true"]::after { transform: translateX(18px); }
+.switch:disabled { opacity: .45; cursor: default; }
+.switch:disabled::after { transform: none; }
+
+/* ── .settings-scroll ─────────────────────────────────────────────────── */
+.scroll { position: relative; }
+.scroll-clip {
+  max-height: var(--popup-scroll-max); overflow-y: auto; overflow-x: hidden;
+}
+.scroll-clip::-webkit-scrollbar { width: 5px; }
+.scroll-clip::-webkit-scrollbar-thumb { background: rgba(194,194,197,.25); border-radius: 5px; }
+.scroll-clip::-webkit-scrollbar-track { background: transparent; }
+
+/* ── .settings-conn-details / -detail-row / -detail ───────────────────── */
+.details { padding: 6px 16px; }
+.detail-row { display: flex; justify-content: space-between; min-height: 18px; align-items: baseline; }
+.detail-row .detail { font-size: 11px; color: rgba(194,194,197,.50); }
+
+/* ── .settings-divider ────────────────────────────────────────────────── */
+.divider { height: 1px; background: var(--divider); margin: 4px 0; }
+
+/* ── .settings-section-label ──────────────────────────────────────────── */
+.section-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: rgba(194,194,197,.40); padding: 4px 16px;
+}
+
+/* ── .settings-net — the device row (two-line, owner-approved geometry) ── */
+.net {
+  padding: 8px 9px; border-radius: 7px; min-width: 0;
+  display: flex; flex-direction: column; gap: 3px; cursor: pointer;
+  transition: background .15s;
+}
+.net:hover { background: rgba(194,194,197,.08); }
+.net.sel { background: var(--selected); }
+.net.out-of-range { opacity: .45; }
+.net.out-of-range:hover { background: transparent; }
+.net.confirming { background: rgba(194,194,197,.06); }
+
+.net .l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* `.sig` is declared UNSCOPED so a signal glyph also sizes correctly outside a
+   row (the signal-variant gallery in key-signal-meta-change.html uses it
+   standalone). It was previously only defined as `.net .sig`, so a bare
+   `.sig` inherited no size and its 1024x1024 SVG rendered at natural size —
+   a wall of full-bleed glyphs. Keep the 22px box. */
+.sig { width: 22px; height: 22px; flex: 0 0 22px; display: block; }
+.sig img { width: 100%; height: 100%; display: block; }
+.net .name {
+  font-size: 12.5px; font-weight: 600; min-width: 48px; flex: 1;
+  /* widget-level: maxWidthChars={26} + Pango.EllipsizeMode.END */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.net.sel .name { color: var(--ink-primary); }
+.net .l2 { display: flex; align-items: center; gap: 8px; }
+.net .meta { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.net .actions { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
+
+/* .settings-net-sub — WORDS only, mirroring WifiRow's Saved / Secured */
+.net .sub { font-size: 10.5px; color: rgba(194,194,197,.62);
+           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.net.sel .sub { color: rgba(194,194,197,.85); }
+
+/* .settings-badge / .settings-badge.conn */
+.badge {
+  font-size: 9.5px; letter-spacing: .05em; padding: 2px 6px; border-radius: 20px;
+  background: rgba(194,194,197,.12); border: 1px solid rgba(194,194,197,.14);
+  white-space: nowrap; flex: 0 0 auto;
+}
+.badge.conn { background: rgba(219,171,103,.18); border: 1px solid rgba(219,171,103,.45);
+              color: var(--ink-primary); }
+
+/* .settings-meta-stat / .settings-meta-icon */
+.stat { font-size: 10.5px; opacity: .72; line-height: 14px;
+        display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.stat img { width: 14px; height: 14px; display: block; flex: 0 0 14px; }
+
+/* .settings-rowact + variants */
+.rowact {
+  font-size: 11px; font-weight: 600; padding: 4px 8px; color: var(--ink-primary);
+  border: 1px solid rgba(194,194,197,.26); border-radius: 7px;
+  background: transparent; cursor: pointer; white-space: nowrap; line-height: 1.2;
+}
+.rowact:hover { border-color: var(--selected); }
+.rowact.disabled { opacity: .5; cursor: default; pointer-events: none; }
+.rowact.subtle { opacity: .68; }
+.rowact.subtle:hover { opacity: 1; border-color: rgba(194,194,197,.4); }
+/* ADDITION — DESIGN.md §New CSS. The only new class in this design. */
+.rowact.danger { border-color: var(--caution); color: var(--caution); }
+.rowact.danger:hover { border-color: var(--color11); color: var(--color11); }
+
+/* .settings-spinner */
+.spinner {
+  width: 14px; height: 14px; border: 2px solid rgba(219,171,103,.25);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .8s linear infinite; flex: 0 0 14px; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+
+/* .settings-empty / .settings-message */
+.empty { padding: 18px 10px; font-size: 12px; color: rgba(194,194,197,.60);
+         display: flex; align-items: center; justify-content: center; gap: 8px; }
+.message { font-size: 11.5px; color: var(--caution); padding: 2px 16px 6px; }
+
+/* .settings-chevron-row / -label */
+.chevron-row { display: flex; align-items: center; width: 100%; text-align: left;
+               padding: 8px 16px; background: none; border: none;
+               color: rgba(255,255,255,.70); font-size: 13px; cursor: pointer; }
+.chevron-row:hover { background: rgba(194,194,197,.05); }
+
+/* .settings-wifi-settings-row shape (footer; class names are Wi-Fi-specific) */
+.footer-row {
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+  border-top: 1px solid var(--divider); cursor: pointer; background: none;
+  border-left: 0; border-right: 0; border-bottom: 0; width: 100%; text-align: left;
+}
+.footer-row:hover { background: rgba(194,194,197,.05); }
+.footer-label { font-size: 13px; color: rgba(255,255,255,.70); flex: 1;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.footer-note  { font-size: 10px; color: rgba(255,255,255,.30); }
+.footer-arrow { color: rgba(255,255,255,.30); font-size: 14px; }
+
+/* .settings-security-warn (info-caution reuse) */
+.caution-row { display: flex; align-items: center; gap: 8px; padding: 6px 16px;
+               min-height: 28px; }
+.caution-row img { width: 16px; height: 16px; flex: 0 0 16px; }
+.caution-row .caution-text { font-size: 12px; font-weight: 500; color: var(--caution); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   .settings-tile / CapabilityTile — the settings-panel main view
+   ══════════════════════════════════════════════════════════════════════ */
+.panel-entry {
+  width: var(--popup-width); background: var(--surface-panel);
+  border: 1.5px solid var(--color04); border-radius: 12px; padding: 11px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.5);
+}
+.card {
+  background: var(--surface-row); border: 1px solid var(--hairline);
+  border-radius: 9px; padding: 8px 11px 8px 10px;
+}
+.card + .card { margin-top: 8px; }
+.tile { display: flex; align-items: center; gap: 10px; cursor: pointer;
+        background: var(--surface-row); border: 1px solid var(--hairline);
+        border-radius: 9px; padding: 8px 11px 8px 10px; }
+.tile:hover { border-color: var(--color04); }
+/* .settings-icon-toggle — the glyph IS the power toggle. Bare: no pill. */
+.icon-toggle {
+  min-width: 34px; min-height: 34px; padding: 0; background: none; border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; flex: 0 0 34px;
+}
+.icon-toggle img { width: 28px; height: 28px; display: block; }
+/* .settings-icon-toggle.off .settings-toggle-glyph { opacity: .4 } */
+.icon-toggle.off img { opacity: .4; }
+.tile-body { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.tile-title { font-size: 13px; font-weight: 600; }
+.tile-sub   { font-size: 11px; color: rgba(194,194,197,.62);
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chev { font-size: 16px; color: rgba(194,194,197,.5); flex: 0 0 auto; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   bar strip
+   ══════════════════════════════════════════════════════════════════════ */
+.bar-strip {
+  display: flex; align-items: center; gap: 14px; padding: 8px 14px;
+  background: rgba(11,11,26,.55); border-radius: 0 0 12px 12px;
+  border: 1px solid rgba(255,255,255,.07); border-top: none; width: 620px;
+}
+.bar-label { font-size: 11px; color: rgba(194,194,197,.5); width: 190px; }
+.bar-strip img.widget { width: 28px; height: 28px; display: block; }
+.bar-strip .sep { width: 1px; height: 18px; background: rgba(255,255,255,.10); }
+.bar-pair { display: flex; align-items: center; gap: 6px; }
+.bar-pair .tag {
+  font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: rgba(194,194,197,.45);
+}
+/* follower anchor stem — audio mock convention */
+.anchor-wrap { display: flex; flex-direction: column; align-items: center; }
+.stem { width: 2px; height: 14px; background: var(--accent); }
+
+/* parity comparison columns */
+.parity { display: grid; grid-template-columns: 1fr 1fr; gap: 0 34px; align-items: start; }
+@media (max-width: 820px) { .parity { grid-template-columns: 1fr; } }
+.parity-head { font-size: 11px; font-weight: 650; letter-spacing: .06em;
+               text-transform: uppercase; color: rgba(194,194,197,.45);
+               padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08);
+               margin-bottom: 14px; }
+.chip-ok {
+  display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px;
+  border-radius: 8px; background: rgba(84,158,200,.18);
+  border: 1px solid rgba(84,158,200,.45); color: #bcdcf0;
+}
+.chip-diff {
+  display: inline-block; font-size: 10.5px; font-weight: 600; padding: 1px 7px;
+  border-radius: 8px; background: rgba(219,171,103,.16);
+  border: 1px solid rgba(219,171,103,.45); color: #f0d5a4;
+}
+.legend { display: flex; gap: 16px; margin-top: 10px; font-size: 11.5px;
+          color: rgba(194,194,197,.55); align-items: center; flex-wrap: wrap; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   BATTERY PANEL — the third overlay on the settings-panel surface.
+   ──────────────────────────────────────────────────────────────────────
+   The block below is NOT copied from the sibling run. It mirrors the real
+   battery block in dotfiles/config/ags/style.css (lines ~1331+) class for
+   class; only the TWO-LEVEL SELECTOR (mode rail + variant control) is new.
+   Mapping (mock class → real class):
+
+     .hero          → .battery-hero            .header-icon → .battery-header-icon
+     .hero-primary  → .battery-hero-primary    .header-pct  → .battery-header-pct
+     .hero-sub      → .battery-hero-sub
+     .mode-rail     → .battery-mode-rail       (ADDITION — DESIGN.md §New CSS)
+     .mode-cell     → .battery-mode-cell       (ADDITION — one cell per MODE)
+     .mode-icon     → .battery-profile-icon    (24px mode glyph; real row uses 18px)
+     .variant       → .battery-variant         (ADDITION — only when mode has >1 variant)
+     .variant-opt   → .battery-variant-opt     (ADDITION — .settings-rowact geometry + .sel)
+     .rail-name     → .settings-net-name       .rail-tier → .settings-net-sub
+     .footer-row    → .battery-deeplink (button form of .settings-wifi-settings-row)
+
+   The selected MODE cell carries a 2px bottom border in the row-selected token
+   (@color_10 = #549ec8) and the `-active` accent glyph (#dbab67) — the same
+   token `.settings-net.sel` fills with, and the same ON/OFF-by-art convention
+   the sibling run uses for `settings-panel-*`. The selected VARIANT option
+   reuses the `.settings-rowact` pill geometry with the @color_10 token as its
+   "where you are" fill, so the accent still means ON and @color_10 still means
+   *selected* — three modes, five selectable things, two tokens.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.header-icon { width: 18px; height: 18px; flex: 0 0 18px; }
+.header-icon img { width: 100%; height: 100%; display: block; }
+
+/* Tabular figures: this is the one number that changes every second. */
+.header-pct {
+  font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: rgba(194,194,197,.72); flex: 0 0 auto;
+}
+
+/* The hero: the only large type on the surface. */
+.hero { padding: 10px 16px 14px 16px; }
+.hero-primary {
+  font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--ink-primary); line-height: 1.05;
+}
+.hero-sub { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+
+/* ── the MODE rail — one cell per declared mode (leaf / scales / engine) ─
+   Three cells, not five: the glyph lives on the MODE, and two tiers of one
+   mode share it. Cell is wider than the old per-profile cell because it now
+   carries a mode label under the glyph. 3×72 + 2×8 = 232 ≤ 274 usable. */
+.mode-rail {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 8px; padding: 0 8px 2px 8px;
+}
+.mode-cell {
+  width: 72px; min-height: 54px; flex: 0 0 72px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 6px 2px 5px; border: none; border-radius: 7px;
+  background: transparent; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: background .15s ease, border-color .15s ease;
+}
+.mode-cell:hover { background: rgba(194,194,197,.08); }
+/* the "where you are" indicator, in the row-selected token */
+.mode-cell.sel { border-bottom-color: var(--selected); }
+.mode-cell:disabled { opacity: .5; cursor: default; }
+.mode-icon { width: 24px; height: 24px; flex: 0 0 24px; display: block; }
+.mode-icon img { width: 100%; height: 100%; display: block; }
+.mode-label {
+  font-size: 9.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-muted); white-space: nowrap;
+}
+.mode-cell.sel .mode-label { color: var(--ink-primary); }
+
+/* ── the VARIANT control — shown ONLY when the selected mode declares more
+   than one variant. Built on the `.settings-rowact` pill geometry: 1px
+   hairline border, radius 7, 11/600. `.sel` swaps the border to the
+   row-selected token and adds a faint @color_10 wash — no new hue. */
+.variant {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 2px 16px 8px 16px;
+}
+.variant-opt {
+  font-size: 11px; font-weight: 600; line-height: 1.2;
+  padding: 4px 10px; border-radius: 7px;
+  border: 1px solid rgba(194,194,197,.26);
+  background: transparent; color: var(--ink-primary); cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.variant-opt:hover { border-color: var(--selected); }
+.variant-opt.sel { border-color: var(--selected); background: rgba(84,158,200,.18); }
+.variant-opt:disabled { opacity: .5; cursor: default; }
+
+/* the selected profile's NAME, its MODE and its TIER — stated once, under
+   the selector. The mode line is what makes an unlisted tier legible. */
+.rail-meta { padding: 4px 16px 10px 16px; }
+.rail-name { font-size: 12.5px; font-weight: 600; color: var(--ink-primary); }
+.rail-tier { font-size: 10.5px; color: var(--ink-muted); margin-top: 1px; }
+.rail-tier .mono { color: rgba(194,194,197,.5); }
+.rail-tier .fallback { color: var(--accent); }
+
+/* ── presentation zoom (script-free) ────────────────────────────────────
+   The sibling key pages used a JS ×1/×1.8 toggle. This run may not ship a
+   <script>, so the panels are authored at true 312px and magnified with CSS
+   `zoom` instead. `.zoom-true` is the 1:1 proof of the 312px claim. */
+.zoom { zoom: 1.7; }
+.zoom-true { zoom: 1; }

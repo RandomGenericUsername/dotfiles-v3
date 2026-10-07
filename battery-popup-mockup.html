@@ -27,15 +27,29 @@
   .hero-sub { font-size:12px; color:rgba(255,255,255,0.62); margin-top:2px; }
   .divider { height:1px; background:rgba(255,255,255,0.06); }
   .section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:rgba(255,255,255,0.4); padding:8px 5px 4px; }
-  .profile-list { padding:0 0 4px; display:flex; flex-direction:column; gap:2px; }
-  .profile-row { display:flex; align-items:center; gap:9px; padding:5px 9px; min-height:30px; border-radius:7px; cursor:pointer; }
-  .profile-row:hover { background:rgba(255,255,255,0.08); }
-  .profile-row.selected { background:rgba(255,255,255,0.12); }
-  .profile-row.dim { opacity:0.5; }
-  .profile-icon { width:18px; height:18px; flex-shrink:0; }
-  .profile-icon svg { width:100%; height:100%; }
-  .profile-label { display:flex; align-items:baseline; gap:1px; font-size:12.5px; font-weight:600; color:#fff; }
-  .profile-tier { font-size:12.5px; font-weight:700; color:#8ab8ff; }
+
+  /* ── the MODE rail — one cell per declared mode (three, not five) ─────── */
+  .mode-rail { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; padding:0 0 2px; }
+  .mode-cell { width:72px; min-height:54px; flex:0 0 72px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:6px 2px 5px; border:none; border-radius:7px; background:transparent; cursor:pointer; border-bottom:2px solid transparent; }
+  .mode-cell:hover { background:rgba(255,255,255,0.08); }
+  .mode-cell.mode-sel { border-bottom-color:#549ec8; }
+  .mode-cell.dim { opacity:0.5; }
+  .mode-icon { width:24px; height:24px; }
+  .mode-icon svg { width:100%; height:100%; }
+  .mode-label { font-size:9.5px; font-weight:600; letter-spacing:0.05em; text-transform:uppercase; color:rgba(255,255,255,0.62); white-space:nowrap; }
+  .mode-cell.mode-sel .mode-label { color:#fff; }
+
+  /* ── the VARIANT control — only when the selected mode has > 1 variant ── */
+  .variant { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:2px 5px 8px; }
+  .variant-opt { font-size:11px; font-weight:600; line-height:1.2; padding:4px 10px; border:1px solid rgba(255,255,255,0.26); border-radius:7px; background:transparent; color:#e0e0e0; cursor:pointer; }
+  .variant-opt:hover { border-color:#549ec8; }
+  .variant-opt.variant-sel { border-color:#549ec8; background:rgba(84,158,200,0.18); }
+
+  /* the selected profile named ONCE, under the selector */
+  .rail-meta { padding:4px 5px 10px; }
+  .rail-name { font-size:12.5px; font-weight:600; color:#fff; }
+  .rail-tier { font-size:10.5px; color:rgba(255,255,255,0.62); margin-top:1px; }
+
   /* Deep-link footer: whole row is the hit target, hairline top border. */
   .deeplink { display:flex; align-items:center; justify-content:space-between; padding:10px 5px; border-top:1px solid rgba(255,255,255,0.06); cursor:pointer; }
   .deeplink:hover { background:rgba(255,255,255,0.05); }
@@ -61,15 +75,16 @@
   <code>state-1-discharging</code> · <code>state-2-charging</code> ·
   <code>state-3-no-estimate</code> · <code>state-4-daemon-absent</code> ·
   <code>state-5-tier-selected</code> · <code>bar-battery-indicator</code><br>
-  The `++` tiers reuse the BASE glyph and carry `++` as tinted TEXT — the mock
-  draws it that way on purpose, so the parity gate fails if the code ever
-  switches to a distinct icon or a graphical badge.
+  The selector is TWO-LEVEL: a MODE owns a glyph, a VARIANT is a profile on a
+  tier the mode declares. Three glyphs, five selectable things. The parity gate
+  fails if the rail ever goes back to one cell (and one glyph) per profile, or
+  if a `++` tier stops resolving through its declared mode.
 </div>
 
 <!-- STATE 1 -->
 <div class="bottom-bar">
 <div id="state-1-discharging">
-<div class="state-label">State 1 — Discharging with an estimate · <code>state-1-discharging</code></div>
+<div class="state-label">State 1 — Discharging with an estimate · Performance mode, two variants · <code>state-1-discharging</code></div>
 <div class="mock-popup">
   <div class="mock-header">
     <span class="mock-header-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3.4" y="8.4" width="10" height="7.2" rx="1.2" fill="currentColor"/><path d="M21 10.5v3a1.6 1.6 0 0 0 0-3Z" fill="currentColor"/></svg></span>
@@ -82,24 +97,27 @@
   </div>
   <div class="divider"></div>
   <div class="section-label">POWER MODE</div>
-  <div class="profile-list">
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave<span class="profile-tier">++</span></span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave</span></div>
-    <div class="profile-row selected"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16M12 4v16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="profile-label">Balanced</span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="profile-label">Performance</span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="profile-label">Performance<span class="profile-tier">++</span></span></div>
+  <div class="mode-rail">
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="mode-label">Powersave</span></button>
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="mode-label">Balanced</span></button>
+    <button class="mode-cell mode-sel"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="mode-label">Performance</span></button>
   </div>
+  <div class="section-label">VARIANT</div>
+  <div class="variant">
+    <button class="variant-opt">Performance</button>
+    <button class="variant-opt variant-sel">Performance++</button>
+  </div>
+  <div class="rail-meta"><div class="rail-name">Performance++</div><div class="rail-tier">Performance mode · Ultraperformance tier</div></div>
   <div class="deeplink">
     <span class="deeplink-copy"><span class="deeplink-label">Power Options</span><span class="deeplink-note">opens power-options-gtk</span></span>
     <span class="deeplink-arrow">›</span>
   </div>
 </div>
 </div>
-</div>
 
 <!-- STATE 2 -->
 <div id="state-2-charging">
-<div class="state-label">State 2 — Charging (charge target, not a countdown) · <code>state-2-charging</code></div>
+<div class="state-label">State 2 — Charging (charge target, not a countdown) · Powersave mode, two variants · <code>state-2-charging</code></div>
 <div class="mock-popup">
   <div class="mock-header">
     <span class="mock-header-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3.4" y="8.4" width="4" height="7.2" rx="1.2" fill="currentColor"/><path d="M21 10.5v3a1.6 1.6 0 0 0 0-3Z" fill="currentColor"/><path d="M13 6.5 9.5 13h4l-1.5 4.5L16 11h-4l1-4.5Z" fill="currentColor"/></svg></span>
@@ -112,13 +130,17 @@
   </div>
   <div class="divider"></div>
   <div class="section-label">POWER MODE</div>
-  <div class="profile-list">
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave</span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="profile-label">Balanced</span></div>
-    <div class="profile-row selected"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="profile-label">Performance</span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="profile-label">Performance<span class="profile-tier">++</span></span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave<span class="profile-tier">++</span></span></div>
+  <div class="mode-rail">
+    <button class="mode-cell mode-sel"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="mode-label">Powersave</span></button>
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="mode-label">Balanced</span></button>
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="mode-label">Performance</span></button>
   </div>
+  <div class="section-label">VARIANT</div>
+  <div class="variant">
+    <button class="variant-opt">Powersave</button>
+    <button class="variant-opt variant-sel">Powersave++</button>
+  </div>
+  <div class="rail-meta"><div class="rail-name">Powersave++</div><div class="rail-tier">Powersave mode · Superpowersave tier</div></div>
   <div class="deeplink">
     <span class="deeplink-copy"><span class="deeplink-label">Power Options</span><span class="deeplink-note">opens power-options-gtk</span></span>
     <span class="deeplink-arrow">›</span>
@@ -128,7 +150,7 @@
 
 <!-- STATE 3 -->
 <div id="state-3-no-estimate">
-<div class="state-label">State 3 — No usable estimate (degrades to the state word) · <code>state-3-no-estimate</code></div>
+<div class="state-label">State 3 — No usable estimate (degrades to the state word) · Balanced mode, NO variant control · <code>state-3-no-estimate</code></div>
 <div class="mock-popup">
   <div class="mock-header">
     <span class="mock-header-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M21 10.5v3a1.6 1.6 0 0 0 0-3Z" fill="currentColor"/></svg></span>
@@ -141,11 +163,12 @@
   </div>
   <div class="divider"></div>
   <div class="section-label">POWER MODE</div>
-  <div class="profile-list">
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave<span class="profile-tier">++</span></span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="profile-label">Balanced</span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="profile-label">Performance<span class="profile-tier">++</span></span></div>
+  <div class="mode-rail">
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="mode-label">Powersave</span></button>
+    <button class="mode-cell mode-sel"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="mode-label">Balanced</span></button>
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="mode-label">Performance</span></button>
   </div>
+  <div class="rail-meta"><div class="rail-name">Balanced</div><div class="rail-tier">Balanced mode · Balanced tier</div></div>
   <div class="deeplink">
     <span class="deeplink-copy"><span class="deeplink-label">Power Options</span><span class="deeplink-note">opens power-options-gtk</span></span>
     <span class="deeplink-arrow">›</span>
@@ -155,7 +178,7 @@
 
 <!-- STATE 4 -->
 <div id="state-4-daemon-absent">
-<div class="state-label">State 4 — power-options daemon absent (rows insensitive, nothing highlighted) · <code>state-4-daemon-absent</code></div>
+<div class="state-label">State 4 — power-options daemon absent (cells insensitive, nothing highlighted) · <code>state-4-daemon-absent</code></div>
 <div class="mock-popup">
   <div class="mock-header">
     <span class="mock-header-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3.4" y="8.4" width="12" height="7.2" rx="1.2" fill="currentColor"/><path d="M21 10.5v3a1.6 1.6 0 0 0 0-3Z" fill="currentColor"/></svg></span>
@@ -168,11 +191,12 @@
   </div>
   <div class="divider"></div>
   <div class="section-label">POWER MODE</div>
-  <div class="profile-list">
-    <div class="profile-row dim"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave</span></div>
-    <div class="profile-row dim"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="profile-label">Balanced</span></div>
-    <div class="profile-row dim"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="profile-label">Performance</span></div>
+  <div class="mode-rail">
+    <button class="mode-cell dim"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="mode-label">Powersave</span></button>
+    <button class="mode-cell dim"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="mode-label">Balanced</span></button>
+    <button class="mode-cell dim"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="mode-label">Performance</span></button>
   </div>
+  <div class="rail-meta"><div class="rail-name">—</div></div>
   <div class="deeplink">
     <span class="deeplink-copy"><span class="deeplink-label">Power Options</span><span class="deeplink-note">opens power-options-gtk</span></span>
     <span class="deeplink-arrow">›</span>
@@ -182,7 +206,7 @@
 
 <!-- STATE 5 -->
 <div id="state-5-tier-selected">
-<div class="state-label">State 5 — a `++` tier is the ACTIVE profile (base glyph + tinted `++`) · <code>state-5-tier-selected</code></div>
+<div class="state-label">State 5 — a `++` tier is the ACTIVE profile (shared mode glyph + tier line) · <code>state-5-tier-selected</code></div>
 <div class="mock-popup">
   <div class="mock-header">
     <span class="mock-header-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="17" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3.4" y="8.4" width="7" height="7.2" rx="1.2" fill="currentColor"/><path d="M21 10.5v3a1.6 1.6 0 0 0 0-3Z" fill="currentColor"/></svg></span>
@@ -195,11 +219,17 @@
   </div>
   <div class="divider"></div>
   <div class="section-label">POWER MODE</div>
-  <div class="profile-list">
-    <div class="profile-row selected"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave<span class="profile-tier">++</span></span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="profile-label">Powersave</span></div>
-    <div class="profile-row"><span class="profile-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="profile-label">Performance<span class="profile-tier">++</span></span></div>
+  <div class="mode-rail">
+    <button class="mode-cell mode-sel"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-7 5.5-7 11a7 7 0 0 0 14 0c0-5.5-6-7-7-11Z" fill="currentColor"/></svg></span><span class="mode-label">Powersave</span></button>
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M4 13h16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span><span class="mode-label">Balanced</span></button>
+    <button class="mode-cell"><span class="mode-icon"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" fill="currentColor"/></svg></span><span class="mode-label">Performance</span></button>
   </div>
+  <div class="section-label">VARIANT</div>
+  <div class="variant">
+    <button class="variant-opt">Powersave</button>
+    <button class="variant-opt variant-sel">Powersave++</button>
+  </div>
+  <div class="rail-meta"><div class="rail-name">Powersave++</div><div class="rail-tier">Powersave mode · Superpowersave tier</div></div>
   <div class="deeplink">
     <span class="deeplink-copy"><span class="deeplink-label">Power Options</span><span class="deeplink-note">opens power-options-gtk</span></span>
     <span class="deeplink-arrow">›</span>

@@ -28,8 +28,8 @@ import { activeProfile } from "../../services/power-service"
  * GtkPopover, which the compositor places by its own idea of where "below the
  * widget" is — it does not honour the panel's anchoring, does not follow the
  * icon, and is not dismissable by the same click-outside/Escape paths as every
- * other overlay in this bar. The five profiles are now in the panel, where
- * `isActiveProfile` decides which row is selected.
+ * other overlay in this bar. The profiles are now in the panel, where the
+ * daemon's `active_profile` index decides which mode and variant are selected.
  */
 
 const device = Battery.get_default()

@@ -11,7 +11,7 @@ each anchored mock state in ``battery-popup-mockup.html`` must either
      renamed/restructured equivalent (the systematic ``settings-*`` /
      ``battery-*`` conventions), or
   3. be a mock state that the shipped code expresses as a PSEUDO-CLASS
-     (PSEUDO_STATES: ``dim`` is ``.battery-profile:disabled``), or
+     (PSEUDO_STATES: ``dim`` is ``.battery-mode-cell:disabled``), or
   4. be a mock promise the shipped code keeps as a CALL or a table entry
      (PROMISES: the literal must exist in the named file), or
   5. be a tracked real gap (KNOWN_GAPS: mock concept with no shipped
@@ -25,8 +25,9 @@ WHY A PANEL-ONLY GATE when ``scripts/wifi-mock-parity.py`` already exists.
 The Wi-Fi gate proves the Wi-Fi mock against the Wi-Fi code. It cannot prove
 anything about the battery panel: the two share ``style.css`` and the
 ``settings-*`` vocabulary, but the panel's own claims (the hero number, the
-``++`` tier rendering, the deep-link footer, the bar icon's anchoring) live in
-files the Wi-Fi gate does not map. A gate that only ever checks the mock it
+two-level mode/variant selector, the deep-link footer, the bar icon's
+anchoring) live in files the Wi-Fi gate does not map. A gate that only ever
+checks the mock it
 was written next to is how a second mock arrives unguarded.
 
 Modeled line-for-line on ``scripts/wifi-mock-parity.py`` -- same ANCHORS /
@@ -94,7 +95,7 @@ STATE_TSX = {
         "services/power-service.ts",  # powerReady / activeProfile=null
     ],
     "state-5-tier-selected": [
-        "components/battery/BatteryContent.tsx",  # ProfileLabel's `++` split
+        "components/battery/BatteryContent.tsx",  # the shared mode glyph + meta line
     ],
     "bar-battery-indicator": [
         "bar/widgets/battery.tsx",  # the bar icon + its anchoring controller
@@ -136,16 +137,21 @@ CLASS_MAP = {
     "hero-sub": ("battery-hero-sub", "shipped verbatim"),
     "divider": ("settings-divider", "renamed per the settings-* convention"),
     "section-label": ("settings-section-label", "renamed per the settings-* convention"),
-    "profile-list": ("battery-profile-list", "shipped verbatim"),
-    # The row is BOTH: `settings-net` supplies the row chrome and the `.sel`
-    # selected treatment, `battery-profile` supplies this panel's tighter
-    # metrics and the `:disabled` dimming. Naming only one of them would let
-    # the panel drop the other unnoticed.
-    "profile-row": ("settings-net.battery-profile", "row chrome + this panel's metrics"),
-    "profile-icon": ("battery-profile-icon", "shipped verbatim"),
-    "profile-label": ("battery-profile-label", "base name cell; the `++` suffix is a second label"),
-    "profile-tier": ("battery-profile-tier", "the `++` suffix as a styled label, not a badge"),
-    "selected": ("settings-net.sel", "the modifier `isActiveProfile` feeds"),
+    # The MODE rail: one cell per declared MODE (not per profile). The glyph
+    # lives on the mode, so the two ++ tiers share one cell.
+    "mode-rail": ("battery-mode-rail", "shipped verbatim"),
+    "mode-cell": ("battery-mode-cell", "shipped verbatim"),
+    "mode-icon": ("battery-profile-icon", "the mode glyph; the rail sizes it 24px"),
+    "mode-label": ("battery-mode-label", "shipped verbatim"),
+    "mode-sel": ("battery-mode-cell.sel", "the selected mode's @color_10 indicator"),
+    # The VARIANT control, rendered only when the selected mode has >1 variant.
+    "variant": ("battery-variant", "shipped verbatim"),
+    "variant-opt": ("battery-variant-opt", "the `.settings-rowact` pill geometry + `.sel`"),
+    "variant-sel": ("battery-variant-opt.sel", "the selected variant's @color_10 token"),
+    # The selected profile named ONCE, under the selector.
+    "rail-meta": ("battery-rail-meta", "the meta container's padding"),
+    "rail-name": ("settings-net-name", "reuses the settings name slot"),
+    "rail-tier": ("settings-net-sub", "reuses the settings sub slot"),
     "deeplink": ("battery-deeplink", "shipped verbatim"),
     "deeplink-label": ("settings-wifi-settings-label", "reuses the settings deep-link label slot"),
     "deeplink-note": ("settings-wifi-settings-note", "reuses the settings deep-link note slot"),
@@ -159,44 +165,51 @@ CLASS_MAP = {
 # Format: mock token -> (required selector text in style.css, note).
 PSEUDO_STATES = {
     "dim": (
-        ".battery-profile:disabled",
+        ".battery-mode-cell:disabled",
         "mock opacity modifier; shipped as the insensitive-button pseudo-class "
         "gated by `sensitive={powerReady}`",
     ),
 }
 
-# Mock promises the shipped code keeps as a CALL, a table entry or a regex
+# Mock promises the shipped code keeps as a CALL, a table entry or a literal
 # rather than as a CSS class. Gated the same way as everything else (the
 # literal must exist in the named file), so the mock's promise can never
 # quietly drop out of the implementation.
 # Format: mock token -> LIST of (AGS-relative file, literal, note). A list, not
-# a single tuple, because one mock token can carry more than one promise --
-# `profile-tier` is BOTH "the glyph is the base profile's" (a regex in
-# presentation.ts) and "the suffix is its own label" (a class literal in the
-# widget). A dict of tuples would silently keep only the last of them.
+# a single tuple, because one mock token can carry more than one promise.
 PROMISES = {
-    "profile-tier": [
+    "mode-rail": [
         (
             "components/battery/presentation.ts",
-            'return id.replace(/\\+\\+$/, "").toLowerCase()',
-            "the `++` rows reuse the BASE profile's glyph, so the tier is "
-            "carried by text alone; a distinct icon or a graphical badge would "
-            "break this",
-        ),
-        (
-            "components/battery/BatteryContent.tsx",
-            'class="battery-profile-tier"',
-            "the tier suffix is its own label so style.css can tint it "
-            "@color_13, instead of a Pango string that would hard-code the "
-            "colour",
+            "POWER_MODES",
+            "the rail renders a DECLARED mode list (each mode owns a glyph and "
+            "its tiers), not a hardcoded per-profile array; a flat list would "
+            "ask for five glyphs from three icons",
         ),
     ],
-    "selected": [
+    "mode-cell": [
         (
             "components/battery/BatteryContent.tsx",
-            "isActiveProfile(activeProfile() ??",
-            "which row is lit is the pure predicate's decision, not the "
-            "widget's",
+            "modeIconPath",
+            "the glyph is looked up from the MODE, so every tier a mode "
+            "declares shares it; keying it off the profile name or the raw "
+            "tier would split the shared art",
+        ),
+    ],
+    "variant": [
+        (
+            "components/battery/BatteryContent.tsx",
+            "showVariantControl",
+            "the variant control renders only when the selected mode declares "
+            "more than one variant; a one-option picker is decoration",
+        ),
+    ],
+    "rail-tier": [
+        (
+            "components/battery/presentation.ts",
+            "unmapped tier",
+            "an undeclared tier is labelled `unmapped tier` and gathered under "
+            "a neutral Unlisted pseudo-mode, never silently mapped or dropped",
         ),
     ],
     "hero-primary": [

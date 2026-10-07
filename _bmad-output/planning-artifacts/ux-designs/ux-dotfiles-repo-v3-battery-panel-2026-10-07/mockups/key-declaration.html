@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>③ The declaration — Battery panel — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+<style>
+  /* MOCK-ONLY chrome for this page. Every connector below is a CSS border, not
+     an icon: the only artwork on this page is the real mode glyphs in assets/. */
+  .decl-board { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .decl-card {
+    display: flex; flex-direction: column; align-items: center;
+    background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 18px 16px 16px; min-width: 200px;
+  }
+  .decl-card.wide { min-width: 340px; }
+  .decl-glyph { width: 72px; height: 72px; display: block; }
+  .decl-mode { font-size: 13.5px; font-weight: 650; margin-top: 10px; color: var(--ink-primary); }
+  .decl-note { font-size: 10px; color: rgba(194,194,197,.5); margin-top: 2px;
+               letter-spacing: .04em; text-transform: uppercase; }
+  .decl-stem { width: 2px; height: 14px; background: var(--hairline); }
+  .decl-fork { position: relative; display: flex; }
+  .decl-fork::before {
+    content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 160px; height: 2px; background: var(--hairline);
+  }
+  .decl-fork.mono::before { display: none; }
+  .decl-arm { width: 160px; display: flex; justify-content: center; }
+  .decl-fork .decl-arm { align-items: flex-start; }
+  .decl-tick { width: 2px; height: 14px; background: var(--hairline); }
+  .decl-tiers { display: flex; }
+  .decl-tier {
+    font-size: 10.5px; color: var(--ink-primary); background: rgba(194,194,197,.08);
+    border: 1px solid var(--hairline); border-radius: 20px; padding: 2px 11px; white-space: nowrap;
+  }
+  .decl-tier.sel { border-color: var(--selected); background: rgba(84,158,200,.18); }
+  .shared {
+    margin-top: 12px; font-size: 10px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* resolution pipeline */
+  .pipe { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .pipe-box {
+    border: 1px solid var(--hairline); border-radius: 9px; background: rgba(255,255,255,.03);
+    padding: 8px 12px; font-size: 11.5px; color: var(--ink-primary);
+    display: flex; align-items: center; gap: 9px;
+  }
+  .pipe-box code { font-size: 11px; }
+  .pipe-box img { width: 24px; height: 24px; display: block; }
+  .pipe-box.fallback { border-color: rgba(219,171,103,.45); }
+  .pipe-arrow {
+    width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent;
+    border-left: 9px solid var(--selected); flex: 0 0 auto;
+  }
+
+  /* rejected inference */
+  .reject {
+    border: 1px solid rgba(224,138,214,.38); background: rgba(224,138,214,.05);
+    border-radius: 10px; padding: 13px 16px 15px; margin-top: 12px;
+  }
+  .reject h4 { font-size: 12px; font-weight: 650; color: #e08ad6; text-transform: none;
+               letter-spacing: 0; margin-bottom: 8px; }
+  .reject .row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 11.5px; }
+  .reject .chip { border: 1px solid rgba(255,255,255,.16); border-radius: 20px;
+                  padding: 1px 9px; font-size: 10.5px; color: rgba(194,194,197,.8); }
+  .reject .chip.bad { border-color: rgba(224,138,214,.6); color: #e08ad6; }
+  .reject .x { color: #e08ad6; font-weight: 700; }
+  .glyph-slots { display: flex; gap: 8px; margin-top: 9px; }
+  .slot { width: 42px; height: 42px; border-radius: 8px; border: 1px dashed rgba(194,194,197,.3);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 10px; color: rgba(194,194,197,.55); }
+  .slot.need { border-color: rgba(224,138,214,.6); color: #e08ad6; }
+
+  /* the literal declaration */
+  .decl-code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.7;
+    color: rgba(194,194,197,.85); background: rgba(0,0,0,.28);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 9px;
+    padding: 13px 16px; white-space: pre; overflow-x: auto; max-width: 760px;
+  }
+  .decl-code .m { color: #7fc4ff; } .decl-code .t { color: #b7d99a; } .decl-code .g { color: #e0b57f; }
+  .decl-code .c { color: rgba(194,194,197,.4); }
+</style>
+</head>
+<body>
+<!--
+  MOCK: key-declaration — the declaration itself, rendered as the panel consumes it.
+
+  Governed by DESIGN.md:
+    §The two-level model (MODE owns a glyph; VARIANT is a profile on a declared tier)
+    §Why the relation must be DECLARED, not inferred (the three reasons below)
+    §Icon plan (three mode glyphs; one shared per mode; the labelled fallback)
+  EXPERIENCE.md:
+    §The declaration & its resolution rules (tier → mode; unknown tier → fallback;
+    variant control only when a mode declares more than one variant)
+    §Voice and Tone (real tier strings)
+
+  ICON TRACE — the only artwork on this page is:
+    assets/power-mode-powersave.svg         leaf   (mode Powersave)
+    assets/power-mode-balanced.svg          scales (mode Balanced)
+    assets/power-mode-performance.svg       engine (mode Performance)
+    assets/power-mode-unknown.svg           the labelled fallback (hand-drawn)
+  The connector lines and the glyph “slots” are CSS boxes, not glyphs. Every
+  icon is a real file on disk. No five-glyph rail appears anywhere.
+
+  This page is the answer to “how do we relate these things”, drawn: three
+  modes, one glyph each, and their tier lists — with two tiers visibly pointing
+  at ONE glyph, which is why the artwork is shared.
+-->
+
+<h1>③ The declaration</h1>
+<div class="sub">
+  The rejected model was a flat rail with <b>one glyph per profile</b> — five cells, five glyphs.
+  The owner's model is two-level: a <b>mode</b> owns a glyph, and a <b>variant</b> is a selectable
+  profile sitting on a tier the mode declares. <b>Three glyphs, five selectable things.</b> The
+  grouping cannot be inferred from a profile's text or tier; it is <b>declared</b>. This page draws
+  that declaration and its consequences.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>decl-modes</code> · <code>decl-shared-glyph</code> · <code>decl-resolution</code> ·
+  <code>decl-fallback</code> · <code>decl-not-inferred</code>
+  <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:10px 0">
+  <b>The stable key is the tier.</b> The declaration groups tiers; a profile resolves to a mode
+  through its <code>base_profile</code>. Renaming a profile never touches the art, because the art
+  hangs off the mode the tier selected, not off the name.
+</div>
+
+<!-- ═══ decl-modes — the declaration drawn ══════════════════════════════ -->
+<div id="decl-modes" class="state-label">The declaration, drawn — each mode, its glyph, its tiers · <code>decl-modes</code></div>
+
+<div class="decl-board">
+  <div class="decl-card">
+    <img class="decl-glyph" src="assets/power-mode-powersave.svg" alt="Powersave mode glyph — assets/power-mode-powersave.svg" />
+    <div class="decl-mode">Powersave</div>
+    <div class="decl-note">glyph: leaf</div>
+    <div class="decl-stem"></div>
+    <div class="decl-fork">
+      <div class="decl-arm"><span class="decl-tick"></span></div>
+      <div class="decl-arm"><span class="decl-tick"></span></div>
+    </div>
+    <div class="decl-tiers">
+      <div class="decl-arm"><span class="decl-tier">Powersave</span></div>
+      <div class="decl-arm"><span class="decl-tier">Superpowersave</span></div>
+    </div>
+    <div class="shared">2 tiers → 1 leaf</div>
+  </div>
+
+  <div class="decl-card">
+    <img class="decl-glyph" src="assets/power-mode-balanced.svg" alt="Balanced mode glyph — assets/power-mode-balanced.svg" />
+    <div class="decl-mode">Balanced</div>
+    <div class="decl-note">glyph: scales</div>
+    <div class="decl-stem"></div>
+    <div class="decl-fork mono">
+      <div class="decl-arm"><span class="decl-tick"></span></div>
+    </div>
+    <div class="decl-tiers">
+      <div class="decl-arm"><span class="decl-tier">Balanced</span></div>
+    </div>
+    <div class="shared" style="color:rgba(194,194,197,.5)">1 tier → 1 scales</div>
+  </div>
+
+  <div class="decl-card">
+    <img class="decl-glyph" src="assets/power-mode-performance.svg" alt="Performance mode glyph — assets/power-mode-performance.svg" />
+    <div class="decl-mode">Performance</div>
+    <div class="decl-note">glyph: engine</div>
+    <div class="decl-stem"></div>
+    <div class="decl-fork">
+      <div class="decl-arm"><span class="decl-tick"></span></div>
+      <div class="decl-arm"><span class="decl-tick"></span></div>
+    </div>
+    <div class="decl-tiers">
+      <div class="decl-arm"><span class="decl-tier">Performance</span></div>
+      <div class="decl-arm"><span class="decl-tier">Ultraperformance</span></div>
+    </div>
+    <div class="shared">2 tiers → 1 engine</div>
+  </div>
+
+  <div class="decl-card" style="border-color:rgba(219,171,103,.45)">
+    <img class="decl-glyph" src="assets/power-mode-unknown.svg" alt="fallback glyph — assets/power-mode-unknown.svg" />
+    <div class="decl-mode">unlisted</div>
+    <div class="decl-note">glyph: fallback</div>
+    <div class="decl-stem"></div>
+    <div class="decl-fork mono">
+      <div class="decl-arm"><span class="decl-tick"></span></div>
+    </div>
+    <div class="decl-tiers">
+      <div class="decl-arm"><span class="decl-tier" style="border-style:dashed">any undeclared tier</span></div>
+    </div>
+    <div class="shared" style="color:var(--accent)">no tier declared → neutral</div>
+  </div>
+</div>
+
+<p class="note" id="decl-shared-glyph" style="margin-top:16px">
+  <b id="decl-shared-glyph-anchor">Two tiers point at one glyph.</b> <code>Powersave</code> and
+  <code>Superpowersave</code> both hang off the leaf; <code>Performance</code> and
+  <code>Ultraperformance</code> both hang off the engine. That is the whole reason the run no longer
+  draws five glyphs: the artwork lives on the <b>mode</b>, so any tier the mode declares <i>shares</i>
+  it automatically. <code>Balanced</code> declares one tier, so it has nothing to share — and, on the
+  panel, nothing to choose.
+</p>
+
+<!-- ═══ decl-resolution ═════════════════════════════════════════════════ -->
+<div id="decl-resolution" class="state-label">How a profile resolves — the panel's only lookup · <code>decl-resolution</code></div>
+
+<table class="tokens" style="margin-top:4px">
+  <tr><th>live <code>profile_name</code></th><th><code>base_profile</code> (tier)</th><th>mode glyph</th><th>variant control</th></tr>
+  <tr>
+    <td><code>Powersave++</code></td><td><code>Superpowersave</code></td>
+    <td><img src="assets/power-mode-powersave.svg" alt="leaf — assets/power-mode-powersave.svg" style="width:18px;height:18px;vertical-align:middle"> leaf</td>
+    <td>Powersave mode: <code>Powersave</code> · <code>Powersave++</code></td>
+  </tr>
+  <tr>
+    <td><code>Powersave</code></td><td><code>Powersave</code></td>
+    <td><img src="assets/power-mode-powersave.svg" alt="leaf — assets/power-mode-powersave.svg" style="width:18px;height:18px;vertical-align:middle"> leaf</td>
+    <td>same mode (sibling variant)</td>
+  </tr>
+  <tr>
+    <td><code>Balanced</code></td><td><code>Balanced</code></td>
+    <td><img src="assets/power-mode-balanced.svg" alt="scales — assets/power-mode-balanced.svg" style="width:18px;height:18px;vertical-align:middle"> scales</td>
+    <td><b>none</b> — mono-variant</td>
+  </tr>
+  <tr>
+    <td><code>Performance</code></td><td><code>Performance</code></td>
+    <td><img src="assets/power-mode-performance.svg" alt="engine — assets/power-mode-performance.svg" style="width:18px;height:18px;vertical-align:middle"> engine</td>
+    <td>Performance mode: <code>Performance</code> · <code>Performance++</code></td>
+  </tr>
+  <tr>
+    <td><code>Performance++</code> <b>(active)</b></td><td><code>Ultraperformance</code></td>
+    <td><img src="assets/power-mode-performance-active.svg" alt="engine (active) — assets/power-mode-performance-active.svg" style="width:18px;height:18px;vertical-align:middle"> engine <b>(active)</b></td>
+    <td>selected variant: <code>Performance++</code></td>
+  </tr>
+</table>
+
+<div class="pipe">
+  <span class="pipe-box"><code>base_profile</code> = <code>Ultraperformance</code></span>
+  <span class="pipe-arrow"></span>
+  <span class="pipe-box">declaration lookup: which mode lists this tier?</span>
+  <span class="pipe-arrow"></span>
+  <span class="pipe-box"><img src="assets/power-mode-performance.svg" alt="engine — assets/power-mode-performance.svg" /> mode <b>Performance</b> · glyph engine</span>
+</div>
+<div class="pipe">
+  <span class="pipe-box"><code>base_profile</code> = <code>Warp</code> (not listed)</span>
+  <span class="pipe-arrow"></span>
+  <span class="pipe-box">declaration lookup: no mode lists it</span>
+  <span class="pipe-arrow"></span>
+  <span class="pipe-box fallback" id="decl-fallback"><img src="assets/power-mode-unknown.svg" alt="fallback — assets/power-mode-unknown.svg" /> <b>unlisted</b> · neutral glyph · <code>unmapped tier</code></span>
+</div>
+
+<!-- ═══ decl-not-inferred ═══════════════════════════════════════════════ -->
+<div id="decl-not-inferred" class="state-label">Why the relation is declared, not inferred · <code>decl-not-inferred</code></div>
+
+<p class="note" style="margin-top:0">
+  Three facts force the grouping to be an explicit declaration rather than a rule over a string or a
+  single stable field. Each one is drawn below.
+</p>
+
+<div class="reject">
+  <h4><span class="x">✕</span> Infer from <code>profile_name</code> (strip the <code>++</code>)</h4>
+  <div class="row">
+    <span class="chip">Performance++</span>
+    <span class="chip">strip “++”</span>
+    <span class="x">→</span>
+    <span class="chip bad">performance</span>
+    <span class="x">→</span>
+    <span class="chip">would pick the <b>Performance</b> glyph (wrong)</span>
+    <span class="x">✕</span>
+    <span class="chip bad">real tier is Ultraperformance</span>
+  </div>
+  <p class="note" style="margin-top:8px">
+    <code>UpdateProfileName</code> makes <code>profile_name</code> arbitrary; the moment the profile
+    is renamed (e.g. <code>Performance++</code> → <code>Showtime</code>) a suffix rule has nothing to
+    strip and the resolution breaks. The name is the user's, and it is editable.
+  </p>
+</div>
+
+<div class="reject">
+  <h4><span class="x">✕</span> Infer from the <code>base_profile</code> tier alone (one glyph per tier)</h4>
+  <div class="row" style="margin-bottom:9px">
+    <span class="chip">Superpowersave</span><span class="chip">Powersave</span><span class="chip">Balanced</span><span class="chip">Performance</span><span class="chip">Ultraperformance</span>
+    <span class="x">→ needs 5 glyphs</span>
+  </div>
+  <div class="glyph-slots">
+    <div class="slot need">#1</div><div class="slot need">#2</div><div class="slot need">#3</div>
+    <div class="slot need">#4</div><div class="slot need">#5</div>
+    <div class="chip" style="margin-left:10px;align-self:center">owner supplied <b>&nbsp;3&nbsp;</b></div>
+  </div>
+  <p class="note" style="margin-top:8px">
+    <code>base_profile</code> IS the stable key — users cannot rename it — but it yields <b>five
+    distinct tiers</b>, not three: live values are <code>Powersave++</code> → <code>Superpowersave</code>
+    and <code>Performance++</code> → <code>Ultraperformance</code>, and the daemon treats them as
+    genuinely different tiers. A tier-only rule therefore asks for five glyphs, which is the wrong
+    answer. The grouping is an explicit declaration that says which tiers are variants of one mode.
+  </p>
+</div>
+
+<div class="reject" style="border-color:rgba(84,158,200,.45);background:rgba(84,158,200,.05)">
+  <h4 style="color:#bcdcf0">✓ Declared — the model this run renders</h4>
+  <div class="row">
+    <span class="chip">stable key = the tier</span>
+    <span class="chip">declaration = tier → mode</span>
+    <span class="chip">glyph hangs on the mode</span>
+    <span class="chip">undeclared tier → fallback</span>
+  </div>
+  <p class="note" style="margin-top:8px">
+    The key that resolution uses is the tier (rename-proof); the thing that says which tiers share a
+    glyph is the declaration. An unlisted tier falls to the labelled neutral glyph rather than
+    disappearing, and the rail grows a mode cell only when the artwork genuinely differs.
+  </p>
+</div>
+
+<!-- ═══ the literal declaration ═════════════════════════════════════════ -->
+<h3>The declaration, literally</h3>
+<div class="decl-code"><span class="c"># the deliverable's core — modes, glyph, and the tiers each owns</span>
+<span class="m">mode</span> <span class="g">"Powersave"</span>      <span class="m">glyph:</span> <span class="t">leaf</span>     <span class="m">tiers:</span> [<span class="t">Powersave</span>, <span class="t">Superpowersave</span>]
+<span class="m">mode</span> <span class="g">"Balanced"</span>       <span class="m">glyph:</span> <span class="t">scales</span>   <span class="m">tiers:</span> [<span class="t">Balanced</span>]
+<span class="m">mode</span> <span class="g">"Performance"</span>    <span class="m">glyph:</span> <span class="t">engine</span>   <span class="m">tiers:</span> [<span class="t">Performance</span>, <span class="t">Ultraperformance</span>]
+
+<span class="c"># resolution:  profile.base_profile  →  the mode that lists it  →  that mode's glyph
+#              unlisted base_profile  →  the neutral fallback    →  "unmapped tier"
+# variant control renders  ⇔  the selected mode declares > 1 variant</span></div>
+
+<p class="note" style="margin-top:16px">
+  <a href="key-mode-rail.html">key-mode-rail.html</a> renders this declaration as the selector.
+  <a href="key-dynamic.html">key-dynamic.html</a> proves it survives renames, new profiles, undeclared
+  tiers and a mode that grows to three variants.
+</p>
+
+</body>
+</html>

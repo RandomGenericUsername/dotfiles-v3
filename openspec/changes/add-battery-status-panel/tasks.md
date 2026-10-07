@@ -5,8 +5,9 @@ a second agent and then **reviewed** by a third, which is where B9 and the
 corrections recorded against B1/B4 come from.
 
 Design decisions the tasks depend on: `design.md` §2.2 (why `power-mode` is not a
-bar group), §2.3 (why there are no `system-*` copies), §4.1 (why the profile list
-is explicit), §4.4 (the >24h bound).
+bar group), §2.3 (why there are no `system-*` copies), §4.1 (why the tier→mode
+grouping is declared), §5.1 (the `GetProfilesInfo` contract), §4.4 (the >24h
+bound).
 
 ---
 
@@ -41,8 +42,9 @@ is explicit), §4.4 (the >24h bound).
 - [x] **`power-mode` NOT added to `BAR_GROUPS`**
       (`src/runtime/src/runtime/domain/icon_contrast.py:22-38`). Verified
       unchanged.
-- [x] Three variants only — `powersave`, `balanced`, `performance` — matching
-      `profileIconVariant`'s output for all five profiles (`design.md` §2.4).
+- [x] Three variants only — `powersave`, `balanced`, `performance` — one per
+      declared MODE, which is what `glyphForTier` returns for all five tiers
+      (`design.md` §2.4).
 
 ### A3. Regenerate the AGS manifest — DONE
 
@@ -86,28 +88,35 @@ is explicit), §4.4 (the >24h bound).
 - [x] `dotfiles/config/ags/components/battery/presentation.ts` — zero
       `gi://` / `Gio` / `Gdk` / `ags` imports, zero I/O, no module-level mutable
       state.
-- [x] Exactly the specified exports (`design.md` §4). `PowerProfileId` is derived
-      from `POWER_PROFILE_ORDER` so the list and the union cannot drift.
+- [x] Exactly the specified exports (`design.md` §4): the tier→mode model
+      (`POWER_MODES`, `modeForTier`, `resolveMode`, `glyphForTier`,
+      `railModes`, `profilesForMode`, `hasVariantChoice`,
+      `variantToSelect`, `railMeta`) plus the time and percentage helpers.
+      The declaration is the single place that says which tiers share a glyph.
 - [x] `formatBatteryTime`: charging → `full in`, discharging → `remaining`;
       `seconds <= 0` → `Charging` / `Discharging` with no number;
       `> 24h` → the same fallback (`design.md` §4.4).
 - [x] `formatDuration` returns `null` for `0`, negatives, and non-finite
       (`design.md` §4.2).
-- [x] `profileIconVariant` returns the **base** variant for both `++` tiers
-      (`design.md` §2.4).
-- [x] `isActiveProfile`: exact match, case-insensitive match, and **no match at
-      all** for an unknown or blank `current` — never a first-row fallback.
+- [x] Resolution keys off the **stable tier**: `Superpowersave` → Powersave
+      (leaf), `Ultraperformance` → Performance (engine). A rename does not move
+      the art, because the name is not the key.
+- [x] An undeclared tier falls back to the neutral `Unlisted` pseudo-mode and is
+      labelled `unmapped tier`; it is never dropped or blanked.
+- [x] `variantToSelect` resolves a mode click to the daemon's offered variant,
+      preferring the current one; selection is by daemon index.
 - [x] Extras for the panel: `MAX_RENDERED_SECONDS`, `clampPercentage`,
       `formatPercentage` (`design.md` §5).
 
 ### A7. Unit tests — DONE
 
 - [x] `dotfiles/config/ags/tests/ts/battery-presentation.test.ts`: every
-      `formatBatteryTime` branch, `formatDuration` including the `null` case, both
-      `++` tiers reusing the base variant, `isActiveProfile` across exact match /
-      case difference / unknown current, plus the frozen-and-ordered list, the
-      24h boundary, and the two percentage helpers.
-- [x] 28 tests, **0 fail, 0 skipped**.
+      `formatBatteryTime` branch, `formatDuration` including the `null` case, the
+      literal declaration, tier→mode resolution for every live tier, the
+      unknown-tier fallback and its label, the variant-selection rules, and a
+      rename still resolving through its unchanged tier, plus the 24h boundary
+      and the two percentage helpers.
+- [x] 51 tests, **0 fail, 0 skipped**.
 
 ### A8. Wire the gate in — DONE
 
@@ -128,7 +137,7 @@ is explicit), §4.4 (the >24h bound).
 
 ### A9. Verify nothing regressed — DONE
 
-- [x] `make ags-test` — 28 pass / 0 fail / 0 skipped, 0 type errors.
+- [x] `make ags-test` — 51 pass / 0 fail / 0 skipped, 0 type errors.
 - [x] `make capture-test` — **144 pass / 0 fail / 0 skipped**, unaffected.
 - [x] `make capture-typecheck` — 0 errors.
 - [x] `python3 scripts/capture-hexagonal-gate.py` — PASS, check 6 at
@@ -177,14 +186,19 @@ is explicit), §4.4 (the >24h bound).
 
 ### B3. CSS
 
-- [x] `style.css` rules for the panel; rows reuse `.settings-net` (+ `.sel`),
-      which is what `isActiveProfile` feeds. `.widget-icon` sizing convention
-      reused for the bar glyph.
+- [x] `style.css` rules for the panel: the two-level selector vocabulary
+      (`.battery-mode-rail` / `.battery-mode-cell` / `.battery-mode-label`,
+      `.battery-variant` / `.battery-variant-opt`, `.battery-rail-meta`)
+      replaces the retired flat `.battery-profile-list` / `.battery-profile` /
+      `.battery-profile-tier` rules. `.widget-icon` sizing convention reused for
+      the bar glyph; `.battery-profile-icon` keeps the mode glyph at 24px.
 - [x] `.power-profile-item` and `.power-profile-item.active` **deleted**, with a
       comment recording why they are gone rather than relocated. Nothing
       references them (`grep` proves it).
-- [x] `++` tiers render **typographically**: a second `.battery-profile-tier`
-      label tinted `@color_13`, not a badge and not a distinct glyph.
+- [x] The `++` tiers are **variants of one mode**, not extra modes: the two
+      Powersave tiers share the leaf, the two Performance tiers share the
+      engine, and the tier is named once on the meta line. No badge, no
+      per-tier glyph, no per-tier colour.
 
 ### B4. Registration / wiring
 
@@ -216,11 +230,13 @@ is explicit), §4.4 (the >24h bound).
 
 ### B7. Mock parity
 
-- [x] `battery-popup-mockup.html` (six anchored states) +
+- [x] `battery-popup-mockup.html` (six anchored states, drawing the two-level
+      selector: multi-variant Performance/Powersave, the mono-variant Balanced
+      with no control, daemon-absent, and a `++` variant selected) +
       `scripts/battery-mock-parity.py` (`design.md` §7). Wired into `make gates`
       / `gates-ci` as `battery-mock-parity` and into
       `.github/workflows/gates.yml` as its own job. `KNOWN_GAPS` is empty, and the
-      harness has been seen to FAIL on three separate perturbations.
+      harness has been seen to FAIL on perturbations.
 
 ### B8. The `icons.json` drift (found while regenerating)
 
@@ -237,8 +253,8 @@ is explicit), §4.4 (the >24h bound).
 ### B9. Verify nothing regressed (reviewing agent)
 
 - [x] `make gates-ci` — all green, including the two new gates.
-- [x] `make ags-test` — **37 pass / 0 fail / 0 skipped**, 0 type errors (was 33;
-      the added assertions cover `formatBatteryStatusLine`).
+- [x] `make ags-test` — 51 pass / 0 fail / 0 skipped, 0 type errors (was 37;
+      the model tests replace the flat-list ones).
 - [x] `make capture-test` — 144 pass / 0 fail / 0 skipped, unaffected.
 - [x] `make capture-typecheck` — 0 errors (28 third-party tolerated).
 - [x] `python3 scripts/capture-hexagonal-gate.py` — PASS, check 6 at
@@ -266,5 +282,6 @@ is explicit), §4.4 (the >24h bound).
       for the group to be exempt from (`design.md` §2.3).
 - [ ] Clamping an implausible duration to 24h and displaying the result
       (`design.md` §4.4).
-- [ ] Deriving `POWER_PROFILE_ORDER` at runtime (`design.md` §4.1).
+- [ ] Inferring the tier→mode grouping from a `++` name suffix or from
+      `base_profile` alone (`design.md` §4.1).
 - [ ] Weakening, disabling or skipping any gate to reach green.

@@ -1,14 +1,10 @@
 import Gio from "gi://Gio"
 import GLib from "gi://GLib"
-import { createState } from "ags"
-// TYPE-ONLY import, deliberately. It was a value import, and the only value it
-// pulled was `POWER_PROFILE_ORDER`, for an exported `isProfileAvailable()`
-// predicate that nothing called — the panel renders all five rows from the
-// order itself and gates their sensitivity on `powerReady`. That dead predicate
-// was the sole reason this service imported `components/**` at runtime: a
-// service reaching up into the view layer for a list the view already owns is
-// an inverted dependency, and one more consumer of it would have cemented it.
-import type { PowerProfileId } from "../components/battery/presentation"
+import { createComputed, createState } from "ags"
+// TYPE-ONLY import, deliberately. The service owns the D-Bus proxy and the
+// state; the profile SHAPE is a pure presentation type, so this file names it
+// without pulling the view layer into the service at runtime.
+import type { PowerProfile } from "../components/battery/presentation"
 
 /**
  * power-options (portable defacto) service.
@@ -27,16 +23,27 @@ import type { PowerProfileId } from "../components/battery/presentation"
  * `services/wifi-service.ts` owns the NetworkManager side and
  * `components/wifi/state.ts` only holds view state.
  *
+ * THE PROFILE LIST COMES FROM THE DAEMON, NOT A HARDCODED ARRAY. The panel
+ * needs the profiles the daemon actually offers, each with its stable
+ * `base_profile` tier, so `GetProfilesInfo` is the read. It returns a single
+ * JSON string:
+ *
+ *     { "active_profile": <index>,
+ *       "profiles": [ { "profile_name": <string>, "base_profile": <string> }, … ] }
+ *
+ * `active_profile` is an INDEX into `profiles[]` — unambiguous and
+ * rename-proof, unlike matching a name. Reading both in one call means the
+ * list and the selection can never be a payload apart.
+ *
  * Profile selection is stored through `UpdateConfig(profile_override)` rather
  * than an "activate this profile" method, which is why the write path is
  * read-modify-write of the daemon's whole config document. That is the daemon's
  * own API; we are not choosing a worse one.
  *
- * EXTERNAL CHANGES ARE WATCHED, NOT POLLED. The active profile is re-read when
- * `/etc/power-options/config.toml` changes, because that file is how every
- * OTHER frontend (power-options-gtk included) records a change. Polling
- * `GetActiveProfileName` on a timer would burn wakeups to learn about an event
- * we can be told about.
+ * EXTERNAL CHANGES ARE WATCHED, NOT POLLED. The active profile and the profile
+ * list are re-read when `/etc/power-options/config.toml` changes, because that
+ * file is how every OTHER frontend (power-options-gtk included) records a
+ * change — including `CreateProfile` / `RemoveProfile` / `UpdateProfileName`.
  */
 
 /** The daemon's bus name, object path and control interface. */
@@ -49,21 +56,38 @@ const CONFIG_DIR = "/etc/power-options"
 const CONFIG_FILE = "config.toml"
 
 /**
- * The profile in effect, as the daemon SPELLS it (`Powersave++`, `performance`,
- * …). Not normalised: `isActiveProfile` compares case-insensitively and is the
- * single place that decides what "the same profile" means, so normalising here
- * too would be a second definition of the same rule.
- *
- * `null` — not `"Balanced"` — is the initial value. A boot default that looks
- * like a real reading is a lie the panel would render as a selected row before
- * the first bus reply lands; `null` means "nothing is highlighted yet", which
- * is what `isActiveProfile` is specified to do for an unknown current.
+ * The profiles the daemon offers, in the daemon's own order. Empty until the
+ * first `GetProfilesInfo` reply; the panel renders its declared modes
+ * regardless and marks nothing selected until then.
  */
-const [activeProfile, setActiveProfile] = createState<string | null>(null)
+const [powerProfiles, setPowerProfiles] = createState<readonly PowerProfile[]>([])
 
-export { activeProfile }
+export { powerProfiles }
 
-/** Whether the proxy has ever resolved. Gates the rows' sensitivity. */
+/**
+ * The index into `powerProfiles` the daemon reports as active, or `-1` before
+ * the first reply. An index rather than a name: the name is the user's and is
+ * editable, while the index is exactly what the daemon said.
+ */
+const [activeProfileIndex, setActiveProfileIndex] = createState<number>(-1)
+
+export { activeProfileIndex }
+
+/**
+ * The active profile's `profile_name`, or `null` before the daemon answers.
+ *
+ * Derived from the two states above rather than stored separately, so the name
+ * and the index can never disagree. Kept as an accessor because the bar
+ * widget's tooltip prints it (`82% — Performance++`); `null` drops that
+ * segment rather than printing a boot default that looks like a real reading.
+ */
+export const activeProfile = createComputed<string | null>(() => {
+  const profiles = powerProfiles()
+  const index = activeProfileIndex()
+  return index >= 0 && index < profiles.length ? profiles[index].name : null
+})
+
+/** Whether the daemon has answered with a usable profile list. Gates sensitivity. */
 const [powerReady, setPowerReady] = createState(false)
 
 export { powerReady }
@@ -96,11 +120,61 @@ function unpackString(ret: unknown): string | null {
   return null
 }
 
-function refreshPoProfile(): void {
+interface RawProfilesInfo {
+  active_profile?: unknown
+  profiles?: unknown
+}
+
+/**
+ * Parse `GetProfilesInfo`'s JSON into the shape the panel consumes.
+ *
+ * Defensive on purpose: this crosses a process boundary, carries fields the
+ * panel does not model, and is produced by a daemon that can be upgraded
+ * independently. A malformed document returns `null` (the caller keeps the
+ * last good read) rather than half-populating the rail. A missing
+ * `profile_name` becomes `""` and a missing `base_profile` becomes `""`,
+ * which resolves to the labelled fallback rather than crashing.
+ */
+export function parseProfilesInfo(
+  raw: string,
+): { activeIndex: number; profiles: PowerProfile[] } | null {
+  let data: RawProfilesInfo
+  try {
+    data = JSON.parse(raw) as RawProfilesInfo
+  } catch {
+    return null
+  }
+  if (data === null || typeof data !== "object" || !Array.isArray(data.profiles)) {
+    return null
+  }
+  const profiles: PowerProfile[] = []
+  for (const entry of data.profiles) {
+    if (entry === null || typeof entry !== "object") continue
+    const record = entry as Record<string, unknown>
+    profiles.push({
+      name: typeof record.profile_name === "string" ? record.profile_name : "",
+      tier: typeof record.base_profile === "string" ? record.base_profile : "",
+    })
+  }
+  const rawIndex = data.active_profile
+  const activeIndex =
+    typeof rawIndex === "number" && Number.isInteger(rawIndex) ? rawIndex : -1
+  return { activeIndex, profiles }
+}
+
+/**
+ * Re-read the daemon's profile list and active index in one call.
+ *
+ * On success the two states are set together, so the list and the selection
+ * are always the same snapshot. On failure the last good read is kept (a
+ * transient D-Bus hiccup must not blank a working panel) and `powerReady`
+ * stays where it was; it only becomes true on a usable reply.
+ */
+function refreshPowerProfiles(): void {
   const proxy = poProxy
   if (!proxy) return
   proxy.call(
-    "GetActiveProfileName",
+    "GetProfilesInfo",
     null,
     Gio.DBusCallFlags.NONE,
     -1,
@@ -111,8 +185,13 @@ function refreshPoProfile(): void {
         // closure captured `proxy` for the call itself, so the guard is only
         // about the REPLY receiver going away (proxy disposed mid-flight).
         if (!p) return
-        const name = unpackString(p.call_finish(res))
-        if (name) setActiveProfile(name)
+        const raw = unpackString(p.call_finish(res))
+        if (raw === null) return
+        const parsed = parseProfilesInfo(raw)
+        if (parsed === null) return
+        setPowerProfiles(parsed.profiles)
+        setActiveProfileIndex(parsed.activeIndex)
+        setPowerReady(true)
       } catch {
         /* daemon restarting or profile momentarily unreadable — keep last good */
       }
@@ -143,7 +222,7 @@ function updateProfileFromConfig(name: string): void {
       try {
         config = JSON.parse(raw) as Record<string, unknown>
       } catch (e) {
-        console.error("power-service: config is not valid JSON:", e)
+        console.error("power-service: config is not JSON:", e)
         return
       }
       config.profile_override = name
@@ -158,7 +237,10 @@ function updateProfileFromConfig(name: string): void {
             try {
               if (!up) return
               up.call_finish(updateResult)
-              setActiveProfile(name)
+              // Re-read from the daemon rather than optimistically moving the
+              // selection: the panel follows `active_profile`, not a local
+              // guess, so the accent only moves once the daemon agrees.
+              refreshPowerProfiles()
             } catch (e) {
               console.error("power-service: config update failed:", e)
             }
@@ -189,7 +271,7 @@ function watchPowerOptionsConfig(): void {
       // one, and the read is a single call so a dropped event self-corrects on
       // the next change rather than leaving the panel permanently wrong.
       GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
-        refreshPoProfile()
+        refreshPowerProfiles()
         return GLib.SOURCE_REMOVE
       })
     })
@@ -199,15 +281,19 @@ function watchPowerOptionsConfig(): void {
 }
 
 /**
- * Select a power profile.
+ * Select a power profile by its `profile_name`.
+ *
+ * The name is what `profile_override` stores; it is user-editable, which is
+ * exactly why the panel resolves a click to a name only at the last moment
+ * rather than keying anything off it.
  *
  * No-ops when the proxy is absent rather than queueing: without the daemon
  * there is nothing to write to, and remembering a selection the daemon never
- * received would show a row highlighted that the system is not actually in.
+ * received would show a selection the system is not actually in.
  */
-export function setPowerProfile(id: PowerProfileId): void {
+export function setPowerProfile(name: string): void {
   if (!poProxy) return
-  updateProfileFromConfig(id)
+  updateProfileFromConfig(name)
 }
 
 // ── Bootstrap ────────────────────────────────────────────────────────────
@@ -223,15 +309,14 @@ Gio.DBusProxy.new_for_bus(
   (_source, result) => {
     try {
       poProxy = Gio.DBusProxy.new_for_bus_finish(result)
-      refreshPoProfile()
+      refreshPowerProfiles()
       watchPowerOptionsConfig()
     } catch (err) {
-      // No daemon (desktop without power-options). The panel stays usable: rows
-      // render from the static order, nothing is highlighted, `powerReady`
-      // stays false so they are insensitive rather than lying about success.
+      // No daemon (desktop without power-options). The panel stays usable: the
+      // declared mode cells render insensitive, nothing is highlighted, and
+      // `powerReady` stays false so they cannot silently do nothing.
       console.error("power-service: proxy failed:", err)
-    } finally {
-      setPowerReady(poProxy !== null)
+      setPowerReady(false)
     }
   },
 )

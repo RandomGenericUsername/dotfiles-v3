@@ -1,19 +1,29 @@
 import Gtk from "gi://Gtk?version=4.0"
+import Pango from "gi://Pango?version=1.0"
 import Battery from "gi://AstalBattery"
 import { createBinding, createComputed, createEffect, For } from "ags"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import {
-  POWER_PROFILE_ORDER,
+  POWER_MODES,
+  UNLISTED_MODE,
+  activeProfileOf,
   formatBatteryTime,
   formatPercentage,
-  isActiveProfile,
-  profileIconVariant,
-  type PowerProfileId,
+  isDeclaredTier,
+  modeTooltip,
+  profilesForMode,
+  railMeta,
+  resolveMode,
+  variantTooltip,
+  variantToSelect,
+  type IndexedProfile,
+  type PowerMode,
 } from "./presentation"
 import { batteryStateKey } from "./battery-icon"
 import {
-  activeProfile,
+  activeProfileIndex,
+  powerProfiles,
   powerReady,
   setPowerProfile,
 } from "../../services/power-service"
@@ -23,9 +33,15 @@ import {
  *
  * Every DECISION about what to write comes from `presentation.ts` and is called
  * here; everything else is an EFFECT — the bindings, the icon lookups, the
- * click handlers. No formatting, no rounding and no "which row is active" logic
- * is written in this file, because anything written here is untestable without
- * a live desktop.
+ * click handlers. No formatting, no rounding and no "which mode is active"
+ * logic is written in this file, because anything written here is untestable
+ * without a live desktop.
+ *
+ * THE SELECTOR IS TWO-LEVEL. A MODE owns a glyph; a VARIANT is a selectable
+ * profile on a tier that mode declares. The rail draws one cell per declared
+ * mode (three), the selected mode's variants render as a second-level control
+ * ONLY when there is more than one, and the selected profile's name + mode +
+ * tier are stated once beneath it.
  */
 
 const device = Battery.get_default()
@@ -52,9 +68,9 @@ function batteryIconPath(): string | null {
   return registry.resolve("battery", variant)
 }
 
-/** The `power-mode` glyph for a profile row. Three variants, five profiles. */
-function profileIconPath(id: PowerProfileId): string | null {
-  return registry.resolve("power-mode", profileIconVariant(id))
+/** The `power-mode` glyph for a mode. The glyph hangs on the MODE, not the profile. */
+function modeIconPath(mode: PowerMode): string | null {
+  return registry.resolve("power-mode", mode.glyph)
 }
 
 /**
@@ -84,22 +100,51 @@ const headerPercentage = createComputed(
 )
 
 /**
- * The profile rows, as an accessor for `For`.
+ * The declared modes, as an accessor for `For`.
  *
- * `POWER_PROFILE_ORDER` is a frozen readonly tuple. `For` takes an
- * `Accessor<Iterable<T>>` rather than a bare array, so the constant is spread
- * into a plain array here ONCE at module scope and never re-derived — the
- * ORDER (cheapest first, hottest last) is a product decision recorded in
- * `presentation.ts`, and this does not touch it.
+ * `POWER_MODES` is the declaration itself (leaf / scales / engine); the rail is
+ * daemon-independent, so these three cells render before the first reply and
+ * keep their positions as profiles come and go.
  */
-const profileRows = createComputed(
-  () => [...POWER_PROFILE_ORDER] as PowerProfileId[],
+const declaredModes = createComputed(() => POWER_MODES)
+
+/** The active profile, resolved by the daemon's `active_profile` INDEX. */
+const selectedProfile = createComputed(
+  () => activeProfileOf(powerProfiles(), activeProfileIndex())?.profile ?? null,
 )
+
+/**
+ * The mode the active profile resolves into, or `null` before the daemon
+ * answers. Undeclared tiers fold into the neutral `Unlisted` pseudo-mode, so a
+ * new tier shows up visibly instead of vanishing.
+ */
+const selectedModeName = createComputed(() => {
+  const profile = selectedProfile()
+  return profile === null ? null : resolveMode(profile.tier).mode
+})
+
+/** The active mode's variants, in daemon order, each with its daemon index. */
+const activeVariants = createComputed<IndexedProfile[]>(() => {
+  const profile = selectedProfile()
+  if (profile === null) return []
+  return profilesForMode(resolveMode(profile.tier), powerProfiles())
+})
+
+/** The control renders only when the selected mode actually offers a choice. */
+const showVariantControl = createComputed(() => activeVariants().length > 1)
+
+/** The Unlisted cell exists ONLY when an undeclared tier is present. */
+const hasUnlistedTier = createComputed(() =>
+  powerProfiles().some((profile) => !isDeclaredTier(profile.tier)),
+)
+
+const railMetaName = createComputed(() => railMeta(selectedProfile()).name)
+const railMetaLine = createComputed(() => railMeta(selectedProfile()).line)
 
 /**
  * The deep-link row's launcher.
  *
- * The panel can set the five profiles the daemon offers, but the daemon's own
+ * The panel can set the profiles the daemon offers, but the daemon's own
  * GTK frontend exposes settings this panel does not model (per-policy CPU
  * scaling, thresholds). Rather than duplicate a settings surface, the last row
  * hands off to the real one — so the panel is a fast path, not a dead end.
@@ -110,64 +155,109 @@ function openPowerOptionsGtk(): void {
   })
 }
 
-/**
- * A profile's label, with the `++` TIER rendered typographically.
- *
- * WHY TEXT AND NOT A BADGE. `presentation.ts` deliberately maps both `++` tiers
- * onto the base profile's glyph, because they are the same mode pushed further
- * rather than different modes. Drawing the tier graphically — a corner badge,
- * a distinct icon — would contradict that: it would spend visual weight on a
- * distinction the icon vocabulary has already declined to make, and a badge is
- * the shape a reader scans for FIRST. As type, `++` reads as a qualifier of
- * the word before it, which is exactly what it is.
- *
- * The suffix is tinted `@color_13` — the same accent the `.active` treatment
- * uses — so "pushed further" is visibly *more* rather than merely different.
- * Split into two labels rather than one Pango-markup string because the split
- * is then styleable by CSS (`.battery-profile-tier`) instead of hard-coding a
- * colour into a template, which `style.css`'s tokens-only rule forbids.
- *
- * For the four base profiles there is no suffix, so no second label is created.
- */
-function ProfileLabel(props: { id: PowerProfileId }) {
-  const { id } = props
-  const tier = /\+\+$/.exec(id)?.[0] ?? ""
-  const base = tier === "" ? id : id.slice(0, -tier.length)
+/** One mode cell: the mode's glyph over its label. The whole cell is the target. */
+function ModeCell(props: { mode: PowerMode }) {
+  const { mode } = props
+  const selected = createComputed(() => selectedModeName() === mode.mode)
   return (
-    <box class="battery-profile-label" spacing={0}>
-      <label class="settings-net-name" xalign={0} label={base} />
-      {tier === "" ? null : (
-        <label class="battery-profile-tier" xalign={0} label={tier} />
+    <button
+      class={createComputed(() =>
+        selected() ? "battery-mode-cell sel" : "battery-mode-cell",
       )}
+      sensitive={powerReady}
+      tooltipText={createComputed(() => modeTooltip(mode, powerProfiles()))}
+      onClicked={() => {
+        const name = variantToSelect(mode, powerProfiles(), activeProfileIndex())
+        // A mode with no variant has nothing to select; the click is a no-op
+        // rather than a write of an empty name.
+        if (name !== null) setPowerProfile(name)
+      }}
+    >
+      <box
+        orientation={1}
+        spacing={3}
+        halign={Gtk.Align.CENTER}
+        valign={Gtk.Align.CENTER}
+      >
+        <image
+          class="battery-profile-icon"
+          pixel_size={24}
+          $={(self) => {
+            createEffect(() => {
+              // A deferred manifest may leave `unknown` unresolved; the cell
+              // still renders its label, and the meta line spells out
+              // "unmapped tier" rather than implying a mapping.
+              self.set_from_file(modeIconPath(mode) ?? "")
+            })
+          }}
+        />
+        <label class="battery-mode-label" xalign={0.5} label={mode.mode} />
+      </box>
+    </button>
+  )
+}
+
+/** The mode rail: the declared modes, plus the Unlisted cell only when needed. */
+function ModeRail() {
+  return (
+    <box
+      class="battery-mode-rail"
+      orientation={1}
+      spacing={8}
+      halign={Gtk.Align.CENTER}
+    >
+      <box orientation={0} spacing={8} halign={Gtk.Align.CENTER}>
+        <For each={declaredModes} id={(mode: PowerMode) => mode.mode}>
+          {(mode: PowerMode) => <ModeCell mode={mode} />}
+        </For>
+      </box>
+      {/* A fourth cell wraps to its own centred row, so the rail never grows
+          the 312px surface horizontally. */}
+      <box
+        orientation={0}
+        halign={Gtk.Align.CENTER}
+        visible={hasUnlistedTier}
+      >
+        <ModeCell mode={UNLISTED_MODE} />
+      </box>
     </box>
   )
 }
 
-/** One power-profile row. */
-function PowerProfileRow(props: { id: PowerProfileId }) {
-  const { id } = props
-  const active = createComputed(() =>
-    isActiveProfile(activeProfile() ?? "", id),
-  )
+/** One variant pill. The active one is marked by DAEMON INDEX, not by name. */
+function VariantOption(props: { entry: IndexedProfile }) {
+  const { entry } = props
+  const selected = createComputed(() => entry.index === activeProfileIndex())
   return (
     <button
       class={createComputed(() =>
-        active() ? "settings-net battery-profile sel" : "settings-net battery-profile"
+        selected() ? "battery-variant-opt sel" : "battery-variant-opt",
       )}
       sensitive={powerReady}
-      onClicked={() => setPowerProfile(id)}
+      tooltipText={variantTooltip(entry.profile)}
+      onClicked={() => setPowerProfile(entry.profile.name)}
     >
-      <image
-        class="battery-profile-icon"
-        pixel_size={18}
-        $={(self) => {
-          createEffect(() => {
-            self.set_from_file(profileIconPath(id) ?? "")
-          })
-        }}
+      <label
+        xalign={0.5}
+        maxWidthChars={22}
+        ellipsize={Pango.EllipsizeMode.END}
+        label={entry.profile.name}
       />
-      <ProfileLabel id={id} />
     </button>
+  )
+}
+
+/** The second level: rendered ONLY when the selected mode offers > 1 variant. */
+function VariantControl() {
+  return (
+    <box orientation={1} visible={showVariantControl}>
+      <label class="settings-section-label" xalign={0} label="VARIANT" />
+      <box class="battery-variant" orientation={0} spacing={6}>
+        <For each={activeVariants} id={(entry: IndexedProfile) => entry.index}>
+          {(entry: IndexedProfile) => <VariantOption entry={entry} />}
+        </For>
+      </box>
+    </box>
   )
 }
 
@@ -193,20 +283,48 @@ export function BatteryContent(_props: { visible: unknown }) {
         />
       </box>
 
-      {/* Hero — the one number the panel exists to answer. */}
+      {/* Hero — the one number the panel exists to answer. Both labels declare
+          `xalign={0}`: GTK's default is 0.5, which would centre them against a
+          panel where every other label is left-aligned. */}
       <box class="battery-hero" orientation={1} spacing={0}>
-        <label class="battery-hero-primary" label={createComputed(() => timePresentation().primary)} />
-        <label class="battery-hero-sub" label={createComputed(() => timePresentation().sub)} />
+        <label
+          class="battery-hero-primary"
+          xalign={0}
+          label={createComputed(() => timePresentation().primary)}
+        />
+        <label
+          class="battery-hero-sub"
+          xalign={0}
+          label={createComputed(() => timePresentation().sub)}
+        />
       </box>
 
       <box class="settings-divider" />
       <label class="settings-section-label" xalign={0} label="POWER MODE" />
 
-      {/* Five rows, cheapest first, hottest last (presentation.ts §4.1). */}
-      <box class="battery-profile-list" orientation={1} spacing={2}>
-        <For each={profileRows}>
-          {(id: PowerProfileId) => <PowerProfileRow id={id} />}
-        </For>
+      {/* The mode rail, then the selected mode's variants when it has more
+          than one. The selected profile is named once, under the selector. */}
+      <ModeRail />
+      <VariantControl />
+      <box
+        class="battery-rail-meta"
+        orientation={1}
+        spacing={1}
+      >
+        <label
+          class="settings-net-name"
+          xalign={0}
+          maxWidthChars={26}
+          ellipsize={Pango.EllipsizeMode.END}
+          label={railMetaName}
+        />
+        <label
+          class="settings-net-sub"
+          xalign={0}
+          maxWidthChars={30}
+          ellipsize={Pango.EllipsizeMode.END}
+          label={railMetaLine}
+        />
       </box>
 
       {/* Deep link to the daemon's own frontend. The whole row is the hit

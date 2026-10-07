@@ -13,42 +13,227 @@
  * openspec/changes/add-battery-status-panel/design.md.
  */
 
-/**
- * The power-profiles the TLP daemon reports, in the order the panel lists
- * them. This is an EXPLICIT ordered array, deliberately NOT derived from
- * `Object.keys` or from whatever the daemon happens to return:
+/* ────────────────────────────────────────────────────────────────────────────
+ * The two-level power model: a MODE owns a glyph; a VARIANT is a selectable
+ * profile on a tier the mode DECLARES.
  *
- *  - the ROW ORDER is a product decision (cheapest first, hottest last), not a
- *    property of the profile names. `Object.keys` would put the list in
- *    whatever order the daemon's D-Bus/NMI payload happened to serialise, and
- *    that order is not a contract -- it can change between daemon versions and
- *    silently reshuffle the menu.
- *  - the list must be STABLE even when a profile is unavailable on the running
- *    machine, so the rows do not jump around. An explicit list is also the
- *    only place that says "these five, in this order" out loud.
+ * WHY THE GROUPING IS DECLARED. The daemon reports each profile with a stable
+ * `base_profile` tier and a user-editable `profile_name`. Neither field states
+ * the grouping on its own:
  *
- * The `++` tiers are included because the daemon does report them as distinct
- * profiles -- they just are not distinct MODES (see `profileIconVariant`).
- */
-export const POWER_PROFILE_ORDER = Object.freeze([
-  "Powersave++",
-  "Powersave",
-  "Balanced",
-  "Performance",
-  "Performance++",
-] as const)
+ *  - `profile_name` is editable (`UpdateProfileName`), so any rule that strips
+ *    a `++` suffix to recover a mode breaks the moment a profile is renamed
+ *    (`Performance++` -> `Showtime` has nothing to strip).
+ *  - `base_profile` is stable but yields FIVE distinct tiers, not three. The
+ *    live values are `Powersave++` -> `Superpowersave` and `Performance++` ->
+ *    `Ultraperformance`; a rule that keys one glyph off the tier therefore
+ *    asks for five glyphs, which is the wrong answer.
+ *
+ * So the grouping is an EXPLICIT declaration, keyed by the stable tier. Three
+ * modes, one glyph each; any tier a mode declares shares its glyph.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** A power profile exactly as the daemon reports it. */
+export interface PowerProfile {
+  /** `profile_name` -- the user's arbitrary, editable instance label. */
+  readonly name: string
+  /** `base_profile` -- the daemon's stable semantic tier. The lookup key. */
+  readonly tier: string
+}
+
+/** A profile together with its index in the daemon's `profiles[]` array. */
+export interface IndexedProfile {
+  readonly profile: PowerProfile
+  readonly index: number
+}
+
+/** A declared mode: it owns a glyph and the tiers that are its variants. */
+export interface PowerMode {
+  /** The mode's label (`Powersave`, `Balanced`, `Performance`). */
+  readonly mode: string
+  /** The `power-mode` icon variant the mode's tiers share. */
+  readonly glyph: string
+  /** The `base_profile` tiers this mode declares, in daemon vocabulary. */
+  readonly tiers: readonly string[]
+}
 
 /**
- * Resolves to exactly the union the panel is coded against:
- * `"Powersave++" | "Powersave" | "Balanced" | "Performance" | "Performance++"`.
+ * THE DECLARATION -- the one place that says which tiers share a glyph.
  *
- * It is derived from `POWER_PROFILE_ORDER` rather than restated, because a
- * hand-written union beside a hand-written list is two declarations that drift:
- * adding a profile to the list and forgetting the union compiles fine under
- * `as` and then breaks the second agent's `switch`. Deriving it makes the
- * list the single source and makes the omission a compile error instead.
+ * Three modes, five tiers, three glyphs. The tier is the stable key; this
+ * table is the grouping. Ordered cheapest-first so the rail reads lowest-power
+ * -> highest-power, which is a product decision rather than a daemon artefact.
  */
-export type PowerProfileId = (typeof POWER_PROFILE_ORDER)[number]
+export const POWER_MODES: readonly PowerMode[] = Object.freeze([
+  Object.freeze({
+    mode: "Powersave",
+    glyph: "powersave",
+    tiers: Object.freeze(["Powersave", "Superpowersave"]),
+  }),
+  Object.freeze({
+    mode: "Balanced",
+    glyph: "balanced",
+    tiers: Object.freeze(["Balanced"]),
+  }),
+  Object.freeze({
+    mode: "Performance",
+    glyph: "performance",
+    tiers: Object.freeze(["Performance", "Ultraperformance"]),
+  }),
+])
+
+/** The pseudo-mode an undeclared tier gathers under. Never dropped, never blank. */
+export const UNLISTED_MODE_NAME = "Unlisted"
+
+/** The `power-mode` icon variant for a tier no mode declares (the fallback). */
+export const FALLBACK_GLYPH = "unknown"
+
+/** The words the rail meta line prints for an undeclared tier. */
+export const UNMAPPED_TIER_LABEL = "unmapped tier"
+
+/** The neutral pseudo-mode for an undeclared tier. It declares no tier. */
+export const UNLISTED_MODE: PowerMode = Object.freeze({
+  mode: UNLISTED_MODE_NAME,
+  glyph: FALLBACK_GLYPH,
+  tiers: Object.freeze([]),
+})
+
+/**
+ * The mode a `base_profile` tier resolves to, or `null` when no mode declares
+ * it. Case-insensitive and whitespace-tolerant: the daemon's canonical casing
+ * is `Superpowersave`, but a tier that differs only in case is still the same
+ * tier, and a near-miss here would silently move a user's profile.
+ */
+export function modeForTier(tier: string): PowerMode | null {
+  const key = tier.trim().toLowerCase()
+  if (key === "") return null
+  return POWER_MODES.find((m) => m.tiers.some((t) => t.toLowerCase() === key)) ?? null
+}
+
+/** Whether `tier` is declared by one of `POWER_MODES`. */
+export function isDeclaredTier(tier: string): boolean {
+  return modeForTier(tier) !== null
+}
+
+/**
+ * The mode a tier resolves to, folding the undeclared case into the neutral
+ * `UNLISTED_MODE`. This is what the view uses: every profile resolves to a
+ * mode, so nothing is ever dropped or drawn blank.
+ */
+export function resolveMode(tier: string): PowerMode {
+  return modeForTier(tier) ?? UNLISTED_MODE
+}
+
+/** The `power-mode` glyph variant for a tier: its mode's glyph, or the fallback. */
+export function glyphForTier(tier: string): string {
+  return resolveMode(tier).glyph
+}
+
+/**
+ * The modes the rail draws: the three declared modes in declaration order,
+ * plus the neutral `Unlisted` cell ONLY when an undeclared tier is actually
+ * present. The declared cells are daemon-independent -- they render before the
+ * first reply and keep their positions as profiles come and go.
+ */
+export function railModes(profiles: readonly PowerProfile[]): PowerMode[] {
+  const modes: PowerMode[] = [...POWER_MODES]
+  if (profiles.some((p) => !isDeclaredTier(p.tier))) modes.push(UNLISTED_MODE)
+  return modes
+}
+
+/**
+ * The profiles that resolve into `mode`, in daemon order, each with its index
+ * so the view can mark the active one by `index === active_profile`.
+ */
+export function profilesForMode(
+  mode: PowerMode,
+  profiles: readonly PowerProfile[],
+): IndexedProfile[] {
+  const out: IndexedProfile[] = []
+  profiles.forEach((profile, index) => {
+    if (resolveMode(profile.tier).mode === mode.mode) out.push({ profile, index })
+  })
+  return out
+}
+
+/**
+ * The variant control renders IFF the selected mode declares more than one
+ * variant. A one-option picker is decoration, not a decision.
+ */
+export function hasVariantChoice(
+  mode: PowerMode,
+  profiles: readonly PowerProfile[],
+): boolean {
+  return profilesForMode(mode, profiles).length > 1
+}
+
+/** The active profile by index, or `null` before the daemon answers. */
+export function activeProfileOf(
+  profiles: readonly PowerProfile[],
+  index: number,
+): IndexedProfile | null {
+  if (!Number.isInteger(index) || index < 0 || index >= profiles.length) return null
+  return { profile: profiles[index], index }
+}
+
+/**
+ * The `profile_name` a click on a mode cell writes.
+ *
+ * Selection is by index, resolved to a profile: clicking a mode selects the
+ * variant the daemon currently offers for it, or -- when the mode is already
+ * active -- keeps the current variant rather than resetting it. Returns `null`
+ * for a mode with no variant (nothing to select), so the caller can no-op.
+ */
+export function variantToSelect(
+  mode: PowerMode,
+  profiles: readonly PowerProfile[],
+  activeIndex: number,
+): string | null {
+  const entries = profilesForMode(mode, profiles)
+  if (entries.length === 0) return null
+  const current = entries.find((e) => e.index === activeIndex)
+  return (current ?? entries[0]).profile.name
+}
+
+/** The tooltip a mode cell names itself and its variants with. */
+export function modeTooltip(mode: PowerMode, profiles: readonly PowerProfile[]): string {
+  if (mode.mode === UNLISTED_MODE_NAME) {
+    return `Unlisted tiers — the fallback glyph`
+  }
+  const stem = `${mode.mode} mode — ${mode.glyph} glyph`
+  const names = profilesForMode(mode, profiles).map((e) => e.profile.name)
+  if (names.length === 0) return stem
+  const word = names.length === 1 ? "variant" : "variants"
+  return `${stem} · ${word}: ${names.join(", ")}`
+}
+
+/**
+ * The tooltip a variant pill names itself with. The tier is the daemon's
+ * stable vocabulary; an undeclared tier says so rather than pretending.
+ */
+export function variantTooltip(profile: PowerProfile): string {
+  if (isDeclaredTier(profile.tier)) {
+    return `${profile.name} · ${profile.tier} tier`
+  }
+  const tier = profile.tier.trim() === "" ? "?" : profile.tier.trim()
+  return `${profile.name} · tier ${tier} · ${UNMAPPED_TIER_LABEL}`
+}
+
+/**
+ * The selected profile named ONCE: its name, and the `<mode> mode · <tier>
+ * tier` line that makes the resolution explicit. An undeclared tier reads
+ * `unlisted mode · unmapped tier`; no active profile reads `—`.
+ */
+export function railMeta(profile: PowerProfile | null): { name: string; line: string } {
+  if (profile === null) return { name: "—", line: "" }
+  if (!isDeclaredTier(profile.tier)) {
+    return { name: profile.name, line: `unlisted mode · ${UNMAPPED_TIER_LABEL}` }
+  }
+  return {
+    name: profile.name,
+    line: `${resolveMode(profile.tier).mode} mode · ${profile.tier} tier`,
+  }
+}
 
 export interface BatteryTimePresentation {
   /** The large line, e.g. "2h 14m" */
@@ -175,53 +360,11 @@ export function formatBatteryStatusLine(seconds: number, charging: boolean): str
 }
 
 /**
- * The icon variant a profile's ROW shows, from the guard-exempt `power-mode`
- * group in the ITR manifest.
- *
- * WHY THE `++` TIERS REUSE THE BASE VARIANT. The daemon's `Powersave++` and
- * `Performance++` are not different modes -- they are the SAME mode pushed
- * further (a lower ceiling / a higher floor on the same governor). There is no
- * sixth and seventh meaning to draw. Giving them distinct glyphs would claim a
- * distinction the system does not make, and the cheapest honest thing to
- * render is the base profile's glyph plus the `++` in the row's TEXT. So
- * `Powersave++` -> `powersave` and `Performance++` -> `performance`.
- *
- * This is also why the manifest declares exactly three variants and no
- * `system-*` copies: three glyphs for five profiles, consumed only on the
- * dark-glass panel.
- */
-export function profileIconVariant(id: PowerProfileId): string {
-  // Normalise the tier suffix rather than enumerating five cases: the mapping
-  // is "the profile with any ++ suffix removed", and spelling that once means a
-  // future `Powersave+++` needs no edit here.
-  return id.replace(/\+\+$/, "").toLowerCase()
-}
-
-/**
- * Whether `candidate` is the profile currently in effect, i.e. whether its row
- * carries the `.sel` class.
- *
- * WHY CASE-INSENSITIVE. The daemon's identifier and the label shown to the
- * user differ in case in practice (`performance` vs `Performance`), and a
- * mismatch here is invisible-but-wrong: the row simply never lights up, which
- * reads as "the panel does not know what mode I am in" rather than as a bug.
- * Comparing case-insensitively makes the highlight depend only on WHICH mode
- * is active.
- *
- * An unknown/blank `current` matches nothing, so no row is highlighted rather
- * than the first one being highlighted by accident.
- */
-export function isActiveProfile(current: string, candidate: PowerProfileId): boolean {
-  if (!current) return false
-  return current.trim().toLowerCase() === candidate.toLowerCase()
-}
-
-/**
  * The percentage shown in the nav header.
  *
  * Exported as a pure function (not inlined in the widget) for the same reason
- * as the rest of this file: the panel has TWO places that print a percentage
- * -- the nav header and the profile rows -- and a percentage rendered two ways
+ * as the rest of this file: the panel prints a percentage in TWO places --
+ * the nav header and the profile rows -- and a percentage rendered two ways
  * is a rounding drift waiting to happen. `formatPercentage` rounds once, and
  * `clampPercentage` clamps once, for both callers.
  *

@@ -6,10 +6,10 @@ first feature that puts a meaningful amount of *decision* logic into it.
 Everything in `dotfiles/config/ags/` was previously either a widget (untestable
 without GTK, which is honest) or a one-line lookup. The battery panel is neither:
 how a duration reads, which word tells the user whether that duration is a
-countdown or a charge target, which glyph a power-profile row shows, and which
-row carries the `.sel` class are all **pure functions of their arguments** —
-they just happened to have nowhere to live, so the natural home was the widget,
-where none of them could be checked.
+countdown or a charge target, how a daemon profile resolves to a MODE through
+the declared tier grouping, and which mode/variant is selected are all **pure
+functions of their arguments** — they just happened to have nowhere to live, so
+the natural home was the widget, where none of them could be checked.
 
 That is the whole gap. `make capture-test` runs 144 assertions over the capture
 TOOL's domain and zero over the ags config's own logic.
@@ -37,7 +37,7 @@ files, mock parity) is a second agent's** and is scoped but not implemented in
 - **A3 — `ags-test`**: a `node --test` harness for the ags config's pure modules,
   modelled on `make capture-test`, wired into `gates-ci` and `.github/workflows/gates.yml`.
 - **A4 — `components/battery/presentation.ts`**: the pure presentation logic,
-  with 28 unit tests over every branch.
+  including the declared tier→mode model, with unit tests over every branch.
 
 ### Workstream B — panel UI (scoped, not implemented here)
 
@@ -52,8 +52,9 @@ parity.
   `power-mode` is not a bar group" — this is the one decision in this change
   that a reasonable reader would get backwards, so the reasoning is recorded
   there in full and repeated in the manifest's own comment.
-- Not deriving the profile list from the daemon's response at runtime
-  (`design.md` § "Why the profile list is explicit").
+- Not inferring the tier→mode grouping from a `++` name suffix or from
+  `base_profile` alone (`design.md` §4.1). The grouping is a declaration; the
+  profile list itself is enumerated from the daemon's `GetProfilesInfo`.
 - Not clamping an implausible duration to 24h and displaying it as a precise
   value (`design.md` § "The >24h bound").
 - Not typechecking the ags config's **widget** files. That is `capture-typecheck`'s

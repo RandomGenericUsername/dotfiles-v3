@@ -177,13 +177,22 @@ IS the purity contract.
 decision that does not need a live widget, and SHALL import no GTK, Gio, Gdk or
 `ags` binding, perform no I/O, and hold no mutable module-level state.
 
-It SHALL export exactly:
+It SHALL export the two-level model and the time/percentage formatting:
 
 ```ts
-export type PowerProfileId =
-  | "Powersave++" | "Powersave" | "Balanced" | "Performance" | "Performance++"
+export interface PowerProfile { readonly name: string; readonly tier: string }
+export interface PowerMode { readonly mode: string; readonly glyph: string; readonly tiers: readonly string[] }
 
-export const POWER_PROFILE_ORDER: readonly PowerProfileId[]
+export const POWER_MODES: readonly PowerMode[]
+
+export function modeForTier(tier: string): PowerMode | null
+export function resolveMode(tier: string): PowerMode
+export function glyphForTier(tier: string): string
+export function railModes(profiles: readonly PowerProfile[]): PowerMode[]
+export function profilesForMode(mode: PowerMode, profiles: readonly PowerProfile[]): IndexedProfile[]
+export function hasVariantChoice(mode: PowerMode, profiles: readonly PowerProfile[]): boolean
+export function variantToSelect(mode: PowerMode, profiles: readonly PowerProfile[], activeIndex: number): string | null
+export function railMeta(profile: PowerProfile | null): { name: string; line: string }
 
 export interface BatteryTimePresentation {
   /** The large line, e.g. "2h 14m" */
@@ -194,8 +203,6 @@ export interface BatteryTimePresentation {
 
 export function formatBatteryTime(seconds: number, charging: boolean): BatteryTimePresentation
 export function formatDuration(seconds: number): string | null
-export function profileIconVariant(id: PowerProfileId): string
-export function isActiveProfile(current: string, candidate: PowerProfileId): boolean
 ```
 
 plus the panel-facing percentage helpers and the rendered-duration bound.
@@ -301,103 +308,111 @@ wrong one does not.
 - **THEN** the 24h bound is exported as `MAX_RENDERED_SECONDS` rather than
   re-derived by any caller
 
-### Requirement: Profile selection SHALL be explicit, ordered and frozen
+### Requirement: The tier→mode grouping SHALL be declared, and keyed by the stable tier
 
-`POWER_PROFILE_ORDER` SHALL be a hand-written, `Object.freeze`d tuple in
-cheapest-to-hottest order, and `PowerProfileId` SHALL be derived from it rather
-than restated alongside it.
+`POWER_MODES` SHALL be an `Object.freeze`d declaration of exactly three modes —
+`Powersave` (glyph `powersave`, tiers `Powersave`/`Superpowersave`), `Balanced`
+(glyph `balanced`, tier `Balanced`) and `Performance` (glyph `performance`,
+tiers `Performance`/`Ultraperformance`) — and `modeForTier` SHALL resolve a
+`base_profile` tier by looking that tier up in the declaration, ignoring case
+and surrounding whitespace, and returning `null` for a tier no mode lists.
 
-Rationale: the row order is a **product decision**, not a property of the profile
-names. `Object.keys` over the daemon's payload yields whatever order the daemon
-happened to serialise, which is not a contract — it can change between daemon
-versions and silently reshuffle the menu — and it makes rows disappear when a
-profile is unavailable on the running machine. Deriving the type from the tuple
-makes the two declarations unable to drift: adding a profile to the list and
-forgetting a hand-written union would otherwise compile fine and break the
-consumer's `switch`.
+Rationale: the grouping cannot be inferred. `profile_name` is user-editable
+(`UpdateProfileName`), so a `++`-suffix rule breaks on rename
+(`Performance++` → `Showtime`); `base_profile` is stable but yields five tiers,
+not three, so a per-tier-glyph rule asks for five glyphs where the owner
+supplied three. The key that resolution uses is the tier; the declaration says
+which tiers share a glyph.
 
-#### Scenario: The order is the declared one
-- **WHEN** `POWER_PROFILE_ORDER` is read
-- **THEN** it equals `["Powersave++", "Powersave", "Balanced", "Performance",
-  "Performance++"]`
+#### Scenario: Every live tier resolves to its mode
+- **WHEN** `modeForTier` is called with `Powersave`, `Superpowersave`, `Balanced`,
+  `Performance` and `Ultraperformance`
+- **THEN** it returns `Powersave`, `Powersave`, `Balanced`, `Performance` and
+  `Performance` respectively
 
-#### Scenario: The list is frozen and ordered
-- **WHEN** the tests run
-- **THEN** `Object.isFrozen(POWER_PROFILE_ORDER)` holds, and every cheaper
-  profile's rank is lower than every hotter profile's
+#### Scenario: Case and whitespace are tolerated
+- **WHEN** `modeForTier("  Ultraperformance  ")` is called
+- **THEN** it resolves to `Performance`, not to `null`
 
-#### Scenario: The union is derived, not restated
-- **WHEN** the module is read
-- **THEN** `PowerProfileId` is defined as `(typeof POWER_PROFILE_ORDER)[number]`,
-  so it cannot name a profile the list omits
+#### Scenario: An unrecognised tier is not coerced
+- **WHEN** `modeForTier` is called with `Warp`, `performance-max` or `""`
+- **THEN** it returns `null`
 
-### Requirement: A `++` power profile SHALL reuse the base profile's icon variant
+#### Scenario: The glyph hangs on the mode
+- **WHEN** `glyphForTier` is called with both tiers of a mode
+- **THEN** both return the mode's glyph (`Powersave`/`Superpowersave` →
+  `powersave`; `Performance`/`Ultraperformance` → `performance`)
 
-`profileIconVariant` SHALL return the base profile's variant for both `++` tiers:
-`Powersave++` → `powersave` and `Performance++` → `performance`.
+### Requirement: An undeclared tier SHALL fall back to a labelled neutral pseudo-mode
 
-Rationale: the daemon's `++` tiers are **not different modes**. They are the same
-mode pushed further — a lower ceiling / a higher floor on the same governor.
-There is no sixth or seventh meaning to draw, and a distinct glyph would claim a
-distinction the system does not make, at the cost of two extra template
-directories and two extra rendered outputs. The honest rendering is the base
-glyph plus the `++` in the row's text. This is also why the manifest declares
-exactly three variants.
+`resolveMode` SHALL return the neutral `Unlisted` pseudo-mode (glyph `unknown`,
+no declared tiers) for a tier no mode lists; `railModes` SHALL append the
+`Unlisted` cell only when an undeclared tier is present; and `railMeta` SHALL
+render the line `unlisted mode · unmapped tier` for such a profile. The profile
+SHALL remain selectable and SHALL never be dropped or rendered blank.
 
-#### Scenario: Base profiles map to their own glyph
-- **WHEN** `profileIconVariant` is called with `Powersave`, `Balanced` or
-  `Performance`
-- **THEN** it returns `powersave`, `balanced` or `performance` respectively
+Rationale: a future daemon tier must not silently remove a user's profile. The
+gap is made visible on the surface (a distinct neutral glyph plus the words
+`unmapped tier`) rather than left to a log.
 
-#### Scenario: Both `++` tiers reuse the base variant
-- **WHEN** `profileIconVariant("Powersave++")` and `profileIconVariant("Performance++")`
-  are called
-- **THEN** each returns exactly the base profile's variant
+#### Scenario: An unknown tier folds into Unlisted
+- **WHEN** `resolveMode("Warp")` is called
+- **THEN** it returns the `Unlisted` pseudo-mode with glyph `unknown` and no tiers
 
-#### Scenario: Every profile resolves to a declared variant
-- **WHEN** every id in `POWER_PROFILE_ORDER` is passed through `profileIconVariant`
-- **THEN** every result is one of the three variants `icons.yaml` declares, so no
-  profile can resolve to an unresolvable icon path
+#### Scenario: The Unlisted cell appears only when needed
+- **WHEN** `railModes` is called with profiles whose tiers are all declared
+- **THEN** it returns the three declared modes, and `Unlisted` is absent
+- **AND WHEN** called with a profile on an undeclared tier
+- **THEN** `Unlisted` is appended
 
-### Requirement: The active-profile match SHALL be case-insensitive and SHALL never fall back to a row
+#### Scenario: The meta line labels the gap
+- **WHEN** `railMeta({ name: "Hyperdrive", tier: "Warp" })` is called
+- **THEN** it returns `{ name: "Hyperdrive", line: "unlisted mode · unmapped tier" }`
 
-`isActiveProfile(current, candidate)` SHALL return `true` only when `current`
-matches `candidate` ignoring case and surrounding whitespace, and SHALL return
-`false` for every candidate when `current` is empty, blank, or unrecognised.
+### Requirement: Selection SHALL be by daemon index, and a rename SHALL not move the art
 
-Rationale: the daemon's identifier and the label shown to the user differ in case
-in practice, and a mismatch here is invisible-but-wrong — the row simply never
-lights up, which reads as "the panel does not know what mode I am in" rather than
-as a bug. A blank or unknown `current` matching nothing is the honest rendering;
-highlighting the first row as a fallback would tell the user they are in
-`Powersave++` when the daemon said something the panel did not recognise.
+`GetProfilesInfo`'s `active_profile` SHALL be used as an index into `profiles[]`
+(`activeProfileOf`), and the active mode/variant SHALL be resolved from the
+active profile's `base_profile` tier. A profile renamed with `UpdateProfileName`
+SHALL continue to resolve through its unchanged tier, so its mode and glyph do
+not move.
 
-#### Scenario: Exact match
-- **WHEN** `isActiveProfile(id, id)` is called for each id in `POWER_PROFILE_ORDER`
-- **THEN** it returns `true`
+Rationale: matching the active profile by name is ambiguous and breaks the
+moment the name is edited; the index is exactly what the daemon said, and the
+tier is the stable key.
 
-#### Scenario: Case difference still matches
-- **WHEN** `isActiveProfile("performance", "Performance")` or
-  `isActiveProfile("PERFORMANCE", "Performance")` is called
-- **THEN** it returns `true`
+#### Scenario: The active profile is keyed by index
+- **WHEN** `activeProfileOf(profiles, 4)` is called
+- **THEN** it returns the profile at index 4, and an out-of-range or non-integer
+  index returns `null`
 
-#### Scenario: Whitespace is tolerated
-- **WHEN** `isActiveProfile("  Balanced  ", "Balanced")` is called
-- **THEN** it returns `true`
+#### Scenario: A rename does not move the mode
+- **WHEN** a profile's name changes to `Showtime` while its tier stays
+  `Ultraperformance`
+- **THEN** it still resolves to `Performance` mode and the `performance` glyph,
+  and appears as a sibling variant of `Performance`
 
-#### Scenario: A prefix is not a match
-- **WHEN** `isActiveProfile("Performance", "Performance++")` is called
-- **THEN** it returns `false`, so the base profile cannot light up the `++` row
+#### Scenario: Variant selection prefers the current variant
+- **WHEN** `variantToSelect` is called for the active mode with the current index
+- **THEN** it returns the currently active variant, not the first in daemon
+  order; for a mode not currently active it returns the first variant; for a mode
+  with no variant it returns `null`
 
-#### Scenario: An unknown current highlights nothing
-- **WHEN** `isActiveProfile` is called with `current` of `""`, `"   "`,
-  `"Turbo"` or any other unrecognised value, for every candidate
-- **THEN** it returns `false` for every candidate, and no row is highlighted
+### Requirement: The variant control SHALL render only when a mode offers a choice
 
-#### Scenario: At most one row is ever highlighted
-- **WHEN** the ordered list is filtered by `isActiveProfile` for any recognised
-  `current`
-- **THEN** exactly one row survives
+`hasVariantChoice` SHALL be `true` only when the selected mode resolves more
+than one profile, so a mono-variant mode renders no control at all.
+
+Rationale: a one-option picker is decoration, not a decision; its absence is the
+design.
+
+#### Scenario: A mono-variant mode has no control
+- **WHEN** `hasVariantChoice` is called for `Balanced` with the live profiles
+- **THEN** it returns `false`
+
+#### Scenario: Two profiles on one tier are a real choice
+- **WHEN** two profiles both resolve onto the `Powersave` tier
+- **THEN** `hasVariantChoice` returns `true` and both render as sibling variants
 
 ### Requirement: A missing battery percentage SHALL be absent, not fabricated
 
@@ -406,7 +421,7 @@ highlighting the first row as a fallback would tell the user they are in
 `"<n>%"` or `null` accordingly.
 
 Rationale: the panel prints a percentage in two places — the nav header and the
-profile rows — and a percentage rendered two ways is a rounding drift waiting to
+bar tooltip — and a percentage rendered two ways is a rounding drift waiting to
 happen, so the rounding and clamping happen once, in pure code. A daemon with no
 capacity must not render `NaN%` or `-1%`; the caller shows a fallback word
 instead, applying the same "degrade to a word, never to a fabricated number" rule

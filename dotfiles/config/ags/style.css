@@ -1377,46 +1377,103 @@ window.settings-panel {
   color: alpha(@color_foreground, 0.62);
 }
 
-/* Five rows, tighter than `.settings-net`'s 8px: this list is short, fixed and
-   always fully visible, so it reads as a picker rather than as a scrollable
-   network list. Icon gutter first so every label starts at the same x. */
-.battery-profile-list {
-  padding: 0 8px 4px 8px;
+/* ── the MODE rail — one 72×54 cell per declared mode ─────────────────────
+   Three cells, not five: the glyph lives on the MODE, and the tiers a mode
+   declares share it. 3×72 + 2×8 = 232 ≤ 274 usable, so the rail is centred
+   with slack to spare; the Unlisted cell wraps to a second row and never grows
+   the 312px surface horizontally. */
+.battery-mode-rail {
+  padding: 0 8px 2px 8px;
 }
 
-.battery-profile {
-  min-height: 30px;
-  padding: 5px 9px;
+.battery-mode-cell {
+  min-width: 72px;
+  min-height: 54px;
+  padding: 6px 2px 5px;
+  border: none;
+  border-radius: 7px;
+  border-bottom: 2px solid transparent;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
 }
 
-.battery-profile-icon {
-  min-width: 18px;
-  min-height: 18px;
+.battery-mode-cell:hover {
+  background-color: alpha(@color_foreground, 0.08);
 }
 
-/* Base name + `++` suffix as two labels, so the suffix is styled rather than
-   baked into a Pango string (which would hard-code a color, breaking this
-   file's tokens-only rule). */
-/* NOTE: the 1px gap between the two labels is the BOX's `spacing` property
-   (BatteryContent.tsx), not a CSS declaration — GTK CSS has no `spacing`
-   property, so a `.battery-profile-label { spacing: 1px }` rule was silently
-   ignored (it logged `CSS Error: No property named "spacing"` on every boot).
-   The rule is removed rather than left as dead weight. */
-
-/* The tier suffix, tinted with the same accent `.active` uses (@color_13), so
-   "pushed further" reads as MORE of the mode rather than as a different mode —
-   which is exactly what `profileIconVariant` says it is, by reusing the base
-   glyph. Lighter weight so it stays a qualifier of the word before it. */
-.battery-profile-tier {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: @color_13;
+/* The "where you are" indicator, in the row-selected token. No fill behind the
+   cell: a solid block behind a 24px glyph would out-weigh the hero. */
+.battery-mode-cell.sel {
+  border-bottom-color: @color_10;
 }
 
-/* Insensitive until the daemon answers: a row that would silently do nothing is
-   worse than one that visibly cannot be clicked yet. */
-.battery-profile:disabled {
+/* Insensitive until the daemon answers: a cell that would silently do nothing
+   is worse than one that visibly cannot be clicked yet. */
+.battery-mode-cell:disabled {
   opacity: 0.5;
+}
+
+.battery-mode-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: alpha(@color_foreground, 0.62);
+}
+
+.battery-mode-cell.sel .battery-mode-label {
+  color: @color_foreground;
+}
+
+/* The mode glyph: the rail sizes it 24px (the retired per-profile row used
+   18px). The `power-mode` group is guard-exempt and untinted on dark glass. */
+.battery-profile-icon {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+/* ── the VARIANT control — rendered ONLY when the selected mode declares more
+   than one variant. Built on the `.settings-rowact` pill geometry: 1px
+   hairline, radius 7, 11/600. `.sel` swaps the border to the row-selected
+   token and adds a faint @color_10 wash — two channels, so colour is never
+   alone, and no new hue. */
+.battery-variant {
+  padding: 2px 16px 8px 16px;
+}
+
+.battery-variant-opt {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 4px 10px;
+  border: 1px solid alpha(@color_foreground, 0.26);
+  border-radius: 7px;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: @color_foreground;
+}
+
+.battery-variant-opt:hover {
+  border-color: @color_10;
+}
+
+.battery-variant-opt.sel {
+  border-color: @color_10;
+  background-color: alpha(@color_10, 0.18);
+}
+
+.battery-variant-opt:disabled {
+  opacity: 0.5;
+}
+
+/* The selected profile named ONCE, under the selector. This only carries the
+   mock's `.rail-meta` padding; the name and tier labels reuse
+   `.settings-net-name` / `.settings-net-sub`, so the panel stays inside the
+   settings-panel vocabulary rather than inventing a second one. */
+.battery-rail-meta {
+  padding: 4px 16px 10px 16px;
 }
 
 /* Footer deep-link row to the daemon's own frontend. Mirrors

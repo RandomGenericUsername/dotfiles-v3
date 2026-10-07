@@ -1,0 +1,11 @@
+<!--
+  power-mode-unknown-active.svg — the fallback glyph in the SELECTED tint
+  (@color_13 = #dbab67). Same geometry as power-mode-unknown.svg; only the ink
+  differs, exactly as the sibling run stages accent/neutral pairs.
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(512 512) scale(1.165312) translate(-512 -512)">
+  <circle cx="512" cy="549" r="300" fill="none" stroke="#dbab67" stroke-width="64"/>
+  <rect x="482" y="143" width="60" height="300" rx="30" fill="#dbab67"/>
+</g>
+</svg>

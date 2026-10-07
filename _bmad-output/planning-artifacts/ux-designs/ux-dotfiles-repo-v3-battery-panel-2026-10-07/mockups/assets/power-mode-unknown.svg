@@ -1,0 +1,17 @@
+<!--
+  power-mode-unknown.svg — THE FALLBACK, and the ONLY hand-authored glyph in
+  this set. Every other power-mode asset is a verbatim copy of downloaded
+  artwork (see DESIGN.md §Icon plan).
+
+  Drawn for the case where the daemon reports a `base_profile` with no tier
+  mapping: a neutral power symbol — the universal ring-and-stem. It carries no
+  semantic tier on purpose; the rail cell always states the profile name and
+  its tier in text beneath the rail, so an unmapped tier is never a mystery.
+  Geometry: ring centre (512,549) r=300 stroke 64; stem x=482 y=143 w=60 h=300.
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(512 512) scale(1.165312) translate(-512 -512)">
+  <circle cx="512" cy="549" r="300" fill="none" stroke="#c5c8ce" stroke-width="64"/>
+  <rect x="482" y="143" width="60" height="300" rx="30" fill="#c5c8ce"/>
+</g>
+</svg>

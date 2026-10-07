@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>④ The model is dynamic — Battery panel — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+<style>
+  /* MOCK-ONLY chrome for this page. */
+  .json {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px;
+    line-height: 1.6; color: rgba(194,194,197,.8); background: rgba(0,0,0,.28);
+    border: 1px solid rgba(255,255,255,.08); border-radius: 9px;
+    padding: 12px 15px; white-space: pre; overflow-x: auto;
+  }
+  .json .k { color: #7fc4ff; }  .json .s { color: #b7d99a; }  .json .n { color: #e0b57f; }
+  .json .new { color: #e08ad6; }
+  .before-after { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; }
+  .pipe { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 4px; }
+  .pipe-box {
+    border: 1px solid var(--hairline); border-radius: 9px; background: rgba(255,255,255,.03);
+    padding: 6px 11px; font-size: 11px; color: var(--ink-primary);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pipe-box img { width: 20px; height: 20px; display: block; }
+  .pipe-box.fallback { border-color: rgba(219,171,103,.45); }
+  .pipe-arrow {
+    width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+    border-left: 8px solid var(--selected); flex: 0 0 auto;
+  }
+  .badge-new {
+    display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
+    padding: 1px 7px; border-radius: 8px; background: rgba(219,171,103,.16);
+    border: 1px solid rgba(219,171,103,.45); color: #f0d5a4; text-transform: uppercase;
+  }
+  .badge-fallback {
+    display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .05em;
+    padding: 1px 7px; border-radius: 8px; background: rgba(219,171,103,.16);
+    border: 1px solid rgba(219,171,103,.45); color: #f0d5a4; text-transform: uppercase;
+  }
+  /* true-width three-variant proof */
+  .truewrap { zoom: 1; }
+  .variant.stretch { padding-left: 16px; padding-right: 16px; }
+</style>
+</head>
+<body>
+<!--
+  MOCK: key-dynamic — the load-bearing page.
+
+  Every glyph below is a real file in assets/; the invented profiles
+  (“Showtime”, “Meetings”, “Studio”, “Hyperdrive”) are TEXT ONLY and reuse
+  their mode's real artwork — which is the entire point of this page:
+
+    assets/power-mode-powersave.svg / -active.svg    leaf   (mode Powersave)
+    assets/power-mode-performance.svg / -active.svg  engine (mode Performance)
+    assets/power-mode-balanced.svg / -active.svg     scales (mode Balanced)
+    assets/power-mode-unknown.svg / -active.svg      the labelled fallback
+
+  Governed by DESIGN.md:
+    §The two-level model (mode owns glyph; variant is a profile on a declared tier)
+    §Why the relation must be DECLARED, not inferred
+    §Components (mode rail, variant control, resolution)
+  EXPERIENCE.md:
+    §The declaration & its resolution rules (tier → mode; unknown tier → fallback;
+    variant control only when >1)
+    §State Patterns (rename, profile added, undeclared tier, 3+ variants)
+
+  REAL SOURCE OF TRUTH (quoted, live on this machine 2026-10-07):
+    daemon  io.github.thealexdev23.power_daemon · method GetProfilesInfo
+    returns { active_profile: <index>, profiles: [ { profile_name, base_profile } … ] }
+    base_profile ∈ { Superpowersave, Powersave, Balanced, Performance, Ultraperformance }
+    profile_name is user-editable (UpdateProfileName); create/remove at runtime
+    (CreateProfile / RemoveProfile) in /etc/power-options/config.toml, which
+    power-service.ts ALREADY watches.
+-->
+
+<h1>④ The model is dynamic</h1>
+<div class="sub">
+  The declaration must survive the daemon's runtime: profiles are renamed, created and removed, and a
+  future daemon may add a tier this build never heard of. Each proof below is rendered as the panel
+  actually draws it — because resolution is <b>tier → mode → glyph</b>, not a hardcoded name list.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>dynamic-rename</code> · <code>dynamic-new-variant</code> · <code>dynamic-unknown</code> ·
+  <code>dynamic-three-variants</code>
+  <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:10px 0">
+  <b>The glyph never tracks the name.</b> <code>profile_name</code> is the user's; the tier is the
+  daemon's; the art belongs to the mode the tier declares. Rename, add and remove are therefore
+  no-ops for the artwork.
+</div>
+
+<!-- ═══ dynamic-rename ══════════════════════════════════════════════════ -->
+<div id="dynamic-rename" class="state-label">(a) Rename a profile — no art moves · <code>dynamic-rename</code></div>
+
+<p class="note" style="margin-top:0">
+  Rename <code>Performance++</code> to <code>Showtime</code>. The tier stays
+  <code>Ultraperformance</code>, so the mode stays <b>Performance</b> and the glyph stays the
+  <b>engine</b>. Only the variant label and the name line change.
+</p>
+
+<div class="before-after">
+  <div class="col">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header"><span class="header-icon"><img src="assets/battery-75.svg" alt="battery-75" /></span><span class="nav-title">Battery</span><span class="header-pct">82%</span></div>
+      <div class="hero"><div class="hero-primary">2h 14m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell sel" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance-active.svg" alt="engine selected" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Performance · Performance tier">Performance</button>
+        <button class="variant-opt sel" title="Performance++ · Ultraperformance tier">Performance++</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Performance++</div><div class="rail-tier">Performance mode · Ultraperformance tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap" style="max-width:360px;text-align:left">before — <code>UpdateProfileName</code> not yet called. Mode <b>Performance</b>, glyph <b>engine</b>, tier <code>Ultraperformance</code>.</div>
+  </div>
+
+  <div class="col">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header"><span class="header-icon"><img src="assets/battery-75.svg" alt="battery-75" /></span><span class="nav-title">Battery</span><span class="header-pct">82%</span></div>
+      <div class="hero"><div class="hero-primary">2h 14m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell sel" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance-active.svg" alt="engine selected" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Performance · Performance tier">Performance</button>
+        <button class="variant-opt sel" title="Showtime · Ultraperformance tier">Showtime</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Showtime</div><div class="rail-tier">Performance mode · Ultraperformance tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap" style="max-width:360px;text-align:left">after — renamed to <b>Showtime</b>. <b>Same engine glyph, same mode, same tier</b>; only the variant label and the name line changed.</div>
+  </div>
+</div>
+
+<h3>The resolution that makes the rename a no-op</h3>
+<div class="pipe">
+  <span class="pipe-box"><code>profile_name</code> = <code>Showtime</code></span>
+  <span class="pipe-arrow"></span>
+  <span class="pipe-box"><code>base_profile</code> = <code>Ultraperformance</code> <span style="color:rgba(194,194,197,.5)">(unchanged by the rename)</span></span>
+  <span class="pipe-arrow"></span>
+  <span class="pipe-box">Performance mode</span>
+  <span class="pipe-arrow"></span>
+  <span class="pipe-box"><img src="assets/power-mode-performance-active.svg" alt="engine — assets/power-mode-performance-active.svg" /> engine glyph</span>
+</div>
+
+<!-- ═══ dynamic-new-variant ═════════════════════════════════════════════ -->
+<div id="dynamic-new-variant" class="state-label">(b) A new profile joins its tier's mode as a new variant · <code>dynamic-new-variant</code></div>
+
+<div class="before-after" style="margin-top:8px">
+  <div class="col">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header"><span class="header-icon"><img src="assets/battery-50.svg" alt="battery-50" /></span><span class="nav-title">Battery</span><span class="header-pct">54%</span></div>
+      <div class="hero"><div class="hero-primary">3h 02m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell sel" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave-active.svg" alt="leaf selected" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance.svg" alt="engine" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Powersave · Powersave tier">Powersave</button>
+        <button class="variant-opt sel" title="Powersave++ · Superpowersave tier">Powersave++</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Powersave++</div><div class="rail-tier">Powersave mode · Superpowersave tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap" style="max-width:360px;text-align:left">before — Powersave mode has two variants.</div>
+  </div>
+
+  <div class="col">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header"><span class="header-icon"><img src="assets/battery-50.svg" alt="battery-50" /></span><span class="nav-title">Battery</span><span class="header-pct">54%</span></div>
+      <div class="hero"><div class="hero-primary">3h 02m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell sel" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave-active.svg" alt="leaf selected" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance.svg" alt="engine" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Powersave · Powersave tier">Powersave</button>
+        <button class="variant-opt sel" title="Powersave++ · Superpowersave tier">Powersave++</button>
+        <button class="variant-opt" title="Meetings · Powersave tier">Meetings</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Powersave++</div><div class="rail-tier">Powersave mode · Superpowersave tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap" style="max-width:360px;text-align:left">after — a new profile <code>Meetings</code> on the existing <code>Powersave</code> tier <b>appears as a third variant</b>. The mode glyph (leaf) is untouched.</div>
+  </div>
+</div>
+
+<div class="cols" style="margin-top:14px">
+  <div class="col" style="align-items:stretch;min-width:340px;flex:1">
+    <h3>What the daemon returns</h3>
+    <div class="json"><span class="k">"active_profile"</span>: <span class="n">1</span>,
+<span class="k">"profiles"</span>: [
+  { <span class="k">"profile_name"</span>: <span class="s">"Powersave++"</span>, <span class="k">"base_profile"</span>: <span class="s">"Superpowersave"</span> },
+  { <span class="k">"profile_name"</span>: <span class="s">"Powersave"</span>,    <span class="k">"base_profile"</span>: <span class="s">"Powersave"</span> },
+  { <span class="k">"profile_name"</span>: <span class="s">"Balanced"</span>,     <span class="k">"base_profile"</span>: <span class="s">"Balanced"</span> },
+  { <span class="k">"profile_name"</span>: <span class="s">"Performance"</span>,  <span class="k">"base_profile"</span>: <span class="s">"Performance"</span> },
+  { <span class="k">"profile_name"</span>: <span class="s">"Performance++"</span>,<span class="k">"base_profile"</span>: <span class="s">"Ultraperformance"</span> },
+  { <span class="k">"profile_name"</span>: <span class="s new">"Meetings"</span>,     <span class="k">"base_profile"</span>: <span class="s new">"Powersave"</span> }   <span class="new">&lt;— new</span>
+]</div>
+    <p class="note" style="margin-top:10px">
+      No code changes: the deployment groups profiles by looking up each
+      <code>base_profile</code> in the declaration, so <code>Meetings</code> joins <b>Powersave
+      mode</b> because its tier <code>Powersave</code> is listed there. Two profiles on the same tier
+      are two sibling variants — same level, same glyph, distinguished by name.
+    </p>
+  </div>
+</div>
+
+<!-- ═══ dynamic-unknown ═════════════════════════════════════════════════ -->
+<div id="dynamic-unknown" class="state-label">(c) An undeclared tier — the labelled fallback · <code>dynamic-unknown</code></div>
+
+<p class="note" style="margin-top:0">
+  A future daemon adds <code>Warp</code>, a tier no mode declares. The profile does <b>not</b>
+  disappear and no blank cell is drawn: it gathers under an <b>Unlisted</b> pseudo-mode carrying the
+  neutral fallback, visibly marked <span class="badge-fallback">fallback</span>
+  <code>unmapped tier</code>.
+</p>
+
+<div class="cols">
+  <div class="col">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header"><span class="header-icon"><img src="assets/battery-0.svg" alt="battery-0" /></span><span class="nav-title">Battery</span><span class="header-pct">12%</span></div>
+      <div class="hero"><div class="hero-primary">52m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance.svg" alt="engine" /></span><span class="mode-label">Performance</span></button>
+        <button class="mode-cell sel" title="Unlisted tiers — the fallback glyph"><span class="mode-icon"><img src="assets/power-mode-unknown-active.svg" alt="fallback selected" /></span><span class="mode-label">Unlisted</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt sel" title="Hyperdrive · tier Warp · unmapped">Hyperdrive</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Hyperdrive</div><div class="rail-tier">unlisted mode · <span class="fallback">unmapped tier</span></div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap" style="max-width:400px;text-align:left">A fourth mode cell appears <b>only</b> because an undeclared tier exists, and it is the labelled neutral glyph. The profile stays selectable.</div>
+  </div>
+
+  <div class="col" style="align-items:stretch;min-width:340px;flex:1">
+    <h3>Fallback rules</h3>
+    <table class="tokens" style="margin-top:6px">
+      <tr><th>Case</th><th>Selector renders</th></tr>
+      <tr><td>tier declared by a mode</td><td>that mode's glyph; profile joins as a variant</td></tr>
+      <tr><td>tier not declared anywhere</td><td>fallback glyph under an Unlisted pseudo-mode</td></tr>
+      <tr><td>tier missing / empty</td><td>fallback + <code>unmapped tier</code> in the meta line</td></tr>
+    </table>
+    <p class="note" style="margin-top:10px">
+      Two channels: the neutral shape says “undeclared”, the words <code>unmapped tier</code> say the
+      same. A profile is never dropped and never rendered blank.
+    </p>
+  </div>
+</div>
+
+<!-- ═══ dynamic-three-variants ══════════════════════════════════════════ -->
+<div id="dynamic-three-variants" class="state-label">(d) A mode with three variants still reads · <code>dynamic-three-variants</code></div>
+
+<p class="note" style="margin-top:0">
+  Performance mode gains a third variant: <code>Studio</code>, another profile on the
+  <code>Ultraperformance</code> tier. The variant control grows to three pills and still reads — it
+  wraps rather than widening the surface. The mode glyph is unchanged (engine), because the new
+  profile is on a tier Performance already declares.
+</p>
+
+<div class="cols">
+  <div class="col">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header"><span class="header-icon"><img src="assets/battery-75.svg" alt="battery-75" /></span><span class="nav-title">Battery</span><span class="header-pct">82%</span></div>
+      <div class="hero"><div class="hero-primary">2h 14m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell sel" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance-active.svg" alt="engine selected" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Performance · Performance tier">Performance</button>
+        <button class="variant-opt" title="Performance++ · Ultraperformance tier">Performance++</button>
+        <button class="variant-opt sel" title="Studio · Ultraperformance tier">Studio</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Studio</div><div class="rail-tier">Performance mode · Ultraperformance tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap" style="max-width:400px;text-align:left">
+      Three variant pills: <code>Performance</code> (tier Performance) and <code>Performance++</code>,
+      <code>Studio</code> (both tier Ultraperformance). Same engine glyph; the meta line names the
+      live one once.
+    </div>
+  </div>
+
+  <div class="col" style="align-items:stretch;min-width:340px;flex:1">
+    <h3>Why it still reads</h3>
+    <table class="tokens" style="margin-top:6px">
+      <tr><th>Property</th><th>Value</th></tr>
+      <tr><td>variant pills</td><td><code>.settings-rowact</code> geometry, 6 px gap, wraps</td></tr>
+      <tr><td>three pills width</td><td>well under the 274 px usable width</td></tr>
+      <tr><td>mode cells</td><td>still three — a variant never adds a mode</td></tr>
+      <tr><td>surface width</td><td>312 px, unchanged</td></tr>
+    </table>
+    <p class="note" style="margin-top:10px">
+      This is the pressure valve the two-level model buys: any number of profiles can pile onto a
+      tier without ever demanding new artwork or a wider panel. The mode count is bounded by the
+      declaration; the variant count is unbounded and simply wraps.
+    </p>
+  </div>
+</div>
+
+<p class="note" style="margin-top:26px">
+  <a href="panel.html">panel.html</a> · <a href="key-mode-rail.html">key-mode-rail.html</a> ·
+  <a href="key-declaration.html">key-declaration.html</a> · <a href="index.html">index</a>
+</p>
+
+</body>
+</html>

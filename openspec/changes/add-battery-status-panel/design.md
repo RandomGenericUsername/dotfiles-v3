@@ -12,7 +12,7 @@ The panel has two kinds of code and they must not be mixed:
 
 | | lives in | testable by |
 |---|---|---|
-| **Decisions** — what to write, which glyph, which row is selected | `components/battery/presentation.ts` | `make ags-test`, no GTK |
+| **Decisions** — what to write, which glyph, which mode/variant is selected | `components/battery/presentation.ts` | `make ags-test`, no GTK |
 | **Effects** — the D-Bus subscription, the window, the CSS classes | the widget | a live desktop, by hand |
 
 `presentation.ts` imports nothing. No `gi://`, no `ags`, no I/O, no module-level
@@ -108,20 +108,24 @@ travels with the file and does not depend on this document being read.
 
 ### 2.4 Three glyphs for five profiles
 
-`profileIconVariant` maps five profiles onto three variants. `Powersave++` and
-`Performance++` reuse the base profile's glyph.
+`glyphForTier` maps a `base_profile` tier onto one of the **three declared
+modes'** glyphs. `Superpowersave` and `Powersave` share the leaf;
+`Ultraperformance` and `Performance` share the engine. The grouping itself is the
+declaration (§4.1), not a rule over the tier string.
 
 **Why:** the daemon's `++` tiers are not different modes — they are the same mode
 pushed further (a lower ceiling / a higher floor on the same governor). There is
 no sixth or seventh meaning to draw. A distinct glyph would claim a distinction
 the system does not make, and it would cost two extra template directories and two
-extra rendered outputs to do it. The honest rendering is the base glyph plus the
-`++` in the row's **text**. A unit test pins this, and another pins that every
-profile resolves to a variant the manifest actually declares — because a fourth
-return value would be an unresolvable icon path at runtime.
+extra rendered outputs to do it. The honest rendering is the mode's glyph plus the
+mode/tier line in text. A unit test pins the declaration, and another pins that
+every declared tier resolves to a glyph the manifest actually declares — so no
+tier can resolve to an unresolvable icon path at runtime.
 
-The implementation normalises the suffix (`id.replace(/\+\+$/, "")`) rather than
-switching on five literals, so a future `Powersave+++` needs no edit.
+The retired implementation normalised a `++` suffix off the profile NAME
+(`id.replace(/\+\+$/, "")`), which both broke on rename and got
+`Performance++ → performance` wrong. It is deleted: the tier is the key and the
+declaration is the grouping.
 
 ### 2.5 Regenerating `icons.json`
 
@@ -305,44 +309,53 @@ the test file fails to *load*, which is the loudest possible signal.
 
 ## 4. The pure presentation logic
 
-Signatures are fixed — a second agent codes the panel against them, so they are
-not to be renamed or reshaped.
+The module holds the two-level model and the time/percentage formatting; it
+imports nothing. The load-bearing exports are:
 
 ```ts
-export type PowerProfileId =
-  | "Powersave++" | "Powersave" | "Balanced" | "Performance" | "Performance++"
+export interface PowerProfile { readonly name: string; readonly tier: string }
+export interface PowerMode { readonly mode: string; readonly glyph: string; readonly tiers: readonly string[] }
 
-export const POWER_PROFILE_ORDER: readonly PowerProfileId[]
+export const POWER_MODES: readonly PowerMode[]
+
+export function modeForTier(tier: string): PowerMode | null
+export function resolveMode(tier: string): PowerMode
+export function glyphForTier(tier: string): string
+export function railModes(profiles: readonly PowerProfile[]): PowerMode[]
+export function profilesForMode(mode: PowerMode, profiles: readonly PowerProfile[]): IndexedProfile[]
+export function hasVariantChoice(mode: PowerMode, profiles: readonly PowerProfile[]): boolean
+export function variantToSelect(mode: PowerMode, profiles: readonly PowerProfile[], activeIndex: number): string | null
+export function railMeta(profile: PowerProfile | null): { name: string; line: string }
+
 export interface BatteryTimePresentation { primary: string; sub: string }
 export function formatBatteryTime(seconds: number, charging: boolean): BatteryTimePresentation
 export function formatDuration(seconds: number): string | null
-export function profileIconVariant(id: PowerProfileId): string
-export function isActiveProfile(current: string, candidate: PowerProfileId): boolean
 ```
 
-Plus, on the caller's request scope, two percentage helpers for the nav header
-(§5).
+Plus the percentage helpers for the nav header (§5).
 
-### 4.1 Why the profile list is an explicit ordered array
+### 4.1 Why the tier→mode grouping is DECLARED, and the list comes from the daemon
 
-`POWER_PROFILE_ORDER` is a hand-written `Object.freeze`d tuple, **not** derived
-from `Object.keys` of anything:
+The daemon reports each profile as `{ profile_name, base_profile }`; the panel's
+two-level model needs a grouping the payload does not carry, and neither field
+states it:
 
-- **Row order is a product decision** (cheapest first, hottest last), not a
-  property of the profile names. `Object.keys` yields whatever order the daemon's
-  D-Bus/NMI payload serialised, and that order is not a contract — it can change
-  between daemon versions and silently reshuffle the menu.
-- **The list is stable even when a profile is unavailable** on the running
-  machine, so rows do not jump.
-- `Object.freeze` + `as const` means the panel reading it at module scope cannot
-  mutate it, and `PowerProfileId` is *derived* from the tuple rather than
-  restated. A hand-written union beside a hand-written list is two declarations
-  that drift: adding a profile to the list and forgetting the union compiles fine
-  and breaks the consumer's `switch`. Deriving it makes the omission a compile
-  error.
+- **`profile_name` is user-editable** (`UpdateProfileName`), so any `++`-suffix
+  rule breaks on rename (`Performance++` → `Showtime` has nothing to strip).
+- **`base_profile` is stable but yields five distinct tiers, not three.** The
+  live values are `Powersave++` → `Superpowersave` and `Performance++` →
+  `Ultraperformance`; a per-tier-glyph rule asks for five glyphs, and the owner
+  supplied three.
 
-A unit test asserts `Object.isFrozen` and the cheap-to-hot ordering, so "this is
-a deliberate order" is a checked property rather than a comment.
+So `POWER_MODES` is an explicit `Object.freeze`d declaration
+(`mode → { glyph, tiers }`), and resolution is a lookup of the **stable tier** in
+the declaration, with three glyphs shared across five tiers. The profile LIST is
+never hardcoded: it is enumerated from the daemon's `GetProfilesInfo` (see §5),
+so profiles created, removed or renamed at runtime appear without a restart.
+
+A unit test pins the declaration literally, the tier→mode lookup for every live
+tier, the undeclared-tier fallback, and that a renamed profile still resolves
+through its unchanged tier.
 
 ### 4.2 Why `formatDuration` returns `string | null`
 
@@ -396,15 +409,11 @@ The state word plus the percentage carries the information in the fallback case.
 
 ## 5. What the panel consumes (workstream B contract)
 
-Fixed, and **not** to be renamed or reshaped:
-
-```ts
-export const POWER_PROFILE_ORDER: readonly PowerProfileId[]
-export function formatBatteryTime(seconds: number, charging: boolean): BatteryTimePresentation
-export function formatDuration(seconds: number): string | null
-export function profileIconVariant(id: PowerProfileId): string
-export function isActiveProfile(current: string, candidate: PowerProfileId): boolean
-```
+The panel is a thin reader: every decision comes from §4, including the
+tier→mode resolution, the variant grouping and the meta line. The daemon side
+belongs to `services/power-service.ts`, which reads `GetProfilesInfo` and
+exposes `powerProfiles` (the `{name, tier}` list) and `activeProfileIndex` (the
+index into it). The panel resolves the index through `activeProfileOf`.
 
 Extras, available if the panel needs them:
 
@@ -416,14 +425,32 @@ Extras, available if the panel needs them:
 | `formatBatteryStatusLine(s: number, charging: boolean): string` | the ONE-line form for a caller with a single line (`"2h 14m remaining"`, `"full in 2h 14m"`, `"Discharging"`), derived from `formatBatteryTime`. Added during review: the bar tooltip had been choosing the state word and the word ORDER itself, which is the same fact rendered twice — the way a tooltip ends up saying "charging" where the panel says "Charging", or printing "0m remaining" for a missing estimate |
 
 **Percentage: exposed, and deliberately two functions rather than one.** The panel
-prints a percentage in **two** places (nav header and profile rows), and a
+prints a percentage in **two** places (nav header and tooltip), and a
 percentage rendered two ways is a rounding drift waiting to happen. These round
 and clamp once for both callers. `clampPercentage` reports a missing reading as
 `null` so a daemon with no capacity cannot render `NaN%` — the same "degrade to a
 word, never to a fabricated number" rule as §4.2.
 
 Icon resolution stays with the existing seam: `registry.resolve("power-mode",
-profileIconVariant(id))`.
+mode.glyph)`, where `mode` is the mode the profile's tier resolves into. The
+glyph therefore hangs on the mode, not on the profile.
+
+### 5.1 `GetProfilesInfo` — the daemon contract
+
+The read is one D-Bus call on the existing control interface:
+
+```
+GetProfilesInfo() -> s   # JSON
+{ "active_profile": <index>,
+  "profiles": [ { "profile_name": <string>, "base_profile": <string>, ... }, … ] }
+```
+
+- `active_profile` is an **INDEX** into `profiles[]`, used directly rather than
+  matched by name, so selection is rename-proof.
+- The list is re-read when `/etc/power-options/config.toml` changes, which is how
+  `CreateProfile` / `RemoveProfile` / `UpdateProfileName` land.
+- A malformed document is rejected as a whole (the last good read is kept); a
+  missing `base_profile` resolves to the labelled fallback rather than crashing.
 
 ---
 
@@ -435,8 +462,12 @@ reviewing agent that verified it.
 
 - [x] Battery status panel widget + the two popup windows
       (`components/battery/{state,battery-icon,BatteryPopup,BatteryContent}`).
-- [x] `style.css` rules for the panel, reusing `.settings-net` (+ `.sel`) for
-      the rows. The former `.power-profile-item` / `.power-profile-item.active`
+- [x] `style.css` rules for the panel: the mode rail / variant control
+      vocabulary (`.battery-mode-*`, `.battery-variant*`, `.battery-rail-meta`)
+      replaces the retired `.battery-profile-list` / `.battery-profile` /
+      `.battery-profile-tier` flat-row rules, which the two-level selector
+      removes. `.battery-profile-icon` is kept for the mode glyph (24px in the
+      rail). The former `.power-profile-item` / `.power-profile-item.active`
       rules are **deleted, not relocated** — they styled the `<popover>` this
       change removes, so keeping them would be dead CSS that still reads as if
       the popover existed.
@@ -472,36 +503,38 @@ CSS resolution, same report shape, same exit codes) rather than another anchor
 in the existing one — extending that harness would either widen its STATE_TSX to
 files it has no business knowing, or leave the panel ungated.
 
-`battery-popup-mockup.html` carries six anchored states: discharging with an
-estimate, charging (a charge target, not a countdown), the no-estimate
-fallback, the daemon-absent state, a `++` tier selected, and the bar indicator
-with the anchoring rule spelled out.
+`battery-popup-mockup.html` carries six anchored states: Performance mode
+selected with two variants, Powersave mode selected with two variants, the
+mono-variant Balanced mode (NO variant control rendered), the daemon-absent
+state, a `++` variant selected, and the bar indicator with the anchoring rule
+spelled out.
 
 Three additions over the Wi-Fi harness, each forced by something the Wi-Fi mock
 does not have:
 
 - **PSEUDO_STATES** — the mock's `dim` modifier is
-  `.battery-profile:disabled` in the shipped CSS, gated by
+  `.battery-mode-cell:disabled` in the shipped CSS, gated by
   `sensitive={powerReady}`. Resolved by requiring the exact selector text, so a
   renamed rule still fails.
-- **PROMISES** — some mock classes are backed by a *call*, not a selector. The
-  load-bearing one is `++`: the mock promises the tier rows reuse the base
-  profile's glyph and carry `++` as tinted text, and the gate asserts the
-  `profileIconVariant` regex **and** the separate `battery-profile-tier` label
-  literal are both still there. A PROMISES entry is a LIST, because one token
-  can carry more than one promise — and the branches are additive rather than
-  exclusive, since an exclusive CLASS_MAP branch swallows the literal check and
-  the gate stays green against exactly the regression the promise exists to
-  catch. That was measured, not reasoned about: the exclusive version passed
-  against a `presentation.ts` whose `++` stripping had been deleted.
-- **Compound selectors** (`.settings-net.battery-profile`), lifted from
-  `speedtest-mock-parity.py`, so a mapping can name both the row chrome and this
-  panel's tighter metrics and be held to both.
+- **PROMISES** — some mock classes are backed by a *call* or a literal, not a
+  selector. `mode-rail` promises the mode list is DECLARED (`POWER_MODES`, not
+  a hardcoded per-profile array); `mode-cell` promises the glyph is looked up
+  from the MODE (`modeIconPath`), so the `++` tiers share their mode's art;
+  `variant` promises the control is gated on more than one variant
+  (`showVariantControl`); and `rail-tier` promises an undeclared tier is
+  labelled `unmapped tier` rather than silently mapped. A PROMISES entry is a
+  LIST, and the branches are additive rather than exclusive, since an exclusive
+  CLASS_MAP branch swallows the literal check and the gate stays green against
+  exactly the regression the promise exists to catch.
+- **Compound selectors** (`.battery-mode-cell.sel`,
+  `.battery-variant-opt.sel`), lifted from `speedtest-mock-parity.py`, so a
+  mapping can name both the base class and the selected-state modifier and be
+  held to both.
 
 **Negative-tested** in three ways, each on a perturbed copy: an extra mock class
-with no CSS rule (FAIL, exit 1), the `++`-stripping regex removed (FAIL, exit 1),
-and `.battery-profile:disabled` deleted from `style.css` (FAIL, exit 1). Passing
-output: 6 states, 110 tokens checked, 19 scaffolding skipped, 0 known gaps.
+with no CSS rule (FAIL, exit 1), a promise literal removed (FAIL, exit 1), and
+`.battery-mode-cell:disabled` deleted from `style.css` (FAIL, exit 1). Passing
+output: 6 states, 136 tokens checked, 19 scaffolding skipped, 0 known gaps.
 
 **KNOWN_GAPS is empty, and that is the claim the negative runs support.** A
 parity gate that passes because nothing matched is worse than no gate.
@@ -516,7 +549,7 @@ typecheck and the popup is `visible={false}` until something opens it.
 
 Validated statically, mechanically:
 
-- every pure decision through `make ags-test` (37 assertions, 0 type errors);
+- every pure decision through `make ags-test` (51 assertions, 0 type errors);
 - the mock/code parity of every class the panel draws, via the new gate;
 - the anchoring code is textually the same construction as
   `bar/widgets/network.tsx` (motion controller that records x and claims no

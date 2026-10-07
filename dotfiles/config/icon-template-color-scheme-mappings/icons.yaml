@@ -237,8 +237,9 @@ power-menu:
 #
 # `balanced` / `powersave` / `performance` are the only variants on purpose —
 # the daemon's `Powersave++` and `Performance++` tiers are the SAME mode pushed
-# further, not different modes, so `profileIconVariant()` reuses the base
-# profile's variant rather than inventing a glyph that would misrepresent them.
+# further, not different modes, so `glyphForTier()` resolves their tiers back to
+# the base mode's variant rather than inventing a glyph that would
+# misrepresent them.
 power-mode:
   color_mappings:
     COLOR_FOREGROUND: foreground

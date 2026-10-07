@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Battery panel — the mockup</title>
+<link rel="stylesheet" href="mock.css" />
+<style>
+  /* MOCK-ONLY board chrome. None of this ships; it lays the panels out and
+     draws the bar strip they hang from. Every design rule lives in mock.css
+     (mirrors dotfiles/config/ags/style.css). */
+  .board { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; }
+  .cell  { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+  .cell.wide { align-items: stretch; }
+  .bar {
+    display: flex; align-items: center; gap: 9px; padding: 9px 13px;
+    background: rgba(11,11,26,.55); border-bottom: 1px solid var(--hairline);
+    border-radius: 12px 12px 0 0; width: 312px;
+  }
+  .bar img { width: 22px; height: 22px; display: block; flex: 0 0 22px; }
+  .bar .clock { margin-left: auto; font-size: 12px; color: rgba(197,200,206,.7); }
+  .stem { width: 2px; height: 13px; background: var(--selected); margin: 0 auto; }
+  .stack { display: flex; flex-direction: column; align-items: center; }
+</style>
+</head>
+<body>
+<!--
+  MOCK: panel — the battery panel in context, in three real states.
+
+  Governed by DESIGN.md:
+    §Brand & Style (AGS is a frontend to power_daemon, never a second one)
+    §The two-level model (MODE owns a glyph; VARIANT is a profile on a declared tier)
+    §Colors (surface-panel / surface-row / ink / row-selected / action-accent)
+    §Layout & Spacing (312px, the fixed body order)
+    §Components (battery nav header, hero, MODE RAIL, VARIANT control, rail-meta, deep-link)
+    §Icon plan (three mode glyphs + the labelled fallback)
+  EXPERIENCE.md:
+    §Information Architecture · §Voice and Tone (real profile & tier names)
+    §The declaration & its resolution rules (tier → mode; unknown tier → fallback;
+      variant control only when a mode declares more than one variant)
+    §Component Patterns (mode rail, variant control, selected-name-once)
+    §State Patterns (discharging / charging / low battery)
+    §The mutual-exclusion rule (battery ↔ Wi-Fi ↔ settings)
+
+  ICON TRACE — every <img> in this file is a real file in assets/, stated
+  inline at each use site:
+    assets/battery-*.svg                  the repo's own rounded battery templates
+    assets/power-mode-powersave.svg       leaf   (mode Powersave)
+    assets/power-mode-balanced.svg        scales (mode Balanced)
+    assets/power-mode-performance.svg     engine (mode Performance)
+    assets/power-mode-*-active.svg        the same geometry in the accent ink
+  The mode glyph is shared by every tier a mode declares — that sharing is the
+  point of this revision. No glyph is hand-drawn except the labelled
+  assets/power-mode-unknown.svg fallback, which does not appear on this page.
+
+  Palette: surface-panel rgba(11,11,26,.94), border #2d6596, ink #c2c2c5,
+  row-selected #549ec8, accent #dbab67 — the LIVE sibling palette (mock.css).
+  Glyph ink is #c5c8ce, the value the staged assets carry.
+-->
+
+<h1>Battery panel</h1>
+<div class="lead sub">
+  A bar indicator's left-click surface: a follower-anchored <b>312&nbsp;px</b> panel whose
+  power-mode selector is <b>two levels</b> — a <b>mode rail</b> (three cells, one glyph each) over a
+  <b>variant control</b> that appears only when the selected mode has more than one variant. The
+  owner's model is three glyphs for five selectable things. Drawn at true 312&nbsp;px and magnified
+  ×1.7; scroll to the <code>true 312 px</code> row at the bottom for 1:1.
+</div>
+
+<!-- ═══ bar + anchor ════════════════════════════════════════════════════ -->
+<div class="board" style="margin: 6px 0 30px">
+
+  <div class="cell" id="bar-anchor">
+    <div class="zoom">
+      <div class="stack">
+        <div class="bar">
+          <img src="assets/battery-75.svg" alt="battery bar glyph, 82%, discharging — assets/battery-75.svg" />
+          <span class="clock">09:41</span>
+        </div>
+        <div class="stem"></div>
+        <div class="popup">
+          <div class="nav-header">
+            <span class="header-icon"><img src="assets/battery-75.svg" alt="battery-75 — assets/battery-75.svg" /></span>
+            <span class="nav-title">Battery</span>
+            <span class="header-pct">82%</span>
+          </div>
+          <div class="hero">
+            <div class="hero-primary">2h 14m</div>
+            <div class="hero-sub">remaining</div>
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">Power Mode</div>
+          <div class="mode-rail">
+            <button class="mode-cell" title="Powersave mode — leaf glyph · variants: Powersave, Powersave++">
+              <span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf — assets/power-mode-powersave.svg" /></span>
+              <span class="mode-label">Powersave</span>
+            </button>
+            <button class="mode-cell" title="Balanced mode — scales glyph · variant: Balanced">
+              <span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales — assets/power-mode-balanced.svg" /></span>
+              <span class="mode-label">Balanced</span>
+            </button>
+            <button class="mode-cell sel" title="Performance mode — engine glyph · variants: Performance, Performance++">
+              <span class="mode-icon"><img src="assets/power-mode-performance-active.svg" alt="engine (selected) — assets/power-mode-performance-active.svg" /></span>
+              <span class="mode-label">Performance</span>
+            </button>
+          </div>
+          <div class="section-label">Variant</div>
+          <div class="variant">
+            <button class="variant-opt" title="Performance · Performance tier">Performance</button>
+            <button class="variant-opt sel" title="Performance++ · Ultraperformance tier">Performance++</button>
+          </div>
+          <div class="rail-meta">
+            <div class="rail-name">Performance++</div>
+            <div class="rail-tier">Performance mode · Ultraperformance tier</div>
+          </div>
+          <button class="footer-row">
+            <span class="footer-label">Power Options</span>
+            <span class="footer-note">opens power-options-gtk</span>
+            <span class="footer-arrow">›</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="cap">left-click the bar glyph → this. Right-click launches
+      <code>power-options-gtk</code> directly. The live state: <code>Performance++</code> on the
+      <code>Ultraperformance</code> tier, so the engine mode is selected and its variant control
+      offers both Performance-tier profiles.</div>
+  </div>
+
+</div>
+
+<!-- ═══ the states ══════════════════════════════════════════════════════ -->
+<h2>The states</h2>
+<p style="max-width:900px;margin-bottom:12px">
+  <code>formatBatteryTime(seconds, charging)</code> decides the hero; the selector is identical
+  logic in every charge state — the power mode does not change with the charge. The variant
+  control is present exactly when the selected mode declares more than one variant.
+</p>
+
+<div class="board">
+
+  <div class="cell" id="state-discharging">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header">
+        <span class="header-icon"><img src="assets/battery-75.svg" alt="battery-75 — assets/battery-75.svg" /></span>
+        <span class="nav-title">Battery</span><span class="header-pct">82%</span>
+      </div>
+      <div class="hero"><div class="hero-primary">2h 14m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell sel" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance-active.svg" alt="engine selected" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Performance · Performance tier">Performance</button>
+        <button class="variant-opt sel" title="Performance++ · Ultraperformance tier">Performance++</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Performance++</div><div class="rail-tier">Performance mode · Ultraperformance tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap"><b>Discharging · 82% · 2h 14m remaining.</b> Selected mode Performance (engine,
+      accent + 2&nbsp;px indicator); its variant control carries both Performance-tier profiles.
+      Header glyph <code>battery-75</code>.</div>
+  </div>
+
+  <div class="cell" id="state-charging">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header">
+        <span class="header-icon"><img src="assets/battery-25-charging.svg" alt="battery-25-charging" /></span>
+        <span class="nav-title">Battery</span><span class="header-pct">46%</span>
+      </div>
+      <div class="hero"><div class="hero-primary">1h 05m</div><div class="hero-sub">full in</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell sel" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave-active.svg" alt="leaf selected" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance.svg" alt="engine" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Powersave · Powersave tier">Powersave</button>
+        <button class="variant-opt sel" title="Powersave++ · Superpowersave tier">Powersave++</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Powersave++</div><div class="rail-tier">Powersave mode · Superpowersave tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap"><b>Charging · 46% · 1h 05m full in.</b> Selected mode Powersave (leaf); its two
+      variants are <code>Powersave</code> and <code>Powersave++</code> — <b>one leaf, two
+      tiers</b>. Header glyph <code>battery-25-charging</code> (accent bolt).</div>
+  </div>
+
+  <div class="cell" id="state-low">
+    <div class="zoom"><div class="popup">
+      <div class="nav-header">
+        <span class="header-icon"><img src="assets/battery-0.svg" alt="battery-0" /></span>
+        <span class="nav-title">Battery</span><span class="header-pct">8%</span>
+      </div>
+      <div class="hero"><div class="hero-primary">38m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell sel" title="Balanced mode — scales · the only variant"><span class="mode-icon"><img src="assets/power-mode-balanced-active.svg" alt="scales selected" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance.svg" alt="engine" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Balanced</div><div class="rail-tier">Balanced mode · Balanced tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap"><b>Low battery · 8% · 38m remaining.</b> Selected mode Balanced — a
+      <b>mono-variant</b> mode, so <b>no variant control is rendered at all</b>: there is nothing to
+      choose. The panel reports the reading; it adds no colour the vocabulary does not own.</div>
+  </div>
+
+</div>
+
+<!-- ═══ true size ═══════════════════════════════════════════════════════ -->
+<h2>True size — 312 px</h2>
+<p class="note" style="margin-top:0">
+  The same discharging panel, unzoomed. This is the width every AGS overlay in the house uses
+  (<code>SettingsPanel.PANEL_WIDTH</code>). <code>312 − 2×11 (surface) − 2×8 (rail pad) = 274&nbsp;px</code>
+  of usable width; three 72&nbsp;px mode cells plus two 8&nbsp;px gaps = <b>232&nbsp;px</b>, so the
+  rail is centred with slack to spare and never grows the surface.
+</p>
+<div class="board">
+  <div class="cell wide">
+    <div class="zoom-true"><div class="popup">
+      <div class="nav-header">
+        <span class="header-icon"><img src="assets/battery-75.svg" alt="battery-75" /></span>
+        <span class="nav-title">Battery</span><span class="header-pct">82%</span>
+      </div>
+      <div class="hero"><div class="hero-primary">2h 14m</div><div class="hero-sub">remaining</div></div>
+      <div class="divider"></div>
+      <div class="section-label">Power Mode</div>
+      <div class="mode-rail">
+        <button class="mode-cell" title="Powersave mode — leaf"><span class="mode-icon"><img src="assets/power-mode-powersave.svg" alt="leaf" /></span><span class="mode-label">Powersave</span></button>
+        <button class="mode-cell" title="Balanced mode — scales"><span class="mode-icon"><img src="assets/power-mode-balanced.svg" alt="scales" /></span><span class="mode-label">Balanced</span></button>
+        <button class="mode-cell sel" title="Performance mode — engine"><span class="mode-icon"><img src="assets/power-mode-performance-active.svg" alt="engine selected" /></span><span class="mode-label">Performance</span></button>
+      </div>
+      <div class="section-label">Variant</div>
+      <div class="variant">
+        <button class="variant-opt" title="Performance · Performance tier">Performance</button>
+        <button class="variant-opt sel" title="Performance++ · Ultraperformance tier">Performance++</button>
+      </div>
+      <div class="rail-meta"><div class="rail-name">Performance++</div><div class="rail-tier">Performance mode · Ultraperformance tier</div></div>
+      <button class="footer-row"><span class="footer-label">Power Options</span><span class="footer-note">opens power-options-gtk</span><span class="footer-arrow">›</span></button>
+    </div></div>
+    <div class="cap" style="text-align:left;max-width:312px">1:1. Three mode cells, one shared glyph per
+      mode, one variant control for the selected multi-variant mode.</div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:24px">
+  <b>Where the rest lives.</b> The selector in detail — mono-variant vs multi-variant, hover and the
+  selected styling — is <a href="key-mode-rail.html">key-mode-rail.html</a>. The declaration the panel
+  consumes is <a href="key-declaration.html">key-declaration.html</a>. The dynamic behaviour the
+  daemon forces on us is <a href="key-dynamic.html">key-dynamic.html</a>. Back to the
+  <a href="index.html">index</a>.
+</p>
+
+</body>
+</html>

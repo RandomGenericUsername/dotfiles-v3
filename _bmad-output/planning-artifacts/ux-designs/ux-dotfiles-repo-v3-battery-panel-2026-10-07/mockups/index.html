@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Battery panel — Sally mock index</title>
+<link rel="stylesheet" href="mock.css" />
+<style>
+  /* MOCK-ONLY chrome for this page. */
+  .model-swap { display: flex; gap: 30px; flex-wrap: wrap; align-items: stretch; margin-top: 14px; }
+  .model-box {
+    border: 1px solid rgba(255,255,255,.1); border-radius: 10px;
+    padding: 15px 17px; background: rgba(255,255,255,.03); min-width: 300px;
+  }
+  .model-box.old { border-color: rgba(224,138,214,.4); background: rgba(224,138,214,.05); }
+  .model-box.new { border-color: rgba(84,158,200,.5); }
+  .model-box h4 { font-size: 11px; font-weight: 700; letter-spacing: .06em;
+                  text-transform: uppercase; margin-bottom: 11px; }
+  .model-box.old h4 { color: #e08ad6; }
+  .model-box.new h4 { color: #bcdcf0; }
+  .slot-row { display: flex; gap: 9px; align-items: center; }
+  .slot {
+    width: 44px; height: 44px; border-radius: 9px;
+    border: 1px dashed rgba(194,194,197,.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: rgba(194,194,197,.5);
+  }
+  .slot.dead { border-color: rgba(224,138,214,.6); color: #e08ad6; position: relative; }
+  .slot.dead::after {
+    content: "✕"; position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 20px; color: rgba(224,138,214,.85);
+  }
+  .slot.live { border-style: solid; border-color: rgba(255,255,255,.14); }
+  .slot.live img { width: 26px; height: 26px; display: block; }
+  .model-caption { font-size: 11.5px; color: rgba(194,194,197,.62); margin-top: 11px;
+                   line-height: 1.6; max-width: 330px; }
+  .arrow-swap { display: flex; align-items: center; font-size: 22px; color: var(--selected); }
+</style>
+</head>
+<body>
+<!--
+  MOCK: index
+  Governed by DESIGN.md: colors.*, components.*, geometry.*, §The two-level model,
+  §Icon plan, §New CSS.
+  EXPERIENCE.md: Information Architecture, Component Patterns, State Patterns,
+  §The declaration & resolution rules, §mutual exclusion, §deep-link.
+
+  Palette is the LIVE wallpaper palette resolved from colors.yaml (2026-10-02),
+  copied verbatim from the sibling Bluetooth run — the same chrome the staged
+  SVGs in assets/ are rendered against. A wallpaper swap re-derives the palette
+  and re-renders every icon; the chrome here is a snapshot.
+
+  ICON TRACE — every real icon on this page:
+    assets/power-mode-powersave.svg   leaf   (mode Powersave)
+    assets/power-mode-balanced.svg    scales (mode Balanced)
+    assets/power-mode-performance.svg engine (mode Performance)
+    assets/power-mode-unknown.svg     the labelled fallback (the ONLY drawn glyph)
+    assets/battery-*.svg              the repo's own rounded battery templates
+  The five crossed-out slots in the “previous model” panel are CSS boxes, NOT
+  glyphs; the rejected model is shown as a diagram so this run never presents
+  five fabricated glyphs.
+-->
+
+<h1>🔋 Battery panel — mock index</h1>
+<div class="sub">
+  The battery icon's left-click surface: a follower-anchored <b>312&nbsp;px</b> panel whose
+  power-mode selector is <b>two levels</b> — a <b>mode rail</b> (three cells, one glyph each) over a
+  <b>variant control</b> that appears only when the selected mode has more than one variant.
+  <b>Three glyphs, five selectable things.</b> This revision replaces the previous flat five-cell,
+  five-glyph rail.
+</div>
+
+<div class="model-swap">
+  <div class="model-box old">
+    <h4>previous model — rejected</h4>
+    <div class="slot-row">
+      <div class="slot dead" title="one glyph per profile — rejected"></div>
+      <div class="slot dead" title="one glyph per profile — rejected"></div>
+      <div class="slot dead" title="one glyph per profile — rejected"></div>
+      <div class="slot dead" title="one glyph per profile — rejected"></div>
+      <div class="slot dead" title="one glyph per profile — rejected"></div>
+      <div style="font-size:10px;color:#e08ad6;font-weight:700;letter-spacing:.05em;margin-left:4px">5 profiles<br>= 5 glyphs</div>
+    </div>
+    <div class="model-caption">
+      One icon-rail cell per <i>profile</i>, five distinct glyphs. The owner supplied only three
+      icons for five profiles, and the <code>++</code> profiles read as duplication.
+    </div>
+  </div>
+
+  <div class="arrow-swap">→</div>
+
+  <div class="model-box new">
+    <h4>current model — mode / variant</h4>
+    <div class="slot-row">
+      <div class="slot live"><img src="assets/power-mode-powersave.svg" alt="leaf — assets/power-mode-powersave.svg" /></div>
+      <div class="slot live"><img src="assets/power-mode-balanced.svg" alt="scales — assets/power-mode-balanced.svg" /></div>
+      <div class="slot live"><img src="assets/power-mode-performance.svg" alt="engine — assets/power-mode-performance.svg" /></div>
+      <div class="slot live" style="border-color:rgba(219,171,103,.5)"><img src="assets/power-mode-unknown.svg" alt="fallback — assets/power-mode-unknown.svg" /></div>
+    </div>
+    <div class="model-caption">
+      Three <b>modes</b>, one glyph each (leaf / scales / engine), plus the labelled fallback. Five
+      profiles become <b>variants</b> of those modes — two tiers share one glyph.
+    </div>
+  </div>
+</div>
+
+<div class="anchor-index" style="margin-top:18px">
+  <b>Stable anchors</b> (cite these in specs / tasks):<br>
+  <code>bar-anchor</code> · <code>state-discharging</code> · <code>state-charging</code> ·
+  <code>state-low</code><br>
+  <code>rail-default</code> · <code>rail-multi-variant</code> · <code>rail-mono-variant</code> ·
+  <code>rail-hover</code> · <code>rail-selected</code> · <code>rail-modes</code> ·
+  <code>rail-fallback</code><br>
+  <code>decl-modes</code> · <code>decl-shared-glyph</code> · <code>decl-resolution</code> ·
+  <code>decl-fallback</code> · <code>decl-not-inferred</code><br>
+  <code>dynamic-rename</code> · <code>dynamic-new-variant</code> · <code>dynamic-unknown</code> ·
+  <code>dynamic-three-variants</code>
+  <hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:10px 0">
+  <b>Mock files</b> —<br>
+  <a href="panel.html">① <code>panel.html</code></a> — the panel in context over the bar, in three
+  states (discharging, charging, low battery) plus a true-312&nbsp;px row<br>
+  <a href="key-mode-rail.html">② <code>key-mode-rail.html</code></a> — the selector in detail: a
+  mono-variant mode with <b>no</b> variant control, both multi-variant modes with theirs, hover, the
+  selected styling, and the three mode glyphs + labelled fallback<br>
+  <a href="key-declaration.html">③ <code>key-declaration.html</code></a> — <b>the model itself,
+  rendered</b>: the three modes, their glyph, and their tier lists, with two tiers visibly pointing at
+  ONE glyph; plus the resolution pipeline and why the relation is declared, not inferred<br>
+  <a href="key-dynamic.html">④ <code>key-dynamic.html</code></a> — the load-bearing proofs: a rename
+  that moves no art, a new profile joining its mode as a variant, an undeclared tier falling to the
+  labelled fallback, and a mode that grows to three variants
+</div>
+
+<h2>The two-level model</h2>
+<p>
+  A <b>mode</b> owns a glyph. A <b>variant</b> is a selectable profile sitting on a tier the mode
+  declares. The grouping is <b>declared</b>, not inferred — the stable key is the tier
+  (<code>base_profile</code>), and the declaration says which tiers are variants of which mode.
+</p>
+<table class="tokens">
+  <tr><th>mode</th><th>glyph</th><th>declared tiers</th><th>live variants</th></tr>
+  <tr><td><b>Powersave</b></td>
+      <td><img src="assets/power-mode-powersave.svg" alt="leaf — assets/power-mode-powersave.svg" style="width:18px;height:18px;vertical-align:middle"> leaf</td>
+      <td><code>Powersave</code> · <code>Superpowersave</code></td>
+      <td><code>Powersave</code> · <code>Powersave++</code> (2)</td></tr>
+  <tr><td><b>Balanced</b></td>
+      <td><img src="assets/power-mode-balanced.svg" alt="scales — assets/power-mode-balanced.svg" style="width:18px;height:18px;vertical-align:middle"> scales</td>
+      <td><code>Balanced</code></td>
+      <td><code>Balanced</code> (1 — no variant control)</td></tr>
+  <tr><td><b>Performance</b></td>
+      <td><img src="assets/power-mode-performance.svg" alt="engine — assets/power-mode-performance.svg" style="width:18px;height:18px;vertical-align:middle"> engine</td>
+      <td><code>Performance</code> · <code>Ultraperformance</code></td>
+      <td><code>Performance</code> · <code>Performance++</code> (2)</td></tr>
+  <tr><td><i>unlisted</i></td>
+      <td><img src="assets/power-mode-unknown.svg" alt="fallback — assets/power-mode-unknown.svg" style="width:18px;height:18px;vertical-align:middle"> fallback</td>
+      <td><i>declares no tier</i></td>
+      <td>any unmapped <code>base_profile</code>, marked <code>unmapped tier</code></td></tr>
+</table>
+<p class="note">
+  <b>Why declare, not infer?</b> <code>profile_name</code> is user-editable, so stripping a
+  <code>++</code> suffix breaks the moment a profile is renamed. <code>base_profile</code> IS the
+  stable key but yields <b>five distinct tiers, not three</b> — <code>Powersave++</code> →
+  <code>Superpowersave</code>, <code>Performance++</code> → <code>Ultraperformance</code>, both
+  genuinely different tiers to the daemon. So a tier-only rule asks for five glyphs. The grouping is
+  therefore an explicit declaration; an unlisted tier falls back to the neutral glyph rather than
+  disappearing. Full argument drawn in <a href="key-declaration.html">key-declaration.html</a>.
+</p>
+
+<h2>Live values on this machine (2026-10-07) — the source of truth</h2>
+<table class="tokens">
+  <tr><th>#</th><th><code>profile_name</code></th><th><code>base_profile</code> (tier)</th><th>mode</th><th>glyph</th></tr>
+  <tr><td>0</td><td><code>Powersave++</code></td><td><code>Superpowersave</code></td><td>Powersave</td>
+      <td><img src="assets/power-mode-powersave.svg" alt="" style="width:16px;height:16px;vertical-align:middle"> leaf</td></tr>
+  <tr><td>1</td><td><code>Powersave</code></td><td><code>Powersave</code></td><td>Powersave</td>
+      <td><img src="assets/power-mode-powersave.svg" alt="" style="width:16px;height:16px;vertical-align:middle"> leaf</td></tr>
+  <tr><td>2</td><td><code>Balanced</code></td><td><code>Balanced</code></td><td>Balanced</td>
+      <td><img src="assets/power-mode-balanced.svg" alt="" style="width:16px;height:16px;vertical-align:middle"> scales</td></tr>
+  <tr><td>3</td><td><code>Performance</code></td><td><code>Performance</code></td><td>Performance</td>
+      <td><img src="assets/power-mode-performance.svg" alt="" style="width:16px;height:16px;vertical-align:middle"> engine</td></tr>
+  <tr><td>4</td><td><code>Performance++</code> <b>(active)</b></td><td><code>Ultraperformance</code></td><td>Performance</td>
+      <td><img src="assets/power-mode-performance-active.svg" alt="" style="width:16px;height:16px;vertical-align:middle"> engine</td></tr>
+  <tr><td>—</td><td colspan="2"><i>any unmapped <code>base_profile</code></i></td><td>unlisted</td>
+      <td><img src="assets/power-mode-unknown.svg" alt="" style="width:16px;height:16px;vertical-align:middle"> fallback <b>(labelled)</b></td></tr>
+</table>
+<p class="note">
+  Note <code>Powersave++</code> and <code>Performance++</code>: the <code>++</code> is a
+  <i>name</i>, and the tier it resolves to is <code>Superpowersave</code> /
+  <code>Ultraperformance</code> respectively — <b>not</b> “the base tier plus more”. That is exactly
+  why the mode is resolved from the tier field and not the name string.
+</p>
+
+<h2>Body order (fixed) — 312 px, anchored under the icon</h2>
+<p>
+  <code>nav-header · [battery glyph] Battery ···· 82%</code> → <code>hero</code>
+  (<code>2h 14m</code> / <code>remaining</code>) → divider → <code>POWER MODE</code> →
+  <b>mode rail (3 cells)</b> → <code>VARIANT</code> → <b>variant control (only if &gt;1)</b> →
+  <b>selected name + mode + tier (once)</b> → footer
+  <code>Power Options · opens power-options-gtk · ›</code>.
+</p>
+
+<h2>Design tokens (live palette, copied from the sibling run)</h2>
+<table class="tokens">
+  <tr><th>Role</th><th>Slot</th><th>Resolves</th><th>Used for</th></tr>
+  <tr><td><code>surface-panel</code></td><td><code>@color_00</code> @ .94</td><td><code>#0b0b1a</code></td><td>panel glass</td></tr>
+  <tr><td><code>surface-panel-border</code></td><td><code>@color_04</code></td><td><code>#2d6596</code></td><td>1.5px surface border</td></tr>
+  <tr><td><code>ink-primary</code></td><td><code>@color_foreground</code></td><td><code>#c2c2c5</code></td><td>body text</td></tr>
+  <tr><td><code>row-selected</code></td><td><code>@color_10</code></td><td><code>#549ec8</code></td><td>selected mode indicator + selected variant</td></tr>
+  <tr><td><code>action-accent</code></td><td><code>@color_13</code></td><td><code>#dbab67</code></td><td>selected mode glyph, charging bolt, fallback marker</td></tr>
+  <tr><td><code>caution</code></td><td><code>@color_03</code></td><td><code>#5a5a6f</code></td><td>failure text only</td></tr>
+</table>
+<p class="note">
+  <b>Glyph ink is <code>#c5c8ce</code></b> — the value the runtime resolved for
+  <code>foreground</code> when these assets were staged. The selected mode glyph is the
+  <code>-active</code> copy in <code>#dbab67</code>; the selected indicators are <code>#549ec8</code>.
+  No CSS filter recolours anything — the tint is baked into the asset, the ON/OFF-by-art convention
+  the whole icon system uses.
+</p>
+
+<h2>New CSS — the complete list</h2>
+<table class="tokens">
+  <tr><th>Class</th><th>Status</th><th>Why</th></tr>
+  <tr><td><code>.battery-mode-rail</code></td><td><b>ADDITION</b></td><td>the mode row — one cell per declared mode</td></tr>
+  <tr><td><code>.battery-mode-cell</code> (+ <code>.sel</code>)</td><td><b>ADDITION</b></td><td>72×54 button per mode; <code>.sel</code> = accent glyph + 2px <code>@color_10</code> indicator</td></tr>
+  <tr><td><code>.battery-variant</code></td><td><b>ADDITION</b></td><td>the second-level control, rendered only when the selected mode declares &gt;1 variant</td></tr>
+  <tr><td><code>.battery-variant-opt</code> (+ <code>.sel</code>)</td><td><b>ADDITION</b></td><td><code>.settings-rowact</code> geometry; <code>.sel</code> = <code>@color_10</code> border + wash</td></tr>
+  <tr><td colspan="3" style="color:rgba(194,194,197,.55)">Everything else resolves to an existing class:
+      <code>.settings-surface</code>, <code>.settings-nav-header</code>,
+      <code>.settings-nav-title</code>, <code>.settings-divider</code>,
+      <code>.settings-section-label</code>, <code>.settings-net-name</code>,
+      <code>.settings-net-sub</code>, <code>.settings-wifi-settings-*</code> (footer shape), and the
+      battery block in <code>style.css</code> (<code>.battery-hero*</code>,
+      <code>.battery-header-*</code>, <code>.battery-profile-icon</code>,
+      <code>.battery-deeplink</code>). The two-level selector is the only new pattern.</td></tr>
+</table>
+
+<h2>Mutual exclusion — the defect the previous attempt shipped</h2>
+<p>
+  Three overlays each own a full-screen click-catcher: the settings panel, the Wi-Fi popup and this
+  battery panel. Two open at once means two live catchers, and the top one swallows every click
+  outside itself — so the panel underneath is not merely ugly, it is <b>unreachable</b>. Opening any
+  one of the three <b>MUST</b> close the others; the design keeps the existing rule as a hard
+  requirement of the selector's host:
+</p>
+<p>
+  <code>settings-panel/state.open()</code> calls <code>closeBatteryPopup()</code>; the battery bar
+  widget calls <code>close()</code> and <code>closeWifiPopup()</code> before
+  <code>toggleBatteryPopup()</code>; and <code>BatteryPopup</code> stands down if
+  <code>wifiPopupVisible()</code>. Coordination lives in the callers, never in the state module.
+</p>
+
+<div class="legend">
+  <span><span class="chip-ok">real artwork</span> every glyph traces to a file in <code>assets/</code></span>
+  <span><span class="chip-diff">fallback</span> the one labelled, hand-drawn glyph</span>
+  <span><span class="chip-diff">3 modes</span> five selectable things</span>
+</div>
+
+</body>
+</html>
