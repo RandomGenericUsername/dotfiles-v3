@@ -1,4 +1,5 @@
 import app from "ags/gtk4/app"
+import Gtk from "gi://Gtk?version=4.0"
 import GLib from "gi://GLib?version=2.0"
 import style from "./style.css"
 import Bar from "./bar/Bar"
@@ -13,6 +14,22 @@ import { closeBluetoothPopup } from "./components/bluetooth/state"
 import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
 import { closeBatteryPopup } from "./components/battery/state"
 import { closeWifiPopup } from "./components/wifi/state"
+
+/**
+ * Register one top-level window with the application.
+ *
+ * gnim types a JSX element — what every `Foo(primary)` call below returns — as
+ * `JSX.Element`, which it declares as the base `GObject.Object`, and AGS's
+ * `app.add_window` is typed to take a `Gtk.Window`. At runtime the object a JSX
+ * root call returns IS the `Gtk.Window` the tree was rooted in (the bar cannot
+ * start otherwise), so the cast states a runtime truth the compiler cannot see
+ * rather than widening the call. The cast is `Object -> Gtk.Window`, a plain
+ * downcast, and it lives here ONCE: eleven casts at the call sites would be the
+ * same fix written eleven times.
+ */
+function addWindow(element: JSX.Element): void {
+  app.add_window(element as Gtk.Window)
+}
 
 app.start({
   css: style,
@@ -63,26 +80,26 @@ app.start({
     // our headless (NoInputNoOutput) agent once for the session.
     registerBluetoothAgent()
     for (const monitor of app.get_monitors()) {
-      app.add_window(Bar(monitor))
+      addWindow(Bar(monitor))
     }
     const primary = app.get_monitors()[0]
     if (primary) {
       // Catcher first so the panel stacks above it on the overlay layer.
-      app.add_window(SettingsCatcher(primary))
-      app.add_window(SettingsPanel(primary))
+      addWindow(SettingsCatcher(primary))
+      addWindow(SettingsPanel(primary))
       // Same ordering rule for the Wi-Fi popup: catcher first, popup above it.
-      app.add_window(WifiPopupCatcher(primary))
-      app.add_window(WifiPopup(primary))
+      addWindow(WifiPopupCatcher(primary))
+      addWindow(WifiPopup(primary))
       // Same ordering rule for the Bluetooth popup: catcher first, popup above
       // it.
-      app.add_window(BluetoothPopupCatcher(primary))
-      app.add_window(BluetoothPopup(primary))
+      addWindow(BluetoothPopupCatcher(primary))
+      addWindow(BluetoothPopup(primary))
       // Battery popup: catcher first, popup above it, same rule again.
-      app.add_window(BatteryPopupCatcher(primary))
-      app.add_window(BatteryPopup(primary))
+      addWindow(BatteryPopupCatcher(primary))
+      addWindow(BatteryPopup(primary))
       // Audio popup: catcher + popup, same stacking order.
-      app.add_window(AudioCatcher(primary))
-      app.add_window(AudioPopup(primary))
+      addWindow(AudioCatcher(primary))
+      addWindow(AudioPopup(primary))
     }
   },
 })
