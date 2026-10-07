@@ -104,6 +104,19 @@ capture-typecheck: capture-types
 		echo "==> installing typescript (npm install --no-save, ignored by git)"; \
 		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
 	fi
+	@# Module resolution for `ags/*` and `gnim` is PER-DIRECTORY: the tool needs
+	@# its own gitignored `node_modules` symlinks, which `ags types` creates —
+	@# but `capture-types` skips whenever `@girs/` exists, and the symlinks are
+	@# written by that same run. So an environment that already has `@girs/`
+	@# (a fresh clone seeded from another worktree, or a partially-restored
+	@# tree) never gets them, and the gate dies with
+	@# `Cannot find module 'ags/gtk4'` — MEASURED, and hit independently by two
+	@# agents working in fresh worktrees on 2026-10-07. Same defect `3b283830`
+	@# fixed for `bar-typecheck`; provisioned here too rather than relying on a
+	@# skip decision made for a different reason.
+	@mkdir -p "$(CAPTURE_DIR)/node_modules"
+	@[ -e "$(CAPTURE_DIR)/node_modules/ags" ] || ln -sfn /usr/share/ags/js "$(CAPTURE_DIR)/node_modules/ags"
+	@[ -e "$(CAPTURE_DIR)/node_modules/gnim" ] || ln -sfn /usr/share/ags/js/node_modules/gnim "$(CAPTURE_DIR)/node_modules/gnim"
 	@echo "==> capture-typecheck: tsc --noEmit -p $(CAPTURE_TSCONFIG)"
 	@log=$$(mktemp); \
 	npx tsc --noEmit -p "$(CAPTURE_TSCONFIG)" > "$$log" 2>&1; \
