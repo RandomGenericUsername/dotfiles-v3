@@ -93,7 +93,7 @@ function IconButton({
       $={(self: Gtk.Button) => createEffect(() => accessibleLabel(self, label()))}
     >
       <image
-        pixel_size={18}
+        pixel_size={16}
         $={(self: Gtk.Image) => createEffect(() => setImageOnce(self, path()))}
       />
     </button>
@@ -242,7 +242,7 @@ function DeviceSelector({
       $={(self: Gtk.Button) => createEffect(() => accessibleLabel(self, `${title}: ${value()}`))}
     >
       <box spacing={10} hexpand>
-        <image pixel_size={18} $={(self: Gtk.Image) => setImageOnce(self, icon(iconName, "system-low"))} />
+        <image pixel_size={16} $={(self: Gtk.Image) => setImageOnce(self, icon(iconName, "system-low"))} />
         <label class="audio-device-select-name" xalign={0} hexpand ellipsize={Pango.EllipsizeMode.END} label={value} />
         <label class="audio-device-chevron" label="▾" />
       </box>
@@ -260,7 +260,7 @@ function PreferredOutput({ binding }: { binding: AudioPanelBinding }) {
   return (
     <box class="audio-section" orientation={Gtk.Orientation.VERTICAL}>
       <box class="audio-section-heading">
-        <label class="audio-section-title" label="Preferred output" />
+        <label class="audio-section-title" hexpand xalign={0} label="Preferred output" />
         <label class="audio-section-hint" label="Default destination" />
       </box>
       <DeviceSelector
@@ -379,7 +379,7 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
       $={(self: Gtk.Widget) => createEffect(() => accessibleLabel(self, `${appName()}${row().title ? `, ${row().title}` : ""}${artist() ? `, ${artist()}` : ""}`))}>
       <box class="audio-app-head" spacing={9}>
         <box class="audio-artwork" valign={Gtk.Align.START}>
-          <image class="audio-art-image" pixel_size={43} $={(self: Gtk.Image) => createEffect(() => setImageOnce(self, artworkPath() || appIconPath()))} />
+          <image class="audio-art-image" pixel_size={34} $={(self: Gtk.Image) => createEffect(() => setImageOnce(self, artworkPath() || appIconPath()))} />
           <label class="audio-art-fallback" label={createComputed(() => row().appName.slice(0, 1).toUpperCase())} visible={createComputed(() => !artworkPath() && !appIconPath())} />
         </box>
         <box class="audio-app-meta" orientation={Gtk.Orientation.VERTICAL} spacing={1} hexpand>
@@ -451,7 +451,7 @@ function PlayingSection({ binding }: { binding: AudioPanelBinding }) {
   return (
     <box class="audio-section audio-playing-section" orientation={Gtk.Orientation.VERTICAL}>
       <box class="audio-section-heading">
-        <label class="audio-section-title" label="Playing" />
+        <label class="audio-section-title" hexpand xalign={0} label="Playing" />
         <label class="audio-section-hint" label={createComputed(() => `${rows().length} ${rows().length === 1 ? "app" : "apps"}`)} />
       </box>
       <box class="audio-app-list" orientation={Gtk.Orientation.VERTICAL} spacing={0}>
@@ -481,7 +481,7 @@ function InputSection({ binding }: { binding: AudioPanelBinding }) {
   return (
     <box class="audio-section" orientation={Gtk.Orientation.VERTICAL}>
       <box class="audio-section-heading">
-        <label class="audio-section-title" label="Input" />
+        <label class="audio-section-title" hexpand xalign={0} label="Input" />
         <label class="audio-section-hint" label="Preferred microphone" />
       </box>
       <DeviceSelector title="Input device" value={name} devices={devices} iconName="microphone" onSelect={(endpoint) => binding.actions.selectInput(endpoint)} />
@@ -504,13 +504,13 @@ function MicrophoneActivity({ binding }: { binding: AudioPanelBinding }) {
   return (
     <box class="audio-section audio-microphone-section" orientation={Gtk.Orientation.VERTICAL}>
       <box class="audio-section-heading">
-        <label class="audio-section-title" label="Microphone activity" />
+        <label class="audio-section-title" hexpand xalign={0} label="Microphone activity" />
         <label class="audio-section-hint" label={createComputed(() => consumers().length ? `${consumers().length} active` : "Live input use")} />
       </box>
       <For each={consumers} id={(consumer) => consumer.id}>
         {(consumer) => (
           <box class="audio-consumer-row" spacing={9}>
-            <image pixel_size={19} class="audio-consumer-icon" $={(self: Gtk.Image) => setImageOnce(self, icon("app-icons", consumer.iconName || "application-x-executable"))} />
+            <image pixel_size={16} class="audio-consumer-icon" $={(self: Gtk.Image) => setImageOnce(self, icon("app-icons", consumer.iconName || "application-x-executable"))} />
             <label class="audio-consumer-name" xalign={0} hexpand label={consumer.appName} />
             <box class="audio-live-dot" />
             <label class="audio-live-label" label="Using microphone" />
