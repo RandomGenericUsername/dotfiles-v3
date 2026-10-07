@@ -65,7 +65,16 @@ test("aggregates multiple app streams explicitly without losing stream identitie
     stream({ id: "pw:2", endpointId: "B", routeIntent: { kind: "explicit", endpointId: "B" }, volume: { level: 0.8, muted: true } }),
   ] })).rows[0]
   assert.deepEqual(row.streamIds, ["pw:1", "pw:2"])
-  assert.equal(row.volume.level, 0.5)
+  // CHANGED 2026-10-07: the row reports the MAX stream level, not the mean.
+  //
+  // The mean was reported for a transiently-extra-stream reason, measured with
+  // a per-row trace: Firefox spawns short-lived streams while seeking, they read
+  // 0, and the mean visibly flicked to 0.500 then 0.333 before returning. An
+  // app's level is its level; setAppVolume writes the same value to every
+  // stream, so max === mean in steady state and they diverge only when a
+  // transient default-0 stream appears -- the case that must not move the UI.
+  assert.equal(row.volume.level, 0.8, "max, not mean (0.8), so a transient 0 cannot drag it down")
+  // One unmuted stream means audible, so the row is not muted.
   assert.equal(row.volume.muted, false)
   assert.equal(row.mixedLevel, true)
   assert.equal(row.mixedMuted, true)

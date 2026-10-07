@@ -87,7 +87,24 @@ function volumeSummary(streams: readonly AudioStream[]): {
   const levels = streams.map((stream) => stream.volume.level)
   const mutes = streams.map((stream) => stream.volume.muted)
   return {
-    volume: { level: levels.reduce((total, level) => total + level, 0) / levels.length, muted: mutes.every(Boolean) },
+    // The MAX level, not the mean.
+    //
+    // Measured 2026-10-07 with a per-row trace: Firefox spawns short-lived
+    // extra PipeWire streams while seeking, and the row briefly reported 2 and
+    // then 3 streams with means of 0.500 and 0.333 -- (1.0+0)/2 and
+    // (1.0+0+0)/3. Those spooks read 0, dragging the average down and making
+    // the volume visibly flick to another value and back. The user described it
+    // exactly: "it changes to another value and then to the normal".
+    //
+    // An app's level is its level, not the average of however many streams it
+    // currently happens to have. setAppVolume writes the same level to every
+    // stream of the app, so in steady state max === mean; they diverge only
+    // when a transient stream appears with a default of 0, which is precisely
+    // the case that must not be allowed to move the display.
+    //
+    // Mute stays "all muted": one unmuted stream means audio is audible, and
+    // reporting muted while sound plays would be the same class of lie.
+    volume: { level: Math.max(...levels), muted: mutes.every(Boolean) },
     mixedLevel: levels.some((level) => Math.abs(level - levels[0]) > 0.0001),
     mixedMuted: mutes.some((muted) => muted !== mutes[0]),
   }
