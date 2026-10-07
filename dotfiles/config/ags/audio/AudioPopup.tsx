@@ -588,7 +588,10 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor, binding: AudioPanelBinding) 
   // and row spacing stay at their approved sizes, and the panel grows instead.
   // Reserve the bar (48px) plus the popup's top margin (52px) and a bottom
   // margin, then clamp so a short monitor still yields a usable drawer.
-  const drawerHeight = Math.max(360, Math.min(720, geometry.height - 48 - 52 - 24))
+  // 540 is 75% of the 720 that measured well (owner, 2026-10-07): the full
+  // clamp height was more than the panel needed, leaving dead space below the
+  // last section.
+  const drawerHeight = Math.max(360, Math.min(540, geometry.height - 48 - 52 - 24))
   const monitorWidth = geometry.width
   const marginLeft = createComputed(() => {
     const rightMost = monitorWidth - width - 8
