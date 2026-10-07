@@ -5,6 +5,18 @@ REAL ``ansible-playbook --check`` — never a fake, never a mocked executor,
 never a ``subprocess.run`` stub — and must complete cleanly (exit 0, recap
 ``failed=0`` / ``unreachable=0``) while reporting the would-be plan WITHOUT
 mutating the host.
+
+WHY THIS SUITE CANNOT GUARD THE EMBEDDED-TEMPLATE WARNING (do not build the
+guard here). ansible-core warns when a ``{{ }}`` is nested inside a Jinja
+string literal of an expression, and its 2.23 default disables the resolution
+so the assertion then fails. A clean ``verify`` run emits it for two btop
+assertions in ``roles/verify/tasks/main.yml``. This suite shells ``--check``,
+which SKIPS both of those tasks (they are ``when: not ansible_check_mode``), so
+the warning is unreachable from here — a guard built on this suite would be
+green forever while the defect survives. The durable guard parses the YAML
+value instead of relying on a task actually running:
+``scripts/ansible-embedded-template-lint.py`` (``make
+ansible-embedded-template-lint``).
 """
 
 from __future__ import annotations

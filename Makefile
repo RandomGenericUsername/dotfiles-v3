@@ -18,7 +18,7 @@ contracts-check:
 # anti-invention check, then the capture domain unit tests, then the ags
 # config's pure-module unit tests, then the capture GUI typecheck, then the
 # capture hexagonal structure gate, then the generated-icons.json projection
-# drift gate.
+# drift gate, then the Ansible embedded-template lint.
 #
 # `gates` is the DEVELOPER gate set and runs ALL of them, including the two that
 # need the desktop stack. Nothing is dropped for convenience: a gate that is not
@@ -26,7 +26,8 @@ contracts-check:
 GATES := contracts-check wifi-mock-parity bluetooth-mock-parity \
          battery-mock-parity speedtest-mock-parity \
          speedtest-no-new-architecture capture-test ags-test capture-typecheck \
-         bar-typecheck capture-hexagonal-gate icons-json-drift
+         bar-typecheck capture-hexagonal-gate icons-json-drift \
+         ansible-embedded-template-lint
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
@@ -391,6 +392,31 @@ speedtest-mock-parity:
 # indistinguishable from one that passes.
 icons-json-drift:
 	uv run --directory src/provisioning python ../../scripts/icons-json-drift.py
+
+# The Ansible tree must not nest a `{{ }}` template inside a Jinja string
+# literal of an EXPRESSION-context value (`assert.that`, `when`,
+# `changed_when`, `failed_when`, `until`). That is the construct ansible-core
+# 2.23 disables by default; today ansible resolves the inner template anyway
+# and warns, so `verify` passes with a warning that will become a hard failure.
+#
+# WHY A STATIC LINT AND NOT THE DRY-RUN TEST. `ansible-playbook --check` SKIPS
+# both offending tasks (`when: not ansible_check_mode`), so the warning is
+# unreachable from tests/integration/test_ansible_dryrun.py — a guard built
+# there would be green forever while the defect survives. The reason is also
+# recorded as a comment at that suite.
+#
+# WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It needs PyYAML to PARSE the
+# YAML (both real offenders are folded `>-` block scalars spanning two lines, so
+# a line grep cannot see them) and PyYAML ships with the provisioning project —
+# the same `uv run --directory src/provisioning` mechanism icons-json-drift
+# uses. It needs no desktop stack, so it also runs in gates-ci. `../../scripts/`
+# is required because --directory moves the interpreter's CWD.
+#
+# It FAILS rather than skipping when uv or PyYAML is unavailable: a lint that
+# quietly passes when its toolchain is missing is indistinguishable from one
+# that passes.
+ansible-embedded-template-lint:
+	uv run --directory src/provisioning python ../../scripts/ansible-embedded-template-lint.py
 
 speedtest-no-new-architecture:
 	python3 scripts/speedtest-no-new-architecture.py
