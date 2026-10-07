@@ -578,7 +578,10 @@ async function refreshAccessPoints(): Promise<void> {
   let apPaths: string[] = []
   try {
     const reply = await call(NM, path, NM_WIRELESS_IFACE, "GetAccessPoints", null)
-    apPaths = reply.recursiveUnpack()[0] as string[]
+    //: GetAccessPoints returns `(ao)`, so recursiveUnpack yields a one-element
+    //: tuple. Same assertion idiom as every other reply in this file: the local
+    //: `call` returns a bare `GLib.Variant`, which carries no reply shape.
+    apPaths = (reply.recursiveUnpack() as [string[]])[0]
   } catch {
     return
   }
@@ -646,7 +649,8 @@ async function refreshAccessPoints(): Promise<void> {
 async function refreshSavedConnections(): Promise<void> {
   try {
     const reply = await call(NM, NM_SETTINGS_PATH, NM_SETTINGS_IFACE, "ListConnections", null)
-    const paths = reply.recursiveUnpack()[0] as string[]
+    //: ListConnections returns `(ao)`.
+    const paths = (reply.recursiveUnpack() as [string[]])[0]
     const next = new Map<string, string>()
     for (const path of paths) {
       try {
@@ -783,7 +787,8 @@ async function resolveDevice(): Promise<void> {
   let devices: string[] = []
   try {
     const reply = await call(NM, NM_MANAGER_PATH, NM, "GetDevices", null)
-    devices = reply.recursiveUnpack()[0] as string[]
+    //: GetDevices returns `(ao)`.
+    devices = (reply.recursiveUnpack() as [string[]])[0]
   } catch (error) {
     console.error(`wifi-service: GetDevices failed: ${error}`)
     return

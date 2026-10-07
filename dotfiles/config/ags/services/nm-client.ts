@@ -88,7 +88,12 @@ export function call(
   timeoutMs = 25000,
 ): Promise<GLib.Variant> {
   return new Promise((resolve, reject) => {
-    systemBus().call(
+    //: The async completion hands back its `source_object` typed `| null`, but
+    //: this call is started ON this bus and that source object IS it. Naming
+    //: the bus makes the non-null fact visible rather than asserting the
+    //: nullable callback parameter with `!`.
+    const bus = systemBus()
+    bus.call(
       dest,
       path,
       iface,
@@ -98,9 +103,9 @@ export function call(
       Gio.DBusCallFlags.NONE,
       timeoutMs,
       null,
-      (connection, result) => {
+      (_connection, result) => {
         try {
-          resolve(connection.call_finish(result))
+          resolve(bus.call_finish(result))
         } catch (error) {
           reject(asBusError(error))
         }

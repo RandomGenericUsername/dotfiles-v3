@@ -79,7 +79,13 @@ function forwardingGroup(source: Gio.ActionGroup | null): Gio.SimpleActionGroup 
   for (const name of source.list_actions()) {
     const enabled = source.get_action_enabled(name)
     const parameterType = source.get_action_parameter_type(name)
-    const props: Gio.SimpleAction.ConstructorProps = { name, enabled }
+    // `Gio.SimpleAction`'s generated `ConstructorProps` lists the construct
+    // properties as REQUIRED, but GObject leaves them optional: `parameter-type`
+    // defaults to NULL and `state`/`state-type` are unset for a stateless
+    // action. The constructor already accepts `Partial<ConstructorProps>`, so
+    // the object was never incomplete — the annotation used the non-partial
+    // form. Only the one field that is genuinely known is added.
+    const props: Partial<Gio.SimpleAction.ConstructorProps> = { name, enabled }
     if (parameterType) props.parameter_type = parameterType
 
     const action = new Gio.SimpleAction(props)

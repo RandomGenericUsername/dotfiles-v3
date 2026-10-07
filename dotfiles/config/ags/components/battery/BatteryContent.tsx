@@ -31,8 +31,8 @@ import {
 const device = Battery.get_default()
 const percentage = createBinding(device, "percentage")
 const charging = createBinding(device, "charging")
-const timeToFull = createBinding(device, "time-to-full")
-const timeToEmpty = createBinding(device, "time-to-empty")
+const timeToFull = createBinding(device, "timeToFull")
+const timeToEmpty = createBinding(device, "timeToEmpty")
 
 /** Fallback word when the daemon reports no capacity at all. */
 const NO_PERCENTAGE = "—"

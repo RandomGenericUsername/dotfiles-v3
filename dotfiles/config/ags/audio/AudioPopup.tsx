@@ -1,6 +1,7 @@
 import { Astal, Gtk, Gdk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
 import Pango from "gi://Pango?version=1.0"
+import Wp from "gi://AstalWp?version=0.1"
 import { Accessor, createBinding, createComputed, createEffect, createState, For } from "ags"
 import { registry } from "../lib/icon-registry"
 import { NavHeader, PanelCard } from "../settings-panel/primitives"
@@ -497,7 +498,10 @@ function MuteGlyph({
 }: {
   muteRaw: Accessor<boolean>
   onToggle: () => void
-  tooltip: string
+  // A static string at the recorder call site, a reactive one at the app row
+  // (`title(...)` maps the live title). Both are what `tooltipText` accepts, so
+  // the prop admits both rather than narrowing the reactive caller to a snapshot.
+  tooltip: string | Accessor<string>
   size?: number
   iconWhenOn?: Accessor<string | null>
   level?: Accessor<number>
@@ -964,8 +968,16 @@ function InputDevicesView() {
  *  playback row), mic mute toggle, and the app name as the subtitle. */
 function RecorderRow({ stream }: { stream: unknown }) {
   const node = nodeOf(stream)
-  const volume: Accessor<number> = createBinding(stream, "volume")
-  const muteRaw: Accessor<boolean> = createBinding(stream, "mute")
+  //: `recordingList` is built by filtering `wp.nodes`, so every element is an
+  //: `AstalWp.Node` GObject at runtime. `state.ts` deliberately erases that to
+  //: its structural `WpNode` so the pure modules never depend on the GIR types;
+  //: this is the one boundary that needs the GObject identity back, for
+  //: `createBinding` to resolve the declared accessors. A downcast, not a
+  //: suppression: `AstalWp.Node` is assignable to `WpNode`, which is why the
+  //: erased type was a valid representation of it in the first place.
+  const bound = stream as Wp.Node
+  const volume: Accessor<number> = createBinding(bound, "volume")
+  const muteRaw: Accessor<boolean> = createBinding(bound, "mute")
   const level = createComputed(() => clampVolume(volume()))
   const title = nodeName(stream, "Recorder")
   const micOn = createComputed<string | null>(() =>

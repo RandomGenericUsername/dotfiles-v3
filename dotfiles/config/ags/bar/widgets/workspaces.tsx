@@ -2,7 +2,7 @@ import Hyprland from "gi://AstalHyprland"
 import { createBinding } from "ags"
 
 const hyprland = Hyprland.get_default()
-const focusedWorkspace = createBinding(hyprland, "focused-workspace")
+const focusedWorkspace = createBinding(hyprland, "focusedWorkspace")
 
 const WORKSPACE_COUNT = 5
 

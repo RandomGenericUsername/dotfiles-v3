@@ -132,24 +132,39 @@ need.
 > `focusedWorkspace` → `focused-workspace`. All three round-trip. A name that
 > does *not* round-trip would be a real bug and is not assumed away.
 
-### D — gnim JSX prop / `Accessor` typing (≈12 errors)
+### D — gnim JSX prop / `Accessor` typing (≈12 errors) — MEASURED, NOT A HYPOTHESIS
 
-Mostly `Accessor<T>` not assignable to a prop, "no overload matches", and one
-`SignalIcon cannot be used as a JSX component` (`WifiContent.tsx:342`).
+**The "downstream of C" hypothesis held only for the errors it named, and did
+NOT hold for the category.** After C was fixed and the tree re-measured
+(tasks 5), the residue was **15**, not the ~18 the staging guessed, and the
+D/E split was **9 D / 6 E**:
 
-**This is a hypothesis, not a finding.** Several of these receive their value
-from a `createBinding` that failed to type, so the binding's type collapsed to a
-union of all `Device` members:
+| file | n | what |
+|---|---|---|
+| `audio/AudioPopup.tsx` | 5 | 1 × `Accessor<string>` into a `string` prop; 4 × `createBinding(stream: unknown, …)` |
+| `components/wifi/WifiContent.tsx` | 2 | `SignalIcon` returns `null`, and gnim's `JSX.Element` has no null member |
+| `audio/state.ts` | 1 | `allNodes: Accessor<unknown[]>` but the binding is `Node[] \| null` |
+| `bar/widgets/recording.tsx` | 1 | reactive `tooltipText` whose value is legitimately `null` |
+| `services/wifi-service.ts` | 3 | E |
+| `services/nm-client.ts` | 1 | E |
+| `services/mpris-service.ts` | 1 | E |
+| `lib/status-notifier.ts` | 1 | E |
 
-```
-bar/widgets/battery.tsx(62,7): error TS2322: Type 'Accessor<string | number | boolean |
-  (() => void) | ... 65 more ... | (() => string)>' is not assignable to type ...
-```
+What actually dissolved with C:
 
-That union is the signature of a `keyof`-constrained call that fell through to
-its unconstrained overload. **If C is the cause, D largely dissolves when C is
-fixed.** That is cheap to test and it is the reason this change is staged: D is
-scoped *after* C is fixed and the tree re-measured, not guessed at now.
+- Every error the hypothesis cited **inside a C file** — `battery.tsx(62,7)`,
+  `BatteryContent.tsx(72,21)`, `workspaces.tsx(16,49)` — was the collapsed
+  `createBinding` return type, and all three vanished when C did.
+- `tray.tsx(68,22)` was **not D at all**: it was the same kebab literal, and
+  `tray.tsx` belonged in C. Its downstream error went with it.
+
+What did not:
+
+- The nine D errors above live in files that had **no C error to begin with**.
+  They were never downstream of anything; the hypothesis was true of the
+  union-collapse signature and false as a general claim about the category.
+  This is recorded because the staging was built on the stronger version.
+
 
 ### E — genuine null/unknown safety (6 errors)
 
