@@ -385,7 +385,10 @@ function call(
   timeoutMs = 25000,
 ): Promise<GLib.Variant> {
   return new Promise((resolve, reject) => {
-    sessionBus().call(
+    //: Same shape as nm-client's `call`: the completion's `source_object` is
+    //: typed `| null`, but it is the bus the call was started on. Name it.
+    const bus = sessionBus()
+    bus.call(
       dest,
       path,
       iface,
@@ -395,9 +398,9 @@ function call(
       Gio.DBusCallFlags.NONE,
       timeoutMs,
       null,
-      (connection, result) => {
+      (_connection, result) => {
         try {
-          resolve(connection.call_finish(result))
+          resolve(bus.call_finish(result))
         } catch (error) {
           reject(error)
         }
