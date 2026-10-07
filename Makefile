@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates gates-ci capture-types capture-typecheck capture-test capture-test-deps capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates gates-ci capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -15,15 +15,18 @@ contracts-check:
 
 # Every executable gate, in the order a reviewer should read them: contract
 # first (it is the source of truth), then mock/code parity, then the
-# anti-invention check, then the capture domain unit tests, then the capture GUI
-# typecheck, then the capture hexagonal structure gate.
+# anti-invention check, then the capture domain unit tests, then the ags
+# config's pure-module unit tests, then the capture GUI typecheck, then the
+# capture hexagonal structure gate, then the generated-icons.json projection
+# drift gate.
 #
-# `gates` is the DEVELOPER gate set and runs ALL SEVEN, including the one that
+# `gates` is the DEVELOPER gate set and runs ALL TEN, including the one that
 # needs the desktop stack. Nothing is dropped for convenience: a gate that is not
 # run here is a gate nobody runs.
-GATES := contracts-check wifi-mock-parity speedtest-mock-parity \
-         speedtest-no-new-architecture capture-test capture-typecheck \
-         capture-hexagonal-gate
+GATES := contracts-check wifi-mock-parity battery-mock-parity \
+         speedtest-mock-parity \
+         speedtest-no-new-architecture capture-test ags-test capture-typecheck \
+         capture-hexagonal-gate icons-json-drift
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
@@ -38,9 +41,13 @@ gates: $(GATES)
 # literal path /usr/share/ags/js/ as well, which only exists on a provisioned
 # desktop. It stays a developer gate. See the comment on the target below.
 #
+# `ags-test` is NOT excluded, because unlike capture-typecheck it needs no
+# desktop stack at all: it only runs Node over the ags config's pure modules,
+# and nothing reachable from its tsconfig imports `gi://*` or `ags/*`.
+#
 # This target exists so a developer can reproduce a CI run without the desktop
 # stack, and so the split is stated in ONE place that cannot drift from the
-# workflow: `.github/workflows/gates.yml` runs these six as one job per gate.
+# workflow: `.github/workflows/gates.yml` runs these NINE as one job per gate.
 gates-ci: $(filter-out capture-typecheck,$(GATES))
 
 CAPTURE_DIR := src/gui-tools/capture-tool
@@ -184,6 +191,80 @@ capture-test: capture-test-deps
 	npx tsc --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1
 	@echo "    OK: 0 type errors in the domain unit tests"
 
+# ---------------------------------------------------------------------------
+# ags-test -- unit tests for the AGS config's PURE modules.
+#
+# `dotfiles/config/ags/` had NO TypeScript test setup at all: capture-test
+# covers the capture TOOL's domain and nothing covered the ags config. That
+# left every pure decision in the config (the battery panel's time wording,
+# duration formatting and profile-icon selection, added by
+# add-battery-status-panel) reachable only by rendering a live GTK panel.
+#
+# WHY IT NEEDS NO DESKTOP STACK, unlike capture-typecheck. The module list in
+# $(AGS_TSCONFIG_TESTS) is EXPLICIT precisely so this can be true: nothing in
+# it imports `gi://*` or `ags/*`, so the whole suite is Node plus tsc. That is
+# also why it is NOT filtered out of gates-ci, where capture-typecheck is.
+AGS_TESTS := dotfiles/config/ags/tests
+AGS_TS_TESTS := $(AGS_TESTS)/ts
+AGS_TSCONFIG_TESTS := $(AGS_TESTS)/tsconfig.tests.json
+
+# The dependencies this gate needs, in exactly the shape capture-test-deps
+# already uses: `npm install --no-save --no-package-lock` into gitignored
+# node_modules, no package.json committed, each install guarded so the network
+# round-trip is skipped when the package is already present. A gate that
+# cannot run on a clean checkout is not a gate, so it DECLARES what it needs
+# rather than inheriting whatever the machine happens to have.
+#
+# WHY @types/node MUST LAND UNDER $(AGS_TESTS)/ AND NOWHERE ELSE.
+# It must be a SIBLING of $(AGS_TSCONFIG_TESTS), because tsc's default
+# typeRoots walk starts at the config's own directory and walks UP -- so
+# $(AGS_TESTS)/node_modules/@types is found and $(AGS_TS_TESTS)/node_modules
+# (one level DOWN) is not. That is the same placement the capture tool uses
+# (src/gui-tools/capture-tool/tests/node_modules next to
+# src/gui-tools/capture-tool/tests/tsconfig.tests.json), for the same reason.
+#
+# And it must not sit at the repo root or at dotfiles/config/ags/. ags/ has no
+# committed app tsconfig today (`ags bundle` typechecks nothing itself), so
+# unlike the capture tool there is no measured "66 @types/node files joined the
+# app program" number to cite -- but the hazard is identical: the moment an app
+# tsconfig is added, a root-level or ags-level install is found by the upward
+# walk and silently widens the app's ambient surface. Keeping it under tests/
+# means the walk from any future app config's directory never descends into it.
+# The path is gitignored explicitly: placement into the install spine is
+# per-file, so an unregistered file never deploys, but a committed node_modules
+# must never reach a commit either.
+#
+# The separate npm project (--prefix, no package.json) also means this install
+# CANNOT PRUNE the root one. That is not theoretical: `npm install --no-save X`
+# at the repo root REMOVES previously --no-save'd packages, which in this repo's
+# history turned into a false green by taking capture-test's typescript with it.
+# Both gates install typescript from the same root; only capture-test-deps may
+# touch the root.
+ags-test-deps:
+	@if [ ! -x node_modules/.bin/tsc ]; then \
+		echo "==> ags-test: installing typescript (npm install --no-save, ignored by git)"; \
+		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
+	fi
+	@if [ ! -d $(AGS_TESTS)/node_modules/@types/node ]; then \
+		echo "==> ags-test: installing @types/node under $(AGS_TESTS)/ (gitignored)"; \
+		npm install --no-save --no-package-lock --prefix $(AGS_TESTS) @types/node@24 >/dev/null || exit 1; \
+	fi
+
+# NO SILENT SKIPS. If node or npx cannot be resolved, or tsc is absent after
+# ags-test-deps, that is a FAILURE and this target exits non-zero. A test gate
+# that skips when its toolchain is missing is indistinguishable, in CI, from a
+# test gate that passes -- and the first is how a suite silently stops running.
+ags-test: ags-test-deps
+	@command -v node >/dev/null || { echo "FAIL: ags-test: node is not on PATH" >&2; exit 1; }
+	@command -v npx  >/dev/null || { echo "FAIL: ags-test: npx is not on PATH" >&2;  exit 1; }
+	@[ -x node_modules/.bin/tsc ] || { echo "FAIL: ags-test: typescript missing after ags-test-deps" >&2; exit 1; }
+	@[ -d $(AGS_TESTS)/node_modules/@types/node ] || { echo "FAIL: ags-test: @types/node missing after ags-test-deps" >&2; exit 1; }
+	@echo "==> ags-test: node --test $(AGS_TS_TESTS)"
+	node --import ./$(AGS_TS_TESTS)/resolve-hooks.mjs --test $(AGS_TS_TESTS)/*.test.ts
+	@echo "==> ags-test: tsc --noEmit -p $(AGS_TSCONFIG_TESTS)"
+	npx tsc --noEmit -p "$(AGS_TSCONFIG_TESTS)" || exit 1
+	@echo "    OK: 0 type errors in the ags pure-module unit tests"
+
 # Hexagonal structure + class-vocabulary gate for the capture GUI
 # (scripts/capture-hexagonal-gate.py, design.md §5). "Refactor only, zero
 # behaviour change" is otherwise unenforceable prose, so the layering
@@ -203,8 +284,39 @@ capture-hexagonal-gate:
 wifi-mock-parity:
 	python3 scripts/wifi-mock-parity.py
 
+# Battery panel mock<->code parity (scripts/battery-mock-parity.py,
+# add-battery-status-panel). A SEPARATE gate rather than another anchor in the
+# wifi harness: the two panels share style.css and the settings-* vocabulary,
+# but the battery mock's claims live in files the wifi gate does not map, so
+# extending that harness would either widen its STATE_TSX to files it has no
+# business knowing or leave the battery panel ungated. Stdlib only, like the
+# wifi harness, so it runs on a stock CI runner.
+battery-mock-parity:
+	python3 scripts/battery-mock-parity.py
+
 speedtest-mock-parity:
 	python3 scripts/speedtest-mock-parity.py
+
+# icons.json is GENERATED OUTPUT -- the compositor_configs role writes it with
+# `(from_yaml) | to_nice_json(indent=2)` -- and nothing asserted that
+# relationship, so the projection could rot silently. It did: master's committed
+# icons.json carried `null` for the four wifi-signal-* color_mappings its own
+# YAML declares. See openspec/changes/add-battery-status-panel/design.md §2.6.
+#
+# WHY IT RUNS THROUGH uv AND NOT PLAIN python3. The gate compares against the
+# role's OWN `to_nice_json` filter rather than an approximation of it, because a
+# file regenerated "the same way" that differs from what provisioning writes is
+# the exact failure being guarded against. That filter ships with ansible-core,
+# so the gate needs the provisioning project's environment (which also supplies
+# PyYAML) -- hence `uv run --directory src/provisioning`, the same mechanism
+# contracts-check already uses. `../../scripts/` is required: --directory moves
+# the interpreter's CWD.
+#
+# It FAILS rather than skipping when uv, ansible or PyYAML is unavailable: a
+# projection-drift gate that quietly passes when its toolchain is missing is
+# indistinguishable from one that passes.
+icons-json-drift:
+	uv run --directory src/provisioning python ../../scripts/icons-json-drift.py
 
 speedtest-no-new-architecture:
 	python3 scripts/speedtest-no-new-architecture.py

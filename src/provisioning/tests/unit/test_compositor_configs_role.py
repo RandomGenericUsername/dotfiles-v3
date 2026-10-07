@@ -251,15 +251,27 @@ class TestCompositorConfigsTasks:
         # gui_tools role — no longer part of the compositor_configs skeletons.
         # (The pre-hexagonal views + controllers were deleted by
         # refactor-capture-tool-hexagonal, task 1.4.)
-        assert len(files) == 65, (
-            f"expected exactly 65 skeleton files (hyprland.lua + gloview.lua + "
+        # EXACT count, deliberately. 65 on master, 66 once the battery panel's
+        # pure presentation logic was registered, and 71 once the panel's widget
+        # half followed it. Placement here is PER FILE, so an unregistered file
+        # silently never deploys and the panel imports a module that is not
+        # there on the desktop: this assertion is what makes that fail loudly at
+        # review time instead of at runtime. Do NOT relax it to `>=`, a subset
+        # check, or delete it — those all convert "deploys nothing" into "passes".
+        assert len(files) == 71, (
+            f"expected exactly 71 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+6 lib (incl. "
             f"wifi-signal)+Bar.tsx+11 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
             f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
             f"D-Bus services + speedtest service + the 2 MPRIS service/core files "
-            f"+ 9 shared components "
-            f"(3 primitives (incl. WifiSwitch) + 3 wifi + 1 bluetooth + 2 sliders) + the audio popup "
+            f"+ the power-options service (moved out of the battery bar widget) "
+            f"+ 15 shared components "
+            f"(3 primitives (incl. WifiSwitch) + 3 wifi + 1 bluetooth + 2 sliders "
+            f"+ the battery panel's 5 modules: presentation (pure decisions), state "
+            f"(popup visibility/anchor), battery-icon (state key), BatteryPopup (the "
+            f"two windows) and BatteryContent (the body)) "
+            f"+ the audio popup "
             f"(state + AudioPopup) + ags wifi-speedtest.json + rofi launcher config.rasi); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
@@ -279,6 +291,11 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/bar/widgets/thunderbird.tsx",
             "dotfiles/config/ags/bar/widgets/tray.tsx",
             "dotfiles/config/ags/bar/widgets/workspaces.tsx",
+            "dotfiles/config/ags/components/battery/BatteryContent.tsx",
+            "dotfiles/config/ags/components/battery/BatteryPopup.tsx",
+            "dotfiles/config/ags/components/battery/battery-icon.ts",
+            "dotfiles/config/ags/components/battery/presentation.ts",
+            "dotfiles/config/ags/components/battery/state.ts",
             "dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx",
             "dotfiles/config/ags/components/primitives/IconToggle.tsx",
             "dotfiles/config/ags/components/primitives/LevelSlider.tsx",
@@ -298,6 +315,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/services/mpris-core.ts",
             "dotfiles/config/ags/services/mpris-service.ts",
             "dotfiles/config/ags/services/nm-client.ts",
+            "dotfiles/config/ags/services/power-service.ts",
             "dotfiles/config/ags/services/speedtest-service.ts",
             "dotfiles/config/ags/services/wifi-service.ts",
             "dotfiles/config/ags/settings-panel/SettingsPanel.tsx",
@@ -684,6 +702,16 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "bar" / "widgets" / "audio.tsx",
                 install / "config" / "ags" / "audio" / "state.ts",
                 install / "config" / "ags" / "audio" / "AudioPopup.tsx",
+                # Battery panel (add-battery-status-panel): all five modules plus
+                # the power-options service the bar widget used to build at its
+                # own module scope. Placement is per-file, so an unregistered
+                # one deploys nothing and the panel imports a missing module.
+                install / "config" / "ags" / "components" / "battery" / "presentation.ts",
+                install / "config" / "ags" / "components" / "battery" / "state.ts",
+                install / "config" / "ags" / "components" / "battery" / "battery-icon.ts",
+                install / "config" / "ags" / "components" / "battery" / "BatteryPopup.tsx",
+                install / "config" / "ags" / "components" / "battery" / "BatteryContent.tsx",
+                install / "config" / "ags" / "services" / "power-service.ts",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"
