@@ -1,0 +1,51 @@
+# Btop-config role vars.
+#
+# Renders btop's config into the config-in-spine home
+# <install>/config/btop/btop.conf and links it at btop's native XDG location
+# (~/.config/btop -> <install>/config/btop, via the config_links role). The
+# rendered btop.conf SELECTS a generated theme by FILENAME; the theme FILES
+# themselves are runtime consumer pointers into
+# <install>/config/btop/themes/ (see
+# runtime/adapters/consumer_path_spec.py).
+#
+# Why a role + consumer pointers and NOT a rendered include (kitty's shape):
+# `Theme::setTheme` (btop_theme.cpp:451-471) matches `color_theme` ONLY against
+# the themes btop discovered while scanning its theme dirs at STARTUP, by full
+# path / filename / stem. An absolute path to a file OUTSIDE those dirs leaves
+# the resolved path empty and falls back to the built-in Default_theme
+# SILENTLY — no error, no warning. So the theme must physically live under
+# $XDG_CONFIG_HOME/btop/themes, which here is the spine via the config_links
+# symlink. There is no btop equivalent of kitty's `include`.
+#
+# Why <install>/config/btop/themes/ is created HERE (D4):
+# `repoint_consumer_symlinks` skips a pointer with a warning when the
+# destination parent is missing and NEVER mkdirs into the install spine
+# (seeder.py, rule `skip_on_missing_parent`). Provisioning owns the spine dir;
+# the runtime owns only the pointer symlinks inside it. Without this task the
+# FIRST wallpaper swap would skip all three btop pointers.
+#
+# Mirror-and-adapt discipline (mirror of the kitty_config rendered role):
+#   - install_dir is NEVER defaulted; the fail-loud first task asserts it.
+#   - XDG derivation mirrors kitty_config/zsh_config EXACTLY: the F4 lock
+#     (ansible_facts.env, NOT the deprecated top-level ansible_env fact).
+#   - User-scoped: NO become.
+
+# btop_config_spine_dir: where the rendered btop.conf lands (config-in-spine
+#   home). Trim lock: consumes the same validated {{ install_dir | trim }}
+#   value the fail-loud first-task assert enforces.
+btop_config_spine_dir: "{{ install_dir | trim }}/config/btop"
+
+# btop_config_spine_themes_dir: the themes subdirectory btop scans at startup
+#   (via the ~/.config/btop -> <install>/config/btop symlink). Provisioning
+#   CREATES it (see the header note above); the runtime's three ConsumerPointer
+#   entries place colors.btop-{minimal,balanced,full}.theme inside it. Trim
+#   lock, derived from btop_config_spine_dir — one seam read per role.
+btop_config_spine_themes_dir: "{{ btop_config_spine_dir }}/themes"
+
+# btop_config_xdg_config_home: the config home btop resolves at runtime
+#   ($XDG_CONFIG_HOME, spec default ~/.config — where ~/.config/btop -> the
+#   spine symlink lives). Provisioning only REFERENCES the location; the
+#   symlink itself is created by the config_links role. Identical derivation to
+#   config_links_xdg_config_home / verify_xdg_config_home — F4 lock:
+#   ansible_facts.env, NOT the deprecated top-level ansible_env fact.
+btop_config_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"

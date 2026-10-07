@@ -6,10 +6,36 @@ name: gates
 #
 # Layout: one job per gate, so a failure names the gate that broke instead of
 # hiding behind a combined command's exit code.
+#
+# WHICH GATES, AND WHY NOT MORE. The set here is exactly `make gates-ci` in the
+# Makefile. Nine of the repo's ten gates run on a stock `ubuntu-latest` runner.
+# The tenth, `capture-typecheck`, is NOT here because it cannot run there at
+# all: it needs `ags` on PATH plus the Astal/GIR libraries it describes, and
+# `ags types` generates ~49 MB of machine-specific .d.ts from THIS host's
+# GTK/Astal install. A hosted runner has no AGS, no Astal and no GTK4, so the
+# target has nothing to check against, and its tolerated-third-party bucket is
+# keyed to the literal /usr/share/ags/js/ path. Listing it here would not make it
+# stricter — it would make every push red on a missing binary, which is how a
+# broken gate trains people to ignore the gate list.
+#
+# `ags-test` is NOT in that exclusion, and the difference is worth stating: it
+# also runs .ts natively, but everything it typechecks is PURE (no `gi://*`, no
+# `ags/*`), so it needs Node and tsc and nothing else.
+#
+# `make gates` still runs all ten for a developer on a provisioned desktop.
+# Nothing is dropped, only relocated: the honest statement is "this gate does not
+# run in CI", never "this gate passes in CI".
+#
+# TRIGGER. This repository's default branch is `master` (`origin/HEAD ->
+# origin/master`); `main` does not exist locally or on the remote, so a
+# `push: branches: [main]` trigger can never fire. Every gate in this file had
+# therefore only ever run by hand. `pull_request` is kept unfiltered so a PR from
+# any branch is still checked.
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   contracts:
@@ -29,6 +55,29 @@ jobs:
       - name: Wi-Fi mock<->code parity
         run: python3 scripts/wifi-mock-parity.py
 
+  battery-mock-parity:
+    name: battery-mock-parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Stdlib-only, like wifi-mock-parity: it reads the mock HTML, style.css and
+      # the mapped TSX files as text. No Node, no desktop stack, no npm.
+      - name: Battery panel mock<->code parity
+        run: python3 scripts/battery-mock-parity.py
+
+  icons-json-drift:
+    name: icons-json-drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # uv, because the gate compares against ansible's OWN `to_nice_json`
+      # filter -- the one the compositor_configs role emits through -- rather
+      # than an approximation of it. See the Makefile target for why that
+      # distinction is the whole point of the gate.
+      - uses: astral-sh/setup-uv@v5
+      - name: Generated icons.json matches to_nice_json(icons.yaml)
+        run: make icons-json-drift
+
   speedtest-mock-parity:
     name: speedtest-mock-parity
     runs-on: ubuntu-latest
@@ -45,14 +94,74 @@ jobs:
       - name: Speed-test path reuses the existing seams
         run: python3 scripts/speedtest-no-new-architecture.py
 
+  capture-hexagonal:
+    name: capture-hexagonal-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture GUI hexagonal structure + class vocabulary
+        run: python3 scripts/capture-hexagonal-gate.py
+
+  capture-test:
+    name: capture-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned, not inherited. The capture domain tests are .ts files run
+      # natively by Node's built-in type-stripping, which is only unflagged from
+      # Node 22.18 — so the runner's preinstalled Node cannot be assumed to be
+      # new enough. 24.x is the current LTS and well past that floor.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # No `npm install` step here, on purpose: `make capture-test` DECLARES its
+      # own dependencies and installs them on demand via its capture-test-deps
+      # target — typescript at the repo root, @types/node under
+      # src/gui-tools/capture-tool/tests/ — in the same
+      # `npm install --no-save --no-package-lock` shape `capture-typecheck`
+      # already uses for typescript. A gate that installs what it needs cannot
+      # be run at reduced strength by a clean checkout, and CI runs exactly the
+      # same 115 assertions and the same tsc pass a developer does: 115 pass,
+      # 0 fail, 0 skipped.
+      - name: Capture domain unit tests
+        run: make capture-test
+
+  ags-test:
+    name: ags-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned, for the same reason capture-test pins it: the suite is .ts run
+      # natively by Node's built-in type-stripping, which is only unflagged from
+      # Node 22.18 — the runner's preinstalled Node cannot be assumed new enough.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # No `npm install` step here, on purpose: `make ags-test` DECLARES its own
+      # dependencies and installs them on demand via its ags-test-deps target —
+      # typescript at the repo root, @types/node under
+      # dotfiles/config/ags/tests/ts/ — in the same
+      # `npm install --no-save --no-package-lock --prefix` shape
+      # `make capture-test` already uses. --prefix lands @types/node BESIDE
+      # tests/tsconfig.tests.json, because that is where tsc's upward typeRoots
+      # walk starts looking; tests/ts/ is one level too deep and would resolve
+      # to nothing (TS2688).
+      #
+      # Unlike capture-typecheck, this gate needs NO desktop stack: the module
+      # list in dotfiles/config/ags/tests/tsconfig.tests.json is explicit and
+      # contains nothing that imports `gi://*` or `ags/*`, so a runner with no
+      # AGS, no Astal and no GTK4 runs the identical assertions a developer does.
+      #
+      # The target FAILS if node, npx, tsc or @types/node is unresolvable rather
+      # than skipping. A gate that skips when its toolchain is missing looks
+      # exactly like a gate that passes, which is how a suite silently stops
+      # running.
+      - name: AGS config pure-module unit tests
+        run: make ags-test
+
   # Audio mock<->code parity: the owner-approved concept mock is the source of
-  # truth for the redesigned panel's surface, so this gate is what makes that
-  # claim mechanical rather than a review opinion -- the same role as the Wi-Fi
-  # and speed-test parity gates above.
-  #
-  # The render gate (audio-panel-render.test.mjs) is NOT wired here yet: it is
-  # in `make audio-panel-gates` and joins CI when the panel is confirmed
-  # rendering live (tasks.md 6.6).
+  # truth for the redesigned panel's surface, the same role the Wi-Fi, battery
+  # and speed-test parity gates play for theirs.
   audio-mock-parity:
     name: audio-mock-parity
     runs-on: ubuntu-latest
@@ -61,14 +170,35 @@ jobs:
       - name: Audio mock<->code parity
         run: python3 scripts/audio-mock-parity.py
 
-  # Typecheck the AGS layer (tasks.md 6.5). `ags bundle` transpiles without
-  # typechecking, which is how a mis-cased shorthand property in the composition
-  # root passed every other gate and died on startup.
+  # Audio domain, presentation, adapter and runtime unit suites. The panel's
+  # render gate rides with them because it is the one that detects an unwired
+  # panel, which is how this change shipped a popup that rendered nothing while
+  # every other gate stayed green.
+  audio-tests:
+    name: audio-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Audio unit suites
+        run: |
+          node openspec/changes/redesign-ags-audio-panel/validation/audio-core.test.mjs
+          node openspec/changes/redesign-ags-audio-panel/validation/audio-presentation.test.mjs
+          node openspec/changes/redesign-ags-audio-panel/validation/pipewire-adapter.test.mjs
+          node openspec/changes/redesign-ags-audio-panel/validation/audio-session-runtime.test.mjs
+      - name: Audio panel render gate
+        run: node openspec/changes/redesign-ags-audio-panel/validation/audio-panel-render.test.mjs
+
+  # Typecheck the AGS layer under strict mode. `ags bundle` transpiles WITHOUT
+  # type checking, which is how a mis-cased shorthand property in the composition
+  # root passed every other gate and died with ReferenceError on startup.
   #
-  # Needs `ags types` for the GObject-introspection typings, so this is the one
-  # gate that cannot run on a bare ubuntu-latest runner; it is wired to the
-  # self-hosted runner where ags is installed. Until then `make ags-typecheck`
-  # is the authoritative local run.
+  # NOT in the CI set: like capture-typecheck and bar-typecheck this needs `ags`
+  # and the Astal/GIR libraries on PATH, so it cannot run on a stock
+  # ubuntu-latest runner. `make ags-typecheck` is the authoritative run and this
+  # job is self-hosted only. See gates-ci for the exact exclusion list.
   ags-typecheck:
     name: ags-typecheck
     runs-on: [self-hosted, linux]
@@ -76,8 +206,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - name: Install TypeScript
-        run: npm ci --no-save typescript@5.9.3 || npm i --no-save typescript@5.9.3
+          node-version: '24'
       - name: Typecheck the AGS layer
         run: make ags-typecheck

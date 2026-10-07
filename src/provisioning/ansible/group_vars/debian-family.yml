@@ -30,6 +30,10 @@ packages:
   # logical bluez-utils entry.
   bluez: bluez
   bluez-utils: bluez
+  # The GTK Bluetooth manager: the target of the panel's "Bluetooth Settings"
+  # row, and the only agent on the system that can answer a PIN/passkey
+  # request (the panel's own agent is NoInputNoOutput / Just Works).
+  blueman: blueman
   ffmpeg: ffmpeg
   pipewire: pipewire
   wireplumber: wireplumber
@@ -40,6 +44,11 @@ packages:
   pavucontrol: pavucontrol       # GUI mixer (debugging reference for the AGS audio popup)
   gpu-screen-recorder: gpu-screen-recorder
   wf-recorder: wf-recorder
+  # vainfo — VA-API codec probe (Arch: libva-utils; Debian: same name).
+  # Named verbatim in gpu-screen-recorder's "your gpu does not support 'vpX'"
+  # failure, so the capture tool can distinguish a hardware codec limit from a
+  # missing VA driver.
+  libva-utils: libva-utils
   # Screenshot + clipboard stack (same consumers as Arch; Debian names are
   # identical — all three exist under these names in the Debian archive).
   capture:
@@ -62,6 +71,13 @@ packages:
   dunst: dunst
   # thunar: file manager launched by keybindings.lua.
   thunar: thunar
+  # xdg-utils: same consumers as Arch — gui_tools runs `xdg-mime default
+  # thunar.desktop inode/directory` to pin the directory handler, verify gates
+  # `xdg-mime query default inode/directory`, and the capture tool's "Show in
+  # folder" plus hypr-pano's URL opener shell `xdg-open`. Same name on Debian
+  # (verified against the Debian archive's madison API 2026-10-04:
+  # xdg-utils 1.2.1-2 in stable/testing, architecture all).
+  xdg-utils: xdg-utils
   # Container engine for the csg container-mode chain (same rationale as Arch).
   # Debian package names; rootless podman deps.
   container_engine:

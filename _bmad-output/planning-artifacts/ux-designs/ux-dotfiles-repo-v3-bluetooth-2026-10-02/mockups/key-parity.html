@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⑤ Wi-Fi ↔ Bluetooth — the parity matrix — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+<!--
+  MOCK: key-parity   (coverage #5 — the side-by-side proof of the mandate)
+  Governed by DESIGN.md: §New CSS (the complete existing-class mapping),
+                         §Reused-but-not-new, §Do's and Don'ts.
+  EXPERIENCE.md: Foundation ("full parity with the Wi-Fi panel, which is the
+                  mandated reference"), §Voice and Tone (the deliberate
+                  asymmetry), Component Patterns, State Patterns, §Keyboard,
+                  §Mutual exclusion.
+
+  Every icon is a REAL ITR-rendered repository SVG from assets/, resolved through the
+  exact icons.json keys named in the Asset column. Nothing is hand-drawn or substituted.
+
+  Reading guide:
+    <span class="chip-ok">parity</span>          the same shape, class and slot as WifiPopup
+    <span class="chip-diff">named divergence</span> BlueZ genuinely differs — argued, not accidental
+
+  Size annotation: mock.css's `.net .sig` box is 22px, which is the right default for the
+  22px Bluetooth mark. `.settings-net-signal` in style.css is 30x30 and `SignalIcon` uses
+  `pixel_size={30}`. On this page BOTH leading glyphs are rendered at the real 30px so the
+  shared-slot claim is visually honest.
+-->
+
+<h1>⑤ Wi-Fi ↔ Bluetooth — the parity matrix</h1>
+<div class="sub">
+  The mandate is <b>full parity with the Wi-Fi panel</b>. This page is the audit trail for that
+  claim: every structural element of <code>WifiPopup.tsx</code> / <code>WifiContent.tsx</code>,
+  the Bluetooth counterpart, the <code>settings-*</code> class they share, and the real icon key.
+  Then every place the two domains genuinely differ, with its own row — argued, never smuggled in.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>parity-matrix</code> · <code>parity-wifi</code> · <code>parity-bluetooth</code> ·
+  <code>parity-divergence</code><br>
+  <b>Try it:</b> both popups below are live — flip either header switch, click either row, expand
+  either chevron. Same components, different data.
+</div>
+
+<!-- ══ parity-wifi / parity-bluetooth ═══════════════════════════════════ -->
+<div class="state-label">The two surfaces, side by side · <code>parity-wifi</code> · <code>parity-bluetooth</code></div>
+<div class="parity">
+
+  <div>
+    <div class="parity-head">WifiPopup.tsx · the reference</div>
+    <div class="col">
+      <div class="popup" data-surface="wifi">
+        <div class="nav-header">
+          <span class="nav-title">Wi-Fi</span>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Wi-Fi"></button>
+        </div>
+        <div class="scroll-clip">
+          <div class="details">
+            <div class="detail-row"><span class="detail">Connection</span><span class="detail">Ilyushin-5G</span></div>
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">Connected</div>
+          <div style="padding:0 7px">
+            <div class="net sel" data-name="Ilyushin-5G" tabindex="0">
+              <div class="l1">
+                <span class="sig" style="width:30px;height:30px;flex:0 0 30px" title="Strength 100% (settings-panel/wifi-signal-full)">
+                  <img src="assets/settings-panel-wifi-signal-full.svg" alt="settings-panel/wifi-signal-full" />
+                </span>
+                <span class="name" title="Ilyushin-5G">Ilyushin-5G</span>
+                <span class="badge conn">Connected</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Secured</span></div>
+                <div class="actions"><button class="rowact">Disconnect</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">Saved</div>
+          <div style="padding:0 7px">
+            <div class="net" data-name="Cafe-Nebula" tabindex="0">
+              <div class="l1">
+                <span class="sig" style="width:30px;height:30px;flex:0 0 30px" title="Strength 64% (settings-panel/wifi-signal-good)">
+                  <img src="assets/settings-panel-wifi-signal-good.svg" alt="settings-panel/wifi-signal-good" />
+                </span>
+                <span class="name" title="Cafe-Nebula">Cafe-Nebula</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Secured</span></div>
+                <div class="actions"><button class="rowact">Connect</button></div>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <button class="chevron-row" data-chevron>
+            <span style="flex:1">Other Networks <span class="chevmark">▸</span></span>
+          </button>
+          <div data-nearby hidden>
+            <div style="padding:4px 7px">
+              <div class="net" data-name="eduroam" tabindex="0">
+                <div class="l1">
+                  <span class="sig" style="width:30px;height:30px;flex:0 0 30px" title="Strength 31%">
+                    <img src="assets/settings-panel-wifi-signal-medium.svg" alt="settings-panel/wifi-signal-medium" />
+                  </span>
+                  <span class="name" title="eduroam">eduroam</span>
+                </div>
+                <div class="l2">
+                  <div class="meta"><span class="sub">Secured</span></div>
+                  <div class="actions"><button class="rowact">Connect</button></div>
+                </div>
+              </div>
+              <div class="net" data-name="Cafe-Guest" tabindex="0">
+                <div class="l1">
+                  <span class="sig" style="width:30px;height:30px;flex:0 0 30px" title="Strength 12%">
+                    <img src="assets/settings-panel-wifi-signal-low.svg" alt="settings-panel/wifi-signal-low" />
+                  </span>
+                  <span class="name" title="Cafe-Guest">Cafe-Guest</span>
+                </div>
+                <div class="l2">
+                  <div class="meta"><span class="sub">Open network</span></div>
+                  <div class="actions"><button class="rowact">Connect</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <button class="footer-row" data-footer>
+            <span class="footer-label">Wi-Fi Settings</span>
+            <span class="footer-note">opens nm-connection-editor</span>
+            <span class="footer-arrow">›</span>
+          </button>
+        </div>
+      </div>
+      <div class="cap">
+        The reference. Catcher → 312&nbsp;px surface → pinned header → scroll →
+        <code>connected / knownSaved / otherNetworks</code> → chevron → footer.
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="parity-head">BluetoothPopup.tsx · the counterpart</div>
+    <div class="col">
+      <div class="popup" data-surface="bluetooth">
+        <div class="nav-header">
+          <span class="nav-title">Bluetooth</span>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+        </div>
+        <div class="scroll-clip">
+          <div class="details">
+            <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+            <div class="detail-row"><span class="detail">Audio output</span><span class="detail">TOZO NC9</span></div>
+          </div>
+          <div class="divider"></div>
+          <div class="section-label">Paired</div>
+          <div style="padding:0 7px">
+            <div class="net sel" data-name="TOZO NC9" tabindex="0">
+              <div class="l1">
+                <span class="sig" style="width:30px;height:30px;flex:0 0 30px" title="Signal: −52 dBm (settings-panel/signal-high)">
+                  <img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" />
+                </span>
+                <span class="name" title="TOZO NC9">TOZO NC9</span>
+                <span class="badge conn">Connected</span>
+              </div>
+              <div class="l2">
+                <div class="meta">
+                  <span class="sub">Paired</span>
+                  <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+                </div>
+                <div class="actions">
+                  <button class="rowact">Disconnect</button>
+                  <button class="rowact subtle" data-unpair>Unpair</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <button class="chevron-row" data-chevron>
+            <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+          </button>
+          <div data-nearby hidden>
+            <div style="padding:4px 7px">
+              <div class="net" data-name="HONOR 400 Smart" tabindex="0">
+                <div class="l1">
+                  <span class="sig" style="width:30px;height:30px;flex:0 0 30px" title="Signal: −88 dBm">
+                    <img src="assets/settings-panel-signal-low.svg" alt="settings-panel/signal-low" />
+                  </span>
+                  <span class="name" title="HONOR 400 Smart">HONOR 400 Smart</span>
+                </div>
+                <div class="l2">
+                  <div class="meta"><span class="sub">Ready to pair</span></div>
+                  <div class="actions"><button class="rowact">Pair</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <button class="footer-row" data-footer>
+            <span class="footer-label">Bluetooth Settings</span>
+            <span class="footer-note">opens bluetoothctl</span>
+            <span class="footer-arrow">›</span>
+          </button>
+        </div>
+      </div>
+      <div class="cap">
+        Same skeleton, same slot order, same classes. Two differences are visible and both are
+        named below: the <b>second detail row</b>, and the <b>second row action</b>.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ parity-matrix ════════════════════════════════════════════════════ -->
+<div class="state-label">Element-by-element matrix · <code>parity-matrix</code></div>
+<p class="note">
+  Every element of the Wi-Fi surface, its Bluetooth counterpart, the <code>settings-*</code> class
+  they share, and the real icon key each resolves. <b>Nothing in this table is a new primitive</b>
+  except the one row marked <code>ADDITION</code>.
+</p>
+<table class="tokens">
+  <tr>
+    <th>Element</th>
+    <th><code>WifiPopup.tsx</code> / <code>WifiContent.tsx</code></th>
+    <th><code>BluetoothPopup.tsx</code> / <code>BluetoothContent.tsx</code></th>
+    <th>Shared <code>settings-*</code> class</th>
+    <th>Real SVG asset (icons.json key → staged file)</th>
+  </tr>
+
+  <tr>
+    <td><b>Catcher</b></td>
+    <td><code>WifiPopupCatcher</code> — full-screen window, <code>GestureClick(BUTTON_PRIMARY)</code>
+      on <code>released</code> → <code>closeWifiPopup()</code></td>
+    <td><code>BluetoothPopupCatcher</code> — same gesture, same signal;
+      registered in <code>app.tsx</code> <b>immediately before</b> the popup so it stacks above it</td>
+    <td><code>settings-catcher</code><br><code>settings-catcher-fill</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">— (no glyph)</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Surface</b></td>
+    <td><code>window class="settings-panel"</code> →
+      <code>box class="settings-surface" widthRequest={312}</code>, <code>anchor={TOP|LEFT}</code>,
+      <code>exclusivity=IGNORE</code>, <code>layer=OVERLAY</code>, <code>marginTop={52}</code></td>
+    <td>identical property-for-property. <code>marginLeft</code> is
+      <code>iconCentre − 156</code> clamped to <code>[8, monitorWidth − 320]</code> from the
+      recorded follower x</td>
+    <td><code>settings-panel</code><br><code>settings-surface</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Header</b> <span class="chip-ok">parity</span></td>
+    <td><code>box class="settings-nav-header"</code> + <code>label class="settings-nav-title"</code>,
+      a <b>sibling</b> of the scrolledwindow</td>
+    <td>identical, same sibling position, same <code>spacing={9}</code>, same title <i>Bluetooth</i></td>
+    <td><code>settings-nav-header</code><br><code>settings-nav-title</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Power control</b> <span class="chip-ok">parity</span></td>
+    <td><code>WifiSwitch active={wifiEnabled} sensitive={wifiReady} onToggled={(v) =&gt; void setWifiEnabled(v)}</code>
+      in the header's trailing slot</td>
+    <td><code>WifiSwitch active={bluetoothPowered} onToggled={(v) =&gt; void setBluetoothPowered(v)}</code> —
+      <b>the parity fix</b>: same component, same slot, same explicit-value contract</td>
+    <td><code>settings-switch</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">— (a <code>Gtk.Switch</code>, not an image)</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Scroll</b> <span class="chip-ok">parity</span></td>
+    <td><code>scrolledwindow class="settings-scroll"</code>,
+      <code>propagateNaturalHeight</code>, <code>maxContentHeight={420}</code>,
+      <code>vscrollbar AUTOMATIC</code>, <code>hscrollbar NEVER</code></td>
+    <td>identical, <b>plus</b> <code>propagateNaturalWidth={false}</code> — a Bluetooth row carries a
+      26-char name <i>plus two</i> action buttons, the exact overflow shape Wi-Fi does not have.
+      Also a <code>viewEpoch</code> scroll reset on open (from the audio popup)</td>
+    <td><code>settings-scroll</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Connection details</b> <span class="chip-ok">parity</span></td>
+    <td><code>ConnectionDetails</code> — one <code>.settings-detail-row</code> carrying the active
+      SSID</td>
+    <td>the structural twin, carrying the two facts that live on no row:
+      <code>Adapter</code> (hci address) and <code>Audio output</code>
+      (<code>bluetoothAudioTarget()</code>). Both <code>—</code> when unavailable</td>
+    <td><code>settings-conn-details</code><br><code>settings-detail-row</code><br><code>settings-detail</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Section labels</b> <span class="chip-ok">parity</span></td>
+    <td><code>Connected</code> · <code>Saved</code> · <code>Other Networks</code> from three
+      <code>createComputed</code>s over one flat <code>wifiNetworks()</code></td>
+    <td><code>Paired</code> · <code>Available Devices</code> from two
+      <code>createComputed</code>s over the one flat <code>bluetoothDevices()</code>
+      — <b>no new state is introduced to hold the split</b></td>
+    <td><code>settings-section-label</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Flat-accessor derived split</b> <span class="chip-ok">parity</span></td>
+    <td><code>connected = wifiNetworks().filter(n =&gt; n.connected)</code> ·
+      <code>knownSaved = … n.saved &amp;&amp; !n.connected</code> ·
+      <code>otherNetworks = … !n.saved &amp;&amp; !n.connected</code></td>
+    <td><code>paired = devices.filter(d =&gt; d.paired)</code> ·
+      <code>nearby = devices.filter(d =&gt; !d.paired)</code> — the same three-way shape reduced to
+      two, because BlueZ's <code>Paired</code> boolean is the only membership fact it reports</td>
+    <td><span style="color:rgba(194,194,197,.45)">— (pure <code>createComputed</code>, no class)</span></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>The row</b> <span class="chip-ok">parity</span></td>
+    <td><code>WifiRow</code> — <code>Gtk.GestureClick(BUTTON_PRIMARY)</code> on <code>released</code>
+      → connect/disconnect; <b>the whole row is the action</b></td>
+    <td><code>BluetoothRow</code> — identical gesture → <code>act()</code>, which is a no-op if
+      <code>busy()</code> or <code>!inRange()</code>, then <code>disconnectDevice</code> /
+      <code>connectDevice</code> / <code>pairDevice</code></td>
+    <td><code>settings-net</code> · <code>settings-net sel</code> ·
+      <code>settings-net out-of-range</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Row name / subtitle</b> <span class="chip-ok">parity</span></td>
+    <td><code>settings-net-name</code> (SSID) + <code>settings-net-sub</code> —
+      <code>Saved</code> / <code>Secured</code> / <code>Open network</code>. <b>Words, never
+      numbers</b>, because the leading glyph already <i>is</i> the strength</td>
+    <td>same two labels. Subtitle is <code>Not in range</code> / <code>Paired</code> /
+      <code>Ready to pair</code>; the shipped <code>−N dBm</code> moves to the signal glyph's
+      <b>tooltip</b>, and the name truncates at <code>maxWidthChars={26}</code> with the full name on
+      the tooltip</td>
+    <td><code>settings-net-name</code><br><code>settings-net-sub</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Leading signal glyph</b> <span class="chip-diff">divergence</span></td>
+    <td><code>SignalIcon</code> — <code>image class="settings-net-signal" pixel_size={30}</code>,
+      thresholds from <code>lib/wifi-signal.ts</code> (<code>≥75/≥50/≥25</code>)</td>
+    <td>the same slot and class, resolved from the <b>existing</b>
+      <code>signalVariant()</code> thresholds (<code>≥−60 high</code>, <code>≥−70 good</code>,
+      <code>≥−80 medium</code>, else <code>low</code>). Rendered <b>only when <code>rssi &lt; 0</code></b>;
+      absent otherwise (BlueZ's "not seen"). Bluetooth has <b>no strength percentage</b> to map
+      into <code>wifi-signal-*</code>, so the domain's own four-step signal art is used —
+      zero new icons either way</td>
+    <td><code>settings-net-signal</code></td>
+    <td><code>settings-panel/signal-high</code> → <code>settings-panel-signal-high.svg</code> ·
+      <code>signal-good</code> · <code>signal-medium</code> · <code>signal-low</code></td>
+  </tr>
+
+  <tr>
+    <td><b>Battery stat</b> <span class="chip-diff">divergence</span></td>
+    <td><span style="color:rgba(194,194,197,.45)">no counterpart</span> — NetworkManager strength is
+      the row's own signal; there is no separate power source to report</td>
+    <td><code>battery/system-battery-{0|25|50|75|100}</code> + <code>N%</code>, on the
+      <code>&lt;25/&lt;50/&lt;75/&lt;100</code> buckets, mirroring the bar's
+      <code>getBatteryStateKey</code>. Gated on <code>connected &amp;&amp; battery &gt; 0</code> —
+      a paired-but-idle device reports a stale <code>Battery1</code> that would be a lie</td>
+    <td><code>settings-meta-stat</code> · <code>settings-meta-icon</code></td>
+    <td><code>battery/system-battery-0|25|50|75|100</code> → the staged
+      <code>system-battery-*.svg</code>. <b>Never bare <code>battery-*</code></b> — those are
+      guard-subject, bar-only</td>
+  </tr>
+
+  <tr>
+    <td><b>Badges</b> <span class="chip-ok">parity</span></td>
+    <td><code>settings-badge conn</code> — <code>Connected</code>, visible only when connected</td>
+    <td>the same single badge for <code>Connected</code>. A <code>Paired</code> badge is
+      <b>not</b> introduced: paired/not-connected is a <b>subtitle word</b>, exactly how Wi-Fi says
+      <code>Saved</code></td>
+    <td><code>settings-badge</code><br><code>settings-badge conn</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Primary row action</b> <span class="chip-ok">parity</span></td>
+    <td><code>settings-rowact</code> — <code>Connect</code> / <code>Disconnect</code>;
+      <code>settings-rowact disabled</code> when insensitive</td>
+    <td>identical: <code>Pair</code> / <code>Connect</code> / <code>Disconnect</code>,
+      <code>disabled</code> when <code>!inRange()</code>, <code>sensitive = inRange() &amp;&amp; !anyBusy()</code></td>
+    <td><code>settings-rowact</code><br><code>settings-rowact disabled</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>In-flight affordance</b> <span class="chip-ok">parity</span></td>
+    <td><code>settings-spinner</code> — 14&nbsp;px ring in <code>@color_13</code>; Wi-Fi's connect is
+      fast enough that the row simply shows it</td>
+    <td>the same spinner, plus the <b>label</b> the pair verb conjures:
+      <code>Pairing…</code> / <code>Connecting…</code> / <code>Disconnecting…</code> /
+      <code>Unpairing…</code>, and a <b>static</b> <code>settings-meta-stat</code> line reading
+      <code>Can take up to 30 s</code>. A countdown would need a timer in the view</td>
+    <td><code>settings-spinner</code><br><code>settings-meta-stat</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Secondary row action</b> <span class="chip-diff">divergence</span></td>
+    <td><span style="color:rgba(194,194,197,.45)">no counterpart</span> — you do not "forget" a
+      saved network from the popup; the secret lives in NetworkManager</td>
+    <td><code>settings-rowact subtle</code> — <code>Unpair</code>, paired devices only, visible only
+      when <code>!anyBusy()</code> and a no-op when busy, because the service is single-flight</td>
+    <td><code>settings-rowact subtle</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Unpair confirm</b> <span class="chip-diff">divergence</span></td>
+    <td><span style="color:rgba(194,194,197,.45)">no counterpart</span> — nothing in the Wi-Fi popup
+      is destructive enough to need one</td>
+    <td>inline, in the existing action slot: the meta stack becomes
+      <code>Remove from paired devices</code> and the pair becomes <code>Keep</code> /
+      <code>Unpair device</code>. <b>The row does not resize and does not reflow.</b> No modal — the
+      surface has no modal stack and a modal would grab the keyboard it deliberately does not hold</td>
+    <td><code>settings-rowact</code> + <code>settings-meta-stat</code><br>
+      <b style="color:#f0d5a4">ADDITION:</b> <code>settings-rowact.danger</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Chevron collapsible</b> <span class="chip-ok">parity</span></td>
+    <td><code>OtherNetworksExpand</code> — <code>settings-chevron-row</code> +
+      <code>settings-chevron-label</code>, manual toggle, suppressed while empty</td>
+    <td>same row and label classes with <code>Available Devices ▸ / ▾</code>.
+      Expansion is <code>manuallyToggled || nearbyCount &gt; 0</code> — <b>discover-then-reveal</b>,
+      so the section reveals itself the moment a neighbour is found instead of quietly filling a
+      section the user never opened</td>
+    <td><code>settings-chevron-row</code><br><code>settings-chevron-label</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">— (the glyph is text, like Wi-Fi's)</span></td>
+  </tr>
+
+  <tr>
+    <td><b><code>›</code> footer row</b> <span class="chip-ok">parity</span></td>
+    <td><code>Wi-Fi Settings</code> + note <code>opens nm-connection-editor</code> + <code>›</code>,
+      <code>wrap-not-ellipsize</code> on the note</td>
+    <td><code>Bluetooth Settings</code> + note <code>opens bluetoothctl</code> + <code>›</code>, same
+      wrap rule. Class names stay Wi-Fi-specific — <b>no rename in this change</b>, renaming would
+      touch the Wi-Fi popup for no visual gain. A spawn failure lands in the existing message line,
+      never a dialog</td>
+    <td><code>settings-wifi-settings-row</code><br><code>-label</code> · <code>-note</code> ·
+      <code>-arrow</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Failure line</b> <span class="chip-ok">parity</span></td>
+    <td><code>settings-message</code> — a service string printed verbatim; plus
+      <code>settings-security-warn</code> / <code>-icon</code> / <code>-text</code> for the
+      weak-security warning</td>
+    <td>same line, same verbatim contract: <code>Pairing timed out</code>,
+      <code>Pairing failed: &lt;bus error&gt;</code>,
+      <code>Could not turn Bluetooth on (adapter may be soft-blocked)</code>,
+      <code>No Bluetooth adapter available</code>. Never reworded, never prefixed
+      <code>Error:</code>. No toast, no modal, no retry button — retry <i>is</i> the restored action</td>
+    <td><code>settings-message</code><br><code>settings-security-warn</code> ·
+      <code>settings-security-icon</code> · <code>settings-security-text</code></td>
+    <td><code>settings-panel/info-caution</code> →
+      <code>settings-panel-info-caution.svg</code> (adapter-absent and soft-block cases, reusing the
+      Wi-Fi weak-security precedent)</td>
+  </tr>
+
+  <tr>
+    <td><b>Empty / scanning</b> <span class="chip-ok">parity</span></td>
+    <td><code>settings-empty</code> — <code>No networks found</code>; the password prompt's own
+      <code>settings-spinner</code> + <code>settings-field-error</code></td>
+    <td><code>settings-empty</code> — <code>Bluetooth is off</code> ·
+      <code>Scanning…</code> (spinner) · <code>No devices found</code>.
+      <code>Scanning…</code> <b>coexists</b> with a populated list rather than replacing it:
+      discovery runs the whole time the surface is visible, so it is the normal condition, not an event</td>
+    <td><code>settings-empty</code><br><code>settings-spinner</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Password prompt</b> <span class="chip-diff">divergence</span></td>
+    <td><code>WifiPasswordPrompt</code> — <code>settings-field-label</code> +
+      <code>settings-field-entry</code> + <code>settings-eye-icon</code> reveal toggle +
+      <code>settings-field-error</code></td>
+    <td><b>none — by design.</b> The shipped pairing agent is <code>NoInputNoOutput</code>
+      (Just Works, auto-accepting), so Bluetooth has <b>no typed-input surface</b>: no prompt, no
+      entry, no reveal eye, no keyboard grab. If a PIN/passkey entry is ever added, the whole
+      prompt pattern activates unchanged</td>
+    <td><span style="color:rgba(194,194,197,.45)">— (nothing Bluetooth needs)</span></td>
+    <td><code>settings-panel/password-show</code> ·
+      <code>password-hide</code> → the staged <code>settings-panel-password-*.svg</code>,
+      <b>reserved, unused</b></td>
+  </tr>
+
+  <tr>
+    <td><b>Keymode</b> <span class="chip-diff">divergence</span></td>
+    <td><code>keymode={Astal.Keymode.NONE}</code> as the initial value, then an effect:
+      <code>self.keymode = needsKeyboard ? ON_DEMAND : NONE</code> —
+      <b>ON_DEMAND only while a field needing typed input is on screen.</b> Never unconditional: an
+      unconditional <code>ON_DEMAND</code> grabs the keyboard, the bar swallows the first click, and
+      the same-spot collapse stops working</td>
+    <td><code>keymode=Astal.Keymode.NONE</code> and it <b>stays</b> <code>NONE</code> — a constant,
+      because there is no Bluetooth field that accepts typed input, so there is nothing to widen it
+      for. The rule for that future day is already fixed: gate it on
+      <code>bluetoothPinPromptVisible()</code> when such a field exists</td>
+    <td><span style="color:rgba(194,194,197,.45)">— (a window property)</span></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Popup close</b> <span class="chip-ok">parity</span></td>
+    <td>two paths only: the catcher's click-outside, and <code>ags request popup-close</code>
+      (the Hyprland keybind) → <code>closeWifiPopup()</code> in <code>app.tsx</code>. An
+      <code>EventControllerKey</code> <code>Esc</code> handler is registered on the popup too</td>
+    <td>identical two paths, and <code>app.tsx</code> must extend <code>popup-close</code> to call
+      <code>closeBluetoothPopup()</code> alongside <code>closeSettings()</code> and
+      <code>closeAudio()</code>. An open unpair confirm is dismissed <b>before</b> the surface is</td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+
+  <tr>
+    <td><b>Bar indicator</b> <span class="chip-diff">divergence</span></td>
+    <td>rides <b>inside</b> <code>network</code>'s <code>bar_mappings</code> states — which is
+      precisely why it could not be borrowed for Bluetooth</td>
+    <td>a brand-new <code>bluetooth</code> bar group with four variants, added to
+      <code>icon_contrast.BAR_GROUPS</code>. Bar state is carried by <b>ART</b> (slashed rune, bare
+      rune, hollow dot, filled dot), never by tint, so all four stay guard-managed and legible on any
+      wallpaper. No <code>bold</code>/<code>rounded</code> ladder: these four states are not a
+      strength scale</td>
+    <td><span style="color:rgba(194,194,197,.45)">— (bar chrome, not panel chrome)</span></td>
+    <td><code>bluetooth/bluetooth-off-default</code> · <code>-default</code> ·
+      <code>-connected-default</code> · <code>-active-default</code> —
+      <b>task work</b>; see <code>key-bar-indicator.html</code></td>
+  </tr>
+
+  <tr>
+    <td><b>Settings tile / subview</b> <span class="chip-ok">parity</span></td>
+    <td><code>WifiTile</code> (<code>CapabilityTile</code>) with a live
+      <code>wifiSignalIcon</code>; <code>WifiView</code> under <code>SubviewHeader</code> with
+      <code>WifiSwitch</code></td>
+    <td><code>BluetoothTile</code> unchanged in shape — glyph <code>bluetooth</code> /
+      <code>bluetooth-off</code>, subtitle the state word; <code>BluetoothView</code> under the same
+      <code>SubviewHeader</code>, with <b><code>WifiSwitch</code> replacing today's bare
+      <code>BluetoothToggle</code></b> in the trailing slot</td>
+    <td><code>settings-tile</code> · <code>settings-icon-toggle</code> ·
+      <code>settings-toggle-glyph</code> · <code>settings-tile-title</code> ·
+      <code>settings-tile-sub</code> · <code>settings-chevron</code></td>
+    <td><code>settings-panel/bluetooth</code> → <code>settings-panel-bluetooth.svg</code>
+      (<code>@color_13 #dbab67</code>) · <code>bluetooth-off</code> →
+      <code>settings-panel-bluetooth-off.svg</code> (<code>foreground #c2c2c5</code>)</td>
+  </tr>
+
+  <tr>
+    <td><b>State transport</b> <span class="chip-ok">parity</span></td>
+    <td>NetworkManager over D-Bus, read live through <code>wifi-service</code>. <b>No hub topic.</b></td>
+    <td>BlueZ over D-Bus (ObjectManager + per-property watches), read live through
+      <code>bluetooth-service</code>. <b>No hub topic either</b> —
+      <code>contracts/event-contract.{json,xml}</code>, <code>hub.KNOWN_TOPICS</code>,
+      <code>emit_validation.py</code> and <code>event-bus-core.ts</code> are all unchanged. A
+      connectivity panel riding a second transport while its twin does not would be full divergence,
+      not parity. See <code>EXPERIENCE.md §The hub question</code></td>
+    <td><span style="color:rgba(194,194,197,.45)">— (no view-owned state, by rule)</span></td>
+    <td><span style="color:rgba(194,194,197,.45)">—</span></td>
+  </tr>
+</table>
+
+<!-- ══ parity-divergence ════════════════════════════════════════════════ -->
+<div class="state-label">Named divergences, in one place · <code>parity-divergence</code></div>
+<p class="note">
+  Six places where BlueZ and NetworkManager genuinely differ. Each gets a row of its own because
+  <b>a divergence that is not written down is a divergence nobody can review.</b>
+</p>
+<table class="tokens">
+  <tr><th>#</th><th>Divergence</th><th>Why it is not a parity bug</th></tr>
+  <tr>
+    <td>1</td>
+    <td><b>No password prompt, therefore no <code>ON_DEMAND</code> keymode.</b></td>
+    <td>The shipped pairing agent is <code>NoInputNoOutput</code>. Nothing Bluetooth shows accepts
+      typed input, so an <code>ON_DEMAND</code> grab would buy nothing and cost the first click and
+      the same-spot collapse. The Wi-Fi rule is adopted verbatim and simply has nothing to gate on
+      <i>yet</i>.</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><b>The row leads with a <code>settings-panel/signal-*</code> glyph</b>, where Wi-Fi leads
+      with <code>settings-net-signal</code>.</td>
+    <td>Same slot, same class, same 30&nbsp;px box — but a different art family. Bluetooth strength is
+      dBm with an <code>rssi = 0</code> "not seen" sentinel and no percentage; there is nothing to
+      map into <code>wifi-signal-*</code>. The <code>signalVariant()</code> thresholds already shipped
+      in <code>BluetoothContent.tsx</code>, so this is <b>zero new art</b>. Absent entirely when
+      <code>rssi ≥ 0</code>, which is why out-of-range rows have no glyph.</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><b>A second row action (<code>Unpair</code>, <code>settings-rowact subtle</code>).</b></td>
+    <td>Bluetooth pairing is a <b>trust</b> relationship with a remembered device key; forgetting it
+      is a real, deliberate act. Wi-Fi rows have nothing equally destructive in the action slot, so
+      there is nothing to pair the second button with.</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><b>The inline unpair confirm</b>, and the design's one new class
+      <code>settings-rowact.danger</code>.</td>
+    <td>It follows from #3, and it is inline precisely so it costs <b>no new window, no modal stack
+      and no reflow</b>. The destructive path is one click longer than the safe one — the only
+      asymmetry that matters — and the confirm is not colour-alone: the button says
+      <code>Unpair device</code> and <code>Keep</code> sits beside it. Border + text take
+      <code>@color_03</code>; hover lifts to <code>@color_11</code>.</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><b>An <code>Audio output</code> detail row</b> with no Wi-Fi counterpart.</td>
+    <td>This is the row that closes the bug the design exists for. BlueZ can report
+      <code>Connected</code> while PipeWire has <b>not</b> routed the stream, and today that failure is
+      completely invisible — the panel claims success and the sound stays on the speakers.
+      <code>routeAudioToDevice</code> records the endpoint it actually defaulted into
+      <code>bluetoothAudioTarget</code>, and the surface <b>reports</b> it rather than auto-routing
+      silently and leaving the user guessing. It also drives the bar indicator's
+      <code>active</code> state. NetworkManager has no such second hop to get wrong.</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td><b>A new <code>bluetooth</code> bar icon group</b>, where Wi-Fi rides inside
+      <code>network</code>'s states.</td>
+    <td>A structural fact of the icon manifest, not a styling choice: there is no Bluetooth bar group
+      to borrow, and borrowing <code>network</code> would have put Bluetooth's four states in
+      Wi-Fi's six. Bar state is carried by <b>art</b> (slashed / bare / hollow dot / filled dot) with
+      no variant-level tint pin, so the guard keeps retargeting the group on every wallpaper.</td>
+  </tr>
+</table>
+
+<div class="legend">
+  <span><span class="chip-ok">parity</span> matches the Wi-Fi reference</span>
+  <span><span class="chip-diff">named divergence</span> BlueZ genuinely differs — argued, not accidental</span>
+  <span class="sr">All icons are the real ITR-rendered repository SVGs.</span>
+</div>
+
+<script>
+/* ── header switch: identical component in both surfaces ─────────────── */
+document.querySelectorAll('.switch').forEach(function (sw) {
+  sw.addEventListener('click', function () {
+    if (sw.disabled) return;
+    sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+  });
+});
+
+/* ── the whole row is the action, in both surfaces ───────────────────── */
+document.querySelectorAll('.net').forEach(function (row) {
+  row.addEventListener('click', function (e) {
+    if (e.target.closest('button')) return;
+    var btn = row.querySelector('.actions .rowact:not(.disabled)');
+    if (!btn) return;
+    btn.style.borderColor = 'var(--selected)';
+    setTimeout(function () { btn.style.borderColor = ''; }, 700);
+  });
+  row.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+  });
+});
+
+/* ── inline unpair confirm — Bluetooth only, the divergence ──────────── */
+function stashRow(row) {
+  if (row.hasAttribute('data-stashed')) return;
+  row.setAttribute('data-stashed', '1');
+  row.setAttribute('data-closed-meta', row.querySelector('.meta').innerHTML);
+  row.setAttribute('data-closed-actions', row.querySelector('.actions').innerHTML);
+}
+function closeConfirms() {
+  document.querySelectorAll('.net[data-open]').forEach(function (row) {
+    row.querySelector('.meta').innerHTML = row.getAttribute('data-closed-meta');
+    row.querySelector('.actions').innerHTML = row.getAttribute('data-closed-actions');
+    row.removeAttribute('data-open');
+    row.classList.remove('confirming');
+    wireRow(row);
+  });
+}
+function openConfirm(row) {
+  closeConfirms();
+  stashRow(row);
+  row.querySelector('.meta').innerHTML = '<span class="stat">Remove from paired devices</span>';
+  row.querySelector('.actions').innerHTML =
+    '<button class="rowact" data-keep>Keep</button>' +
+    '<button class="rowact danger" data-unpair-confirm>Unpair device</button>';
+  row.setAttribute('data-open', '1');
+  row.classList.add('confirming');
+  wireRow(row);
+}
+function wireRow(row) {
+  var unpair = row.querySelector('[data-unpair]');
+  if (unpair) unpair.addEventListener('click', function (e) { e.stopPropagation(); openConfirm(row); });
+  var keep = row.querySelector('[data-keep]');
+  if (keep) keep.addEventListener('click', function (e) { e.stopPropagation(); closeConfirms(); });
+  var confirm = row.querySelector('[data-unpair-confirm]');
+  if (confirm) confirm.addEventListener('click', function (e) { e.stopPropagation(); row.remove(); });
+}
+document.querySelectorAll('.net').forEach(function (row) {
+  if (!row.querySelector('.actions')) return;
+  stashRow(row);
+  wireRow(row);
+});
+
+/* ── chevron collapsible, both surfaces ───────────────────────────────── */
+document.querySelectorAll('[data-chevron]').forEach(function (btn) {
+  var popup = btn.closest('.popup');
+  var target = popup.querySelector('[data-nearby]');
+  var mark = btn.querySelector('.chevmark');
+  btn.addEventListener('click', function () {
+    var open = !target.hasAttribute('hidden');
+    if (open) target.setAttribute('hidden', ''); else target.removeAttribute('hidden');
+    mark.textContent = open ? '▸' : '▾';
+  });
+});
+
+/* ── footer row, both surfaces ───────────────────────────────────────── */
+document.querySelectorAll('[data-footer]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var note = btn.querySelector('.footer-note');
+    var was = note.textContent;
+    note.textContent = 'launching…';
+    setTimeout(function () { note.textContent = was; }, 1400);
+  });
+});
+</script>
+</body>
+</html>

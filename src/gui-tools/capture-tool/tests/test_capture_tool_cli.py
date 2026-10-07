@@ -204,6 +204,40 @@ class TestCommandConstruction:
             q = command.index("-q")
             assert command[q + 1] == gsr_flag, preset
 
+    def test_gsr_webm_names_a_webm_legal_codec(self) -> None:
+        # gsr's -k defaults to auto -> h264, but its auto path is
+        # extension-driven and resolves `.webm` to VP8, which WebM does allow --
+        # but which several GPUs cannot encode (verified on this host: the
+        # captured display is an Intel UHD with no VP8 encoder, and -encoder
+        # accepts only gpu/cpu so the idle dGPU cannot be substituted). The
+        # symptom was a silent no-file: the launcher reported
+        # {"state": "recording"} and nothing ever landed on disk.
+        command = mod._build_recording_command(
+            "gpu-screen-recorder", "DP-1", _args(format="webm"), "o.webm"
+        )
+        assert command[command.index("-c") + 1] == "webm"
+        assert command[command.index("-k") + 1] == "vp9", command
+
+    def test_gsr_non_webm_formats_carry_no_explicit_codec(self) -> None:
+        # The guard keys off args.format, not the -c override, so mp4 keeps gsr's
+        # (correct) h264 auto and the GIF path -- which records to an mp4
+        # intermediate while args.format is still "gif" -- is untouched.
+        for fmt, container in (("mp4", "mp4"), ("gif", "mp4")):
+            command = mod._build_recording_command(
+                "gpu-screen-recorder", "DP-1", _args(format=fmt), "o.mp4"
+            )
+            assert command[command.index("-c") + 1] == container, fmt
+            assert "-k" not in command, fmt
+
+    def test_wf_recorder_never_gets_a_codec_flag(self) -> None:
+        # wf-recorder's -f is an output FILE argument, not a container flag; it
+        # selects its own encoder, so -k would be meaningless there.
+        for fmt in ("mp4", "webm", "gif"):
+            command = mod._build_recording_command(
+                "wf-recorder", "DP-1", _args(format=fmt), "o.out"
+            )
+            assert "-k" not in command, fmt
+
     def test_non_gif_audio_flags_reach_backend(self) -> None:
         gsr = mod._build_recording_command(
             "gpu-screen-recorder",

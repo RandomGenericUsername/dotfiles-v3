@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>⑥ The −N dBm question — one row, before and after — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+<!--
+  MOCK: key-signal-meta-change   (coverage #6 — the owner's "show me this, I
+  can't imagine it" page for owner decision #2)
+
+  Governed by DESIGN.md: §Components (Leading signal glyph, Meta stack — "The
+  −N dBm number that shipped in the meta stack moves to a tooltip on the signal
+  glyph"), §Header control, §New CSS, §Do's and Don'ts
+  ("Print words on the subtitle; put numbers in tooltips").
+  EXPERIENCE.md: Component Patterns §Device row ("Rendered only when rssi < 0;
+  absent otherwise (BlueZ's 'not seen'). Tooltip carries −N dBm."), §Row
+  subtitle ("Words only, on .settings-net-sub, mirroring WifiRow's Saved /
+  Secured / Open network: … No numbers."), State Patterns §Out of range,
+  §Two-channel rule.
+
+  THE CLAIM UNDER TEST
+  Today `BluetoothRow` (dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx
+  lines 154–201) puts the signal glyph AND the literal `−52 dBm` string in the
+  SAME meta stack, and prints NO subtitle word. After the change the row leads
+  with `.settings-net-signal`, the meta stack line 2 carries a WORD, and the
+  number lives only in the glyph's tooltip. This page renders the SAME device
+  (Sony WH-1000XM5 · rssi −52 · connected · battery 74 %) in both states at the
+  true 312 px surface width, plus Wi-Fi's real `WifiRow` above them as the
+  mandated reference.
+
+  Every icon is a REAL ITR-rendered repository SVG from assets/, resolved
+  through the exact icons.json keys named in the alt text:
+    settings-panel/signal-high | signal-good | signal-medium | signal-low
+    settings-panel/wifi-signal-full
+    battery/system-battery-75
+  Nothing is hand-drawn, recoloured or substituted.
+
+  CLASS MAPPING (mock.css name → real style.css class):
+    .popup      → .settings-surface        .net          → .settings-net
+    .net.sel    → .settings-net.sel        .net.out-of-range → .settings-net.out-of-range
+    .l1/.l2     → the two row lines        .sig         → .settings-net-signal
+    .name       → .settings-net-name       .sub         → .settings-net-sub
+    .meta       → .settings-row-meta       .stat        → .settings-meta-stat
+    .badge.conn → .settings-badge.conn     .rowact      → .settings-rowact
+    .rowact.subtle → .settings-rowact.subtle
+
+  SIZE ANNOTATION: `.net .sig` is 22px in mock.css. The real
+  `.settings-net-signal` is 30×30 (`SignalIcon` uses `pixel_size={30}`) — that
+  discrepancy is already flagged in key-parity.html's header comment. This page
+  keeps 22px so the Bluetooth glyph matches the other Bluetooth pages in this
+  set. It does not affect the before/after claim: the glyph is 22px in both
+  the SHIPPED meta line and the DESIGNED leading slot.
+
+  INLINE STYLES USED (and NOT added to mock.css, per the brief):
+    1. Annotation chrome only — the strikethrough "ghost" of the removed
+       `−52 dBm` line, the `REMOVED` / `MOVED` labels, and the tooltip bubbles.
+       None of these ships; they exist so the change is legible on one screen.
+    2. The zoom wrapper's transform-origin/width/height, set from JS by the
+       ×1 / ×1.8 toggle so a 312 px surface can be inspected at real size and
+       at reading size without re-authoring the markup.
+  No class in mock.css was added, renamed or changed by this page.
+
+  TOOLTIP FIDELITY: `data-tip` stands in for the GTK `tooltip-text` /
+  `tooltipText` property on the `Gtk.Image`. Every other page in this set
+  writes the identical string as a `title=` attribute; this page uses
+  `data-tip` so the scripted bubble and the native browser tooltip do not fire
+  on top of each other while hovering. See §signal-tooltip for one row that
+  carries the real `title=` attribute as well, to prove the mapping.
+-->
+
+<h1>⑥ The <code>−N dBm</code> question — one row, before and after</h1>
+<div class="sub">
+  Owner decision #2: <b>the number leaves the row's meta line and moves to a tooltip on the
+  leading signal glyph.</b> CONFIRMED — with the standing objection that it was not yet visible.
+  This page exists to make the removal unmistakable. Same device, same 312&nbsp;px surface,
+  two states, and Wi-Fi's real row overhead as the reference that settles the argument.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>signal-three-way</code> · <code>signal-before</code> · <code>signal-after</code> ·
+  <code>signal-diff</code> · <code>signal-tooltip</code> · <code>signal-rssi-zero</code> ·
+  <code>signal-verdict</code><br>
+  <b>Try it:</b> <b>zoom ×1 / ×1.8</b> to read the meta stack at size and then confirm it is a
+  true 312&nbsp;px surface. <b>Hover any row in the DESIGNED panel</b> (or the glyph in
+  <code>signal-tooltip</code>) to reveal the tooltip that now carries the number.
+</div>
+
+<!-- ══ signal-three-way ═══════════════════════════════════════════════════ -->
+<div class="state-label">The reference, then the two candidates · <code>signal-three-way</code></div>
+
+<div class="cols">
+  <div class="col">
+    <div style="display:inline-block" data-zoom-wrap>
+      <div class="popup">
+        <div class="nav-header">
+          <span class="nav-title">Wi-Fi</span>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Wi-Fi"></button>
+        </div>
+        <div class="scroll-clip">
+          <div class="section-label">Connected</div>
+          <div style="padding:0 7px">
+            <!-- WifiRow: settings-net-signal + settings-net-name + settings-net-sub
+                 `Saved` / `Secured` / `Open network` — NEVER a strength number.
+                 WifiContent.tsx:342-352. -->
+            <div class="net sel">
+              <div class="l1">
+                <span class="sig" style="width:30px;height:30px;flex:0 0 30px"
+                      title="Strength 100% (settings-panel/wifi-signal-full)">
+                  <img src="assets/settings-panel-wifi-signal-full.svg" alt="settings-panel/wifi-signal-full" />
+                </span>
+                <span class="name" title="Ilyushin-5G">Ilyushin-5G</span>
+                <span class="badge conn">Connected</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Saved</span></div>
+                <div class="actions"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Wi-Fi — the mandated reference. <code>WifiRow</code>, unedited.</b><br>
+      Signal strength: carried <b>once</b>, by the leading <code>.settings-net-signal</code> glyph.
+      Subtitle: a <b>word</b> — <code>Saved</code> / <code>Secured</code> / <code>Open network</code>.
+      There is <b>no strength number anywhere on this row</b>.
+    </div>
+  </div>
+</div>
+
+<p class="note">
+  Wi-Fi is the house reference for every element of the device row, geometry included. It prints
+  words and shows signal as art. Bluetooth today does neither — it shows signal as art
+  <i>and</i> as digits, and prints no word at all. That is the whole asymmetry, and it is a
+  Bluetooth-only problem, not a shared one.
+</p>
+
+<!-- ══ signal-before / signal-after ═══════════════════════════════════════ -->
+<div class="state-label">Same device · <code>signal-before</code> (shipped) vs <code>signal-after</code> (designed) · <code>Sony WH-1000XM5</code> · rssi −52 · connected · battery 74 %</div>
+
+<div class="cols">
+
+  <!-- ── SHIPPED ─────────────────────────────────────────────────────────── -->
+  <div class="col">
+    <div class="parity-head" style="color:rgba(219,171,103,.85)">SHIPPED — current behaviour</div>
+    <div style="display:inline-block" data-zoom-wrap>
+      <div class="popup">
+        <div class="nav-header">
+          <span class="nav-title">Bluetooth</span>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+        </div>
+        <div class="scroll-clip">
+          <div class="section-label">Paired</div>
+          <div style="padding:0 7px">
+            <!-- BluetoothContent.tsx:136-201, verbatim. Line 1 has NO leading
+                 glyph. Meta stack: line 1 = battery, line 2 = signal glyph AND
+                 the literal `−52 dBm`. No subtitle word exists in this state. -->
+            <div class="net sel">
+              <div class="l1">
+                <span class="name" title="Sony WH-1000XM5">Sony WH-1000XM5</span>
+                <span class="badge conn">Connected</span>
+              </div>
+              <div class="l2">
+                <div class="meta">
+                  <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />74%</span>
+                  <span class="stat"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" />−52 dBm</span>
+                </div>
+                <div class="actions">
+                  <button class="rowact">Disconnect</button>
+                  <button class="rowact subtle">Unpair</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Line 2 of the meta stack encodes ONE fact twice</b> — four bars, then the digits those
+      four bars already mean. Both live in a 10.5&nbsp;px / 0.72-opacity line, so they are also the
+      smallest thing on the row, competing with the battery line directly above it.
+    </div>
+  </div>
+
+  <!-- ── DESIGNED ────────────────────────────────────────────────────────── -->
+  <div class="col">
+    <div class="parity-head" style="color:rgba(84,158,200,.9)">DESIGNED — after this change</div>
+    <div style="display:inline-block" data-zoom-wrap>
+      <div class="popup">
+        <div class="nav-header">
+          <span class="nav-title">Bluetooth</span>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+        </div>
+        <div class="scroll-clip">
+          <div class="section-label">Paired</div>
+          <div style="padding:0 7px">
+            <!-- Line 1 gains the leading .settings-net-signal — the parity fix.
+                 Meta line 1 keeps the battery. Meta line 2 becomes the WORD.
+                 The number is gone from the surface. -->
+            <div class="net sel" data-hoversub="Signal: −52 dBm · settings-panel/signal-high"
+                 data-tip="Signal: −52 dBm · settings-panel/signal-high">
+              <div class="l1">
+                <span class="sig" data-tip="Signal: −52 dBm · settings-panel/signal-high"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+                <span class="name" title="Sony WH-1000XM5">Sony WH-1000XM5</span>
+                <span class="badge conn">Connected</span>
+              </div>
+              <div class="l2">
+                <div class="meta">
+                  <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />74%</span>
+                  <span class="sub">Paired</span>
+                </div>
+                <div class="actions">
+                  <button class="rowact">Disconnect</button>
+                  <button class="rowact subtle">Unpair</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Hover this row.</b> The number still exists — it is one hover away, on the glyph that
+      was already carrying it visually. What changed is that the row no longer says the same
+      thing twice, and its second line now says something the row did not say before.
+    </div>
+  </div>
+</div>
+
+<!-- ══ signal-diff ════════════════════════════════════════════════════════ -->
+<div class="state-label">Exactly what came off the row · <code>signal-diff</code></div>
+
+<div class="cols">
+  <div class="col">
+    <div style="width:312px;background:rgba(11,11,26,.94);border:1.5px solid var(--color04);
+                border-radius:12px;padding:11px">
+      <div style="padding:2px 9px 8px;font-size:10px;font-weight:600;letter-spacing:.06em;
+                  text-transform:uppercase;color:rgba(194,194,197,.40)">meta stack, line by line</div>
+      <div style="padding:0 9px;display:flex;flex-direction:column;gap:5px">
+
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:9px;color:rgba(194,194,197,.35);width:16px">L1</span>
+          <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />74%</span>
+          <span style="font-size:9.5px;color:rgba(194,194,197,.45);margin-left:auto">kept — unchanged</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:9px;color:rgba(194,194,197,.35);width:16px">L2</span>
+          <span class="stat" style="opacity:.34;text-decoration:line-through;
+                    text-decoration-color:var(--caution);text-decoration-thickness:1.5px">
+            <img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" />−52 dBm
+          </span>
+          <span style="font-size:9.5px;font-weight:700;letter-spacing:.05em;color:var(--caution);
+                       padding:1px 6px;border:1px solid var(--caution);border-radius:8px">REMOVED</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:9px;color:rgba(194,194,197,.35);width:16px">L3</span>
+          <span class="sub" style="font-size:10.5px;color:rgba(194,194,197,.62)">Paired</span>
+          <span style="font-size:9.5px;color:rgba(194,158,200,.55);margin-left:auto">added — the word layer</span>
+        </div>
+
+        <div style="height:1px;background:rgba(255,255,255,.07);margin:5px 0"></div>
+
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:9px;color:rgba(194,194,197,.35);width:16px">→</span>
+          <span class="sig" style="width:16px;height:16px;flex:0 0 16px">
+            <img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+          <span style="font-size:10.5px;color:rgba(194,194,197,.72)">
+            relocated to the leading glyph's tooltip</span>
+        </div>
+        <div style="font-size:10px;color:rgba(194,194,197,.42);padding-left:24px;line-height:1.55">
+          Not deleted. Moved from <i>always visible, duplicated</i> to
+          <i>on demand, single-encoded</i>.
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      The net change to the row is <b>one line shorter of a duplicate and one line longer of a
+      word</b> — the row is the same height either way. Nothing else about the geometry moves.
+    </div>
+  </div>
+
+  <div class="col" style="align-items:stretch;flex:1;min-width:340px">
+    <table class="tokens" style="margin-top:0">
+      <tr><th>Slot</th><th>SHIPPED</th><th>DESIGNED</th><th>Verdict</th></tr>
+      <tr>
+        <td>row line 1, slot 0</td>
+        <td><span class="chip-diff">nothing</span></td>
+        <td><code>.settings-net-signal</code></td>
+        <td>the parity fix; carries signal as <b>art</b></td>
+      </tr>
+      <tr>
+        <td>meta line 1</td>
+        <td><code>🔋 74%</code></td>
+        <td><code>🔋 74%</code></td>
+        <td><span class="chip-ok">identical</span></td>
+      </tr>
+      <tr>
+        <td>meta line 2, glyph</td>
+        <td><code>signal-high</code></td>
+        <td><span class="chip-diff">gone</span></td>
+        <td>it was always a duplicate of row line 1</td>
+      </tr>
+      <tr>
+        <td>meta line 2, text</td>
+        <td><code>−52 dBm</code></td>
+        <td><code>Paired</code></td>
+        <td>the only genuinely new information on the row</td>
+      </tr>
+      <tr>
+        <td>leading glyph tooltip</td>
+        <td>— (no glyph existed)</td>
+        <td><code>Signal: −52 dBm</code></td>
+        <td>the number's new, only, home</td>
+      </tr>
+      <tr>
+        <td>encodings of "strong signal"</td>
+        <td><b>2</b> — bars + digits</td>
+        <td><b>1</b> — bars (digits on hover)</td>
+        <td>Wi-Fi is at 1 today</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══ signal-tooltip ═════════════════════════════════════════════════════ -->
+<div class="state-label">The payoff: nothing is lost, it is one hover away · <code>signal-tooltip</code></div>
+
+<p class="note">
+  The four <code>settings-panel/signal-*</code> variants are the <b>existing</b>
+  <code>signalVariant()</code> thresholds from <code>BluetoothContent.tsx</code> — no new art, no
+  new bucket. Each one now has a tooltip string, and that string is the complete record of the
+  reading. Hover any of them.
+</p>
+
+<div class="cols">
+  <div class="col">
+    <div style="display:flex;flex-direction:column;gap:30px;padding-top:6px">
+      <div style="position:relative;display:flex;align-items:flex-end;gap:10px">
+        <span style="position:absolute;left:22px;bottom:38px;white-space:nowrap;
+              font-size:11px;padding:5px 9px;border-radius:7px;
+              background:rgba(28,28,44,.97);border:1px solid rgba(194,194,197,.22);
+              color:#e9e9ec;box-shadow:0 8px 20px rgba(0,0,0,.55);z-index:5">
+          Signal: −52 dBm · <span style="color:#7fc4ff">settings-panel/signal-high</span>
+        </span>
+        <span class="sig" data-tip="Signal: −52 dBm · settings-panel/signal-high"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+        <span style="font-size:11.5px;color:rgba(194,194,197,.55);width:230px;line-height:1.5">
+          <b style="color:rgba(194,194,197,.8)">high</b> — rssi ≥ −60
+        </span>
+      </div>
+      <div style="position:relative;display:flex;align-items:flex-end;gap:10px">
+        <span style="position:absolute;left:22px;bottom:38px;white-space:nowrap;
+              font-size:11px;padding:5px 9px;border-radius:7px;
+              background:rgba(28,28,44,.97);border:1px solid rgba(194,194,197,.22);
+              color:#e9e9ec;box-shadow:0 8px 20px rgba(0,0,0,.55);z-index:5">
+          Signal: −66 dBm · <span style="color:#7fc4ff">settings-panel/signal-good</span>
+        </span>
+        <span class="sig" data-tip="Signal: −66 dBm · settings-panel/signal-good"><img src="assets/settings-panel-signal-good.svg" alt="settings-panel/signal-good" /></span>
+        <span style="font-size:11.5px;color:rgba(194,194,197,.55);width:230px;line-height:1.5">
+          <b style="color:rgba(194,194,197,.8)">good</b> — −70 ≤ rssi &lt; −60
+        </span>
+      </div>
+      <div style="position:relative;display:flex;align-items:flex-end;gap:10px">
+        <span style="position:absolute;left:22px;bottom:38px;white-space:nowrap;
+              font-size:11px;padding:5px 9px;border-radius:7px;
+              background:rgba(28,28,44,.97);border:1px solid rgba(194,194,197,.22);
+              color:#e9e9ec;box-shadow:0 8px 20px rgba(0,0,0,.55);z-index:5">
+          Signal: −78 dBm · <span style="color:#7fc4ff">settings-panel/signal-medium</span>
+        </span>
+        <span class="sig" data-tip="Signal: −78 dBm · settings-panel/signal-medium"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+        <span style="font-size:11.5px;color:rgba(194,194,197,.55);width:230px;line-height:1.5">
+          <b style="color:rgba(194,194,197,.8)">medium</b> — −80 ≤ rssi &lt; −70
+        </span>
+      </div>
+      <div style="position:relative;display:flex;align-items:flex-end;gap:10px">
+        <span style="position:absolute;left:22px;bottom:38px;white-space:nowrap;
+              font-size:11px;padding:5px 9px;border-radius:7px;
+              background:rgba(28,28,44,.97);border:1px solid rgba(194,194,197,.22);
+              color:#e9e9ec;box-shadow:0 8px 20px rgba(0,0,0,.55);z-index:5">
+          Signal: −88 dBm · <span style="color:#7fc4ff">settings-panel/signal-low</span>
+        </span>
+        <span class="sig" data-tip="Signal: −88 dBm · settings-panel/signal-low"><img src="assets/settings-panel-signal-low.svg" alt="settings-panel/signal-low" /></span>
+        <span style="font-size:11.5px;color:rgba(194,194,197,.55);width:230px;line-height:1.5">
+          <b style="color:rgba(194,194,197,.8)">low</b> — rssi &lt; −80
+        </span>
+      </div>
+    </div>
+    <div class="cap" style="max-width:430px;text-align:left">
+      The bubbles are rendered inline here so all four strings are visible at once. The four glyphs
+      are also live: hover any of them for the scripted bubble, which is what the GTK
+      <code>tooltip-text</code> does in the app. The <code>· settings-panel/signal-*</code> suffix is
+      shown in these mocks for traceability to the icon registry; the shipped string is the human
+      half, <code>Signal: −52 dBm</code>.
+    </div>
+  </div>
+
+  <div class="col" style="align-items:stretch;flex:1;min-width:340px">
+    <table class="tokens" style="margin-top:0">
+      <tr><th>Reading</th><th>Variant</th><th>Tooltip string</th><th>Visible on the row?</th></tr>
+      <tr><td><code>−52</code></td><td><code>signal-high</code></td><td><code>Signal: −52 dBm</code></td><td>no — hover</td></tr>
+      <tr><td><code>−66</code></td><td><code>signal-good</code></td><td><code>Signal: −66 dBm</code></td><td>no — hover</td></tr>
+      <tr><td><code>−78</code></td><td><code>signal-medium</code></td><td><code>Signal: −78 dBm</code></td><td>no — hover</td></tr>
+      <tr><td><code>−88</code></td><td><code>signal-low</code></td><td><code>Signal: −88 dBm</code></td><td>no — hover</td></tr>
+      <tr><td><code>0</code></td><td><span class="chip-diff">no glyph</span></td><td><span class="chip-diff">no tooltip</span></td><td>— see <code>signal-rssi-zero</code></td></tr>
+    </table>
+
+    <h3>Why hover, and not a permanent text</h3>
+    <p class="note" style="margin-top:6px">
+      A dBm figure is a <b>diagnostic</b>, not a status. Nobody opens a Bluetooth list to ask
+      "is my headphones at −52 or −61"; they open it to ask "are they connected and can I
+      connect them." The banded glyph answers that question pre-attentively, at a glance,
+      which is why it is the thing you see. The exact number answers a second, much rarer
+      question — "why does audio keep dropping?" — and it is worth exactly as much attention as
+      that question is worth.
+    </p>
+    <p class="note">
+      The tooltip is also the only place a number of this kind belongs on this surface: it costs
+      <b>zero</b> vertical space, so a six-device list still fits inside
+      <code>maxContentHeight 420</code>. A permanent <code>−52 dBm</code> on every row costs a line's
+      worth of reading and buys nothing.
+    </p>
+  </div>
+</div>
+
+<!-- ══ signal-rssi-zero ═══════════════════════════════════════════════════ -->
+<div class="state-label">The case that proves the word layer is load-bearing · <code>signal-rssi-zero</code></div>
+
+<div class="cols">
+  <div class="col">
+    <div class="parity-head" style="color:rgba(219,171,103,.85)">SHIPPED · LG OM7560(07) · rssi 0</div>
+    <div style="display:inline-block" data-zoom-wrap>
+      <div class="popup">
+        <div class="nav-header">
+          <span class="nav-title">Bluetooth</span>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+        </div>
+        <div class="scroll-clip">
+          <div class="section-label">Paired</div>
+          <div style="padding:0 7px">
+            <div class="net out-of-range">
+              <div class="l1">
+                <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+              </div>
+              <div class="l2">
+                <div class="meta">
+                  <span class="stat" style="font-size:10.5px;opacity:.72">Not in range</span>
+                </div>
+                <div class="actions">
+                  <button class="rowact disabled">Connect</button>
+                  <button class="rowact subtle">Unpair</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="parity-head" style="color:rgba(84,158,200,.9)">DESIGNED · same row, unchanged</div>
+    <div style="display:inline-block" data-zoom-wrap>
+      <div class="popup">
+        <div class="nav-header">
+          <span class="nav-title">Bluetooth</span>
+          <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+        </div>
+        <div class="scroll-clip">
+          <div class="section-label">Paired</div>
+          <div style="padding:0 7px">
+            <!-- NO signal glyph: BlueZ reports RSSI 0 for "not seen", so there is
+                 no signal to draw — and therefore no tooltip, and therefore no
+                 number in ANY channel. The word is the only carrier. -->
+            <div class="net out-of-range">
+              <div class="l1">
+                <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Not in range</span></div>
+                <div class="actions">
+                  <button class="rowact disabled">Connect</button>
+                  <button class="rowact subtle">Unpair</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note">
+  BlueZ reports <code>RSSI 0</code> for a device it has not seen — asleep, or out of range. That
+  reading is not "extremely weak"; it is <b>"no reading at all."</b> So this row renders
+  <b>no signal glyph</b> (there is no signal to draw), which means it has <b>no tooltip</b>, which
+  means the number is not available in any channel whatsoever. If the number were the row's only
+  signal affordance, this row would have nothing to say. The word <code>Not in range</code> is not
+  decoration — it is the sole carrier of the state, reinforced by the 0.45 opacity and the
+  insensitive <code>Connect</code>, which is the two-channel rule satisfied three ways.
+</p>
+<p class="note">
+  This is also the argument against the alternative reading of decision #2 — "just drop the number,
+  the bars are enough." Dropping the <b>number</b> is right because it duplicates the bars.
+  Dropping the <b>word layer</b> would be wrong, because on <code>rssi = 0</code> rows the bars do
+  not exist. The change moves the number; it does not thin the row.
+</p>
+
+<!-- ══ signal-verdict ══════════════════════════════════════════════════════ -->
+<div class="state-label">Verdict · <code>signal-verdict</code></div>
+
+<div class="cols">
+  <div class="col" style="align-items:stretch;flex:1;min-width:320px;max-width:460px">
+    <table class="tokens" style="margin-top:0">
+      <tr><th>Gained</th></tr>
+      <tr><td>
+        <b>One encoding per fact.</b> The row said "strong signal" twice, in two visual registers,
+        at two different scales, in the smallest type on the surface. Now it says it once.
+      </td></tr>
+      <tr><td>
+        <b>Wi-Fi parity, exactly.</b> <code>WifiRow</code> leads with
+        <code>.settings-net-signal</code> and prints <code>Saved</code> / <code>Secured</code> /
+        <code>Open network</code> underneath. Bluetooth's row is now the same sentence, so the
+        two lists read as one system rather than two dialects.
+      </td></tr>
+      <tr><td>
+        <b>The row stops competing with itself.</b> A four-bar glyph and a six-digit number
+        sit on the same 10.5&nbsp;px line at 0.72 opacity; the eye has to arbitrate between them.
+        One glyph, one word — nothing to arbitrate.
+      </td></tr>
+      <tr><td>
+        <b>New information enters the row.</b> <code>Paired</code> / <code>Ready to pair</code> /
+        <code>Not in range</code> say something the shipped row never said. The removed line was
+        pure redundancy; the added line is not.
+      </td></tr>
+      <tr><td>
+        <b>The number stays reachable and stays exact.</b> It was a rounded band with a tooltip
+        attached; now it is the tooltip's whole content. Nothing was downgraded to an
+        approximation.
+      </td></tr>
+    </table>
+  </div>
+
+  <div class="col" style="align-items:stretch;flex:1;min-width:320px;max-width:460px">
+    <table class="tokens" style="margin-top:0">
+      <tr><th>Lost — and stated honestly</th></tr>
+      <tr><td>
+        <b>The number is no longer visible without a hover.</b> This is a real loss, not a
+        presentational one. Someone scanning for "is this thing at −52 or −88" no longer gets
+        the answer at a glance, and hovering is not free — it costs a deliberate act and a
+        dwell.
+      </td></tr>
+      <tr><td>
+        <b>It cannot be read while the list is moving.</b> During a scan or a connect the rows
+        re-render; a number you can only get by hovering is a number you cannot get mid-glance.
+        Mitigated only by the fact that the interesting moments are stationary states.
+      </td></tr>
+      <tr><td>
+        <b>The signal band becomes the whole visible answer.</b> Four buckets is coarse: −52 and
+        −59 are both "high". Anyone who genuinely needs the precision must now ask for it.
+      </td></tr>
+      <tr><td style="background:rgba(84,158,200,.05)">
+        <b>Why the loss is acceptable.</b> The band was always the thing actually being read —
+        the digits sat next to it as decoration for a diagnostic question most sessions never
+        ask. Losing the always-visible copy costs the rare reader one hover and saves the
+        common reader a redundant line, on the one surface where the user is already
+        comparing Bluetooth to the Wi-Fi list directly above it. If that trade is wrong, it is
+        wrong in a way this page makes visible — which is what it is for.
+      </td></tr>
+    </table>
+
+    <div class="legend">
+      <span><span class="chip-ok">kept</span> unchanged between the two states</span>
+      <span><span class="chip-diff">changed</span> the substance of owner decision #2</span>
+    </div>
+  </div>
+</div>
+
+<p class="note" style="margin-top:26px">
+  <b>If the owner reverses this</b>, the fallback is not "put the number back" — it is the third
+  option this page makes visible for free: keep the word layer, keep the tooltip, and print the
+  number only on the <b>selected / connected</b> row, where attention is already focused and
+  `Disconnect` is one click away. That is a divergence from <code>WifiRow</code>, so it would
+  need its own parity row in <code>key-parity.html</code>. It is offered as an explicit escape
+  hatch, not as a recommendation.
+</p>
+
+<script>
+/* ── the zoom control lives in the anchor-index bar ─────────────────────── */
+(function () {
+  var idx = document.querySelector('.anchor-index');
+  if (!idx) return;
+  var btn = document.createElement('button');
+  btn.id = 'zoom-btn';
+  btn.textContent = 'zoom ×1';
+  btn.style.cssText =
+    'font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;margin-left:8px;' +
+    'padding:2px 9px;border-radius:8px;color:#c2c2c5;' +
+    'background:rgba(194,194,197,.12);border:1px solid rgba(194,194,197,.2)';
+  idx.appendChild(btn);
+})();
+
+/* ── zoom: ×1 proves the 312px claim, ×1.8 makes the meta stack readable ── */
+(function () {
+  var z = 1;
+  var btn = document.getElementById('zoom-btn');
+  function apply() {
+    document.querySelectorAll('[data-zoom-wrap]').forEach(function (w) {
+      var pop = w.querySelector('.popup');
+      if (!pop) return;
+      w.style.width = (pop.offsetWidth * z) + 'px';
+      w.style.height = (pop.offsetHeight * z) + 'px';
+      w.style.transformOrigin = 'top left';
+      pop.style.transformOrigin = 'top left';
+      pop.style.transform = z === 1 ? 'none' : 'scale(' + z + ')';
+    });
+    if (btn) btn.textContent = 'zoom ×' + z;
+  }
+  if (btn) btn.addEventListener('click', function () {
+    z = z === 1 ? 1.8 : 1;
+    apply();
+  });
+  apply();
+})();
+
+/* ── the tooltip that now carries the number ────────────────────────────── */
+(function () {
+  var bubble = document.createElement('div');
+  bubble.setAttribute('data-tip-bubble', '');
+  bubble.style.cssText =
+    'position:fixed;z-index:9999;pointer-events:none;opacity:0;transition:opacity .12s;' +
+    'font-size:11px;line-height:1.3;white-space:nowrap;padding:5px 9px;border-radius:7px;' +
+    'background:rgba(28,28,44,.97);border:1px solid rgba(194,194,197,.22);color:#e9e9ec;' +
+    'box-shadow:0 8px 20px rgba(0,0,0,.55)';
+  document.body.appendChild(bubble);
+
+  function show(text, x, y) {
+    bubble.textContent = text;
+    bubble.style.opacity = '1';
+    var r = bubble.getBoundingClientRect();
+    var left = Math.max(8, Math.min(x - r.width / 2, window.innerWidth - r.width - 8));
+    var top = y - r.height - 12;
+    if (top < 8) top = y + 26;
+    bubble.style.left = left + 'px';
+    bubble.style.top = top + 'px';
+  }
+  function hide() { bubble.style.opacity = '0'; }
+
+  document.querySelectorAll('[data-tip]').forEach(function (el) {
+    var text = el.getAttribute('data-tip');
+    el.addEventListener('mouseenter', function (e) {
+      var r = el.getBoundingClientRect();
+      show(text, r.left + r.width / 2, r.top);
+    });
+    el.addEventListener('mouseleave', hide);
+    el.addEventListener('focus', function () {
+      var r = el.getBoundingClientRect();
+      show(text, r.left + r.width / 2, r.top);
+    });
+    el.addEventListener('blur', hide);
+  });
+  window.addEventListener('scroll', hide, true);
+})();
+</script>
+</body>
+</html>

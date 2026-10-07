@@ -99,6 +99,10 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/components/wifi"
   - "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth"
   - "{{ compositor_configs_spine_config_dir }}/ags/components/sliders"
+  # Battery panel sources (add-battery-status-panel): the pure presentation
+  # logic + the widget/popup subdirs; copy does NOT create dest parents for file
+  # sources.
+  - "{{ compositor_configs_spine_config_dir }}/ags/components/battery"
   # Audio sources (add-pipewire-audio-control): the popup + shared state live in
   # their own subdir; copy does NOT create dest parents for file sources.
   - "{{ compositor_configs_spine_config_dir }}/ags/audio"
@@ -195,6 +199,17 @@ compositor_configs_skeleton_files:
   - { name: ags-component-bluetooth-content, source: dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth/BluetoothContent.tsx" }
   - { name: ags-component-slider-volume, source: dotfiles/config/ags/components/sliders/VolumeSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/VolumeSlider.tsx" }
   - { name: ags-component-slider-brightness, source: dotfiles/config/ags/components/sliders/BrightnessSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/BrightnessSlider.tsx" }
+  # Battery panel pure presentation logic (add-battery-status-panel). Registered
+  # per-file like every other source: placement is per-file, so an unregistered
+  # file silently never deploys and the panel imports a module that is not there.
+  - { name: ags-component-battery-presentation, source: dotfiles/config/ags/components/battery/presentation.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/battery/presentation.ts" }
+  - { name: ags-component-battery-state, source: dotfiles/config/ags/components/battery/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/battery/state.ts" }
+  - { name: ags-component-battery-icon, source: dotfiles/config/ags/components/battery/battery-icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/battery/battery-icon.ts" }
+  - { name: ags-component-battery-popup, source: dotfiles/config/ags/components/battery/BatteryPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/battery/BatteryPopup.tsx" }
+  - { name: ags-component-battery-content, source: dotfiles/config/ags/components/battery/BatteryContent.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/battery/BatteryContent.tsx" }
+  # power-options D-Bus proxy + /etc/power-options monitor, moved out of the bar
+  # widget (add-battery-status-panel): the widget built and never disposed them.
+  - { name: ags-power-service, source: dotfiles/config/ags/services/power-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/power-service.ts" }
   - { name: rofi-launcher-config-rasi, source: dotfiles/config/rofi/launcher/config.rasi, dest: "{{ compositor_configs_spine_config_dir }}/rofi/launcher/config.rasi" }
   - { name: ags-wifi-speedtest-config, source: dotfiles/config/ags/wifi-speedtest.json, dest: "{{ compositor_configs_spine_config_dir }}/ags/wifi-speedtest.json" }
 

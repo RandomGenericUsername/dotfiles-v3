@@ -1,5 +1,57 @@
 __pycache__/
 *.pyc
+
+# AGS/TS typecheck artifacts. `ags types -u` regenerates all of these from the
+# GTK/Astal libraries installed on THIS machine: @girs/ is 168 .d.ts files and
+# ~49 MB, and node_modules/ holds symlinks into /usr/share/ags/js. They describe
+# the local toolchain, not the repo, so they are rebuilt on demand via
+# `make capture-types` and never committed. node_modules must never be deployed
+# — placement is per-file (gui_tools_app_files), so an unregistered directory
+# simply never ships, but it also must never reach a commit.
+/src/gui-tools/capture-tool/@girs/
+/src/gui-tools/capture-tool/node_modules/
+/src/gui-tools/capture-tool/tsconfig.json
+/src/gui-tools/capture-tool/env.d.ts
+# Bar typecheck (bar-typecheck): the bar tree reuses the capture tool's
+# generated @girs/env.d.ts rather than generating its own 49 MB copy, so the
+# only generated artifact here is node_modules/ (same symlinks into
+# /usr/share/ags/js). tsconfig.json is listed for the same reason as the
+# capture one: `ags types` writes its OWN tsconfig.json into whichever
+# directory it runs against, and the committed config deliberately uses a
+# non-colliding name so it survives.
+/dotfiles/config/ags/node_modules/
+/dotfiles/config/ags/tsconfig.json
+# TypeScript itself, installed with `npm install --no-save typescript` so that
+# `npx tsc` resolves from the tool directory without a package.json.
+/node_modules/
+# @types/node, for the domain unit tests' node:test / node:assert. `make
+# capture-test` installs it HERE, on demand, under tests/ and nowhere else (see
+# the capture-test-deps target). The location is load-bearing in two independent
+# ways, both measured: (a) tsconfig.capture.json pins "types": [], so the GJS
+# app's ambient surface is empty by intent; (b) tests/ is BELOW the app config's
+# own directory, so the default typeRoots walk never descends into it even if
+# that pin were deleted. Relocate it to the repo root or to capture-tool/ and
+# the walk reaches it — measured at 66 @types/node files joining the app
+# program. The path is ignored explicitly because the capture tool's placement
+# is per-file and a committed node_modules is a deployment hazard.
+/src/gui-tools/capture-tool/tests/node_modules/
+# @types/node, for the AGS config's pure-module unit tests (node:test /
+# node:assert). `make ags-test` installs it HERE, on demand, beside
+# tests/tsconfig.tests.json and nowhere else (see the ags-test-deps target), for
+# the same reason as the capture tool's copy above: it must be where tsc's
+# upward typeRoots walk finds it and NOT where any future app tsconfig's walk
+# would, and a committed node_modules is a deployment hazard.
+#
+# The trailing `/**/node_modules/` — not the single path above — is what keeps
+# the rule true. An install run with the wrong --prefix landed 123 files at
+# tests/ts/node_modules/ instead, and a single-path rule let them sit
+# untracked-but-committable: `git add -A` would have swept them in, because
+# being ignored is the only thing standing between an on-demand install and the
+# commit. `git add -An | grep -c node_modules` must stay 0.
+/dotfiles/config/ags/tests/node_modules/
+/dotfiles/config/ags/tests/**/node_modules/
+/package-lock.json
+/package.json
 /src/cli-tools/wallpaper-effects-generator/feedback.md
 /src/cli-tools/wallpaper-effects-generator/test.sh
 

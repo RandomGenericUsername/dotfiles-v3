@@ -6,7 +6,7 @@
 # Dependency order rationale (plan §11 step 7, story 2.12 AC 4, Epic 4):
 #   packages → cli_tools → filesystem → assets →
 #   compositor_configs → gui_tools → config_copies → settings → zsh_tools → zsh_config →
-#   wlogout_config → kitty_config → config_links → runtime-seed → display_manager →
+#   wlogout_config → kitty_config → btop_config → config_links → runtime-seed → display_manager →
 #   gloview-plugin → verify
 # `packages` first (it installs the system packages everything else assumes),
 # `verify` last (it asserts every done-criterion after all roles placed their
@@ -24,7 +24,9 @@
 #   gui_tools place configs (skeletons/app sources only — no palette fragments),
 # settings renders the per-tool files, zsh_tools
 # provisions the shell clone-tools, zsh_config + wlogout_config RENDER the
-# shell templates (zsh .zshrc, wlogout style.css), config_links symlinks the
+# shell templates (zsh .zshrc, wlogout style.css), btop_config renders
+# btop.conf + creates the spine's btop/themes/ dir the runtime's consumer
+# pointers land in, config_links symlinks the
 # managed configs into the XDG home (config-in-spine pattern), runtime-seed
 # derives + swaps the desktop state, display_manager provisions the Wayland-friendly
 # greetd login (X11-free, no GPU conflict), verify re-checks all of it
@@ -67,6 +69,7 @@
 - import_playbook: zsh-config.yaml
 - import_playbook: wlogout-config.yaml
 - import_playbook: kitty-config.yaml
+- import_playbook: btop-config.yaml
 - import_playbook: config-links.yaml
 - import_playbook: runtime-seed.yaml
 - import_playbook: display-manager.yaml

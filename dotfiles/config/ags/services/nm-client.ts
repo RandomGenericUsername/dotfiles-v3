@@ -176,13 +176,21 @@ export function subscribe(
 
 /**
  * Watch `PropertiesChanged` for one `(path, iface)` pair, delivering the
- * changed-properties dict (the `invalidated` list is not delivered). `sender`
- * defaults to NetworkManager; other services (e.g. BlueZ) pass theirs.
+ * changed-properties dict AND the invalidated key list. `sender` defaults to
+ * NetworkManager; other services (e.g. BlueZ) pass theirs.
+ *
+ * WHY `invalidated` IS DELIVERED, when it is empty for almost every caller:
+ * a D-Bus property is cleared by INVALIDATING it, not by sending a value. BlueZ
+ * does exactly that when it stops knowing a device's signal — MEASURED
+ * 2026-10-07: `PropertiesChanged {} INVALIDATED ['RSSI']`. Dropping that list
+ * (which this function used to do) means the consumer never learns the value is
+ * gone and keeps serving a frozen one indefinitely. Callers that do not care
+ * simply ignore the second argument.
  */
 export function watchProperties(
   path: string,
   iface: string,
-  cb: (changed: Record<string, unknown>) => void,
+  cb: (changed: Record<string, unknown>, invalidated: string[]) => void,
   sender: string = NM,
 ): () => void {
   return subscribe(
@@ -197,7 +205,7 @@ export function watchProperties(
         string[],
       ]
       if (unpacked[0] !== iface) return
-      cb(unpacked[1] ?? {})
+      cb(unpacked[1] ?? {}, unpacked[2] ?? [])
     },
   )
 }

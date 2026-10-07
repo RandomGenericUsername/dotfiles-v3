@@ -245,25 +245,14 @@ window#bar label {
   color: @color_03;
 }
 
-/* Power-profile popover (battery widget right-click menu) — row chrome only;
-   the popover surface + text colors come from the palette via the adw
-   named-color overrides (popover_bg_color / popover_fg_color). */
-.power-profile-item {
-  min-width: 150px;
-  min-height: 32px;
-  padding: 0 14px;
-  border-radius: 6px;
-  background-color: transparent;
-  background-image: none;
-  border: none;
-  box-shadow: none;
-  color: @color_foreground;
-}
-
-.power-profile-item.active {
-  background-color: @color_01;
-  color: @color_background;
-}
+/* The former `.power-profile-item` rules (and their `.active` variant) are
+   GONE, not relocated: they styled the `<popover>` that `bar/widgets/battery.tsx`
+   used to carry for right-click profile selection. That popover is replaced by
+   the battery panel, whose rows reuse `.settings-net` (and its `.sel`). The
+   rules became unreferenced at the same moment, so leaving them would have been
+   dead CSS that still reads as if the popover existed. Note the old `.active`
+   inverted the text (background-on-@color_01 + `@color_background`); the
+   settings vocabulary deliberately does NOT — see `.settings-net.sel`. */
 
 /* ── Settings panel ─────────────────────────────────────────────────────
    Second window in the always-on bar instance. Surface-panel = alpha(@color_00,
@@ -596,6 +585,28 @@ window.settings-panel {
 .settings-rowact.subtle:hover {
   opacity: 1;
   border-color: alpha(@color_foreground, 0.4);
+}
+
+/* Destructive confirm (Unpair device). The border and the label carry the
+   weight, matching mock `.act.danger`; @color_03 is the palette's destructive
+   slot, @color_11 its muted counterpart for hover. */
+.settings-rowact.danger {
+  border-color: @color_03;
+  color: @color_03;
+}
+
+.settings-rowact.danger:hover {
+  border-color: @color_11;
+  color: @color_11;
+}
+
+/* Row in inline-unpair-confirm state. The mock shows a faint wash so a row that
+   has switched mode is recognisable at a glance WITHOUT relying on the row
+   reflowing — which it must not do. Declared after `.settings-net.sel` so it
+   wins over the connected fill: a confirming row is a different mode, not a
+   different connection state. */
+.settings-net.confirming {
+  background: alpha(@color_foreground, 0.06);
 }
 
 /* In-flight action spinner (connect / pair / disconnect) */
@@ -1312,4 +1323,120 @@ window.settings-panel {
   min-width: 16px;
   color: @color_13;
   font-weight: 700;
+}
+
+/* ── Battery panel ───────────────────────────────────────────────────────
+   A THIRD overlay on the `settings-panel` surface, so it reuses that
+   vocabulary wholesale: `window.settings-panel` for the window chrome,
+   `.settings-surface` for the body, `.settings-nav-header` / `.settings-nav-title`
+   for the header, `.settings-divider` / `.settings-section-label` for the
+   separators, `.settings-net` (+ `.sel`) for the rows, and
+   `.settings-wifi-settings-*` for the footer deep-link row. Only the things
+   this panel has that the settings panel does not are declared here.
+
+   colors.css tokens only; no literal colors (same rule as the settings block
+   above). The rows sit on dark glass (`alpha(@color_00, .94)`), which is why
+   the power-mode glyphs are guard-exempt and untinted here (design.md §2.2). */
+
+.battery-header-icon {
+  min-width: 18px;
+  min-height: 18px;
+}
+
+/* Tabular figures so the percentage does not shift width as it counts down —
+   the header is the one place the number changes every second. */
+.battery-header-pct {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: alpha(@color_foreground, 0.72);
+}
+
+/* The hero: the single number the panel exists to answer, so it is the only
+   large type on the surface. The `sub` line sits UNDER it rather than beside,
+   because the two are one statement ("2h 14m remaining"), and `sub` is the word
+   that decides what the number means (charging vs discharging). */
+.battery-hero {
+  padding: 10px 16px 14px 16px;
+}
+
+.battery-hero-primary {
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: @color_foreground;
+}
+
+/* `.sub` is empty when there is a number? No — it is always present. It goes
+   empty only in the fallback shape, where `formatBatteryTime` returns a
+   capitalised state word as the PRIMARY and no secondary at all; the rule
+   below styles whichever word arrives, and the capitalisation (not the CSS) is
+   what tells the reader the number is missing (design.md §4.3). */
+.battery-hero-sub {
+  font-size: 12px;
+  color: alpha(@color_foreground, 0.62);
+}
+
+/* Five rows, tighter than `.settings-net`'s 8px: this list is short, fixed and
+   always fully visible, so it reads as a picker rather than as a scrollable
+   network list. Icon gutter first so every label starts at the same x. */
+.battery-profile-list {
+  padding: 0 8px 4px 8px;
+}
+
+.battery-profile {
+  min-height: 30px;
+  padding: 5px 9px;
+}
+
+.battery-profile-icon {
+  min-width: 18px;
+  min-height: 18px;
+}
+
+/* Base name + `++` suffix as two labels, so the suffix is styled rather than
+   baked into a Pango string (which would hard-code a color, breaking this
+   file's tokens-only rule). */
+/* NOTE: the 1px gap between the two labels is the BOX's `spacing` property
+   (BatteryContent.tsx), not a CSS declaration — GTK CSS has no `spacing`
+   property, so a `.battery-profile-label { spacing: 1px }` rule was silently
+   ignored (it logged `CSS Error: No property named "spacing"` on every boot).
+   The rule is removed rather than left as dead weight. */
+
+/* The tier suffix, tinted with the same accent `.active` uses (@color_13), so
+   "pushed further" reads as MORE of the mode rather than as a different mode —
+   which is exactly what `profileIconVariant` says it is, by reusing the base
+   glyph. Lighter weight so it stays a qualifier of the word before it. */
+.battery-profile-tier {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: @color_13;
+}
+
+/* Insensitive until the daemon answers: a row that would silently do nothing is
+   worse than one that visibly cannot be clicked yet. */
+.battery-profile:disabled {
+  opacity: 0.5;
+}
+
+/* Footer deep-link row to the daemon's own frontend. Mirrors
+   `.settings-wifi-settings-row` (top hairline, generous padding, hover wash)
+   but as a `button`, so the whole row is the hit target rather than the
+   chevron alone. */
+.battery-deeplink {
+  padding: 10px 16px;
+  border-top: 1px solid alpha(@color_foreground, 0.06);
+  background-color: transparent;
+  background-image: none;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  box-shadow: none;
+}
+
+.battery-deeplink:hover,
+.battery-deeplink:active,
+.battery-deeplink:focus {
+  background-color: alpha(@color_foreground, 0.05);
 }

@@ -216,6 +216,43 @@ power-menu:
     states:
       default: power-menu-default
 
+# Power-mode row glyphs for the battery status panel (add-battery-status-panel).
+#
+# Deliberately NOT a bar group. These glyphs are consumed by the battery
+# panel's power-mode list, whose rows sit on the DARK GLASS panel surface
+# (alpha(@color_00, 0.94) over a transparent window), never over the
+# wallpaper. The icon-contrast guard retargets BAR_GROUPS to the highest-contrast
+# palette token against the wallpaper's top band; applying that here would
+# actively break the glyph on dark glass (a light wallpaper would push the token
+# bright against an already-dark surface). So `power-mode` is absent from
+# BAR_GROUPS in src/runtime/src/runtime/domain/icon_contrast.py, `COLOR_FOREGROUND`
+# resolves to the plain theme `foreground`, and the glyph reads correctly on
+# dark glass. Contrast `battery`, which IS in BAR_GROUPS precisely because it
+# floats over the wallpaper.
+#
+# For the same reason there are NO `system-*` duplicates here: that convention
+# exists so ONE render can serve both the transparent bar AND dark glass. This
+# group has no bar consumer, so a second output per glyph would be a duplicate
+# that nothing resolves.
+#
+# `balanced` / `powersave` / `performance` are the only variants on purpose —
+# the daemon's `Powersave++` and `Performance++` tiers are the SAME mode pushed
+# further, not different modes, so `profileIconVariant()` reuses the base
+# profile's variant rather than inventing a glyph that would misrepresent them.
+power-mode:
+  color_mappings:
+    COLOR_FOREGROUND: foreground
+  variants:
+    - name: powersave
+      template: power-mode/powersave/default/icon.svg
+      output: power-mode-powersave.svg
+    - name: balanced
+      template: power-mode/balanced/default/icon.svg
+      output: power-mode-balanced.svg
+    - name: performance
+      template: power-mode/performance/default/icon.svg
+      output: power-mode-performance.svg
+
 capture-tool:
   color_mappings:
     COLOR_FOREGROUND: foreground
@@ -387,6 +424,42 @@ settings:
     states:
       default: default
 
+# Bluetooth bar indicator. Two states only — `on` and `off` — because that is
+# what the glyph art distinguishes: the bare rune, and the rune with a slash.
+# "Off" therefore reads as SHAPE, not as dimness, which survives any wallpaper
+# and any colour-vision profile.
+#
+# WHY GROUP-LEVEL MAPPINGS ONLY, AND NO VARIANT-LEVEL PINS: this glyph floats
+# over the wallpaper, so it must stay in the runtime contrast guard
+# (`BAR_GROUPS` in runtime/domain/icon_contrast.py). The guard only rewrites
+# GROUP-level COLOR_FOREGROUND; a variant-level pin would structurally exempt
+# the glyph from retargeting, which is the opposite of what a bar icon needs.
+# This is the same rule the `system-battery-*` variants invert, and the reason
+# the panel's `bluetooth`/`bluetooth-off` variants in `settings-panel` (which
+# DO pin their tint) cannot be reused here.
+bluetooth:
+  color_mappings:
+    COLOR_FOREGROUND: color15
+  variants:
+    - name: bluetooth-on
+      template: status-bar/bluetooth/on/default/icon.svg
+      output: bluetooth-on.svg
+    - name: bluetooth-off
+      template: status-bar/bluetooth/off/default/icon.svg
+      output: bluetooth-off.svg
+
+  bar_mappings:
+    widget: bluetooth
+    icon_size: 24
+    states:
+      # NOTE: the keys are deliberately NOT bare `on:` / `off:`. YAML 1.1
+      # resolves those to booleans, so `states` would come out of the parser
+      # with `True`/`False` keys and every lookup in the bar widget would miss.
+      # The other bar groups dodge this the same way (network uses
+      # `wifi-not-connected`, not `off`), so this follows house style.
+      bluetooth-on: bluetooth-on
+      bluetooth-off: bluetooth-off
+
 settings-panel:
   color_mappings:
     COLOR_FOREGROUND: foreground
@@ -435,6 +508,42 @@ settings-panel:
     - name: signal-high
       template: settings-panel/signal/high/default/icon.svg
       output: settings-panel-signal-high.svg
+    # Bluetooth signal-strength glyphs WITH the circle badge, so the row leads
+    # with the same circle-badged mark the Wi-Fi network rows use. Art and tint
+    # contract are identical to the wifi-signal-* family below: the badge takes
+    # COLOR_BACKGROUND, the bars take COLOR_FOREGROUND, and the four steps are
+    # a progressive fill-opacity ladder (full → good → medium → low, one more
+    # bar dimmed per step).
+    #
+    # These REPLACE the bare `signal-*` family above for the row's leading slot:
+    # a bare bar glyph next to a circle-badged Wi-Fi row read as two dialects of
+    # the same control. The bare `signal-*` variants are kept in the manifest —
+    # they are still resolved by BluetoothContent.tsx today, and removing them
+    # would be a behaviour change outside this icon addition.
+    - name: bluetooth-signal-full
+      template: settings-panel/bluetooth-signal-full/default/icon.svg
+      output: settings-panel-bluetooth-signal-full.svg
+      color_mappings:
+        COLOR_BACKGROUND: color12
+        COLOR_FOREGROUND: color0
+    - name: bluetooth-signal-good
+      template: settings-panel/bluetooth-signal-good/default/icon.svg
+      output: settings-panel-bluetooth-signal-good.svg
+      color_mappings:
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
+    - name: bluetooth-signal-medium
+      template: settings-panel/bluetooth-signal-medium/default/icon.svg
+      output: settings-panel-bluetooth-signal-medium.svg
+      color_mappings:
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
+    - name: bluetooth-signal-low
+      template: settings-panel/bluetooth-signal-low/default/icon.svg
+      output: settings-panel-bluetooth-signal-low.svg
+      color_mappings:
+        COLOR_BACKGROUND: color13
+        COLOR_FOREGROUND: color0
     # WiFi signal-strength glyphs with circle badge for network rows
     # (settings-panel group, guard-exempt, no bar_mappings — system icons).
     - name: wifi-signal-full

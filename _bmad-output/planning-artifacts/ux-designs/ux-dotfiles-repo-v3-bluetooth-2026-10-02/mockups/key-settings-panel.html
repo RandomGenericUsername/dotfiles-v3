@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>④ Settings panel — tiles &amp; Bluetooth subview — Sally mock</title>
+<link rel="stylesheet" href="mock.css" />
+</head>
+<body>
+<!--
+  MOCK: key-settings-panel   (coverage #4)
+  Governed by DESIGN.md: geometry.{popup-width,subview-scroll-height}, spacing.*,
+                         components.nav-header, §New CSS (tile rows),
+                         §Reused-but-not-new.
+  EXPERIENCE.md: Information Architecture (settings tile, Bluetooth subview),
+                  §Header control — the parity fix, Component Patterns
+                  (Settings tile, Header switch, Device row, Adapter details).
+
+  Every icon is a REAL ITR-rendered repository SVG from assets/, resolved through the
+  exact icons.json keys named below. Nothing is hand-drawn or substituted.
+
+  CLASS MAPPING (mock.css name → real style.css class):
+    .panel-entry / .card   → .settings-surface / .settings-card
+    .tile                  → .settings-tile          (CapabilityTile)
+    .icon-toggle           → .settings-icon-toggle   (IconToggle — main-view tile ONLY)
+    .tile-title            → .settings-tile-title
+    .tile-sub              → .settings-tile-sub
+    .chev                  → .settings-chevron
+    .nav-header/.nav-title → .settings-nav-header / .settings-nav-title  (SubviewHeader)
+    .nav-back              → the NavHeader back arrow
+    .switch                → .settings-switch        (WifiSwitch)
+    .scroll-clip           → .settings-scroll
+
+  The Hyprland row's real class is .settings-mini (not .settings-tile) and the
+  Display/Sound cards use .settings-card; both reuse the .tile/.card geometry in
+  mock.css and are annotated at each use site rather than adding a class.
+-->
+
+<h1>④ Settings panel — tiles &amp; the Bluetooth subview</h1>
+<div class="sub">
+  The panel side of the design. The main view is a stable list of capability tiles; the Bluetooth
+  tile keeps the bare-glyph power toggle. The <b>subview header is where the parity fix lives</b>:
+  Wi-Fi puts a <code>Gtk.Switch</code> in the trailing slot and today Bluetooth puts a 22&nbsp;px
+  bare glyph in the same slot. Rendered side by side below so the difference is unarguable.
+</div>
+
+<div class="anchor-index">
+  <a href="index.html">← index</a> ·
+  <code>panel-tile</code> · <code>panel-subview</code> · <code>panel-header-parity</code><br>
+  <b>Interactive:</b> every tile glyph is the power toggle · the <code>‹</code> glyph goes back to
+  <code>MainView</code> · <code>Available Devices ▸/▾</code> · <code>Unpair</code> opens the inline
+  confirm · scroll both subview bodies — <b>the header does not move</b>.
+</div>
+
+<!-- ══ panel-tile ═══════════════════════════════════════════════════════ -->
+<div class="state-label">Main view — the tile list exactly as it renders today · <code>panel-tile</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="panel-entry" data-view="main">
+      <div class="tile" data-open-subview="bluetooth">
+        <button class="icon-toggle" data-power-toggle aria-label="Toggle Wi-Fi" title="Toggle Wi-Fi">
+          <img src="assets/settings-panel-wifi-signal-full.svg" alt="settings-panel/wifi-signal-full" />
+        </button>
+        <div class="tile-body">
+          <span class="tile-title">Wi-Fi</span>
+          <span class="tile-sub">Ilyushin-5G · 100%</span>
+        </div>
+        <span class="chev">›</span>
+      </div>
+
+      <div class="tile" data-open-subview="bluetooth">
+        <button class="icon-toggle" data-power-toggle aria-label="Toggle Bluetooth" title="Toggle Bluetooth">
+          <img src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth" />
+        </button>
+        <div class="tile-body">
+          <span class="tile-title">Bluetooth</span>
+          <span class="tile-sub">TOZO NC9 · 78%</span>
+        </div>
+        <span class="chev">›</span>
+      </div>
+
+      <!-- .settings-mini — an action row, no toggle state -->
+      <div class="tile" style="border-style:dashed">
+        <span class="icon-toggle" style="cursor:default">
+          <img src="assets/settings-panel-hyprmod.svg" alt="settings-panel/hyprmod" />
+        </span>
+        <div class="tile-body">
+          <span class="tile-title">Hyprland</span>
+          <span class="tile-sub">Open Hyprmod</span>
+        </div>
+        <span class="chev">›</span>
+      </div>
+
+      <!-- .settings-card — PanelCard, chrome around a shared slider -->
+      <div class="card">
+        <span class="tile-title">Display</span>
+      </div>
+      <div class="card">
+        <span class="tile-title">Sound</span>
+      </div>
+    </div>
+    <div class="cap">
+      <code>MainView</code> is a <b>stable list</b>: <code>SECTION_ORDER</code> renders Wi-Fi,
+      Bluetooth, Hyprland, Display, Sound into a single card stack at
+      <code>spacing={8}</code>. Adding a capability is appending a descriptor — no existing section
+      changes.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel-entry" data-view="main">
+      <div class="tile">
+        <button class="icon-toggle off" data-power-toggle aria-label="Toggle Bluetooth" title="Toggle Bluetooth">
+          <img src="assets/settings-panel-bluetooth-off.svg" alt="settings-panel/bluetooth-off" />
+        </button>
+        <div class="tile-body">
+          <span class="tile-title">Bluetooth</span>
+          <span class="tile-sub">Off</span>
+        </div>
+        <span class="chev">›</span>
+      </div>
+    </div>
+    <div class="cap">
+      <b><code>Off</code>.</b> The glyph is the real
+      <code>settings-panel/bluetooth-off.svg</code>, which ITR-rendered at
+      <code>foreground #c2c2c5</code> — the panel's off treatment is a tint plus
+      <code>opacity: .4</code>, <b>not</b> a recolour layer. Click it to see it flip live.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel-entry" data-view="main">
+      <div class="tile">
+        <button class="icon-toggle" data-power-toggle aria-label="Toggle Bluetooth" title="Toggle Bluetooth">
+          <img src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth" />
+        </button>
+        <div class="tile-body">
+          <span class="tile-title">Bluetooth</span>
+          <span class="tile-sub">Not connected</span>
+        </div>
+        <span class="chev">›</span>
+      </div>
+    </div>
+    <div class="cap">
+      <b><code>Not connected</code>.</b> Powered, on, nothing joined. The glyph stays
+      <code>bluetooth</code> (amber) because the radio <i>is</i> on — the tile's subtitle carries
+      the state, the glyph carries the capability.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel-entry" data-view="main">
+      <div class="tile">
+        <button class="icon-toggle" data-power-toggle aria-label="Toggle Bluetooth" title="Toggle Bluetooth">
+          <img src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth" />
+        </button>
+        <div class="tile-body">
+          <span class="tile-title">Bluetooth</span>
+          <span class="tile-sub">Pairing…</span>
+        </div>
+        <span class="chev">›</span>
+      </div>
+    </div>
+    <div class="cap">
+      <b><code>Pairing…</code></b> — the tile subtitle mirrors <code>WifiTile</code>'s
+      <code>Connecting…</code> for the same reason: the tile is often the only visible surface when
+      the popup is closed, so a wait that is in progress has to say so somewhere.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel-entry" data-view="main">
+      <div class="tile">
+        <button class="icon-toggle" data-power-toggle aria-label="Toggle Bluetooth" title="Toggle Bluetooth">
+          <img src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth" />
+        </button>
+        <div class="tile-body">
+          <span class="tile-title">Bluetooth</span>
+          <span class="tile-sub">TOZO NC9 · 78%</span>
+        </div>
+        <span class="chev">›</span>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Connected with battery</b> — <code>&lt;alias&gt; · &lt;battery&gt;%</code>, matching
+      <code>WifiTile</code>'s <code>&lt;ssid&gt; · &lt;strength&gt;%</code> exactly. With no
+      <code>Battery1</code> the tile reads the bare alias. The alias is BlueZ's, verbatim —
+      <code>TOZO NC9</code>, not "Your headphones".
+    </div>
+  </div>
+
+</div>
+
+<h3>Why the tile glyph stays, and why it is not the header control</h3>
+<p class="note">
+  <code>CapabilityTile</code> keeps <code>IconToggle</code> on the <b>main-view tile only</b>, where
+  the glyph has 34&nbsp;px of room and no header to share with. Two different jobs, two different
+  slots: the glyph says <i>which capability this is</i>, the switch says <i>is it on</i>.
+  <br><br>
+  <code>IconToggle</code> is a <code>Gtk.Button</code>, so its <code>clicked</code> signal fires only
+  on genuine user activation — it does <b>not</b> carry the <code>notify::active</code>
+  self-oscillation hazard <code>WifiSwitch</code> was written to defeat. Both stay. But both now
+  forward an <b>explicit</b> value via <code>setBluetoothPowered(enabled)</code> instead of a blind
+  <code>toggleBluetooth()</code> read-modify-write: two surfaces can now both mount a toggle, and a
+  stale read is a rare but real way to write the wrong value.
+</p>
+
+<!-- ══ panel-subview ════════════════════════════════════════════════════ -->
+<div class="state-label">The Bluetooth subview — pinned header over the shared body · <code>panel-subview</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="panel-entry" data-view="subview" data-scrolled>
+
+      <!-- PINNED: SubviewHeader is a SIBLING of the scrolledwindow, never a child -->
+      <div class="nav-header" data-pinned>
+        <button class="nav-back" data-back aria-label="Back to main view">‹</button>
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+
+      <div class="scroll-clip" style="max-height:339px">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">TOZO NC9</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net sel" data-confirm-host data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+          <div class="net" data-confirm-host data-name="LG OM7560(07)" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −83 dBm"><img src="assets/settings-panel-signal-medium.svg" alt="settings-panel/signal-medium" /></span>
+              <span class="name" title="LG OM7560(07)">LG OM7560(07)</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Paired</span></div>
+              <div class="actions">
+                <button class="rowact">Connect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="chevron-row" data-chevron>
+          <span style="flex:1">Available Devices <span class="chevmark">▸</span></span>
+        </button>
+        <div data-nearby hidden>
+          <div style="padding:4px 7px">
+            <div class="net" data-name="HONOR 400 Smart" tabindex="0">
+              <div class="l1">
+                <span class="sig" title="Signal: −88 dBm"><img src="assets/settings-panel-signal-low.svg" alt="settings-panel/signal-low" /></span>
+                <span class="name" title="HONOR 400 Smart">HONOR 400 Smart</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Ready to pair</span></div>
+                <div class="actions"><button class="rowact">Pair</button></div>
+              </div>
+            </div>
+            <div class="net" data-name="MX Keys" tabindex="0">
+              <div class="l1">
+                <span class="sig" title="Signal: −91 dBm"><img src="assets/settings-panel-signal-low.svg" alt="settings-panel/signal-low" /></span>
+                <span class="name" title="MX Keys">MX Keys</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Ready to pair</span></div>
+                <div class="actions"><button class="rowact">Pair</button></div>
+              </div>
+            </div>
+            <div class="net" data-name="Sony WH-1000XM5 Wireless Headphones" tabindex="0">
+              <div class="l1">
+                <span class="sig" title="Signal: −70 dBm"><img src="assets/settings-panel-signal-good.svg" alt="settings-panel/signal-good" /></span>
+                <span class="name" title="Sony WH-1000XM5 Wireless Headphones">Sony WH-1000XM5 Wireless Headphones</span>
+              </div>
+              <div class="l2">
+                <div class="meta"><span class="sub">Ready to pair</span></div>
+                <div class="actions"><button class="rowact">Pair</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <button class="footer-row" data-footer>
+          <span class="footer-label">Bluetooth Settings</span>
+          <span class="footer-note">opens bluetoothctl</span>
+          <span class="footer-arrow">›</span>
+        </button>
+      </div>
+    </div>
+    <div class="cap">
+      The subview body is <b>the same component</b> as the popup body — same sections, same rows,
+      same footer. Only the header differs, and that difference is the fix.
+      <b>Scroll this one:</b> the header is a <b>sibling</b> of the
+      <code>settings-scroll</code> window, so it stays exactly where it is.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel-entry" data-view="subview" data-state="powered-off">
+      <div class="nav-header" data-pinned>
+        <button class="nav-back" data-back aria-label="Back to main view">‹</button>
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="false" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="empty">Bluetooth is off</div>
+    </div>
+    <div class="cap">
+      Same one-line collapse as the popup: adapter details, both sections and the footer are all
+      hidden while powered off. The header — and therefore the switch — <b>stays</b>, because the
+      switch is how you turn it back on.
+    </div>
+  </div>
+
+</div>
+
+<p class="note">
+  <b>The pinned-header rule.</b> <code>SubviewHeader.tsx</code> exists because of a bug that has
+  already been paid for once: the header used to be rendered <i>by</i> <code>WifiView</code> and
+  <code>BluetoothView</code>, i.e. <b>inside</b> the scrolled window, so it scrolled away with the
+  content and the two surfaces behaved differently despite sharing one <code>NavHeader</code>
+  component. Same components, two different containers; the <b>container</b> is what decides whether
+  the header stays put. The subview scroll height is <b>339&nbsp;px</b>
+  (<code>geometry.subview-scroll-height</code>) — the panel's own budget, distinct from the popup's
+  <code>maxContentHeight 420</code>.
+</p>
+
+<!-- ══ panel-header-parity ══════════════════════════════════════════════ -->
+<div class="state-label">The parity fix — Wi-Fi subview beside the Bluetooth subview · <code>panel-header-parity</code></div>
+<div class="cols">
+
+  <div class="col">
+    <div class="panel-entry" data-view="subview">
+      <div class="nav-header">
+        <button class="nav-back" aria-label="Back to main view">‹</button>
+        <span class="nav-title">Wi-Fi</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Wi-Fi"></button>
+      </div>
+      <div class="scroll-clip" style="max-height:339px">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Connection</span><span class="detail">Ilyushin-5G</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Saved</div>
+        <div style="padding:0 7px">
+          <div class="net sel" data-name="Ilyushin-5G" tabindex="0">
+            <div class="l1">
+              <span class="sig"><img src="assets/settings-panel-wifi-signal-full.svg" alt="settings-panel/wifi-signal-full" /></span>
+              <span class="name" title="Ilyushin-5G">Ilyushin-5G</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Secured</span></div>
+            </div>
+          </div>
+          <div class="net" data-name="Cafe-Nebula" tabindex="0">
+            <div class="l1">
+              <span class="sig"><img src="assets/settings-panel-wifi-signal-good.svg" alt="settings-panel/wifi-signal-good" /></span>
+              <span class="name" title="Cafe-Nebula">Cafe-Nebula</span>
+            </div>
+            <div class="l2">
+              <div class="meta"><span class="sub">Secured</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>The reference.</b> <code>SubviewHeader</code>'s Wi-Fi branch:
+      <code>trailing={&lt;WifiSwitch active={wifiEnabled} sensitive={wifiReady}
+      onToggled={(v) =&gt; void setWifiEnabled(v)} /&gt;}</code>. Same component vocabulary, different
+      slot, no new primitives.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel-entry" data-view="subview">
+      <div class="nav-header">
+        <button class="nav-back" aria-label="Back to main view">‹</button>
+        <span class="nav-title">Bluetooth</span>
+        <button class="switch" role="switch" aria-checked="true" aria-label="Toggle Bluetooth"></button>
+      </div>
+      <div class="scroll-clip" style="max-height:339px">
+        <div class="details">
+          <div class="detail-row"><span class="detail">Adapter</span><span class="detail">5C:F3:70:9B:AA:BB</span></div>
+          <div class="detail-row"><span class="detail">Audio output</span><span class="detail">TOZO NC9</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Paired</div>
+        <div style="padding:0 7px">
+          <div class="net sel" data-name="TOZO NC9" tabindex="0">
+            <div class="l1">
+              <span class="sig" title="Signal: −52 dBm"><img src="assets/settings-panel-signal-high.svg" alt="settings-panel/signal-high" /></span>
+              <span class="name" title="TOZO NC9">TOZO NC9</span>
+              <span class="badge conn">Connected</span>
+            </div>
+            <div class="l2">
+              <div class="meta">
+                <span class="sub">Paired</span>
+                <span class="stat"><img src="assets/system-battery-75.svg" alt="battery/system-battery-75" />78%</span>
+              </div>
+              <div class="actions">
+                <button class="rowact">Disconnect</button>
+                <button class="rowact subtle" data-unpair>Unpair</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>After the fix.</b> Same <code>‹</code> + title + <code>Gtk.Switch</code> in the same slot,
+      the same 42×24 track, the same <code>@color_10</code> ON fill as the Wi-Fi header to its left.
+      <code>setBluetoothPowered(v)</code> forwards the explicit value.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="panel-entry" data-view="subview" data-state="before-fix">
+      <div class="nav-header">
+        <button class="nav-back" aria-label="Back to main view">‹</button>
+        <span class="nav-title">Bluetooth</span>
+        <!-- what ships today: a bare BluetoothToggle glyph in the switch's slot -->
+        <span class="icon-toggle" style="min-width:22px;min-height:22px;flex:0 0 22px">
+          <img style="width:22px;height:22px" src="assets/settings-panel-bluetooth.svg" alt="settings-panel/bluetooth — bare BluetoothToggle" />
+        </span>
+      </div>
+      <div class="scroll-clip" style="max-height:339px">
+        <div class="empty">Bluetooth is off</div>
+      </div>
+    </div>
+    <div class="cap">
+      <b>Before — shown for contrast only, not proposed.</b>
+      <code>trailing={&lt;BluetoothToggle /&gt;}</code>: a 22&nbsp;px bare glyph where Wi-Fi has a
+      24&nbsp;px switch. A user who has learned <i>"the pill on the right of this header is the
+      radio"</i> gets a bare glyph in one Bluetooth surface and the pill in the other, at identical
+      screen positions. Parity is not about looking alike; it is about <b>doing</b> alike.
+    </div>
+  </div>
+
+</div>
+
+<p class="note">
+  <b>The capability glyph is not lost.</b> <code>BluetoothToggle</code> is not deleted — it is
+  demoted. <code>CapabilityTile</code> keeps <code>IconToggle</code> on the main-view tile (mock 1,
+  above), and the header slot becomes the switch (mock 2, left). One glyph, two jobs, two homes,
+  zero new primitives.
+</p>
+
+<script>
+/* ── header switch ───────────────────────────────────────────────────── */
+document.querySelectorAll('.switch').forEach(function (sw) {
+  sw.addEventListener('click', function () {
+    if (sw.disabled) return;
+    sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+  });
+});
+
+/* ── tile glyph toggle: swaps the real ON/OFF assets, never a filter ── */
+document.querySelectorAll('[data-power-toggle]').forEach(function (btn) {
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var img = btn.querySelector('img');
+    var off = btn.classList.toggle('off');
+    var group = btn.getAttribute('aria-label').replace('Toggle ', '').toLowerCase();
+    img.src = off
+      ? 'assets/settings-panel-' + group + '-off.svg'
+      : 'assets/settings-panel-' + group + '.svg';
+    var sub = btn.closest('.tile').querySelector('.tile-sub');
+    if (off && sub.textContent !== 'Off') sub.textContent = 'Off';
+    else if (!off && sub.textContent === 'Off') sub.textContent = 'Not connected';
+  });
+});
+
+/* ── ‹ back to MainView ──────────────────────────────────────────────── */
+document.querySelectorAll('[data-back]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    btn.style.background = 'rgba(194,194,197,.34)';
+    setTimeout(function () { btn.style.background = ''; }, 600);
+  });
+});
+
+/* ── the whole row is the primary action ─────────────────────────────── */
+document.querySelectorAll('.net').forEach(function (row) {
+  row.addEventListener('click', function (e) {
+    if (e.target.closest('button')) return;
+    if (row.classList.contains('confirming')) return;
+    var btn = row.querySelector('.actions .rowact:not(.disabled)');
+    if (!btn) return;
+    btn.style.borderColor = 'var(--selected)';
+    setTimeout(function () { btn.style.borderColor = ''; }, 700);
+  });
+  row.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+  });
+});
+
+/* ── the inline unpair confirm (same component, same slot) ───────────── */
+function stashRow(row) {
+  if (row.hasAttribute('data-stashed')) return;
+  row.setAttribute('data-stashed', '1');
+  row.setAttribute('data-closed-meta', row.querySelector('.meta').innerHTML);
+  row.setAttribute('data-closed-actions', row.querySelector('.actions').innerHTML);
+}
+function closeConfirms() {
+  document.querySelectorAll('.net[data-open]').forEach(function (row) {
+    row.querySelector('.meta').innerHTML = row.getAttribute('data-closed-meta');
+    row.querySelector('.actions').innerHTML = row.getAttribute('data-closed-actions');
+    row.removeAttribute('data-open');
+    row.classList.remove('confirming');
+    wireRow(row);
+  });
+}
+function openConfirm(row) {
+  closeConfirms();
+  stashRow(row);
+  row.querySelector('.meta').innerHTML = '<span class="stat">Remove from paired devices</span>';
+  row.querySelector('.actions').innerHTML =
+    '<button class="rowact" data-keep>Keep</button>' +
+    '<button class="rowact danger" data-unpair-confirm>Unpair device</button>';
+  row.setAttribute('data-open', '1');
+  row.classList.add('confirming');
+  wireRow(row);
+}
+function wireRow(row) {
+  var unpair = row.querySelector('[data-unpair]');
+  if (unpair) unpair.addEventListener('click', function (e) { e.stopPropagation(); openConfirm(row); });
+  var keep = row.querySelector('[data-keep]');
+  if (keep) keep.addEventListener('click', function (e) { e.stopPropagation(); closeConfirms(); });
+  var confirm = row.querySelector('[data-unpair-confirm]');
+  if (confirm) confirm.addEventListener('click', function (e) { e.stopPropagation(); row.remove(); });
+}
+document.querySelectorAll('[data-confirm-host]').forEach(function (row) { stashRow(row); wireRow(row); });
+
+/* ── Available Devices chevron ───────────────────────────────────────── */
+document.querySelectorAll('[data-chevron]').forEach(function (btn) {
+  var popup = btn.closest('.panel-entry');
+  var target = popup.querySelector('[data-nearby]');
+  var mark = btn.querySelector('.chevmark');
+  btn.addEventListener('click', function () {
+    var open = !target.hasAttribute('hidden');
+    if (open) target.setAttribute('hidden', ''); else target.removeAttribute('hidden');
+    mark.textContent = open ? '▸' : '▾';
+  });
+});
+
+/* ── footer row ──────────────────────────────────────────────────────── */
+document.querySelectorAll('[data-footer]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var note = btn.querySelector('.footer-note');
+    var was = note.textContent;
+    note.textContent = 'launching bluetoothctl…';
+    setTimeout(function () { note.textContent = was; }, 1400);
+  });
+});
+</script>
+</body>
+</html>

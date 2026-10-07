@@ -3,6 +3,7 @@ import Gdk from "gi://Gdk?version=4.0"
 import { For, createBinding, createState } from "ags"
 import { registry } from "../../lib/icon-registry"
 import {
+  isBluetoothItem,
   isNetworkItem,
   popupItemMenu,
   tray,
@@ -81,7 +82,11 @@ function TrayItem({ item }: { item: Item }) {
 }
 
 export function Tray() {
-  const visible = (): Item[] => (tray.get_items() as Item[]).filter((item) => !isNetworkItem(item))
+  //: nm-applet is merged into NetworkStatus and blueman-applet is a duplicate of
+  //: the bar's own Bluetooth indicator — both are dropped, everything else
+  //: keeps its native tray slot.
+  const visible = (): Item[] =>
+    (tray.get_items() as Item[]).filter((item) => !isNetworkItem(item) && !isBluetoothItem(item))
   const [items, setItems] = createState<Item[]>(visible())
   const refresh = () => setItems(visible())
   tray.connect("item-added", refresh)

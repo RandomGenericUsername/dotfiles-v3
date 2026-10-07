@@ -45,11 +45,12 @@ entries:
   - name: pavucontrol        # Conventional GUI mixer — debugging/reference surface for the AGS audio popup
   - name: gpu-screen-recorder # Preferred Wayland recording backend with pause/resume
   - name: wf-recorder        # Fallback Wayland-native recorder
+  # vainfo — VA-API codec probe. gpu-screen-recorder names it verbatim in its
+  # own "your gpu does not support 'vpX'" failure, so the capture tool can tell a
+  # hardware codec limit (WebM's gsr default is VP8) from a missing VA driver.
+  - name: libva-utils
   - name: rofi               # Application launcher
   - name: thunar             # File manager (GTK-based)
-
-  # Terminal file manager
-  - name: lf
 
   # System monitor (AGS bar icon launcher)
   - name: btop
@@ -75,13 +76,30 @@ entries:
   # D-Bus by the panel's own bluetooth-service.ts (no Astal Bluetooth binding);
   # bluez/bluez-utils ship the BlueZ daemon + bluetoothctl, and provisioning
   # enables bluetooth.service.
+  #
+  # blueman is the FULL Bluetooth GUI and the target of the panel's
+  # "Bluetooth Settings" row. It is not the panel's dependency — the panel
+  # drives BlueZ over D-Bus directly — but it is what makes a PIN/passkey
+  # pairing completable, because the panel's own agent registers with the
+  # `NoInputNoOutput` capability (Just Works) and cannot satisfy a PIN
+  # request. Blueman supplies a `KeyboardDisplay` agent, so BlueZ can fall
+  # back to it for the methods the panel cannot answer. Deliberately NOT
+  # autostarted: its tray applet would sit in the bar owning a second agent
+  # role for a GUI the user only opens deliberately.
   - name: astal-wp           # AstalWp — WirePlumber audio (settings panel volume)
   - name: bluez              # Bluetooth stack / bluetoothd
   - name: bluez-utils        # bluetoothctl + the bluetooth.service unit
+  - name: blueman            # GTK Bluetooth manager — the "Bluetooth Settings" target
 
-   # Additional useful tools
-   - name: hyprcursor         # Cursor themes
-   - name: hyprlock           # Screen locker
-   - name: hypridle           # Idle management
-   - name: wlogout            # Logout menu (AGS power-menu action)
-   - name: speedtest          # Ookla speedtest CLI (network speed measurements)
+  # Additional useful tools
+  # hyprcursor is deliberately NOT listed: hyprland Depends On it directly
+  # (pacman -Qi hyprland -> Depends On: ... hyprcursor libhyprcursor.so=0-64),
+  # so it arrives transitively with the hyprland package below, and nothing in
+  # this repo configures a hyprcursor theme (cursor.lua only sets
+  # no_hardware_cursors; XCURSOR_THEME is a plain Xcursor name). Listing it as
+  # a standalone provision entry would duplicate a transitive dependency and
+  # imply a consumer that does not exist.
+  - name: hyprlock           # Screen locker
+  - name: hypridle           # Idle management
+  - name: wlogout            # Logout menu (AGS power-menu action)
+  - name: speedtest          # Ookla speedtest CLI (network speed measurements)

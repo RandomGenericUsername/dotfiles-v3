@@ -66,6 +66,11 @@ config_links_backup_policy: auto
 #   - settings     → color-scheme-generator, weg, itr
 #   - gt-3-1       → gtk-3.0, gtk-4.0 (the GTK consumer dirs)
 #   - add-rofi-app-launcher → rofi
+#   - provision-btop-config → btop (the btop_config role renders btop.conf
+#     into <install>/config/btop/ and creates btop/themes/; btop reads its
+#     config and scans its themes at the native XDG location, so the whole
+#     dir is linked. NO seeding here: btop's only user-owned content is its own
+#     btop.conf, and the migrate-then-backup guard below preserves it).
 #   Parity with the writing roles is locked by a structural test.
 config_links_managed_dirs:
   - hypr
@@ -87,6 +92,7 @@ config_links_managed_dirs:
   - gtk-3.0
   - gtk-4.0
   - rofi
+  - btop
 
 # config_links_gtk_dirs: the managed dirs that get the migrate-then-symlink
 #   treatment (gt-3-1): a spine-dir ensure + seed-copy of the user's existing

@@ -33,6 +33,15 @@ class TestColorFormat:
         assert ColorFormat.HYPRLAND.value == "conf"
         assert ColorFormat.KITTY.value == "kitty"
 
+    def test_btop_theme_format_values(self) -> None:
+        # Multi-dot values are intentional: the catalog strips the "colors."
+        # prefix and passes the remainder straight to ColorFormat().
+        assert ColorFormat.BTOP.value == "btop.theme"
+
+    def test_btop_theme_formats_are_in_the_format_listing(self) -> None:
+        values = {f.value for f in ColorFormat}
+        assert "btop.theme" in values
+
     def test_format_listing_includes_kitty(self) -> None:
         assert "kitty" in {f.value for f in ColorFormat}
 
