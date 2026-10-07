@@ -10,12 +10,17 @@ grep -E "^(FAILED|ERROR)" /tmp/pytest.txt
 tail -3 /tmp/pytest.txt          # the pass/fail/skip counts
 ```
 
-TIMING: the suite exceeds 15 minutes on this machine (a 900 s run reached ~50%),
-so run it in the background or with a generous timeout. That itself is a finding
-worth recording — a developer feedback loop that cannot complete inside a
-reasonable window is part of why the failures went unwritten.
+MEASURED on `master` @ `5531cde2`:
 
-Then, for each failure, run it alone and capture the assertion:
+```
+6 failed, 792 passed, 5 skipped in 1198.45s (0:19:58)
+```
+
+The suite takes **19m58s**. That is part of the finding: a feedback loop that
+does not fit in a sitting is part of why these went unwritten.
+
+Confirm the list is unchanged before starting (rerun in the background), then for
+each failure run it alone and capture the assertion:
 
 ```bash
 uv run --directory src/provisioning pytest <nodeid> -q
@@ -41,18 +46,26 @@ is the one that misleads CI; C is the one that hides a real regression behind a
 stale expectation. Treating them uniformly — "just make the suite green" — is how
 a real defect gets skipped along with the environmental noise.
 
-### The reported shape, unverified
+### The measured shape
 
-The implementing agent reported:
+All six are named in `proposal.md`. The two `test_btop_theme_e2e` failures need a
+real pty (theme loading and a visible repaint). The four `test_verify_role`
+failures all fail through a done-criterion that expects **rendered runtime icons**
+under a synthetic state-home, and the criterion's own message is informative:
 
-- 2 × `tests/integration/test_btop_theme_e2e.py` — needs a real pty / theme load
-- 4 × `tests/unit/test_verify_role.py` — expects runtime icons under a synthetic
-  state-home
+```
+the runtime icons output is missing: expected
+  /tmp/.../state-home/dotfiles/current/icons/ as a directory with each of
+  battery-0.svg, settings-panel-wifi.svg, volume-low.svg, ... bluetooth-off.svg
+  present (done-criterion — runtime icons, Epic 4 current-only).
+  Run `dotfiles-runtime wallpaper set`
+```
 
-If that holds, all six are bucket B, and the change is about hermeticity rather
-than behaviour. **Do not assume it.** `test_verify_role` in particular is worth
-reading closely: it asserts on the verify role, and a test that fails because
-icons are missing may be telling the truth about a fragile assumption.
+Note what that says: the icons provisioning role is **deleted**, and runtime
+icons are now produced by the wallpaper pipeline. So the four are not obviously a
+test-fixture problem — they may be telling the truth about a criterion that
+outlived the thing that fed it. That is why classification is a task and not an
+assumption; read each one before assigning a bucket.
 
 ## §3 What "hermetic" means here, concretely
 

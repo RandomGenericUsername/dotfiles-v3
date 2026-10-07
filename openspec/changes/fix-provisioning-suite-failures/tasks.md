@@ -7,9 +7,10 @@
       grep -E "^(FAILED|ERROR)" /tmp/pytest.txt
       tail -3 /tmp/pytest.txt
       ```
-- [ ] 1.2 Record the exact **pass / fail / skip** counts and every failing
-      nodeid **in `design.md` §1**. The proposal's reported split (2 + 4) is
-      unverified; if the measured list differs, correct the proposal in place.
+- [ ] 1.2 Confirm the recorded baseline still holds. It is MEASURED, not
+      inherited: 6 failed / 792 passed / 5 skipped in 1198.45s, with all six
+      nodeids named in `proposal.md`. If a rerun differs, correct the proposal
+      **in place** — the measurement wins.
 - [ ] 1.3 For each failure, run it alone and capture the assertion text.
 - [ ] 1.4 Confirm the suite's runtime. If it exceeds ~15 minutes, record by how
       much — the length of the feedback loop is part of why these went unwritten.
