@@ -1,11 +1,9 @@
 import { Accessor, createComputed, createEffect, createState, For } from "ags"
 import { Gtk } from "ags/gtk4"
-import GLib from "gi://GLib?version=2.0"
 import Pango from "gi://Pango?version=1.0"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
 import {
-  ageOutStaleReadings,
   bluetoothAdapterAddress,
   bluetoothBusy,
   bluetoothDevices,
@@ -23,31 +21,21 @@ import {
   type BluetoothDevice,
 } from "../../services/bluetooth-service"
 
-/** How often the RSSI staleness rule is re-applied while the panel is visible. */
-const TICK_MS = 10000
-
 /**
  * Bluetooth capability body (design §4, mock `mockups/panel.html`).
  *
  * State is owned by BlueZ D-Bus and exposed through the service's accessors;
  * this component only reads them and forwards user intent (`pairDevice`,
  * `connectDevice`, `disconnectDevice`, `unpairDevice`). There is no subprocess,
- * no bus call and no agent plumbing here — the ONE subprocess is the footer
- * row's `execAsync(["blueman-manager"])`, the same single escape hatch
+ * no bus call, no agent plumbing and no timer here — the ONE subprocess is the
+ * footer row's `execAsync(["blueman-manager"])`, the same single escape hatch
  * `WifiContent`'s `nm-connection-editor` row uses.
- *
- * The one timer is the RSSI re-age tick, and it exists because of a BlueZ
- * property: RSSI has no timestamp, no expiry and no heartbeat, so a frozen
- * value looks live forever. The tick is a timestamp comparison over the local
- * cache — it never touches the bus — and it exists only while the panel is
- * visible. See `ageOutStaleReadings` in the service.
  */
 
 export {
   bluetoothBusy,
   bluetoothDevices,
   bluetoothDiscovering,
-  bluetoothFailure,
   bluetoothPowered,
 }
 export type { BluetoothDevice }
@@ -220,24 +208,22 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
       setConfirmingAddress(null)
       return
     }
-    // `!inRange()` IS a refusal again. It was lifted so that pressing an
-    // out-of-range Connect would surface BlueZ's real reason instead of doing
-    // nothing -- and that was wrong, because it made unreachable hardware look
-    // actionable. OWNER DECISION 2026-10-05: out of range means you cannot
-    // click Connect, full stop.
+    // `!inRange()` IS a refusal. OWNER DECISION 2026-10-05: out of range means
+    // you cannot click Connect, full stop.
     //
-    // The reasoning that lifted it had a hidden dependency. It was only sound
-    // while the ageing did NOT exist: back then a row could sit showing a live
-    // Connect for hardware that was switched off, and pressing it was the sole
-    // way to discover why. That is no longer true. RSSI_STALE_MS (20s) means
-    // the row now reaches "Not in range" by itself, without being poked, so a
-    // disabled Connect is self-explanatory -- there is nothing left to learn by
-    // pressing it. Ageing is what makes the guard honest; do not remove one
-    // without re-checking the other.
-    //
-    // The residual case is deliberate and narrow: a device that goes quiet keeps
-    // its last reading for up to 20s, and inside that window Connect still works
-    // and a press returns BlueZ's real answer. That is a feature, not a leak.
+    // History, because this guard and the reachability rule are load-bearing on
+    // each other and both have been changed twice:
+    // - The guard was once lifted so a press would surface BlueZ's real reason
+    //   instead of silence. Rejected: unreachable hardware looked actionable.
+    // - The reachability rule once had a 20s staleness clock (`rssiAt`), so a
+    //   row reached "Not in range" unprompted. Removed 2026-10-07: a stationary
+    //   device holds one RSSI for minutes and the clock manufactured dead ends
+    //   for hardware sitting right there (MEASURED: `-55` stable 30s+).
+    // What remains is the honest pair: the rule errs toward in-range (a present
+    // reading counts however old; only absence clears it), and a press on a
+    // stale-but-present reading reaches BlueZ and explains itself through the
+    // notification card. Do not tighten either half without re-reading the
+    // note above `BluetoothDevice` in the service.
     if (busy() || !inRange()) return
     if (connected()) disconnectDevice(item.address)
     else if (paired()) connectDevice(item.address)
@@ -396,12 +382,14 @@ export function BluetoothRow({ device: item }: { device: BluetoothDevice }) {
               FINAL: class for looks, sensitive for truth, both driven by the
               same `primaryAvailable`. Never "simplify" one into the other.
 
-              The load-bearing dependency: `sensitive` is only safe now because
-              RSSI_STALE_MS ages a frozen reading out within 20s, so the row
-              reaches "Not in range" without being pressed. A disabled Connect
-              is therefore self-explanatory. Remove the ageing and this guard
-              becomes the silent dead end it was before -- check the other before
-              changing either. */}
+              The load-bearing dependency, updated 2026-10-07: there is no
+              staleness clock anymore (see the service note), so a present
+              reading counts however old it is and only absence reads "Not in
+              range". A disabled Connect is therefore self-explanatory only in
+              the absent case; in the stale-but-present case the press is what
+              corrects the record, via the notification card. That is the
+              intended pair — do not re-add a clock without re-reading the
+              service note. */}
           <button
             class={createComputed(() =>
               primaryAvailable() ? "settings-rowact" : "settings-rowact disabled",
@@ -649,45 +637,18 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
 
   // Re-read reachability whenever the panel becomes visible.
   //
-  // BlueZ emits no event when a paired device merely stops advertising — it just
-  // stops reporting RSSI — so the cached value can be minutes or hours old, and
-  // the row offers a live Connect button for hardware that is switched off. A
-  // fresh read costs one GetAll per cached device and only happens while someone
-  // is looking, which is the only time the answer is read.
-  //
-  // The D-Bus read is NOT on a timer, deliberately — polling BlueZ forever for a
-  // panel nobody is watching is the thing this design avoids. The separate
-  // `ageOutStaleReadings` tick below is not a substitute for it: that one is a
-  // local timestamp comparison that never touches the bus. You need both. The
-  // read picks up a device that came back; the tick notices one that went away.
+  // BlueZ emits no event when a paired device merely stops advertising — it
+  // just stops reporting RSSI — so the cached value can be minutes or hours
+  // old. A fresh read costs one GetAll per cached device and only happens
+  // while someone is looking, which is the only time the answer is read.
+  // There is deliberately no timer here at all: a staleness clock was built
+  // and removed 2026-10-07, because a stationary device holds one RSSI for
+  // minutes and any timeout manufactures "Not in range" dead ends for
+  // hardware that is sitting right there. See the note above
+  // `BluetoothDevice` in the service.
   createEffect(() => {
     if (!visible()) return
     void refreshBluetoothDevices()
-  })
-
-  // ── live RSSI ageing ─────────────────────────────────────────────────
-  // The refresh above only runs on visibility, so a device that falls silent
-  // while the panel is already open would keep offering Connect until the panel
-  // is closed and reopened. `ageOutStaleReadings` walks the cache and re-applies
-  // the staleness rule: a timestamp comparison per cached device, no D-Bus, no
-  // discovery. It is the only ticker in this component.
-  //
-  // TICK_MS is deliberately equal to BlueZ's ~10s discovery cycle rather than to
-  // RSSI_STALE_MS. Polling faster than the value can change would re-render for
-  // no reason; polling far slower would leave a visibly wrong row up.
-  //
-  // The source is created INSIDE the effect, matching the discovery effect
-  // above. Creating it out here and removing it in the cleanup would leave the
-  // ticker permanently dead after the first hide — the cleanup can remove a
-  // source but the effect body is what recreates one.
-  createEffect(() => {
-    if (!visible()) return
-    ageOutStaleReadings()
-    const ticker = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TICK_MS, () => {
-      ageOutStaleReadings()
-      return GLib.SOURCE_CONTINUE
-    })
-    return () => GLib.source_remove(ticker)
   })
 
   return (

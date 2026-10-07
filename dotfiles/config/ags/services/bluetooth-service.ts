@@ -35,28 +35,28 @@ const DEFAULT_ADAPTER_PATH = "/org/bluez/hci0"
 const WATCHDOG_MS = 30000
 
 /**
- * How long an RSSI reading stays believable.
+ * Reachability is the RSSI value and nothing else: `rssi < 0` means heard,
+ * `0` (absent) means not. There is deliberately NO staleness clock on the
+ * reading.
  *
- * A device that is off stops advertising and BlueZ stops emitting, but never
- * clears the value it last held. Past this age the reading is treated as no
- * reading at all, so the row falls back to "Not in range".
+ * History, because a clock was built here and removed 2026-10-07: `rssiAt`
+ * plus a 20s window aged a reading out when it stopped CHANGING. That is
+ * wrong for the common case — a phone lying still on a desk holds one RSSI
+ * for minutes, BlueZ emits nothing (it only reports change), and the row
+ * fell to "Not in range" while a second laptop heard the phone fine
+ * (MEASURED: `-55` stable 30s+). "Present and stable" and "gone with a
+ * frozen value" are indistinguishable in BlueZ's API — no timestamp, no
+ * expiry, paired objects never evicted — so any timeout manufactures dead
+ * ends for stationary devices, and no timeout length fixes that.
  *
- * Two BlueZ discovery cycles. A cycle is ~10s, so a paired device that has
- * produced no RSSI change across two full cycles of active scanning is not
- * answering, and treating its last number as live is worse than dropping it.
- *
- * The trade-off is one-sided and worth stating plainly: a device that is
- * genuinely IN range but perfectly stationary stops producing RSSI changes,
- * so after this long it can be shown as out of range until it moves or is
- * rediscovered. That is why it stays a named constant rather than a magic
- * number inlined at the call site -- tune it against real use.
+ * The errors are asymmetric, which is what decides it: a false "in range"
+ * self-corrects (press Connect, BlueZ fails fast, the notification card
+ * says why), while a false "out of range" is unclickable by owner ruling
+ * and nothing corrects it. So the rule errs toward in-range. A device that
+ * is switched off after being heard keeps its last number and offers
+ * Connect until pressed — and the press explains itself now, which is what
+ * makes this tolerable. Do not re-add a clock without re-reading this.
  */
-const RSSI_STALE_MS = 20000
-
-/** Monotonic milliseconds; immune to wall-clock jumps. */
-function nowMonoMs(): number {
-  return Math.trunc(GLib.get_monotonic_time() / 1000)
-}
 
 export type BluetoothAction = "pair" | "connect" | "disconnect" | "unpair"
 
@@ -74,12 +74,6 @@ export interface BluetoothDevice {
   paired: boolean
   trusted: boolean
   rssi: number
-  /**
-   * Monotonic ms at which `rssi` last CHANGED, or 0 if it is not a live
-   * reading. Advanced ONLY by an RSSI PropertiesChanged or by the device being
-   * added -- never by a re-read, or a frozen value would look fresh forever.
-   */
-  rssiAt: number
   icon: string
   adapter: string
   battery: number
@@ -168,7 +162,6 @@ function deviceFromProps(
     paired: Boolean(props.Paired),
     trusted: Boolean(props.Trusted),
     rssi: Number(props.RSSI ?? 0),
-    rssiAt: nowMonoMs(),
     icon: String(props.Icon ?? ""),
     adapter: String(props.Adapter ?? ""),
     battery: 0,
@@ -317,29 +310,10 @@ function installBatteryWatch(path: string): void {
  *
  * An ABSENT property is deliberately destructive here, unlike
  * `applyDeviceProps` which only applies keys present in `changed`: for RSSI,
- * absence is the signal, so it must overwrite the stale value rather than skip.
- *
- * ── WHY REFRESH CANNOT FIX A FROZEN VALUE ───────────────────────────────
- * The rule the panel follows is:
- *
- *   paired?  reachable?  shown as                Connect
- *   no       —           Available Devices        Pair
- *   yes      yes         Paired                  enabled
- *   yes      NO          Paired, "Not in range"  disabled
- *
- * so "reachable" has to be answered, and the only input is RSSI. Re-reading does
- * NOT answer it. MEASURED both ways on the same machine in one session: a TOZO
- * NC9 in its case has NO RSSI property at all, while an Infinix with Bluetooth
- * switched OFF reports RSSI -72 -- frozen, because BlueZ refreshes that value
- * only when it hears an advertisement and never clears it. A fresh read
- * faithfully returns the same stale number, so the read is necessary but not
- * sufficient.
- *
- * Hence `rssiAt`: the moment RSSI last CHANGED, which only a PropertiesChanged
- * carrying RSSI can advance. A device that is off stops advertising, stops
- * emitting, and its reading ages out. Crucially the refresh below does NOT
- * touch `rssiAt`, or every re-read would make a frozen value look fresh and the
- * whole mechanism would be a no-op.
+ * absence is the signal, so it must overwrite the stale value rather than
+ * skip. That is the whole reachability rule — a present reading counts
+ * however old it is (see the note above `BluetoothDevice`), and only
+ * absence clears it.
  */
 export async function refreshBluetoothDevices(): Promise<void> {
   const entries = [...deviceCache.entries()]
@@ -378,66 +352,10 @@ export async function refreshBluetoothDevices(): Promise<void> {
       if ("Icon" in props) next.icon = String(props.Icon)
       // `?? 0` rather than a presence check: absence IS the signal.
       next.rssi = Number(props.RSSI ?? 0)
-      applyRssiAgeing(next)
       deviceCache.set(path, next)
     }),
   )
   applyDevices()
-}
-
-/**
- * Age a device's RSSI reading out, in place. Returns whether it changed.
- *
- * `rssiAt` is deliberately NOT advanced here. A re-read must not make a frozen
- * value look fresh, or the whole mechanism collapses into a no-op: every
- * refresh would stamp the stale number with the current time and the device
- * would stay "in range" forever.
- *
- * Shared with `ageOutStaleReadings` so the on-open refresh and the live ticker
- * cannot drift into disagreeing about what counts as stale.
- */
-function applyRssiAgeing(device: BluetoothDevice): boolean {
-  if (device.rssi >= 0) {
-    if (device.rssi === 0 && device.rssiAt === 0) return false
-    device.rssi = 0
-    device.rssiAt = 0
-    return true
-  }
-  if (nowMonoMs() - device.rssiAt <= RSSI_STALE_MS) return false
-  device.rssi = 0
-  device.rssiAt = 0
-  return true
-}
-
-/**
- * Re-age cached readings without touching the bus.
- *
- * The ageing in `refreshBluetoothDevices` only runs when the panel becomes
- * visible, so a device that falls silent while the panel is already open keeps
- * offering Connect until it is closed and reopened. This walks the cache and
- * re-applies the same rule on a timer, which is a timestamp comparison and
- * nothing else -- no D-Bus traffic, no discovery, and it stops with the panel.
- *
- * Only rebuilds the device list when a reading actually aged, so an idle panel
- * costs no re-render.
- *
- * WHY IN-PLACE MUTATION IS SAFE HERE, since it is not the obvious answer: the
- * rows read the cache through `bluetoothDevices().find(...)`, so they track
- * OBJECT IDENTITY. Mutating a cached device and re-publishing the same array
- * would be invisible. It works because `applyDevices` allocates a fresh array,
- * `createState` compares with `Object.is`, and AGS's computed `invalidate()`
- * re-notifies unconditionally -- so the new array reference wakes the rows,
- * which then re-read the mutated field. VERIFIED against the AGS 3.1.0 bundle.
- *
- * If `applyDevices` is ever "optimised" to reuse an array, or given a custom
- * `equals`, this becomes a silent no-op and every row goes stale forever.
- */
-export function ageOutStaleReadings(): void {
-  let changed = false
-  for (const device of deviceCache.values()) {
-    if (applyRssiAgeing(device)) changed = true
-  }
-  if (changed) applyDevices()
 }
 
 function applyDeviceProps(
@@ -452,11 +370,7 @@ function applyDeviceProps(
   if ("Connected" in changed) next.connected = Boolean(changed.Connected)
   if ("Paired" in changed) next.paired = Boolean(changed.Paired)
   if ("Trusted" in changed) next.trusted = Boolean(changed.Trusted)
-  if ("RSSI" in changed) {
-    next.rssi = Number(changed.RSSI)
-    // The one place a reading is known to be fresh: BlueZ told us it moved.
-    next.rssiAt = nowMonoMs()
-  }
+  if ("RSSI" in changed) next.rssi = Number(changed.RSSI)
   if ("Icon" in changed) next.icon = String(changed.Icon)
   deviceCache.set(path, next)
   applyDevices()
