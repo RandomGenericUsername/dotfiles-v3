@@ -77,8 +77,17 @@ export function audioPanelBinding(): AudioPanelBinding {
   }
 
   const actions: AudioPanelActions = {
+// The settle is what makes a default change appear after ONE selection.
+    // WirePlumber applies the write in its own daemon ~20ms after wpctl exits,
+    // so without this the panel re-reads the stale default and keeps showing the
+    // previous device until some unrelated event arrives. See the measured note
+    // on PipeWireObservationAdapter.settleDefault.
     selectPreferredOutput: (endpointId) => run("selectPreferredOutput", () =>
-      selectPreferredOutput(ports, endpointId as EndpointId)),
+      selectPreferredOutput(ports, endpointId as EndpointId)
+        .then((result) => {
+          if (result.ok) pipeWireObservation.settleDefault("output", endpointId)
+          return result
+        })),
     setOutputVolume: (endpointId, percent) => run("setOutputVolume", () =>
       setPreferredOutputVolume(ports, endpointId as EndpointId, percentToLevel(percent))),
     toggleOutputMute: (endpointId) => run("toggleOutputMute", () =>
@@ -95,7 +104,12 @@ export function audioPanelBinding(): AudioPanelBinding {
       return previousPlayer(ports, playerId)
     }),
     seek: (playerId, positionUs) => run("seek", () => seekPlayer(ports, playerId, positionUs)),
-    selectInput: (endpointId) => run("selectInput", () => selectPreferredInput(ports, endpointId as EndpointId)),
+selectInput: (endpointId) => run("selectInput", () =>
+      selectPreferredInput(ports, endpointId as EndpointId)
+        .then((result) => {
+          if (result.ok) pipeWireObservation.settleDefault("input", endpointId)
+          return result
+        })),
     // The view passes an endpoint id for uniformity with the other level
     // controls, but the input use case acts on the session's own default input.
     setInputVolume: (_endpointId, percent) => run("setInputVolume", () => setInputVolume(ports, percentToLevel(percent))),

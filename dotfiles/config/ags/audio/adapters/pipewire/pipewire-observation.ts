@@ -151,6 +151,44 @@ export class PipeWireObservationAdapter implements PipeWireObservationPort {
     })
   }
 
+  /**
+   * Bounded re-resolve after a default we just wrote.
+   *
+   * Ported from state.ts, where the same defect was measured: `wpctl
+   * set-default` returns and the process exits, but WirePlumber applies the
+   * change in its own daemon ~20ms later. Measured here, 7ms after wpctl exited
+   * `wp.default_speaker` still named the OLD sink. So a single re-read after the
+   * write reads the stale value, the panel keeps showing the previous device,
+   * and it only corrects when some LATER event happens to arrive -- reported by
+   * the owner as "I have to select it multiple times, and it looks like a visual
+   * bug because the audio actually did switch".
+   *
+   * Re-resolves on a short timer until the daemon agrees with the target or the
+   * budget expires. Bounded, started by a user action, and it stops as soon as
+   * the value matches; it is not a poll. Identical snapshots are suppressed by
+   * refreshSnapshot's sameSession check, so retries that see no change emit
+   * nothing.
+   */
+  settleDefault(kind: "output" | "input", targetId: string): void {
+    let attempts = 0
+    let settled = false
+    const recheck = (): boolean => {
+      attempts += 1
+      void readSession(this.wp).then((session) => {
+        if (!sameSession(this.lastSnapshot, session)) {
+          this.lastSnapshot = session
+          this.listeners.forEach((listener) => listener({ kind: "snapshot", session }))
+        }
+        const current = kind === "output" ? session.preferredOutputId : session.preferredInputId
+        if (current === targetId) settled = true
+      }).catch((error) => {
+        console.error("audio default settle read failed:", error)
+      })
+      return !settled && attempts < 15
+    }
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, recheck)
+  }
+
   private stop(): void {
     if (this.nodeHandler !== null && this.wp) this.wp.disconnect(this.nodeHandler)
     this.nodeHandler = null
