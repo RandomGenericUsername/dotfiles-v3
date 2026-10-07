@@ -10,6 +10,7 @@ import {
   subscribe,
   watchProperties,
 } from "./nm-client"
+import { registry } from "../lib/icon-registry"
 
 /**
  * BlueZ Bluetooth service (design §3).
@@ -675,15 +676,24 @@ function humanBusMessage(error: unknown): string {
  *
  * Fire-and-forget, and every failure is swallowed: a toast must never fail an
  * action that already failed. `app_name` carries the device-facing identity so
- * the host's fallback tile (initial letter) reads the same as a connect
- * success; `app_icon` is empty for the same reason — icon NAMES fall through
- * to that tile (`NotificationsWindow.tileContent`), and only absolute paths
- * resolve to files.
+ * a missed icon still renders the same initial-letter tile as a connect
+ * success; `app_icon` is the absolute path to the rendered ITR glyph — the
+ * host only resolves absolute paths to files (`NotificationsWindow.tileContent`
+ * lets icon NAMES fall through to that tile), so sending a name would be the
+ * same as sending nothing. Resolved through the same registry the panel rows
+ * use, never a hardcoded path: a missing render yields "" and the fallback
+ * tile, never a crash.
  */
 export function postBluetoothNotification(
   summary: string,
   body: string,
 ): void {
+  // The caution mark — the same glyph the removed in-panel `popup-failed`
+  // row drew (`assets/settings-panel-info-caution.svg` in the mock). The card
+  // reports a failure, so it wears the failure tint, not the radio's glyph.
+  // Same group the rows resolve; a missing render yields "" and the fallback
+  // tile, never a crash.
+  const icon = registry.resolve("settings-panel", "info-caution") ?? ""
   try {
     const bus = Gio.bus_get_sync(Gio.BusType.SESSION, null)
     bus.call_sync(
@@ -694,7 +704,7 @@ export function postBluetoothNotification(
       new GLib.Variant("(susssasa{sv}i)", [
         "Bluetooth",
         0,
-        "",
+        icon,
         summary,
         body,
         [],
