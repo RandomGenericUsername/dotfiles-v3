@@ -74,6 +74,13 @@ app.start({
       try {
         const model = audioPanelBinding().model()
         const dump = {
+          // These two were missing from the first version of this dump, and
+          // their absence read as `null` in the JSON -- which sent a debugging
+          // session chasing a preferred-output bug that had not been measured.
+          // A dump must carry every field being reasoned about.
+          preferredOutputId: model.preferredOutputId,
+          preferredOutput: model.preferredOutput,
+          preferredInputId: model.preferredInputId,
           outputs: model.outputs.map((o) => ({ id: o.id, name: o.name, available: o.available, volume: o.volume })),
           inputs: model.inputs.map((i) => ({ id: i.id, name: i.name, available: i.available, volume: i.volume })),
           input: model.input,

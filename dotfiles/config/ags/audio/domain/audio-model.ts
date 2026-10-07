@@ -88,6 +88,19 @@ export interface AudioSession {
   /** Multiple current streams can belong to one app; actions address all. */
   streams: readonly AudioStream[]
   players: readonly AudioPlayer[]
+  /**
+   * Route intent held per APP, independent of any stream's lifetime.
+   *
+   * Streams are not durable: Tidal releases its PipeWire stream when paused for
+   * a while and creates a new one on resume (measured 2026-10-07: hasStream
+   * true -> false after ~20s paused, streams []). Intent stored only per stream
+   * therefore vanished with the stream, the row fell back to "No current route",
+   * and the user could not say "follow the preferred device" while paused --
+   * which is precisely when they want to, because that is when a headset gets
+   * connected. App-scoped intent survives that gap and is re-applied to the
+   * app's next stream.
+   */
+  appIntents: Readonly<Record<AppId, RouteIntent>>
 }
 
 export function clampLevel(level: number): number {

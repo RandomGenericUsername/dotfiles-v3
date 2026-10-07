@@ -85,8 +85,21 @@ assert.deepEqual(runtime.current().streams.find((item) => item.id === "new-follo
   { kind: "explicit", endpointId: "A" }, "same stream ID relink retains intent and stale commands cannot overwrite it")
 
 pw.emit(session("B", [stream("existing-default"), stream("existing-override", { requested: "B" }), stream("new-id-same-app")]))
-assert.equal(runtime.current().streams.find((item) => item.id === "new-id-same-app").routeIntent.kind, "follow-preferred",
-  "a different stream ID does not inherit intent based only on app identity")
+// CHANGED 2026-10-07 (owner decision). This asserted 'follow-preferred': "a
+// different stream ID does not inherit intent based only on app identity".
+// That was right while intent was per-stream only, and it is what broke the
+// paused case -- Tidal releases its stream while paused, so on resume a NEW
+// stream ID appeared, inherited nothing, and the route the user had set was
+// silently dropped.
+//
+// The distinction that matters: this is not inferring intent from app identity.
+// `recordApp`/`record` stored an EXPLICIT user choice for that app, and the new
+// stream is inheriting a recorded decision, not a guess. Inference from
+// identity alone remains forbidden -- that is the 'unknown' assertion below.
+assert.equal(runtime.current().streams.find((item) => item.id === "new-id-same-app").routeIntent.kind, "explicit",
+  "a new stream for an app with recorded app-scoped intent inherits that decision")
+assert.notEqual(runtime.current().streams.find((item) => item.id === "existing-default").routeIntent.kind, "follow-preferred",
+  "identity alone still never proves intent")
 
 runtime.dispose()
 console.log("audio session runtime route-intent scenarios passed")

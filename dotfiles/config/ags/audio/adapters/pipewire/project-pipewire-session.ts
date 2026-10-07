@@ -248,5 +248,8 @@ export function projectPipeWireSession(input: {
     streams,
     // MPRIS owns players and joins them by app identity in presentation.
     players: [],
+    // App-scoped route intent is runtime state, not something the graph can
+    // observe. The runtime fills this in; the adapter reports it empty.
+    appIntents: {},
   }
 }

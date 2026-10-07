@@ -42,7 +42,7 @@ function fakePorts(state = session) {
       setStreamVolume: record("streamVolume"), setOutputVolume: record("outputVolume"),
   setInputVolume: record("inputVolume"),
     },
-    routeIntents: { record: record("intent") },
+    routeIntents: { record: record("intent"), recordApp: record("app-intent") },
     mpris: {
       play: record("play"), pause: record("pause"), playPause: record("playPause"),
       next: record("next"), previous: record("previous"), seek: record("seek"),

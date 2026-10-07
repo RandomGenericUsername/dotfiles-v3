@@ -21,7 +21,7 @@ const stream = (overrides = {}) => ({
 const session = (overrides = {}) => ({
   preferredOutputId: "A", preferredInputId: "mic", outputs: [endpoint("A", "C-Media"), endpoint("B", "USB DAC")],
   inputs: [endpoint("mic", "USB Microphone")], input: endpoint("mic", "USB Microphone"), apps: [app],
-  streams: [stream()], players: [player()], ...overrides,
+  streams: [stream()], players: [player()], appIntents: {}, ...overrides,
 })
 
 test("joins aliases into one app row and prefers live MPRIS metadata over generic stream names", () => {

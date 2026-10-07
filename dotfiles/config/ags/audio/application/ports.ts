@@ -41,6 +41,13 @@ export interface PipeWirePort {
 /** Process-lifetime intent registry; never derives intent from endpoint equality. */
 export interface RouteIntentWriter {
   record(streamId: StreamId, intent: RouteIntent): void
+  /**
+   * App-scoped intent, valid with or without a live stream. Needed because an
+   * app can legitimately have no stream when the user sets its route -- Tidal
+   * releases its stream while paused -- and the intent must survive until the
+   * app creates its next one.
+   */
+  recordApp(appId: AppId, intent: RouteIntent): void
 }
 
 export interface MprisPort {

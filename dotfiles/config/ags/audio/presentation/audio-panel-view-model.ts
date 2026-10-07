@@ -118,7 +118,14 @@ export function projectAudioPanel(session: AudioSession): AudioPanelViewModel {
     const media = player?.media
     const appName = app?.displayName?.trim() || player?.appId || group.streams[0]?.appId || key
     const intents = streams.map((stream) => stream.routeIntent)
-    const routeIntent = intents.length && intents.every((intent) => sameIntent(intent, intents[0])) ? intents[0] : null
+    // With no stream there is no stream intent to show, so fall back to the
+    // app-scoped one the user set while the app was silent. This is what keeps
+    // the route control meaningful for a paused app instead of collapsing to
+    // "No current route" and losing the choice.
+    const appIntent = session.appIntents?.[key] ?? null
+    const routeIntent = intents.length && intents.every((intent) => sameIntent(intent, intents[0]))
+      ? intents[0]
+      : streams.length === 0 ? appIntent : null
     const endpoints = new Set(streams.map((stream) => stream.endpointId))
     const observedEndpointId = endpoints.size === 1 ? streams[0]?.endpointId ?? null : null
     const volume = volumeSummary(streams)

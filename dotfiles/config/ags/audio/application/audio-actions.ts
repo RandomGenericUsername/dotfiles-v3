@@ -27,7 +27,6 @@ export async function setAppRoute(
 ): Promise<ActionResult> {
   const session = ports.session.current()
   const streams = currentStreamsForApp(session, appId)
-  if (!streams.length) return rejected("no-current-stream")
   const target = route.kind === "follow-preferred" ? null : route.endpointId
   if (target !== null && !session.outputs.some((item) => item.id === target && item.available))
     return rejected("missing-endpoint")
@@ -36,6 +35,13 @@ export async function setAppRoute(
   // Route intent is reducer/observation state; the explicit command remains explicit
   // even when its endpoint currently equals preferredOutputId.
   const intent = route.kind === "follow-preferred" ? { kind: "follow-preferred" as const } : route
+  // Record at APP scope first, and unconditionally. An app with no current
+  // stream (Tidal while paused) has nothing to write to, but the choice must
+  // still be remembered so it applies to the stream the app creates next. With
+  // a live stream this also makes the intent survive the stream being torn
+  // down and recreated.
+  ports.routeIntents.recordApp(appId, intent)
+  if (!streams.length) return { ok: true, applied: 0, failed: 0 }
   return fanOut(streams.map((stream) => async () => {
     await ports.pipewire.setStreamTarget(stream.id, target)
     ports.routeIntents.record(stream.id, intent)

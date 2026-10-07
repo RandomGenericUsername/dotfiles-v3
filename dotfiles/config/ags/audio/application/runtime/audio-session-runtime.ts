@@ -4,6 +4,7 @@ import {
   explicitRoute,
   type AudioPlayer,
   type AudioSession,
+  type AppId,
   type AudioStream,
   type EndpointId,
   type RouteIntent,
@@ -31,6 +32,7 @@ const emptySession = (): AudioSession => ({
   apps: [],
   streams: [],
   players: [],
+  appIntents: {},
 })
 
 function cloneSession(session: AudioSession): AudioSession {
@@ -41,6 +43,7 @@ function cloneSession(session: AudioSession): AudioSession {
     apps: [...session.apps],
     streams: session.streams.map((stream) => ({ ...stream, routeIntent: { ...stream.routeIntent } })),
     players: [...session.players],
+    appIntents: { ...session.appIntents },
   }
 }
 
@@ -59,6 +62,7 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
   private session = emptySession()
   private readonly listeners = new Set<SessionListener>()
   private readonly routeHistory = new Map<StreamId, RouteIntent>()
+  private readonly appHistory = new Map<AppId, RouteIntent>()
   private readonly lastStreams = new Map<StreamId, AudioStream>()
   private readonly pendingPipeWire: PipeWireObservation[] = []
   private readonly pendingMpris: MprisObservation[] = []
@@ -120,16 +124,39 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
     return this.startPromise
   }
 
+  /**
+   * Record intent for an APP, with or without a live stream.
+   *
+   * This is the paused case: the user wants Tidal to follow the preferred
+   * device before anything is connected, but Tidal has released its stream, so
+   * there is nothing to write to yet. The intent is stored and applied when the
+   * app produces its next stream (see the seeding in acceptPipeWire), which is
+   * also the moment a write becomes possible at all.
+   */
+  recordApp(appId: AppId, intent: RouteIntent): void {
+    this.appHistory.set(appId, { ...intent })
+    const now = this.session.apps.some((app) => app.id === appId)
+    this.session = { ...this.session, appIntents: this.appIntents() }
+    if (now) this.publish()
+  }
+
+  private appIntents(): Record<AppId, RouteIntent> {
+    return Object.fromEntries([...this.appHistory.entries()].map(([id, intent]) => [id, { ...intent }]))
+  }
+
   /** Store intent before an application command; ignore IDs no longer current. */
   record(streamId: StreamId, intent: RouteIntent): void {
     if (!this.session.streams.some((stream) => stream.id === streamId && stream.current)) return
     this.routeHistory.set(streamId, { ...intent })
+    const owner = this.session.streams.find((stream) => stream.id === streamId)?.appId
+    if (owner) this.appHistory.set(owner, { ...intent })
     this.boundHistory()
     this.session = {
       ...this.session,
       streams: this.session.streams.map((stream) => stream.id === streamId
         ? { ...stream, routeIntent: { ...intent } }
         : stream),
+      appIntents: this.appIntents(),
     }
     this.publish()
   }
@@ -209,6 +236,16 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
           : explicitRoute(raw.requestedEndpointId)
       }
 
+      // An app-scoped intent outranks inference for a stream that has no
+      // recorded history of its own -- e.g. the stream Tidal recreated after
+      // being paused, for an app the user already told us to follow or pin.
+      // Without this the new stream would be graded FollowPreferred by default
+      // and silently discard a deliberate "pin to A" choice.
+      const appStored = this.appHistory.get(raw.appId)
+      if (appStored !== undefined && (startup || stored === undefined)) {
+        intent = appStored
+      }
+
       this.routeHistory.set(raw.id, { ...intent })
       return { ...raw, routeIntent: { ...intent } }
     })
@@ -220,7 +257,7 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
 
     this.lastStreams.clear()
     for (const stream of nextStreams) this.lastStreams.set(stream.id, stream)
-    this.session = { ...incoming, streams: nextStreams, players: previousSession.players }
+    this.session = { ...incoming, streams: nextStreams, players: previousSession.players, appIntents: this.appIntents() }
     this.boundHistory()
     this.publish()
 
