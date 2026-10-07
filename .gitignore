@@ -26,6 +26,21 @@ __pycache__/
 # program. The path is ignored explicitly because the capture tool's placement
 # is per-file and a committed node_modules is a deployment hazard.
 /src/gui-tools/capture-tool/tests/node_modules/
+# @types/node, for the AGS config's pure-module unit tests (node:test /
+# node:assert). `make ags-test` installs it HERE, on demand, beside
+# tests/tsconfig.tests.json and nowhere else (see the ags-test-deps target), for
+# the same reason as the capture tool's copy above: it must be where tsc's
+# upward typeRoots walk finds it and NOT where any future app tsconfig's walk
+# would, and a committed node_modules is a deployment hazard.
+#
+# The trailing `/**/node_modules/` — not the single path above — is what keeps
+# the rule true. An install run with the wrong --prefix landed 123 files at
+# tests/ts/node_modules/ instead, and a single-path rule let them sit
+# untracked-but-committable: `git add -A` would have swept them in, because
+# being ignored is the only thing standing between an on-demand install and the
+# commit. `git add -An | grep -c node_modules` must stay 0.
+/dotfiles/config/ags/tests/node_modules/
+/dotfiles/config/ags/tests/**/node_modules/
 /package-lock.json
 /package.json
 /src/cli-tools/wallpaper-effects-generator/feedback.md
