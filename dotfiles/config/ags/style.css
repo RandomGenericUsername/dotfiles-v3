@@ -616,19 +616,6 @@ window.settings-panel {
   color: @color_13;
 }
 
-/* Failure row (mock `.msg`): a caution glyph then the message text. The row is
-   a horizontal box with the icon at the top so wrapped lines do not ride up
-   beside the glyph. */
-.settings-msg {
-  margin-bottom: 8px;
-}
-.settings-msg-icon {
-  flex: none;
-}
-
-
-
-
 /* Bluetooth row line 2 (approved mock `l2`): stacked meta block on the left,
    action buttons on the right. The split is done at the widget level — child
    `spacing` prop + `hexpand` on the meta cell, which pushes the actions to
@@ -1410,9 +1397,11 @@ window.settings-panel {
 /* Base name + `++` suffix as two labels, so the suffix is styled rather than
    baked into a Pango string (which would hard-code a color, breaking this
    file's tokens-only rule). */
-.battery-profile-label {
-  spacing: 1px;
-}
+/* NOTE: the 1px gap between the two labels is the BOX's `spacing` property
+   (BatteryContent.tsx), not a CSS declaration — GTK CSS has no `spacing`
+   property, so a `.battery-profile-label { spacing: 1px }` rule was silently
+   ignored (it logged `CSS Error: No property named "spacing"` on every boot).
+   The rule is removed rather than left as dead weight. */
 
 /* The tier suffix, tinted with the same accent `.active` uses (@color_13), so
    "pushed further" reads as MORE of the mode rather than as a different mode —
