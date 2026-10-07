@@ -487,6 +487,21 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/audio.tsx"
   - "{{ install_dir | trim }}/config/ags/audio/state.ts"
   - "{{ install_dir | trim }}/config/ags/audio/AudioPopup.tsx"
+  # The composition root and every module it imports (redesign-ags-audio-panel).
+  # AudioPopup.tsx resolves ./composition at bundle time; verifying only the
+  # popup would report a healthy install for a panel that cannot start.
+  - "{{ install_dir | trim }}/config/ags/audio/composition.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/audio-panel.css"
+  - "{{ install_dir | trim }}/config/ags/audio/domain/audio-model.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/application/ports.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/application/audio-actions.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/application/runtime/audio-session-runtime.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/adapters/pipewire/project-pipewire-session.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/adapters/pipewire/pipewire-commands.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/adapters/pipewire/pipewire-observation.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/adapters/mpris/mpris-adapter.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/presentation/audio-panel-view-model.ts"
+  - "{{ install_dir | trim }}/config/ags/types.d.ts"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —

@@ -105,7 +105,18 @@ compositor_configs_config_dirs:
   - "{{ compositor_configs_spine_config_dir }}/ags/components/battery"
   # Audio sources (add-pipewire-audio-control): the popup + shared state live in
   # their own subdir; copy does NOT create dest parents for file sources.
+  #
+  # The hexagonal split (redesign-ags-audio-panel) added five nested subdirs
+  # under ags/audio. Each must be declared or its `copy` is a SILENT no-op even
+  # when the file is listed below -- the role's own note above is the warning.
   - "{{ compositor_configs_spine_config_dir }}/ags/audio"
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio/domain"
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio/application"
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio/application/runtime"
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters"
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/pipewire"
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/mpris"
+  - "{{ compositor_configs_spine_config_dir }}/ags/audio/presentation"
   - "{{ compositor_configs_spine_config_dir }}/ags-capture"
   - "{{ compositor_configs_spine_config_dir }}/rofi"
   - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
@@ -175,6 +186,37 @@ compositor_configs_skeleton_files:
   - { name: ags-bar-audio, source: dotfiles/config/ags/bar/widgets/audio.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/audio.tsx" }
   - { name: ags-audio-state, source: dotfiles/config/ags/audio/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/state.ts" }
   - { name: ags-audio-popup, source: dotfiles/config/ags/audio/AudioPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/AudioPopup.tsx" }
+  # Audio composition root + the hexagonal layers (redesign-ags-audio-panel).
+  #
+  # WHY THIS BLOCK EXISTS: AudioPopup.tsx imports ./composition, and
+  # composition.ts imports every module below. Wiring the popup to the
+  # composition root (tasks.md 6.0) therefore made the panel depend on files
+  # this manifest did not declare. A fresh provision copied AudioPopup.tsx
+  # alone, AGS failed to resolve ./composition, and the failure takes the BAR
+  # window with it -- the same shape as the recorded incident where a dropped
+  # import killed the whole Bar. The panel on the dev host only worked because
+  # the files were copied by hand.
+  #
+  # Order mirrors the dependency direction; `copy` order does not matter to
+  # Ansible, but this reads top-down as domain -> application -> adapters ->
+  # presentation -> the GTK view.
+  - { name: ags-audio-domain, source: dotfiles/config/ags/audio/domain/audio-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/domain/audio-model.ts" }
+  - { name: ags-audio-ports, source: dotfiles/config/ags/audio/application/ports.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/application/ports.ts" }
+  - { name: ags-audio-actions, source: dotfiles/config/ags/audio/application/audio-actions.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/application/audio-actions.ts" }
+  - { name: ags-audio-runtime, source: dotfiles/config/ags/audio/application/runtime/audio-session-runtime.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/application/runtime/audio-session-runtime.ts" }
+  - { name: ags-audio-project-pipewire, source: dotfiles/config/ags/audio/adapters/pipewire/project-pipewire-session.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/pipewire/project-pipewire-session.ts" }
+  - { name: ags-audio-pipewire-commands, source: dotfiles/config/ags/audio/adapters/pipewire/pipewire-commands.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/pipewire/pipewire-commands.ts" }
+  - { name: ags-audio-pipewire-observation, source: dotfiles/config/ags/audio/adapters/pipewire/pipewire-observation.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/pipewire/pipewire-observation.ts" }
+  - { name: ags-audio-mpris-adapter, source: dotfiles/config/ags/audio/adapters/mpris/mpris-adapter.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/mpris/mpris-adapter.ts" }
+  - { name: ags-audio-view-model, source: dotfiles/config/ags/audio/presentation/audio-panel-view-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/presentation/audio-panel-view-model.ts" }
+  - { name: ags-audio-composition, source: dotfiles/config/ags/audio/composition.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/composition.ts" }
+  # The panel's own stylesheet. app.tsx applies it at runtime from the config
+  # dir (audio-panel.css), so a missing copy means an unstyled popup rather
+  # than a crash -- quieter, and therefore easier to ship broken.
+  - { name: ags-audio-panel-css, source: dotfiles/config/ags/audio/audio-panel.css, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/audio-panel.css" }
+  # Ambient declarations for non-TS imports (the `*.css` module declaration).
+  # tsc-only; harmless at runtime, but app.tsx's tree includes it.
+  - { name: ags-types-dts, source: dotfiles/config/ags/types.d.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/types.d.ts" }
   # Shared AGS sources (extract-ags-shared-components): the three D-Bus service
   # modules relocated out of the settings-panel services directory, plus the
   # reusable primitives (IconToggle/LevelSlider), the wifi component
