@@ -56,6 +56,16 @@ function run(label: string, action: () => ActionResult | Promise<ActionResult>):
 
 let binding: AudioPanelBinding | null = null
 
+/**
+ * Rolling per-row trace, debug-only. Exposed so `ags request audio-panel-debug`
+ * can show what a row reported immediately before and after an action -- the
+ * only way to see a one-frame transient like the Firefox seek flash.
+ */
+let audioPanelTrace: string[] = []
+export function audioPanelTraceLines(): readonly string[] {
+  return audioPanelTrace
+}
+
 export function audioPanelBinding(): AudioPanelBinding {
   if (binding) return binding
 
@@ -138,12 +148,31 @@ selectInput: (endpointId) => run("selectInput", () =>
   const [revision, setRevision] = createState(0)
   const bump = () => setRevision((value) => value + 1)
 
+  // Rolling trace of what each row actually reported, so a transient like
+  // "Firefox's volume flashes to 0 during a seek" can be OBSERVED instead of
+  // inferred. Reported 2026-10-07: moving the seek bar briefly shows the row's
+  // volume as 0, then it returns. Every fix in this area written from a theory
+  // rather than a trace produced a second bug, so the trace comes first.
+  // Bounded, in-memory, debug-only, and it cannot affect the panel.
+  const trace: string[] = []
+  const sample = (): void => {
+    try {
+      const rows = projectAudioPanel(runtime.current()).rows.map((row) =>
+        `${row.appId}:s${row.streamIds.length}:${row.volume.level.toFixed(3)}${row.volume.muted ? ":M" : ""}`)
+      trace.push(`${Date.now() % 100000} ${rows.join(" ")}`)
+      if (trace.length > 80) trace.shift()
+    } catch { /* never let the debug trace affect the panel */ }
+  }
+  audioPanelTrace = trace
+  void sample
+
   // Serialised so a burst of session events cannot launch overlapping resolve
   // passes; each pass only looks at URIs it has not seen yet.
   let artworkPass: Promise<void> = Promise.resolve()
 
   runtime.subscribe(() => {
     bump()
+    sample()
     artworkPass = artworkPass.then(async () => {
       const pending = runtime.current().players
         .map((player) => player.media.artworkUri)

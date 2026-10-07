@@ -8,7 +8,7 @@ import { BluetoothPopup, BluetoothPopupCatcher } from "./components/bluetooth/Bl
 import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
 import { close as closeSettings } from "./settings-panel/state"
 import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
-import { audioPanelBinding } from "./audio/composition"
+import { audioPanelBinding, audioPanelTraceLines } from "./audio/composition"
 import { close as closeAudio, debugAudioState, open as openAudio } from "./audio/state"
 import { closeBluetoothPopup } from "./components/bluetooth/state"
 import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
@@ -84,6 +84,10 @@ app.start({
           // session or the paused-routing fix is unverifiable. Same mistake as
           // preferredOutputId above: an omitted field reads as a bug.
           sessionAppIntents: model.appIntents,
+          // Rolling per-row trace: shows what a row reported immediately before
+          // and after an action, which is the only way to see a one-frame
+          // transient such as the Firefox seek flash.
+          trace: [...audioPanelTraceLines()],
           preferredInputId: model.preferredInputId,
           outputs: model.outputs.map((o) => ({ id: o.id, name: o.name, available: o.available, volume: o.volume })),
           inputs: model.inputs.map((i) => ({ id: i.id, name: i.name, available: i.available, volume: i.volume })),
