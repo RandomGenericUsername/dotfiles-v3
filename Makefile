@@ -290,20 +290,22 @@ BAR_DIR := dotfiles/config/ags
 # would be pure duplication), so this gate depends on capture-types; only the
 # node_modules/{ags,gnim} symlinks live in the bar tree itself (gitignored).
 
-# Typecheck the bar tree: zero errors allowed in the Bluetooth-owned files.
+# Typecheck the bar tree: ZERO errors allowed in dotfiles/config/ags.
 #
 # WHY THIS GATE EXISTS: `ags bundle` TRANSPILES WITHOUT TYPE CHECKING, and a
 # `bluetoothFailure` re-export of a deleted accessor bundled exit 0 on this
 # branch — found by reading, by no gate. Same posture as capture-typecheck.
 #
-# SCOPE, stated plainly rather than smuggled: the gate FAILS on errors in the
-# Bluetooth-owned files listed in BAR_OWNED. The rest of the bar tree carries
-# pre-existing errors (app, audio, wifi, bar widgets — other workstreams'
-# files, some diverged into other branches), which are REPORTED loudly but do
-# not fail this gate; fixing them here would be scope explosion into branches
-# this change does not own. Third-party errors under /usr/share/ags/js are
-# tolerated BY LOCATION, exactly as capture-typecheck does. Errors in neither
-# bucket fail too — "tolerated" must never become a silent pass.
+# SCOPE, stated plainly: this gate FAILS on ANY error in $(BAR_DIR). Its
+# pass/fail line means "the bar tree typechecks", not "the files some earlier
+# change happened to touch are clean". It did mean the latter: a per-file
+# Bluetooth-owned allowlist tolerated everything else, and the tolerated list
+# grew from 35 to 48 errors across a single merge with nothing objecting. The
+# allowlist and its NOTE block were removed by clear-bar-typecheck-errors.
+#
+# Third-party errors under /usr/share/ags/js are tolerated BY LOCATION, exactly
+# as capture-typecheck does. Errors in neither bucket fail too — "tolerated"
+# must never become a silent pass.
 #
 # REQUIRES THE DESKTOP STACK (`ags` + Astal) via capture-types, same as
 # capture-typecheck. TIMING: ~30s once @girs/ exists.
@@ -326,19 +328,19 @@ bar-typecheck: capture-types
 	@echo "==> bar-typecheck: tsc --noEmit -p $(BAR_DIR)/tsconfig.bar.json"
 	@log=$$(mktemp); \
 	npx tsc --noEmit -p "$(BAR_DIR)/tsconfig.bar.json" > "$$log" 2>&1; \
-	ours=$$(grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/bar/widgets/bluetooth.tsx" ; grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/components/bluetooth/" ; grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/services/bluetooth-service.ts" ; grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/settings-panel/bluetooth-agent.ts" ; grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/settings-panel/controls/bluetooth.tsx" || true); \
+	ours=$$(grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/" || true); \
 	thirdparty=$$(grep 'error TS' "$$log" | grep -F '/usr/share/ags/js/' || true); \
-	other=$$(grep 'error TS' "$$log" | grep -vF "$(BAR_DIR)/bar/widgets/bluetooth.tsx" | grep -vF "$(BAR_DIR)/components/bluetooth/" | grep -vF "$(BAR_DIR)/services/bluetooth-service.ts" | grep -vF "$(BAR_DIR)/settings-panel/bluetooth-agent.ts" | grep -vF "$(BAR_DIR)/settings-panel/controls/bluetooth.tsx" | grep -vF '/usr/share/ags/js/' || true); \
+	other=$$(grep 'error TS' "$$log" | grep -vF "$(BAR_DIR)/" | grep -vF '/usr/share/ags/js/' || true); \
 	echo "    tolerated third-party errors (/usr/share/ags/js): $$(printf '%s\n' "$$thirdparty" | grep -c . || true)"; \
 	if [ -n "$$other" ]; then \
-		echo "    NOTE: pre-existing errors outside the Bluetooth-owned files (do not fail this gate; fix in their own change):"; \
-		printf '%s\n' "$$other" | grep -oE "$(BAR_DIR)/[^(]+" | sort | uniq -c; \
+		echo "FAIL: errors in neither the bar tree nor the known ags runtime:"; \
+		printf '%s\n' "$$other"; rm -f "$$log"; exit 1; \
 	fi; \
 	if [ -n "$$ours" ]; then \
-		echo "FAIL: type errors in the Bluetooth-owned files:"; \
+		echo "FAIL: type errors in $(BAR_DIR):"; \
 		printf '%s\n' "$$ours"; rm -f "$$log"; exit 1; \
 	fi; \
-	echo "    OK: 0 errors in the Bluetooth-owned files"; \
+	echo "    OK: 0 errors in $(BAR_DIR)"; \
 	rm -f "$$log"
 
 wifi-mock-parity:
