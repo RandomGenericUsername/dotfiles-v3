@@ -135,9 +135,17 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
    */
   recordApp(appId: AppId, intent: RouteIntent): void {
     this.appHistory.set(appId, { ...intent })
-    const now = this.session.apps.some((app) => app.id === appId)
     this.session = { ...this.session, appIntents: this.appIntents() }
-    if (now) this.publish()
+    // ALWAYS publish, including for an app that is not in `session.apps`.
+    //
+    // The first version published only when `session.apps` already contained
+    // the app, on the theory that an unknown app had nothing to update. That is
+    // exactly backwards for the case this method exists for: a paused app has
+    // released its stream, so its identity is not in `apps` (that list is built
+    // from live streams), so the intent was stored but never published and the
+    // row kept showing its old label until some unrelated event republished the
+    // session. Reported as "I select speakers and it won't change".
+    this.publish()
   }
 
   private appIntents(): Record<AppId, RouteIntent> {

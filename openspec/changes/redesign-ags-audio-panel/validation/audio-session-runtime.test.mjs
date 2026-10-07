@@ -101,5 +101,22 @@ assert.equal(runtime.current().streams.find((item) => item.id === "new-id-same-a
 assert.notEqual(runtime.current().streams.find((item) => item.id === "existing-default").routeIntent.kind, "follow-preferred",
   "identity alone still never proves intent")
 
+// Regression: an app with NO live stream must still publish.
+//
+// A paused app has released its stream, so its identity is absent from
+// `session.apps` (derived from live streams). The first version of recordApp
+// published only when the app was already in `apps`, so setting a paused app's
+// route stored the intent and emitted nothing -- the row kept its old label
+// until an unrelated event republished the session. Reported as "I select
+// speakers and it won't change".
+let publishes = 0
+const unsub = runtime.subscribe(() => { publishes += 1 })
+const before = publishes
+runtime.recordApp("paused-app-with-no-stream", { kind: "explicit", endpointId: "A" })
+assert.ok(publishes > before, "recordApp publishes for an app with no live stream")
+assert.deepEqual(runtime.current().appIntents["paused-app-with-no-stream"],
+  { kind: "explicit", endpointId: "A" }, "app intent is readable from the published session")
+unsub()
+
 runtime.dispose()
 console.log("audio session runtime route-intent scenarios passed")
