@@ -60,7 +60,10 @@ type WpNode = {
   target_endpoint?: unknown
 }
 
-const allNodes: Accessor<unknown[]> = wp
+// `wp.nodes` is declared `Node[] | null`, and every consumer below handles the
+// null through `?? []` — the annotation said otherwise, so it is stated the way
+// the binding actually is.
+const allNodes: Accessor<unknown[] | null> = wp
   ? createBinding(wp, "nodes")
   : createComputed(() => [])
 

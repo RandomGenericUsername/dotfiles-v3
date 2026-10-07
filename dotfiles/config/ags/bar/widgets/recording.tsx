@@ -143,7 +143,17 @@ export function RecordingIndicator() {
     <box visible={state((value) => value !== "idle")} class={clusterClass}>
       <button
         class="rec-status"
-        tooltipText={compact((value) => (value ? "Recording controls" : null))}
+        // gnim maps a JSX prop's accessor branch as `Accessor<NonNullable<T>>`,
+        // which strips `null` even though the property itself (`tooltipText`)
+        // is `string | null` and the raw branch accepts null. A reactive tooltip
+        // that is legitimately ABSENT in full mode is therefore not expressible
+        // as a prop. The GObject setter takes `string | null`, so it is driven
+        // directly instead of casting away the null.
+        $={(self) => {
+          createEffect(() =>
+            self.set_tooltip_text(compact() ? "Recording controls" : null),
+          )
+        }}
         onClicked={() => {
           // Only the compact mode has a popup: in full mode the controls are
           // already in the bar, so opening one would just duplicate them.

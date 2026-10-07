@@ -1,4 +1,4 @@
-import { Accessor, createComputed, createEffect, createState, For } from "ags"
+import { Fragment, Accessor, createComputed, createEffect, createState, For } from "ags"
 import GLib from "gi://GLib?version=2.0"
 import Pango from "gi://Pango?version=1.0"
 import { Gtk } from "ags/gtk4"
@@ -211,11 +211,19 @@ function getSignalIconKey(strength: number): string {
 function SignalIcon({ strength }: { strength: number }) {
   const key = getSignalIconKey(strength)
   const src = registry.resolve("settings-panel", key)
-  return src ? (
-    <image class="settings-net-signal" pixel_size={30} $={(self) => {
-      createEffect(() => self.set_from_file(src ?? ""))
-    }} />
-  ) : null
+  // gnim's `JSX.Element` is `GObject.Object`, which has no `null` member, so a
+  // function component may not RETURN null — a conditional child is fine, a
+  // conditional whole element is not. The not-found case still renders nothing,
+  // now as an empty Fragment rather than by returning null.
+  return (
+    <Fragment>
+      {src ? (
+        <image class="settings-net-signal" pixel_size={30} $={(self) => {
+          createEffect(() => self.set_from_file(src ?? ""))
+        }} />
+      ) : null}
+    </Fragment>
+  )
 }
 
 function formatRanAt(ranAt: number | null): string {
