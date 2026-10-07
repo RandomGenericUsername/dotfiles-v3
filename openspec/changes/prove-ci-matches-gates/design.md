@@ -2,7 +2,9 @@
 
 ## §1 The drift, measured
 
-The workflow's job names, read from `.github/workflows/gates.yml`:
+The workflow's job **keys**, read from `.github/workflows/gates.yml` (the
+2-space keys under `jobs:` — two jobs carry a `name:` that differs from the key,
+which the mapping table beside §3 reconciles):
 
 ```
 contracts                wifi-mock-parity         battery-mock-parity
@@ -12,13 +14,15 @@ capture-hexagonal        capture-test             ags-test
 ```
 
 `make gates-ci` is `GATES` minus the two gates that need the desktop stack
-(`capture-typecheck`, `bar-typecheck`):
+(`capture-typecheck`, `bar-typecheck`). MEASURED from `make -pn gates-ci`
+(2026-10-07): eleven targets, including `bluetooth-mock-parity`:
 
 ```
-contracts-check          wifi-mock-parity         battery-mock-parity
-speedtest-mock-parity    speedtest-no-new-architecture
-capture-test             ags-test                 capture-hexagonal-gate
-icons-json-drift         ansible-embedded-template-lint
+contracts-check          wifi-mock-parity         bluetooth-mock-parity
+battery-mock-parity      speedtest-mock-parity
+speedtest-no-new-architecture capture-test         ags-test
+capture-hexagonal-gate   icons-json-drift
+ansible-embedded-template-lint
 ```
 
 Comparing them:
