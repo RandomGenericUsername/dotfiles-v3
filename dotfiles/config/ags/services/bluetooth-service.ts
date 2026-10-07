@@ -776,13 +776,14 @@ async function routeAudioToDeviceImpl(label: string): Promise<void> {
   setAudioTarget(null)
   if (!wp || !label) return
   for (let attempt = 0; attempt < 16; attempt++) {
-    const endpoint = (wp.audio?.speakers ?? []).find(
-      (speaker: { name?: string; description?: string }) => {
-        const n = speaker.name ?? ""
-        const d = speaker.description ?? ""
-        return n === label || d === label || n.includes(label) || d.includes(label)
-      },
-    )
+    const endpoint = (wp.audio?.speakers ?? []).find((speaker) => {
+      // No parameter annotation on purpose: AstalWp types these as
+      // `string | null`, and a narrower hand-written annotation breaks the
+      // `find` overloads (caught by bar-typecheck — `ags bundle` never would).
+      const n = speaker.name ?? ""
+      const d = speaker.description ?? ""
+      return n === label || d === label || n.includes(label) || d.includes(label)
+    })
     if (endpoint) {
       //: Track whether the default write landed, separately from finding the
       //: endpoint: a vanished endpoint throws here, and recording it as the

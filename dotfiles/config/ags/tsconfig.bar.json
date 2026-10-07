@@ -1,0 +1,57 @@
+{
+  "//": [
+    "Typecheck config for the bar tree (dotfiles/config/ags). HAND-WRITTEN AND COMMITTED.",
+    "",
+    "WHY THIS GATE EXISTS: `ags bundle` TRANSPILES WITHOUT TYPE CHECKING.",
+    "Verified twice: `const bad: number = \"string\"` bundles exit 0 (capture",
+    "design.md §1.1), and a `bluetoothFailure` re-export of a deleted accessor",
+    "bundled exit 0 on this branch (2026-10-07) — found by reading, by no gate.",
+    "Same posture as the capture tool's tsconfig.capture.json.",
+    "",
+    "`ags types -u` writes its OWN `tsconfig.json` into whichever directory it",
+    "runs against and OVERWRITES it on every run, so this file deliberately",
+    "uses a non-colliding name. Do not rename it to tsconfig.json.",
+    "",
+    "The bar reuses the capture tool's GENERATED declarations",
+    "(../../../src/gui-tools/capture-tool/@girs/index.d.ts + env.d.ts) rather",
+    "than generating its own 49 MB copy: the GIR modules describe THIS machine,",
+    "not the consuming tree, so the content is identical. This does couple the",
+    "bar typecheck to `make capture-types` having run once — the Makefile gate",
+    "declares that dependency explicitly instead of hiding it.",
+    "",
+    "Generated @girs/ carries ~47 duplicate GTK3/GTK4 identifier clashes (not",
+    "our code, not our bug): skipLibCheck, same as capture. `lib` needs",
+    "ES2022+DOM for the same gnim reason."
+  ],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "ags/gtk4",
+
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "target": "ES2020",
+    "strict": true,
+
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"],
+
+    // lib/icon-registry.ts imports ../icons.json. Without this the manifest
+    // import is an unresolved module and the registry degrades to implicit
+    // `any` — the exact class of silence this gate exists to remove.
+    "resolveJsonModule": true
+  },
+  "include": [
+    // Bar sources. Globs, not a file list, so new components are covered the
+    // moment they appear without editing this config.
+    "**/*.ts",
+    "**/*.tsx",
+
+    // REQUIRED (same reason as capture): naming the GIR index pulls the whole
+    // transitive closure in. Without it every `gi://...` import is unresolved.
+    "../../../src/gui-tools/capture-tool/@girs/index.d.ts",
+
+    // Generated ambient declarations for `*.css` (the `style` imports).
+    "../../../src/gui-tools/capture-tool/env.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

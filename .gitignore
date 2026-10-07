@@ -12,6 +12,15 @@ __pycache__/
 /src/gui-tools/capture-tool/node_modules/
 /src/gui-tools/capture-tool/tsconfig.json
 /src/gui-tools/capture-tool/env.d.ts
+# Bar typecheck (bar-typecheck): the bar tree reuses the capture tool's
+# generated @girs/env.d.ts rather than generating its own 49 MB copy, so the
+# only generated artifact here is node_modules/ (same symlinks into
+# /usr/share/ags/js). tsconfig.json is listed for the same reason as the
+# capture one: `ags types` writes its OWN tsconfig.json into whichever
+# directory it runs against, and the committed config deliberately uses a
+# non-colliding name so it survives.
+/dotfiles/config/ags/node_modules/
+/dotfiles/config/ags/tsconfig.json
 # TypeScript itself, installed with `npm install --no-save typescript` so that
 # `npx tsc` resolves from the tool directory without a package.json.
 /node_modules/
