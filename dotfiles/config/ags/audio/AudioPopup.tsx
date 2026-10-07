@@ -93,7 +93,7 @@ function IconButton({
       $={(self: Gtk.Button) => createEffect(() => accessibleLabel(self, label()))}
     >
       <image
-        pixel_size={16}
+        pixel_size={18}
         $={(self: Gtk.Image) => createEffect(() => setImageOnce(self, path()))}
       />
     </button>
@@ -242,7 +242,7 @@ function DeviceSelector({
       $={(self: Gtk.Button) => createEffect(() => accessibleLabel(self, `${title}: ${value()}`))}
     >
       <box spacing={10} hexpand>
-        <image pixel_size={16} $={(self: Gtk.Image) => setImageOnce(self, icon(iconName, "system-low"))} />
+        <image pixel_size={18} $={(self: Gtk.Image) => setImageOnce(self, icon(iconName, "system-low"))} />
         <label class="audio-device-select-name" xalign={0} hexpand ellipsize={Pango.EllipsizeMode.END} label={value} />
         <label class="audio-device-chevron" label="▾" />
       </box>
@@ -379,7 +379,7 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
       $={(self: Gtk.Widget) => createEffect(() => accessibleLabel(self, `${appName()}${row().title ? `, ${row().title}` : ""}${artist() ? `, ${artist()}` : ""}`))}>
       <box class="audio-app-head" spacing={9}>
         <box class="audio-artwork" valign={Gtk.Align.START}>
-          <image class="audio-art-image" pixel_size={34} $={(self: Gtk.Image) => createEffect(() => setImageOnce(self, artworkPath() || appIconPath()))} />
+          <image class="audio-art-image" pixel_size={43} $={(self: Gtk.Image) => createEffect(() => setImageOnce(self, artworkPath() || appIconPath()))} />
           <label class="audio-art-fallback" label={createComputed(() => row().appName.slice(0, 1).toUpperCase())} visible={createComputed(() => !artworkPath() && !appIconPath())} />
         </box>
         <box class="audio-app-meta" orientation={Gtk.Orientation.VERTICAL} spacing={1} hexpand>
@@ -510,7 +510,7 @@ function MicrophoneActivity({ binding }: { binding: AudioPanelBinding }) {
       <For each={consumers} id={(consumer) => consumer.id}>
         {(consumer) => (
           <box class="audio-consumer-row" spacing={9}>
-            <image pixel_size={16} class="audio-consumer-icon" $={(self: Gtk.Image) => setImageOnce(self, icon("app-icons", consumer.iconName || "application-x-executable"))} />
+            <image pixel_size={18} class="audio-consumer-icon" $={(self: Gtk.Image) => setImageOnce(self, icon("app-icons", consumer.iconName || "application-x-executable"))} />
             <label class="audio-consumer-name" xalign={0} hexpand label={consumer.appName} />
             <box class="audio-live-dot" />
             <label class="audio-live-label" label="Using microphone" />
@@ -575,7 +575,20 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor, binding: AudioPanelBinding) 
   const { TOP, LEFT } = Astal.WindowAnchor
   const geometry = gdkmonitor.get_geometry()
   const width = Math.max(280, Math.min(408, geometry.width - 16))
-  const maxHeight = Math.max(220, Math.min(680, geometry.height - 64))
+  // A FIXED, tall drawer, following master's panel (`heightRequest={420}`),
+  // which had a stable height where this did not.
+  //
+  // Measured 2026-10-07: with `minContentHeight`/`maxContentHeight` the popup
+  // rendered 408x264 while its content was clearly taller, so the computed
+  // ceiling never reached 680 and the panel scrolled constantly. `heightRequest`
+  // is what the previous panel used successfully on this same desktop, so it is
+  // used here rather than re-deriving a second sizing scheme.
+  //
+  // The owner explicitly does NOT want density reduction to buy the room: icons
+  // and row spacing stay at their approved sizes, and the panel grows instead.
+  // Reserve the bar (48px) plus the popup's top margin (52px) and a bottom
+  // margin, then clamp so a short monitor still yields a usable drawer.
+  const drawerHeight = Math.max(360, Math.min(720, geometry.height - 48 - 52 - 24))
   const monitorWidth = geometry.width
   const marginLeft = createComputed(() => {
     const rightMost = monitorWidth - width - 8
@@ -598,8 +611,7 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor, binding: AudioPanelBinding) 
       <box class="audio-surface" orientation={Gtk.Orientation.VERTICAL} widthRequest={width}>
         <scrolledwindow
           class="audio-scroll"
-          minContentHeight={240}
-          maxContentHeight={maxHeight}
+          heightRequest={drawerHeight}
           hscrollbarPolicy={Gtk.PolicyType.NEVER}
           vscrollbarPolicy={Gtk.PolicyType.AUTOMATIC}
         >

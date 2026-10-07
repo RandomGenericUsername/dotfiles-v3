@@ -9,7 +9,7 @@ import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
 import { close as closeSettings } from "./settings-panel/state"
 import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
 import { audioPanelBinding } from "./audio/composition"
-import { close as closeAudio, debugAudioState } from "./audio/state"
+import { close as closeAudio, debugAudioState, open as openAudio } from "./audio/state"
 import { closeBluetoothPopup } from "./components/bluetooth/state"
 import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
 import { closeBatteryPopup } from "./components/battery/state"
@@ -61,6 +61,15 @@ app.start({
     // with an empty session while every static gate passed: reading the source
     // could not tell us whether volume/position data was absent, zero, or never
     // refreshed. This asks the running pipeline instead. Read-only.
+    // Opens the audio popup so it can be measured. Added because the panel's
+    // height was being diagnosed from screenshots, which cannot distinguish
+    // "the window is capped" from "the content is long" -- the layer geometry
+    // can. Debug-only; the bar icon remains the real entry point.
+    if (argv[0] === "audio-panel-open") {
+      openAudio()
+      res("ok")
+      return
+    }
     if (argv[0] === "audio-panel-debug") {
       try {
         const model = audioPanelBinding().model()
