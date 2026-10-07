@@ -51,9 +51,13 @@ So the rule is narrow: `{{ }}` **inside a quoted literal of a Jinja expression**
 A top-level `{{ }}` in any string is untouched, which is why the rest of the
 tree's ~100 templated strings are fine and only two sites warn.
 
-Ansible dedupes warnings by message, so A and the two real sites produce one
-line — the origin shown is whichever fires first. The count below is from
-reading the tree, not from counting warning lines.
+**Ansible does NOT dedupe these across tasks** — corrected by measurement in
+§7. A clean `verify` emits **two** warnings, one per site, with origins
+`:1275:11` and `:1289:11`. What *is* deduped is the provisioning executor's
+`_extract_warnings`, which collects `[WARNING]` header lines into a set; it
+collapses the two identical message texts into one entry in the JSON result.
+The raw stderr carries both. The count below is from reading the tree, not from
+counting warning lines.
 
 ## §2 The two sites
 
@@ -99,10 +103,12 @@ that: >-
 Probe case B is the proof that this is not merely *a* rewrite but an equivalent
 one: it warns not, and the assertion passes.
 
-> The quote class `["'']` is load-bearing and must be preserved exactly. It is a
-> Jinja single-quoted literal in which `''` is an escaped quote, so the value is
-> the regex class `["']` — match a double *or* single quote. Splitting the
-> literal around the variable must not disturb that escaping.
+> The quote class `["'']` is load-bearing and must be preserved exactly — but the
+> reason first written here was **wrong**, corrected by measurement in §7: Jinja
+> has no doubled-quote escape, so `["'']` parses as two adjacent string literals
+> and the regex class is `["]` (a **double quote only**), not `["']`. Splitting
+> the literal around the variable is a token-preserving change and does not alter
+> that either way.
 
 ## §4 The gate, and why it is not the dry-run test
 
