@@ -61,6 +61,8 @@ export interface AudioPanelViewModel {
   inputs: readonly EndpointState[]
   inputConsumers: readonly AudioInputConsumerView[]
   rows: readonly AudioAppRowView[]
+  /** App-scoped route intent, keyed by app id. Exposed for inspection. */
+  appIntents: Readonly<Record<string, RouteIntent>>
 }
 
 const clean = (value: string | null | undefined): string => value?.trim() ?? ""
@@ -185,6 +187,7 @@ export function projectAudioPanel(session: AudioSession): AudioPanelViewModel {
     preferredInputId: session.preferredInputId,
     input: session.input,
     inputs: session.inputs,
+    appIntents: session.appIntents ?? {},
     inputConsumers: consumers,
     rows,
   }

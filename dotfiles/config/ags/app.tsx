@@ -80,6 +80,10 @@ app.start({
           // A dump must carry every field being reasoned about.
           preferredOutputId: model.preferredOutputId,
           preferredOutput: model.preferredOutput,
+          // App-scoped intent is not a row field, so it must be dumped from the
+          // session or the paused-routing fix is unverifiable. Same mistake as
+          // preferredOutputId above: an omitted field reads as a bug.
+          sessionAppIntents: model.appIntents,
           preferredInputId: model.preferredInputId,
           outputs: model.outputs.map((o) => ({ id: o.id, name: o.name, available: o.available, volume: o.volume })),
           inputs: model.inputs.map((i) => ({ id: i.id, name: i.name, available: i.available, volume: i.volume })),
