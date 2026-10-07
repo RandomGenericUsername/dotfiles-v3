@@ -487,8 +487,13 @@ audio-session-runtime-test:
 audio-panel-render-test:
 	node $(AUDIO_VALIDATION)/audio-panel-render.test.mjs
 
+# Every icon variant the level vocabulary can request must exist in icons.json.
+audio-icons-test:
+	node $(AUDIO_VALIDATION)/audio-icons.test.mjs
+
 audio-panel-gates: audio-core-test audio-presentation-test pipewire-adapter-test \
-	audio-session-runtime-test audio-panel-render-test audio-mock-parity ags-typecheck
+	audio-session-runtime-test audio-panel-render-test audio-icons-test \
+	audio-mock-parity ags-typecheck
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).

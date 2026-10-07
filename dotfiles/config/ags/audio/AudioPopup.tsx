@@ -2,7 +2,7 @@ import { Astal, Gtk, Gdk } from "ags/gtk4"
 import Pango from "gi://Pango?version=1.0"
 import { Accessor, For, createComputed, createEffect, createState } from "ags"
 import { registry } from "../lib/icon-registry"
-import { close, popupVisible, audioIconX } from "./state"
+import { close, popupVisible, audioIconX, levelVariant } from "./state"
 import type { AudioPanelViewModel, AudioAppRowView } from "./presentation/audio-panel-view-model"
 
 export type RouteChoice = { kind: "follow-preferred" } | { kind: "explicit"; endpointId: string }
@@ -327,12 +327,15 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
 
   const artworkPath = createComputed(() => row().artworkPath || "")
   const appIconPath = createComputed(() => icon("app-icons", row().iconName || "application-x-executable"))
-  const mutePath = createComputed(() => {
-    const state = volume()
-    if (state.muted) return icon("volume", "system-muted")
-    const level = state.level
-    return icon("volume", `system-${level === 0 ? "muted" : level < 0.34 ? "low" : level < 0.67 ? "medium" : "high"}`)
-  })
+  // levelVariant is the shared level vocabulary (state.ts, also used by the
+  // settings Sound card and the VolumeSlider). The previous inline expression
+  // asked for `system-high`, which does not exist -- the registry has
+  // lowest/low/medium/max/muted. icon() then returned undefined, setImageOnce
+  // skips falsy paths, so the image never updated and kept whatever it first
+  // drew: every row showed the muted glyph regardless of state, and the icon
+  // never responded to level. Reported as "it does mute but the icon is not
+  // reactive, it always shows the mute".
+  const mutePath = createComputed(() => icon("volume", `system-${levelVariant(volume().muted, volume().level)}`))
 
   const [seekValue, setSeekValue] = createState(0)
   let seeking = false
