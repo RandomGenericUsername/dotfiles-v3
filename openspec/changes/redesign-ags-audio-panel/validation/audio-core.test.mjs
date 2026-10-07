@@ -94,12 +94,31 @@ test("app volume and route actions isolate the app and cover all current streams
   assert.ok(!ports.calls.some(([, id]) => id === "firefox:1" || id === "chrome:old"))
 })
 
-test("preferred-output action selects the system default and leaves routes to the event runtime", async () => {
+test("preferred-output action updates the default and re-homes follow-preferred streams", async () => {
   const ports = fakePorts()
   const { selectPreferredOutput } = await import("../../../../dotfiles/config/ags/audio/application/audio-actions.ts")
   await selectPreferredOutput(ports, "B")
-  assert.deepEqual(ports.calls.filter(([name]) => name === "route"), [])
-  assert.deepEqual(ports.calls[0], ["preferred", "B"])
+  assert.deepEqual(ports.calls[0], ["preferred", "B"], "the system default is written first")
+
+  // CHANGED 2026-10-07. This asserted `routes == []` -- "leaves routes to the
+  // event runtime". That was wrong in practice: WirePlumber writes a
+  // target.object on every follow-default move, so a follow-preferred stream is
+  // no longer target-less and stops following. Reported: changing the preferred
+  // output back to the speakers left Tidal on the headphones until the user
+  // re-picked "follow preferred". The action must actively clear those targets.
+  // Spec 3.2: preferred-output selection "updates the system default AND routes
+  // every follow-preferred live stream while preserving explicit routes".
+  const routes = ports.calls.filter(([name]) => name === "route")
+  assert.deepEqual(routes.map(([, id]) => id).sort(), ["chrome:2", "firefox:1"],
+    "every current follow-preferred OUTPUT stream is re-homed")
+  assert.ok(routes.every(([, , target]) => target === null),
+    "they are cleared to follow the default, not pinned to a device")
+  assert.ok(!routes.some(([, id]) => id === "chrome:1"),
+    "an explicit stream is left alone; the runtime reasserts it if policy moves it")
+  assert.ok(!routes.some(([, id]) => id === "chrome:mic"),
+    "an input stream is not an output route")
+  assert.ok(!routes.some(([, id]) => id === "chrome:old"),
+    "a stream that is no longer current is not written to")
 })
 
 test("identity joining folds known aliases but avoids unrelated names", () => {

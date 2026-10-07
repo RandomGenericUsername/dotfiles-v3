@@ -16,9 +16,27 @@ export async function selectPreferredOutput(ports: AudioPorts, endpointId: Endpo
   const session = ports.session.current()
   if (!session.outputs.some((item) => item.id === endpointId && item.available)) return rejected("missing-endpoint")
   await ports.pipewire.setPreferredOutput(endpointId)
-  // Target-less FollowPreferred streams follow WirePlumber's new default.
-  // The event runtime reasserts explicit streams if the policy moves them.
-  return { ok: true, applied: 1, failed: 0 }
+
+  // Actively re-home follow-preferred streams.
+  //
+  // Relying on "target-less streams follow the default" is not enough: once
+  // WirePlumber has written a `target.object` -- which it does on every
+  // follow-default move -- the stream is no longer target-less and stops
+  // following. Reported: preferred output changed from the headphones back to
+  // the speakers, and Tidal (follow-preferred) stayed on the headphones until
+  // the user re-picked "follow preferred", which clears the target and only
+  // then re-homed it.
+  //
+  // Clearing the target returns the stream to follow-the-default and
+  // WirePlumber re-links it to the new default. Explicit streams are left
+  // alone; the runtime reasserts those if the policy moves them.
+  const following = session.streams.filter((stream) =>
+    stream.current && stream.direction === "output" && stream.routeIntent.kind === "follow-preferred")
+  if (!following.length) return { ok: true, applied: 1, failed: 0 }
+  const results = await Promise.allSettled(
+    following.map((stream) => ports.pipewire.setStreamTarget(stream.id, null)))
+  const failed = results.filter((result) => result.status === "rejected").length
+  return { ok: failed === 0, applied: results.length - failed, failed }
 }
 
 export async function setAppRoute(
