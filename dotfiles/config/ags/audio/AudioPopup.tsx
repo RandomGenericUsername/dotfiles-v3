@@ -430,7 +430,14 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
           <IconButton
             name={createComputed(() => `${appName()} stream volume ${volume().muted ? "muted" : volume().mixedMuted ? "mixed mute" : "unmuted"}`)}
             tooltip={createComputed(() => `${volume().muted ? "Unmute" : "Mute"} ${appName()}`)}
-            imagePath={mutePath()}
+            // Pass the Accessor, NOT mutePath(). IconButton accepts either a
+            // string or a function, and calling it here handed over a plain
+            // string: `path` in IconButton then resolved to a constant, the
+            // image was drawn once, and the glyph never reacted to mute or
+            // level. This was the actual "it looks the same" cause; the
+            // system-high naming bug fixed alongside it was a second, quieter
+            // one.
+            imagePath={mutePath}
             onClicked={() => binding.actions.toggleAppMute(row().appId)}
             active={createComputed(() => volume().muted || volume().mixedMuted === true)}
             disabled={createComputed(() => !streamLive())}
