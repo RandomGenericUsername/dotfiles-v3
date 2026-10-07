@@ -1,8 +1,19 @@
 name: gates
 
 # The repo's executable gates. "Reuse the existing architecture" and
-# "the mock matches the code" are only real if something runs them, so this
-# workflow is the place a future change cannot quietly drop one.
+# "the mock matches the code" are only real if something runs them.
+#
+# ALIGNMENT IS CHECKED, NOT ASSERTED. `make gates-ci` in the Makefile is the
+# authoritative set, and it is NOT self-evident that the jobs here equal it: an
+# earlier version of this header claimed this workflow "is the place a future
+# change cannot quietly drop one", and no code made that true. It was measurably
+# false — `bluetooth-mock-parity` sat in `gates-ci` and had no job, so it ran on
+# every developer's machine and never once on a push. The `ci-gates-parity` job
+# below runs `make ci-gates-parity`, which compares this file's job keys against
+# the `gates-ci` target set and fails non-zero naming anything unmatched in
+# EITHER direction. Renames and deliberate exclusions are declared in
+# `scripts/ci-gates-parity.py` (`RENAMES`, `CI_ONLY_EXEMPT`, `CI_EXCLUDED_GATES`),
+# so a difference is a reviewed entry rather than a gap a reader skips.
 #
 # Layout: one job per gate, so a failure names the gate that broke instead of
 # hiding behind a combined command's exit code.
@@ -18,6 +29,11 @@ name: gates
 # path. Listing them here would not make them stricter — it would make every push
 # red on a missing binary, which is how a broken gate trains people to ignore the
 # gate list.
+#
+# That exclusion is a DECLARED entry, not an absence: `ci-gates-parity` verifies
+# every gate the `gates-ci` filter removes has a reason in `CI_EXCLUDED_GATES`,
+# and that every declared exclusion is still actually filtered out. So the
+# exclusion cannot silently disappear, and a new gate cannot silently join it.
 #
 # `ags-test` is NOT in that exclusion, and the difference is worth stating: it
 # also runs .ts natively, but everything it typechecks is PURE (no `gi://*`, no
@@ -66,6 +82,24 @@ jobs:
       - name: Battery panel mock<->code parity
         run: python3 scripts/battery-mock-parity.py
 
+  bluetooth-mock-parity:
+    name: bluetooth-mock-parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Stdlib-only, like battery-mock-parity: it reads the mock HTML, style.css
+      # and the mapped TSX files as text. No Node, no desktop stack, no npm.
+      #
+      # This job did not exist until `prove-ci-matches-gates`, so the gate had
+      # run only on developer machines since `add-bluetooth-bar-popup` landed.
+      # It PASSES while reporting tracked KNOWN_GAPS warnings (the two PIN-prompt
+      # classes, an explicit non-goal of that change) — measured: the harness
+      # exits 0 with warnings and exits non-zero only on an UNCOVERED token, so a
+      # green run here with a nonzero "known-gap warning(s)" count is expected.
+      # The Makefile target's comment names when they clear.
+      - name: Bluetooth mock<->code parity
+        run: python3 scripts/bluetooth-mock-parity.py
+
   icons-json-drift:
     name: icons-json-drift
     runs-on: ubuntu-latest
@@ -91,6 +125,24 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Ansible tree has no template nested in a Jinja string literal
         run: make ansible-embedded-template-lint
+
+  ci-gates-parity:
+    name: ci-gates-parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # uv, because the check PARSES the workflow as YAML (PyYAML ships with the
+      # provisioning project — the same runner capability icons-json-drift and
+      # ansible-embedded-template-lint use above), rather than line-mangling it.
+      # It needs no desktop stack.
+      #
+      # This job is the mechanism the header describes: it compares this file's
+      # job keys against `make gates-ci` and fails non-zero naming anything
+      # unmatched in either direction. It is itself a gate in that set, so the
+      # check that proves the list is complete runs in the list it proves.
+      - uses: astral-sh/setup-uv@v5
+      - name: Workflow jobs match `make gates-ci`
+        run: make ci-gates-parity
 
   speedtest-mock-parity:
     name: speedtest-mock-parity

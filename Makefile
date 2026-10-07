@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates gates-ci capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -18,7 +18,8 @@ contracts-check:
 # anti-invention check, then the capture domain unit tests, then the ags
 # config's pure-module unit tests, then the capture GUI typecheck, then the
 # capture hexagonal structure gate, then the generated-icons.json projection
-# drift gate, then the Ansible embedded-template lint.
+# drift gate, then the Ansible embedded-template lint, then the check that keeps
+# the CI workflow's job set equal to this list.
 #
 # `gates` is the DEVELOPER gate set and runs ALL of them, including the two that
 # need the desktop stack. Nothing is dropped for convenience: a gate that is not
@@ -27,7 +28,7 @@ GATES := contracts-check wifi-mock-parity bluetooth-mock-parity \
          battery-mock-parity speedtest-mock-parity \
          speedtest-no-new-architecture capture-test ags-test capture-typecheck \
          bar-typecheck capture-hexagonal-gate icons-json-drift \
-         ansible-embedded-template-lint
+         ansible-embedded-template-lint ci-gates-parity
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
@@ -51,6 +52,34 @@ gates: $(GATES)
 # stack, and so the split is stated in ONE place that cannot drift from the
 # workflow: `.github/workflows/gates.yml` runs these as one job per gate.
 gates-ci: $(filter-out capture-typecheck bar-typecheck,$(GATES))
+
+# CI<->gate-list parity: the workflow's job set must equal `gates-ci`.
+#
+# WHY THIS EXISTS. `.github/workflows/gates.yml` used to OPEN by claiming it was
+# "the place a future change cannot quietly drop one" of the gates. No code
+# backed that, and the claim was measurably false: `bluetooth-mock-parity` sat in
+# `GATES` -- and so in `gates-ci`, the same header's authoritative set -- with no
+# workflow job, so it had run on every developer's machine and never once on a
+# push. This check compares the two lists, so the next drop fails loudly instead
+# of silently. It belongs IN `GATES`: a check that proves the gate list is
+# complete has to run in the list it is proving.
+#
+# WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It parses the workflow as YAML
+# (PyYAML ships with the provisioning project) rather than line-mangling it, the
+# same `uv run --directory src/provisioning` mechanism `icons-json-drift` and
+# `ansible-embedded-template-lint` already use. It needs no desktop stack, so it
+# also runs in gates-ci. `../../scripts/` is required because --directory moves
+# the interpreter's CWD.
+#
+# It FAILS rather than skipping when uv or PyYAML is unavailable: a parity check
+# that quietly passes when its toolchain is missing is indistinguishable from one
+# that passes.
+#
+# DECLARED DIFFERENCES live in the script (`RENAMES`, `CI_ONLY_EXEMPT`,
+# `CI_EXCLUDED_GATES`), not here: the Makefile stays the one place the gate set is
+# written, and the script reads `GATES` + the `gates-ci` filter out of it.
+ci-gates-parity:
+	uv run --directory src/provisioning python ../../scripts/ci-gates-parity.py
 
 CAPTURE_DIR := src/gui-tools/capture-tool
 # tsconfig.capture.json is HAND-WRITTEN and committed. `ags types -u` also
