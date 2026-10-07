@@ -11,6 +11,7 @@ export function BluetoothView() {
   return (
     <box orientation={1}>
       <BluetoothContent
+        owner="subview"
         visible={createComputed(
           () => panelVisible() && activeView() === "bluetooth",
         )}

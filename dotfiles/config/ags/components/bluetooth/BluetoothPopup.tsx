@@ -132,7 +132,7 @@ export function BluetoothPopup(gdkmonitor: Gdk.Monitor) {
           propagateNaturalWidth={false}
           maxContentHeight={420}
         >
-          <BluetoothContent visible={bluetoothPopupVisible} />
+          <BluetoothContent visible={bluetoothPopupVisible} owner="popup" />
         </scrolledwindow>
       </box>
     </window>

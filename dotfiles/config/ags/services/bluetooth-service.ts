@@ -149,16 +149,29 @@ const unwatchBatteries = new Map<string, () => void>()
 
 let watchdogId = 0
 
-//: Number of surfaces currently asking for a scan. NOT a mirror of BlueZ's
-//: `Discovering` property — it counts interested callers, which is why the
-//: increment happens before the already-discovering guard in `runStartDiscovery`.
-let discoveryUsers = 0
+//: Surfaces currently asking for a scan, keyed by an OWNER ID, not a counter.
+//:
+//: WHY A SET AND NOT A NUMBER: a plain counter leaked to 205 on a live session
+//: (MEASURED 2026-10-07). AGS creates this component's effects outside a
+//: `createRoot`, so they are never disposed — the bar's own log says so
+//: ("effects created outside a `createRoot` will never be disposed"). Every
+//: re-render therefore adds ANOTHER live effect, each calling
+//: `startBluetoothDiscovery` with no matching stop. Consequences measured:
+//: the count climbed 142 -> 205, `scanStartedAt` never reset (the count never
+//: reached zero), so the grace-on-open never applied and a device briefly
+//: showed reachable then was aged out instantly.
+//:
+//: With owner ids the operation is IDEMPOTENT: a leaked effect re-acquiring
+//: the same surface is a no-op, so the set can never exceed the number of real
+//: surfaces (popup + settings subview). The count is bounded by design rather
+//: than by trusting every cleanup to run.
+const discoveryHolders = new Set<string>()
 
 //: Monotonic ms at which the CURRENT scan run began, or 0 for no run. The
 //: reachability clock is anchored to `max(lastHeardAt, scanStartedAt)` so a
 //: fresh scan grants grace before any device may be declared gone. Set on the
-//: 0 -> 1 holder transition only: a second surface joining a running scan must
-//: not extend the grace window and thereby prolong a stale "in range".
+//: empty -> non-empty transition only: a second surface joining a running scan
+//: must not extend the grace window and thereby prolong a stale "in range".
 let scanStartedAt = 0
 
 const wp = Wp.get_default()
@@ -287,7 +300,7 @@ function installDeviceWatch(path: string): void {
     watchProperties(
       path,
       DEVICE_IFACE,
-      (changed) => applyDeviceProps(path, changed),
+      (changed, invalidated) => applyDeviceProps(path, changed, invalidated),
       BLUEZ,
     ),
   )
@@ -424,7 +437,7 @@ function applyRssiAgeing(device: BluetoothDevice): boolean {
  * from the moment it was last actually heard.
  */
 export function ageOutStaleReadings(): void {
-  if (discoveryUsers === 0) return
+  if (discoveryHolders.size === 0) return
   let changed = false
   for (const device of deviceCache.values()) {
     if (applyRssiAgeing(device)) changed = true
@@ -435,6 +448,7 @@ export function ageOutStaleReadings(): void {
 function applyDeviceProps(
   path: string,
   changed: Record<string, unknown>,
+  invalidated: string[] = [],
 ): void {
   const device = deviceCache.get(path)
   if (device === undefined) return
@@ -451,6 +465,14 @@ function applyDeviceProps(
     // presence the whole reachability clock is anchored to.
     next.lastHeardAt = nowMonoMs()
   }
+  // BlueZ clearing RSSI: it INVALIDATES the property rather than sending a new
+  // value (MEASURED 2026-10-07 — `PropertiesChanged {} INVALIDATED ['RSSI']`).
+  // Absence IS the signal, exactly as it is on a re-read: the device's signal
+  // is no longer known, so the row must stop claiming it is reachable. Without
+  // this the frozen value was served indefinitely, because invalidation used to
+  // be dropped before it reached here. `lastHeardAt` is deliberately untouched
+  // — being forgotten is not being heard.
+  if (invalidated.includes("RSSI")) next.rssi = 0
   if ("Icon" in changed) next.icon = String(changed.Icon)
   deviceCache.set(path, next)
   applyDevices()
@@ -903,43 +925,44 @@ async function routeAudioToDeviceImpl(label: string): Promise<void> {
 // ── Discovery ────────────────────────────────────────────────────────────
 
 /**
- * Reference-counted discovery (design §5).
+ * Reference-counted discovery, keyed by OWNER ID rather than a counter.
  *
- * INVARIANT: `discoveryUsers` counts surfaces holding a live `visible`-scoped
- * effect, not whether BlueZ happens to be scanning. Every `start` is matched
- * by exactly one `stop` from the SAME effect cleanup, so the counter is
- * incremented unconditionally — before `runStartDiscovery`'s guards, and
- * crucially before its `if (bluetoothDiscovering()) return`.
+ * INVARIANT: `discoveryHolders` is the set of surfaces holding a live
+ * `visible`-scoped scan. Each caller passes a stable id for its surface, and
+ * both operations are IDEMPOTENT on it.
  *
- * That ordering is the whole point. If the increment sat behind that guard, a
- * second surface opening while a scan was already running would skip its
- * increment while still registering a cleanup; its later `stop` would then
- * decrement a count that never included it, driving the count to zero while
- * the first surface was still visible, and the next `stop` would clamp at zero
- * forever — the next scan would never be stopped. Skipping the increment is
- * what made the leak half-invisible and the double-stop half-real.
+ * WHY IDEMPOTENT, AND NOT A COUNTER — this is the fix for a MEASURED leak.
+ * The previous counter reached 205 on a live session because AGS creates this
+ * component's effects outside a `createRoot` and never disposes them (the
+ * bar's own log: "effects created outside a `createRoot` will never be
+ * disposed"). Every re-render added another live effect that called `start`
+ * with no matching `stop`, so the count only ever grew. Two measured
+ * consequences: `scanStartedAt` never reset (the count never reached zero), so
+ * the grace-on-open never applied and a device would flash reachable then be
+ * aged out instantly; and `ageOutStaleReadings` never stopped running.
  *
- * The mirror-image hazard is symmetric: `stop` must clamp at zero rather than
- * trust its caller, because an unmatched or repeated `stop` would otherwise
- * go negative and strand a real holder's decrement.
+ * With owner ids, a leaked effect re-acquiring the same surface is a no-op, so
+ * the set is bounded by the number of real surfaces (popup + settings subview)
+ * no matter how many effects leak. Correctness no longer depends on every
+ * cleanup running — which is exactly the assumption the leak invalidated.
  *
- * Deliberately NOT reset by `clearAdapter`. The count tracks mounted effects,
- * and an adapter disappearing does not unmount them — a `visible`-scoped
- * effect has no accessor dependency on `adapterPath`, so it does not re-run
- * when the adapter is yanked and replugged. Zeroing there would orphan a
- * still-visible surface: its later `stop` would clamp at zero and hand the
- * `StopDiscovery` to whichever surface stops next, stopping the scan out from
- * under a live one. Letting the count survive costs at most one `StopDiscovery`
- * against a fresh, non-scanning adapter, which BlueZ answers with a swallowed
- * no-op — the cheap direction to be wrong in.
+ * Deliberately NOT reset by `clearAdapter`: the set tracks mounted surfaces,
+ * and an adapter disappearing does not unmount them. Clearing it would orphan
+ * a still-visible surface — its later `stop` would find nothing to release and
+ * hand the `StopDiscovery` to whichever surface stops next, stopping the scan
+ * out from under a live one. Letting it survive costs at most one
+ * `StopDiscovery` against a fresh, non-scanning adapter, which BlueZ answers
+ * with a swallowed no-op — the cheap direction to be wrong in.
  */
-export function startBluetoothDiscovery(): void {
+export function startBluetoothDiscovery(owner: string): void {
+  //: Idempotent: a leaked effect re-acquiring the same surface changes nothing.
+  if (discoveryHolders.has(owner)) return
   //: Anchor the reachability grace to the RUNNING scan, not to each caller.
-  //: Only the 0 -> 1 transition resets it: a second surface joining a scan
-  //: that is already running must not extend the grace window, or a stale
-  //: "in range" would be prolonged every time a panel reopened.
-  if (discoveryUsers === 0) scanStartedAt = nowMonoMs()
-  discoveryUsers++
+  //: Only the empty -> non-empty transition resets it: a second surface
+  //: joining a scan that is already running must not extend the grace window,
+  //: or a stale "in range" would be prolonged every time a panel reopened.
+  if (discoveryHolders.size === 0) scanStartedAt = nowMonoMs()
+  discoveryHolders.add(owner)
   void runStartDiscovery()
 }
 
@@ -964,7 +987,7 @@ async function runStartDiscovery(): Promise<void> {
   //: why the reported workaround was "I have to toggle enable/disable bt".
   //:
   //: Balance is unaffected. `StartDiscovery`/`StopDiscovery` are refcounted by
-  //: BlueZ per connection, and `discoveryUsers` here is incremented
+  //: BlueZ per connection, and the holder set here is acquired per surface
   //: unconditionally and decremented by exactly one matching `stop` from each
   //: surface's own effect cleanup. So issuing a start per surface-open keeps
   //: BlueZ's count equal to ours, which is strictly better than skipping it:
@@ -998,21 +1021,20 @@ async function runStartDiscovery(): Promise<void> {
   }
 }
 
-export function stopBluetoothDiscovery(): void {
-  //: Clamp BEFORE the bus call: the count must not go negative on an
-  //: unmatched stop, or a subsequent real holder's decrement is silently lost
-  //: and discovery never stops again.
-  discoveryUsers = Math.max(0, discoveryUsers - 1)
+export function stopBluetoothDiscovery(owner: string): void {
+  //: Idempotent release: an unknown owner (or a repeated stop from a leaked
+  //: cleanup) is a no-op, never a decrement of somebody else's hold.
+  if (!discoveryHolders.delete(owner)) return
   //: Other surfaces are still visible and still want the scan. This is the
-  //: popup-close-racing-panel-open case: without the count, the popup's
-  //: cleanup would stop a scan the subview had just started.
-  if (discoveryUsers > 0) return
+  //: popup-close-racing-panel-open case: without the set, the popup's cleanup
+  //: would stop a scan the subview had just started.
+  if (discoveryHolders.size > 0) return
   //: The scan run is over. The reachability clock refuses to run without one
   //: (see `ageOutStaleReadings`), so this only clears stale bookkeeping — a
   //: closed panel must never age a device out on the strength of its own
   //: silence.
   scanStartedAt = 0
-  //: Guarded on the adapter, not the count: zero holders means "stop it", and
+  //: Guarded on the adapter, not the count: no holders means "stop it", and
   //: there is nothing to stop when BlueZ has no adapter to ask.
   const path = adapterPath
   if (path === null) return

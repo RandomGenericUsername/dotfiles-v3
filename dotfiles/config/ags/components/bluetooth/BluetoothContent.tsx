@@ -510,7 +510,13 @@ function BluetoothSettingsFooter({
 }
 
 /** The embeddable body: off/scanning states + the device sections. */
-export function BluetoothContent({ visible }: { visible: Accessor<boolean> }) {
+export function BluetoothContent({
+  visible,
+  owner,
+}: {
+  visible: Accessor<boolean>
+  owner: string
+}) {
   // WHY THIS IS A TRI-STATE (`boolean | null`) AND NOT A PLAIN BOOLEAN.
 // With `createState(false)` the expansion rule was
 // `manuallyToggled() || nearbyDevices().length > 0`, which is
@@ -557,13 +563,14 @@ const [manuallyToggled, setManuallyToggled] = createState<boolean | null>(
 
   // Discovery runs while this content is visible and the adapter is powered;
   // hiding it (or powering off) stops it so BlueZ does not scan forever. The
-  // service reference-counts start/stop, so a popup close racing a subview
-  // open cannot stop a scan the other surface just started.
+  // service keys holders by OWNER ID, so a popup close racing a subview open
+  // cannot stop a scan the other surface just started — and a leaked effect
+  // re-acquiring this same surface is a no-op rather than a leak.
   createEffect(() => {
     if (!visible()) return
     if (!bluetoothPowered()) return
-    startBluetoothDiscovery()
-    return () => stopBluetoothDiscovery()
+    startBluetoothDiscovery(owner)
+    return () => stopBluetoothDiscovery(owner)
   })
 
   // Devices that connected outside the panel (auto-connect) still need the audio
