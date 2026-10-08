@@ -303,6 +303,19 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
     ...rowVolume(row()), mixedLevel: row().mixedLevel, mixedMuted: row().mixedMuted,
   }))
   const streamLive = createComputed(() => row().hasCurrentStream)
+  // Whether the APP is still known, as opposed to whether one of its streams is
+  // live right now.
+  //
+  // Measured 2026-10-07: seeking in Firefox tears its stream down and recreates
+  // it, so `hasCurrentStream` is briefly false. Both controls were disabled on
+  // `!streamLive()`, and LevelControl renders "—" when disabled -- so every
+  // seek flicked the value to a dash and back. The row's player was present
+  // throughout; only the stream was between instances.
+  //
+  // These are app-scoped controls (they act on the app's streams), so they stay
+  // usable while the app is known. The action itself still guards against
+  // writing to a stream that does not exist.
+  const appPresent = createComputed(() => row().hasCurrentStream || row().hasCurrentPlayer)
   const currentPlayer = createComputed(() => row().hasCurrentPlayer && row().playerId ? row().playerId : null)
   const outputs = createComputed(() => binding.model().outputs)
   const preferred = createComputed(() =>
@@ -440,13 +453,13 @@ function AppRow({ row, binding }: { row: Accessor<AudioAppRowView>; binding: Aud
             imagePath={mutePath}
             onClicked={() => binding.actions.toggleAppMute(row().appId)}
             active={createComputed(() => volume().muted || volume().mixedMuted === true)}
-            disabled={createComputed(() => !streamLive())}
+            disabled={createComputed(() => !appPresent())}
             className="audio-icon-button audio-app-mute"
           />
           <LevelControl
             label={createComputed(() => `${appName()} stream volume`)}
             volume={volume}
-            disabled={createComputed(() => !streamLive())}
+            disabled={createComputed(() => !appPresent())}
             onChange={(percent) => binding.actions.setAppVolume(row().appId, percent)}
           />
           <label class="audio-mixed-value" label="Mixed" visible={createComputed(() => volume().mixedLevel === true)} />
