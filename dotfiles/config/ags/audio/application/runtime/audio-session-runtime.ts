@@ -6,6 +6,7 @@ import {
   type AudioSession,
   type AppId,
   type AudioStream,
+  type VolumeState,
   type EndpointId,
   type RouteIntent,
   type StreamId,
@@ -33,6 +34,7 @@ const emptySession = (): AudioSession => ({
   streams: [],
   players: [],
   appIntents: {},
+  appVolumes: {},
 })
 
 function cloneSession(session: AudioSession): AudioSession {
@@ -44,6 +46,7 @@ function cloneSession(session: AudioSession): AudioSession {
     streams: session.streams.map((stream) => ({ ...stream, routeIntent: { ...stream.routeIntent } })),
     players: [...session.players],
     appIntents: { ...session.appIntents },
+    appVolumes: { ...session.appVolumes },
   }
 }
 
@@ -63,6 +66,17 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
   private readonly listeners = new Set<SessionListener>()
   private readonly routeHistory = new Map<StreamId, RouteIntent>()
   private readonly appHistory = new Map<AppId, RouteIntent>()
+  /**
+   * Last volume an app was known to have, per app.
+   *
+   * Measured 2026-10-07 (per-row trace): seeking in Firefox tears down and
+   * recreates its PipeWire stream, and the replacement node is reported by
+   * AstalWp as level 0 AND muted for ~100ms before its real properties load.
+   * The row therefore flicked to 0/muted and back on every seek. An app's level
+   * is a property of the app, not of one stream instance: a re-created stream
+   * must not reset it.
+   */
+  private readonly lastVolume = new Map<AppId, VolumeState>()
   private readonly lastStreams = new Map<StreamId, AudioStream>()
   private readonly pendingPipeWire: PipeWireObservation[] = []
   private readonly pendingMpris: MprisObservation[] = []
@@ -135,7 +149,7 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
    */
   recordApp(appId: AppId, intent: RouteIntent): void {
     this.appHistory.set(appId, { ...intent })
-    this.session = { ...this.session, appIntents: this.appIntents() }
+    this.session = { ...this.session, appIntents: this.appIntents(), appVolumes: this.appVolumes() }
     // ALWAYS publish, including for an app that is not in `session.apps`.
     //
     // The first version published only when `session.apps` already contained
@@ -146,6 +160,10 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
     // row kept showing its old label until some unrelated event republished the
     // session. Reported as "I select speakers and it won't change".
     this.publish()
+  }
+
+  private appVolumes(): Record<AppId, VolumeState> {
+    return Object.fromEntries([...this.lastVolume.entries()].map(([id, volume]) => [id, { ...volume }]))
   }
 
   private appIntents(): Record<AppId, RouteIntent> {
@@ -272,7 +290,22 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
       }
 
       this.routeHistory.set(raw.id, { ...intent })
-      return { ...raw, routeIntent: { ...intent } }
+
+      // Trust a stream's volume unless it is a stream we have not seen before
+      // that reports the uninitialised default (0 and muted). AstalWp exposes a
+      // fresh node that way briefly; inheriting the app's last known level is
+      // what stops the seek flick. A real change is never affected: it arrives
+      // on a stream that already exists, or reports a volume that is not the
+      // untouched default.
+      const appKey = raw.appId
+      let volume = raw.volume
+      if (previous === undefined && volume.level === 0 && volume.muted) {
+        const known = this.lastVolume.get(appKey)
+        if (known) volume = { ...known }
+      }
+      if (!(volume.level === 0 && volume.muted)) this.lastVolume.set(appKey, { ...volume })
+
+      return { ...raw, routeIntent: { ...intent }, volume }
     })
 
     const nextIds = new Set(nextStreams.map((stream) => stream.id))
@@ -292,7 +325,7 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
 
     this.lastStreams.clear()
     for (const stream of nextStreams) this.lastStreams.set(stream.id, stream)
-    this.session = { ...incoming, streams: nextStreams, players: previousSession.players, appIntents: this.appIntents() }
+    this.session = { ...incoming, streams: nextStreams, players: previousSession.players, appIntents: this.appIntents(), appVolumes: this.appVolumes() }
     this.boundHistory()
     this.publish()
 

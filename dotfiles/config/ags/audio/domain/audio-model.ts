@@ -101,6 +101,13 @@ export interface AudioSession {
    * app's next stream.
    */
   appIntents: Readonly<Record<AppId, RouteIntent>>
+  /**
+   * Last known level per app, so a row can hold it while the app's stream is
+   * momentarily absent or freshly re-created. Measured: Firefox's stream
+   * disappears and returns with the uninitialised 0/muted default on every
+   * seek, which made the row flick.
+   */
+  appVolumes: Readonly<Record<AppId, VolumeState>>
 }
 
 export function clampLevel(level: number): number {

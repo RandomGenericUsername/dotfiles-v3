@@ -275,5 +275,6 @@ export function projectPipeWireSession(input: {
     // App-scoped route intent is runtime state, not something the graph can
     // observe. The runtime fills this in; the adapter reports it empty.
     appIntents: {},
+    appVolumes: {},
   }
 }

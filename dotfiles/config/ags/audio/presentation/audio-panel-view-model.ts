@@ -63,6 +63,7 @@ export interface AudioPanelViewModel {
   rows: readonly AudioAppRowView[]
   /** App-scoped route intent, keyed by app id. Exposed for inspection. */
   appIntents: Readonly<Record<string, RouteIntent>>
+  appVolumes: Readonly<Record<string, VolumeState>>
 }
 
 const clean = (value: string | null | undefined): string => value?.trim() ?? ""
@@ -147,7 +148,12 @@ export function projectAudioPanel(session: AudioSession): AudioPanelViewModel {
       : streams.length === 0 ? appIntent : null
     const endpoints = new Set(streams.map((stream) => stream.endpointId))
     const observedEndpointId = endpoints.size === 1 ? streams[0]?.endpointId ?? null : null
-    const volume = volumeSummary(streams)
+    // With no stream, hold the app's last known level instead of reporting 0.
+    // A one-frame 0 is indistinguishable from "you turned it down", and it is
+    // what made every Firefox seek flick the row.
+    const volume = streams.length === 0 && session.appVolumes?.[key]
+      ? { volume: { ...session.appVolumes[key] }, mixedLevel: false, mixedMuted: false }
+      : volumeSummary(streams)
     const canSeek = player !== null && playerSupportsSeek(player)
     const routeText = routeIntent
       ? routeLabel(routeIntent, session.preferredOutputId, observedEndpointId, session.outputs)
@@ -205,6 +211,7 @@ export function projectAudioPanel(session: AudioSession): AudioPanelViewModel {
     input: session.input,
     inputs: session.inputs,
     appIntents: session.appIntents ?? {},
+    appVolumes: session.appVolumes ?? {},
     inputConsumers: consumers,
     rows,
   }
