@@ -108,6 +108,16 @@ export interface AudioSession {
    * seek, which made the row flick.
    */
   appVolumes: Readonly<Record<AppId, VolumeState>>
+  /**
+   * Last intent OBSERVED for an app's stream, for display only.
+   *
+   * Distinct from `appIntents`, which holds a user's recorded choice. This is
+   * the fallback a row uses when it momentarily has no stream: Firefox tears
+   * its stream down and recreates it while seeking, and with no intent to show
+   * the route label flicked to "No current route" and back. It never feeds
+   * routing decisions -- only what the row displays.
+   */
+  appLastIntents: Readonly<Record<AppId, RouteIntent>>
 }
 
 export function clampLevel(level: number): number {

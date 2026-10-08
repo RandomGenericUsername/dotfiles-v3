@@ -35,6 +35,7 @@ const emptySession = (): AudioSession => ({
   players: [],
   appIntents: {},
   appVolumes: {},
+  appLastIntents: {},
 })
 
 function cloneSession(session: AudioSession): AudioSession {
@@ -47,6 +48,7 @@ function cloneSession(session: AudioSession): AudioSession {
     players: [...session.players],
     appIntents: { ...session.appIntents },
     appVolumes: { ...session.appVolumes },
+    appLastIntents: { ...session.appLastIntents },
   }
 }
 
@@ -77,6 +79,8 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
    * must not reset it.
    */
   private readonly lastVolume = new Map<AppId, VolumeState>()
+  /** Display-only fallback: the last intent observed for an app's output stream. */
+  private readonly lastIntent = new Map<AppId, RouteIntent>()
   private readonly lastStreams = new Map<StreamId, AudioStream>()
   private readonly pendingPipeWire: PipeWireObservation[] = []
   private readonly pendingMpris: MprisObservation[] = []
@@ -149,7 +153,7 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
    */
   recordApp(appId: AppId, intent: RouteIntent): void {
     this.appHistory.set(appId, { ...intent })
-    this.session = { ...this.session, appIntents: this.appIntents(), appVolumes: this.appVolumes() }
+    this.session = { ...this.session, appIntents: this.appIntents(), appVolumes: this.appVolumes(), appLastIntents: this.appLastIntents() }
     // ALWAYS publish, including for an app that is not in `session.apps`.
     //
     // The first version published only when `session.apps` already contained
@@ -160,6 +164,10 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
     // row kept showing its old label until some unrelated event republished the
     // session. Reported as "I select speakers and it won't change".
     this.publish()
+  }
+
+  private appLastIntents(): Record<AppId, RouteIntent> {
+    return Object.fromEntries([...this.lastIntent.entries()].map(([id, intent]) => [id, { ...intent }]))
   }
 
   private appVolumes(): Record<AppId, VolumeState> {
@@ -298,6 +306,7 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
       // on a stream that already exists, or reports a volume that is not the
       // untouched default.
       const appKey = raw.appId
+      if (raw.direction === "output" && raw.current) this.lastIntent.set(appKey, { ...intent })
       let volume = raw.volume
       if (previous === undefined && volume.level === 0 && volume.muted) {
         const known = this.lastVolume.get(appKey)

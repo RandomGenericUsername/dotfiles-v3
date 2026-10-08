@@ -276,5 +276,6 @@ export function projectPipeWireSession(input: {
     // observe. The runtime fills this in; the adapter reports it empty.
     appIntents: {},
     appVolumes: {},
+    appLastIntents: {},
   }
 }

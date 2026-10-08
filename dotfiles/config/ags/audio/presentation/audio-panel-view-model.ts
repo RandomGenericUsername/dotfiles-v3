@@ -64,6 +64,7 @@ export interface AudioPanelViewModel {
   /** App-scoped route intent, keyed by app id. Exposed for inspection. */
   appIntents: Readonly<Record<string, RouteIntent>>
   appVolumes: Readonly<Record<string, VolumeState>>
+  appLastIntents: Readonly<Record<string, RouteIntent>>
 }
 
 const clean = (value: string | null | undefined): string => value?.trim() ?? ""
@@ -142,7 +143,7 @@ export function projectAudioPanel(session: AudioSession): AudioPanelViewModel {
     // app-scoped one the user set while the app was silent. This is what keeps
     // the route control meaningful for a paused app instead of collapsing to
     // "No current route" and losing the choice.
-    const appIntent = session.appIntents?.[key] ?? null
+    const appIntent = session.appIntents?.[key] ?? session.appLastIntents?.[key] ?? null
     const routeIntent = intents.length && intents.every((intent) => sameIntent(intent, intents[0]))
       ? intents[0]
       : streams.length === 0 ? appIntent : null
@@ -212,6 +213,7 @@ export function projectAudioPanel(session: AudioSession): AudioPanelViewModel {
     inputs: session.inputs,
     appIntents: session.appIntents ?? {},
     appVolumes: session.appVolumes ?? {},
+    appLastIntents: session.appLastIntents ?? {},
     inputConsumers: consumers,
     rows,
   }
