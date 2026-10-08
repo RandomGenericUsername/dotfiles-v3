@@ -5,6 +5,7 @@ import {
   type AudioPlayer,
   type AudioSession,
   type AppId,
+  type AppIdentity,
   type AudioStream,
   type VolumeState,
   type EndpointId,
@@ -81,6 +82,18 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
   private readonly lastVolume = new Map<AppId, VolumeState>()
   /** Display-only fallback: the last intent observed for an app's output stream. */
   private readonly lastIntent = new Map<AppId, RouteIntent>()
+  /**
+   * Every app identity ever observed this session, not just those with a live
+   * stream right now.
+   *
+   * `incoming.apps` is rebuilt from the current streams each snapshot, so the
+   * moment a stream blinks out its identity is gone from the session. The row
+   * then fell back to `player.appId` for its name and the label visibly flipped
+   * "Firefox" -> "firefox" for a frame during every seek. An app's display name
+   * does not depend on whether one of its streams is momentarily between
+   * instances.
+   */
+  private readonly knownApps = new Map<AppId, AppIdentity>()
   private readonly lastStreams = new Map<StreamId, AudioStream>()
   private readonly pendingPipeWire: PipeWireObservation[] = []
   private readonly pendingMpris: MprisObservation[] = []
