@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
@@ -13,15 +14,48 @@ from wallpaper_effects_generator.domain.services import CommandSanitizer
 
 _BINARY_CANDIDATES = ["magick", "convert"]
 
+# Bound ImageMagick's per-invocation pixel-cache memory. WEG runs every effect
+# in parallel (see ExecutionSettings.max_workers), so an unbounded `magick`
+# lets a single large wallpaper balloon: on a 7680x4320 (8K) input each worker
+# reached ~2.3 GiB anonymous RSS, and ~20 workers together exhausted RAM and
+# triggered a global OOM.
+#
+# ImageMagick reads MAGICK_MEMORY_LIMIT as the `memory` resource (verified:
+# `MAGICK_MEMORY_LIMIT=256MiB magick -list resource` -> Memory: 256MiB). With
+# the cap, an 8K vignette's anonymous RSS measured 2.3 GiB -> ~0.22 GiB; the
+# excess spills off-heap instead of competing for RAM. Pass memory_limit=None
+# to opt out (e.g. a caller that wants ImageMagick's own defaults).
+#
+# CAVEAT: the spill still has to go somewhere. If ImageMagick's temp cache
+# lands on a RAM-backed /tmp (tmpfs), the "disk" fallback consumes RAM too and
+# workers can abort under pressure. Pair this cap with a disk-backed temp path
+# (MAGICK_TEMPORARY_PATH / settings.processing.temp_dir) for full relief.
+DEFAULT_MEMORY_LIMIT = "256MiB"
+_MEMORY_LIMIT_ENV_VAR = "MAGICK_MEMORY_LIMIT"
+
 
 class SubprocessCommandRunner:
     def __init__(
-        self, binary: str | None = None, sanitizer: CommandSanitizer | None = None
+        self,
+        binary: str | None = None,
+        sanitizer: CommandSanitizer | None = None,
+        memory_limit: str | None = DEFAULT_MEMORY_LIMIT,
     ) -> None:
         self._sanitizer = sanitizer or CommandSanitizer()
         self._binary = binary or self._detect_binary()
+        self._memory_limit = memory_limit
         if not self.is_available(self._binary):
             raise BinaryNotFoundError(self._binary)
+
+    def _build_env(self) -> dict[str, str] | None:
+        """Environment for the subprocess, with the ImageMagick memory cap.
+
+        Returns ``None`` (inherit the parent environment unchanged) when no
+        limit is configured.
+        """
+        if not self._memory_limit:
+            return None
+        return {**os.environ, _MEMORY_LIMIT_ENV_VAR: self._memory_limit}
 
     def is_available(self, binary: str | None = None) -> bool:
         return shutil.which(binary or self._binary) is not None
@@ -38,6 +72,7 @@ class SubprocessCommandRunner:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
+                env=self._build_env(),
             )
             duration = time.monotonic() - start
             return CommandResult(

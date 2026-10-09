@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import subprocess
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -63,6 +63,7 @@ class TestSubprocessCommandRunner:
                 capture_output=True,
                 text=True,
                 timeout=None,
+                env=ANY,
             )
 
     def test_execute_with_timeout(self) -> None:
@@ -83,6 +84,7 @@ class TestSubprocessCommandRunner:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                env=ANY,
             )
 
     def test_execute_failure(self) -> None:
@@ -114,3 +116,44 @@ class TestSubprocessCommandRunner:
             runner = SubprocessCommandRunner(binary="magick")
             with pytest.raises(CommandExecutionError):
                 runner.execute("sleep 10", timeout=1)
+
+    def test_execute_applies_image_magick_memory_limit(self) -> None:
+        """Every invocation is bounded by the default 256 MiB pixel-cache cap."""
+        mock_result = subprocess.CompletedProcess(
+            args=["magick", "-version"], returncode=0, stdout="", stderr=""
+        )
+        with (
+            patch("shutil.which", return_value="/usr/bin/magick"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            SubprocessCommandRunner(binary="magick").execute("magick -version")
+            env = mock_run.call_args.kwargs["env"]
+            assert env is not None
+            assert env["MAGICK_MEMORY_LIMIT"] == "256MiB"
+
+    def test_execute_honours_custom_memory_limit(self) -> None:
+        mock_result = subprocess.CompletedProcess(
+            args=["magick", "-version"], returncode=0, stdout="", stderr=""
+        )
+        with (
+            patch("shutil.which", return_value="/usr/bin/magick"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            SubprocessCommandRunner(binary="magick", memory_limit="512MiB").execute(
+                "magick -version"
+            )
+            env = mock_run.call_args.kwargs["env"]
+            assert env is not None
+            assert env["MAGICK_MEMORY_LIMIT"] == "512MiB"
+
+    def test_execute_memory_limit_none_inherits_parent_env(self) -> None:
+        """Opting out leaves the subprocess environment untouched (env=None)."""
+        mock_result = subprocess.CompletedProcess(
+            args=["magick", "-version"], returncode=0, stdout="", stderr=""
+        )
+        with (
+            patch("shutil.which", return_value="/usr/bin/magick"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            SubprocessCommandRunner(binary="magick", memory_limit=None).execute("magick -version")
+            assert mock_run.call_args.kwargs["env"] is None
