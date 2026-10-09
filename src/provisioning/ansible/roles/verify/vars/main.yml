@@ -440,6 +440,8 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/style.css"
   - "{{ install_dir | trim }}/config/ags/icons.json"
   - "{{ install_dir | trim }}/config/ags-capture/icons.json"
+  - "{{ install_dir | trim }}/config/ags/kit/icon.ts"
+  - "{{ install_dir | trim }}/config/ags/kit/widget.tsx"
   - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus-core.ts"

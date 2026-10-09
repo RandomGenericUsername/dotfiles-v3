@@ -256,16 +256,17 @@ class TestCompositorConfigsTasks:
         # followed it, 83 once the audio hexagon was registered, and 84 once
         # finish-audio-bar-migration split audio/state.ts into ui-state.ts +
         # presentation/levels.ts + presentation/bar-indicators.ts and retired
-        # audio/state.ts and services/mpris-service.ts (+3, -2). Placement here is
+        # audio/state.ts and services/mpris-service.ts (+3, -2), and 86 once the
+        # bar kit (kit/icon.ts + kit/widget.tsx) was registered. Placement here is
         # PER FILE, so an unregistered file silently never deploys and the panel
         # imports a module that is not there on the desktop: this assertion is
         # what makes that fail loudly at review time instead of at runtime. Do NOT
         # relax it to `>=`, a subset check, or delete it — those all convert
         # "deploys nothing" into "passes".
-        assert len(files) == 84, (
-            f"expected exactly 84 skeleton files (hyprland.lua + gloview.lua + "
+        assert len(files) == 86, (
+            f"expected exactly 86 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+6 lib (incl. "
-            f"wifi-signal)+Bar.tsx+11 "
+            f"wifi-signal)+2 kit (icon/widget)+Bar.tsx+11 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
             f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
             f"D-Bus services + speedtest service + the MPRIS core file "
@@ -328,6 +329,8 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/wifi/WifiContent.tsx",
             "dotfiles/config/ags/components/wifi/WifiPopup.tsx",
             "dotfiles/config/ags/components/wifi/state.ts",
+            "dotfiles/config/ags/kit/icon.ts",
+            "dotfiles/config/ags/kit/widget.tsx",
             "dotfiles/config/ags/lib/bar-backdrop.ts",
             "dotfiles/config/ags/lib/event-bus-core.ts",
             "dotfiles/config/ags/lib/event-bus.ts",
