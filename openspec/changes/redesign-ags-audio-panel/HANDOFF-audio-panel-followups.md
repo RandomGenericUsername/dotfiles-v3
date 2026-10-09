@@ -113,3 +113,82 @@ step and it will catch any drift.
 - `ags request audio-panel-open` / `audio-panel-debug` — opens the panel and
   dumps the projection plus a rolling per-row trace (this is how the
   seek transients were found; keep it, it is cheap and debug-only)
+
+---
+
+## 6. Merging this branch into master (runbook)
+
+Status at handoff: **NOT merged.** A dry-run merge (`git merge --no-commit
+--no-ff codex/audio-panel-redesign` in the main worktree) reported exactly three
+conflicts and was aborted cleanly:
+
+    Makefile
+    dotfiles/config/ags/app.tsx
+    dotfiles/config/ags/audio/AudioPopup.tsx
+
+`.github/workflows/gates.yml`, `audio/state.ts` and
+`provisioning/tests/unit/test_verify_role.py` AUTO-MERGED. The auto-merge of
+`state.ts` is the quiet risk: master edited the 1600-line monolith and so did
+this branch, and the tooling combined them without review. `AudioPopup.tsx`
+still imports four bindings from it (`close`, `popupVisible`, `audioIconX`,
+`levelVariant`), so a wrong auto-merge breaks the panel subtly. Inspect it
+before trusting it.
+
+Because master had moved ~20 commits ahead, the merge is NOT a fast-forward.
+
+### Steps
+
+    # 0. preconditions
+    cd ~/Development/dotfiles-v3-audio-panel && git status --porcelain   # clean
+    make audio-panel-gates                                             # green
+    git push -u origin codex/audio-panel-redesign                      # needs SSH: see §7
+
+    # 1. merge in the MAIN worktree (master lives there)
+    cd ~/Development/dotfiles-v3
+    git status --porcelain                       # clean; other agents paused
+    git fetch origin
+    git merge --no-ff codex/audio-panel-redesign
+
+    # 2. resolve the three conflicts
+    #    app.tsx        keep BOTH: master's Battery/Bluetooth popups AND this
+    #                   branch's `const audio = audioPanelBinding()` +
+    #                   AudioPopup(primary, audio)
+    #    Makefile       take master's structure as the base; re-append the audio
+    #                   targets; rejoin GATES/.PHONY; keep ags-typecheck in the
+    #                   gates-ci filter-out list
+    #    AudioPopup.tsx this branch's redesign should win, but DIFF against
+    #                   master first -- master may have changed it for a reason
+    #                   that must not be dropped
+
+    # 3. INSPECT THE AUTO-MERGE before trusting it
+    git diff --stat HEAD -- dotfiles/config/ags/audio/state.ts
+    #    then verify what AudioPopup imports still exists and behaves:
+    #      close, popupVisible, audioIconX, levelVariant
+
+    # 4. verify
+    make audio-panel-gates
+    make gates-ci                                # the set CI actually runs
+
+    # 5. commit the merge, then push master
+    git commit
+    git push origin master
+
+### Do not skip
+
+- Do NOT resolve `AudioPopup.tsx` with `--theirs` without a diff.
+- Do NOT merge while another agent has uncommitted work on master.
+- Deploy and LOOK at the panel after merging; `make audio-panel-gates` is
+  static and the merge touches the file it reads most.
+
+## 7. Push (SSH)
+
+`git push` failed in the session that wrote this with:
+
+    git@github.com: Permission denied (publickey)
+    ssh-add: Could not open a connection to your authentication agent
+
+The key exists (`~/.ssh/personal.pub`) but no agent was running. Fix:
+
+    eval "$(ssh-agent -s)"
+    ssh-add ~/.ssh/personal
+    ssh -T git@github.com
