@@ -257,17 +257,20 @@ class TestCompositorConfigsTasks:
         # finish-audio-bar-migration split audio/state.ts into ui-state.ts +
         # presentation/levels.ts + presentation/bar-indicators.ts and retired
         # audio/state.ts and services/mpris-service.ts (+3, -2), 86 once the
-        # bar kit (kit/icon.ts + kit/widget.tsx) was registered, and 90 once the
-        # overlay coordinator + the network descriptor were added. Placement here is
+        # bar kit (kit/icon.ts + kit/widget.tsx) was registered, 90 once the
+        # overlay coordinator + the network descriptor were added, and 91 once
+        # the network domain read model (domains/network/read-model.ts) was added
+        # to make the descriptor react to device property changes. Placement here is
         # PER FILE, so an unregistered file silently never deploys and the panel
         # imports a module that is not there on the desktop: this assertion is
         # what makes that fail loudly at review time instead of at runtime. Do NOT
         # relax it to `>=`, a subset check, or delete it — those all convert
         # "deploys nothing" into "passes".
-        assert len(files) == 90, (
-            f"expected exactly 90 skeleton files (hyprland.lua + gloview.lua + "
+        assert len(files) == 91, (
+            f"expected exactly 91 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
             f"7 lib (incl. wifi-signal/network-icon)+3 kit (icon/overlay/widget)+"
+            f"1 domain (network read-model)+"
             f"Bar.tsx+12 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
             f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
@@ -332,6 +335,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/wifi/WifiContent.tsx",
             "dotfiles/config/ags/components/wifi/WifiPopup.tsx",
             "dotfiles/config/ags/components/wifi/state.ts",
+            "dotfiles/config/ags/domains/network/read-model.ts",
             "dotfiles/config/ags/kit/icon.ts",
             "dotfiles/config/ags/kit/overlay.ts",
             "dotfiles/config/ags/kit/widget.tsx",

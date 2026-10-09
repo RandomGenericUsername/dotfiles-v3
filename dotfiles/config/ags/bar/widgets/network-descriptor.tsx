@@ -1,9 +1,9 @@
-import Network from "gi://AstalNetwork"
-import { execAsync } from "ags/process"
-import { createBinding } from "ags"
 import type { BarWidgetSpec } from "../../kit/widget"
 import { iconByStateKey } from "../../kit/icon"
 import { overlays } from "../../kit/overlay"
+import { execAsync } from "ags/process"
+import { isRunning as speedTestRunning } from "../../services/speedtest-service"
+import { createNetworkReadModel } from "../../domains/network/read-model"
 import {
   networkIconState,
   networkLabel,
@@ -17,34 +17,34 @@ import {
  * Compare with `network.tsx` (kept beside it in the bar, unchanged): that file
  * owns the Astal binding, the state→variant table, the label rule, the pointer
  * tracking, the gestures and the close-settings-first exclusion. Here the read
- * model lives in `reading()`, the mapping is the pure `lib/network-icon.ts`, and
- * the behaviour is three fields. The overlay is opened through the coordinator
- * (`overlays.toggle("wifi", anchorX)`), which closes the other overlays for us.
- *
- * Not yet carried over (deliberately, prototype scope): the `speedtesting` CSS
- * class the kit does not model. Everything else is at parity.
+ * model is the `domains/network` adapter, the mapping is the pure
+ * `lib/network-icon.ts`, and the behaviour is three fields. The overlay is
+ * opened through the coordinator (`overlays.toggle("wifi", anchorX)`), which
+ * closes the other overlays for us.
  */
 
-const network = Network.get_default()
-const wifi = createBinding(network, "wifi")
-const wired = createBinding(network, "wired")
-const connectivity = createBinding(network, "connectivity")
-
-function reading(): NetworkReading {
-  return {
-    wifi: wifi() as unknown as NetworkReading["wifi"],
-    wired: wired() as unknown as NetworkReading["wired"],
-    connectivity: connectivity(),
-  }
+/** The reading plus the one piece of speed-test state the widget styles on. */
+export interface NetworkWidgetState extends NetworkReading {
+  /** True while the Wi-Fi speed test runs — drives the `speedtesting` class. */
+  speedTesting: boolean
 }
 
-export const networkWidget: BarWidgetSpec<NetworkReading> = {
+const networkReading = createNetworkReadModel()
+
+function read(): NetworkWidgetState {
+  // Reading the adapter registers its reactive dependency inside the kit's
+  // `createComputed`, so the icon re-resolves on every device property change.
+  return { ...networkReading(), speedTesting: speedTestRunning() }
+}
+
+export const networkWidget: BarWidgetSpec<NetworkWidgetState> = {
   id: "network",
-  read: reading,
+  read,
   class: "network-widget",
+  stateClass: (state) => (state.speedTesting ? "speedtesting" : null),
   icon: iconByStateKey("network", networkIconState),
   label: networkLabel,
-  primary: (_reading, anchorX) => overlays.toggle("wifi", anchorX),
+  primary: (_state, anchorX) => overlays.toggle("wifi", anchorX),
   secondary: () => {
     execAsync(["kitty", "--", "wifitui", "tui"]).catch(console.error)
   },

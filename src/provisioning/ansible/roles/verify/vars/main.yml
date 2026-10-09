@@ -454,6 +454,7 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/battery.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/network.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/network-descriptor.tsx"
+  - "{{ install_dir | trim }}/config/ags/domains/network/read-model.ts"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/power-menu.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/btop.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/thunderbird.tsx"

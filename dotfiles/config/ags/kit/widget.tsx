@@ -31,6 +31,12 @@ export interface BarWidgetSpec<S> {
   readonly visible?: (state: S) => boolean
   /** Extra CSS classes, joined after the mandatory `widget`. */
   readonly class?: string
+  /**
+   * State-derived extra CSS classes, joined after `class`. The kit builds the
+   * `class` prop from a `createComputed`, so this is how a widget reacts to
+   * state with a class — e.g. `(r) => r.speedTesting ? "speedtesting" : null`.
+   */
+  readonly stateClass?: (state: S) => string | null
   readonly pixelSize?: number
   /**
    * Primary activation. Receives the last recorded pointer x (surface coords ==
@@ -60,9 +66,18 @@ export function BarWidgetButton<S>({ spec }: { spec: BarWidgetSpec<S> }) {
   const tooltip = createComputed(() => (spec.tooltip ? spec.tooltip(state()) : ""))
   const visible = createComputed(() => (spec.visible ? spec.visible(state()) : true))
 
+  // `class` may combine a STATIC class with a STATE-DERIVED one. gnim's `class`
+  // prop accepts an accessor, so the whole string is built reactively — the
+  // widget tree stays static and only the property re-evaluates.
+  const classes = createComputed(() => {
+    const parts = spec.class ? `widget ${spec.class}` : "widget"
+    const extra = spec.stateClass ? spec.stateClass(state()) : null
+    return extra ? `${parts} ${extra}` : parts
+  })
+
   return (
     <button
-      class={spec.class ? `widget ${spec.class}` : "widget"}
+      class={classes}
       visible={visible}
       tooltipText={tooltip}
       onClicked={() => spec.primary?.(state(), lastX)}
