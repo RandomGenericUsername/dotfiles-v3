@@ -37,6 +37,7 @@ const emptySession = (): AudioSession => ({
   appIntents: {},
   appVolumes: {},
   appLastIntents: {},
+  appEndpoints: {},
 })
 
 function cloneSession(session: AudioSession): AudioSession {
@@ -50,6 +51,7 @@ function cloneSession(session: AudioSession): AudioSession {
     appIntents: { ...session.appIntents },
     appVolumes: { ...session.appVolumes },
     appLastIntents: { ...session.appLastIntents },
+    appEndpoints: { ...session.appEndpoints },
   }
 }
 
@@ -82,6 +84,7 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
   private readonly lastVolume = new Map<AppId, VolumeState>()
   /** Display-only fallback: the last intent observed for an app's output stream. */
   private readonly lastIntent = new Map<AppId, RouteIntent>()
+  private readonly lastEndpoint = new Map<AppId, EndpointId | null>()
   /**
    * Every app identity ever observed this session, not just those with a live
    * stream right now.
@@ -179,6 +182,10 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
     this.publish()
   }
 
+  private appEndpoints(): Record<AppId, EndpointId | null> {
+    return Object.fromEntries([...this.lastEndpoint.entries()])
+  }
+
   private appLastIntents(): Record<AppId, RouteIntent> {
     return Object.fromEntries([...this.lastIntent.entries()].map(([id, intent]) => [id, { ...intent }]))
   }
@@ -248,6 +255,12 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
     const previousSession = this.session
     const before = new Map(this.lastStreams)
     const preferredChanged = !startup && previousSession.preferredOutputId !== incoming.preferredOutputId
+    // Apps that had a current output stream in the PREVIOUS snapshot. Used to
+    // tell a stream that REPLACES one the app just lost (inherit its intent)
+    // from a genuinely new stream alongside existing ones (grade normally).
+    const hadOutputStreamBefore = new Set(
+      [...before.values()].filter((s) => s.current && s.direction === "output").map((s) => s.appId))
+
     const nextStreams = incoming.streams.map((raw): AudioStream => {
       const previous = before.get(raw.id)
       const stored = this.routeHistory.get(raw.id)
@@ -295,9 +308,29 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
             : FollowPreferred
         }
       } else {
-        intent = establishesExplicit(raw.requestedEndpointId)
-          ? explicitRoute(raw.requestedEndpointId as EndpointId)
-          : FollowPreferred
+        // A stream that REPLACES one the same app just lost inherits the app's
+        // last observed intent. A genuinely new stream does not.
+        //
+        // Firefox destroys and recreates its stream on seek, so the replacement
+        // arrived with no history of its own and was graded FollowPreferred --
+        // flipping the row's label from "Route unknown" to "Follow preferred"
+        // mid-seek. The user's observation was simply "the profile blinks". An
+        // app's routing intent does not change because one of its streams was
+        // replaced.
+        //
+        // The guard matters: inheriting for ANY new stream would mean a second
+        // audio context opened by an already-playing app never got graded at
+        // all. Only a return from a gap inherits; a new stream alongside
+        // existing ones is graded normally (design.md: "New streams without an
+        // observed override follow the preferred output").
+        const inherited = hadOutputStreamBefore.has(raw.appId)
+          ? undefined
+          : this.lastIntent.get(raw.appId)
+        intent = inherited
+          ? { ...inherited }
+          : establishesExplicit(raw.requestedEndpointId)
+            ? explicitRoute(raw.requestedEndpointId as EndpointId)
+            : FollowPreferred
       }
 
       // An app-scoped intent ALWAYS outranks inference, whether or not this
@@ -319,7 +352,10 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
       // on a stream that already exists, or reports a volume that is not the
       // untouched default.
       const appKey = raw.appId
-      if (raw.direction === "output" && raw.current) this.lastIntent.set(appKey, { ...intent })
+      if (raw.direction === "output" && raw.current) {
+        this.lastIntent.set(appKey, { ...intent })
+        this.lastEndpoint.set(appKey, raw.endpointId)
+      }
       let volume = raw.volume
       if (previous === undefined && volume.level === 0 && volume.muted) {
         const known = this.lastVolume.get(appKey)
@@ -347,7 +383,19 @@ export class AudioSessionRuntime implements AudioSessionReader, RouteIntentWrite
 
     this.lastStreams.clear()
     for (const stream of nextStreams) this.lastStreams.set(stream.id, stream)
-    this.session = { ...incoming, streams: nextStreams, players: previousSession.players, appIntents: this.appIntents(), appVolumes: this.appVolumes() }
+    // Accumulate identities so an app stays known while its stream is briefly
+    // absent; publish the retained set rather than only the live-stream ones.
+    for (const app of incoming.apps) this.knownApps.set(app.id, app)
+    this.session = {
+      ...incoming,
+      apps: [...this.knownApps.values()],
+      streams: nextStreams,
+      players: previousSession.players,
+      appIntents: this.appIntents(),
+      appVolumes: this.appVolumes(),
+      appLastIntents: this.appLastIntents(),
+      appEndpoints: this.appEndpoints(),
+    }
     this.boundHistory()
     this.publish()
 

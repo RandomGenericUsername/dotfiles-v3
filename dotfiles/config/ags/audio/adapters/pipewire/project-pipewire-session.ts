@@ -277,5 +277,6 @@ export function projectPipeWireSession(input: {
     appIntents: {},
     appVolumes: {},
     appLastIntents: {},
+    appEndpoints: {},
   }
 }

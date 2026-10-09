@@ -491,8 +491,13 @@ audio-panel-render-test:
 audio-icons-test:
 	node $(AUDIO_VALIDATION)/audio-icons.test.mjs
 
+# A stream destroyed and re-created (every Firefox seek) must not change
+# anything the user sees: name, level, mute, route label, observed endpoint.
+audio-seek-stability-test:
+	node $(AUDIO_VALIDATION)/audio-seek-stability.test.mjs
+
 audio-panel-gates: audio-core-test audio-presentation-test pipewire-adapter-test \
-	audio-session-runtime-test audio-panel-render-test audio-icons-test \
+	audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test \
 	audio-mock-parity ags-typecheck
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`

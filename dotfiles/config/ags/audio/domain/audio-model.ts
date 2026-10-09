@@ -118,6 +118,8 @@ export interface AudioSession {
    * routing decisions -- only what the row displays.
    */
   appLastIntents: Readonly<Record<AppId, RouteIntent>>
+  /** Last observed effective endpoint per app, held across a stream gap. */
+  appEndpoints: Readonly<Record<AppId, EndpointId | null>>
 }
 
 export function clampLevel(level: number): number {
