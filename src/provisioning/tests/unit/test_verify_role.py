@@ -1637,6 +1637,13 @@ class TestVerifyVars:
             "wl-paste",
             "hyprlock",
             "hypridle",
+            # AI development tools (provision-ai-ides-and-clis): the AUR
+            # binaries for the three IDEs and the two CLIs.
+            "antigravity-ide",
+            "code",
+            "devin-desktop",
+            "copilot",
+            "codex",
         ]
 
     def test_icons_samples_include_the_settings_panel_glyphs(self) -> None:
@@ -2311,7 +2318,7 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl", "grim", "slurp", "wl-copy", "wl-paste", "hyprlock", "hypridle"):
+    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl", "grim", "slurp", "wl-copy", "wl-paste", "hyprlock", "hypridle", "antigravity-ide", "code", "devin-desktop", "copilot", "codex"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)

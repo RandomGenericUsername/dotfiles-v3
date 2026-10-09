@@ -1,0 +1,19 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Antigravity IDE
+GenericName=Text Editor
+Comment=Google's agent-first IDE (VS Code fork).
+# Repo-authoritative override of /usr/share/applications/antigravity-ide.desktop.
+# It shadows the packaged entry (XDG_DATA_HOME has higher priority) so rofi's
+# drun mode launches Antigravity Wayland-native on Hyprland instead of through
+# XWayland. The packaged Exec (%F) is preserved; only the Ozone/Wayland flags
+# are added (same contract as dotfiles/applications/tidal-hifi.desktop).
+Exec=/usr/bin/antigravity-ide --enable-features=UseOzonePlatform,WaylandWindowDecorations --ozone-platform-hint=auto %F
+Icon=antigravity-ide
+StartupNotify=false
+Terminal=false
+Type=Application
+Categories=TextEditor;Development;IDE;
+StartupWMClass=antigravity-ide
+MimeType=application/x-antigravity-ide-workspace;
+Keywords=vscode;antigravity;ai;ide;

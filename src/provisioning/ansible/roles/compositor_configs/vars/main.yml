@@ -280,8 +280,20 @@ compositor_configs_xdg_data_home: "{{ ansible_facts.env.XDG_DATA_HOME | default(
 #   add launch flags a package does not ship — currently TIDAL's Electron
 #   /dev/shm workaround so rofi's drun launcher starts it reliably. Authored
 #   under dotfiles/applications/ and repo-authoritative (force: true).
+#
+# provision-ai-ides-and-clis adds five more:
+#   - the three IDE overrides add the Ozone/Wayland launch flags so the VS
+#     Code forks run Wayland-native on Hyprland (filename MUST equal the
+#     packaged entry to shadow it: antigravity-ide/code/devin-desktop);
+#   - copilot/codex ship no packaged entry at all, so their kitty terminal
+#     launchers are what makes the two CLIs searchable in rofi's drun mode.
 compositor_configs_desktop_entries:
   - { name: tidal-hifi, source: dotfiles/applications/tidal-hifi.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/tidal-hifi.desktop" }
+  - { name: antigravity-ide, source: dotfiles/applications/antigravity-ide.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/antigravity-ide.desktop" }
+  - { name: code, source: dotfiles/applications/code.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/code.desktop" }
+  - { name: devin-desktop, source: dotfiles/applications/devin-desktop.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/devin-desktop.desktop" }
+  - { name: copilot, source: dotfiles/applications/copilot.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/copilot.desktop" }
+  - { name: codex, source: dotfiles/applications/codex.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/codex.desktop" }
 
 # The icon mappings are authored once under icon-mappings and converted to the
 # JSON shape consumed by AGS during provisioning.

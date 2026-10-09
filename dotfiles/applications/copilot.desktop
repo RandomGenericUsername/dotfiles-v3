@@ -1,0 +1,16 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=GitHub Copilot CLI
+GenericName=AI coding agent
+Comment=GitHub Copilot coding agent in your terminal.
+# The GitHub Copilot CLI ships no desktop entry, so it is invisible to rofi's
+# drun mode. This repo-authoritative entry makes it searchable and launches it
+# in the provisioned terminal (kitty). Exec (not Terminal=true) is used so the
+# launch does not depend on rofi's `-terminal` resolution.
+Exec=kitty --title "GitHub Copilot CLI" copilot
+Icon=utilities-terminal
+StartupNotify=false
+Terminal=false
+Type=Application
+Categories=Development;TerminalEmulator;
+Keywords=copilot;github;ai;cli;agent;

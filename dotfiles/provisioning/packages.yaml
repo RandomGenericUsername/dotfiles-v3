@@ -103,3 +103,23 @@ entries:
   - name: hypridle           # Idle management
   - name: wlogout            # Logout menu (AGS power-menu action)
   - name: speedtest          # Ookla speedtest CLI (network speed measurements)
+
+  # AI development tools (provision-ai-ides-and-clis). All five are AUR-only
+  # on Arch (see `aur_packages` in roles/packages/vars/arch.yml) and are
+  # therefore mapped ONLY in group_vars/arch.yml — a Debian-family host does
+  # not receive them (documented scope, not drift). Each IDE is made
+  # rofi-launchable by a user-scoped desktop-entry override under
+  # dotfiles/applications/ (compositor_configs_desktop_entries); the two CLIs
+  # get kitty terminal launchers so they appear in rofi's drun mode too.
+  #
+  #   windsurf -> devin-desktop: Windsurf (Codeium) was rebranded "Devin
+  #   Desktop"; there is no `windsurf` AUR package any more. The logical key
+  #   stays `windsurf` (the user's term) while the value tracks the upstream
+  #   rebrand.
+  #   vscode -> visual-studio-code-bin: the Microsoft build (Marketplace +
+  #   Copilot). It conflicts with the OSS `code` package, which is not listed.
+  - name: antigravity-ide    # Google Antigravity IDE (VS Code fork)
+  - name: windsurf           # Windsurf / Devin Desktop (Codeium rebrand)
+  - name: vscode             # Visual Studio Code (Microsoft build)
+  - name: copilot-cli        # GitHub Copilot CLI (the new @github/copilot)
+  - name: codex-cli          # OpenAI Codex CLI

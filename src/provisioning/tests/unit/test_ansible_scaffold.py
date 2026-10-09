@@ -126,6 +126,16 @@ _ARCH_EXTRA_KEYS = (
     "power-options-gtk",  # AUR-only (portable power management) — Arch
     "hyprmod",  # AUR-only (GTK4 module manager) — Arch (pre-existing drift lock)
     "nvm",  # repo nvm satisfies tidal-hifi-git's PKGBUILD getnvm() so it never self-bootstraps via makepkg -si
+    # AI development tools (provision-ai-ides-and-clis): all AUR-only on Arch,
+    # so they live in the Arch-only set and a Debian-family host does not get
+    # them. windsurf -> devin-desktop (upstream rebrand); vscode ->
+    # visual-studio-code-bin (Microsoft build); copilot-cli/codex-cli are the
+    # two terminal CLIs made rofi-launchable by kitty .desktop launchers.
+    "antigravity-ide",
+    "windsurf",
+    "vscode",
+    "copilot-cli",
+    "codex-cli",
 )
 
 

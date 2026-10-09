@@ -307,6 +307,71 @@ class TestCliToolsTasks:
             )
 
 
+class TestCliToolsCodexShadowCleanup:
+    """provision-ai-ides-and-clis: the AUR openai-codex-bin owns /usr/bin/codex,
+    but OpenAI's standalone installer leaves a self-updating symlink at
+    <bin>/codex that precedes /usr/bin on PATH. The role removes it — guarded
+    so a user's own codex is never touched — and drops the standalone payload
+    while preserving ~/.codex config/auth."""
+
+    @staticmethod
+    def _shadow_stat_task() -> dict[str, object]:
+        tasks = [
+            task
+            for task in _load_tasks()
+            if task.get("register") == "cli_tools_codex_shadow"
+        ]
+        assert len(tasks) == 1, "expected exactly one stat of the codex shadow"
+        return tasks[0]
+
+    def test_shadow_symlink_is_removed_only_when_standalone(self) -> None:
+        stat_task = self._shadow_stat_task()
+        module = stat_task.get(_module_key(stat_task) or "", {})
+        assert module.get("path") == "{{ cli_tools_bin_dir }}/codex"
+
+        removals = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.file"
+            and task.get(_module_key(task), {}).get("state") == "absent"
+            and task.get(_module_key(task), {}).get("path") == "{{ cli_tools_bin_dir }}/codex"
+        ]
+        assert len(removals) == 1, "expected exactly one codex-shadow removal task"
+        when = str(removals[0].get("when"))
+        assert "not ansible_check_mode" in when, "shadow removal must be check-mode gated"
+        assert "cli_tools_codex_shadow.stat.islnk" in when, (
+            "must only remove a symlink (never a user's regular file)"
+        )
+        assert "/.codex/packages/standalone/" in when, (
+            "must only remove the standalone installer's symlink"
+        )
+
+    def test_standalone_payload_removed_with_config_preserved(self) -> None:
+        checks = [
+            task
+            for task in _load_tasks()
+            if task.get("register") == "cli_tools_codex_standalone"
+        ]
+        assert len(checks) == 1, "expected a standalone-payload existence check"
+        payload_module = checks[0].get(_module_key(checks[0]) or "", {})
+        assert payload_module.get("path") == "{{ ansible_facts.env.HOME }}/.codex/packages/standalone"
+
+        removals = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.file"
+            and task.get(_module_key(task), {}).get("state") == "absent"
+            and task.get(_module_key(task), {}).get("path") == "{{ ansible_facts.env.HOME }}/.codex/packages"
+        ]
+        assert len(removals) == 1, "expected the standalone packages payload removal"
+        when = str(removals[0].get("when"))
+        assert "not ansible_check_mode" in when
+        assert "cli_tools_codex_standalone.stat.exists" in when
+        # ~/.codex/config.toml and auth must never be named for removal.
+        for task in removals:
+            assert "config.toml" not in str(task), "user codex config must be preserved"
+
+
 class TestCliToolsImageBuildTasks:
     def test_image_build_task_exists_for_csg(self) -> None:
         """Container mode (product decision 2026-08-12) requires the cli_tools

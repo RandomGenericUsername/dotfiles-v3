@@ -146,3 +146,14 @@ packages:
     - sddm
     - qt6-declarative
     - qt6-svg
+  # AI development tools (provision-ai-ides-and-clis). AUR-only on Arch, so the
+  # names resolve here and the packages role routes them through aur_packages
+  # (kewlfft.aur.aur + yay), NOT ansible.builtin.package. Arch-only keys: a
+  # Debian-family host does not receive these (documented scope). See
+  # dotfiles/provisioning/packages.yaml for the logical manifest entries and
+  # dotfiles/applications/*.desktop for the rofi launch overrides.
+  antigravity-ide: antigravity-ide # Google Antigravity IDE (VS Code fork)
+  windsurf: devin-desktop # Windsurf, rebranded "Devin Desktop" upstream
+  vscode: visual-studio-code-bin # Microsoft build (Marketplace + Copilot)
+  copilot-cli: github-copilot-cli # GitHub Copilot CLI (new @github/copilot)
+  codex-cli: openai-codex-bin # OpenAI Codex CLI

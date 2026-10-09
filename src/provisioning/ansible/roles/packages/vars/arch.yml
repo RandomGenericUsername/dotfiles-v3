@@ -6,7 +6,11 @@
 packages_use_aur: true
 aur_builder_user: aur_builder
 aur_builder_group: wheel
-aur_packages: [aylurs-gtk-shell-git, astal-hyprland, astal-battery, astal-network, astal-tray, wlogout, wifitui, power-options-gtk, hyprmod, tidal-hifi-git, libastal-notifd-git, libastal-wireplumber-git, gloview-git]
+# The AI development tools (provision-ai-ides-and-clis) are appended as the
+# AUR-only set: Antigravity IDE, Windsurf/Devin Desktop, the Microsoft VS Code
+# build, the GitHub Copilot CLI, and the OpenAI Codex CLI. They are declared in
+# group_vars/arch.yml and subtracted from the pacman list here.
+aur_packages: [aylurs-gtk-shell-git, astal-hyprland, astal-battery, astal-network, astal-tray, wlogout, wifitui, power-options-gtk, hyprmod, tidal-hifi-git, libastal-notifd-git, libastal-wireplumber-git, gloview-git, antigravity-ide, devin-desktop, visual-studio-code-bin, github-copilot-cli, openai-codex-bin]
 yay_repo: https://aur.archlinux.org/yay-bin.git
 
 # packages_conflicting_host_packages: host-default packages that declare a

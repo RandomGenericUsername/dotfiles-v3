@@ -404,6 +404,13 @@ class TestReadRealManifests:
             "blueman",
             "nm-connection-editor",
             "speedtest",
+            # AI development tools (provision-ai-ides-and-clis) — Arch-only AUR
+            # (windsurf -> devin-desktop, vscode -> visual-studio-code-bin).
+            "antigravity-ide",
+            "windsurf",
+            "vscode",
+            "copilot-cli",
+            "codex-cli",
         }
 
     def test_config_copies_manifest_lists_only_existing_dirs(self) -> None:

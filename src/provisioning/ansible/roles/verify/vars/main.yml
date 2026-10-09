@@ -195,6 +195,16 @@ verify_system_binaries:
   #   Packages-role installed (lock key + portals key).
   - hyprlock
   - hypridle
+  # AI development tools (provision-ai-ides-and-clis): the three IDE binaries
+  # and the two CLIs. Installed by the packages role via the AUR channel, so a
+  # missing install fails the criterion-2 PATH gate instead of silently leaving
+  # a rofi entry that launches nothing. power-options-gtk/pavucontrol are the
+  # precedent for GUI app binaries in this list.
+  - antigravity-ide
+  - code
+  - devin-desktop
+  - copilot
+  - codex
 
 # verify_cli_tools: the uv-tool-installed CLIs on PATH (criterion 3). `itr` IS
 #   the icon-renderer console script (no separate binary), mirror of

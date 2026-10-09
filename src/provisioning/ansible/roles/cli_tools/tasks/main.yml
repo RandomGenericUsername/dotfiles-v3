@@ -127,6 +127,50 @@
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
   changed_when: false
 
+# The OpenAI Codex CLI is installed by the packages role (AUR openai-codex-bin
+# -> /usr/bin/codex; provision-ai-ides-and-clis). A machine that previously ran
+# OpenAI's standalone installer carries a self-updating shadow at
+# <bin>/codex (a symlink into ~/.codex/packages/standalone/current/bin/codex)
+# which PRECEDES /usr/bin on PATH, so the AUR binary would never be the
+# resolved `codex`. Remove the shadow so provisioning owns the binary — but
+# ONLY when it is the standalone installer's symlink, never a user's own
+# `codex` (a regular file, or a link somewhere else, is left untouched).
+#
+# User-scoped (no become): this is the user's own bin dir, mirroring the
+# "never install into root's home" contract. `stat` does NOT follow symlinks
+# by default, so islnk/lnk_target describe the link itself; a dangling link is
+# still removed. Check-gated: a dry-run never deletes.
+- name: Check for the standalone Codex shadow in the user bin dir
+  ansible.builtin.stat:
+    path: "{{ cli_tools_bin_dir }}/codex"
+  register: cli_tools_codex_shadow
+
+- name: Remove the standalone Codex shadow (the AUR package owns /usr/bin/codex)
+  ansible.builtin.file:
+    path: "{{ cli_tools_bin_dir }}/codex"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - cli_tools_codex_shadow.stat.islnk | default(false)
+    - "'/.codex/packages/standalone/' in (cli_tools_codex_shadow.stat.lnk_target | default(''))"
+
+# The standalone installer's payload lives under ~/.codex/packages (releases +
+# the `current` pointer). Remove it only when the standalone subtree is really
+# there — never touch ~/.codex/config.toml or auth, which hold the user's
+# login/state and are shared by the AUR binary.
+- name: Check for the standalone Codex packages payload
+  ansible.builtin.stat:
+    path: "{{ ansible_facts.env.HOME }}/.codex/packages/standalone"
+  register: cli_tools_codex_standalone
+
+- name: Remove the standalone Codex packages payload (config/auth preserved)
+  ansible.builtin.file:
+    path: "{{ ansible_facts.env.HOME }}/.codex/packages"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - cli_tools_codex_standalone.stat.exists
+
 # Container image builds for the container-mode CLIs (product decision
 # 2026-08-12: csg/weg run in container mode; the host never installs backend
 # binaries). `uv tool install` above only installs the host-side launcher —
