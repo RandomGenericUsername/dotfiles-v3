@@ -6,12 +6,13 @@ import { BatteryIndicator } from "./widgets/battery"
 // glyphs read as one group, matching the mock's bar pair.
 import { BluetoothStatus } from "./widgets/bluetooth"
 import { NetworkStatus } from "./widgets/network"
-import { PowerMenu } from "./widgets/power-menu"
-import { Btop } from "./widgets/btop"
-import { Thunderbird } from "./widgets/thunderbird"
 import { Tray } from "./widgets/tray"
-import { Settings } from "./widgets/settings"
 import { MicIndicator, OutputIndicator } from "./widgets/audio"
+import { BarWidgetButton } from "../kit/widget"
+import { btopWidget } from "./widgets/btop"
+import { thunderbirdWidget } from "./widgets/thunderbird"
+import { settingsWidget } from "./widgets/settings"
+import { powerMenuWidget } from "./widgets/power-menu"
 import { readBarBackdrop } from "../lib/bar-backdrop"
 import type { AudioPanelBinding } from "../audio/AudioPopup"
 
@@ -42,10 +43,10 @@ export default function Bar(gdkmonitor: Gdk.Monitor, audio: AudioPanelBinding) {
           <BatteryIndicator />
           <BluetoothStatus />
           <NetworkStatus />
-          <Btop />
-          <Thunderbird />
-          <Settings />
-          <PowerMenu />
+          <BarWidgetButton spec={btopWidget} />
+          <BarWidgetButton spec={thunderbirdWidget} />
+          <BarWidgetButton spec={settingsWidget} />
+          <BarWidgetButton spec={powerMenuWidget} />
         </box>
       </centerbox>
     </window>

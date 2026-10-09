@@ -256,16 +256,22 @@ class TestCompositorConfigsTasks:
         # followed it, 83 once the audio hexagon was registered, and 84 once
         # finish-audio-bar-migration split audio/state.ts into ui-state.ts +
         # presentation/levels.ts + presentation/bar-indicators.ts and retired
-        # audio/state.ts and services/mpris-service.ts (+3, -2). Placement here is
+        # audio/state.ts and services/mpris-service.ts (+3, -2), 86 once the
+        # bar kit (kit/icon.ts + kit/widget.tsx) was registered, 90 once the
+        # overlay coordinator + the network descriptor were added, and 91 once
+        # the network domain read model (domains/network/read-model.ts) was added
+        # to make the descriptor react to device property changes. Placement here is
         # PER FILE, so an unregistered file silently never deploys and the panel
         # imports a module that is not there on the desktop: this assertion is
         # what makes that fail loudly at review time instead of at runtime. Do NOT
         # relax it to `>=`, a subset check, or delete it — those all convert
         # "deploys nothing" into "passes".
-        assert len(files) == 84, (
-            f"expected exactly 84 skeleton files (hyprland.lua + gloview.lua + "
-            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+6 lib (incl. "
-            f"wifi-signal)+Bar.tsx+11 "
+        assert len(files) == 91, (
+            f"expected exactly 91 skeleton files (hyprland.lua + gloview.lua + "
+            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
+            f"7 lib (incl. wifi-signal/network-icon)+3 kit (icon/overlay/widget)+"
+            f"1 domain (network read-model)+"
+            f"Bar.tsx+12 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
             f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
             f"D-Bus services + speedtest service + the MPRIS core file "
@@ -307,6 +313,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/bar/widgets/battery.tsx",
             "dotfiles/config/ags/bar/widgets/btop.tsx",
             "dotfiles/config/ags/bar/widgets/clock.tsx",
+            "dotfiles/config/ags/bar/widgets/network-descriptor.tsx",
             "dotfiles/config/ags/bar/widgets/network.tsx",
             "dotfiles/config/ags/bar/widgets/power-menu.tsx",
             "dotfiles/config/ags/bar/widgets/recording.tsx",
@@ -328,12 +335,18 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/wifi/WifiContent.tsx",
             "dotfiles/config/ags/components/wifi/WifiPopup.tsx",
             "dotfiles/config/ags/components/wifi/state.ts",
+            "dotfiles/config/ags/domains/network/read-model.ts",
+            "dotfiles/config/ags/kit/icon.ts",
+            "dotfiles/config/ags/kit/overlay.ts",
+            "dotfiles/config/ags/kit/widget.tsx",
             "dotfiles/config/ags/lib/bar-backdrop.ts",
             "dotfiles/config/ags/lib/event-bus-core.ts",
             "dotfiles/config/ags/lib/event-bus.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",
+            "dotfiles/config/ags/lib/network-icon.ts",
             "dotfiles/config/ags/lib/status-notifier.ts",
             "dotfiles/config/ags/lib/wifi-signal.ts",
+            "dotfiles/config/ags/overlays.ts",
             "dotfiles/config/ags/services/bluetooth-service.ts",
             "dotfiles/config/ags/services/mpris-core.ts",
             "dotfiles/config/ags/services/nm-client.ts",

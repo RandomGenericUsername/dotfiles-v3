@@ -1,27 +1,20 @@
 import { execAsync } from "ags/process"
-import { registry } from "../../lib/icon-registry"
+import type { BarWidgetSpec } from "../../kit/widget"
+import { iconByStateKey } from "../../kit/icon"
 
-function getPowerMenuIconPath(): string | null {
-  const mappings = registry.getBarMappings("power-menu")
-  if (!mappings) return null
-
-  const variant = mappings.states["default"]
-  if (!variant) return null
-
-  return registry.resolve("power-menu", variant)
-}
-
-export function PowerMenu() {
-  return (
-    <button
-      class="widget power-menu-widget"
-      onClicked={() => execAsync(["wlogout"])}
-    >
-      <image
-        pixel_size={28}
-        class="widget-icon"
-        $={(self) => self.set_from_file(getPowerMenuIconPath() ?? "")}
-      />
-    </button>
-  )
+/**
+ * Status-bar power menu launcher, expressed as a widget descriptor.
+ *
+ * Uses `iconByStateKey` (the `power-menu` group's `bar_mappings.states` table)
+ * rather than `iconByVariant`, exercising the state-key resolution path in the
+ * kit — the path the battery/network/bluetooth widgets will use.
+ */
+export const powerMenuWidget: BarWidgetSpec<undefined> = {
+  id: "power-menu",
+  read: () => undefined,
+  class: "power-menu-widget",
+  icon: iconByStateKey("power-menu", () => "default"),
+  primary: () => {
+    execAsync(["wlogout"]).catch(console.error)
+  },
 }

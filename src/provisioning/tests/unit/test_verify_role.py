@@ -2636,6 +2636,8 @@ def _build_provisioned_layout(
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
     (install / "config" / "ags" / "app.tsx").write_text("")
     (install / "config" / "ags" / "style.css").write_text("")
+    # Composition-root overlay registration (bar re-architecture prototype).
+    (install / "config" / "ags" / "overlays.ts").write_text("")
     # rofi launcher skeleton (compositor_configs role, add-rofi-app-launcher).
     (install / "config" / "rofi" / "launcher" / "config.rasi").write_text("")
     # AGS bar skeletons (enhance-ags-bar: icons registry + Bar + widgets).
@@ -2645,6 +2647,9 @@ def _build_provisioned_layout(
     (install / "config" / "ags-capture" / "icons.json").write_text("{}")
     for rel in (
         "ags/lib",
+        "ags/kit",
+        "ags/domains",
+        "ags/domains/network",
         "ags/bar",
         "ags/bar/widgets",
         "ags/settings-panel",
@@ -2680,14 +2685,23 @@ def _build_provisioned_layout(
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
+    (install / "config" / "ags" / "lib" / "network-icon.ts").write_text("")
     (install / "config" / "ags" / "lib" / "event-bus.ts").write_text("")
     (install / "config" / "ags" / "lib" / "event-bus-core.ts").write_text("")
+    # The bar widget kit (bar re-architecture prototype): the descriptor model.
+    (install / "config" / "ags" / "kit" / "icon.ts").write_text("")
+    (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")
+    (install / "config" / "ags" / "kit" / "widget.tsx").write_text("")
+    # The network domain read model (bar re-architecture §5.3): the Astal adapter
+    # behind the descriptor. Mirrors verify_compositor_skeleton_files.
+    (install / "config" / "ags" / "domains" / "network" / "read-model.ts").write_text("")
     (install / "config" / "ags" / "bar" / "Bar.tsx").write_text("")
     for widget in (
         "workspaces",
         "clock",
         "battery",
         "network",
+        "network-descriptor",
         "power-menu",
         "btop",
         "thunderbird",
