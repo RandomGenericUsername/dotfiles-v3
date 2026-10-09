@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help
+.PHONY: bootstrap contracts-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -28,7 +28,11 @@ GATES := contracts-check wifi-mock-parity bluetooth-mock-parity \
          battery-mock-parity speedtest-mock-parity \
          speedtest-no-new-architecture capture-test ags-test capture-typecheck \
          bar-typecheck capture-hexagonal-gate icons-json-drift \
-         ansible-embedded-template-lint ci-gates-parity
+         ansible-embedded-template-lint ci-gates-parity \
+         audio-mock-parity audio-core-test audio-presentation-test \
+         pipewire-adapter-test audio-session-runtime-test \
+         audio-panel-render-test audio-icons-test audio-seek-stability-test \
+         ags-typecheck
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
@@ -51,7 +55,7 @@ gates: $(GATES)
 # This target exists so a developer can reproduce a CI run without the desktop
 # stack, and so the split is stated in ONE place that cannot drift from the
 # workflow: `.github/workflows/gates.yml` runs these as one job per gate.
-gates-ci: $(filter-out capture-typecheck bar-typecheck,$(GATES))
+gates-ci: $(filter-out capture-typecheck bar-typecheck ags-typecheck,$(GATES))
 
 # CI<->gate-list parity: the workflow's job set must equal `gates-ci`.
 #
@@ -462,6 +466,110 @@ ansible-embedded-template-lint:
 
 speedtest-no-new-architecture:
 	python3 scripts/speedtest-no-new-architecture.py
+
+# Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
+# when incus is missing and the terminal is interactive).
+dev-deps:
+	sudo pacman -S --noconfirm incus spice-gtk
+	sudo systemctl enable --now incus
+	sudo usermod -aG incus-admin $(USER)
+	@echo "Log out/in for plain 'incus' use; 'make vm-*' activates the group itself (no re-login needed)."
+
+# VM commands
+vm-fresh:   dev/vm
+	./dev/vm fresh
+vm-up:      dev/vm
+	./dev/vm up
+
+vm-down:    dev/vm
+	./dev/vm down
+
+vm-console: dev/vm
+	./dev/vm console
+
+vm-shell:   dev/vm
+	./dev/vm shell
+
+vm-destroy: dev/vm
+	./dev/vm destroy
+
+vm-status:  dev/vm
+	./dev/vm status
+
+vm-verify:  dev/vm
+	./dev/vm verify
+
+vm-help:
+	@echo "VM Usage:"
+	@echo "  make vm-fresh    — wipe + recreate + full provision"
+	@echo "  make vm-up       — start the VM"
+	@echo "  make vm-down     — stop the VM"
+	@echo "  make vm-console  — open SPICE graphical console"
+	@echo "  make vm-shell    — get a shell inside the VM"
+	@echo "  make vm-destroy  — delete the VM entirely"
+	@echo "  make vm-status   — show VM state"
+	@echo "  make vm-verify   — post-provision assertions inside the VM"
+	@echo ""
+	@echo "Inside the SPICE console:"
+	@echo "  Ctrl+Alt+G       — grab/ungrab keyboard (Super key goes to VM)"
+	@echo "  Ctrl+Alt+F       — toggle fullscreen"
+	@echo ""
+	@echo "VM keybindings (when keyboard is grabbed):"
+	@echo "  Super+Enter      — terminal (kitty)"
+	@echo "  Super+Q          — close window"
+	@echo "  Super+M          — kill active window"
+	@echo "  Super+V          — toggle floating"
+	@echo ""
+	@echo "Login: arch / arch"
+audio-mock-parity:
+	python3 scripts/audio-mock-parity.py
+
+# Typecheck the AGS layer (tasks.md 6.5). `ags bundle` transpiles without
+# typechecking, which is how a mis-cased shorthand property shipped through
+# every other gate and died on startup.
+#
+# Baseline is 32: errors that exist on master today, untouched by this change
+# (battery, tray, wifi-service, ...). Verified by diffing the error file list
+# against master -- this change introduces none and removes 5. Do not raise the
+# baseline to make the gate green; fix the error or record why it is foreign.
+ags-typecheck:
+	python3 scripts/ags-typecheck.py
+
+# Audio panel gates, cheapest and most local first. Order matters: the unit
+# suites are fast and stateless, then mock/code parity (the mock is the source
+# of truth for the surface), then the render gate (is the panel wired at all),
+# then the tsc gate (task 6.5, not yet implemented), then the repo-wide gates.
+# The live checks in openspec/changes/redesign-ags-audio-panel/validation/ are
+# NOT here: they change live playback/routing and must be run deliberately.
+AUDIO_VALIDATION := openspec/changes/redesign-ags-audio-panel/validation
+
+audio-core-test:
+	node $(AUDIO_VALIDATION)/audio-core.test.mjs
+
+audio-presentation-test:
+	node $(AUDIO_VALIDATION)/audio-presentation.test.mjs
+
+pipewire-adapter-test:
+	node $(AUDIO_VALIDATION)/pipewire-adapter.test.mjs
+
+audio-session-runtime-test:
+	node $(AUDIO_VALIDATION)/audio-session-runtime.test.mjs
+
+audio-panel-render-test:
+	node $(AUDIO_VALIDATION)/audio-panel-render.test.mjs
+
+# Every icon variant the level vocabulary can request must exist in icons.json.
+audio-icons-test:
+	node $(AUDIO_VALIDATION)/audio-icons.test.mjs
+
+# A stream destroyed and re-created (every Firefox seek) must not change
+# anything the user sees: name, level, mute, route label, observed endpoint.
+audio-seek-stability-test:
+	node $(AUDIO_VALIDATION)/audio-seek-stability.test.mjs
+
+audio-panel-gates: audio-core-test audio-presentation-test pipewire-adapter-test \
+	audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test \
+	audio-mock-parity ags-typecheck
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).

@@ -559,6 +559,7 @@ const streamKeysByNodeId = new Map<number, string[]>()
 
 /** Canonical app keys for one stream node (Identity/ALIAS-folded). */
 function appKeysOfNode(node: WpNode | null): Set<string> {
+  countRender("appKeys")
   const keys = new Set<string>()
   if (!node) return keys
   const snap = graph()
@@ -667,14 +668,157 @@ export function appRowKey(row: AppRow): string {
 }
 
 /** The live playback-stream node for an app, or null when the app has no
- *  stream right now (paused player, transient re-link gap). Resolved at read
- *  time so a reused row never holds a stale node object. */
+ *  stream right now. Resolved at read time so a reused row never holds a stale
+ *  node object. */
 export function liveStreamForApp(app: string): WpNode | null {
+  countRender("liveStream")
   //: Deliberately does NOT record the level: `displayVolumeForApp` /
   //: `displayMuteForApp` own level bookkeeping (the momentary-zero hold), and
   //: this resolver is also used by pure lookups (routing, icons) that must not
   //: move the display state as a side effect.
   return streamNodeForApp(app)
+}
+
+// ── Display hold for the re-link gap ───────────────────────────────────────
+//
+// Screenshots the owner captured frame-by-frame settle what three rounds of
+// polling could not. Clicking the seek slider makes WirePlumber re-link the
+// stream, and for the duration of that gap the stream node is simply ABSENT from
+// `wp.nodes`. Every "does this app have a live stream?" decision then flips at
+// once, and the row visibly changes shape:
+//
+//   before: "Firefox" / "(15) KOMM,..." / [C-Media(R) A... >] / volume 100%
+//   during: "Mozilla firefox" / "KOMM, SUSSER TO M-10..." / (chip gone) / "—"
+//
+// and the Output card changed too: its transport button is
+// `visible={defaultSinkPlayers().length > 0}`, so it vanished, the title gained
+// the freed width (`C-Media(R) Aud...` became `C-Media(R) Audio An...`), and the
+// whole card reflowed.
+//
+// The node is genuinely gone, so this cannot be "fixed" by finding it faster —
+// the question is only whether a sub-second graph transition should change what
+// the panel SHOWS. It should not: a re-link is not the app stopping. So the
+// last-seen node is held for a short window and every display decision reads
+// through it.
+//
+// WRITES stay strict (`liveStreamForApp`): a volume or routing write must never
+// be aimed at a node the graph has already torn down. The consequence is
+// deliberate and small: a gesture released inside the gap writes nothing, which
+// is better than writing to a detached node.
+const STREAM_DISPLAY_HOLD_MS = 1_500
+
+const lastSeenStream = new Map<string, { node: WpNode; atMs: number }>()
+const lastSeenSinkId = new Map<string, number>()
+
+function monotonicMs(): number {
+  return GLib.get_monotonic_time() / 1000
+}
+
+/** The stream node to RENDER for an app: the live one, or — inside the hold
+ *  window — the last one seen. Null only when the app has genuinely had no
+ *  stream for longer than the window. */
+export function heldStreamForApp(app: string): WpNode | null {
+  const live = streamNodeForApp(app)
+  if (live !== null) {
+    lastSeenStream.set(app, { node: live, atMs: monotonicMs() })
+    return live
+  }
+  const seen = lastSeenStream.get(app)
+  if (seen === undefined) return null
+  return monotonicMs() - seen.atMs < STREAM_DISPLAY_HOLD_MS ? seen.node : null
+}
+
+/** True when the row should be drawn stream-bound (chip visible, level line
+ *  enabled, title/subtitle/icon taken from the stream). */
+export function isStreamBoundForDisplay(app: string): boolean {
+  return heldStreamForApp(app) !== null
+}
+
+/** Forget an app's held stream — used when the row is destroyed, so a closed app
+ *  does not keep its last node alive. */
+export function releaseHeldStream(app: string): void {
+  lastSeenStream.delete(app)
+  lastSeenSinkId.delete(app)
+  lastNames.delete(app)
+}
+
+/**
+ * The media name to RENDER for an app, with the same trust discipline the row's
+ * other display values follow.
+ *
+ * `streamMediaName` reads `snap.nodeMedia[node.id]` and nothing else, so it is
+ * correct only while the snapshot is caught up with the node it is handed. Firefox
+ * destroys and recreates its stream on every seek and every ad transition, which
+ * hands the row a node whose id the current snapshot has never seen — the read
+ * returns `""`, the subtitle collapses, the row repaints, and the text comes back
+ * when the next snapshot lands. That is the reported flicker, and it is a repaint
+ * with identical-looking intent, which is why value polls never showed it.
+ *
+ * The gap is the same one `appKeysOfNode` already fills for IDENTITY: a snapshot
+ * that has not caught up is not evidence the name went away. The hold is keyed by
+ * APP rather than by node id, because the id is the thing that changed — keying
+ * by id would miss on precisely the frames that need it.
+ *
+ * Direction of trust is unchanged: a name a snapshot actually provides always
+ * wins immediately, so a genuine track change still shows up at once. Nothing is
+ * ever invented — only a value a real snapshot produced can be held — and the
+ * hold cannot outlive the stream, so a closed app loses its name with the same
+ * window as its node.
+ */
+const MEDIA_NAME_DISPLAY_HOLD_MS = 1_500
+
+/** Last-known display strings, keyed by app. Both fields are read out of the
+ *  snapshot by node id, so both share the id-churn gap; `appName` is held
+ *  alongside `media` because it is the subtitle's fallback and would blink for
+ *  the same reason one line later. */
+const lastNames = new Map<string, { media: string; app: string; atMs: number }>()
+
+function heldNames(app: string): { media: string; app: string; atMs: number } | undefined {
+  const held = lastNames.get(app)
+  if (held === undefined) return undefined
+  if (monotonicMs() - held.atMs >= MEDIA_NAME_DISPLAY_HOLD_MS) {
+    lastNames.delete(app)
+    return undefined
+  }
+  return held
+}
+
+/** The app's media name: the snapshot's when it has one, else the last one a
+ *  snapshot did provide while the stream is still considered alive. */
+export function mediaNameForApp(app: string, stream: unknown): string {
+  const media = streamMediaName(stream)
+  const appName = streamAppName(stream)
+  if (media !== "" || appName !== "") {
+    const prev = heldNames(app)
+    lastNames.set(app, {
+      media: media !== "" ? media : (prev?.media ?? ""),
+      app: appName !== "" ? appName : (prev?.app ?? ""),
+      atMs: monotonicMs(),
+    })
+    return media
+  }
+  const held = heldNames(app)
+  if (held === undefined) return ""
+  countRender("mediaNameHeld")
+  return held.media
+}
+
+/** The app's name, held on the same window as its media name — see
+ *  {@link mediaNameForApp}. Empty rather than a wrong name: the hold only ever
+ *  returns a string a real snapshot produced. */
+export function appNameForApp(app: string, stream: unknown): string {
+  const live = streamAppName(stream)
+  if (live !== "") {
+    const media = streamMediaName(stream)
+    const prev = heldNames(app)
+    lastNames.set(app, {
+      media: media !== "" ? media : (prev?.media ?? ""),
+      app: live,
+      atMs: monotonicMs(),
+    })
+    return live
+  }
+  return heldNames(app)?.app ?? ""
 }
 
 /**
@@ -810,7 +954,11 @@ function streamNodeForApp(app: string): WpNode | null {
  *  row, which shows the default device for exactly that case. One resolution,
  *  two consumers: the chip and the button can never name different devices. */
 export function effectiveSinkIdForApp(app: string): number | null {
-  const node = streamNodeForApp(app)
+  //: Read through the DISPLAY hold so the Output card's transport button keeps
+  //: its target across a re-link: the gap that hid the button was this
+  //: resolution returning null for every app at once. Pausing and resuming are
+  //: MPRIS calls, so holding an app here costs nothing in correctness.
+  const node = heldStreamForApp(app)
   if (!node) return null
   const explicit = nodeOf(node.target_endpoint)
   if (explicit?.id !== undefined) return explicit.id
@@ -903,6 +1051,60 @@ let nextRowSlot = 0
 // state and written ONLY when its ordered keys actually differ never notifies
 // `For` for a no-op. The effect still runs on every notification — it is a key
 // computation and a string compare — but no widget is touched.
+/** Render-path counters, exposed via `ags request audio-debug`.
+ *
+ *  The Firefox flicker is a PAINT-level fault: every state poll came back clean
+ *  while the screen flickered, which means the values were never wrong and the
+ *  widgets were being rebuilt. Counting the render path is the only way to see
+ *  that, and to tell WHICH layer rebuilds:
+ *
+ *    rowListWrite — the Applications list was written (i.e. `For` re-ran)
+ *    appKeys      — app identity was resolved for a node
+ *    liveStream   — a row's stream was looked up
+ *    streamRow    — a row COMPONENT was constructed (a real widget rebuild)
+ *    levelLine    — a level line was constructed
+ *    deviceCard   — an Output/Input card was constructed
+ *
+ *  A seek that spikes `rowListWrite`/`streamRow` is rebuilding widgets; one that
+ *  spikes only `appKeys`/`liveStream` is merely recomputing computeds (cheap and
+ *  invisible); one that spikes nothing means the repaint is inside a single
+ *  widget's own effects and the fault is elsewhere again. */
+export const renderStats: Record<string, number> = {}
+
+export function countRender(what: string): void {
+  renderStats[what] = (renderStats[what] ?? 0) + 1
+}
+
+/**
+ * A STRING that only notifies when its content actually changes.
+ *
+ * gnim computeds re-notify on every dependency change without comparing values,
+ * and the JSX runtime writes a widget property on every notification — so
+ * `label={someComputed}` writes the same string to the same `Gtk.Label` dozens of
+ * times a second. Each write re-measures and re-renders that label. The values
+ * are identical, which is precisely why every state poll read "clean" while the
+ * row visibly flickered.
+ *
+ * This is the same remedy as `setIconOnce` (for images) and `stableList` (for
+ * lists): compare before writing. Counted, so a regression is measurable.
+ */
+export function stableText(source: Accessor<string>): Accessor<string> {
+  const [text, setText] = createState("")
+  let primed = false
+  createEffect(() => {
+    const next = source()
+    if (!primed) {
+      primed = true
+      setText(next)
+      return
+    }
+    if (next === text()) return
+    countRender("labelWrite")
+    setText(next)
+  }, { immediate: true })
+  return text
+}
+
 function stableList<T>(
   computeKeys: () => T[],
   keyOf: (item: T) => string,
@@ -919,6 +1121,7 @@ function stableList<T>(
       const nextShape = next.map(keyOf).join("\u0000")
       if (nextShape === shape) return
       shape = nextShape
+      countRender("rowListWrite")
       setItems(next)
     },
     { immediate: true },
@@ -1249,12 +1452,57 @@ export function debugAudioState(): Record<string, unknown> {
       mute: n?.mute ?? null,
     }
   })
-  const rows = (applicationRows() ?? []).map((row) => ({
-    app: row.app,
-    liveStreamId: liveStreamForApp(row.app)?.id ?? null,
-    displayVolume: displayVolumeForApp(row.app),
-    player: playerForApp(row.app)?.busName ?? null,
-  }))
+  const rows = (applicationRows() ?? []).map((row) => {
+    const node = liveStreamForApp(row.app)
+    const rawVolume = node === null ? null : clampVolume(node.volume ?? 0)
+    const rawMute = node === null ? null : node.mute === true
+    return {
+      app: row.app,
+      liveStreamId: liveStreamForApp(row.app)?.id ?? null,
+      displayVolume: displayVolumeForApp(row.app),
+      player: playerForApp(row.app)?.busName ?? null,
+      //: The mute glyph's INPUTS, verbatim: the raw node properties the backend
+      //: actually reports, and the variant the glyph resolves to. A glyph that
+      //: flickers while these hold still means the backend is re-reading
+      //: differently; a glyph that flickers because `glyphVariant` changes means
+      //: the level or mute is genuinely crossing a threshold.
+      rawVolume,
+      rawMute,
+      displayMute: displayMuteForApp(row.app),
+      glyphVariant: levelVariant(displayMuteForApp(row.app), displayVolumeForApp(row.app)),
+      //: The exact strings the row renders. If these hold still while the row
+      //: head visibly flickers, the fault is a repaint and not a value — which
+      //: is the distinction three rounds of polling kept failing to make.
+      title: (() => {
+        const s = heldStreamForApp(row.app)
+        if (s) return nodeLabel(s, "Application")
+        const p = playerForApp(row.app)
+        return p && p.identity !== "" ? p.identity : "Application"
+      })(),
+      subtitle: (() => {
+        const s = heldStreamForApp(row.app)
+        if (s) {
+          const media = mediaNameForApp(row.app, s)
+          if (media && media.toLowerCase() !== "playback" && media !== nodeLabel(s, "")) {
+            return media
+          }
+          const app = appNameForApp(row.app, s)
+          return app && app !== nodeLabel(s, "") ? app : ""
+        }
+        return playerForApp(row.app)?.metadata.title ?? ""
+      })(),
+      chip: (() => {
+        const p = playerForApp(row.app)
+        const node = heldStreamForApp(row.app)
+        if (node === null) return ""
+        return effectiveSinkName(node)
+      })(),
+      //: Does the stream this row is bound to actually exist in the node list
+      //: right now? False during a re-link gap is EXPECTED; what matters is
+      //: whether the strings above moved at the same moment.
+      nodePresent: node !== null && (playbackStreams() ?? []).some((s) => nodeOf(s) === node),
+    }
+  })
   const spk = nodeOf(defaultSpeaker())
   const mic = nodeOf(defaultMicrophone())
   const inputs = (inputDevices() ?? []).map((d) => {
@@ -1297,6 +1545,7 @@ export function debugAudioState(): Record<string, unknown> {
     //: plausible one — the diagnostic for "the thumb jumped back to the start".
     heldPositions: heldPositionsSnapshot(),
     snapshot: { ...snapshotStats },
+    render: { ...renderStats },
   }
 }
 
@@ -1309,11 +1558,13 @@ export function debugAudioState(): Record<string, unknown> {
  * died: runs=0 means the effect never ran; subscribes<runs means connect
  * failed; bumps=0 with subscribes>0 means signals never arrive (dead proxy).
  */
-export const endpointEpochStats: { runs: number; subscribes: number; bumps: number } = {
-  runs: 0,
-  subscribes: 0,
-  bumps: 0,
-}
+/** Per-caller diagnostics, so a stream-bound row can be compared against another
+ *  one instead of being averaged into a single global number. Keyed by the label
+ *  the caller passes (`useEndpointEpoch`). */
+export const endpointEpochStats: Record<
+  string,
+  { runs: number; subscribes: number; bumps: number }
+> = Object.create(null)
 
 /**
  * Live epoch for an endpoint node (`defaultSpeaker()` / `defaultMicrophone()` /
@@ -1322,17 +1573,46 @@ export const endpointEpochStats: { runs: number; subscribes: number; bumps: numb
  * to the CURRENT node's own notify signals and bumps an epoch the computeds
  * read; re-subscribes when node identity changes.
  */
-export function useEndpointEpoch(endpoint: Accessor<unknown>): Accessor<number> {
+export function useEndpointEpoch(
+  endpoint: Accessor<unknown>,
+  label = "unlabelled",
+): Accessor<number> {
+  const stats = (endpointEpochStats[label] ??= { runs: 0, subscribes: 0, bumps: 0 })
   const [epoch, setEpoch] = createState(0)
+  //: Tracked OUTSIDE the effect on purpose. gnim computeds re-notify on every
+  //: dependency change without comparing values, so this effect re-runs whenever
+  //: the endpoint's dependencies move — measured on the owner's machine: 426 runs
+  //: and 334 (re)subscribes to deliver 58 real notifications. Every one of those
+  //: runs disconnected and reconnected `notify::volume` + `notify::mute` on the
+  //: same node object, i.e. ~60 pointless connect/disconnect cycles per second on
+  //: a stream-bound row.
+  //:
+  //: Apps with NO stream early-return and pay nothing — which is exactly why only
+  //: Firefox flickered: it was the only app in that session with a live stream.
+  //:
+  //: `onCleanup` cannot be used per-run here, because it fires BEFORE each
+  //: re-execution: an early return would leave the row with no subscriptions at
+  //: all and the level would freeze. So teardown is explicit and happens only
+  //: when the node identity actually changes, plus once on unmount.
+  let subscribedNode: unknown = null
+  let teardown: (() => void) | null = null
+
   createEffect(() => {
-    endpointEpochStats.runs++
+    stats.runs++
     const node = endpoint() as unknown as {
       connect: (signal: string, cb: () => void) => number
       disconnect: (id: number) => void
     } | null
+    // Same node object: the existing handlers are still live and still correct.
+    if (node !== null && node === subscribedNode) return
+    if (teardown !== null) {
+      teardown()
+      teardown = null
+    }
+    subscribedNode = node
     if (!node) return
     const bump = () => {
-      endpointEpochStats.bumps++
+      stats.bumps++
       setEpoch((n) => n + 1)
     }
     let hVolume = 0
@@ -1340,11 +1620,11 @@ export function useEndpointEpoch(endpoint: Accessor<unknown>): Accessor<number> 
     try {
       hVolume = node.connect("notify::volume", bump)
       hMute = node.connect("notify::mute", bump)
-      endpointEpochStats.subscribes++
+      stats.subscribes++
     } catch {
       return
     }
-    onCleanup(() => {
+    teardown = () => {
       try {
         node.disconnect(hVolume)
       } catch {
@@ -1355,7 +1635,14 @@ export function useEndpointEpoch(endpoint: Accessor<unknown>): Accessor<number> 
       } catch {
         /* node gone */
       }
-    })
+    }
+  })
+  onCleanup(() => {
+    if (teardown !== null) {
+      teardown()
+      teardown = null
+    }
+    subscribedNode = null
   })
   return epoch
 }

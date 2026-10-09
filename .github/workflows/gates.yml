@@ -224,3 +224,54 @@ jobs:
       # running.
       - name: AGS config pure-module unit tests
         run: make ags-test
+
+  # Audio mock<->code parity: the owner-approved concept mock is the source of
+  # truth for the redesigned panel's surface, the same role the Wi-Fi, battery
+  # and speed-test parity gates play for theirs.
+  audio-mock-parity:
+    name: audio-mock-parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audio mock<->code parity
+        run: python3 scripts/audio-mock-parity.py
+
+  # Audio domain, presentation, adapter and runtime unit suites. The panel's
+  # render gate rides with them because it is the one that detects an unwired
+  # panel, which is how this change shipped a popup that rendered nothing while
+  # every other gate stayed green.
+  audio-tests:
+    name: audio-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Audio unit suites
+        run: |
+          node openspec/changes/redesign-ags-audio-panel/validation/audio-core.test.mjs
+          node openspec/changes/redesign-ags-audio-panel/validation/audio-presentation.test.mjs
+          node openspec/changes/redesign-ags-audio-panel/validation/pipewire-adapter.test.mjs
+          node openspec/changes/redesign-ags-audio-panel/validation/audio-session-runtime.test.mjs
+      - name: Audio panel render gate
+        run: node openspec/changes/redesign-ags-audio-panel/validation/audio-panel-render.test.mjs
+
+  # Typecheck the AGS layer under strict mode. `ags bundle` transpiles WITHOUT
+  # type checking, which is how a mis-cased shorthand property in the composition
+  # root passed every other gate and died with ReferenceError on startup.
+  #
+  # NOT in the CI set: like capture-typecheck and bar-typecheck this needs `ags`
+  # and the Astal/GIR libraries on PATH, so it cannot run on a stock
+  # ubuntu-latest runner. `make ags-typecheck` is the authoritative run and this
+  # job is self-hosted only. See gates-ci for the exact exclusion list.
+  ags-typecheck:
+    name: ags-typecheck
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Typecheck the AGS layer
+        run: make ags-typecheck

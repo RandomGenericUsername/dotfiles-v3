@@ -258,7 +258,7 @@ class TestCompositorConfigsTasks:
         # there on the desktop: this assertion is what makes that fail loudly at
         # review time instead of at runtime. Do NOT relax it to `>=`, a subset
         # check, or delete it — those all convert "deploys nothing" into "passes".
-        assert len(files) == 71, (
+        assert len(files) == 83, (
             f"expected exactly 71 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+6 lib (incl. "
             f"wifi-signal)+Bar.tsx+11 "
@@ -271,13 +271,29 @@ class TestCompositorConfigsTasks:
             f"+ the battery panel's 5 modules: presentation (pure decisions), state "
             f"(popup visibility/anchor), battery-icon (state key), BatteryPopup (the "
             f"two windows) and BatteryContent (the body)) "
-            f"+ the audio popup "
-            f"(state + AudioPopup) + ags wifi-speedtest.json + rofi launcher config.rasi); found {len(files)}"
+    f"+ the audio popup "
+            f"(state + AudioPopup + the 11-file hexagonal boundary wired in by "
+            f"redesign-ags-audio-panel: composition, the domain model, ports, "
+            f"actions, the session runtime, three PipeWire adapter modules, the "
+            f"MPRIS adapter, the view model and audio-panel.css, plus the "
+            f"ags types.d.ts ambient declarations) "
+            f"+ ags wifi-speedtest.json + rofi launcher config.rasi); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
             "dotfiles/config/ags/app.tsx",
             "dotfiles/config/ags/audio/AudioPopup.tsx",
+            "dotfiles/config/ags/audio/adapters/mpris/mpris-adapter.ts",
+            "dotfiles/config/ags/audio/adapters/pipewire/pipewire-commands.ts",
+            "dotfiles/config/ags/audio/adapters/pipewire/pipewire-observation.ts",
+            "dotfiles/config/ags/audio/adapters/pipewire/project-pipewire-session.ts",
+            "dotfiles/config/ags/audio/application/audio-actions.ts",
+            "dotfiles/config/ags/audio/application/ports.ts",
+            "dotfiles/config/ags/audio/application/runtime/audio-session-runtime.ts",
+            "dotfiles/config/ags/audio/audio-panel.css",
+            "dotfiles/config/ags/audio/composition.ts",
+            "dotfiles/config/ags/audio/domain/audio-model.ts",
+            "dotfiles/config/ags/audio/presentation/audio-panel-view-model.ts",
             "dotfiles/config/ags/audio/state.ts",
             "dotfiles/config/ags/bar/Bar.tsx",
             "dotfiles/config/ags/bar/widgets/audio.tsx",
@@ -331,6 +347,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/settings-panel/views/MainView.tsx",
             "dotfiles/config/ags/settings-panel/views/WifiView.tsx",
             "dotfiles/config/ags/style.css",
+            "dotfiles/config/ags/types.d.ts",
             "dotfiles/config/ags/wifi-speedtest.json",
             "dotfiles/config/hypr/animations.lua",
             "dotfiles/config/hypr/autostart.lua",
