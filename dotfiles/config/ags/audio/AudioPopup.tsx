@@ -2,7 +2,8 @@ import { Astal, Gtk, Gdk } from "ags/gtk4"
 import Pango from "gi://Pango?version=1.0"
 import { Accessor, For, createComputed, createEffect, createState } from "ags"
 import { registry } from "../lib/icon-registry"
-import { close, popupVisible, audioIconX, levelVariant } from "./state"
+import { close, popupVisible, audioIconX } from "./ui-state"
+import { levelVariant } from "./presentation/levels"
 import type { AudioPanelViewModel, AudioAppRowView } from "./presentation/audio-panel-view-model"
 
 export type RouteChoice = { kind: "follow-preferred" } | { kind: "explicit"; endpointId: string }

@@ -10,7 +10,7 @@ import { registerBluetoothAgent } from "./settings-panel/bluetooth-agent"
 import { close as closeSettings } from "./settings-panel/state"
 import { AudioCatcher, AudioPopup } from "./audio/AudioPopup"
 import { audioPanelBinding, audioPanelTraceLines } from "./audio/composition"
-import { close as closeAudio, debugAudioState, open as openAudio } from "./audio/state"
+import { close as closeAudio, open as openAudio } from "./audio/ui-state"
 import { closeBluetoothPopup } from "./components/bluetooth/state"
 import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
 import { closeBatteryPopup } from "./components/battery/state"
@@ -61,16 +61,6 @@ app.start({
     if (argv[0] === "settings-close") {
       closeSettings()
       res("ok")
-      return
-    }
-    // Bar-process introspection: dumps the audio state AS THE BAR SEES IT
-    // (wp.nodes binding contents, row resolution). Read-only.
-    if (argv[0] === "audio-debug") {
-      try {
-        res(JSON.stringify(debugAudioState()))
-      } catch (e) {
-        res(`audio-debug failed: ${String(e)}`)
-      }
       return
     }
     // Dumps the NEW hexagonal projection (audio/composition.ts) to
@@ -159,8 +149,12 @@ app.start({
     // BlueZ needs an org.bluez.Agent1 on the bus to complete pairing; register
     // our headless (NoInputNoOutput) agent once for the session.
     registerBluetoothAgent()
+    // The audio composition root is assembled ONCE and shared by the bar
+    // indicators and the popup, so every audio surface observes the same
+    // session. Created before the monitor loop because the bar consumes it too.
+    const audio = audioPanelBinding()
     for (const monitor of app.get_monitors()) {
-      addWindow(Bar(monitor))
+      addWindow(Bar(monitor, audio))
     }
     const primary = app.get_monitors()[0]
     if (primary) {
@@ -179,10 +173,8 @@ app.start({
       addWindow(BatteryPopup(primary))
       // Audio popup: catcher + popup, same stacking order. The binding comes
       // from the composition root (audio/composition.ts), which assembles the
-      // session runtime, adapters and view model. Passing it here is the whole
-      // of tasks.md 6.0: without it the popup had no data source and rendered
-      // only its placeholder.
-      const audio = audioPanelBinding()
+      // session runtime, adapters and view model, and is shared with the bar
+      // indicators above.
       addWindow(AudioCatcher(primary))
       addWindow(AudioPopup(primary, audio))
     }

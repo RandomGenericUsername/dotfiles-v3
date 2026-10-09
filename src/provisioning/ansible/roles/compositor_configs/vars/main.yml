@@ -180,11 +180,14 @@ compositor_configs_skeleton_files:
   - { name: ags-settings-panel-view-wifi, source: dotfiles/config/ags/settings-panel/views/WifiView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/WifiView.tsx" }
   - { name: ags-settings-panel-view-bluetooth, source: dotfiles/config/ags/settings-panel/views/BluetoothView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/BluetoothView.tsx" }
   # Audio (add-pipewire-audio-control): the bar output/mic widgets, the popup
-  # window, and the shared audio state module. One per-file entry each (never a
+  # window, and the audio UI-state module. One per-file entry each (never a
   # directory source — see the header note), all under the config-in-spine ags/
   # tree. The popup reuses the settings-panel primitives (already deployed).
+  # finish-audio-bar-migration split the old monolithic audio/state.ts into
+  # ui-state.ts (surface state) + presentation/levels.ts (pure vocabulary) and
+  # retired state.ts entirely.
   - { name: ags-bar-audio, source: dotfiles/config/ags/bar/widgets/audio.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/audio.tsx" }
-  - { name: ags-audio-state, source: dotfiles/config/ags/audio/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/state.ts" }
+  - { name: ags-audio-ui-state, source: dotfiles/config/ags/audio/ui-state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/ui-state.ts" }
   - { name: ags-audio-popup, source: dotfiles/config/ags/audio/AudioPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/AudioPopup.tsx" }
   # Audio composition root + the hexagonal layers (redesign-ags-audio-panel).
   #
@@ -209,6 +212,8 @@ compositor_configs_skeleton_files:
   - { name: ags-audio-pipewire-observation, source: dotfiles/config/ags/audio/adapters/pipewire/pipewire-observation.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/pipewire/pipewire-observation.ts" }
   - { name: ags-audio-mpris-adapter, source: dotfiles/config/ags/audio/adapters/mpris/mpris-adapter.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/adapters/mpris/mpris-adapter.ts" }
   - { name: ags-audio-view-model, source: dotfiles/config/ags/audio/presentation/audio-panel-view-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/presentation/audio-panel-view-model.ts" }
+  - { name: ags-audio-levels, source: dotfiles/config/ags/audio/presentation/levels.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/presentation/levels.ts" }
+  - { name: ags-audio-bar-indicators, source: dotfiles/config/ags/audio/presentation/bar-indicators.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/presentation/bar-indicators.ts" }
   - { name: ags-audio-composition, source: dotfiles/config/ags/audio/composition.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/audio/composition.ts" }
   # The panel's own stylesheet. app.tsx applies it at runtime from the config
   # dir (audio-panel.css), so a missing copy means an unstyled popup rather
@@ -227,10 +232,10 @@ compositor_configs_skeleton_files:
   - { name: ags-service-wifi, source: dotfiles/config/ags/services/wifi-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/wifi-service.ts" }
   - { name: ags-service-bluetooth, source: dotfiles/config/ags/services/bluetooth-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/bluetooth-service.ts" }
   - { name: ags-service-speedtest, source: dotfiles/config/ags/services/speedtest-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/speedtest-service.ts" }
-  # MPRIS transport (ags-audio-mpris-transport): the session-bus service plus
-  # its pure node-testable core. The core is a separate file because it takes
-  # no GJS imports (contract I11) — it cannot be inlined into the service.
-  - { name: ags-service-mpris, source: dotfiles/config/ags/services/mpris-service.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/mpris-service.ts" }
+  # MPRIS transport (ags-audio-mpris-transport): the pure node-testable core.
+  # The legacy session-bus service (mpris-service.ts) was retired by
+  # finish-audio-bar-migration — the hexagon's mpris-adapter is the only MPRIS
+  # consumer now, and it imports this core.
   - { name: ags-service-mpris-core, source: dotfiles/config/ags/services/mpris-core.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/services/mpris-core.ts" }
   - { name: ags-component-primitive-icon-toggle, source: dotfiles/config/ags/components/primitives/IconToggle.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/IconToggle.tsx" }
   - { name: ags-component-primitive-level-slider, source: dotfiles/config/ags/components/primitives/LevelSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/primitives/LevelSlider.tsx" }

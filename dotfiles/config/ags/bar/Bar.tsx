@@ -13,8 +13,9 @@ import { Tray } from "./widgets/tray"
 import { Settings } from "./widgets/settings"
 import { MicIndicator, OutputIndicator } from "./widgets/audio"
 import { readBarBackdrop } from "../lib/bar-backdrop"
+import type { AudioPanelBinding } from "../audio/AudioPopup"
 
-export default function Bar(gdkmonitor: Gdk.Monitor) {
+export default function Bar(gdkmonitor: Gdk.Monitor, audio: AudioPanelBinding) {
   const { TOP, LEFT, RIGHT } = Astal.WindowAnchor
   const backdrop = readBarBackdrop(gdkmonitor.get_connector())
 
@@ -36,8 +37,8 @@ export default function Bar(gdkmonitor: Gdk.Monitor) {
         </box>
         <box $type="end" spacing={8}>
           <Tray />
-          <OutputIndicator />
-          <MicIndicator showLiveDotRing={backdrop !== "dark"} />
+          <OutputIndicator binding={audio} />
+          <MicIndicator binding={audio} showLiveDotRing={backdrop !== "dark"} />
           <BatteryIndicator />
           <BluetoothStatus />
           <NetworkStatus />

@@ -32,6 +32,13 @@
     "target": "ES2020",
     "strict": true,
 
+    // The audio hexagon (audio/**) imports its own modules with explicit `.ts`
+    // suffixes because Node's native type-stripping test runner needs them; the
+    // bar tree reaches those files transitively (app.tsx -> audio/composition),
+    // so this config must accept the same specifier shape. `noEmit` is passed on
+    // the command line, which is what allowImportingTsExtensions requires.
+    "allowImportingTsExtensions": true,
+
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM"],
 

@@ -2708,7 +2708,7 @@ def _build_provisioned_layout(
     # Shared AGS sources (compositor_configs role, extract-ags-shared-components):
     # the relocated D-Bus services and the primitives/wifi/bluetooth/slider
     # components — must match verify_compositor_skeleton_files EXACTLY.
-    for service in ("nm-client", "wifi-service", "bluetooth-service", "mpris-service", "mpris-core"):
+    for service in ("nm-client", "wifi-service", "bluetooth-service", "mpris-core"):
         (install / "config" / "ags" / "services" / f"{service}.ts").write_text("")
     (install / "config" / "ags" / "components" / "primitives" / "IconToggle.tsx").write_text("")
     (install / "config" / "ags" / "components" / "primitives" / "LevelSlider.tsx").write_text("")
@@ -2722,7 +2722,9 @@ def _build_provisioned_layout(
     # the bar output/mic widget, the shared state, and the popup window —
     # must match verify_compositor_skeleton_files EXACTLY.
     (install / "config" / "ags" / "bar" / "widgets" / "audio.tsx").write_text("")
-    (install / "config" / "ags" / "audio" / "state.ts").write_text("")
+    (install / "config" / "ags" / "audio" / "ui-state.ts").write_text("")
+    (install / "config" / "ags" / "audio" / "presentation" / "levels.ts").write_text("")
+    (install / "config" / "ags" / "audio" / "presentation" / "bar-indicators.ts").write_text("")
     (install / "config" / "ags" / "audio" / "AudioPopup.tsx").write_text("")
     # Standalone capture app (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.

@@ -78,8 +78,10 @@
   },
   "include": [
     "ts/**/*.ts",
-    "../../components/battery/presentation.ts",
-    "../../components/battery/battery-icon.ts",
-    "../../services/mpris-core.ts"
+    "../components/battery/presentation.ts",
+    "../components/battery/battery-icon.ts",
+    "../audio/presentation/levels.ts",
+    "../audio/presentation/bar-indicators.ts",
+    "../services/mpris-core.ts"
   ]
 }

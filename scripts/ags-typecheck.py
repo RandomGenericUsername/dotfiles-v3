@@ -93,14 +93,11 @@ WATCHED_PREFIX = "dotfiles/config/ags/audio/"
 # Individually exempted inside the watched tree. Each entry must name a
 # byte-identical line on master -- verified by checking out master's copy and
 # re-running this gate -- so these cannot silently absorb a regression.
-EXEMPT = {
-    # state.ts:63 `const allNodes: Accessor<unknown[]> = wp...`. Predates this
-    # change (identical on master) and the file is retired by task 6.0f; when
-    # 6.0f lands, this exemption and state.ts disappear together.
-    "dotfiles/config/ags/audio/state.ts": {
-        "63,7",
-    },
-}
+#
+# Empty: the only entry (audio/state.ts:63) was retired by
+# finish-audio-bar-migration, which deleted state.ts — the entry and the file
+# disappeared together, as their comment promised.
+EXEMPT: dict[str, set[str]] = {}
 
 PRE_EXISTING_BASELINE = 31
 

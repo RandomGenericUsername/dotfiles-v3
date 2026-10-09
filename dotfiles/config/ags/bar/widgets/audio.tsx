@@ -1,38 +1,32 @@
 import { Gtk, Gdk } from "ags/gtk4"
-import { Accessor, createComputed, createEffect } from "ags"
+import { createComputed, createEffect } from "ags"
 import { execAsync } from "ags/process"
 import { registry } from "../../lib/icon-registry"
-import {
-  clampVolume,
-  defaultMicrophone,
-  defaultSpeaker,
-  levelVariant,
-  micInUse,
-  nodeOf,
-  nudgeDefaultOutputVolume,
-  open,
-  setAudioIconX,
-  toggle,
-  useEndpointEpoch,
-} from "../../audio/state"
+import { projectBarIndicators } from "../../audio/presentation/bar-indicators"
+import { clampVolume } from "../../audio/presentation/levels"
+import { open, setAudioIconX, toggle } from "../../audio/ui-state"
+import type { AudioPanelBinding } from "../../audio/AudioPopup"
 
 /**
- * Audio bar indicators (add-pipewire-audio-control).
+ * Audio bar indicators (add-pipewire-audio-control; migrated to the composition
+ * binding by finish-audio-bar-migration).
  *
  * Two bare SVG glyphs (no glyph font, no pill background, no percentage
  * label — the dotfiles bar convention), resolved through IconRegistry:
  *
  *   OutputIndicator — level-aware `volume` group. Always visible.
- *     Left-click  → open the audio popup under this icon.
+ *     Left-click  → toggle the audio popup under this icon.
  *     Right-click → launch pavucontrol (the doc's conventional GUI).
- *     Scroll      → adjust default output volume.
+ *     Scroll      → adjust the preferred output volume.
  *
  *   MicIndicator — `microphone` group (mic-on / mic-off). Visible ONLY while
  *     a recording stream is active, carrying the green live dot.
  *     Left-click  → open the popup (the Input section lives in the main view).
  *
- * Both are in the runtime icon-contrast guard BAR_GROUPS, so on a light
- * wallpaper their foreground token is retargeted before ITR renders.
+ * BOTH are thin renderers of `projectBarIndicators(binding.model())`: the state
+ * comes from the same composition root the panel uses, so the bar glyph and the
+ * panel it opens can never disagree. The widget owns no AstalWp access and no
+ * threshold table — those live in the domain adapter and the pure projection.
  *
  * Follower anchoring mirrors the settings panel: a motion controller records
  * the pointer x (surface coords == monitor coords) without claiming clicks,
@@ -65,21 +59,8 @@ function recordIconX() {
   if (lastIconX !== null) setAudioIconX(lastIconX)
 }
 
-export function OutputIndicator() {
-  const spkEpoch = useEndpointEpoch(defaultSpeaker, "bar:spk")
-  //: Read the LIVE node props directly — NOT through defaultSpeakerVolume() /
-  //: defaultSpeakerMute(), which memoize independently on list membership and
-  //: stay stale even when this epoch invalidates us (measured: node 0.85 while
-  //: the accessor still said 0.75). GObject property reads are always live.
-  const muted = createComputed(() => {
-    spkEpoch()
-    return nodeOf(defaultSpeaker())?.mute === true
-  })
-  const level = createComputed(() => {
-    spkEpoch()
-    return clampVolume(nodeOf(defaultSpeaker())?.volume ?? 0)
-  })
-  const variant = createComputed(() => levelVariant(muted(), level()))
+export function OutputIndicator({ binding }: { binding: AudioPanelBinding }) {
+  const indicators = createComputed(() => projectBarIndicators(binding.model()))
 
   return (
     <button
@@ -87,7 +68,7 @@ export function OutputIndicator() {
       tooltipText="Audio — click to open, right-click for pavucontrol, scroll to adjust"
       onClicked={() => {
         recordIconX()
-        toggle("main")
+        toggle()
       }}
       $={(self) => {
         trackIconX(self)
@@ -100,7 +81,13 @@ export function OutputIndicator() {
         const scroll = new Gtk.EventControllerScroll()
         scroll.set_flags(Gtk.EventControllerScrollFlags.VERTICAL)
         scroll.connect("scroll", (_c, _dx, dy) => {
-          nudgeDefaultOutputVolume(dy < 0 ? 0.05 : -0.05)
+          // Dispatch the SAME selected-output action the panel and Settings use.
+          const model = binding.model()
+          const id = model.preferredOutputId
+          if (id === null) return true
+          const current = clampVolume(model.preferredOutput?.volume.level ?? 0)
+          const next = clampVolume(current + (dy < 0 ? 0.05 : -0.05))
+          binding.actions.setOutputVolume(id, next * 100)
           return true
         })
         self.add_controller(scroll)
@@ -111,7 +98,7 @@ export function OutputIndicator() {
         class="widget-icon"
         $={(self) => {
           createEffect(() => {
-            self.set_from_file(glyph("volume", variant()))
+            self.set_from_file(glyph("volume", indicators().output.variant))
           })
         }}
       />
@@ -119,13 +106,11 @@ export function OutputIndicator() {
   )
 }
 
-export function MicIndicator({ showLiveDotRing = true }: { showLiveDotRing?: boolean } = {}) {
-  const micEpoch = useEndpointEpoch(defaultMicrophone, "bar:mic")
-  const variant = createComputed(() => {
-    micEpoch()
-    return nodeOf(defaultMicrophone())?.mute === true ? "mic-off" : "mic-on"
-  })
-  const live: Accessor<boolean> = createComputed(() => micInUse() === true)
+export function MicIndicator(
+  { binding, showLiveDotRing = true }: { binding: AudioPanelBinding; showLiveDotRing?: boolean },
+) {
+  const indicators = createComputed(() => projectBarIndicators(binding.model()))
+  const live = createComputed(() => indicators().mic.live)
 
   return (
     <button
@@ -134,7 +119,7 @@ export function MicIndicator({ showLiveDotRing = true }: { showLiveDotRing?: boo
       tooltipText="Microphone — recording in progress"
       onClicked={() => {
         recordIconX()
-        open("main")
+        open()
       }}
       $={(self) => {
         trackIconX(self)
@@ -146,7 +131,7 @@ export function MicIndicator({ showLiveDotRing = true }: { showLiveDotRing?: boo
           class="widget-icon"
           $={(self) => {
             createEffect(() => {
-              self.set_from_file(glyph("microphone", variant()))
+              self.set_from_file(glyph("microphone", indicators().mic.variant))
             })
           }}
         />

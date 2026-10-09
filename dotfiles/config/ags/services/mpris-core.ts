@@ -1,9 +1,9 @@
-// Pure core for the AGS MPRIS transport service (WP-B).
+// Pure core for the AGS MPRIS transport (WP-B).
 //
-// MPRIS lives on the session bus; `mpris-service.ts` owns the Gio transport and
-// the reactive state, while everything decidable from a plain value lives here.
-// Keeping this module free of GJS imports (invariant I11) lets the existing ICME
-// node runner exercise it without a live bus — see
+// MPRIS lives on the session bus; `audio/adapters/mpris/mpris-adapter.ts` owns
+// the Gio transport and the reactive state, while everything decidable from a
+// plain value lives here. Keeping this module free of GJS imports (invariant
+// I11) lets the existing ICME node runner exercise it without a live bus — see
 // `src/gui-tools/icon-color-mapping-editor/tests/mpris-core.test.mjs`.
 //
 // The literals and shapes below are the WP-B contract in

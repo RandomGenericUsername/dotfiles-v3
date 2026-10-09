@@ -477,10 +477,10 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/services/nm-client.ts"
   - "{{ install_dir | trim }}/config/ags/services/wifi-service.ts"
   - "{{ install_dir | trim }}/config/ags/services/bluetooth-service.ts"
-  # MPRIS transport (ags-audio-mpris-transport): the session-bus service and
-  # its pure core. Mirror of the compositor_configs skeleton dests — a missing
-  # core makes the service import fail and the popup transport lines vanish.
-  - "{{ install_dir | trim }}/config/ags/services/mpris-service.ts"
+  # MPRIS transport (ags-audio-mpris-transport): the pure core, mirror of the
+  # compositor_configs skeleton dest — a missing core makes the mpris-adapter
+  # import fail and the popup transport lines vanish. The legacy session-bus
+  # service was retired by finish-audio-bar-migration.
   - "{{ install_dir | trim }}/config/ags/services/mpris-core.ts"
   - "{{ install_dir | trim }}/config/ags/components/primitives/IconToggle.tsx"
   - "{{ install_dir | trim }}/config/ags/components/primitives/LevelSlider.tsx"
@@ -490,12 +490,13 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/components/bluetooth/BluetoothContent.tsx"
   - "{{ install_dir | trim }}/config/ags/components/sliders/VolumeSlider.tsx"
   - "{{ install_dir | trim }}/config/ags/components/sliders/BrightnessSlider.tsx"
-  # Audio sources (add-pipewire-audio-control): the bar output/mic widgets, the
-  # shared audio state, and the popup window. Mirror of compositor_configs
-  # skeleton dests — a missing source means the bar widget or popup crashes at
-  # open (or silently omits the whole audio surface).
+  # Audio sources (add-pipewire-audio-control; UI state split out by
+  # finish-audio-bar-migration): the bar output/mic widgets, the audio UI-state
+  # module, and the popup window. Mirror of compositor_configs skeleton dests —
+  # a missing source means the bar widget or popup crashes at open (or silently
+  # omits the whole audio surface).
   - "{{ install_dir | trim }}/config/ags/bar/widgets/audio.tsx"
-  - "{{ install_dir | trim }}/config/ags/audio/state.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/ui-state.ts"
   - "{{ install_dir | trim }}/config/ags/audio/AudioPopup.tsx"
   # The composition root and every module it imports (redesign-ags-audio-panel).
   # AudioPopup.tsx resolves ./composition at bundle time; verifying only the
@@ -511,6 +512,8 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/audio/adapters/pipewire/pipewire-observation.ts"
   - "{{ install_dir | trim }}/config/ags/audio/adapters/mpris/mpris-adapter.ts"
   - "{{ install_dir | trim }}/config/ags/audio/presentation/audio-panel-view-model.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/presentation/levels.ts"
+  - "{{ install_dir | trim }}/config/ags/audio/presentation/bar-indicators.ts"
   - "{{ install_dir | trim }}/config/ags/types.d.ts"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be

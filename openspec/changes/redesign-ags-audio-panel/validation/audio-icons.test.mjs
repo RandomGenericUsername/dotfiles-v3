@@ -14,7 +14,7 @@
 // It muted correctly, so it looked like a state bug, not a naming bug.
 //
 // A missing icon name fails silently by construction, so it needs a mechanical
-// check rather than care. This asserts the vocabulary in state.ts's
+// check rather than care. This asserts the vocabulary in levels.ts's
 // levelVariant() -- the shared source used by the panel, the settings Sound card
 // and the VolumeSlider -- resolve to real files.
 //
@@ -30,7 +30,7 @@ const REPO = resolve(HERE, "../../../..");
 const AGS = join(REPO, "dotfiles/config/ags");
 
 const icons = JSON.parse(readFileSync(join(AGS, "icons.json"), "utf8"));
-const stateSrc = readFileSync(join(AGS, "audio/state.ts"), "utf8");
+const stateSrc = readFileSync(join(AGS, "audio/presentation/levels.ts"), "utf8");
 
 // The vocabulary the shared helper can produce. Read from the source rather
 // than restated, so adding a case there without shipping art fails here.
