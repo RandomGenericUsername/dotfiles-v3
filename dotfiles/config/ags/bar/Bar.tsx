@@ -6,7 +6,6 @@ import { BatteryIndicator } from "./widgets/battery"
 // glyphs read as one group, matching the mock's bar pair.
 import { BluetoothStatus } from "./widgets/bluetooth"
 import { NetworkStatus } from "./widgets/network"
-import { networkWidget } from "./widgets/network-descriptor"
 import { Tray } from "./widgets/tray"
 import { MicIndicator, OutputIndicator } from "./widgets/audio"
 import { BarWidgetButton } from "../kit/widget"
@@ -44,7 +43,6 @@ export default function Bar(gdkmonitor: Gdk.Monitor, audio: AudioPanelBinding) {
           <BatteryIndicator />
           <BluetoothStatus />
           <NetworkStatus />
-          <BarWidgetButton spec={networkWidget} />
           <BarWidgetButton spec={btopWidget} />
           <BarWidgetButton spec={thunderbirdWidget} />
           <BarWidgetButton spec={settingsWidget} />
