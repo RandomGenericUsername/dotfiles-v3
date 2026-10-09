@@ -1,21 +1,22 @@
-# HANDOFF — AGS Platform Split (roadmap + environment)
+# HANDOFF — AGS Platform Split (roadmap + manner + environment)
 
 > Read `docs/101-ags-platform-architecture.md` first — it is the design of
-> record. This file is the **plan** to get there and the **environment facts**
-> the next session would otherwise have to rediscover. Written 2026-10-09.
+> record. This file is the **plan**, the **working manner**, the **harness
+> record**, and the **environment facts** the next session would otherwise have
+> to rediscover. Written 2026-10-09.
 
 ---
 
 ## 0. Where we are
 
 - **Design of record:** `docs/101-ags-platform-architecture.md`.
-- **Branch `bar-rearchitecture`** holds:
-  - the bar descriptor prototype (earlier commits),
-  - `56f2b50f` — kit gaps closed (`stateClass` + reactive `domains/network/read-model.ts` + provisioning),
-  - `d185c06c` — doc 101.
-- **`master`** is clean (audio-panel work only). The bar work is **not merged**.
-- **The `bar-rearchitecture` branch is not pushed** (it can be now — HTTPS works, §1).
-- **The three split repos now EXIST** (private, scaffolded, pushed — see §6).
+- **`master` is the single source of truth.** The bar descriptor prototype, the
+  kit-gap fixes, `docs/100`/`101`, and both handoffs were merged from
+  `bar-rearchitecture` (merge commit `a64c287e`) and **pushed to `origin/master`**.
+- `master` is checked out at `/home/inumaki/Development/dotfiles-v3` (in sync
+  with `origin/master`).
+- **The three split repos EXIST** (private, scaffolded, pushed — see §7).
+- `bar-rearchitecture` is **fully merged** (safe to delete).
 
 ---
 
@@ -25,8 +26,8 @@
   `RandomGenericUsername`. Token scopes: `repo`, `admin:public_key`, `gist`,
   `read:org`. **Repo creation works via `gh repo create`.**
 - **Git uses HTTPS + the `gh` credential helper** (`gh auth setup-git`;
-  `gh config set git_protocol https`). The helper is the absolute path
-  `/home/inumaki/.local/bin/gh`, so it works in agent shells with no `PATH`.
+  `gh config set -h github.com git_protocol https`). The helper is the absolute
+  path `/home/inumaki/.local/bin/gh`, so it works in agent shells with no `PATH`.
   **No SSH agent / passphrase needed** — agents can push.
 - `origin` = `https://github.com/RandomGenericUsername/dotfiles-v3.git`.
 - The user's `~/.ssh/personal` key is passphrase-protected and was left unused;
@@ -34,10 +35,10 @@
 - **OpenSpec CLI** installed: `@fission-ai/openspec` **1.14.1** at
   `~/.local/bin/openspec` (user-level npm install, no sudo). `openspec list
   --json` confirms each repo root.
-- **`gh` per-account git protocol fixed to `https`**
-  (`gh config set -h github.com git_protocol https`) — otherwise `gh repo
-  create --push` re-adds an SSH remote and the push fails.
 - Present on host: `uv` 0.9.22, Python 3.14, Node 26, `gh` 2.102.0.
+- **`dotfiles-v3` uses git worktrees** (run `git worktree list`). `master` lives
+  at `/home/inumaki/Development/dotfiles-v3`; other branches live in sibling
+  worktrees.
 
 ---
 
@@ -59,7 +60,29 @@ contracts  →  ags-platform  →  ags-apps
 
 ---
 
-## 3. Key adjustments to the naive "3 parallel repos" plan
+## 3. How we work here (the manner) — read before starting
+
+- **Iterate this with the BMad architect; validate everything before building.**
+  Drive the rework through the BMad **architecture** skill (`bmad-architecture`)
+  — and route the work via `/triage` (lane 4 = bmad-advisory) — so the design of
+  record and **each iteration are validated before implementation**. Do not
+  free-hand the extraction: have the architect validate `docs/101` and the plan
+  for every step, then implement. BMad advises; it never auto-executes.
+- **Never work on main.** Work on a **branch + worktree off `master`** (use
+  `git worktree add`; `dotfiles-v3` already does this). Merge back only when the
+  gates are green. The three new repos carry `scripts/worktree-guard.sh` and the
+  same no-main rule.
+- **Granular, independently shippable steps.** No big-bang: each iteration is
+  small, gated, and committable on its own; each leaves the tree green.
+- **Verified by execution, not by reading diffs.** Run the gates; where it
+  matters (the bar), deploy to the host and eyeball.
+- **Honest gap-reporting** over silent fixes. If evidence is missing, say so.
+- **Separate planning from implementation** (the OpenSpec/BMad planning boundary):
+  planning edits land in their own turn, code in another.
+
+---
+
+## 4. Key adjustments to the naive "3 parallel repos" plan
 
 1. **The repos are a dependency chain, not independent.** Parallel *authoring*
    is fine **against a frozen interface** (doc 101). Integration must be
@@ -74,18 +97,18 @@ contracts  →  ags-platform  →  ags-apps
 4. **The contract move ripples.** `contracts/event-contract.*` is consumed by
    the Python runtime and pinned by tests across components — it is a
    cross-cutting change with a repointing step, not a standalone repo task.
-5. **Branch base:** the "consume external repos" branch must sit on the
-   extracted/merged state. Decide whether `bar-rearchitecture` merges to `master`
-   first.
+5. **Branch base — RESOLVED.** `bar-rearchitecture` was merged to `master`
+   (merge `a64c287e`). All further work branches off `master`; the "consume
+   external repos" branch must also sit on `master`.
 
 ---
 
-## 4. Iteration list
+## 5. Iteration list
 
 | # | Iteration | Notes |
 |---|---|---|
-| 0 | **Validate doc 101** (fresh BMad review) + decide deferred items (§5) | Test: *are the port signatures/schemas complete enough to implement against without the conversation?* |
-| 1 | **Extract `ags-platform` in-place** in `dotfiles-v3` | Branch; all gates green. The risky part — do it where the tests are. |
+| 0 | **Validate doc 101** (fresh BMad architect review) + decide deferred items (§6) | Test: *are the port signatures/schemas complete enough to implement against without the conversation?* |
+| 1 | **Extract `ags-platform` in-place** in `dotfiles-v3` | New worktree/branch off `master`; all gates green. The risky part — do it where the tests are. |
 | 2 | **`contracts` repo** | Move contract + bindings; repoint runtime + consumers. |
 | 3 | **`ags-platform` repo** | Publish the proven extracted package + CI. |
 | 4 | **`ags-apps` repo** | Bar only. |
@@ -94,12 +117,12 @@ contracts  →  ags-platform  →  ags-apps
 | 7 | **Delete redundant code** | Only after 5/6 are green. |
 
 Steps 2–4 may be **authored in parallel** (frozen interface); step 5 is a single
-gate. BMad fits step 0 (review) and step 1 (extraction); OpenSpec changes fit
-2–4 (create/move).
+gate. The BMad architect validates steps 0 and 1; OpenSpec changes fit 2–4
+(create/move).
 
 ---
 
-## 5. Deferred items to decide before/within step 0
+## 6. Deferred items to decide before/within step 0
 
 From doc 101 §14:
 
@@ -112,7 +135,7 @@ From doc 101 §14:
 
 ---
 
-## 6. Per-repo structure — DONE (the repos exist)
+## 7. Per-repo structure — DONE (the repos exist)
 
 Investigating `/home/inumaki/Development/arm-stm-env` gave the harness. The three
 repos now exist (private, HTTPS remotes, `main` pushed):
@@ -187,7 +210,7 @@ skills-lock.json  Makefile  README.md  .gitignore
 
 ---
 
-## 7. Pointers
+## 8. Pointers
 
 - Design of record: `docs/101-ags-platform-architecture.md`.
 - Bar prototype + findings: `docs/100-ags-bar-rearchitecture.md`,
