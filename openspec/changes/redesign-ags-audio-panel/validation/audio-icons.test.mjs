@@ -59,6 +59,27 @@ assert.ok(
   "system-high now exists -- the vocabulary and the art have converged; remove this note"
 );
 
+// App icons, same failure mode. The row picks its app icon from the app's
+// canonical name, so every name the process-binary vocabulary can produce must
+// exist as an app-icons variant. Chrome's binary is "chrome" while the registry
+// ships "google-chrome"; the row asked for a missing icon and rendered the
+// initial letter "G" instead of the Chrome mark.
+const canonicalModule = await import(join(AGS, "audio/domain/audio-model.ts"));
+const appIcons = new Set((icons["app-icons"]?.variants ?? []).map((v) => v.name));
+assert.ok(appIcons.size > 0, "icons.json has no app-icons group");
+
+const BINARIES = ["chrome", "chromium", "google-chrome", "firefox", "tidal-hifi"];
+const unresolved = BINARIES.filter((binary) => {
+  const canonical = canonicalModule.canonicalAppKey(binary);
+  return !appIcons.has(canonical);
+});
+assert.deepEqual(
+  unresolved,
+  [],
+  `canonicalAppKey() maps these binaries to app-icons names that do not exist: ${unresolved.join(", ")}. ` +
+    `The row would render an initial letter instead of the app mark.`
+);
+
 console.log(
-  `audio-icons: PASS (${expected.length} level variant(s) checked: ${expected.join(", ")})`
+  `audio-icons: PASS (${expected.length} level variant(s), ${BINARIES.length} app binary(ies) resolve)`
 );

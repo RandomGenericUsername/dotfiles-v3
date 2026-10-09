@@ -236,7 +236,17 @@ export function projectPipeWireSession(input: {
         displayName: text(props["application.name"]) || rawName,
         desktopId: text(props["application.desktop"]) || undefined,
         processId: processId ?? undefined,
-        aliases: [text(props["application.process.binary"]), text(props["application.icon-name"])].filter(Boolean),
+        // Canonicalised, because `aliases[0]` is what the row uses to pick an
+        // app icon and the icon registry keys apps by canonical name. Chrome's
+        // process binary is the literal "chrome", while the registry ships
+        // "google-chrome" -- so the row asked for an icon that does not exist,
+        // fell through to the artwork, found none, and rendered the initial
+        // letter "G" instead of the Chrome mark. Firefox was unaffected only
+        // because its binary and its canonical name are the same string.
+        aliases: [
+          canonicalAppKey(text(props["application.process.binary"])),
+          canonicalAppKey(text(props["application.icon-name"])),
+        ].filter(Boolean),
       })
     }
     const target = node.target_endpoint?.id
