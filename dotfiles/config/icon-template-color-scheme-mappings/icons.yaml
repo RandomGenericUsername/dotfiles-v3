@@ -730,3 +730,24 @@ media-transport:
     - name: next
       template: media-transport/default/next.svg
       output: media-transport-next.svg
+
+# The audio panel's own play/pause group (finish-audio-panel-redesign). A round
+# filled container behind the glyph, used by exactly ONE call site: the main
+# transport button in an app row (AudioPopup.tsx). The existing
+# `media-transport` group is deliberately untouched, so previous/next, the bar
+# and every other surface keep the icons they had -- the separation is by
+# construction, not by care. The owner's art carries its own container, so the
+# circle is tokenized rather than drawn twice: COLOR_BACKGROUND is the
+# GUI-unification primary-action role (@color_06, the concept mock's round
+# container) and COLOR_FOREGROUND is the on-action ink the glyph sits on.
+media-transport-panel:
+  color_mappings:
+    COLOR_BACKGROUND: color6
+    COLOR_FOREGROUND: background
+  variants:
+    - name: play
+      template: media-transport-panel/default/play.svg
+      output: media-transport-panel-play.svg
+    - name: pause
+      template: media-transport-panel/default/pause.svg
+      output: media-transport-panel-pause.svg

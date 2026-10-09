@@ -19,21 +19,27 @@ name: gates
 # hiding behind a combined command's exit code.
 #
 # WHICH GATES, AND WHY NOT MORE. This file carries one job per runner-capable
-# gate; `make gates-ci` in the Makefile is the authoritative set. Two gates are
-# excluded because they CANNOT run on a stock `ubuntu-latest` runner at all:
-# `capture-typecheck` and `bar-typecheck`. They need `ags` on PATH plus the
-# Astal/GIR libraries it describes, and `ags types` generates ~49 MB of
-# machine-specific .d.ts from THIS host's GTK/Astal install. A hosted runner has
-# no AGS, no Astal and no GTK4, so the targets have nothing to check against, and
-# their tolerated-third-party buckets are keyed to the literal /usr/share/ags/js/
-# path. Listing them here would not make them stricter — it would make every push
-# red on a missing binary, which is how a broken gate trains people to ignore the
-# gate list.
+# gate; `make gates-ci` in the Makefile is the authoritative set. Three gates are
+# excluded from `gates-ci` because they CANNOT run on a stock `ubuntu-latest`
+# runner at all: `capture-typecheck`, `bar-typecheck` and `ags-typecheck`. They
+# need `ags` on PATH plus the Astal/GIR libraries it describes, and `ags types`
+# generates ~49 MB of machine-specific .d.ts from THIS host's GTK/Astal install.
+# A hosted runner has no AGS, no Astal and no GTK4, so the targets have nothing to
+# check against, and their tolerated-third-party buckets are keyed to the literal
+# /usr/share/ags/js/ path. Listing them here would not make them stricter — it
+# would make every push red on a missing binary, which is how a broken gate
+# trains people to ignore the gate list.
 #
-# That exclusion is a DECLARED entry, not an absence: `ci-gates-parity` verifies
-# every gate the `gates-ci` filter removes has a reason in `CI_EXCLUDED_GATES`,
-# and that every declared exclusion is still actually filtered out. So the
-# exclusion cannot silently disappear, and a new gate cannot silently join it.
+# `capture-typecheck` and `bar-typecheck` have no job here. `ags-typecheck` does:
+# it runs on a `[self-hosted, linux]` runner that HAS the desktop stack, so the
+# exclusion is "cannot run on a stock runner", never "does not run in CI".
+#
+# Those differences are DECLARED entries, not absences: `ci-gates-parity`
+# verifies every gate the `gates-ci` filter removes has a reason in
+# `CI_EXCLUDED_GATES` (no stock job) or `CI_SELF_HOSTED_GATES` (excluded from the
+# stock set but still run on a self-hosted runner), and that every declared entry
+# still matches the tree. So an exclusion cannot silently disappear, and a new
+# gate cannot silently join it.
 #
 # `ags-test` is NOT in that exclusion, and the difference is worth stating: it
 # also runs .ts natively, but everything it typechecks is PURE (no `gi://*`, no
@@ -236,26 +242,91 @@ jobs:
       - name: Audio mock<->code parity
         run: python3 scripts/audio-mock-parity.py
 
-  # Audio domain, presentation, adapter and runtime unit suites. The panel's
-  # render gate rides with them because it is the one that detects an unwired
-  # panel, which is how this change shipped a popup that rendered nothing while
-  # every other gate stayed green.
-  audio-tests:
-    name: audio-tests
+  # Audio domain, presentation, adapter and runtime unit suites, the panel render
+  # gate (the one that detects an unwired panel, which is how this change shipped
+  # a popup that rendered nothing while every other gate stayed green), the
+  # icon-name gate, and the seek-stability gate -- ONE job per `gates-ci` audio
+  # target, named exactly as the Makefile target and running it. The earlier
+  # combined `audio-tests` job hid `audio-icons-test` and `audio-seek-stability-test`
+  # entirely, which is precisely the silent-drop this workflow's parity job exists
+  # to catch; a matrix job cannot fix it, because `ci-gates-parity` matches job
+  # KEYS one-to-one and refuses to let two gates collapse onto one.
+  audio-core-test:
+    name: audio-core-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Audio unit suites
-        run: |
-          node openspec/changes/redesign-ags-audio-panel/validation/audio-core.test.mjs
-          node openspec/changes/redesign-ags-audio-panel/validation/audio-presentation.test.mjs
-          node openspec/changes/redesign-ags-audio-panel/validation/pipewire-adapter.test.mjs
-          node openspec/changes/redesign-ags-audio-panel/validation/audio-session-runtime.test.mjs
+      - name: Audio core unit suite
+        run: make audio-core-test
+
+  audio-presentation-test:
+    name: audio-presentation-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Audio presentation unit suite
+        run: make audio-presentation-test
+
+  pipewire-adapter-test:
+    name: pipewire-adapter-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: PipeWire adapter unit suite
+        run: make pipewire-adapter-test
+
+  audio-session-runtime-test:
+    name: audio-session-runtime-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Audio session runtime unit suite
+        run: make audio-session-runtime-test
+
+  audio-panel-render-test:
+    name: audio-panel-render-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Audio panel render gate
-        run: node openspec/changes/redesign-ags-audio-panel/validation/audio-panel-render.test.mjs
+        run: make audio-panel-render-test
+
+  audio-icons-test:
+    name: audio-icons-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Audio icon-name gate
+        run: make audio-icons-test
+
+  audio-seek-stability-test:
+    name: audio-seek-stability-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Audio seek-stability gate
+        run: make audio-seek-stability-test
 
   # Typecheck the AGS layer under strict mode. `ags bundle` transpiles WITHOUT
   # type checking, which is how a mis-cased shorthand property in the composition

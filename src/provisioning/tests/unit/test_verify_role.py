@@ -1649,7 +1649,9 @@ class TestVerifyVars:
         (bluetooth-on/off + the settings-panel bluetooth-signal-full glyph),
         which verify_icons_samples gained in 969974d6 — the hardcoded copy
         here must track the role's var exactly or verify's real requirement
-        drifts out of the structural gate."""
+        drifts out of the structural gate. It also pins the panel's own
+        transport group added by finish-audio-panel-redesign
+        (media-transport-panel play/pause)."""
         data = _vars()
         samples = [str(s) for s in data["verify_icons_samples"]]
         assert samples == [
@@ -1663,6 +1665,8 @@ class TestVerifyVars:
             "{{ verify_state_current_dir }}/icons/bluetooth-on.svg",
             "{{ verify_state_current_dir }}/icons/bluetooth-off.svg",
             "{{ verify_state_current_dir }}/icons/settings-panel-bluetooth-signal-full.svg",
+            "{{ verify_state_current_dir }}/icons/media-transport-panel-play.svg",
+            "{{ verify_state_current_dir }}/icons/media-transport-panel-pause.svg",
         ]
 
     def test_verify_lists_include_the_phase5_event_modules(self) -> None:
@@ -2521,6 +2525,12 @@ def _build_provisioned_layout(
     capture_icon = install / "icon-templates" / "capture-tool" / "default"
     capture_icon.mkdir(parents=True, exist_ok=True)
     (capture_icon / "camera.svg").write_text("<svg/>\n")
+    # The audio panel's own transport group (finish-audio-panel-redesign):
+    # verify asserts this dir as an asset outcome, so the fixture must carry it.
+    panel_icon = install / "icon-templates" / "media-transport-panel" / "default"
+    panel_icon.mkdir(parents=True, exist_ok=True)
+    (panel_icon / "play.svg").write_text("<svg/>\n")
+    (panel_icon / "pause.svg").write_text("<svg/>\n")
     (install / "config" / "color-scheme-generator" / "templates" / "template.j2").write_text("x\n")
     for _tpl in (
         "colors.yaml.j2",
@@ -2577,7 +2587,9 @@ def _build_provisioned_layout(
     # settings-panel-signal-good prove the Bluetooth row's glyphs rendered
     # (bluetooth-row-battery-signal); bluetooth-on/off and the settings-panel
     # bluetooth-signal-full glyph prove the add-bluetooth-bar-popup group
-    # rendered (mirror of verify_icons_samples — the fixture IS the machine).
+    # rendered; the media-transport-panel play/pause pair proves the panel's own
+    # transport group rendered (finish-audio-panel-redesign) — the fixture IS
+    # the machine.
     for sample in (
         "battery-0",
         "settings-panel-wifi",
@@ -2589,6 +2601,8 @@ def _build_provisioned_layout(
         "bluetooth-on",
         "bluetooth-off",
         "settings-panel-bluetooth-signal-full",
+        "media-transport-panel-play",
+        "media-transport-panel-pause",
     ):
         (state_cache_icons / f"{sample}.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"></svg>'

@@ -83,15 +83,6 @@
   font-size: 12px;
 }
 
-.audio-output-caption {
-  margin-top: 7px;
-}
-
-.audio-scope-label {
-  font-size: 10px;
-  color: alpha(@color_foreground, 0.72);
-}
-
 .audio-control-line,
 .audio-app-volume {
   min-width: 0;
@@ -278,6 +269,10 @@
   min-height: 25px;
 }
 
+/* The main play/pause button's round filled container is carried by the
+   `media-transport-panel` icon art itself (COLOR_BACKGROUND -> the action
+   token). No CSS background here: adding one draws a second circle whose
+   border-radius tracks a non-square button box and reads as an ellipse. */
 .audio-transport .audio-icon-button:nth-child(2) {
   color: @color_06;
 }

@@ -2,7 +2,7 @@
 name: AGS Audio Panel Redesign
 description: Compact, wallpaper-aware audio controls with a preferred output and independent app playback.
 status: final
-updated: 2026-10-02
+updated: 2026-10-09
 sources:
   - EXPERIENCE.md
   - mockups/audio-panel-redesign-concept.html
@@ -75,9 +75,6 @@ components:
   preferred-output-selector:
     radius: '{rounded.md}'
     active: '{colors.selection}'
-  output-level-control:
-    fill: '{colors.slider-fill}'
-    thumb: '{colors.slider-thumb}'
   app-media-row:
     artwork: '43px square, cropped, rounded {rounded.sm}'
     divider: '{colors.divider}'
@@ -128,7 +125,7 @@ Use the platform sans-serif stack and the compact roles in the frontmatter. Medi
 
 The panel is a single-column surface with a 408px maximum design width and `{spacing.panel-inset}` inset. It may narrow to the available monitor work area, with a 320px preferred minimum when available. Its content scrolls vertically; horizontal clipping is not allowed. At constrained widths or increased text scale, supporting labels can wrap and route controls may move below the media header while preserving their association and reachability.
 
-Section order is Preferred output → Playing → Input → Microphone activity. The app row groups media identity and app identity above app-scoped transport/seek and app stream level. Device output gain stays in the preferred-output section and is not placed among an app's controls.
+Section order is Preferred output → Playing → Input → Microphone activity. The app row groups media identity and app identity above app-scoped transport/seek and app stream level. The preferred-output section selects the destination only: device output gain is deliberately **not** exposed by the panel (owner decision 2026-10-07) and stays reachable from the Settings panel through the shared output-level action, so there is one implementation of that use case rather than two.
 
 Historical references are retained but superseded: [key-audio-popup](mockups/key-audio-popup.html), [key-audio-transport](mockups/key-audio-transport.html), [key-alternatives](mockups/key-alternatives.html), and [key-bar-indicators](mockups/key-bar-indicators.html). They are not implementation references for this redesign. [The new concept](mockups/audio-panel-redesign-concept.html) is the current UI reference. Spines win on conflict with any mock.
 
@@ -148,23 +145,26 @@ Visual anatomy is shared with the behavioral definitions in [EXPERIENCE.md Compo
 |---|---|
 | Audio popup | One narrow, anchored surface; scrolls vertically; never clips controls. |
 | Section card | Tonal surface, hairline edge, compact inset, uppercase section label. |
-| Preferred output selector | Full-width device row with output mark, selected device name, device description, and disclosure indicator. |
-| Output level control | Speaker mute glyph, continuous slider, numeric percent; labelled as device output level. Reuse the Settings slider's runtime track/fill/thumb palette tokens. |
+| Preferred output selector | Full-width device row with output mark, selected device name, device description, and disclosure indicator. Destination only; it carries no level or mute control. |
 | App media row | Artwork, visible app name, title/artist, route chip; app identity is text, not badge-only. |
 | Route selector | Compact visible selected value; separates “Follow preferred · C” from “C · Override”. When intent cannot be confirmed, shows “Route unknown · C” so the observed endpoint remains visible without claiming a follow/override choice. |
-| App transport | Compact previous/play/next controls when supported, kept with that app's media. |
+| App transport | Compact previous/play/next controls when supported, kept with that app's media. The main play/pause button uses the panel's own round-filled transport art. |
 | Seek slider | Flexible track with elapsed/total time; no displacement of adjacent row controls. |
-| App level control | Level-aware speaker icon, slider, numeric percent; visibly distinct from sink level by grouping and label. Reuse the same runtime slider tokens. |
+| App level control | Level-aware speaker icon, slider, numeric percent; visibly distinct from the preferred-output selector by grouping and label. Reuse the same runtime slider tokens. |
 | Input device control | Device selector, level-aware mic mute, input slider and percent. |
 | Microphone activity row | Visible app identity and input-use signal; separate from screen-capture status. |
 | Bar audio indicators | Bare speaker/mic glyphs following the current endpoint and actual activity/mute state. |
-| Settings sound control | Reuses system output-level behavior; never maintains a separate volume authority. |
+| Settings sound control | Owns the device output-level/mute use case through the shared action; never maintains a separate volume authority. |
 
 ## Do's and Don'ts
 
 | Do | Don't |
 |---|---|
 | Use `{colors.selection}` with the established AGS foreground for active route/device. | Reuse the historical output-card aggregate player control. |
-| Keep device-level and app-level sliders visibly and semantically separate. | Suggest sink gain affects only apps following the default; it affects all streams on that sink. |
+| Keep the preferred-output selector and each app's stream-level control visibly and semantically distinct. | Add a device-level level or mute control back into the panel (owner decision 2026-10-07); sink gain lives in Settings. |
 | Keep app name visible beside media title/artist and artwork. | Rely on an app-icon tooltip for app identity. |
 | Use the runtime `colors.css` palette and shared AGS slider/focus treatments. | Treat the mock's literal colors as the final theme or add fixed color literals to components. |
+
+---
+
+**Review note (2026-10-09):** The changes to this spine postdate Sally's focused review (see `validation/README.md`). They were reconciled with the implemented panel and the approved concept mock on 2026-10-09 during `finish-audio-panel-redesign`: the device-level output level/mute control is removed (owner decision 2026-10-07), the preferred-output selector and its follow-default routing remain, and the panel's main transport button now carries its own round-filled art. Re-checked against the design of record at that time.

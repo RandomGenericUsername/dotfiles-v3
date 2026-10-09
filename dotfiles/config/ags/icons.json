@@ -366,6 +366,24 @@
       }
     ]
   },
+  "media-transport-panel": {
+    "color_mappings": {
+      "COLOR_BACKGROUND": "color6",
+      "COLOR_FOREGROUND": "background"
+    },
+    "variants": [
+      {
+        "name": "play",
+        "output": "media-transport-panel-play.svg",
+        "template": "media-transport-panel/default/play.svg"
+      },
+      {
+        "name": "pause",
+        "output": "media-transport-panel-pause.svg",
+        "template": "media-transport-panel/default/pause.svg"
+      }
+    ]
+  },
   "microphone": {
     "color_mappings": {
       "COLOR_FOREGROUND": "foreground"

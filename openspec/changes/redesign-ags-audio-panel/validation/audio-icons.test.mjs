@@ -80,6 +80,36 @@ assert.deepEqual(
     `The row would render an initial letter instead of the app mark.`
 );
 
+// The panel's own transport group (finish-audio-panel-redesign). The main
+// play/pause button reads `media-transport-panel`; previous/next keep the
+// original `media-transport` group so every other surface is untouched. A new
+// group is exactly the failure mode this file exists to catch: an icon name the
+// code requests that has no art resolves to nothing and the widget silently
+// keeps its previous glyph.
+const panel = icons["media-transport-panel"];
+assert.ok(panel?.variants, "icons.json has no media-transport-panel group");
+const panelNames = new Set(panel.variants.map((v) => v.name));
+assert.deepEqual(
+  ["play", "pause"].filter((name) => !panelNames.has(name)),
+  [],
+  `media-transport-panel must define play and pause; available: ${[...panelNames].sort().join(", ")}`
+);
+
+const popupSrc = readFileSync(join(AGS, "audio/AudioPopup.tsx"), "utf8");
+const panelUses = [...popupSrc.matchAll(/icon\("media-transport-panel"/g)].length;
+assert.equal(
+  panelUses,
+  1,
+  `the panel group must be requested at exactly one call site (the main transport button); found ${panelUses}`
+);
+const originalUses = [...popupSrc.matchAll(/icon\("media-transport",/g)].length;
+assert.equal(
+  originalUses,
+  2,
+  `media-transport must still serve exactly previous and next; found ${originalUses} use(s)`
+);
+
 console.log(
-  `audio-icons: PASS (${expected.length} level variant(s), ${BINARIES.length} app binary(ies) resolve)`
+  `audio-icons: PASS (${expected.length} level variant(s), ${BINARIES.length} app binary(ies) resolve, ` +
+    `${panelUses} panel transport call site(s))`
 );

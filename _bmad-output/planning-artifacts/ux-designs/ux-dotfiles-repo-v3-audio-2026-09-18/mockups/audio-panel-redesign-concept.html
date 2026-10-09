@@ -79,18 +79,14 @@
   .option.selected { color: var(--accent); background: var(--accent-soft); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .option:focus-visible { background: rgba(227,174,98,.18); }
-  .sink-volume { display: flex; align-items: center; gap: 10px; margin-top: 11px; }
-  .speaker-button, .icon-button, .transport-button {
+  .icon-button, .transport-button {
     border: 0; background: transparent; display: grid; place-items: center; padding: 3px; cursor: pointer;
   }
-  .speaker-button { width: 24px; height: 24px; color: var(--accent); }
-  .speaker-button svg { width: 19px; height: 19px; }
   .range { appearance: none; -webkit-appearance: none; width: 100%; height: 5px; border-radius: 8px; outline: 0; background: linear-gradient(to right, var(--accent) var(--fill, 50%), rgba(230,235,245,.17) var(--fill, 50%)); cursor: pointer; }
   .range::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #f5f3ee; box-shadow: 0 1px 4px #0008; }
   .range::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: #f5f3ee; box-shadow: 0 1px 4px #0008; }
   .range:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   .value { width: 34px; flex: 0 0 34px; text-align: right; color: #d4dbe7; font-size: 11px; font-variant-numeric: tabular-nums; }
-  .sink-caption { display: flex; justify-content: space-between; margin: 7px 0 0 34px; color: var(--dim); font-size: 10px; }
   .app { padding: 11px 0 12px; border-top: 1px solid rgba(230,235,245,.075); }
   .app:first-of-type { border-top: 0; padding-top: 0; }
   .app:last-child { padding-bottom: 0; }
@@ -188,14 +184,6 @@
                 <button class="option selected" type="button" role="option" aria-selected="true" tabindex="-1" onclick="selectPreferred('C · Studio headphones', this)">C · Studio headphones</button>
               </div>
             </div>
-            <div class="sink-volume">
-              <button class="speaker-button" data-scope="C output" aria-label="Mute C output" aria-pressed="false" onclick="toggleMute(this, 'sink-range')">
-                <svg class="speaker-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M17 9a5 5 0 0 1 0 6"/></svg>
-              </button>
-              <input class="range volume-range" id="sink-range" type="range" min="0" max="100" value="72" aria-label="C output level" aria-describedby="sink-value" oninput="updateRange(this)">
-              <span class="value" id="sink-value">72%</span>
-            </div>
-            <div class="sink-caption"><span>Output level · affects all audio routed to C</span><span>72%</span></div>
           </section>
 
           <section class="section">
@@ -346,7 +334,6 @@
     document.getElementById('preferred-name').textContent = label;
     const trigger = triggerFor(document.getElementById('preferred-menu'));
     trigger.setAttribute('aria-label', 'Preferred output: ' + label);
-    document.getElementById('sink-range').setAttribute('aria-label', device + ' output level');
     selectOption(option);
     document.querySelectorAll('.opt-note').forEach((item) => item.textContent = 'Currently ' + label);
     document.querySelectorAll('.route-select').forEach((button) => {
@@ -356,10 +343,6 @@
         button.setAttribute('aria-label', `${button.dataset.app} output route: Follow preferred, currently ${device}`);
       }
     });
-    document.querySelector('.sink-caption span:first-child').textContent = `Output level · affects all audio routed to ${device}`;
-    const sinkMute = document.querySelector('.speaker-button');
-    sinkMute.dataset.scope = device + ' output';
-    sinkMute.setAttribute('aria-label', (sinkMute.getAttribute('aria-pressed') === 'true' ? 'Unmute ' : 'Mute ') + device + ' output');
     closeMenus(undefined, true);
   }
   function selectRoute(option, label) {
@@ -400,8 +383,6 @@
     } else {
       input.setAttribute('aria-valuetext', input.value + ' percent');
     }
-    const captionValue = input.closest('.section')?.querySelector('.sink-caption span:last-child');
-    if (input.id === 'sink-range' && captionValue) captionValue.textContent = input.value + '%';
   }
   function speakerMarkup(muted) {
     return muted

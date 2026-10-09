@@ -70,7 +70,7 @@ The installed settings are `linking.follow-default-target=true` and `linking.all
 
 The design contract now requires a row to survive while either its PipeWire stream or MPRIS player remains, real media metadata to take precedence over generic stream labels, and row identity to stay stable during seek/relink. User observations show the current panel violates this in Chrome, Tidal, and Firefox as detailed above. The source and cause of each discrepancy have not yet been isolated.
 
-The UX `DESIGN.md` and `EXPERIENCE.md` now express the same unknown-route and independent player/stream lifetime behavior. These refinements postdate Sally's focused review and have not been reviewed by her yet.
+The UX `DESIGN.md` and `EXPERIENCE.md` now express the same unknown-route and independent player/stream lifetime behavior. These refinements postdate Sally's focused review. They were reconciled again on 2026-10-09 during `finish-audio-panel-redesign` — the device-level output level/mute control was removed from the spine (owner decision 2026-10-07), the preferred-output selector and follow-default routing remain, and the panel's own transport icon group landed — but they still have not been reviewed by Sally herself; that future focused UX/accessibility pass remains open.
 
 The ordinary default-follow route, equal-to-default override edge, and same-stream reassertion feasibility are live-validated. The same stream can be moved back to its explicit endpoint and remain there across a later default change. The application-owned intent record and its event-driven reconciliation remain implementation responsibilities; do not claim that the current AGS panel already preserves this distinction. Detailed adapter payload handling remains open as task 1.4b.
 

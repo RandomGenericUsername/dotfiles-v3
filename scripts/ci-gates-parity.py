@@ -93,10 +93,11 @@ RENAMES: dict[str, tuple[str, str]] = {
 # that is neither a gate nor declared here fails the check.
 CI_ONLY_EXEMPT: dict[str, str] = {}
 
-# Gates in `GATES` that the `gates-ci` filter removes (i.e. they do NOT run in
-# CI), each with the reason it cannot. These are a declaration, not an absence:
-# removing a gate from `gates-ci` without an entry here fails, and an entry here
-# for a gate that is not actually filtered out fails as stale.
+# Gates in `GATES` that the `gates-ci` filter removes and that have NO CI job,
+# each with the reason it cannot run on a stock runner. These are a declaration,
+# not an absence: removing a gate from `gates-ci` without an entry here (or in
+# CI_SELF_HOSTED_GATES) fails, and an entry here for a gate that is not actually
+# filtered out fails as stale.
 CI_EXCLUDED_GATES: dict[str, str] = {
     "capture-typecheck": (
         "Needs `ags` on PATH plus the Astal/GIR libraries, and `ags types` writes "
@@ -110,6 +111,26 @@ CI_EXCLUDED_GATES: dict[str, str] = {
         "capture tool's generated /usr/share/ags/js declarations), so it too "
         "cannot run on a stock runner. `make gates` still runs both for a "
         "developer on a provisioned desktop."
+    ),
+}
+
+# Gates the `gates-ci` filter removes that DO still run in CI, on a capable
+# SELF-HOSTED runner. This is the distinction between "cannot run on a stock
+# runner" (the target is excluded from `gates-ci`, which is the stock-runner
+# subset) and "does not run in CI at all" (CI_EXCLUDED_GATES). `ags-typecheck`
+# needs the desktop stack that `ubuntu-latest` lacks, but the workflow's
+# `[self-hosted, linux]` job has it, so the gate is not dropped from CI. The
+# value is (workflow job key, why gates-ci excludes it, why it still runs in CI).
+# The job must exist, and the gate must really be filtered out of `gates-ci`.
+CI_SELF_HOSTED_GATES: dict[str, tuple[str, str, str]] = {
+    "ags-typecheck": (
+        "ags-typecheck",
+        "Needs `ags` on PATH and a machine-specific `ags types` output, so it "
+        "cannot run on a stock ubuntu-latest runner and is filtered out of "
+        "gates-ci (the stock-runner subset).",
+        "The workflow's `[self-hosted, linux]` ags-typecheck job has the desktop "
+        "stack, so the typecheck runs in CI rather than only on a developer's "
+        "provisioned desktop.",
     ),
 }
 
@@ -185,14 +206,18 @@ def check(gates: list[str], gates_ci: list[str], excluded: list[str], jobs: list
     errors: list[str] = []
     job_set = set(jobs)
 
-    # 1. Every gate filtered out of gates-ci must be declared, and every declared
-    #    exclusion must actually be filtered out. No implicit exclusions.
+    # 1. Every gate filtered out of gates-ci must be declared -- either as a
+    #    stock-runner exclusion with no job, or as a self-hosted gate that still
+    #    runs in CI -- and every declared exclusion must actually be filtered out.
+    #    No implicit exclusions.
     excluded_set = set(excluded)
+    declared_excluded = set(CI_EXCLUDED_GATES) | set(CI_SELF_HOSTED_GATES)
     for gate in excluded:
-        if gate not in CI_EXCLUDED_GATES:
+        if gate not in declared_excluded:
             errors.append(
                 f"gate {gate!r} is filtered out of gates-ci by the {MAKEFILE} but "
-                f"has no CI_EXCLUDED_GATES entry -- declare why it does not run in CI"
+                f"has no CI_EXCLUDED_GATES / CI_SELF_HOSTED_GATES entry -- declare "
+                f"why it does not run in CI (or where it runs)"
             )
     for gate in CI_EXCLUDED_GATES:
         if gate not in excluded_set:
@@ -217,17 +242,21 @@ def check(gates: list[str], gates_ci: list[str], excluded: list[str], jobs: list
                 f"{job!r} ({where}) but the workflow has no such job"
             )
 
-    # 3. Every workflow job must map back to a gates-ci target, or be declared as
-    #    a deliberate CI-only job.
+    # 3. Every workflow job must map back to a gates-ci target, be a declared
+    #    self-hosted run of an excluded gate, or be a deliberate CI-only job.
     matched_jobs = set(mapped.values())
+    self_hosted_jobs = {job for (job, _s, _c) in CI_SELF_HOSTED_GATES.values()}
     for job in jobs:
         if job in matched_jobs:
+            continue
+        if job in self_hosted_jobs:
             continue
         if job in CI_ONLY_EXEMPT:
             continue
         errors.append(
             f"CI job {job!r} maps to no gates-ci target and is not in "
-            f"CI_ONLY_EXEMPT -- it runs something the developer gate set does not"
+            f"CI_SELF_HOSTED_GATES / CI_ONLY_EXEMPT -- it runs something the "
+            f"developer gate set does not"
         )
 
     # 4. Declared entries must not be stale in the other direction either, and a
@@ -256,6 +285,25 @@ def check(gates: list[str], gates_ci: list[str], excluded: list[str], jobs: list
                 f"{job!r}; the mapping is ambiguous"
             )
         seen[job] = gate
+
+    # 6. A self-hosted gate must name a real job, must really be filtered out of
+    #    gates-ci, and must not reuse a gates-ci job.
+    for gate, (job, _stock_why, _self_hosted_why) in CI_SELF_HOSTED_GATES.items():
+        if gate not in excluded_set:
+            errors.append(
+                f"CI_SELF_HOSTED_GATES declares {gate!r} but that gate is not "
+                f"filtered out of gates-ci (stale self-hosted declaration)"
+            )
+        if job not in job_set:
+            errors.append(
+                f"CI_SELF_HOSTED_GATES declares job {job!r} for gate {gate!r} but "
+                f"the workflow has no such job"
+            )
+        if job in matched_jobs:
+            errors.append(
+                f"CI_SELF_HOSTED_GATES job {job!r} collides with a gates-ci job "
+                f"mapping; the mapping is ambiguous"
+            )
 
     return errors
 
@@ -295,6 +343,13 @@ def main() -> int:
     print(
         f"ci-gates-parity: declared CI-only jobs ({len(CI_ONLY_EXEMPT)}): "
         + (" ".join(CI_ONLY_EXEMPT) or "(none)")
+    )
+    print(
+        f"ci-gates-parity: declared self-hosted gates ({len(CI_SELF_HOSTED_GATES)}): "
+        + (
+            ", ".join(f"{g}->{j}" for g, (j, _s, _c) in CI_SELF_HOSTED_GATES.items())
+            or "(none)"
+        )
     )
     print(
         f"ci-gates-parity: declared renames ({len(RENAMES)}): "

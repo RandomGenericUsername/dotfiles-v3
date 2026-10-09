@@ -1,7 +1,7 @@
 ---
 name: AGS Audio Panel Redesign
 status: final
-updated: 2026-10-02
+updated: 2026-10-09
 sources:
   - DESIGN.md
   - mockups/audio-panel-redesign-concept.html
@@ -17,7 +17,7 @@ sources:
 
 Desktop GTK4 surface in the Hyprland status bar, opened from the speaker indicator and anchored under the triggering icon. It serves a multi-output PipeWire desktop and multiple simultaneous media players. `DESIGN.md` is the visual identity reference; this spine defines behavior. PipeWire/WirePlumber own device, route, and stream level state; MPRIS owns player metadata and transport state.
 
-The UX contract records the owner's approved interaction choices. Technical notes and older audio mocks are evidence only. The [approved concept](mockups/audio-panel-redesign-concept.html) shows the preferred output, app rows, device/app level distinction, route choices, and activity hierarchy. The earlier [popup mock](mockups/key-audio-popup.html), [transport mock](mockups/key-audio-transport.html), [alternatives](mockups/key-alternatives.html), and [bar-indicator mock](mockups/key-bar-indicators.html) are historical and superseded; they must not override this spine.
+The UX contract records the owner's approved interaction choices. Technical notes and older audio mocks are evidence only. The [approved concept](mockups/audio-panel-redesign-concept.html) shows the preferred output, app rows, app-scoped stream levels, route choices, and activity hierarchy. The earlier [popup mock](mockups/key-audio-popup.html), [transport mock](mockups/key-audio-transport.html), [alternatives](mockups/key-alternatives.html), and [bar-indicator mock](mockups/key-bar-indicators.html) are historical and superseded; they must not override this spine.
 
 ### Confirmed current media metadata/rendering defects
 
@@ -29,16 +29,16 @@ The owner has validated the current panel's controls and routing. A live compari
 |---|---|---|
 | Bar speaker indicator | Always-visible status bar | Shows default output level/mute; opens the audio popup. |
 | Bar microphone indicator | Visible while an input stream is active | Shows default mic mute and current mic use; opens the input/activity area. |
-| Preferred output | Audio popup | Selects the default destination and adjusts that sink's master output level. |
+| Preferred output | Audio popup | Selects the default destination for streams confirmed to follow the preference. Carries no device-level level or mute control (owner decision 2026-10-07). |
 | Playing apps | Audio popup | Shows app/media identity, route, app level/mute, and app-scoped playback/seek. |
 | Input | Audio popup | Selects the preferred microphone and adjusts input level/mute. |
 | Microphone activity | Audio popup | Shows which apps currently consume microphone input. |
 | Screen-capture status | Existing Capture Tool surface/bar indicator | Shows dotfiles-owned capture state; does not represent generic microphone use. |
-| Settings Sound control | Settings panel | Adjusts the same system output level through the shared audio application boundary. |
+| Settings Sound control | Settings panel | Adjusts the system output level through the shared audio application boundary; the panel no longer exposes a device-level control. |
 
 ## Voice and Tone
 
-Microcopy labels the scope and effect of a control. Use **Preferred output**, **Output level**, **Follow preferred · C**, **C · Override**, **Route unknown · C**, **App volume**, and **Input level**. `Route unknown · C` means C is the observed endpoint but the panel cannot confirm whether the stream follows the default or is an override. Use direct recovery messages such as “Output unavailable” or “Couldn’t change app output.” Avoid ambiguous **Master playback**, backend terms, generic track titles, and unexplained icons.
+Microcopy labels the scope and effect of a control. Use **Preferred output**, **Follow preferred · C**, **C · Override**, **Route unknown · C**, **App volume**, and **Input level**. `Route unknown · C` means C is the observed endpoint but the panel cannot confirm whether the stream follows the default or is an override. Use direct recovery messages such as “Output unavailable” or “Couldn’t change app output.” Avoid ambiguous **Master playback**, backend terms, generic track titles, and unexplained icons.
 
 ## Component Patterns
 
@@ -48,8 +48,7 @@ Behavioral rules for the visual components named in [DESIGN.md Components](DESIG
 |---|---|
 | Audio popup | Opened from the bar speaker; stable single-column order; scrolls vertically; outside click and the existing global close action dismiss it. Focusable controls must not steal keyboard input on open. |
 | Section card | Has a visible heading and a meaningful empty/loading/error state; its controls remain usable when another section fails. |
-| Preferred output selector | Announces current endpoint; choosing a device sets the preferred destination and moves streams following it, leaving explicit app routes intact. |
-| Output level control | Accessible name includes device and “output level”; slider changes that sink only; speaker icon toggles that sink's mute and reflects actual state. |
+| Preferred output selector | Announces current endpoint; choosing a device sets the preferred destination and moves streams following it, leaving explicit app routes intact. Exposes no device-level level or mute control. |
 | App media row | A labelled group exposes a persistent visible app name plus media title/artist; artwork is supplementary and falls back to app icon. Row and focus identity survive graph churn. |
 | Route selector | Announces app, observed endpoint, and confirmed intent; if intent is unknown it says so without hiding the endpoint. Offers keyboard-operable “Follow preferred · C” separately from explicit device routes. Selected option, expanded state, Escape, and focus return are exposed. |
 | App transport | Controls only the corresponding app's player. Unsupported actions are omitted without disabling route or audio level controls. |
@@ -58,7 +57,7 @@ Behavioral rules for the visual components named in [DESIGN.md Components](DESIG
 | Input device control | Announces selected microphone; provides device choice, input-level slider, and separate mute toggle. |
 | Microphone activity row | Identifies the consuming app and actual microphone state. It does not imply screen-capture recording. |
 | Bar audio indicators | Speaker follows default-output level/mute. Mic indicator follows actual input use and default-mic mute. Right-click/scroll behavior stays labelled and discoverable. |
-| Settings sound control | Uses the same device output-level action/state as the audio popup; it is not a second volume authority. |
+| Settings sound control | Uses the shared device output-level action/state and owns that use case; it is not a second volume authority, and the audio panel no longer exposes device-level level/mute. |
 
 Route menus use native GTK selection semantics where possible. Keyboard users can open a selector, move among options, commit, cancel with Escape, and return focus to its trigger. Tab order follows visual order. Each interactive app row is labelled with app and media identity. When rows reorder or disappear, focus stays on the same logical control when it still exists, otherwise moves to the nearest surviving row/section heading.
 
@@ -112,7 +111,7 @@ This is a desktop GTK popup, not a responsive web page. Width is capped by the r
 
 ### Flow 1 — Set the preferred output (Juan David, changing from speakers to headphones)
 
-1. Juan David clicks the bar speaker and sees the currently preferred output, its device-level output level, and active app rows.
+1. Juan David clicks the bar speaker and sees the currently preferred output and active app rows.
 2. He opens Preferred output and selects C · Studio headphones.
 3. The system default changes; Chrome and Firefox, which follow preferred, move to C. Spotify's explicit route to A remains visible and unchanged.
 4. **Climax:** Juan David sees C named as preferred, sees the following apps now report “Preferred · C,” and sees Spotify still marked “A · Override.” The scope of the change is legible without testing sound app by app.
@@ -132,7 +131,7 @@ Failure: If the route command fails, the row continues to show the last confirme
 ### Flow 3 — Adjust and mute one app (Juan David, lowering a browser video)
 
 1. Juan David finds Chrome by its visible app name and the media title/artwork in its row.
-2. He lowers Chrome's app-volume slider. Spotify and the device output level stay unchanged.
+2. He lowers Chrome's app-volume slider. Spotify's stream level stays unchanged.
 3. He clicks Chrome's level-aware speaker icon to mute it; the icon shows mute and the 63% level is preserved.
 4. **Climax:** Chrome is muted independently, and clicking the icon again restores its previous stream level.
 
@@ -163,7 +162,7 @@ The functional scenarios in the [OpenSpec capability](../../../../openspec/chang
 | OpenSpec requirement | User flow |
 |---|---|
 | Preferred output and follow-preferred routing | Flows 1 and 2 |
-| Device output level is separate from app stream level | Flows 1 and 3 |
+| App stream level is the only level the panel sets | Flows 1 and 3 |
 | Per-app mute icon reflects live stream state | Flow 3 |
 | App rows present media identity and artwork | Flows 3 and 4 |
 | Playback and seek controls are app-scoped and capability-aware | Flow 4 |
@@ -186,4 +185,4 @@ The functional scenarios in the [OpenSpec capability](../../../../openspec/chang
 
 The [OpenSpec capability](../../../../openspec/changes/redesign-ags-audio-panel/specs/ags-audio-panel/spec.md) defines testable functional scenarios. The [audio/MPRIS dispatch notes](../../ags-audio-mpris-transport-dispatch-contract-2026-09-21.md) and [PipeWire control notes](../../../../docs/linux-wayland-pipewire-ags-audio-control.md) are technical evidence, not binding UX. The old mockups listed under Foundation remain historical; this spine and DESIGN.md win on conflict.
 
-**Review note (2026-10-02):** The route-unknown and independent player/stream-lifetime rules were added after Sally's focused review. Those additions are not covered by her earlier review and should be included in a future focused UX/accessibility pass.
+**Review note (2026-10-09):** The route-unknown and independent player/stream-lifetime rules, and the removal of the device-level output level/mute control (owner decision 2026-10-07), were added after Sally's focused review. The spine was reconciled with the implemented panel and the approved concept mock on 2026-10-09 during `finish-audio-panel-redesign`; these changes still merit a future focused UX/accessibility pass by Sally.

@@ -358,6 +358,11 @@ verify_asset_dirs:
   # them). Asserted by group so a missing template tree fails provisioning
   # instead of the UI silently falling back to text labels.
   - icon-templates/capture-tool
+  # The audio panel's own transport group (finish-audio-panel-redesign): the
+  # round play/pause glyph pair. Asserted by group for the same reason -- the
+  # assets role syncs icon-templates/ as a whole, so a group that never lands
+  # would otherwise ship a panel whose main transport button renders nothing.
+  - icon-templates/media-transport-panel
   - icon-mappings
   - config/color-scheme-generator/templates
 verify_asset_files:
@@ -399,6 +404,11 @@ verify_icons_samples:
   - "{{ verify_state_current_dir }}/icons/bluetooth-on.svg"
   - "{{ verify_state_current_dir }}/icons/bluetooth-off.svg"
   - "{{ verify_state_current_dir }}/icons/settings-panel-bluetooth-signal-full.svg"
+  # The panel's own transport group (finish-audio-panel-redesign): prove the
+  # `media-transport-panel` group actually rendered, so a fresh install cannot
+  # ship the round play/pause button with no art.
+  - "{{ verify_state_current_dir }}/icons/media-transport-panel-play.svg"
+  - "{{ verify_state_current_dir }}/icons/media-transport-panel-pause.svg"
 
 # verify_compositor_config_dirs: the three compositor config dirs under the XDG
 #   config home (criterion 7). config-in-spine (2026-08-16): these are now
