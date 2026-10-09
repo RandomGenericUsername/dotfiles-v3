@@ -87,6 +87,10 @@
   `verify_icons_samples` + the two rendered outputs) and `test_verify_role.py`.
   The role tests pass (2 pre-existing `TestVerifyRuntime` failures reproduced on
   a clean tree) and the manifest parse passes.
+  *Resolved later:* those 2 failures came from `_build_provisioned_layout` not
+  writing the audio hexagon files this change added to
+  `verify_compositor_skeleton_files`; `finish-audio-bar-migration` completed the
+  fixture and `test_verify_role.py` is now 71 passed.
 
 ## 4. Verify
 

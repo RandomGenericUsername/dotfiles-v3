@@ -117,16 +117,18 @@ tracked or a fresh provision deploys an import that is not there.
   dot). Not run — no desktop session here.
 - [ ] 6.4 `make gates-ci` green. Not run.
 
-## Close-out note (pre-existing, not caused by this change)
+## Close-out note
 
 `TestVerifyRuntime::test_verify_passes_on_a_provisioned_machine` and
-`::test_verify_criterion_6_checks_current_only` fail. The cause is that
-`_build_provisioned_layout` never writes the audio **hexagon** files
-(`composition.ts`, `domain/`, `application/`, `adapters/`,
-`presentation/audio-panel-view-model.ts`) that `redesign-ags-audio-panel` added
-to `verify_compositor_skeleton_files`; the verify assert then trips
-`selectattr('isreg')` on a missing file. This is a fixture-completeness gap that
-predates this change (the same 2 failures are recorded as pre-existing in
-`finish-audio-panel-redesign/validation/spec-reconciliation.md`), and this change
-kept the list↔fixture pair consistent for the files it touched (+3 −2). Fixing
-the broader fixture gap is out of scope here.
+`::test_verify_criterion_6_checks_current_only` were failing at the start of
+this work. The cause was that `_build_provisioned_layout` never wrote the audio
+**hexagon** files (`composition.ts`, `domain/`, `application/`, `adapters/`,
+`presentation/audio-panel-view-model.ts`) plus `types.d.ts` that
+`redesign-ags-audio-panel` added to `verify_compositor_skeleton_files`; the
+verify assert then tripped `selectattr('isreg')` on a missing file. These are
+the same 2 failures recorded as pre-existing in
+`finish-audio-panel-redesign/validation/spec-reconciliation.md`.
+
+**Fixed:** the fixture now writes all 12 missing files (the 11-file hexagon +
+`types.d.ts`), and both tests pass — `pytest tests/unit/test_verify_role.py` is
+**71 passed**.

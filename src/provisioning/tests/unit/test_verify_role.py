@@ -2726,6 +2726,26 @@ def _build_provisioned_layout(
     (install / "config" / "ags" / "audio" / "presentation" / "levels.ts").write_text("")
     (install / "config" / "ags" / "audio" / "presentation" / "bar-indicators.ts").write_text("")
     (install / "config" / "ags" / "audio" / "AudioPopup.tsx").write_text("")
+    # The audio hexagon (redesign-ags-audio-panel) and the ambient type
+    # declaration. EVERY entry in verify_compositor_skeleton_files must exist
+    # under the fixture, or the criterion-7 assert trips selectattr('isreg') on
+    # the missing one — the failure the redesign left behind when it added these
+    # files to the list but not to this "machine".
+    for audio_rel in (
+        "composition.ts",
+        "audio-panel.css",
+        "domain/audio-model.ts",
+        "application/ports.ts",
+        "application/audio-actions.ts",
+        "application/runtime/audio-session-runtime.ts",
+        "adapters/pipewire/project-pipewire-session.ts",
+        "adapters/pipewire/pipewire-commands.ts",
+        "adapters/pipewire/pipewire-observation.ts",
+        "adapters/mpris/mpris-adapter.ts",
+        "presentation/audio-panel-view-model.ts",
+    ):
+        (install / "config" / "ags" / "audio" / audio_rel).write_text("")
+    (install / "config" / "ags" / "types.d.ts").write_text("")
     # Standalone capture app (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.
     (install / "config" / "ags-capture" / "app.tsx").write_text("")
