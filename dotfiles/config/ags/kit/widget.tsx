@@ -99,20 +99,25 @@ export function BarWidgetButton<S>({ spec }: { spec: BarWidgetSpec<S> }) {
         }
       }}
     >
-      {spec.icon
-        ? (
-          <image
-            pixel_size={spec.pixelSize ?? 28}
-            class="widget-icon"
-            $={(self) => {
-              createEffect(() => self.set_from_file(icon()))
-            }}
-          />
-        )
-        : null}
-      {spec.label
-        ? <label visible={createComputed(() => label() !== "")} label={label} />
-        : null}
+      {/* A GTK button holds a SINGLE child, so the icon and label are wrapped in
+          one box. Rendering them as siblings made the label displace the icon —
+          the button showed only the second child. */}
+      <box spacing={4}>
+        {spec.icon
+          ? (
+            <image
+              pixel_size={spec.pixelSize ?? 28}
+              class="widget-icon"
+              $={(self) => {
+                createEffect(() => self.set_from_file(icon()))
+              }}
+            />
+          )
+          : null}
+        {spec.label
+          ? <label visible={createComputed(() => label() !== "")} label={label} />
+          : null}
+      </box>
     </button>
   )
 }
