@@ -82,6 +82,7 @@
     "../components/battery/battery-icon.ts",
     "../audio/presentation/levels.ts",
     "../audio/presentation/bar-indicators.ts",
+    "../lib/network-icon.ts",
     "../services/mpris-core.ts"
   ]
 }

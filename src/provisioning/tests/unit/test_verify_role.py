@@ -2629,6 +2629,8 @@ def _build_provisioned_layout(
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
     (install / "config" / "ags" / "app.tsx").write_text("")
     (install / "config" / "ags" / "style.css").write_text("")
+    # Composition-root overlay registration (bar re-architecture prototype).
+    (install / "config" / "ags" / "overlays.ts").write_text("")
     # rofi launcher skeleton (compositor_configs role, add-rofi-app-launcher).
     (install / "config" / "rofi" / "launcher" / "config.rasi").write_text("")
     # AGS bar skeletons (enhance-ags-bar: icons registry + Bar + widgets).
@@ -2674,10 +2676,12 @@ def _build_provisioned_layout(
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
+    (install / "config" / "ags" / "lib" / "network-icon.ts").write_text("")
     (install / "config" / "ags" / "lib" / "event-bus.ts").write_text("")
     (install / "config" / "ags" / "lib" / "event-bus-core.ts").write_text("")
     # The bar widget kit (bar re-architecture prototype): the descriptor model.
     (install / "config" / "ags" / "kit" / "icon.ts").write_text("")
+    (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")
     (install / "config" / "ags" / "kit" / "widget.tsx").write_text("")
     (install / "config" / "ags" / "bar" / "Bar.tsx").write_text("")
     for widget in (
@@ -2685,6 +2689,7 @@ def _build_provisioned_layout(
         "clock",
         "battery",
         "network",
+        "network-descriptor",
         "power-menu",
         "btop",
         "thunderbird",

@@ -148,11 +148,16 @@ compositor_configs_skeleton_files:
   - { name: hyprpaper-conf, source: dotfiles/config/hyprpaper/hyprpaper.conf, dest: "{{ compositor_configs_spine_config_dir }}/hyprpaper/hyprpaper.conf" }
   - { name: ags-app-tsx, source: dotfiles/config/ags/app.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/app.tsx" }
   - { name: ags-style-css, source: dotfiles/config/ags/style.css, dest: "{{ compositor_configs_spine_config_dir }}/ags/style.css" }
-  # The bar widget KIT (bar re-architecture prototype): the descriptor model the
-  # bar renders widgets through. One per-file entry like every other source.
+  # Composition-root registration of the bar overlays (the overlay coordinator).
+  - { name: ags-overlays, source: dotfiles/config/ags/overlays.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/overlays.ts" }
+  # The bar widget KIT (bar re-architecture prototype): the descriptor model +
+  # overlay coordinator the bar renders widgets through. One per-file entry like
+  # every other source.
   - { name: ags-kit-icon, source: dotfiles/config/ags/kit/icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/icon.ts" }
+  - { name: ags-kit-overlay, source: dotfiles/config/ags/kit/overlay.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/overlay.ts" }
   - { name: ags-kit-widget, source: dotfiles/config/ags/kit/widget.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/widget.tsx" }
   - { name: ags-icon-registry, source: dotfiles/config/ags/lib/icon-registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/icon-registry.ts" }
+  - { name: ags-network-icon, source: dotfiles/config/ags/lib/network-icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/network-icon.ts" }
   - { name: ags-bar-backdrop, source: dotfiles/config/ags/lib/bar-backdrop.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/bar-backdrop.ts" }
   - { name: ags-status-notifier, source: dotfiles/config/ags/lib/status-notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/status-notifier.ts" }
   - { name: ags-event-bus, source: dotfiles/config/ags/lib/event-bus.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus.ts" }
@@ -163,6 +168,7 @@ compositor_configs_skeleton_files:
   - { name: ags-clock, source: dotfiles/config/ags/bar/widgets/clock.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/clock.tsx" }
   - { name: ags-battery, source: dotfiles/config/ags/bar/widgets/battery.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/battery.tsx" }
   - { name: ags-network, source: dotfiles/config/ags/bar/widgets/network.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/network.tsx" }
+  - { name: ags-network-descriptor, source: dotfiles/config/ags/bar/widgets/network-descriptor.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/network-descriptor.tsx" }
   - { name: ags-power-menu, source: dotfiles/config/ags/bar/widgets/power-menu.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/power-menu.tsx" }
   - { name: ags-btop, source: dotfiles/config/ags/bar/widgets/btop.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/btop.tsx" }
   - { name: ags-thunderbird, source: dotfiles/config/ags/bar/widgets/thunderbird.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/thunderbird.tsx" }

@@ -15,6 +15,7 @@ import { closeBluetoothPopup } from "./components/bluetooth/state"
 import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
 import { closeBatteryPopup } from "./components/battery/state"
 import { closeWifiPopup } from "./components/wifi/state"
+import "./overlays"
 
 /**
  * Register one top-level window with the application.

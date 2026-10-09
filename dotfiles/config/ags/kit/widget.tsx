@@ -110,7 +110,9 @@ export function BarWidgetButton<S>({ spec }: { spec: BarWidgetSpec<S> }) {
           />
         )
         : null}
-      {spec.label ? <label label={label} /> : null}
+      {spec.label
+        ? <label visible={createComputed(() => label() !== "")} label={label} />
+        : null}
     </button>
   )
 }
