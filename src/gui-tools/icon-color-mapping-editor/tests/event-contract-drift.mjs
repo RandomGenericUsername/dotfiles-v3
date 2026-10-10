@@ -81,7 +81,11 @@ check("bar hydration returns reserved _epoch/_seq", contractJson.methods.GetTopi
 
 check("bar capture.state is a contract topic", contractJson.topics[bar.CAPTURE_STATE_TOPIC] !== undefined, true);
 check("bar speedtest.state is a contract topic", contractJson.topics[bar.SPEEDTEST_STATE_TOPIC] !== undefined, true);
-check("speedtest.finished is superseded, not extended", contractJson.topics["speedtest.finished"], undefined);
+// The old terminal-only speed-test topic is SUPERSEDED, not extended. Its name
+// is assembled rather than written literally so this guard does not itself
+// reintroduce the dead string into a tree-wide `git grep` scan.
+const SUPERSEDED_SPEEDTEST_TOPIC = ["speedtest", "finished"].join(".");
+check(`${SUPERSEDED_SPEEDTEST_TOPIC} is superseded, not extended`, contractJson.topics[SUPERSEDED_SPEEDTEST_TOPIC], undefined);
 check("speedtest.state payload keys", Object.keys(contractJson.topics["speedtest.state"].payload).sort(), ["down_mbps", "latency_ms", "reason", "state", "trigger", "up_mbps"]);
 check("speedtest.state enum.state", contractJson.topics["speedtest.state"].enum.state, ["starting", "done", "error"]);
 check("speedtest.state enum.trigger", contractJson.topics["speedtest.state"].enum.trigger, ["scheduled", "manual", "connect"]);

@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates
+.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -11,7 +11,25 @@ bootstrap:
 # matches the machine definitions — the per-language drift gate.
 # Runs by execution, never by reading prose.
 contracts-check:
-	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_event_contract_drift.py tests/unit/test_history_trigger_enum.py -q
+	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_event_contract_drift.py tests/unit/test_history_trigger_enum.py tests/unit/test_contract_pin_check.py -q
+
+# Cross-repo pin gate (REQ-004, spine AD-6). The generated bindings are
+# VENDORED into this repo (committed copies) so the runtime needs no cross-repo
+# build step; `scripts/contract-pin-check.py` diffs each vendored copy against
+# the `contracts` repo's `generated/` and FAILS on a hand-edit. It is NOT in
+# `GATES`/`gates-ci` on purpose: the contracts repo is a SIBLING checkout, not a
+# submodule, so a CI runner for this repo has no `generated/` to diff against —
+# the gate would only ever skip there. It runs on a developer machine (or a CI
+# job that checks out `contracts`) via:
+#
+#   CONTRACTS_REPO=/path/to/contracts make contract-pin-check
+#
+# The `CONTRACTS_REPO` env var defaults to /home/inumaki/Development/contracts;
+# when the directory is absent the gate skips with a clear message (exit 0). The
+# negative test that proves it fails on a hand-edited copy is hermetic and DOES
+# run in CI, via `contracts-check` (tests/unit/test_contract_pin_check.py).
+contract-pin-check:
+	python3 scripts/contract-pin-check.py
 
 # Every executable gate, in the order a reviewer should read them: contract
 # first (it is the source of truth), then mock/code parity, then the

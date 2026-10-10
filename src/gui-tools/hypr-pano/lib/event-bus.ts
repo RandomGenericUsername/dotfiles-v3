@@ -135,6 +135,5 @@ export {
   EVENTS_OBJECT_PATH,
   HYDRATION_METHOD,
   JOBS_CLEARED_SIGNAL,
-  SPEEDTEST_FINISHED_TOPIC,
 } from "./event-bus-core";
 export type { DomainPayload, RestartHandler, TopicHandler } from "./event-bus-core";
