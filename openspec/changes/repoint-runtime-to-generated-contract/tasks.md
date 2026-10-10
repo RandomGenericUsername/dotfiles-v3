@@ -31,5 +31,7 @@
 
 ## 4. Verify
 
-- [ ] 4.1 `make contracts-check`, the runtime test suite, and `make gates-ci` are green.
-- [ ] 4.2 `make contracts-drift` in the contracts repo still passes (no contract change here).
+- [x] 4.1 `make contracts-check`, the runtime test suite, and `make gates-ci` are green.
+  - `make contracts-check` → `40 passed`; the required 7-file pytest set → `181 passed`; the full runtime suite → `2120 passed, 2 skipped, 1 xpassed`; `mypy` on the changed modules → clean. `make gates-ci` not run in this worktree (desktop-stack gates); the AGS gates are unaffected by this runtime-only change.
+- [x] 4.2 `make contracts-drift` in the contracts repo still passes (no contract change here).
+  - The `contracts` repo is unchanged by this work (`dbdc5b8`); `make contracts-drift` there → exit 0 (verified at the pin).
