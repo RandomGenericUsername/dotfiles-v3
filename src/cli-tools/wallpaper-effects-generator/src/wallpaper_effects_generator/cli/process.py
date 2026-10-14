@@ -28,6 +28,7 @@ from wallpaper_effects_generator.factory import (
     create_container_engine,
     create_container_processor,
     create_context_validator,
+    create_dry_run_processor,
     create_local_processor,
     create_output_adapter,
 )
@@ -114,6 +115,27 @@ def _resolve_context(ctx: typer.Context, input_path: Path) -> tuple[AppSettings,
         raise typer.BadParameter(f"Configuration error: {e}") from e
 
 
+def _build_container_processor(
+    settings: AppSettings,
+    catalog: EffectsCatalog,
+    output_dir: Path,
+) -> EffectProcessorPort:
+    engine = create_container_engine(settings.container)
+    # The container engine is not a command runner for the local backend
+    # binary; the context validator only needs it to probe container-mode
+    # prerequisites (the engine is checked via ``settings.container.engine``).
+    context_validator = create_context_validator(command_runner=None)
+    return create_container_processor(
+        command_runner=engine,
+        catalog=catalog,
+        output_dir=output_dir,
+        container_engine=engine,
+        container_settings=settings.container,
+        settings=settings,
+        context_validator=context_validator,
+    )
+
+
 def _resolve_processor(
     settings: AppSettings,
     catalog: EffectsCatalog,
@@ -124,19 +146,21 @@ def _resolve_processor(
     if deps is not None and deps.processor is not None:
         return deps.processor
     if dry_run:
-        engine = create_container_engine(settings.container)
-        context_validator = create_context_validator(command_runner=engine)
-        return create_container_processor(
-            command_runner=engine,
+        runner = create_command_runner(settings)
+        return create_dry_run_processor(
+            command_runner=runner,
             catalog=catalog,
             output_dir=output_dir,
-            container_engine=engine,
-            container_settings=settings.container,
-            settings=settings,
-            context_validator=context_validator,
         )
+    if settings.runtime.mode == RuntimeMode.CONTAINER:
+        return _build_container_processor(settings, catalog, output_dir)
     runner = create_command_runner(settings)
-    return create_local_processor(command_runner=runner, catalog=catalog, output_dir=output_dir)
+    return create_local_processor(
+        command_runner=runner,
+        catalog=catalog,
+        output_dir=output_dir,
+        temp_dir=settings.processing.temp_dir,
+    )
 
 
 def _get_output_adapter(ctx: typer.Context) -> OutputPort:

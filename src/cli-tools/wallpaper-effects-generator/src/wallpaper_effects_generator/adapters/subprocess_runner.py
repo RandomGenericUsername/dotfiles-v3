@@ -32,6 +32,11 @@ _BINARY_CANDIDATES = ["magick", "convert"]
 # (MAGICK_TEMPORARY_PATH / settings.processing.temp_dir) for full relief.
 DEFAULT_MEMORY_LIMIT = "256MiB"
 _MEMORY_LIMIT_ENV_VAR = "MAGICK_MEMORY_LIMIT"
+# ImageMagick's pixel cache spills to this path once MAGICK_MEMORY_LIMIT is
+# exceeded. Pointing it at a disk-backed directory (settings.processing.temp_dir)
+# is what turns the cap into relief instead of forcing the spill back into a
+# RAM-backed /tmp (tmpfs).
+_TEMPORARY_PATH_ENV_VAR = "MAGICK_TEMPORARY_PATH"
 
 
 class SubprocessCommandRunner:
@@ -40,22 +45,30 @@ class SubprocessCommandRunner:
         binary: str | None = None,
         sanitizer: CommandSanitizer | None = None,
         memory_limit: str | None = DEFAULT_MEMORY_LIMIT,
+        temporary_path: str | None = None,
     ) -> None:
         self._sanitizer = sanitizer or CommandSanitizer()
         self._binary = binary or self._detect_binary()
         self._memory_limit = memory_limit
+        self._temporary_path = temporary_path
         if not self.is_available(self._binary):
             raise BinaryNotFoundError(self._binary)
 
     def _build_env(self) -> dict[str, str] | None:
-        """Environment for the subprocess, with the ImageMagick memory cap.
+        """Environment for the subprocess, with the ImageMagick memory cap and
+        pixel-cache temporary path.
 
-        Returns ``None`` (inherit the parent environment unchanged) when no
-        limit is configured.
+        Returns ``None`` (inherit the parent environment unchanged) when
+        neither is configured.
         """
-        if not self._memory_limit:
+        if not self._memory_limit and not self._temporary_path:
             return None
-        return {**os.environ, _MEMORY_LIMIT_ENV_VAR: self._memory_limit}
+        env = {**os.environ}
+        if self._memory_limit:
+            env[_MEMORY_LIMIT_ENV_VAR] = self._memory_limit
+        if self._temporary_path:
+            env[_TEMPORARY_PATH_ENV_VAR] = self._temporary_path
+        return env
 
     def is_available(self, binary: str | None = None) -> bool:
         return shutil.which(binary or self._binary) is not None

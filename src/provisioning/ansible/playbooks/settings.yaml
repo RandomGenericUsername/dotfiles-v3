@@ -6,8 +6,12 @@
 # intended user's layout).
 #
 # Distro-agnostic: rendering the three settings files is identical on Arch and
-# Debian-family and the role consumes no group_vars — so unlike packages.yaml
-# there is NO group_by distro-selection mechanism.
+# Debian-family and the role consumes no DISTRO group_vars (arch.yml /
+# debian-family.yml) — so unlike packages.yaml there is NO group_by
+# distro-selection mechanism. It DOES consume the shared group_vars/all.yml
+# `container_runtime_engine` (shipped default podman; override via
+# -e container_runtime_engine=... or DOTFILES_CONTAINER_ENGINE) to render
+# [container].engine, so a standalone run renders the default.
 #
 # gather_facts: true is REQUIRED — vars/main.yml derives
 # settings_xdg_config_home from {{ ansible_facts.env.HOME }} and

@@ -60,6 +60,36 @@ def test_create_command_runner_returns_subprocess():
     assert isinstance(runner, SubprocessCommandRunner)
 
 
+def test_create_command_runner_wires_processing_temp_dir():
+    from wallpaper_effects_generator.domain.models import (
+        AppSettings,
+        BackendSettings,
+        ProcessingSettings,
+    )
+
+    settings = AppSettings(
+        backend=BackendSettings(binary="magick"),
+        processing=ProcessingSettings(temp_dir=Path("/var/tmp/weg-tmp")),
+    )
+    runner = create_command_runner(settings=settings)
+    assert isinstance(runner, SubprocessCommandRunner)
+    assert runner._temporary_path == "/var/tmp/weg-tmp"
+
+
+def test_create_local_processor_wires_temp_dir():
+    from unittest.mock import Mock
+
+    scratch = Path("/var/tmp/weg-tmp")
+    processor = create_local_processor(
+        command_runner=Mock(),
+        catalog=EffectsCatalog(),
+        output_dir=Path("/tmp"),
+        temp_dir=scratch,
+    )
+    assert isinstance(processor, LocalProcessor)
+    assert processor._temp_dir == scratch
+
+
 def test_create_local_processor_with_deps():
     from unittest.mock import Mock
 

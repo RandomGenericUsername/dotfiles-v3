@@ -51,8 +51,8 @@ set -euo pipefail
 # via `engine info` (bounded by a 15s timeout). Install podman (preferred) or
 # docker, then re-run. This script NEVER installs an engine: a distro-specific
 # install here would violate NFR-3. Engine forcing is the roles' own concern
-# (cli_tools_container_engine_override; the generate-side engine lives in
-# csg-settings.toml [container]),
+# (the declared container_runtime_engine, consumed by both the cli_tools build
+# and the rendered settings [container].engine),
 # NOT a bootstrap.sh override — a second source of truth would let the gate and
 # the roles diverge (confirmation CR 2026-08-15).
 # ─────────────────────────────────────────────────────────────────────────

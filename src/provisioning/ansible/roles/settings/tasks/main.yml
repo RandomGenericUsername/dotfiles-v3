@@ -56,6 +56,22 @@
       path (the orchestrator resolves $XDG_DATA_HOME/dotfiles/; direct runs
       pass -e install_dir=...)
 
+# UNGATED domain assert (mirror of the cli_tools Layer 1): the templates render
+# `[container].engine = "{{ container_runtime_engine }}"` with NO default()
+# fallback, so an undefined value fails loud at render time. This assert turns a
+# typo'd declared engine into a friendly, early abort instead of a bogus
+# rendered settings.toml. It is pure variable state, so it must run under
+# --check too.
+- name: Assert the declared container engine is podman or docker
+  ansible.builtin.assert:
+    that:
+      - container_runtime_engine in ["podman", "docker"]
+    fail_msg: >-
+      container_runtime_engine is '{{ container_runtime_engine }}' — the
+      declared container engine must be 'podman' or 'docker'. Declare it with
+      -e container_runtime_engine=podman (or docker), or export
+      DOTFILES_CONTAINER_ENGINE=podman (or docker).
+
 - name: Ensure per-tool config dirs exist
   ansible.builtin.file:
     path: "{{ item }}"

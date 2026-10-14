@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -19,6 +20,7 @@ from wallpaper_effects_generator.domain.models import (
     OutputSettings,
     ProcessingRequest,
     ProcessingResult,
+    ProcessingSettings,
     RuntimeSettings,
 )
 
@@ -215,6 +217,60 @@ class TestContainerProcessor:
         with pytest.raises(NotImplementedError):
             processor.process_batch(None)
 
+    def test_no_temp_mount_when_temp_dir_unset(
+        self, processor: ContainerProcessor, fake_engine: FakeEngine, tmp_path: Path
+    ) -> None:
+        request = ProcessingRequest(
+            input_path=tmp_path / "img.png",
+            output_path=tmp_path / "img.png",
+        )
+        processor.process_effect("blur", request, {"radius": "0x8"})
+        targets = {v.target for v in fake_engine.last_run_config.volumes}
+        assert "/weg-tmp" not in targets
+
+    def test_processing_temp_dir_is_mounted_and_serialized(
+        self,
+        catalog: EffectsCatalog,
+        fake_engine: FakeEngine,
+        tmp_path: Path,
+    ) -> None:
+        """`processing.temp_dir` is consumed: mounted disk-backed into the
+        container and reflected in the inner settings so ImageMagick spills
+        there instead of a RAM-backed /tmp."""
+        scratch = tmp_path / "weg-tmp"
+        settings = AppSettings(
+            version="1.0",
+            execution=ExecutionSettings(),
+            output=OutputSettings(),
+            processing=ProcessingSettings(temp_dir=scratch),
+            backend=BackendSettings(binary="magick"),
+            runtime=RuntimeSettings(),
+            container=ContainerSettings(engine="docker"),
+        )
+        processor = ContainerProcessor(
+            command_runner=Mock(),
+            catalog=catalog,
+            output_dir=tmp_path,
+            container_engine=fake_engine,
+            container_settings=ContainerSettings(engine="docker"),
+            settings=settings,
+        )
+        request = ProcessingRequest(
+            input_path=tmp_path / "img.png",
+            output_path=tmp_path / "img.png",
+        )
+        result = processor.process_effect("blur", request, {"radius": "0x8"})
+        assert result.success
+
+        run_config = fake_engine.last_run_config
+        mount = next(v for v in run_config.volumes if v.target == "/weg-tmp")
+        assert mount.read_only is False
+        assert Path(mount.source).parent == scratch
+
+        assert fake_engine.last_settings_toml_content is not None
+        data = tomllib.loads(fake_engine.last_settings_toml_content)
+        assert data["processing"]["temp_dir"] == "/weg-tmp"
+
     def test_passes_expected_environment(
         self, processor: ContainerProcessor, fake_engine: FakeEngine, tmp_path: Path
     ) -> None:
@@ -244,6 +300,7 @@ class TestContainerProcessor:
         params: dict[str, str] | None,
     ) -> None:
         from typer.testing import CliRunner
+
         from wallpaper_effects_generator.cli.main import app
 
         request = ProcessingRequest(

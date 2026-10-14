@@ -19,7 +19,7 @@ binary = "magick"
 mode = "container"
 
 [container]
-engine = "podman"
+engine = "{{ container_runtime_engine }}"
 image_name = "weg"
 image_tag = "latest"
 image_registry = ""

@@ -157,3 +157,36 @@ class TestSubprocessCommandRunner:
         ):
             SubprocessCommandRunner(binary="magick", memory_limit=None).execute("magick -version")
             assert mock_run.call_args.kwargs["env"] is None
+
+    def test_execute_applies_temporary_path(self) -> None:
+        """The pixel cache spills to the configured disk-backed temp dir."""
+        mock_result = subprocess.CompletedProcess(
+            args=["magick", "-version"], returncode=0, stdout="", stderr=""
+        )
+        with (
+            patch("shutil.which", return_value="/usr/bin/magick"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            SubprocessCommandRunner(binary="magick", temporary_path="/var/cache/weg-tmp").execute(
+                "magick -version"
+            )
+            env = mock_run.call_args.kwargs["env"]
+            assert env is not None
+            assert env["MAGICK_TEMPORARY_PATH"] == "/var/cache/weg-tmp"
+            assert env["MAGICK_MEMORY_LIMIT"] == "256MiB"
+
+    def test_execute_temporary_path_without_memory_limit(self) -> None:
+        mock_result = subprocess.CompletedProcess(
+            args=["magick", "-version"], returncode=0, stdout="", stderr=""
+        )
+        with (
+            patch("shutil.which", return_value="/usr/bin/magick"),
+            patch("subprocess.run", return_value=mock_result) as mock_run,
+        ):
+            SubprocessCommandRunner(
+                binary="magick", memory_limit=None, temporary_path="/var/cache/weg-tmp"
+            ).execute("magick -version")
+            env = mock_run.call_args.kwargs["env"]
+            assert env is not None
+            assert env["MAGICK_TEMPORARY_PATH"] == "/var/cache/weg-tmp"
+            assert "MAGICK_MEMORY_LIMIT" not in env

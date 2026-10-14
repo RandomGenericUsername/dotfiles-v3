@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -160,3 +160,49 @@ class TestLocalProcessor:
     def test_process_batch_not_implemented(self, processor: LocalProcessor) -> None:
         with pytest.raises(NotImplementedError):
             processor.process_batch(None)  # type: ignore[arg-type]
+
+    def test_composite_scratch_dir_uses_configured_temp_dir(
+        self, mock_runner: Mock, catalog: EffectsCatalog, tmp_path: Path
+    ) -> None:
+        """`processing.temp_dir` must be consumed (not the default /tmp)."""
+        scratch = tmp_path / "configured-tmp"
+        processor = LocalProcessor(
+            command_runner=mock_runner,
+            catalog=catalog,
+            output_dir=tmp_path / "out",
+            temp_dir=scratch,
+        )
+        request = ProcessingRequest(
+            input_path=Path("/in/img.png"),
+            output_path=Path("/out/img.png"),
+        )
+        with patch(
+            "wallpaper_effects_generator.adapters.local_processor.tempfile.mkdtemp",
+            return_value=str(tmp_path / "fake-step"),
+        ) as mock_mkdtemp:
+            result = processor.process_composite("blur-resize", request)
+        assert result.success
+        assert mock_mkdtemp.call_args.kwargs["dir"] == str(scratch)
+        assert scratch.is_dir()
+
+    def test_preset_scratch_dir_uses_configured_temp_dir(
+        self, mock_runner: Mock, catalog: EffectsCatalog, tmp_path: Path
+    ) -> None:
+        scratch = tmp_path / "configured-tmp"
+        processor = LocalProcessor(
+            command_runner=mock_runner,
+            catalog=catalog,
+            output_dir=tmp_path / "out",
+            temp_dir=scratch,
+        )
+        request = ProcessingRequest(
+            input_path=Path("/in/img.png"),
+            output_path=Path("/out/img.png"),
+        )
+        with patch(
+            "wallpaper_effects_generator.adapters.local_processor.tempfile.mkdtemp",
+            return_value=str(tmp_path / "fake-step"),
+        ) as mock_mkdtemp:
+            result = processor.process_preset("social", request)
+        assert result.success
+        assert mock_mkdtemp.call_args.kwargs["dir"] == str(scratch)

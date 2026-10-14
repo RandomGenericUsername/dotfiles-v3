@@ -35,6 +35,7 @@ class LocalProcessor(EffectProcessorPort):
         command_substitution: CommandSubstitutionService | None = None,
         parameter_resolution: ParameterResolutionService | None = None,
         output_path_service: OutputPathService | None = None,
+        temp_dir: Path | None = None,
     ) -> None:
         self._runner = command_runner
         self._catalog = catalog
@@ -42,6 +43,19 @@ class LocalProcessor(EffectProcessorPort):
         self._subst = command_substitution or CommandSubstitutionService()
         self._param_resolver = parameter_resolution or ParameterResolutionService()
         self._output_path_svc = output_path_service or OutputPathService()
+        self._temp_dir = temp_dir
+
+    def _make_temp_dir(self, prefix: str) -> Path:
+        """Create a scratch directory under the configured temp_dir.
+
+        ``processing.temp_dir`` is consumed here so intermediate/composite
+        artifacts (and, via the command runner, ImageMagick's pixel cache) land
+        on a disk-backed path instead of the default (often RAM-backed) /tmp.
+        """
+        if self._temp_dir is not None:
+            self._temp_dir.mkdir(parents=True, exist_ok=True)
+            return Path(tempfile.mkdtemp(prefix=prefix, dir=str(self._temp_dir)))
+        return Path(tempfile.mkdtemp(prefix=prefix))
 
     def process_effect(
         self,
@@ -74,7 +88,7 @@ class LocalProcessor(EffectProcessorPort):
     ) -> ProcessingResult:
         composite = self._lookup_composite(name)
         current_input = request.input_path
-        temp_dir = Path(tempfile.mkdtemp(prefix=f"weg-{name}-"))
+        temp_dir = self._make_temp_dir(f"weg-{name}-")
         all_commands: list[str] = []
         total_duration = 0.0
         try:
@@ -144,7 +158,7 @@ class LocalProcessor(EffectProcessorPort):
                 duration=0.0,
             )
         current_input = request.input_path
-        temp_dir = Path(tempfile.mkdtemp(prefix=f"weg-preset-{name}-"))
+        temp_dir = self._make_temp_dir(f"weg-preset-{name}-")
         all_commands: list[str] = []
         total_duration = 0.0
         try:

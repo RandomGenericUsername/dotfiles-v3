@@ -31,6 +31,7 @@ from wallpaper_effects_generator.domain.models import (
     PresetDefinition,
     ProcessingRequest,
     ProcessingResult,
+    ProcessingSettings,
     RuntimeSettings,
 )
 from wallpaper_effects_generator.domain.services import (
@@ -50,6 +51,12 @@ _CONTAINER_ENV: dict[str, str] = {
     "WALLPAPER_EFFECTS_CONFIG_FILE_PATH": "/weg-effects/effects.yaml",
     "WALLPAPER__RUNTIME__MODE": "local",
 }
+
+# In-container mount point for the host's ``processing.temp_dir``. The inner
+# ``weg`` invocation (and ImageMagick's pixel cache) write scratch data here so
+# spill lands on the disk-backed host directory rather than the container's
+# (or host's) RAM-backed /tmp.
+_CONTAINER_TMP_DIR = "/weg-tmp"
 
 
 class ContainerProcessor(EffectProcessorPort):
@@ -73,6 +80,7 @@ class ContainerProcessor(EffectProcessorPort):
         self._output_dir = output_dir
         self._container_settings = container_settings or ContainerSettings()
         self._settings = settings
+        self._temp_dir = settings.processing.temp_dir if settings is not None else None
         self._settings_serializer = settings_serializer or SettingsSerializer()
         self._effects_serializer = effects_serializer or EffectsSerializer()
         self._param_resolver = parameter_resolution or ParameterResolutionService()
@@ -215,9 +223,15 @@ class ContainerProcessor(EffectProcessorPort):
         settings_toml: Path | None = None
         effects_yaml: Path | None = None
         temp_out: Path | None = None
+        run_tmp: Path | None = None
         try:
             image = self._ensure_image()
-            settings_toml, effects_yaml = self._serialize_artifacts()
+            container_temp_dir: Path | None = None
+            if self._temp_dir is not None:
+                self._temp_dir.mkdir(parents=True, exist_ok=True)
+                run_tmp = Path(tempfile.mkdtemp(dir=str(self._temp_dir), prefix=".weg-run-"))
+                container_temp_dir = Path(_CONTAINER_TMP_DIR)
+            settings_toml, effects_yaml = self._serialize_artifacts(container_temp_dir)
             input_parent = request.input_path.parent.resolve()
             output_path = request.output_path or self._output_path_svc.resolve(
                 request.input_path,
@@ -228,23 +242,28 @@ class ContainerProcessor(EffectProcessorPort):
             temp_out = Path(tempfile.mkdtemp(dir=output_path.parent, prefix=".weg-container-"))
             caps = self._get_engine().capabilities
             run_flags = list(caps.default_run_flags) if caps is not None else []
+            volumes = [
+                VolumeMount(
+                    source=str(settings_toml),
+                    target="/weg-config/settings.toml",
+                    read_only=True,
+                ),
+                VolumeMount(
+                    source=str(effects_yaml), target="/weg-effects/effects.yaml", read_only=True
+                ),
+                VolumeMount(source=str(input_parent), target="/input", read_only=True),
+                VolumeMount(source=str(temp_out), target="/output", read_only=False),
+            ]
+            if run_tmp is not None:
+                volumes.append(
+                    VolumeMount(source=str(run_tmp), target=_CONTAINER_TMP_DIR, read_only=False)
+                )
             run_config = RunConfig(
                 image=image,
                 command=tuple(container_args),
                 detach=False,
                 remove=True,
-                volumes=(
-                    VolumeMount(
-                        source=str(settings_toml),
-                        target="/weg-config/settings.toml",
-                        read_only=True,
-                    ),
-                    VolumeMount(
-                        source=str(effects_yaml), target="/weg-effects/effects.yaml", read_only=True
-                    ),
-                    VolumeMount(source=str(input_parent), target="/input", read_only=True),
-                    VolumeMount(source=str(temp_out), target="/output", read_only=False),
-                ),
+                volumes=tuple(volumes),
                 environment=_CONTAINER_ENV,
                 runtime_flags=tuple(run_flags),
             )
@@ -278,19 +297,24 @@ class ContainerProcessor(EffectProcessorPort):
             self._cleanup_artifacts(settings_toml, effects_yaml)
             if temp_out is not None and temp_out.exists():
                 shutil.rmtree(temp_out, ignore_errors=True)
+            if run_tmp is not None and run_tmp.exists():
+                shutil.rmtree(run_tmp, ignore_errors=True)
 
-    def _serialize_artifacts(self) -> tuple[Path, Path]:
+    def _serialize_artifacts(self, container_temp_dir: Path | None = None) -> tuple[Path, Path]:
         settings_toml: Path | None = None
         effects_yaml: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".toml", delete=False) as f:
                 settings_toml = Path(f.name)
             if self._settings is not None:
+                processing = self._settings.processing
+                if container_temp_dir is not None:
+                    processing = ProcessingSettings(temp_dir=container_temp_dir)
                 local_settings = AppSettings(
                     version=self._settings.version,
                     execution=self._settings.execution,
                     output=self._settings.output,
-                    processing=self._settings.processing,
+                    processing=processing,
                     backend=self._settings.backend,
                     runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
                     container=self._settings.container,

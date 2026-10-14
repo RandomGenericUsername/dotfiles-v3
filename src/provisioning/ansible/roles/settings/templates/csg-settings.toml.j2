@@ -21,7 +21,7 @@ backend = "pywal"
 mode = "container"
 
 [container]
-engine = "podman"
+engine = "{{ container_runtime_engine }}"
 image_prefix = "csg"
 image_tag = "latest"
 timeout_seconds = 300

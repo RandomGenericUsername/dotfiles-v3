@@ -269,6 +269,40 @@ class TestSettingsTasks:
             "support — verified)"
         )
 
+    def test_container_engine_domain_assert_is_a_non_first_task(self) -> None:
+        """Option 2b: the settings role ALSO validates the declared engine. The
+        domain assert must be a NON-first task (the first stays the install_dir
+        seam assert, a locked contract), must be UNGATED (pure variable state so
+        it runs under --check), and its fail message must name both remedies."""
+        tasks = _load_tasks()
+        assert tasks, "tasks/main.yml must not be empty"
+
+        first = tasks[0]
+        assert _module_key(first) == "ansible.builtin.assert", (
+            "the first task must remain the install_dir seam assert"
+        )
+        assert 'container_runtime_engine in ["podman", "docker"]' not in str(
+            _module(first).get("that", "")
+        ), "the domain assert must NOT be the first task"
+
+        domain = [
+            task
+            for task in tasks[1:]
+            if _module_key(task) == "ansible.builtin.assert"
+            and 'container_runtime_engine in ["podman", "docker"]'
+            in str(_module(task).get("that", ""))
+        ]
+        assert domain, "expected the engine domain assert as a non-first task"
+        for task in domain:
+            assert task.get("when") is None, (
+                "the domain assert must be UNGATED (runs under --check too)"
+            )
+            assert_ = _module(task)
+            msg = str(assert_.get("fail_msg", ""))
+            assert "container_runtime_engine" in msg
+            assert "-e container_runtime_engine=" in msg
+            assert "DOTFILES_CONTAINER_ENGINE=" in msg
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: NO become/become_user anywhere —
         everything the role writes lives under the user's config home and
@@ -426,6 +460,27 @@ class TestSettingsTemplates:
             assert "install_dir | default" not in text, (
                 f"{filename} must NOT carry a default() fallback on install_dir "
                 "(AC 6 — an empty path must never render)"
+            )
+
+    def test_container_engine_is_declared_never_hardcoded(self) -> None:
+        """Option 2b: the runtime engine is the DECLARED
+        `container_runtime_engine` (single source of truth shared with the
+        cli_tools build) — neither container-mode template may hardcode
+        `engine = "podman"`, and neither may carry a default() fallback (an
+        undefined value must fail loud)."""
+        for name in ("csg", "weg"):
+            text = (_TEMPLATES_DIR / _EXPECTED_TEMPLATES[name]).read_text()
+            assert 'engine = "podman"' not in text, (
+                f"{name} template must not hardcode the podman engine — that "
+                "diverges from the built image tag on a docker host"
+            )
+            assert 'engine = "{{ container_runtime_engine }}"' in text, (
+                f"{name} template must render the engine from the declared "
+                "container_runtime_engine variable"
+            )
+            assert "container_runtime_engine | default" not in text, (
+                f"{name} must NOT carry a default() on the engine — an undefined "
+                "value must fail loud"
             )
 
     def test_csg_renders_spine_contract_and_keeps_overwrite_false(self) -> None:
@@ -640,6 +695,70 @@ class TestSettingsPlaybook:
             assert "changed=0" in second.stdout, (
                 "re-running the playbook must be a no-op (content-compare "
                 "idempotency — NFR-1); recap:\n" + second.stdout
+            )
+
+    def test_playbook_renders_declared_engine_and_rejects_invalid(self) -> None:
+        """Option 2b behavioral lock: the REAL playbook renders
+        `[container].engine` from the declared container_runtime_engine for BOTH
+        csg and weg. Default run → podman; `-e container_runtime_engine=docker`
+        and env `DOTFILES_CONTAINER_ENGINE=docker` → docker; an invalid declared
+        engine → non-zero exit (the ungated domain assert aborts)."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+
+        def run(
+            name: str,
+            *,
+            extra: tuple[str, ...] = (),
+            env_engine: str | None = None,
+        ) -> tuple[subprocess.CompletedProcess[str], Path]:
+            base = Path(tmp) / name
+            home = base / "home"
+            install = base / "install"
+            home.mkdir(parents=True)
+            install.mkdir()
+            env = _test_env(
+                HOME=str(home),
+                ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+            )
+            # Never let the dev host's ambient engine leak into the default run.
+            env.pop("DOTFILES_CONTAINER_ENGINE", None)
+            if env_engine is not None:
+                env["DOTFILES_CONTAINER_ENGINE"] = env_engine
+            result = subprocess.run(
+                [ansible_playbook, str(self._PATH), "-e", f"install_dir={install}", *extra],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=120,
+            )
+            return result, install
+
+        def engine_of(install: Path, tool: str) -> str:
+            parsed = tomllib.loads(_expected_files(install)[tool].read_text())
+            return str(parsed["container"]["engine"])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            default, default_install = run("default")
+            assert default.returncode == 0, default.stdout + default.stderr
+            assert engine_of(default_install, "csg") == "podman"
+            assert engine_of(default_install, "weg") == "podman"
+
+            extra, extra_install = run("extra", extra=("-e", "container_runtime_engine=docker"))
+            assert extra.returncode == 0, extra.stdout + extra.stderr
+            assert engine_of(extra_install, "csg") == "docker"
+            assert engine_of(extra_install, "weg") == "docker"
+
+            env_run, env_install = run("env", env_engine="docker")
+            assert env_run.returncode == 0, env_run.stdout + env_run.stderr
+            assert engine_of(env_install, "csg") == "docker"
+            assert engine_of(env_install, "weg") == "docker"
+
+            bogus, _ = run("bogus", extra=("-e", "container_runtime_engine=bogus"))
+            assert bogus.returncode != 0, (
+                "an invalid declared container_runtime_engine must fail loud "
+                "(non-zero exit):\n" + bogus.stdout
             )
 
     def test_playbook_renders_into_home_config_without_xdg(self) -> None:

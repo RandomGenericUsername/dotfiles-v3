@@ -115,8 +115,17 @@ def _argv_of(task: dict[str, object]) -> list[str] | None:
 
 
 def _image_build_tasks() -> list[dict[str, object]]:
-    """The tasks that build CLI container images (argv starting `csg install`)."""
-    return [task for task in _load_tasks() if (_argv_of(task) or [])[:2] == ["csg", "install"]]
+    """The tasks that build CLI container images (argv `<cli> install ...`)."""
+    return [
+        task
+        for task in _load_tasks()
+        if (_argv_of(task) or [])[1:2] == ["install"]
+    ]
+
+
+def _cli_tools_image_builds() -> list[dict[str, str]]:
+    data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
+    return [dict(item) for item in data["cli_tools_image_builds"]]
 
 
 class TestCliToolsRoleTree:
@@ -373,74 +382,35 @@ class TestCliToolsCodexShadowCleanup:
 
 
 class TestCliToolsImageBuildTasks:
-    def test_image_build_task_exists_for_csg(self) -> None:
+    def test_image_build_task_loops_over_configured_clis(self) -> None:
         """Container mode (product decision 2026-08-12) requires the cli_tools
-        role to build the csg container image — `uv tool install` only installs
-        the host-side launcher."""
+        role to build the csg AND weg container images — `uv tool install`
+        only installs the host-side launchers."""
         tasks = _image_build_tasks()
-        assert tasks, "expected a `csg install` image-build task"
-        csg_tasks = [t for t in tasks if _argv_of(t)[0] == "csg"]
-        assert csg_tasks, "expected a `csg install` task"
+        assert len(tasks) == 1, "expected a single image-build loop task"
+        assert tasks[0].get("loop") == "{{ cli_tools_image_builds }}", (
+            "image build must iterate the configured list so csg and weg are "
+            "both built"
+        )
+        names = {b["name"] for b in _cli_tools_image_builds()}
+        assert {"csg", "weg"} <= names, "csg and weg must both be image-built"
 
     def test_image_build_task_passes_container_engine(self) -> None:
         tasks = _image_build_tasks()
-        assert tasks, "expected a `csg install` image-build task"
-        csg = [t for t in tasks if _argv_of(t)[0] == "csg"][0]
-        argv = _argv_of(csg)
+        assert tasks, "expected an image-build task"
+        argv = _argv_of(tasks[0])
         assert "--container-engine" in argv
-        resolved = "{{ cli_tools_container_engine }}"
-        assert argv[argv.index("--container-engine") + 1] == resolved, (
-            "image-build task must pass --container-engine from the RESOLVED "
-            "engine (override-or-detection, podman preferred, then docker) — "
-            "never a hardcoded engine"
+        declared = "{{ container_runtime_engine }}"
+        assert argv[argv.index("--container-engine") + 1] == declared, (
+            "image-build task must pass --container-engine from the DECLARED "
+            "engine {{ container_runtime_engine }} — the single source of truth "
+            "shared with the rendered settings"
         )
-
-    def test_container_engine_detected_with_fail_loud_assert(self) -> None:
-        """Engine detection (podman → docker → fail) is a read-only probe
-        (skipped when the override escape hatch is set); a set_fact resolves the
-        engine from override-or-probe (trimmed), and a gated assert fails loud
-        when neither is usable."""
-        probes = [
-            task
-            for task in _load_tasks()
-            if _module_key(task) == "ansible.builtin.shell"
-            and "command -v podman" in str(task.get("ansible.builtin.shell", ""))
-            and "command -v docker" in str(task.get("ansible.builtin.shell", ""))
-        ]
-        assert probes, "expected a podman/docker detection probe"
-        for task in probes:
-            assert task.get("register") == "cli_tools_engine_check"
-            assert task.get("failed_when") is False
-            assert task.get("changed_when") is False
-            assert "cli_tools_container_engine_override" in str(task.get("when", "")), (
-                "probe must be skipped when the engine override is set"
-            )
-
-        set_facts = [
-            task
-            for task in _load_tasks()
-            if _module_key(task) == "ansible.builtin.set_fact"
-            and "cli_tools_container_engine" in str(task.get("ansible.builtin.set_fact", {}))
-        ]
-        assert set_facts, "expected a set_fact resolving cli_tools_container_engine"
-
-        asserts = [
-            task
-            for task in _load_tasks()
-            if _module_key(task) == "ansible.builtin.assert"
-            and "cli_tools_container_engine" in str(task.get("ansible.builtin.assert", {}))
-        ]
-        assert asserts, "expected an assert on the resolved engine"
-        for task in asserts:
-            assert task.get("when") == "not ansible_check_mode", (
-                "engine assert must be gated when: not ansible_check_mode"
-            )
 
     def test_image_build_task_passes_source_root(self) -> None:
         tasks = _image_build_tasks()
-        assert tasks, "expected a `csg install` image-build task"
-        csg = [t for t in tasks if _argv_of(t)[0] == "csg"][0]
-        argv = _argv_of(csg)
+        assert tasks, "expected an image-build task"
+        argv = _argv_of(tasks[0])
         assert "--source-root" in argv
         assert argv[argv.index("--source-root") + 1] == "{{ cli_tools_repo_root }}", (
             "image-build task must pass --source-root = cli_tools_repo_root "
@@ -451,7 +421,7 @@ class TestCliToolsImageBuildTasks:
         """Command modules execute under --check, so the image build must be
         gated `when: not ansible_check_mode` (dry-run must stay dry)."""
         tasks = _image_build_tasks()
-        assert tasks, "expected a `csg install` image-build task"
+        assert tasks, "expected an image-build task"
         for task in tasks:
             assert "not ansible_check_mode" in str(task.get("when", "")), (
                 f"image-build task {task.get('name')!r} must be check-mode gated"
@@ -461,7 +431,7 @@ class TestCliToolsImageBuildTasks:
         """Image EXISTENCE does not imply FRESHNESS: a `creates:` guard would
         skip rebuilding a stale image (the exact defect this chain fixes)."""
         tasks = _image_build_tasks()
-        assert tasks, "expected a `csg install` image-build task"
+        assert tasks, "expected an image-build task"
         for task in tasks:
             assert _creates_value(task) is None, (
                 f"image-build task {task.get('name')!r} must NOT carry creates: "
@@ -477,35 +447,216 @@ class TestCliToolsImageBuildTasks:
             )
 
 
+class TestCliToolsEngineAssertionBattery:
+    """Option 2b: one DECLARED engine (container_runtime_engine), validated by a
+    four-layer fail-loud battery — domain → presence → usability → capability
+    smoke. There is NO detection probe and NO resolved-engine set_fact."""
+
+    def test_no_detection_probe_and_no_resolved_engine_set_fact(self) -> None:
+        for task in _load_tasks():
+            body = str(task.get(_module_key(task) or "", ""))
+            assert "command -v podman" not in body, (
+                "engine detection must be removed — the engine is DECLARED, "
+                "never probed for a podman/docker preference"
+            )
+            assert _module_key(task) != "ansible.builtin.set_fact", (
+                "no set_fact may resolve an engine — container_runtime_engine is "
+                "declared in group_vars/all.yml"
+            )
+
+    def test_layer1_domain_assert_is_ungated_and_names_both_remedies(self) -> None:
+        asserts = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.assert"
+            and 'container_runtime_engine in ["podman", "docker"]'
+            in str(task.get("ansible.builtin.assert", ""))
+        ]
+        assert asserts, "expected the Layer-1 domain assert"
+        for task in asserts:
+            assert task.get("when") is None, (
+                "the domain assert must be UNGATED (runs under --check too)"
+            )
+            msg = str(task.get("ansible.builtin.assert", {}).get("fail_msg", ""))
+            assert "container_runtime_engine" in msg
+            assert "-e container_runtime_engine=" in msg
+            assert "DOTFILES_CONTAINER_ENGINE=" in msg
+
+    @staticmethod
+    def _task_with_register(register: str) -> dict[str, object]:
+        matches = [task for task in _load_tasks() if task.get("register") == register]
+        assert len(matches) == 1, f"expected exactly one task registering {register!r}"
+        return matches[0]
+
+    @staticmethod
+    def _asserts_mentioning(fragment: str) -> list[dict[str, object]]:
+        return [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.assert"
+            and fragment in str(task.get("ansible.builtin.assert", ""))
+        ]
+
+    def test_layer2_presence_probe_and_gated_assert(self) -> None:
+        probe = self._task_with_register("cli_tools_engine_presence")
+        assert _module_key(probe) == "ansible.builtin.shell", (
+            "command -v is a shell builtin — the presence probe must use shell"
+        )
+        assert "command -v {{ container_runtime_engine }}" in str(
+            probe.get("ansible.builtin.shell", "")
+        )
+        assert probe.get("changed_when") is False
+        assert probe.get("failed_when") is False
+        assert probe.get("when") == "not ansible_check_mode", (
+            "the presence probe must be gated (shell never runs under --check)"
+        )
+        env = probe.get("environment")
+        assert isinstance(env, dict)
+        assert env.get("PATH", "").startswith("{{ cli_tools_bin_dir }}:")
+
+        asserts = self._asserts_mentioning("cli_tools_engine_presence.rc == 0")
+        assert asserts, "expected the presence assert"
+        for task in asserts:
+            assert task.get("when") == "not ansible_check_mode"
+
+    def test_layer3_usability_probe_is_bounded_and_assert_gated(self) -> None:
+        probe = self._task_with_register("cli_tools_engine_usability")
+        assert _module_key(probe) == "ansible.builtin.shell"
+        assert "timeout 30 {{ container_runtime_engine }} info" in str(
+            probe.get("ansible.builtin.shell", "")
+        ), "usability probe must be bounded (`timeout 30 ... info`)"
+        assert probe.get("changed_when") is False
+        assert probe.get("failed_when") is False
+        assert probe.get("when") == "not ansible_check_mode"
+
+        asserts = self._asserts_mentioning("cli_tools_engine_usability.rc == 0")
+        assert asserts, "expected the usability assert"
+        for task in asserts:
+            assert task.get("when") == "not ansible_check_mode"
+
+    def test_layer4_capability_smoke_battery(self) -> None:
+        # Probe file (tempfile) — gated.
+        tempfile_tasks = [task for task in _load_tasks() if task.get("register") == "probe"]
+        assert len(tempfile_tasks) == 1, "expected exactly one smoke probe tempfile task"
+        tempfile_task = tempfile_tasks[0]
+        assert _module_key(tempfile_task) == "ansible.builtin.tempfile"
+        tempfile_body = tempfile_task.get("ansible.builtin.tempfile", {})
+        assert tempfile_body.get("state") == "file"
+        assert tempfile_body.get("prefix") == "weg-container-smoke-"
+        assert tempfile_task.get("when") == "not ansible_check_mode"
+
+        # Copy content into the probe file — gated.
+        copy_tasks = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.copy"
+            and task.get("ansible.builtin.copy", {}).get("dest") == "{{ probe.path }}"
+        ]
+        assert len(copy_tasks) == 1, "expected the smoke probe content write"
+        copy_task = copy_tasks[0]
+        copy_body = copy_task.get("ansible.builtin.copy", {})
+        assert "weg-container-smoke" in str(copy_body.get("content", ""))
+        assert copy_body.get("mode") == "0644"
+        assert copy_task.get("when") == "not ansible_check_mode"
+
+        # The run itself: argv-form command, gated, probes changed/failed false.
+        run = self._task_with_register("cli_tools_engine_smoke")
+        assert _module_key(run) == "ansible.builtin.command", (
+            "the smoke run must use argv-form command (NOT shell) so quoting is safe"
+        )
+        argv = _argv_of(run)
+        assert argv is not None
+        assert "run" in argv and "--rm" in argv
+        assert argv[argv.index("-e") + 1] == "WEG_SMOKE=ok"
+        assert "{{ cli_tools_engine_smoke_image }}" in argv
+        assert any(":/smoke/probe.txt:ro" in arg for arg in argv), (
+            "the smoke must bind-mount the probe file read-only"
+        )
+        assert argv[0] == "timeout", "the smoke run must be bounded"
+        assert run.get("changed_when") is False
+        assert run.get("failed_when") is False
+        assert run.get("when") == "not ansible_check_mode"
+
+        asserts = self._asserts_mentioning("'SMOKE_OK' in (cli_tools_engine_smoke.stdout")
+        assert asserts, "expected the smoke success assert"
+        for task in asserts:
+            assert task.get("when") == "not ansible_check_mode"
+            msg = str(task.get("ansible.builtin.assert", {}).get("fail_msg", ""))
+            assert "cli_tools_engine_smoke.rc" in msg
+            assert "cli_tools_engine_smoke.stderr" in msg
+
+        # Cleanup — gated file state absent.
+        cleanups = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.file"
+            and task.get("ansible.builtin.file", {}).get("path") == "{{ probe.path }}"
+            and task.get("ansible.builtin.file", {}).get("state") == "absent"
+        ]
+        assert len(cleanups) == 1, "expected the smoke probe cleanup"
+        assert cleanups[0].get("when") == "not ansible_check_mode"
+
+    def test_battery_tasks_are_all_named_and_never_use_become(self) -> None:
+        battery_registers = {
+            "cli_tools_engine_presence",
+            "cli_tools_engine_usability",
+            "cli_tools_engine_smoke",
+        }
+        for task in _load_tasks():
+            assert task.get("name"), "every task must carry a name"
+            if task.get("register") in battery_registers:
+                assert "become" not in task
+                assert "become_user" not in task
+
+
 class TestCliToolsVars:
     def test_vars_parse_with_required_keys(self) -> None:
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
         assert isinstance(data, dict), "vars/main.yml must parse to a dict"
         assert {"cli_tools_repo_root", "cli_tools_bin_dir", "cli_tools"}.issubset(set(data))
 
-    def test_container_engine_detected_at_runtime_not_pinned(self) -> None:
-        """podman/docker are DOCUMENTED DEPENDENCIES: the engine is resolved at
-        runtime (override-or-detection, podman preferred, then docker, then fail
-        loud) — the RESOLVED engine is never a vars value, and the override
-        escape hatch defaults to empty (auto-detect). A machine with only docker
-        must not false-fail on a hardcoded podman."""
+    def test_engine_is_declared_not_detected(self) -> None:
+        """Option 2b: the engine is DECLARED once
+        (`container_runtime_engine` in group_vars/all.yml, shipped default
+        podman) and consumed by BOTH the build and the rendered settings — the
+        role carries no detection probe and no resolved-engine set_fact, and the
+        old override escape hatch is gone."""
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
         assert "cli_tools_container_engine" not in data, (
-            "the resolved engine must come from set_fact (override-or-detection), "
-            "never pinned in vars"
+            "the role must not pin its own engine — container_runtime_engine in "
+            "group_vars/all.yml is the single source of truth"
         )
-        assert data.get("cli_tools_container_engine_override") == "", (
-            "the override escape hatch must default to empty (auto-detect)"
+        assert "cli_tools_container_engine_override" not in data, (
+            "the old override escape hatch must be deleted (superseded by the "
+            "declared container_runtime_engine)"
+        )
+        assert data.get("cli_tools_engine_smoke_image"), (
+            "the Layer-4 smoke must use a pinned image var"
         )
 
+        # No detection probe and no resolved-engine set_fact anywhere in tasks.
+        for task in _load_tasks():
+            assert "command -v podman" not in str(task.get(_module_key(task) or "", "")), (
+                "engine detection must be gone — the engine is DECLARED"
+            )
+            assert _module_key(task) != "ansible.builtin.set_fact", (
+                "no set_fact may resolve an engine — it is declared in group_vars"
+            )
+
+        # The build consumes the DECLARED engine.
+        argv = _argv_of(_image_build_tasks()[0])
+        assert argv is not None
+        assert argv[argv.index("--container-engine") + 1] == "{{ container_runtime_engine }}"
+
     def test_image_builds_list_contains_only_container_mode_clis(self) -> None:
-        """Only csg is image-built today (itr has no container mode; weg is only
-        consumed via local `dump-effects` by the assets role)."""
+        """csg and weg are both container-mode CLIs and must be image-built;
+        itr has no container mode and must not be."""
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
         builds = [dict(item) for item in data["cli_tools_image_builds"]]
         assert {"name": "csg"} in builds
+        assert {"name": "weg"} in builds
         names = {b["name"] for b in builds}
-        assert names <= {"csg", "weg"}, "image builds must be container-mode CLIs only"
+        assert names == {"csg", "weg"}, "image builds must be exactly the container-mode CLIs"
 
     def test_cli_tools_parity_with_manifest(self) -> None:
         """Parity lock: the role var exactly mirrors the manifest by

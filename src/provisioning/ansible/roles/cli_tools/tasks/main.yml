@@ -174,13 +174,22 @@
 # Container image builds for the container-mode CLIs (product decision
 # 2026-08-12: csg/weg run in container mode; the host never installs backend
 # binaries). `uv tool install` above only installs the host-side launcher —
-# `csg install` builds the image that does the actual work.
+# `<cli> install` builds the image that does the actual work. The list of CLIs
+# is `cli_tools_image_builds` (csg + weg).
 #
-# Design (locked in Story 2.8 review):
-# - The container engine is a DOCUMENTED DEPENDENCY: detected at runtime below
-#   (podman preferred, then docker, then FAIL LOUD). It is NOT pinned to podman
-#   and NOT installed by this chain — the packages role (2.3) / bootstrap (3.1)
-#   is where one of them should be installed.
+# Container engine (Option 2b, single DECLARED source of truth):
+# - The engine is DECLARED, not detected: `container_runtime_engine` from
+#   group_vars/all.yml (shipped default podman; override via
+#   `-e container_runtime_engine=...` or DOTFILES_CONTAINER_ENGINE). There is
+#   NO fallback-on-detection-failure — if the declared engine is absent or
+#   unusable the run FAILS LOUD below. The SAME value feeds the build here and
+#   the rendered settings templates, so the built image tag and the runtime
+#   lookup can never diverge.
+# - The four-layer battery below (domain → presence → usability → capability
+#   smoke) validates the declared engine. Layer 1 is ungated (runs under
+#   --check too); layers 2-4 use shell/command modules that never run under
+#   --check, so their probes AND asserts are gated `when: not
+#   ansible_check_mode`.
 # - `--source-root {{ cli_tools_repo_root }}` is passed EXPLICITLY so the build
 #   context does not depend on the CLI rediscovering its source via PEP 610
 #   metadata (deterministic on the provisioning path; direct_url discovery
@@ -192,49 +201,139 @@
 #   generate task's accepted-by-design "changed on every apply" semantics
 #   (idempotency = no STATE drift, not no CHANGED report). Do NOT reintroduce
 #   an existence gate.
-# - Check mode: command/shell modules do NOT run under --check (verified
-#   ansible-core 2.20.3), so the engine probe is skipped there and
-#   `cli_tools_engine_check` is undefined; the `Resolve container engine`
-#   set_fact therefore falls back to "none" and the assert + build are gated
-#   `when: not ansible_check_mode` (same guard as default_palette) — a `--check`
-#   run stays dry and cannot validate engine presence.
 # - User-scoped privilege context: NO become — rootless podman builds into the
 #   user's storage (AC 10).
 
-- name: Detect container engine (podman, then docker)
-  ansible.builtin.shell: "command -v podman >/dev/null 2>&1 && printf podman || { command -v docker >/dev/null 2>&1 && printf docker || printf none; }"
-  register: cli_tools_engine_check
+# ── Layer 1: domain assert (UNGATED — runs under --check too) ──
+# Pure variable state, so it evaluates even in a dry run: a typo'd declared
+# engine aborts before any probe. podman|docker are the only engines the
+# container-mode CLIs support.
+- name: Assert the declared container engine is podman or docker
+  ansible.builtin.assert:
+    that:
+      - container_runtime_engine in ["podman", "docker"]
+    fail_msg: >-
+      container_runtime_engine is '{{ container_runtime_engine }}' — the
+      declared container engine must be 'podman' or 'docker'. Declare it with
+      -e container_runtime_engine=podman (or docker), or export
+      DOTFILES_CONTAINER_ENGINE=podman (or docker).
+
+# ── Layer 2: presence ──
+# `command -v` is a SHELL BUILTIN (no /usr/bin/command executable), so it must
+# run via ansible.builtin.shell, never ansible.builtin.command (code review F1).
+# Skipped under --check (shell never runs there), hence the gated assert below.
+- name: Check the declared container engine is on PATH
+  ansible.builtin.shell: "command -v {{ container_runtime_engine }}"
+  register: cli_tools_engine_presence
   changed_when: false
   failed_when: false
   environment:
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
-  when: not cli_tools_container_engine_override | default("", true)
-
-- name: Resolve container engine
-  ansible.builtin.set_fact:
-    cli_tools_container_engine: "{{ cli_tools_container_engine_override | default('') or cli_tools_engine_check.stdout | trim | default('none', true) }}"
-
-- name: Ensure a container engine is available
-  ansible.builtin.assert:
-    that: cli_tools_container_engine in ["podman", "docker"]
-    fail_msg: >-
-      No usable container engine — resolved '{{ cli_tools_container_engine }}'.
-      The cli_tools role needs podman or docker (auto-detected, podman
-      preferred) to build the container-mode CLI images. podman/docker are
-      DOCUMENTED DEPENDENCIES (not installed by this chain); install one,
-      pre-seed it in the bootstrap (Story 3.1), or set
-      cli_tools_container_engine_override to a working engine
   when: not ansible_check_mode
 
-- name: Build csg container images
+- name: Assert the declared container engine is present
+  ansible.builtin.assert:
+    that:
+      - cli_tools_engine_presence.rc == 0
+      - cli_tools_engine_presence.stdout | length > 0
+    fail_msg: >-
+      The declared container engine '{{ container_runtime_engine }}' was not
+      found on PATH. Install it, or declare a different engine with
+      -e container_runtime_engine=podman (or docker), or export
+      DOTFILES_CONTAINER_ENGINE=podman (or docker).
+  when: not ansible_check_mode
+
+# ── Layer 3: usability (bounded) ──
+# A present binary can still be broken (e.g. a stopped docker daemon); `engine
+# info` is bounded by a 30s timeout so a hung engine cannot stall the run.
+- name: Check the declared container engine is usable
+  ansible.builtin.shell: "timeout 30 {{ container_runtime_engine }} info >/dev/null 2>&1"
+  register: cli_tools_engine_usability
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the declared container engine is usable
+  ansible.builtin.assert:
+    that:
+      - cli_tools_engine_usability.rc == 0
+    fail_msg: >-
+      The declared container engine '{{ container_runtime_engine }}' is present
+      but not usable (`{{ container_runtime_engine }} info` failed, rc={{
+      cli_tools_engine_usability.rc | default('n/a', true) }}). Start it, or
+      declare a different engine with -e container_runtime_engine=podman (or
+      docker), or export DOTFILES_CONTAINER_ENGINE=podman (or docker).
+  when: not ansible_check_mode
+
+# ── Layer 4: capability smoke (run + bind mount + env + --rm, bounded) ──
+# Proves the engine can actually run a container with a bind mount + env +
+# --rm — the exact capabilities the CLI image builds need. Uses a pinned
+# minimal image and a tempfile probe.
+- name: Create the container engine smoke probe file
+  ansible.builtin.tempfile:
+    state: file
+    prefix: "weg-container-smoke-"
+  register: probe
+  when: not ansible_check_mode
+
+- name: Write content into the container engine smoke probe file
+  ansible.builtin.copy:
+    content: "weg-container-smoke\n"
+    dest: "{{ probe.path }}"
+    mode: "0644"
+  when: not ansible_check_mode
+
+# argv form (NOT shell) so `$WEG_SMOKE` and the inner quoting pass through to
+# the in-container `sh -c` untouched and host quoting can never corrupt the
+# probe.
+- name: Run the container engine capability smoke test
   ansible.builtin.command:
     argv:
-      - csg
+      - "timeout"
+      - "120"
+      - "{{ container_runtime_engine }}"
+      - "run"
+      - "--rm"
+      - "-e"
+      - "WEG_SMOKE=ok"
+      - "-v"
+      - "{{ probe.path }}:/smoke/probe.txt:ro"
+      - "{{ cli_tools_engine_smoke_image }}"
+      - "sh"
+      - "-c"
+      - 'test "$WEG_SMOKE" = ok && grep -qx weg-container-smoke /smoke/probe.txt && echo SMOKE_OK'
+  register: cli_tools_engine_smoke
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the container engine capability smoke test passed
+  ansible.builtin.assert:
+    that:
+      - "'SMOKE_OK' in (cli_tools_engine_smoke.stdout | default('', true))"
+    fail_msg: >-
+      The declared container engine '{{ container_runtime_engine }}' failed the
+      capability smoke test (run + bind mount + env + --rm), rc={{
+      cli_tools_engine_smoke.rc | default('n/a', true) }}. stderr: {{
+      cli_tools_engine_smoke.stderr | default('', true) }}
+  when: not ansible_check_mode
+
+- name: Remove the container engine smoke probe file
+  ansible.builtin.file:
+    path: "{{ probe.path }}"
+    state: absent
+  when: not ansible_check_mode
+
+- name: Build container images for the container-mode CLIs
+  ansible.builtin.command:
+    argv:
+      - "{{ item.name }}"
       - install
       - --container-engine
-      - "{{ cli_tools_container_engine }}"
+      - "{{ container_runtime_engine }}"
       - --source-root
       - "{{ cli_tools_repo_root }}"
+  loop: "{{ cli_tools_image_builds }}"
   environment:
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
   when: not ansible_check_mode

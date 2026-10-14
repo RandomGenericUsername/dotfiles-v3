@@ -20,28 +20,32 @@ cli_tools_bin_dir: >-
   {{ ansible_facts.env.UV_TOOL_BIN_DIR
      | default(ansible_facts.env.XDG_BIN_HOME | default(ansible_facts.env.HOME + '/.local/bin', true), true) }}
 
-# CONTAINER ENGINE — DOCUMENTED DEPENDENCY (not installed by this chain):
-# the image-build task runs `csg install --container-engine <engine>`, and the
-# engine is DETECTED AT RUNTIME (podman preferred, then docker, then fail loud)
-# in tasks/main.yml — it is NOT pinned here. podman and docker are both
-# documented external dependencies; the packages role (2.3) / fresh-machine
-# bootstrap (3.1) is where one of them should be installed.
+# CONTAINER ENGINE — DECLARED, not detected:
+# the image-build task runs `<cli> install --container-engine
+# {{ container_runtime_engine }}`. The engine is the DECLARED value from
+# group_vars/all.yml (shipped default podman; override via
+# `-e container_runtime_engine=...` or `DOTFILES_CONTAINER_ENGINE`). This role
+# does NOT detect it or pin a private copy: tasks/main.yml validates the
+# declared value (domain + presence + usability + capability smoke, all
+# fail-loud) and builds for it, so the built image tag and the rendered
+# runtime settings can never diverge. podman/docker remain documented external
+# dependencies; the packages role provisions podman on fresh machines and
+# docker must be operator-provided when declared.
 #
-# cli_tools_container_engine_override: OPTIONAL escape hatch. Empty (default) =
-# auto-detect at runtime. Set it (e.g. extra-var/group_vars
-# `cli_tools_container_engine_override: docker`) to FORCE an engine on a machine
-# where auto-detection picks a broken one. The forced value is still validated
-# by the fail-loud assert (must be podman|docker). The RESOLVED engine is never
-# a vars value — it is set_fact'd from override-or-detection.
-cli_tools_container_engine_override: ""
+# cli_tools_engine_smoke_image: pinned, minimal image for the Layer-4
+# capability smoke (run + bind mount + env + --rm). Pinned so the smoke never
+# pulls a moving tag and stays tiny over the real CLI images.
+cli_tools_engine_smoke_image: "docker.io/library/alpine:3.20"
 
 # cli_tools_image_builds: the container-mode CLIs whose container images this
 #   role builds after `uv tool install`. `itr` is deliberately absent (no
-#   container mode). `weg` is absent until a provisioning role runs it in
-#   container mode (the assets role only runs `weg dump-effects`, which is
-#   local). Each entry maps to the CLI's `install` command.
+#   container mode). `csg` and `weg` both run containerized at runtime
+#   (settings.toml renders runtime.mode = "container"); the assets role's
+#   `weg dump-effects` is separate and runs locally. Each entry maps to the
+#   CLI's `install` command.
 cli_tools_image_builds:
   - { name: csg }
+  - { name: weg }
 
 # cli_tools: install specs mirroring dotfiles/provisioning/cli-tools.yaml
 #   (csg/weg/itr -> repo source paths, plus dotfiles-runtime -> src/runtime).

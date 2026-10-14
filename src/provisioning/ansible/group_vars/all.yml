@@ -12,16 +12,28 @@
 # filesystem/assets/settings roles land (Stories 2.5-2.11) — do not guess them
 # here.
 #
-# DOCUMENTED RUNTIME DEPENDENCIES (not installed by this chain):
+# DOCUMENTED RUNTIME DEPENDENCIES:
 # - podman OR docker — required by the container-mode CLIs. The cli_tools role
-#   builds the csg image via `csg install` and runtime-seed runs
-#   `dotfiles-runtime wallpaper set` (`csg generate`) in container mode; both
-#   DETECT the engine at runtime
-#   (podman preferred, then docker, then fail loud). Installing one is OUT OF
-#   SCOPE for these roles — address it in the packages role (Story 2.3) /
-#   fresh-machine bootstrap (Story 3.1) when dependency provisioning is done.
+#   builds the csg/weg images and runtime-seed runs `dotfiles-runtime wallpaper
+#   set` (`csg generate`) in container mode. The engine is DECLARED via
+#   `container_runtime_engine` (below; shipped default podman) — that ONE value
+#   is what gets built AND what the rendered runtime settings use. There is NO
+#   fallback-on-detection-failure: if the declared engine is absent or unusable
+#   the run FAILS LOUD. The packages role provisions podman on fresh machines;
+#   docker must be operator-provided when declared.
 # - uv — required by the cli_tools role (`uv tool install`); pre-seeded by
 #   bootstrap.sh (Story 3.1).
+#
+# container_runtime_engine: the DECLARED container engine, consumed by BOTH the
+#   cli_tools build (`--container-engine`) and the rendered settings templates
+#   (`[container].engine`). Precedence, highest first:
+#     1. extra-var  -e container_runtime_engine=<engine>  (Ansible native)
+#     2. env var    DOTFILES_CONTAINER_ENGINE
+#     3. shipped default podman
+#   The domain (podman|docker) is enforced by fail-loud asserts in the
+#   cli_tools and settings roles. One value means the image tag the build
+#   produces and the engine the runtime settings resolve can NEVER diverge.
+container_runtime_engine: "{{ ansible_facts.env.DOTFILES_CONTAINER_ENGINE | default('podman', true) }}"
 
 # ── Shell / zsh tunables (consumed by the zsh_config + wlogout_config roles) ──
 # Overridable via extra-var/group_vars without touching role or template code.

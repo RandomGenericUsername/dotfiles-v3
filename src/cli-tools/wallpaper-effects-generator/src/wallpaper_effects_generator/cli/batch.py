@@ -11,7 +11,6 @@ from wallpaper_effects_generator.cli._params import (
     parse_params,
 )
 from wallpaper_effects_generator.cli.options import CONFIG_OPT, EFFECTS_OPT, ENGINE_OPT, RUNTIME_OPT
-from wallpaper_effects_generator.constants import MAX_WORKERS_AUTO
 from wallpaper_effects_generator.domain.enums import (
     ContainerEngine,
     ItemType,
@@ -61,14 +60,21 @@ def _run_batch(
     output: Path | None,
     flat: bool,
     explicit_output: bool,
-    strict: bool,
-    parallel: bool,
-    max_workers: int,
+    strict: bool | None,
+    parallel: bool | None,
+    max_workers: int | None,
     item_types: tuple[ItemType, ...],
     params: dict[str, str] | None = None,
 ) -> None:
     output_adapter = _get_output_adapter(ctx)
     settings, catalog = _resolve_context(ctx, input)
+    # ``execution.*`` from the resolved settings is the default; an explicit
+    # CLI flag still wins. This is what makes the setting authoritative for the
+    # runtime's ``weg batch all`` invocation (which passes no flags).
+    execution = settings.execution
+    strict = execution.strict if strict is None else strict
+    parallel = execution.parallel if parallel is None else parallel
+    max_workers = execution.max_workers if max_workers is None else max_workers
     if explicit_output and output is None:
         raise typer.BadParameter("--explicit-output requires -o/--output")
     if params:
@@ -108,12 +114,18 @@ def effects(
     explicit_output: bool = typer.Option(
         False, "--explicit-output", help="Write directly to output dir"
     ),
-    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(
-        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    strict: bool | None = typer.Option(
+        None, "--strict", help="Stop on first failure (default: settings.execution.strict)"
     ),
-    max_workers: int = typer.Option(
-        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    parallel: bool | None = typer.Option(
+        None,
+        "--parallel/--no-parallel",
+        help="Enable parallel execution (default: settings.execution.parallel)",
+    ),
+    max_workers: int | None = typer.Option(
+        None,
+        "--max-workers",
+        help="Maximum parallel workers, 0 = auto (default: settings.execution.max_workers)",
     ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
@@ -140,12 +152,18 @@ def composites(
     explicit_output: bool = typer.Option(
         False, "--explicit-output", help="Write directly to output dir"
     ),
-    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(
-        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    strict: bool | None = typer.Option(
+        None, "--strict", help="Stop on first failure (default: settings.execution.strict)"
     ),
-    max_workers: int = typer.Option(
-        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    parallel: bool | None = typer.Option(
+        None,
+        "--parallel/--no-parallel",
+        help="Enable parallel execution (default: settings.execution.parallel)",
+    ),
+    max_workers: int | None = typer.Option(
+        None,
+        "--max-workers",
+        help="Maximum parallel workers, 0 = auto (default: settings.execution.max_workers)",
     ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
@@ -172,12 +190,18 @@ def presets(
     explicit_output: bool = typer.Option(
         False, "--explicit-output", help="Write directly to output dir"
     ),
-    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(
-        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    strict: bool | None = typer.Option(
+        None, "--strict", help="Stop on first failure (default: settings.execution.strict)"
     ),
-    max_workers: int = typer.Option(
-        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    parallel: bool | None = typer.Option(
+        None,
+        "--parallel/--no-parallel",
+        help="Enable parallel execution (default: settings.execution.parallel)",
+    ),
+    max_workers: int | None = typer.Option(
+        None,
+        "--max-workers",
+        help="Maximum parallel workers, 0 = auto (default: settings.execution.max_workers)",
     ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:
@@ -204,12 +228,18 @@ def run_all(
     explicit_output: bool = typer.Option(
         False, "--explicit-output", help="Write directly to output dir"
     ),
-    strict: bool = typer.Option(False, "--strict", help="Stop on first failure"),
-    parallel: bool = typer.Option(
-        True, "--parallel/--no-parallel", help="Enable parallel execution"
+    strict: bool | None = typer.Option(
+        None, "--strict", help="Stop on first failure (default: settings.execution.strict)"
     ),
-    max_workers: int = typer.Option(
-        MAX_WORKERS_AUTO, "--max-workers", help="Maximum parallel workers (0 = auto)"
+    parallel: bool | None = typer.Option(
+        None,
+        "--parallel/--no-parallel",
+        help="Enable parallel execution (default: settings.execution.parallel)",
+    ),
+    max_workers: int | None = typer.Option(
+        None,
+        "--max-workers",
+        help="Maximum parallel workers, 0 = auto (default: settings.execution.max_workers)",
     ),
     param: list[str] = typer.Option([], "--param", help="Parameter overrides (key=value)"),
 ) -> None:

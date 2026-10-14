@@ -171,14 +171,15 @@ class TestBootstrapScriptFile:
 
     def test_no_bootstrap_container_engine_override(self) -> None:
         """Confirmation CR (2026-08-15): the script must NOT define a
-        BOOTSTRAP_CONTAINER_ENGINE override — the roles' own
-        cli_tools_container_engine_override / default_palette_container_engine_override
-        are the sanctioned escape hatches. A second source of truth let the gate
-        and the roles diverge (an off-PATH engine passed the gate then died
-        mid-chain); this lock prevents the dead-var from returning."""
+        BOOTSTRAP_CONTAINER_ENGINE override — the roles' declared
+        `container_runtime_engine` (group_vars/all.yml, override via
+        -e/DOTFILES_CONTAINER_ENGINE) is the sanctioned escape hatch. A second
+        source of truth let the gate and the roles diverge (an off-PATH engine
+        passed the gate then died mid-chain); this lock prevents the dead-var
+        from returning."""
         assert "BOOTSTRAP_CONTAINER_ENGINE" not in _TEXT, (
-            "bootstrap.sh must not carry its own engine override — the roles' "
-            "override vars are the single escape hatch (confirmation CR 2026-08-15)"
+            "bootstrap.sh must not carry its own engine override — the declared "
+            "container_runtime_engine is the single escape hatch (CR 2026-08-15)"
         )
 
     def test_no_hardcoded_absolute_paths(self) -> None:

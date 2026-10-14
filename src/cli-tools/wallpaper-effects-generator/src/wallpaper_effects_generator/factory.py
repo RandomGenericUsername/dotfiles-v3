@@ -79,7 +79,11 @@ def create_effect_loader(
 def create_command_runner(
     settings: AppSettings,
 ) -> CommandRunnerPort:
-    return SubprocessCommandRunner(binary=settings.backend.binary)
+    temp_dir = settings.processing.temp_dir
+    return SubprocessCommandRunner(
+        binary=settings.backend.binary,
+        temporary_path=str(temp_dir) if temp_dir is not None else None,
+    )
 
 
 def create_container_engine(container_settings: ContainerSettings) -> object:
@@ -92,11 +96,13 @@ def create_local_processor(
     command_runner: CommandRunnerPort,
     catalog: EffectsCatalog,
     output_dir: Path,
+    temp_dir: Path | None = None,
 ) -> EffectProcessorPort:
     return LocalProcessor(
         command_runner=command_runner,
         catalog=catalog,
         output_dir=output_dir,
+        temp_dir=temp_dir,
     )
 
 

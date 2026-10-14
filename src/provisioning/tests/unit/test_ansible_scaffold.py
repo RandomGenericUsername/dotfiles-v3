@@ -233,6 +233,23 @@ class TestGroupVars:
                 "provides it via --extra-vars); all.yml must not default it"
             )
 
+    def test_container_runtime_engine_declared_with_podman_default(self) -> None:
+        """Option 2b single source of truth: all.yml DECLARES the container
+        engine, defaulting to podman and overridable via DOTFILES_CONTAINER_ENGINE
+        (extra-var precedence is Ansible-native). The SAME value drives the
+        cli_tools build and the rendered settings, so the image tag and the
+        runtime lookup can never diverge. all.yml must still not define
+        install_dir."""
+        data = yaml.safe_load((_ANSIBLE_DIR / "group_vars" / "all.yml").read_text())
+        assert isinstance(data, dict)
+        assert data["container_runtime_engine"] == (
+            "{{ ansible_facts.env.DOTFILES_CONTAINER_ENGINE | default('podman', true) }}"
+        ), (
+            "all.yml must declare container_runtime_engine as the env-or-podman "
+            "expression (ansible_facts.env — never the deprecated ansible_env)"
+        )
+        assert "install_dir" not in data, "all.yml must stay minimal — never default install_dir"
+
     def test_arch_packages_cover_exactly_logical_set(self) -> None:
         packages = self._packages_map("arch.yml")
         expected = set(_LOGICAL_PACKAGE_KEYS) | set(_ARCH_EXTRA_KEYS)
