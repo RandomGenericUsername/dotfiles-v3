@@ -454,6 +454,11 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/kit/icon.ts"
   - "{{ install_dir | trim }}/config/ags/kit/overlay.ts"
   - "{{ install_dir | trim }}/config/ags/kit/widget.tsx"
+  # The kit's pure contracts (kit-shell-four-shapes): icon.ts re-exports from
+  # icon-source and widget.tsx imports its shape types from shapes, so a missing
+  # one is a bundle that cannot start (mirror of compositor_configs).
+  - "{{ install_dir | trim }}/config/ags/kit/icon-source.ts"
+  - "{{ install_dir | trim }}/config/ags/kit/shapes.ts"
   - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags/lib/network-icon.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus.ts"
@@ -463,8 +468,23 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/clock.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/battery.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/network.tsx"
+  # The Bluetooth status widget (add-bluetooth-bar-popup): Bar.tsx imports it, so
+  # a missing copy is a bar that cannot bundle.
+  - "{{ install_dir | trim }}/config/ags/bar/widgets/bluetooth.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/network-descriptor.tsx"
   - "{{ install_dir | trim }}/config/ags/domains/network/read-model.ts"
+  # The reactive domain read models (reactive-domain-read-models): the pure
+  # reactive port + gnim binding, the network descriptor's Astal adapter, and the
+  # battery/bluetooth/audio adapters. Mirror of compositor_configs skeleton dests.
+  - "{{ install_dir | trim }}/config/ags/domains/reactive.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/astal.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/network/astal.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/battery/read-model.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/battery/astal.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/bluetooth/read-model.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/bluetooth/astal.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/audio/read-model.ts"
+  - "{{ install_dir | trim }}/config/ags/domains/audio/astal.ts"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/power-menu.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/btop.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/thunderbird.tsx"
@@ -491,6 +511,8 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/MainView.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/WifiView.tsx"
   - "{{ install_dir | trim }}/config/ags/settings-panel/views/BluetoothView.tsx"
+  # The shared subview header SettingsPanel.tsx imports alongside the views.
+  - "{{ install_dir | trim }}/config/ags/settings-panel/views/SubviewHeader.tsx"
   - "{{ install_dir | trim }}/config/ags/services/nm-client.ts"
   - "{{ install_dir | trim }}/config/ags/services/wifi-service.ts"
   - "{{ install_dir | trim }}/config/ags/services/bluetooth-service.ts"
@@ -505,6 +527,10 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/components/wifi/WifiContent.tsx"
   - "{{ install_dir | trim }}/config/ags/components/wifi/WifiPopup.tsx"
   - "{{ install_dir | trim }}/config/ags/components/bluetooth/BluetoothContent.tsx"
+  # The Bluetooth popup + overlay state (add-bluetooth-bar-popup): app.tsx
+  # imports both, and the content above is reached through the popup.
+  - "{{ install_dir | trim }}/config/ags/components/bluetooth/BluetoothPopup.tsx"
+  - "{{ install_dir | trim }}/config/ags/components/bluetooth/state.ts"
   - "{{ install_dir | trim }}/config/ags/components/sliders/VolumeSlider.tsx"
   - "{{ install_dir | trim }}/config/ags/components/sliders/BrightnessSlider.tsx"
   # Audio sources (add-pipewire-audio-control; UI state split out by

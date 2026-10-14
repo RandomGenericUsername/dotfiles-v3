@@ -47,7 +47,7 @@ GATES := contracts-check wifi-mock-parity bluetooth-mock-parity \
          battery-mock-parity speedtest-mock-parity \
          speedtest-no-new-architecture capture-test ags-test capture-typecheck \
          bar-typecheck capture-hexagonal-gate icons-json-drift \
-         ansible-embedded-template-lint ci-gates-parity \
+         ansible-embedded-template-lint deploy-coverage ci-gates-parity \
          per-app-drift-symbol-suites \
          audio-mock-parity audio-core-test audio-presentation-test \
          pipewire-adapter-test audio-session-runtime-test \
@@ -519,6 +519,32 @@ icons-json-drift:
 # that passes.
 ansible-embedded-template-lint:
 	uv run --directory src/provisioning python ../../scripts/ansible-embedded-template-lint.py
+
+# The AGS bar is deployed PER FILE: `compositor_configs` copies only the files
+# in `compositor_configs_skeleton_files`. A module the bar reaches through a
+# relative import but that is not registered is silently never copied -- no
+# error, no warning -- so a fresh/re-run provision leaves it absent and
+# `ags bundle` cannot resolve the import: the bar fails to start. This is
+# exactly how the bar re-architecture's `kit/icon-source.ts`, `kit/shapes.ts`,
+# the `domains/*` adapters and the Bluetooth widget/popup/state shipped.
+#
+# WHY A GATE AND NOT A LONGER LIST. A structural test pins the manifest's
+# CONTENTS; it cannot see that the contents FAIL TO COVER what the entry point
+# reaches. This gate derives the requirement from the source tree: it parses
+# the deployed AGS set from `compositor_configs_skeleton_files`, computes the
+# relative-import closure of `dotfiles/config/ags/app.tsx`, and fails listing
+# every reachable module that is not deployed.
+#
+# WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It parses the manifest as YAML
+# (PyYAML ships with the provisioning project) rather than line-mangling it,
+# the same `uv run --directory src/provisioning` mechanism `icons-json-drift`
+# and `ansible-embedded-template-lint` use. It needs no desktop stack, so it
+# also runs in gates-ci. `../../scripts/` is required because --directory moves
+# the interpreter's CWD. It FAILS rather than skipping when uv or PyYAML is
+# unavailable: a coverage gate that quietly passes when its toolchain is
+# missing is indistinguishable from one that passes.
+deploy-coverage:
+	uv run --directory src/provisioning python ../../scripts/deploy-coverage.py
 
 speedtest-no-new-architecture:
 	python3 scripts/speedtest-no-new-architecture.py

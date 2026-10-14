@@ -1693,6 +1693,37 @@ class TestVerifyVars:
         assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts" in gui
 
+    def test_verify_compositor_skeletons_cover_the_reachable_bar_sources(self) -> None:
+        """fix-deploy-bar-new-files: the sources reachable from app.tsx that the
+        platform work added but the deploy manifest missed must be asserted by
+        verify too. The two lists are maintained by hand and independently, so an
+        entry present in one but not the other is either a silent non-deploy or a
+        false failure. Pinned explicitly (mirror of
+        compositor_configs_skeleton_files), not derived, so the mirror cannot
+        drift silently."""
+        data = _vars()
+        skeletons = [str(f) for f in data["verify_compositor_skeleton_files"]]
+        for rel in (
+            "kit/icon-source.ts",
+            "kit/shapes.ts",
+            "domains/reactive.ts",
+            "domains/astal.ts",
+            "domains/network/astal.ts",
+            "domains/battery/read-model.ts",
+            "domains/battery/astal.ts",
+            "domains/bluetooth/read-model.ts",
+            "domains/bluetooth/astal.ts",
+            "domains/audio/read-model.ts",
+            "domains/audio/astal.ts",
+            "bar/widgets/bluetooth.tsx",
+            "components/bluetooth/BluetoothPopup.tsx",
+            "components/bluetooth/state.ts",
+            "settings-panel/views/SubviewHeader.tsx",
+        ):
+            assert f"{{{{ install_dir | trim }}}}/config/ags/{rel}" in skeletons, (
+                f"verify_compositor_skeleton_files must assert ags/{rel}"
+            )
+
     def test_vars_use_non_deprecated_env_fact(self) -> None:
         """F4 lock: vars read ansible_facts.env, never the deprecated top-level
         ansible_env fact (INJECT_FACTS_AS_VARS injection that hard-breaks on
@@ -2650,6 +2681,9 @@ def _build_provisioned_layout(
         "ags/kit",
         "ags/domains",
         "ags/domains/network",
+        "ags/domains/battery",
+        "ags/domains/bluetooth",
+        "ags/domains/audio",
         "ags/bar",
         "ags/bar/widgets",
         "ags/settings-panel",
@@ -2692,14 +2726,31 @@ def _build_provisioned_layout(
     (install / "config" / "ags" / "kit" / "icon.ts").write_text("")
     (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")
     (install / "config" / "ags" / "kit" / "widget.tsx").write_text("")
+    # The kit's pure contracts (kit-shell-four-shapes): mirror of
+    # verify_compositor_skeleton_files.
+    (install / "config" / "ags" / "kit" / "icon-source.ts").write_text("")
+    (install / "config" / "ags" / "kit" / "shapes.ts").write_text("")
     # The network domain read model (bar re-architecture §5.3): the Astal adapter
     # behind the descriptor. Mirrors verify_compositor_skeleton_files.
     (install / "config" / "ags" / "domains" / "network" / "read-model.ts").write_text("")
+    # The reactive domain read models (reactive-domain-read-models): the pure
+    # reactive port + gnim binding, the network Astal adapter, and the battery/
+    # bluetooth/audio adapters. Mirror of verify_compositor_skeleton_files.
+    (install / "config" / "ags" / "domains" / "reactive.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "astal.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "network" / "astal.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "battery" / "read-model.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "battery" / "astal.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "bluetooth" / "read-model.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "bluetooth" / "astal.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "audio" / "read-model.ts").write_text("")
+    (install / "config" / "ags" / "domains" / "audio" / "astal.ts").write_text("")
     (install / "config" / "ags" / "bar" / "Bar.tsx").write_text("")
     for widget in (
         "workspaces",
         "clock",
         "battery",
+        "bluetooth",
         "network",
         "network-descriptor",
         "power-menu",
@@ -2722,7 +2773,7 @@ def _build_provisioned_layout(
         (
             install / "config" / "ags" / "settings-panel" / "controls" / f"{control}.tsx"
         ).write_text("")
-    for view in ("MainView", "WifiView", "BluetoothView"):
+    for view in ("MainView", "WifiView", "BluetoothView", "SubviewHeader"):
         (
             install / "config" / "ags" / "settings-panel" / "views" / f"{view}.tsx"
         ).write_text("")
@@ -2737,6 +2788,10 @@ def _build_provisioned_layout(
     (install / "config" / "ags" / "components" / "wifi" / "WifiContent.tsx").write_text("")
     (install / "config" / "ags" / "components" / "wifi" / "WifiPopup.tsx").write_text("")
     (install / "config" / "ags" / "components" / "bluetooth" / "BluetoothContent.tsx").write_text("")
+    # The Bluetooth popup + overlay state (add-bluetooth-bar-popup): mirror of
+    # verify_compositor_skeleton_files.
+    (install / "config" / "ags" / "components" / "bluetooth" / "BluetoothPopup.tsx").write_text("")
+    (install / "config" / "ags" / "components" / "bluetooth" / "state.ts").write_text("")
     (install / "config" / "ags" / "components" / "sliders" / "VolumeSlider.tsx").write_text("")
     (install / "config" / "ags" / "components" / "sliders" / "BrightnessSlider.tsx").write_text("")
     # Audio sources (compositor_configs role, add-pipewire-audio-control):

@@ -87,6 +87,12 @@ compositor_configs_config_dirs:
   # model is the first. Its own nested subdir, declared for the same reason.
   - "{{ compositor_configs_spine_config_dir }}/ags/domains"
   - "{{ compositor_configs_spine_config_dir }}/ags/domains/network"
+  # The four per-domain read models (reactive-domain-read-models) each nest
+  # their own adapter under ags/domains/<domain>. `template` does NOT create
+  # dest parents, so an undeclared domain dir fails its copy loudly.
+  - "{{ compositor_configs_spine_config_dir }}/ags/domains/battery"
+  - "{{ compositor_configs_spine_config_dir }}/ags/domains/bluetooth"
+  - "{{ compositor_configs_spine_config_dir }}/ags/domains/audio"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar"
   - "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets"
   # Settings panel sources (add-ags-settings-panel): the panel window and its
@@ -160,6 +166,12 @@ compositor_configs_skeleton_files:
   - { name: ags-kit-icon, source: dotfiles/config/ags/kit/icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/icon.ts" }
   - { name: ags-kit-overlay, source: dotfiles/config/ags/kit/overlay.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/overlay.ts" }
   - { name: ags-kit-widget, source: dotfiles/config/ags/kit/widget.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/widget.tsx" }
+  # The kit's pure contracts (kit-shell-four-shapes): icon.ts re-exports the icon
+  # resolution chain from ./icon-source and widget.tsx imports its shape types
+  # from ./shapes, so BOTH are reachable from app.tsx. Per-file placement means an
+  # unregistered one is never copied and `ags bundle` cannot resolve the import.
+  - { name: ags-kit-icon-source, source: dotfiles/config/ags/kit/icon-source.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/icon-source.ts" }
+  - { name: ags-kit-shapes, source: dotfiles/config/ags/kit/shapes.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/shapes.ts" }
   - { name: ags-icon-registry, source: dotfiles/config/ags/lib/icon-registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/icon-registry.ts" }
   - { name: ags-network-icon, source: dotfiles/config/ags/lib/network-icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/network-icon.ts" }
   - { name: ags-bar-backdrop, source: dotfiles/config/ags/lib/bar-backdrop.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/bar-backdrop.ts" }
@@ -172,11 +184,30 @@ compositor_configs_skeleton_files:
   - { name: ags-clock, source: dotfiles/config/ags/bar/widgets/clock.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/clock.tsx" }
   - { name: ags-battery, source: dotfiles/config/ags/bar/widgets/battery.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/battery.tsx" }
   - { name: ags-network, source: dotfiles/config/ags/bar/widgets/network.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/network.tsx" }
+  # The Bluetooth status widget (add-bluetooth-bar-popup): Bar.tsx imports it,
+  # but it was never registered — the widget (and the popup/state it pulls in)
+  # silently never deployed.
+  - { name: ags-bar-bluetooth, source: dotfiles/config/ags/bar/widgets/bluetooth.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/bluetooth.tsx" }
   - { name: ags-network-descriptor, source: dotfiles/config/ags/bar/widgets/network-descriptor.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/network-descriptor.tsx" }
   # The network domain read model: the Astal adapter behind the descriptor, so
   # the icon reacts to the Wi-Fi device's own property changes (bar
   # re-architecture §5.3).
   - { name: ags-domain-network-read-model, source: dotfiles/config/ags/domains/network/read-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/network/read-model.ts" }
+  # The reactive domain read models (reactive-domain-read-models): the pure
+  # reactive port + its gnim binding, the network descriptor's Astal adapter, and
+  # the battery/bluetooth/audio adapters. Per-file placement means each must be
+  # registered here or it is never copied. domains/network/astal.ts is reached
+  # from the (deployed) network-descriptor widget; the battery/bluetooth/audio
+  # adapters ship alongside it so the four read models provision together.
+  - { name: ags-domain-reactive, source: dotfiles/config/ags/domains/reactive.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/reactive.ts" }
+  - { name: ags-domain-astal, source: dotfiles/config/ags/domains/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/astal.ts" }
+  - { name: ags-domain-network-astal, source: dotfiles/config/ags/domains/network/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/network/astal.ts" }
+  - { name: ags-domain-battery-read-model, source: dotfiles/config/ags/domains/battery/read-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/battery/read-model.ts" }
+  - { name: ags-domain-battery-astal, source: dotfiles/config/ags/domains/battery/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/battery/astal.ts" }
+  - { name: ags-domain-bluetooth-read-model, source: dotfiles/config/ags/domains/bluetooth/read-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/bluetooth/read-model.ts" }
+  - { name: ags-domain-bluetooth-astal, source: dotfiles/config/ags/domains/bluetooth/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/bluetooth/astal.ts" }
+  - { name: ags-domain-audio-read-model, source: dotfiles/config/ags/domains/audio/read-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/audio/read-model.ts" }
+  - { name: ags-domain-audio-astal, source: dotfiles/config/ags/domains/audio/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/audio/astal.ts" }
   - { name: ags-power-menu, source: dotfiles/config/ags/bar/widgets/power-menu.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/power-menu.tsx" }
   - { name: ags-btop, source: dotfiles/config/ags/bar/widgets/btop.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/btop.tsx" }
   - { name: ags-thunderbird, source: dotfiles/config/ags/bar/widgets/thunderbird.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/thunderbird.tsx" }
@@ -200,6 +231,9 @@ compositor_configs_skeleton_files:
   - { name: ags-settings-panel-view-main, source: dotfiles/config/ags/settings-panel/views/MainView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/MainView.tsx" }
   - { name: ags-settings-panel-view-wifi, source: dotfiles/config/ags/settings-panel/views/WifiView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/WifiView.tsx" }
   - { name: ags-settings-panel-view-bluetooth, source: dotfiles/config/ags/settings-panel/views/BluetoothView.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/BluetoothView.tsx" }
+  # The shared subview header (SettingsPanel.tsx imports it alongside the three
+  # views). It was never registered, so the settings panel could not bundle.
+  - { name: ags-settings-panel-view-subview-header, source: dotfiles/config/ags/settings-panel/views/SubviewHeader.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/views/SubviewHeader.tsx" }
   # Audio (add-pipewire-audio-control): the bar output/mic widgets, the popup
   # window, and the audio UI-state module. One per-file entry each (never a
   # directory source — see the header note), all under the config-in-spine ags/
@@ -265,6 +299,12 @@ compositor_configs_skeleton_files:
   - { name: ags-component-wifi-content, source: dotfiles/config/ags/components/wifi/WifiContent.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/WifiContent.tsx" }
   - { name: ags-component-wifi-popup, source: dotfiles/config/ags/components/wifi/WifiPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/wifi/WifiPopup.tsx" }
   - { name: ags-component-bluetooth-content, source: dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth/BluetoothContent.tsx" }
+  # The Bluetooth popup + its overlay state (add-bluetooth-bar-popup): app.tsx
+  # imports BluetoothPopup and closeBluetoothPopup from these, and the content
+  # above is reached through them — but neither was registered, so the bar's
+  # Bluetooth surface never deployed.
+  - { name: ags-component-bluetooth-popup, source: dotfiles/config/ags/components/bluetooth/BluetoothPopup.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth/BluetoothPopup.tsx" }
+  - { name: ags-component-bluetooth-state, source: dotfiles/config/ags/components/bluetooth/state.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/bluetooth/state.ts" }
   - { name: ags-component-slider-volume, source: dotfiles/config/ags/components/sliders/VolumeSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/VolumeSlider.tsx" }
   - { name: ags-component-slider-brightness, source: dotfiles/config/ags/components/sliders/BrightnessSlider.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/components/sliders/BrightnessSlider.tsx" }
   # Battery panel pure presentation logic (add-battery-status-panel). Registered

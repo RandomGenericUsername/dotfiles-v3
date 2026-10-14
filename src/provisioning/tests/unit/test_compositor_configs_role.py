@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -260,14 +261,19 @@ class TestCompositorConfigsTasks:
         # bar kit (kit/icon.ts + kit/widget.tsx) was registered, 90 once the
         # overlay coordinator + the network descriptor were added, and 91 once
         # the network domain read model (domains/network/read-model.ts) was added
-        # to make the descriptor react to device property changes. Placement here is
+        # to make the descriptor react to device property changes, and 106 once
+        # the fix-deploy-bar-new-files coverage gate registered the reachable
+        # sources the platform work added but the manifest missed: kit/icon-source
+        # + kit/shapes, the reactive domain port/binding and the network/battery/
+        # bluetooth/audio Astal adapters, and the Bluetooth widget/popup/state +
+        # settings SubviewHeader that had silently never deployed. Placement here is
         # PER FILE, so an unregistered file silently never deploys and the panel
         # imports a module that is not there on the desktop: this assertion is
         # what makes that fail loudly at review time instead of at runtime. Do NOT
         # relax it to `>=`, a subset check, or delete it — those all convert
         # "deploys nothing" into "passes".
-        assert len(files) == 91, (
-            f"expected exactly 91 skeleton files (hyprland.lua + gloview.lua + "
+        assert len(files) == 106, (
+            f"expected exactly 106 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
             f"7 lib (incl. wifi-signal/network-icon)+3 kit (icon/overlay/widget)+"
             f"1 domain (network read-model)+"
@@ -311,6 +317,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/bar/Bar.tsx",
             "dotfiles/config/ags/bar/widgets/audio.tsx",
             "dotfiles/config/ags/bar/widgets/battery.tsx",
+            "dotfiles/config/ags/bar/widgets/bluetooth.tsx",
             "dotfiles/config/ags/bar/widgets/btop.tsx",
             "dotfiles/config/ags/bar/widgets/clock.tsx",
             "dotfiles/config/ags/bar/widgets/network-descriptor.tsx",
@@ -327,6 +334,8 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/battery/presentation.ts",
             "dotfiles/config/ags/components/battery/state.ts",
             "dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx",
+            "dotfiles/config/ags/components/bluetooth/BluetoothPopup.tsx",
+            "dotfiles/config/ags/components/bluetooth/state.ts",
             "dotfiles/config/ags/components/primitives/IconToggle.tsx",
             "dotfiles/config/ags/components/primitives/LevelSlider.tsx",
             "dotfiles/config/ags/components/primitives/WifiSwitch.tsx",
@@ -335,9 +344,20 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/wifi/WifiContent.tsx",
             "dotfiles/config/ags/components/wifi/WifiPopup.tsx",
             "dotfiles/config/ags/components/wifi/state.ts",
+            "dotfiles/config/ags/domains/astal.ts",
+            "dotfiles/config/ags/domains/audio/astal.ts",
+            "dotfiles/config/ags/domains/audio/read-model.ts",
+            "dotfiles/config/ags/domains/battery/astal.ts",
+            "dotfiles/config/ags/domains/battery/read-model.ts",
+            "dotfiles/config/ags/domains/bluetooth/astal.ts",
+            "dotfiles/config/ags/domains/bluetooth/read-model.ts",
+            "dotfiles/config/ags/domains/network/astal.ts",
             "dotfiles/config/ags/domains/network/read-model.ts",
+            "dotfiles/config/ags/domains/reactive.ts",
+            "dotfiles/config/ags/kit/icon-source.ts",
             "dotfiles/config/ags/kit/icon.ts",
             "dotfiles/config/ags/kit/overlay.ts",
+            "dotfiles/config/ags/kit/shapes.ts",
             "dotfiles/config/ags/kit/widget.tsx",
             "dotfiles/config/ags/lib/bar-backdrop.ts",
             "dotfiles/config/ags/lib/event-bus-core.ts",
@@ -364,6 +384,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/settings-panel/state.ts",
             "dotfiles/config/ags/settings-panel/views/BluetoothView.tsx",
             "dotfiles/config/ags/settings-panel/views/MainView.tsx",
+            "dotfiles/config/ags/settings-panel/views/SubviewHeader.tsx",
             "dotfiles/config/ags/settings-panel/views/WifiView.tsx",
             "dotfiles/config/ags/style.css",
             "dotfiles/config/ags/types.d.ts",
@@ -750,6 +771,24 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "components" / "battery" / "BatteryPopup.tsx",
                 install / "config" / "ags" / "components" / "battery" / "BatteryContent.tsx",
                 install / "config" / "ags" / "services" / "power-service.ts",
+                # fix-deploy-bar-new-files: the reachable sources the platform
+                # work added but the manifest missed. Placement is per-file, so
+                # these assert the registration actually copies each one.
+                install / "config" / "ags" / "kit" / "icon-source.ts",
+                install / "config" / "ags" / "kit" / "shapes.ts",
+                install / "config" / "ags" / "domains" / "reactive.ts",
+                install / "config" / "ags" / "domains" / "astal.ts",
+                install / "config" / "ags" / "domains" / "network" / "astal.ts",
+                install / "config" / "ags" / "domains" / "battery" / "read-model.ts",
+                install / "config" / "ags" / "domains" / "battery" / "astal.ts",
+                install / "config" / "ags" / "domains" / "bluetooth" / "read-model.ts",
+                install / "config" / "ags" / "domains" / "bluetooth" / "astal.ts",
+                install / "config" / "ags" / "domains" / "audio" / "read-model.ts",
+                install / "config" / "ags" / "domains" / "audio" / "astal.ts",
+                install / "config" / "ags" / "bar" / "widgets" / "bluetooth.tsx",
+                install / "config" / "ags" / "components" / "bluetooth" / "BluetoothPopup.tsx",
+                install / "config" / "ags" / "components" / "bluetooth" / "state.ts",
+                install / "config" / "ags" / "settings-panel" / "views" / "SubviewHeader.tsx",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"
@@ -854,3 +893,61 @@ class TestCompositorConfigsPlaybook:
                 "happens via the next `wallpaper set`, not provisioning)"
             )
             assert "$background = 0x000000" in stale_copy.read_text()
+
+
+class TestDeployCoverageGate:
+    """The deploy-coverage gate (scripts/deploy-coverage.py) is the guard that
+    turns "reachable from app.tsx but not deployed" into a failed run.
+
+    The structural test above pins the manifest's CONTENTS; this gate derives
+    the REQUIREMENT from the source tree, so a new relative import cannot be
+    added without its per-file deploy entry. The positive case runs on the real
+    tree. The negative case removes one entry and proves the gate bites
+    (hermetic: a temp root whose ags tree is symlinked and whose manifest is a
+    modified copy — the ags sources are read-only input to the gate).
+    """
+
+    _SCRIPT = _ANSIBLE_DIR.parents[2] / "scripts" / "deploy-coverage.py"
+    _VARS = "src/provisioning/ansible/roles/compositor_configs/vars/main.yml"
+    _AGS = "dotfiles/config/ags"
+
+    def _run(self, root: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(self._SCRIPT), "--root", str(root)],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_gate_passes_on_the_real_tree(self) -> None:
+        repo_root = _ANSIBLE_DIR.parents[2]
+        result = self._run(repo_root)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "PASS" in result.stdout
+
+    def test_gate_fails_when_a_reachable_module_is_removed(self) -> None:
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "dotfiles" / "config").mkdir(parents=True)
+            (root / "dotfiles" / "config" / "ags").symlink_to(
+                repo_root / self._AGS, target_is_directory=True
+            )
+            vars_src = (repo_root / self._VARS).read_text()
+            removed_line = next(
+                line
+                for line in vars_src.splitlines()
+                if "name: ags-kit-icon-source" in line
+            )
+            vars_dst = root / self._VARS
+            vars_dst.parent.mkdir(parents=True)
+            vars_dst.write_text(vars_src.replace(removed_line + "\n", "", 1))
+
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a reachable module is not deployed; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "kit/icon-source.ts" in result.stdout, (
+                "the failure must name the undeployed reachable module; recap:\n"
+                + result.stdout
+            )

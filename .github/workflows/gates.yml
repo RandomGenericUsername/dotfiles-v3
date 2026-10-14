@@ -134,6 +134,24 @@ jobs:
       - name: Ansible tree has no template nested in a Jinja string literal
         run: make ansible-embedded-template-lint
 
+  # Every AGS module reachable from app.tsx must be registered for deployment.
+  # The bar is deployed per file, so an unregistered reachable module is silently
+  # never copied and `ags bundle` cannot resolve its import — the bar fails to
+  # start. This gate derives the requirement from the source tree instead of
+  # trusting the manifest list to be complete.
+  #
+  # uv, because the gate parses the deploy manifest as YAML with PyYAML (the same
+  # runner capability icons-json-drift / ansible-embedded-template-lint use). It
+  # needs no desktop stack, so it runs on a stock runner and is in gates-ci.
+  deploy-coverage:
+    name: deploy-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Every reachable AGS module is registered for deployment
+        run: make deploy-coverage
+
   ci-gates-parity:
     name: ci-gates-parity
     runs-on: ubuntu-latest
