@@ -272,10 +272,14 @@ class TestCompositorConfigsTasks:
         # what makes that fail loudly at review time instead of at runtime. Do NOT
         # relax it to `>=`, a subset check, or delete it — those all convert
         # "deploys nothing" into "passes".
-        assert len(files) == 106, (
-            f"expected exactly 106 skeleton files (hyprland.lua + gloview.lua + "
+        # 108 once surfaces-popup-host (AD-10) added kit/surface.ts (the pure
+        # SurfaceSpec/registry/mount policy) and kit/popup-host.tsx (the shipped
+        # PopupHost/PopupCatcher the five popups render through).
+        assert len(files) == 108, (
+            f"expected exactly 108 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
-            f"7 lib (incl. wifi-signal/network-icon)+3 kit (icon/overlay/widget)+"
+            f"7 lib (incl. wifi-signal/network-icon)+5 kit "
+            f"(icon/overlay/widget + surface/popup-host)+"
             f"1 domain (network read-model)+"
             f"Bar.tsx+12 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
@@ -357,7 +361,9 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/kit/icon-source.ts",
             "dotfiles/config/ags/kit/icon.ts",
             "dotfiles/config/ags/kit/overlay.ts",
+            "dotfiles/config/ags/kit/popup-host.tsx",
             "dotfiles/config/ags/kit/shapes.ts",
+            "dotfiles/config/ags/kit/surface.ts",
             "dotfiles/config/ags/kit/widget.tsx",
             "dotfiles/config/ags/lib/bar-backdrop.ts",
             "dotfiles/config/ags/lib/event-bus.ts",

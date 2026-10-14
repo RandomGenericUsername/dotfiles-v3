@@ -1,10 +1,11 @@
-import { Astal, Gtk, Gdk } from "ags/gtk4"
+import { Gtk, Gdk } from "ags/gtk4"
 import Pango from "gi://Pango?version=1.0"
 import { Accessor, For, createComputed, createEffect, createState } from "ags"
 import { registry } from "../lib/icon-registry"
 import { close, popupVisible, audioIconX } from "./ui-state"
 import { levelVariant } from "./presentation/levels"
 import type { AudioPanelViewModel, AudioAppRowView } from "./presentation/audio-panel-view-model"
+import { PopupCatcher, PopupHost, type PopupSurfaceSpec } from "../kit/popup-host"
 
 export type RouteChoice = { kind: "follow-preferred" } | { kind: "explicit"; endpointId: string }
 export type TransportAction = "play-pause" | "previous" | "next"
@@ -562,27 +563,15 @@ export function AudioPanelContent({ binding }: { binding: AudioPanelBinding }) {
   )
 }
 
-/** Full-screen click-outside catcher remains owned by the existing popup lifecycle. */
+/** Full-screen click-outside catcher, shared through the kit's `PopupCatcher`. */
 export function AudioCatcher(gdkmonitor: Gdk.Monitor) {
-  const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
   return (
-    <window
+    <PopupCatcher
       name="audio-catcher"
-      class="settings-catcher"
       gdkmonitor={gdkmonitor}
-      anchor={TOP | BOTTOM | LEFT | RIGHT}
-      exclusivity={Astal.Exclusivity.IGNORE}
-      layer={Astal.Layer.OVERLAY}
-      keymode={Astal.Keymode.NONE}
       visible={popupVisible}
-      $={(self: Gtk.Window) => {
-        const click = new Gtk.GestureClick({ button: Gdk.BUTTON_PRIMARY })
-        click.connect("released", () => close())
-        self.add_controller(click)
-      }}
-    >
-      <box class="settings-catcher-fill" hexpand vexpand />
-    </window>
+      onClose={close}
+    />
   )
 }
 
@@ -594,9 +583,12 @@ export function AudioCatcher(gdkmonitor: Gdk.Monitor) {
  * the unbound case. That made an unwired panel indistinguishable from a starting
  * one, and the popup shipped rendering nothing at all. A required parameter
  * turns that class of omission into a typecheck error (tasks.md 6.0d).
+ *
+ * The window, catcher, anchor margin and keymode are the kit's `PopupHost`
+ * (spine AD-10); this function owns only the audio surface's width/height and
+ * body.
  */
 export function AudioPopup(gdkmonitor: Gdk.Monitor, binding: AudioPanelBinding) {
-  const { TOP, LEFT } = Astal.WindowAnchor
   const geometry = gdkmonitor.get_geometry()
   const width = Math.max(280, Math.min(408, geometry.width - 16))
   // A FIXED, tall drawer, following master's panel (`heightRequest={420}`),
@@ -616,35 +608,30 @@ export function AudioPopup(gdkmonitor: Gdk.Monitor, binding: AudioPanelBinding) 
   // clamp height was more than the panel needed, leaving dead space below the
   // last section.
   const drawerHeight = Math.max(360, Math.min(540, geometry.height - 48 - 52 - 24))
-  const monitorWidth = geometry.width
-  const marginLeft = createComputed(() => {
-    const rightMost = monitorWidth - width - 8
-    const center = audioIconX()
-    return center == null ? rightMost : Math.min(Math.max(Math.round(center - width / 2), 8), rightMost)
-  })
+  const spec: PopupSurfaceSpec = {
+    id: "audio",
+    width,
+    body: () => (
+      <scrolledwindow
+        class="audio-scroll"
+        heightRequest={drawerHeight}
+        hscrollbarPolicy={Gtk.PolicyType.NEVER}
+        vscrollbarPolicy={Gtk.PolicyType.AUTOMATIC}
+      >
+        <AudioPanelContent binding={binding} />
+      </scrolledwindow>
+    ),
+  }
   return (
-    <window
+    <PopupHost
+      spec={spec}
       name="audio-popup"
-      class="audio-popup"
+      windowClass="audio-popup"
+      surfaceClass="audio-surface"
       gdkmonitor={gdkmonitor}
-      anchor={TOP | LEFT}
-      exclusivity={Astal.Exclusivity.IGNORE}
-      layer={Astal.Layer.OVERLAY}
-      keymode={Astal.Keymode.NONE}
-      marginTop={52}
-      marginLeft={marginLeft}
       visible={popupVisible}
-    >
-      <box class="audio-surface" orientation={Gtk.Orientation.VERTICAL} widthRequest={width}>
-        <scrolledwindow
-          class="audio-scroll"
-          heightRequest={drawerHeight}
-          hscrollbarPolicy={Gtk.PolicyType.NEVER}
-          vscrollbarPolicy={Gtk.PolicyType.AUTOMATIC}
-        >
-          <AudioPanelContent binding={binding} />
-        </scrolledwindow>
-      </box>
-    </window>
+      anchorX={audioIconX}
+      onClose={close}
+    />
   )
 }

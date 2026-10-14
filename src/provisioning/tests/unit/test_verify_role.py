@@ -1706,6 +1706,8 @@ class TestVerifyVars:
         for rel in (
             "kit/icon-source.ts",
             "kit/shapes.ts",
+            "kit/surface.ts",
+            "kit/popup-host.tsx",
             "platform/event-client.ts",
             "domains/reactive.ts",
             "domains/astal.ts",
@@ -2734,6 +2736,11 @@ def _build_provisioned_layout(
     # verify_compositor_skeleton_files.
     (install / "config" / "ags" / "kit" / "icon-source.ts").write_text("")
     (install / "config" / "ags" / "kit" / "shapes.ts").write_text("")
+    # The surface contract + the popup primitive (surfaces-popup-host, AD-10):
+    # mirror of verify_compositor_skeleton_files. Every popup imports
+    # kit/popup-host, which imports kit/surface.
+    (install / "config" / "ags" / "kit" / "surface.ts").write_text("")
+    (install / "config" / "ags" / "kit" / "popup-host.tsx").write_text("")
     # The network domain read model (bar re-architecture §5.3): the Astal adapter
     # behind the descriptor. Mirrors verify_compositor_skeleton_files.
     (install / "config" / "ags" / "domains" / "network" / "read-model.ts").write_text("")

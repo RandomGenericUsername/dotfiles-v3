@@ -459,6 +459,12 @@ verify_compositor_skeleton_files:
   # one is a bundle that cannot start (mirror of compositor_configs).
   - "{{ install_dir | trim }}/config/ags/kit/icon-source.ts"
   - "{{ install_dir | trim }}/config/ags/kit/shapes.ts"
+  # The surface contract + the popup primitive (surfaces-popup-host, AD-10):
+  # mirror of the compositor_configs skeleton dests. Every popup imports
+  # kit/popup-host, which imports kit/surface, so a missing one is a bar that
+  # cannot bundle.
+  - "{{ install_dir | trim }}/config/ags/kit/surface.ts"
+  - "{{ install_dir | trim }}/config/ags/kit/popup-host.tsx"
   - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags/lib/network-icon.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus.ts"
