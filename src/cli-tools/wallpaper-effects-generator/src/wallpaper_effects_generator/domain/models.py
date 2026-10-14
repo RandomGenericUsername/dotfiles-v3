@@ -144,6 +144,11 @@ class OutputSettings:
 @dataclass(frozen=True)
 class ProcessingSettings:
     temp_dir: Path | None = None
+    # ``None`` = use the backend's built-in cap (SubprocessCommandRunner's
+    # DEFAULT_MEMORY_LIMIT). A value (e.g. "1GiB") is applied as
+    # MAGICK_MEMORY_LIMIT so large (8K) pixel caches stay in RAM instead of
+    # spilling to disk; an empty string disables the cap entirely.
+    memory_limit: str | None = None
 
 
 @dataclass(frozen=True)

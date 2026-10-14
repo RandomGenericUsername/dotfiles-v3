@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,6 @@ from wallpaper_effects_generator.domain.models import (
     PresetDefinition,
     ProcessingRequest,
     ProcessingResult,
-    ProcessingSettings,
     RuntimeSettings,
 )
 from wallpaper_effects_generator.domain.services import (
@@ -309,7 +309,9 @@ class ContainerProcessor(EffectProcessorPort):
             if self._settings is not None:
                 processing = self._settings.processing
                 if container_temp_dir is not None:
-                    processing = ProcessingSettings(temp_dir=container_temp_dir)
+                    # Preserve every processing field (e.g. memory_limit) while
+                    # repointing temp_dir at the in-container mount.
+                    processing = replace(processing, temp_dir=container_temp_dir)
                 local_settings = AppSettings(
                     version=self._settings.version,
                     execution=self._settings.execution,

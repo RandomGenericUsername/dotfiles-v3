@@ -236,13 +236,14 @@ class TestContainerProcessor:
     ) -> None:
         """`processing.temp_dir` is consumed: mounted disk-backed into the
         container and reflected in the inner settings so ImageMagick spills
-        there instead of a RAM-backed /tmp."""
+        there instead of a RAM-backed /tmp. Other processing fields (e.g.
+        memory_limit) must be preserved, not dropped by the override."""
         scratch = tmp_path / "weg-tmp"
         settings = AppSettings(
             version="1.0",
             execution=ExecutionSettings(),
             output=OutputSettings(),
-            processing=ProcessingSettings(temp_dir=scratch),
+            processing=ProcessingSettings(temp_dir=scratch, memory_limit="1GiB"),
             backend=BackendSettings(binary="magick"),
             runtime=RuntimeSettings(),
             container=ContainerSettings(engine="docker"),
@@ -270,6 +271,7 @@ class TestContainerProcessor:
         assert fake_engine.last_settings_toml_content is not None
         data = tomllib.loads(fake_engine.last_settings_toml_content)
         assert data["processing"]["temp_dir"] == "/weg-tmp"
+        assert data["processing"]["memory_limit"] == "1GiB"
 
     def test_passes_expected_environment(
         self, processor: ContainerProcessor, fake_engine: FakeEngine, tmp_path: Path

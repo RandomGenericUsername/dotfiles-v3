@@ -11,6 +11,7 @@ directory = "/tmp/wallpaper-effects"
 
 [processing]
 temp_dir = "/tmp/.wallpaper-effects-tmp"
+memory_limit = "256MiB"
 
 [backend]
 binary = "magick"

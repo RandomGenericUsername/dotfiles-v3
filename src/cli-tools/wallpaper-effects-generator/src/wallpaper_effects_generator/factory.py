@@ -28,6 +28,7 @@ from wallpaper_effects_generator.adapters.output.json_output import JsonOutputAd
 from wallpaper_effects_generator.adapters.output.plain_output import PlainOutputAdapter
 from wallpaper_effects_generator.adapters.output.rich_output import RichOutputAdapter
 from wallpaper_effects_generator.adapters.subprocess_runner import (
+    DEFAULT_MEMORY_LIMIT,
     SubprocessCommandRunner,
 )
 from wallpaper_effects_generator.adapters.yaml_effect_loader import YamlEffectLoader
@@ -80,8 +81,12 @@ def create_command_runner(
     settings: AppSettings,
 ) -> CommandRunnerPort:
     temp_dir = settings.processing.temp_dir
+    memory_limit = settings.processing.memory_limit
     return SubprocessCommandRunner(
         binary=settings.backend.binary,
+        # ``None`` in settings means "unset" -> keep the runner's built-in cap;
+        # an explicit string (including "" to disable) is passed through.
+        memory_limit=DEFAULT_MEMORY_LIMIT if memory_limit is None else memory_limit,
         temporary_path=str(temp_dir) if temp_dir is not None else None,
     )
 

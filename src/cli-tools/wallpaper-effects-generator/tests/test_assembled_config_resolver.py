@@ -31,6 +31,10 @@ max_workers = 2
 verbosity = 2
 directory = "/tmp/test-out"
 
+[processing]
+temp_dir = "/tmp/weg-scratch"
+memory_limit = "1GiB"
+
 [backend]
 binary = "convert"
 
@@ -51,6 +55,8 @@ image_registry = "myreg.io"
     assert settings.execution.strict is True
     assert settings.execution.max_workers == 2
     assert settings.output.verbosity == Verbosity.VERBOSE
+    assert settings.processing.temp_dir == Path("/tmp/weg-scratch")
+    assert settings.processing.memory_limit == "1GiB"
     assert settings.backend.binary == "convert"
     assert settings.runtime.mode == RuntimeMode.CONTAINER
     assert settings.container.engine == "podman"

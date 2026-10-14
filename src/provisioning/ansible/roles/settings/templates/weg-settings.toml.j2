@@ -3,7 +3,10 @@ version = "1.0"
 [execution]
 parallel = true
 strict = false
-max_workers = 0
+# Bound concurrency: with the 1 GiB pixel-cache cap below, large (8K) effects
+# keep their cache in RAM, and a small worker bound keeps peak RAM and
+# simultaneous disk spill under control (auto ~= 20 workers thrashed btrfs).
+max_workers = 4
 
 [output]
 verbosity = 1
@@ -11,6 +14,9 @@ directory = "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-output"
 
 [processing]
 temp_dir = "{{ settings_xdg_cache_home | trim }}/dotfiles/weg-tmp"
+# 1 GiB keeps the 8K pixel cache in RAM (measured: 8K vignette ~0.9 GiB,
+# blur ~0.76 GiB at 1 GiB) instead of spilling ~0.5-2 GB/job to disk.
+memory_limit = "1GiB"
 
 [backend]
 binary = "magick"

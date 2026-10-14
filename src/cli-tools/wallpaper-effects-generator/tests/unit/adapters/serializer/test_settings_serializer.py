@@ -14,6 +14,7 @@ from wallpaper_effects_generator.domain.models import (
     ContainerSettings,
     ExecutionSettings,
     OutputSettings,
+    ProcessingSettings,
     RuntimeSettings,
 )
 
@@ -37,6 +38,7 @@ class TestSettingsSerializer:
             version="1.0.0",
             execution=ExecutionSettings(parallel=False, strict=True, max_workers=2),
             output=OutputSettings(verbosity=Verbosity.VERBOSE, directory=Path("/out")),
+            processing=ProcessingSettings(temp_dir=Path("/tmp/weg"), memory_limit="1GiB"),
             backend=BackendSettings(binary="convert"),
             runtime=RuntimeSettings(mode=RuntimeMode.CONTAINER),
             container=ContainerSettings(
@@ -52,6 +54,8 @@ class TestSettingsSerializer:
         assert restored.execution.strict is True
         assert restored.execution.max_workers == 2
         assert restored.output.verbosity == Verbosity.VERBOSE
+        assert restored.processing.temp_dir == Path("/tmp/weg")
+        assert restored.processing.memory_limit == "1GiB"
         assert restored.backend.binary == "convert"
         assert restored.runtime.mode == RuntimeMode.CONTAINER
         assert restored.container.engine == "podman"

@@ -512,6 +512,14 @@ class TestSettingsTemplates:
             "WEG template must lock strict = false (chaining-spine.md contract, "
             "matches settings_schema.py ExecutionSchema.strict default)"
         )
+        assert "max_workers = 4" in text, (
+            "WEG template must bound execution.max_workers (auto ~= 20 workers "
+            "thrashed btrfs with 8K spill)"
+        )
+        assert 'memory_limit = "1GiB"' in text, (
+            "WEG template must cap the pixel cache at 1GiB so the 8K cache stays "
+            "in RAM instead of spilling to disk"
+        )
         assert "install_dir | trim }}/generated" not in text, (
             "WEG template must not reference a generated/ spine path "
             "(Epic 4 removed the tree)"
@@ -665,6 +673,10 @@ class TestSettingsPlaybook:
                 cache_home / "dotfiles" / "weg-tmp"
             )
             assert weg["execution"]["strict"] is False
+            # 8K-safe profile: bounded workers + a 1 GiB pixel-cache cap so the
+            # 8K cache stays in RAM instead of spilling to disk.
+            assert weg["execution"]["max_workers"] == 4
+            assert weg["processing"]["memory_limit"] == "1GiB"
             itr = tomllib.loads(_expected_files(install)["itr"].read_text())
             assert str(itr["output"]["output_dir"]) == str(
                 cache_home / "dotfiles" / "itr-output"

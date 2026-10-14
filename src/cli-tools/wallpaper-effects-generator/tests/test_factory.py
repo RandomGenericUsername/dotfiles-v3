@@ -76,6 +76,35 @@ def test_create_command_runner_wires_processing_temp_dir():
     assert runner._temporary_path == "/var/tmp/weg-tmp"
 
 
+def test_create_command_runner_wires_memory_limit():
+    from wallpaper_effects_generator.domain.models import (
+        AppSettings,
+        BackendSettings,
+        ProcessingSettings,
+    )
+
+    settings = AppSettings(
+        backend=BackendSettings(binary="magick"),
+        processing=ProcessingSettings(memory_limit="1GiB"),
+    )
+    runner = create_command_runner(settings=settings)
+    assert runner._memory_limit == "1GiB"
+
+
+def test_create_command_runner_default_memory_limit_when_unset():
+    from wallpaper_effects_generator.adapters.subprocess_runner import (
+        DEFAULT_MEMORY_LIMIT,
+    )
+    from wallpaper_effects_generator.domain.models import (
+        AppSettings,
+        BackendSettings,
+    )
+
+    settings = AppSettings(backend=BackendSettings(binary="magick"))
+    runner = create_command_runner(settings=settings)
+    assert runner._memory_limit == DEFAULT_MEMORY_LIMIT
+
+
 def test_create_local_processor_wires_temp_dir():
     from unittest.mock import Mock
 

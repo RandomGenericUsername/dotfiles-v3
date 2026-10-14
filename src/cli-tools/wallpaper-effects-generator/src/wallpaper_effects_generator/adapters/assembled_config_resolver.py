@@ -54,6 +54,7 @@ def _pydantic_to_app_settings(schema: CoreSettingsSchema) -> AppSettings:
         ),
         processing=ProcessingSettings(
             temp_dir=Path(schema.processing.temp_dir) if schema.processing.temp_dir else None,
+            memory_limit=schema.processing.memory_limit,
         ),
         backend=BackendSettings(
             binary=schema.backend.binary,
@@ -84,6 +85,8 @@ _ALL_SETTINGS_FIELDS = [
     "output.verbosity",
     "output.directory",
     "backend.binary",
+    "processing.temp_dir",
+    "processing.memory_limit",
     "runtime.mode",
     "container.engine",
     "container.image_name",

@@ -16,6 +16,7 @@ class OutputSchema(BaseModel):
 
 class ProcessingSchema(BaseModel):
     temp_dir: str = "/tmp/.wallpaper-effects-tmp"
+    memory_limit: str | None = None
 
 
 class BackendSchema(BaseModel):
