@@ -179,9 +179,14 @@ def generate(
             if deps.config_resolver
             else default_app_settings()
         )
-    except ColorSchemeError:
-        typer.echo("Warning: config resolution failed, using defaults", err=True)
-        settings = default_app_settings()
+    except ColorSchemeError as exc:
+        # Fatal: never silently fall back to defaults — a tool that switches
+        # execution backend on bad config masks the real failure (WEG parity).
+        if deps.output_adapter is not None:
+            deps.output_adapter.error(exc)
+        else:
+            typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
 
     if ctx.obj.get("verbosity") is None and deps.output_adapter is not None:
         settings_verbosity = settings.output.verbosity
@@ -201,8 +206,9 @@ def generate(
 
         resolved_backend = backend or settings.generation.backend or Backend.CUSTOM
 
+        merged_params = {**settings.generation.default_params, **raw_params}
         resolved_params = resolve_backend_params(
-            raw_params, resolved_backend, deps.backend_catalog_loader
+            merged_params, resolved_backend, deps.backend_catalog_loader
         )
 
         resolved_formats: tuple[ColorFormat, ...]
@@ -227,13 +233,14 @@ def generate(
             params=resolved_params,
             formats=resolved_formats,
             output_dir=resolved_output_dir,
+            overwrite=settings.output.overwrite,
         )
         request = GenerationRequest(image_path=image_path, config=config)
         effective_runtime = runtime or settings.runtime.mode
         if deps.processor is not None:
             processor = deps.processor
         elif effective_runtime == RuntimeMode.CONTAINER:
-            engine_value = container_engine or settings.container.engine or ContainerEngine.DOCKER
+            engine_value = container_engine or settings.container.engine or ContainerEngine.PODMAN
             engine_obj = ContainerEngine(engine_value) if isinstance(engine_value, str) else engine_value
             container_runtime = create_container_engine(engine=engine_obj)
             processor = create_container_processor(

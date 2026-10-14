@@ -103,7 +103,10 @@ class ContainerProcessor:
             lines.append("}")
         lines.append("")
         lines.append("[runtime]")
-        kv("mode", settings.runtime.mode.value)
+        # The inner `csg generate` always runs locally inside the container,
+        # regardless of the outer settings' runtime mode. Force it explicitly
+        # rather than relying on _CONTAINER_ENV to correct it.
+        kv("mode", "local")
         lines.append("")
         lines.append("[container]")
         kv("engine", settings.container.engine)
@@ -111,7 +114,6 @@ class ContainerProcessor:
         kv("image_tag", settings.container.image_tag)
         kv("timeout_seconds", settings.container.timeout_seconds)
         kv("memory_limit", settings.container.memory_limit)
-        kv("mount_timeout_seconds", settings.container.mount_timeout_seconds)
         return "\n".join(lines) + "\n"
 
     def _parse_color_scheme_from_json(self, raw: str) -> ColorScheme | None:
@@ -244,6 +246,7 @@ class ContainerProcessor:
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
                     environment=_CONTAINER_ENV,
+                    memory_limit=settings.container.memory_limit,
                 )
             except ContainerTimeoutError:
                 raise
@@ -386,6 +389,7 @@ class ContainerProcessor:
                     mounts=mounts,
                     timeout=settings.container.timeout_seconds,
                     environment=_CONTAINER_ENV,
+                    memory_limit=settings.container.memory_limit,
                 )
             except ContainerTimeoutError:
                 raise

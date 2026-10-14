@@ -19,6 +19,7 @@ class ContainerRuntimePort(Protocol):
         mounts: list[ContainerMount],
         timeout: int,
         environment: dict[str, str] | None = None,
+        memory_limit: str | None = None,
     ) -> ContainerResult:
         ...
 

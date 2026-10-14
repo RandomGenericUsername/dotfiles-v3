@@ -38,9 +38,12 @@ def show(
             if deps.config_resolver
             else default_app_settings()
         )
-    except ColorSchemeError:
-        typer.echo("Warning: config resolution failed, using defaults", err=True)
-        settings = default_app_settings()
+    except ColorSchemeError as exc:
+        if deps.output_adapter is not None:
+            deps.output_adapter.error(exc)
+        else:
+            typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
 
     if templates_dir is not None and deps.template_renderer is not None:
         deps.template_renderer.update_templates_dir(str(templates_dir))
@@ -50,8 +53,9 @@ def show(
 
         resolved_backend = backend or settings.generation.backend or Backend.CUSTOM
 
+        merged_params = {**settings.generation.default_params, **raw_params}
         resolved_params = resolve_backend_params(
-            raw_params, resolved_backend, deps.backend_catalog_loader
+            merged_params, resolved_backend, deps.backend_catalog_loader
         )
 
         config = GeneratorConfig(

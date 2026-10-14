@@ -95,7 +95,6 @@ class TestVerboseFlag:
                 image_tag="latest",
                 timeout_seconds=60,
                 memory_limit="512m",
-                mount_timeout_seconds=30,
             ),
         )
         return CliDependencies(

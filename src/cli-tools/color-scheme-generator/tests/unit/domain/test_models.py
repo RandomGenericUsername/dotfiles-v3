@@ -302,14 +302,12 @@ class TestContainerSettings:
             image_tag="latest",
             timeout_seconds=300,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         )
         assert s.engine == "docker"
         assert s.image_prefix == "csg"
         assert s.image_tag == "latest"
         assert s.timeout_seconds == 300
         assert s.memory_limit == "512m"
-        assert s.mount_timeout_seconds == 30
 
 
 class TestAppSettings:
@@ -327,7 +325,6 @@ class TestAppSettings:
             image_tag="latest",
             timeout_seconds=300,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         )
         settings = AppSettings(
             output=output,

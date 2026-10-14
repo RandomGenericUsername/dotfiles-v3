@@ -7,7 +7,15 @@ from unittest.mock import MagicMock
 import pytest
 from typer.testing import CliRunner
 
-from color_scheme_generator.domain.enums import Backend, ColorFormat, RuntimeMode
+from color_scheme_generator.adapters.yaml_backend_catalog_loader import (
+    YamlBackendCatalogLoader,
+)
+from color_scheme_generator.domain.enums import (
+    Backend,
+    ColorFormat,
+    ContainerEngine,
+    RuntimeMode,
+)
 from color_scheme_generator.domain.models import (
     AppSettings,
     ContainerSettings,
@@ -28,18 +36,17 @@ def _default_app_settings(**overrides: object) -> AppSettings:
         ),
         generation=GenerationSettings(
             backend=overrides.get("backend", Backend.CUSTOM),
-            default_params={},
+            default_params=overrides.get("default_params", {}),  # type: ignore[arg-type]
         ),
         runtime=RuntimeSettings(
             mode=RuntimeMode(overrides.get("runtime_mode", "local")),
         ),
         container=ContainerSettings(
-            engine=overrides.get("container_engine", "docker"),  # type: ignore[arg-type]
+            engine=overrides.get("container_engine", "podman"),  # type: ignore[arg-type]
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=60,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
 
@@ -389,16 +396,17 @@ class TestGenerateLazyProcessor:
 
 
 class TestGenerateConfigResolution:
-    def test_resolver_failure_falls_back_to_defaults(
-        self, runner, fake_processor, monkeypatch
-    ) -> None:
+    def test_resolver_failure_is_fatal(self, runner, fake_processor, monkeypatch) -> None:
         from color_scheme_generator.domain.exceptions import ColorSchemeError
 
         deps = _deps_with_settings(fake_processor, _default_app_settings())
         deps.config_resolver.resolve.side_effect = ColorSchemeError("config not found")
         result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
-        assert result.exit_code == 0, f"stderr={result.stderr}"
-        assert len(fake_processor.calls) == 1
+        assert result.exit_code == 1
+        # No silent fallback: the processor must never run.
+        assert fake_processor.calls == []
+        error_payload = json.loads(result.stderr)
+        assert error_payload["kind"] == "ColorSchemeError"
 
     def test_no_backend_catalog_loader_raises_on_params(
         self, runner, fake_processor, monkeypatch
@@ -489,3 +497,126 @@ class TestShowFlags:
         assert result.exit_code == 1
         error_payload = json.loads(result.stderr)
         assert error_payload["kind"] == "BackendNotAvailableError"
+
+
+class TestGenerateEngineSelection:
+    @pytest.mark.parametrize("engine", [ContainerEngine.PODMAN, ContainerEngine.DOCKER])
+    def test_settings_engine_selects_matching_engine(
+        self, engine, runner, fake_processor, monkeypatch
+    ) -> None:
+        """Declared container engine drives both the runtime and image naming."""
+        deps = _deps_with_settings(
+            fake_processor,
+            _default_app_settings(runtime_mode="container", container_engine=engine.value),
+        )
+        deps.processor = None
+        create_engine = MagicMock(return_value=MagicMock())
+        create_processor = MagicMock(return_value=fake_processor)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_container_engine", create_engine
+        )
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_container_processor", create_processor
+        )
+
+        result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
+
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert create_engine.call_args.kwargs["engine"] is engine
+        assert create_processor.call_args.kwargs["engine_value"] == engine.value
+
+    def test_container_engine_flag_overrides_settings(
+        self, runner, fake_processor, monkeypatch
+    ) -> None:
+        deps = _deps_with_settings(
+            fake_processor,
+            _default_app_settings(runtime_mode="container", container_engine="podman"),
+        )
+        deps.processor = None
+        create_engine = MagicMock(return_value=MagicMock())
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_container_engine", create_engine
+        )
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.main.create_container_processor",
+            MagicMock(return_value=fake_processor),
+        )
+
+        result = _invoke(
+            runner,
+            deps,
+            ["generate", "--container-engine", "docker", "/tmp/test.jpg"],
+            monkeypatch,
+        )
+
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert create_engine.call_args.kwargs["engine"] is ContainerEngine.DOCKER
+
+
+class TestGenerateDefaultParams:
+    def _deps(self, fake_processor, default_params):
+        deps = CliDependencies(
+            backend_registry={},
+            backend_catalog_loader=YamlBackendCatalogLoader(),
+            processor=fake_processor,
+        )
+        deps.config_resolver = MagicMock()
+        deps.config_resolver.resolve.return_value = _default_app_settings(
+            backend=Backend.PYWAL, default_params=default_params
+        )
+        return deps
+
+    def test_settings_default_params_applied(self, runner, fake_processor, monkeypatch) -> None:
+        deps = self._deps(fake_processor, {"saturation": "1.4"})
+        result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert _recorded_config(fake_processor).params["saturation"] == "1.4"
+
+    def test_cli_param_wins_over_settings_default(
+        self, runner, fake_processor, monkeypatch
+    ) -> None:
+        deps = self._deps(fake_processor, {"saturation": "1.4", "algorithm": "wal"})
+        result = _invoke(
+            runner,
+            deps,
+            ["generate", "--param", "saturation=2.0", "/tmp/test.jpg"],
+            monkeypatch,
+        )
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        params = _recorded_config(fake_processor).params
+        assert params["saturation"] == "2.0"
+        assert params["algorithm"] == "wal"
+
+    def test_unknown_settings_default_param_rejected(
+        self, runner, fake_processor, monkeypatch
+    ) -> None:
+        deps = self._deps(fake_processor, {"bogus": "1"})
+        result = _invoke(runner, deps, ["generate", "/tmp/test.jpg"], monkeypatch)
+        assert result.exit_code == 1
+        error_payload = json.loads(result.stderr)
+        assert error_payload["kind"] == "ConfigResolutionError"
+        assert fake_processor.calls == []
+
+
+class TestFatalConfigResolution:
+    def test_generate_corrupt_config_exits_nonzero(self, runner, tmp_path) -> None:
+        from color_scheme_generator.cli.main import app
+
+        corrupt = tmp_path / "settings.toml"
+        corrupt.write_text("this is not = valid = toml\n")
+
+        result = runner.invoke(app, ["generate", "--config", str(corrupt), "/tmp/test.jpg"])
+
+        assert result.exit_code == 1
+        assert "config resolution failed" in (result.stdout + result.stderr).lower()
+
+    def test_show_corrupt_config_exits_nonzero(self, runner, tmp_path) -> None:
+        from color_scheme_generator.cli.main import app
+
+        corrupt = tmp_path / "settings.toml"
+        corrupt.write_text("this is not = valid = toml\n")
+
+        result = runner.invoke(app, ["show", "--config", str(corrupt), "/tmp/test.jpg"])
+
+        assert result.exit_code == 1
+        assert "config resolution failed" in (result.stdout + result.stderr).lower()

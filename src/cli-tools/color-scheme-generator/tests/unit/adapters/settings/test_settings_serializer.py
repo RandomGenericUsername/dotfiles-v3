@@ -39,7 +39,6 @@ def _make_full_settings() -> AppSettings:
             image_tag="latest",
             timeout_seconds=60,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
 
@@ -92,7 +91,6 @@ class TestSettingsSerializer:
         assert 'image_tag = "latest"' in result
         assert "timeout_seconds = 60" in result
         assert 'memory_limit = "512m"' in result
-        assert "mount_timeout_seconds = 30" in result
 
     def test_serialize_omits_none_paths(self) -> None:
         settings = AppSettings(
@@ -105,7 +103,6 @@ class TestSettingsSerializer:
                 image_tag="latest",
                 timeout_seconds=60,
                 memory_limit="512m",
-                mount_timeout_seconds=30,
             ),
         )
         serializer = SettingsSerializer()

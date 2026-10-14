@@ -60,6 +60,7 @@ class GeneratorConfig:
     params: dict[str, Any]
     formats: tuple[ColorFormat, ...]
     output_dir: Path
+    overwrite: bool = True
 
 
 @dataclass(frozen=True)
@@ -126,12 +127,11 @@ class RuntimeSettings:
 
 @dataclass(frozen=True)
 class ContainerSettings:
-    engine: str = "docker"
+    engine: str = "podman"
     image_prefix: str = "csg"
     image_tag: str = "latest"
     timeout_seconds: int = 300
     memory_limit: str = "512m"
-    mount_timeout_seconds: int = 30
 
 
 @dataclass(frozen=True)

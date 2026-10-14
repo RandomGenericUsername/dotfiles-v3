@@ -58,7 +58,6 @@ def _convert_to_app_settings(validated: CoreSettingsSchema) -> AppSettings:
             image_tag=validated.container.image_tag,
             timeout_seconds=validated.container.timeout_seconds,
             memory_limit=validated.container.memory_limit,
-            mount_timeout_seconds=validated.container.mount_timeout_seconds,
         ),
     )
 
@@ -96,9 +95,6 @@ class AssembledConfigResolver:
             OverrideRule("container.image_tag", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("container.timeout_seconds", {OverrideSource.CLI, OverrideSource.ENV}),
             OverrideRule("container.memory_limit", {OverrideSource.CLI, OverrideSource.ENV}),
-            OverrideRule(
-                "container.mount_timeout_seconds", {OverrideSource.CLI, OverrideSource.ENV}
-            ),
         ]
         self.last_result: ConfigResolverResult | None = None
 

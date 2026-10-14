@@ -97,7 +97,7 @@ def create_local_processor(
 
 
 def create_container_engine(
-    engine: ContainerEngine = ContainerEngine.DOCKER,
+    engine: ContainerEngine = ContainerEngine.PODMAN,
 ) -> ContainerRuntimePort:
     from oci_runtime.domain.enums import RuntimeKind
     from oci_runtime.domain.types import RuntimePreference

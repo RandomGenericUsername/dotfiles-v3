@@ -36,7 +36,6 @@ def mock_config_resolver() -> MagicMock:
             image_tag="latest",
             timeout_seconds=60,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
     return resolver
@@ -194,6 +193,42 @@ class TestInstallCommand:
             build_args = getattr(context, "build_args", None)
             assert build_args is not None, f"Missing build_args in call: {call}"
             assert build_args.get("BASE_IMAGE") == "csg-base-podman:latest"
+
+    def test_install_settings_driven_engine_defaults_to_podman(
+        self,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        mock_config_resolver: MagicMock,
+        mock_container_engine: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The declared settings engine drives image naming with no CLI flag."""
+        from color_scheme_generator.domain.enums import ContainerEngine
+
+        mock_config_resolver.resolve.return_value = AppSettings(
+            output=OutputSettings(directory="/tmp/out", default_formats=(), overwrite=False),
+            generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
+            runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
+            container=ContainerSettings(
+                engine=ContainerEngine.PODMAN.value,
+                image_prefix="csg",
+                image_tag="latest",
+                timeout_seconds=60,
+                memory_limit="512m",
+            ),
+        )
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.install_cmd.create_container_engine",
+            lambda engine: mock_container_engine,
+        )
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, ["--output-format", "json", "install"])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        images = [call[0][1] for call in mock_container_engine.build_image.call_args_list]
+        assert "csg-pywal-podman:latest" in images
+        assert not any("docker" in image for image in images)
 
     def test_install_build_failure_outputs_error(
         self,

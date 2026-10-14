@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from unittest.mock import MagicMock, patch
@@ -68,6 +68,7 @@ class _FakeContainerRuntime:
         mounts: list[ContainerMount],
         timeout: int,
         environment: dict[str, str] | None = None,
+        memory_limit: str | None = None,
     ) -> _FakeRunResult:
         config: dict[str, object] = {
             "image": image,
@@ -75,6 +76,7 @@ class _FakeContainerRuntime:
             "mounts": mounts,
             "timeout": timeout,
             "environment": environment,
+            "memory_limit": memory_limit,
         }
         self.run_calls.append(config)
         self.last_run_config = config
@@ -111,7 +113,6 @@ def _make_settings(**overrides: object) -> AppSettings:
             image_tag="latest",
             timeout_seconds=60,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
 
@@ -342,6 +343,58 @@ class TestContainerProcessorGenerate:
         assert data["output"]["directory"] == "/tmp/out"
         assert data["generation"]["backend"] == "custom"
         assert data["container"]["engine"] == "docker"
+
+    def test_serialized_settings_forces_local_mode_when_outer_is_container(
+        self, tmp_path: Path
+    ) -> None:
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
+        settings = replace(
+            _make_settings(),
+            runtime=RuntimeSettings(mode=RuntimeMode.CONTAINER),
+        )
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        processor.process_generate(request, settings)
+
+        serialized = processor._container_runtime.serialized_settings
+        assert serialized is not None
+        data = tomllib.loads(serialized)
+        # The inner run is always local; the outer mode must not leak in.
+        assert data["runtime"]["mode"] == "local"
+
+    def test_run_receives_settings_memory_limit(self, tmp_path: Path) -> None:
+        templates_dir, output_dir, processor = _setup_test_env(tmp_path)
+        settings = replace(
+            _make_settings(),
+            container=ContainerSettings(
+                engine="podman",
+                image_prefix="csg",
+                image_tag="latest",
+                timeout_seconds=60,
+                memory_limit="1g",
+            ),
+        )
+        request = GenerationRequest(
+            image_path=tmp_path / "input" / "wallpaper.png",
+            config=GeneratorConfig(
+                backend=Backend.CUSTOM,
+                params={},
+                formats=(ColorFormat.JSON,),
+                output_dir=output_dir,
+            ),
+        )
+
+        processor.process_generate(request, settings)
+
+        assert _run_call_args(processor)["memory_limit"] == "1g"
 
     def test_temp_toml_cleaned_up_on_success(self, tmp_path: Path) -> None:
         templates_dir, output_dir, processor = _setup_test_env(tmp_path)

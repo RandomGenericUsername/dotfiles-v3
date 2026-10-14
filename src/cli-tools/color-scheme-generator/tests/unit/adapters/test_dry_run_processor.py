@@ -53,7 +53,6 @@ def _make_settings(
             image_tag="latest",
             timeout_seconds=120,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
 

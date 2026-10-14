@@ -49,7 +49,6 @@ def _settings() -> AppSettings:
             image_tag="latest",
             timeout_seconds=300,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
 

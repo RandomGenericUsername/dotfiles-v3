@@ -34,12 +34,17 @@ def _make_scheme() -> ColorScheme:
     )
 
 
-def _make_request(backend: Backend = Backend.CUSTOM) -> GenerationRequest:
+def _make_request(
+    backend: Backend = Backend.CUSTOM,
+    output_dir: Path = Path("/tmp/output"),
+    overwrite: bool = True,
+) -> GenerationRequest:
     config = GeneratorConfig(
         backend=backend,
         params={},
         formats=(ColorFormat.JSON,),
-        output_dir=Path("/tmp/output"),
+        output_dir=output_dir,
+        overwrite=overwrite,
     )
     return GenerationRequest(
         image_path=Path("/tmp/wallpaper.png"),
@@ -265,3 +270,54 @@ class TestCreateBackendRegistry:
         assert Backend.PYWAL in registry
         assert Backend.WALLUST in registry
         assert len(registry) == 3
+
+
+class TestLocalProcessorOverwrite:
+    def _processor(self, tmp_path: Path):
+        scheme = _make_scheme()
+        mock_gen = MagicMock()
+        mock_gen.is_available.return_value = True
+        mock_gen.generate.return_value = scheme
+        mock_renderer = MagicMock()
+        processor = LocalProcessor(
+            {Backend.CUSTOM: mock_gen}, template_renderer=mock_renderer
+        )
+        return processor, mock_renderer
+
+    def test_overwrite_false_skips_existing_output(self, tmp_path: Path) -> None:
+        existing = tmp_path / "colors.json"
+        existing.write_text("original")
+        processor, mock_renderer = self._processor(tmp_path)
+
+        result = processor.process_generate(
+            _make_request(output_dir=tmp_path, overwrite=False), object()
+        )
+
+        assert result.success is True
+        assert existing.read_text() == "original"
+        assert result.output_files == ()
+        mock_renderer.render.assert_not_called()
+
+    def test_overwrite_true_rewrites_existing_output(self, tmp_path: Path) -> None:
+        existing = tmp_path / "colors.json"
+        existing.write_text("original")
+        processor, mock_renderer = self._processor(tmp_path)
+
+        result = processor.process_generate(
+            _make_request(output_dir=tmp_path, overwrite=True), object()
+        )
+
+        assert result.success is True
+        mock_renderer.render.assert_called_once()
+        assert result.output_files == (existing,)
+
+    def test_overwrite_false_still_renders_when_absent(self, tmp_path: Path) -> None:
+        processor, mock_renderer = self._processor(tmp_path)
+
+        result = processor.process_generate(
+            _make_request(output_dir=tmp_path, overwrite=False), object()
+        )
+
+        assert result.success is True
+        mock_renderer.render.assert_called_once()
+        assert result.output_files == (tmp_path / "colors.json",)

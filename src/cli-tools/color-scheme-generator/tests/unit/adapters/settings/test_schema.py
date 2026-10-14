@@ -107,8 +107,6 @@ class TestContainerSettingsSchema:
     def test_negative_timeout_rejected(self) -> None:
         with pytest.raises(ValidationError, match="Timeout must be non-negative"):
             ContainerSettingsSchema(timeout_seconds=-1)
-        with pytest.raises(ValidationError, match="Timeout must be non-negative"):
-            ContainerSettingsSchema(mount_timeout_seconds=-5)
 
     def test_zero_timeout_accepted(self) -> None:
         assert ContainerSettingsSchema(timeout_seconds=0).timeout_seconds == 0
@@ -131,7 +129,6 @@ class TestNestedCompositePropagation:
                 "image_tag": "v1",
                 "timeout_seconds": 120,
                 "memory_limit": "1g",
-                "mount_timeout_seconds": 15,
             },
         }
         schema = CoreSettingsSchema.model_validate(data)
@@ -147,7 +144,6 @@ class TestNestedCompositePropagation:
         assert schema.container.image_tag == "v1"
         assert schema.container.timeout_seconds == 120
         assert schema.container.memory_limit == "1g"
-        assert schema.container.mount_timeout_seconds == 15
 
     def test_invalid_nested_value_rejected(self) -> None:
         data = {

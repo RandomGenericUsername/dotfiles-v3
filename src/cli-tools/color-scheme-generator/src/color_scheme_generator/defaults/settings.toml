@@ -17,9 +17,8 @@ default_params = {}
 mode = "local"
 
 [container]
-engine = "docker"
+engine = "podman"
 image_prefix = "csg"
 image_tag = "latest"
 timeout_seconds = 300
 memory_limit = "512m"
-mount_timeout_seconds = 30

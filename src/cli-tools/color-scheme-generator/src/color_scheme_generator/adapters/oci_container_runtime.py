@@ -23,6 +23,7 @@ class OciContainerRuntimeAdapter:
         mounts: list[ContainerMount],
         timeout: int,
         environment: dict[str, str] | None = None,
+        memory_limit: str | None = None,
     ) -> ContainerResult:
         if timeout <= 0:
             raise ValueError(f"Invalid timeout: {timeout}")
@@ -50,6 +51,7 @@ class OciContainerRuntimeAdapter:
             environment=environment or {},
             user=host_user,
             network=NetworkMode.NONE,
+            memory_limit=memory_limit,
         )
         from color_scheme_generator.adapters.error_mapping import map_oci_error
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from unittest.mock import MagicMock
 
 import pytest
@@ -324,4 +325,22 @@ class TestContainerRuntimeContract:
     def test_interface_method_count(self) -> None:
         assert_interface_method_count(
             OciContainerRuntimeAdapter(engine=MagicMock()), ContainerRuntimePort
+        )
+
+    def test_run_declares_memory_limit_param(self) -> None:
+        """Regression: `ContainerRuntimePort.run` must declare `memory_limit`.
+
+        `assert_signature_compatible` only checks port ⊆ impl (extra
+        implementation params are allowed), so it cannot catch a parameter
+        that the implementation gained but the port never declared. Assert
+        the declared order explicitly.
+        """
+        params = list(inspect.signature(ContainerRuntimePort.run).parameters)
+        assert "memory_limit" in params, (
+            "ContainerRuntimePort.run must declare a `memory_limit` parameter "
+            "(otherwise keyword callers cannot pass it through the port)"
+        )
+        assert params.index("memory_limit") == params.index("environment") + 1, (
+            "`memory_limit` must immediately follow `environment` to preserve "
+            "keyword-call compatibility"
         )

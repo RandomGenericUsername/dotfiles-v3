@@ -35,7 +35,6 @@ def mock_config_resolver() -> MagicMock:
             image_tag="latest",
             timeout_seconds=60,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
     return resolver
@@ -116,6 +115,35 @@ class TestUninstallCommand:
         ])
         assert result.exit_code == 0, f"stderr={result.stderr}"
         assert mock_container_engine.remove_image.call_count == 1
+
+    @pytest.mark.parametrize(
+        ("engine", "expected_image"),
+        [("podman", "csg-pywal-podman:latest"), ("docker", "csg-pywal-docker:latest")],
+    )
+    def test_uninstall_image_names_per_engine(
+        self,
+        engine: str,
+        expected_image: str,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        mock_container_engine: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.uninstall_cmd.create_container_engine",
+            lambda e: mock_container_engine,
+        )
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, [
+            "--output-format", "json", "uninstall",
+            "--container-engine", engine,
+            "--backend", "pywal", "--yes",
+        ])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        images = [call[0][0] for call in mock_container_engine.remove_image.call_args_list]
+        assert images == [expected_image]
 
     def test_uninstall_dry_run_logs_without_removing(
         self,

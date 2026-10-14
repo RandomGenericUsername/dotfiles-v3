@@ -82,6 +82,11 @@ class LocalProcessor:
         for fmt in request.config.formats:
             template_name = f"colors.{fmt.value}.j2"
             output_path = request.config.output_dir / f"colors.{fmt.value}"
+            if not request.config.overwrite and output_path.exists():
+                # overwrite=false means skip existing outputs (mirrors
+                # `dump-templates --overwrite`). A skip is not an error and
+                # must not flip success.
+                continue
             try:
                 self._template_renderer.render(template_name, color_scheme, output_path)
                 output_files.append(output_path)

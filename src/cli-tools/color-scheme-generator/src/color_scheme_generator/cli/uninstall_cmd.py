@@ -26,7 +26,7 @@ def uninstall(
     deps: CliDependencies = ctx.obj["deps"]
     try:
         settings = deps.config_resolver.resolve(explicit_path=config_path)
-        engine = container_engine or ContainerEngine(settings.container.engine) or ContainerEngine.DOCKER
+        engine = container_engine or ContainerEngine(settings.container.engine) or ContainerEngine.PODMAN
         engine_value = engine.value
         container_engine = create_container_engine(engine)
         target_backends = list(dict.fromkeys(backend or list(Backend)))

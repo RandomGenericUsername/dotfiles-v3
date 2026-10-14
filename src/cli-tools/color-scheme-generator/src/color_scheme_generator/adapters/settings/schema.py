@@ -78,7 +78,7 @@ class RuntimeSettingsSchema(BaseModel):
 
 
 class ContainerSettingsSchema(BaseModel):
-    engine: str = "docker"
+    engine: str = "podman"
 
     @field_validator("engine")
     @classmethod
@@ -99,7 +99,7 @@ class ContainerSettingsSchema(BaseModel):
             )
         return v.lower()
 
-    @field_validator("timeout_seconds", "mount_timeout_seconds")
+    @field_validator("timeout_seconds")
     @classmethod
     def _validate_timeout(cls, v: int) -> int:
         if v < 0:
@@ -110,7 +110,6 @@ class ContainerSettingsSchema(BaseModel):
     image_tag: str = "latest"
     timeout_seconds: int = 300
     memory_limit: str = "512m"
-    mount_timeout_seconds: int = 30
 
 
 class CoreSettingsSchema(BaseModel):

@@ -147,6 +147,53 @@ class TestRunConfig:
         assert config is not None
         assert config.network is NetworkMode.NONE
 
+    def test_memory_limit_threaded_into_run_config(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        adapter.run(
+            image="test:latest",
+            command=["csg-inner"],
+            mounts=[],
+            timeout=30,
+            memory_limit="512m",
+        )
+
+        config = mock_oci_engine.containers.run.call_args[0][0]
+        assert config.memory_limit == "512m"
+
+    def test_custom_memory_limit_threaded_into_run_config(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        adapter.run(
+            image="test:latest",
+            command=["csg-inner"],
+            mounts=[],
+            timeout=30,
+            memory_limit="2g",
+        )
+
+        config = mock_oci_engine.containers.run.call_args[0][0]
+        assert config.memory_limit == "2g"
+
+    def test_memory_limit_optional(
+        self,
+        adapter: OciContainerRuntimeAdapter,
+        mock_oci_engine: MagicMock,
+    ) -> None:
+        adapter.run(
+            image="test:latest",
+            command=["csg-inner"],
+            mounts=[],
+            timeout=30,
+        )
+
+        config = mock_oci_engine.containers.run.call_args[0][0]
+        assert config.memory_limit is None
+
 
 class TestRunErrorMapping:
     def test_run_raises_image_not_found_maps_to_container_image_not_found(

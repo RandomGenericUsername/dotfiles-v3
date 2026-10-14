@@ -6,7 +6,6 @@ from typing import Any
 
 from oci_runtime import engine_qualified_image
 
-from color_scheme_generator.adapters.settings.config_resolver import AssembledConfigResolver
 from color_scheme_generator.adapters.yaml_backend_catalog_loader import YamlBackendCatalogLoader
 from color_scheme_generator.domain.enums import Backend, ColorFormat, ContainerEngine, RuntimeMode
 from color_scheme_generator.domain.exceptions import ColorSchemeError, ConfigResolutionError
@@ -42,12 +41,11 @@ def default_app_settings() -> AppSettings:
             mode=RuntimeMode.LOCAL,
         ),
         container=ContainerSettings(
-            engine="docker",
+            engine="podman",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=300,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
 
@@ -118,7 +116,7 @@ def resolve_backend_params(
     return {}
 
 
-def build_image_name(settings: AppSettings, backend: Backend, engine: str = "docker") -> str:
+def build_image_name(settings: AppSettings, backend: Backend, engine: str = "podman") -> str:
     prefix = settings.container.image_prefix
     base = f"{prefix}-{backend.image_suffix}"
     return engine_qualified_image(base, engine, settings.container.image_tag)
@@ -141,22 +139,3 @@ def resolve_processor(
             engine_value=engine_value,
         )
     return create_local_processor(deps.backend_registry, deps.template_renderer)
-
-
-def resolve_container_engine(
-    container_engine: ContainerEngine | None,
-    config_resolver: AssembledConfigResolver | None,
-    config_path: str | None,
-    cli_overrides: dict[str, str],
-) -> ContainerEngine:
-    if container_engine is not None:
-        return container_engine
-    if config_resolver is not None:
-        try:
-            settings = config_resolver.resolve(
-                explicit_path=config_path, cli_overrides=cli_overrides
-            )
-            return ContainerEngine(settings.container.engine)
-        except Exception:
-            pass
-    return ContainerEngine.DOCKER

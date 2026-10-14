@@ -32,12 +32,11 @@ def mock_config_resolver() -> MagicMock:
         generation=GenerationSettings(backend=Backend.CUSTOM, default_params={}),
         runtime=RuntimeSettings(mode=RuntimeMode.LOCAL),
         container=ContainerSettings(
-            engine="docker",
+            engine="podman",
             image_prefix="csg",
             image_tag="latest",
             timeout_seconds=60,
             memory_limit="512m",
-            mount_timeout_seconds=30,
         ),
     )
     mock.last_result = ConfigResolverResult(
@@ -80,6 +79,9 @@ class TestDumpConfigCommand:
         assert "[output]" in result.stdout
         assert "[runtime]" in result.stdout
         assert "[container]" in result.stdout
+        # Default engine is podman (WEG parity); no docker fallback ships.
+        assert 'engine = "podman"' in result.stdout
+        assert "mount_timeout_seconds" not in result.stdout
 
     def test_dump_config_output_is_valid_toml(
         self,
