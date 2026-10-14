@@ -64,7 +64,14 @@
     "typing be unit-tested here. `kit/shapes.ts` deliberately leaves the rendered",
     "subtree type opaque (a type parameter, default `unknown`) instead of naming",
     "`JSX.Element`, so it carries no JSX runtime; `kit/widget.tsx` specializes it",
-    "to gnim's `JSX.Element` for the app."
+    "to gnim's `JSX.Element` for the app.",
+    "",
+    "`domains/reactive.ts` is the injectable reactive port (AD-2) and the four",
+    "`domains/*/read-model.ts` cores are the network/battery/bluetooth/audio",
+    "read models. They are pure BY CONSTRUCTION: each takes its Astal service",
+    "and its reactive runtime as parameters, so the Astal bindings live in the",
+    "sibling `domains/*/astal.ts` adapters, which are deliberately NOT listed",
+    "here (they import gi://* and ags and belong to the app program)."
   ],
   "compilerOptions": {
     "target": "ES2022",
@@ -93,6 +100,11 @@
     "../lib/network-icon.ts",
     "../services/mpris-core.ts",
     "../kit/icon-source.ts",
-    "../kit/shapes.ts"
+    "../kit/shapes.ts",
+    "../domains/reactive.ts",
+    "../domains/network/read-model.ts",
+    "../domains/battery/read-model.ts",
+    "../domains/bluetooth/read-model.ts",
+    "../domains/audio/read-model.ts"
   ]
 }

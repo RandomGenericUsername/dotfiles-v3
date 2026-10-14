@@ -1,9 +1,9 @@
-import Network from "gi://AstalNetwork"
-import { createState, type Accessor } from "ags"
+import type { ReadAccessor, ReactiveRuntime } from "../reactive"
 import type { NetworkReading, WifiReading, WiredReading } from "../../lib/network-icon.ts"
 
 /**
- * The network domain's read model: AstalNetwork → a reactive `NetworkReading`.
+ * The network domain's read model: an AstalNetwork-shaped service → a reactive
+ * `NetworkReading`. PURE — no `ags`, no `gi://*` (spine AD-2/AD-3).
  *
  * WHY THIS EXISTS (bar re-architecture §5.3). The descriptor prototype read the
  * device through `createBinding(network, "wifi")`, which fires when the *device
@@ -13,13 +13,14 @@ import type { NetworkReading, WifiReading, WiredReading } from "../../lib/networ
  * analogue of `audio/adapters/pipewire/pipewire-observation.ts`); the widget's
  * read model is only as reactive as the adapter behind it.
  *
- * This adapter owns exactly that subscription. It rebuilds the device-level
- * handlers whenever AstalNetwork hands it a different Wi-Fi device, and
+ * This factory owns exactly that subscription. It rebuilds the device-level
+ * handlers whenever the service hands it a different Wi-Fi device, and
  * republishes a plain, inert reading. The widget never touches Astal.
  *
- * The types are structural (no GJS type import) so the file can be reasoned
- * about, and the Astal service is injectable for the same reason
- * `PipeWireObservationAdapter` takes its service — a seam, not a hard singleton.
+ * The types are structural (no GJS type import) and BOTH the service and the
+ * reactive primitive are parameters, so the read model is a seam, not a hard
+ * singleton — the Astal binding lives in `./astal.ts` and the tests drive this
+ * file with a fake device and a fake runtime.
  */
 
 /** The AstalNetwork properties this adapter reads, as a structural shape. */
@@ -63,15 +64,16 @@ function snapshot(network: NetworkService): NetworkReading {
 }
 
 /**
- * Observe AstalNetwork as a reactive `NetworkReading`.
+ * Observe a network service as a reactive `NetworkReading`.
  *
- * Returns an `Accessor`, so a `createComputed` that calls it re-runs whenever
- * any watched property moves — the reactivity the descriptor relies on.
+ * Returns an accessor, so a `createComputed` that calls it re-runs whenever any
+ * watched property moves — the reactivity the descriptor relies on.
  */
 export function createNetworkReadModel(
-  network: NetworkService = Network.get_default() as unknown as NetworkService,
-): Accessor<NetworkReading> {
-  const [reading, setReading] = createState<NetworkReading>(snapshot(network))
+  network: NetworkService,
+  runtime: ReactiveRuntime,
+): ReadAccessor<NetworkReading> {
+  const [reading, setReading] = runtime.createState<NetworkReading>(snapshot(network))
 
   // The Wi-Fi device is replaced on hotplug/radio toggle; the handlers bound to
   // the old object would go silent, so they are torn down and re-bound.
