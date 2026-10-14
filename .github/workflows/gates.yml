@@ -30,9 +30,11 @@ name: gates
 # would make every push red on a missing binary, which is how a broken gate
 # trains people to ignore the gate list.
 #
-# `capture-typecheck` and `bar-typecheck` have no job here. `ags-typecheck` does:
-# it runs on a `[self-hosted, linux]` runner that HAS the desktop stack, so the
-# exclusion is "cannot run on a stock runner", never "does not run in CI".
+# `capture-typecheck` has no job here. `bar-typecheck` and `ags-typecheck` DO:
+# they run on a `[self-hosted, linux]` runner that HAS the desktop stack, so the
+# exclusion is "cannot run on a stock runner", never "does not run in CI". AD-19
+# requires BOTH typechecks to cover the extracted surface and run in CI, so a bad
+# platform extraction cannot pass unnoticed.
 #
 # Those differences are DECLARED entries, not absences: `ci-gates-parity`
 # verifies every gate the `gates-ci` filter removes has a reason in
@@ -231,6 +233,24 @@ jobs:
       - name: AGS config pure-module unit tests
         run: make ags-test
 
+  # The per-app contract drift + symbol suites, run from the ROOT gate (AD-19).
+  # Each app's suite previously ran only via that app's own `make test`, which
+  # nothing at the repo root invoked, so the suites rotted (the ICME drift suite
+  # had been red since the speed-test contract gained ssid/server_name). They are
+  # pure Node over the committed contract and the apps' pure modules -- no
+  # desktop stack -- so this runs on a stock runner. Node 24 is pinned for native
+  # .ts type-stripping, which is unflagged only from 22.18.
+  per-app-drift-symbol-suites:
+    name: per-app-drift-symbol-suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Per-app contract drift + symbol suites
+        run: make per-app-drift-symbol-suites
+
   # Audio mock<->code parity: the owner-approved concept mock is the source of
   # truth for the redesigned panel's surface, the same role the Wi-Fi, battery
   # and speed-test parity gates play for theirs.
@@ -332,10 +352,14 @@ jobs:
   # type checking, which is how a mis-cased shorthand property in the composition
   # root passed every other gate and died with ReferenceError on startup.
   #
-  # NOT in the CI set: like capture-typecheck and bar-typecheck this needs `ags`
-  # and the Astal/GIR libraries on PATH, so it cannot run on a stock
-  # ubuntu-latest runner. `make ags-typecheck` is the authoritative run and this
-  # job is self-hosted only. See gates-ci for the exact exclusion list.
+  # NOT in the stock CI set: like capture-typecheck it needs `ags` and the
+  # Astal/GIR libraries on PATH, so it cannot run on a stock ubuntu-latest runner.
+  # `make ags-typecheck` is the authoritative run and this job is self-hosted
+  # only. See gates-ci for the exact exclusion list.
+  #
+  # COVERS THE EXTRACTED SURFACE (AD-19): the gate fails on any error across the
+  # bar tree (`kit/`, `lib/`, `domains/`, `bar/`, ...), not only `audio/`, so a
+  # bad platform extraction is caught here as well as by bar-typecheck.
   ags-typecheck:
     name: ags-typecheck
     runs-on: [self-hosted, linux]
@@ -346,3 +370,25 @@ jobs:
           node-version: '24'
       - name: Typecheck the AGS layer
         run: make ags-typecheck
+
+  # Typecheck the bar tree (`dotfiles/config/ags`) with ZERO errors allowed.
+  #
+  # AD-19 requires bar-typecheck and ags-typecheck to BOTH cover the extracted
+  # platform surface and run in CI. This job is the bar-typecheck half: it did
+  # not exist before, so the gate ran only on a developer's provisioned desktop
+  # and a bad extraction could pass CI unnoticed.
+  #
+  # Self-hosted for the same reason as ags-typecheck: the gate needs `ags` plus
+  # the Astal/GIR libraries, and it reuses the capture tool's generated
+  # /usr/share/ags/js declarations, none of which exist on a stock runner. See
+  # gates-ci for the exact exclusion list.
+  bar-typecheck:
+    name: bar-typecheck
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Typecheck the bar tree
+        run: make bar-typecheck

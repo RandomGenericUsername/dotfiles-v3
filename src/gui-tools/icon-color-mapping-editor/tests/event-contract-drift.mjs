@@ -86,7 +86,12 @@ check("bar speedtest.state is a contract topic", contractJson.topics[bar.SPEEDTE
 // reintroduce the dead string into a tree-wide `git grep` scan.
 const SUPERSEDED_SPEEDTEST_TOPIC = ["speedtest", "finished"].join(".");
 check(`${SUPERSEDED_SPEEDTEST_TOPIC} is superseded, not extended`, contractJson.topics[SUPERSEDED_SPEEDTEST_TOPIC], undefined);
-check("speedtest.state payload keys", Object.keys(contractJson.topics["speedtest.state"].payload).sort(), ["down_mbps", "latency_ms", "reason", "state", "trigger", "up_mbps"]);
+// The contract ADDED `ssid` and `server_name` (optional) when the speed-test
+// card began naming what it measured; this assertion pins the full payload, so
+// it must track the contract. They are in the contract's `optional` list, i.e.
+// the change is additive and only `done` requires them — the assertion below on
+// `enum.state` still pins the required vocabulary.
+check("speedtest.state payload keys", Object.keys(contractJson.topics["speedtest.state"].payload).sort(), ["down_mbps", "latency_ms", "reason", "server_name", "ssid", "state", "trigger", "up_mbps"]);
 check("speedtest.state enum.state", contractJson.topics["speedtest.state"].enum.state, ["starting", "done", "error"]);
 check("speedtest.state enum.trigger", contractJson.topics["speedtest.state"].enum.trigger, ["scheduled", "manual", "connect"]);
 check("capture.state payload keys", Object.keys(contractJson.topics["capture.state"].payload).sort(), ["elapsed_seconds", "state"]);

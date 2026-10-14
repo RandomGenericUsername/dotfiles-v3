@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates
+.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -36,8 +36,9 @@ contract-pin-check:
 # anti-invention check, then the capture domain unit tests, then the ags
 # config's pure-module unit tests, then the capture GUI typecheck, then the
 # capture hexagonal structure gate, then the generated-icons.json projection
-# drift gate, then the Ansible embedded-template lint, then the check that keeps
-# the CI workflow's job set equal to this list.
+# drift gate, then the Ansible embedded-template lint, then the per-app contract
+# drift/symbol suites, then the check that keeps the CI workflow's job set equal
+# to this list.
 #
 # `gates` is the DEVELOPER gate set and runs ALL of them, including the two that
 # need the desktop stack. Nothing is dropped for convenience: a gate that is not
@@ -47,6 +48,7 @@ GATES := contracts-check wifi-mock-parity bluetooth-mock-parity \
          speedtest-no-new-architecture capture-test ags-test capture-typecheck \
          bar-typecheck capture-hexagonal-gate icons-json-drift \
          ansible-embedded-template-lint ci-gates-parity \
+         per-app-drift-symbol-suites \
          audio-mock-parity audio-core-test audio-presentation-test \
          pipewire-adapter-test audio-session-runtime-test \
          audio-panel-render-test audio-icons-test audio-seek-stability-test \
@@ -331,6 +333,42 @@ ags-test: ags-test-deps
 	npx tsc --noEmit -p "$(AGS_TSCONFIG_TESTS)" || exit 1
 	@echo "    OK: 0 type errors in the ags pure-module unit tests"
 
+# ---------------------------------------------------------------------------
+# per-app-drift-symbol-suites -- the per-app contract drift + symbol suites, run
+# from the ROOT gate (spine AD-19).
+#
+# WHY THIS EXISTS. Each app's drift/symbol suite ran only through that app's own
+# `Makefile test` target, which nothing at the repo root invoked -- so the suites
+# rotted silently and nobody saw it. They had: the ICME drift suite was red
+# because the speed-test contract gained `ssid`/`server_name` and the assertion
+# was never updated, and the symbol checker reported interface method signatures
+# and generic parameters as "undefined calls" after the audio migration. Both
+# defects are fixed, and both suites now run HERE, so the next drift fails a gate
+# rather than waiting for a reader to run an app-local target.
+#
+# SCOPE: the drift suites (`event-contract-drift.mjs`) execute the machine
+# contract (`contracts/event-contract.json` + `.xml`) against each app's baked
+# constants, and `ags-symbol-check.mjs` cross-checks every named import and free
+# call in the AGS tree. This target runs exactly those suites, not the apps'
+# other unit tests, which each app's `make test` still owns.
+#
+# NO DESKTOP STACK: plain `node` over the apps' pure modules and the committed
+# contract, so the target is in gates-ci and runs on a stock runner. Node 22.18+
+# is required for native .ts type-stripping; CI pins Node 24.
+PER_APP_SUITES := \
+	src/gui-tools/hypr-pano/tests/event-contract-drift.mjs \
+	src/gui-tools/icon-color-mapping-editor/tests/event-contract-drift.mjs \
+	src/gui-tools/icon-color-mapping-editor/tests/ags-symbol-check.mjs \
+	src/gui-tools/wallpaper-selector/tests/event-contract-drift.mjs
+
+per-app-drift-symbol-suites:
+	@command -v node >/dev/null || { echo "FAIL: per-app-drift-symbol-suites: node is not on PATH" >&2; exit 1; }
+	@for suite in $(PER_APP_SUITES); do \
+		echo "==> per-app-drift-symbol-suites: $$suite"; \
+		node "$$suite" || exit 1; \
+	done
+	@echo "    OK: per-app contract drift + symbol suites green"
+
 # Hexagonal structure + class-vocabulary gate for the capture GUI
 # (scripts/capture-hexagonal-gate.py, design.md §5). "Refactor only, zero
 # behaviour change" is otherwise unenforceable prose, so the layering
@@ -546,10 +584,13 @@ audio-mock-parity:
 # typechecking, which is how a mis-cased shorthand property shipped through
 # every other gate and died on startup.
 #
-# Baseline is 32: errors that exist on master today, untouched by this change
-# (battery, tray, wifi-service, ...). Verified by diffing the error file list
-# against master -- this change introduces none and removes 5. Do not raise the
-# baseline to make the gate green; fix the error or record why it is foreign.
+# SCOPE (spine AD-19): the gate fails on ANY error across the bar tree
+# (`dotfiles/config/ags/`), not only `audio/` -- `kit/`, `lib/`, `domains/` and
+# `bar/` are the platform surfaces being extracted, and a bad extraction there
+# must fail the gate. The only reported-but-not-failed bucket is `tests/`, a
+# separate tsc project owned by `make ags-test`. There is NO numeric baseline:
+# errors are fixed, or recorded as genuinely third-party by location
+# (FOREIGN_MARKERS in the script). Do not add a filename allowlist.
 ags-typecheck:
 	python3 scripts/ags-typecheck.py
 

@@ -17,6 +17,11 @@ const ROOT = path.join(REPO, "dotfiles/config/ags")
 const files = []
 function walk(d) {
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    // `node_modules` is not AGS source. `make ags-test` installs @types/node
+    // under tests/node_modules, and walking it produced 321 false positives
+    // (undici-types .d.ts files) instead of the real tree — the walk must skip
+    // it so the gate's result does not depend on which sibling gate ran first.
+    if (e.isDirectory() && e.name === "node_modules") continue
     const p = path.join(d, e.name)
     if (e.isDirectory()) walk(p)
     else if (/\.(ts|tsx)$/.test(e.name)) files.push(p)
@@ -83,9 +88,26 @@ const TS_KEYWORDS = new Set(
   ("const,let,var,function,return,if,else,for,while,do,switch,case,break,continue," +
     "new,typeof,instanceof,in,of,try,catch,finally,throw,await,async,import,export," +
   "from,default,null,true,false,this,super,void,delete,as,satisfies,interface,type,enum," +
-  "implements,extends,static,get,set,string,number,boolean,any,unknown,never,object," +
+  "implements,extends,static,get,set,readonly,declare,keyof,infer,string,number,boolean,any,unknown,never,object," +
   "symble,symbol,bigint,undefined").split(","),
 )
+
+// Index of the `)` that closes the `(` at `open`, or -1 when unbalanced. Strings,
+// comments and template literals are already stripped from `src`, so only code
+// parens remain; depth counting is enough to survive `Wp.get_default()` and
+// `(argv) => …` defaults inside a parameter list.
+function matchingParen(src, open) {
+  let depth = 0
+  for (let i = open; i < src.length; i++) {
+    const c = src[i]
+    if (c === "(") depth++
+    else if (c === ")") {
+      depth--
+      if (depth === 0) return i
+    }
+  }
+  return -1
+}
 
 for (const f of files) {
   const raw = fs.readFileSync(f, "utf8")
@@ -154,7 +176,17 @@ for (const f of files) {
   // `function f(a, b)` params (the method-shorthand loop above already covered
   // those) and `(a, b) =>` arrows (including `_`-prefixed throwaway params).
   // The `=>` MUST follow the parens — otherwise call arguments would be masked.
-  for (const m of src.matchAll(/function\s+[A-Za-z_$][\w$]*\s*\(([^)]*)\)/g)) addParamList(m[1])
+  //
+  // Depth-aware, and generic-aware: `function f<T>(...)` and a param whose type
+  // contains parens (`run: Run = (argv) => …`) both defeated the old
+  // `([^)]*)` capture, which stopped at the FIRST `)` and dropped every
+  // parameter after it — reporting `run`, `variantFn` and `key` as undefined
+  // calls.
+  for (const m of src.matchAll(/function\s+[A-Za-z_$][\w$]*\s*(?:<[^<>]*>)?\s*\(/g)) {
+    const open = m.index + m[0].length - 1
+    const close = matchingParen(src, open)
+    if (close !== -1) addParamList(src.slice(open + 1, close))
+  }
   for (const m of src.matchAll(/\(([^()]*)\)\s*=>/g)) addParamList(m[1])
   // `for (const x of …)` / `for (let i …)` loop variables are bindings.
   for (const m of src.matchAll(/for\s*\(\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s+(?:of|in)\b/g)) params.add(m[1])
@@ -178,6 +210,15 @@ for (const f of files) {
     const name = m[2]
     if (defined.has(name) || params.has(name) || JSX_RUNTIME.has(name)) continue
     if (TS_KEYWORDS.has(name)) continue
+    // `name(...):` is a METHOD SIGNATURE — an interface/type member or a class
+    // method — not a call: a call expression is never followed directly by a
+    // return-type colon. This is what the `AudioPanelActions`/`AudioPorts`
+    // members are, and the inline type literal `{ recursiveUnpack(): unknown }`.
+    // (A spaced ternary `cond ? f() : g` is unaffected; an unspaced
+    // `cond?f():g` would be skipped, which is the one narrow trade-off.)
+    const open = m.index + m[0].length - 1
+    const close = matchingParen(src, open)
+    if (close !== -1 && src[close + 1] === ":") continue
     console.log(`UNDEFINED CALL: ${name} in ${f}`)
     problems++
   }

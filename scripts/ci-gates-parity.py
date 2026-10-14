@@ -34,7 +34,9 @@ both must be written down here rather than read past:
 
 And one exclusion is declared rather than left as an absence: `CI_EXCLUDED_GATES`
 names each gate the `gates-ci` filter removes and why it cannot run on a stock
-runner. `capture-typecheck` and `bar-typecheck` are the two today.
+runner. `capture-typecheck` is the one today. The two other filtered gates --
+`bar-typecheck` and `ags-typecheck` -- DO run in CI, on the `[self-hosted, linux]`
+runner, and are declared in `CI_SELF_HOSTED_GATES` instead.
 
 Usage: ``python3 scripts/ci-gates-parity.py [--root REPO_ROOT]``
 Exit 0 = the two sets are equal modulo the declared tables.
@@ -106,12 +108,6 @@ CI_EXCLUDED_GATES: dict[str, str] = {
         "/usr/share/ags/js/ path. A stock runner has no AGS, no Astal and no "
         "GTK4, so the target has nothing to typecheck against."
     ),
-    "bar-typecheck": (
-        "Same desktop-stack dependency as capture-typecheck (it reuses the "
-        "capture tool's generated /usr/share/ags/js declarations), so it too "
-        "cannot run on a stock runner. `make gates` still runs both for a "
-        "developer on a provisioned desktop."
-    ),
 }
 
 # Gates the `gates-ci` filter removes that DO still run in CI, on a capable
@@ -131,6 +127,16 @@ CI_SELF_HOSTED_GATES: dict[str, tuple[str, str, str]] = {
         "The workflow's `[self-hosted, linux]` ags-typecheck job has the desktop "
         "stack, so the typecheck runs in CI rather than only on a developer's "
         "provisioned desktop.",
+    ),
+    "bar-typecheck": (
+        "bar-typecheck",
+        "Same desktop-stack dependency as ags-typecheck (it reuses the capture "
+        "tool's generated /usr/share/ags/js declarations), so it cannot run on a "
+        "stock ubuntu-latest runner and is filtered out of gates-ci (the "
+        "stock-runner subset).",
+        "The workflow's `[self-hosted, linux]` bar-typecheck job has the desktop "
+        "stack, so the typecheck runs in CI. AD-19 requires this gate to cover "
+        "the extracted surface in CI, not only on a developer's desktop.",
     ),
 }
 

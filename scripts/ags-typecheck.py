@@ -19,8 +19,9 @@ The same blind spot is why ``AudioPopup`` shipped with ``binding?:
 AudioPanelBinding`` feeding components that declare ``binding:
 AudioPanelBinding``: a ``strictNullChecks`` error, invisible to every gate.
 
-So: zero errors in our files. A baseline is permitted for third-party noise but
-must be declared explicitly, and our own files must be clean.
+So: zero errors in our files. Third-party noise is tolerated BY LOCATION
+(``FOREIGN_MARKERS`` below), never by a numeric baseline that could silently
+absorb a regression of our own, and our own files must be clean.
 
 Typings
 -------
@@ -37,7 +38,7 @@ Typings
 
 Usage::
 
-    python3 scripts/ags-typecheck.py [--root REPO_ROOT] [--baseline N]
+    python3 scripts/ags-typecheck.py [--root REPO_ROOT]
 
 Exit 0 = no errors in our files. Exit 1 = errors, or the gate could not run.
 Exit 2 = tsc is unavailable (a setup problem, not a pass).
@@ -69,26 +70,37 @@ TSC_CANDIDATES = [
 # Matched as SUBSTRINGS, not prefixes: tsc prints paths relative to the config
 # file, so AGS's own sources arrive as `../../../../usr/share/ags/js/...`. A
 # prefix match on "/usr/share/ags/" silently missed every one of them and let
-# third-party noise count against the baseline.
+# third-party noise count against our own errors.
 FOREIGN_MARKERS = (
     "node_modules/",
     "usr/share/ags/",
     "types/ags-girs/",
 )
 
-# The audio layer is what this change owns. Errors there are always new and
-# always fail: the bar is zero, and 6.0f retires state.ts under it.
+# The bar tree this gate owns. `dotfiles/config/ags/` is the AGS platform being
+# extracted in place (spine AD-19/AD-20). The named extraction surfaces are
+# `kit/`, `lib/`, `domains/` and `bar/`, but a bad extraction can touch any
+# non-test file here (components/, services/, settings-panel/, the top-level
+# entry points), so the WHOLE tree is watched rather than an enumerated list
+# that rots as directories are added -- the same reason the capture config uses
+# globs, not a file list.
 #
-# The rest of the AGS tree has 32 pre-existing errors unrelated to audio
-# (battery, tray, wifi-service, ...). They are counted against a baseline rather
-# than allowlisted by filename, because a filename list rots silently as those
-# files are edited while a count forces a deliberate decision whenever it moves.
-#
-# The baseline was verified, not assumed: master's error file list was diffed
-# against this branch's and this change introduces none while removing 5. Do not
-# raise BASELINE to make the gate green -- fix the error, or record why it is
-# genuinely foreign.
-WATCHED_PREFIX = "dotfiles/config/ags/audio/"
+# This deliberately OVERLAPS bar-typecheck: AD-19 requires BOTH typechecks to
+# cover the extracted surface, so a regression fails under either gate, not only
+# the one whose name happens to match the file. (Historically this gate watched
+# only `audio/` and REPORTED everything else, on the theory that bar-typecheck
+# owned it; that is exactly the gap AD-19 closes -- a bad extraction in `kit/`
+# or `bar/` passed this gate silently.)
+BAR_ROOT = "dotfiles/config/ags/"
+
+# `tests/` is a SEPARATE tsc project owned by `make ags-test`, which compiles it
+# against its own config with `@types/node`. Under this app config
+# (`"types": []`) its `node:test`/`node:assert` imports cannot resolve (TS2307);
+# those errors are not the bar's, so they are reported and never failed here.
+# Keyed to the TREE that owns them, not a filename allowlist: a new test file is
+# covered the moment it appears, and the exemption cannot silently absorb a real
+# regression in a shipped source file.
+BAR_TESTS = "dotfiles/config/ags/tests/"
 
 # Individually exempted inside the watched tree. Each entry must name a
 # byte-identical line on master -- verified by checking out master's copy and
@@ -98,8 +110,6 @@ WATCHED_PREFIX = "dotfiles/config/ags/audio/"
 # finish-audio-bar-migration, which deleted state.ts — the entry and the file
 # disappeared together, as their comment promised.
 EXEMPT: dict[str, set[str]] = {}
-
-PRE_EXISTING_BASELINE = 31
 
 
 def find_tsc(root: Path) -> Path | None:
@@ -114,12 +124,6 @@ def find_tsc(root: Path) -> Path | None:
 def main() -> int:
     ap = argparse.ArgumentParser(description="AGS typecheck gate")
     ap.add_argument("--root", default=None, help="repo root (default: parent of scripts/)")
-    ap.add_argument(
-        "--baseline",
-        type=int,
-        default=0,
-        help="permitted foreign error count (default 0: no errors at all)",
-    )
     args = ap.parse_args()
 
     root = Path(args.root) if args.root else Path(__file__).resolve().parent.parent
@@ -204,12 +208,12 @@ def main() -> int:
             print("     The include globs matched nothing; refusing to report a false PASS.")
             return 1
 
-    ours, foreign, preexisting, exempted = [], [], [], []
+    ours, foreign, tests_owned, exempted = [], [], [], []
     for line in errors:
         if any(m in line for m in FOREIGN_MARKERS):
             foreign.append(line)
             continue
-        if WATCHED_PREFIX in line:
+        if BAR_ROOT in line and BAR_TESTS not in line:
             # "file(line,col): error ..." -- match the position against EXEMPT.
             path, _, rest = line.partition("(")
             # rest is "63,7): error TS..." -- drop the trailing ")".
@@ -219,7 +223,7 @@ def main() -> int:
                 continue
             ours.append(line)
             continue
-        preexisting.append(line)
+        tests_owned.append(line)
 
     for line in exempted:
         print(f"exempt {line}  (pre-existing on master; retired with its file)")
@@ -233,31 +237,29 @@ def main() -> int:
         for line in ours:
             print(f"FAIL {line}")
         print(
-            f"ags-typecheck: {len(ours)} error(s) in {WATCHED_PREFIX}*, which this "
-            "change owns. Zero is the bar."
+            f"ags-typecheck: {len(ours)} error(s) in the extracted bar tree "
+            f"({BAR_ROOT}*, excluding {BAR_TESTS}). Zero is the bar."
         )
         return 1
 
-# Everything outside the audio tree is REPORTED, never failed.
-    #
-    # It used to be counted against a numeric baseline. That was wrong once this
-    # branch merged master (2026-10-07), which added its own typecheck gates:
-    # `bar-typecheck` owns the bar/Bluetooth files and `capture-typecheck` owns
-    # the capture tool. Re-measuring a baseline after every merge would either
-    # rot into a rubber stamp or duplicate gates that already exist. One gate,
-    # one owner.
-    for line in preexisting:
+    # Only the tests/ sub-project is REPORTED, never failed: it is a different
+    # tsc project (owned by `make ags-test`), and its `node:test` imports cannot
+    # resolve under this app config's `"types": []`. Everything else in the bar
+    # tree above is `ours` and fails.
+    for line in tests_owned:
         print(f"note {line}")
-    if preexisting:
+    if tests_owned:
         print(
-            f"({len(preexisting)} error(s) outside {WATCHED_PREFIX}* -- owned by "
-            "bar-typecheck/capture-typecheck, not failed here)"
+            f"({len(tests_owned)} error(s) under {BAR_TESTS}* -- owned by "
+            "`make ags-test`, which compiles them with its own config and "
+            "@types/node; not failed here)"
         )
 
     gir_note = "with GIR typings" if generated else "WITHOUT GIR typings (partial)"
     print(
-        f"ags-typecheck: PASS ({gir_note}, 0 errors in {WATCHED_PREFIX}*, "
-        f"{len(foreign)} third-party, {len(preexisting)} elsewhere, {len(exempted)} exempt)"
+        f"ags-typecheck: PASS ({gir_note}, 0 errors in the extracted bar tree "
+        f"({BAR_ROOT}*, excluding {BAR_TESTS}), {len(foreign)} third-party, "
+        f"{len(tests_owned)} in tests/, {len(exempted)} exempt)"
     )
     return 0
 
