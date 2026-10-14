@@ -19,9 +19,26 @@ interface IconGroup {
   bar_mappings?: BarMapping
 }
 
+/** The group map: `group -> IconGroup`, with the reserved version key removed. */
 type IconManifest = Record<string, IconGroup>
 
-const manifest: IconManifest = iconsData as unknown as IconManifest
+/**
+ * The generated manifest is the group map PLUS the artifact's own
+ * `schemaVersion` (spine AD-16/AD-21). The version is a RESERVED top-level key,
+ * not a group: it is split off here so `getBarMappings`/`resolve`/`hasGroup`
+ * read only named groups and can never mistake the version for one. The bar's
+ * build-time `import icons.json` is this same artifact (a bundling detail), not
+ * a second source.
+ */
+const manifestData = iconsData as Record<string, unknown>
+
+/** The artifact's schema version, or `null` when absent (unknown degrades). */
+export const manifestSchemaVersion: number | null =
+  typeof manifestData.schemaVersion === "number" ? manifestData.schemaVersion : null
+
+const manifest: IconManifest = Object.fromEntries(
+  Object.entries(manifestData).filter(([name]) => name !== "schemaVersion"),
+) as IconManifest
 
 const stateDir =
   GLib.getenv("XDG_STATE_HOME") ||

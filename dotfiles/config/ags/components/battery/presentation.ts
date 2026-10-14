@@ -130,6 +130,18 @@ export function glyphForTier(tier: string): string {
 }
 
 /**
+ * The `power-mode` icon-group STATE KEY for a mode (spine AD-7).
+ *
+ * The panel emits this key; the manifest's `bar_mappings.states` maps it to the
+ * mode's variant, and the registry maps the variant to art. An undeclared tier
+ * folds to the neutral `unknown` glyph, whose `power-mode-unknown` key is
+ * deliberately absent from the table: it blanks rather than crashing.
+ */
+export function powerModeStateKey(mode: PowerMode): string {
+  return `power-mode-${mode.glyph}`
+}
+
+/**
  * The modes the rail draws: the three declared modes in declaration order,
  * plus the neutral `Unlisted` cell ONLY when an undeclared tier is actually
  * present. The declared cells are daemon-independent -- they render before the

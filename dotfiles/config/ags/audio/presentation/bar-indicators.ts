@@ -55,3 +55,20 @@ export function projectBarIndicators(model: AudioPanelViewModel): BarIndicatorSt
     },
   }
 }
+
+/**
+ * The `volume` icon-group STATE KEY for a reading (spine AD-7).
+ *
+ * Code emits a state key; the manifest's `bar_mappings.states` maps it to a
+ * variant, and the registry maps the variant to art. Built on `levelVariant` so
+ * the bar, the panel and the settings Sound card share one level vocabulary —
+ * only the key's shape (`volume-medium`) is new here.
+ */
+export function volumeStateKey(muted: boolean, level: number): string {
+  return `volume-${levelVariant(muted, level)}`
+}
+
+/** The `microphone` icon-group STATE KEY for the projected mic variant (AD-7). */
+export function microphoneStateKey(variant: "mic-on" | "mic-off"): string {
+  return `microphone-${variant}`
+}

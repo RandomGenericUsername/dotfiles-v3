@@ -232,8 +232,8 @@ power-menu:
 #
 # For the same reason there are NO `system-*` duplicates here: that convention
 # exists so ONE render can serve both the transparent bar AND dark glass. This
-# group has no bar consumer, so a second output per glyph would be a duplicate
-# that nothing resolves.
+# group has no BAR widget (it is not in BAR_GROUPS), so a second output per glyph
+# would be a duplicate that nothing resolves.
 #
 # `balanced` / `powersave` / `performance` are the only variants on purpose —
 # the daemon's `Powersave++` and `Performance++` tiers are the SAME mode pushed
@@ -253,6 +253,21 @@ power-mode:
     - name: performance
       template: power-mode/performance/default/icon.svg
       output: power-mode-performance.svg
+
+  # The uniform icon contract (AD-7): the panel emits a STATE KEY
+  # (`power-mode-powersave`), not a variant. The table maps key -> variant so the
+  # mode glyph resolves through the same chain as every other icon. An undeclared
+  # tier folds to the `unknown` glyph, whose `power-mode-unknown` key is absent
+  # here by design: it blanks rather than crashing (the cell still renders its
+  # label). `widget`/`icon_size` are the shared table shape; the group is NOT in
+  # BAR_GROUPS and has no bar widget.
+  bar_mappings:
+    widget: power-mode
+    icon_size: 24
+    states:
+      power-mode-powersave: powersave
+      power-mode-balanced: balanced
+      power-mode-performance: performance
 
 capture-tool:
   color_mappings:
@@ -643,6 +658,21 @@ volume:
       color_mappings:
         COLOR_FOREGROUND: foreground
 
+  # The uniform icon contract (AD-7): code emits a STATE KEY (`volume-medium`),
+  # this table maps key -> variant, and the registry maps variant -> art. The
+  # keys are `<group>-<qualifier>` so a key never collides with another group's
+  # variant name. The `system-*` variants above are NOT keyed: they belong to the
+  # dark-glass panel surface, not the bar state vocabulary.
+  bar_mappings:
+    widget: volume
+    icon_size: 24
+    states:
+      volume-muted: muted
+      volume-lowest: lowest
+      volume-low: low
+      volume-medium: medium
+      volume-max: max
+
 # Bar-facing microphone indicator. Kept separate from the capture-tool group
 # because the bar-icon contrast guard retargets group-level COLOR_FOREGROUND of
 # bar groups only; capture-tool renders on its own dark panel and must stay
@@ -669,6 +699,16 @@ microphone:
       output: microphone-system-mic-off.svg
       color_mappings:
         COLOR_FOREGROUND: foreground
+
+  # The uniform icon contract (AD-7): the bar emits `microphone-mic-on` /
+  # `microphone-mic-off`; this table maps those state keys to the group's two
+  # variants. The `system-*` variants are panel-surface copies and are not keyed.
+  bar_mappings:
+    widget: microphone
+    icon_size: 24
+    states:
+      microphone-mic-on: mic-on
+      microphone-mic-off: mic-off
 
 # Per-application brand icons for the audio popup's stream rows. Groups a
 # LITERAL-COLOR exception: the variants ship their own fills (brand marks must

@@ -1,8 +1,14 @@
 import { Gtk, Gdk } from "ags/gtk4"
 import { createComputed, createEffect } from "ags"
 import { execAsync } from "ags/process"
-import { registry } from "../../lib/icon-registry"
-import { projectBarIndicators } from "../../audio/presentation/bar-indicators"
+import { iconByStateKey, resolveIcon } from "../../kit/icon"
+import { applyIconSource } from "../../kit/widget"
+import {
+  projectBarIndicators,
+  volumeStateKey,
+  microphoneStateKey,
+  type BarIndicatorState,
+} from "../../audio/presentation/bar-indicators"
 import { clampVolume } from "../../audio/presentation/levels"
 import { open, setAudioIconX, toggle } from "../../audio/ui-state"
 import type { AudioPanelBinding } from "../../audio/AudioPopup"
@@ -33,9 +39,18 @@ import type { AudioPanelBinding } from "../../audio/AudioPopup"
  * and the click stores it so the popup can anchor beneath the icon.
  */
 
-function glyph(group: string, variant: string): string {
-  return registry.resolve(group, variant) ?? ""
-}
+/**
+ * The bar's two icons, as state-key refs (spine AD-7). Code emits the state key
+ * (`volume-medium`, `microphone-mic-off`); the manifest's `bar_mappings.states`
+ * maps it to a variant and the registry maps the variant to art. A key with no
+ * table entry blanks rather than throwing.
+ */
+const outputIcon = iconByStateKey("volume", (s: BarIndicatorState) =>
+  volumeStateKey(s.output.muted, s.output.level),
+)
+const micIcon = iconByStateKey("microphone", (s: BarIndicatorState) =>
+  microphoneStateKey(s.mic.variant),
+)
 
 // Last pointer x over either audio indicator; re-recorded on every hover.
 let lastIconX: number | null = null
@@ -98,7 +113,7 @@ export function OutputIndicator({ binding }: { binding: AudioPanelBinding }) {
         class="widget-icon"
         $={(self) => {
           createEffect(() => {
-            self.set_from_file(glyph("volume", indicators().output.variant))
+            applyIconSource(self, resolveIcon(outputIcon, indicators()))
           })
         }}
       />
@@ -131,7 +146,7 @@ export function MicIndicator(
           class="widget-icon"
           $={(self) => {
             createEffect(() => {
-              self.set_from_file(glyph("microphone", indicators().mic.variant))
+              applyIconSource(self, resolveIcon(micIcon, indicators()))
             })
           }}
         />

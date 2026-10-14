@@ -85,7 +85,7 @@
 
 - name: Generate AGS JSON manifest from icon mappings
   ansible.builtin.copy:
-    content: "{{ (compositor_configs_icon_manifest.content | b64decode | from_yaml) | to_nice_json(indent=2) }}\n"
+    content: "{{ (compositor_configs_icon_manifest.content | b64decode | from_yaml) | combine({'schemaVersion': compositor_configs_icon_manifest_schema_version}) | to_nice_json(indent=2) }}\n"
     dest: "{{ compositor_configs_icon_manifest_dest }}"
     force: true
     mode: "0644"
@@ -93,7 +93,7 @@
 
 - name: Generate capture AGS JSON manifest from icon mappings
   ansible.builtin.copy:
-    content: "{{ (compositor_configs_icon_manifest.content | b64decode | from_yaml) | to_nice_json(indent=2) }}\n"
+    content: "{{ (compositor_configs_icon_manifest.content | b64decode | from_yaml) | combine({'schemaVersion': compositor_configs_icon_manifest_schema_version}) | to_nice_json(indent=2) }}\n"
     dest: "{{ compositor_configs_capture_icon_manifest_dest }}"
     force: true
     mode: "0644"

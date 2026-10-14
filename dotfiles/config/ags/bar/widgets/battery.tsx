@@ -3,7 +3,8 @@ import Gdk from "gi://Gdk?version=4.0"
 import Battery from "gi://AstalBattery"
 import { createBinding, createComputed, createEffect } from "ags"
 import { execAsync } from "ags/process"
-import { registry } from "../../lib/icon-registry"
+import { iconByStateKey, resolveIcon } from "../../kit/icon"
+import { applyIconSource } from "../../kit/widget"
 import { batteryStateKey } from "../../components/battery/battery-icon"
 import {
   formatBatteryStatusLine,
@@ -39,13 +40,17 @@ const isPresent = createBinding(device, "isPresent")
 const timeToFull = createBinding(device, "timeToFull")
 const timeToEmpty = createBinding(device, "timeToEmpty")
 
-function getBatteryIconPath(): string | null {
-  const mappings = registry.getBarMappings("battery")
-  if (!mappings) return null
-  const variant = mappings.states[batteryStateKey(percentage(), charging())]
-  if (!variant) return null
-  return registry.resolve("battery", variant)
-}
+/**
+ * The battery glyph, as a state-key ref (spine AD-7): code emits the key
+ * (`charging-75`), the manifest's `bar_mappings.states` maps it to a variant,
+ * and the registry maps the variant to art. A key with no table entry blanks
+ * rather than throwing.
+ */
+const batteryIcon = iconByStateKey(
+  "battery",
+  (s: { percentage: number; charging: boolean }) =>
+    batteryStateKey(s.percentage, s.charging),
+)
 
 /** Tooltip fallback when the daemon reports no capacity at all. */
 const NO_PERCENTAGE = "—"
@@ -135,7 +140,13 @@ export function BatteryIndicator() {
           class="widget-icon"
           $={(self) => {
             createEffect(() => {
-              self.set_from_file(getBatteryIconPath() ?? "")
+              applyIconSource(
+                self,
+                resolveIcon(batteryIcon, {
+                  percentage: percentage(),
+                  charging: charging(),
+                }),
+              )
             })
           }}
         />

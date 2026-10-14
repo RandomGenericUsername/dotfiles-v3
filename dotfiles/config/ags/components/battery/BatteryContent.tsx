@@ -3,7 +3,9 @@ import Pango from "gi://Pango?version=1.0"
 import Battery from "gi://AstalBattery"
 import { createBinding, createComputed, createEffect, For } from "ags"
 import { execAsync } from "ags/process"
-import { registry } from "../../lib/icon-registry"
+import { iconByStateKey, resolveIcon } from "../../kit/icon"
+import type { IconSource } from "../../kit/icon-source"
+import { applyIconSource } from "../../kit/widget"
 import {
   POWER_MODES,
   UNLISTED_MODE,
@@ -12,6 +14,7 @@ import {
   formatPercentage,
   isDeclaredTier,
   modeTooltip,
+  powerModeStateKey,
   profilesForMode,
   railMeta,
   resolveMode,
@@ -54,23 +57,29 @@ const timeToEmpty = createBinding(device, "timeToEmpty")
 const NO_PERCENTAGE = "—"
 
 /**
- * The battery glyph for the header, at the CURRENT state.
- *
- * Resolved rather than hard-coded so the header tracks charging and level the
- * way the status-bar icon does, instead of being a static decoration that
- * contradicts it.
+ * The panel's two glyphs, as state-key refs (spine AD-7). Code emits a state
+ * key — `charging-75` for the header, `power-mode-powersave` for a mode cell —
+ * the manifest's `bar_mappings.states` maps it to a variant, and the registry
+ * maps the variant to art. A key with no table entry blanks rather than
+ * throwing: a deferred manifest leaves the mode cell's label without a glyph
+ * (the `unlisted` tier's `power-mode-unknown` key is deliberately absent).
  */
-function batteryIconPath(): string | null {
-  const mappings = registry.getBarMappings("battery")
-  if (!mappings) return null
-  const variant = mappings.states[batteryStateKey(percentage(), charging())]
-  if (!variant) return null
-  return registry.resolve("battery", variant)
-}
+const batteryIcon = iconByStateKey(
+  "battery",
+  (s: { percentage: number; charging: boolean }) =>
+    batteryStateKey(s.percentage, s.charging),
+)
+const modeIcon = iconByStateKey("power-mode", (s: PowerMode) =>
+  powerModeStateKey(s),
+)
 
-/** The `power-mode` glyph for a mode. The glyph hangs on the MODE, not the profile. */
-function modeIconPath(mode: PowerMode): string | null {
-  return registry.resolve("power-mode", mode.glyph)
+/**
+ * The `power-mode` glyph for a mode. The glyph hangs on the MODE, not the
+ * profile: `powerModeStateKey` keys off `mode.glyph`, so every tier a mode
+ * declares shares the one glyph. Resolved through the uniform chain (AD-7).
+ */
+function modeIconPath(mode: PowerMode): IconSource | null {
+  return resolveIcon(modeIcon, mode)
 }
 
 /**
@@ -187,7 +196,7 @@ function ModeCell(props: { mode: PowerMode }) {
               // A deferred manifest may leave `unknown` unresolved; the cell
               // still renders its label, and the meta line spells out
               // "unmapped tier" rather than implying a mapping.
-              self.set_from_file(modeIconPath(mode) ?? "")
+              applyIconSource(self, modeIconPath(mode))
             })
           }}
         />
@@ -271,7 +280,13 @@ export function BatteryContent(_props: { visible: unknown }) {
           pixel_size={18}
           $={(self) => {
             createEffect(() => {
-              self.set_from_file(batteryIconPath() ?? "")
+              applyIconSource(
+                self,
+                resolveIcon(batteryIcon, {
+                  percentage: percentage(),
+                  charging: charging(),
+                }),
+              )
             })
           }}
         />

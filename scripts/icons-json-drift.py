@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""icons.json == to_nice_json(icons.yaml) drift gate.
+"""icons.json == to_nice_json(icons.yaml) + schemaVersion drift gate.
 
 `dotfiles/config/ags/icons.json` is GENERATED OUTPUT, not a source. It is
 written by the `compositor_configs` role with exactly this expression
 (`roles/compositor_configs/tasks/main.yml:88,96`):
 
-    {{ (compositor_configs_icon_manifest.content | b64decode | from_yaml)
-       | to_nice_json(indent=2) }}
+    {{ (from_yaml) | combine({'schemaVersion': <role var>}) | to_nice_json(indent=2) }}
 
 ...appended with a trailing newline. Nothing asserted that relationship, so the
 committed projection could rot silently in either direction: a hand edit that
@@ -15,6 +14,15 @@ a change to `icons.yaml` that was never regenerated, leaving `icons.json`
 disagreeing with its own source forever. The committed `icons.json` had been
 carrying `null` for the four `wifi-signal-*` `color_mappings` its templates
 declare since commit `f161e246`, and no gate said a word.
+
+THE VERSION COMES FROM THE ROLE (spine AD-16/AD-21). The manifest is one
+artifact, one owner, one shape, and it carries its own `schemaVersion`. The
+authored `icons.yaml` stays a pure group map (the icon-template renderer reads
+every top-level key as a group), so the version is stamped at generation from
+`compositor_configs_icon_manifest_schema_version`. This gate reads THAT variable
+from the role's own vars file rather than hard-coding a copy, so the committed
+artifact, the generated artifact, and the comparison cannot disagree; a missing
+variable fails the gate rather than defaulting.
 
 WHY A GATE AND NOT A NOTE. The staleness was invisible precisely because it was
 correctable in one command nobody was prompted to run. The durable fix is the
@@ -52,6 +60,14 @@ from pathlib import Path
 
 YAML_FILE = "dotfiles/config/icon-template-color-scheme-mappings/icons.yaml"
 JSON_FILE = "dotfiles/config/ags/icons.json"
+
+# The role's own var is the single owner of the artifact's schema version
+# (spine AD-16/AD-21). The gate READS it rather than hard-coding a copy, so the
+# committed artifact, the generated artifact, and this comparison cannot
+# disagree on the shape -- the same reason the expected text is built with the
+# role's own `to_nice_json` filter rather than `json.dumps`.
+ROLE_VARS = "src/provisioning/ansible/roles/compositor_configs/vars/main.yml"
+SCHEMA_VERSION_VAR = "compositor_configs_icon_manifest_schema_version"
 
 # The role writes `content: "{{ ... | to_nice_json(indent=2) }}\n"` -- the
 # trailing newline is part of the template, not of the filter's output.
@@ -98,7 +114,29 @@ def main() -> int:
 
     import yaml  # PyYAML ships with the provisioning project (ansible-core dep)
 
+    role_vars_path = root / ROLE_VARS
+    if not role_vars_path.is_file():
+        print(f"MISSING provisioning role vars: {role_vars_path}")
+        return 1
+    try:
+        role_vars = yaml.safe_load(role_vars_path.read_text()) or {}
+    except yaml.YAMLError as exc:
+        print(f"FAIL: cannot parse {ROLE_VARS}: {exc}")
+        return 1
+    if SCHEMA_VERSION_VAR not in role_vars:
+        print(
+            f"FAIL: {ROLE_VARS} has no {SCHEMA_VERSION_VAR}. This gate stamps the "
+            f"version the role itself would write (spine AD-21: one manifest, one "
+            f"owner, one shape) and must not guess it. Add the var to the role and "
+            f"regenerate with --update."
+        )
+        return 1
+
     data = yaml.safe_load(yaml_path.read_text())
+    # AD-21: the generated artifact is the group map PLUS the artifact's own
+    # schemaVersion. The role stamps the same key with `combine`, so the two
+    # must agree; a missing var is a failure above, never a silent default.
+    data = {"schemaVersion": role_vars[SCHEMA_VERSION_VAR], **data}
     expected = render(to_nice_json(data, indent=2))
 
     if args.update:
@@ -110,7 +148,8 @@ def main() -> int:
     if actual == expected:
         print(
             f"icons-json-drift: PASS ({JSON_FILE} is exactly "
-            f"to_nice_json({YAML_FILE}, indent=2))"
+            f"to_nice_json({YAML_FILE}, indent=2) + schemaVersion "
+            f"{role_vars[SCHEMA_VERSION_VAR]})"
         )
         return 0
 
@@ -125,8 +164,9 @@ def main() -> int:
     print(
         f"FAIL: {JSON_FILE} has DRIFTED from {YAML_FILE}.\n"
         f"  It is generated output: `compositor_configs` overwrites it with\n"
-        f"  `(from_yaml) | to_nice_json(indent=2)`, so a stale projection is\n"
-        f"  silently reverted at the next bootstrap -- and nothing else noticed.\n"
+        f"  `(from_yaml) | combine({{'schemaVersion': …}}) | to_nice_json(indent=2)`,\n"
+        f"  so a stale projection is silently reverted at the next bootstrap -- and\n"
+        f"  nothing else noticed.\n"
         f"  Regenerate with:\n"
         f"    uv run --directory src/provisioning python ../../scripts/icons-json-drift.py --update"
     )

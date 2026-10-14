@@ -385,6 +385,14 @@
     ]
   },
   "microphone": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "microphone-mic-off": "mic-off",
+        "microphone-mic-on": "mic-on"
+      },
+      "widget": "microphone"
+    },
     "color_mappings": {
       "COLOR_FOREGROUND": "foreground"
     },
@@ -589,6 +597,15 @@
     ]
   },
   "power-mode": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "power-mode-balanced": "balanced",
+        "power-mode-performance": "performance",
+        "power-mode-powersave": "powersave"
+      },
+      "widget": "power-mode"
+    },
     "color_mappings": {
       "COLOR_FOREGROUND": "foreground"
     },
@@ -610,6 +627,7 @@
       }
     ]
   },
+  "schemaVersion": 1,
   "settings": {
     "bar_mappings": {
       "icon_size": 24,
@@ -854,6 +872,17 @@
     ]
   },
   "volume": {
+    "bar_mappings": {
+      "icon_size": 24,
+      "states": {
+        "volume-low": "low",
+        "volume-lowest": "lowest",
+        "volume-max": "max",
+        "volume-medium": "medium",
+        "volume-muted": "muted"
+      },
+      "widget": "volume"
+    },
     "color_mappings": {
       "COLOR_FOREGROUND": "foreground"
     },

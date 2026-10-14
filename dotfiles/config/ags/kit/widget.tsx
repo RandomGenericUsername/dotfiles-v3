@@ -4,6 +4,21 @@ import { createComputed, createEffect } from "ags"
 import type { BarWidgetSpec } from "./shapes"
 import type * as Shapes from "./shapes"
 import { resolveIcon } from "./icon"
+import type { IconSource } from "./icon-source"
+
+/**
+ * Draw a tagged `IconSource` (AD-4) into a `Gtk.Image`: a FILE from its path
+ * (the behavior every widget has always had), a NAME as a themed symbolic icon
+ * (the bare-desktop fallback, AD-18), or blank (the image is cleared, never
+ * thrown). Extracted from `BarWidgetButton` so every icon-bearing widget that
+ * does not render through the generic descriptor — the audio, battery and
+ * power-mode widgets — draws the resolution chain's result identically (AD-7).
+ */
+export function applyIconSource(image: Gtk.Image, source: IconSource | null): void {
+  if (source === null) image.set_from_file("")
+  else if (source.kind === "file") image.set_from_file(source.path)
+  else image.set_from_icon_name(source.name)
+}
 
 /**
  * The shared widget vocabulary (spine AD-8) lives in `./shapes`, pure and
@@ -100,12 +115,7 @@ export function BarWidgetButton<S>({ spec }: { spec: BarWidgetSpec<S> }) {
                 // (the behavior this widget has always had); a NAME is a themed
                 // symbolic icon (the bare-desktop fallback, AD-18); blank clears
                 // the image rather than throwing.
-                createEffect(() => {
-                  const source = icon()
-                  if (source === null) self.set_from_file("")
-                  else if (source.kind === "file") self.set_from_file(source.path)
-                  else self.set_from_icon_name(source.name)
-                })
+                createEffect(() => applyIconSource(self, icon()))
               }}
             />
           )
