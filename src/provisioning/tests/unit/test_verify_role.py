@@ -1685,7 +1685,7 @@ class TestVerifyVars:
         data = _vars()
         skeletons = [str(f) for f in data["verify_compositor_skeleton_files"]]
         assert "{{ install_dir | trim }}/config/ags/lib/event-bus.ts" in skeletons
-        assert "{{ install_dir | trim }}/config/ags/lib/event-bus-core.ts" in skeletons
+        assert "{{ install_dir | trim }}/config/ags/platform/event-client.ts" in skeletons
         gui = [str(f) for f in data["verify_gui_tools_app_files"]]
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts" in gui
@@ -1706,6 +1706,7 @@ class TestVerifyVars:
         for rel in (
             "kit/icon-source.ts",
             "kit/shapes.ts",
+            "platform/event-client.ts",
             "domains/reactive.ts",
             "domains/astal.ts",
             "domains/network/astal.ts",
@@ -2679,6 +2680,7 @@ def _build_provisioned_layout(
     for rel in (
         "ags/lib",
         "ags/kit",
+        "ags/platform",
         "ags/domains",
         "ags/domains/network",
         "ags/domains/battery",
@@ -2721,7 +2723,9 @@ def _build_provisioned_layout(
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
     (install / "config" / "ags" / "lib" / "network-icon.ts").write_text("")
     (install / "config" / "ags" / "lib" / "event-bus.ts").write_text("")
-    (install / "config" / "ags" / "lib" / "event-bus-core.ts").write_text("")
+    # The ONE domain-event client seam (one-event-client, AD-5): it replaced
+    # lib/event-bus-core.ts in verify_compositor_skeleton_files (moved).
+    (install / "config" / "ags" / "platform" / "event-client.ts").write_text("")
     # The bar widget kit (bar re-architecture prototype): the descriptor model.
     (install / "config" / "ags" / "kit" / "icon.ts").write_text("")
     (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")

@@ -462,7 +462,10 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags/lib/network-icon.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus.ts"
-  - "{{ install_dir | trim }}/config/ags/lib/event-bus-core.ts"
+  # The ONE domain-event client (one-event-client, AD-5): the moved state machine
+  # + corrected EventSource/EventHub ports. Mirror of the compositor_configs
+  # skeleton dest; it replaced lib/event-bus-core.ts (moved, not copied).
+  - "{{ install_dir | trim }}/config/ags/platform/event-client.ts"
   - "{{ install_dir | trim }}/config/ags/bar/Bar.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/workspaces.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/clock.tsx"

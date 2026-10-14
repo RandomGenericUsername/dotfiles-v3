@@ -83,6 +83,9 @@ compositor_configs_config_dirs:
   # The bar widget kit (bar re-architecture prototype): its own subdir. `template`
   # does NOT create dest parents, so an undeclared dir fails the copy loudly.
   - "{{ compositor_configs_spine_config_dir }}/ags/kit"
+  # The ONE domain-event client seam (one-event-client, AD-5): its own subdir.
+  # `template` does NOT create dest parents, so an undeclared dir fails the copy.
+  - "{{ compositor_configs_spine_config_dir }}/ags/platform"
   # The per-feature domain modules (bar re-architecture §5.3): the network read
   # model is the first. Its own nested subdir, declared for the same reason.
   - "{{ compositor_configs_spine_config_dir }}/ags/domains"
@@ -177,7 +180,11 @@ compositor_configs_skeleton_files:
   - { name: ags-bar-backdrop, source: dotfiles/config/ags/lib/bar-backdrop.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/bar-backdrop.ts" }
   - { name: ags-status-notifier, source: dotfiles/config/ags/lib/status-notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/status-notifier.ts" }
   - { name: ags-event-bus, source: dotfiles/config/ags/lib/event-bus.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus.ts" }
-  - { name: ags-event-bus-core, source: dotfiles/config/ags/lib/event-bus-core.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus-core.ts" }
+  # The ONE domain-event client (one-event-client, AD-5): the moved
+  # DomainEventBusCore state machine + the corrected EventSource/EventHub ports.
+  # lib/event-bus.ts imports it, so an unregistered seam is a bar that cannot
+  # bundle. It replaced lib/event-bus-core.ts (moved, not copied).
+  - { name: ags-platform-event-client, source: dotfiles/config/ags/platform/event-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/event-client.ts" }
   - { name: ags-wifi-signal, source: dotfiles/config/ags/lib/wifi-signal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/wifi-signal.ts" }
   - { name: ags-bar-tsx, source: dotfiles/config/ags/bar/Bar.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx" }
   - { name: ags-workspaces, source: dotfiles/config/ags/bar/widgets/workspaces.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/workspaces.tsx" }

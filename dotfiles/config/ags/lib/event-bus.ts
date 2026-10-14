@@ -8,12 +8,14 @@
 // path — never by shelling the tool.
 //
 // The subscribe-before-read hydration state machine and every contract
-// literal live in `event-bus-core.ts` (no GJS imports), pinned to
-// `contracts/event-contract.{json,xml}` by the node drift test. This file is
-// only the Gio seam.
+// literal live in the platform seam `../platform/event-client.ts` (no GJS
+// imports), pinned to `contracts/event-contract.{json,xml}` by the node drift
+// test. This file is only the Gio seam and the app binding of the reactive
+// runtime `EventHub.select` needs.
 
 import Gio from "gi://Gio?version=2.0";
 import GLib from "gi://GLib?version=2.0";
+import { agsRuntime } from "../domains/astal";
 import {
   CONTROL_METHOD,
   DBUS_BUS_NAME,
@@ -30,7 +32,7 @@ import {
   NAME_OWNER_CHANGED_SIGNAL,
   SPEEDTEST_STATE_TOPIC,
   type EventBusTransport,
-} from "./event-bus-core";
+} from "../platform/event-client";
 
 class GioEventBusTransport implements EventBusTransport {
   private connection: Gio.DBusConnection | null = null;
@@ -123,8 +125,10 @@ class GioEventBusTransport implements EventBusTransport {
   }
 }
 
-// One shared consumer for the whole bar; `subscribe` lazily connects.
-export const domainEvents = new DomainEventBusCore(new GioEventBusTransport());
+// One shared consumer for the whole bar; `subscribe` lazily connects. The
+// reactive runtime is injected here (AD-2) so `EventHub.select` works in the
+// app; the state machine itself stays pure in the platform seam.
+export const domainEvents = new DomainEventBusCore(new GioEventBusTransport(), agsRuntime);
 
 //: Lifecycle states of `speedtest.state` (mirrors the contract enum).
 export type SpeedTestState = "starting" | "done" | "error";
@@ -218,5 +222,5 @@ export {
   HYDRATION_METHOD,
   JOBS_CLEARED_SIGNAL,
   SPEEDTEST_STATE_TOPIC,
-} from "./event-bus-core";
-export type { DomainPayload, RestartHandler, TopicHandler } from "./event-bus-core";
+} from "../platform/event-client";
+export type { DomainPayload, EventPayload, RestartHandler, TopicHandler } from "../platform/event-client";

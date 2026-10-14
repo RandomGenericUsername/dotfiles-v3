@@ -10,13 +10,13 @@
 //   node tests/event-contract-drift.mjs   (from the tool directory)
 //
 // Cross-package note: the bar has no node test runner of its own, so its
-// pure core (`dotfiles/config/ags/lib/event-bus-core.ts`) is imported here and
+// pure core (`dotfiles/config/ags/platform/event-client.ts`) is imported here and
 // executed by the existing ICME node runner instead of inventing a second one.
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import * as bar from "../../../../dotfiles/config/ags/lib/event-bus-core.ts";
+import * as bar from "../../../../dotfiles/config/ags/platform/event-client.ts";
 import * as icme from "../lib/event-contract.ts";
 import * as icmeConsumer from "../lib/event-bus-core.ts";
 

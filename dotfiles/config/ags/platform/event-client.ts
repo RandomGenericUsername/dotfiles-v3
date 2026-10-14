@@ -1,14 +1,19 @@
-// Pure core for the AGS bar's `org.dotfiles.Events1` consumer
-// (Phase 5, AD-34/AD-37/AD-40).
+// The ONE domain-event client (spine AD-5; the port surface is corrected by
+// AD-4 and defined in doc 101 §4.2).
 //
 // This module holds the contract constants and the subscribe-before-read
 // hydration state machine with **no GJS imports**, so the node test runner can
-// import and exercise it (parity with `runtime/adapters/bar_subscriber.py`).
-// `event-bus.ts` supplies the Gio transport.
+// import and exercise it. `lib/event-bus.ts` supplies the Gio transport and the
+// app supplies the reactive runtime the `EventHub.select` accessors are built
+// on. This is the single state machine: the bar imports this seam, and the
+// app-local copies under `src/gui-tools/**` are the `ags-apps` epic's to migrate
+// (AD-20 step 8).
 //
 // Contract literals are pinned to `contracts/event-contract.json` / `.xml` by
 // `src/gui-tools/icon-color-mapping-editor/tests/event-contract-drift.mjs`
 // (executed, never text-scanned).
+
+import type { ReadAccessor, ReactiveRuntime } from "../domains/reactive";
 
 export const EVENTS_BUS_NAME = "org.dotfiles.Events";
 export const EVENTS_OBJECT_PATH = "/org/dotfiles/Events";
@@ -39,10 +44,14 @@ export const NAME_OWNER_CHANGED_SIGNAL = "NameOwnerChanged";
 //: cannot stall the bar at start-up.
 export const HYDRATION_TIMEOUT_MS = 2000;
 
-export type DomainPayload = { [key: string]: unknown };
+export type EventPayload = { [key: string]: unknown };
+//: The pre-AD-4 name for the same shape, kept so existing importers do not
+//: churn on a rename that changes no behaviour.
+export type DomainPayload = EventPayload;
 export type Pair = [number, number];
-export type TopicHandler = (topic: string, payload: DomainPayload) => void;
+export type TopicHandler = (topic: string, payload: EventPayload) => void;
 export type RestartHandler = () => void;
+export type EventMap = Record<string, unknown>;
 
 //: Transport seam: the only thing the domain bus needs from Gio. Production
 //: injects the Gio implementation; tests inject a scripted fake (no bus).
@@ -53,6 +62,24 @@ export interface EventBusTransport {
     onHubRestart: () => void,
   ): void;
   getTopicState(topic: string): Record<string, unknown> | null;
+  control(jobId: string, action: string): void;
+}
+
+//: AD-4 corrected `EventSource`: `subscribe`/`onRestart` return unsubscribe
+//: handles. `current`/`onRestart`/`control` stay optional on the SOURCE (a
+//: baseline source may implement none of them); the HUB below makes control
+//: first-class.
+export interface EventSource {
+  subscribe(topic: string, handler: TopicHandler): () => void;
+  current?(topic: string): EventPayload | null;
+  onRestart?(handler: RestartHandler): () => void;
+  control?(jobId: string, action: string): void;
+}
+
+//: AD-4 `EventHub`: a reactive `select` plus first-class job `control`.
+export interface EventHub<M extends EventMap> {
+  select<T extends keyof M>(topic: T): ReadAccessor<M[T] | null>;
+  on<T extends keyof M>(topic: T, handler: (payload: M[T]) => void): () => void;
   control(jobId: string, action: string): void;
 }
 
@@ -74,7 +101,7 @@ export function isNewer(baseline: Pair | undefined, epoch: number, seq: number):
 export interface ParsedTopicState {
   epoch: number;
   seq: number;
-  payload: DomainPayload;
+  payload: EventPayload;
 }
 
 //: Split the reserved hydration members from the payload. `GetTopicState`
@@ -84,7 +111,7 @@ export function parseTopicState(raw: unknown): ParsedTopicState {
     return { epoch: 0, seq: 0, payload: {} };
   }
   const record = raw as Record<string, unknown>;
-  const payload: DomainPayload = {};
+  const payload: EventPayload = {};
   for (const key of Object.keys(record)) {
     if (key !== RESERVED_EPOCH && key !== RESERVED_SEQ) payload[key] = record[key];
   }
@@ -95,36 +122,78 @@ export function parseTopicState(raw: unknown): ParsedTopicState {
   };
 }
 
-export class DomainEventBusCore {
+type SelectCell = [ReadAccessor<EventPayload | null>, (value: EventPayload | null) => void];
+
+export class DomainEventBusCore<M extends EventMap = EventMap>
+  implements EventSource, EventHub<M>
+{
   private readonly transport: EventBusTransport;
+  private readonly runtime: ReactiveRuntime | undefined;
   private readonly handlers = new Map<string, Set<TopicHandler>>();
   private readonly restartHandlers = new Set<RestartHandler>();
+  private readonly cells = new Map<string, SelectCell>();
   private readonly hydrated = new Map<string, Pair>();
+  private readonly lastPayloads = new Map<string, EventPayload>();
   private started = false;
   private lastEpoch = 0;
 
-  constructor(transport: EventBusTransport) {
+  //: The reactive runtime is injected (AD-2): it is needed only by `select`.
+  //: A subscribe-only consumer may omit it, and `select` then fails loudly
+  //: rather than silently returning a non-reactive value.
+  constructor(transport: EventBusTransport, runtime?: ReactiveRuntime) {
     this.transport = transport;
+    this.runtime = runtime;
   }
 
   //: Subscribe the signal match rules FIRST, then hydrate the topic
   //: (subscribe-before-read). The hydrated payload is delivered straight to
   //: handlers, so a bar that starts mid-recording renders the current state
-  //: without waiting for the next transition/tick.
-  subscribe(topic: string, handler: TopicHandler): void {
-    this.connect();
-    let handlers = this.handlers.get(topic);
-    if (handlers === undefined) {
-      handlers = new Set<TopicHandler>();
-      this.handlers.set(topic, handlers);
-    }
-    handlers.add(handler);
+  //: without waiting for the next transition/tick. Returns an unsubscribe
+  //: handle (AD-4).
+  subscribe(topic: string, handler: TopicHandler): () => void {
+    const unsubscribe = this.track(topic, handler);
     this.hydrateTopic(topic);
+    return unsubscribe;
   }
 
-  onRestart(handler: RestartHandler): void {
+  //: AD-4 `EventHub.on`: the payload-only form of `subscribe`, returning an
+  //: unsubscribe handle.
+  on<T extends keyof M>(topic: T, handler: (payload: M[T]) => void): () => void {
+    return this.subscribe(String(topic), (_topic, payload) => handler(payload as M[T]));
+  }
+
+  //: AD-4 `EventHub.select`: a reactive accessor over the topic's latest
+  //: payload. `null` until any state is known (a `(0, 0)` hydration is "no
+  //: state yet", AD-5).
+  select<T extends keyof M>(topic: T): ReadAccessor<M[T] | null> {
+    const key = String(topic);
+    const existing = this.cells.get(key);
+    if (existing !== undefined) {
+      return existing[0] as unknown as ReadAccessor<M[T] | null>;
+    }
+    if (this.runtime === undefined) {
+      throw new Error(
+        "event-client: select() requires an injected reactive runtime (AD-2)",
+      );
+    }
+    const [get, set] = this.runtime.createState<EventPayload | null>(null);
+    this.cells.set(key, [get, set]);
+    this.track(key, (_topic, payload) => set(payload));
+    this.hydrateTopic(key);
+    return get as unknown as ReadAccessor<M[T] | null>;
+  }
+
+  //: AD-4 `EventSource.current`: the last delivered/hydrated payload, or null.
+  current(topic: string): EventPayload | null {
+    return this.lastPayloads.get(topic) ?? null;
+  }
+
+  onRestart(handler: RestartHandler): () => void {
     this.connect();
     this.restartHandlers.add(handler);
+    return () => {
+      this.restartHandlers.delete(handler);
+    };
   }
 
   control(jobId: string, action: string): void {
@@ -134,6 +203,22 @@ export class DomainEventBusCore {
     } catch (error) {
       console.error(`event-bus: Control(${jobId}, ${action}) failed: ${error}`);
     }
+  }
+
+  private track(topic: string, handler: TopicHandler): () => void {
+    this.connect();
+    let handlers = this.handlers.get(topic);
+    if (handlers === undefined) {
+      handlers = new Set<TopicHandler>();
+      this.handlers.set(topic, handlers);
+    }
+    handlers.add(handler);
+    return () => {
+      const current = this.handlers.get(topic);
+      if (current === undefined) return;
+      current.delete(handler);
+      if (current.size === 0) this.handlers.delete(topic);
+    };
   }
 
   private connect(): void {
@@ -157,6 +242,7 @@ export class DomainEventBusCore {
     const state = parseTopicState(raw);
     this.hydrated.set(topic, [state.epoch, state.seq]);
     this.lastEpoch = Math.max(this.lastEpoch, state.epoch);
+    // A `(0, 0)` hydration means "no state yet" (AD-5): deliver nothing.
     if (state.epoch > 0 || Object.keys(state.payload).length > 0) {
       this.deliver(topic, state.payload);
     }
@@ -174,7 +260,7 @@ export class DomainEventBusCore {
     this.hydrated.set(topic, [epoch, seq]);
     this.lastEpoch = Math.max(this.lastEpoch, epoch);
     if (payload === null || typeof payload !== "object") return;
-    this.deliver(topic, payload as DomainPayload);
+    this.deliver(topic, payload as EventPayload);
   }
 
   //: Hub (re)start: every prior `(epoch, seq)` and payload is invalid. Reset
@@ -189,9 +275,12 @@ export class DomainEventBusCore {
 
   //: Restart path shared by `JobsCleared` and (belt-and-braces, per contract
   //: `delivery`) a `NameOwnerChanged` new owner — `JobsCleared` is itself
-  //: at-most-once. Idempotent: a reset + re-hydrate is safe to repeat.
+  //: at-most-once. Idempotent: a reset + re-hydrate is safe to repeat. The
+  //: selected accessors are reset to `null` (no state yet) before re-hydration.
   handleHubRestart(): void {
     this.hydrated.clear();
+    this.lastPayloads.clear();
+    for (const cell of this.cells.values()) cell[1](null);
     for (const handler of this.restartHandlers) {
       try {
         handler();
@@ -202,7 +291,8 @@ export class DomainEventBusCore {
     for (const topic of this.handlers.keys()) this.hydrateTopic(topic);
   }
 
-  private deliver(topic: string, payload: DomainPayload): void {
+  private deliver(topic: string, payload: EventPayload): void {
+    this.lastPayloads.set(topic, payload);
     const handlers = this.handlers.get(topic);
     if (handlers === undefined) return;
     for (const handler of handlers) {

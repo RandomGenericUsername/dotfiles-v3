@@ -71,7 +71,13 @@
     "read models. They are pure BY CONSTRUCTION: each takes its Astal service",
     "and its reactive runtime as parameters, so the Astal bindings live in the",
     "sibling `domains/*/astal.ts` adapters, which are deliberately NOT listed",
-    "here (they import gi://* and ags and belong to the app program)."
+    "here (they import gi://* and ags and belong to the app program).",
+    "",
+    "`platform/event-client.ts` is the ONE domain-event client (AD-5): the moved",
+    "`DomainEventBusCore` state machine plus the corrected `EventSource`/`EventHub`",
+    "ports (AD-4). It is pure: the bus transport and the reactive runtime the",
+    "`select` accessors are built on are both injected, so the hydration/dedup/",
+    "restart contract is exercised here with a scripted fake transport."
   ],
   "compilerOptions": {
     "target": "ES2022",
@@ -105,6 +111,7 @@
     "../domains/network/read-model.ts",
     "../domains/battery/read-model.ts",
     "../domains/bluetooth/read-model.ts",
-    "../domains/audio/read-model.ts"
+    "../domains/audio/read-model.ts",
+    "../platform/event-client.ts"
   ]
 }
