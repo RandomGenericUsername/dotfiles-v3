@@ -1,52 +1,24 @@
 import Gtk from "gi://Gtk?version=4.0"
 import Gdk from "gi://Gdk?version=4.0"
 import { createComputed, createEffect } from "ags"
-import type { IconRef } from "./icon"
+import type { BarWidgetSpec } from "./shapes"
+import type * as Shapes from "./shapes"
 import { resolveIcon } from "./icon"
 
 /**
- * A status-bar widget, as DATA. The bar renders a list of these through
- * `BarWidgetButton`; it knows no domain.
- *
- * `S` is the domain read model the widget observes. Stateless widgets use
- * `BarWidgetSpec<undefined>` and `read: () => undefined`.
- *
- * Reactivity contract (learned the hard way — see BluetoothContent.tsx): the
- * widget TREE is static, so only STATIC spec fields (does it have an icon?) may
- * branch the JSX. Everything that changes over time is a function of `state`
- * and is wrapped in `createComputed` by the renderer.
+ * The shared widget vocabulary (spine AD-8) lives in `./shapes`, pure and
+ * unit-testable without GTK. This file is the DescriptorSpec renderer plus the
+ * app-facing specializations: the pure vocabulary leaves the rendered subtree
+ * type opaque (`E`), and here `E` is gnim's `JSX.Element`. Re-exporting keeps the
+ * public `kit/widget` import path unchanged for the bar.
  */
-export interface BarWidgetSpec<S> {
-  readonly id: string
-  /**
-   * The domain read model: a plain getter (or an `Accessor`). The kit calls it
-   * inside `createComputed`, so any reactive reads it performs subscribe.
-   * Stateless widgets pass `() => undefined`.
-   */
-  readonly read: () => S
-  readonly icon?: IconRef<S>
-  /** Text beside the icon; absent renders no label at all. */
-  readonly label?: (state: S) => string | null
-  readonly tooltip?: (state: S) => string
-  readonly visible?: (state: S) => boolean
-  /** Extra CSS classes, joined after the mandatory `widget`. */
-  readonly class?: string
-  /**
-   * State-derived extra CSS classes, joined after `class`. The kit builds the
-   * `class` prop from a `createComputed`, so this is how a widget reacts to
-   * state with a class — e.g. `(r) => r.speedTesting ? "speedtesting" : null`.
-   */
-  readonly stateClass?: (state: S) => string | null
-  readonly pixelSize?: number
-  /**
-   * Primary activation. Receives the last recorded pointer x (surface coords ==
-   * monitor coords, the bar spans the monitor) so the widget can anchor an
-   * overlay beneath its own icon — the `lastIconX` pattern, owned here once.
-   */
-  readonly primary?: (state: S, anchorX: number | null) => void
-  readonly secondary?: (state: S) => void
-  readonly scroll?: (state: S, dy: number) => void
-}
+export type { Shell, DescriptorSpec, BarWidgetSpec } from "./shapes"
+
+export type BarContext = Shapes.BarContext<JSX.Element>
+export type RichWidgetSpec<S> = Shapes.RichWidgetSpec<S, JSX.Element>
+export type CollectionSpec<I, S> = Shapes.CollectionSpec<I, S, JSX.Element>
+export type ForeignCollectionSpec<I, S> = Shapes.ForeignCollectionSpec<I, S, JSX.Element>
+export type WidgetSpec<S> = Shapes.WidgetSpec<S, JSX.Element>
 
 /**
  * The generic bar widget renderer: icon + optional label + tooltip + the three
@@ -61,7 +33,7 @@ export function BarWidgetButton<S>({ spec }: { spec: BarWidgetSpec<S> }) {
   // hover, so moving the icon in the bar just works.
   let lastX: number | null = null
 
-  const icon = createComputed(() => (spec.icon ? resolveIcon(spec.icon, state()) : ""))
+  const icon = createComputed(() => (spec.icon ? resolveIcon(spec.icon, state()) : null))
   const label = createComputed(() => (spec.label ? spec.label(state()) ?? "" : ""))
   const tooltip = createComputed(() => (spec.tooltip ? spec.tooltip(state()) : ""))
   const visible = createComputed(() => (spec.visible ? spec.visible(state()) : true))
@@ -124,7 +96,16 @@ export function BarWidgetButton<S>({ spec }: { spec: BarWidgetSpec<S> }) {
               pixel_size={spec.pixelSize ?? 28}
               class="widget-icon"
               $={(self) => {
-                createEffect(() => self.set_from_file(icon()))
+                // The tagged `IconSource` (AD-4): a FILE is drawn from its path
+                // (the behavior this widget has always had); a NAME is a themed
+                // symbolic icon (the bare-desktop fallback, AD-18); blank clears
+                // the image rather than throwing.
+                createEffect(() => {
+                  const source = icon()
+                  if (source === null) self.set_from_file("")
+                  else if (source.kind === "file") self.set_from_file(source.path)
+                  else self.set_from_icon_name(source.name)
+                })
               }}
             />
           )

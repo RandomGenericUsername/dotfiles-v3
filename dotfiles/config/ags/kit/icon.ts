@@ -1,46 +1,44 @@
 import { registry } from "../lib/icon-registry"
+import {
+  resolveIconSource,
+  type IconProvider,
+  type IconRef,
+  type IconSource,
+} from "./icon-source"
 
 /**
- * A widget's icon, expressed declaratively: the manifest GROUP (the glyph
- * SOURCE) plus a pure function from the domain read model to a variant name.
+ * The icon contract's public facade (spine AD-4, AD-7).
  *
- * This is the piece the bar currently repeats per widget (`getBatteryIconPath`,
- * `getNetworkIconPath`, … each re-navigating `bar_mappings.states` by hand). One
- * `IconRef` per domain, resolved by the kit, means the widget never touches the
- * manifest and the runtime behavior (which variant for which state) is a pure,
- * testable function.
+ * The pure contract — `IconSource`, `IconProvider`, `IconRef`, the constructors
+ * and the resolution chain — lives in `./icon-source` so it is unit-testable
+ * without GTK. This file binds it to the real manifest registry: it adapts
+ * `registry` to the `IconProvider` port and exposes `resolveIcon` for callers.
+ *
+ * The re-exports are EXPLICIT (not `export *`): the per-app symbol gate
+ * (`ags-symbol-check.mjs`) resolves a named import against the exporting
+ * module's source, and it does not follow a star re-export.
  */
-export interface IconRef<S> {
-  readonly group: string
-  /** The variant name for a state, or null when the group has no art for it. */
-  readonly variant: (state: S) => string | null
-}
+export { iconByStateKey, iconByVariant, resolveIconSource } from "./icon-source"
+export type { IconBarMapping, IconProvider, IconRef, IconSource } from "./icon-source"
 
-/** An icon addressed by a DIRECT variant name (no `bar_mappings` table). */
-export function iconByVariant<S>(
-  group: string,
-  variantFn: (state: S) => string,
-): IconRef<S> {
-  return { group, variant: (state) => variantFn(state) || null }
-}
-
-/** An icon addressed by a STATE KEY, resolved through the group's `bar_mappings`. */
-export function iconByStateKey<S>(
-  group: string,
-  key: (state: S) => string,
-): IconRef<S> {
-  return {
-    group,
-    variant: (state) => registry.getBarMappings(group)?.states[key(state)] ?? null,
-  }
+/**
+ * The manifest registry as an `IconProvider`. `registry.resolve` returns a bare
+ * path (or null); the port answers with the tagged union, so the file case keeps
+ * the current path-returning behavior (AD-4).
+ */
+export const registryProvider: IconProvider = {
+  barMappings: (group) => registry.getBarMappings(group),
+  resolve: (group, variant) => {
+    const path = registry.resolve(group, variant)
+    return path ? { kind: "file", path } : null
+  },
 }
 
 /**
- * Resolve an `IconRef` to a rendered SVG path, or `""` when the group/variant
- * has no art. `""` (not null) is what `image.set_from_file` wants; a missing
- * icon therefore renders nothing rather than throwing.
+ * Resolve an `IconRef` through the one chain (AD-7), or null (blank) when the
+ * group/variant has no art and no fallback covers it. A blank renders nothing
+ * rather than throwing.
  */
-export function resolveIcon<S>(ref: IconRef<S>, state: S): string {
-  const variant = ref.variant(state)
-  return variant ? registry.resolve(ref.group, variant) ?? "" : ""
+export function resolveIcon<S>(ref: IconRef<S>, state: S): IconSource | null {
+  return resolveIconSource(registryProvider, ref, state)
 }

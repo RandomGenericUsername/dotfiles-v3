@@ -67,9 +67,10 @@ Source: spine **AD-8**; doc 101 §5.
 
 ### Requirement: The rich shape renders through `content`
 
-`RichWidgetSpec<S>` SHALL add a `content: (state: S, ctx: BarContext) => JSX.Element`
-field, so an irregular widget (clock, recording) is a named shape rather than a
-generic catch-all.
+`RichWidgetSpec<S>` SHALL add a `content` field that renders the widget's
+subtree — `(state: S, ctx: BarContext) => JSX.Element` at the app boundary — so
+an irregular widget (clock, recording) is a named shape rather than a generic
+catch-all.
 
 Source: spine **AD-8**; doc 101 §5.
 
