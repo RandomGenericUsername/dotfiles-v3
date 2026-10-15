@@ -141,6 +141,16 @@ class TestCliToolsRoleTree:
             "`cd` alone is defeated by `ags run -d` re-rooting"
         )
 
+    def test_btop_studio_launcher_exports_repo_root(self) -> None:
+        """The btop Theme Studio launcher mirrors icme: export the checkout via
+        BTOP_STUDIO_REPO_ROOT and run the dedicated ags-btop-studio instance."""
+        template = (_ROLES_DIR / "templates" / "btop-theme-studio.j2").read_text()
+        assert "export BTOP_STUDIO_REPO_ROOT=" in template, (
+            "the studio launcher must hand the checkout to the app explicitly"
+        )
+        assert 'INSTANCE="btop-theme-studio"' in template
+        assert "${HOME}/.config/ags-btop-studio" in template
+
     def test_rofi_launcher_is_a_keybound_toggle(self) -> None:
         """`rofi-ui` is the single open/close entrypoint for the SUPER+D bind.
 

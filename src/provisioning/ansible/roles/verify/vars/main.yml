@@ -550,6 +550,21 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-notifications/style.css"
   - "{{ install_dir | trim }}/config/ags-notifications/ui/NotificationsWindow.tsx"
   - "{{ install_dir | trim }}/config/ags-notifications/Makefile"
+  # The btop Theme Studio's app + lib files (gui_tools per-file placement).
+  # An undeployed member is a bundle that cannot start, exactly like the
+  # sibling AGS tools.
+  - "{{ install_dir | trim }}/config/ags-btop-studio/app.tsx"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/style.css"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/ui/StudioWindow.tsx"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/theme-keys.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/btop-conf.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/key-map.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/key-widgets.generated.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/schematic.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/theme-model.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/preview.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/targets.ts"
+  - "{{ install_dir | trim }}/config/ags-btop-studio/live/btop_live.py"
 
 # verify_consumer_symlinks: the R2 consumer-path symlinks the runtime
 #   seeder owns (criterion 7, Epic 4 current-only). The AGS fragment is
@@ -603,6 +618,7 @@ verify_managed_link_dirs:
   - ags-hypr-pano
   - ags-wallpaper-selector
   - ags-notifications
+  - ags-btop-studio
   - nvim
   - starship
   - wlogout

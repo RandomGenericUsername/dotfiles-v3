@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# btop Theme Studio launcher — provisioned by the cli_tools role (rendered from
+# the template with the checkout path baked in).
+#
+# Repo-authoritative on machines with a checkout: hand the checkout to the app
+# via BTOP_STUDIO_REPO_ROOT (bootstrap then propagates repo edits to the spine
+# on every run). NOTE: `cd` alone is NOT enough — `ags run -d` re-roots the app
+# process into the app dir, so a cwd ancestor walk inside the app can never find
+# the checkout. Without a checkout, the studio edits the spine's seeded copy
+# instead.
+#
+# Toggle-aware, zombie-safe:
+#   1. no instance on the bus              -> fresh `ags run`
+#   2. instance running, window registered -> `ags toggle` (hide/show)
+#   3. instance running, window gone       -> quit the zombie, fresh run
+# (astal apps stay alive after their window disappears; a bare `ags run`
+# against a live instance is a silent no-op.)
+set -uo pipefail
+INSTANCE="btop-theme-studio"
+WINDOW="btop-theme-studio-window"
+DIR="${HOME}/.config/ags-btop-studio"
+REPO_ROOT="{{ cli_tools_repo_root }}"
+
+if ags list 2>/dev/null | grep -qx "$INSTANCE"; then
+    if timeout 8 ags toggle "$WINDOW" -i "$INSTANCE" 2>/dev/null; then
+        exit 0
+    fi
+    ags quit -i "$INSTANCE" 2>/dev/null
+    sleep 1
+fi
+if [ -d "$REPO_ROOT" ]; then
+    cd "$REPO_ROOT"
+    # Canonicalize: the baked path may contain /../ segments and the app
+    # compares input paths as strings — unnormalized roots would poison those
+    # comparisons.
+    export BTOP_STUDIO_REPO_ROOT="$(pwd -P)"
+fi
+exec ags run -d "$DIR"

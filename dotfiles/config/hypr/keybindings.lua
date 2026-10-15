@@ -72,6 +72,15 @@ hl.bind(
     { description = "Open wallpaper selector" }
 )
 
+-- btop Theme Studio (standalone AGS instance `btop-theme-studio`)
+-- Launch-on-demand only: NOT in the bar, NOT autostarted. The provisioned
+-- launcher is toggle/start-if-down like the sibling AGS authoring tools.
+hl.bind(
+    mod .. " + B",
+    hl.dsp.exec_cmd("btop-theme-studio"),
+    { description = "Open btop theme studio" }
+)
+
 -- File manager
 hl.bind(
     mod .. " + E",

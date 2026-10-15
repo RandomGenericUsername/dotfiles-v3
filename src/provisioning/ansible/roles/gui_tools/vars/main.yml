@@ -73,6 +73,10 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-notifications"
   - "{{ gui_tools_spine_config_dir }}/ags-notifications/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-notifications/lib"
+  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio"
+  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/ui"
+  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib"
+  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/live"
 
 # gui_tools_capture_obsolete: spine paths the capture app no longer ships, which
 # MUST be actively removed rather than left to rot.
@@ -252,6 +256,26 @@ gui_tools_notifications_app_files:
   - { name: notifications-lib-icon-registry, source: src/gui-tools/notifications/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/icon-registry.ts" }
   - { name: notifications-lib-wallpaper-events, source: src/gui-tools/notifications/lib/wallpaper-events.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/wallpaper-events.ts" }
 
+# gui_tools_btop_studio_app_files: the btop Theme Studio's app files, deployed
+#   into their own ags-btop-studio/ spine dir. RAW COPY (ansible.builtin.copy),
+#   NOT `template`: JSX style objects contain literal `{{` sequences that
+#   Jinja2 would evaluate and destroy (same reason as icme). The studio imports
+#   its pure lib/ modules and the generated key→widget artifact; an
+#   unregistered member of either is a bundle that cannot start.
+gui_tools_btop_studio_app_files:
+  - { name: btop-studio-app-tsx, source: src/gui-tools/btop-theme-studio/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/app.tsx" }
+  - { name: btop-studio-style-css, source: src/gui-tools/btop-theme-studio/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/style.css" }
+  - { name: btop-studio-window, source: src/gui-tools/btop-theme-studio/ui/StudioWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/ui/StudioWindow.tsx" }
+  - { name: btop-studio-lib-theme-keys, source: src/gui-tools/btop-theme-studio/lib/theme-keys.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/theme-keys.ts" }
+  - { name: btop-studio-lib-btop-conf, source: src/gui-tools/btop-theme-studio/lib/btop-conf.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/btop-conf.ts" }
+  - { name: btop-studio-lib-key-map, source: src/gui-tools/btop-theme-studio/lib/key-map.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/key-map.ts" }
+  - { name: btop-studio-lib-key-widgets, source: src/gui-tools/btop-theme-studio/lib/key-widgets.generated.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/key-widgets.generated.ts" }
+  - { name: btop-studio-lib-schematic, source: src/gui-tools/btop-theme-studio/lib/schematic.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/schematic.ts" }
+  - { name: btop-studio-lib-theme-model, source: src/gui-tools/btop-theme-studio/lib/theme-model.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/theme-model.ts" }
+  - { name: btop-studio-lib-preview, source: src/gui-tools/btop-theme-studio/lib/preview.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/preview.ts" }
+  - { name: btop-studio-lib-targets, source: src/gui-tools/btop-theme-studio/lib/targets.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/targets.ts" }
+  - { name: btop-studio-live-engine, source: src/gui-tools/btop-theme-studio/live/btop_live.py, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/live/btop_live.py" }
+
 # gui_tools_ags_instances: the AGS process instances this role manages
 #   (names as reported by `ags list`). AGS bundles TypeScript at startup and
 #   holds the compiled bundle in memory; without a restart the running process
@@ -297,6 +321,8 @@ gui_tools_ags_instances:
   - name: notifications
     always_on: true
     launch: "ags run -d {{ gui_tools_xdg_config_home }}/ags-notifications --log-file {{ gui_tools_xdg_state_home }}/ags/notifications.log"
+  - name: btop-theme-studio
+    always_on: false
 
 # gui_tools_ags_always_on_instances: DERIVED view of the always_on entries
 #   (the subset the role restarts after the quit loop). Derived, never a

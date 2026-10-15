@@ -2201,6 +2201,10 @@ def _build_provisioned_layout(
         "config/ags-hypr-pano",
         "config/ags-wallpaper-selector",
         "config/ags-notifications",
+        "config/ags-btop-studio",
+        "config/ags-btop-studio/ui",
+        "config/ags-btop-studio/lib",
+        "config/ags-btop-studio/live",
         "config/nvim",
         "config/starship",
         "config/wlogout",
@@ -2370,6 +2374,9 @@ def _build_provisioned_layout(
         "ags-wallpaper-selector/lib",
         "ags-notifications",
         "ags-notifications/ui",
+        "ags-btop-studio",
+        "ags-btop-studio/ui",
+        "ags-btop-studio/lib",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
@@ -2504,6 +2511,23 @@ def _build_provisioned_layout(
     (install / "config" / "ags-notifications" / "style.css").write_text("")
     (install / "config" / "ags-notifications" / "Makefile").write_text("")
     (install / "config" / "ags-notifications" / "ui" / "NotificationsWindow.tsx").write_text("")
+    # btop Theme Studio (gui_tools role): must match
+    # verify_gui_tools_app_files EXACTLY.
+    (install / "config" / "ags-btop-studio" / "app.tsx").write_text("")
+    (install / "config" / "ags-btop-studio" / "style.css").write_text("")
+    (install / "config" / "ags-btop-studio" / "ui" / "StudioWindow.tsx").write_text("")
+    for studio_lib in (
+        "theme-keys",
+        "btop-conf",
+        "key-map",
+        "key-widgets.generated",
+        "schematic",
+        "theme-model",
+        "preview",
+        "targets",
+    ):
+        (install / "config" / "ags-btop-studio" / "lib" / f"{studio_lib}.ts").write_text("")
+    (install / "config" / "ags-btop-studio" / "live" / "btop_live.py").write_text("")
     # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
     # owns the R2 consumer symlink, created above).
 
@@ -2570,6 +2594,7 @@ def _build_provisioned_layout(
         "ags-hypr-pano",
         "ags-wallpaper-selector",
         "ags-notifications",
+        "ags-btop-studio",
         "nvim",
         "starship",
         "wlogout",
