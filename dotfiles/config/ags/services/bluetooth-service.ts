@@ -1,5 +1,4 @@
 import GLib from "gi://GLib?version=2.0"
-import Gio from "gi://Gio?version=2.0"
 import Wp from "gi://AstalWp?version=0.1"
 import { createState } from "ags"
 import {
@@ -11,6 +10,7 @@ import {
   watchProperties,
 } from "./nm-client"
 import { registry } from "../lib/icon-registry"
+import { notifier } from "../lib/notifier"
 
 /**
  * BlueZ Bluetooth service (design §3).
@@ -704,14 +704,19 @@ function humanBusMessage(error: unknown): string {
  * freedesktop notifications are for — and the success card the user already
  * sees comes down this same wire (Blueman is the sender there).
  *
- * Fire-and-forget, and every failure is swallowed: a toast must never fail an
- * action that already failed. `app_name` carries the device-facing identity so
- * a missed icon still renders the same initial-letter tile as a connect
- * success; `app_icon` is the absolute path to the rendered ITR glyph — the
+ * Routed through the `Notifier` port (spine AD-11): the sender posts an intent
+ * and no longer constructs the freedesktop call. The transient route (no key, no
+ * progress) lands on the freedesktop wire, unchanged: the same app name, icon,
+ * summary, body, and timeout.
+ *
+ * Fire-and-forget, and every failure is swallowed inside the adapter: a toast
+ * must never fail an action that already failed. `app` carries the device-facing
+ * identity so a missed icon still renders the same initial-letter tile as a
+ * connect success; the icon is the absolute path to the rendered ITR glyph — the
  * host only resolves absolute paths to files (`NotificationsWindow.tileContent`
  * lets icon NAMES fall through to that tile), so sending a name would be the
  * same as sending nothing. Resolved through the same registry the panel rows
- * use, never a hardcoded path: a missing render yields "" and the fallback
+ * use, never a hardcoded path: a missing render yields no icon and the fallback
  * tile, never a crash.
  */
 export function postBluetoothNotification(
@@ -721,36 +726,16 @@ export function postBluetoothNotification(
   // The caution mark — the same glyph the removed in-panel `popup-failed`
   // row drew (`assets/settings-panel-info-caution.svg` in the mock). The card
   // reports a failure, so it wears the failure tint, not the radio's glyph.
-  // Same group the rows resolve; a missing render yields "" and the fallback
-  // tile, never a crash.
-  const icon = registry.resolve("settings-panel", "info-caution") ?? ""
-  try {
-    const bus = Gio.bus_get_sync(Gio.BusType.SESSION, null)
-    bus.call_sync(
-      "org.freedesktop.Notifications",
-      "/org/freedesktop/Notifications",
-      "org.freedesktop.Notifications",
-      "Notify",
-      new GLib.Variant("(susssasa{sv}i)", [
-        "Bluetooth",
-        0,
-        icon,
-        summary,
-        body,
-        [],
-        {},
-        8000,
-      ]),
-      null,
-      Gio.DBusCallFlags.NONE,
-      5000,
-      null,
-    )
-  } catch (error) {
-    // The action already failed; a toast failing too must not add a second
-    // error. The raw cause is already in the log via the caller.
-    console.error(`bluetooth-service: notification failed: ${error}`)
-  }
+  // Same group the rows resolve; a missing render yields the fallback tile,
+  // never a crash.
+  const icon = registry.resolve("settings-panel", "info-caution")
+  notifier.post({
+    app: "Bluetooth",
+    summary,
+    body,
+    icon: icon === null ? undefined : { kind: "file", path: icon },
+    timeoutMs: 8000,
+  })
 }
 
 function failAction(

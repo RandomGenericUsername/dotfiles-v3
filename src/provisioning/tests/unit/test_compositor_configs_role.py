@@ -274,9 +274,12 @@ class TestCompositorConfigsTasks:
         # "deploys nothing" into "passes".
         # 108 once surfaces-popup-host (AD-10) added kit/surface.ts (the pure
         # SurfaceSpec/registry/mount policy) and kit/popup-host.tsx (the shipped
-        # PopupHost/PopupCatcher the five popups render through).
-        assert len(files) == 108, (
-            f"expected exactly 108 skeleton files (hyprland.lua + gloview.lua + "
+        # PopupHost/PopupCatcher the five popups render through), and 114 once
+        # preferences-notifier-theme (AD-11/AD-12/AD-13) added the three pure
+        # ports (platform/preferences, platform/notifier, platform/theme) and
+        # their three bar adapters (lib/preferences, lib/notifier, lib/theme).
+        assert len(files) == 114, (
+            f"expected exactly 114 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
             f"7 lib (incl. wifi-signal/network-icon)+5 kit "
             f"(icon/overlay/widget + surface/popup-host)+"
@@ -369,10 +372,16 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/lib/event-bus.ts",
             "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/lib/network-icon.ts",
+            "dotfiles/config/ags/lib/notifier.ts",
+            "dotfiles/config/ags/lib/preferences.ts",
             "dotfiles/config/ags/lib/status-notifier.ts",
+            "dotfiles/config/ags/lib/theme.ts",
             "dotfiles/config/ags/lib/wifi-signal.ts",
             "dotfiles/config/ags/overlays.ts",
             "dotfiles/config/ags/platform/event-client.ts",
+            "dotfiles/config/ags/platform/notifier.ts",
+            "dotfiles/config/ags/platform/preferences.ts",
+            "dotfiles/config/ags/platform/theme.ts",
             "dotfiles/config/ags/services/bluetooth-service.ts",
             "dotfiles/config/ags/services/mpris-core.ts",
             "dotfiles/config/ags/services/nm-client.ts",

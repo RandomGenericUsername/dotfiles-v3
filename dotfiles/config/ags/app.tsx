@@ -15,6 +15,7 @@ import { closeBluetoothPopup } from "./components/bluetooth/state"
 import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
 import { closeBatteryPopup } from "./components/battery/state"
 import { closeWifiPopup } from "./components/wifi/state"
+import { theme } from "./lib/theme"
 import "./overlays"
 
 /**
@@ -135,7 +136,9 @@ app.start({
     res(`unknown request: ${argv.join(" ")}`)
   },
   main() {
-    app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)
+    // The palette, through the Theme port (spine AD-13). The adapter applies the
+    // stable colors.css pointer; app.tsx no longer calls apply_css for it.
+    theme.apply()
     // The redesigned panel's stylesheet (tasks.md 6.0e). It was written but
     // imported by nothing, so all 345 lines were dead and the popup fell back
     // to the pre-existing `.audio-*` rules in style.css that styled the panel

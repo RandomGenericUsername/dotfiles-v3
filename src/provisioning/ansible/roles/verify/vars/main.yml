@@ -472,6 +472,16 @@ verify_compositor_skeleton_files:
   # + corrected EventSource/EventHub ports. Mirror of the compositor_configs
   # skeleton dest; it replaced lib/event-bus-core.ts (moved, not copied).
   - "{{ install_dir | trim }}/config/ags/platform/event-client.ts"
+  # The cross-cutting ports (preferences-notifier-theme, AD-11/AD-12/AD-13):
+  # mirror of the compositor_configs skeleton dests. recording.tsx imports
+  # lib/preferences, bluetooth-service.ts imports lib/notifier, and app.tsx
+  # imports lib/theme, so a missing one is a bar that cannot bundle.
+  - "{{ install_dir | trim }}/config/ags/platform/preferences.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/notifier.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/theme.ts"
+  - "{{ install_dir | trim }}/config/ags/lib/preferences.ts"
+  - "{{ install_dir | trim }}/config/ags/lib/notifier.ts"
+  - "{{ install_dir | trim }}/config/ags/lib/theme.ts"
   - "{{ install_dir | trim }}/config/ags/bar/Bar.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/workspaces.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/clock.tsx"

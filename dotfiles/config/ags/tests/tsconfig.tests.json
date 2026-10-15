@@ -77,7 +77,13 @@
     "`DomainEventBusCore` state machine plus the corrected `EventSource`/`EventHub`",
     "ports (AD-4). It is pure: the bus transport and the reactive runtime the",
     "`select` accessors are built on are both injected, so the hydration/dedup/",
-    "restart contract is exercised here with a scripted fake transport."
+    "restart contract is exercised here with a scripted fake transport.",
+    "",
+    "`platform/{preferences,notifier,theme}.ts` are the three cross-cutting ports",
+    "(AD-11/AD-12/AD-13). Each takes its host seam injected -- `PreferencesSource`",
+    "(the file + FileMonitor), `NotifierSinks` (the freedesktop and event-card",
+    "wires), `CssSink` (the display) -- so the fallback, the routing, and the",
+    "stable-palette decision are all exercised here with fakes."
   ],
   "compilerOptions": {
     "target": "ES2022",
@@ -114,6 +120,9 @@
     "../domains/battery/read-model.ts",
     "../domains/bluetooth/read-model.ts",
     "../domains/audio/read-model.ts",
-    "../platform/event-client.ts"
+    "../platform/event-client.ts",
+    "../platform/preferences.ts",
+    "../platform/notifier.ts",
+    "../platform/theme.ts"
   ]
 }

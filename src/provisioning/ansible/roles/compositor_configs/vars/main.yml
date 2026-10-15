@@ -191,6 +191,17 @@ compositor_configs_skeleton_files:
   # lib/event-bus.ts imports it, so an unregistered seam is a bar that cannot
   # bundle. It replaced lib/event-bus-core.ts (moved, not copied).
   - { name: ags-platform-event-client, source: dotfiles/config/ags/platform/event-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/event-client.ts" }
+  # The cross-cutting ports (preferences-notifier-theme, AD-11/AD-12/AD-13): the
+  # pure Preferences/Notifier/Theme ports + the bar's Gio/Gtk adapters.
+  # recording.tsx imports lib/preferences, bluetooth-service.ts imports
+  # lib/notifier, and app.tsx imports lib/theme, so an unregistered one is a bar
+  # that cannot bundle.
+  - { name: ags-platform-preferences, source: dotfiles/config/ags/platform/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/preferences.ts" }
+  - { name: ags-platform-notifier, source: dotfiles/config/ags/platform/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/notifier.ts" }
+  - { name: ags-platform-theme, source: dotfiles/config/ags/platform/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/theme.ts" }
+  - { name: ags-lib-preferences, source: dotfiles/config/ags/lib/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/preferences.ts" }
+  - { name: ags-lib-notifier, source: dotfiles/config/ags/lib/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/notifier.ts" }
+  - { name: ags-lib-theme, source: dotfiles/config/ags/lib/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/theme.ts" }
   - { name: ags-wifi-signal, source: dotfiles/config/ags/lib/wifi-signal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/wifi-signal.ts" }
   - { name: ags-bar-tsx, source: dotfiles/config/ags/bar/Bar.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx" }
   - { name: ags-workspaces, source: dotfiles/config/ags/bar/widgets/workspaces.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/workspaces.tsx" }

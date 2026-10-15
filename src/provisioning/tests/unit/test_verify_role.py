@@ -1709,6 +1709,12 @@ class TestVerifyVars:
             "kit/surface.ts",
             "kit/popup-host.tsx",
             "platform/event-client.ts",
+            "platform/preferences.ts",
+            "platform/notifier.ts",
+            "platform/theme.ts",
+            "lib/preferences.ts",
+            "lib/notifier.ts",
+            "lib/theme.ts",
             "domains/reactive.ts",
             "domains/astal.ts",
             "domains/network/astal.ts",
@@ -2728,6 +2734,16 @@ def _build_provisioned_layout(
     # The ONE domain-event client seam (one-event-client, AD-5): it replaced
     # lib/event-bus-core.ts in verify_compositor_skeleton_files (moved).
     (install / "config" / "ags" / "platform" / "event-client.ts").write_text("")
+    # The cross-cutting ports (preferences-notifier-theme, AD-11/AD-12/AD-13):
+    # mirror of verify_compositor_skeleton_files. recording.tsx imports
+    # lib/preferences, bluetooth-service.ts imports lib/notifier, and app.tsx
+    # imports lib/theme.
+    (install / "config" / "ags" / "platform" / "preferences.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "notifier.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "theme.ts").write_text("")
+    (install / "config" / "ags" / "lib" / "preferences.ts").write_text("")
+    (install / "config" / "ags" / "lib" / "notifier.ts").write_text("")
+    (install / "config" / "ags" / "lib" / "theme.ts").write_text("")
     # The bar widget kit (bar re-architecture prototype): the descriptor model.
     (install / "config" / "ags" / "kit" / "icon.ts").write_text("")
     (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")

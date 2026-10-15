@@ -1,9 +1,9 @@
 import GLib from "gi://GLib?version=2.0"
-import Gio from "gi://Gio?version=2.0"
-import { createEffect, createState } from "ags"
+import { createComputed, createEffect, createState } from "ags"
 import { Gtk } from "ags/gtk4"
 import { registry } from "../../lib/icon-registry"
 import { domainEvents } from "../../lib/event-bus"
+import { preferences } from "../../lib/preferences"
 
 type RecordingState = "idle" | "recording" | "paused"
 
@@ -17,9 +17,6 @@ function iconPath(variant: "pause" | "play" | "stop"): string {
   return registry.resolve("capture-tool", variant) ?? ""
 }
 
-//: The capture tool's config (app-owned; the settings view writes it).
-const CAPTURE_CONFIG = `${GLib.get_user_config_dir()}/capture-tool/config.json`
-
 /**
  * Bar feedback mode, from the capture tool's `bar_compact_controls` setting.
  *
@@ -28,25 +25,11 @@ const CAPTURE_CONFIG = `${GLib.get_user_config_dir()}/capture-tool/config.json`
  * full (`false`, default) — the bar carries the buttons itself and no popup
  * opens, so nothing is duplicated.
  *
- * Read straight from the config file because the bar is a separate AGS
- * instance from the capture tool; a missing/corrupt file means "full".
+ * Read through the `Preferences` port (spine AD-12): the adapter owns the config
+ * file AND its `FileMonitor`, so the bar is a separate AGS instance from the
+ * capture tool without reading the file itself or holding a monitor. A missing
+ * or corrupt file degrades to the `false` fallback.
  */
-function loadCompactControls(): boolean {
-  try {
-    const [ok, bytes] = GLib.file_get_contents(CAPTURE_CONFIG)
-    if (!ok || bytes === null) return false
-    const raw = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>
-    return raw.bar_compact_controls === true
-  } catch {
-    return false
-  }
-}
-
-// The monitor MUST be held here, at module scope. Kept as a local inside the
-// widget it is collectable as soon as the component function returns, and a
-// collected FileMonitor stops emitting — the bar then silently ignored later
-// settings changes (verified: flipping the setting left the old mode rendered).
-let captureConfigMonitor: Gio.FileMonitor | null = null
 
 // Recording indicator driven by the hub's `capture.state` DOMAIN event
 // (Phase 5, AD-37/AD-40): no `capture-tool status` polling. Between pushes
@@ -60,7 +43,8 @@ let captureConfigMonitor: Gio.FileMonitor | null = null
 export function RecordingIndicator() {
   const [state, setState] = createState<RecordingState>("idle")
   const [elapsed, setElapsed] = createState("00:00")
-  const [compact, setCompact] = createState(loadCompactControls())
+  // The port owns the config file + monitor (AD-12); the widget only reads.
+  const compact = preferences.get("capture-tool", "bar_compact_controls", false)
   let jobId: string | null = null
   let baseElapsed = 0
   let syncedAtMs = Date.now()
@@ -68,23 +52,12 @@ export function RecordingIndicator() {
   // restarts pop it down explicitly below.
   let popup: Gtk.Popover | null = null
 
-  // The settings view writes the capture config, so watch it: switching mode
-  // must take effect without restarting the bar. The monitor is assigned to a
-  // module-scope slot so it stays alive (see captureConfigMonitor).
-  try {
-    captureConfigMonitor = Gio.File.new_for_path(CAPTURE_CONFIG).monitor_file(
-      Gio.FileMonitorFlags.NONE,
-      null,
-    )
-    captureConfigMonitor.connect("changed", () => {
-      const next = loadCompactControls()
-      setCompact(next)
-      // Leaving compact mode removes the click affordance, so close any popup.
-      if (!next) popup?.popdown()
-    })
-  } catch (error) {
-    console.error(`capture-tool: cannot watch ${CAPTURE_CONFIG}: ${error}`)
-  }
+  // The settings view writes the capture config; the port updates the accessor
+  // when the file changes. Leaving compact mode removes the click affordance, so
+  // close any popup — the behaviour the old in-widget monitor callback owned.
+  createEffect(() => {
+    if (!compact()) popup?.popdown()
+  })
 
   function reset(): void {
     jobId = null
@@ -138,6 +111,9 @@ export function RecordingIndicator() {
   const toggleTip = state((value) =>
     value === "recording" ? "Pause recording" : "Resume recording",
   )
+  // The port's accessor is the pure `ReadAccessor` (callable with no argument),
+  // not gnim's selector-callable `Accessor`; derive the full-mode flag from it.
+  const fullMode = createComputed(() => !compact())
 
   return (
     <box visible={state((value) => value !== "idle")} class={clusterClass}>
@@ -166,7 +142,7 @@ export function RecordingIndicator() {
         </box>
       </button>
       <button
-        visible={compact((value) => !value)}
+        visible={fullMode}
         class="rec-btn"
         tooltipText={toggleTip}
         onClicked={toggle}
@@ -181,7 +157,7 @@ export function RecordingIndicator() {
         />
       </button>
       <button
-        visible={compact((value) => !value)}
+        visible={fullMode}
         class="rec-btn stop"
         tooltipText="Stop recording"
         onClicked={() => send("stop")}
