@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>btop Theme Studio — LIVE</title>
+<style>
+  :root{--bg:#16181d;--panel:#1d2026;--panel-2:#23272f;--line:#313742;--fg:#d7dbe2;--muted:#8b93a1;
+    --accent:#6ea8fe;--warn:#e0a45e;--ok:#7bc47f;--bad:#e08585;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 system-ui,"Cantarell","Segoe UI",sans-serif;}
+  .note{background:#2a2f3a;border-bottom:1px solid var(--line);padding:8px 14px;font-size:12px;color:var(--muted);}
+  .note b{color:var(--fg);} .note .live{color:var(--ok);font-weight:700;}
+  .app{display:grid;grid-template-columns:280px 1fr 320px;height:calc(100vh - 47px);}
+  .col{overflow:auto;} .left{background:var(--panel);border-right:1px solid var(--line);}
+  .right{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;}
+  .center{display:flex;flex-direction:column;min-width:0;}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0;padding:12px 14px 6px;}
+  .tree{padding:0 6px 14px;} .tree .group{padding:9px 8px 3px;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  .tree .item{padding:4px 8px 4px 16px;border-radius:5px;cursor:pointer;font-family:ui-monospace,monospace;font-size:11.5px;display:flex;align-items:center;gap:8px;}
+  .tree .item:hover{background:var(--panel-2);} .tree .item.active{background:#2f3947;color:#fff;}
+  .tree .key{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dot{width:11px;height:11px;border-radius:3px;border:1px solid #0008;flex:none;}
+  .canvas-bar{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap;}
+  .canvas-bar .spacer{flex:1;}
+  .toggle{background:var(--panel-2);border:1px solid var(--line);color:var(--fg);border-radius:5px;padding:4px 9px;cursor:pointer;font-size:11.5px;}
+  .toggle.on{border-color:var(--accent);color:var(--accent);}
+  .pbar{display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid var(--line);background:#191b21;flex-wrap:wrap;font-size:10.5px;color:var(--muted);}
+  .pchip{font-size:10.5px;padding:2px 9px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;font-family:ui-monospace,monospace;}
+  .pchip.on{background:#2c4b7c;border-color:var(--accent);color:#fff;}
+  .pdesc{color:#5f6774;}
+  .canvas{flex:1;overflow:auto;padding:14px;background:repeating-conic-gradient(#20242b 0% 25%,#191c22 0% 50%) 50% / 24px 24px;}
+  .stage-cap{font-size:10.5px;color:var(--muted);font-family:ui-monospace,monospace;margin-bottom:10px;}
+  .stage-cap b{color:var(--fg);}
+  pre.live{font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:10px;line-height:1.02;white-space:pre;letter-spacing:0;
+    border:1px solid #ffffff18;border-radius:6px;padding:8px;display:inline-block;min-width:1180px;}
+  .busy{position:fixed;top:8px;right:12px;background:#2c4b7c;color:#fff;font-size:11px;padding:3px 9px;border-radius:10px;display:none;}
+  .offnote{color:var(--warn);font-size:11px;margin-top:8px;font-family:ui-monospace,monospace;min-height:14px;}
+  .modchips{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 4px;}
+  .modchip{font-size:10.5px;padding:2px 7px;border-radius:10px;background:#262b33;color:var(--muted);font-family:ui-monospace,monospace;}
+  .modchip.on{background:#2c4b7c;color:#fff;} .modchip.off{opacity:.5;border:1px dashed #4b525d;}
+  .anat{margin-top:12px;padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:#00000033;}
+  .anat h3{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;}
+  .diag{border-top:1px solid var(--line);background:#14161a;padding:9px 14px;}
+  .diag .d{display:flex;gap:8px;padding:3px 0;font-size:11.5px;}
+  .diag .d.err{color:var(--bad);} .diag .d.warn{color:var(--warn);} .diag .d.ok{color:var(--ok);}
+  .sel-info{padding:4px 14px 6px;}
+  .kv{display:flex;justify-content:space-between;gap:8px;padding:3px 0;}
+  .kv span:first-child{color:var(--muted);} .kv span:last-child{font-family:ui-monospace,monospace;text-align:right;}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 14px 8px;}
+  .cell{aspect-ratio:1;border-radius:5px;border:2px solid transparent;cursor:pointer;}
+  .cell.current{border-color:#fff;}
+  .named{padding:0 14px 8px;}
+  .sw{display:flex;align-items:center;gap:9px;padding:6px;border-radius:6px;cursor:pointer;border:1px solid transparent;}
+  .sw:hover{background:var(--panel-2);} .sw.current{border-color:var(--accent);background:#222b38;}
+  .chip{width:20px;height:20px;border-radius:5px;border:1px solid #0006;flex:none;}
+  .sw .ph{font-family:ui-monospace,monospace;font-size:11.5px;} .sw .tok{color:var(--muted);font-size:10.5px;font-family:ui-monospace,monospace;}
+  .hexrow{display:flex;gap:6px;padding:2px 14px 10px;align-items:center;}
+  .hexrow input{flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--fg);border-radius:5px;padding:5px 7px;font-family:ui-monospace,monospace;font-size:11.5px;}
+  .hint{padding:0 14px 12px;color:var(--muted);font-size:11px;}
+  .footer{margin-top:auto;position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:8px;}
+  .btn{flex:1;padding:7px;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);cursor:pointer;font-size:12px;}
+  .btn.primary{background:#2c4b7c;border-color:var(--accent);color:#fff;}
+  code{background:#262b33;padding:1px 4px;border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="note">
+  <span class="live">● LIVE</span> — the pane below is <b>real btop</b> (a persistent process on a pty).
+  Edit any key and it re-renders in place. Presets are parsed from your <b>btop.conf</b>. One place, always in sync.
+</div>
+<div class="app">
+  <div class="col left">
+    <h2>Keys <span id="keysFor"></span></h2>
+    <div class="tree" id="tree"></div>
+  </div>
+  <div class="col center">
+    <div class="canvas-bar">
+      <button class="toggle" id="reload">Reload frame</button>
+      <div class="spacer"></div>
+      <button class="toggle on" id="tFix">Reserve surface for meters</button>
+    </div>
+    <div class="pbar" id="pbar"></div>
+    <div class="canvas">
+      <div class="stage-cap" id="cap"></div>
+      <pre class="live" id="liveFrame"></pre>
+      <div class="offnote" id="offnote"></div>
+      <div class="anat" id="anat"></div>
+    </div>
+    <div class="diag" id="diag"></div>
+  </div>
+  <div class="col right">
+    <h2>Selection</h2>
+    <div class="sel-info">
+      <div class="kv"><span>Theme key</span><span id="selKey">—</span></div>
+      <div class="kv"><span>Value</span><span id="selHex">—</span></div>
+    </div>
+    <h2>Where it shows <span style="text-transform:none">— btop_draw.cpp</span></h2>
+    <div class="hint" id="selUse" style="color:var(--fg)"></div>
+    <h2>Diagnosis</h2>
+    <div class="hint" id="selDiag" style="padding-bottom:6px"></div>
+    <h2 id="pickTitle">Select a key</h2>
+    <div class="grid" id="grid"></div>
+    <div class="named" id="named"></div>
+    <div class="hexrow"><span style="font-size:11px;color:var(--muted)">hex</span><input id="hexInput" spellcheck="false" placeholder="#rrggbb" /></div>
+    <div class="hint">Edit = literal colour on the candidate theme. The frame above reloads via <code>SIGUSR2</code>.
+      Save/persist is out of scope for this PoC.</div>
+    <div class="footer"><span style="color:var(--muted);font-size:11px;align-self:center">real btop · live</span></div>
+  </div>
+</div>
+<div class="busy" id="busy">rendering…</div>
+
+<script>
+let STATE=null, KEYS={}, selected="meter_bg", preset=0, pending=null, timer=null;
+const WIDGETS={
+  cpu:{paints:"CPU meter · GPU util graphs+meter · per-core graphs · enc/dec meters · battery",mods:["cpu","gpu"]},
+  temp:{paints:"CPU temp · per-core temps · GPU temp (relative: temp×100/temp_max)",mods:["cpu","gpu"]},
+  cached:{paints:"CPU watts · GPU power draw · P-state (NOT cache)",mods:["cpu","gpu"]},
+  available:{paints:"disk I/O activity (%busy) — NOT free RAM",mods:["disks"]},
+  used:{paints:"disk used meter · GPU VRAM",mods:["disks"]},
+  free:{paints:"disk free meter · GPU mem util",mods:["disks"]},
+  download:{paints:"network download graph",mods:["net"]}, upload:{paints:"network upload graph",mods:["net"]},
+  process:{paints:"process-list thread · mem · cpu bars",mods:["proc"]},
+};
+const SURFACE={main_bg:"terminal background",main_fg:"all body text",title:"every box title",hi_fg:"selected/highlighted",
+  selected_bg:"selection background",selected_fg:"selection text",inactive_fg:"dimmed / secondary",graph_text:"graph axes · ▼▲ · scale",
+  meter_bg:"the UNFILLED part of every meter",cpu_box:"cpu / disks box outline",mem_box:"mem / net / battery outline",
+  net_box:"net box outline",proc_box:"proc box outline",div_line:"dividers & dotted leaders",proc_misc:"proc counts / status line",
+  proc_pause_bg:"paused proc",proc_follow_bg:"followed proc",proc_banner_bg:"proc banner",proc_banner_fg:"proc banner text",
+  followed_bg:"followed row",followed_fg:"followed row text"};
+const GROUPS=[
+  ["Surface",["main_bg","main_fg","title","hi_fg","selected_bg","selected_fg","inactive_fg","graph_text"]],
+  ["Box chrome",["meter_bg","proc_misc","cpu_box","mem_box","net_box","proc_box","div_line"]],
+  ["Consumption",["used_start","used_mid","used_end","free_start","free_mid","free_end","available_start","available_mid","available_end"]],
+  ["Load / heat",["cpu_start","cpu_mid","cpu_end","temp_start","temp_mid","temp_end","cached_start","cached_mid","cached_end"]],
+  ["Network / process",["download_start","download_end","upload_start","upload_end","process_start","process_mid","process_end"]],
+  ["Process state",["proc_pause_bg","proc_follow_bg","proc_banner_bg","proc_banner_fg","followed_bg","followed_fg"]],
+];
+const famOf=k=>k.replace(/_(start|mid|end)$/,"");
+const boxesOf=p=>Object.keys(STATE.presets[String(p)].boxes);
+
+function lum(h){const c=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4));
+  return .2126*c[0]+.7152*c[1]+.0722*c[2];}
+
+function renderTree(){
+  const t=document.getElementById("tree");
+  t.innerHTML=GROUPS.map(([n,keys])=>`<div class="group">${n}</div>`+keys.map(k=>
+    `<div class="item ${k===selected?"active":""}" data-key="${k}"><span class="dot" style="background:${KEYS[k]}"></span><span class="key">${k}</span></div>`).join("")).join("");
+  t.querySelectorAll(".item").forEach(el=>el.onclick=()=>select(el.dataset.key));
+}
+function renderPBar(){
+  document.getElementById("pbar").innerHTML=`<span>preset:</span>`+Object.keys(STATE.presets).map(p=>
+    `<button class="pchip ${+p===preset?"on":""}" data-p="${p}">${p}</button>`).join("")
+    +`<span class="pdesc">${STATE.presets[preset].label}</span>`;
+  document.querySelectorAll(".pchip").forEach(b=>b.onclick=()=>{preset=+b.dataset.p;renderPBar();edit(null);});
+}
+function select(k){selected=k;renderTree();renderPanel();renderDiag();renderOffNote();}
+function renderPanel(){
+  document.getElementById("selKey").textContent=selected;
+  document.getElementById("selHex").textContent=KEYS[selected];
+  const w=WIDGETS[famOf(selected)];
+  document.getElementById("selUse").textContent=w?w.paints:(SURFACE[selected]||"—");
+  document.getElementById("pickTitle").textContent=`Set ${selected} to which colour?`;
+  const g=document.getElementById("grid");
+  g.innerHTML=STATE.ramp.map((hex,i)=>`<div class="cell ${KEYS[selected]===hex?"current":""}" data-v="${hex}" style="background:${hex}" title="ramp[${i}]"></div>`).join("");
+  g.querySelectorAll(".cell").forEach(c=>c.onclick=()=>edit(c.dataset.v));
+  const named=document.getElementById("named");
+  named.innerHTML=[[ "background",STATE.bg],["foreground",STATE.fg]].map(([t,h])=>
+    `<div class="sw ${KEYS[selected]===h?"current":""}" data-v="${h}"><div class="chip" style="background:${h}"></div>
+      <div><div class="ph">${t}</div><div class="tok">${h}</div></div></div>`).join("");
+  named.querySelectorAll(".sw").forEach(s=>s.onclick=()=>edit(s.dataset.v));
+  document.getElementById("hexInput").value=KEYS[selected]||"";
+}
+function renderDiag(){
+  const bg=lum(KEYS.main_bg),mbg=lum(KEYS.meter_bg),us=lum(KEYS.used_start),d=Math.abs(mbg-bg),out=[];
+  if(KEYS.used_start===KEYS.meter_bg)out.push(["err","⛔",`used_start == meter_bg (${KEYS.used_start}) — low-load blocks vanish into the empty meter.`]);
+  if(d>0.02)out.push(["warn","⚠",`meter_bg Δ ${d.toFixed(2)} vs background — empty meter competes with data.`]);
+  else out.push(["ok","✓",`meter_bg sits against the background (Δ ${d.toFixed(2)}).`]);
+  if(Math.abs(us-mbg)<0.05)out.push(["warn","⚠",`used low-end close to meter_bg (Δ ${Math.abs(us-mbg).toFixed(2)}).`]);
+  document.getElementById("diag").innerHTML=out.map(([c,ic,m])=>`<div class="d ${c}"><span>${ic}</span><span>${m}</span></div>`).join("");
+}
+function renderOffNote(){
+  const w=WIDGETS[famOf(selected)]; let txt="";
+  if(w){const boxes=boxesOf(preset),off=w.mods.filter(m=>!boxes.includes(m));
+    if(off.length)txt=`⚠ preset ${preset} does not show: ${off.join(", ")} — this key paints ${off.join(", ")}, so your change won't be visible here.`;}
+  document.getElementById("offnote").textContent=txt;
+}
+function renderAnat(){
+  const MODS=["cpu","mem","net","disks","proc","gpu"],boxes=boxesOf(preset),w=WIDGETS[famOf(selected)];
+  document.getElementById("anat").innerHTML=`<h3>Key coverage — <code style="color:var(--fg)">${selected}</code></h3>
+    ${w?`<div style="color:var(--muted);font-size:11px;margin:2px 0">btop_draw.cpp: ${w.paints}</div>`:""}
+    <div class="modchips">${MODS.map(m=>{const paints=w&&w.mods.includes(m),shown=boxes.includes(m);
+      return `<span class="modchip ${paints&&shown?"on":paints?"off":""}">${m}</span>`;}).join("")}</div>
+    <div style="color:var(--muted);font-size:10.5px">lit = painted &amp; shown · dashed = painted but box off</div>`;
+}
+function edit(hex){
+  if(hex!==null&&hex!==undefined){KEYS[selected]=hex;}
+  renderTree();renderPanel();renderDiag();renderOffNote();renderAnat();
+  schedule();
+}
+function schedule(){ if(timer)clearTimeout(timer); timer=setTimeout(push,220); }
+function push(){
+  document.getElementById("busy").style.display="block";
+  fetch("/edit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({preset,keys:KEYS})})
+    .then(r=>r.json()).then(j=>{
+      document.getElementById("liveFrame").innerHTML=j.frame;
+      document.getElementById("busy").style.display="none";
+      document.getElementById("cap").innerHTML=`btop — preset ${preset} · boxes: ${j.boxes.join(" ")} · <b>live</b>`;
+    }).catch(e=>{document.getElementById("busy").style.display="none";});
+}
+document.getElementById("reload").onclick=push;
+document.getElementById("tFix").onclick=(e)=>{
+  KEYS.meter_bg=KEYS.main_bg; KEYS.div_line=KEYS.main_bg;
+  KEYS.used_start=KEYS.used_mid; e.target.classList.toggle("on");
+  edit(null);
+};
+document.getElementById("hexInput").oninput=(e)=>{if(/^#[0-9a-fA-F]{6}$/.test(e.target.value))edit(e.target.value);};
+
+fetch("/state").then(r=>r.json()).then(s=>{
+  STATE=s; KEYS=s.keys; selected="meter_bg";
+  renderPBar();renderTree();renderPanel();renderDiag();renderOffNote();renderAnat();push();
+});
+</script>
+</body>
+</html>
