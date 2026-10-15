@@ -2,8 +2,8 @@
  * The pure icon contract (spine AD-4, AD-7; doc 101 §4.1, §7).
  *
  * This module holds NO GTK and NO AGS import, so the resolution chain is
- * unit-testable without the desktop stack. `kit/icon.ts` is the registry-backed
- * facade that adapts the real manifest to this contract.
+ * unit-testable without the desktop stack. `platform/adapters/icon.ts` is the
+ * registry-backed facade that adapts the real manifest to this contract.
  *
  * `IconSource` is a tagged union, not a bare path: a provider may answer with a
  * FILE (the runtime's rendered SVG) or a NAME (a themed symbolic icon on a bare

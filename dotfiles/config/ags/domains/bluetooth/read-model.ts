@@ -1,4 +1,4 @@
-import type { ReadAccessor, ReactiveRuntime } from "../reactive"
+import type { ReadAccessor, ReactiveRuntime } from "../../platform/ports/reactive"
 
 /**
  * The Bluetooth domain's read model: the BlueZ-backed service's public

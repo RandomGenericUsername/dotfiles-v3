@@ -1,7 +1,7 @@
 import { Gtk } from "ags/gtk4"
 import { createComputed, createEffect } from "ags"
 import { execAsync } from "ags/process"
-import { iconByStateKey, resolveIcon } from "../../kit/icon"
+import { iconByStateKey, resolveIcon } from "../../platform/adapters/icon"
 import { applyIconSource } from "../../kit/widget"
 import type { DescriptorSpec, RichWidgetSpec } from "../../kit/widget"
 import { overlays } from "../../kit/overlay"

@@ -1,7 +1,7 @@
 /**
  * The bar's `Notifier` adapter (spine AD-11; doc 101 §4.5).
  *
- * The pure port + router live in `../platform/notifier`; this file supplies the
+ * The pure port + router live in `../ports/notifier`; this file supplies the
  * two wires. The freedesktop `notify` sink is the exact one-shot `Notify` call
  * the bar used to construct inside `services/bluetooth-service.ts`, moved here
  * so no sender knows the wire. The `card` sink is the event-card path.
@@ -21,7 +21,7 @@ import {
   createNotifier,
   type NotificationIntent,
   type NotifierSinks,
-} from "../platform/notifier";
+} from "../ports/notifier";
 
 const NOTIFICATIONS_BUS = "org.freedesktop.Notifications";
 const NOTIFICATIONS_PATH = "/org/freedesktop/Notifications";

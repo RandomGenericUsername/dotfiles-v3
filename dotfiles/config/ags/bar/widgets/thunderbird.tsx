@@ -1,6 +1,6 @@
 import { execAsync } from "ags/process"
 import type { BarWidgetSpec } from "../../kit/widget"
-import { iconByVariant } from "../../kit/icon"
+import { iconByVariant } from "../../platform/adapters/icon"
 
 /** Status-bar Thunderbird launcher, expressed as a widget descriptor. */
 export const thunderbirdWidget: BarWidgetSpec<undefined> = {

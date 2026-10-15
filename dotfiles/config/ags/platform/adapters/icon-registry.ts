@@ -1,5 +1,5 @@
 import GLib from "gi://GLib?version=2.0"
-import iconsData from "../icons.json"
+import iconsData from "../../icons.json"
 
 interface Variant {
   name: string

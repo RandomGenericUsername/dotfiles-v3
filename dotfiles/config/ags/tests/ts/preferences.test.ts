@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
-import { createPreferences, type PreferencesSource } from "../../platform/preferences.ts"
+import { createPreferences, type PreferencesSource } from "../../platform/ports/preferences.ts"
 import { fakeRuntime } from "./fixtures/reactive-fixture.ts"
 
 /**

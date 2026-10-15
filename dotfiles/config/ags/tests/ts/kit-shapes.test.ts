@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { iconByVariant } from "../../kit/icon-source.ts"
+import { iconByVariant } from "../../platform/ports/icon-source.ts"
 import type {
   BarContext,
   BarWidgetSpec,

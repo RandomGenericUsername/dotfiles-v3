@@ -1684,8 +1684,8 @@ class TestVerifyVars:
         deployment contract."""
         data = _vars()
         skeletons = [str(f) for f in data["verify_compositor_skeleton_files"]]
-        assert "{{ install_dir | trim }}/config/ags/lib/event-bus.ts" in skeletons
-        assert "{{ install_dir | trim }}/config/ags/platform/event-client.ts" in skeletons
+        assert "{{ install_dir | trim }}/config/ags/platform/adapters/event-bus.ts" in skeletons
+        assert "{{ install_dir | trim }}/config/ags/platform/ports/event-client.ts" in skeletons
         gui = [str(f) for f in data["verify_gui_tools_app_files"]]
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts" in gui
@@ -1704,22 +1704,27 @@ class TestVerifyVars:
         data = _vars()
         skeletons = [str(f) for f in data["verify_compositor_skeleton_files"]]
         for rel in (
-            "kit/icon-source.ts",
             "kit/shapes.ts",
             "kit/surface.ts",
             "kit/popup-host.tsx",
             "kit/layout.ts",
             "bar/layout.default.ts",
             "bar/registry.ts",
-            "platform/event-client.ts",
-            "platform/preferences.ts",
-            "platform/notifier.ts",
-            "platform/theme.ts",
-            "lib/preferences.ts",
-            "lib/notifier.ts",
-            "lib/theme.ts",
-            "domains/reactive.ts",
-            "domains/astal.ts",
+            "platform/package.json",
+            "platform/index.ts",
+            "platform/ports/event-client.ts",
+            "platform/ports/preferences.ts",
+            "platform/ports/notifier.ts",
+            "platform/ports/theme.ts",
+            "platform/ports/icon-source.ts",
+            "platform/ports/reactive.ts",
+            "platform/adapters/icon.ts",
+            "platform/adapters/icon-registry.ts",
+            "platform/adapters/event-bus.ts",
+            "platform/adapters/preferences.ts",
+            "platform/adapters/notifier.ts",
+            "platform/adapters/theme.ts",
+            "platform/adapters/astal.ts",
             "domains/network/astal.ts",
             "domains/battery/read-model.ts",
             "domains/battery/astal.ts",
@@ -2692,6 +2697,8 @@ def _build_provisioned_layout(
         "ags/lib",
         "ags/kit",
         "ags/platform",
+        "ags/platform/ports",
+        "ags/platform/adapters",
         "ags/domains",
         "ags/domains/network",
         "ags/domains/battery",
@@ -2731,29 +2738,29 @@ def _build_provisioned_layout(
         "ags-notifications/ui",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
-    (install / "config" / "ags" / "lib" / "icon-registry.ts").write_text("")
     (install / "config" / "ags" / "lib" / "network-icon.ts").write_text("")
-    (install / "config" / "ags" / "lib" / "event-bus.ts").write_text("")
-    # The ONE domain-event client seam (one-event-client, AD-5): it replaced
-    # lib/event-bus-core.ts in verify_compositor_skeleton_files (moved).
-    (install / "config" / "ags" / "platform" / "event-client.ts").write_text("")
-    # The cross-cutting ports (preferences-notifier-theme, AD-11/AD-12/AD-13):
-    # mirror of verify_compositor_skeleton_files. recording.tsx imports
-    # lib/preferences, bluetooth-service.ts imports lib/notifier, and app.tsx
-    # imports lib/theme.
-    (install / "config" / "ags" / "platform" / "preferences.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "notifier.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "theme.ts").write_text("")
-    (install / "config" / "ags" / "lib" / "preferences.ts").write_text("")
-    (install / "config" / "ags" / "lib" / "notifier.ts").write_text("")
-    (install / "config" / "ags" / "lib" / "theme.ts").write_text("")
+    # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
+    # the package identity + entry point, the pure ports and the host-bound
+    # adapters, re-homed from platform/, lib/, kit/ and domains/. Mirror of
+    # verify_compositor_skeleton_files.
+    (install / "config" / "ags" / "platform" / "package.json").write_text("{}")
+    (install / "config" / "ags" / "platform" / "index.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "ports" / "event-client.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "ports" / "preferences.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "ports" / "notifier.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "ports" / "theme.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "ports" / "icon-source.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "ports" / "reactive.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "adapters" / "icon.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "adapters" / "icon-registry.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "adapters" / "event-bus.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "adapters" / "preferences.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "adapters" / "notifier.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "adapters" / "theme.ts").write_text("")
+    (install / "config" / "ags" / "platform" / "adapters" / "astal.ts").write_text("")
     # The bar widget kit (bar re-architecture prototype): the descriptor model.
-    (install / "config" / "ags" / "kit" / "icon.ts").write_text("")
     (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")
     (install / "config" / "ags" / "kit" / "widget.tsx").write_text("")
-    # The kit's pure contracts (kit-shell-four-shapes): mirror of
-    # verify_compositor_skeleton_files.
-    (install / "config" / "ags" / "kit" / "icon-source.ts").write_text("")
     (install / "config" / "ags" / "kit" / "shapes.ts").write_text("")
     # The layout vocabulary (migrate-widgets-to-shapes, AD-9): mirror of
     # verify_compositor_skeleton_files.
@@ -2766,11 +2773,10 @@ def _build_provisioned_layout(
     # The network domain read model (bar re-architecture §5.3): the Astal adapter
     # behind the descriptor. Mirrors verify_compositor_skeleton_files.
     (install / "config" / "ags" / "domains" / "network" / "read-model.ts").write_text("")
-    # The reactive domain read models (reactive-domain-read-models): the pure
-    # reactive port + gnim binding, the network Astal adapter, and the battery/
-    # bluetooth/audio adapters. Mirror of verify_compositor_skeleton_files.
-    (install / "config" / "ags" / "domains" / "reactive.ts").write_text("")
-    (install / "config" / "ags" / "domains" / "astal.ts").write_text("")
+    # The per-domain read models (reactive-domain-read-models): the network Astal
+    # adapter and the battery/bluetooth/audio adapters. Mirror of
+    # verify_compositor_skeleton_files. The shared reactive port + gnim binding
+    # moved into the package above.
     (install / "config" / "ags" / "domains" / "network" / "astal.ts").write_text("")
     (install / "config" / "ags" / "domains" / "battery" / "read-model.ts").write_text("")
     (install / "config" / "ags" / "domains" / "battery" / "astal.ts").write_text("")

@@ -6,7 +6,7 @@ import {
   isCardIntent,
   type NotificationIntent,
   type NotifierSinks,
-} from "../../platform/notifier.ts"
+} from "../../platform/ports/notifier.ts"
 
 /**
  * The `Notifier` port (spine AD-11), driven by fake sinks that capture intents.

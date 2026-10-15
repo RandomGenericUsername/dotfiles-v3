@@ -9,7 +9,7 @@
  * `PipeWireObservationAdapter` takes its service rather than calling
  * `Wp.get_default()` itself. With the primitive injected, a fake runtime drives
  * the real read-model logic under plain `node --test`, and the AGS binding
- * (`domains/astal.ts`) supplies gnim's `createState` in the app.
+ * (`platform/adapters/astal.ts`) supplies gnim's `createState` in the app.
  *
  * PURE: no `ags`, no `gi://*`, no I/O.
  */

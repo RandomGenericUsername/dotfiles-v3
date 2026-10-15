@@ -15,7 +15,7 @@ import { closeBluetoothPopup } from "./components/bluetooth/state"
 import { BatteryPopup, BatteryPopupCatcher } from "./components/battery/BatteryPopup"
 import { closeBatteryPopup } from "./components/battery/state"
 import { closeWifiPopup } from "./components/wifi/state"
-import { theme } from "./lib/theme"
+import { theme } from "./platform/adapters/theme"
 import "./overlays"
 
 /**

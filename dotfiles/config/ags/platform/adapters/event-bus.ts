@@ -8,14 +8,14 @@
 // path — never by shelling the tool.
 //
 // The subscribe-before-read hydration state machine and every contract
-// literal live in the platform seam `../platform/event-client.ts` (no GJS
+// literal live in the platform seam `../ports/event-client.ts` (no GJS
 // imports), pinned to `contracts/event-contract.{json,xml}` by the node drift
 // test. This file is only the Gio seam and the app binding of the reactive
 // runtime `EventHub.select` needs.
 
 import Gio from "gi://Gio?version=2.0";
 import GLib from "gi://GLib?version=2.0";
-import { agsRuntime } from "../domains/astal";
+import { agsRuntime } from "./astal";
 import {
   CONTROL_METHOD,
   DBUS_BUS_NAME,
@@ -32,7 +32,7 @@ import {
   NAME_OWNER_CHANGED_SIGNAL,
   SPEEDTEST_STATE_TOPIC,
   type EventBusTransport,
-} from "../platform/event-client";
+} from "../ports/event-client";
 
 class GioEventBusTransport implements EventBusTransport {
   private connection: Gio.DBusConnection | null = null;
@@ -222,5 +222,5 @@ export {
   HYDRATION_METHOD,
   JOBS_CLEARED_SIGNAL,
   SPEEDTEST_STATE_TOPIC,
-} from "../platform/event-client";
-export type { DomainPayload, EventPayload, RestartHandler, TopicHandler } from "../platform/event-client";
+} from "../ports/event-client";
+export type { DomainPayload, EventPayload, RestartHandler, TopicHandler } from "../ports/event-client";

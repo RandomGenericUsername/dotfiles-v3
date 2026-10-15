@@ -1,5 +1,5 @@
 import { createState } from "ags"
-import type { ReactiveRuntime, ReadAccessor, Setter } from "./reactive"
+import type { ReactiveRuntime, ReadAccessor, Setter } from "../ports/reactive"
 
 /**
  * The AGS/gnim binding of the `ReactiveRuntime` port (spine AD-2).

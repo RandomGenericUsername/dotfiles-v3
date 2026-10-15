@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
-import { DomainEventBusCore, type EventBusTransport } from "../../platform/event-client.ts"
+import { DomainEventBusCore, type EventBusTransport } from "../../platform/ports/event-client.ts"
 import { fakeRuntime } from "./fixtures/reactive-fixture.ts"
 
 /**

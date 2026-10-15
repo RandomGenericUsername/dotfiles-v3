@@ -3,8 +3,8 @@ import Pango from "gi://Pango?version=1.0"
 import Battery from "gi://AstalBattery"
 import { createBinding, createComputed, createEffect, For } from "ags"
 import { execAsync } from "ags/process"
-import { iconByStateKey, resolveIcon } from "../../kit/icon"
-import type { IconSource } from "../../kit/icon-source"
+import { iconByStateKey, resolveIcon } from "../../platform/adapters/icon"
+import type { IconSource } from "../../platform/ports/icon-source"
 import { applyIconSource } from "../../kit/widget"
 import {
   POWER_MODES,

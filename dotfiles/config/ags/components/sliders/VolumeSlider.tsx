@@ -1,6 +1,6 @@
 import Wp from "gi://AstalWp?version=0.1"
 import { createBinding, createComputed, createEffect } from "ags"
-import { registry } from "../../lib/icon-registry"
+import { registry } from "../../platform/adapters/icon-registry"
 import { LevelSlider } from "../primitives/LevelSlider"
 
 /**

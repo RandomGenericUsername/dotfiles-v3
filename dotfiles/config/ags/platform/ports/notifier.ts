@@ -16,7 +16,7 @@
  * PURE: no `ags`, no `gi://*`, no I/O.
  */
 
-import type { IconSource } from "../kit/icon-source";
+import type { IconSource } from "./icon-source";
 
 export interface NotificationIntent {
   /** Stable id -> updates the same card in place (routes to the event-card path). */

@@ -282,8 +282,13 @@ class TestCompositorConfigsTasks:
         # pure layout vocabulary + chain), bar/layout.default.ts (the repo-default
         # provider) and bar/registry.ts (entry id -> shape spec), and retired
         # bar/widgets/network.tsx in favour of the descriptor (-1, +3).
-        assert len(files) == 116, (
-            f"expected exactly 116 skeleton files (hyprland.lua + gloview.lua + "
+        # 118 once extract-platform-in-place (AD-17/AD-20) consolidated the ports,
+        # the shared adapters and the event client into the ags-platform package:
+        # the package identity + entry point (+2) and the 13 relocated sources
+        # re-homed under platform/{ports,adapters} (+13), against the 13 sources
+        # they replace (-13).
+        assert len(files) == 118, (
+            f"expected exactly 118 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
             f"7 lib (incl. wifi-signal/network-icon)+6 kit "
             f"(icon/overlay/widget + surface/popup-host + layout)+"
@@ -356,7 +361,6 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/components/wifi/WifiContent.tsx",
             "dotfiles/config/ags/components/wifi/WifiPopup.tsx",
             "dotfiles/config/ags/components/wifi/state.ts",
-            "dotfiles/config/ags/domains/astal.ts",
             "dotfiles/config/ags/domains/audio/astal.ts",
             "dotfiles/config/ags/domains/audio/read-model.ts",
             "dotfiles/config/ags/domains/battery/astal.ts",
@@ -365,9 +369,6 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/domains/bluetooth/read-model.ts",
             "dotfiles/config/ags/domains/network/astal.ts",
             "dotfiles/config/ags/domains/network/read-model.ts",
-            "dotfiles/config/ags/domains/reactive.ts",
-            "dotfiles/config/ags/kit/icon-source.ts",
-            "dotfiles/config/ags/kit/icon.ts",
             "dotfiles/config/ags/kit/layout.ts",
             "dotfiles/config/ags/kit/overlay.ts",
             "dotfiles/config/ags/kit/popup-host.tsx",
@@ -375,19 +376,25 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/kit/surface.ts",
             "dotfiles/config/ags/kit/widget.tsx",
             "dotfiles/config/ags/lib/bar-backdrop.ts",
-            "dotfiles/config/ags/lib/event-bus.ts",
-            "dotfiles/config/ags/lib/icon-registry.ts",
             "dotfiles/config/ags/lib/network-icon.ts",
-            "dotfiles/config/ags/lib/notifier.ts",
-            "dotfiles/config/ags/lib/preferences.ts",
             "dotfiles/config/ags/lib/status-notifier.ts",
-            "dotfiles/config/ags/lib/theme.ts",
             "dotfiles/config/ags/lib/wifi-signal.ts",
             "dotfiles/config/ags/overlays.ts",
-            "dotfiles/config/ags/platform/event-client.ts",
-            "dotfiles/config/ags/platform/notifier.ts",
-            "dotfiles/config/ags/platform/preferences.ts",
-            "dotfiles/config/ags/platform/theme.ts",
+            "dotfiles/config/ags/platform/adapters/astal.ts",
+            "dotfiles/config/ags/platform/adapters/event-bus.ts",
+            "dotfiles/config/ags/platform/adapters/icon-registry.ts",
+            "dotfiles/config/ags/platform/adapters/icon.ts",
+            "dotfiles/config/ags/platform/adapters/notifier.ts",
+            "dotfiles/config/ags/platform/adapters/preferences.ts",
+            "dotfiles/config/ags/platform/adapters/theme.ts",
+            "dotfiles/config/ags/platform/index.ts",
+            "dotfiles/config/ags/platform/package.json",
+            "dotfiles/config/ags/platform/ports/event-client.ts",
+            "dotfiles/config/ags/platform/ports/icon-source.ts",
+            "dotfiles/config/ags/platform/ports/notifier.ts",
+            "dotfiles/config/ags/platform/ports/preferences.ts",
+            "dotfiles/config/ags/platform/ports/reactive.ts",
+            "dotfiles/config/ags/platform/ports/theme.ts",
             "dotfiles/config/ags/services/bluetooth-service.ts",
             "dotfiles/config/ags/services/mpris-core.ts",
             "dotfiles/config/ags/services/nm-client.ts",
@@ -744,9 +751,11 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "app.tsx",
                 install / "config" / "ags" / "style.css",
                 install / "config" / "ags" / "icons.json",
-                install / "config" / "ags" / "lib" / "icon-registry.ts",
-                install / "config" / "ags" / "lib" / "event-bus.ts",
-                install / "config" / "ags" / "platform" / "event-client.ts",
+                install / "config" / "ags" / "platform" / "package.json",
+                install / "config" / "ags" / "platform" / "index.ts",
+                install / "config" / "ags" / "platform" / "ports" / "event-client.ts",
+                install / "config" / "ags" / "platform" / "adapters" / "event-bus.ts",
+                install / "config" / "ags" / "platform" / "adapters" / "icon-registry.ts",
                 install / "config" / "ags" / "bar" / "Bar.tsx",
                 install / "config" / "ags" / "bar" / "layout.default.ts",
                 install / "config" / "ags" / "bar" / "registry.ts",
@@ -796,11 +805,11 @@ class TestCompositorConfigsPlaybook:
                 # fix-deploy-bar-new-files: the reachable sources the platform
                 # work added but the manifest missed. Placement is per-file, so
                 # these assert the registration actually copies each one.
-                install / "config" / "ags" / "kit" / "icon-source.ts",
+                install / "config" / "ags" / "platform" / "ports" / "icon-source.ts",
+                install / "config" / "ags" / "platform" / "ports" / "reactive.ts",
+                install / "config" / "ags" / "platform" / "adapters" / "astal.ts",
                 install / "config" / "ags" / "kit" / "shapes.ts",
                 install / "config" / "ags" / "kit" / "layout.ts",
-                install / "config" / "ags" / "domains" / "reactive.ts",
-                install / "config" / "ags" / "domains" / "astal.ts",
                 install / "config" / "ags" / "domains" / "network" / "astal.ts",
                 install / "config" / "ags" / "domains" / "battery" / "read-model.ts",
                 install / "config" / "ags" / "domains" / "battery" / "astal.ts",
@@ -959,7 +968,7 @@ class TestDeployCoverageGate:
             removed_line = next(
                 line
                 for line in vars_src.splitlines()
-                if "name: ags-kit-icon-source" in line
+                if "name: ags-platform-port-icon-source" in line
             )
             vars_dst = root / self._VARS
             vars_dst.parent.mkdir(parents=True)
@@ -970,7 +979,7 @@ class TestDeployCoverageGate:
                 "the gate must FAIL when a reachable module is not deployed; "
                 f"recap:\n{result.stdout}"
             )
-            assert "kit/icon-source.ts" in result.stdout, (
+            assert "platform/ports/icon-source.ts" in result.stdout, (
                 "the failure must name the undeployed reachable module; recap:\n"
                 + result.stdout
             )

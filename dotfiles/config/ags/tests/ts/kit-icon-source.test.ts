@@ -6,7 +6,7 @@ import {
   resolveIconSource,
   type IconProvider,
   type IconRef,
-} from "../../kit/icon-source.ts"
+} from "../../platform/ports/icon-source.ts"
 
 /**
  * The one icon resolution chain (spine AD-7; doc 101 §7):

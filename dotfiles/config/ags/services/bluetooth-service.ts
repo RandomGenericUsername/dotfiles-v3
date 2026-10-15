@@ -9,8 +9,8 @@ import {
   subscribe,
   watchProperties,
 } from "./nm-client"
-import { registry } from "../lib/icon-registry"
-import { notifier } from "../lib/notifier"
+import { registry } from "../platform/adapters/icon-registry"
+import { notifier } from "../platform/adapters/notifier"
 
 /**
  * BlueZ Bluetooth service (design §3).

@@ -7,7 +7,7 @@ import {
   iconByStateKey,
   resolveIconSource,
   type IconProvider,
-} from "../../kit/icon-source.ts"
+} from "../../platform/ports/icon-source.ts"
 import {
   volumeStateKey,
   microphoneStateKey,

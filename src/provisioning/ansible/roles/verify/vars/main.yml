@@ -451,13 +451,11 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/overlays.ts"
   - "{{ install_dir | trim }}/config/ags/icons.json"
   - "{{ install_dir | trim }}/config/ags-capture/icons.json"
-  - "{{ install_dir | trim }}/config/ags/kit/icon.ts"
+  # The bar widget KIT: the Shell + shapes and the overlay coordinator stay
+  # bar-specific (AD-1). The icon vocabulary (kit/icon.ts, kit/icon-source.ts)
+  # moved into the ags-platform package below (extract-platform-in-place).
   - "{{ install_dir | trim }}/config/ags/kit/overlay.ts"
   - "{{ install_dir | trim }}/config/ags/kit/widget.tsx"
-  # The kit's pure contracts (kit-shell-four-shapes): icon.ts re-exports from
-  # icon-source and widget.tsx imports its shape types from shapes, so a missing
-  # one is a bundle that cannot start (mirror of compositor_configs).
-  - "{{ install_dir | trim }}/config/ags/kit/icon-source.ts"
   - "{{ install_dir | trim }}/config/ags/kit/shapes.ts"
   # The surface contract + the popup primitive (surfaces-popup-host, AD-10):
   # mirror of the compositor_configs skeleton dests. Every popup imports
@@ -468,23 +466,26 @@ verify_compositor_skeleton_files:
   # The layout vocabulary (migrate-widgets-to-shapes, AD-9): mirror of the
   # compositor_configs skeleton dest. kit/widget.tsx and bar/Bar.tsx import it.
   - "{{ install_dir | trim }}/config/ags/kit/layout.ts"
-  - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags/lib/network-icon.ts"
-  - "{{ install_dir | trim }}/config/ags/lib/event-bus.ts"
-  # The ONE domain-event client (one-event-client, AD-5): the moved state machine
-  # + corrected EventSource/EventHub ports. Mirror of the compositor_configs
-  # skeleton dest; it replaced lib/event-bus-core.ts (moved, not copied).
-  - "{{ install_dir | trim }}/config/ags/platform/event-client.ts"
-  # The cross-cutting ports (preferences-notifier-theme, AD-11/AD-12/AD-13):
-  # mirror of the compositor_configs skeleton dests. recording.tsx imports
-  # lib/preferences, bluetooth-service.ts imports lib/notifier, and app.tsx
-  # imports lib/theme, so a missing one is a bar that cannot bundle.
-  - "{{ install_dir | trim }}/config/ags/platform/preferences.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/notifier.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/theme.ts"
-  - "{{ install_dir | trim }}/config/ags/lib/preferences.ts"
-  - "{{ install_dir | trim }}/config/ags/lib/notifier.ts"
-  - "{{ install_dir | trim }}/config/ags/lib/theme.ts"
+  # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
+  # mirror of the compositor_configs skeleton dests. The package identity, the
+  # public entry point, the pure ports and the host-bound adapters, each placed
+  # per file — a missing one is a bar that cannot bundle.
+  - "{{ install_dir | trim }}/config/ags/platform/package.json"
+  - "{{ install_dir | trim }}/config/ags/platform/index.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/ports/event-client.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/ports/preferences.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/ports/notifier.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/ports/theme.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/ports/icon-source.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/ports/reactive.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/adapters/icon.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/adapters/icon-registry.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/adapters/event-bus.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/adapters/preferences.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/adapters/notifier.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/adapters/theme.ts"
+  - "{{ install_dir | trim }}/config/ags/platform/adapters/astal.ts"
   - "{{ install_dir | trim }}/config/ags/bar/Bar.tsx"
   # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
   # AD-8/AD-9): mirror of the compositor_configs skeleton dests.
@@ -500,11 +501,10 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/widgets/bluetooth.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/network-descriptor.tsx"
   - "{{ install_dir | trim }}/config/ags/domains/network/read-model.ts"
-  # The reactive domain read models (reactive-domain-read-models): the pure
-  # reactive port + gnim binding, the network descriptor's Astal adapter, and the
-  # battery/bluetooth/audio adapters. Mirror of compositor_configs skeleton dests.
-  - "{{ install_dir | trim }}/config/ags/domains/reactive.ts"
-  - "{{ install_dir | trim }}/config/ags/domains/astal.ts"
+  # The per-domain read models (reactive-domain-read-models): the network
+  # descriptor's Astal adapter and the battery/bluetooth/audio adapters. Mirror of
+  # compositor_configs skeleton dests. The shared reactive port + gnim binding
+  # MOVED into the ags-platform package above (extract-platform-in-place).
   - "{{ install_dir | trim }}/config/ags/domains/network/astal.ts"
   - "{{ install_dir | trim }}/config/ags/domains/battery/read-model.ts"
   - "{{ install_dir | trim }}/config/ags/domains/battery/astal.ts"

@@ -1,5 +1,5 @@
 import type { BarWidgetSpec } from "../../kit/widget"
-import { iconByStateKey } from "../../kit/icon"
+import { iconByStateKey } from "../../platform/adapters/icon"
 import { overlays } from "../../kit/overlay"
 import { execAsync } from "ags/process"
 import { isRunning as speedTestRunning } from "../../services/speedtest-service"

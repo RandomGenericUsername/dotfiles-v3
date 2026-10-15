@@ -1,7 +1,7 @@
 import { Accessor, createEffect, createState, onCleanup } from "ags"
 import { execAsync } from "ags/process"
 import { interval } from "ags/time"
-import { registry } from "../../lib/icon-registry"
+import { registry } from "../../platform/adapters/icon-registry"
 import { LevelSlider } from "../primitives/LevelSlider"
 
 /**

@@ -3,8 +3,8 @@
 //
 // This module holds the contract constants and the subscribe-before-read
 // hydration state machine with **no GJS imports**, so the node test runner can
-// import and exercise it. `lib/event-bus.ts` supplies the Gio transport and the
-// app supplies the reactive runtime the `EventHub.select` accessors are built
+// import and exercise it. `platform/adapters/event-bus.ts` supplies the Gio
+// transport and the app supplies the reactive runtime the `EventHub.select` accessors are built
 // on. This is the single state machine: the bar imports this seam, and the
 // app-local copies under `src/gui-tools/**` are the `ags-apps` epic's to migrate
 // (AD-20 step 8).
@@ -13,7 +13,7 @@
 // `src/gui-tools/icon-color-mapping-editor/tests/event-contract-drift.mjs`
 // (executed, never text-scanned).
 
-import type { ReadAccessor, ReactiveRuntime } from "../domains/reactive";
+import type { ReadAccessor, ReactiveRuntime } from "./reactive";
 
 export const EVENTS_BUS_NAME = "org.dotfiles.Events";
 export const EVENTS_OBJECT_PATH = "/org/dotfiles/Events";

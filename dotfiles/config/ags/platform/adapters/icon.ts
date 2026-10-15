@@ -1,25 +1,25 @@
-import { registry } from "../lib/icon-registry"
+import { registry } from "./icon-registry"
 import {
   resolveIconSource,
   type IconProvider,
   type IconRef,
   type IconSource,
-} from "./icon-source"
+} from "../ports/icon-source"
 
 /**
  * The icon contract's public facade (spine AD-4, AD-7).
  *
  * The pure contract — `IconSource`, `IconProvider`, `IconRef`, the constructors
- * and the resolution chain — lives in `./icon-source` so it is unit-testable
- * without GTK. This file binds it to the real manifest registry: it adapts
+ * and the resolution chain — lives in `../ports/icon-source` so it is
+ * unit-testable without GTK. This file binds it to the real manifest registry: it adapts
  * `registry` to the `IconProvider` port and exposes `resolveIcon` for callers.
  *
  * The re-exports are EXPLICIT (not `export *`): the per-app symbol gate
  * (`ags-symbol-check.mjs`) resolves a named import against the exporting
  * module's source, and it does not follow a star re-export.
  */
-export { iconByStateKey, iconByVariant, resolveIconSource } from "./icon-source"
-export type { IconBarMapping, IconProvider, IconRef, IconSource } from "./icon-source"
+export { iconByStateKey, iconByVariant, resolveIconSource } from "../ports/icon-source"
+export type { IconBarMapping, IconProvider, IconRef, IconSource } from "../ports/icon-source"
 
 /**
  * The manifest registry as an `IconProvider`. `registry.resolve` returns a bare

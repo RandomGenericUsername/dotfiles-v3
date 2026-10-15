@@ -1,5 +1,5 @@
 import { Accessor, createComputed } from "ags"
-import { registry } from "../../lib/icon-registry"
+import { registry } from "../../platform/adapters/icon-registry"
 import { wifiSignalIconKey } from "../../lib/wifi-signal"
 import { CapabilityTile } from "../primitives"
 import {

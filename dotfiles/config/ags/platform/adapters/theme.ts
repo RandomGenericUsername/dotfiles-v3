@@ -2,7 +2,7 @@
  * The bar's `Theme` adapter (spine AD-13; doc 101 §4 named no port, §11 named
  * the seam).
  *
- * The pure port + core live in `../platform/theme`; this file supplies the
+ * The pure port + core live in `../ports/theme`; this file supplies the
  * display. It applies the palette through AGS's `app.apply_css`, which is the
  * same call `app.tsx` made directly — the port only takes ownership of WHICH
  * artifact is applied, not HOW.
@@ -16,7 +16,7 @@
 
 import app from "ags/gtk4/app";
 import GLib from "gi://GLib?version=2.0";
-import { createTheme, type CssSink } from "../platform/theme";
+import { createTheme, type CssSink } from "../ports/theme";
 
 //: The stable palette artifact: colors.css -> current/colors.gtk.css.
 const PALETTE_CSS = `${GLib.get_user_config_dir()}/ags/colors.css`;

@@ -83,9 +83,12 @@ compositor_configs_config_dirs:
   # The bar widget kit (bar re-architecture prototype): its own subdir. `template`
   # does NOT create dest parents, so an undeclared dir fails the copy loudly.
   - "{{ compositor_configs_spine_config_dir }}/ags/kit"
-  # The ONE domain-event client seam (one-event-client, AD-5): its own subdir.
-  # `template` does NOT create dest parents, so an undeclared dir fails the copy.
+  # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
+  # the package root plus its `ports/` and `adapters/` subdirs. `template` does
+  # NOT create dest parents, so an undeclared dir fails the copy.
   - "{{ compositor_configs_spine_config_dir }}/ags/platform"
+  - "{{ compositor_configs_spine_config_dir }}/ags/platform/ports"
+  - "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters"
   # The per-feature domain modules (bar re-architecture §5.3): the network read
   # model is the first. Its own nested subdir, declared for the same reason.
   - "{{ compositor_configs_spine_config_dir }}/ags/domains"
@@ -165,15 +168,11 @@ compositor_configs_skeleton_files:
   - { name: ags-overlays, source: dotfiles/config/ags/overlays.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/overlays.ts" }
   # The bar widget KIT (bar re-architecture prototype): the descriptor model +
   # overlay coordinator the bar renders widgets through. One per-file entry like
-  # every other source.
-  - { name: ags-kit-icon, source: dotfiles/config/ags/kit/icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/icon.ts" }
+  # every other source. The icon vocabulary (kit/icon.ts, kit/icon-source.ts)
+  # MOVED into the ags-platform package (extract-platform-in-place, AD-17/AD-20);
+  # the Shell + shapes stay bar-specific (AD-1).
   - { name: ags-kit-overlay, source: dotfiles/config/ags/kit/overlay.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/overlay.ts" }
   - { name: ags-kit-widget, source: dotfiles/config/ags/kit/widget.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/widget.tsx" }
-  # The kit's pure contracts (kit-shell-four-shapes): icon.ts re-exports the icon
-  # resolution chain from ./icon-source and widget.tsx imports its shape types
-  # from ./shapes, so BOTH are reachable from app.tsx. Per-file placement means an
-  # unregistered one is never copied and `ags bundle` cannot resolve the import.
-  - { name: ags-kit-icon-source, source: dotfiles/config/ags/kit/icon-source.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/icon-source.ts" }
   - { name: ags-kit-shapes, source: dotfiles/config/ags/kit/shapes.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/shapes.ts" }
   # The surface contract + the popup primitive (surfaces-popup-host, AD-10): the
   # pure SurfaceSpec/registry/mount policy and the PopupHost/PopupCatcher the five
@@ -186,27 +185,32 @@ compositor_configs_skeleton_files:
   # kit/widget.tsx and bar/Bar.tsx import it, so an unregistered one is a bar
   # that cannot bundle.
   - { name: ags-kit-layout, source: dotfiles/config/ags/kit/layout.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/layout.ts" }
-  - { name: ags-icon-registry, source: dotfiles/config/ags/lib/icon-registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/icon-registry.ts" }
   - { name: ags-network-icon, source: dotfiles/config/ags/lib/network-icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/network-icon.ts" }
   - { name: ags-bar-backdrop, source: dotfiles/config/ags/lib/bar-backdrop.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/bar-backdrop.ts" }
   - { name: ags-status-notifier, source: dotfiles/config/ags/lib/status-notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/status-notifier.ts" }
-  - { name: ags-event-bus, source: dotfiles/config/ags/lib/event-bus.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/event-bus.ts" }
-  # The ONE domain-event client (one-event-client, AD-5): the moved
-  # DomainEventBusCore state machine + the corrected EventSource/EventHub ports.
-  # lib/event-bus.ts imports it, so an unregistered seam is a bar that cannot
-  # bundle. It replaced lib/event-bus-core.ts (moved, not copied).
-  - { name: ags-platform-event-client, source: dotfiles/config/ags/platform/event-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/event-client.ts" }
-  # The cross-cutting ports (preferences-notifier-theme, AD-11/AD-12/AD-13): the
-  # pure Preferences/Notifier/Theme ports + the bar's Gio/Gtk adapters.
-  # recording.tsx imports lib/preferences, bluetooth-service.ts imports
-  # lib/notifier, and app.tsx imports lib/theme, so an unregistered one is a bar
-  # that cannot bundle.
-  - { name: ags-platform-preferences, source: dotfiles/config/ags/platform/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/preferences.ts" }
-  - { name: ags-platform-notifier, source: dotfiles/config/ags/platform/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/notifier.ts" }
-  - { name: ags-platform-theme, source: dotfiles/config/ags/platform/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/theme.ts" }
-  - { name: ags-lib-preferences, source: dotfiles/config/ags/lib/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/preferences.ts" }
-  - { name: ags-lib-notifier, source: dotfiles/config/ags/lib/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/notifier.ts" }
-  - { name: ags-lib-theme, source: dotfiles/config/ags/lib/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/theme.ts" }
+  # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
+  # the ports, the shared adapters and the ONE event client, in one unit with an
+  # entry point and a package identity. The bar reaches it through relative
+  # imports today; the versioned-unit install + node_modules shortcut is the
+  # ags-consume-platform step (AD-23). Per-file placement still applies, so every
+  # file here is registered or a fresh provision leaves a missing module.
+  - { name: ags-platform-package-json, source: dotfiles/config/ags/platform/package.json, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/package.json" }
+  - { name: ags-platform-index, source: dotfiles/config/ags/platform/index.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/index.ts" }
+  # Ports: pure (no gi://, no ags), so the pure test project imports them.
+  - { name: ags-platform-port-event-client, source: dotfiles/config/ags/platform/ports/event-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/event-client.ts" }
+  - { name: ags-platform-port-preferences, source: dotfiles/config/ags/platform/ports/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/preferences.ts" }
+  - { name: ags-platform-port-notifier, source: dotfiles/config/ags/platform/ports/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/notifier.ts" }
+  - { name: ags-platform-port-theme, source: dotfiles/config/ags/platform/ports/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/theme.ts" }
+  - { name: ags-platform-port-icon-source, source: dotfiles/config/ags/platform/ports/icon-source.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/icon-source.ts" }
+  - { name: ags-platform-port-reactive, source: dotfiles/config/ags/platform/ports/reactive.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/reactive.ts" }
+  # Adapters: host-bound (Gio/Gtk/gnim) and the bound singletons the bar uses.
+  - { name: ags-platform-adapter-icon, source: dotfiles/config/ags/platform/adapters/icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/icon.ts" }
+  - { name: ags-platform-adapter-icon-registry, source: dotfiles/config/ags/platform/adapters/icon-registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/icon-registry.ts" }
+  - { name: ags-platform-adapter-event-bus, source: dotfiles/config/ags/platform/adapters/event-bus.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/event-bus.ts" }
+  - { name: ags-platform-adapter-preferences, source: dotfiles/config/ags/platform/adapters/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/preferences.ts" }
+  - { name: ags-platform-adapter-notifier, source: dotfiles/config/ags/platform/adapters/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/notifier.ts" }
+  - { name: ags-platform-adapter-theme, source: dotfiles/config/ags/platform/adapters/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/theme.ts" }
+  - { name: ags-platform-adapter-astal, source: dotfiles/config/ags/platform/adapters/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/astal.ts" }
   - { name: ags-wifi-signal, source: dotfiles/config/ags/lib/wifi-signal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/wifi-signal.ts" }
   - { name: ags-bar-tsx, source: dotfiles/config/ags/bar/Bar.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx" }
   # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
@@ -231,14 +235,13 @@ compositor_configs_skeleton_files:
   # the icon reacts to the Wi-Fi device's own property changes (bar
   # re-architecture §5.3).
   - { name: ags-domain-network-read-model, source: dotfiles/config/ags/domains/network/read-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/network/read-model.ts" }
-  # The reactive domain read models (reactive-domain-read-models): the pure
-  # reactive port + its gnim binding, the network descriptor's Astal adapter, and
-  # the battery/bluetooth/audio adapters. Per-file placement means each must be
-  # registered here or it is never copied. domains/network/astal.ts is reached
-  # from the (deployed) network-descriptor widget; the battery/bluetooth/audio
-  # adapters ship alongside it so the four read models provision together.
-  - { name: ags-domain-reactive, source: dotfiles/config/ags/domains/reactive.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/reactive.ts" }
-  - { name: ags-domain-astal, source: dotfiles/config/ags/domains/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/astal.ts" }
+  # The per-domain read models (reactive-domain-read-models): the network
+  # descriptor's Astal adapter and the battery/bluetooth/audio adapters. Per-file
+  # placement means each must be registered here or it is never copied.
+  # domains/network/astal.ts is reached from the (deployed) network-descriptor
+  # widget; the battery/bluetooth/audio adapters ship alongside it so the four
+  # read models provision together. The shared reactive port + its gnim binding
+  # MOVED into the ags-platform package (extract-platform-in-place, AD-17/AD-20).
   - { name: ags-domain-network-astal, source: dotfiles/config/ags/domains/network/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/network/astal.ts" }
   - { name: ags-domain-battery-read-model, source: dotfiles/config/ags/domains/battery/read-model.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/battery/read-model.ts" }
   - { name: ags-domain-battery-astal, source: dotfiles/config/ags/domains/battery/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/domains/battery/astal.ts" }

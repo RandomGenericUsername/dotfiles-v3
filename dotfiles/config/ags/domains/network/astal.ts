@@ -1,7 +1,7 @@
 import Network from "gi://AstalNetwork"
-import { agsRuntime } from "../astal"
+import { agsRuntime } from "../../platform/adapters/astal"
 import type { NetworkReading } from "../../lib/network-icon.ts"
-import type { ReadAccessor } from "../reactive"
+import type { ReadAccessor } from "../../platform/ports/reactive"
 import { createNetworkReadModel as createReadModel, type NetworkService } from "./read-model"
 
 /**

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
-import { createTheme, type CssSink } from "../../platform/theme.ts"
+import { createTheme, type CssSink } from "../../platform/ports/theme.ts"
 
 /**
  * The `Theme` port (spine AD-13), driven by a fake CSS sink. These prove the

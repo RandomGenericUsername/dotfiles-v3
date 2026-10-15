@@ -1,5 +1,5 @@
 import { execAsync } from "ags/process"
-import { iconByStateKey } from "../../kit/icon"
+import { iconByStateKey } from "../../platform/adapters/icon"
 import { overlays } from "../../kit/overlay"
 import type { DescriptorSpec } from "../../kit/widget"
 import { batteryStateKey } from "../../components/battery/battery-icon"

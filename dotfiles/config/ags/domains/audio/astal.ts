@@ -1,5 +1,5 @@
-import { agsRuntime } from "../astal"
-import type { ReadAccessor } from "../reactive"
+import { agsRuntime } from "../../platform/adapters/astal"
+import type { ReadAccessor } from "../../platform/ports/reactive"
 import { audioPanelBinding } from "../../audio/composition"
 import {
   createAudioReadModel as createReadModel,

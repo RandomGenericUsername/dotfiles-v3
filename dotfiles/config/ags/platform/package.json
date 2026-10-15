@@ -1,0 +1,12 @@
+{
+  "name": "ags-platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The AGS platform: ports + shared adapters + the one event client. Extracted in-place in dotfiles-v3 (spine AD-17/AD-20); found by a bare specifier through the shared-ancestor node_modules shortcut once the provisioning step installs it as one versioned unit.",
+  "exports": {
+    ".": "./index.ts",
+    "./ports/*": "./ports/*.ts",
+    "./adapters/*": "./adapters/*.ts"
+  }
+}

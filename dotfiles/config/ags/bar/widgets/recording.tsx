@@ -1,9 +1,9 @@
 import GLib from "gi://GLib?version=2.0"
 import { createComputed, createEffect, createState } from "ags"
 import { Gtk } from "ags/gtk4"
-import { registry } from "../../lib/icon-registry"
-import { domainEvents } from "../../lib/event-bus"
-import { preferences } from "../../lib/preferences"
+import { registry } from "../../platform/adapters/icon-registry"
+import { domainEvents } from "../../platform/adapters/event-bus"
+import { preferences } from "../../platform/adapters/preferences"
 import type { BarContext, RichWidgetSpec } from "../../kit/widget"
 
 type RecordingState = "idle" | "recording" | "paused"

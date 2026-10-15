@@ -1,7 +1,7 @@
 import type { AnyWidgetSpec, BarContext } from "../kit/widget"
 import type { AudioPanelBinding } from "../audio/AudioPopup"
 import type { BarBackdrop } from "../lib/bar-backdrop"
-import { domainEvents } from "../lib/event-bus"
+import { domainEvents } from "../platform/adapters/event-bus"
 import { workspacesWidget } from "./widgets/workspaces"
 import { clockWidget } from "./widgets/clock"
 import { createTrayWidget } from "./widgets/tray"

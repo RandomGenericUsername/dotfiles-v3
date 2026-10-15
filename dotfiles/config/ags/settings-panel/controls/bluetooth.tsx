@@ -1,5 +1,5 @@
 import { createComputed } from "ags"
-import { registry } from "../../lib/icon-registry"
+import { registry } from "../../platform/adapters/icon-registry"
 import { CapabilityTile } from "../primitives"
 import {
   bluetoothDevices,

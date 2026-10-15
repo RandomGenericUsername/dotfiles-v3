@@ -1,7 +1,7 @@
 /**
  * The Gio `Preferences` adapter (spine AD-12; doc 101 §4.6).
  *
- * The pure port + core live in `../platform/preferences`; this file supplies the
+ * The pure port + core live in `../ports/preferences`; this file supplies the
  * two things the core cannot: the config FILE and its `Gio.FileMonitor`. The
  * adapter owns both, which is exactly the ownership AD-12 moves off the widget —
  * `bar/widgets/recording.tsx` used to read the file itself and hold the monitor
@@ -18,8 +18,8 @@
 
 import Gio from "gi://Gio?version=2.0";
 import GLib from "gi://GLib?version=2.0";
-import { agsRuntime } from "../domains/astal";
-import { createPreferences, type PreferencesSource } from "../platform/preferences";
+import { agsRuntime } from "./astal";
+import { createPreferences, type PreferencesSource } from "../ports/preferences";
 
 /**
  * The namespace -> config file map. Only the capture-tool config exists today;

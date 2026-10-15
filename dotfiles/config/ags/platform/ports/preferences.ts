@@ -18,7 +18,7 @@
  * PURE: no `ags`, no `gi://*`, no I/O.
  */
 
-import type { ReadAccessor, ReactiveRuntime, Setter } from "../domains/reactive";
+import type { ReadAccessor, ReactiveRuntime, Setter } from "./reactive";
 
 /** Reactive value for a namespaced key, with a fallback when unset (AD-12). */
 export interface Preferences {
