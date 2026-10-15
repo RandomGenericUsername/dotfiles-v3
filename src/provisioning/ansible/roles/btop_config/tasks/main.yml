@@ -46,6 +46,32 @@
     path: "{{ btop_config_spine_themes_dir }}"
     state: directory
 
+# btop-theme-deployment: read the repo-owned active-theme setting. A missing
+# setting is not an error — the default (the generated theme) is used. slurp is
+# read-only and therefore check-safe.
+- name: Read the repo-owned active-theme setting
+  ansible.builtin.slurp:
+    src: "{{ btop_config_active_theme_file }}"
+  register: btop_config_active_theme_raw
+  failed_when: false
+
+- name: Resolve the active theme (repo setting, else the generated default)
+  ansible.builtin.set_fact:
+    btop_config_active_theme: >-
+      {{ (btop_config_active_theme_raw.content | default('', true) | b64decode | trim)
+         or btop_config_default_active_theme }}
+
+# Ship authored themes into the spine themes dir that btop scans. The generated
+# `colors.btop.theme` pointer is runtime-owned and deliberately untouched: these
+# are static authored files (design D7). An empty repo dir is a no-op.
+- name: Ship authored btop themes into the spine
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ btop_config_spine_themes_dir }}/"
+    mode: "0644"
+  with_fileglob:
+    - "{{ btop_config_authored_themes_repo_dir }}/*.theme"
+
 - name: Render btop.conf
   ansible.builtin.template:
     src: btop.conf.j2

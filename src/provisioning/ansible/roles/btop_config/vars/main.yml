@@ -49,3 +49,26 @@ btop_config_spine_themes_dir: "{{ btop_config_spine_dir }}/themes"
 #   config_links_xdg_config_home / verify_xdg_config_home — F4 lock:
 #   ansible_facts.env, NOT the deprecated top-level ansible_env fact.
 btop_config_xdg_config_home: "{{ ansible_facts.env.XDG_CONFIG_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.config', true) }}"
+
+# btop_config_repo_root: the repo root, derived from this role's playbook
+#   location (playbooks -> ansible -> provisioning -> src -> repo root) —
+#   identical derivation to cli_tools_repo_root. Used to read the repo-owned
+#   active-theme setting and to ship authored themes (btop-theme-deployment).
+btop_config_repo_root: "{{ playbook_dir }}/../../../.."
+
+# btop_config_active_theme_file: the repo-owned active-theme setting. The
+#   studio's "★ active" action writes the chosen theme's filename here; the
+#   render below reads it so the selection SURVIVES re-provisioning (design
+#   D10). A missing file falls back to the default.
+btop_config_active_theme_file: "{{ btop_config_repo_root }}/dotfiles/config/btop/active-theme"
+
+# btop_config_default_active_theme: the generated theme, selected by FILENAME
+#   (btop matches color_theme only against themes discovered in its own theme
+#   dir at startup). Used when the repo setting is absent/empty.
+btop_config_default_active_theme: "colors.btop.theme"
+
+# btop_config_authored_themes_repo_dir: the repo directory of authored themes
+#   the studio writes (Repo target) and provisioning ships into the spine
+#   themes dir. The generated `colors.btop.theme` pointer is runtime-owned and
+#   is deliberately NOT here.
+btop_config_authored_themes_repo_dir: "{{ btop_config_repo_root }}/dotfiles/assets/btop-themes"
