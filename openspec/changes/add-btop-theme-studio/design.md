@@ -54,7 +54,7 @@ Generate from `btop_theme.cpp` (key set) + `btop_draw.cpp` (attribution, includi
 Offer ramp, `color0–15`, named tokens, a native arbitrary colour picker, a hex field, a `transparent` (empty-value) option, and a start/mid/end gradient editor with "add middle colour". *Rationale:* btop supports empty-value transparency and exactly three gradient stops; the tool must not imply more.
 
 ### D10. Active theme is a repo-owned setting
-The active `color_theme` is chosen from a repo setting rendered into `btop.conf`, so it survives re-provisioning; `save_config_on_exit = false` keeps btop from rewriting the spine config. Provisioning ships authored themes into the spine themes dir. *Alternative:* runtime state only (would be reset by re-provisioning the rendered config).
+The active `color_theme` is chosen from a repo setting rendered into `btop.conf`, so it survives re-provisioning; `save_config_on_exit = false` keeps btop from rewriting the spine config. Provisioning ships authored themes into the spine themes dir **alongside** the generated pointer, which stays a runtime-owned pointer into `current/`. *Alternative:* runtime state only (would be reset by re-provisioning the rendered config).
 
 ## Risks / Trade-offs
 

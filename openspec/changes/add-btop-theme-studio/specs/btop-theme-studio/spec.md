@@ -101,3 +101,48 @@ The studio SHALL default to the repo-authoritative model (repo source deployed b
 #### Scenario: installed override warns of divergence
 - **WHEN** the user selects the Installed target
 - **THEN** the studio states that the change goes straight to the spine and drifts from the repo
+
+### Requirement: Edit scope
+
+A pick SHALL be applicable at three scopes — *This key*, *Same role* (every key sharing the role suffix), and *All keys* — and the studio SHALL state the blast radius before applying.
+
+#### Scenario: same-role scope
+- **WHEN** the user picks a colour with the "Same role" scope on `used_start`
+- **THEN** every `*_start` key in that theme is updated together
+
+#### Scenario: this-key scope
+- **WHEN** the user picks a colour with the "This key" scope
+- **THEN** only the selected key changes
+
+### Requirement: Active theme selection
+
+The studio SHALL let the user mark exactly one theme as the **active** theme (the one btop uses via `color_theme`), and SHALL persist that choice through the repo-owned active-theme setting.
+
+#### Scenario: marking a theme active
+- **WHEN** the user marks a theme active
+- **THEN** the studio records it as the active theme and the saved setting selects it in `btop.conf`
+
+### Requirement: One-click meter fixes
+
+The studio SHALL provide one-click fixes for the motivating defect: **Reserve surface for meters** (the unfilled meter is drawn from the surface) and **Transparent meters** (the unfilled meter is transparent).
+
+#### Scenario: transparent meters
+- **WHEN** the user applies "Transparent meters"
+- **THEN** `meter_bg` is set to the empty (transparent) value and the preview reflects it
+
+#### Scenario: reserve surface
+- **WHEN** the user applies "Reserve surface for meters"
+- **THEN** the unfilled meter colour is set to the theme's surface and the used floor is raised
+
+### Requirement: Pending edits, diff, and revert
+
+Picks SHALL accumulate as pending edits shown as a diff; nothing SHALL be written until save; a revert SHALL discard all pending edits.
+
+#### Scenario: nothing written on pick
+- **WHEN** the user picks a colour
+- **THEN** the diff shows the pending change and no file is written until save
+
+#### Scenario: revert discards
+- **WHEN** the user reverts
+- **THEN** the pending edits are discarded and the diff returns to its empty state
+

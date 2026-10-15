@@ -23,6 +23,7 @@ btop is themed by a **generated** `colors.btop.theme` (csg renders it from the w
 - `btop-theme-studio`: the authoring GUI — theme library, component schematic driven by btop's real config, full 48-key editing (palette + arbitrary colour + transparent + gradient stops), and the Repo/Installed save targets.
 - `btop-live-preview`: rendering the real btop binary on a pty as the preview (warm process + `SIGUSR2` delta capture), so the preview is always btop's actual output.
 - `btop-key-widget-map`: the generated, drift-checked mapping from every btop theme key to the boxes/modules that draw it, derived from btop source.
+- `btop-theme-deployment`: provisioning ships authored themes into the spine themes dir and selects the active `color_theme` from a repo-owned setting that survives re-provisioning.
 
 ### Modified Capabilities
 

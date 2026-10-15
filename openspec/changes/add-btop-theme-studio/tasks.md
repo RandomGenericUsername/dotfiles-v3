@@ -26,10 +26,13 @@
 - [ ] 4.3 Arbitrary colour picker usable regardless of theme kind; verify a colour outside the palette is applied on the generated theme too
 - [ ] 4.4 `transparent` (empty value) option; verify the key is written empty and previews as transparent
 - [ ] 4.5 Gradient editor (start/mid/end) with "add middle colour" for two-stop gradients; verify `download_mid` becomes set and the three-stop limit is stated
+- [ ] 4.6 Edit scope (This key / Same role / All keys) with the blast radius stated; verify "Same role" on `used_start` updates every `*_start` key (component test)
+- [ ] 4.7 One-click fixes "Reserve surface for meters" and "Transparent meters"; verify each sets the expected `meter_bg`/used-floor and the preview reflects it
 
 ## 5. Diagnosis
 
 - [ ] 5.1 Report meter-contrast defects (`used_start == meter_bg`; `meter_bg` vs background); verify each condition produces its message (unit test)
+- [ ] 5.2 Pending edits shown as a diff with nothing written until save, and a revert that discards them; verify the diff is empty after revert (component test)
 
 ## 6. Live preview engine
 
@@ -44,6 +47,7 @@
 - [ ] 7.1 Repo | Installed toggle with a read-only resolved destination, reflected in the diff and action; verify each target names its path (component test)
 - [ ] 7.2 Provisioning ships authored themes into the spine themes dir and sets the active `color_theme` from a repo setting; verify re-provisioning preserves the selection and `save_config_on_exit = false` (role test)
 - [ ] 7.3 Installed target writes to the spine and reloads live; verify the file lands and btop reloads; state the repo-divergence caveat in the UI (component test)
+- [ ] 7.4 Active theme selection (★) persisted through the repo-owned setting; verify the chosen theme is what `btop.conf` selects after provisioning (integration test)
 
 ## 8. Integration
 
