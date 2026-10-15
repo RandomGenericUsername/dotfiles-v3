@@ -278,13 +278,17 @@ class TestCompositorConfigsTasks:
         # preferences-notifier-theme (AD-11/AD-12/AD-13) added the three pure
         # ports (platform/preferences, platform/notifier, platform/theme) and
         # their three bar adapters (lib/preferences, lib/notifier, lib/theme).
-        assert len(files) == 114, (
-            f"expected exactly 114 skeleton files (hyprland.lua + gloview.lua + "
+        # 116 once migrate-widgets-to-shapes (AD-8/AD-9) added kit/layout.ts (the
+        # pure layout vocabulary + chain), bar/layout.default.ts (the repo-default
+        # provider) and bar/registry.ts (entry id -> shape spec), and retired
+        # bar/widgets/network.tsx in favour of the descriptor (-1, +3).
+        assert len(files) == 116, (
+            f"expected exactly 116 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
-            f"7 lib (incl. wifi-signal/network-icon)+5 kit "
-            f"(icon/overlay/widget + surface/popup-host)+"
+            f"7 lib (incl. wifi-signal/network-icon)+6 kit "
+            f"(icon/overlay/widget + surface/popup-host + layout)+"
             f"1 domain (network read-model)+"
-            f"Bar.tsx+12 "
+            f"Bar.tsx+layout.default.ts+registry.ts+11 "
             f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
             f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
             f"D-Bus services + speedtest service + the MPRIS core file "
@@ -322,13 +326,14 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/audio/presentation/levels.ts",
             "dotfiles/config/ags/audio/ui-state.ts",
             "dotfiles/config/ags/bar/Bar.tsx",
+            "dotfiles/config/ags/bar/layout.default.ts",
+            "dotfiles/config/ags/bar/registry.ts",
             "dotfiles/config/ags/bar/widgets/audio.tsx",
             "dotfiles/config/ags/bar/widgets/battery.tsx",
             "dotfiles/config/ags/bar/widgets/bluetooth.tsx",
             "dotfiles/config/ags/bar/widgets/btop.tsx",
             "dotfiles/config/ags/bar/widgets/clock.tsx",
             "dotfiles/config/ags/bar/widgets/network-descriptor.tsx",
-            "dotfiles/config/ags/bar/widgets/network.tsx",
             "dotfiles/config/ags/bar/widgets/power-menu.tsx",
             "dotfiles/config/ags/bar/widgets/recording.tsx",
             "dotfiles/config/ags/bar/widgets/settings.tsx",
@@ -363,6 +368,7 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/domains/reactive.ts",
             "dotfiles/config/ags/kit/icon-source.ts",
             "dotfiles/config/ags/kit/icon.ts",
+            "dotfiles/config/ags/kit/layout.ts",
             "dotfiles/config/ags/kit/overlay.ts",
             "dotfiles/config/ags/kit/popup-host.tsx",
             "dotfiles/config/ags/kit/shapes.ts",
@@ -742,10 +748,11 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "lib" / "event-bus.ts",
                 install / "config" / "ags" / "platform" / "event-client.ts",
                 install / "config" / "ags" / "bar" / "Bar.tsx",
+                install / "config" / "ags" / "bar" / "layout.default.ts",
+                install / "config" / "ags" / "bar" / "registry.ts",
                 install / "config" / "ags" / "bar" / "widgets" / "workspaces.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "clock.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "battery.tsx",
-                install / "config" / "ags" / "bar" / "widgets" / "network.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "power-menu.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "settings.tsx",
                 install / "config" / "ags" / "settings-panel" / "state.ts",
@@ -791,6 +798,7 @@ class TestCompositorConfigsPlaybook:
                 # these assert the registration actually copies each one.
                 install / "config" / "ags" / "kit" / "icon-source.ts",
                 install / "config" / "ags" / "kit" / "shapes.ts",
+                install / "config" / "ags" / "kit" / "layout.ts",
                 install / "config" / "ags" / "domains" / "reactive.ts",
                 install / "config" / "ags" / "domains" / "astal.ts",
                 install / "config" / "ags" / "domains" / "network" / "astal.ts",

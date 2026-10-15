@@ -1,6 +1,6 @@
 import Gtk from "gi://Gtk?version=4.0"
 import Gdk from "gi://Gdk?version=4.0"
-import { For, createBinding, createState } from "ags"
+import { createBinding, createState } from "ags"
 import { registry } from "../../lib/icon-registry"
 import {
   isBluetoothItem,
@@ -9,7 +9,7 @@ import {
   tray,
   type TrayItem as Item,
 } from "../../lib/status-notifier"
-import { RecordingIndicator } from "./recording"
+import type { ForeignCollectionSpec } from "../../kit/widget"
 
 /**
  * Apps whose tray icon should be replaced by a runtime-generated SVG from the
@@ -81,7 +81,16 @@ function TrayItem({ item }: { item: Item }) {
   )
 }
 
-export function Tray() {
+/**
+ * The tray, as a `ForeignCollectionSpec` (spine AD-8; doc 101 §5): the items
+ * and their renderer belong to another app (the StatusNotifier adapter), so it
+ * is the foreign-collection shape. The shared shell owns the root box
+ * (`bar-tray`) and the spacing; the adapter owns the item renderer.
+ *
+ * The recording indicator is NOT rendered here any more — it is its own layout
+ * placement entry (see `bar/layout.default.ts`).
+ */
+export function createTrayWidget(): ForeignCollectionSpec<Item, readonly Item[]> {
   //: nm-applet is merged into NetworkStatus and blueman-applet is a duplicate of
   //: the bar's own Bluetooth indicator — both are dropped, everything else
   //: keeps its native tray slot.
@@ -92,12 +101,12 @@ export function Tray() {
   tray.connect("item-added", refresh)
   tray.connect("item-removed", refresh)
 
-  return (
-    <box class="bar-tray" spacing={8}>
-      <For each={items} id={(item) => item.item_id ?? item.id}>
-        {(item) => <TrayItem item={item} />}
-      </For>
-      <RecordingIndicator />
-    </box>
-  )
+  return {
+    id: "tray",
+    read: () => items(),
+    class: "bar-tray",
+    spacing: 8,
+    items: (state) => state,
+    render: (item) => <TrayItem item={item} />,
+  }
 }

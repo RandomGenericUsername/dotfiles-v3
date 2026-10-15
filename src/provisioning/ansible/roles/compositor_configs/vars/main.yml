@@ -181,6 +181,11 @@ compositor_configs_skeleton_files:
   # imports kit/surface, so an unregistered one is a bar that cannot bundle.
   - { name: ags-kit-surface, source: dotfiles/config/ags/kit/surface.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/surface.ts" }
   - { name: ags-kit-popup-host, source: dotfiles/config/ags/kit/popup-host.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/popup-host.tsx" }
+  # The layout vocabulary (migrate-widgets-to-shapes, AD-9): the pure
+  # BarLayout/LayoutProvider and the user › runtime › repo-default resolve chain.
+  # kit/widget.tsx and bar/Bar.tsx import it, so an unregistered one is a bar
+  # that cannot bundle.
+  - { name: ags-kit-layout, source: dotfiles/config/ags/kit/layout.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/kit/layout.ts" }
   - { name: ags-icon-registry, source: dotfiles/config/ags/lib/icon-registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/icon-registry.ts" }
   - { name: ags-network-icon, source: dotfiles/config/ags/lib/network-icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/network-icon.ts" }
   - { name: ags-bar-backdrop, source: dotfiles/config/ags/lib/bar-backdrop.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/bar-backdrop.ts" }
@@ -204,10 +209,19 @@ compositor_configs_skeleton_files:
   - { name: ags-lib-theme, source: dotfiles/config/ags/lib/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/theme.ts" }
   - { name: ags-wifi-signal, source: dotfiles/config/ags/lib/wifi-signal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/wifi-signal.ts" }
   - { name: ags-bar-tsx, source: dotfiles/config/ags/bar/Bar.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx" }
+  # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
+  # AD-8/AD-9): Bar.tsx imports both, so an unregistered one is a bar that
+  # cannot bundle. The layout is the always-non-null floor of the chain; the
+  # registry maps a layout entry id to its shape spec.
+  - { name: ags-bar-layout-default, source: dotfiles/config/ags/bar/layout.default.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/layout.default.ts" }
+  - { name: ags-bar-registry, source: dotfiles/config/ags/bar/registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/registry.ts" }
   - { name: ags-workspaces, source: dotfiles/config/ags/bar/widgets/workspaces.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/workspaces.tsx" }
   - { name: ags-clock, source: dotfiles/config/ags/bar/widgets/clock.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/clock.tsx" }
   - { name: ags-battery, source: dotfiles/config/ags/bar/widgets/battery.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/battery.tsx" }
-  - { name: ags-network, source: dotfiles/config/ags/bar/widgets/network.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/network.tsx" }
+  # ags-network (bar/widgets/network.tsx) was retired by
+  # migrate-widgets-to-shapes: the network glyph is the descriptor
+  # (network-descriptor.tsx, registered below). Its manifest entry is removed so
+  # a provision never points at a deleted source.
   # The Bluetooth status widget (add-bluetooth-bar-popup): Bar.tsx imports it,
   # but it was never registered — the widget (and the popup/state it pulls in)
   # silently never deployed.

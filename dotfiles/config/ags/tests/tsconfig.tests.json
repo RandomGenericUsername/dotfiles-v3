@@ -115,6 +115,8 @@
     "../kit/shapes.ts",
     "../kit/surface.ts",
     "../kit/overlay.ts",
+    "../kit/layout.ts",
+    "../bar/layout.default.ts",
     "../domains/reactive.ts",
     "../domains/network/read-model.ts",
     "../domains/battery/read-model.ts",

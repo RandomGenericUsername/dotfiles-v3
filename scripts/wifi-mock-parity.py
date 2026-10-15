@@ -65,7 +65,7 @@ STATE_TSX = {
     ],
     "state-2b-running": [
         "components/wifi/WifiContent.tsx",  # run button
-        "bar/widgets/network.tsx",  # card class
+        "bar/widgets/network-descriptor.tsx",  # card class
     ],
     "state-3-off": [
         "components/wifi/WifiContent.tsx",  # empty state
@@ -80,7 +80,7 @@ STATE_TSX = {
         "components/wifi/WifiContent.tsx",  # WifiPasswordPrompt
     ],
     "bar-testing-card": [
-        "bar/widgets/network.tsx",
+        "bar/widgets/network-descriptor.tsx",
         # style.css is always checked globally as well.
     ],
 }

@@ -118,6 +118,13 @@ export interface CollectionSpec<I, S, E = unknown> extends Shell<S> {
     state: S,
     ctx: BarContext<E>,
   ) => WidgetSpec<S, E> | E
+  /**
+   * The gap between items. A collection-specific presentation hint: the shared
+   * `Shell` carries no spacing because the collection is the only shape whose
+   * root box lays out more than one child (clock and recording put their own
+   * spacing on an inner box). Defaults to 0.
+   */
+  readonly spacing?: number
 }
 
 /**
@@ -127,4 +134,6 @@ export interface CollectionSpec<I, S, E = unknown> extends Shell<S> {
 export interface ForeignCollectionSpec<I, S, E = unknown> extends Shell<S> {
   readonly items: (state: S) => readonly I[]
   readonly render: (item: I, state: S, ctx: BarContext<E>) => E
+  /** The gap between items — see `CollectionSpec.spacing`. Defaults to 0. */
+  readonly spacing?: number
 }

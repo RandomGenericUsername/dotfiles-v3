@@ -465,6 +465,9 @@ verify_compositor_skeleton_files:
   # cannot bundle.
   - "{{ install_dir | trim }}/config/ags/kit/surface.ts"
   - "{{ install_dir | trim }}/config/ags/kit/popup-host.tsx"
+  # The layout vocabulary (migrate-widgets-to-shapes, AD-9): mirror of the
+  # compositor_configs skeleton dest. kit/widget.tsx and bar/Bar.tsx import it.
+  - "{{ install_dir | trim }}/config/ags/kit/layout.ts"
   - "{{ install_dir | trim }}/config/ags/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags/lib/network-icon.ts"
   - "{{ install_dir | trim }}/config/ags/lib/event-bus.ts"
@@ -483,10 +486,15 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/lib/notifier.ts"
   - "{{ install_dir | trim }}/config/ags/lib/theme.ts"
   - "{{ install_dir | trim }}/config/ags/bar/Bar.tsx"
+  # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
+  # AD-8/AD-9): mirror of the compositor_configs skeleton dests.
+  - "{{ install_dir | trim }}/config/ags/bar/layout.default.ts"
+  - "{{ install_dir | trim }}/config/ags/bar/registry.ts"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/workspaces.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/clock.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/battery.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/network.tsx"
+  # bar/widgets/network.tsx was retired by migrate-widgets-to-shapes; the
+  # descriptor below replaces it.
   # The Bluetooth status widget (add-bluetooth-bar-popup): Bar.tsx imports it, so
   # a missing copy is a bar that cannot bundle.
   - "{{ install_dir | trim }}/config/ags/bar/widgets/bluetooth.tsx"

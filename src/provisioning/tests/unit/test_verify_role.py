@@ -1708,6 +1708,9 @@ class TestVerifyVars:
             "kit/shapes.ts",
             "kit/surface.ts",
             "kit/popup-host.tsx",
+            "kit/layout.ts",
+            "bar/layout.default.ts",
+            "bar/registry.ts",
             "platform/event-client.ts",
             "platform/preferences.ts",
             "platform/notifier.ts",
@@ -2752,6 +2755,9 @@ def _build_provisioned_layout(
     # verify_compositor_skeleton_files.
     (install / "config" / "ags" / "kit" / "icon-source.ts").write_text("")
     (install / "config" / "ags" / "kit" / "shapes.ts").write_text("")
+    # The layout vocabulary (migrate-widgets-to-shapes, AD-9): mirror of
+    # verify_compositor_skeleton_files.
+    (install / "config" / "ags" / "kit" / "layout.ts").write_text("")
     # The surface contract + the popup primitive (surfaces-popup-host, AD-10):
     # mirror of verify_compositor_skeleton_files. Every popup imports
     # kit/popup-host, which imports kit/surface.
@@ -2778,7 +2784,6 @@ def _build_provisioned_layout(
         "clock",
         "battery",
         "bluetooth",
-        "network",
         "network-descriptor",
         "power-menu",
         "btop",
@@ -2788,6 +2793,11 @@ def _build_provisioned_layout(
         "settings",
     ):
         (install / "config" / "ags" / "bar" / "widgets" / f"{widget}.tsx").write_text("")
+    # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
+    # AD-8/AD-9): mirror of verify_compositor_skeleton_files. Bar.tsx imports
+    # both. (bar/widgets/network.tsx was retired with this change.)
+    (install / "config" / "ags" / "bar" / "layout.default.ts").write_text("")
+    (install / "config" / "ags" / "bar" / "registry.ts").write_text("")
     # Settings panel sources (compositor_configs role, add-ags-settings-panel):
     # must match verify_compositor_skeleton_files EXACTLY (a missing panel
     # source fails the criterion-7 gate — the fixture IS the provisioned
