@@ -56,6 +56,9 @@ Offer ramp, `color0–15`, named tokens, a native arbitrary colour picker, a hex
 ### D10. Active theme is a repo-owned setting
 The active `color_theme` is chosen from a repo setting rendered into `btop.conf`, so it survives re-provisioning; `save_config_on_exit = false` keeps btop from rewriting the spine config. Provisioning ships authored themes into the spine themes dir **alongside** the generated pointer, which stays a runtime-owned pointer into `current/`. *Alternative:* runtime state only (would be reset by re-provisioning the rendered config).
 
+### D11. Preview controls live in the schematic, not the live preview
+The load control, fixed-fill levels, and backdrop toggle affect only the component schematic; the live preview always shows btop's real data. *Rationale:* the live pane's value is that it is btop's actual output — injecting synthetic load there would break that contract. *Alternative:* drive the live pane with synthetic data (rejected — no longer btop).
+
 ## Risks / Trade-offs
 
 - **`SIGUSR2` full-redraw assumption** → keep the fresh-capture path as a fallback and re-verify on btop version change.

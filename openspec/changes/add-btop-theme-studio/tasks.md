@@ -18,6 +18,7 @@
 - [ ] 3.2 Render the labelled schematic (cpu, cpu-detail, gpu, mem, net, disks, proc) with per-element key association; verify selecting a key highlights its components (component test)
 - [ ] 3.3 Preset selector re-lays out the box set and names it; verify a preset without `disks` hides that box and the caption lists the shown boxes
 - [ ] 3.4 Warn when a selected key paints a module the preset hides; verify the warning text for `available_*` on a disks-less preset
+- [ ] 3.5 Preview controls — a load control, fixed fill (0 / 25 / 50 / 100%), and a solid/neutral backdrop toggle; verify each changes the schematic without altering any theme colour (component test)
 
 ## 4. Full key editing
 

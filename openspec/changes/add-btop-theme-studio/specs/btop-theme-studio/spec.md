@@ -146,3 +146,20 @@ Picks SHALL accumulate as pending edits shown as a diff; nothing SHALL be writte
 - **WHEN** the user reverts
 - **THEN** the pending edits are discarded and the diff returns to its empty state
 
+### Requirement: Preview load and backdrop controls
+
+The component schematic SHALL provide preview controls: a **load** control that sets the meter/utilisation level shown, a **fixed fill** mode that renders every meter at a chosen level (0 / 25 / 50 / 100%), and a **backdrop** toggle between the theme's own background and a neutral backdrop.
+
+#### Scenario: load control
+- **WHEN** the user sets the preview load to 20%
+- **THEN** the schematic's meters render at that level so the theme can be judged at low load
+
+#### Scenario: fixed fill levels
+- **WHEN** the user enables fixed fill
+- **THEN** every meter is rendered at the chosen fixed level, so a nearly-empty meter can be checked
+
+#### Scenario: backdrop toggle
+- **WHEN** the user toggles the backdrop
+- **THEN** the schematic renders on the theme's background or on a neutral backdrop, without changing any theme colour
+
+
