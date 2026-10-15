@@ -1,0 +1,53 @@
+.btop-theme-studio {
+  background: #16181d;
+  color: #d7dbe2;
+}
+.studio-root { background: #16181d; }
+.studio-left {
+  background: #1d2026;
+  border-right: 1px solid #313742;
+  min-width: 260px;
+  padding: 8px;
+}
+.studio-center { padding: 8px; }
+.studio-right {
+  background: #1d2026;
+  border-left: 1px solid #313742;
+  min-width: 320px;
+  padding: 8px;
+}
+.h2 {
+  font-size: 11px;
+  color: #8b93a1;
+  margin-top: 6px;
+}
+.hint { color: #8b93a1; font-size: 11px; }
+.warn { color: #e0a45e; font-size: 11px; }
+.status { color: #7bc47f; font-size: 11px; }
+.path { font-family: monospace; font-size: 11px; color: #7fb0d8; }
+.caption { font-family: monospace; font-size: 11px; color: #8b93a1; }
+.diag, .diff { font-family: monospace; font-size: 11px; color: #d7dbe2; }
+.toggle, .btn, .pchip, .item, .titem {
+  background: #23272f;
+  border: 1px solid #313742;
+  color: #d7dbe2;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.toggle.on { border-color: #6ea8fe; color: #6ea8fe; }
+.btn.primary { background: #2c4b7c; border-color: #6ea8fe; color: #ffffff; }
+.group { color: #8b93a1; font-size: 10px; margin-top: 4px; }
+.bbox { border: 1px solid #313742; border-radius: 4px; padding: 4px; }
+.btitle { font-weight: 700; font-size: 11px; }
+.el { font-size: 10px; color: #aeb6c2; }
+.el.hl { outline: 1px solid #6ea8fe; color: #ffffff; }
+.canvas { background: #101216; padding: 8px; }
+.live { color: #8b93a1; font-size: 11px; }
+.live-frame {
+  font-family: "JetBrainsMono Nerd Font", "Adwaita Mono", "DejaVu Sans Mono", monospace;
+  font-size: 8px;
+  color: #d7dbe2;
+  background: #000000;
+}
+.swatches { }
+.swatch { padding: 0; min-width: 22px; min-height: 18px; }
