@@ -34,10 +34,11 @@ from pathlib import Path
 
 #: The pre-existing AGS instance names. A new one means a new process holding a
 #: socket slot and a bus name, which is exactly the surface this change must not
-#: add. ``icon-color-mapping-editor`` and ``wallpaper-selector`` are one-shot
-#: on-demand tools, not autostarted instances, and are listed for completeness.
+#: add. ``icon-color-mapping-editor``, ``wallpaper-selector``, and
+#: ``btop-theme-studio`` are one-shot on-demand tools, not autostarted
+#: instances, and are listed for completeness.
 ALLOWED_INSTANCE_NAMES = frozenset(
-    {"ags", "capture", "notifications", "hypr-pano", "wallpaper-selector", "icon-color-mapping-editor"}
+    {"ags", "capture", "notifications", "hypr-pano", "wallpaper-selector", "icon-color-mapping-editor", "btop-theme-studio"}
 )
 
 #: The speed-test producer + consumer path. The producer is in the AGS tree
