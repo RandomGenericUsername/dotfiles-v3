@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps ags-platform-dev capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates per-app-drift-symbol-suites
+.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-platform-dev capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -33,49 +33,42 @@ contract-pin-check:
 
 # Every executable gate, in the order a reviewer should read them: contract
 # first (it is the source of truth), then mock/code parity, then the
-# anti-invention check, then the capture domain unit tests, then the ags
-# config's pure-module unit tests, then the capture GUI typecheck, then the
-# capture hexagonal structure gate, then the generated-icons.json projection
-# drift gate, then the Ansible embedded-template lint, then the per-app contract
-# drift/symbol suites, then the check that keeps the CI workflow's job set equal
-# to this list.
+# anti-invention check, then the capture domain unit tests, then the capture GUI
+# typecheck, then the capture hexagonal structure gate, then the
+# generated-icons.json projection drift gate, then the Ansible embedded-template
+# lint, then the per-app contract drift/symbol suites, then the check that keeps
+# the CI workflow's job set equal to this list.
 #
-# `gates` is the DEVELOPER gate set and runs ALL of them, including the two that
-# need the desktop stack. Nothing is dropped for convenience: a gate that is not
+# `gates` is the DEVELOPER gate set and runs ALL of them, including the one that
+# needs the desktop stack. Nothing is dropped for convenience: a gate that is not
 # run here is a gate nobody runs.
 GATES := contracts-check wifi-mock-parity bluetooth-mock-parity \
          battery-mock-parity speedtest-mock-parity \
-         speedtest-no-new-architecture capture-test ags-test capture-typecheck \
-         bar-typecheck capture-hexagonal-gate icons-json-drift \
+         speedtest-no-new-architecture capture-test capture-typecheck \
+         capture-hexagonal-gate icons-json-drift \
          ansible-embedded-template-lint deploy-coverage ci-gates-parity \
          per-app-drift-symbol-suites \
          audio-mock-parity audio-core-test audio-presentation-test \
          pipewire-adapter-test audio-session-runtime-test \
-         audio-panel-render-test audio-icons-test audio-seek-stability-test \
-         ags-typecheck
+         audio-panel-render-test audio-icons-test audio-seek-stability-test
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
 #
-# TWO gates are excluded — `capture-typecheck` and `bar-typecheck` — and they are
-# excluded because they CANNOT run there, not because it is inconvenient there
-# (openspec change `enable-ci-gates`, design.md §"Why capture-typecheck cannot
-# run in CI"). Both need `ags` on PATH plus the Astal/GIR libraries, and
-# `ags types` writes ~49 MB of machine-specific .d.ts describing THIS host's
-# GTK/Astal version. A GitHub-hosted runner has no AGS, no Astal and no GTK4, so
-# they have nothing to typecheck against. Their third-party error buckets are
-# keyed to the literal path /usr/share/ags/js/ as well, which only exists on a
-# provisioned desktop. Both stay developer gates. See the comments on the targets
-# below.
-#
-# `ags-test` is NOT excluded, because unlike the typechecks it needs no desktop
-# stack at all: it only runs Node over the ags config's pure modules, and nothing
-# reachable from its tsconfig imports `gi://*` or `ags/*`.
+# ONE gate is excluded -- `capture-typecheck` -- and it is excluded because it
+# CANNOT run there, not because it is inconvenient there (openspec change
+# `enable-ci-gates`, design.md §"Why capture-typecheck cannot run in CI"). It
+# needs `ags` on PATH plus the Astal/GIR libraries, and `ags types` writes
+# ~49 MB of machine-specific .d.ts describing THIS host's GTK/Astal version. A
+# GitHub-hosted runner has no AGS, no Astal and no GTK4, so it has nothing to
+# typecheck against. Its third-party error buckets are keyed to the literal path
+# /usr/share/ags/js/ as well, which only exists on a provisioned desktop. It
+# stays a developer gate. See the comment on the target below.
 #
 # This target exists so a developer can reproduce a CI run without the desktop
 # stack, and so the split is stated in ONE place that cannot drift from the
 # workflow: `.github/workflows/gates.yml` runs these as one job per gate.
-gates-ci: $(filter-out capture-typecheck bar-typecheck ags-typecheck,$(GATES))
+gates-ci: $(filter-out capture-typecheck,$(GATES))
 
 # CI<->gate-list parity: the workflow's job set must equal `gates-ci`.
 #
@@ -165,8 +158,8 @@ capture-typecheck: capture-types
 	@# tree) never gets them, and the gate dies with
 	@# `Cannot find module 'ags/gtk4'` — MEASURED, and hit independently by two
 	@# agents working in fresh worktrees on 2026-10-07. Same defect `3b283830`
-	@# fixed for `bar-typecheck`; provisioned here too rather than relying on a
-	@# skip decision made for a different reason.
+	@# fixed in the retired bar typecheck; provisioned here too rather than
+	@# relying on a skip decision made for a different reason.
 	@mkdir -p "$(CAPTURE_DIR)/node_modules"
 	@[ -e "$(CAPTURE_DIR)/node_modules/ags" ] || ln -sfn /usr/share/ags/js "$(CAPTURE_DIR)/node_modules/ags"
 	@[ -e "$(CAPTURE_DIR)/node_modules/gnim" ] || ln -sfn /usr/share/ags/js/node_modules/gnim "$(CAPTURE_DIR)/node_modules/gnim"
@@ -260,80 +253,6 @@ capture-test: capture-test-deps
 	@echo "    OK: 0 type errors in the domain unit tests"
 
 # ---------------------------------------------------------------------------
-# ags-test -- unit tests for the AGS config's PURE modules.
-#
-# `dotfiles/config/ags/` had NO TypeScript test setup at all: capture-test
-# covers the capture TOOL's domain and nothing covered the ags config. That
-# left every pure decision in the config (the battery panel's time wording,
-# duration formatting and profile-icon selection, added by
-# add-battery-status-panel) reachable only by rendering a live GTK panel.
-#
-# WHY IT NEEDS NO DESKTOP STACK, unlike capture-typecheck. The module list in
-# $(AGS_TSCONFIG_TESTS) is EXPLICIT precisely so this can be true: nothing in
-# it imports `gi://*` or `ags/*`, so the whole suite is Node plus tsc. That is
-# also why it is NOT filtered out of gates-ci, where capture-typecheck is.
-AGS_TESTS := dotfiles/config/ags/tests
-AGS_TS_TESTS := $(AGS_TESTS)/ts
-AGS_TSCONFIG_TESTS := $(AGS_TESTS)/tsconfig.tests.json
-
-# The dependencies this gate needs, in exactly the shape capture-test-deps
-# already uses: `npm install --no-save --no-package-lock` into gitignored
-# node_modules, no package.json committed, each install guarded so the network
-# round-trip is skipped when the package is already present. A gate that
-# cannot run on a clean checkout is not a gate, so it DECLARES what it needs
-# rather than inheriting whatever the machine happens to have.
-#
-# WHY @types/node MUST LAND UNDER $(AGS_TESTS)/ AND NOWHERE ELSE.
-# It must be a SIBLING of $(AGS_TSCONFIG_TESTS), because tsc's default
-# typeRoots walk starts at the config's own directory and walks UP -- so
-# $(AGS_TESTS)/node_modules/@types is found and $(AGS_TS_TESTS)/node_modules
-# (one level DOWN) is not. That is the same placement the capture tool uses
-# (src/gui-tools/capture-tool/tests/node_modules next to
-# src/gui-tools/capture-tool/tests/tsconfig.tests.json), for the same reason.
-#
-# And it must not sit at the repo root or at dotfiles/config/ags/. ags/ has no
-# committed app tsconfig today (`ags bundle` typechecks nothing itself), so
-# unlike the capture tool there is no measured "66 @types/node files joined the
-# app program" number to cite -- but the hazard is identical: the moment an app
-# tsconfig is added, a root-level or ags-level install is found by the upward
-# walk and silently widens the app's ambient surface. Keeping it under tests/
-# means the walk from any future app config's directory never descends into it.
-# The path is gitignored explicitly: placement into the install spine is
-# per-file, so an unregistered file never deploys, but a committed node_modules
-# must never reach a commit either.
-#
-# The separate npm project (--prefix, no package.json) also means this install
-# CANNOT PRUNE the root one. That is not theoretical: `npm install --no-save X`
-# at the repo root REMOVES previously --no-save'd packages, which in this repo's
-# history turned into a false green by taking capture-test's typescript with it.
-# Both gates install typescript from the same root; only capture-test-deps may
-# touch the root.
-ags-test-deps:
-	@if [ ! -x node_modules/.bin/tsc ]; then \
-		echo "==> ags-test: installing typescript (npm install --no-save, ignored by git)"; \
-		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
-	fi
-	@if [ ! -d $(AGS_TESTS)/node_modules/@types/node ]; then \
-		echo "==> ags-test: installing @types/node under $(AGS_TESTS)/ (gitignored)"; \
-		npm install --no-save --no-package-lock --prefix $(AGS_TESTS) @types/node@24 >/dev/null || exit 1; \
-	fi
-
-# NO SILENT SKIPS. If node or npx cannot be resolved, or tsc is absent after
-# ags-test-deps, that is a FAILURE and this target exits non-zero. A test gate
-# that skips when its toolchain is missing is indistinguishable, in CI, from a
-# test gate that passes -- and the first is how a suite silently stops running.
-ags-test: ags-platform-dev ags-test-deps
-	@command -v node >/dev/null || { echo "FAIL: ags-test: node is not on PATH" >&2; exit 1; }
-	@command -v npx  >/dev/null || { echo "FAIL: ags-test: npx is not on PATH" >&2;  exit 1; }
-	@[ -x node_modules/.bin/tsc ] || { echo "FAIL: ags-test: typescript missing after ags-test-deps" >&2; exit 1; }
-	@[ -d $(AGS_TESTS)/node_modules/@types/node ] || { echo "FAIL: ags-test: @types/node missing after ags-test-deps" >&2; exit 1; }
-	@echo "==> ags-test: node --test $(AGS_TS_TESTS)"
-	node --import ./$(AGS_TS_TESTS)/resolve-hooks.mjs --test $(AGS_TS_TESTS)/*.test.ts
-	@echo "==> ags-test: tsc --noEmit -p $(AGS_TSCONFIG_TESTS)"
-	npx tsc --noEmit -p "$(AGS_TSCONFIG_TESTS)" || exit 1
-	@echo "    OK: 0 type errors in the ags pure-module unit tests"
-
-# ---------------------------------------------------------------------------
 # per-app-drift-symbol-suites -- the per-app contract drift + symbol suites, run
 # from the ROOT gate (spine AD-19).
 #
@@ -385,8 +304,6 @@ per-app-drift-symbol-suites: ags-platform-dev
 capture-hexagonal-gate:
 	python3 scripts/capture-hexagonal-gate.py
 
-BAR_DIR := dotfiles/config/ags
-
 # ---------------------------------------------------------------------------
 # ags-platform-dev -- the dev-time `node_modules/ags-platform` shortcut.
 #
@@ -394,16 +311,14 @@ BAR_DIR := dotfiles/config/ags
 # `ags-platform` (spine AD-17). AGS's embedded esbuild resolves it at bundle/run
 # time through a `node_modules` shortcut; the deployed install creates one at
 # <install>/config/node_modules/ags-platform (provisioning role `ags_platform`).
-# The DEV tree needs the same shortcut so the typecheck gates (bar-typecheck,
-# ags-typecheck) and the pure test suite (ags-test) resolve the specifier in the
-# repo. It mirrors the existing `ags`/`gnim` dev aliases those targets create.
+# The DEV tree needs the same shortcut so `per-app-drift-symbol-suites`' ICME
+# event-contract drift suite resolves the specifier from a plain `node` script.
 #
 # IT MUST POINT OUTSIDE node_modules. Node refuses to type-strip `.ts` under a
 # real `node_modules` directory (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING),
 # which is why the platform's OWN tests import relatively (see the ags-platform
 # repo). Node realpaths a SYMLINK, though, so a link whose target sits outside
-# node_modules type-strips fine -- verified: `ags-test` runs the bar's pure
-# suite through this link with `node --test`.
+# node_modules type-strips fine.
 #
 # THE SOURCE. Default: the pinned published unit, fetched shallow+anonymous into
 # the gitignored $(AGS_PLATFORM_FETCH_DIR) on demand -- the same
@@ -428,77 +343,13 @@ ags-platform-dev:
 		git clone --depth 1 --branch $(AGS_PLATFORM_VERSION) $(AGS_PLATFORM_REPO) "$(AGS_PLATFORM_FETCH_DIR)" || exit 1; \
 		rm -rf "$(AGS_PLATFORM_FETCH_DIR)/.git"; \
 	fi
-	@mkdir -p "$(BAR_DIR)/node_modules"
-	@ln -sfn "$(AGS_PLATFORM_SRC)" "$(BAR_DIR)/node_modules/ags-platform"
-	@# A repo-root shortcut too: the ICME event-contract drift suite (run by
+	@# A repo-root shortcut: the ICME event-contract drift suite (run by
 	@# `per-app-drift-symbol-suites`) is a plain `node` script under
 	@# src/gui-tools/, and Node's node_modules walk from there reaches the repo
-	@# root but not dotfiles/config/ags. Same symlink shape, one walk up.
+	@# root but not the bar dev tree. Same symlink shape, one walk up.
 	@mkdir -p node_modules
 	@ln -sfn "$(AGS_PLATFORM_SRC)" node_modules/ags-platform
-	@echo "==> ags-platform-dev: $(BAR_DIR)/node_modules/ags-platform + node_modules/ags-platform -> $(AGS_PLATFORM_SRC)"
-
-# tsconfig.bar.json is HAND-WRITTEN and committed, for the same reason as the
-# capture one: `ags types -u` writes its own colliding tsconfig.json into
-# whichever directory it runs against. The bar REUSES the capture tool's
-# generated @girs/env.d.ts (same machine, same libraries — a second 49 MB copy
-# would be pure duplication), so this gate depends on capture-types; only the
-# node_modules/{ags,gnim} symlinks live in the bar tree itself (gitignored).
-
-# Typecheck the bar tree: ZERO errors allowed in dotfiles/config/ags.
-#
-# WHY THIS GATE EXISTS: `ags bundle` TRANSPILES WITHOUT TYPE CHECKING, and a
-# `bluetoothFailure` re-export of a deleted accessor bundled exit 0 on this
-# branch — found by reading, by no gate. Same posture as capture-typecheck.
-#
-# SCOPE, stated plainly: this gate FAILS on ANY error in $(BAR_DIR). Its
-# pass/fail line means "the bar tree typechecks", not "the files some earlier
-# change happened to touch are clean". It did mean the latter: a per-file
-# Bluetooth-owned allowlist tolerated everything else, and the tolerated list
-# grew from 35 to 48 errors across a single merge with nothing objecting. The
-# allowlist and its NOTE block were removed by clear-bar-typecheck-errors.
-#
-# Third-party errors under /usr/share/ags/js are tolerated BY LOCATION, exactly
-# as capture-typecheck does. Errors in neither bucket fail too — "tolerated"
-# must never become a silent pass.
-#
-# REQUIRES THE DESKTOP STACK (`ags` + Astal) via capture-types, same as
-# capture-typecheck. TIMING: ~30s once @girs/ exists.
-bar-typecheck: ags-platform-dev capture-types
-	@if [ ! -x node_modules/.bin/tsc ]; then \
-		echo "==> installing typescript (npm install --no-save, ignored by git)"; \
-		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
-	fi
-	@# The bar reuses the capture tool's GENERATED declarations, but it still
-	@# needs its OWN `node_modules` symlinks: module resolution for `ags/*` and
-	@# `gnim` is per-directory, they are gitignored, and `ags types` only writes
-	@# them into the directory it is pointed at (the capture one). Without this
-	@# the gate fails with `Cannot find module 'ags'` on every fresh clone or
-	@# worktree — MEASURED, and only noticed because `make gates` was first run
-	@# from a second worktree. Same targets `ags types` creates in the capture
-	@# directory.
-	@mkdir -p "$(BAR_DIR)/node_modules"
-	@[ -e "$(BAR_DIR)/node_modules/ags" ] || ln -sfn /usr/share/ags/js "$(BAR_DIR)/node_modules/ags"
-	@[ -e "$(BAR_DIR)/node_modules/gnim" ] || ln -sfn /usr/share/ags/js/node_modules/gnim "$(BAR_DIR)/node_modules/gnim"
-	@echo "==> bar-typecheck: tsc --noEmit -p $(BAR_DIR)/tsconfig.bar.json"
-	@log=$$(mktemp); \
-	npx tsc --noEmit -p "$(BAR_DIR)/tsconfig.bar.json" > "$$log" 2>&1; \
-	ours=$$(grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/" | grep -vF 'ags-platform/' || true); \
-	thirdparty=$$(grep 'error TS' "$$log" | grep -F '/usr/share/ags/js/' || true); \
-	platform=$$(grep 'error TS' "$$log" | grep -F 'ags-platform/' || true); \
-	other=$$(grep 'error TS' "$$log" | grep -vF "$(BAR_DIR)/" | grep -vF '/usr/share/ags/js/' | grep -vF 'ags-platform/' || true); \
-	echo "    tolerated third-party errors (/usr/share/ags/js): $$(printf '%s\n' "$$thirdparty" | grep -c . || true)"; \
-	echo "    tolerated ags-platform errors (external unit, AD-17): $$(printf '%s\n' "$$platform" | grep -c . || true)"; \
-	if [ -n "$$other" ]; then \
-		echo "FAIL: errors in neither the bar tree nor the known ags runtime:"; \
-		printf '%s\n' "$$other"; rm -f "$$log"; exit 1; \
-	fi; \
-	if [ -n "$$ours" ]; then \
-		echo "FAIL: type errors in $(BAR_DIR):"; \
-		printf '%s\n' "$$ours"; rm -f "$$log"; exit 1; \
-	fi; \
-	echo "    OK: 0 errors in $(BAR_DIR)"; \
-	rm -f "$$log"
+	@echo "==> ags-platform-dev: node_modules/ags-platform -> $(AGS_PLATFORM_SRC)"
 
 wifi-mock-parity:
 	python3 scripts/wifi-mock-parity.py
@@ -662,20 +513,6 @@ vm-help:
 audio-mock-parity:
 	python3 scripts/audio-mock-parity.py
 
-# Typecheck the AGS layer (tasks.md 6.5). `ags bundle` transpiles without
-# typechecking, which is how a mis-cased shorthand property shipped through
-# every other gate and died on startup.
-#
-# SCOPE (spine AD-19): the gate fails on ANY error across the bar tree
-# (`dotfiles/config/ags/`), not only `audio/` -- `kit/`, `lib/`, `domains/` and
-# `bar/` are the platform surfaces being extracted, and a bad extraction there
-# must fail the gate. The only reported-but-not-failed bucket is `tests/`, a
-# separate tsc project owned by `make ags-test`. There is NO numeric baseline:
-# errors are fixed, or recorded as genuinely third-party by location
-# (FOREIGN_MARKERS in the script). Do not add a filename allowlist.
-ags-typecheck: ags-platform-dev
-	python3 scripts/ags-typecheck.py
-
 # Audio panel gates, cheapest and most local first. Order matters: the unit
 # suites are fast and stateless, then mock/code parity (the mock is the source
 # of truth for the surface), then the render gate (is the panel wired at all),
@@ -710,7 +547,7 @@ audio-seek-stability-test:
 
 audio-panel-gates: audio-core-test audio-presentation-test pipewire-adapter-test \
 	audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test \
-	audio-mock-parity ags-typecheck
+	audio-mock-parity
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).

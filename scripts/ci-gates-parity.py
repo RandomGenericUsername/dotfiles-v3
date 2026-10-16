@@ -34,9 +34,9 @@ both must be written down here rather than read past:
 
 And one exclusion is declared rather than left as an absence: `CI_EXCLUDED_GATES`
 names each gate the `gates-ci` filter removes and why it cannot run on a stock
-runner. `capture-typecheck` is the one today. The two other filtered gates --
-`bar-typecheck` and `ags-typecheck` -- DO run in CI, on the `[self-hosted, linux]`
-runner, and are declared in `CI_SELF_HOSTED_GATES` instead.
+runner. `capture-typecheck` is the one today. (The bar-dev gates that used to run
+on a `[self-hosted, linux]` runner were retired with the in-repo bar bridge, so
+`CI_SELF_HOSTED_GATES` is empty.)
 
 Usage: ``python3 scripts/ci-gates-parity.py [--root REPO_ROOT]``
 Exit 0 = the two sets are equal modulo the declared tables.
@@ -113,32 +113,15 @@ CI_EXCLUDED_GATES: dict[str, str] = {
 # Gates the `gates-ci` filter removes that DO still run in CI, on a capable
 # SELF-HOSTED runner. This is the distinction between "cannot run on a stock
 # runner" (the target is excluded from `gates-ci`, which is the stock-runner
-# subset) and "does not run in CI at all" (CI_EXCLUDED_GATES). `ags-typecheck`
-# needs the desktop stack that `ubuntu-latest` lacks, but the workflow's
-# `[self-hosted, linux]` job has it, so the gate is not dropped from CI. The
-# value is (workflow job key, why gates-ci excludes it, why it still runs in CI).
-# The job must exist, and the gate must really be filtered out of `gates-ci`.
-CI_SELF_HOSTED_GATES: dict[str, tuple[str, str, str]] = {
-    "ags-typecheck": (
-        "ags-typecheck",
-        "Needs `ags` on PATH and a machine-specific `ags types` output, so it "
-        "cannot run on a stock ubuntu-latest runner and is filtered out of "
-        "gates-ci (the stock-runner subset).",
-        "The workflow's `[self-hosted, linux]` ags-typecheck job has the desktop "
-        "stack, so the typecheck runs in CI rather than only on a developer's "
-        "provisioned desktop.",
-    ),
-    "bar-typecheck": (
-        "bar-typecheck",
-        "Same desktop-stack dependency as ags-typecheck (it reuses the capture "
-        "tool's generated /usr/share/ags/js declarations), so it cannot run on a "
-        "stock ubuntu-latest runner and is filtered out of gates-ci (the "
-        "stock-runner subset).",
-        "The workflow's `[self-hosted, linux]` bar-typecheck job has the desktop "
-        "stack, so the typecheck runs in CI. AD-19 requires this gate to cover "
-        "the extracted surface in CI, not only on a developer's desktop.",
-    ),
-}
+# subset) and "does not run in CI at all" (CI_EXCLUDED_GATES). The value is
+# (workflow job key, why gates-ci excludes it, why it still runs in CI). The job
+# must exist, and the gate must really be filtered out of `gates-ci`.
+#
+# EMPTY TODAY: the gates that needed a self-hosted desktop runner were retired
+# with the in-repo bar bridge and now live in the bar's own repo.
+# `capture-typecheck` is the only remaining filtered gate, and it has no CI job
+# at all (CI_EXCLUDED_GATES).
+CI_SELF_HOSTED_GATES: dict[str, tuple[str, str, str]] = {}
 
 
 class Drift(Exception):
