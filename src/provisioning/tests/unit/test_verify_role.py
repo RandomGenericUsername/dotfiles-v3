@@ -1383,6 +1383,30 @@ class TestVerifyVars:
             "filesystem_spine_dirs (the test locks exact set equality)"
         )
 
+    def test_install_spine_dirs_exclude_the_ags_live_bar_link(self) -> None:
+        """<install>/config/ags is owned by the ags_apps role as a SYMLINK
+        (verify_ags_apps_live_bar_link), NOT by the filesystem role as a dir.
+        The criterion-1 spine assert counts verify_install_spine_dirs entries
+        via stat.isdir, so a symlinked config/ags made it false on a real
+        bootstrap (the regression this locks). The path must be absent here and
+        asserted as a symlink by the ags_apps assertion instead."""
+        data = _vars()
+        spine = [str(item) for item in data["verify_install_spine_dirs"]]
+        assert "config/ags" not in spine, (
+            "config/ags must not be in verify_install_spine_dirs — it is a "
+            "symlink, and the isdir spine assert would fail on it"
+        )
+        assert "config/ags-capture" in spine, (
+            "the sibling config/ags-capture stays a spine dir"
+        )
+        # Tie the exclusion to the SAME path the ags_apps live-bar assertion
+        # checks as a symlink, so the two cannot silently desync.
+        live_bar = str(data["verify_ags_apps_live_bar_link"])
+        assert live_bar == "{{ install_dir | trim }}/config/ags", (
+            "verify_ags_apps_live_bar_link must remain <install>/config/ags — "
+            f"the path excluded from verify_install_spine_dirs; got {live_bar!r}"
+        )
+
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
         settings_files dests EXACTLY — verify must check the SAME rendered
