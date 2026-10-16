@@ -211,6 +211,11 @@ compositor_configs_skeleton_files:
   # over the manifest declarations. Registered alongside the manifest so the
   # install gate (task 1.3/2.x) and the bar startup path deploy together.
   - { name: ags-bar-validate-lib, source: dotfiles/config/ags/bar/validate.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/validate.ts" }
+  # The `ags-bar-validate` install gate (ags-bar-validate-at-install, AD-15):
+  # the thin CLI adapter over the manifest + validators provisioning runs
+  # strictly (task 1.3; wired in task 2.1). Registered with the lib so the
+  # gate deploys with the code it invokes.
+  - { name: ags-bar-validate-cli, source: dotfiles/config/ags/bar/validate-cli.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/validate-cli.ts" }
   - { name: ags-bar-registry, source: dotfiles/config/ags/bar/registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/registry.ts" }
   - { name: ags-workspaces, source: dotfiles/config/ags/bar/widgets/workspaces.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/workspaces.tsx" }
   - { name: ags-clock, source: dotfiles/config/ags/bar/widgets/clock.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/clock.tsx" }

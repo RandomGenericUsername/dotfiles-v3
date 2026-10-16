@@ -479,6 +479,7 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/bar/layout.default.ts"
   - "{{ install_dir | trim }}/config/ags/bar/bar-manifest.ts"
   - "{{ install_dir | trim }}/config/ags/bar/validate.ts"
+  - "{{ install_dir | trim }}/config/ags/bar/validate-cli.ts"
   - "{{ install_dir | trim }}/config/ags/bar/registry.ts"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/workspaces.tsx"
   - "{{ install_dir | trim }}/config/ags/bar/widgets/clock.tsx"
