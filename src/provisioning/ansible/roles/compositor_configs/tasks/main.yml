@@ -163,9 +163,10 @@
 #   exists — do NOT invent a runtime `bar.json` to satisfy it; pass
 #   `--layout <deployed bar.json>` the day one appears.
 # - `--expect-schema-version` passes the role's OWNED
-#   `compositor_configs_icon_manifest_schema_version` (the single owner —
-#   scripts/icons-json-drift.py already reads it), so a stale deployed
-#   artifact fails against the current expectation. A version mismatch is a
+#   `compositor_configs_icon_manifest_schema_version` (the single owner), so a
+#   stale deployed artifact fails against the current expectation. (The
+#   `icons-json-drift` gate that also consumed this version was retired with the
+#   in-repo bar bridge and now lives in `ags-apps`.) A version mismatch is a
 #   WARNING (task 2.3: warn and degrade, never crash) and does NOT fail the
 #   install; only rule errors do.
 # - STRICT means no `failed_when: false` and no `ignore_errors`: a non-zero
