@@ -5,7 +5,7 @@
 The platform is extracted and consumed by the bar in-place (`ags-consume-platform`;
 spine **AD-1**: `contracts ← ags-platform ← ags-apps`, **AD-20**: sequenced migration).
 The next step in `docs/HANDOFF-ags-platform.md` §5 is iteration 4: **`ags-apps`
-starts with the bar only** as a thin platform consumer, then the remaining five
+starts with the bar only** as a thin platform consumer, then the remaining six
 apps migrate one at a time, and redundant code is deleted last. The repo-shape
 question is already decided: `docs/GUIDE-ags-app-repos-refinement.md` §7 keeps
 **one `ags-apps` monorepo** (per-app repos deferred until the exit gate), and the
@@ -29,17 +29,28 @@ still the in-place sources; `ls src/gui-tools/` → `notifications`,
   as a thin consumer of `ags-platform` (ports/adapters only; bar-specific code —
   layout default, `SurfaceSpec`/`PopupHost`, Shell + 4 shapes, capabilities,
   `bar-manifest.ts` — stays in `bar/`); add per-app CI (`ags-apps` Makefile
-  target running typecheck + tests). Maps to backlog REQ-001.
+  target running typecheck + tests). Maps to backlog REQ-001. All `ags-apps`
+  implementation happens in `ags-apps` repo worktrees — never in dotfiles;
+  dotfiles only consumes.
 - **Slice 2 — dotfiles consumes the moved bar:** provisioning installs
-  `ags-apps/bar` as one pinned unit and `config/ags` resolves to it (same
-  one-unit + shortcut pattern as AD-17 for the platform); the in-place
-  `dotfiles/config/ags/` becomes the bridge until this slice lands. Until
-  slice 2, dotfiles keeps deploying from the in-place source so every slice
-  stays shippable.
-- **Slices 3–7 — remaining apps migrate one at a time:** `notifications`,
-  `capture-tool`, `hypr-pano`, `wallpaper-selector`, `icme` (backlog REQ-002…
-  REQ-006), each depending on `ags-platform` only, never on another app (AD-1).
-  Each slice is independently shippable with its own gate line.
+  `ags-apps/bar` as one pinned unit mirroring the `ags-platform`
+  consumption shape — pinned GitHub tag + version dir
+  (`<install>/ags-apps/<version>/`-style unit) + shared-ancestor
+  `node_modules` shortcut (precedent:
+  `openspec/changes/ags-consume-platform/tasks.md` 1.1 — `ags_platform_version`
+  v0.1.0, shallow anonymous clone, `.git` removed, pin recorded — and 1.2 —
+  shared-ancestor symlink, rollback = repoint). `config/ags` resolves to the
+  unit; the in-place `dotfiles/config/ags/` becomes the bridge until this
+  slice lands. Until slice 2, dotfiles keeps deploying from the in-place
+  source so every slice stays shippable.
+- **Slices 3–8 — remaining six apps migrate one at a time, simplest pilot
+  first:** `hypr-pano` (REQ-004, simplest pilot per GUIDE §7), then
+  `notifications` (REQ-002), `capture-tool` (REQ-003), `wallpaper-selector`
+  (REQ-005), `icme` (REQ-006), and `btop-theme-studio` last (7th app-move
+  slice; it exists in `src/gui-tools/` with no REQ ticket yet — that gap is
+  the reason it is recorded here explicitly), each depending on
+  `ags-platform` only, never on another app (AD-1). Each slice is
+  independently shippable with its own gate line.
 - **Gate per slice:** `make bar-typecheck`, `make ags-typecheck`, `make ags-test`,
   `make gates-ci`, `make deploy-coverage` green; bar/app runs from the new
   location (`ags bundle` exit 0).
@@ -60,4 +71,6 @@ still the in-place sources; `ls src/gui-tools/` → `notifications`,
 - `ags-apps/` (new `bar/`, then one dir per app) + its CI/Makefile.
 - `dotfiles-v3`: `src/provisioning/ansible/roles/{compositor_configs,verify}/**`
   (bar source repoint), `dotfiles/config/ags/` (bridge, then retired).
-- `ags-apps/tickets/` REQ-001…REQ-006 link to this change's slices.
+- `ags-apps/tickets/` REQ-001…REQ-006 link to this change's slices
+  (`btop-theme-studio` has no REQ ticket yet — one must be filed before its
+  slice).
