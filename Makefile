@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-platform-dev capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates per-app-drift-symbol-suites
+.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-platform-dev capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -32,25 +32,18 @@ contract-pin-check:
 	python3 scripts/contract-pin-check.py
 
 # Every executable gate, in the order a reviewer should read them: contract
-# first (it is the source of truth), then mock/code parity, then the
-# anti-invention check, then the capture domain unit tests, then the capture GUI
-# typecheck, then the capture hexagonal structure gate, then the
-# generated-icons.json projection drift gate, then the Ansible embedded-template
-# lint, then the per-app contract drift/symbol suites, then the check that keeps
-# the CI workflow's job set equal to this list.
+# first (it is the source of truth), then the capture domain unit tests, then
+# the capture GUI typecheck, then the capture hexagonal structure gate, then the
+# Ansible embedded-template lint, then the provisioning-shape coverage gate, then
+# the per-app contract drift/symbol suites, then the check that keeps the CI
+# workflow's job set equal to this list.
 #
 # `gates` is the DEVELOPER gate set and runs ALL of them, including the one that
 # needs the desktop stack. Nothing is dropped for convenience: a gate that is not
 # run here is a gate nobody runs.
-GATES := contracts-check wifi-mock-parity bluetooth-mock-parity \
-         battery-mock-parity speedtest-mock-parity \
-         speedtest-no-new-architecture capture-test capture-typecheck \
-         capture-hexagonal-gate icons-json-drift \
-         ansible-embedded-template-lint deploy-coverage ci-gates-parity \
-         per-app-drift-symbol-suites \
-         audio-mock-parity audio-core-test audio-presentation-test \
-         pipewire-adapter-test audio-session-runtime-test \
-         audio-panel-render-test audio-icons-test audio-seek-stability-test
+GATES := contracts-check capture-test capture-typecheck \
+         capture-hexagonal-gate ansible-embedded-template-lint \
+         deploy-coverage ci-gates-parity per-app-drift-symbol-suites
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
@@ -83,8 +76,8 @@ gates-ci: $(filter-out capture-typecheck,$(GATES))
 #
 # WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It parses the workflow as YAML
 # (PyYAML ships with the provisioning project) rather than line-mangling it, the
-# same `uv run --directory src/provisioning` mechanism `icons-json-drift` and
-# `ansible-embedded-template-lint` already use. It needs no desktop stack, so it
+# same `uv run --directory src/provisioning` mechanism
+# `ansible-embedded-template-lint` uses. It needs no desktop stack, so it
 # also runs in gates-ci. `../../scripts/` is required because --directory moves
 # the interpreter's CWD.
 #
@@ -141,10 +134,10 @@ capture-types:
 # ./node_modules on first run.
 #
 # The AGS runtime and gnim ship 28 errors of their own under
-# /usr/share/ags/js. Those are third-party and tolerated BY LOCATION, exactly
-# as scripts/wifi-mock-parity.py uses its ALLOWLIST. Zero tolerance for
-# src/gui-tools/capture-tool/. Errors in neither bucket fail the gate too —
-# "tolerated because it was third-party" must never become a silent pass.
+# /usr/share/ags/js. Those are third-party and tolerated BY LOCATION. Zero
+# tolerance for src/gui-tools/capture-tool/. Errors in neither bucket fail the
+# gate too — "tolerated because it was third-party" must never become a silent
+# pass.
 capture-typecheck: capture-types
 	@if [ ! -x node_modules/.bin/tsc ]; then \
 		echo "==> installing typescript (npm install --no-save, ignored by git)"; \
@@ -253,23 +246,22 @@ capture-test: capture-test-deps
 	@echo "    OK: 0 type errors in the domain unit tests"
 
 # ---------------------------------------------------------------------------
-# per-app-drift-symbol-suites -- the per-app contract drift + symbol suites, run
-# from the ROOT gate (spine AD-19).
+# per-app-drift-symbol-suites -- the per-app contract drift suites, run from the
+# ROOT gate (spine AD-19).
 #
-# WHY THIS EXISTS. Each app's drift/symbol suite ran only through that app's own
+# WHY THIS EXISTS. Each app's drift suite ran only through that app's own
 # `Makefile test` target, which nothing at the repo root invoked -- so the suites
-# rotted silently and nobody saw it. They had: the ICME drift suite was red
-# because the speed-test contract gained `ssid`/`server_name` and the assertion
-# was never updated, and the symbol checker reported interface method signatures
-# and generic parameters as "undefined calls" after the audio migration. Both
-# defects are fixed, and both suites now run HERE, so the next drift fails a gate
-# rather than waiting for a reader to run an app-local target.
+# rotted silently and nobody saw it: the ICME drift suite was red because the
+# speed-test contract gained `ssid`/`server_name` and the assertion was never
+# updated. That defect is fixed and the suite now runs HERE, so the next drift
+# fails a gate rather than waiting for a reader to run an app-local target.
 #
 # SCOPE: the drift suites (`event-contract-drift.mjs`) execute the machine
 # contract (`contracts/event-contract.json` + `.xml`) against each app's baked
-# constants, and `ags-symbol-check.mjs` cross-checks every named import and free
-# call in the AGS tree. This target runs exactly those suites, not the apps'
-# other unit tests, which each app's `make test` still owns.
+# constants. This target runs exactly those suites, not the apps' other unit
+# tests, which each app's `make test` still owns. (The bar's own
+# `ags-symbol-check.mjs` scan was retired with the in-repo bar bridge and lives
+# in the bar's repo.)
 #
 # NO DESKTOP STACK: plain `node` over the apps' pure modules and the committed
 # contract, so the target is in gates-ci and runs on a stock runner. Node 22.18+
@@ -277,7 +269,6 @@ capture-test: capture-test-deps
 PER_APP_SUITES := \
 	src/gui-tools/hypr-pano/tests/event-contract-drift.mjs \
 	src/gui-tools/icon-color-mapping-editor/tests/event-contract-drift.mjs \
-	src/gui-tools/icon-color-mapping-editor/tests/ags-symbol-check.mjs \
 	src/gui-tools/wallpaper-selector/tests/event-contract-drift.mjs
 
 per-app-drift-symbol-suites: ags-platform-dev
@@ -351,55 +342,6 @@ ags-platform-dev:
 	@ln -sfn "$(AGS_PLATFORM_SRC)" node_modules/ags-platform
 	@echo "==> ags-platform-dev: node_modules/ags-platform -> $(AGS_PLATFORM_SRC)"
 
-wifi-mock-parity:
-	python3 scripts/wifi-mock-parity.py
-
-# Bluetooth mock<->code parity (openspec: add-bluetooth-bar-popup). Same
-# contract as wifi-mock-parity: the owner-approved mock in the change is the
-# acceptance contract, so every class token in each anchored state must resolve
-# to style.css, to the state's mapped TSX, to an allowlisted scaffold, or to a
-# tracked known gap naming the task that ships it.
-#
-# GREEN TODAY, with two KNOWN_GAPS that are the one new class this change adds
-# (.settings-rowact.danger) and the confirm-row background. They clear at
-# tasks.md 6.7; until then the warning count is the countdown, not a failure.
-bluetooth-mock-parity:
-	python3 scripts/bluetooth-mock-parity.py
-
-# Battery panel mock<->code parity (scripts/battery-mock-parity.py,
-# add-battery-status-panel). A SEPARATE gate rather than another anchor in the
-# wifi harness: the two panels share style.css and the settings-* vocabulary,
-# but the battery mock's claims live in files the wifi gate does not map, so
-# extending that harness would either widen its STATE_TSX to files it has no
-# business knowing or leave the battery panel ungated. Stdlib only, like the
-# wifi harness, so it runs on a stock CI runner.
-battery-mock-parity:
-	python3 scripts/battery-mock-parity.py
-
-speedtest-mock-parity:
-	python3 scripts/speedtest-mock-parity.py
-
-# icons.json is GENERATED OUTPUT -- the compositor_configs role writes it with
-# `(from_yaml) | to_nice_json(indent=2)` -- and nothing asserted that
-# relationship, so the projection could rot silently. It did: master's committed
-# icons.json carried `null` for the four wifi-signal-* color_mappings its own
-# YAML declares. See openspec/changes/add-battery-status-panel/design.md §2.6.
-#
-# WHY IT RUNS THROUGH uv AND NOT PLAIN python3. The gate compares against the
-# role's OWN `to_nice_json` filter rather than an approximation of it, because a
-# file regenerated "the same way" that differs from what provisioning writes is
-# the exact failure being guarded against. That filter ships with ansible-core,
-# so the gate needs the provisioning project's environment (which also supplies
-# PyYAML) -- hence `uv run --directory src/provisioning`, the same mechanism
-# contracts-check already uses. `../../scripts/` is required: --directory moves
-# the interpreter's CWD.
-#
-# It FAILS rather than skipping when uv, ansible or PyYAML is unavailable: a
-# projection-drift gate that quietly passes when its toolchain is missing is
-# indistinguishable from one that passes.
-icons-json-drift:
-	uv run --directory src/provisioning python ../../scripts/icons-json-drift.py
-
 # The Ansible tree must not nest a `{{ }}` template inside a Jinja string
 # literal of an EXPRESSION-context value (`assert.that`, `when`,
 # `changed_when`, `failed_when`, `until`). That is the construct ansible-core
@@ -415,7 +357,7 @@ icons-json-drift:
 # WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It needs PyYAML to PARSE the
 # YAML (both real offenders are folded `>-` block scalars spanning two lines, so
 # a line grep cannot see them) and PyYAML ships with the provisioning project —
-# the same `uv run --directory src/provisioning` mechanism icons-json-drift
+# the same `uv run --directory src/provisioning` mechanism `ci-gates-parity`
 # uses. It needs no desktop stack, so it also runs in gates-ci. `../../scripts/`
 # is required because --directory moves the interpreter's CWD.
 #
@@ -444,17 +386,14 @@ ansible-embedded-template-lint:
 #
 # WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It parses the manifest as YAML
 # (PyYAML ships with the provisioning project) rather than line-mangling it,
-# the same `uv run --directory src/provisioning` mechanism `icons-json-drift`
-# and `ansible-embedded-template-lint` use. It needs no desktop stack, so it
+# the same `uv run --directory src/provisioning` mechanism
+# `ansible-embedded-template-lint` uses. It needs no desktop stack, so it
 # also runs in gates-ci. `../../scripts/` is required because --directory moves
 # the interpreter's CWD. It FAILS rather than skipping when uv or PyYAML is
 # unavailable: a coverage gate that quietly passes when its toolchain is
 # missing is indistinguishable from one that passes.
 deploy-coverage:
 	uv run --directory src/provisioning python ../../scripts/deploy-coverage.py
-
-speedtest-no-new-architecture:
-	python3 scripts/speedtest-no-new-architecture.py
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).
@@ -510,44 +449,6 @@ vm-help:
 	@echo "  Super+V          — toggle floating"
 	@echo ""
 	@echo "Login: arch / arch"
-audio-mock-parity:
-	python3 scripts/audio-mock-parity.py
-
-# Audio panel gates, cheapest and most local first. Order matters: the unit
-# suites are fast and stateless, then mock/code parity (the mock is the source
-# of truth for the surface), then the render gate (is the panel wired at all),
-# then the tsc gate (task 6.5, not yet implemented), then the repo-wide gates.
-# The live checks in openspec/changes/redesign-ags-audio-panel/validation/ are
-# NOT here: they change live playback/routing and must be run deliberately.
-AUDIO_VALIDATION := openspec/changes/redesign-ags-audio-panel/validation
-
-audio-core-test:
-	node $(AUDIO_VALIDATION)/audio-core.test.mjs
-
-audio-presentation-test:
-	node $(AUDIO_VALIDATION)/audio-presentation.test.mjs
-
-pipewire-adapter-test:
-	node $(AUDIO_VALIDATION)/pipewire-adapter.test.mjs
-
-audio-session-runtime-test:
-	node $(AUDIO_VALIDATION)/audio-session-runtime.test.mjs
-
-audio-panel-render-test:
-	node $(AUDIO_VALIDATION)/audio-panel-render.test.mjs
-
-# Every icon variant the level vocabulary can request must exist in icons.json.
-audio-icons-test:
-	node $(AUDIO_VALIDATION)/audio-icons.test.mjs
-
-# A stream destroyed and re-created (every Firefox seek) must not change
-# anything the user sees: name, level, mute, route label, observed endpoint.
-audio-seek-stability-test:
-	node $(AUDIO_VALIDATION)/audio-seek-stability.test.mjs
-
-audio-panel-gates: audio-core-test audio-presentation-test pipewire-adapter-test \
-	audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test \
-	audio-mock-parity
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).

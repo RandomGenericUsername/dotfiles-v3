@@ -46,7 +46,8 @@ Exit 1 = an unmatched entry in either direction, or a declared entry that no
 
 PyYAML is imported and if it is unavailable this gate FAILS rather than skipping:
 the workflow is parsed as YAML, not line-mangled. Run it through the provisioning
-project so PyYAML is importable, exactly as `icons-json-drift` does:
+project so PyYAML is importable, exactly as `ansible-embedded-template-lint`
+does:
 
     uv run --directory src/provisioning python ../../scripts/ci-gates-parity.py
 

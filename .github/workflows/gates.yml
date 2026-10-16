@@ -67,55 +67,6 @@ jobs:
       - name: Run the event-contract drift gate
         run: make contracts-check
 
-  wifi-mock-parity:
-    name: wifi-mock-parity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Wi-Fi mock<->code parity
-        run: python3 scripts/wifi-mock-parity.py
-
-  battery-mock-parity:
-    name: battery-mock-parity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # Stdlib-only, like wifi-mock-parity: it reads the mock HTML, style.css and
-      # the mapped TSX files as text. No Node, no desktop stack, no npm.
-      - name: Battery panel mock<->code parity
-        run: python3 scripts/battery-mock-parity.py
-
-  bluetooth-mock-parity:
-    name: bluetooth-mock-parity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # Stdlib-only, like battery-mock-parity: it reads the mock HTML, style.css
-      # and the mapped TSX files as text. No Node, no desktop stack, no npm.
-      #
-      # This job did not exist until `prove-ci-matches-gates`, so the gate had
-      # run only on developer machines since `add-bluetooth-bar-popup` landed.
-      # It PASSES while reporting tracked KNOWN_GAPS warnings (the two PIN-prompt
-      # classes, an explicit non-goal of that change) — measured: the harness
-      # exits 0 with warnings and exits non-zero only on an UNCOVERED token, so a
-      # green run here with a nonzero "known-gap warning(s)" count is expected.
-      # The Makefile target's comment names when they clear.
-      - name: Bluetooth mock<->code parity
-        run: python3 scripts/bluetooth-mock-parity.py
-
-  icons-json-drift:
-    name: icons-json-drift
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # uv, because the gate compares against ansible's OWN `to_nice_json`
-      # filter -- the one the compositor_configs role emits through -- rather
-      # than an approximation of it. See the Makefile target for why that
-      # distinction is the whole point of the gate.
-      - uses: astral-sh/setup-uv@v5
-      - name: Generated icons.json matches to_nice_json(icons.yaml)
-        run: make icons-json-drift
-
   ansible-embedded-template-lint:
     name: ansible-embedded-template-lint
     runs-on: ubuntu-latest
@@ -123,8 +74,8 @@ jobs:
       - uses: actions/checkout@v4
       # uv, because the lint PARSES the YAML with PyYAML (both real offenders
       # are folded `>-` block scalars spanning two lines, so a line grep cannot
-      # see them) and PyYAML ships with the provisioning project — the same
-      # runner capability `icons-json-drift` uses above. Needs no desktop stack.
+      # see them) and PyYAML ships with the provisioning project. Needs no
+      # desktop stack.
       - uses: astral-sh/setup-uv@v5
       - name: Ansible tree has no template nested in a Jinja string literal
         run: make ansible-embedded-template-lint
@@ -137,7 +88,7 @@ jobs:
   # exist, and both unit roles must install their pinned unit + shortcut.
   #
   # uv, because the gate parses the deploy manifest as YAML with PyYAML (the same
-  # runner capability icons-json-drift / ansible-embedded-template-lint use). It
+  # runner capability `ansible-embedded-template-lint` uses). It
   # needs no desktop stack, so it runs on a stock runner and is in gates-ci.
   deploy-coverage:
     name: deploy-coverage
@@ -154,9 +105,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # uv, because the check PARSES the workflow as YAML (PyYAML ships with the
-      # provisioning project — the same runner capability icons-json-drift and
-      # ansible-embedded-template-lint use above), rather than line-mangling it.
-      # It needs no desktop stack.
+      # provisioning project — the same runner capability
+      # `ansible-embedded-template-lint` uses above), rather than line-mangling
+      # it. It needs no desktop stack.
       #
       # This job is the mechanism the header describes: it compares this file's
       # job keys against `make gates-ci` and fails non-zero naming anything
@@ -165,22 +116,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Workflow jobs match `make gates-ci`
         run: make ci-gates-parity
-
-  speedtest-mock-parity:
-    name: speedtest-mock-parity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Speed-test mock<->code parity
-        run: python3 scripts/speedtest-mock-parity.py
-
-  speedtest-no-new-architecture:
-    name: speedtest-no-new-architecture
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Speed-test path reuses the existing seams
-        run: python3 scripts/speedtest-no-new-architecture.py
 
   capture-hexagonal:
     name: capture-hexagonal-gate
@@ -231,100 +166,3 @@ jobs:
           node-version: '24'
       - name: Per-app contract drift + symbol suites
         run: make per-app-drift-symbol-suites
-
-  # Audio mock<->code parity: the owner-approved concept mock is the source of
-  # truth for the redesigned panel's surface, the same role the Wi-Fi, battery
-  # and speed-test parity gates play for theirs.
-  audio-mock-parity:
-    name: audio-mock-parity
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Audio mock<->code parity
-        run: python3 scripts/audio-mock-parity.py
-
-  # Audio domain, presentation, adapter and runtime unit suites, the panel render
-  # gate (the one that detects an unwired panel, which is how this change shipped
-  # a popup that rendered nothing while every other gate stayed green), the
-  # icon-name gate, and the seek-stability gate -- ONE job per `gates-ci` audio
-  # target, named exactly as the Makefile target and running it. The earlier
-  # combined `audio-tests` job hid `audio-icons-test` and `audio-seek-stability-test`
-  # entirely, which is precisely the silent-drop this workflow's parity job exists
-  # to catch; a matrix job cannot fix it, because `ci-gates-parity` matches job
-  # KEYS one-to-one and refuses to let two gates collapse onto one.
-  audio-core-test:
-    name: audio-core-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Audio core unit suite
-        run: make audio-core-test
-
-  audio-presentation-test:
-    name: audio-presentation-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Audio presentation unit suite
-        run: make audio-presentation-test
-
-  pipewire-adapter-test:
-    name: pipewire-adapter-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: PipeWire adapter unit suite
-        run: make pipewire-adapter-test
-
-  audio-session-runtime-test:
-    name: audio-session-runtime-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Audio session runtime unit suite
-        run: make audio-session-runtime-test
-
-  audio-panel-render-test:
-    name: audio-panel-render-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Audio panel render gate
-        run: make audio-panel-render-test
-
-  audio-icons-test:
-    name: audio-icons-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Audio icon-name gate
-        run: make audio-icons-test
-
-  audio-seek-stability-test:
-    name: audio-seek-stability-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - name: Audio seek-stability gate
-        run: make audio-seek-stability-test
