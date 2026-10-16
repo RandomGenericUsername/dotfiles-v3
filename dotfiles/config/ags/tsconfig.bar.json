@@ -88,5 +88,11 @@
   // that is not a property of what the config is supposed to check. Excluding
   // them is NOT how they are typechecked — `make ags-test` still compiles them
   // against `tests/tsconfig.tests.json`, which still declares both.
-  "exclude": ["node_modules", "tests"]
+  // `bar/validate-cli.ts` is likewise owned by the tests program, not this one:
+  // it is a provisioning tool (never bundled into the app) written against
+  // `node:*`, and `@types/node` belongs to `tsconfig.tests.json`, not to an
+  // app program (same reason as above). `make ags-test` typechecks it via
+  // the explicit module list there; excluding it here keeps this program's
+  // ambient surface the app's rather than Node's.
+  "exclude": ["node_modules", "tests", "bar/validate-cli.ts"]
 }

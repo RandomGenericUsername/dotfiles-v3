@@ -8,9 +8,9 @@
 
 ## 2. Enforce
 
-- [ ] 2.1 Wire `ags-bar-validate` into provisioning as a **strict** gate. Verify: a bad `icons.json` fails the install.
-- [ ] 2.2 Run the same functions **leniently** in the bar at startup (skip unknown widget, apply defaults, blank a missing glyph). Verify: the bar starts against a deliberately broken layout.
-- [ ] 2.3 Add per-artifact `schemaVersion`; degrade on unknown. Verify: an unknown version warns and runs.
+- [x] 2.1 Wire `ags-bar-validate` into provisioning as a **strict** gate. Verify: a bad `icons.json` fails the install.
+- [x] 2.2 Run the same functions **leniently** in the bar at startup (skip unknown widget, apply defaults, blank a missing glyph). Verify: the bar starts against a deliberately broken layout.
+- [x] 2.3 Add per-artifact `schemaVersion`; degrade on unknown. Verify: an unknown version warns and runs.
 
 ## 3. Gate
 

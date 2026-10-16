@@ -292,8 +292,12 @@ class TestCompositorConfigsTasks:
         # ports + 7 adapters) are DELETED and the platform is installed as ONE
         # versioned unit by the ags_platform role (-15). The bar consumes it by
         # the bare specifier, so no platform file is a skeleton anymore.
-        assert len(files) == 103, (
-            f"expected exactly 103 skeleton files (hyprland.lua + gloview.lua + "
+        # 106 once ags-bar-validate-at-install section 1 (AD-14/AD-15)
+        # registered the pure bar-manifest, the shared validators, and the
+        # `ags-bar-validate` CLI (+3) — the deployed sources the strict
+        # install gate (task 2.1) runs.
+        assert len(files) == 106, (
+            f"expected exactly 106 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
             f"7 lib (incl. wifi-signal/network-icon)+6 kit "
             f"(icon/overlay/widget + surface/popup-host + layout)+"
@@ -315,7 +319,8 @@ class TestCompositorConfigsTasks:
             f"three PipeWire adapter modules, the MPRIS adapter, the view model, "
             f"presentation/levels, presentation/bar-indicators and audio-panel.css, "
             f"plus the ags types.d.ts ambient declarations) "
-            f"+ ags wifi-speedtest.json + rofi launcher config.rasi); found {len(files)}"
+            f"+ ags wifi-speedtest.json + rofi launcher config.rasi "
+            f"+ the bar-manifest + validators + install gate (section 1, task 2.1 runs it); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
@@ -336,8 +341,11 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/audio/presentation/levels.ts",
             "dotfiles/config/ags/audio/ui-state.ts",
             "dotfiles/config/ags/bar/Bar.tsx",
+            "dotfiles/config/ags/bar/bar-manifest.ts",
             "dotfiles/config/ags/bar/layout.default.ts",
             "dotfiles/config/ags/bar/registry.ts",
+            "dotfiles/config/ags/bar/validate-cli.ts",
+            "dotfiles/config/ags/bar/validate.ts",
             "dotfiles/config/ags/bar/widgets/audio.tsx",
             "dotfiles/config/ags/bar/widgets/battery.tsx",
             "dotfiles/config/ags/bar/widgets/bluetooth.tsx",
@@ -576,6 +584,139 @@ class TestCompositorConfigsTasks:
                     )
 
 
+class TestBarValidateGate:
+    """Task 2.1: `ags-bar-validate` wired into provisioning as a STRICT gate.
+
+    The gate runs the DEPLOYED validator over the DEPLOYED icons artifact and
+    fails the install on any rule error — no `failed_when: false`, no
+    `ignore_errors`. Version drift is a WARNING (task 2.3: warn and degrade,
+    never crash), so only errors fail. There is no `bar.json` in the repo
+    today (no user/runtime layout override exists), so the gate passes no
+    `--layout` and validates the repo-default layout floor."""
+
+    _GATE_NAME = "Validate the deployed bar artifacts (strict install gate)"
+
+    def _gate(self) -> dict[str, object]:
+        task = next((t for t in _load_tasks() if t.get("name") == self._GATE_NAME), None)
+        assert task is not None, "missing the strict bar-validate gate task"
+        return task
+
+    def test_gate_runs_the_deployed_validator_over_the_deployed_artifact(
+        self,
+    ) -> None:
+        """The gate must invoke the DEPLOYED `validate-cli.ts` against the
+        DEPLOYED icons.json (the file the bar reads), with the role's OWNED
+        schema version as the expectation — never the repo source, never a
+        hardcoded version."""
+        task = self._gate()
+        assert _module_key(task) == "ansible.builtin.command", (
+            "the gate must run the validator via ansible.builtin.command (no shell)"
+        )
+        cmd = str(_module(task).get("cmd", ""))
+        assert "validate-cli.ts" in cmd, "the gate must run the deployed validate-cli.ts"
+        assert "compositor_configs_icon_manifest_dest" in cmd, (
+            "the gate must validate the DEPLOYED icons.json (the file the bar reads)"
+        )
+        assert "compositor_configs_icon_manifest_schema_version" in cmd, (
+            "the gate must pass the role's OWNED schema version (single owner)"
+        )
+        assert "--layout" not in cmd, (
+            "no bar.json exists in the repo today — the gate validates the "
+            "repo-default layout floor, it must not invent a layout path"
+        )
+
+    def test_gate_is_strict(self) -> None:
+        """STRICT means ansible's default failure semantics: a non-zero
+        validator exit fails the install. Any `failed_when: false`,
+        `ignore_errors`, or swallowing `failed_when` would make a bad artifact
+        a green install."""
+        task = self._gate()
+        assert "failed_when" not in task, "the strict gate must not set failed_when"
+        assert "ignore_errors" not in task, "the strict gate must not set ignore_errors"
+
+    def test_gate_writes_nothing_is_check_gated_and_unprivileged(self) -> None:
+        """The gate is a read-only probe: `changed_when: false` (never counts
+        as changed), `when: not ansible_check_mode` (the deployed files it
+        reads do not exist yet under --check), and no become (user-scoped
+        role, like every other task here)."""
+        task = self._gate()
+        assert task.get("changed_when") is False, "the gate must not report changed"
+        assert "not ansible_check_mode" in str(task.get("when", "")), (
+            "the gate must be skipped under --check"
+        )
+        assert "become" not in task, "the strict gate must not use become"
+
+    def test_gate_runs_after_generation_and_cli_placement(self) -> None:
+        """Ordering: the gate reads the GENERATED icons.json and the DEPLOYED
+        validate-cli.ts, so it must run after BOTH icons.json generations AND
+        after the skeleton placement that deploys the CLI. A gate placed
+        earlier would validate a missing or stale CLI."""
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        gate = names.index(self._GATE_NAME)
+        assert gate > names.index("Generate AGS JSON manifest from icon mappings")
+        assert gate > names.index("Generate capture AGS JSON manifest from icon mappings")
+        skeleton = next(
+            i
+            for i, t in enumerate(_load_tasks())
+            if _module_key(t) == "ansible.builtin.template"
+            and "compositor_configs_skeleton_files" in str(t.get("loop", ""))
+        )
+        assert gate > skeleton, (
+            "the gate must run after the skeleton placement that deploys validate-cli.ts"
+        )
+
+    def test_gate_fails_the_install_on_a_bad_icons_artifact(self) -> None:
+        """Acceptance (task 2.1): a bad icons.json FAILS the install. Runs the
+        real playbook with an icons.yaml declaring no group the bar reads, so
+        the generated icons.json violates `missing-icon-key` and the strict
+        gate aborts the run."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        if shutil.which("node") is None:
+            pytest.skip("node not on PATH — the strict bar gate runs validate-cli.ts via node")
+        playbook = _ANSIBLE_DIR / "playbooks" / "compositor-configs.yaml"
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            xdg = Path(tmp) / "xdg"
+            install = Path(tmp) / "install"
+            home.mkdir()
+            xdg.mkdir()
+            install.mkdir()
+            (home / ".local" / "bin").mkdir(parents=True)
+            icon_mappings = install / "icon-mappings"
+            icon_mappings.mkdir(parents=True)
+            (icon_mappings / "icons.yaml").write_text("test-group: {}\n")
+
+            env = dict(os.environ)
+            env["HOME"] = str(home)
+            env["XDG_CONFIG_HOME"] = str(xdg)
+            env["XDG_DATA_HOME"] = str(home / ".local" / "share")
+            env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(playbook),
+                    "-e",
+                    f"install_dir={install}",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            combined = result.stdout + result.stderr
+            assert result.returncode != 0, (
+                "a bad icons.json must fail the install (strict gate)\n" + combined[-4000:]
+            )
+            assert self._GATE_NAME in combined, (
+                "the failure must come from the strict bar gate\n" + combined[-4000:]
+            )
+            assert "missing-icon-key" in combined, (
+                "the gate must surface the validator's missing-icon-key error\n"
+                + combined[-4000:]
+            )
+
+
 class TestCompositorConfigsVars:
     _REQUIRED_KEYS = {
         "compositor_configs_repo_root",
@@ -696,6 +837,8 @@ class TestCompositorConfigsPlaybook:
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
+        if shutil.which("node") is None:
+            pytest.skip("node not on PATH — the strict bar gate runs validate-cli.ts via node")
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
@@ -706,10 +849,23 @@ class TestCompositorConfigsPlaybook:
             # ansible's copy module does not create the bin dest parent.
             (home / ".local" / "bin").mkdir(parents=True)
             # Assets-role outputs this role consumes (inputs, not generated):
-            # the icon manifest source for icons.json generation.
+            # the icon manifest source for icons.json generation. Seeded from
+            # the REAL authored icons.yaml — the strict bar gate (task 2.1)
+            # validates the generated icons.json against the manifest
+            # declarations, so the historical `test-group: {}` stub (which
+            # declares no group the bar reads) would fail the install by
+            # design. A real install always carries the full authored map.
             icon_mappings = install / "icon-mappings"
             icon_mappings.mkdir(parents=True)
-            (icon_mappings / "icons.yaml").write_text("test-group: {}\n")
+            repo_icons = (
+                _ANSIBLE_DIR.parents[2]
+                / "dotfiles"
+                / "config"
+                / "icon-template-color-scheme-mappings"
+                / "icons.yaml"
+            )
+            assert repo_icons.is_file(), f"missing authored icons source {repo_icons}"
+            shutil.copy(repo_icons, icon_mappings / "icons.yaml")
 
             env = dict(os.environ)
             env["HOME"] = str(home)
@@ -750,6 +906,13 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "bar" / "Bar.tsx",
                 install / "config" / "ags" / "bar" / "layout.default.ts",
                 install / "config" / "ags" / "bar" / "registry.ts",
+                # The bar manifest + validators + install gate (task 1.x,
+                # deployed in section 1; enforced by the strict gate in 2.1):
+                # the gate runs the DEPLOYED validate-cli.ts, so an unplaced
+                # CLI is an install that cannot validate.
+                install / "config" / "ags" / "bar" / "bar-manifest.ts",
+                install / "config" / "ags" / "bar" / "validate.ts",
+                install / "config" / "ags" / "bar" / "validate-cli.ts",
                 install / "config" / "ags" / "bar" / "widgets" / "workspaces.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "clock.tsx",
                 install / "config" / "ags" / "bar" / "widgets" / "battery.tsx",
@@ -854,6 +1017,8 @@ class TestCompositorConfigsPlaybook:
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
+        if shutil.which("node") is None:
+            pytest.skip("node not on PATH — the strict bar gate runs validate-cli.ts via node")
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "home"
             xdg = Path(tmp) / "xdg"
@@ -865,9 +1030,20 @@ class TestCompositorConfigsPlaybook:
             # ansible's copy module does not create the bin dest parent.
             (home / ".local" / "bin").mkdir(parents=True)
             # Assets-role outputs this role consumes (inputs, not generated).
+            # Seeded from the REAL authored icons.yaml: the strict bar gate
+            # (task 2.1) validates the generated icons.json, so the stub would
+            # fail this run by design (see the gate-failure test below).
             icon_mappings = install / "icon-mappings"
             icon_mappings.mkdir(parents=True)
-            (icon_mappings / "icons.yaml").write_text("test-group: {}\n")
+            repo_icons = (
+                _ANSIBLE_DIR.parents[2]
+                / "dotfiles"
+                / "config"
+                / "icon-template-color-scheme-mappings"
+                / "icons.yaml"
+            )
+            assert repo_icons.is_file(), f"missing authored icons source {repo_icons}"
+            shutil.copy(repo_icons, icon_mappings / "icons.yaml")
 
             current = state / "dotfiles" / "current"
             current.mkdir(parents=True)
