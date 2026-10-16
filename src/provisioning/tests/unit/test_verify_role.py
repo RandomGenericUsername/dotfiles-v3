@@ -833,11 +833,13 @@ class TestVerifyTasks:
         themed = [
             task
             for task in _assert_tasks()
-            if "verify_btop_theme_selected" in str(_module(task).get("that", ""))
+            if "verify_btop_selected_stat" in str(_module(task).get("that", ""))
         ]
-        assert len(themed) == 1, "exactly one assert must pin the selected theme"
-        assert "verify_btop_conf_grep" in str(_module(themed[0]).get("that", ""))
-        assert "btop_theme.cpp" in str(_module(themed[0]).get("fail_msg", ""))
+        assert len(themed) == 1, "exactly one assert must gate the selected theme"
+        assert "btop_theme.cpp" in str(_module(themed[0]).get("fail_msg", "")), (
+            "the selected-theme failure must carry the btop source citation "
+            "(a wrong name makes btop fall back to Default_theme silently)"
+        )
 
         saved = [
             task
@@ -867,11 +869,12 @@ class TestVerifyTasks:
             "shrunk to 0 would otherwise make the gate vacuously green"
         )
 
-    def test_btop_vars_pin_the_two_critical_values(self) -> None:
+    def test_btop_vars_pin_the_default_and_the_critical_setting(self) -> None:
         data = _vars()
-        assert data["verify_btop_theme_selected"] == "colors.btop.theme", (
-            "verify must pin the theme by the FILE NAME btop matches on — a "
-            "csg-prefixed alias would never match a discovered entry"
+        assert data["verify_btop_default_theme"] == "colors.btop.theme", (
+            "the fallback theme must be the generated FILE NAME btop matches on "
+            "— the active theme itself is a repo-owned setting resolved from "
+            "btop.conf at verify time (btop-theme-deployment)"
         )
         assert str(data["verify_btop_save_config_on_exit"]) == "false"
         assert [str(f) for f in data["verify_btop_theme_files"]] == [
@@ -1108,7 +1111,7 @@ class TestVerifyVars:
         "verify_btop_themes_dir",
         "verify_btop_theme_files",
         "verify_btop_theme_paths",
-        "verify_btop_theme_selected",
+        "verify_btop_default_theme",
         "verify_btop_save_config_on_exit",
         "verify_itr_list_target",
     }

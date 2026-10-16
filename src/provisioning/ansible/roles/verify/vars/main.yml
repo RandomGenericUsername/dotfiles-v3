@@ -665,11 +665,16 @@ verify_btop_theme_paths: >-
   {{ verify_btop_theme_files | map('regex_replace', '^',
      verify_btop_themes_dir ~ '/') | list }}
 
-# verify_btop_theme_selected / verify_btop_save_config_on_exit: the two values
-#   verify greps out of the rendered btop.conf. Pinned as vars (not inlined in
-#   the task) so the expected values have exactly one home and a test can
-#   compare them against the role's template.
-verify_btop_theme_selected: colors.btop.theme
+# verify_btop_default_theme: the theme btop.conf is expected to select when the
+#   repo-owned active-theme setting is absent/empty — the generated theme. The
+#   active theme is a repo-owned setting (btop-theme-deployment), so verify does
+#   NOT pin one filename: it resolves the name from btop.conf and asserts the
+#   matching .theme exists in the spine themes dir.
+verify_btop_default_theme: colors.btop.theme
+
+# verify_btop_save_config_on_exit: the value verify greps out of the rendered
+#   btop.conf. Pinned as a var (not inlined in the task) so the expected value
+#   has exactly one home and a test can compare it against the role's template.
 verify_btop_save_config_on_exit: "false"
 
 # verify_gtk_skeleton_files: the palette-import skeleton files that must be

@@ -1221,18 +1221,40 @@
   failed_when: false
   when: not ansible_check_mode
 
-- name: Assert btop.conf selects the minimal theme
+# btop-theme-deployment: the active theme is chosen from the repo-owned
+# setting, so verify must NOT pin one filename. It resolves the name btop.conf
+# actually selected and asserts a matching .theme exists in the spine themes
+# dir — which is exactly what btop requires (a wrong/absent name makes btop
+# fall back to Default_theme SILENTLY, no error).
+- name: Resolve the theme selected by btop.conf
+  ansible.builtin.set_fact:
+    verify_btop_selected_theme: >-
+      {{ (verify_btop_conf_grep.stdout
+          | regex_findall('color_theme\s*=\s*"([^"]+)"')
+          | first)
+         | default(verify_btop_default_theme, true) }}
+  when: not ansible_check_mode
+
+- name: Stat the theme selected by btop.conf in the spine themes dir
+  ansible.builtin.stat:
+    path: "{{ verify_btop_themes_dir }}/{{ verify_btop_selected_theme }}"
+    follow: true
+  register: verify_btop_selected_stat
+  when: not ansible_check_mode
+
+- name: Assert btop.conf selects a theme that exists in the spine
   ansible.builtin.assert:
-    that: >-
-      verify_btop_conf_grep.stdout is search(
-        'color_theme\s*=\s*["'']{{ verify_btop_theme_selected }}["'']')
+    that:
+      - verify_btop_selected_theme | length > 0
+      - verify_btop_selected_stat.stat.exists | default(false)
+      - verify_btop_selected_stat.stat.isreg | default(false)
     fail_msg: >-
-      the rendered btop.conf does not select
-      "{{ verify_btop_theme_selected }}". btop resolves `color_theme` ONLY
-      against themes it discovered while scanning its theme dirs at startup
-      (btop_theme.cpp:451-471) — a wrong or absent value falls back to the
-      built-in Default_theme SILENTLY, with no error. Re-run the btop-config
-      playbook.
+      btop.conf selects "{{ verify_btop_selected_theme }}" but no such .theme
+      file exists under {{ verify_btop_themes_dir }}. btop resolves
+      `color_theme` ONLY against themes it discovered while scanning its theme
+      dirs at startup (btop_theme.cpp:451-471) — a wrong or absent name falls
+      back to the built-in Default_theme SILENTLY, with no error. Re-run the
+      btop-config playbook (and check the repo-owned active-theme setting).
   when: not ansible_check_mode
 
 - name: Assert btop.conf disables save_config_on_exit
