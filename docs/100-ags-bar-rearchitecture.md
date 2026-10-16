@@ -4,6 +4,13 @@
 > `bar-rearchitecture` branch. `master` keeps only the audio-panel work; the bar
 > prototype and this design live here until we decide to land them.
 
+> **Note (bar source moved):** the AGS bar source now lives in the external
+> `ags-apps` repo and deploys as the pinned `bar-v0.1.0` unit — the `ags_apps`
+> provisioning role symlinks its `bar/` subdir as the live `<install>/config/ags`.
+> The in-repo `dotfiles/config/ags/` tree was retired; the `dotfiles/config/ags/`
+> paths below are historical. The deployed consumer path `~/.config/ags/...` is
+> unchanged.
+
 This is the design-of-record **and** the findings log for re-architecting the AGS
 status bar. It records what is wrong today, the target shape, the prototype that
 proves the shape, and — importantly — the gaps the prototype exposed.

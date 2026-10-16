@@ -12,25 +12,16 @@ __pycache__/
 /src/gui-tools/capture-tool/node_modules/
 /src/gui-tools/capture-tool/tsconfig.json
 /src/gui-tools/capture-tool/env.d.ts
-# Bar typecheck (bar-typecheck): the bar tree reuses the capture tool's
-# generated @girs/env.d.ts rather than generating its own 49 MB copy, so the
-# only generated artifact here is node_modules/ (same symlinks into
-# /usr/share/ags/js). tsconfig.json is listed for the same reason as the
-# capture one: `ags types` writes its OWN tsconfig.json into whichever
-# directory it runs against, and the committed config deliberately uses a
-# non-colliding name so it survives.
-/dotfiles/config/ags/node_modules/
-/dotfiles/config/ags/tsconfig.json
 # TypeScript itself, installed with `npm install --no-save typescript` so that
 # `npx tsc` resolves from the tool directory without a package.json.
 /node_modules/
 # The dev-time ags-platform checkout `make ags-platform-dev` fetches on demand
-# (pinned, shallow, anonymous). It is the target of the dev
-# `dotfiles/config/ags/node_modules/ags-platform` shortcut. Deliberately OUTSIDE
-# node_modules: Node refuses to type-strip `.ts` under a real node_modules dir,
-# but realpaths a symlink, so the checkout must live here. A committed copy of
-# the consumed unit would defeat AD-17 (consume the published unit, not a
-# vendored one).
+# (pinned, shallow, anonymous). It is the target of the repo-root
+# `node_modules/ags-platform` shortcut that the ICME event-contract drift suite
+# resolves the bare specifier through. Deliberately OUTSIDE node_modules: Node
+# refuses to type-strip `.ts` under a real node_modules dir, but realpaths a
+# symlink, so the checkout must live here. A committed copy of the consumed unit
+# would defeat AD-17 (consume the published unit, not a vendored one).
 /.dev/
 # @types/node, for the domain unit tests' node:test / node:assert. `make
 # capture-test` installs it HERE, on demand, under tests/ and nowhere else (see
@@ -43,21 +34,6 @@ __pycache__/
 # program. The path is ignored explicitly because the capture tool's placement
 # is per-file and a committed node_modules is a deployment hazard.
 /src/gui-tools/capture-tool/tests/node_modules/
-# @types/node, for the AGS config's pure-module unit tests (node:test /
-# node:assert). `make ags-test` installs it HERE, on demand, beside
-# tests/tsconfig.tests.json and nowhere else (see the ags-test-deps target), for
-# the same reason as the capture tool's copy above: it must be where tsc's
-# upward typeRoots walk finds it and NOT where any future app tsconfig's walk
-# would, and a committed node_modules is a deployment hazard.
-#
-# The trailing `/**/node_modules/` — not the single path above — is what keeps
-# the rule true. An install run with the wrong --prefix landed 123 files at
-# tests/ts/node_modules/ instead, and a single-path rule let them sit
-# untracked-but-committable: `git add -A` would have swept them in, because
-# being ignored is the only thing standing between an on-demand install and the
-# commit. `git add -An | grep -c node_modules` must stay 0.
-/dotfiles/config/ags/tests/node_modules/
-/dotfiles/config/ags/tests/**/node_modules/
 /package-lock.json
 /package.json
 /src/cli-tools/wallpaper-effects-generator/feedback.md

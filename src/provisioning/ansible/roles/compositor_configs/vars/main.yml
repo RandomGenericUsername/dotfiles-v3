@@ -170,10 +170,12 @@ compositor_configs_capture_icon_manifest_dest: "{{ compositor_configs_spine_conf
 #   key as a group, so a reserved key there would be read as a group and fail
 #   validation); the version is stamped at generation instead.
 #
-#   ONE OWNER: `scripts/icons-json-drift.py` reads THIS variable (via PyYAML)
-#   rather than hard-coding its own copy, exactly as it already calls the role's
-#   own `to_nice_json` filter — so the committed artifact, the generated
-#   artifact, and the drift gate cannot disagree on the shape. Bump this when
-#   the manifest shape changes; the gate then fails on the stale committed JSON
-#   until it is regenerated.
+#   ONE OWNER: the role stamps THIS variable into the generated manifest (via
+#   `to_nice_json`) and the install gate passes it as `--expect-schema-version`,
+#   so the generated and deployed artifacts cannot disagree on the shape. (The
+#   `icons-json-drift` gate that also read this variable was retired with the
+#   in-repo bar bridge and now lives in `ags-apps`, whose committed
+#   `bar/icons.json` is the only committed manifest.) Bump this when the
+#   manifest shape changes; a stale committed manifest in `ags-apps` then fails
+#   its own drift gate until it is regenerated.
 compositor_configs_icon_manifest_schema_version: 1

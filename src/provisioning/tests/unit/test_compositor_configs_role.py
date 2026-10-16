@@ -145,22 +145,44 @@ def _skeleton_task() -> dict[str, object]:
     return matches[0]
 
 
+#: The bar unit's source repo. The live bar is the pinned external `ags-apps`
+#: unit (slice 2), so the in-repo `dotfiles/config/ags` bridge is retired. The
+#: execution tests below run compositor-configs.yaml STANDALONE and must seed
+#: the unit's bar package by hand; they source it from a local `ags-apps`
+#: checkout (override with $AGS_APPS_REPO). Mirrors `contract-pin-check.py`'s
+#: sibling-checkout handling: when the checkout is absent the tests that need
+#: the real unit SKIP rather than fail (this suite is dev-only; CI has none).
+_AGS_APPS_REPO = Path(
+    os.environ.get("AGS_APPS_REPO", "/home/inumaki/Development/ags-apps")
+)
+
+
 def _preseed_bar_unit(install: Path) -> Path:
     """Seed the pinned bar unit exactly as the ags_apps role deploys it.
 
     Bootstrap order (ags-apps.yaml before compositor-configs.yaml) guarantees
     the live-bar link into the pinned unit exists before this role generates
     icons.json through it and gates on the unit's CLI. Execution tests that
-    run compositor-configs.yaml STANDALONE must build that state by hand:
-    the pinned unit holds a copy of the REAL in-place bridge tree (slice 1
-    moved it into ags-apps verbatim, so the bridge IS the unit content for
-    gate purposes), the pin is recorded, and <install>/config/ags links at
-    the unit's bar/.
+    run compositor-configs.yaml STANDALONE must build that state by hand: the
+    unit's bar package is copied from a local `ags-apps` checkout (the bar
+    deploys WHOLE from there now — the in-repo bridge is retired), the pin is
+    recorded, and <install>/config/ags links at the unit's bar/. `node_modules`
+    and `@girs` are skipped: the strict-gate CLI is pure (`node:*` + the bar's
+    own pure modules), so neither the 49 MB GJS typings nor the dev platform
+    shortcut is needed.
     """
-    repo_ags = _ANSIBLE_DIR.parents[2] / "dotfiles" / "config" / "ags"
-    assert repo_ags.is_dir(), f"missing in-place bar bridge {repo_ags}"
+    src = _AGS_APPS_REPO / "bar"
+    if not (src / "bar" / "validate-cli.ts").is_file():
+        pytest.skip(
+            f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
+            "strict bar gate needs the unit's validate-cli.ts"
+        )
     bar = install / "ags-apps" / "bar-v0.1.0" / "bar"
-    shutil.copytree(repo_ags, bar)
+    shutil.copytree(
+        src,
+        bar,
+        ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
+    )
     (install / "ags-apps" / "pinned").write_text("bar-v0.1.0\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
@@ -999,15 +1021,18 @@ class TestCompositorConfigsPlaybook:
 
 
 class TestDeployCoverageGate:
-    """The deploy-coverage gate (scripts/deploy-coverage.py) is the guard that
-    turns "reachable from app.tsx but not deployed" into a failed run.
+    """The deploy-coverage gate (scripts/deploy-coverage.py) asserts the
+    provisioning SHAPE of the external bar + platform units.
 
-    The structural test above pins the manifest's CONTENTS; this gate derives
-    the REQUIREMENT from the source tree, so a new relative import cannot be
-    added without its per-file deploy entry. The positive case runs on the real
-    tree. The negative case removes one entry and proves the gate bites
-    (hermetic: a temp root whose ags tree is symlinked and whose manifest is a
-    modified copy — the ags sources are read-only input to the gate).
+    The bar deploys WHOLE via the pinned `ags_apps` unit and the platform is
+    the external `ags-platform` bare specifier (spine AD-17), so the gate no
+    longer diffs the in-repo tree's import closure against the manifest. It
+    instead proves no stale per-file bar entry remains, the retired in-place
+    `platform/` dir is gone, and both unit roles provision their pinned unit +
+    shortcut. The in-repo `dotfiles/config/ags/` bridge is NOT required: the
+    positive cases run both WITH the real tree and with it ABSENT. The negative
+    cases are hermetic (a temp root whose ags tree is symlinked and whose
+    manifest is a modified copy — the ags sources are read-only input).
     """
 
     _SCRIPT = _ANSIBLE_DIR.parents[2] / "scripts" / "deploy-coverage.py"
@@ -1026,6 +1051,28 @@ class TestDeployCoverageGate:
         result = self._run(repo_root)
         assert result.returncode == 0, result.stdout + result.stderr
         assert "PASS" in result.stdout
+
+    def test_gate_passes_when_the_in_repo_bridge_is_absent(self) -> None:
+        """Slice 1: the gate asserts the provisioning SHAPE, so it must exit 0
+        with NO in-repo `dotfiles/config/ags/` tree at all (the bridge is
+        retired). Hermetic: a temp root carrying only the real manifest and both
+        unit roles, with the ags tree deliberately absent."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vars_dst = root / self._VARS
+            vars_dst.parent.mkdir(parents=True)
+            vars_dst.write_text((repo_root / self._VARS).read_text())
+            for role in ("ags_platform", "ags_apps"):
+                shutil.copytree(
+                    repo_root / "src/provisioning/ansible/roles" / role,
+                    root / "src/provisioning/ansible/roles" / role,
+                )
+            assert not (root / self._AGS).exists()
+            result = self._run(root)
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert "PASS" in result.stdout
+            assert "bridge retired" in result.stdout, result.stdout
 
     def test_gate_fails_when_a_stale_bar_entry_returns(self) -> None:
         """Slice 2: a per-file bar entry in the skeleton list must FAIL. The

@@ -34,11 +34,8 @@ _CONFIG_DIR = _REPO_ROOT / "dotfiles" / "config"
 _HYPR_LUA = _CONFIG_DIR / "hypr" / "hyprland.lua"
 _HYPR_AUTOSTART = _CONFIG_DIR / "hypr" / "autostart.lua"
 _HYPR_ENV = _CONFIG_DIR / "hypr" / "env-variables.lua"
-_AGS_APP = _CONFIG_DIR / "ags" / "app.tsx"
-_AGS_CSS = _CONFIG_DIR / "ags" / "style.css"
 _HYPRPAPER_CONF = _CONFIG_DIR / "hyprpaper" / "hyprpaper.conf"
 
-_AGS_PALETTE_LOAD = "app.apply_css(`${GLib.get_user_config_dir()}/ags/colors.css`)"
 _HYPRPAPER_PRELOAD = "preload = ~/.local/share/dotfiles/wallpapers/default.png"
 _HYPRPAPER_WALLPAPER = "wallpaper = ,~/.local/share/dotfiles/wallpapers/default.png"
 
@@ -129,26 +126,6 @@ class TestAutostartLoginRestore:
         )
 
 
-class TestAgsSkeleton:
-    def test_app_tsx_exists(self) -> None:
-        """AC 2: dotfiles/config/ags/app.tsx exists."""
-        assert _AGS_APP.is_file(), "dotfiles/config/ags/app.tsx missing"
-
-    def test_loads_palette_at_runtime(self) -> None:
-        """AC 2: the skeleton applies the Story 2.7-emitted AGS palette fragment
-        (colors.gtk.css) at RUNTIME via app.apply_css() — NOT bundled at build
-        time — so the Phase 2 runtime can repoint ~/.config/ags/colors.css ->
-        current/colors.gtk.css and take effect on the next `ags run` restart."""
-        assert _AGS_PALETTE_LOAD in _AGS_APP.read_text(encoding="utf-8"), (
-            "app.tsx must apply the palette fragment colors.css at runtime"
-        )
-
-    def test_style_css_exists(self) -> None:
-        """AC 2: dotfiles/config/ags/style.css exists — the AGS bar stylesheet
-        referencing the palette @color_00..@color_15 variables."""
-        assert _AGS_CSS.is_file(), "dotfiles/config/ags/style.css missing"
-
-
 class TestHyprpaperSkeleton:
     def test_hyprpaper_conf_exists(self) -> None:
         """AC 4: dotfiles/config/hyprpaper/hyprpaper.conf exists."""
@@ -205,8 +182,6 @@ class TestSkeletonsAreStatic:
         carry a template suffix."""
         new_files = (
             _HYPR_LUA,
-            _AGS_APP,
-            _AGS_CSS,
             _HYPRPAPER_CONF,
             _CONFIG_DIR / "rofi" / "launcher" / "config.rasi",
         )
@@ -216,11 +191,13 @@ class TestSkeletonsAreStatic:
             )
 
     def test_skeleton_dirs_have_no_dash_and_no_config_suffix(self) -> None:
-        """Naming contract: skeleton dirs are exactly hypr / ags /
+        """Naming contract: the non-bar skeleton dirs are exactly hypr /
         hyprpaper (no dash, no `.config` suffix) — they mirror the
-        ~/.config/{hypr,ags,hyprpaper} targets Story 2.9 copies to."""
+        ~/.config/{hypr,hyprpaper} targets Story 2.9 copies to. The bar is
+        NOT a skeleton dir: it deploys whole as the pinned external `ags-apps`
+        unit (the live-bar symlink), so `dotfiles/config/ags` no longer exists
+        in-repo."""
         assert (_CONFIG_DIR / "hypr").is_dir()
-        assert (_CONFIG_DIR / "ags").is_dir()
         assert (_CONFIG_DIR / "hyprpaper").is_dir()
 
 

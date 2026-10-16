@@ -3,13 +3,15 @@
 
 WHY THIS GATE EXISTS (spine AD-6, REQ-004). The event contract is canonical in
 the `contracts` repo, which generates `generated/contract.py`, `generated/
-contract.ts` and `generated/events.schema.json`. dotfiles-v3 VENDORS all three
-artifacts (committed copies, not a submodule) so the runtime can consume them
-without a cross-repo build step. A vendored copy is a second source of truth the
-moment someone hand-edits it -- exactly the drift AD-6 exists to prevent. This
-gate diffs each vendored copy against the `contracts` repo's `generated/`
-artifact and FAILS on any difference, so an edit that is not a regeneration is
-caught here rather than at runtime.
+contract.ts` and `generated/events.schema.json`. dotfiles-v3 VENDORS the Python
+binding and the JSON Schema (committed copies, not a submodule) so the runtime
+can consume them without a cross-repo build step. The TypeScript binding is no
+longer vendored here: the bar now deploys whole from the pinned `ags-apps` unit,
+and its `contract.ts` pin half lives in `ags-apps`. A vendored copy is a second
+source of truth the moment someone hand-edits it -- exactly the drift AD-6 exists
+to prevent. This gate diffs each vendored copy against the `contracts` repo's
+`generated/` artifact and FAILS on any difference, so an edit that is not a
+regeneration is caught here rather than at runtime.
 
 WHAT IS COMPARED, AND WHY A HEADER IS NOT A LOOPHOLE. Each vendored file is the
 `contracts` artifact with a fixed three-line vendored header prepended (the
@@ -59,7 +61,6 @@ DEFAULT_CONTRACTS_REPO = "/home/inumaki/Development/contracts"
 #: be imported by every layer (ports/adapters may not import each other). See
 #: `tests/architecture/test_layering.py`.
 PY_VENDORED = Path("src/runtime/src/runtime/domain/contract_generated.py")
-TS_VENDORED = Path("dotfiles/config/ags/lib/generated/contract.ts")
 #: The generated JSON Schema is a resource read by an adapter (file I/O), so it
 #: lives in `adapters/` beside the runtime's other embedded schemas.
 SCHEMA_VENDORED = Path("src/runtime/src/runtime/adapters/contract_generated.schema.json")
@@ -79,15 +80,6 @@ def _py_header(pin: str) -> bytes:
     ).encode("utf-8")
 
 
-def _ts_header(pin: str) -> bytes:
-    """The fixed header prepended to the vendored TypeScript binding."""
-    return (
-        "// VENDORED — DO NOT EDIT.\n"
-        f"// GENERATED from the `contracts` repo (generated/contract.ts) at pin {pin}.\n"
-        "// Source of truth: contracts/event-contract.{xml,json}. Verify: `make contract-pin-check`.\n"
-    ).encode("utf-8")
-
-
 def _json_header(pin: str) -> bytes:
     """No header for the vendored JSON Schema (JSON has no comment syntax).
 
@@ -101,7 +93,6 @@ def _json_header(pin: str) -> bytes:
 #: (vendored path relative to the repo root, filename under `generated/`, header).
 VENDORED: tuple[tuple[Path, str, Callable[[str], bytes]], ...] = (
     (PY_VENDORED, "contract.py", _py_header),
-    (TS_VENDORED, "contract.ts", _ts_header),
     (SCHEMA_VENDORED, "events.schema.json", _json_header),
 )
 
