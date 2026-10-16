@@ -51,6 +51,15 @@
     dest: "{{ cli_tools_bin_dir }}/icon-color-mapping-editor"
     mode: "0755"
 
+# The btop Theme Studio has the same "bundles TS at startup" lifecycle and the
+# same toggle/start-if-down contract as icme: provisioning quits the instance
+# after placing updated sources, and the SUPER+B bind restarts it on demand.
+- name: Install the btop Theme Studio launcher (repo-aware template)
+  ansible.builtin.template:
+    src: btop-theme-studio.j2
+    dest: "{{ cli_tools_bin_dir }}/btop-theme-studio"
+    mode: "0755"
+
 # The capture UI is a standalone AGS instance with the same "bundles TS at
 # startup" lifecycle as icme. Provisioning (gui_tools role) quits it after
 # placing updated sources; this start-if-down/toggle launcher is what the

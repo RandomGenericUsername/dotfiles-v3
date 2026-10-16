@@ -198,12 +198,13 @@ class TestBtopConfigVars:
 class TestBtopConfigTemplate:
     def test_selects_the_generated_theme_by_filename(self) -> None:
         text = _TEMPLATE.read_text()
-        assert f'color_theme = "{_SELECTED_THEME}"' in text, (
-            "color_theme must name the theme FILE that the runtime places in "
-            f"the spine's themes/ dir ({_SELECTED_THEME}) — btop matches "
-            "color_theme against the themes it discovered in its own theme dir "
-            "at startup, and an unmatched value silently falls back to "
-            "Default_theme"
+        assert 'color_theme = "{{ btop_config_active_theme }}"' in text, (
+            "color_theme must render the repo-owned active-theme setting "
+            "(btop-theme-deployment D10), not a hardcoded filename"
+        )
+        assert "colors.btop.theme" in text, (
+            "the template must document the default generated theme "
+            "(colors.btop.theme), which btop matches by filename"
         )
 
     def test_save_config_on_exit_is_false(self) -> None:
@@ -318,6 +319,69 @@ class TestBtopConfigPlaybook:
                 "re-provisioning must be a no-op when nothing changed; recap:\n"
                 + second.stdout
             )
+
+
+class TestBtopThemeDeployment:
+    """btop-theme-deployment capability: authored themes ship into the spine,
+    and the active `color_theme` is a repo-owned setting that survives
+    re-provisioning (design D10)."""
+
+    def test_vars_carry_the_deployment_seams(self) -> None:
+        data = _vars()
+        for key in (
+            "btop_config_repo_root",
+            "btop_config_active_theme_file",
+            "btop_config_default_active_theme",
+            "btop_config_authored_themes_repo_dir",
+        ):
+            assert key in data, f"missing deployment var {key}"
+
+    def test_default_active_theme_is_the_generated_theme(self) -> None:
+        assert str(_vars()["btop_config_default_active_theme"]) == _SELECTED_THEME
+
+    def test_active_theme_file_is_the_repo_owned_setting(self) -> None:
+        value = str(_vars()["btop_config_active_theme_file"])
+        assert value == "{{ btop_config_repo_root }}/dotfiles/config/btop/active-theme"
+
+    def test_authored_themes_dir_is_repo_owned(self) -> None:
+        value = str(_vars()["btop_config_authored_themes_repo_dir"])
+        assert value == "{{ btop_config_repo_root }}/dotfiles/assets/btop-themes"
+
+    def test_reads_the_repo_setting_with_a_default(self) -> None:
+        slurp = [t for t in _load_tasks() if _module_key(t) == "ansible.builtin.slurp"]
+        assert len(slurp) == 1, "expected exactly one slurp task reading the setting"
+        assert "btop_config_active_theme_file" in str(_module(slurp[0]).get("src"))
+        assert slurp[0].get("failed_when") is False, (
+            "a missing repo setting must not fail provisioning (the default is used)"
+        )
+        facts = [t for t in _load_tasks() if _module_key(t) == "ansible.builtin.set_fact"]
+        assert facts, "expected a set_fact resolving the active theme"
+        resolved = str(_module(facts[0]).get("btop_config_active_theme"))
+        assert "btop_config_default_active_theme" in resolved
+
+    def test_ships_authored_themes_into_the_spine_themes_dir(self) -> None:
+        copies = [
+            t
+            for t in _load_tasks()
+            if _module_key(t) == "ansible.builtin.copy"
+            and "btop_config_authored_themes_repo_dir" in str(t.get("with_fileglob", ""))
+        ]
+        assert len(copies) == 1, "expected exactly one authored-theme copy task"
+        module = _module(copies[0])
+        assert str(module.get("dest")) == "{{ btop_config_spine_themes_dir }}/", (
+            "authored themes must land in the spine themes dir btop scans"
+        )
+        assert "*.theme" in str(copies[0].get("with_fileglob")), (
+            "only .theme files are authored themes"
+        )
+
+    def test_authored_themes_do_not_touch_the_generated_pointer(self) -> None:
+        """The generated colors.btop.theme consumer pointer is runtime-owned;
+        provisioning ships authored files from a DIFFERENT repo dir."""
+        assert "colors.btop.theme" not in str(_vars()["btop_config_authored_themes_repo_dir"])
+
+    def test_save_config_on_exit_stays_false(self) -> None:
+        assert "save_config_on_exit = false" in _TEMPLATE.read_text()
 
 
 if __name__ == "__main__":

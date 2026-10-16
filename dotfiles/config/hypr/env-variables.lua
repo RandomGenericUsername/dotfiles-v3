@@ -3,12 +3,13 @@
 
 -- User tool PATH: provisioning installs every keybind launcher (rofi-ui,
 -- capture-ui, hypr-pano-ui, wallpaper-selector-ui, icon-color-mapping-editor,
--- toggle-touchpad) to ~/.local/bin, but a display-manager/uwsm session never
--- sources shell init files — without this, Hyprland's own PATH lacks the dir
--- and every such bind silently no-ops (verified live 2026-09-29 via
--- /proc/<hyprland-pid>/environ). Derived from $HOME at runtime so no
--- per-user templating is needed; the contains-guard keeps `hyprctl reload`
--- (which re-executes this file) from stacking duplicates.
+-- btop-theme-studio, toggle-touchpad) to ~/.local/bin, but a
+-- display-manager/uwsm session never sources shell init files — without this,
+-- Hyprland's own PATH lacks the dir and every such bind silently no-ops
+-- (verified live 2026-09-29 via /proc/<hyprland-pid>/environ). Derived from
+-- $HOME at runtime so no per-user templating is needed; the contains-guard
+-- keeps `hyprctl reload` (which re-executes this file) from stacking
+-- duplicates.
 do
     local home = os.getenv("HOME")
     if home then

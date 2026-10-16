@@ -685,6 +685,7 @@ class TestGuiToolsVars:
             str(i["name"]) for i in data["gui_tools_ags_instances"] if not i["always_on"]
         )
         assert on_demand == [
+            "btop-theme-studio",
             "capture",
             "hypr-pano",
             "icon-color-mapping-editor",
@@ -730,3 +731,91 @@ class TestGuiToolsVars:
         assert (
             "--log-file {{ gui_tools_xdg_state_home }}/ags/notifications.log" in launch
         ), f"the overlay must log to the state dir like autostart; got {launch}"
+
+
+class TestBtopStudioRegistration:
+    """btop-theme-studio is provisioned as its OWN AGS instance, launch-on-demand
+    only — never in the bar's app.tsx, never autostarted (capability
+    `btop-theme-studio`, tasks 1.1-1.3)."""
+
+    _EXPECTED_SOURCES = [
+        "src/gui-tools/btop-theme-studio/app.tsx",
+        "src/gui-tools/btop-theme-studio/lib/btop-conf.ts",
+        "src/gui-tools/btop-theme-studio/lib/key-map.ts",
+        "src/gui-tools/btop-theme-studio/lib/key-widgets.generated.ts",
+        "src/gui-tools/btop-theme-studio/lib/preview.ts",
+        "src/gui-tools/btop-theme-studio/lib/schematic.ts",
+        "src/gui-tools/btop-theme-studio/lib/targets.ts",
+        "src/gui-tools/btop-theme-studio/lib/theme-keys.ts",
+        "src/gui-tools/btop-theme-studio/lib/theme-model.ts",
+        "src/gui-tools/btop-theme-studio/live/btop_live.py",
+        "src/gui-tools/btop-theme-studio/style.css",
+        "src/gui-tools/btop-theme-studio/ui/StudioWindow.tsx",
+    ]
+
+    def test_btop_studio_app_files_exact_list(self) -> None:
+        files = list(_vars()["gui_tools_btop_studio_app_files"])
+        sources = sorted(str(f["source"]) for f in files)
+        assert sources == self._EXPECTED_SOURCES, (
+            f"gui_tools_btop_studio_app_files sources must be exactly "
+            f"{self._EXPECTED_SOURCES}; got {sources}"
+        )
+        for entry in files:
+            dest = str(entry["dest"])
+            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-btop-studio/"), (
+                f"studio dest must derive from gui_tools_spine_config_dir/ags-btop-studio: {dest}"
+            )
+
+    def test_btop_studio_sources_exist_in_repo(self) -> None:
+        for entry in _vars()["gui_tools_btop_studio_app_files"]:
+            path = _REPO_ROOT / str(entry["source"])
+            assert path.is_file(), f"studio app source missing from repo: {entry['source']}"
+
+    def test_every_btop_studio_dest_parent_is_an_ensured_dir(self) -> None:
+        data = _vars()
+        ensured = {
+            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
+            for d in data["gui_tools_config_dirs"]
+        }
+        for entry in data["gui_tools_btop_studio_app_files"]:
+            dest = str(entry["dest"])
+            parent = dest.rsplit("/", 1)[0].replace("{{ gui_tools_spine_config_dir }}", "<spine>")
+            assert parent in ensured, (
+                f"dest parent {parent!r} of {entry['name']} is not an ensured dir; "
+                "add it to gui_tools_config_dirs"
+            )
+
+    def test_btop_studio_placed_via_raw_copy(self) -> None:
+        """JSX style objects contain `{{` sequences, so the studio takes the
+        raw-copy path (like icme), not template placement."""
+        tasks = [
+            task
+            for task in _tasks()
+            if task.keys() & {"ansible.builtin.copy"}
+            and "gui_tools_btop_studio_app_files" in str(task.get("loop", ""))
+        ]
+        assert len(tasks) == 1, "expected exactly one raw-copy task for the studio"
+        assert _module(tasks[0]).get("force") is True
+
+    def test_ags_instances_include_btop_studio(self) -> None:
+        instances = [str(i["name"]) for i in _vars()["gui_tools_ags_instances"]]
+        assert "btop-theme-studio" in instances, (
+            f"gui_tools_ags_instances must include btop-theme-studio; got {instances}"
+        )
+
+    def test_btop_studio_is_never_autostarted_or_in_the_bar(self) -> None:
+        """Task 1.3: the studio is launch-on-demand only. It must not appear in
+        the bar's app.tsx or in the login autostart, and it must have a
+        provisioned keybind launcher."""
+        bar = (_REPO_ROOT / "dotfiles/config/ags/app.tsx").read_text(encoding="utf-8")
+        assert "btop-theme-studio" not in bar, (
+            "the studio must not be registered in the bar's app.tsx"
+        )
+        autostart = (_REPO_ROOT / "dotfiles/config/hypr/autostart.lua").read_text(encoding="utf-8")
+        assert "btop-theme-studio" not in autostart and "ags-btop-studio" not in autostart, (
+            "the studio must not be autostarted (launch-on-demand only)"
+        )
+        keybinds = (_REPO_ROOT / "dotfiles/config/hypr/keybindings.lua").read_text(encoding="utf-8")
+        assert "btop-theme-studio" in keybinds, (
+            "the studio must have a provisioned keybind launcher"
+        )

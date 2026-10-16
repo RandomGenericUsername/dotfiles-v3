@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>btop Theme Studio — v5 (config-consumed schematic + real capture)</title>
+<style>
+  :root{--bg:#16181d;--panel:#1d2026;--panel-2:#23272f;--line:#313742;--fg:#d7dbe2;--muted:#8b93a1;
+    --accent:#6ea8fe;--warn:#e0a45e;--ok:#7bc47f;--bad:#e08585;--gen:#c39ad9;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 system-ui,"Cantarell","Segoe UI",sans-serif;}
+  .note{background:#2a2f3a;border-bottom:1px solid var(--line);padding:8px 14px;font-size:12px;color:var(--muted);}
+  .note b{color:var(--fg);}
+  .app{display:grid;grid-template-columns:280px 1fr 336px;height:calc(100vh - 47px);}
+  .col{overflow:auto;} .left{background:var(--panel);border-right:1px solid var(--line);}
+  .right{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;}
+  .center{display:flex;flex-direction:column;min-width:0;}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0;padding:12px 14px 6px;}
+  h2 .sub{text-transform:none;letter-spacing:0;color:#5f6774;}
+  .inputs{padding:0 14px 8px;} .input-row{margin-bottom:8px;}
+  .input-row label{display:block;font-size:11px;color:var(--muted);margin-bottom:2px;}
+  .path{display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:5px;padding:5px 7px;font-family:ui-monospace,monospace;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .path.rw{border-color:var(--warn);} .path .pick{margin-left:auto;color:var(--accent);cursor:pointer;flex:none;}
+  .cfg{padding:0 14px 8px;font-family:ui-monospace,monospace;font-size:10.5px;color:var(--muted);}
+  .cfg .k{color:#7fb0d8;} .cfg .v{color:var(--fg);word-break:break-all;}
+  .lib{padding:0 8px 8px;}
+  .titem{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent;}
+  .titem:hover{background:var(--panel-2);} .titem.active{background:#2f3947;border-color:#3d4a5c;}
+  .titem .star{width:16px;flex:none;text-align:center;cursor:pointer;color:#4b525d;font-size:14px;}
+  .titem .star.on{color:var(--warn);} .titem .tmeta{flex:1;min-width:0;}
+  .titem .tname{font-family:ui-monospace,monospace;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .badge{font-size:9.5px;padding:1px 5px;border-radius:4px;letter-spacing:.03em;}
+  .badge.gen{background:#3a2f45;color:var(--gen);} .badge.authored{background:#25313f;color:#7fb0d8;}
+  .badge.active{background:#3d3320;color:var(--warn);}
+  .lib-actions{display:flex;gap:6px;padding:4px 8px 0;flex-wrap:wrap;} .lib-actions .toggle{flex:1;font-size:11px;text-align:center;white-space:nowrap;}
+  .stock{padding:6px 14px 8px;font-size:10.5px;color:var(--muted);}
+  .tree{padding:0 6px 14px;} .tree .group{padding:9px 8px 3px;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;}
+  .tree .item{padding:4px 8px 4px 16px;border-radius:5px;cursor:pointer;font-family:ui-monospace,monospace;font-size:11.5px;display:flex;align-items:center;gap:8px;}
+  .tree .item:hover{background:var(--panel-2);} .tree .item.active{background:#2f3947;color:#fff;}
+  .tree .key{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dot{width:11px;height:11px;border-radius:3px;border:1px solid #0008;flex:none;}
+
+  .canvas-bar{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap;}
+  .canvas-bar .spacer{flex:1;}
+  .toggle{background:var(--panel-2);border:1px solid var(--line);color:var(--fg);border-radius:5px;padding:4px 9px;cursor:pointer;font-size:11.5px;}
+  .toggle.on{border-color:var(--accent);color:var(--accent);}
+  .slider{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);}
+  input[type=range]{accent-color:var(--accent);width:92px;}
+  .pbar{display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid var(--line);background:#191b21;flex-wrap:wrap;font-size:10.5px;color:var(--muted);}
+  .pchip{font-size:10.5px;padding:2px 9px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;font-family:ui-monospace,monospace;}
+  .pchip.on{background:#2c4b7c;border-color:var(--accent);color:#fff;}
+  .pdesc{color:#5f6774;}
+  .banner{display:flex;align-items:center;gap:8px;padding:7px 14px;background:#2a2233;border-bottom:1px solid var(--line);color:var(--gen);font-size:11.5px;}
+  .banner button{margin-left:auto;}
+
+  .canvas{flex:1;overflow:auto;padding:14px;background:repeating-conic-gradient(#20242b 0% 25%,#191c22 0% 50%) 50% / 24px 24px;}
+  .canvas.solid{background:var(--preview-bg,#0b0b1a);}
+  .stage-cap{font-size:10.5px;color:var(--muted);font-family:ui-monospace,monospace;margin-bottom:10px;}
+  .stage-cap b{color:var(--fg);}
+  .btop{font-family:ui-monospace,"JetBrains Mono",monospace;font-size:11px;line-height:1.3;border:1px solid #ffffff18;border-radius:6px;padding:8px 10px;min-width:1100px;display:inline-block;}
+  .topbar{display:flex;align-items:baseline;gap:10px;color:var(--muted);border-bottom:1px solid;padding-bottom:3px;margin-bottom:6px;}
+  .topbar .clock{margin-left:auto;margin-right:auto;}
+  .bcol{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;}
+  .bgrid{display:flex;gap:6px;align-items:flex-start;}
+  .bbox{border:1px solid;border-radius:2px;padding:2px 5px 4px;}
+  .btitle{display:flex;align-items:baseline;gap:5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;}
+  .btitle .t{font-weight:700;} .btitle .r{margin-left:auto;}
+  .meter{display:inline-flex;} .meter span{display:inline-block;width:.6em;text-align:center;}
+  .row{display:flex;align-items:baseline;gap:6px;white-space:nowrap;}
+  .row .lab{opacity:.9;} .row .val{margin-left:auto;opacity:.95;}
+  .sep{border-bottom:1px dotted currentColor;opacity:.4;flex:1;position:relative;top:-3px;}
+  .coregrid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;}
+  .core{display:flex;align-items:baseline;gap:5px;} .core .n{width:24px;opacity:.8;}
+  .graph{letter-spacing:0;white-space:nowrap;overflow:hidden;line-height:1.0;}
+  .tabs{display:flex;gap:8px;opacity:.85;font-size:10px;}
+  .subbox{border:1px solid;border-radius:2px;padding:2px 5px;}
+  .procrow{display:flex;gap:6px;white-space:nowrap;overflow:hidden;}
+  .procrow .c1{width:62px;} .procrow .c2{width:92px;} .procrow .c3{flex:1;overflow:hidden;text-overflow:ellipsis;}
+  .procrow .c4{width:64px;} .procrow .c5{width:52px;text-align:right;} .procrow .c6{width:38px;text-align:right;}
+  .hl{outline:1px solid var(--accent);outline-offset:1px;border-radius:2px;box-shadow:0 0 0 3px #6ea8fe2e;}
+  .off-note{color:var(--warn);font-size:11px;margin-top:6px;font-family:ui-monospace,monospace;}
+
+  .truth{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;}
+  .truth .th{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .truth .th b{font-size:12px;} .truth .th span{color:var(--muted);font-size:11px;}
+  .truth pre{font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:8.6px;line-height:1.02;white-space:pre;letter-spacing:0;
+    border:1px solid var(--line);border-radius:6px;padding:8px;background:#00000040;overflow:auto;}
+  .truth .grid2{display:flex;gap:12px;flex-wrap:wrap;}
+
+  .anat{margin-top:12px;padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:#00000033;}
+  .anat h3{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;}
+  .modchips{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 4px;}
+  .modchip{font-size:10.5px;padding:2px 7px;border-radius:10px;background:#262b33;color:var(--muted);font-family:ui-monospace,monospace;}
+  .modchip.on{background:#2c4b7c;color:#fff;}
+  .modchip.off{opacity:.5;border:1px dashed #4b525d;}
+  .swrow{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:11.5px;}
+  .swrow code{font-family:ui-monospace,monospace;color:var(--muted);}
+  .swbox{width:22px;height:14px;border-radius:3px;border:1px solid #0008;}
+
+  .diag{border-top:1px solid var(--line);background:#14161a;padding:9px 14px;}
+  .diag .d{display:flex;gap:8px;padding:3px 0;font-size:11.5px;}
+  .diag .d.err{color:var(--bad);} .diag .d.warn{color:var(--warn);} .diag .d.ok{color:var(--ok);}
+  .diff{border-top:1px solid var(--line);background:#14161a;padding:10px 14px;font-family:ui-monospace,monospace;font-size:11.5px;max-height:120px;overflow:auto;}
+  .diff .del{color:#e08585;} .diff .add{color:var(--ok);} .diff .ctx{color:var(--muted);} .diff .file{color:var(--accent);margin:6px 0 2px;}
+  .sel-info{padding:4px 14px 10px;}
+  .kv{display:flex;justify-content:space-between;gap:8px;padding:3px 0;}
+  .kv span:first-child{color:var(--muted);} .kv span:last-child{font-family:ui-monospace,monospace;text-align:right;}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 14px 8px;}
+  .cell{aspect-ratio:1;border-radius:5px;border:2px solid transparent;cursor:pointer;position:relative;}
+  .cell.current{border-color:#fff;}
+  .cell:hover::after{content:attr(data-token);position:absolute;bottom:-17px;left:0;font-size:9.5px;color:var(--muted);font-family:ui-monospace,monospace;white-space:nowrap;z-index:2;}
+  .named{padding:0 14px 8px;}
+  .sw{display:flex;align-items:center;gap:9px;padding:6px;border-radius:6px;cursor:pointer;border:1px solid transparent;}
+  .sw:hover{background:var(--panel-2);} .sw.current{border-color:var(--accent);background:#222b38;}
+  .chip{width:20px;height:20px;border-radius:5px;border:1px solid #0006;flex:none;}
+  .sw .ph{font-family:ui-monospace,monospace;font-size:11.5px;} .sw .tok{color:var(--muted);font-size:10.5px;font-family:ui-monospace,monospace;}
+  .grad{padding:0 14px 8px;} .grad .gtitle{color:var(--muted);font-size:10.5px;margin:2px 0 6px;}
+  .hexrow{display:flex;gap:6px;padding:2px 14px 10px;align-items:center;}
+  .hexrow input{flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--fg);border-radius:5px;padding:5px 7px;font-family:ui-monospace,monospace;font-size:11.5px;}
+  .hexrow input[type=color]{flex:none;width:44px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);cursor:pointer;}
+  .picker-off{opacity:.35;pointer-events:none;}
+  .hint{padding:0 14px 12px;color:var(--muted);font-size:11px;}
+  .footer{margin-top:auto;position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:8px;}
+  .btn{flex:1;padding:7px;border-radius:6px;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);cursor:pointer;font-size:12px;}
+  .btn.primary{background:#2c4b7c;border-color:var(--accent);color:#fff;}
+  code{background:#262b33;padding:1px 4px;border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="note">
+  UI mock v5 — the schematic is driven by your <b>real btop.conf</b> (<code>shown_boxes</code> + parsed
+  <code>presets</code>), and "where it shows" comes from the repo's <b>btop_draw.cpp key→widget trace</b>.
+  The <b>Truth</b> pane is a frame captured from the real btop binary. No invented layout.
+</div>
+
+<div class="app">
+  <div class="col left">
+    <h2>Save target</h2>
+    <div class="inputs">
+      <div class="scope" style="padding:0 0 6px">
+        <button class="toggle on" id="tgtRepo" style="flex:1;text-align:center">Repo</button>
+        <button class="toggle" id="tgtInstalled" style="flex:1;text-align:center">Installed</button>
+      </div>
+      <div class="input-row"><label id="tgtLabel">writes to — repo</label>
+        <div class="path rw" id="tgtPath">dotfiles/assets/btop-themes/…</div></div>
+      <div class="hint" id="tgtHint" style="padding:0 0 6px"></div>
+    </div>
+
+    <h2>Inputs <span class="sub">— read-only</span></h2>
+    <div class="inputs">
+      <div class="input-row"><label>Palette</label><div class="path">…/current/colors.yaml</div></div>
+      <div class="input-row"><label>Generated theme (derived)</label><div class="path">…/current/colors.btop.theme</div></div>
+      <div class="input-row"><label>btop config (consumed)</label><div class="path">~/.config/btop/btop.conf</div></div>
+    </div>
+    <h2>Consumed from btop.conf</h2>
+    <div class="cfg" id="cfg"></div>
+
+    <h2>Themes <span class="sub">— ★ = used by btop</span></h2>
+    <div class="lib" id="lib"></div>
+    <div class="lib-actions">
+      <button class="toggle" id="tNew">+ New</button>
+      <button class="toggle" id="tDup">Duplicate</button>
+      <button class="toggle" id="tDel">Delete</button>
+    </div>
+    <div class="stock">or import from btop's stock set — <b>41</b> themes in <code>/usr/share/btop/themes</code></div>
+    <h2>Keys <span class="sub" id="keysFor"></span></h2>
+    <div class="tree" id="tree"></div>
+  </div>
+
+  <div class="col center">
+    <div class="canvas-bar">
+      <div class="slider"><span>load</span><input type="range" id="fill" min="0" max="100" value="35" /><b id="fillPct" style="color:var(--fg)">35%</b></div>
+      <div class="spacer"></div>
+      <button class="toggle on" id="tSolid">Solid bg</button>
+      <button class="toggle on" id="tHl">Highlight selected</button>
+      <button class="toggle on" id="tTruth">Show Truth pane</button>
+      <button class="toggle" id="tFix">Reserve surface for meters</button>
+      <button class="toggle" id="tTransp">Transparent meters</button>
+    </div>
+    <div class="pbar" id="pbar"></div>
+    <div class="banner" id="banner" style="display:none"><span>ⓘ</span><span id="bannerText"></span><button class="toggle" id="tFork">Fork to edit</button></div>
+    <div class="canvas" id="canvas">
+      <div class="stage-cap" id="cap"></div>
+      <div class="btop" id="btop"></div>
+      <div class="off-note" id="offnote"></div>
+      <div class="anat" id="anat"></div>
+      <div class="truth" id="truth">
+        <div class="th"><b>Truth pane</b><span>— a frame captured from the real <code>btop</code> binary on a pty (preset = the schematic above)</span></div>
+        <div class="grid2"><!--__TRUTH__--></div>
+      </div>
+    </div>
+    <div class="diag" id="diag"></div>
+    <div class="diff"><div style="color:var(--muted);margin-bottom:4px">Pending edits — nothing written until you save</div><div id="diffBody"><span class="ctx">— no changes —</span></div></div>
+  </div>
+
+  <div class="col right">
+    <h2>Selection</h2>
+    <div class="sel-info">
+      <div class="kv"><span>Theme</span><span id="selTheme">—</span></div>
+      <div class="kv"><span>Theme key</span><span id="selKey">—</span></div>
+      <div class="kv"><span id="feedLabel">Draws from</span><span id="selFeed">—</span></div>
+      <div class="kv"><span>Value</span><span id="selHex">—</span></div>
+    </div>
+    <h2>Where it shows <span class="sub">— from btop_draw.cpp</span></h2>
+    <div class="hint" id="selUse" style="padding-bottom:6px;color:var(--fg)"></div>
+    <h2 id="gradTitle" style="display:none">Gradient <span style="text-transform:none;letter-spacing:0">— btop allows max 3 stops</span></h2>
+    <div class="grad" id="grad"></div>
+    <h2>Diagnosis</h2>
+    <div class="hint" id="selDiag" style="padding-bottom:6px"></div>
+    <h2 id="pickTitle">Select a key</h2>
+    <div class="grid" id="grid"></div>
+    <h2 style="padding-top:2px">Palette <span class="sub">— color0–color15</span></h2>
+    <div class="grid" id="colors16" style="grid-template-columns:repeat(8,1fr)"></div>
+    <div class="named" id="named"></div>
+    <div class="hexrow" id="hexrow"><span style="font-size:11px;color:var(--muted)">custom</span><input type="color" id="colorPick" title="pick ANY colour (beyond the palette)" /><input id="hexInput" spellcheck="false" placeholder="#rrggbb" /></div>
+    <h2>Edit scope</h2>
+    <div style="display:flex;gap:6px;padding:0 14px 6px">
+      <button class="toggle on" id="scKey" style="flex:1;text-align:center;font-size:11px">This key</button>
+      <button class="toggle" id="scGroup" style="flex:1;text-align:center;font-size:11px">Same role</button>
+      <button class="toggle" id="scAll" style="flex:1;text-align:center;font-size:11px">All keys</button>
+    </div>
+    <div class="hint" id="scopeHint" style="color:var(--warn);padding-bottom:8px"></div>
+    <div class="hint">Generated themes resolve through the <b>theme map</b> and follow the wallpaper; authored themes hold literal colours. btop uses the <b>★ active</b> theme by filename and reloads live (SIGUSR2).</div>
+    <div class="footer"><button class="btn" id="revert">Revert</button><button class="btn primary" id="save">Save</button></div>
+  </div>
+</div>
+
+<script>
+/*__CONFIG__*/
+
+let STOPS=["#0b0b1a","#575660","#5a5a6f","#2d6596","#557690","#9a7268","#549ec8","#dbab67","#c2c2c5"];
+let COLORS16=["#0b0b1a","#575660","#575660","#5a5a6f","#2d6596","#2d6596","#557690","#557690","#9a7268","#9a7268","#549ec8","#549ec8","#dbab67","#dbab67","#c2c2c5","#c2c2c5"];
+let NAMED={background:"#0b0b1a",foreground:"#c2c2c5",cursor:"#c2c2c5"};
+const hexOfFeed=(f)=> (typeof f!=="string")?"#ff00ff":(f===""?"transparent":(NAMED[f]??(f.startsWith("ramp[")?STOPS[+f.slice(5,-1)]:(f.startsWith("#")?f:"#ff00ff"))));
+
+// key -> what it actually paints (btop_draw.cpp trace, spikes/btop-theme-prototype/FINDINGS.md:69-87)
+const WIDGETS={
+  cpu:{paints:"CPU meter · GPU util graphs+meter · per-core graphs · enc/dec meters · battery",mods:["cpu","gpu","battery"]},
+  temp:{paints:"CPU temp · per-core temps · GPU temp (relative: temp×100/temp_max)",mods:["cpu","gpu"]},
+  cached:{paints:"CPU watts · GPU power draw · P-state (NOT cache)",mods:["cpu","gpu"]},
+  available:{paints:"disk I/O activity (%busy) — NOT free RAM",mods:["disks"]},
+  used:{paints:"disk used meter · GPU VRAM",mods:["disks","gpu"]},
+  free:{paints:"disk free meter · GPU mem util",mods:["disks","gpu"]},
+  download:{paints:"network download graph",mods:["net"]},
+  upload:{paints:"network upload graph",mods:["net"]},
+  process:{paints:"process-list thread · mem · cpu bars",mods:["proc"]},
+};
+const SURFACE={main_bg:"terminal background",main_fg:"all body text",title:"every box title",hi_fg:"selected tab / highlighted",
+  selected_bg:"selection background",selected_fg:"selection text",inactive_fg:"dimmed / secondary",graph_text:"graph axes · ▼▲ · scale",
+  meter_bg:"the UNFILLED part of every meter",cpu_box:"cpu / disks box outline",mem_box:"mem / net / battery box outline",
+  net_box:"net box outline",proc_box:"proc box outline",div_line:"dividers & dotted leaders",proc_misc:"proc counts / status line",
+  proc_pause_bg:"paused proc",proc_follow_bg:"followed proc",proc_banner_bg:"proc banner",proc_banner_fg:"proc banner text",
+  followed_bg:"followed row",followed_fg:"followed row text"};
+/*__KEYWIDGETS__*/
+const GROUPS=[
+  ["Surface",["main_bg","main_fg","title","hi_fg","selected_bg","selected_fg","inactive_fg","graph_text"]],
+  ["Box chrome",["meter_bg","proc_misc","cpu_box","mem_box","net_box","proc_box","div_line"]],
+  ["Consumption",["used_start","used_mid","used_end","free_start","free_mid","free_end","available_start","available_mid","available_end"]],
+  ["Load / heat",["cpu_start","cpu_mid","cpu_end","temp_start","temp_mid","temp_end","cached_start","cached_mid","cached_end"]],
+  ["Network / process",["download_start","download_mid","download_end","upload_start","upload_mid","upload_end","process_start","process_mid","process_end"]],
+  ["Process state",["proc_pause_bg","proc_follow_bg","proc_banner_bg","proc_banner_fg","followed_bg","followed_fg"]],
+];
+const genMap={main_bg:"background",main_fg:"foreground",title:"foreground",hi_fg:"ramp[6]",selected_bg:"ramp[3]",
+  selected_fg:"foreground",inactive_fg:"ramp[2]",graph_text:"ramp[6]",meter_bg:"ramp[1]",proc_misc:"ramp[6]",
+  cpu_box:"ramp[2]",mem_box:"ramp[2]",net_box:"ramp[2]",proc_box:"ramp[2]",div_line:"ramp[1]",
+  used_start:"ramp[1]",used_mid:"ramp[4]",used_end:"ramp[7]",free_start:"ramp[0]",free_mid:"ramp[3]",free_end:"ramp[6]",
+  available_start:"ramp[0]",available_mid:"ramp[3]",available_end:"ramp[6]",cpu_start:"ramp[3]",cpu_mid:"ramp[5]",cpu_end:"ramp[7]",
+  temp_start:"ramp[3]",temp_mid:"ramp[5]",temp_end:"ramp[7]",cached_start:"ramp[3]",cached_mid:"ramp[5]",cached_end:"ramp[7]",
+  download_start:"ramp[0]",download_mid:"",download_end:"ramp[6]",upload_start:"ramp[0]",upload_mid:"",upload_end:"ramp[6]",
+  process_start:"ramp[1]",process_mid:"ramp[4]",process_end:"ramp[7]",
+  proc_pause_bg:"ramp[5]",proc_follow_bg:"ramp[6]",proc_banner_bg:"ramp[3]",proc_banner_fg:"foreground",followed_bg:"ramp[6]",followed_fg:"foreground"};
+const resolveIn=(m,k)=>hexOfFeed(m[k]);
+function freeze(m){const o={};for(const k in m)o[k]=resolveIn(m,k);return o;}
+const paperMap={...freeze(genMap),main_bg:"#f4efe4",main_fg:"#33404a",title:"#223039",hi_fg:"#2b6a8f",selected_bg:"#cfe0ea",
+  selected_fg:"#1a2228",inactive_fg:"#8a9aa5",graph_text:"#2b6a8f",meter_bg:"#e2dccd",cpu_box:"#b3aca0",mem_box:"#b3aca0",
+  net_box:"#b3aca0",proc_box:"#b3aca0",div_line:"#d8d2c4",used_start:"#c0603f",used_mid:"#d98a4a",used_end:"#b8462f"};
+const themes=[{id:"generated",name:"colors.btop",kind:"generated",active:true,map:{...genMap}},
+  {id:"dusk",name:"btop-dusk",kind:"authored",active:false,map:{...freeze(genMap)}},
+  {id:"paper",name:"btop-paper",kind:"authored",active:false,map:{...paperMap}}];
+const baseMaps=Object.fromEntries(themes.map(t=>[t.id,{...t.map}]));
+let curTheme=themes[1],selected="meter_bg",scope="key",solid=true,highlight=true,showTruth=true,themeSeq=1,loadPct=35;
+let target="repo";
+let preset=0;
+
+function lerp(a,b,t){const pa=[1,3,5].map(i=>parseInt(a.slice(i,i+2),16)),pb=[1,3,5].map(i=>parseInt(b.slice(i,i+2),16));
+  return "#"+pa.map((v,i)=>Math.round(v+(pb[i]-v)*t).toString(16).padStart(2,"0")).join("");}
+function gradAt(s,m,e,i,U){if(U<=1)return s;const f=(i+1)/U;return f<=.5?lerp(s,m,f/.5):lerp(m,e,(f-.5)/.5);}
+function relLum(h){if(typeof h!=="string"||h[0]!=="#")return .5;const ch=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4));
+  return .2126*ch[0]+.7152*ch[1]+.0722*ch[2];}
+const R=(k)=>resolveIn(curTheme.map,k);
+function meter(pct,s,m,e,mbg,cells){const U=Math.max(0,Math.round(cells*pct/100));let o="";
+  for(let i=0;i<cells;i++){o+=`<span style="color:${i<U?gradAt(s,m,e,i,U):mbg}">█</span>`;}return o;}
+const gm=(fam,pct,cells=10)=>meter(pct,R(fam+"_start"),R(fam+"_mid")||R(fam+"_start"),R(fam+"_end"),R("meter_bg"),cells);
+function graph(fam,w){const s=R(fam+"_start"),m=R(fam+"_mid")||s,e=R(fam+"_end")||s,LV="▁▂▃▄▅▆▇█";let o="";
+  for(let i=0;i<w;i++){const h=Math.max(0,Math.min(7,Math.round(3+3.2*Math.sin(i/6)+1.4*Math.sin(i/2.3))));
+    o+=`<span style="color:${gradAt(s,m,e,i,w)}">${LV[h]}</span>`;}return o;}
+
+const boxesOf=(p)=>Object.keys(PRESET_DEFS[p].boxes);
+const hasBox=(p,b)=>boxesOf(p).includes(b);
+function titleRow(name,boxKey,right){return `<div class="btitle" data-k="${boxKey}">
+  <span style="color:${R(boxKey)}">┤</span><span class="t" style="color:${R("title")}">${name}</span><span style="color:${R(boxKey)}">├</span>
+  ${right?`<span class="r" style="color:${R("main_fg")}">${right}</span>`:""}</div>`;}
+
+// ---------------------------------------------------------------------------
+function renderBtop(){
+  const P=loadPct,fg=R("main_fg"),dim=R("inactive_fg"),g=R("graph_text"),boxes=boxesOf(preset),cols=[[],[],[]];
+  const sym=PRESET_DEFS[preset].symbol||"default";
+
+  if(hasBox(preset,"cpu")){
+    cols[0].push(`<div class="bbox" data-mod="cpu" style="border-color:${R("cpu_box")}">
+      ${titleRow("cpu","cpu_box","")}
+      <div style="color:${g};font-size:10px">total ▾▲ ${sym!=="default"?sym:""}</div>
+      <div class="graph" data-k="cpu_start cpu_mid cpu_end graph_text" style="line-height:1.05">${graph("cpu",90)}
+        <span style="color:${g}">${graph("cpu",44)}</span></div>
+      <div style="color:${dim}">up 08:54:01</div></div>`);
+  }
+  if(hasBox(preset,"gpu")){
+    cols[0].push(`<div class="bbox" data-mod="gpu" style="border-color:${R("mem_box")}">
+      ${titleRow("gpu-totals","mem_box","")}
+      <div class="row" data-k="cpu_start cpu_mid cpu_end meter_bg"><span class="lab" style="color:${fg}">GPU0</span>
+        <span class="meter">${gm("cpu",Math.max(0,P-24),18)}</span><span class="val" style="color:${fg}">${Math.max(0,P-24)}%</span>
+        <span style="color:${R("cached_end")}" data-k="cached_start cached_mid cached_end">12.8W</span></div>
+      <div class="row" data-k="cpu_start cpu_mid cpu_end meter_bg"><span class="lab" style="color:${fg}">GPU1</span>
+        <span class="meter">${gm("cpu",Math.max(0,P-32),18)}</span><span class="val" style="color:${fg}">${Math.max(0,P-32)}%</span></div></div>`);
+  }
+  if(hasBox(preset,"mem")){
+    const tr=(l,v)=>`<div class="row"><span class="lab" style="color:${fg}">${l}</span><span class="sep" style="color:${R("div_line")}"></span><span class="val" style="color:${fg}">${v}</span></div>`;
+    const mr=(fam,pct)=>`<div class="row" data-k="${fam}_start ${fam}_mid ${fam}_end meter_bg"><span class="meter">${gm(fam,pct,24)}</span><span class="val" style="color:${fg}">${pct}%</span></div>`;
+    cols[0].push(`<div class="bbox" data-mod="mem" style="border-color:${R("mem_box")}">${titleRow("mem","mem_box","")}
+      ${tr("Total","15.2 GiB")}${tr("Used","8.12 GiB")}${mr("used",P)}${tr("Available","7.11 GiB")}${mr("available",Math.max(4,96-P))}
+      ${tr("Cached","7.92 GiB")}${mr("cached",Math.min(96,P+18))}${tr("Free","2.44 GiB")}${mr("free",Math.max(3,100-P))}</div>`);
+  }
+  if(hasBox(preset,"net")){
+    cols[0].push(`<div class="bbox" data-mod="net" style="border-color:${R("net_box")}">${titleRow("net 192.168.1.7","net_box","")}
+      <div class="tabs" data-k="main_fg"><span style="color:${dim}">┤sync├┤auto├┤zero├</span><span style="color:${R("selected_bg")}">┤b├</span><span style="color:${dim}">┤wlan0├</span></div>
+      <div class="graph" data-k="download_start download_end graph_text" style="line-height:1.05">${graph("download",54)}</div>
+      <div class="subbox" data-k="download_start download_end meter_bg" style="border-color:${R("net_box")}"><div style="color:${R("title")}">download</div>
+        <div class="row"><span style="color:${g}">▼</span><span style="color:${fg}">18.0 KiB/s</span><span class="val" style="color:${fg}">9.56 GiB</span></div></div>
+      <div class="subbox" data-k="upload_start upload_end meter_bg" style="border-color:${R("net_box")};margin-top:3px"><div style="color:${R("title")}">upload</div>
+        <div class="row"><span style="color:${g}">▲</span><span style="color:${fg}">752 KiB/s</span><span class="val" style="color:${fg}">4.67 GiB</span></div></div></div>`);
+  }
+  if(hasBox(preset,"cpu")){
+    const cores=Array.from({length:8},(_,i)=>i);
+    const cc=(i)=>`<div class="core" data-k="cpu_start cpu_mid cpu_end meter_bg"><span class="n" style="color:${dim}">C${i}</span>
+      <span class="meter">${gm("cpu",[2,1,3,1,11,7,9,3][i],8)}</span>
+      <span style="color:${R("temp_end")}" data-k="temp_start temp_mid temp_end">${[68,68,68,69,68,69,69,69][i]}°C</span></div>`;
+    cols[1].push(`<div class="bbox" data-mod="cpu" style="border-color:${R("cpu_box")}">${titleRow("12th Gen i7-12650H","cpu_box","1.1 GHz")}
+      <div class="row" data-k="cpu_start cpu_mid cpu_end meter_bg"><span class="lab" style="color:${fg}">CPU</span>
+        <span class="meter">${gm("cpu",3,20)}</span><span style="color:${R("temp_end")}" data-k="temp_start temp_mid temp_end">70°C</span>
+        <span class="val" style="color:${R("cached_end")}" data-k="cached_start cached_mid cached_end">12.3W</span></div>
+      <div class="coregrid">${cores.slice(0,4).map(cc).join("")}${cores.slice(4).map(cc).join("")}</div>
+      <div class="row" style="color:${fg}"><span class="lab">Load avg:</span><span class="val">1.14 1.36 1.63</span></div>
+      <div class="row" data-k="cpu_start cpu_mid cpu_end meter_bg"><span class="lab" style="color:${fg}">GPU0</span>
+        <span class="meter">${gm("cpu",0,16)}</span><span style="color:${fg}">288M/6.0G</span>
+        <span class="val" style="color:${R("temp_end")}" data-k="temp_start temp_mid temp_end">65°C 12.8W</span></div></div>`);
+  }
+  if(hasBox(preset,"disks")){
+    const DS=[["root",20],["tmp",26],["home",14],["cache",9],["log",P],["efi",0]];
+    cols[1].push(`<div class="bbox" data-mod="disks" style="border-color:${R("cpu_box")}">${titleRow("disks","cpu_box","io")}
+      ${DS.map(([n,p])=>`<div class="row" data-k="main_fg div_line" style="color:${fg}"><span class="lab">${n}</span><span class="sep" style="color:${R("div_line")}"></span><span style="color:${g}">▲40M</span><span class="val">176 GiB</span></div>
+        <div class="row" data-k="div_line" style="color:${dim}"><span>IO%</span><span class="sep" style="color:${R("div_line")}"></span></div>
+        <div class="row" data-k="used_start used_mid used_end meter_bg available_start available_mid available_end"><span style="color:${fg}">Used: ${p}%</span>
+          <span class="meter">${gm("used",p,18)}</span><span class="val" style="color:${fg}">${p?((p/100)*35).toFixed(1)+" GiB":""}</span></div>`).join("")}</div>`);
+  }
+  if(hasBox(preset,"proc")){
+    const procs=[["6897","Hyprland","Hyprland --watchdog -fd 4","inumaki","135M","0.4"],
+      ["1714088","chrome","--type=renderer --crashpad-h","inumaki","201M","0.0"],
+      ["13584","opencode","opencode","inumaki","373M","0.1"],["7096","wireplumber","/usr/bin/wireplumber","inumaki","24M","0.0"],
+      ["94079","opencode","opencode serve --service","inumaki","559M","0.2"],["12972","kitty","kitty","inumaki","92M","0.0"],
+      ["6844","dbus-broker","dbus-broker --log 11","root","3.0M","0.0"],["1713936","btop","btop","inumaki","32M","0.0"]];
+    cols[2].push(`<div class="bbox" data-mod="proc" style="border-color:${R("proc_box")}">${titleRow("proc","proc_box",`<span style="color:${dim}">┤filter├</span>`)}
+      <div class="row" style="color:${R("selected_bg")}">pause per-core reverse tree cpu lazy</div>
+      <div class="procrow" style="color:${R("hi_fg")}"><span class="c1">Pid:</span><span class="c2">Program:</span><span class="c3">Command:</span>
+        <span class="c4">User:</span><span class="c5">MemB</span><span class="c6">Cpu%</span></div>
+      ${procs.map(([pid,prog,cmd,user,mem,cpu])=>`<div class="procrow"><span class="c1" style="color:${fg}">${pid}</span><span class="c2" style="color:${fg}">${prog}</span>
+        <span class="c3" style="color:${dim}">${cmd}</span><span class="c4" style="color:${fg}">${user}</span><span class="c5" style="color:${fg}">${mem}</span>
+        <span class="c6" style="color:${fg}" data-k="process_start process_mid process_end">${cpu}</span></div>`).join("")}
+      <div class="row" data-k="proc_pause_bg proc_follow_bg proc_banner_fg" style="gap:12px;font-size:10px">
+        <span style="color:${R("proc_banner_fg")};background:${R("proc_pause_bg")}"> pause </span>
+        <span style="color:${R("proc_banner_fg")};background:${R("followed_bg")}"> Follow </span></div>
+      <div class="row" data-k="proc_misc" style="color:${R("proc_misc")};font-size:10px"><span>− select</span><span>⌂ info</span><span>← terminal</span>
+        <span>kill</span><span>signals</span><span>Nice</span><span class="val">0/4412</span></div></div>`);
+  }
+
+  let top=`<div class="topbar" style="border-color:${R("div_line")}">
+    <span style="color:${R("cpu_box")}">┤</span><span style="color:${R("title")}">cpu</span><span style="color:${R("cpu_box")}">├</span>
+    <span style="color:${dim}">┤menu├┤preset├ *</span><span class="clock" style="color:${fg}">16:51:14</span><span style="color:${fg}">device ▾ ▸</span>`;
+  if(hasBox(preset,"cpu")) top+=`<span data-k="cpu_start cpu_mid cpu_end meter_bg" style="color:${R("cpu_end")}">BAT 100% <span class="meter">${gm("cpu",100,6)}</span> 0.00W ▏ 2000ms +1</span>`;
+  top+="</div>";
+
+  const used=cols.map(c=>c.join("")).filter(Boolean);
+  document.getElementById("btop").innerHTML=top+`<div class="bgrid">${used.map(c=>`<div class="bcol">${c}</div>`).join("")}</div>`;
+}
+
+function wireBtop(){
+  const box=document.getElementById("btop"),bg=R("main_bg");
+  box.style.background=solid?bg:"transparent";
+  document.getElementById("canvas").classList.toggle("solid",solid);
+  document.getElementById("canvas").style.setProperty("--preview-bg",bg);
+  box.querySelectorAll("[data-k]").forEach(el=>{
+    const keys=el.dataset.k.split(/\s+/).filter(Boolean);
+    if(highlight&&keys.includes(selected))el.classList.add("hl");
+    el.style.cursor="pointer";
+    el.onclick=(e)=>{e.stopPropagation();select(keys.find(k=>k.startsWith("ramp")||KEY_KNOWN(k))||selected);};
+  });
+}
+const KEY_KNOWN=(k)=>k in curTheme.map;
+function famOf(k){return k.replace(/_(start|mid|end)$/,"");}
+function coverage(){const out=[],box=document.getElementById("btop");
+  box.querySelectorAll("[data-mod]").forEach(m=>{if(m.querySelector(`[data-k~="${selected}"]`))if(!out.includes(m.dataset.mod))out.push(m.dataset.mod);});return out;}
+
+function renderAnat(){
+  const fam=famOf(selected),w=WIDGETS[fam];
+  const MODS=["cpu","gpu","mem","net","disks","proc","battery"],lit=new Set(coverage());
+  if(w)w.mods.forEach(m=>{}); // module truth comes from coverage (preset-aware)
+  document.getElementById("anat").innerHTML=`<h3>Key coverage — <code style="color:var(--fg)">${selected}</code></h3>
+    <div class="swrow"><div class="swbox" style="background:${R(selected)}"></div><code>${curTheme.kind==="generated"?curTheme.map[selected]:""}</code><span style="margin-left:auto">${R(selected)}</span></div>
+    ${w?`<div style="color:var(--muted);font-size:11px;margin:4px 0 2px">btop_draw.cpp: ${w.paints}</div>`:""}
+    <div class="modchips">${MODS.map(m=>`<span class="modchip ${lit.has(m)?"on":""} ${w&&w.mods.includes(m)&&!lit.has(m)?"off":""}">${m}</span>`).join("")}</div>
+    <div style="color:var(--muted);font-size:10.5px;margin:4px 0 6px">lit = shown in the current preset; faint = this key paints it but the box is OFF</div>
+    <div class="swrow"><span style="color:var(--muted);width:64px">20%</span><span class="meter">${gm("used",20,20)}</span></div>
+    <div class="swrow"><span style="color:var(--muted);width:64px">80%</span><span class="meter">${gm("used",80,20)}</span></div>`;
+}
+
+function renderCfg(){
+  document.getElementById("cfg").innerHTML=
+    `<div><span class="k">shown_boxes</span> = <span class="v">"${SHOWN_BOXES}"</span></div>
+     <div><span class="k">presets</span> = <span class="v">"${PRESETS_RAW}"</span></div>
+     <div style="margin-top:4px;color:#5f6774">parsed → ${Object.keys(PRESET_DEFS).length} presets. Preset 0 = all boxes (btop rule).</div>`;
+}
+function renderPBar(){
+  document.getElementById("pbar").innerHTML=`<span>preset:</span>`+Object.keys(PRESET_DEFS).map(p=>
+    `<button class="pchip ${+p===preset?"on":""}" data-p="${p}">${p}</button>`).join("")
+    +`<span class="pdesc">${PRESET_DEFS[preset].label}</span>`;
+  document.querySelectorAll(".pchip").forEach(b=>b.onclick=()=>{preset=+b.dataset.p;renderBtop();wireBtop();renderAnat();renderPBar();renderOffNote();renderPanel();});
+}
+function renderOffNote(){
+  const fam=famOf(selected),w=WIDGETS[fam];
+  let txt="";
+  if(w){const off=w.mods.filter(m=>!boxesOf(preset).includes(m));
+    if(off.length)txt=`⚠ preset ${preset} does not show: ${off.join(", ")} — this key paints ${off.join(", ")}, so your change won't be visible here.`;}
+  document.getElementById("offnote").textContent=txt;
+}
+function renderLib(){
+  document.getElementById("lib").innerHTML=themes.map(t=>`<div class="titem ${t===curTheme?"active":""}" data-id="${t.id}">
+    <span class="star ${t.active?"on":""}" data-star="${t.id}" title="Use this theme (color_theme)">★</span>
+    <span class="tmeta"><div class="tname">${t.name}</div><span class="badge ${t.kind}">${t.kind}</span> ${t.active?'<span class="badge active">active</span>':''}</span></div>`).join("");
+  document.querySelectorAll(".titem").forEach(el=>el.onclick=(e)=>{if(e.target.dataset.star){setActive(e.target.dataset.star);return;}
+    curTheme=themes.find(t=>t.id===el.dataset.id);selected="meter_bg";renderAll();});
+}
+function setActive(id){themes.forEach(t=>t.active=t.id===id);renderLib();renderPanel();renderDiag();}
+function renderTree(){document.getElementById("keysFor").textContent=`— ${curTheme.name}`;
+  const tree=document.getElementById("tree");
+  tree.innerHTML=GROUPS.map(([n,keys])=>`<div class="group">${n}</div>`+keys.map(k=>
+    `<div class="item ${k===selected?"active":""}" data-key="${k}"><span class="dot" style="background:${R(k)}"></span><span class="key">${k}</span></div>`).join("")).join("");
+  tree.querySelectorAll(".item").forEach(el=>el.onclick=()=>select(el.dataset.key));}
+function diagnostics(){const out=[],bg=relLum(R("main_bg")),mbg=relLum(R("meter_bg")),us=relLum(R("used_start")),d=Math.abs(mbg-bg);
+  if(R("used_start")===R("meter_bg"))out.push(["err","⛔",`used_start and meter_bg are the SAME colour (${R("used_start")}) — low-load blocks vanish into the empty meter.`]);
+  if(d>0.02)out.push(["warn","⚠",`meter_bg Δ ${d.toFixed(2)} vs background — the unfilled part of every meter competes with the data.`]);
+  else out.push(["ok","✓",`meter_bg sits against the background (Δ ${d.toFixed(2)}).`]);
+  if(Math.abs(us-mbg)<0.05)out.push(["warn","⚠",`used low-end close to meter_bg (Δ ${Math.abs(us-mbg).toFixed(2)}).`]);return out;}
+function renderDiag(){document.getElementById("diag").innerHTML=diagnostics().map(([c,ic,m])=>`<div class="d ${c}"><span>${ic}</span><span>${m}</span></div>`).join("");}
+function renderGrad(){
+  const fam=famOf(selected), has=(fam+"_start") in curTheme.map;
+  const title=document.getElementById("gradTitle"), box=document.getElementById("grad");
+  if(!has){title.style.display="none";box.innerHTML="";return;}
+  title.style.display="block";
+  const stops=["start","mid","end"].map(s=>{
+    const k=fam+"_"+s, v=curTheme.map[k], empty=(v===""||v===undefined), sel=(k===selected);
+    return `<div class="sw ${sel?"current":""}" data-gk="${k}">
+      <div class="chip" style="${empty?"background:repeating-linear-gradient(45deg,#555 0 4px,#333 4px 8px)":`background:${hexOfFeed(v)}`}"></div>
+      <div><div class="ph">${k}</div><div class="tok">${empty?"empty (2-stop)":hexOfFeed(v)}</div></div></div>`;}).join("");
+  const canAdd = curTheme.map[fam+"_mid"]==="";
+  box.innerHTML=stops
+    + (canAdd?`<button class="toggle" id="addMid" style="margin:4px 0 0">＋ add middle colour (make it a 3-stop)</button>`:"")
+    + `<div class="gtitle">btop gradients have exactly 3 stops (start/mid/end). You cannot add new keys — btop ignores unknown ones.</div>`;
+  box.querySelectorAll(".sw").forEach(el=>el.onclick=()=>select(el.dataset.gk));
+  const am=document.getElementById("addMid");
+  if(am) am.onclick=()=>{curTheme.map[fam+"_mid"]=curTheme.map[fam+"_start"]||curTheme.map[fam+"_end"];renderAll();};
+}
+function select(k){selected=k;renderBtop();wireBtop();renderAnat();renderTree();renderPanel();renderDiag();renderOffNote();}
+function renderPanel(){
+  const t=curTheme,gen=t.kind==="generated",fam=famOf(selected),w=WIDGETS[fam];
+  document.getElementById("selTheme").textContent=t.name;document.getElementById("selKey").textContent=selected;
+  document.getElementById("feedLabel").textContent=gen?"Draws from (role)":"Colour";
+  document.getElementById("selFeed").textContent=t.map[selected];document.getElementById("selHex").textContent=R(selected);
+  document.getElementById("selUse").textContent=w?w.paints:(SURFACE[selected]||KEY_SPEC_USE[selected]||"—");
+  document.getElementById("banner").style.display=gen?"flex":"none";
+  document.getElementById("bannerText").innerHTML="This theme follows the wallpaper — its keys resolve through the theme map. Fork it to author literal colours.";
+  document.getElementById("pickTitle").textContent=gen?`Draw ${selected} from which palette role?`:`Set ${selected} to which colour?`;
+  const ds=diagnostics().filter(x=>x[0]!=="ok");
+  document.getElementById("selDiag").innerHTML=ds.length?ds.map(x=>`<div style="color:${x[0]==="err"?"var(--bad)":"var(--warn)"}">${x[1]}</div>`).join(""):`<div style="color:var(--ok)">✓ no meter-contrast problems</div>`;
+  const grid=document.getElementById("grid");
+  grid.innerHTML=STOPS.map((hex,i)=>{const val=gen?`ramp[${i}]`:hex;
+    return `<div class="cell ${t.map[selected]===val?"current":""}" data-val="${val}" data-token="ramp[${i}]" style="background:${hex}"></div>`;}).join("");
+  grid.querySelectorAll(".cell").forEach(c=>c.onclick=()=>apply(c.dataset.val));
+  const c16=document.getElementById("colors16");
+  if(c16){c16.innerHTML=COLORS16.map((hex,i)=>
+    `<div class="cell ${t.map[selected]===hex?"current":""}" data-val="${hex}" data-token="color${i}" style="background:${hex}" title="color${i} ${hex}"></div>`).join("");
+    c16.querySelectorAll(".cell").forEach(c=>c.onclick=()=>apply(c.dataset.val));}
+  const named=document.getElementById("named");
+  named.innerHTML=Object.entries(NAMED).map(([tok,hex])=>{const val=gen?tok:hex;
+    return `<div class="sw ${t.map[selected]===val?"current":""}" data-val="${val}"><div class="chip" style="background:${hex}"></div>
+      <div><div class="ph">${tok}</div><div class="tok">${hex}</div></div></div>`;}).join("")
+    + `<div class="sw ${t.map[selected]===""?"current":""}" data-val="">
+        <div class="chip" style="background:repeating-conic-gradient(#7a7a7a 0% 25%,#242424 0% 50%) 50%/9px 9px"></div>
+        <div><div class="ph">transparent</div><div class="tok">empty value (btop)</div></div></div>`;
+  named.querySelectorAll(".sw").forEach(s=>s.onclick=()=>apply(s.dataset.val));
+  document.getElementById("hexInput").value=(!gen&&/^#/.test(t.map[selected]))?t.map[selected]:"";
+  const _cp=document.getElementById("colorPick"); if(_cp){const _rv=R(selected);_cp.value=/^#[0-9a-fA-F]{6}$/.test(_rv)?_rv:"#000000";}
+  document.getElementById("scopeHint").innerHTML={key:gen?`Changes the theme map for <code>${selected}</code>.`:`Changes only <code>${selected}</code> in ${t.name}.`,
+    group:"Applies to every key sharing this role suffix (start / mid / end).",all:"Applies to every key in this theme."}[scope];
+  renderGrad();
+}
+const KEY_SPEC_USE={};
+function apply(val){if(scope==="key")curTheme.map[selected]=val;
+  else if(scope==="group"){const sep=selected.indexOf("_"),role=sep>=0?selected.slice(sep):null;
+    for(const k in curTheme.map)if(role&&k.endsWith(role))curTheme.map[k]=val;curTheme.map[selected]=val;}
+  else for(const k in curTheme.map)curTheme.map[k]=val;renderAll();}
+function newTheme(name,kind,map){const t={id:"t"+themeSeq++,name,kind,active:false,map:{...map}};themes.push(t);baseMaps[t.id]={...map};curTheme=t;selected="meter_bg";renderAll();}
+document.getElementById("tNew").onclick=()=>newTheme("btop-custom-"+(themeSeq+1),"authored",freeze(genMap));
+document.getElementById("tDup").onclick=()=>newTheme(curTheme.name+"-copy","authored",freeze(curTheme.map));
+document.getElementById("tDel").onclick=()=>{if(curTheme.kind==="generated"){alert("The generated theme follows the wallpaper — fork it instead.");return;}
+  const id=curTheme.id;themes.splice(themes.indexOf(curTheme),1);delete baseMaps[id];curTheme=themes[0];renderAll();};
+document.getElementById("tFork").onclick=()=>newTheme("colors.btop-fork","authored",freeze(curTheme.map));
+function applyFix(){const bg=R("main_bg");curTheme.map.meter_bg=curTheme.kind==="generated"?"background":bg;
+  curTheme.map.div_line=curTheme.kind==="generated"?"background":bg;
+  curTheme.map.used_start=curTheme.kind==="generated"?"ramp[3]":"#2d6596";curTheme.map.used_mid=curTheme.kind==="generated"?"ramp[6]":"#549ec8";
+  curTheme.map.used_end=curTheme.kind==="generated"?"ramp[7]":"#dbab67";renderAll();}
+function savePath(){
+  const gen=curTheme.kind==="generated";
+  if(target==="repo") return gen?"dotfiles/config/btop/theme-map.yaml":`dotfiles/assets/btop-themes/${curTheme.name}.theme`;
+  return gen?"<install>/config/btop/themes/colors.btop.theme (pointer)":`<install>/config/btop/themes/${curTheme.name}.theme`;
+}
+function renderTarget(){
+  const el=document.getElementById("tgtPath"); if(!el) return;
+  el.textContent=savePath();
+  document.getElementById("tgtLabel").textContent="writes to — "+target;
+  document.getElementById("tgtHint").innerHTML = target==="repo"
+    ? "Repo edit → deployed by <b>bootstrap</b> (provision) on the next run. Reproducible; not instantly live."
+    : "Installed edit → written straight to the spine and reloaded live (<code>SIGUSR2</code>). Drifts from the repo.";
+}
+function renderDiff(){const base=baseMaps[curTheme.id]||{},lines=[];
+  for(const k in curTheme.map)if(curTheme.map[k]!==base[k]){
+    if(curTheme.kind==="generated")lines.push(`<div class="del">- ${k}: ${base[k]}</div><div class="add">+ ${k}: ${curTheme.map[k]}</div>`);
+    else lines.push(`<div class="del">- theme[${k}]="${hexOfFeed(base[k])}"</div><div class="add">+ theme[${k}]="${hexOfFeed(curTheme.map[k])}"</div>`);}
+  const file=savePath();
+  document.getElementById("diffBody").innerHTML=lines.length?`<div class="file">${file}</div>`+lines.join(""):'<span class="ctx">— no changes —</span>';
+  document.getElementById("save").textContent="Save to "+target;}
+function renderTruth(){document.getElementById("truth").style.display=showTruth?"block":"none";}
+function renderAll(){renderCfg();renderTarget();renderPBar();renderLib();renderBtop();wireBtop();renderAnat();renderOffNote();renderTree();renderPanel();renderDiag();renderDiff();renderTruth();
+  document.getElementById("cap").innerHTML=`btop schematic — <b>${curTheme.name}</b> (${curTheme.kind})${curTheme.active?" · active":""} · preset ${preset} · boxes: ${boxesOf(preset).join(" ")}`;}
+
+document.getElementById("fill").oninput=(e)=>{loadPct=+e.target.value;document.getElementById("fillPct").textContent=loadPct+"%";renderBtop();wireBtop();renderAnat();};
+document.getElementById("tSolid").onclick=(e)=>{solid=!solid;e.target.classList.toggle("on",solid);wireBtop();};
+document.getElementById("tHl").onclick=(e)=>{highlight=!highlight;e.target.classList.toggle("on",highlight);wireBtop();};
+document.getElementById("tTruth").onclick=(e)=>{showTruth=!showTruth;e.target.classList.toggle("on",showTruth);renderTruth();};
+document.getElementById("tFix").onclick=(e)=>{e.target.classList.toggle("on");applyFix();};
+document.getElementById("tTransp").onclick=(e)=>{curTheme.map.meter_bg="";e.target.classList.toggle("on");renderAll();};
+document.getElementById("hexInput").oninput=(e)=>{if(/^#[0-9a-fA-F]{6}$/.test(e.target.value))apply(e.target.value);};
+document.getElementById("colorPick").oninput=(e)=>{if(/^#[0-9a-fA-F]{6}$/.test(e.target.value))apply(e.target.value);};
+document.getElementById("tgtRepo").onclick=()=>{target="repo";document.getElementById("tgtRepo").classList.add("on");document.getElementById("tgtInstalled").classList.remove("on");renderAll();};
+document.getElementById("tgtInstalled").onclick=()=>{target="installed";document.getElementById("tgtInstalled").classList.add("on");document.getElementById("tgtRepo").classList.remove("on");renderAll();};
+document.getElementById("scKey").onclick=()=>setScope("key");
+document.getElementById("scGroup").onclick=()=>setScope("group");
+document.getElementById("scAll").onclick=()=>setScope("all");
+function setScope(s){scope=s;document.getElementById("scKey").classList.toggle("on",s==="key");document.getElementById("scGroup").classList.toggle("on",s==="group");document.getElementById("scAll").classList.toggle("on",s==="all");renderPanel();}
+document.getElementById("revert").onclick=()=>{const b=baseMaps[curTheme.id];if(b){curTheme.map={...b};}renderAll();};
+document.getElementById("save").onclick=()=>{baseMaps[curTheme.id]={...curTheme.map};renderDiff();const s=document.getElementById("save");s.textContent="Saved ✓";setTimeout(renderDiff,900);};
+renderAll();
+</script>
+</body>
+</html>
