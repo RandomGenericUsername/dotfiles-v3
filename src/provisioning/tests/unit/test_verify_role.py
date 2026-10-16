@@ -1683,9 +1683,16 @@ class TestVerifyVars:
         never deployed — the per-file provisioning manifests are the
         deployment contract."""
         data = _vars()
+        # The bar's event seam (event-bus adapter + event-client port) moved into
+        # the EXTERNAL ags-platform unit (AD-17): asserted through the platform
+        # unit files, and NO per-file skeleton mirror remains.
+        unit = [str(f) for f in data["verify_ags_platform_unit_files"]]
+        assert "{{ verify_ags_platform_unit_dir }}/adapters/event-bus.ts" in unit
+        assert "{{ verify_ags_platform_unit_dir }}/ports/event-client.ts" in unit
         skeletons = [str(f) for f in data["verify_compositor_skeleton_files"]]
-        assert "{{ install_dir | trim }}/config/ags/platform/adapters/event-bus.ts" in skeletons
-        assert "{{ install_dir | trim }}/config/ags/platform/ports/event-client.ts" in skeletons
+        assert not any("/platform/" in f for f in skeletons), (
+            "the platform is external (AD-17); verify must not mirror it per file"
+        )
         gui = [str(f) for f in data["verify_gui_tools_app_files"]]
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts" in gui
@@ -1710,21 +1717,8 @@ class TestVerifyVars:
             "kit/layout.ts",
             "bar/layout.default.ts",
             "bar/registry.ts",
-            "platform/package.json",
-            "platform/index.ts",
-            "platform/ports/event-client.ts",
-            "platform/ports/preferences.ts",
-            "platform/ports/notifier.ts",
-            "platform/ports/theme.ts",
-            "platform/ports/icon-source.ts",
-            "platform/ports/reactive.ts",
-            "platform/adapters/icon.ts",
-            "platform/adapters/icon-registry.ts",
-            "platform/adapters/event-bus.ts",
-            "platform/adapters/preferences.ts",
-            "platform/adapters/notifier.ts",
-            "platform/adapters/theme.ts",
-            "platform/adapters/astal.ts",
+            # The platform is EXTERNAL (AD-17): it is NOT mirrored per file here;
+            # the ags_platform unit + shortcut are asserted separately.
             "domains/network/astal.ts",
             "domains/battery/read-model.ts",
             "domains/battery/astal.ts",
@@ -1774,6 +1768,9 @@ class TestVerifyVars:
             "verify_btop_theme_paths",
             "verify_cli_bin_dir",
             "verify_bin_scripts",
+            "verify_ags_platform_unit_dir",
+            "verify_ags_platform_pin_file",
+            "verify_ags_platform_shortcut",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2696,9 +2693,6 @@ def _build_provisioned_layout(
     for rel in (
         "ags/lib",
         "ags/kit",
-        "ags/platform",
-        "ags/platform/ports",
-        "ags/platform/adapters",
         "ags/domains",
         "ags/domains/network",
         "ags/domains/battery",
@@ -2739,25 +2733,25 @@ def _build_provisioned_layout(
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags" / "lib" / "network-icon.ts").write_text("")
-    # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
-    # the package identity + entry point, the pure ports and the host-bound
-    # adapters, re-homed from platform/, lib/, kit/ and domains/. Mirror of
-    # verify_compositor_skeleton_files.
-    (install / "config" / "ags" / "platform" / "package.json").write_text("{}")
-    (install / "config" / "ags" / "platform" / "index.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "ports" / "event-client.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "ports" / "preferences.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "ports" / "notifier.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "ports" / "theme.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "ports" / "icon-source.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "ports" / "reactive.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "adapters" / "icon.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "adapters" / "icon-registry.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "adapters" / "event-bus.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "adapters" / "preferences.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "adapters" / "notifier.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "adapters" / "theme.ts").write_text("")
-    (install / "config" / "ags" / "platform" / "adapters" / "astal.ts").write_text("")
+    # The ags-platform unit + shared-ancestor shortcut (spine AD-17/AD-23):
+    # installed by the ags_platform role as ONE versioned unit, NOT mirrored
+    # per file under config/ags. The fixture mirrors verify_ags_platform_unit_dir
+    # / _pin_file / _shortcut so the criterion asserts have something to pass on.
+    unit = install / "ags-platform" / "v0.1.0"
+    (unit / "ports").mkdir(parents=True, exist_ok=True)
+    (unit / "adapters").mkdir(parents=True, exist_ok=True)
+    (unit / "package.json").write_text("{}")
+    (unit / "index.ts").write_text("")
+    (unit / "icons.json").write_text("{}")
+    (unit / "ports" / "event-client.ts").write_text("")
+    (unit / "ports" / "icon-source.ts").write_text("")
+    (unit / "ports" / "reactive.ts").write_text("")
+    (unit / "adapters" / "event-bus.ts").write_text("")
+    (unit / "adapters" / "icon-registry.ts").write_text("")
+    (unit / "adapters" / "astal.ts").write_text("")
+    (install / "ags-platform" / "pinned").write_text("v0.1.0\n")
+    (install / "config" / "node_modules").mkdir(parents=True, exist_ok=True)
+    (install / "config" / "node_modules" / "ags-platform").symlink_to(unit)
     # The bar widget kit (bar re-architecture prototype): the descriptor model.
     (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")
     (install / "config" / "ags" / "kit" / "widget.tsx").write_text("")

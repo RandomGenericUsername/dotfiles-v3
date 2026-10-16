@@ -83,12 +83,11 @@ compositor_configs_config_dirs:
   # The bar widget kit (bar re-architecture prototype): its own subdir. `template`
   # does NOT create dest parents, so an undeclared dir fails the copy loudly.
   - "{{ compositor_configs_spine_config_dir }}/ags/kit"
-  # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
-  # the package root plus its `ports/` and `adapters/` subdirs. `template` does
-  # NOT create dest parents, so an undeclared dir fails the copy.
-  - "{{ compositor_configs_spine_config_dir }}/ags/platform"
-  - "{{ compositor_configs_spine_config_dir }}/ags/platform/ports"
-  - "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters"
+  # NOTE: there is deliberately NO `ags/platform` dir here anymore. The platform
+  # is no longer placed per file into the bar tree; the `ags_platform` role
+  # installs it as ONE versioned unit at <install>/ags-platform/<version>/ and
+  # creates the shared-ancestor <install>/config/node_modules/ags-platform
+  # shortcut (spine AD-17). The bar reaches it by the bare specifier.
   # The per-feature domain modules (bar re-architecture §5.3): the network read
   # model is the first. Its own nested subdir, declared for the same reason.
   - "{{ compositor_configs_spine_config_dir }}/ags/domains"
@@ -188,29 +187,14 @@ compositor_configs_skeleton_files:
   - { name: ags-network-icon, source: dotfiles/config/ags/lib/network-icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/network-icon.ts" }
   - { name: ags-bar-backdrop, source: dotfiles/config/ags/lib/bar-backdrop.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/bar-backdrop.ts" }
   - { name: ags-status-notifier, source: dotfiles/config/ags/lib/status-notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/status-notifier.ts" }
-  # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
-  # the ports, the shared adapters and the ONE event client, in one unit with an
-  # entry point and a package identity. The bar reaches it through relative
-  # imports today; the versioned-unit install + node_modules shortcut is the
-  # ags-consume-platform step (AD-23). Per-file placement still applies, so every
-  # file here is registered or a fresh provision leaves a missing module.
-  - { name: ags-platform-package-json, source: dotfiles/config/ags/platform/package.json, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/package.json" }
-  - { name: ags-platform-index, source: dotfiles/config/ags/platform/index.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/index.ts" }
-  # Ports: pure (no gi://, no ags), so the pure test project imports them.
-  - { name: ags-platform-port-event-client, source: dotfiles/config/ags/platform/ports/event-client.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/event-client.ts" }
-  - { name: ags-platform-port-preferences, source: dotfiles/config/ags/platform/ports/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/preferences.ts" }
-  - { name: ags-platform-port-notifier, source: dotfiles/config/ags/platform/ports/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/notifier.ts" }
-  - { name: ags-platform-port-theme, source: dotfiles/config/ags/platform/ports/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/theme.ts" }
-  - { name: ags-platform-port-icon-source, source: dotfiles/config/ags/platform/ports/icon-source.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/icon-source.ts" }
-  - { name: ags-platform-port-reactive, source: dotfiles/config/ags/platform/ports/reactive.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/ports/reactive.ts" }
-  # Adapters: host-bound (Gio/Gtk/gnim) and the bound singletons the bar uses.
-  - { name: ags-platform-adapter-icon, source: dotfiles/config/ags/platform/adapters/icon.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/icon.ts" }
-  - { name: ags-platform-adapter-icon-registry, source: dotfiles/config/ags/platform/adapters/icon-registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/icon-registry.ts" }
-  - { name: ags-platform-adapter-event-bus, source: dotfiles/config/ags/platform/adapters/event-bus.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/event-bus.ts" }
-  - { name: ags-platform-adapter-preferences, source: dotfiles/config/ags/platform/adapters/preferences.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/preferences.ts" }
-  - { name: ags-platform-adapter-notifier, source: dotfiles/config/ags/platform/adapters/notifier.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/notifier.ts" }
-  - { name: ags-platform-adapter-theme, source: dotfiles/config/ags/platform/adapters/theme.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/theme.ts" }
-  - { name: ags-platform-adapter-astal, source: dotfiles/config/ags/platform/adapters/astal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/platform/adapters/astal.ts" }
+  # NOTE: the ags-platform package is NOT enumerated here anymore. It used to be
+  # placed per file under ags/platform/ (extract-platform-in-place, AD-17/AD-20);
+  # the bar reached it through relative imports. The consumption step
+  # (ags-consume-platform, AD-23) installs it as ONE versioned unit via the
+  # `ags_platform` role and the bar imports the bare specifier `ags-platform`
+  # (resolved through the shared-ancestor node_modules shortcut). Per-file
+  # placement still applies to everything the bar owns; the platform simply is
+  # no longer one of those files.
   - { name: ags-wifi-signal, source: dotfiles/config/ags/lib/wifi-signal.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/lib/wifi-signal.ts" }
   - { name: ags-bar-tsx, source: dotfiles/config/ags/bar/Bar.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx" }
   # The repo-default layout + the widget registry (migrate-widgets-to-shapes,

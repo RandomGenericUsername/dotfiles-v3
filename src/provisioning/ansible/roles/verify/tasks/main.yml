@@ -121,6 +121,7 @@
       - verify_settings_files | length > 0
       - verify_compositor_config_dirs | length > 0
       - verify_compositor_skeleton_files | length > 0
+      - verify_ags_platform_unit_files | length > 0
       - verify_consumer_symlinks | length > 0
       - verify_xdg_dirs | length > 0
       - verify_config_copies_targets | length > 0
@@ -917,6 +918,55 @@
       right inode type under {{ verify_xdg_config_home }} (done-criterion 7).
       The filesystem (2.5) and compositor_configs (2.9) roles place them;
       run those playbooks first
+  when: not ansible_check_mode
+
+# The AGS platform is ONE versioned unit + a shared-ancestor shortcut (spine
+# AD-17/AD-23), installed by the ags_platform role. The bar imports the bare
+# specifier `ags-platform`; if the unit OR the shortcut is missing, `ags bundle`
+# cannot resolve it and the bar fails to start. verify asserts BOTH: the unit
+# files exist, and the shortcut is a symlink whose target names the pinned
+# version and resolves to a directory. This is the honest coverage the
+# deploy-coverage gate's manifest assertion cannot provide (the gate reads the
+# repo, not the host).
+- name: Check the ags-platform unit files and pin
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ [verify_ags_platform_unit_dir, verify_ags_platform_pin_file] + verify_ags_platform_unit_files }}"
+  register: verify_ags_platform_unit_checks
+
+- name: Check the ags-platform shortcut is a symlink
+  ansible.builtin.stat:
+    path: "{{ verify_ags_platform_shortcut }}"
+    follow: false
+  register: verify_ags_platform_link_check
+
+- name: Check the ags-platform shortcut resolves to the unit
+  ansible.builtin.stat:
+    path: "{{ verify_ags_platform_shortcut }}"
+    follow: true
+  register: verify_ags_platform_link_resolve_check
+
+- name: Assert the ags-platform unit + shared-ancestor shortcut are installed
+  ansible.builtin.assert:
+    that:
+      - verify_ags_platform_unit_checks.results[0].stat.isdir
+      - verify_ags_platform_unit_checks.results[1].stat.isreg
+      - >-
+        verify_ags_platform_unit_checks.results[2:]
+        | map(attribute='stat') | selectattr('isreg') | list | length
+        == verify_ags_platform_unit_files | length
+      - verify_ags_platform_link_check.stat.islnk
+      - verify_ags_platform_link_check.stat.lnk_target is search(verify_ags_platform_version)
+      - verify_ags_platform_link_resolve_check.stat.isdir
+    fail_msg: >-
+      the ags-platform unit or its shared-ancestor shortcut is missing under
+      {{ install_dir | trim }} (spine AD-17/AD-23). Expected the pinned unit at
+      {{ verify_ags_platform_unit_dir }}/ (package.json / index.ts / ports/ /
+      adapters/), the pin file at {{ verify_ags_platform_pin_file }}, and
+      {{ verify_ags_platform_shortcut }} as a symlink into the unit. Without them
+      the bar's bare-specifier `ags-platform` import cannot resolve and the bar
+      fails to start. The ags_platform role installs them; run the ags-platform
+      playbook first
   when: not ansible_check_mode
 
 - name: Check GUI tool app files

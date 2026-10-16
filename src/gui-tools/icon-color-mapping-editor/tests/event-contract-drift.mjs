@@ -9,15 +9,18 @@
 // Run with plain node via the existing runner:
 //   node tests/event-contract-drift.mjs   (from the tool directory)
 //
-// Cross-package note: the bar has no node test runner of its own, so its
-// pure core (`dotfiles/config/ags/platform/ports/event-client.ts`) is imported
-// here and executed by the existing ICME node runner instead of inventing a
-// second one.
+// Cross-package note: the bar has no node test runner of its own, so the
+// platform's pure event-client (now the EXTERNAL bare specifier
+// `ags-platform/ports/event-client`, spine AD-17) is imported here and executed
+// by the existing ICME node runner instead of inventing a second one. The
+// specifier resolves through the dev `node_modules/ags-platform` shortcut that
+// `make ags-platform-dev` creates at the repo root (this suite is run by
+// `per-app-drift-symbol-suites`, which depends on that target).
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import * as bar from "../../../../dotfiles/config/ags/platform/ports/event-client.ts";
+import * as bar from "ags-platform/ports/event-client";
 import * as icme from "../lib/event-contract.ts";
 import * as icmeConsumer from "../lib/event-bus-core.ts";
 

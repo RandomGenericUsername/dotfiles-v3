@@ -361,7 +361,7 @@ PER_APP_SUITES := \
 	src/gui-tools/icon-color-mapping-editor/tests/ags-symbol-check.mjs \
 	src/gui-tools/wallpaper-selector/tests/event-contract-drift.mjs
 
-per-app-drift-symbol-suites:
+per-app-drift-symbol-suites: ags-platform-dev
 	@command -v node >/dev/null || { echo "FAIL: per-app-drift-symbol-suites: node is not on PATH" >&2; exit 1; }
 	@for suite in $(PER_APP_SUITES); do \
 		echo "==> per-app-drift-symbol-suites: $$suite"; \
@@ -430,7 +430,13 @@ ags-platform-dev:
 	fi
 	@mkdir -p "$(BAR_DIR)/node_modules"
 	@ln -sfn "$(AGS_PLATFORM_SRC)" "$(BAR_DIR)/node_modules/ags-platform"
-	@echo "==> ags-platform-dev: $(BAR_DIR)/node_modules/ags-platform -> $(AGS_PLATFORM_SRC)"
+	@# A repo-root shortcut too: the ICME event-contract drift suite (run by
+	@# `per-app-drift-symbol-suites`) is a plain `node` script under
+	@# src/gui-tools/, and Node's node_modules walk from there reaches the repo
+	@# root but not dotfiles/config/ags. Same symlink shape, one walk up.
+	@mkdir -p node_modules
+	@ln -sfn "$(AGS_PLATFORM_SRC)" node_modules/ags-platform
+	@echo "==> ags-platform-dev: $(BAR_DIR)/node_modules/ags-platform + node_modules/ags-platform -> $(AGS_PLATFORM_SRC)"
 
 # tsconfig.bar.json is HAND-WRITTEN and committed, for the same reason as the
 # capture one: `ags types -u` writes its own colliding tsconfig.json into

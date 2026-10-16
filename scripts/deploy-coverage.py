@@ -27,14 +27,24 @@ WHAT IT DOES.
   (c) FAILS, listing every reachable file that is not deployed.
 
 WHAT IT DELIBERATELY DOES NOT FOLLOW. A relative import resolves only to a
-TS/TSX/ambient-declaration/CSS module. `lib/icon-registry.ts` imports
-`../icons.json`, but `icons.json` is GENERATED OUTPUT written by the role's own
-icon-manifest task (`compositor_configs_icon_manifest_dest`), not a skeleton, so
-it is not a missing-module hazard and is not in this gate's scope. Non-relative
-specifiers (`ags/gtk4/app`, `gi://Gtk`) are provided by the runtime, never
-deployed per file. Commented-out imports are ignored: a `//`-commented example
-in `app.tsx` naming `./audio/audio-panel.css` was picked up by an early version
-of this scan and is not a real dependency.
+TS/TSX/ambient-declaration/CSS module. Generated artifacts (`icons.json`) are
+written by the role's own tasks, not skeletons, so they are not a
+missing-module hazard and are not in this gate's scope. Non-relative specifiers
+(`ags/gtk4/app`, `gi://Gtk`) are provided by the runtime, never deployed per
+file. Commented-out imports are ignored: a `//`-commented example in `app.tsx`
+naming `./audio/audio-panel.css` was picked up by an early version of this scan
+and is not a real dependency.
+
+THE PLATFORM IS EXTERNAL NOW. `ags-platform` and its subpaths are a BARE
+SPECIFIER resolved by AGS's embedded esbuild through a provisioning-created
+`node_modules` shortcut (spine AD-17), not a relative import into a deployed
+file. So it is outside this gate's closure — but NOT outside the gate's
+attention: the gate (a) refuses a relative import that still traverses the
+retired `platform/` dir, (b) asserts the in-place copy is gone, and (c) asserts
+the provisioning role installs the pinned unit and creates the shared-ancestor
+shortcut. A green run still means "every AGS module the entry point reaches
+RELATIVELY is deployed", and now also "the external unit it reaches BY NAME is
+provisioned".
 
 Usage: ``python3 scripts/deploy-coverage.py [--root REPO_ROOT]``
 Exit 0 = every reachable AGS module is registered for deployment.
@@ -65,6 +75,24 @@ VARS_FILE = "src/provisioning/ansible/roles/compositor_configs/vars/main.yml"
 AGS_DIR = "dotfiles/config/ags"
 SOURCE_PREFIX = "dotfiles/config/ags/"
 ENTRY = "app.tsx"
+
+# The platform is now an EXTERNAL unit consumed by a BARE SPECIFIER (spine
+# AD-17): the bar imports `ags-platform`, `ags-platform/ports/*` and
+# `ags-platform/adapters/*`, which AGS's embedded esbuild resolves through the
+# shared-ancestor `node_modules/ags-platform` shortcut that provisioning
+# creates. It is NOT deployed per file, so it is NOT this gate's coverage — and
+# a non-relative specifier is skipped by `_resolve` anyway. It is named here so
+# the external status is DECLARED rather than merely implied, and so the
+# provisioning assertion below can check the unit + shortcut really exist in
+# the role that installs them.
+PLATFORM_PACKAGE = "ags-platform"
+PLATFORM_ROLE_VARS = "src/provisioning/ansible/roles/ags_platform/vars/main.yml"
+PLATFORM_ROLE_TASKS = "src/provisioning/ansible/roles/ags_platform/tasks/main.yml"
+
+# The retired in-place platform copy (extract-platform-in-place) lived here. It
+# is deleted by this change; a surviving relative import into it would resolve
+# to nothing and be silently skipped by `_resolve`, so it is REJECTED loudly.
+RETIRED_PLATFORM_DIR = "dotfiles/config/ags/platform"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -97,12 +125,23 @@ def _imports_of(path: Path) -> list[str]:
 def _resolve(base_dir: Path, spec: str) -> Path | None:
     """Resolve a relative ``spec`` against ``base_dir`` to a module file.
 
-    Returns None for a non-relative specifier (runtime-provided) or a relative
-    one that does not resolve to a bundle module (e.g. the generated
-    ``../icons.json``).
+    Returns None for a non-relative specifier (runtime-provided, INCLUDING the
+    external ``ags-platform`` bare specifier) or a relative one that does not
+    resolve to a bundle module (e.g. the generated ``../icons.json``).
+
+    Raises for a relative specifier that traverses the RETIRED in-place
+    platform dir: that is not a benign non-module, it is an import into code
+    this change deleted, and `_resolve` would otherwise skip it silently.
     """
     if not spec.startswith("."):
         return None
+    if re.search(r"(?:^|/)platform/", spec):
+        raise ValueError(
+            f"relative import into the retired in-place platform copy: {spec!r} "
+            f"(resolved against {base_dir}); the platform is now the external "
+            f"bare specifier {PLATFORM_PACKAGE!r} (spine AD-17). Repoint the "
+            f"import — do NOT leave it relative, `_resolve` cannot see it."
+        )
     candidate = base_dir / spec
     if candidate.is_file() and _is_module(candidate):
         return candidate.resolve()
@@ -165,6 +204,91 @@ def parse_deployed_ags_sources(vars_text: str) -> set[str]:
     return deployed
 
 
+def assert_platform_provisioning(root: Path) -> None:
+    """The external platform unit + shortcut must be provisioned, not assumed.
+
+    The bar now imports `ags-platform` by bare specifier; nothing in the repo
+    tree provides it (that is the point of AD-17). The gate cannot verify the
+    HOST (verify.yaml does that), but it CAN refuse to pass if the repo has no
+    provisioning that installs the pinned unit and creates the shared-ancestor
+    shortcut. Without this, deleting the platform from the repo would leave the
+    gate green with the bare specifier unresolvable at install time — exactly
+    the silent-coverage-loss this gate exists to prevent.
+    """
+    import yaml
+
+    vars_path = root / PLATFORM_ROLE_VARS
+    tasks_path = root / PLATFORM_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the platform is consumed by bare specifier {PLATFORM_PACKAGE!r} but "
+            f"no provisioning role declares the unit: {PLATFORM_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the platform role has no tasks to install the unit: {PLATFORM_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{PLATFORM_ROLE_VARS} did not parse to a mapping")
+
+    version = data.get("ags_platform_version")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError(
+            f"{PLATFORM_ROLE_VARS} does not pin ags_platform_version — the unit "
+            f"must be versioned by directory (spine AD-23)"
+        )
+
+    # Assert the SHAPE, not the exact Jinja string (the vars route through
+    # intermediates, which is an implementation detail): the unit is
+    # <install>/ags-platform/<version>/, and the shortcut is
+    # <install>/config/node_modules/ags-platform (the SHARED ANCESTOR of every
+    # config/ags-*).
+    install_root = str(data.get("ags_platform_install_root", ""))
+    if not ("install_dir" in install_root and "ags-platform" in install_root):
+        raise ValueError(
+            f"ags_platform_install_root must be <install>/ags-platform; got "
+            f"{install_root!r}"
+        )
+
+    unit = str(data.get("ags_platform_unit_dir", ""))
+    if "ags_platform_version" not in unit:
+        raise ValueError(
+            f"ags_platform_unit_dir must version the unit by directory "
+            f"(ags_platform_version); got {unit!r}"
+        )
+
+    spine = str(data.get("ags_platform_spine_config_dir", ""))
+    if not ("install_dir" in spine and "config" in spine):
+        raise ValueError(
+            f"ags_platform_spine_config_dir must be <install>/config (the SHARED "
+            f"ANCESTOR); got {spine!r}"
+        )
+    shortcut_dir = str(data.get("ags_platform_shortcut_dir", ""))
+    if "node_modules" not in shortcut_dir:
+        raise ValueError(
+            f"ags_platform_shortcut_dir must be a node_modules dir; got "
+            f"{shortcut_dir!r}"
+        )
+    shortcut = str(data.get("ags_platform_shortcut", ""))
+    if not shortcut.endswith("/ags-platform"):
+        raise ValueError(
+            f"ags_platform_shortcut must be named `ags-platform` so the bare "
+            f"specifier resolves; got {shortcut!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if "ags_platform_unit_dir" not in tasks or "ags_platform_repo_url" not in tasks:
+        raise ValueError(
+            f"{PLATFORM_ROLE_TASKS} does not clone the pinned unit into ags_platform_unit_dir"
+        )
+    if "ags_platform_shortcut" not in tasks:
+        raise ValueError(
+            f"{PLATFORM_ROLE_TASKS} does not create the shared-ancestor shortcut"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="reachable AGS modules are deployed")
     ap.add_argument("--root", default=None, help="repo root (default: parent of scripts/)")
@@ -182,6 +306,16 @@ def main() -> int:
     try:
         deployed = parse_deployed_ags_sources(vars_path.read_text())
         closure = relative_import_closure(ags_dir)
+        # The in-place copy is gone: assert the tree really has no platform dir,
+        # so a re-introduced relative import cannot pass by pointing at a file
+        # that still happens to exist.
+        if (root / RETIRED_PLATFORM_DIR).exists():
+            raise ValueError(
+                f"the retired in-place platform copy still exists at "
+                f"{RETIRED_PLATFORM_DIR}/ — the bar must consume the external "
+                f"unit (spine AD-17), not a vendored copy"
+            )
+        assert_platform_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -194,6 +328,10 @@ def main() -> int:
         f"{len(reachable)}"
     )
     print(f"deploy-coverage: deployed AGS sources in the manifest: {len(deployed)}")
+    print(
+        f"deploy-coverage: external bare specifier {PLATFORM_PACKAGE!r} — unit + "
+        f"shared-ancestor shortcut provisioned (not a per-file deploy)"
+    )
 
     if missing:
         print(

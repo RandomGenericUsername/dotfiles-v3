@@ -287,8 +287,13 @@ class TestCompositorConfigsTasks:
         # the package identity + entry point (+2) and the 13 relocated sources
         # re-homed under platform/{ports,adapters} (+13), against the 13 sources
         # they replace (-13).
-        assert len(files) == 118, (
-            f"expected exactly 118 skeleton files (hyprland.lua + gloview.lua + "
+        # 103 once ags-consume-platform (AD-17/AD-23) stopped enumerating the
+        # platform per file: the 15 platform entries (package.json + index.ts + 6
+        # ports + 7 adapters) are DELETED and the platform is installed as ONE
+        # versioned unit by the ags_platform role (-15). The bar consumes it by
+        # the bare specifier, so no platform file is a skeleton anymore.
+        assert len(files) == 103, (
+            f"expected exactly 103 skeleton files (hyprland.lua + gloview.lua + "
             f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
             f"7 lib (incl. wifi-signal/network-icon)+6 kit "
             f"(icon/overlay/widget + surface/popup-host + layout)+"
@@ -380,21 +385,9 @@ class TestCompositorConfigsTasks:
             "dotfiles/config/ags/lib/status-notifier.ts",
             "dotfiles/config/ags/lib/wifi-signal.ts",
             "dotfiles/config/ags/overlays.ts",
-            "dotfiles/config/ags/platform/adapters/astal.ts",
-            "dotfiles/config/ags/platform/adapters/event-bus.ts",
-            "dotfiles/config/ags/platform/adapters/icon-registry.ts",
-            "dotfiles/config/ags/platform/adapters/icon.ts",
-            "dotfiles/config/ags/platform/adapters/notifier.ts",
-            "dotfiles/config/ags/platform/adapters/preferences.ts",
-            "dotfiles/config/ags/platform/adapters/theme.ts",
-            "dotfiles/config/ags/platform/index.ts",
-            "dotfiles/config/ags/platform/package.json",
-            "dotfiles/config/ags/platform/ports/event-client.ts",
-            "dotfiles/config/ags/platform/ports/icon-source.ts",
-            "dotfiles/config/ags/platform/ports/notifier.ts",
-            "dotfiles/config/ags/platform/ports/preferences.ts",
-            "dotfiles/config/ags/platform/ports/reactive.ts",
-            "dotfiles/config/ags/platform/ports/theme.ts",
+            # The ags-platform package is NO LONGER enumerated here: it is an
+            # external bare specifier installed as one versioned unit by the
+            # ags_platform role (AD-17/AD-23).
             "dotfiles/config/ags/services/bluetooth-service.ts",
             "dotfiles/config/ags/services/mpris-core.ts",
             "dotfiles/config/ags/services/nm-client.ts",
@@ -751,11 +744,9 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "app.tsx",
                 install / "config" / "ags" / "style.css",
                 install / "config" / "ags" / "icons.json",
-                install / "config" / "ags" / "platform" / "package.json",
-                install / "config" / "ags" / "platform" / "index.ts",
-                install / "config" / "ags" / "platform" / "ports" / "event-client.ts",
-                install / "config" / "ags" / "platform" / "adapters" / "event-bus.ts",
-                install / "config" / "ags" / "platform" / "adapters" / "icon-registry.ts",
+                # The ags-platform package is no longer placed per file by this
+                # role; the ags_platform role installs it as one versioned unit
+                # (AD-17/AD-23), asserted by test_ags_platform_role.py.
                 install / "config" / "ags" / "bar" / "Bar.tsx",
                 install / "config" / "ags" / "bar" / "layout.default.ts",
                 install / "config" / "ags" / "bar" / "registry.ts",
@@ -804,10 +795,8 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "ags" / "services" / "power-service.ts",
                 # fix-deploy-bar-new-files: the reachable sources the platform
                 # work added but the manifest missed. Placement is per-file, so
-                # these assert the registration actually copies each one.
-                install / "config" / "ags" / "platform" / "ports" / "icon-source.ts",
-                install / "config" / "ags" / "platform" / "ports" / "reactive.ts",
-                install / "config" / "ags" / "platform" / "adapters" / "astal.ts",
+                # these assert the registration actually copies each one. The
+                # platform files themselves are gone (external unit, AD-17).
                 install / "config" / "ags" / "kit" / "shapes.ts",
                 install / "config" / "ags" / "kit" / "layout.ts",
                 install / "config" / "ags" / "domains" / "network" / "astal.ts",
@@ -965,21 +954,74 @@ class TestDeployCoverageGate:
                 repo_root / self._AGS, target_is_directory=True
             )
             vars_src = (repo_root / self._VARS).read_text()
+            # Remove a BAR-LOCAL entry that is reachable from app.tsx. The
+            # platform's own entries are gone (it is an external unit, AD-17),
+            # so the negative case must exercise the bar's coverage instead:
+            # bar/layout.default.ts is imported directly by bar/Bar.tsx.
             removed_line = next(
                 line
                 for line in vars_src.splitlines()
-                if "name: ags-platform-port-icon-source" in line
+                if "name: ags-bar-layout-default" in line
             )
             vars_dst = root / self._VARS
             vars_dst.parent.mkdir(parents=True)
             vars_dst.write_text(vars_src.replace(removed_line + "\n", "", 1))
+            # The gate also asserts the platform provisioning role exists (the
+            # external unit + shortcut), so copy it into the temp root.
+            shutil.copytree(
+                repo_root / "src/provisioning/ansible/roles/ags_platform",
+                root / "src/provisioning/ansible/roles/ags_platform",
+            )
 
             result = self._run(root)
             assert result.returncode != 0, (
                 "the gate must FAIL when a reachable module is not deployed; "
                 f"recap:\n{result.stdout}"
             )
-            assert "platform/ports/icon-source.ts" in result.stdout, (
+            assert "bar/layout.default.ts" in result.stdout, (
                 "the failure must name the undeployed reachable module; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_a_relative_import_targets_the_retired_platform(self) -> None:
+        """A relative import into the deleted in-place platform copy must FAIL,
+        not be skipped: `_resolve` cannot see a missing module, so the gate
+        rejects the retired `platform/` segment explicitly. Hermetic: a minimal
+        temp ags tree whose entry imports the retired path."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            ags = root / self._AGS
+            ags.mkdir(parents=True)
+            (ags / "app.tsx").write_text(
+                'import { theme } from "./platform/adapters/theme"\nexport default theme\n'
+            )
+            # The manifest and the platform-role vars are real inputs (read-only).
+            (root / self._VARS).parent.mkdir(parents=True)
+            (root / self._VARS).write_text((repo_root / self._VARS).read_text())
+            role = root / "src" / "provisioning" / "ansible" / "roles" / "ags_platform"
+            role.mkdir(parents=True)
+            (role / "vars").mkdir()
+            (role / "vars" / "main.yml").write_text(
+                (
+                    repo_root
+                    / "src/provisioning/ansible/roles/ags_platform/vars/main.yml"
+                ).read_text()
+            )
+            (role / "tasks").mkdir()
+            (role / "tasks" / "main.yml").write_text(
+                (
+                    repo_root
+                    / "src/provisioning/ansible/roles/ags_platform/tasks/main.yml"
+                ).read_text()
+            )
+
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "a relative import into the retired platform must FAIL; recap:\n"
+                + result.stdout
+            )
+            assert "retired in-place platform" in result.stdout, (
+                "the failure must name the retired platform path; recap:\n"
                 + result.stdout
             )

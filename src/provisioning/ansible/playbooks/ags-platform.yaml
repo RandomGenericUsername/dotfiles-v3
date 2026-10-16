@@ -1,0 +1,20 @@
+# ags-platform playbook (spine AD-17/AD-23) — one-per-role playbook; aggregation
+# into bootstrap.yaml is the sibling roles' pattern.
+#
+# User-scoped playbook: NO become (the unit and the shortcut land under the
+# user's install_dir; running as root would diverge from the intended user's
+# layout).
+#
+# Distro-agnostic: a git clone + a symlink are identical on Arch and
+# Debian-family, so unlike packages.yaml there is NO group_by distro-selection
+# mechanism.
+#
+# gather_facts: true is REQUIRED — the role derives its install-root and config
+# paths from {{ install_dir }} and (like the sibling roles) the playbook must
+# gather facts so any env-derived value resolves. It also keeps the playbook
+# shape identical to compositor-configs.yaml / gui-tools.yaml.
+- name: Install the AGS platform as one versioned unit
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - ags_platform

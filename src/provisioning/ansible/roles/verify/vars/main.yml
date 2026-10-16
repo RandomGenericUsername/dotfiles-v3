@@ -467,25 +467,12 @@ verify_compositor_skeleton_files:
   # compositor_configs skeleton dest. kit/widget.tsx and bar/Bar.tsx import it.
   - "{{ install_dir | trim }}/config/ags/kit/layout.ts"
   - "{{ install_dir | trim }}/config/ags/lib/network-icon.ts"
-  # The in-place ags-platform package (extract-platform-in-place, AD-17/AD-20):
-  # mirror of the compositor_configs skeleton dests. The package identity, the
-  # public entry point, the pure ports and the host-bound adapters, each placed
-  # per file — a missing one is a bar that cannot bundle.
-  - "{{ install_dir | trim }}/config/ags/platform/package.json"
-  - "{{ install_dir | trim }}/config/ags/platform/index.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/ports/event-client.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/ports/preferences.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/ports/notifier.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/ports/theme.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/ports/icon-source.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/ports/reactive.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/adapters/icon.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/adapters/icon-registry.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/adapters/event-bus.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/adapters/preferences.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/adapters/notifier.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/adapters/theme.ts"
-  - "{{ install_dir | trim }}/config/ags/platform/adapters/astal.ts"
+  # NOTE: the ags-platform package is NOT mirrored here anymore. It is no longer
+  # a per-file skeleton under config/ags/platform/; the `ags_platform` role
+  # installs it as ONE versioned unit and creates the shared-ancestor shortcut
+  # (spine AD-17), asserted by the dedicated `verify_ags_platform_*` block below
+  # (mirror of the ags_platform role vars). Keeping a stale per-file mirror here
+  # would assert files the bar no longer has.
   - "{{ install_dir | trim }}/config/ags/bar/Bar.tsx"
   # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
   # AD-8/AD-9): mirror of the compositor_configs skeleton dests.
@@ -585,6 +572,36 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/ags/audio/presentation/levels.ts"
   - "{{ install_dir | trim }}/config/ags/audio/presentation/bar-indicators.ts"
   - "{{ install_dir | trim }}/config/ags/types.d.ts"
+
+# verify_ags_platform_version / _unit_dir / _pin_file / _shortcut: the AGS
+#   platform, installed as ONE versioned unit (spine AD-17/AD-23). Mirror of the
+#   ags_platform role vars. The unit lives at <install>/ags-platform/<version>/;
+#   the SHARED-ANCESTOR shortcut <install>/config/node_modules/ags-platform is a
+#   symlink pointing at it, so config/ags and every config/ags-* resolve the
+#   bare specifier `ags-platform`. A rollback is a shortcut repoint to a sibling
+#   version dir. The pin file records the installed version on the host.
+verify_ags_platform_version: v0.1.0
+verify_ags_platform_unit_dir: "{{ install_dir | trim }}/ags-platform/{{ verify_ags_platform_version }}"
+verify_ags_platform_pin_file: "{{ install_dir | trim }}/ags-platform/pinned"
+verify_ags_platform_shortcut: "{{ install_dir | trim }}/config/node_modules/ags-platform"
+
+# verify_ags_platform_unit_files: representative files that MUST be present in
+#   the installed unit. NOT the whole unit (that is the clone's job) — one file
+#   per concern the bar's bare-specifier imports reach: the package identity
+#   (package.json, whose `exports` map is what makes `ags-platform/ports/*` and
+#   `ags-platform/adapters/*` resolve), the entry point, the build-time icon
+#   manifest, one pure port and one host-bound adapter. A missing unit file is a
+#   bar that cannot bundle.
+verify_ags_platform_unit_files:
+  - "{{ verify_ags_platform_unit_dir }}/package.json"
+  - "{{ verify_ags_platform_unit_dir }}/index.ts"
+  - "{{ verify_ags_platform_unit_dir }}/icons.json"
+  - "{{ verify_ags_platform_unit_dir }}/ports/event-client.ts"
+  - "{{ verify_ags_platform_unit_dir }}/ports/icon-source.ts"
+  - "{{ verify_ags_platform_unit_dir }}/ports/reactive.ts"
+  - "{{ verify_ags_platform_unit_dir }}/adapters/event-bus.ts"
+  - "{{ verify_ags_platform_unit_dir }}/adapters/icon-registry.ts"
+  - "{{ verify_ags_platform_unit_dir }}/adapters/astal.ts"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —

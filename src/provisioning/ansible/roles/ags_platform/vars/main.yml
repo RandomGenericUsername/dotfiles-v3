@@ -1,0 +1,66 @@
+# ags-platform role vars — install the AGS platform as ONE versioned unit and
+# expose it to every AGS config by a shared-ancestor bare specifier.
+#
+# Spine AD-17 (distribution: one unit, shared ancestor) and AD-23 (fresh host:
+# provisioning installs the pinned framework unit and creates the shortcut).
+# AD-20 sequenced the migration: the platform was extracted IN-PLACE in
+# dotfiles-v3 first (extract-platform-in-place), then published; THIS role is
+# the consumption step that replaces the per-file enumeration with a single
+# versioned install.
+#
+# WHY A SHORTCUT, NOT A PER-FILE COPY. AGS (v3.1.0) embeds esbuild, which
+# resolves a bare specifier (`import { x } from "ags-platform"`) from
+# `node_modules/`; `ags`/`gnim` are built-in aliases, a third-party package is
+# not. Provisioning installs the unit ONCE at a shared ancestor on every app's
+# resolution path — `<install>/config/node_modules/ags-platform` — so
+# `config/ags` AND every `config/ags-*` find it without a per-app copy. esbuild
+# realpaths the symlink, so the shortcut resolves from the real config tree.
+#
+# The version is a DIRECTORY (`<install>/ags-platform/<version>/`) and the
+# shortcut points at it, so a rollback is a shortcut repoint to a sibling
+# version dir (AD-23).
+
+# ags_platform_repo_url: the PUBLIC published repo. Cloned over anonymous HTTPS
+#   (no credentials) — unlike the private repos AD-23 fetches with `gh`.
+ags_platform_repo_url: https://github.com/RandomGenericUsername/ags-platform.git
+
+# ags_platform_version: THE PIN. The git tag to install, and the name of the
+#   version directory under the install root. Bump this to move forward; point
+#   the shortcut at an older sibling dir to roll back. Recorded on the host at
+#   ags_platform_pin_file so the installed version is observable without
+#   reading this file.
+ags_platform_version: v0.1.0
+
+# ags_platform_install_root: the shared ancestor the units live under
+#   (<install>/ags-platform/). Trim lock: consumes the same validated
+#   {{ install_dir | trim }} value the sibling roles use.
+ags_platform_install_root: "{{ install_dir | trim }}/ags-platform"
+
+# ags_platform_unit_dir: the installed unit for the pinned version. The repo
+#   ROOT is the package (index.ts + package.json + ports/ + adapters/ +
+#   icons.json), so the clone lands here directly.
+ags_platform_unit_dir: "{{ ags_platform_install_root }}/{{ ags_platform_version }}"
+
+# ags_platform_unit_marker: the file whose presence means "the unit is
+#   installed". Used as the idempotency guard for the clone (the git module has
+#   no `creates:`), mirroring the zsh_tools role's stat guard.
+ags_platform_unit_marker: "{{ ags_platform_unit_dir }}/index.ts"
+
+# ags_platform_pin_file: the recorded pin (<install>/ags-platform/pinned). A
+#   one-line file naming the installed version; `verify` asserts it, and a human
+#   reads it to know what is deployed.
+ags_platform_pin_file: "{{ ags_platform_install_root }}/pinned"
+
+# ags_platform_spine_config_dir: the config-in-spine root (<install>/config/),
+#   the SHARED ANCESTOR of every AGS config dir. Identical derivation to
+#   compositor_configs_spine_config_dir / gui_tools_spine_config_dir.
+ags_platform_spine_config_dir: "{{ install_dir | trim }}/config"
+
+# ags_platform_shortcut_dir: the node_modules dir under the shared ancestor.
+ags_platform_shortcut_dir: "{{ ags_platform_spine_config_dir }}/node_modules"
+
+# ags_platform_shortcut: the bare-specifier shortcut itself. A symlink named
+#   `ags-platform` pointing at the pinned unit. `ags-platform` is the package
+#   NAME in the unit's package.json, so esbuild's node_modules resolution finds
+#   it by name.
+ags_platform_shortcut: "{{ ags_platform_shortcut_dir }}/ags-platform"
