@@ -44,6 +44,13 @@
 
 ## 2. The goal
 
+> **Topology under refinement (2026-10-16).** The "three repos / `ags-apps` holds all apps" plan
+> below is **provisional**. The maintainer's intent is **one repo per app** — each app standalone,
+> consuming `ags-platform`, consumed by `dotfiles`. See
+> **`docs/GUIDE-ags-app-repos-refinement.md`** (a discussion guide to refine and *decide* the
+> app-repo topology before executing). The settled inputs still hold: `ags-platform` is a separate
+> repo; apps → platform only, never app → app.
+
 Split AGS into **three repos**, with apps depending on the platform only:
 
 ```
