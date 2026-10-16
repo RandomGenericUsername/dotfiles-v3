@@ -123,6 +123,7 @@
     "../kit/layout.ts",
     "../bar/layout.default.ts",
     "../bar/bar-manifest.ts",
+    "../bar/validate.ts",
     "../domains/network/read-model.ts",
     "../domains/battery/read-model.ts",
     "../domains/bluetooth/read-model.ts",
