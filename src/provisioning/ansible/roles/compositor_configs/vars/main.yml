@@ -202,6 +202,11 @@ compositor_configs_skeleton_files:
   # cannot bundle. The layout is the always-non-null floor of the chain; the
   # registry maps a layout entry id to its shape spec.
   - { name: ags-bar-layout-default, source: dotfiles/config/ags/bar/layout.default.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/layout.default.ts" }
+  # The pure bar-manifest (ags-bar-validate-at-install, AD-14): the capability
+  # + param + icon-group declarations both the bar (lenient, at startup) and
+  # the install gate (strict, in provisioning) validate against. Registered now
+  # so the validator wiring (tasks 1.2/2.x) deploys against a present file.
+  - { name: ags-bar-manifest, source: dotfiles/config/ags/bar/bar-manifest.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/bar-manifest.ts" }
   - { name: ags-bar-registry, source: dotfiles/config/ags/bar/registry.ts, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/registry.ts" }
   - { name: ags-workspaces, source: dotfiles/config/ags/bar/widgets/workspaces.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/workspaces.tsx" }
   - { name: ags-clock, source: dotfiles/config/ags/bar/widgets/clock.tsx, dest: "{{ compositor_configs_spine_config_dir }}/ags/bar/widgets/clock.tsx" }

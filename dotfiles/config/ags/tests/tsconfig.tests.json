@@ -122,6 +122,7 @@
     "../kit/overlay.ts",
     "../kit/layout.ts",
     "../bar/layout.default.ts",
+    "../bar/bar-manifest.ts",
     "../domains/network/read-model.ts",
     "../domains/battery/read-model.ts",
     "../domains/bluetooth/read-model.ts",
