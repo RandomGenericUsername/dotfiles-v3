@@ -446,135 +446,17 @@ verify_compositor_skeleton_files:
   - "{{ install_dir | trim }}/config/hypr/cursor.lua"
   - "{{ install_dir | trim }}/config/hypr/env-variables.lua"
   - "{{ install_dir | trim }}/config/hyprpaper/hyprpaper.conf"
-  - "{{ install_dir | trim }}/config/ags/app.tsx"
-  - "{{ install_dir | trim }}/config/ags/style.css"
-  - "{{ install_dir | trim }}/config/ags/overlays.ts"
   - "{{ install_dir | trim }}/config/ags/icons.json"
   - "{{ install_dir | trim }}/config/ags-capture/icons.json"
-  # The bar widget KIT: the Shell + shapes and the overlay coordinator stay
-  # bar-specific (AD-1). The icon vocabulary (kit/icon.ts, kit/icon-source.ts)
-  # moved into the ags-platform package below (extract-platform-in-place).
-  - "{{ install_dir | trim }}/config/ags/kit/overlay.ts"
-  - "{{ install_dir | trim }}/config/ags/kit/widget.tsx"
-  - "{{ install_dir | trim }}/config/ags/kit/shapes.ts"
-  # The surface contract + the popup primitive (surfaces-popup-host, AD-10):
-  # mirror of the compositor_configs skeleton dests. Every popup imports
-  # kit/popup-host, which imports kit/surface, so a missing one is a bar that
-  # cannot bundle.
-  - "{{ install_dir | trim }}/config/ags/kit/surface.ts"
-  - "{{ install_dir | trim }}/config/ags/kit/popup-host.tsx"
-  # The layout vocabulary (migrate-widgets-to-shapes, AD-9): mirror of the
-  # compositor_configs skeleton dest. kit/widget.tsx and bar/Bar.tsx import it.
-  - "{{ install_dir | trim }}/config/ags/kit/layout.ts"
-  - "{{ install_dir | trim }}/config/ags/lib/network-icon.ts"
-  # NOTE: the ags-platform package is NOT mirrored here anymore. It is no longer
-  # a per-file skeleton under config/ags/platform/; the `ags_platform` role
-  # installs it as ONE versioned unit and creates the shared-ancestor shortcut
-  # (spine AD-17), asserted by the dedicated `verify_ags_platform_*` block below
-  # (mirror of the ags_platform role vars). Keeping a stale per-file mirror here
-  # would assert files the bar no longer has.
-  - "{{ install_dir | trim }}/config/ags/bar/Bar.tsx"
-  # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
-  # AD-8/AD-9): mirror of the compositor_configs skeleton dests.
-  - "{{ install_dir | trim }}/config/ags/bar/layout.default.ts"
-  - "{{ install_dir | trim }}/config/ags/bar/bar-manifest.ts"
-  - "{{ install_dir | trim }}/config/ags/bar/validate.ts"
-  - "{{ install_dir | trim }}/config/ags/bar/validate-cli.ts"
-  - "{{ install_dir | trim }}/config/ags/bar/registry.ts"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/workspaces.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/clock.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/battery.tsx"
-  # bar/widgets/network.tsx was retired by migrate-widgets-to-shapes; the
-  # descriptor below replaces it.
-  # The Bluetooth status widget (add-bluetooth-bar-popup): Bar.tsx imports it, so
-  # a missing copy is a bar that cannot bundle.
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/bluetooth.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/network-descriptor.tsx"
-  - "{{ install_dir | trim }}/config/ags/domains/network/read-model.ts"
-  # The per-domain read models (reactive-domain-read-models): the network
-  # descriptor's Astal adapter and the battery/bluetooth/audio adapters. Mirror of
-  # compositor_configs skeleton dests. The shared reactive port + gnim binding
-  # MOVED into the ags-platform package above (extract-platform-in-place).
-  - "{{ install_dir | trim }}/config/ags/domains/network/astal.ts"
-  - "{{ install_dir | trim }}/config/ags/domains/battery/read-model.ts"
-  - "{{ install_dir | trim }}/config/ags/domains/battery/astal.ts"
-  - "{{ install_dir | trim }}/config/ags/domains/bluetooth/read-model.ts"
-  - "{{ install_dir | trim }}/config/ags/domains/bluetooth/astal.ts"
-  - "{{ install_dir | trim }}/config/ags/domains/audio/read-model.ts"
-  - "{{ install_dir | trim }}/config/ags/domains/audio/astal.ts"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/power-menu.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/btop.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/thunderbird.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/recording.tsx"
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/tray.tsx"
-  # Settings panel sources (add-ags-settings-panel): the bar trigger widget,
-  # the panel window/state/primitives, the five controls, and the three views.
-  # Shared AGS sources (extract-ags-shared-components): the three D-Bus service
-  # modules relocated out of the settings-panel services directory into
-  # ags/services/, plus the primitives, wifi, bluetooth, and slider components
-  # under ags/components/.
-  # Mirror of compositor_configs_skeleton_files dests — a missing source means a
-  # window that crashes or silently omits a section at open.
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/settings.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/state.ts"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/primitives.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/SettingsPanel.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/bluetooth-agent.ts"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/wifi.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/bluetooth.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/brightness.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/volume.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/controls/hyprmod.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/views/MainView.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/views/WifiView.tsx"
-  - "{{ install_dir | trim }}/config/ags/settings-panel/views/BluetoothView.tsx"
-  # The shared subview header SettingsPanel.tsx imports alongside the views.
-  - "{{ install_dir | trim }}/config/ags/settings-panel/views/SubviewHeader.tsx"
-  - "{{ install_dir | trim }}/config/ags/services/nm-client.ts"
-  - "{{ install_dir | trim }}/config/ags/services/wifi-service.ts"
-  - "{{ install_dir | trim }}/config/ags/services/bluetooth-service.ts"
-  # MPRIS transport (ags-audio-mpris-transport): the pure core, mirror of the
-  # compositor_configs skeleton dest — a missing core makes the mpris-adapter
-  # import fail and the popup transport lines vanish. The legacy session-bus
-  # service was retired by finish-audio-bar-migration.
-  - "{{ install_dir | trim }}/config/ags/services/mpris-core.ts"
-  - "{{ install_dir | trim }}/config/ags/components/primitives/IconToggle.tsx"
-  - "{{ install_dir | trim }}/config/ags/components/primitives/LevelSlider.tsx"
-  - "{{ install_dir | trim }}/config/ags/components/wifi/state.ts"
-  - "{{ install_dir | trim }}/config/ags/components/wifi/WifiContent.tsx"
-  - "{{ install_dir | trim }}/config/ags/components/wifi/WifiPopup.tsx"
-  - "{{ install_dir | trim }}/config/ags/components/bluetooth/BluetoothContent.tsx"
-  # The Bluetooth popup + overlay state (add-bluetooth-bar-popup): app.tsx
-  # imports both, and the content above is reached through the popup.
-  - "{{ install_dir | trim }}/config/ags/components/bluetooth/BluetoothPopup.tsx"
-  - "{{ install_dir | trim }}/config/ags/components/bluetooth/state.ts"
-  - "{{ install_dir | trim }}/config/ags/components/sliders/VolumeSlider.tsx"
-  - "{{ install_dir | trim }}/config/ags/components/sliders/BrightnessSlider.tsx"
-  # Audio sources (add-pipewire-audio-control; UI state split out by
-  # finish-audio-bar-migration): the bar output/mic widgets, the audio UI-state
-  # module, and the popup window. Mirror of compositor_configs skeleton dests —
-  # a missing source means the bar widget or popup crashes at open (or silently
-  # omits the whole audio surface).
-  - "{{ install_dir | trim }}/config/ags/bar/widgets/audio.tsx"
-  - "{{ install_dir | trim }}/config/ags/audio/ui-state.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/AudioPopup.tsx"
-  # The composition root and every module it imports (redesign-ags-audio-panel).
-  # AudioPopup.tsx resolves ./composition at bundle time; verifying only the
-  # popup would report a healthy install for a panel that cannot start.
-  - "{{ install_dir | trim }}/config/ags/audio/composition.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/audio-panel.css"
-  - "{{ install_dir | trim }}/config/ags/audio/domain/audio-model.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/application/ports.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/application/audio-actions.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/application/runtime/audio-session-runtime.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/adapters/pipewire/project-pipewire-session.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/adapters/pipewire/pipewire-commands.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/adapters/pipewire/pipewire-observation.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/adapters/mpris/mpris-adapter.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/presentation/audio-panel-view-model.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/presentation/levels.ts"
-  - "{{ install_dir | trim }}/config/ags/audio/presentation/bar-indicators.ts"
-  - "{{ install_dir | trim }}/config/ags/types.d.ts"
+# NOTE: the bar is deliberately NOT mirrored per file here anymore. It used
+# to be placed per file under config/ags/ (mirror of
+# compositor_configs_skeleton_files); the consumption step (ags-apps-bar-first
+# slice 2, AD-17/AD-23) installs it as ONE versioned unit via the `ags_apps`
+# role and deploys the unit's bar/ subdir as the live config/ags symlink.
+# The bar's sources are asserted as a UNIT below (verify_ags_apps_*); the only
+# per-file bar assertions left are GENERATED artifacts that land through the
+# link (icons.json above). Keeping a stale per-file mirror here would assert
+# files the bridge no longer deploys.
 
 # verify_ags_platform_version / _unit_dir / _pin_file / _shortcut: the AGS
 #   platform, installed as ONE versioned unit (spine AD-17/AD-23). Mirror of the
@@ -605,6 +487,46 @@ verify_ags_platform_unit_files:
   - "{{ verify_ags_platform_unit_dir }}/adapters/event-bus.ts"
   - "{{ verify_ags_platform_unit_dir }}/adapters/icon-registry.ts"
   - "{{ verify_ags_platform_unit_dir }}/adapters/astal.ts"
+
+# verify_ags_apps_version / _unit_dir / _bar_dir / _pin_file / _live_bar_link /
+#   _resolution_shortcut: the AGS bar, installed as ONE versioned unit (spine
+#   AD-1/AD-17/AD-23). Mirror of the ags_apps role vars. The unit is the
+#   monorepo checkout at <install>/ags-apps/<tag>/; the bar package is its
+#   bar/ subdir (the monorepo deviation — the repo root is NOT the package).
+#   The live-bar link <install>/config/ags is a symlink pointing at the unit's
+#   bar/, so the live bar is always exactly the pinned tag — no per-file
+#   mirror can drift. A rollback is a link repoint to a sibling tag dir. The
+#   pin file records the installed tag on the host. The per-unit resolution
+#   shortcut <unit>/node_modules/ags-platform is a symlink into the pinned
+#   platform unit: esbuild realpaths the live-bar link, so the shared-ancestor
+#   shortcut is not an ancestor of the real bar tree and the bar's bare
+#   `ags-platform` imports would not resolve without it.
+verify_ags_apps_version: bar-v0.1.0
+verify_ags_apps_platform_version: v0.1.0
+verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
+verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
+verify_ags_apps_pin_file: "{{ install_dir | trim }}/ags-apps/pinned"
+verify_ags_apps_live_bar_link: "{{ install_dir | trim }}/config/ags"
+verify_ags_apps_resolution_shortcut: "{{ verify_ags_apps_unit_dir }}/node_modules/ags-platform"
+
+# verify_ags_apps_unit_files: representative files that MUST be present in
+#   the installed unit's bar/. NOT the whole bar (that is the clone's job) —
+#   one file per concern: the composition-root entry, the stylesheet, the
+#   overlay coordinator, the shell + a widget, the repo-default layout, the
+#   capability manifest, the shared validators, and the strict install-gate
+#   CLI the compositor_configs role runs. A missing unit file is a bar that
+#   cannot bundle (or a gate that cannot run).
+verify_ags_apps_unit_files:
+  - "{{ verify_ags_apps_bar_dir }}/app.tsx"
+  - "{{ verify_ags_apps_bar_dir }}/style.css"
+  - "{{ verify_ags_apps_bar_dir }}/overlays.ts"
+  - "{{ verify_ags_apps_bar_dir }}/bar/Bar.tsx"
+  - "{{ verify_ags_apps_bar_dir }}/bar/widgets/workspaces.tsx"
+  - "{{ verify_ags_apps_bar_dir }}/bar/layout.default.ts"
+  - "{{ verify_ags_apps_bar_dir }}/bar/registry.ts"
+  - "{{ verify_ags_apps_bar_dir }}/bar/bar-manifest.ts"
+  - "{{ verify_ags_apps_bar_dir }}/bar/validate.ts"
+  - "{{ verify_ags_apps_bar_dir }}/bar/validate-cli.ts"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —

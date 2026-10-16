@@ -122,6 +122,7 @@
       - verify_compositor_config_dirs | length > 0
       - verify_compositor_skeleton_files | length > 0
       - verify_ags_platform_unit_files | length > 0
+      - verify_ags_apps_unit_files | length > 0
       - verify_consumer_symlinks | length > 0
       - verify_xdg_dirs | length > 0
       - verify_config_copies_targets | length > 0
@@ -967,6 +968,73 @@
       the bar's bare-specifier `ags-platform` import cannot resolve and the bar
       fails to start. The ags_platform role installs them; run the ags-platform
       playbook first
+  when: not ansible_check_mode
+
+# The AGS bar is ONE versioned unit + a live-bar link + a per-unit resolution
+# shortcut (spine AD-1/AD-17/AD-23), installed by the ags_apps role. The live
+# bar IS the unit's bar/ subdir (no per-file copy can drift); if the unit, the
+# link, or the resolution shortcut is missing, the bar is stale, absent, or
+# cannot resolve its own `ags-platform` imports. verify asserts ALL THREE: the
+# unit files exist, the live-bar link is a symlink whose target names the
+# pinned tag and resolves to a directory, and the resolution shortcut is a
+# symlink whose target names the pinned PLATFORM version and resolves to a
+# directory. This is the honest coverage the deploy-coverage gate's unit
+# assertion cannot provide (the gate reads the repo, not the host).
+- name: Check the ags-apps unit files and pin
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ [verify_ags_apps_unit_dir, verify_ags_apps_pin_file] + verify_ags_apps_unit_files }}"
+  register: verify_ags_apps_unit_checks
+
+- name: Check the live bar is a symlink
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_bar_link }}"
+    follow: false
+  register: verify_ags_apps_live_bar_check
+
+- name: Check the live bar resolves to the unit
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_bar_link }}"
+    follow: true
+  register: verify_ags_apps_live_bar_resolve_check
+
+- name: Check the per-unit resolution shortcut is a symlink
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_resolution_shortcut }}"
+    follow: false
+  register: verify_ags_apps_resolution_check
+
+- name: Check the per-unit resolution shortcut resolves to the platform unit
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_resolution_shortcut }}"
+    follow: true
+  register: verify_ags_apps_resolution_resolve_check
+
+- name: Assert the ags-apps unit + live bar + resolution shortcut are installed
+  ansible.builtin.assert:
+    that:
+      - verify_ags_apps_unit_checks.results[0].stat.isdir
+      - verify_ags_apps_unit_checks.results[1].stat.isreg
+      - >-
+        verify_ags_apps_unit_checks.results[2:]
+        | map(attribute='stat') | selectattr('isreg') | list | length
+        == verify_ags_apps_unit_files | length
+      - verify_ags_apps_live_bar_check.stat.islnk
+      - verify_ags_apps_live_bar_check.stat.lnk_target is search(verify_ags_apps_version)
+      - verify_ags_apps_live_bar_resolve_check.stat.isdir
+      - verify_ags_apps_resolution_check.stat.islnk
+      - verify_ags_apps_resolution_check.stat.lnk_target is search(verify_ags_apps_platform_version)
+      - verify_ags_apps_resolution_resolve_check.stat.isdir
+    fail_msg: >-
+      the ags-apps unit, the live bar, or its resolution shortcut is missing
+      under {{ install_dir | trim }} (spine AD-1/AD-17/AD-23). Expected the
+      pinned unit at {{ verify_ags_apps_unit_dir }}/ (bar/app.tsx, bar/Bar.tsx,
+      bar/validate-cli.ts, ...), the pin file at {{ verify_ags_apps_pin_file }},
+      {{ verify_ags_apps_live_bar_link }} as a symlink into the unit's bar/,
+      and {{ verify_ags_apps_resolution_shortcut }} as a symlink into the
+      pinned platform unit. Without them the live bar is absent or cannot
+      resolve its bare-specifier `ags-platform` imports. The ags_apps role
+      installs them; run the ags-apps playbook first
   when: not ansible_check_mode
 
 - name: Check GUI tool app files

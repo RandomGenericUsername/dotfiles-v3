@@ -145,6 +145,28 @@ def _skeleton_task() -> dict[str, object]:
     return matches[0]
 
 
+def _preseed_bar_unit(install: Path) -> Path:
+    """Seed the pinned bar unit exactly as the ags_apps role deploys it.
+
+    Bootstrap order (ags-apps.yaml before compositor-configs.yaml) guarantees
+    the live-bar link into the pinned unit exists before this role generates
+    icons.json through it and gates on the unit's CLI. Execution tests that
+    run compositor-configs.yaml STANDALONE must build that state by hand:
+    the pinned unit holds a copy of the REAL in-place bridge tree (slice 1
+    moved it into ags-apps verbatim, so the bridge IS the unit content for
+    gate purposes), the pin is recorded, and <install>/config/ags links at
+    the unit's bar/.
+    """
+    repo_ags = _ANSIBLE_DIR.parents[2] / "dotfiles" / "config" / "ags"
+    assert repo_ags.is_dir(), f"missing in-place bar bridge {repo_ags}"
+    bar = install / "ags-apps" / "bar-v0.1.0" / "bar"
+    shutil.copytree(repo_ags, bar)
+    (install / "ags-apps" / "pinned").write_text("bar-v0.1.0\n")
+    (install / "config").mkdir(parents=True, exist_ok=True)
+    (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
+    return bar
+
+
 class TestCompositorConfigsRoleTree:
     _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml")
 
@@ -263,161 +285,37 @@ class TestCompositorConfigsTasks:
         # the network domain read model (domains/network/read-model.ts) was added
         # to make the descriptor react to device property changes, and 106 once
         # the fix-deploy-bar-new-files coverage gate registered the reachable
-        # sources the platform work added but the manifest missed: kit/icon-source
-        # + kit/shapes, the reactive domain port/binding and the network/battery/
-        # bluetooth/audio Astal adapters, and the Bluetooth widget/popup/state +
-        # settings SubviewHeader that had silently never deployed. Placement here is
-        # PER FILE, so an unregistered file silently never deploys and the panel
-        # imports a module that is not there on the desktop: this assertion is
-        # what makes that fail loudly at review time instead of at runtime. Do NOT
-        # relax it to `>=`, a subset check, or delete it — those all convert
-        # "deploys nothing" into "passes".
-        # 108 once surfaces-popup-host (AD-10) added kit/surface.ts (the pure
-        # SurfaceSpec/registry/mount policy) and kit/popup-host.tsx (the shipped
-        # PopupHost/PopupCatcher the five popups render through), and 114 once
+        # sources the platform work added, 108 once surfaces-popup-host (AD-10)
+        # added kit/surface.ts + kit/popup-host.tsx, and 114 once
         # preferences-notifier-theme (AD-11/AD-12/AD-13) added the three pure
-        # ports (platform/preferences, platform/notifier, platform/theme) and
-        # their three bar adapters (lib/preferences, lib/notifier, lib/theme).
-        # 116 once migrate-widgets-to-shapes (AD-8/AD-9) added kit/layout.ts (the
-        # pure layout vocabulary + chain), bar/layout.default.ts (the repo-default
-        # provider) and bar/registry.ts (entry id -> shape spec), and retired
-        # bar/widgets/network.tsx in favour of the descriptor (-1, +3).
-        # 118 once extract-platform-in-place (AD-17/AD-20) consolidated the ports,
-        # the shared adapters and the event client into the ags-platform package:
-        # the package identity + entry point (+2) and the 13 relocated sources
-        # re-homed under platform/{ports,adapters} (+13), against the 13 sources
-        # they replace (-13).
-        # 103 once ags-consume-platform (AD-17/AD-23) stopped enumerating the
-        # platform per file: the 15 platform entries (package.json + index.ts + 6
-        # ports + 7 adapters) are DELETED and the platform is installed as ONE
-        # versioned unit by the ags_platform role (-15). The bar consumes it by
-        # the bare specifier, so no platform file is a skeleton anymore.
-        # 106 once ags-bar-validate-at-install section 1 (AD-14/AD-15)
-        # registered the pure bar-manifest, the shared validators, and the
-        # `ags-bar-validate` CLI (+3) — the deployed sources the strict
-        # install gate (task 2.1) runs.
-        assert len(files) == 106, (
-            f"expected exactly 106 skeleton files (hyprland.lua + gloview.lua + "
-            f"8 hypr modules/hyprpaper.conf/ags app.tsx+style.css+overlays.ts+"
-            f"7 lib (incl. wifi-signal/network-icon)+6 kit "
-            f"(icon/overlay/widget + surface/popup-host + layout)+"
-            f"1 domain (network read-model)+"
-            f"Bar.tsx+layout.default.ts+registry.ts+11 "
-            f"bar widgets (incl. audio) + the settings panel (SettingsPanel/state/"
-            f"primitives/bluetooth-agent + 5 controls + 3 views) + the 3 relocated "
-            f"D-Bus services + speedtest service + the MPRIS core file "
-            f"+ the power-options service (moved out of the battery bar widget) "
-            f"+ 15 shared components "
-            f"(3 primitives (incl. WifiSwitch) + 3 wifi + 1 bluetooth + 2 sliders "
-            f"+ the battery panel's 5 modules: presentation (pure decisions), state "
-            f"(popup visibility/anchor), battery-icon (state key), BatteryPopup (the "
-            f"two windows) and BatteryContent (the body)) "
-    f"+ the audio surface "
-            f"(ui-state + AudioPopup + the hexagonal boundary wired in by "
-            f"redesign-ags-audio-panel and extended by finish-audio-bar-migration: "
-            f"composition, the domain model, ports, actions, the session runtime, "
-            f"three PipeWire adapter modules, the MPRIS adapter, the view model, "
-            f"presentation/levels, presentation/bar-indicators and audio-panel.css, "
-            f"plus the ags types.d.ts ambient declarations) "
-            f"+ ags wifi-speedtest.json + rofi launcher config.rasi "
-            f"+ the bar-manifest + validators + install gate (section 1, task 2.1 runs it); found {len(files)}"
+        # ports and their three bar adapters, 116 once migrate-widgets-to-shapes
+        # (AD-8/AD-9) added kit/layout.ts + bar/layout.default.ts + bar/registry.ts
+        # and retired bar/widgets/network.tsx (-1, +3), 118 once
+        # extract-platform-in-place (AD-17/AD-20) consolidated the platform, 103
+        # once ags-consume-platform (AD-17/AD-23) deleted the 15 platform entries
+        # and installed the platform as ONE versioned unit instead (-15), 106
+        # once ags-bar-validate-at-install section 1 (AD-14/AD-15) registered the
+        # bar-manifest + validators + install gate (+3).
+        # 15 once ags-apps-bar-first slice 2 (AD-1/AD-17/AD-23) retired the
+        # in-place bar bridge: the 91 `dotfiles/config/ags/` entries are DELETED
+        # and the bar deploys WHOLE as the pinned ags-apps unit (the live
+        # <install>/config/ags symlink into the unit's bar/). A stale per-file
+        # bar entry would template INTO the unit tree through that link —
+        # silently diverging the live bar from the pinned tag — so the
+        # deploy-coverage gate FAILS on any of them and this test pins their
+        # absence below. The remaining 15 are the non-bar skeletons
+        # (13 hypr + hyprpaper + rofi launcher) this role still places per file.
+        # Placement here is PER FILE, so an unregistered file silently never
+        # deploys: this assertion is what makes that fail loudly at review time
+        # instead of at runtime. Do NOT relax it to `>=`, a subset check, or
+        # delete it — those all convert "deploys nothing" into "passes".
+        assert len(files) == 15, (
+            "expected exactly 15 skeleton files (13 hypr modules + "
+            "hyprpaper.conf + rofi launcher config.rasi); the 91 bar bridge "
+            f"entries are retired (slice 2 deploys the unit whole); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
         expected = [
-            "dotfiles/config/ags/app.tsx",
-            "dotfiles/config/ags/audio/AudioPopup.tsx",
-            "dotfiles/config/ags/audio/adapters/mpris/mpris-adapter.ts",
-            "dotfiles/config/ags/audio/adapters/pipewire/pipewire-commands.ts",
-            "dotfiles/config/ags/audio/adapters/pipewire/pipewire-observation.ts",
-            "dotfiles/config/ags/audio/adapters/pipewire/project-pipewire-session.ts",
-            "dotfiles/config/ags/audio/application/audio-actions.ts",
-            "dotfiles/config/ags/audio/application/ports.ts",
-            "dotfiles/config/ags/audio/application/runtime/audio-session-runtime.ts",
-            "dotfiles/config/ags/audio/audio-panel.css",
-            "dotfiles/config/ags/audio/composition.ts",
-            "dotfiles/config/ags/audio/domain/audio-model.ts",
-            "dotfiles/config/ags/audio/presentation/audio-panel-view-model.ts",
-            "dotfiles/config/ags/audio/presentation/bar-indicators.ts",
-            "dotfiles/config/ags/audio/presentation/levels.ts",
-            "dotfiles/config/ags/audio/ui-state.ts",
-            "dotfiles/config/ags/bar/Bar.tsx",
-            "dotfiles/config/ags/bar/bar-manifest.ts",
-            "dotfiles/config/ags/bar/layout.default.ts",
-            "dotfiles/config/ags/bar/registry.ts",
-            "dotfiles/config/ags/bar/validate-cli.ts",
-            "dotfiles/config/ags/bar/validate.ts",
-            "dotfiles/config/ags/bar/widgets/audio.tsx",
-            "dotfiles/config/ags/bar/widgets/battery.tsx",
-            "dotfiles/config/ags/bar/widgets/bluetooth.tsx",
-            "dotfiles/config/ags/bar/widgets/btop.tsx",
-            "dotfiles/config/ags/bar/widgets/clock.tsx",
-            "dotfiles/config/ags/bar/widgets/network-descriptor.tsx",
-            "dotfiles/config/ags/bar/widgets/power-menu.tsx",
-            "dotfiles/config/ags/bar/widgets/recording.tsx",
-            "dotfiles/config/ags/bar/widgets/settings.tsx",
-            "dotfiles/config/ags/bar/widgets/thunderbird.tsx",
-            "dotfiles/config/ags/bar/widgets/tray.tsx",
-            "dotfiles/config/ags/bar/widgets/workspaces.tsx",
-            "dotfiles/config/ags/components/battery/BatteryContent.tsx",
-            "dotfiles/config/ags/components/battery/BatteryPopup.tsx",
-            "dotfiles/config/ags/components/battery/battery-icon.ts",
-            "dotfiles/config/ags/components/battery/presentation.ts",
-            "dotfiles/config/ags/components/battery/state.ts",
-            "dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx",
-            "dotfiles/config/ags/components/bluetooth/BluetoothPopup.tsx",
-            "dotfiles/config/ags/components/bluetooth/state.ts",
-            "dotfiles/config/ags/components/primitives/IconToggle.tsx",
-            "dotfiles/config/ags/components/primitives/LevelSlider.tsx",
-            "dotfiles/config/ags/components/primitives/WifiSwitch.tsx",
-            "dotfiles/config/ags/components/sliders/BrightnessSlider.tsx",
-            "dotfiles/config/ags/components/sliders/VolumeSlider.tsx",
-            "dotfiles/config/ags/components/wifi/WifiContent.tsx",
-            "dotfiles/config/ags/components/wifi/WifiPopup.tsx",
-            "dotfiles/config/ags/components/wifi/state.ts",
-            "dotfiles/config/ags/domains/audio/astal.ts",
-            "dotfiles/config/ags/domains/audio/read-model.ts",
-            "dotfiles/config/ags/domains/battery/astal.ts",
-            "dotfiles/config/ags/domains/battery/read-model.ts",
-            "dotfiles/config/ags/domains/bluetooth/astal.ts",
-            "dotfiles/config/ags/domains/bluetooth/read-model.ts",
-            "dotfiles/config/ags/domains/network/astal.ts",
-            "dotfiles/config/ags/domains/network/read-model.ts",
-            "dotfiles/config/ags/kit/layout.ts",
-            "dotfiles/config/ags/kit/overlay.ts",
-            "dotfiles/config/ags/kit/popup-host.tsx",
-            "dotfiles/config/ags/kit/shapes.ts",
-            "dotfiles/config/ags/kit/surface.ts",
-            "dotfiles/config/ags/kit/widget.tsx",
-            "dotfiles/config/ags/lib/bar-backdrop.ts",
-            "dotfiles/config/ags/lib/network-icon.ts",
-            "dotfiles/config/ags/lib/status-notifier.ts",
-            "dotfiles/config/ags/lib/wifi-signal.ts",
-            "dotfiles/config/ags/overlays.ts",
-            # The ags-platform package is NO LONGER enumerated here: it is an
-            # external bare specifier installed as one versioned unit by the
-            # ags_platform role (AD-17/AD-23).
-            "dotfiles/config/ags/services/bluetooth-service.ts",
-            "dotfiles/config/ags/services/mpris-core.ts",
-            "dotfiles/config/ags/services/nm-client.ts",
-            "dotfiles/config/ags/services/power-service.ts",
-            "dotfiles/config/ags/services/speedtest-service.ts",
-            "dotfiles/config/ags/services/wifi-service.ts",
-            "dotfiles/config/ags/settings-panel/SettingsPanel.tsx",
-            "dotfiles/config/ags/settings-panel/bluetooth-agent.ts",
-            "dotfiles/config/ags/settings-panel/controls/bluetooth.tsx",
-            "dotfiles/config/ags/settings-panel/controls/brightness.tsx",
-            "dotfiles/config/ags/settings-panel/controls/hyprmod.tsx",
-            "dotfiles/config/ags/settings-panel/controls/volume.tsx",
-            "dotfiles/config/ags/settings-panel/controls/wifi.tsx",
-            "dotfiles/config/ags/settings-panel/primitives.tsx",
-            "dotfiles/config/ags/settings-panel/state.ts",
-            "dotfiles/config/ags/settings-panel/views/BluetoothView.tsx",
-            "dotfiles/config/ags/settings-panel/views/MainView.tsx",
-            "dotfiles/config/ags/settings-panel/views/SubviewHeader.tsx",
-            "dotfiles/config/ags/settings-panel/views/WifiView.tsx",
-            "dotfiles/config/ags/style.css",
-            "dotfiles/config/ags/types.d.ts",
-            "dotfiles/config/ags/wifi-speedtest.json",
             "dotfiles/config/hypr/animations.lua",
             "dotfiles/config/hypr/autostart.lua",
             "dotfiles/config/hypr/colors.lua",
@@ -461,6 +359,33 @@ class TestCompositorConfigsTasks:
             )
             assert "compositor_configs_fragment_stats" not in str(task), (
                 f"task {task.get('name')!r} still consumes the retired classification register"
+            )
+
+    def test_no_bar_bridge_sources_remain(self) -> None:
+        """Slice 2: the in-place bar bridge is retired as a deploy source — NO
+        `dotfiles/config/ags/` entry may remain in the skeleton list. A stale
+        one would template INTO the unit tree through the live-bar link and
+        silently diverge the live bar from the pinned tag. (deploy-coverage
+        asserts the same from the gate side; this pins it structurally.)"""
+        data = _vars()
+        for file_ in data["compositor_configs_skeleton_files"]:
+            assert not str(file_["source"]).startswith("dotfiles/config/ags/"), (
+                f"stale bridge entry {file_['source']!r}: the bar deploys whole "
+                "via the ags_apps unit symlink"
+            )
+
+    def test_no_ags_config_dirs_remain(self) -> None:
+        """Slice 2: the role no longer ensures the live-bar `ags` dir — it is
+        owned by the ags_apps role as a symlink (the filesystem role still
+        creates the empty spine dir; ags_apps converts it). Sibling app dirs
+        (ags-capture, ...) are untouched."""
+        import re
+
+        data = _vars()
+        for config_dir in data["compositor_configs_config_dirs"]:
+            assert not re.search(r"/ags([\"'/]|$)", str(config_dir)), (
+                f"stale ags dir ensure {config_dir!r}: the live bar link is "
+                "owned by ags_apps"
             )
 
     def test_desktop_entries_placed_into_xdg_data_applications(self) -> None:
@@ -607,13 +532,20 @@ class TestBarValidateGate:
         """The gate must invoke the DEPLOYED `validate-cli.ts` against the
         DEPLOYED icons.json (the file the bar reads), with the role's OWNED
         schema version as the expectation — never the repo source, never a
-        hardcoded version."""
+        hardcoded version. The validator path is the realpath the resolution
+        task produced (see test_gate_resolves_the_validator_real_path): the
+        live bar is a symlink and node would otherwise no-op the CLI's
+        `invokedAsMain` guard."""
         task = self._gate()
         assert _module_key(task) == "ansible.builtin.command", (
             "the gate must run the validator via ansible.builtin.command (no shell)"
         )
-        cmd = str(_module(task).get("cmd", ""))
-        assert "validate-cli.ts" in cmd, "the gate must run the deployed validate-cli.ts"
+        cmd = _module_text(task)
+        assert "compositor_configs_bar_validate_cli" in cmd, (
+            "the gate must run the realpath-resolved validator (node realpaths "
+            "the module URL but not argv[1], so the symlink path would no-op "
+            "the CLI and pass the gate without validating anything)"
+        )
         assert "compositor_configs_icon_manifest_dest" in cmd, (
             "the gate must validate the DEPLOYED icons.json (the file the bar reads)"
         )
@@ -623,6 +555,37 @@ class TestBarValidateGate:
         assert "--layout" not in cmd, (
             "no bar.json exists in the repo today — the gate validates the "
             "repo-default layout floor, it must not invent a layout path"
+        )
+
+    def test_gate_resolves_the_validator_real_path(self) -> None:
+        """The live bar is a symlink; node realpaths `import.meta.url` but
+        leaves `process.argv[1]` as given, so the deployed CLI's
+        `invokedAsMain` guard is FALSE through the link and the strict gate
+        silently exits 0. The role must resolve the real path (`readlink -f`)
+        and gate on that instead — never the symlink path."""
+        task = next(
+            (
+                t
+                for t in _load_tasks()
+                if t.get("name") == "Resolve the deployed bar validator's real path"
+            ),
+            None,
+        )
+        assert task is not None, "missing the validator realpath resolution task"
+        assert _module_key(task) == "ansible.builtin.command"
+        argv = _module(task).get("argv")
+        assert isinstance(argv, list), (
+            "the resolution must use argv (no shell string splitting)"
+        )
+        assert [str(a) for a in argv][:2] == ["readlink", "-f"], (
+            "the task must resolve the symlink with `readlink -f`"
+        )
+        assert any(
+            str(a).endswith("/ags/bar/validate-cli.ts") for a in argv
+        ), "the task must resolve the deployed CLI through the live-bar link"
+        assert task.get("changed_when") is False, "resolution writes nothing"
+        assert "not ansible_check_mode" in str(task.get("when", "")), (
+            "the deployed file does not exist yet under --check"
         )
 
     def test_gate_is_strict(self) -> None:
@@ -646,30 +609,24 @@ class TestBarValidateGate:
         )
         assert "become" not in task, "the strict gate must not use become"
 
-    def test_gate_runs_after_generation_and_cli_placement(self) -> None:
-        """Ordering: the gate reads the GENERATED icons.json and the DEPLOYED
-        validate-cli.ts, so it must run after BOTH icons.json generations AND
-        after the skeleton placement that deploys the CLI. A gate placed
-        earlier would validate a missing or stale CLI."""
+    def test_gate_runs_after_generation(self) -> None:
+        """Ordering: the gate reads the GENERATED icons.json and the UNIT's
+        validate-cli.ts (deployed by the ags_apps role BEFORE this role runs
+        in bootstrap order — slice 2 retired the per-file CLI placement), so
+        it must run after BOTH icons.json generations. A gate placed earlier
+        would validate a missing icons.json."""
         names = [str(t.get("name", "")) for t in _load_tasks()]
         gate = names.index(self._GATE_NAME)
         assert gate > names.index("Generate AGS JSON manifest from icon mappings")
         assert gate > names.index("Generate capture AGS JSON manifest from icon mappings")
-        skeleton = next(
-            i
-            for i, t in enumerate(_load_tasks())
-            if _module_key(t) == "ansible.builtin.template"
-            and "compositor_configs_skeleton_files" in str(t.get("loop", ""))
-        )
-        assert gate > skeleton, (
-            "the gate must run after the skeleton placement that deploys validate-cli.ts"
-        )
 
     def test_gate_fails_the_install_on_a_bad_icons_artifact(self) -> None:
         """Acceptance (task 2.1): a bad icons.json FAILS the install. Runs the
         real playbook with an icons.yaml declaring no group the bar reads, so
         the generated icons.json violates `missing-icon-key` and the strict
-        gate aborts the run."""
+        gate aborts the run. The unit's CLI is pre-seeded exactly as the
+        ags_apps role deploys it (live-bar link into the pinned unit —
+        bootstrap order guarantees the unit is installed first)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -687,6 +644,9 @@ class TestBarValidateGate:
             icon_mappings = install / "icon-mappings"
             icon_mappings.mkdir(parents=True)
             (icon_mappings / "icons.yaml").write_text("test-group: {}\n")
+            # The unit's CLI is what the strict gate runs: pre-seed the live
+            # bar exactly as the ags_apps role deploys it.
+            _preseed_bar_unit(install)
 
             env = dict(os.environ)
             env["HOME"] = str(home)
@@ -866,6 +826,10 @@ class TestCompositorConfigsPlaybook:
             )
             assert repo_icons.is_file(), f"missing authored icons source {repo_icons}"
             shutil.copy(repo_icons, icon_mappings / "icons.yaml")
+            # Bootstrap order: the ags_apps role deploys the live bar BEFORE
+            # this role runs (icons.json generates through the link and the
+            # strict gate runs the unit's CLI).
+            unit_bar = _preseed_bar_unit(install)
 
             env = dict(os.environ)
             env["HOME"] = str(home)
@@ -885,6 +849,15 @@ class TestCompositorConfigsPlaybook:
             )
             assert result.returncode == 0, result.stdout + result.stderr
 
+            # The live bar is the unit, not a per-file copy: the link resolves
+            # into the pinned unit and the generated icons.json lands through
+            # it. The remaining per-file skeletons are the non-bar set only.
+            live = install / "config" / "ags"
+            assert live.is_symlink(), "the live bar must be a symlink"
+            assert live.resolve() == unit_bar.resolve(), (
+                "the live bar must point at the pinned unit's bar/"
+            )
+
             expected_skeletons = [
                 install / "config" / "hypr" / "hyprland.lua",
                 install / "config" / "hypr" / "keybindings.lua",
@@ -897,82 +870,11 @@ class TestCompositorConfigsPlaybook:
                 install / "config" / "hypr" / "cursor.lua",
                 install / "config" / "hypr" / "env-variables.lua",
                 install / "config" / "hyprpaper" / "hyprpaper.conf",
-                install / "config" / "ags" / "app.tsx",
-                install / "config" / "ags" / "style.css",
+                # Slice 2: the bar deploys whole via the live-bar symlink — no
+                # per-file bar entry is placed. The GENERATED icons.json lands
+                # through the link into the pinned unit (asserted is-file
+                # through the symlink, exactly as the strict gate reads it).
                 install / "config" / "ags" / "icons.json",
-                # The ags-platform package is no longer placed per file by this
-                # role; the ags_platform role installs it as one versioned unit
-                # (AD-17/AD-23), asserted by test_ags_platform_role.py.
-                install / "config" / "ags" / "bar" / "Bar.tsx",
-                install / "config" / "ags" / "bar" / "layout.default.ts",
-                install / "config" / "ags" / "bar" / "registry.ts",
-                # The bar manifest + validators + install gate (task 1.x,
-                # deployed in section 1; enforced by the strict gate in 2.1):
-                # the gate runs the DEPLOYED validate-cli.ts, so an unplaced
-                # CLI is an install that cannot validate.
-                install / "config" / "ags" / "bar" / "bar-manifest.ts",
-                install / "config" / "ags" / "bar" / "validate.ts",
-                install / "config" / "ags" / "bar" / "validate-cli.ts",
-                install / "config" / "ags" / "bar" / "widgets" / "workspaces.tsx",
-                install / "config" / "ags" / "bar" / "widgets" / "clock.tsx",
-                install / "config" / "ags" / "bar" / "widgets" / "battery.tsx",
-                install / "config" / "ags" / "bar" / "widgets" / "power-menu.tsx",
-                install / "config" / "ags" / "bar" / "widgets" / "settings.tsx",
-                install / "config" / "ags" / "settings-panel" / "state.ts",
-                install / "config" / "ags" / "settings-panel" / "primitives.tsx",
-                install / "config" / "ags" / "settings-panel" / "SettingsPanel.tsx",
-                install / "config" / "ags" / "settings-panel" / "bluetooth-agent.ts",
-                install / "config" / "ags" / "settings-panel" / "controls" / "wifi.tsx",
-                install / "config" / "ags" / "settings-panel" / "controls" / "bluetooth.tsx",
-                install / "config" / "ags" / "settings-panel" / "controls" / "brightness.tsx",
-                install / "config" / "ags" / "settings-panel" / "controls" / "volume.tsx",
-                install / "config" / "ags" / "settings-panel" / "controls" / "hyprmod.tsx",
-                install / "config" / "ags" / "settings-panel" / "views" / "MainView.tsx",
-                install / "config" / "ags" / "settings-panel" / "views" / "WifiView.tsx",
-                install / "config" / "ags" / "settings-panel" / "views" / "BluetoothView.tsx",
-                install / "config" / "ags" / "services" / "nm-client.ts",
-                install / "config" / "ags" / "services" / "wifi-service.ts",
-                install / "config" / "ags" / "services" / "bluetooth-service.ts",
-                install / "config" / "ags" / "components" / "primitives" / "IconToggle.tsx",
-                install / "config" / "ags" / "components" / "primitives" / "LevelSlider.tsx",
-                install / "config" / "ags" / "components" / "wifi" / "state.ts",
-                install / "config" / "ags" / "components" / "wifi" / "WifiContent.tsx",
-                install / "config" / "ags" / "components" / "wifi" / "WifiPopup.tsx",
-                install / "config" / "ags" / "components" / "bluetooth" / "BluetoothContent.tsx",
-                install / "config" / "ags" / "components" / "sliders" / "VolumeSlider.tsx",
-                install / "config" / "ags" / "components" / "sliders" / "BrightnessSlider.tsx",
-                install / "config" / "ags" / "bar" / "widgets" / "audio.tsx",
-                install / "config" / "ags" / "audio" / "ui-state.ts",
-                install / "config" / "ags" / "audio" / "presentation" / "levels.ts",
-                install / "config" / "ags" / "audio" / "presentation" / "bar-indicators.ts",
-                install / "config" / "ags" / "audio" / "AudioPopup.tsx",
-                # Battery panel (add-battery-status-panel): all five modules plus
-                # the power-options service the bar widget used to build at its
-                # own module scope. Placement is per-file, so an unregistered
-                # one deploys nothing and the panel imports a missing module.
-                install / "config" / "ags" / "components" / "battery" / "presentation.ts",
-                install / "config" / "ags" / "components" / "battery" / "state.ts",
-                install / "config" / "ags" / "components" / "battery" / "battery-icon.ts",
-                install / "config" / "ags" / "components" / "battery" / "BatteryPopup.tsx",
-                install / "config" / "ags" / "components" / "battery" / "BatteryContent.tsx",
-                install / "config" / "ags" / "services" / "power-service.ts",
-                # fix-deploy-bar-new-files: the reachable sources the platform
-                # work added but the manifest missed. Placement is per-file, so
-                # these assert the registration actually copies each one. The
-                # platform files themselves are gone (external unit, AD-17).
-                install / "config" / "ags" / "kit" / "shapes.ts",
-                install / "config" / "ags" / "kit" / "layout.ts",
-                install / "config" / "ags" / "domains" / "network" / "astal.ts",
-                install / "config" / "ags" / "domains" / "battery" / "read-model.ts",
-                install / "config" / "ags" / "domains" / "battery" / "astal.ts",
-                install / "config" / "ags" / "domains" / "bluetooth" / "read-model.ts",
-                install / "config" / "ags" / "domains" / "bluetooth" / "astal.ts",
-                install / "config" / "ags" / "domains" / "audio" / "read-model.ts",
-                install / "config" / "ags" / "domains" / "audio" / "astal.ts",
-                install / "config" / "ags" / "bar" / "widgets" / "bluetooth.tsx",
-                install / "config" / "ags" / "components" / "bluetooth" / "BluetoothPopup.tsx",
-                install / "config" / "ags" / "components" / "bluetooth" / "state.ts",
-                install / "config" / "ags" / "settings-panel" / "views" / "SubviewHeader.tsx",
             ]
             for path in expected_skeletons:
                 assert path.is_file(), f"skeleton {path} was never placed (silent no-op?)"
@@ -1045,11 +947,15 @@ class TestCompositorConfigsPlaybook:
             assert repo_icons.is_file(), f"missing authored icons source {repo_icons}"
             shutil.copy(repo_icons, icon_mappings / "icons.yaml")
 
+            # Bootstrap order: the live bar link exists before this role
+            # runs (see _preseed_bar_unit). The runtime R2 colors.css pointer
+            # lands THROUGH the link — inside the fixture unit, exactly as on
+            # a host the ags_apps role upgraded.
+            _preseed_bar_unit(install)
             current = state / "dotfiles" / "current"
             current.mkdir(parents=True)
             (current / "colors.gtk.css").write_text("@define-color color_00 #111111;\n")
             ags_colors = install / "config" / "ags" / "colors.css"
-            ags_colors.parent.mkdir(parents=True)
             runtime_target = current / "colors.gtk.css"
             ags_colors.symlink_to(runtime_target)
             # Stale pre-Epic-4 copy the role must not touch either way.
@@ -1121,7 +1027,14 @@ class TestDeployCoverageGate:
         assert result.returncode == 0, result.stdout + result.stderr
         assert "PASS" in result.stdout
 
-    def test_gate_fails_when_a_reachable_module_is_removed(self) -> None:
+    def test_gate_fails_when_a_stale_bar_entry_returns(self) -> None:
+        """Slice 2: a per-file bar entry in the skeleton list must FAIL. The
+        bar deploys WHOLE via the unit symlink, so any `dotfiles/config/ags/`
+        source would template INTO the unit tree through the live-bar link and
+        silently diverge the live bar from the pinned tag. Hermetic: a temp
+        root whose ags tree is symlinked and whose manifest is a modified copy
+        carrying one stale bar entry — plus both unit roles, which the gate
+        asserts."""
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1130,32 +1043,38 @@ class TestDeployCoverageGate:
                 repo_root / self._AGS, target_is_directory=True
             )
             vars_src = (repo_root / self._VARS).read_text()
-            # Remove a BAR-LOCAL entry that is reachable from app.tsx. The
-            # platform's own entries are gone (it is an external unit, AD-17),
-            # so the negative case must exercise the bar's coverage instead:
-            # bar/layout.default.ts is imported directly by bar/Bar.tsx.
-            removed_line = next(
+            # Smuggle a STALE per-file bar entry back into the manifest copy.
+            # bar/Bar.tsx is the composition root's first import — the
+            # archetypal entry the retired bridge used to carry.
+            rofi_line = next(
                 line
                 for line in vars_src.splitlines()
-                if "name: ags-bar-layout-default" in line
+                if "name: rofi-launcher-config-rasi" in line
+            )
+            stale_line = (
+                "  - { name: stale-bar-backdrop, "
+                "source: dotfiles/config/ags/bar/Bar.tsx, "
+                "dest: \"{{ compositor_configs_spine_config_dir }}/ags/bar/Bar.tsx\" }"
             )
             vars_dst = root / self._VARS
             vars_dst.parent.mkdir(parents=True)
-            vars_dst.write_text(vars_src.replace(removed_line + "\n", "", 1))
-            # The gate also asserts the platform provisioning role exists (the
-            # external unit + shortcut), so copy it into the temp root.
-            shutil.copytree(
-                repo_root / "src/provisioning/ansible/roles/ags_platform",
-                root / "src/provisioning/ansible/roles/ags_platform",
-            )
+            vars_dst.write_text(vars_src.replace(rofi_line, rofi_line + "\n" + stale_line, 1))
+            # The gate also asserts both unit roles exist (the platform unit +
+            # shared-ancestor shortcut, and the bar unit + live link), so copy
+            # them into the temp root.
+            for role in ("ags_platform", "ags_apps"):
+                shutil.copytree(
+                    repo_root / "src/provisioning/ansible/roles" / role,
+                    root / "src/provisioning/ansible/roles" / role,
+                )
 
             result = self._run(root)
             assert result.returncode != 0, (
-                "the gate must FAIL when a reachable module is not deployed; "
+                "the gate must FAIL when a stale per-file bar entry is listed; "
                 f"recap:\n{result.stdout}"
             )
-            assert "bar/layout.default.ts" in result.stdout, (
-                "the failure must name the undeployed reachable module; recap:\n"
+            assert "dotfiles/config/ags/bar/Bar.tsx" in result.stdout, (
+                "the failure must name the stale bar entry; recap:\n"
                 + result.stdout
             )
 
