@@ -1,9 +1,12 @@
-# Guide — AGS app repo topology (a discussion for refinement)
+# Guide — AGS app repo topology (DECIDED 2026-10-16)
 
-> **This is a discussion guide, not a spec.** It frames the options and the tensions so the
-> architect and the maintainer can *refine and decide* the app-repo topology **before** any of it
-> is built. Nothing below is a contract. Only §1 (the settled inputs) is fixed; everything else is
-> open. Run it in a fresh session — this guide is the entry point, not a decision.
+> **DECIDED 2026-10-16 (lane-4 advisory).** Topology is **three repos**:
+> `contracts → ags-platform → ags-apps` (monorepo, bar-first). Per-app repos are
+> **deferred** until the exit gate below. Design of record stays
+> `docs/101-ags-platform-architecture.md` §3 + `ARCHITECTURE-SPINE.md` (AD-1/17/20);
+> this guide and `docs/HANDOFF-ags-platform.md` §2 are pointers, not competing sources.
+>
+> Original discussion framing is preserved below for provenance. Only §1 + §7 are normative.
 
 ## 0. Why this guide exists
 
@@ -63,16 +66,30 @@ Candidate repos: `bar`, `notifications`, `capture-tool`, `hypr-pano` (the clipbo
 ## 5. References
 
 - `docs/101-ags-platform-architecture.md` §3 — topology + the dependency-direction rationale.
-- `docs/HANDOFF-ags-platform.md` §2/§4 — the provisional three-repo plan; the in-place-first and
+- `docs/HANDOFF-ags-platform.md` §2/§4 — the decided three-repo plan; the in-place-first and
   skew-tax cautions.
 - `_bmad-output/planning-artifacts/architecture/architecture-ags-platform-2026-10-09/ARCHITECTURE-SPINE.md`
   — AD-1 (dependency direction), AD-17 (distribution), AD-20 (sequencing); the Deferred list.
 - The per-repo ticket backlogs (`ags-apps/tickets/`, and each new repo's `tickets/`).
 
-## 6. How to run the refinement
+## 6. How the refinement ran (done 2026-10-16)
 
-1. **Fresh session**; read this guide + the references above.
-2. Run `bmad-architecture` (lane 4, bmad-advisory) to **pressure-test** the per-app-repo topology
-   against doc 101's skew-tax warning. This is a discussion — BMAD advises, it never auto-executes.
-3. **Refine → decide** the topology (per-app repos? which subset? the bar's timing?).
-4. **Then** plan it (OpenSpec changes + tickets) and execute — worktree-per-change, gates green.
+1. ~~Fresh session~~ — done; read this guide + refs in `ticket/apptopo-3repo-bar-first`.
+2. ~~Run `bmad-architecture` lane-4 pressure-test~~ — done (advisory, no auto-execute).
+   Outcome: 101 §3.1 skew-tax warning holds; freeze does not erase it yet.
+3. ~~Refine → decide~~ — done; see §7 below.
+4. Next: plan it (OpenSpec changes + tickets) and execute — worktree-per-change, gates green.
+
+## 7. Decision (2026-10-16 — normative)
+
+- **Stay at 3 repos now.** `ags-apps` holds all apps as folders (`bar/`,
+  `notifications/`, `capture-tool/`, `hypr-pano/`, `wallpaper-selector/`, `icme/`,
+  `btop-theme-studio/`). Rule AD-1 holds: apps → platform only.
+- **Bar first.** `ags-apps` starts with the bar as reference; migrate remaining apps one
+  at a time; delete redundant code last (`HANDOFF` §4.3).
+- **Why not 7 now:** 7× harness/CI/release cost with no CI template or repo-creation
+  script yet; platform surface not frozen (AD-6 codegen, AD-21 single manifest, AD-17
+  package boundary open); `dotfiles` N-unit install/rollback unsolved.
+- **Exit gate for a future per-app split:** AD-6 + AD-17 + AD-21 closed, `ags-bar-validate`
+  green in provisioning, and one pilot (candidate: `hypr-pano`, simplest) proves the
+  harness/install cost. Until then, independent lifecycles alone do not earn the tax.
