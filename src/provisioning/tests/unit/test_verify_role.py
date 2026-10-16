@@ -1140,6 +1140,52 @@ class TestVerifyTasks:
             "the empty-list guard must cover verify_ags_always_on_instances"
         )
 
+    def test_every_guarded_list_var_is_declared_non_empty(self) -> None:
+        """Every var named in the non-empty guard must itself be non-empty in
+        vars/main.yml.
+
+        The guard asserts `<list> | length > 0` for a hand-maintained set of
+        vars, so an emptied list is a two-sided defect: the guard FAILS at
+        provision time (an empty list is not > 0) and every count assert over
+        that list passes vacuously (0 == 0). The per-var tests above only cover
+        the vars someone remembered; this scans the guard's OWN membership, so
+        the next list a retirement empties (as `verify_consumer_symlinks` was
+        when the bar moved to a unit) fails here instead of at provision time.
+        """
+        import re
+
+        _clause = re.compile(r"\s*([A-Za-z_][A-Za-z0-9_]*)\s*\|\s*length\s*>\s*0\s*$")
+        matches = [
+            task
+            for task in _assert_tasks()
+            if "verify_system_binaries | length > 0" in str(_module(task).get("that", ""))
+        ]
+        assert len(matches) == 1, (
+            f"expected exactly one empty-list guard assert; found {len(matches)}"
+        )
+        that = _module(matches[0]).get("that")
+        assert isinstance(that, list), "the guard's `that` must be a list"
+        guarded: list[str] = []
+        unparsed: list[str] = []
+        for entry in that:
+            match = _clause.match(str(entry))
+            if match is None:
+                unparsed.append(str(entry))
+            else:
+                guarded.append(match.group(1))
+        assert not unparsed, (
+            "every guard entry must be a `<var> | length > 0` clause; could not "
+            f"parse: {unparsed}"
+        )
+        data = _vars()
+        empty = [name for name in guarded if not data.get(name)]
+        assert not empty, (
+            f"guarded list var(s) empty or undefined in vars/main.yml: {empty} — "
+            "the guard asserts non-empty, so a provision would abort and the "
+            "count asserts would pass vacuously; declare real entries or drop "
+            "the var from the guard"
+        )
+
     def test_probe_gate_invariant_bites_on_an_ungated_shell_task(self) -> None:
         """NEGATIVE lock: the widened probe-gate invariant must actually FIRE
         on a `shell` task.
@@ -1704,39 +1750,34 @@ class TestVerifyVars:
         assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts" in gui
 
     def test_verify_compositor_skeletons_cover_the_reachable_bar_sources(self) -> None:
-        """fix-deploy-bar-new-files: the sources reachable from app.tsx that the
-        platform work added but the deploy manifest missed must be asserted by
-        verify too. The two lists are maintained by hand and independently, so an
-        entry present in one but not the other is either a silent non-deploy or a
-        false failure. Pinned explicitly (mirror of
-        compositor_configs_skeleton_files), not derived, so the mirror cannot
-        drift silently."""
+        """ags-apps-bar-first slice 2 (AD-1/AD-17/AD-23): the bar is now ONE
+        versioned unit, NOT a per-file skeleton — so verify must mirror
+        compositor_configs' retirement and carry NO per-file `config/ags/*`
+        entry. A stale per-file entry here would assert files the bridge no
+        longer deploys (and the live-bar link makes them resolve INTO the
+        unit, so the mirror would silently pin the wrong shape). The bar's
+        sources are asserted as a unit by `verify_ags_apps_*` instead; the
+        only `config/ags` entries left are GENERATED artifacts that land
+        through the link (icons.json)."""
         data = _vars()
         skeletons = [str(f) for f in data["verify_compositor_skeleton_files"]]
-        for rel in (
-            "kit/shapes.ts",
-            "kit/surface.ts",
-            "kit/popup-host.tsx",
-            "kit/layout.ts",
-            "bar/layout.default.ts",
-            "bar/registry.ts",
-            # The platform is EXTERNAL (AD-17): it is NOT mirrored per file here;
-            # the ags_platform unit + shortcut are asserted separately.
-            "domains/network/astal.ts",
-            "domains/battery/read-model.ts",
-            "domains/battery/astal.ts",
-            "domains/bluetooth/read-model.ts",
-            "domains/bluetooth/astal.ts",
-            "domains/audio/read-model.ts",
-            "domains/audio/astal.ts",
-            "bar/widgets/bluetooth.tsx",
-            "components/bluetooth/BluetoothPopup.tsx",
-            "components/bluetooth/state.ts",
-            "settings-panel/views/SubviewHeader.tsx",
-        ):
-            assert f"{{{{ install_dir | trim }}}}/config/ags/{rel}" in skeletons, (
-                f"verify_compositor_skeleton_files must assert ags/{rel}"
-            )
+        per_file_bar = [
+            entry
+            for entry in skeletons
+            if "/config/ags/" in entry and not entry.endswith("/icons.json")
+        ]
+        assert per_file_bar == [], (
+            "verify_compositor_skeleton_files must not mirror per-file bar "
+            f"sources (the bar deploys WHOLE via the ags_apps unit): {per_file_bar}"
+        )
+        # The generated artifacts that DO land through the live-bar link stay
+        # asserted (both the bar's and the capture instance's manifest).
+        assert "{{ install_dir | trim }}/config/ags/icons.json" in skeletons
+        assert "{{ install_dir | trim }}/config/ags-capture/icons.json" in skeletons
+        # And the retired platform tree must not creep back in either.
+        assert not any("/config/ags/platform/" in entry for entry in skeletons), (
+            "the retired per-file platform tree must not be mirrored in verify"
+        )
 
     def test_vars_use_non_deprecated_env_fact(self) -> None:
         """F4 lock: vars read ansible_facts.env, never the deprecated top-level
@@ -1774,6 +1815,12 @@ class TestVerifyVars:
             "verify_ags_platform_unit_dir",
             "verify_ags_platform_pin_file",
             "verify_ags_platform_shortcut",
+            "verify_ags_apps_unit_dir",
+            "verify_ags_apps_bar_dir",
+            "verify_ags_apps_pin_file",
+            "verify_ags_apps_live_bar_link",
+            "verify_ags_apps_resolution_shortcut",
+            "verify_ags_apps_unit_files",
             "install_dir",
             "ansible_facts.env",
         )

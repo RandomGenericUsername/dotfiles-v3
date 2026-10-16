@@ -1,30 +1,40 @@
 #!/usr/bin/env python3
 """deploy-coverage -- every AGS source reachable from app.tsx must be deployed.
 
-WHY THIS GATE EXISTS. The AGS bar is deployed PER FILE: the `compositor_configs`
-role loops over `compositor_configs_skeleton_files` and copies each listed file
-into the install spine (`<install>/config/ags/...`). A file that the bar reaches
-through a relative import but that is NOT in that list is simply never copied --
-`copy` neither creates it nor warns -- so a fresh (or re-run) provision leaves
-the module absent, `ags bundle` cannot resolve the import, and the BAR window
-fails to start. This is the same failure shape the role's own audio comment
-records for `audio/composition.ts`, and it is exactly what happened when the bar
-re-architecture added `kit/icon-source.ts`, `kit/shapes.ts`, the `domains/*`
-read-model adapters, and the Bluetooth popup/state/widget sources: the sources
-landed, the manifest did not.
+WHY THIS GATE EXISTS. The AGS bar used to deploy PER FILE: the
+`compositor_configs` role looped over `compositor_configs_skeleton_files` and
+copied each listed file into the install spine (`<install>/config/ags/...`).
+A file that the bar reached through a relative import but that was NOT in that
+list was simply never copied -- `copy` neither creates it nor warns -- so a
+fresh (or re-run) provision left the module absent, `ags bundle` could not
+resolve the import, and the BAR window failed to start. That per-file hazard
+is gone: the bar now deploys WHOLE as one versioned unit (the `ags_apps`
+role symlinks the unit's bar/ subdir as the live <install>/config/ags), so no
+manifest can drift from the entry point's closure. The gate's job changed
+with it: instead of covering each reachable file, it asserts the bridge is
+RETIRED (no per-file bar entry may remain in the skeleton list — a stale one
+would template INTO the unit tree through the live-bar link and silently
+diverge the live bar from the pinned tag) and that the provisioning role
+installs the pinned unit, records the pin, deploys the live-bar link, and
+creates the per-unit resolution shortcut.
 
-A structural test that pins the manifest list cannot catch this class by itself:
-it asserts the list is what it is, not that the list COVERS what the entry point
-reaches. This gate derives the requirement from the source tree instead.
+A structural test that pins the remaining manifest list cannot catch a stale
+bar entry by itself: it asserts the list is what it is, not that the list
+contains no retired bridge source. This gate derives the requirement from the
+source tree instead.
 
 WHAT IT DOES.
-  (a) parses the deployed AGS set out of `compositor_configs_skeleton_files`
+  (a) parses the deployed non-bar set out of `compositor_configs_skeleton_files`
       (roles/compositor_configs/vars/main.yml) -- the single source of truth for
-      what a provision copies;
+      what a provision copies per file;
   (b) computes the RELATIVE-IMPORT closure of `dotfiles/config/ags/app.tsx` --
       the composition root AGS bundles -- following only relative specifiers
       (`./x`, `../x`) into files that participate in the bundle;
-  (c) FAILS, listing every reachable file that is not deployed.
+  (c) FAILS on any `dotfiles/config/ags/` source still listed per file (the
+      retired bridge), on any relative import traversing the retired
+      `platform/` dir, and unless the provisioning roles install the pinned
+      platform unit (shared-ancestor shortcut) AND the pinned bar unit
+      (live-bar link + per-unit resolution shortcut).
 
 WHAT IT DELIBERATELY DOES NOT FOLLOW. A relative import resolves only to a
 TS/TSX/ambient-declaration/CSS module. Generated artifacts (`icons.json`) are
@@ -35,21 +45,28 @@ file. Commented-out imports are ignored: a `//`-commented example in `app.tsx`
 naming `./audio/audio-panel.css` was picked up by an early version of this scan
 and is not a real dependency.
 
-THE PLATFORM IS EXTERNAL NOW. `ags-platform` and its subpaths are a BARE
-SPECIFIER resolved by AGS's embedded esbuild through a provisioning-created
-`node_modules` shortcut (spine AD-17), not a relative import into a deployed
-file. So it is outside this gate's closure — but NOT outside the gate's
-attention: the gate (a) refuses a relative import that still traverses the
-retired `platform/` dir, (b) asserts the in-place copy is gone, and (c) asserts
-the provisioning role installs the pinned unit and creates the shared-ancestor
-shortcut. A green run still means "every AGS module the entry point reaches
-RELATIVELY is deployed", and now also "the external unit it reaches BY NAME is
-provisioned".
+THE BAR IS EXTERNAL NOW. The bar's own sources live in the pinned ags-apps
+unit (`<install>/ags-apps/<tag>/bar/`), deployed whole via the live-bar
+symlink — so the reachable closure below is covered BY CONSTRUCTION, and the
+gate reports its size instead of diffing it against a manifest. The in-place
+`dotfiles/config/ags/` tree remains the dev/typecheck/test source (the
+bridge), and the closure still guards it: a relative import into the retired
+in-place `platform/` dir is REJECTED loudly.
+
+THE PLATFORM IS EXTERNAL TOO. `ags-platform` and its subpaths are a BARE
+SPECIFIER resolved by AGS's embedded esbuild through provisioning-created
+`node_modules` shortcuts (spine AD-17): the shared-ancestor shortcut for
+every config tree, plus the per-unit shortcut inside the bar unit (esbuild
+realpaths the live-bar link, so the shared ancestor is not an ancestor of
+the real bar tree). The gate asserts the provisioning role installs the
+pinned unit and creates the shared-ancestor shortcut, and the bar role
+creates the per-unit one. A green run means "the retired bridge is gone and
+both external units the bar needs are provisioned".
 
 Usage: ``python3 scripts/deploy-coverage.py [--root REPO_ROOT]``
-Exit 0 = every reachable AGS module is registered for deployment.
-Exit 1 = one or more reachable modules are not deployed (listed), or an input is
-         missing/unreadable.
+Exit 0 = the bridge is retired and both units are provisioned.
+Exit 1 = a stale per-file bar entry remains, a retired-dir import exists, a
+         unit is not provisioned, or an input is missing/unreadable.
 
 PyYAML is imported and if it is unavailable this gate FAILS rather than
 skipping: the manifest is parsed as YAML, not line-mangled. Run it through the
@@ -93,6 +110,13 @@ PLATFORM_ROLE_TASKS = "src/provisioning/ansible/roles/ags_platform/tasks/main.ym
 # is deleted by this change; a surviving relative import into it would resolve
 # to nothing and be silently skipped by `_resolve`, so it is REJECTED loudly.
 RETIRED_PLATFORM_DIR = "dotfiles/config/ags/platform"
+
+# The bar unit role (ags-apps-bar-first slice 2, AD-1/AD-17/AD-23): the mirror
+# of the platform constants above. The unit is the monorepo checkout at the
+# pinned tag; the deployed bar is its bar/ subdir.
+BAR_PACKAGE = "ags-apps"
+BAR_ROLE_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
+BAR_ROLE_TASKS = "src/provisioning/ansible/roles/ags_apps/tasks/main.yml"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -289,6 +313,133 @@ def assert_platform_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_per_file_bar_skeletons(deployed: set[str]) -> None:
+    """The bridge is retired: no per-file bar entry may remain in the manifest.
+
+    `deployed` holds the manifest's bar-bridge sources (AGS-relative paths).
+    Every one of them would template INTO the unit tree through the live-bar
+    link — a stale entry silently diverges the live bar from the pinned tag
+    on every provision — so the set must be EMPTY.
+    """
+    if deployed:
+        stale = sorted(deployed)
+        raise ValueError(
+            f"the bar deploys WHOLE via the ags_apps unit symlink, but "
+            f"{len(stale)} per-file bar source(s) remain in "
+            f"compositor_configs_skeleton_files: dotfiles/config/ags/{stale[0]}"
+            + (f" (+{len(stale) - 1} more)" if len(stale) > 1 else "")
+            + " — delete them; the bridge is retired as a deploy source"
+        )
+
+
+def assert_bar_provisioning(root: Path) -> None:
+    """The external bar unit + live link + resolution shortcut must be provisioned.
+
+    The live bar IS the pinned unit's bar/ subdir (no per-file copy can drift),
+    so the gate cannot diff a manifest against the closure — instead it asserts
+    the SHAPE of the provisioning that deploys it whole (mirror of
+    assert_platform_provisioning):
+    - the ags_apps role declares the unit (repo URL + tag pin),
+    - the unit is versioned by directory under <install>/ags-apps/,
+    - the bar subdir (the monorepo deviation) names the package,
+    - the live-bar link deploys it at <install>/config/ags,
+    - the per-unit node_modules shortcut resolves the bar's own
+      bare-specifier platform imports (esbuild realpaths the live-bar link,
+      so the shared-ancestor shortcut is not an ancestor of the real tree).
+    """
+    import yaml
+
+    vars_path = root / BAR_ROLE_VARS
+    tasks_path = root / BAR_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the bar deploys as the external {BAR_PACKAGE!r} unit but "
+            f"no provisioning role declares it: {BAR_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the bar role has no tasks to install the unit: {BAR_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{BAR_ROLE_VARS} did not parse to a mapping")
+
+    version = data.get("ags_apps_version")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError(
+            f"{BAR_ROLE_VARS} does not pin ags_apps_version — the unit "
+            f"must be versioned by directory (spine AD-23)"
+        )
+    if not str(version).startswith("bar-"):
+        raise ValueError(
+            f"ags_apps_version {version!r} names no bar release — tags are "
+            f"per-app releases (e.g. bar-v0.1.0); got {version!r}"
+        )
+
+    install_root = str(data.get("ags_apps_install_root", ""))
+    if not ("install_dir" in install_root and "ags-apps" in install_root):
+        raise ValueError(
+            f"ags_apps_install_root must be <install>/ags-apps; got "
+            f"{install_root!r}"
+        )
+
+    unit = str(data.get("ags_apps_unit_dir", ""))
+    if "ags_apps_version" not in unit:
+        raise ValueError(
+            f"ags_apps_unit_dir must version the unit by directory "
+            f"(ags_apps_version); got {unit!r}"
+        )
+
+    bar_dir = str(data.get("ags_apps_bar_dir", ""))
+    if not bar_dir.endswith("/bar"):
+        raise ValueError(
+            f"ags_apps_bar_dir must be the unit's bar/ subdir (the monorepo "
+            f"deviation — the repo root is not the package); got {bar_dir!r}"
+        )
+
+    live = str(data.get("ags_apps_live_bar_link", ""))
+    # Shape, not the exact Jinja string: the link routes through the spine
+    # config dir intermediate (an implementation detail) and names `ags`.
+    if "spine_config_dir" not in live or not live.endswith("/ags"):
+        raise ValueError(
+            f"ags_apps_live_bar_link must deploy the unit as the live "
+            f"<install>/config/ags; got {live!r}"
+        )
+
+    resolution_dir = str(data.get("ags_apps_resolution_dir", ""))
+    if "node_modules" not in resolution_dir:
+        raise ValueError(
+            f"ags_apps_resolution_dir must be a node_modules dir; got "
+            f"{resolution_dir!r}"
+        )
+    resolution = str(data.get("ags_apps_resolution_shortcut", ""))
+    # Shape, not the exact Jinja string: the shortcut routes through the
+    # resolution-dir intermediate and names `ags-platform`.
+    if "ags_apps_resolution_dir" not in resolution or not resolution.endswith(
+        "/ags-platform"
+    ):
+        raise ValueError(
+            f"ags_apps_resolution_shortcut must be a per-unit node_modules "
+            f"shortcut named `ags-platform` so the realpathed bar resolves "
+            f"the bare specifier; got {resolution!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if "ags_apps_unit_dir" not in tasks or "ags_apps_repo_url" not in tasks:
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not clone the pinned unit into ags_apps_unit_dir"
+        )
+    if "ags_apps_live_bar_link" not in tasks:
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not deploy the live-bar link"
+        )
+    if "ags_apps_resolution_shortcut" not in tasks:
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not create the per-unit resolution shortcut"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="reachable AGS modules are deployed")
     ap.add_argument("--root", default=None, help="repo root (default: parent of scripts/)")
@@ -306,52 +457,47 @@ def main() -> int:
     try:
         deployed = parse_deployed_ags_sources(vars_path.read_text())
         closure = relative_import_closure(ags_dir)
-        # The in-place copy is gone: assert the tree really has no platform dir,
-        # so a re-introduced relative import cannot pass by pointing at a file
-        # that still happens to exist.
+        # The in-place platform copy is gone: assert the tree really has no
+        # platform dir, so a re-introduced relative import cannot pass by
+        # pointing at a file that still happens to exist.
         if (root / RETIRED_PLATFORM_DIR).exists():
             raise ValueError(
                 f"the retired in-place platform copy still exists at "
                 f"{RETIRED_PLATFORM_DIR}/ — the bar must consume the external "
                 f"unit (spine AD-17), not a vendored copy"
             )
+        # The bar bridge is retired: the skeleton list must carry no per-file
+        # bar source (a stale one templates into the unit tree through the
+        # live-bar link). The remaining `deployed` entries are non-bar
+        # skeletons (hypr/hyprpaper/rofi) — reported, not diffed.
+        assert_no_per_file_bar_skeletons(deployed)
         assert_platform_provisioning(root)
+        assert_bar_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
 
     reachable = {path.relative_to(ags_dir).as_posix() for path in closure}
-    missing = sorted(reachable - deployed)
 
     print(
         f"deploy-coverage: reachable AGS modules from {AGS_DIR}/{ENTRY}: "
-        f"{len(reachable)}"
+        f"{len(reachable)} (deployed WHOLE via the {BAR_PACKAGE!r} unit symlink "
+        f"— covered by the unit assertion below, not diffed per file)"
     )
-    print(f"deploy-coverage: deployed AGS sources in the manifest: {len(deployed)}")
+    print(f"deploy-coverage: per-file non-bar sources in the manifest: {len(deployed)}")
     print(
         f"deploy-coverage: external bare specifier {PLATFORM_PACKAGE!r} — unit + "
         f"shared-ancestor shortcut provisioned (not a per-file deploy)"
     )
-
-    if missing:
-        print(
-            f"deploy-coverage: FAIL -- {len(missing)} reachable module(s) not "
-            f"registered in compositor_configs_skeleton_files:"
-        )
-        for rel in missing:
-            print(f"  - {AGS_DIR}/{rel}")
-        print(
-            "  A provision copies ONLY the registered files, so each one above is "
-            "absent from a fresh/re-run install and `ags bundle` cannot resolve "
-            "its import -- the bar fails to start. Add each to "
-            f"`compositor_configs_skeleton_files` in {VARS_FILE} (and mirror it in "
-            "the verify role's `verify_compositor_skeleton_files`)."
-        )
-        return 1
+    print(
+        f"deploy-coverage: external bar unit {BAR_PACKAGE!r} — pinned unit + "
+        f"live-bar link + per-unit resolution shortcut provisioned "
+        f"(not a per-file deploy)"
+    )
 
     print(
-        "deploy-coverage: PASS -- every AGS module reachable from app.tsx is "
-        "registered for deployment"
+        "deploy-coverage: PASS -- the retired bar bridge carries no per-file "
+        "deploy source and both external units are provisioned"
     )
     return 0
 

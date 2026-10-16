@@ -5,7 +5,7 @@
 #
 # Dependency order rationale (plan §11 step 7, story 2.12 AC 4, Epic 4):
 #   packages → cli_tools → filesystem → assets →
-#   compositor_configs → ags_platform → gui_tools → config_copies → settings → zsh_tools → zsh_config →
+#   ags_platform → ags_apps → compositor_configs → gui_tools → config_copies → settings → zsh_tools → zsh_config →
 #   wlogout_config → kitty_config → btop_config → config_links → runtime-seed → display_manager →
 #   gloview-plugin → verify
 # `packages` first (it installs the system packages everything else assumes),
@@ -61,14 +61,17 @@
 - import_playbook: runtime-clipboard.yaml
 - import_playbook: filesystem.yaml
 - import_playbook: assets.yaml
-- import_playbook: compositor-configs.yaml
-# ags-platform right after compositor-configs: the bar's skeleton placement
-# (compositor-configs) no longer carries the platform, and the platform role
-# creates the shared-ancestor shortcut under <install>/config/node_modules —
-# the config root compositor-configs just ensured. It must precede gui-tools
-# only in the sense that the config root exists; the apps resolve the shortcut
-# at session start, not during provisioning.
+# Units first, then the configs that consume them: the ags_platform role
+# installs the platform unit and creates the shared-ancestor shortcut under
+# <install>/config/node_modules; the ags_apps role installs the bar unit,
+# creates the per-unit resolution shortcut, and deploys the unit's bar/ as
+# the live <install>/config/ags link. compositor_configs runs AFTER both, so
+# it can generate icons.json THROUGH the live-bar link into the unit tree and
+# run the unit's own `ags-bar-validate` CLI as the strict install gate. The
+# bar's apps resolve the shortcuts at session start, not during provisioning.
 - import_playbook: ags-platform.yaml
+- import_playbook: ags-apps.yaml
+- import_playbook: compositor-configs.yaml
 - import_playbook: gui-tools.yaml
 - import_playbook: config-copies.yaml
 - import_playbook: settings.yaml

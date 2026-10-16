@@ -49,8 +49,9 @@ _EXPECTED_ORDER = [
     "runtime-clipboard.yaml",
     "filesystem.yaml",
     "assets.yaml",
-    "compositor-configs.yaml",
     "ags-platform.yaml",
+    "ags-apps.yaml",
+    "compositor-configs.yaml",
     "gui-tools.yaml",
     "config-copies.yaml",
     "settings.yaml",
@@ -77,15 +78,16 @@ class TestBootstrapPlaybook:
     _PATH = _PLAYBOOKS_DIR / "bootstrap.yaml"
 
     def test_parses_as_list_of_import_playbook_entries(self) -> None:
-        """The aggregate is a top-level list of exactly twenty-one
+        """The aggregate is a top-level list of exactly twenty-two
         `import_playbook` statements (one per per-role playbook + the
         runtime-seed step + the gloview-plugin lifecycle + the gui-tools apps +
         the P5-1-1 runtime-daemon unit + the runtime-clipboard unit + the
         kitty-config and btop-config renders + the ags-platform unit install
-        (AD-17/AD-23))."""
+        (AD-17/AD-23) + the ags-apps bar unit install and live-bar deploy
+        (AD-1/AD-17/AD-23))."""
         imports = _load_imports()
-        assert len(imports) == 21, (
-            f"bootstrap.yaml must import exactly 21 playbooks; found {len(imports)}"
+        assert len(imports) == 22, (
+            f"bootstrap.yaml must import exactly 22 playbooks; found {len(imports)}"
         )
         for entry in imports:
             assert "import_playbook" in entry, (
@@ -93,16 +95,18 @@ class TestBootstrapPlaybook:
             )
 
     def test_imports_in_exact_dependency_order(self) -> None:
-        """AC 4: the twenty-one imports appear in the EXACT dependency order —
+        """AC 4: the twenty-two imports appear in the EXACT dependency order —
         packages → cli-tools → runtime-daemon → runtime-clipboard → filesystem →
-        assets → compositor-configs → ags-platform → gui-tools → config-copies →
-        settings → zsh-tools → zsh-config → wlogout-config → kitty-config →
-        btop-config → config-links → runtime-seed → display-manager →
-        gloview-plugin → verify (Epic 4: no default-palette/icons). btop-config
-        MUST precede config-links: the role writes <install>/config/btop/, the
-        links role exposes it at ~/.config/btop. ags-platform MUST follow
-        compositor-configs: it creates the shortcut under <install>/config/
-        node_modules, the config root compositor-configs ensures."""
+        assets → ags-platform → ags-apps → compositor-configs → gui-tools →
+        config-copies → settings → zsh-tools → zsh-config → wlogout-config →
+        kitty-config → btop-config → config-links → runtime-seed →
+        display-manager → gloview-plugin → verify (Epic 4: no default-palette/icons).
+        btop-config MUST precede config-links: the role writes
+        <install>/config/btop/, the links role exposes it at ~/.config/btop.
+        Units install before the configs that consume them: ags-platform and
+        ags-apps MUST precede compositor-configs, which generates icons.json
+        THROUGH the live-bar link and runs the unit's `ags-bar-validate` CLI
+        as the strict gate."""
         order = [str(entry["import_playbook"]) for entry in _load_imports()]
         assert order == _EXPECTED_ORDER, (
             f"bootstrap.yaml import order must be {_EXPECTED_ORDER}; got {order}"

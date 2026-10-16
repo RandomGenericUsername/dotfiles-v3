@@ -1,6 +1,11 @@
 # Compositor configs role (Story 2.9 / AGS-for-Waybar swap 2026-08-18,
 # Epic 4 single-source) — places the static skeletons from
-# dotfiles/config/{hypr,hyprpaper,ags}/ into the config-in-spine dirs.
+# dotfiles/config/{hypr,hyprpaper,rofi}/ into the config-in-spine dirs.
+# The AGS bar is NOT placed here: the `ags_apps` role installs it as ONE
+# versioned unit and deploys it as the live <install>/config/ags symlink
+# (ags-apps-bar-first slice 2, AD-17). This role still GENERATES the bar's
+# icons.json through that link and runs the unit's `ags-bar-validate` CLI as
+# the strict install gate, so it runs AFTER ags-apps in bootstrap order.
 # Palette fragments are NOT copied here: the runtime seeder owns the
 # consumer palette paths (R2 symlinks → current/, rt-4-2) and
 # `wallpaper set` keeps them current (FR-19, chaining-spine.md).
@@ -136,19 +141,19 @@
     state: absent
   when: not ansible_check_mode
 
-- name: Remove legacy settings-panel services dir (moved to ags/services)
-  ansible.builtin.file:
-    path: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/services"
-    state: absent
-  when: not ansible_check_mode
-
 # The `ags-bar-validate` strict install gate (spine AD-15;
 # ags-bar-validation task 2.1): run the deployed validator over the DEPLOYED
 # artifacts and fail the install on any rule error. Placement is LAST on
 # purpose — the gate reads the deployed `validate-cli.ts` + `icons.json`, so
-# it must run after BOTH the manifest generation above and the skeleton
-# placement (which deploys the CLI): a gate placed earlier would validate a
-# missing or stale CLI.
+# it must run after the manifest generation above AND after the `ags_apps`
+# role deploys the live bar: the CLI it runs is the UNIT's own
+# (<install>/config/ags is the live-bar symlink into the pinned
+# <install>/ags-apps/<tag>/bar/), and the icons.json it validates is the one
+# just generated through that same link. Bootstrap order guarantees the unit
+# is installed first (ags-apps.yaml precedes compositor-configs.yaml); a
+# direct compositor-configs.yaml run without the unit fails the gate on the
+# missing CLI, which is the honest outcome. A gate placed earlier would
+# validate a missing or stale CLI.
 #
 # Design (mirrors the role's existing check-gating, but STRICT):
 # - There is NO `bar.json` in the repo today (no user/runtime layout override
@@ -175,8 +180,35 @@
 #   the same runner `make ags-test` hard-requires on PATH). If node is absent
 #   the task fails with ansible's "Failed to find required executable", which
 #   is the honest outcome: the install cannot prove the bar artifacts valid.
+# - REALPATH, not the live-bar link: node resolves a module's own URL to its
+#   REAL path (`import.meta.url`) but leaves `process.argv[1]` as the path it
+#   was handed. The deployed CLI's `invokedAsMain` guard compares the two
+#   (`resolve(process.argv[1]) === join(HERE, "validate-cli.ts")`), so invoking
+#   it through the <install>/config/ags SYMLINK makes the guard FALSE: the CLI
+#   no-ops, exits 0, and the "strict" gate would pass WITHOUT validating
+#   anything. (Regression-guarded by
+#   test_gate_fails_the_install_on_a_bad_icons_artifact, which failed exactly
+#   this way before the resolution task below.) The command therefore runs
+#   `node` on the `readlink -f`-resolved path — the unit's own file — so the
+#   guard matches and a bad artifact actually fails the install.
+- name: Resolve the deployed bar validator's real path
+  ansible.builtin.command:
+    argv:
+      - readlink
+      - -f
+      - "{{ compositor_configs_spine_config_dir }}/ags/bar/validate-cli.ts"
+  register: compositor_configs_bar_validate_cli
+  changed_when: false
+  when: not ansible_check_mode
+
 - name: Validate the deployed bar artifacts (strict install gate)
   ansible.builtin.command:
-    cmd: "node {{ compositor_configs_spine_config_dir }}/ags/bar/validate-cli.ts --icons {{ compositor_configs_icon_manifest_dest }} --expect-schema-version {{ compositor_configs_icon_manifest_schema_version }}"
+    argv:
+      - node
+      - "{{ compositor_configs_bar_validate_cli.stdout }}"
+      - --icons
+      - "{{ compositor_configs_icon_manifest_dest }}"
+      - --expect-schema-version
+      - "{{ compositor_configs_icon_manifest_schema_version }}"
   changed_when: false
   when: not ansible_check_mode

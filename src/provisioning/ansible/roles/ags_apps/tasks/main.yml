@@ -1,0 +1,197 @@
+# ags-apps role tasks (spine AD-1/AD-17/AD-23) — install the AGS bar as one
+# versioned unit, resolve its platform imports, and deploy it as the live bar.
+#
+# Design (dedicated role — single responsibility: provision the bar unit):
+# - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
+#   from the sibling roles (install_dir is deliberately never defaulted in
+#   group_vars/all.yml, so an undefined spine root must abort before any task
+#   evaluates).
+# - The clone is presence-guarded: a `stat` on the unit's bar/app.tsx registers
+#   existence and the git clone runs `when: not exists and not
+#   ansible_check_mode` (the git module has no `creates:` — mirror of the
+#   zsh_tools role). The clone is SHALLOW (`depth: 1`) and ANONYMOUS HTTPS: the
+#   repo is public, so no `gh` credential helper is needed.
+# - The clone's `.git` is REMOVED: the unit is deployed as a source tree, not a
+#   working copy (a stray `.git` under the install spine is neither useful nor
+#   wanted). Removal is idempotent (absent -> no change) and runs after a clone.
+# - The pin is RECORDED in a one-line file (ags_apps_pin_file) so the installed
+#   tag is observable on the host and assertable by `verify`.
+# - The resolution shortcut is a per-unit symlink (<unit>/node_modules/
+#   ags-platform -> the pinned platform unit). `force: true` makes a repoint
+#   converge in one run. It MUST live inside the unit: esbuild realpaths the
+#   live-bar symlink, so the shared-ancestor shortcut under <install>/config/
+#   is not an ancestor of the real bar tree (see vars/main.yml).
+# - The live bar is a symlink (<install>/config/ags -> <unit>/bar/).
+#   Upgrading from the old per-file bridge displaces a REAL dir: an empty one
+#   (fresh spine, created by the filesystem role) is removed; a non-empty one
+#   (the legacy bridge) is moved aside to a timestamped backup — NEVER deleted.
+#   Ordering is pinned seed -> backup -> symlink (mirror of the config_links
+#   role's gtk handling): the runtime-owned colors.css consumer pointer is
+#   seeded INTO the unit bar BEFORE the move, so a seed failure aborts while
+#   the legacy dir is still intact and the bar never loses its palette between
+#   provision and the next seed. The generated icons.json needs no seed: the
+#   compositor_configs role regenerates it through the new link on the SAME
+#   run (it runs after this role in bootstrap order).
+# - User-scoped privilege context: NO become (everything lands under the user's
+#   install_dir).
+# - Distro-agnostic: a git clone + symlinks are identical on Arch and
+#   Debian-family.
+# - --check cleanliness: the `command`/`git`/`cp`/`mv` mutations are
+#   check-gated; `stat`/`find`/`file` support check mode, so bootstrap.yaml
+#   --check stays dry.
+
+- name: Assert install_dir seam is provided
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the ags_apps role requires the
+      install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+
+- name: Ensure the ags-apps install root exists
+  ansible.builtin.file:
+    path: "{{ ags_apps_install_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Check whether the pinned ags-apps unit is already installed
+  ansible.builtin.stat:
+    path: "{{ ags_apps_unit_marker }}"
+  register: ags_apps_unit_check
+
+- name: Clone the pinned ags-apps unit (shallow, anonymous HTTPS)
+  ansible.builtin.git:
+    repo: "{{ ags_apps_repo_url }}"
+    dest: "{{ ags_apps_unit_dir }}"
+    version: "{{ ags_apps_version }}"
+    depth: 1
+    single_branch: true
+  register: ags_apps_clone
+  retries: 3
+  delay: 5
+  until: ags_apps_clone is succeeded
+  when:
+    - not ansible_check_mode
+    - not ags_apps_unit_check.stat.exists
+
+- name: Remove the clone's .git (deploy the unit as a source tree, not a checkout)
+  ansible.builtin.file:
+    path: "{{ ags_apps_unit_dir }}/.git"
+    state: absent
+  when: not ansible_check_mode
+
+- name: Record the pinned bar version
+  ansible.builtin.copy:
+    content: "{{ ags_apps_version }}\n"
+    dest: "{{ ags_apps_pin_file }}"
+    mode: "0644"
+    force: true
+
+- name: Ensure the spine config root exists for the live-bar link
+  ansible.builtin.file:
+    path: "{{ ags_apps_spine_config_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Ensure the per-unit node_modules dir exists
+  ansible.builtin.file:
+    path: "{{ ags_apps_resolution_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Point the per-unit resolution shortcut at the pinned platform unit
+  ansible.builtin.file:
+    src: "{{ ags_apps_platform_unit_dir }}"
+    dest: "{{ ags_apps_resolution_shortcut }}"
+    state: link
+    force: true
+
+- name: Check whether the live-bar path already exists
+  ansible.builtin.stat:
+    path: "{{ ags_apps_live_bar_link }}"
+    follow: false
+  register: ags_apps_live_bar_check
+
+- name: List the live-bar path's children when it is a real dir
+  ansible.builtin.find:
+    paths:
+      - "{{ ags_apps_live_bar_link }}"
+    file_type: any
+    hidden: true
+  register: ags_apps_live_bar_children
+  when:
+    - ags_apps_live_bar_check.stat.exists
+    - not ags_apps_live_bar_check.stat.islnk | default(false)
+
+- name: Check whether the legacy bridge carries the runtime colors.css pointer
+  ansible.builtin.stat:
+    path: "{{ ags_apps_live_bar_link }}/colors.css"
+    follow: false
+  register: ags_apps_legacy_colors_check
+  when:
+    - ags_apps_live_bar_check.stat.exists
+    - not ags_apps_live_bar_check.stat.islnk | default(false)
+
+- name: Remove the live-bar path when it is an empty real dir
+  ansible.builtin.file:
+    path: "{{ ags_apps_live_bar_link }}"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_bar_check.stat.exists
+    - not ags_apps_live_bar_check.stat.islnk | default(false)
+    - ags_apps_live_bar_children.matched | default(0) == 0
+
+- name: Seed the runtime colors.css pointer into the unit bar before the move
+  ansible.builtin.command:
+    argv:
+      - cp
+      - -a
+      - "{{ ags_apps_live_bar_link }}/colors.css"
+      - "{{ ags_apps_bar_dir }}/colors.css"
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_bar_check.stat.exists
+    - not ags_apps_live_bar_check.stat.islnk | default(false)
+    - (ags_apps_live_bar_children.matched | default(0)) != 0
+    - ags_apps_legacy_colors_check.stat is defined
+    - ags_apps_legacy_colors_check.stat.exists
+
+- name: Determine the legacy-bridge backup path for this run
+  ansible.builtin.set_fact:
+    ags_apps_backup_path: "{{ ags_apps_backup_root }}/{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}"
+  when:
+    - ags_apps_live_bar_check.stat.exists
+    - not ags_apps_live_bar_check.stat.islnk | default(false)
+    - (ags_apps_live_bar_children.matched | default(0)) != 0
+
+- name: Ensure the bridge-backup root exists
+  ansible.builtin.file:
+    path: "{{ ags_apps_backup_root }}"
+    state: directory
+    mode: "0755"
+  when:
+    - ags_apps_live_bar_check.stat.exists
+    - not ags_apps_live_bar_check.stat.islnk | default(false)
+    - (ags_apps_live_bar_children.matched | default(0)) != 0
+
+- name: Move aside a non-empty legacy bridge dir blocking the live-bar link
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ ags_apps_live_bar_link }}"
+      - "{{ ags_apps_backup_path }}"
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_bar_check.stat.exists
+    - not ags_apps_live_bar_check.stat.islnk | default(false)
+    - (ags_apps_live_bar_children.matched | default(0)) != 0
+
+- name: Deploy the unit's bar as the live bar
+  ansible.builtin.file:
+    src: "{{ ags_apps_bar_dir }}"
+    dest: "{{ ags_apps_live_bar_link }}"
+    state: link
+    force: true
