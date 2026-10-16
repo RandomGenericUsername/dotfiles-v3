@@ -1,5 +1,5 @@
 import { execAsync } from "ags/process"
-import { registry } from "../../platform/adapters/icon-registry"
+import { registry } from "ags-platform/adapters/icon-registry"
 import { close } from "../state"
 
 /**

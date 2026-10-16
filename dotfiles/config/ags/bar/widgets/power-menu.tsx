@@ -1,6 +1,6 @@
 import { execAsync } from "ags/process"
 import type { BarWidgetSpec } from "../../kit/widget"
-import { iconByStateKey } from "../../platform/adapters/icon"
+import { iconByStateKey } from "ags-platform/adapters/icon"
 
 /**
  * Status-bar power menu launcher, expressed as a widget descriptor.

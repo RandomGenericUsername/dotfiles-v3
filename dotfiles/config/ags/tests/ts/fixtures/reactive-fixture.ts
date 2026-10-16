@@ -1,4 +1,4 @@
-import type { ReadAccessor, ReactiveRuntime, Setter } from "../../../platform/ports/reactive.ts"
+import type { ReadAccessor, ReactiveRuntime, Setter } from "ags-platform/ports/reactive"
 
 /**
  * A minimal, PURE `ReactiveRuntime` for the domain-read-model suites.

@@ -1,4 +1,4 @@
-import type { ReadAccessor, ReactiveRuntime } from "../../platform/ports/reactive"
+import type { ReadAccessor, ReactiveRuntime } from "ags-platform/ports/reactive"
 
 /**
  * The battery domain's read model: an AstalBattery-shaped service → a reactive

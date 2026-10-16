@@ -24,6 +24,14 @@ __pycache__/
 # TypeScript itself, installed with `npm install --no-save typescript` so that
 # `npx tsc` resolves from the tool directory without a package.json.
 /node_modules/
+# The dev-time ags-platform checkout `make ags-platform-dev` fetches on demand
+# (pinned, shallow, anonymous). It is the target of the dev
+# `dotfiles/config/ags/node_modules/ags-platform` shortcut. Deliberately OUTSIDE
+# node_modules: Node refuses to type-strip `.ts` under a real node_modules dir,
+# but realpaths a symlink, so the checkout must live here. A committed copy of
+# the consumed unit would defeat AD-17 (consume the published unit, not a
+# vendored one).
+/.dev/
 # @types/node, for the domain unit tests' node:test / node:assert. `make
 # capture-test` installs it HERE, on demand, under tests/ and nowhere else (see
 # the capture-test-deps target). The location is load-bearing in two independent

@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates per-app-drift-symbol-suites
+.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-test ags-test-deps ags-platform-dev capture-hexagonal-gate bar-typecheck dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help audio-mock-parity ags-typecheck audio-core-test audio-presentation-test pipewire-adapter-test audio-session-runtime-test audio-panel-render-test audio-icons-test audio-seek-stability-test audio-panel-gates per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -322,7 +322,7 @@ ags-test-deps:
 # ags-test-deps, that is a FAILURE and this target exits non-zero. A test gate
 # that skips when its toolchain is missing is indistinguishable, in CI, from a
 # test gate that passes -- and the first is how a suite silently stops running.
-ags-test: ags-test-deps
+ags-test: ags-platform-dev ags-test-deps
 	@command -v node >/dev/null || { echo "FAIL: ags-test: node is not on PATH" >&2; exit 1; }
 	@command -v npx  >/dev/null || { echo "FAIL: ags-test: npx is not on PATH" >&2;  exit 1; }
 	@[ -x node_modules/.bin/tsc ] || { echo "FAIL: ags-test: typescript missing after ags-test-deps" >&2; exit 1; }
@@ -386,6 +386,52 @@ capture-hexagonal-gate:
 	python3 scripts/capture-hexagonal-gate.py
 
 BAR_DIR := dotfiles/config/ags
+
+# ---------------------------------------------------------------------------
+# ags-platform-dev -- the dev-time `node_modules/ags-platform` shortcut.
+#
+# WHY THIS EXISTS. The bar consumes the platform by the BARE SPECIFIER
+# `ags-platform` (spine AD-17). AGS's embedded esbuild resolves it at bundle/run
+# time through a `node_modules` shortcut; the deployed install creates one at
+# <install>/config/node_modules/ags-platform (provisioning role `ags_platform`).
+# The DEV tree needs the same shortcut so the typecheck gates (bar-typecheck,
+# ags-typecheck) and the pure test suite (ags-test) resolve the specifier in the
+# repo. It mirrors the existing `ags`/`gnim` dev aliases those targets create.
+#
+# IT MUST POINT OUTSIDE node_modules. Node refuses to type-strip `.ts` under a
+# real `node_modules` directory (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING),
+# which is why the platform's OWN tests import relatively (see the ags-platform
+# repo). Node realpaths a SYMLINK, though, so a link whose target sits outside
+# node_modules type-strips fine -- verified: `ags-test` runs the bar's pure
+# suite through this link with `node --test`.
+#
+# THE SOURCE. Default: the pinned published unit, fetched shallow+anonymous into
+# the gitignored $(AGS_PLATFORM_FETCH_DIR) on demand -- the same
+# "declare the dependency, fetch it on demand" shape as the typescript and
+# @types/node installs. Override AGS_PLATFORM_DEV=/path/to/ags-platform to test
+# against a local checkout while iterating on the platform itself.
+AGS_PLATFORM_VERSION := v0.1.0
+AGS_PLATFORM_REPO := https://github.com/RandomGenericUsername/ags-platform.git
+AGS_PLATFORM_DEV ?=
+AGS_PLATFORM_FETCH_DIR := $(CURDIR)/.dev/ags-platform/$(AGS_PLATFORM_VERSION)
+AGS_PLATFORM_SRC := $(if $(AGS_PLATFORM_DEV),$(AGS_PLATFORM_DEV),$(AGS_PLATFORM_FETCH_DIR))
+
+ags-platform-dev:
+	@if [ -n "$(AGS_PLATFORM_DEV)" ] && [ ! -f "$(AGS_PLATFORM_DEV)/index.ts" ]; then \
+		echo "FAIL: ags-platform-dev: AGS_PLATFORM_DEV=$(AGS_PLATFORM_DEV) has no index.ts" >&2; \
+		exit 1; \
+	fi
+	@if [ -z "$(AGS_PLATFORM_DEV)" ] && [ ! -f "$(AGS_PLATFORM_FETCH_DIR)/index.ts" ]; then \
+		echo "==> ags-platform-dev: fetching ags-platform $(AGS_PLATFORM_VERSION) (shallow, anonymous HTTPS)"; \
+		rm -rf "$(AGS_PLATFORM_FETCH_DIR)"; \
+		mkdir -p "$$(dirname '$(AGS_PLATFORM_FETCH_DIR)')"; \
+		git clone --depth 1 --branch $(AGS_PLATFORM_VERSION) $(AGS_PLATFORM_REPO) "$(AGS_PLATFORM_FETCH_DIR)" || exit 1; \
+		rm -rf "$(AGS_PLATFORM_FETCH_DIR)/.git"; \
+	fi
+	@mkdir -p "$(BAR_DIR)/node_modules"
+	@ln -sfn "$(AGS_PLATFORM_SRC)" "$(BAR_DIR)/node_modules/ags-platform"
+	@echo "==> ags-platform-dev: $(BAR_DIR)/node_modules/ags-platform -> $(AGS_PLATFORM_SRC)"
+
 # tsconfig.bar.json is HAND-WRITTEN and committed, for the same reason as the
 # capture one: `ags types -u` writes its own colliding tsconfig.json into
 # whichever directory it runs against. The bar REUSES the capture tool's
@@ -412,7 +458,7 @@ BAR_DIR := dotfiles/config/ags
 #
 # REQUIRES THE DESKTOP STACK (`ags` + Astal) via capture-types, same as
 # capture-typecheck. TIMING: ~30s once @girs/ exists.
-bar-typecheck: capture-types
+bar-typecheck: ags-platform-dev capture-types
 	@if [ ! -x node_modules/.bin/tsc ]; then \
 		echo "==> installing typescript (npm install --no-save, ignored by git)"; \
 		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
@@ -431,10 +477,12 @@ bar-typecheck: capture-types
 	@echo "==> bar-typecheck: tsc --noEmit -p $(BAR_DIR)/tsconfig.bar.json"
 	@log=$$(mktemp); \
 	npx tsc --noEmit -p "$(BAR_DIR)/tsconfig.bar.json" > "$$log" 2>&1; \
-	ours=$$(grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/" || true); \
+	ours=$$(grep 'error TS' "$$log" | grep -F "$(BAR_DIR)/" | grep -vF 'ags-platform/' || true); \
 	thirdparty=$$(grep 'error TS' "$$log" | grep -F '/usr/share/ags/js/' || true); \
-	other=$$(grep 'error TS' "$$log" | grep -vF "$(BAR_DIR)/" | grep -vF '/usr/share/ags/js/' || true); \
+	platform=$$(grep 'error TS' "$$log" | grep -F 'ags-platform/' || true); \
+	other=$$(grep 'error TS' "$$log" | grep -vF "$(BAR_DIR)/" | grep -vF '/usr/share/ags/js/' | grep -vF 'ags-platform/' || true); \
 	echo "    tolerated third-party errors (/usr/share/ags/js): $$(printf '%s\n' "$$thirdparty" | grep -c . || true)"; \
+	echo "    tolerated ags-platform errors (external unit, AD-17): $$(printf '%s\n' "$$platform" | grep -c . || true)"; \
 	if [ -n "$$other" ]; then \
 		echo "FAIL: errors in neither the bar tree nor the known ags runtime:"; \
 		printf '%s\n' "$$other"; rm -f "$$log"; exit 1; \
@@ -617,7 +665,7 @@ audio-mock-parity:
 # separate tsc project owned by `make ags-test`. There is NO numeric baseline:
 # errors are fixed, or recorded as genuinely third-party by location
 # (FOREIGN_MARKERS in the script). Do not add a filename allowlist.
-ags-typecheck:
+ags-typecheck: ags-platform-dev
 	python3 scripts/ags-typecheck.py
 
 # Audio panel gates, cheapest and most local first. Order matters: the unit

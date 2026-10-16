@@ -19,7 +19,7 @@
 /**
  * The reactive read a body or a spec needs. gnim's `Accessor` is a `Function`
  * subclass and is assignable to this shape, so the real runtime satisfies it
- * unchanged (same structural trick as `platform/ports/reactive.ts`).
+ * unchanged (same structural trick as `ags-platform/ports/reactive`).
  */
 export type SurfaceAccessor<T> = () => T
 

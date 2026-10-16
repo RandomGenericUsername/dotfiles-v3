@@ -1,4 +1,4 @@
-import { iconByStateKey } from "../../platform/adapters/icon"
+import { iconByStateKey } from "ags-platform/adapters/icon"
 import { overlays } from "../../kit/overlay"
 import type { DescriptorSpec } from "../../kit/widget"
 import { createBluetoothReadModel } from "../../domains/bluetooth/astal"

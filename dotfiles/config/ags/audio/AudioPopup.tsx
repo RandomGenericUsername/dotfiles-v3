@@ -1,7 +1,7 @@
 import { Gtk, Gdk } from "ags/gtk4"
 import Pango from "gi://Pango?version=1.0"
 import { Accessor, For, createComputed, createEffect, createState } from "ags"
-import { registry } from "../platform/adapters/icon-registry"
+import { registry } from "ags-platform/adapters/icon-registry"
 import { close, popupVisible, audioIconX } from "./ui-state"
 import { levelVariant } from "./presentation/levels"
 import type { AudioPanelViewModel, AudioAppRowView } from "./presentation/audio-panel-view-model"

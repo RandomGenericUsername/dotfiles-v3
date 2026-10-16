@@ -1,5 +1,5 @@
 import type { BarWidgetSpec } from "../../kit/widget"
-import { iconByVariant } from "../../platform/adapters/icon"
+import { iconByVariant } from "ags-platform/adapters/icon"
 import { setIconCenterX, toggle } from "../../settings-panel/state"
 
 /**

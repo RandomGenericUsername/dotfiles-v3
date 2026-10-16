@@ -1,6 +1,6 @@
 import { execAsync } from "ags/process"
 import type { BarWidgetSpec } from "../../kit/widget"
-import { iconByVariant } from "../../platform/adapters/icon"
+import { iconByVariant } from "ags-platform/adapters/icon"
 
 /**
  * Status-bar btop launcher, expressed as a widget DESCRIPTOR (kit/widget).

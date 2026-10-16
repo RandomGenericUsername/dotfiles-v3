@@ -75,6 +75,16 @@ FOREIGN_MARKERS = (
     "node_modules/",
     "usr/share/ags/",
     "types/ags-girs/",
+    # The ags-platform unit (spine AD-17) is now an EXTERNAL bare specifier: the
+    # bar reaches it through the dev `node_modules/ags-platform` shortcut, and
+    # tsc resolves the package's .ts sources (it does not ship .d.ts), so their
+    # errors arrive in this program. They are not the bar's to fix -- the
+    # ags-platform repo owns its own typecheck gate (AD-23). Matched as a
+    # substring so BOTH the symlink path (dotfiles/config/ags/node_modules/
+    # ags-platform/...) and the realpath (…/.dev/ags-platform/<version>/...) are
+    # tolerated. No bar source path contains `ags-platform`, so this cannot
+    # absorb a bar error.
+    "ags-platform/",
 )
 
 # The bar tree this gate owns. `dotfiles/config/ags/` is the AGS platform being

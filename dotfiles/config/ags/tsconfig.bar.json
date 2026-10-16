@@ -32,6 +32,21 @@
     "target": "ES2020",
     "strict": true,
 
+    // `ags`/`ags/*` are provided by the runtime, never vendored. The bar's own
+    // files used to resolve them through the per-directory
+    // `node_modules/ags` symlink the Makefile creates; the `ags-platform`
+    // package's ADAPTERS (now an external bare specifier, AD-17) import `ags`
+    // and `ags/gtk4/app` too, and tsc resolves `ags` from the IMPORTING file's
+    // directory — which is outside this tree. The `paths` map (identical to
+    // tsconfig.ags.json's) makes `ags` resolve for EVERY file in the program,
+    // including the external platform's, instead of depending on where a
+    // symlink happens to sit.
+    "baseUrl": ".",
+    "paths": {
+      "ags": ["/usr/share/ags/js/lib/index.ts"],
+      "ags/*": ["/usr/share/ags/js/lib/*"]
+    },
+
     // The audio hexagon (audio/**) imports its own modules with explicit `.ts`
     // suffixes because Node's native type-stripping test runner needs them; the
     // bar tree reaches those files transitively (app.tsx -> audio/composition),
@@ -42,9 +57,11 @@
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM"],
 
-    // platform/adapters/icon-registry.ts imports ../../icons.json. Without this the manifest
-    // import is an unresolved module and the registry degrades to implicit
-    // `any` — the exact class of silence this gate exists to remove.
+    // The ags-platform package's adapters/icon-registry.ts imports its own
+    // ../icons.json (the platform bundles the same generated manifest, AD-21).
+    // Without resolveJsonModule that import is an unresolved module and the
+    // registry degrades to implicit `any` — the exact class of silence this
+    // gate exists to remove.
     "resolveJsonModule": true
   },
   "include": [

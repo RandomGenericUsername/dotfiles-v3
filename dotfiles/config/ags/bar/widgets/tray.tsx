@@ -1,7 +1,7 @@
 import Gtk from "gi://Gtk?version=4.0"
 import Gdk from "gi://Gdk?version=4.0"
 import { createBinding, createState } from "ags"
-import { registry } from "../../platform/adapters/icon-registry"
+import { registry } from "ags-platform/adapters/icon-registry"
 import {
   isBluetoothItem,
   isNetworkItem,

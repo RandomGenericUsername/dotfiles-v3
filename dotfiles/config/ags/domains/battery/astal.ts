@@ -1,6 +1,6 @@
 import Battery from "gi://AstalBattery"
-import { agsRuntime } from "../../platform/adapters/astal"
-import type { ReadAccessor } from "../../platform/ports/reactive"
+import { agsRuntime } from "ags-platform/adapters/astal"
+import type { ReadAccessor } from "ags-platform/ports/reactive"
 import {
   createBatteryReadModel as createReadModel,
   type BatteryReading,

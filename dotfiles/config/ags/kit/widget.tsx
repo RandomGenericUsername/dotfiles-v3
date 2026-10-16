@@ -4,8 +4,8 @@ import { For, createComputed, createEffect } from "ags"
 import type { Accessor } from "ags"
 import type { BarWidgetSpec } from "./shapes"
 import type * as Shapes from "./shapes"
-import { resolveIcon } from "../platform/adapters/icon"
-import type { IconSource } from "../platform/ports/icon-source"
+import { resolveIcon } from "ags-platform/adapters/icon"
+import type { IconSource } from "ags-platform/ports/icon-source"
 
 /**
  * Draw a tagged `IconSource` (AD-4) into a `Gtk.Image`: a FILE from its path

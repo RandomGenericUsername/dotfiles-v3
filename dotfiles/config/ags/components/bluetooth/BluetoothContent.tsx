@@ -3,7 +3,7 @@ import { Gtk } from "ags/gtk4"
 import GLib from "gi://GLib?version=2.0"
 import Pango from "gi://Pango?version=1.0"
 import { execAsync } from "ags/process"
-import { registry } from "../../platform/adapters/icon-registry"
+import { registry } from "ags-platform/adapters/icon-registry"
 import {
   ageOutStaleReadings,
   bluetoothAdapterAddress,

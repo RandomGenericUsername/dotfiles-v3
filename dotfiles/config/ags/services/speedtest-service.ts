@@ -1,6 +1,6 @@
 import GLib from "gi://GLib?version=2.0"
 import { createState } from "ags"
-import { publishSpeedTestState, type SpeedTestTrigger } from "../platform/adapters/event-bus"
+import { publishSpeedTestState, type SpeedTestTrigger } from "ags-platform/adapters/event-bus"
 import { execAsync } from "ags/process"
 //: The connected network's SSID rides on the `done` event so the notification
 //: card can name what it measured. Reading it HERE is the whole reason this is

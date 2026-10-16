@@ -7,7 +7,7 @@ import {
   iconByStateKey,
   resolveIconSource,
   type IconProvider,
-} from "../../platform/ports/icon-source.ts"
+} from "ags-platform/ports/icon-source"
 import {
   volumeStateKey,
   microphoneStateKey,

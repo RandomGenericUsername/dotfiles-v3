@@ -1,4 +1,4 @@
-import type { IconRef } from "../platform/ports/icon-source"
+import type { IconRef } from "ags-platform/ports/icon-source"
 
 /**
  * The bar widget vocabulary (spine AD-8; doc 101 §5).
