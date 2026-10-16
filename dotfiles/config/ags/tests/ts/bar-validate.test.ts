@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import {
+  checkSchemaVersion,
+  EXPECTED_SCHEMA_VERSION,
+  sanitizeLayout,
   validateIcons,
   validateLayout,
   type BarIssue,
@@ -170,4 +173,82 @@ test("the real icons.json validates against the real declarations", () => {
   const result = validateIcons(iconsJson, BAR_MANIFEST.iconGroups)
   assert.deepEqual(result.issues, [])
   assert.equal(result.ok, true)
+})
+
+test("unknown-schema-version: the deployed shape version passes silently", () => {
+  assert.deepEqual(checkSchemaVersion({ schemaVersion: EXPECTED_SCHEMA_VERSION }, "icons.json"), [])
+})
+
+test("unknown-schema-version: a missing version warns, never errors", () => {
+  const issues = checkSchemaVersion({}, "icons.json")
+  assert.equal(issues.length, 1)
+  assert.equal(issues[0].severity, "warning")
+  assert.equal(issues[0].code, "unknown-schema-version")
+})
+
+test("unknown-schema-version: an unrecognised version warns and names both versions", () => {
+  const issues = checkSchemaVersion({ schemaVersion: 99 }, "icons.json", 1)
+  assert.equal(issues.length, 1)
+  assert.equal(issues[0].severity, "warning")
+  assert.equal(issues[0].code, "unknown-schema-version")
+  assert.match(issues[0].message, /99/)
+  assert.match(issues[0].message, /expected 1/)
+})
+
+test("unknown-schema-version: a corrupt artifact warns instead of throwing", () => {
+  for (const broken of [null, 42, "icons", [{ schemaVersion: 1 }]]) {
+    const issues = checkSchemaVersion(broken, "icons.json")
+    assert.equal(issues.length, 1)
+    assert.equal(issues[0].code, "unknown-schema-version")
+  }
+})
+
+test("sanitizeLayout: a broken layout degrades to its valid entries, never throws", () => {
+  const decls: CapabilityDecl[] = [
+    { id: "workspaces", params: [], multi: false },
+    { id: "clock", params: ["format"], multi: false },
+  ]
+  const layout: BarLayout = {
+    sections: {
+      start: [{ id: "workspaces" }, { id: "nope" }],
+      center: [{ id: "clock", params: { format: "12h", bogus: true } }, { id: "clock" }],
+    },
+  }
+  const { layout: clean, warnings } = sanitizeLayout(layout, decls)
+  assert.deepEqual(clean, {
+    sections: {
+      start: [{ id: "workspaces" }],
+      center: [{ id: "clock", params: { format: "12h" } }],
+      end: undefined,
+    },
+  })
+  assert.equal(warnings.length, 3)
+  assert.match(warnings[0], /unknown widget "nope" skipped/)
+  assert.match(warnings[1], /unknown param\(s\) "bogus".*stripped/)
+  assert.match(warnings[2], /duplicate widget "clock" skipped/)
+})
+
+test("sanitizeLayout: multi:true repeats survive", () => {
+  const decls: CapabilityDecl[] = [{ id: "tag", params: [], multi: true }]
+  const layout: BarLayout = {
+    sections: { start: [{ id: "tag" }], end: [{ id: "tag" }] },
+  }
+  const { layout: clean, warnings } = sanitizeLayout(layout, decls)
+  assert.deepEqual(clean.sections.start, [{ id: "tag" }])
+  assert.deepEqual(clean.sections.end, [{ id: "tag" }])
+  assert.deepEqual(warnings, [])
+})
+
+test("sanitizeLayout: a clean layout passes through unchanged with no warnings", () => {
+  const { layout: clean, warnings } = sanitizeLayout(DEFAULT_LAYOUT, BAR_MANIFEST.capabilities)
+  assert.deepEqual(clean, DEFAULT_LAYOUT)
+  assert.deepEqual(warnings, [])
+})
+
+test("sanitizeLayout: an absent section stays absent", () => {
+  const decls: CapabilityDecl[] = [{ id: "clock", params: [], multi: false }]
+  const { layout: clean } = sanitizeLayout({ sections: { center: [{ id: "clock" }] } }, decls)
+  assert.equal(clean.sections.start, undefined)
+  assert.equal(clean.sections.end, undefined)
+  assert.deepEqual(clean.sections.center, [{ id: "clock" }])
 })

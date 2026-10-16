@@ -141,3 +141,42 @@
     path: "{{ compositor_configs_spine_config_dir }}/ags/settings-panel/services"
     state: absent
   when: not ansible_check_mode
+
+# The `ags-bar-validate` strict install gate (spine AD-15;
+# ags-bar-validation task 2.1): run the deployed validator over the DEPLOYED
+# artifacts and fail the install on any rule error. Placement is LAST on
+# purpose — the gate reads the deployed `validate-cli.ts` + `icons.json`, so
+# it must run after BOTH the manifest generation above and the skeleton
+# placement (which deploys the CLI): a gate placed earlier would validate a
+# missing or stale CLI.
+#
+# Design (mirrors the role's existing check-gating, but STRICT):
+# - There is NO `bar.json` in the repo today (no user/runtime layout override
+#   exists yet), so no `--layout` is passed: the gate validates the deployed
+#   `icons.json` plus the repo-default layout (the CLI's always-non-null
+#   floor, AD-9/AD-18). Validating the default IS the gate until an override
+#   exists — do NOT invent a runtime `bar.json` to satisfy it; pass
+#   `--layout <deployed bar.json>` the day one appears.
+# - `--expect-schema-version` passes the role's OWNED
+#   `compositor_configs_icon_manifest_schema_version` (the single owner —
+#   scripts/icons-json-drift.py already reads it), so a stale deployed
+#   artifact fails against the current expectation. A version mismatch is a
+#   WARNING (task 2.3: warn and degrade, never crash) and does NOT fail the
+#   install; only rule errors do.
+# - STRICT means no `failed_when: false` and no `ignore_errors`: a non-zero
+#   validator exit fails the install by default ansible semantics. (The
+#   gui_tools `ags quit` tasks carry `failed_when: false` because a missing
+#   live session is a no-op there; here a bad artifact is exactly what must
+#   be loud.)
+# - `changed_when: false`: the gate writes nothing, so it must never count
+#   as changed. `when: not ansible_check_mode` mirrors the generation tasks:
+#   the deployed files the gate reads do not exist yet under `--check`.
+# - Runner: plain `node` (type-stripping runs the deployed `.ts` directly —
+#   the same runner `make ags-test` hard-requires on PATH). If node is absent
+#   the task fails with ansible's "Failed to find required executable", which
+#   is the honest outcome: the install cannot prove the bar artifacts valid.
+- name: Validate the deployed bar artifacts (strict install gate)
+  ansible.builtin.command:
+    cmd: "node {{ compositor_configs_spine_config_dir }}/ags/bar/validate-cli.ts --icons {{ compositor_configs_icon_manifest_dest }} --expect-schema-version {{ compositor_configs_icon_manifest_schema_version }}"
+  changed_when: false
+  when: not ansible_check_mode

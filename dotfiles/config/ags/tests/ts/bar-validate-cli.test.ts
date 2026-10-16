@@ -89,6 +89,58 @@ test("an unreadable file exits 2", () => {
   assert.match(result.stderr, /cannot read/)
 })
 
+test("an unknown icons schemaVersion warns on stderr but still exits 0", () => {
+  const dir = scratchDir()
+  const future = { ...JSON.parse(readFileSync(REAL_ICONS, "utf8")), schemaVersion: 99 }
+  const icons = writeJson(dir, "icons.json", future)
+  const layout = writeJson(dir, "bar.json", { sections: { center: [{ id: "clock" }] } })
+  const result = runCli(["--icons", icons, "--layout", layout])
+  assert.equal(result.code, 0)
+  assert.match(result.stdout, /^ok:/)
+  assert.match(result.stderr, /unknown-schema-version/)
+  assert.match(result.stderr, /99/)
+})
+
+test("an unversioned icons artifact warns on stderr but still exits 0", () => {
+  const dir = scratchDir()
+  const parsed = JSON.parse(readFileSync(REAL_ICONS, "utf8")) as Record<string, unknown>
+  delete parsed["schemaVersion"]
+  const icons = writeJson(dir, "icons.json", parsed)
+  const result = runCli(["--icons", icons])
+  assert.equal(result.code, 0)
+  assert.match(result.stderr, /unknown-schema-version/)
+  assert.match(result.stderr, /no schemaVersion/)
+})
+
+test("--expect-schema-version pins the gate: a stale expectation fails the warning", () => {
+  const dir = scratchDir()
+  const layout = writeJson(dir, "bar.json", { sections: { center: [{ id: "clock" }] } })
+  const pinned = runCli(["--icons", REAL_ICONS, "--layout", layout, "--expect-schema-version", "1"])
+  assert.equal(pinned.code, 0)
+  assert.equal(pinned.stderr, "")
+  const stale = runCli(["--icons", REAL_ICONS, "--layout", layout, "--expect-schema-version", "2"])
+  assert.equal(stale.code, 0)
+  assert.match(stale.stderr, /unknown-schema-version/)
+})
+
+test("a non-integer --expect-schema-version exits 2 with usage", () => {
+  const result = runCli(["--icons", REAL_ICONS, "--expect-schema-version", "next"])
+  assert.equal(result.code, 2)
+  assert.match(result.stderr, /usage:/)
+})
+
+test("a versioned layout file validates its version, not just its sections", () => {
+  const dir = scratchDir()
+  const layout = writeJson(dir, "bar.json", {
+    schemaVersion: 99,
+    sections: { center: [{ id: "clock" }] },
+  })
+  const result = runCli(["--icons", REAL_ICONS, "--layout", layout])
+  assert.equal(result.code, 0)
+  assert.match(result.stderr, /unknown-schema-version/)
+  assert.match(result.stderr, /99/)
+})
+
 test("the real icons.json the good case relies on is the deployed artifact", () => {
   const parsed = JSON.parse(readFileSync(REAL_ICONS, "utf8")) as Record<string, unknown>
   assert.ok(parsed["battery"] !== undefined, "expected a battery group in icons.json")

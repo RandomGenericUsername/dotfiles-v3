@@ -31,12 +31,33 @@ import type { CapabilityDecl, IconGroupDecl } from "./bar-manifest"
  * required set, and no defaults — there is nothing a missing/bad value could
  * be checked against. When a capability first declares a valued param, its
  * schema arrives with the declaration and these codes come with it.
+ *
+ * `unknown-schema-version` is the odd one out: it is ALWAYS a warning, never
+ * an error (task 2.3). An artifact carrying no version or an unrecognised one
+ * degrades — the bar warns and runs, and the strict install gate passes it.
+ * Only the four rule violations above fail the install.
  */
 export type IssueCode =
   | "unknown-widget"
   | "duplicate-widget"
   | "unknown-param"
   | "missing-icon-key"
+  | "unknown-schema-version"
+
+/**
+ * The icons artifact schema version the bar understands (spine AD-16; task
+ * 2.3).
+ *
+ * SINGLE-OWNER WARNING: the producer stamps
+ * `compositor_configs_icon_manifest_schema_version`
+ * (`src/provisioning/ansible/roles/compositor_configs/vars/main.yml`); this
+ * const is the CONSUMER mirror for the lenient runtime path only. The strict
+ * install gate does NOT read this const — provisioning passes its owned var
+ * explicitly via the CLI's `--expect-schema-version`, so a stale deployed
+ * artifact fails against the current expectation. Bump both together when the
+ * manifest shape changes.
+ */
+export const EXPECTED_SCHEMA_VERSION = 1
 
 export interface BarIssue {
   readonly severity: "error" | "warning"
@@ -199,4 +220,141 @@ export function validateIcons(
     }
   }
   return { ok: !issues.some((i) => i.severity === "error"), issues }
+}
+
+/**
+ * Check one artifact's `schemaVersion` (spine AD-16; task 2.3).
+ *
+ * TOTAL and WARNING-ONLY: never throws, never errors. A missing version (a
+ * legacy artifact predates versioning), a non-numeric version, or an
+ * unrecognised version each yield exactly one `unknown-schema-version`
+ * WARNING — the bar warns and runs with the artifact as-is (degrade, never
+ * crash), and the strict gate passes warnings (only errors fail the install).
+ * A `null`/non-object artifact warns the same way rather than throwing, so a
+ * corrupt file degrades instead of crashing startup.
+ *
+ * A `BarLayout` carries NO version field of its own (kit/layout.ts): when a
+ * `bar.json` FILE exists, its top-level `schemaVersion` is the artifact
+ * version checked here, and the layout value itself stays unversioned.
+ */
+export function checkSchemaVersion(
+  artifact: unknown,
+  artifactName: string,
+  expected: number = EXPECTED_SCHEMA_VERSION,
+): BarIssue[] {
+  if (artifact === null || typeof artifact !== "object" || Array.isArray(artifact)) {
+    return [
+      {
+        severity: "warning",
+        code: "unknown-schema-version",
+        message: `${artifactName} is not a versioned artifact: expected a JSON object, degrading without a version check`,
+      },
+    ]
+  }
+  const version = (artifact as { schemaVersion?: unknown }).schemaVersion
+  if (version === undefined) {
+    return [
+      {
+        severity: "warning",
+        code: "unknown-schema-version",
+        message: `${artifactName} carries no schemaVersion (expected ${expected}): assuming the deployed shape, degrading`,
+      },
+    ]
+  }
+  if (version !== expected) {
+    return [
+      {
+        severity: "warning",
+        code: "unknown-schema-version",
+        message: `${artifactName} carries schemaVersion ${JSON.stringify(version)} (expected ${expected}): running with a degraded artifact`,
+      },
+    ]
+  }
+  return []
+}
+
+/** The lenient enforcement result: the renderable layout plus its warnings. */
+export interface SanitizedLayout {
+  readonly layout: BarLayout
+  readonly warnings: readonly string[]
+}
+
+/**
+ * The LENIENT enforcement of `validateLayout` (spine AD-15; task 2.2).
+ *
+ * The bar runs the SAME rule set as the strict gate but degrades instead of
+ * failing: an unknown-widget entry is SKIPPED, a duplicate-widget repeat past
+ * the first is SKIPPED (unless the capability declares `multi: true`), and
+ * unknown params are STRIPPED so declared defaults apply (no widget declares
+ * a param today, so any param at all is stripped). Section structure is
+ * preserved — an absent section stays absent — and entries that survive keep
+ * their identity, so the sanitized layout renders exactly the valid prefix of
+ * the input.
+ *
+ * Missing glyphs are NOT handled here: the icon side degrades at resolve
+ * time, in the kit's `resolveIcon` (`ags-platform/adapters/icon` returns null
+ * for an unresolvable key and `applyIconSource` blanks the image) — pinned by
+ * `tests/ts/icon-state-keys.test.ts`. Importing `icons.json` into the bar a
+ * second time to run `validateIcons` at startup would duplicate the artifact
+ * the platform already bundles, so the bar enforces the layout rules here
+ * and the icon rule at resolve time.
+ *
+ * PURE: no GJS, no logging — warnings are returned and the caller (`Bar.tsx`)
+ * reports them. Tolerant of a mistyped input: a missing `sections` table
+ * degrades to an empty layout rather than throwing.
+ */
+export function sanitizeLayout(
+  layout: BarLayout,
+  capabilities: readonly CapabilityDecl[],
+): SanitizedLayout {
+  const byId = new Map(capabilities.map((c) => [c.id, c]))
+  const warnings: string[] = []
+  const seen = new Set<string>()
+  const clean = (entries: readonly BarEntry[] | undefined): readonly BarEntry[] | undefined => {
+    if (entries === undefined) return undefined
+    const kept: BarEntry[] = []
+    for (const entry of entries) {
+      const decl = byId.get(entry.id)
+      if (decl === undefined) {
+        warnings.push(`unknown widget "${entry.id}" skipped`)
+        continue
+      }
+      if (seen.has(entry.id)) {
+        if (!decl.multi) {
+          warnings.push(`duplicate widget "${entry.id}" skipped (single-instance)`)
+          continue
+        }
+      } else {
+        seen.add(entry.id)
+      }
+      const params = entry.params ?? {}
+      const stripped = Object.keys(params).filter((name) => !decl.params.includes(name))
+      if (stripped.length === 0) {
+        kept.push(entry)
+      } else {
+        const keptParams: Record<string, unknown> = {}
+        for (const name of decl.params) {
+          if (name in params) keptParams[name] = params[name]
+        }
+        warnings.push(
+          `unknown param(s) ${stripped.map((n) => `"${n}"`).join(", ")} for widget "${entry.id}" stripped (defaults apply)`,
+        )
+        kept.push(
+          Object.keys(keptParams).length > 0 ? { id: entry.id, params: keptParams } : { id: entry.id },
+        )
+      }
+    }
+    return kept
+  }
+  const sections = layout?.sections ?? {}
+  return {
+    layout: {
+      sections: {
+        start: clean(sections.start),
+        center: clean(sections.center),
+        end: clean(sections.end),
+      },
+    },
+    warnings,
+  }
 }
