@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""deploy-coverage -- every AGS source reachable from app.tsx must be deployed.
+"""deploy-coverage -- the provisioning shape of the external bar + platform.
 
 WHY THIS GATE EXISTS. The AGS bar used to deploy PER FILE: the
 `compositor_configs` role looped over `compositor_configs_skeleton_files` and
@@ -10,31 +10,30 @@ fresh (or re-run) provision left the module absent, `ags bundle` could not
 resolve the import, and the BAR window failed to start. That per-file hazard
 is gone: the bar now deploys WHOLE as one versioned unit (the `ags_apps`
 role symlinks the unit's bar/ subdir as the live <install>/config/ags), so no
-manifest can drift from the entry point's closure. The gate's job changed
-with it: instead of covering each reachable file, it asserts the bridge is
-RETIRED (no per-file bar entry may remain in the skeleton list — a stale one
-would template INTO the unit tree through the live-bar link and silently
-diverge the live bar from the pinned tag) and that the provisioning role
-installs the pinned unit, records the pin, deploys the live-bar link, and
-creates the per-unit resolution shortcut.
+manifest can drift from the entry point's closure.
 
-A structural test that pins the remaining manifest list cannot catch a stale
-bar entry by itself: it asserts the list is what it is, not that the list
-contains no retired bridge source. This gate derives the requirement from the
-source tree instead.
-
-WHAT IT DOES.
+WHAT IT ASSERTS. The gate asserts the provisioning SHAPE, not the in-repo tree
+(the in-repo `dotfiles/config/ags/` bridge is being retired and is NOT
+required):
   (a) parses the deployed non-bar set out of `compositor_configs_skeleton_files`
-      (roles/compositor_configs/vars/main.yml) -- the single source of truth for
-      what a provision copies per file;
-  (b) computes the RELATIVE-IMPORT closure of `dotfiles/config/ags/app.tsx` --
-      the composition root AGS bundles -- following only relative specifiers
-      (`./x`, `../x`) into files that participate in the bundle;
-  (c) FAILS on any `dotfiles/config/ags/` source still listed per file (the
-      retired bridge), on any relative import traversing the retired
-      `platform/` dir, and unless the provisioning roles install the pinned
-      platform unit (shared-ancestor shortcut) AND the pinned bar unit
-      (live-bar link + per-unit resolution shortcut).
+      (roles/compositor_configs/vars/main.yml) and FAILS on any
+      `dotfiles/config/ags/` source still listed per file -- a stale bridge
+      entry would template INTO the unit tree through the live-bar link and
+      silently diverge the live bar from the pinned tag;
+  (b) FAILS if the retired in-place `platform/` dir still exists (the platform
+      is now the external `ags-platform` bare specifier, spine AD-17);
+  (c) asserts the `ags_platform` role installs the pinned platform unit and the
+      shared-ancestor `node_modules/ags-platform` shortcut;
+  (d) asserts the `ags_apps` role installs the pinned bar unit, deploys the
+      live-bar link at `<install>/config/ags`, and creates the per-unit
+      resolution shortcut.
+
+The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
+when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
+hermetic negative tests below) and reported as a NOTE -- it is no longer a
+precondition. It still REJECTS loudly a relative import into the retired
+in-place `platform/` dir, so a re-introduced relative platform import cannot
+pass by pointing at a file that happens to exist.
 
 WHAT IT DELIBERATELY DOES NOT FOLLOW. A relative import resolves only to a
 TS/TSX/ambient-declaration/CSS module. Generated artifacts (`icons.json`) are
@@ -47,26 +46,22 @@ and is not a real dependency.
 
 THE BAR IS EXTERNAL NOW. The bar's own sources live in the pinned ags-apps
 unit (`<install>/ags-apps/<tag>/bar/`), deployed whole via the live-bar
-symlink — so the reachable closure below is covered BY CONSTRUCTION, and the
-gate reports its size instead of diffing it against a manifest. The in-place
-`dotfiles/config/ags/` tree remains the dev/typecheck/test source (the
-bridge), and the closure still guards it: a relative import into the retired
-in-place `platform/` dir is REJECTED loudly.
+symlink — covered BY CONSTRUCTION by the `ags_apps` assertion above, never
+diffed per file.
 
 THE PLATFORM IS EXTERNAL TOO. `ags-platform` and its subpaths are a BARE
 SPECIFIER resolved by AGS's embedded esbuild through provisioning-created
 `node_modules` shortcuts (spine AD-17): the shared-ancestor shortcut for
 every config tree, plus the per-unit shortcut inside the bar unit (esbuild
 realpaths the live-bar link, so the shared ancestor is not an ancestor of
-the real bar tree). The gate asserts the provisioning role installs the
-pinned unit and creates the shared-ancestor shortcut, and the bar role
-creates the per-unit one. A green run means "the retired bridge is gone and
-both external units the bar needs are provisioned".
+the real bar tree). A green run means "the retired bridge is gone and both
+external units the bar needs are provisioned".
 
 Usage: ``python3 scripts/deploy-coverage.py [--root REPO_ROOT]``
 Exit 0 = the bridge is retired and both units are provisioned.
-Exit 1 = a stale per-file bar entry remains, a retired-dir import exists, a
-         unit is not provisioned, or an input is missing/unreadable.
+Exit 1 = a stale per-file bar entry remains, the retired platform dir exists, a
+         unit is not provisioned, a relative import into the retired platform
+         dir exists, or an input is missing/unreadable.
 
 PyYAML is imported and if it is unavailable this gate FAILS rather than
 skipping: the manifest is parsed as YAML, not line-mangled. Run it through the
@@ -441,7 +436,9 @@ def assert_bar_provisioning(root: Path) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="reachable AGS modules are deployed")
+    ap = argparse.ArgumentParser(
+        description="the external bar + platform units are provisioned"
+    )
     ap.add_argument("--root", default=None, help="repo root (default: parent of scripts/)")
     args = ap.parse_args()
 
@@ -449,14 +446,21 @@ def main() -> int:
     vars_path = root / VARS_FILE
     ags_dir = (root / AGS_DIR).resolve()
 
-    for path, label in ((vars_path, VARS_FILE), (ags_dir / ENTRY, f"{AGS_DIR}/{ENTRY}")):
-        if not path.is_file():
-            print(f"MISSING {label}: {path}")
-            return 1
+    if not vars_path.is_file():
+        print(f"MISSING {VARS_FILE}: {vars_path}")
+        return 1
 
     try:
         deployed = parse_deployed_ags_sources(vars_path.read_text())
-        closure = relative_import_closure(ags_dir)
+        # The in-repo `dotfiles/config/ags/` tree is the dev/typecheck/test
+        # bridge and is being retired: it is NOT a precondition. When it is
+        # present, compute its relative-import closure and report it as a NOTE.
+        # The closure still rejects a relative import into the retired in-place
+        # platform dir (which is why the computation stays), so a re-introduced
+        # relative platform import cannot pass by pointing at an existing file.
+        closure: set[Path] | None = None
+        if (ags_dir / ENTRY).is_file():
+            closure = relative_import_closure(ags_dir)
         # The in-place platform copy is gone: assert the tree really has no
         # platform dir, so a re-introduced relative import cannot pass by
         # pointing at a file that still happens to exist.
@@ -477,13 +481,17 @@ def main() -> int:
         print(f"FAIL: {exc}")
         return 1
 
-    reachable = {path.relative_to(ags_dir).as_posix() for path in closure}
-
-    print(
-        f"deploy-coverage: reachable AGS modules from {AGS_DIR}/{ENTRY}: "
-        f"{len(reachable)} (deployed WHOLE via the {BAR_PACKAGE!r} unit symlink "
-        f"— covered by the unit assertion below, not diffed per file)"
-    )
+    if closure is not None:
+        print(
+            f"deploy-coverage: NOTE — {AGS_DIR}/{ENTRY} present (dev bridge); "
+            f"{len(closure)} reachable module(s), covered by the unit assertion "
+            f"below, not diffed per file"
+        )
+    else:
+        print(
+            f"deploy-coverage: NOTE — {AGS_DIR}/{ENTRY} absent (bridge retired); "
+            f"the closure is not computed"
+        )
     print(f"deploy-coverage: per-file non-bar sources in the manifest: {len(deployed)}")
     print(
         f"deploy-coverage: external bare specifier {PLATFORM_PACKAGE!r} — unit + "

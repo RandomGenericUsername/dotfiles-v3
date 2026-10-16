@@ -574,20 +574,22 @@ icons-json-drift:
 ansible-embedded-template-lint:
 	uv run --directory src/provisioning python ../../scripts/ansible-embedded-template-lint.py
 
-# The AGS bar is deployed PER FILE: `compositor_configs` copies only the files
-# in `compositor_configs_skeleton_files`. A module the bar reaches through a
-# relative import but that is not registered is silently never copied -- no
-# error, no warning -- so a fresh/re-run provision leaves it absent and
-# `ags bundle` cannot resolve the import: the bar fails to start. This is
-# exactly how the bar re-architecture's `kit/icon-source.ts`, `kit/shapes.ts`,
-# the `domains/*` adapters and the Bluetooth widget/popup/state shipped.
+# The AGS bar deploys WHOLE as the pinned external `ags-apps` unit (the
+# `ags_apps` role symlinks the unit's bar/ subdir as the live
+# <install>/config/ags), and the platform is the external `ags-platform` bare
+# specifier (spine AD-17). This gate asserts that provisioning SHAPE: no stale
+# per-file `dotfiles/config/ags/` entry may remain in
+# `compositor_configs_skeleton_files` (a stale one templates INTO the unit tree
+# through the live-bar link and silently diverges the live bar from the pinned
+# tag), the retired in-place `platform/` dir must not exist, and both the
+# `ags_platform` and `ags_apps` roles must install their pinned unit + shortcut
+# (shared-ancestor for the platform, live-bar link + per-unit for the bar).
 #
-# WHY A GATE AND NOT A LONGER LIST. A structural test pins the manifest's
-# CONTENTS; it cannot see that the contents FAIL TO COVER what the entry point
-# reaches. This gate derives the requirement from the source tree: it parses
-# the deployed AGS set from `compositor_configs_skeleton_files`, computes the
-# relative-import closure of `dotfiles/config/ags/app.tsx`, and fails listing
-# every reachable module that is not deployed.
+# THE IN-REPO TREE IS NOT REQUIRED. `dotfiles/config/ags/` is the dev/typecheck/
+# test bridge and is being retired, so the gate does not require it. When it IS
+# present (a developer checkout, or the gate's hermetic tests) the gate also
+# reports the relative-import closure of `app.tsx` as a NOTE and still rejects a
+# relative import into the retired in-place platform dir.
 #
 # WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It parses the manifest as YAML
 # (PyYAML ships with the provisioning project) rather than line-mangling it,
