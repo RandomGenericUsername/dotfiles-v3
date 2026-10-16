@@ -6,6 +6,13 @@ own piece of work.
 **Scope:** why a loading indicator in this panel is hard, what was measured, and what
 a proper treatment would have to decide.
 
+> **Note (bar source moved):** the AGS bar source now lives in the external
+> `ags-apps` repo and deploys as the pinned `bar-v0.1.0` unit — the `ags_apps`
+> provisioning role symlinks its `bar/` subdir as the live `<install>/config/ags`.
+> The in-repo `dotfiles/config/ags/` tree was retired; the `dotfiles/config/ags/`
+> paths below are historical. The deployed consumer path `~/.config/ags/...` is
+> unchanged.
+
 Every claim below is tagged. **MEASURED** means it was run and observed on this machine.
 **INFERRED** means reasoned from a measurement. **PROPOSED** means not yet built or tested.
 

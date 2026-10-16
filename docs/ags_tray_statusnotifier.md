@@ -8,6 +8,13 @@ AGS-generated UI.
 It is the tray-focused companion to `ags_global_menu_investigation.md` (which
 covers the separate, unrelated application global-menu problem).
 
+> **Note (bar source moved):** the AGS bar source now lives in the external
+> `ags-apps` repo and deploys as the pinned `bar-v0.1.0` unit — the `ags_apps`
+> provisioning role symlinks its `bar/` subdir as the live `<install>/config/ags`.
+> The in-repo `dotfiles/config/ags/` tree was retired; the `dotfiles/config/ags/`
+> paths below are historical. The deployed consumer path `~/.config/ags/...` is
+> unchanged.
+
 ---
 
 ## 1. Summary

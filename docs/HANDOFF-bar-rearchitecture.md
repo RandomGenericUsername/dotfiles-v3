@@ -3,6 +3,13 @@
 > Read this first. It is the complete context for continuing this work with a
 > fresh agent. It assumes **no** prior conversation.
 
+> **Note (bar source moved):** the AGS bar source now lives in the external
+> `ags-apps` repo and deploys as the pinned `bar-v0.1.0` unit — the `ags_apps`
+> provisioning role symlinks its `bar/` subdir as the live `<install>/config/ags`.
+> The in-repo `dotfiles/config/ags/` tree was retired; the `dotfiles/config/ags/`
+> paths below are historical. The deployed consumer path `~/.config/ags/...` is
+> unchanged.
+
 ---
 
 ## 0. TL;DR

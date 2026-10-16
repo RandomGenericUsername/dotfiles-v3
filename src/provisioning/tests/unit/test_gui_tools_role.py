@@ -803,14 +803,12 @@ class TestBtopStudioRegistration:
             f"gui_tools_ags_instances must include btop-theme-studio; got {instances}"
         )
 
-    def test_btop_studio_is_never_autostarted_or_in_the_bar(self) -> None:
+    def test_btop_studio_is_never_autostarted_and_has_a_keybind(self) -> None:
         """Task 1.3: the studio is launch-on-demand only. It must not appear in
-        the bar's app.tsx or in the login autostart, and it must have a
-        provisioned keybind launcher."""
-        bar = (_REPO_ROOT / "dotfiles/config/ags/app.tsx").read_text(encoding="utf-8")
-        assert "btop-theme-studio" not in bar, (
-            "the studio must not be registered in the bar's app.tsx"
-        )
+        the login autostart, and it must have a provisioned keybind launcher.
+        (The bar's app.tsx no longer exists in-repo — the bar deploys whole as
+        the pinned external `ags-apps` unit, and the "not registered in the
+        bar" assertion is owned there.)"""
         autostart = (_REPO_ROOT / "dotfiles/config/hypr/autostart.lua").read_text(encoding="utf-8")
         assert "btop-theme-studio" not in autostart and "ags-btop-studio" not in autostart, (
             "the studio must not be autostarted (launch-on-demand only)"

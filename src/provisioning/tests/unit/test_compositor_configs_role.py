@@ -145,22 +145,44 @@ def _skeleton_task() -> dict[str, object]:
     return matches[0]
 
 
+#: The bar unit's source repo. The live bar is the pinned external `ags-apps`
+#: unit (slice 2), so the in-repo `dotfiles/config/ags` bridge is retired. The
+#: execution tests below run compositor-configs.yaml STANDALONE and must seed
+#: the unit's bar package by hand; they source it from a local `ags-apps`
+#: checkout (override with $AGS_APPS_REPO). Mirrors `contract-pin-check.py`'s
+#: sibling-checkout handling: when the checkout is absent the tests that need
+#: the real unit SKIP rather than fail (this suite is dev-only; CI has none).
+_AGS_APPS_REPO = Path(
+    os.environ.get("AGS_APPS_REPO", "/home/inumaki/Development/ags-apps")
+)
+
+
 def _preseed_bar_unit(install: Path) -> Path:
     """Seed the pinned bar unit exactly as the ags_apps role deploys it.
 
     Bootstrap order (ags-apps.yaml before compositor-configs.yaml) guarantees
     the live-bar link into the pinned unit exists before this role generates
     icons.json through it and gates on the unit's CLI. Execution tests that
-    run compositor-configs.yaml STANDALONE must build that state by hand:
-    the pinned unit holds a copy of the REAL in-place bridge tree (slice 1
-    moved it into ags-apps verbatim, so the bridge IS the unit content for
-    gate purposes), the pin is recorded, and <install>/config/ags links at
-    the unit's bar/.
+    run compositor-configs.yaml STANDALONE must build that state by hand: the
+    unit's bar package is copied from a local `ags-apps` checkout (the bar
+    deploys WHOLE from there now — the in-repo bridge is retired), the pin is
+    recorded, and <install>/config/ags links at the unit's bar/. `node_modules`
+    and `@girs` are skipped: the strict-gate CLI is pure (`node:*` + the bar's
+    own pure modules), so neither the 49 MB GJS typings nor the dev platform
+    shortcut is needed.
     """
-    repo_ags = _ANSIBLE_DIR.parents[2] / "dotfiles" / "config" / "ags"
-    assert repo_ags.is_dir(), f"missing in-place bar bridge {repo_ags}"
+    src = _AGS_APPS_REPO / "bar"
+    if not (src / "bar" / "validate-cli.ts").is_file():
+        pytest.skip(
+            f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
+            "strict bar gate needs the unit's validate-cli.ts"
+        )
     bar = install / "ags-apps" / "bar-v0.1.0" / "bar"
-    shutil.copytree(repo_ags, bar)
+    shutil.copytree(
+        src,
+        bar,
+        ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
+    )
     (install / "ags-apps" / "pinned").write_text("bar-v0.1.0\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)

@@ -20,14 +20,24 @@ in a sibling directory, never on `master`.
 
 Run them:
 
-- `make bar-typecheck`, `make ags-typecheck`, `make ags-test`, `make gates-ci`,
-  `make deploy-coverage`.
+- `make gates-ci`, `make deploy-coverage`, and the per-file gate the change
+  touches. The bar's own gates (`bar-typecheck`, `ags-test`) now live in the
+  `ags-apps` repo; this repo keeps `gates-ci` (provisioning shape, per-app drift,
+  capture) and `deploy-coverage`.
 
-**New bar source files MUST be registered** in
+**New skeleton source files MUST be registered** in
 `src/provisioning/ansible/roles/compositor_configs/vars/main.yml`
 (`compositor_configs_skeleton_files`) **and** the `verify` role mirror — otherwise
-a fresh provision deploys an unresolvable import and the bar fails to start.
-`make deploy-coverage` catches this class; it is not optional.
+a fresh provision deploys an unresolvable import. This applies to the **non-bar**
+skeletons (hypr / hyprpaper / rofi) and to the `gui_tools_*_app_files` lists.
+
+The **bar is exempt**: it deploys **whole** as the pinned external `ags-apps`
+unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live
+`<install>/config/ags`), so there are no per-file bar sources to register.
+`make deploy-coverage` asserts that provisioning shape instead — it catches a
+**stale per-file bar entry** (which would template into the unit tree through the
+live-bar link and diverge the live bar from the pinned tag) plus a missing unit /
+live-bar link / resolution shortcut. It is not optional.
 
 ## 3. Evidence rule
 
