@@ -2585,7 +2585,8 @@ def _build_provisioned_layout(
     against (Epic 4 single-source): the input-only install-spine subtree
     (no generated/ tree), the five asset outcomes, the three rendered
     settings.toml files in the SPINE (pointing at XDG cache/state), the
-    compositor skeletons in the spine, the R2 consumer symlink, the
+    compositor skeletons in the spine, the external ags-platform unit + the
+    ags-apps bar unit with its live-bar symlink, the R2 consumer symlink, the
     runtime current/ palette + icons under the state home, the config
     copies in the spine, the XDG state/cache homes, and the
     ~/.config/<name> -> spine symlinks the config-links role creates.
@@ -2599,7 +2600,9 @@ def _build_provisioned_layout(
         "config/color-scheme-generator/templates",
         "config/hypr",
         "config/hyprpaper",
-        "config/ags",
+        # config/ags is the ags_apps live-bar SYMLINK (<install>/config/ags ->
+        # the pinned unit's bar/), NOT a spine dir; it is created in the
+        # ags-apps unit block below. config/ags-capture stays a spine dir.
         "config/ags-capture",
         "config/ags-icme",
         "config/ags-hypr-pano",
@@ -2738,9 +2741,6 @@ def _build_provisioned_layout(
             '<svg xmlns="http://www.w3.org/2000/svg"></svg>'
         )
     (state_current / "icons").symlink_to(state_cache_icons, target_is_directory=True)
-    (install / "config" / "ags" / "colors.css").symlink_to(
-        state_current / "colors.gtk.css"
-    )
 
     for lua in (
         "hyprland.lua",
@@ -2757,44 +2757,13 @@ def _build_provisioned_layout(
     ):
         (install / "config" / "hypr" / lua).write_text("")
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
-    (install / "config" / "ags" / "app.tsx").write_text("")
-    (install / "config" / "ags" / "style.css").write_text("")
-    # Composition-root overlay registration (bar re-architecture prototype).
-    (install / "config" / "ags" / "overlays.ts").write_text("")
     # rofi launcher skeleton (compositor_configs role, add-rofi-app-launcher).
     (install / "config" / "rofi" / "launcher" / "config.rasi").write_text("")
-    # AGS bar skeletons (enhance-ags-bar: icons registry + Bar + widgets).
-    # Must match verify_compositor_skeleton_files EXACTLY (missing files
-    # fail the criterion-7 gate — the fixture is the "provisioned machine").
-    (install / "config" / "ags" / "icons.json").write_text("{}")
     (install / "config" / "ags-capture" / "icons.json").write_text("{}")
+    # Sibling AGS apps stay spine dirs (the ags_apps role owns ONLY the bar).
+    # The bar's own per-file sources are gone: the bar deploys WHOLE as the
+    # ags-apps unit and its live link, built in the unit block below.
     for rel in (
-        "ags/lib",
-        "ags/kit",
-        "ags/domains",
-        "ags/domains/network",
-        "ags/domains/battery",
-        "ags/domains/bluetooth",
-        "ags/domains/audio",
-        "ags/bar",
-        "ags/bar/widgets",
-        "ags/settings-panel",
-        "ags/settings-panel/controls",
-        "ags/settings-panel/views",
-        "ags/services",
-        "ags/components",
-        "ags/components/primitives",
-        "ags/components/wifi",
-        "ags/components/bluetooth",
-        "ags/components/sliders",
-        "ags/audio",
-        "ags/audio/domain",
-        "ags/audio/application",
-        "ags/audio/application/runtime",
-        "ags/audio/adapters",
-        "ags/audio/adapters/pipewire",
-        "ags/audio/adapters/mpris",
-        "ags/audio/presentation",
         "ags-capture",
         "ags-capture/ui",
         "ags-capture/controllers",
@@ -2813,7 +2782,6 @@ def _build_provisioned_layout(
         "ags-btop-studio/lib",
     ):
         (install / "config" / rel).mkdir(parents=True, exist_ok=True)
-    (install / "config" / "ags" / "lib" / "network-icon.ts").write_text("")
     # The ags-platform unit + shared-ancestor shortcut (spine AD-17/AD-23):
     # installed by the ags_platform role as ONE versioned unit, NOT mirrored
     # per file under config/ags. The fixture mirrors verify_ags_platform_unit_dir
@@ -2833,113 +2801,41 @@ def _build_provisioned_layout(
     (install / "ags-platform" / "pinned").write_text("v0.1.0\n")
     (install / "config" / "node_modules").mkdir(parents=True, exist_ok=True)
     (install / "config" / "node_modules" / "ags-platform").symlink_to(unit)
-    # The bar widget kit (bar re-architecture prototype): the descriptor model.
-    (install / "config" / "ags" / "kit" / "overlay.ts").write_text("")
-    (install / "config" / "ags" / "kit" / "widget.tsx").write_text("")
-    (install / "config" / "ags" / "kit" / "shapes.ts").write_text("")
-    # The layout vocabulary (migrate-widgets-to-shapes, AD-9): mirror of
-    # verify_compositor_skeleton_files.
-    (install / "config" / "ags" / "kit" / "layout.ts").write_text("")
-    # The surface contract + the popup primitive (surfaces-popup-host, AD-10):
-    # mirror of verify_compositor_skeleton_files. Every popup imports
-    # kit/popup-host, which imports kit/surface.
-    (install / "config" / "ags" / "kit" / "surface.ts").write_text("")
-    (install / "config" / "ags" / "kit" / "popup-host.tsx").write_text("")
-    # The network domain read model (bar re-architecture §5.3): the Astal adapter
-    # behind the descriptor. Mirrors verify_compositor_skeleton_files.
-    (install / "config" / "ags" / "domains" / "network" / "read-model.ts").write_text("")
-    # The per-domain read models (reactive-domain-read-models): the network Astal
-    # adapter and the battery/bluetooth/audio adapters. Mirror of
-    # verify_compositor_skeleton_files. The shared reactive port + gnim binding
-    # moved into the package above.
-    (install / "config" / "ags" / "domains" / "network" / "astal.ts").write_text("")
-    (install / "config" / "ags" / "domains" / "battery" / "read-model.ts").write_text("")
-    (install / "config" / "ags" / "domains" / "battery" / "astal.ts").write_text("")
-    (install / "config" / "ags" / "domains" / "bluetooth" / "read-model.ts").write_text("")
-    (install / "config" / "ags" / "domains" / "bluetooth" / "astal.ts").write_text("")
-    (install / "config" / "ags" / "domains" / "audio" / "read-model.ts").write_text("")
-    (install / "config" / "ags" / "domains" / "audio" / "astal.ts").write_text("")
-    (install / "config" / "ags" / "bar" / "Bar.tsx").write_text("")
-    for widget in (
-        "workspaces",
-        "clock",
-        "battery",
-        "bluetooth",
-        "network-descriptor",
-        "power-menu",
-        "btop",
-        "thunderbird",
-        "recording",
-        "tray",
-        "settings",
+    # The ags-apps unit + live-bar link + per-unit resolution shortcut (spine
+    # AD-1/AD-17/AD-23): the bar is installed by the ags_apps role as ONE
+    # versioned unit (the ags-apps monorepo checkout at the pinned tag), and
+    # <install>/config/ags is a SYMLINK into the unit's bar/ subdir — NOT a
+    # real dir of per-file bar sources. The fixture mirrors
+    # verify_ags_apps_unit_dir / _bar_dir / _pin_file / _live_bar_link /
+    # _resolution_shortcut so the criterion asserts have something to pass on.
+    apps_unit = install / "ags-apps" / "bar-v0.1.0"
+    apps_bar = apps_unit / "bar"
+    (apps_bar / "bar" / "widgets").mkdir(parents=True, exist_ok=True)
+    for apps_file in (
+        "app.tsx",
+        "style.css",
+        "overlays.ts",
+        "bar/Bar.tsx",
+        "bar/widgets/workspaces.tsx",
+        "bar/layout.default.ts",
+        "bar/registry.ts",
+        "bar/bar-manifest.ts",
+        "bar/validate.ts",
+        "bar/validate-cli.ts",
     ):
-        (install / "config" / "ags" / "bar" / "widgets" / f"{widget}.tsx").write_text("")
-    # The repo-default layout + the widget registry (migrate-widgets-to-shapes,
-    # AD-8/AD-9): mirror of verify_compositor_skeleton_files. Bar.tsx imports
-    # both. (bar/widgets/network.tsx was retired with this change.)
-    (install / "config" / "ags" / "bar" / "layout.default.ts").write_text("")
-    (install / "config" / "ags" / "bar" / "registry.ts").write_text("")
-    # Settings panel sources (compositor_configs role, add-ags-settings-panel):
-    # must match verify_compositor_skeleton_files EXACTLY (a missing panel
-    # source fails the criterion-7 gate — the fixture IS the provisioned
-    # machine).
-    (install / "config" / "ags" / "settings-panel" / "state.ts").write_text("")
-    (install / "config" / "ags" / "settings-panel" / "primitives.tsx").write_text("")
-    (install / "config" / "ags" / "settings-panel" / "SettingsPanel.tsx").write_text("")
-    (install / "config" / "ags" / "settings-panel" / "bluetooth-agent.ts").write_text("")
-    for control in ("wifi", "bluetooth", "brightness", "volume", "hyprmod"):
-        (
-            install / "config" / "ags" / "settings-panel" / "controls" / f"{control}.tsx"
-        ).write_text("")
-    for view in ("MainView", "WifiView", "BluetoothView", "SubviewHeader"):
-        (
-            install / "config" / "ags" / "settings-panel" / "views" / f"{view}.tsx"
-        ).write_text("")
-    # Shared AGS sources (compositor_configs role, extract-ags-shared-components):
-    # the relocated D-Bus services and the primitives/wifi/bluetooth/slider
-    # components — must match verify_compositor_skeleton_files EXACTLY.
-    for service in ("nm-client", "wifi-service", "bluetooth-service", "mpris-core"):
-        (install / "config" / "ags" / "services" / f"{service}.ts").write_text("")
-    (install / "config" / "ags" / "components" / "primitives" / "IconToggle.tsx").write_text("")
-    (install / "config" / "ags" / "components" / "primitives" / "LevelSlider.tsx").write_text("")
-    (install / "config" / "ags" / "components" / "wifi" / "state.ts").write_text("")
-    (install / "config" / "ags" / "components" / "wifi" / "WifiContent.tsx").write_text("")
-    (install / "config" / "ags" / "components" / "wifi" / "WifiPopup.tsx").write_text("")
-    (install / "config" / "ags" / "components" / "bluetooth" / "BluetoothContent.tsx").write_text("")
-    # The Bluetooth popup + overlay state (add-bluetooth-bar-popup): mirror of
-    # verify_compositor_skeleton_files.
-    (install / "config" / "ags" / "components" / "bluetooth" / "BluetoothPopup.tsx").write_text("")
-    (install / "config" / "ags" / "components" / "bluetooth" / "state.ts").write_text("")
-    (install / "config" / "ags" / "components" / "sliders" / "VolumeSlider.tsx").write_text("")
-    (install / "config" / "ags" / "components" / "sliders" / "BrightnessSlider.tsx").write_text("")
-    # Audio sources (compositor_configs role, add-pipewire-audio-control):
-    # the bar output/mic widget, the shared state, and the popup window —
-    # must match verify_compositor_skeleton_files EXACTLY.
-    (install / "config" / "ags" / "bar" / "widgets" / "audio.tsx").write_text("")
-    (install / "config" / "ags" / "audio" / "ui-state.ts").write_text("")
-    (install / "config" / "ags" / "audio" / "presentation" / "levels.ts").write_text("")
-    (install / "config" / "ags" / "audio" / "presentation" / "bar-indicators.ts").write_text("")
-    (install / "config" / "ags" / "audio" / "AudioPopup.tsx").write_text("")
-    # The audio hexagon (redesign-ags-audio-panel) and the ambient type
-    # declaration. EVERY entry in verify_compositor_skeleton_files must exist
-    # under the fixture, or the criterion-7 assert trips selectattr('isreg') on
-    # the missing one — the failure the redesign left behind when it added these
-    # files to the list but not to this "machine".
-    for audio_rel in (
-        "composition.ts",
-        "audio-panel.css",
-        "domain/audio-model.ts",
-        "application/ports.ts",
-        "application/audio-actions.ts",
-        "application/runtime/audio-session-runtime.ts",
-        "adapters/pipewire/project-pipewire-session.ts",
-        "adapters/pipewire/pipewire-commands.ts",
-        "adapters/pipewire/pipewire-observation.ts",
-        "adapters/mpris/mpris-adapter.ts",
-        "presentation/audio-panel-view-model.ts",
-    ):
-        (install / "config" / "ags" / "audio" / audio_rel).write_text("")
-    (install / "config" / "ags" / "types.d.ts").write_text("")
+        (apps_bar / apps_file).write_text("")
+    (install / "ags-apps" / "pinned").write_text("bar-v0.1.0\n")
+    (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
+    (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
+    (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
+    # Generated (icons.json) and runtime-owned (colors.css) artifacts resolve
+    # THROUGH the live-bar link into the unit tree, exactly as on a real host:
+    # the icon manifest is a criterion-7 skeleton, the colors.css pointer is an
+    # R2 consumer symlink (Epic 4 current-only).
+    (install / "config" / "ags" / "icons.json").write_text("{}")
+    (install / "config" / "ags" / "colors.css").symlink_to(
+        state_current / "colors.gtk.css"
+    )
     # Standalone capture app (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.
     (install / "config" / "ags-capture" / "app.tsx").write_text("")
