@@ -19,7 +19,9 @@
 # drift. AGENTS.md §2's "register every new bar source" rule is satisfied BY
 # CONSTRUCTION for the bar (there are no per-file bar sources anymore); the
 # deploy-coverage gate asserts the absence of stale per-file bar entries
-# instead.
+# instead. The clipboard overlay (slice 3) deploys the same way:
+# <install>/config/ags-hypr-pano is a symlink into the unit's hypr-pano/ subdir,
+# and gui_tools no longer enumerates it per file.
 #
 # WHY A RESOLUTION SHORTCUT INSIDE THE UNIT. AGS (v3.1.0) embeds esbuild,
 # which resolves a bare specifier (`import { x } from "ags-platform"`) from
@@ -104,9 +106,26 @@ ags_apps_spine_config_dir: "{{ install_dir | trim }}/config"
 #   it and runs the unit's `ags-bar-validate` CLI as the strict install gate.
 ags_apps_live_bar_link: "{{ ags_apps_spine_config_dir }}/ags"
 
+# ags_apps_hypr_pano_dir: the deployed clipboard overlay package — the
+#   `hypr-pano/` subdir of the unit (slice 3 moved the in-repo
+#   src/gui-tools/hypr-pano/ here as a thin ags-platform consumer); the
+#   live-pano link points at this dir. Same monorepo deviation as the bar: the
+#   repo root is not the package, the app dir is the package.
+ags_apps_hypr_pano_dir: "{{ ags_apps_unit_dir }}/hypr-pano"
+
+# ags_apps_live_pano_link: the live clipboard overlay. A symlink named
+#   `ags-hypr-pano` in the spine config root pointing at the unit's hypr-pano/
+#   dir, so <install>/config/ags-hypr-pano IS the pinned app. The config-links
+#   role exposes it unchanged at ~/.config/ags-hypr-pano; autostart.lua and the
+#   provisioned `hypr-pano-ui` launcher run `ags run -d ~/.config/ags-hypr-pano`
+#   (the symlink), never the unit path directly. No per-file copy can drift.
+ags_apps_live_pano_link: "{{ ags_apps_spine_config_dir }}/ags-hypr-pano"
+
 # ags_apps_backup_root: where a displaced legacy bridge dir is preserved.
 #   A timestamped subdir per run (mirror of config_links_backup_root): the
-#   original is never deleted without preserving it verbatim.
+#   original is never deleted without preserving it verbatim. Shared by the
+#   live-bar link (the retired per-file bar bridge) and the live-pano link (the
+#   retired per-file clipboard-overlay bridge).
 ags_apps_backup_root: "{{ ags_apps_install_root }}/bridge-backups"
 
 # ags_apps_platform_version: the pinned platform tag the per-unit resolution

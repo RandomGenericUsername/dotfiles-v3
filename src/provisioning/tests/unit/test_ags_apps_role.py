@@ -146,6 +146,21 @@ class TestAgsAppsVars:
             "belongs in the tasks, not the vars"
         )
 
+    def test_live_pano_link_deploys_the_unit_at_config_ags_hypr_pano(self) -> None:
+        """Slice 3: the clipboard overlay deploys WHOLE like the bar — a symlink
+        from the spine root into the unit's hypr-pano/ subdir."""
+        data = _vars()
+        pano = str(data["ags_apps_hypr_pano_dir"])
+        assert pano.endswith("/hypr-pano")
+        assert "ags_apps_unit_dir" in pano
+        live = str(data["ags_apps_live_pano_link"])
+        assert "spine_config_dir" in live
+        assert live.endswith("/ags-hypr-pano")
+        assert "ags_apps_hypr_pano_dir" not in live, (
+            "the link DEST is the spine path; the link SRC (the unit pano dir) "
+            "belongs in the tasks, not the vars"
+        )
+
     def test_resolution_shortcut_is_per_unit(self) -> None:
         """esbuild realpaths the live-bar link, so the shared-ancestor shortcut
         is not an ancestor of the real bar tree — the shortcut MUST live
@@ -289,6 +304,63 @@ class TestAgsAppsTasks:
         assert module["src"] == "{{ ags_apps_bar_dir }}"
         assert module["dest"] == "{{ ags_apps_live_bar_link }}"
 
+    def test_live_pano_is_forced_symlink_into_the_unit_pano(self) -> None:
+        task = _named("Deploy the unit's hypr-pano as the live clipboard overlay")
+        assert _module_key(task) == "ansible.builtin.file"
+        module = _module(task)
+        assert module["state"] == "link"
+        assert module["force"] is True, "force makes a rollback repoint converge"
+        assert module["src"] == "{{ ags_apps_hypr_pano_dir }}"
+        assert module["dest"] == "{{ ags_apps_live_pano_link }}"
+
+    def test_pano_legacy_bridge_is_classified_before_displacement(self) -> None:
+        """Slice 3 mirrors the bar's migrate-then-symlink discipline: the role
+        must classify the live-pano path (stat + children) BEFORE touching it,
+        so an empty fresh-spine dir is removed while a non-empty legacy bridge
+        is moved aside, never deleted."""
+        stat = _named("Check whether the live-pano path already exists")
+        assert _module_key(stat) == "ansible.builtin.stat"
+        assert _module(stat).get("follow") is False, (
+            "the stat must see the link itself, not its target"
+        )
+        find = _named("List the live-pano path's children when it is a real dir")
+        assert _module_key(find) == "ansible.builtin.find"
+        remove = _named("Remove the live-pano path when it is an empty real dir")
+        assert _module(remove)["state"] == "absent"
+        move = _named(
+            "Move aside a non-empty legacy pano bridge dir blocking the live-pano link"
+        )
+        assert _module_key(move) == "ansible.builtin.command", (
+            "the move-aside is a mutation and must stay a check-gated command"
+        )
+        for task in (remove, move):
+            when = str(task.get("when", ""))
+            assert "islnk" in when and "matched" in when, (
+                f"task {task.get('name')!r} must branch on link-vs-dir and "
+                "empty-vs-nonempty"
+            )
+            assert "not ansible_check_mode" in when
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        assert names.index(
+            "Remove the live-pano path when it is an empty real dir"
+        ) < names.index("Deploy the unit's hypr-pano as the live clipboard overlay"), (
+            "ordering must be classify -> backup -> symlink"
+        )
+
+    def test_pano_backup_path_cannot_collide_with_the_bar_backup(self) -> None:
+        """Both links share the bridge-backup root. A run that displaces BOTH
+        legacy dirs must not move them onto the same timestamped path, so the
+        pano backup carries an app suffix."""
+        task = _named("Determine the legacy-pano-bridge backup path for this run")
+        backup = str(_module(task)["ags_apps_pano_backup_path"])
+        assert "ags_apps_backup_root" in backup, (
+            f"the pano backup must live under the shared backup root; got {backup!r}"
+        )
+        assert "hypr-pano" in backup, (
+            "the pano backup must be distinguishable from the bar's timestamp "
+            f"dir; got {backup!r}"
+        )
+
     def test_no_become_anywhere(self) -> None:
         for task in _load_tasks():
             assert not task.get("become", False), (
@@ -356,6 +428,11 @@ class TestAgsAppsExecution:
         bar = unit / "bar"
         bar.mkdir(parents=True)
         (bar / "app.tsx").write_text("export {}\n")
+        # The monorepo unit also ships hypr-pano/ (slice 3); the live-pano link
+        # needs it present to resolve.
+        pano = unit / "hypr-pano"
+        pano.mkdir(parents=True)
+        (pano / "app.tsx").write_text("export {}\n")
         return platform, bar
 
     def test_places_pin_links_and_shortcut_for_a_present_unit(
@@ -383,6 +460,12 @@ class TestAgsAppsExecution:
         unit_dir = install / "ags-apps" / str(_vars()["ags_apps_version"])
         assert not (unit_dir / ".git").exists()
 
+        live_pano = install / "config" / "ags-hypr-pano"
+        assert live_pano.is_symlink(), "the live clipboard overlay must be a symlink"
+        assert live_pano.resolve() == (unit_dir / "hypr-pano").resolve(), (
+            "the live clipboard overlay must point at the unit's hypr-pano/"
+        )
+
         shortcut = (
             unit_dir / "node_modules" / "ags-platform"
         )
@@ -395,7 +478,40 @@ class TestAgsAppsExecution:
         second = self._run(install, home)
         assert second.returncode == 0, second.stdout + second.stderr
         assert live.resolve() == bar.resolve()
+        assert live_pano.resolve() == (unit_dir / "hypr-pano").resolve()
         assert shortcut.resolve() == platform.resolve()
+
+    def test_pano_legacy_bridge_is_moved_aside(self, tmp_path: Path) -> None:
+        """Slice 3 upgrade from the per-file clipboard-overlay bridge: the
+        legacy <install>/config/ags-hypr-pano dir is preserved in a timestamped
+        backup (never deleted) and the live-pano link takes its place. No
+        colors.css seed applies (hypr-pano owns no runtime pointer)."""
+        home = tmp_path / "home"
+        install = tmp_path / "install"
+        home.mkdir()
+        install.mkdir()
+        (install / "config").mkdir()
+        self._seed_units(install)
+
+        legacy = install / "config" / "ags-hypr-pano"
+        (legacy / "ui").mkdir(parents=True)
+        (legacy / "app.tsx").write_text("export {}\n")
+
+        result = self._run(install, home)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        unit_dir = install / "ags-apps" / str(_vars()["ags_apps_version"])
+        assert legacy.is_symlink(), "the live-pano link must replace the legacy dir"
+        assert legacy.resolve() == (unit_dir / "hypr-pano").resolve()
+
+        backups = list((install / "ags-apps" / "bridge-backups").iterdir())
+        assert len(backups) == 1, "exactly one timestamped backup must exist"
+        assert "hypr-pano" in backups[0].name, (
+            "the pano backup must be distinguishable from a bar backup"
+        )
+        assert (backups[0] / "app.tsx").is_file(), (
+            "the backup must preserve the legacy bridge verbatim"
+        )
 
     def test_legacy_bridge_is_moved_aside_and_colors_seeded(
         self, tmp_path: Path
