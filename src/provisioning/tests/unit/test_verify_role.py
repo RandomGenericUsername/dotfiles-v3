@@ -1407,6 +1407,56 @@ class TestVerifyVars:
             f"the path excluded from verify_install_spine_dirs; got {live_bar!r}"
         )
 
+    def test_live_pano_link_mirrors_the_ags_apps_role_and_is_not_a_spine_dir(
+        self,
+    ) -> None:
+        """Slice 3: <install>/config/ags-hypr-pano is the ags_apps role's
+        live-pano SYMLINK (-> the unit's hypr-pano/), NOT a filesystem/gui_tools
+        dir. It must be absent from verify_install_spine_dirs (the criterion-1
+        isdir assert counts dirs), absent from verify_gui_tools_app_files (the
+        overlay deploys WHOLE), and its vars must mirror the ags_apps role."""
+        data = _vars()
+        apps = _sibling_vars("ags_apps")
+
+        live = str(data["verify_ags_apps_live_pano_link"])
+        assert live == "{{ install_dir | trim }}/config/ags-hypr-pano", (
+            f"verify_ags_apps_live_pano_link must be <install>/config/ags-hypr-pano; got {live!r}"
+        )
+        # Mirror of the role: the link DEST is the spine config path, the unit
+        # dir is the hypr-pano/ subdir of the versioned unit.
+        role_live = str(apps["ags_apps_live_pano_link"])
+        assert role_live.endswith("/ags-hypr-pano") and "spine_config_dir" in role_live, (
+            f"the ags_apps role must deploy the live-pano link at config/ags-hypr-pano; got {role_live!r}"
+        )
+        unit_pano = str(data["verify_ags_apps_hypr_pano_dir"])
+        assert unit_pano.endswith("/hypr-pano") and "verify_ags_apps_unit_dir" in unit_pano, (
+            f"verify_ags_apps_hypr_pano_dir must be <unit>/hypr-pano; got {unit_pano!r}"
+        )
+        assert str(apps["ags_apps_hypr_pano_dir"]).endswith("/hypr-pano"), (
+            "the ags_apps role must declare the unit's hypr-pano/ subdir"
+        )
+
+        # Not a spine dir, and not a per-file gui_tools assertion.
+        assert "config/ags-hypr-pano" not in [
+            str(item) for item in data["verify_install_spine_dirs"]
+        ], "config/ags-hypr-pano is a symlink, not a verify_install_spine_dirs dir"
+        per_file_pano = [
+            str(f)
+            for f in data["verify_gui_tools_app_files"]
+            if "/config/ags-hypr-pano/" in str(f)
+        ]
+        assert per_file_pano == [], (
+            "verify_gui_tools_app_files must not mirror per-file hypr-pano "
+            f"sources (the overlay deploys WHOLE): {per_file_pano}"
+        )
+        # The unit files are asserted under the unit, and there are some.
+        pano_files = [str(f) for f in data["verify_ags_apps_hypr_pano_files"]]
+        assert pano_files, "verify_ags_apps_hypr_pano_files must not be empty"
+        for entry in pano_files:
+            assert entry.startswith("{{ verify_ags_apps_hypr_pano_dir }}/"), (
+                f"a hypr-pano unit file must derive from the unit dir; got {entry!r}"
+            )
+
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
         settings_files dests EXACTLY — verify must check the SAME rendered
@@ -1845,6 +1895,9 @@ class TestVerifyVars:
             "verify_ags_apps_live_bar_link",
             "verify_ags_apps_resolution_shortcut",
             "verify_ags_apps_unit_files",
+            "verify_ags_apps_hypr_pano_dir",
+            "verify_ags_apps_live_pano_link",
+            "verify_ags_apps_hypr_pano_files",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2586,7 +2639,8 @@ def _build_provisioned_layout(
     (no generated/ tree), the five asset outcomes, the three rendered
     settings.toml files in the SPINE (pointing at XDG cache/state), the
     compositor skeletons in the spine, the external ags-platform unit + the
-    ags-apps bar unit with its live-bar symlink, the R2 consumer symlink, the
+    ags-apps unit with its live-bar and live-pano symlinks, the R2 consumer
+    symlink, the
     runtime current/ palette + icons under the state home, the config
     copies in the spine, the XDG state/cache homes, and the
     ~/.config/<name> -> spine symlinks the config-links role creates.
@@ -2603,9 +2657,10 @@ def _build_provisioned_layout(
         # config/ags is the ags_apps live-bar SYMLINK (<install>/config/ags ->
         # the pinned unit's bar/), NOT a spine dir; it is created in the
         # ags-apps unit block below. config/ags-capture stays a spine dir.
+        # config/ags-hypr-pano is likewise the live-pano SYMLINK (slice 3), not
+        # a spine dir — created in the same block.
         "config/ags-capture",
         "config/ags-icme",
-        "config/ags-hypr-pano",
         "config/ags-wallpaper-selector",
         "config/ags-notifications",
         "config/ags-btop-studio",
@@ -2769,9 +2824,6 @@ def _build_provisioned_layout(
         "ags-capture/controllers",
         "ags-capture/lib",
         "ags-icme/lib",
-        "ags-hypr-pano",
-        "ags-hypr-pano/ui",
-        "ags-hypr-pano/lib",
         "ags-wallpaper-selector",
         "ags-wallpaper-selector/ui",
         "ags-wallpaper-selector/lib",
@@ -2828,6 +2880,26 @@ def _build_provisioned_layout(
     (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
     (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
     (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
+    # The clipboard overlay deploys WHOLE like the bar (slice 3): the unit's
+    # hypr-pano/ subdir is linked as <install>/config/ags-hypr-pano — NOT a real
+    # dir of per-file app sources. Mirror of verify_ags_apps_hypr_pano_dir /
+    # _live_pano_link / _hypr_pano_files.
+    apps_pano = apps_unit / "hypr-pano"
+    (apps_pano / "ui").mkdir(parents=True, exist_ok=True)
+    (apps_pano / "lib").mkdir(parents=True, exist_ok=True)
+    for pano_file in (
+        "app.tsx",
+        "style.css",
+        "ui/PanoWindow.tsx",
+        "ui/ItemCard.tsx",
+        "ui/Preview.tsx",
+        "lib/clipboard-types.ts",
+        "lib/history.ts",
+    ):
+        (apps_pano / pano_file).write_text("")
+    (install / "config" / "ags-hypr-pano").symlink_to(
+        apps_pano, target_is_directory=True
+    )
     # Generated (icons.json) and runtime-owned (colors.css) artifacts resolve
     # THROUGH the live-bar link into the unit tree, exactly as on a real host:
     # the icon manifest is a criterion-7 skeleton, the colors.css pointer is an
@@ -2899,18 +2971,10 @@ def _build_provisioned_layout(
     (install / "config" / "ags-icme" / "lib" / "event-contract.ts").write_text("")
     (install / "config" / "ags-icme" / "lib" / "event-bus-core.ts").write_text("")
     (install / "config" / "ags-icme" / "lib" / "event-bus.ts").write_text("")
-    # hypr-pano clipboard overlay (gui_tools role): must match
-    # verify_gui_tools_app_files EXACTLY.
-    (install / "config" / "ags-hypr-pano" / "app.tsx").write_text("")
-    (install / "config" / "ags-hypr-pano" / "style.css").write_text("")
-    (install / "config" / "ags-hypr-pano" / "ui" / "PanoWindow.tsx").write_text("")
-    (install / "config" / "ags-hypr-pano" / "ui" / "ItemCard.tsx").write_text("")
-    (install / "config" / "ags-hypr-pano" / "ui" / "Preview.tsx").write_text("")
-    (install / "config" / "ags-hypr-pano" / "lib" / "clipboard-types.ts").write_text("")
-    (install / "config" / "ags-hypr-pano" / "lib" / "icon-registry.ts").write_text("")
-    (install / "config" / "ags-hypr-pano" / "lib" / "history.ts").write_text("")
-    (install / "config" / "ags-hypr-pano" / "lib" / "event-bus-core.ts").write_text("")
-    (install / "config" / "ags-hypr-pano" / "lib" / "event-bus.ts").write_text("")
+    # hypr-pano is NOT a gui_tools per-file app anymore (slice 3): it deploys
+    # WHOLE via the ags_apps live-pano link created in the unit block above, so
+    # there is no per-file mirror here and verify_gui_tools_app_files asserts
+    # none of it.
     # Wallpaper selector (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.
     (install / "config" / "ags-wallpaper-selector" / "app.tsx").write_text("")

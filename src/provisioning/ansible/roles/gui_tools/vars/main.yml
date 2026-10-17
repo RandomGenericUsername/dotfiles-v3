@@ -14,6 +14,15 @@
 #   (b) vs cli_tools (backend binaries): cli_tools installs the controller
 #       binaries to the user bin dir; this role places the AGS UI sources.
 #       The two meet at runtime via $PATH + the instance bus, never on disk.
+#
+# hypr-pano IS RETIRED AS A GUI-TOOLS APP (ags-apps-bar-first slice 3). The
+# clipboard overlay moved into the ags-apps monorepo unit and deploys WHOLE via
+# the ags_apps role's live-pano link (<install>/config/ags-hypr-pano ->
+# <unit>/hypr-pano), so this role no longer enumerates it per file. The AGS
+# instance entry stays in gui_tools_ags_instances below: the app still launches
+# from ~/.config/ags-hypr-pano (the config-links symlink to the live-pano link),
+# and the quit loop must still restart it after placement. The deploy-coverage
+# gate asserts the absence of a stale per-file hypr-pano entry.
 
 # gui_tools_repo_root: repo root derived from this playbook's location.
 #   Mirror of compositor_configs_repo_root / cli_tools_repo_root exactly.
@@ -64,9 +73,6 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
-  - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano"
-  - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui"
-  - "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector"
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib"
@@ -182,8 +188,8 @@ gui_tools_app_files:
   - { name: capture-adapters-hyprland-monitor-focus, source: src/gui-tools/capture-tool/adapters/hyprland-monitor-focus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/hyprland-monitor-focus.ts" }
   - { name: capture-adapters-monitor-window-set, source: src/gui-tools/capture-tool/adapters/monitor-window-set.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/monitor-window-set.ts" }
   # The capture instance resolves palette-aware icons through its own
-  # registry (hypr-pano pattern: each GUI app owns its lib/ in src and the
-  # role deploys it per-file). The capture registry prefers the instance's
+  # registry (each GUI app owns its lib/ in src and the role deploys it
+  # per-file). The capture registry prefers the instance's
   # own manifest (`../icons.json` → the ags-capture manifest the
   # compositor_configs role generates into the same spine dir) and falls back
   # to the shared bar manifest. Repo-authoritative, force: true.
@@ -229,27 +235,11 @@ gui_tools_icme_app_files:
   - { name: icme-lib-event-bus, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus.ts" }
   - { name: icme-lib-theme, source: src/gui-tools/icon-color-mapping-editor/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/theme.ts" }
 
-# gui_tools_hypr_pano_app_files: the clipboard overlay's app files, deployed
-#   into their own ags-hypr-pano/ spine dir. Rendered via `template` with
-#   force: true (repo-authoritative); the sources contain no Jinja-sensitive
-#   `{{`/`{%` sequences (verified by the provisioning role test).
-gui_tools_hypr_pano_app_files:
-  - { name: hypr-pano-app-tsx, source: src/gui-tools/hypr-pano/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/app.tsx" }
-  - { name: hypr-pano-style-css, source: src/gui-tools/hypr-pano/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/style.css" }
-  - { name: hypr-pano-window, source: src/gui-tools/hypr-pano/ui/PanoWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui/PanoWindow.tsx" }
-  - { name: hypr-pano-item-card, source: src/gui-tools/hypr-pano/ui/ItemCard.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui/ItemCard.tsx" }
-  - { name: hypr-pano-preview, source: src/gui-tools/hypr-pano/ui/Preview.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/ui/Preview.tsx" }
-  - { name: hypr-pano-lib-clipboard-types, source: src/gui-tools/hypr-pano/lib/clipboard-types.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/clipboard-types.ts" }
-  - { name: hypr-pano-lib-icon-registry, source: src/gui-tools/hypr-pano/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/icon-registry.ts" }
-  - { name: hypr-pano-lib-history, source: src/gui-tools/hypr-pano/lib/history.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/history.ts" }
-  - { name: hypr-pano-lib-event-bus-core, source: src/gui-tools/hypr-pano/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/event-bus-core.ts" }
-  - { name: hypr-pano-lib-event-bus, source: src/gui-tools/hypr-pano/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-hypr-pano/lib/event-bus.ts" }
-
 # gui_tools_wallpaper_selector_app_files: the wallpaper selector's app files,
 #   deployed into their own ags-wallpaper-selector/ spine dir. Rendered via
 #   `template` with force: true (repo-authoritative); the sources contain no
 #   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
-#   test) — same placement discipline as the capture app and hypr-pano.
+#   test) — same placement discipline as the capture app.
 gui_tools_wallpaper_selector_app_files:
   - { name: wallpaper-selector-app-tsx, source: src/gui-tools/wallpaper-selector/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/app.tsx" }
   - { name: wallpaper-selector-style-css, source: src/gui-tools/wallpaper-selector/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/style.css" }
@@ -268,7 +258,7 @@ gui_tools_wallpaper_selector_app_files:
 #   deployed into their own ags-notifications/ spine dir. Rendered via
 #   `template` with force: true (repo-authoritative); the sources contain no
 #   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
-#   test) — same placement discipline as hypr-pano and the wallpaper
+#   test) — same placement discipline as the wallpaper
 #   selector. Wallpaper progress uses the shared ITR icon manifest and a
 #   local resolver to load its palette-rendered picture and check-circle icons.
 gui_tools_notifications_app_files:

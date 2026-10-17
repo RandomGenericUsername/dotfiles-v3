@@ -532,6 +532,31 @@ verify_ags_apps_unit_files:
   - "{{ verify_ags_apps_bar_dir }}/bar/validate.ts"
   - "{{ verify_ags_apps_bar_dir }}/bar/validate-cli.ts"
 
+# verify_ags_apps_hypr_pano_dir / _live_pano_link / _hypr_pano_files: the
+#   clipboard overlay, deployed WHOLE like the bar (ags-apps-bar-first slice 3).
+#   The live-pano link <install>/config/ags-hypr-pano is a symlink into the
+#   unit's hypr-pano/ dir, so the live app is always exactly the pinned tag — no
+#   per-file mirror can drift. Mirror of the ags_apps role vars. The
+#   ~/.config/ags-hypr-pano symlink (config_links) and the autostart/keybind
+#   launchers are unchanged: they resolve through this link.
+verify_ags_apps_hypr_pano_dir: "{{ verify_ags_apps_unit_dir }}/hypr-pano"
+verify_ags_apps_live_pano_link: "{{ install_dir | trim }}/config/ags-hypr-pano"
+
+# verify_ags_apps_hypr_pano_files: representative files that MUST be present in
+#   the installed unit's hypr-pano/. NOT the whole app (that is the clone's job)
+#   — one file per concern: the composition-root entry, the stylesheet, the
+#   overlay window and its item card/preview, and the pure clipboard
+#   types/history modules the window imports. A missing file is an overlay that
+#   cannot bundle.
+verify_ags_apps_hypr_pano_files:
+  - "{{ verify_ags_apps_hypr_pano_dir }}/app.tsx"
+  - "{{ verify_ags_apps_hypr_pano_dir }}/style.css"
+  - "{{ verify_ags_apps_hypr_pano_dir }}/ui/PanoWindow.tsx"
+  - "{{ verify_ags_apps_hypr_pano_dir }}/ui/ItemCard.tsx"
+  - "{{ verify_ags_apps_hypr_pano_dir }}/ui/Preview.tsx"
+  - "{{ verify_ags_apps_hypr_pano_dir }}/lib/clipboard-types.ts"
+  - "{{ verify_ags_apps_hypr_pano_dir }}/lib/history.ts"
+
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
 #   mirror of gui_tools_app_files + gui_tools_icme_app_files dests). The bar's
@@ -625,16 +650,6 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/app.tsx"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/style.css"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/PanoWindow.tsx"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/ItemCard.tsx"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/ui/Preview.tsx"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/clipboard-types.ts"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/icon-registry.ts"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/history.ts"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus-core.ts"
-  - "{{ install_dir | trim }}/config/ags-hypr-pano/lib/event-bus.ts"
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/app.tsx"
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/style.css"
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/ui/WallpaperSelectorWindow.tsx"
