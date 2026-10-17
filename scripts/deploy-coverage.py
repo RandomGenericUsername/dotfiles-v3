@@ -366,10 +366,11 @@ def assert_bar_provisioning(root: Path) -> None:
             f"{BAR_ROLE_VARS} does not pin ags_apps_version — the unit "
             f"must be versioned by directory (spine AD-23)"
         )
-    if not str(version).startswith("bar-"):
+    if not re.match(r"^v\d", str(version)):
         raise ValueError(
-            f"ags_apps_version {version!r} names no bar release — tags are "
-            f"per-app releases (e.g. bar-v0.1.0); got {version!r}"
+            f"ags_apps_version {version!r} names no monorepo release — the unit "
+            f"is a monorepo deployed whole, so the pin is a release tag "
+            f"(e.g. v0.2.0); got {version!r}"
         )
 
     install_root = str(data.get("ags_apps_install_root", ""))

@@ -13,6 +13,7 @@ by the deploy-coverage gate's role assertion and the simulated install).
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -106,11 +107,15 @@ class TestAgsAppsRoleTree:
 
 
 class TestAgsAppsVars:
-    def test_pins_one_bar_release(self) -> None:
+    def test_pins_one_monorepo_release(self) -> None:
         data = _vars()
         version = str(data["ags_apps_version"])
-        assert version.startswith("bar-"), (
-            "the pin must be a per-app release tag (e.g. bar-v0.1.0)"
+        # The unit is a MONOREPO deployed whole, so the pin names a monorepo
+        # release tag (vX.Y.Z carrying bar/ + hypr-pano/), not a per-app
+        # `bar-` tag. A `bar-`-prefixed pin here would name a tag the monorepo
+        # no longer cuts.
+        assert re.match(r"^v\d", version), (
+            f"the pin must be a monorepo release tag (e.g. v0.2.0); got {version!r}"
         )
         assert data["ags_apps_repo_url"].startswith("https://github.com/"), (
             "the unit is cloned over anonymous HTTPS"
@@ -345,7 +350,10 @@ class TestAgsAppsExecution:
         platform = install / "ags-platform" / "v0.1.0"
         (platform / "ports").mkdir(parents=True)
         (platform / "index.ts").write_text("export {}\n")
-        bar = install / "ags-apps" / "bar-v0.1.1" / "bar"
+        # Derive the unit dir from the pin so a tag bump does not leave a
+        # hardcoded `bar-v0.1.1` behind (the pin is a monorepo release now).
+        unit = install / "ags-apps" / str(_vars()["ags_apps_version"])
+        bar = unit / "bar"
         bar.mkdir(parents=True)
         (bar / "app.tsx").write_text("export {}\n")
         return platform, bar
@@ -365,17 +373,18 @@ class TestAgsAppsExecution:
 
         pin = install / "ags-apps" / "pinned"
         assert pin.is_file(), "the pin must be recorded"
-        assert pin.read_text().strip() == "bar-v0.1.1"
+        assert pin.read_text().strip() == str(_vars()["ags_apps_version"])
 
         live = install / "config" / "ags"
         assert live.is_symlink(), "the live bar must be a symlink"
         assert live.resolve() == bar.resolve(), (
             "the live bar must point at the unit's bar/"
         )
-        assert not (install / "ags-apps" / "bar-v0.1.1" / ".git").exists()
+        unit_dir = install / "ags-apps" / str(_vars()["ags_apps_version"])
+        assert not (unit_dir / ".git").exists()
 
         shortcut = (
-            install / "ags-apps" / "bar-v0.1.1" / "node_modules" / "ags-platform"
+            unit_dir / "node_modules" / "ags-platform"
         )
         assert shortcut.is_symlink(), "the per-unit shortcut must be a symlink"
         assert shortcut.resolve() == platform.resolve(), (
