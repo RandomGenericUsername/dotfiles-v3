@@ -276,6 +276,23 @@ class TestFilesystemVars:
             "the file-node partition must be exactly weg-effects.yaml"
         )
 
+    def test_spine_dirs_exclude_the_ags_live_bar_link(self) -> None:
+        """ags-apps-bar-first slice 2 (AD-1/AD-17/AD-23): <install>/config/ags
+        is the ags_apps role's live-bar SYMLINK (-> the pinned unit's bar/), NOT
+        a filesystem-owned dir. The role must not list it: verify's criterion-1
+        isdir assert counts every filesystem_spine_dirs entry as a DIR, and a
+        symlinked config/ags made that assert false on a real bootstrap (the
+        regression this locks). The sibling capture dir stays a real dir."""
+        data = _vars()
+        spine = [str(item) for item in data["filesystem_spine_dirs"]]
+        assert "config/ags" not in spine, (
+            "config/ags is the ags_apps live-bar symlink, not a filesystem dir — "
+            f"got {spine}"
+        )
+        assert "config/ags-capture" in spine, (
+            "config/ags-capture must stay a filesystem-created spine dir"
+        )
+
     def test_spine_dirs_have_no_generated_tree(self) -> None:
         """Epic 4: no `generated/` tree in the spine list — the runtime owns
         all derived artifacts under $XDG_STATE_HOME/dotfiles/."""

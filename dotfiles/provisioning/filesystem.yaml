@@ -25,7 +25,10 @@ entries:
   - name: config/color-scheme-generator/templates
   - name: config/hypr
   - name: config/hyprpaper
-  - name: config/ags
+  # config/ags is DELIBERATELY absent: the ags_apps role owns it as the
+  # live-bar SYMLINK (<install>/config/ags -> the pinned unit's bar/), not the
+  # filesystem role as a dir. Keeping it out of the manifest keeps the parity
+  # lock (test_parity_with_manifest) from re-adding it to filesystem_spine_dirs.
   - name: config/ags-capture
   - name: config/nvim
   - name: config/starship

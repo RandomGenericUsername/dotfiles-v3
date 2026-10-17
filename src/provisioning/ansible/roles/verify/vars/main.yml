@@ -96,7 +96,11 @@ verify_install_spine_dirs:
   - config/color-scheme-generator/templates
   - config/hypr
   - config/hyprpaper
-  - config/ags
+  # config/ags is DELIBERATELY absent: it is the ags_apps role's live-bar
+  # SYMLINK (<install>/config/ags -> the pinned unit's bar/), asserted
+  # separately by verify_ags_apps_live_bar_link. Listing it here made the
+  # criterion-1 isdir assert fail on a real bootstrap (stat.isdir is false
+  # through a symlink). config/ags-capture stays a spine dir.
   - config/ags-capture
   - config/nvim
   - config/starship
