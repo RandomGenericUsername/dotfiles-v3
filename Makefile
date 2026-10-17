@@ -261,13 +261,13 @@ capture-test: capture-test-deps
 # constants. This target runs exactly those suites, not the apps' other unit
 # tests, which each app's `make test` still owns. (The bar's own
 # `ags-symbol-check.mjs` scan was retired with the in-repo bar bridge and lives
-# in the bar's repo.)
+# in the bar's repo; hypr-pano's drift suite moved to the ags-apps unit with the
+# app itself — ags-apps-bar-first slice 3 — and is run there.)
 #
 # NO DESKTOP STACK: plain `node` over the apps' pure modules and the committed
 # contract, so the target is in gates-ci and runs on a stock runner. Node 22.18+
 # is required for native .ts type-stripping; CI pins Node 24.
 PER_APP_SUITES := \
-	src/gui-tools/hypr-pano/tests/event-contract-drift.mjs \
 	src/gui-tools/icon-color-mapping-editor/tests/event-contract-drift.mjs \
 	src/gui-tools/wallpaper-selector/tests/event-contract-drift.mjs
 

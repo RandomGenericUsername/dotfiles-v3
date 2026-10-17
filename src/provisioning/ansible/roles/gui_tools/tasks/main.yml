@@ -67,19 +67,15 @@
     force: true
   loop: "{{ gui_tools_icme_app_files }}"
 
-# The clipboard overlay sources carry no Jinja-sensitive sequences (the role
-# test pins that), so they take the same per-file, repo-authoritative template
-# placement as the capture app.
-- name: Place hypr-pano clipboard overlay app files
-  ansible.builtin.template:
-    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
-    dest: "{{ item.dest }}"
-    force: true
-  loop: "{{ gui_tools_hypr_pano_app_files }}"
+# The clipboard overlay's per-file placement is RETIRED (ags-apps-bar-first
+# slice 3): hypr-pano moved into the ags-apps unit and deploys WHOLE via the
+# ags_apps role's live-pano link. No placement task remains here — a stale one
+# would template INTO the unit tree through the live-pano link and diverge the
+# live app from the pinned tag (the deploy-coverage gate asserts its absence).
 
 # The wallpaper selector sources carry no Jinja-sensitive sequences (the role
 # test pins that), so they take the same per-file, repo-authoritative template
-# placement as the capture app and the clipboard overlay.
+# placement as the capture app.
 - name: Place wallpaper selector app files
   ansible.builtin.template:
     src: "{{ gui_tools_repo_root }}/{{ item.source }}"
