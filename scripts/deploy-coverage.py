@@ -26,7 +26,11 @@ required):
       shared-ancestor `node_modules/ags-platform` shortcut;
   (d) asserts the `ags_apps` role installs the pinned bar unit, deploys the
       live-bar link at `<install>/config/ags`, and creates the per-unit
-      resolution shortcut.
+      resolution shortcut;
+  (e) asserts the SECOND app in the unit, the clipboard overlay `hypr-pano`
+      (slice 3): the retired per-file source is gone from the gui_tools role
+      and the repo, and the `ags_apps` role deploys the unit's `hypr-pano/`
+      subdir as the live `<install>/config/ags-hypr-pano` link.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -48,6 +52,13 @@ THE BAR IS EXTERNAL NOW. The bar's own sources live in the pinned ags-apps
 unit (`<install>/ags-apps/<tag>/bar/`), deployed whole via the live-bar
 symlink — covered BY CONSTRUCTION by the `ags_apps` assertion above, never
 diffed per file.
+
+THE CLIPBOARD OVERLAY IS EXTERNAL TOO (slice 3). `hypr-pano`'s sources live in
+the same pinned unit (`<install>/ags-apps/<tag>/hypr-pano/`), deployed whole via
+the live-pano symlink; the per-file `gui_tools_hypr_pano_app_files` manifest is
+retired and its in-repo source deleted, both asserted above. Like the bar it
+resolves its `ags-platform` imports through the unit's per-unit shortcut (it is
+a SIBLING of bar/ inside the unit).
 
 THE PLATFORM IS EXTERNAL TOO. `ags-platform` and its subpaths are a BARE
 SPECIFIER resolved by AGS's embedded esbuild through provisioning-created
@@ -112,6 +123,21 @@ RETIRED_PLATFORM_DIR = "dotfiles/config/ags/platform"
 BAR_PACKAGE = "ags-apps"
 BAR_ROLE_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
 BAR_ROLE_TASKS = "src/provisioning/ansible/roles/ags_apps/tasks/main.yml"
+
+# The clipboard overlay (ags-apps-bar-first slice 3): the SECOND app moved into
+# the ags-apps unit. It deploys WHOLE the same way as the bar — the ags_apps
+# role links the unit's hypr-pano/ subdir as <install>/config/ags-hypr-pano — so
+# the gate asserts the same two things: the retired per-file source is GONE and
+# the live link is provisioned. The retired per-file deploy lived in the
+# gui_tools role (gui_tools_hypr_pano_app_files), not the compositor manifest,
+# so this half reads that role.
+HYPR_PANO_PACKAGE = "hypr-pano"
+GUI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+
+# The retired in-repo clipboard-overlay source: it moved into the ags-apps
+# monorepo as hypr-pano/. A surviving copy is a second source of truth that no
+# gate deploys but a reader could still mistake for the live app.
+RETIRED_HYPR_PANO_DIR = "src/gui-tools/hypr-pano"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -436,6 +462,109 @@ def assert_bar_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_per_file_hypr_pano_sources(root: Path) -> None:
+    """The clipboard-overlay bridge is retired: no per-file entry may remain.
+
+    The overlay deploys WHOLE via the ags_apps live-pano link, so a per-file
+    entry (gui_tools_hypr_pano_app_files, an ags-hypr-pano/ spine dir, or a dest
+    under it) would template INTO the unit tree through the link and silently
+    diverge the live app from the pinned tag. The in-repo source must be gone
+    too: it lives in the ags-apps unit now.
+    """
+    import yaml
+
+    if (root / RETIRED_HYPR_PANO_DIR).exists():
+        raise ValueError(
+            f"the retired in-repo {HYPR_PANO_PACKAGE!r} source still exists at "
+            f"{RETIRED_HYPR_PANO_DIR}/ — the overlay deploys WHOLE from the "
+            f"ags-apps unit; the in-repo copy is a second source of truth"
+        )
+
+    vars_path = root / GUI_TOOLS_ROLE_VARS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the overlay deploys as the external {HYPR_PANO_PACKAGE!r} unit but "
+            f"no gui_tools role declares it: {GUI_TOOLS_ROLE_VARS} is missing"
+        )
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{GUI_TOOLS_ROLE_VARS} did not parse to a mapping")
+
+    if data.get("gui_tools_hypr_pano_app_files"):
+        raise ValueError(
+            "the overlay deploys WHOLE via the ags_apps live-pano link, but "
+            "gui_tools_hypr_pano_app_files still lists per-file sources in "
+            f"{GUI_TOOLS_ROLE_VARS} — delete it; the per-file bridge is retired"
+        )
+    for key, value in data.items():
+        if key.endswith("_app_files") and isinstance(value, list):
+            for entry in value:
+                dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                if "/ags-hypr-pano/" in dest:
+                    raise ValueError(
+                        f"{key} still deploys into the retired ags-hypr-pano/ "
+                        f"spine: {dest} — the overlay deploys WHOLE via the unit"
+                    )
+    if any(
+        "ags-hypr-pano" in str(d) for d in data.get("gui_tools_config_dirs", [])
+    ):
+        raise ValueError(
+            "gui_tools_config_dirs still ensures the retired ags-hypr-pano/ dir "
+            "— the ags_apps role owns it as the live-pano symlink"
+        )
+
+
+def assert_hypr_pano_provisioning(root: Path) -> None:
+    """The external hypr-pano live link must be provisioned, not assumed.
+
+    Mirror of assert_bar_provisioning for the second app in the unit: the
+    ags_apps role declares the unit's hypr-pano/ subdir and links it as
+    <install>/config/ags-hypr-pano. Without this, deleting the in-repo source
+    would leave the gate green with the live overlay unprovisioned — exactly the
+    silent-coverage-loss this gate exists to prevent.
+    """
+    import yaml
+
+    vars_path = root / BAR_ROLE_VARS
+    tasks_path = root / BAR_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the overlay deploys as the external {HYPR_PANO_PACKAGE!r} unit but "
+            f"no provisioning role declares it: {BAR_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the overlay role has no tasks to deploy it: {BAR_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{BAR_ROLE_VARS} did not parse to a mapping")
+
+    pano_dir = str(data.get("ags_apps_hypr_pano_dir", ""))
+    if not pano_dir.endswith("/hypr-pano"):
+        raise ValueError(
+            f"ags_apps_hypr_pano_dir must be the unit's hypr-pano/ subdir (the "
+            f"monorepo deviation — the repo root is not the package); got "
+            f"{pano_dir!r}"
+        )
+    live = str(data.get("ags_apps_live_pano_link", ""))
+    # Shape, not the exact Jinja string: the link routes through the spine
+    # config dir intermediate and names `ags-hypr-pano`.
+    if "spine_config_dir" not in live or not live.endswith("/ags-hypr-pano"):
+        raise ValueError(
+            f"ags_apps_live_pano_link must deploy the unit's hypr-pano as "
+            f"<install>/config/ags-hypr-pano; got {live!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if "ags_apps_hypr_pano_dir" not in tasks or "ags_apps_live_pano_link" not in tasks:
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not deploy the unit's hypr-pano/ as the "
+            f"live-pano link"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -478,6 +607,11 @@ def main() -> int:
         assert_no_per_file_bar_skeletons(deployed)
         assert_platform_provisioning(root)
         assert_bar_provisioning(root)
+        # Slice 3: the clipboard overlay deploys WHOLE too. Asserted AFTER the
+        # bar so a hermetic fixture that only exercises the bar bridge (and does
+        # not carry the gui_tools role) fails on its own subject, not here.
+        assert_no_per_file_hypr_pano_sources(root)
+        assert_hypr_pano_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -503,10 +637,15 @@ def main() -> int:
         f"live-bar link + per-unit resolution shortcut provisioned "
         f"(not a per-file deploy)"
     )
+    print(
+        f"deploy-coverage: external {HYPR_PANO_PACKAGE!r} app — pinned unit subdir "
+        f"+ live-pano link provisioned; no per-file gui_tools source remains "
+        f"(not a per-file deploy)"
+    )
 
     print(
-        "deploy-coverage: PASS -- the retired bar bridge carries no per-file "
-        "deploy source and both external units are provisioned"
+        "deploy-coverage: PASS -- the retired bar + hypr-pano bridges carry no "
+        "per-file deploy source and both external units are provisioned"
     )
     return 0
 

@@ -1063,7 +1063,7 @@ class TestDeployCoverageGate:
             vars_dst = root / self._VARS
             vars_dst.parent.mkdir(parents=True)
             vars_dst.write_text((repo_root / self._VARS).read_text())
-            for role in ("ags_platform", "ags_apps"):
+            for role in ("ags_platform", "ags_apps", "gui_tools"):
                 shutil.copytree(
                     repo_root / "src/provisioning/ansible/roles" / role,
                     root / "src/provisioning/ansible/roles" / role,
@@ -1073,6 +1073,47 @@ class TestDeployCoverageGate:
             assert result.returncode == 0, result.stdout + result.stderr
             assert "PASS" in result.stdout
             assert "bridge retired" in result.stdout, result.stdout
+
+    def test_gate_fails_when_a_stale_hypr_pano_entry_returns(self) -> None:
+        """Slice 3: a per-file hypr-pano entry in the gui_tools manifest must
+        FAIL. The overlay deploys WHOLE via the unit symlink, so any
+        ags-hypr-pano/ source would template INTO the unit tree through the
+        live-pano link and silently diverge the live app from the pinned tag.
+        Hermetic: a temp root whose gui_tools vars re-add the retired
+        gui_tools_hypr_pano_app_files — plus both unit roles, which the gate
+        asserts."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # The gate parses the compositor manifest first; give it the real one
+            # so it reaches the gui_tools assertion under test.
+            vars_dst = root / self._VARS
+            vars_dst.parent.mkdir(parents=True)
+            vars_dst.write_text((repo_root / self._VARS).read_text())
+            for role in ("ags_platform", "ags_apps", "gui_tools"):
+                shutil.copytree(
+                    repo_root / "src/provisioning/ansible/roles" / role,
+                    root / "src/provisioning/ansible/roles" / role,
+                )
+            gui_vars = (
+                root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+            )
+            gui_vars.write_text(
+                gui_vars.read_text()
+                + "\ngui_tools_hypr_pano_app_files:\n"
+                + "  - { name: stale-pano-app, "
+                + "source: src/gui-tools/hypr-pano/app.tsx, "
+                + "dest: \"{{ gui_tools_spine_config_dir }}/ags-hypr-pano/app.tsx\" }\n"
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a stale per-file hypr-pano entry is "
+                f"listed; recap:\n{result.stdout}"
+            )
+            assert "gui_tools_hypr_pano_app_files" in result.stdout, (
+                "the failure must name the stale hypr-pano entry; recap:\n"
+                + result.stdout
+            )
 
     def test_gate_fails_when_a_stale_bar_entry_returns(self) -> None:
         """Slice 2: a per-file bar entry in the skeleton list must FAIL. The
