@@ -345,7 +345,7 @@ class TestAgsAppsExecution:
         platform = install / "ags-platform" / "v0.1.0"
         (platform / "ports").mkdir(parents=True)
         (platform / "index.ts").write_text("export {}\n")
-        bar = install / "ags-apps" / "bar-v0.1.0" / "bar"
+        bar = install / "ags-apps" / "bar-v0.1.1" / "bar"
         bar.mkdir(parents=True)
         (bar / "app.tsx").write_text("export {}\n")
         return platform, bar
@@ -365,17 +365,17 @@ class TestAgsAppsExecution:
 
         pin = install / "ags-apps" / "pinned"
         assert pin.is_file(), "the pin must be recorded"
-        assert pin.read_text().strip() == "bar-v0.1.0"
+        assert pin.read_text().strip() == "bar-v0.1.1"
 
         live = install / "config" / "ags"
         assert live.is_symlink(), "the live bar must be a symlink"
         assert live.resolve() == bar.resolve(), (
             "the live bar must point at the unit's bar/"
         )
-        assert not (install / "ags-apps" / "bar-v0.1.0" / ".git").exists()
+        assert not (install / "ags-apps" / "bar-v0.1.1" / ".git").exists()
 
         shortcut = (
-            install / "ags-apps" / "bar-v0.1.0" / "node_modules" / "ags-platform"
+            install / "ags-apps" / "bar-v0.1.1" / "node_modules" / "ags-platform"
         )
         assert shortcut.is_symlink(), "the per-unit shortcut must be a symlink"
         assert shortcut.resolve() == platform.resolve(), (
