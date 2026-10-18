@@ -60,12 +60,13 @@ ags_apps_repo_url: https://github.com/RandomGenericUsername/ags-apps.git
 
 # ags_apps_version: THE PIN. The git tag to install, and the name of the
 #   version directory under the install root. The tag names a MONOREPO release
-#   (`v0.2.0` carries bar/ + hypr-pano/): the unit is deployed whole, so one
+#   (`v0.3.0` carries bar/ + hypr-pano/, the latter with its `requestHandler`
+#   that the hypr-pano-ui launcher drives): the unit is deployed whole, so one
 #   tag moves every app it ships. Bump this to move the live apps forward,
 #   point a live link at an older sibling tag dir to roll back. Recorded on the
 #   host at ags_apps_pin_file so the installed version is observable without
 #   reading this file.
-ags_apps_version: v0.2.0
+ags_apps_version: v0.3.0
 
 # ags_apps_install_root: the monorepo home (<install>/ags-apps/). Trim lock:
 #   consumes the same validated {{ install_dir | trim }} value the sibling
@@ -116,9 +117,11 @@ ags_apps_hypr_pano_dir: "{{ ags_apps_unit_dir }}/hypr-pano"
 # ags_apps_live_pano_link: the live clipboard overlay. A symlink named
 #   `ags-hypr-pano` in the spine config root pointing at the unit's hypr-pano/
 #   dir, so <install>/config/ags-hypr-pano IS the pinned app. The config-links
-#   role exposes it unchanged at ~/.config/ags-hypr-pano; autostart.lua and the
-#   provisioned `hypr-pano-ui` launcher run `ags run -d ~/.config/ags-hypr-pano`
-#   (the symlink), never the unit path directly. No per-file copy can drift.
+#   role exposes it unchanged at ~/.config/ags-hypr-pano; autostart.lua starts
+#   it at login and the provisioned `hypr-pano-ui` launcher drives it (cold
+#   start `ags run -d ~/.config/ags-hypr-pano`, then `ags request show`; warm
+#   `ags request toggle`) through the symlink, never the unit path directly. No
+#   per-file copy can drift.
 ags_apps_live_pano_link: "{{ ags_apps_spine_config_dir }}/ags-hypr-pano"
 
 # ags_apps_backup_root: where a displaced legacy bridge dir is preserved.
