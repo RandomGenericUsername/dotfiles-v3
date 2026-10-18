@@ -60,13 +60,13 @@ ags_apps_repo_url: https://github.com/RandomGenericUsername/ags-apps.git
 
 # ags_apps_version: THE PIN. The git tag to install, and the name of the
 #   version directory under the install root. The tag names a MONOREPO release
-#   (`v0.3.0` carries bar/ + hypr-pano/, the latter with its `requestHandler`
+#   (`v0.3.1` carries bar/ + hypr-pano/, the latter with its `requestHandler`
 #   that the hypr-pano-ui launcher drives): the unit is deployed whole, so one
 #   tag moves every app it ships. Bump this to move the live apps forward,
 #   point a live link at an older sibling tag dir to roll back. Recorded on the
 #   host at ags_apps_pin_file so the installed version is observable without
 #   reading this file.
-ags_apps_version: v0.3.0
+ags_apps_version: v0.3.1
 
 # ags_apps_install_root: the monorepo home (<install>/ags-apps/). Trim lock:
 #   consumes the same validated {{ install_dir | trim }} value the sibling
