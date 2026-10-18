@@ -249,7 +249,7 @@ class TestAgsPlatformExecution:
         home.mkdir()
         install.mkdir()
         # Pre-seed the pinned unit so the presence-guarded clone is skipped.
-        unit = install / "ags-platform" / "v0.1.0"
+        unit = install / "ags-platform" / "v0.2.0"
         (unit / "ports").mkdir(parents=True)
         (unit / "index.ts").write_text("export {}\n")
         (unit / "package.json").write_text("{}")
@@ -260,7 +260,7 @@ class TestAgsPlatformExecution:
 
         pin = install / "ags-platform" / "pinned"
         assert pin.is_file(), "the pin must be recorded"
-        assert pin.read_text().strip() == "v0.1.0"
+        assert pin.read_text().strip() == "v0.2.0"
 
         shortcut = install / "config" / "node_modules" / "ags-platform"
         assert shortcut.is_symlink(), "the shared-ancestor shortcut must be a symlink"

@@ -2838,7 +2838,7 @@ def _build_provisioned_layout(
     # installed by the ags_platform role as ONE versioned unit, NOT mirrored
     # per file under config/ags. The fixture mirrors verify_ags_platform_unit_dir
     # / _pin_file / _shortcut so the criterion asserts have something to pass on.
-    unit = install / "ags-platform" / "v0.1.0"
+    unit = install / "ags-platform" / "v0.2.0"
     (unit / "ports").mkdir(parents=True, exist_ok=True)
     (unit / "adapters").mkdir(parents=True, exist_ok=True)
     (unit / "package.json").write_text("{}")
@@ -2850,7 +2850,7 @@ def _build_provisioned_layout(
     (unit / "adapters" / "event-bus.ts").write_text("")
     (unit / "adapters" / "icon-registry.ts").write_text("")
     (unit / "adapters" / "astal.ts").write_text("")
-    (install / "ags-platform" / "pinned").write_text("v0.1.0\n")
+    (install / "ags-platform" / "pinned").write_text("v0.2.0\n")
     (install / "config" / "node_modules").mkdir(parents=True, exist_ok=True)
     (install / "config" / "node_modules" / "ags-platform").symlink_to(unit)
     # The ags-apps unit + live-bar link + per-unit resolution shortcut (spine

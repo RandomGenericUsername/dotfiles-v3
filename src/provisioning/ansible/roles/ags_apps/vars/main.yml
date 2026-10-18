@@ -137,7 +137,7 @@ ags_apps_backup_root: "{{ ags_apps_install_root }}/bridge-backups"
 #   together). Lives here (not read from the ags_platform role) because roles
 #   in different plays share no vars; the structural test is the single
 #   source of truth for their equality.
-ags_apps_platform_version: v0.1.0
+ags_apps_platform_version: v0.2.0
 
 # ags_apps_platform_unit_dir: the pinned platform unit the resolution
 #   shortcut resolves the bar's bare `ags-platform` specifier to.
