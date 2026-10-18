@@ -115,7 +115,7 @@ class TestAgsAppsVars:
         # `bar-` tag. A `bar-`-prefixed pin here would name a tag the monorepo
         # no longer cuts.
         assert re.match(r"^v\d", version), (
-            f"the pin must be a monorepo release tag (e.g. v0.3.0); got {version!r}"
+            f"the pin must be a monorepo release tag (e.g. v0.3.1); got {version!r}"
         )
         assert data["ags_apps_repo_url"].startswith("https://github.com/"), (
             "the unit is cloned over anonymous HTTPS"
