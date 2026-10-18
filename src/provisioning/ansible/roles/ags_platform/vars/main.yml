@@ -29,7 +29,7 @@ ags_platform_repo_url: https://github.com/RandomGenericUsername/ags-platform.git
 #   the shortcut at an older sibling dir to roll back. Recorded on the host at
 #   ags_platform_pin_file so the installed version is observable without
 #   reading this file.
-ags_platform_version: v0.1.0
+ags_platform_version: v0.2.0
 
 # ags_platform_install_root: the shared ancestor the units live under
 #   (<install>/ags-platform/). Trim lock: consumes the same validated

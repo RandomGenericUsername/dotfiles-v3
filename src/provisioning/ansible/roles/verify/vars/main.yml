@@ -469,7 +469,7 @@ verify_compositor_skeleton_files:
 #   symlink pointing at it, so config/ags and every config/ags-* resolve the
 #   bare specifier `ags-platform`. A rollback is a shortcut repoint to a sibling
 #   version dir. The pin file records the installed version on the host.
-verify_ags_platform_version: v0.1.0
+verify_ags_platform_version: v0.2.0
 verify_ags_platform_unit_dir: "{{ install_dir | trim }}/ags-platform/{{ verify_ags_platform_version }}"
 verify_ags_platform_pin_file: "{{ install_dir | trim }}/ags-platform/pinned"
 verify_ags_platform_shortcut: "{{ install_dir | trim }}/config/node_modules/ags-platform"
@@ -506,7 +506,7 @@ verify_ags_platform_unit_files:
 #   shortcut is not an ancestor of the real bar tree and the bar's bare
 #   `ags-platform` imports would not resolve without it.
 verify_ags_apps_version: v0.3.1
-verify_ags_apps_platform_version: v0.1.0
+verify_ags_apps_platform_version: v0.2.0
 verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
 verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
 verify_ags_apps_pin_file: "{{ install_dir | trim }}/ags-apps/pinned"

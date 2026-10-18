@@ -7,7 +7,7 @@ paradigm: 'ports-and-adapters (hexagonal)'
 scope: 'The AGS platform split: the contracts -> ags-platform -> ags-apps dependency chain, the platform ports and shared adapters, the bar-specific ports, the uniform icon contract, the event-contract client and its codegen, the provisioning artifact/validator contract, packaging/distribution, the operational envelope, and the dotfiles-v3 in-place extraction, consumption, and deletion.'
 status: final
 created: '2026-10-09'
-updated: '2026-10-09'
+updated: '2026-10-18'
 binds:
   - contracts
   - ags-platform
@@ -200,6 +200,20 @@ graph TD
   - **CI per repo:** `contracts` runs the codegen regenerate-and-diff + schema validation; `ags-platform` runs typecheck + tests; `ags-apps` runs typecheck + the per-app drift/symbol suites. Each repo gates on its own `Makefile` target.
   - **Fresh host:** provisioning installs the pinned framework unit, creates the shortcut, and runs `ags-bar-validate`; private repos are fetched over HTTPS with the `gh` credential helper (no SSH).
   - **Versioning/rollback:** the framework unit is versioned by directory; rollback repoints the shortcut (mechanism = Open Question).
+
+### AD-24 — Overlay/surface open path: surface before content
+
+- **Binds:** all surface/overlay apps (any layer-shell window that maps/unmaps on demand)
+- **Prevents:** a `map` handler that builds heavy content **synchronously before the surface is presented** — the first frame cannot land until the whole build finishes — and a full rebuild on every reopen even when the content is unchanged. Measured on hypr-pano's 141-item clipboard history: `map → first frame` 447–504 ms, of which the card rebuild was 426–451 ms (`readHistory` only 0.3–0.6 ms).
+- **Rule:** the open path is **four moves, in order:**
+  1. **present** — put the surface on screen (and take focus) first, before any heavy work;
+  2. **hydrate** — the cheap synchronous pass (read the source, set visibility, move the highlight) that MUST NOT construct or tear down heavy widgets;
+  3. **defer** — schedule the heavy build on an **idle callback**, off the map→first-frame path;
+  4. **skip + re-check** — skip the deferred build when the **content signature** is unchanged since the last build, and re-check staleness *inside* the callback (a keystroke or a live push may have changed — or already rebuilt — the content between map and idle, and an unmap cancels it).
+
+  The controller is created **once per surface** (per monitor) and outlives a map/unmap cycle; `close()` MUST NOT clear the remembered signature, so an unchanged reopen is the warm path.
+- **Mechanism (mandated):** the platform primitive is the required implementation — `overlayLifecycle(hooks)` (the GLib-bound convenience) or `createOverlayLifecycle(hooks, scheduler)` (the pure, injected core), plus `contentSignature(parts)`, exported from `ags-platform` (`ports/overlay-lifecycle.ts`, `adapters/overlay-lifecycle.ts`). This is AD-2/AD-4 spirit applied to surfaces: **one primitive, injected, no copy-paste** — an app supplies the four effects (`present`, `hydrate`, `build`, `key`); the core owns their order and the skip/defer decision.
+- **Evidence:** proven in `ags-apps` hypr-pano (`725ffdf`): same history and instance, `map → first frame` **5.5 ms cold** (the ~440 ms rebuild now runs after the surface is up) and **~1.0 ms warm** with no rebuild. *Honest caveat: this fixes **time-to-surface**, not time-to-content — the heavy build still runs; chunking or virtualizing it is a separate per-app concern.*
 
 ## Consistency Conventions
 
