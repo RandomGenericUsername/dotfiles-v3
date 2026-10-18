@@ -734,3 +734,158 @@ class TestCliToolsPlaybook:
             env=env,
         )
         assert result.returncode == 0, result.stdout + result.stderr
+
+
+class TestHyprPanoLauncher:
+    """The clipboard overlay launcher must reveal the overlay on ONE press.
+
+    The overlay starts hidden (``visible={false}``, keymode ON_DEMAND), so
+    starting the instance alone shows nothing. Since ags-apps v0.3.0 the app
+    registers a ``requestHandler`` (toggle/show/hide/popup-close); the launcher
+    drives it: warm -> ``ags request toggle``, cold -> background ``ags run``
+    then ``ags request show``. A bare (or ``exec``ed) ``ags run`` would leave
+    the window hidden and force the user to press twice.
+    """
+
+    _TEMPLATE = _ROLES_DIR / "templates" / "hypr-pano-ui.j2"
+
+    @classmethod
+    def _code(cls) -> str:
+        """The template with comment lines stripped.
+
+        The assertions below must lock the SCRIPT, not the prose: the header
+        documents the same command spellings the body runs, so a naive
+        substring check would pass on a comment alone.
+        """
+        return "\n".join(
+            line
+            for line in cls._TEMPLATE.read_text().splitlines()
+            if not line.lstrip().startswith("#")
+        )
+
+    def test_warm_press_toggles_through_the_request_handler(self) -> None:
+        code = self._code()
+        assert 'INSTANCE="hypr-pano"' in code
+        assert 'DIR="${HOME}/.config/ags-hypr-pano"' in code
+        assert 'LOG="${HOME}/.local/state/ags/hypr-pano.log"' in code
+        assert 'ags request "$1" -i "$INSTANCE"' in code, (
+            "the launcher must issue `ags request` against the hypr-pano instance"
+        )
+        assert "request toggle" in code, (
+            "a warm press must toggle through the app's requestHandler, not "
+            "the window command"
+        )
+
+    def test_cold_start_backgrounds_ags_run_then_requests_show(self) -> None:
+        code = self._code()
+        assert 'ags run -d "$DIR" --log-file "$LOG" &' in code, (
+            "the cold start must run in the BACKGROUND so this shell survives "
+            "to issue the reveal request"
+        )
+        assert "request show" in code, (
+            "the cold start must reveal the freshly started (hidden) overlay"
+        )
+
+    def test_launcher_never_execs_ags_run(self) -> None:
+        assert "exec ags run" not in self._code(), (
+            "`exec` replaces the shell, so the follow-up `request show` could "
+            "never run; the cold start must background `ags run`"
+        )
+
+    def test_launcher_preserves_the_guard_rails(self) -> None:
+        code = self._code()
+        assert "set -uo pipefail" in code
+        assert "ags quit -i" in code, (
+            "a failed request must quit the zombie instance before cold-starting"
+        )
+        assert "ags list" in code, "start-if-down needs the bus check"
+        assert "timeout 8 ags request" in code, (
+            "the request must be bounded so a wedged instance cannot hang the bind"
+        )
+
+    # -- executable sandbox: prove the cold path issues `show` AFTER `run` --
+
+    _STUB = """\
+#!/usr/bin/env bash
+# Stub `ags`: log every call, and simulate an instance that only registers on
+# the bus once `run` has been invoked. `$AGS_STUB_FAIL_REQUEST` forces one
+# request name to fail, to exercise the zombie-quit fallback.
+printf '%s\\n' "$*" >> "$AGS_STUB_LOG"
+case "$1" in
+  list)
+    [ -f "$AGS_STUB_STATE/started" ] && echo "hypr-pano"
+    ;;
+  run)
+    : > "$AGS_STUB_STATE/started"
+    ;;
+  quit)
+    rm -f "$AGS_STUB_STATE/started"
+    ;;
+  request)
+    if [ -n "${AGS_STUB_FAIL_REQUEST:-}" ] && [ "$2" = "$AGS_STUB_FAIL_REQUEST" ]; then
+      exit 1
+    fi
+    ;;
+esac
+exit 0
+"""
+
+    def _run_launcher(
+        self, tmp_path: Path, *, warm: bool, fail_request: str = ""
+    ) -> list[str]:
+        """Execute the launcher against a stub `ags`; return the call log."""
+        home = tmp_path / "home"
+        (home / ".local" / "state" / "ags").mkdir(parents=True)
+        state = tmp_path / "state"
+        state.mkdir()
+        if warm:
+            (state / "started").touch()
+        log = tmp_path / "calls.log"
+        log.touch()
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        stub = bin_dir / "ags"
+        stub.write_text(self._STUB)
+        stub.chmod(0o755)
+        env = dict(os.environ)
+        env["HOME"] = str(home)
+        env["PATH"] = f"{bin_dir}:{env['PATH']}"
+        env["AGS_STUB_LOG"] = str(log)
+        env["AGS_STUB_STATE"] = str(state)
+        if fail_request:
+            env["AGS_STUB_FAIL_REQUEST"] = fail_request
+        result = subprocess.run(
+            ["bash", str(self._TEMPLATE)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return log.read_text().splitlines()
+
+    def test_cold_start_issues_run_then_request_show(self, tmp_path: Path) -> None:
+        calls = self._run_launcher(tmp_path, warm=False)
+        joined = "\n".join(calls)
+        assert any(c.startswith("run -d") for c in calls), joined
+        assert "request show -i hypr-pano" in calls, joined
+        run_at = next(i for i, c in enumerate(calls) if c.startswith("run -d"))
+        show_at = calls.index("request show -i hypr-pano")
+        assert run_at < show_at, (
+            "the reveal request must come AFTER the instance is started:\n" + joined
+        )
+        assert not any("request toggle" in c for c in calls), joined
+
+    def test_warm_press_requests_toggle_without_starting(self, tmp_path: Path) -> None:
+        calls = self._run_launcher(tmp_path, warm=True)
+        joined = "\n".join(calls)
+        assert "request toggle -i hypr-pano" in calls, joined
+        assert not any(c.startswith("run ") for c in calls), joined
+
+    def test_failed_warm_request_falls_back_to_cold_start(self, tmp_path: Path) -> None:
+        calls = self._run_launcher(tmp_path, warm=True, fail_request="toggle")
+        joined = "\n".join(calls)
+        assert "request toggle -i hypr-pano" in calls, joined
+        assert "quit -i hypr-pano" in calls, joined
+        assert any(c.startswith("run -d") for c in calls), joined
+        assert "request show -i hypr-pano" in calls, joined

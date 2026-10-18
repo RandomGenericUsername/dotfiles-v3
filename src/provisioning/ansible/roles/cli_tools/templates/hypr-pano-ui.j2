@@ -3,25 +3,74 @@
 #
 # The overlay is a standalone AGS instance (`hypr-pano`) whose process bundles
 # TypeScript at startup and holds the compiled bundle in memory. Provisioning
-# quits the instance after placing updated sources (gui_tools role); this
+# quits the instance after placing updated sources (ags_apps role); this
 # launcher is the single keybinding entrypoint so the next press re-bundles
 # from disk instead of no-oping, and so a quit instance is started on demand.
 #
+# The overlay starts HIDDEN (`visible={false}`) and runs with keymode
+# ON_DEMAND, so merely starting the instance does NOT reveal it. Since ags-apps
+# v0.3.0 the app registers a `requestHandler` (toggle/show/hide/popup-close),
+# and this launcher drives it:
+#   - warm instance -> `ags request toggle` flips visibility instantly;
+#   - cold instance -> start it in the BACKGROUND, wait for it to register on
+#     the bus, then `ags request show` reveals the freshly started window.
+# The start MUST NOT `exec` (exec replaces this shell, so the follow-up
+# `request show` could never run) and MUST NOT stop at a bare `ags run` (that
+# starts a hidden window, so the user has to press twice).
+#
 # Toggle-aware, start-if-down, zombie-safe:
-#   1. no instance on the bus              -> fresh `ags run`
-#   2. instance running, window registered -> `ags toggle` (hide/show)
-#   3. instance running, window gone       -> quit the zombie, fresh run
+#   1. no instance on the bus           -> background `ags run` + `request show`
+#   2. instance running                 -> `ags request toggle` (hide/show)
+#   3. request to a live instance fails -> quit the zombie, cold start (1)
 set -uo pipefail
 INSTANCE="hypr-pano"
-WINDOW="hypr-pano-window"
 DIR="${HOME}/.config/ags-hypr-pano"
 LOG="${HOME}/.local/state/ags/hypr-pano.log"
 
+# Bounded waits (0.2s ticks): ~10s for the instance to appear on the bus after
+# `ags run`, then ~2s of retries for its request handler to accept the reveal.
+START_TICKS=50
+REQUEST_RETRIES=10
+
+request() { timeout 8 ags request "$1" -i "$INSTANCE" >/dev/null 2>&1; }
+
 if ags list 2>/dev/null | grep -qx "$INSTANCE"; then
-    if timeout 8 ags toggle "$WINDOW" -i "$INSTANCE" 2>/dev/null; then
+    # Warm instance: the app's requestHandler toggles visibility instantly.
+    if request toggle; then
         exit 0
     fi
+    # The request path is broken (stale/zombie instance with no live handler):
+    # quit it and cold-start so the next request has something to answer it.
     ags quit -i "$INSTANCE" 2>/dev/null
     sleep 1
 fi
-exec ags run -d "$DIR" --log-file "$LOG"
+
+# Cold start: launch in the BACKGROUND (never `exec`) so this shell survives to
+# issue the reveal request below, then poll the bus until it registers.
+mkdir -p "$(dirname "$LOG")"
+ags run -d "$DIR" --log-file "$LOG" &
+
+ticks=0
+while [ "$ticks" -lt "$START_TICKS" ]; do
+    if ags list 2>/dev/null | grep -qx "$INSTANCE"; then
+        break
+    fi
+    sleep 0.2
+    ticks=$((ticks + 1))
+done
+
+# Reveal the freshly started overlay. Retry briefly: the instance is on the bus
+# slightly before its requestHandler is ready to accept requests.
+retries=0
+while [ "$retries" -lt "$REQUEST_RETRIES" ]; do
+    if request show; then
+        exit 0
+    fi
+    sleep 0.2
+    retries=$((retries + 1))
+done
+
+# Registered but never answered: leave the instance running (the next press
+# takes the warm path) and fail loudly rather than hanging silently.
+echo "hypr-pano-ui: instance '$INSTANCE' did not answer 'show' after start" >&2
+exit 1

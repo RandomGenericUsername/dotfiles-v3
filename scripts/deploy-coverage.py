@@ -396,7 +396,7 @@ def assert_bar_provisioning(root: Path) -> None:
         raise ValueError(
             f"ags_apps_version {version!r} names no monorepo release — the unit "
             f"is a monorepo deployed whole, so the pin is a release tag "
-            f"(e.g. v0.2.0); got {version!r}"
+            f"(e.g. v0.3.0); got {version!r}"
         )
 
     install_root = str(data.get("ags_apps_install_root", ""))
