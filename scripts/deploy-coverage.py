@@ -30,7 +30,12 @@ required):
   (e) asserts the SECOND app in the unit, the clipboard overlay `hypr-pano`
       (slice 3): the retired per-file source is gone from the gui_tools role
       and the repo, and the `ags_apps` role deploys the unit's `hypr-pano/`
-      subdir as the live `<install>/config/ags-hypr-pano` link.
+      subdir as the live `<install>/config/ags-hypr-pano` link;
+  (f) asserts the THIRD app in the unit, the notification daemon
+      `notifications` (slice 4): the retired per-file source is gone from the
+      gui_tools role and the repo, and the `ags_apps` role deploys the unit's
+      `notifications/` subdir as the live `<install>/config/ags-notifications`
+      link (the gui_tools AGS-instance entry that STARTS the daemon is kept).
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -138,6 +143,19 @@ GUI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
 # monorepo as hypr-pano/. A surviving copy is a second source of truth that no
 # gate deploys but a reader could still mistake for the live app.
 RETIRED_HYPR_PANO_DIR = "src/gui-tools/hypr-pano"
+
+# The notification daemon (ags-apps-bar-first slice 4): the THIRD app moved into
+# the ags-apps unit. It deploys WHOLE the same way as the bar and hypr-pano — the
+# ags_apps role links the unit's notifications/ subdir as
+# <install>/config/ags-notifications — so the gate asserts the same two things:
+# the retired per-file source is GONE and the live link is provisioned. The
+# retired per-file deploy lived in the gui_tools role
+# (gui_tools_notifications_app_files), not the compositor manifest, so this half
+# reads that role. NOTE: the gui_tools AGS-INSTANCE entry (which STARTS the
+# daemon from the symlinked dir) is deliberately NOT retired — only the per-file
+# placement is.
+NOTIFICATIONS_PACKAGE = "notifications"
+RETIRED_NOTIFICATIONS_DIR = "src/gui-tools/notifications"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -565,6 +583,112 @@ def assert_hypr_pano_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_per_file_notifications_sources(root: Path) -> None:
+    """The notification-daemon bridge is retired: no per-file entry may remain.
+
+    The daemon deploys WHOLE via the ags_apps live-notifications link, so a
+    per-file entry (gui_tools_notifications_app_files, an ags-notifications/
+    spine dir, or a dest under it) would template INTO the unit tree through the
+    link and silently diverge the live daemon from the pinned tag. The in-repo
+    source must be gone too: it lives in the ags-apps unit now.
+    """
+    import yaml
+
+    if (root / RETIRED_NOTIFICATIONS_DIR).exists():
+        raise ValueError(
+            f"the retired in-repo {NOTIFICATIONS_PACKAGE!r} source still exists "
+            f"at {RETIRED_NOTIFICATIONS_DIR}/ — the daemon deploys WHOLE from the "
+            f"ags-apps unit; the in-repo copy is a second source of truth"
+        )
+
+    vars_path = root / GUI_TOOLS_ROLE_VARS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the daemon deploys as the external {NOTIFICATIONS_PACKAGE!r} unit "
+            f"but no gui_tools role declares it: {GUI_TOOLS_ROLE_VARS} is missing"
+        )
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{GUI_TOOLS_ROLE_VARS} did not parse to a mapping")
+
+    if data.get("gui_tools_notifications_app_files"):
+        raise ValueError(
+            "the daemon deploys WHOLE via the ags_apps live-notifications link, "
+            "but gui_tools_notifications_app_files still lists per-file sources "
+            f"in {GUI_TOOLS_ROLE_VARS} — delete it; the per-file bridge is retired"
+        )
+    for key, value in data.items():
+        if key.endswith("_app_files") and isinstance(value, list):
+            for entry in value:
+                dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                if "/ags-notifications/" in dest:
+                    raise ValueError(
+                        f"{key} still deploys into the retired ags-notifications/ "
+                        f"spine: {dest} — the daemon deploys WHOLE via the unit"
+                    )
+    if any(
+        "ags-notifications" in str(d) for d in data.get("gui_tools_config_dirs", [])
+    ):
+        raise ValueError(
+            "gui_tools_config_dirs still ensures the retired ags-notifications/ "
+            "dir — the ags_apps role owns it as the live-notifications symlink"
+        )
+
+
+def assert_notifications_provisioning(root: Path) -> None:
+    """The external notifications live link must be provisioned, not assumed.
+
+    Mirror of assert_hypr_pano_provisioning for the third app in the unit: the
+    ags_apps role declares the unit's notifications/ subdir and links it as
+    <install>/config/ags-notifications. Without this, deleting the in-repo source
+    would leave the gate green with the live daemon unprovisioned — exactly the
+    silent-coverage-loss this gate exists to prevent.
+    """
+    import yaml
+
+    vars_path = root / BAR_ROLE_VARS
+    tasks_path = root / BAR_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the daemon deploys as the external {NOTIFICATIONS_PACKAGE!r} unit "
+            f"but no provisioning role declares it: {BAR_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the notifications role has no tasks to deploy it: {BAR_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{BAR_ROLE_VARS} did not parse to a mapping")
+
+    notif_dir = str(data.get("ags_apps_notifications_dir", ""))
+    if not notif_dir.endswith("/notifications"):
+        raise ValueError(
+            f"ags_apps_notifications_dir must be the unit's notifications/ subdir "
+            f"(the monorepo deviation — the repo root is not the package); got "
+            f"{notif_dir!r}"
+        )
+    live = str(data.get("ags_apps_live_notifications_link", ""))
+    # Shape, not the exact Jinja string: the link routes through the spine
+    # config dir intermediate and names `ags-notifications`.
+    if "spine_config_dir" not in live or not live.endswith("/ags-notifications"):
+        raise ValueError(
+            f"ags_apps_live_notifications_link must deploy the unit's "
+            f"notifications as <install>/config/ags-notifications; got {live!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if (
+        "ags_apps_notifications_dir" not in tasks
+        or "ags_apps_live_notifications_link" not in tasks
+    ):
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not deploy the unit's notifications/ as the "
+            f"live-notifications link"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -612,6 +736,10 @@ def main() -> int:
         # not carry the gui_tools role) fails on its own subject, not here.
         assert_no_per_file_hypr_pano_sources(root)
         assert_hypr_pano_provisioning(root)
+        # Slice 4: the notification daemon deploys WHOLE too (same shape as
+        # hypr-pano: retired per-file gui_tools source + live-notifications link).
+        assert_no_per_file_notifications_sources(root)
+        assert_notifications_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -642,10 +770,16 @@ def main() -> int:
         f"+ live-pano link provisioned; no per-file gui_tools source remains "
         f"(not a per-file deploy)"
     )
+    print(
+        f"deploy-coverage: external {NOTIFICATIONS_PACKAGE!r} app — pinned unit "
+        f"subdir + live-notifications link provisioned; no per-file gui_tools "
+        f"source remains (not a per-file deploy)"
+    )
 
     print(
-        "deploy-coverage: PASS -- the retired bar + hypr-pano bridges carry no "
-        "per-file deploy source and both external units are provisioned"
+        "deploy-coverage: PASS -- the retired bar + hypr-pano + notifications "
+        "bridges carry no per-file deploy source and the external units are "
+        "provisioned"
     )
     return 0
 

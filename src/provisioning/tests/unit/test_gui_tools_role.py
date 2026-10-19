@@ -97,19 +97,6 @@ class TestGuiToolsTasks:
         for task in tasks:
             assert _module(task).get("force") is True
 
-    def test_notifications_files_placed_via_template_force(self) -> None:
-        """Per-file `template` + `force: true` (repo-authoritative) for the
-        notifications list — same placement discipline as the sibling apps."""
-        tasks = [
-            task
-            for task in _tasks()
-            if task.keys() & {"ansible.builtin.template"}
-            and "gui_tools_notifications_app_files" in str(task.get("loop", ""))
-        ]
-        assert tasks, "no notifications placement task found"
-        for task in tasks:
-            assert _module(task).get("force") is True
-
     def test_legacy_capture_subtree_removed(self) -> None:
         """Reprovision convergence: the bar spine's old ags/capture/ subtree
         is removed (superseded by ags-capture/)."""
@@ -571,63 +558,50 @@ class TestGuiToolsVars:
             f"gui_tools_ags_instances must include wallpaper-selector; got {instances}"
         )
 
-    def test_notifications_app_files_exact_list(self) -> None:
-        """The notification app file set includes its event subscriber,
-        palette refresh helper, and rendered-icon resolver."""
-        files = list(_vars()["gui_tools_notifications_app_files"])
-        assert len(files) == 7, f"expected exactly 7 notifications files; found {len(files)}"
-        sources = sorted(str(f["source"]) for f in files)
-        expected = [
-            "src/gui-tools/notifications/Makefile",
-            "src/gui-tools/notifications/app.tsx",
-            "src/gui-tools/notifications/lib/icon-registry.ts",
-            "src/gui-tools/notifications/lib/theme.ts",
-            "src/gui-tools/notifications/lib/wallpaper-events.ts",
-            "src/gui-tools/notifications/style.css",
-            "src/gui-tools/notifications/ui/NotificationsWindow.tsx",
-        ]
-        assert sources == expected, (
-            f"gui_tools_notifications_app_files sources must be exactly {expected}; got {sources}"
-        )
-        for entry in files:
-            dest = str(entry["dest"])
-            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-notifications/"), (
-                f"notifications dest must derive from gui_tools_spine_config_dir/ags-notifications: {dest}"
-            )
-
-    def test_notifications_app_sources_exist_in_repo(self) -> None:
-        """Every notifications source resolves to a real repo file (typo-proof)."""
-        for entry in _vars()["gui_tools_notifications_app_files"]:
-            path = _REPO_ROOT / str(entry["source"])
-            assert path.is_file(), f"notifications app source missing from repo: {entry['source']}"
-
-    def test_every_notifications_dest_parent_is_an_ensured_dir(self) -> None:
-        """Regression lock: `template` does NOT create dest parents, so every
-        notifications dest's parent dir must be listed in gui_tools_config_dirs."""
+    def test_notifications_is_retired_as_a_gui_tools_app(self) -> None:
+        """ags-apps-bar-first slice 4: the notification daemon moved into the
+        ags-apps unit and deploys WHOLE via the ags_apps role's
+        live-notifications link (<install>/config/ags-notifications ->
+        <unit>/notifications). gui_tools must carry NO per-file notifications
+        manifest, NO ags-notifications spine dir, and NO placement task — a stale
+        entry would template INTO the unit tree through the live-notifications
+        link and diverge the live daemon from the pinned tag. The in-repo source
+        is gone (it lives in ags-apps now)."""
         data = _vars()
-        ensured = {
-            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
-            for d in data["gui_tools_config_dirs"]
-        }
-        for entry in data["gui_tools_notifications_app_files"]:
-            dest = str(entry["dest"])
-            parent = dest.rsplit("/", 1)[0].replace(
-                "{{ gui_tools_spine_config_dir }}", "<spine>"
-            )
-            assert parent in ensured, (
-                f"dest parent {parent!r} of {entry['name']} is not an ensured "
-                f"dir (template would fail); add it to gui_tools_config_dirs"
-            )
+        assert "gui_tools_notifications_app_files" not in data, (
+            "gui_tools_notifications_app_files must be retired — the daemon "
+            "deploys WHOLE via the ags_apps live-notifications link"
+        )
+        # No app-file list may still target the retired ags-notifications/ spine.
+        for key, value in data.items():
+            if key.endswith("_app_files") and isinstance(value, list):
+                for entry in value:
+                    dest = str(entry.get("dest", ""))
+                    assert "/ags-notifications/" not in dest, (
+                        f"{key} still deploys into the retired ags-notifications/ "
+                        f"spine: {dest}"
+                    )
+        assert not any(
+            "ags-notifications" in str(d) for d in data["gui_tools_config_dirs"]
+        ), "the retired ags-notifications/ spine dir must not be ensured as a dir"
+        assert not any(
+            "notifications_app_files" in str(t.get("loop", "")) for t in _tasks()
+        ), "no gui_tools task may loop a notifications manifest"
+        assert not (_REPO_ROOT / "src" / "gui-tools" / "notifications").exists(), (
+            "the in-repo notifications source must be deleted (it lives in the "
+            "ags-apps unit now)"
+        )
 
-    def test_notifications_sources_contain_no_jinja_sequences(self) -> None:
-        """The notifications sources are placed via `template`, so they must
-        not contain Jinja-sensitive `{{`/`{%` sequences (which Jinja2 would
-        evaluate and destroy). Pins the choice of template over raw copy."""
-        for entry in _vars()["gui_tools_notifications_app_files"]:
-            text = (_REPO_ROOT / str(entry["source"])).read_text(encoding="utf-8")
-            assert "{{" not in text and "{%" not in text, (
-                f"{entry['source']} contains a Jinja sequence; use raw copy"
-            )
+    def test_notifications_ags_instance_still_launches_from_the_symlink(self) -> None:
+        """The daemon still launches: the AGS instance entry STAYS (it is the
+        mechanism that starts it and restarts it after the quit loop). It runs
+        from ~/.config/ags-notifications (the config-links symlink to the
+        live-notifications link), never the unit path."""
+        instances = [str(i["name"]) for i in _vars()["gui_tools_ags_instances"]]
+        assert "notifications" in instances, (
+            f"the notifications AGS instance must stay in gui_tools_ags_instances; "
+            f"got {instances}"
+        )
 
     def test_ags_instances_include_notifications(self) -> None:
         """The notifications instance must be quit after placement (bundles

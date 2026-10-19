@@ -1457,6 +1457,69 @@ class TestVerifyVars:
                 f"a hypr-pano unit file must derive from the unit dir; got {entry!r}"
             )
 
+    def test_live_notifications_link_mirrors_the_ags_apps_role_and_is_not_a_spine_dir(
+        self,
+    ) -> None:
+        """Slice 4: <install>/config/ags-notifications is the ags_apps role's
+        live-notifications SYMLINK (-> the unit's notifications/), NOT a
+        filesystem/gui_tools dir. It must be absent from verify_install_spine_dirs
+        (the criterion-1 isdir assert counts dirs), absent from
+        verify_gui_tools_app_files (the daemon deploys WHOLE), and its vars must
+        mirror the ags_apps role."""
+        data = _vars()
+        apps = _sibling_vars("ags_apps")
+
+        live = str(data["verify_ags_apps_live_notifications_link"])
+        assert live == "{{ install_dir | trim }}/config/ags-notifications", (
+            f"verify_ags_apps_live_notifications_link must be "
+            f"<install>/config/ags-notifications; got {live!r}"
+        )
+        # Mirror of the role: the link DEST is the spine config path, the unit
+        # dir is the notifications/ subdir of the versioned unit.
+        role_live = str(apps["ags_apps_live_notifications_link"])
+        assert (
+            role_live.endswith("/ags-notifications") and "spine_config_dir" in role_live
+        ), (
+            "the ags_apps role must deploy the live-notifications link at "
+            f"config/ags-notifications; got {role_live!r}"
+        )
+        unit_notifications = str(data["verify_ags_apps_notifications_dir"])
+        assert (
+            unit_notifications.endswith("/notifications")
+            and "verify_ags_apps_unit_dir" in unit_notifications
+        ), (
+            "verify_ags_apps_notifications_dir must be <unit>/notifications; "
+            f"got {unit_notifications!r}"
+        )
+        assert str(apps["ags_apps_notifications_dir"]).endswith("/notifications"), (
+            "the ags_apps role must declare the unit's notifications/ subdir"
+        )
+
+        # Not a spine dir, and not a per-file gui_tools assertion.
+        assert "config/ags-notifications" not in [
+            str(item) for item in data["verify_install_spine_dirs"]
+        ], "config/ags-notifications is a symlink, not a verify_install_spine_dirs dir"
+        per_file_notifications = [
+            str(f)
+            for f in data["verify_gui_tools_app_files"]
+            if "/config/ags-notifications/" in str(f)
+        ]
+        assert per_file_notifications == [], (
+            "verify_gui_tools_app_files must not mirror per-file notifications "
+            f"sources (the daemon deploys WHOLE): {per_file_notifications}"
+        )
+        # The unit files are asserted under the unit, and there are some.
+        notifications_files = [
+            str(f) for f in data["verify_ags_apps_notifications_files"]
+        ]
+        assert notifications_files, (
+            "verify_ags_apps_notifications_files must not be empty"
+        )
+        for entry in notifications_files:
+            assert entry.startswith("{{ verify_ags_apps_notifications_dir }}/"), (
+                f"a notifications unit file must derive from the unit dir; got {entry!r}"
+            )
+
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
         settings_files dests EXACTLY — verify must check the SAME rendered
@@ -1898,6 +1961,9 @@ class TestVerifyVars:
             "verify_ags_apps_hypr_pano_dir",
             "verify_ags_apps_live_pano_link",
             "verify_ags_apps_hypr_pano_files",
+            "verify_ags_apps_notifications_dir",
+            "verify_ags_apps_live_notifications_link",
+            "verify_ags_apps_notifications_files",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2662,7 +2728,6 @@ def _build_provisioned_layout(
         "config/ags-capture",
         "config/ags-icme",
         "config/ags-wallpaper-selector",
-        "config/ags-notifications",
         "config/ags-btop-studio",
         "config/ags-btop-studio/ui",
         "config/ags-btop-studio/lib",
@@ -2827,8 +2892,6 @@ def _build_provisioned_layout(
         "ags-wallpaper-selector",
         "ags-wallpaper-selector/ui",
         "ags-wallpaper-selector/lib",
-        "ags-notifications",
-        "ags-notifications/ui",
         "ags-btop-studio",
         "ags-btop-studio/ui",
         "ags-btop-studio/lib",
@@ -2860,7 +2923,7 @@ def _build_provisioned_layout(
     # real dir of per-file bar sources. The fixture mirrors
     # verify_ags_apps_unit_dir / _bar_dir / _pin_file / _live_bar_link /
     # _resolution_shortcut so the criterion asserts have something to pass on.
-    apps_unit = install / "ags-apps" / "v0.3.3"
+    apps_unit = install / "ags-apps" / "v0.3.4"
     apps_bar = apps_unit / "bar"
     (apps_bar / "bar" / "widgets").mkdir(parents=True, exist_ok=True)
     for apps_file in (
@@ -2876,7 +2939,7 @@ def _build_provisioned_layout(
         "bar/validate-cli.ts",
     ):
         (apps_bar / apps_file).write_text("")
-    (install / "ags-apps" / "pinned").write_text("v0.3.3\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.4\n")
     (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
     (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
     (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
@@ -2899,6 +2962,24 @@ def _build_provisioned_layout(
         (apps_pano / pano_file).write_text("")
     (install / "config" / "ags-hypr-pano").symlink_to(
         apps_pano, target_is_directory=True
+    )
+    # The notification daemon deploys WHOLE like the bar (slice 4): the unit's
+    # notifications/ subdir is linked as <install>/config/ags-notifications — NOT
+    # a real dir of per-file app sources. Mirror of
+    # verify_ags_apps_notifications_dir / _live_notifications_link /
+    # _notifications_files.
+    apps_notifications = apps_unit / "notifications"
+    (apps_notifications / "ui").mkdir(parents=True, exist_ok=True)
+    (apps_notifications / "lib").mkdir(parents=True, exist_ok=True)
+    for notif_file in (
+        "app.tsx",
+        "style.css",
+        "ui/NotificationsWindow.tsx",
+        "lib/card-model.ts",
+    ):
+        (apps_notifications / notif_file).write_text("")
+    (install / "config" / "ags-notifications").symlink_to(
+        apps_notifications, target_is_directory=True
     )
     # Generated (icons.json) and runtime-owned (colors.css) artifacts resolve
     # THROUGH the live-bar link into the unit tree, exactly as on a real host:
@@ -2992,12 +3073,10 @@ def _build_provisioned_layout(
         "event-bus",
     ):
         (install / "config" / "ags-wallpaper-selector" / "lib" / f"{lib}.ts").write_text("")
-    # Notifications overlay (gui_tools role): must match
-    # verify_gui_tools_app_files EXACTLY.
-    (install / "config" / "ags-notifications" / "app.tsx").write_text("")
-    (install / "config" / "ags-notifications" / "style.css").write_text("")
-    (install / "config" / "ags-notifications" / "Makefile").write_text("")
-    (install / "config" / "ags-notifications" / "ui" / "NotificationsWindow.tsx").write_text("")
+    # Notifications overlay is NOT a gui_tools per-file app anymore (slice 4): it
+    # deploys WHOLE via the ags_apps live-notifications link created in the unit
+    # block above, so there is no per-file mirror here and verify_gui_tools_app_files
+    # asserts none of it.
     # btop Theme Studio (gui_tools role): must match
     # verify_gui_tools_app_files EXACTLY.
     (install / "config" / "ags-btop-studio" / "app.tsx").write_text("")
