@@ -1725,6 +1725,72 @@ class TestVerifyVars:
                 f"an icme unit file must derive from the unit dir; got {entry!r}"
             )
 
+    def test_live_btop_studio_link_mirrors_the_ags_apps_role_and_is_not_a_per_file_assertion(
+        self,
+    ) -> None:
+        """Slice 8: <install>/config/ags-btop-studio is the ags_apps role's
+        live-btop-studio SYMLINK (-> the unit's btop-theme-studio/), NOT a
+        gui_tools per-file dir. It must be absent from verify_gui_tools_app_files
+        (the studio deploys WHOLE), absent from verify_install_spine_dirs (it is
+        not a filesystem dir), and its vars must mirror the ags_apps role."""
+        data = _vars()
+        apps = _sibling_vars("ags_apps")
+
+        live = str(data["verify_ags_apps_live_btop_studio_link"])
+        assert live == "{{ install_dir | trim }}/config/ags-btop-studio", (
+            f"verify_ags_apps_live_btop_studio_link must be "
+            f"<install>/config/ags-btop-studio; got {live!r}"
+        )
+        role_live = str(apps["ags_apps_live_btop_studio_link"])
+        assert (
+            role_live.endswith("/ags-btop-studio")
+            and "spine_config_dir" in role_live
+        ), (
+            "the ags_apps role must deploy the live-btop-studio link at "
+            f"config/ags-btop-studio; got {role_live!r}"
+        )
+        unit_studio = str(data["verify_ags_apps_btop_studio_dir"])
+        assert (
+            unit_studio.endswith("/btop-theme-studio")
+            and "verify_ags_apps_unit_dir" in unit_studio
+        ), (
+            "verify_ags_apps_btop_studio_dir must be <unit>/btop-theme-studio; "
+            f"got {unit_studio!r}"
+        )
+        assert str(apps["ags_apps_btop_studio_dir"]).endswith("/btop-theme-studio"), (
+            "the ags_apps role must declare the unit's btop-theme-studio/ subdir"
+        )
+
+        # Not a spine dir, and not a per-file gui_tools assertion.
+        assert "config/ags-btop-studio" not in [
+            str(item) for item in data["verify_install_spine_dirs"]
+        ], "config/ags-btop-studio is a symlink, not a verify_install_spine_dirs dir"
+        per_file_studio = [
+            str(f)
+            for f in data["verify_gui_tools_app_files"]
+            if "/config/ags-btop-studio/" in str(f)
+        ]
+        assert per_file_studio == [], (
+            "verify_gui_tools_app_files must not mirror per-file studio "
+            f"sources (the studio deploys WHOLE): {per_file_studio}"
+        )
+        # The unit files are asserted under the unit, and there are some. The
+        # live-preview engine is part of them: the app runs it from this tree.
+        studio_files = [str(f) for f in data["verify_ags_apps_btop_studio_files"]]
+        assert studio_files, "verify_ags_apps_btop_studio_files must not be empty"
+        for entry in studio_files:
+            assert entry.startswith("{{ verify_ags_apps_btop_studio_dir }}/"), (
+                f"a btop-theme-studio unit file must derive from the unit dir; "
+                f"got {entry!r}"
+            )
+        assert (
+            "{{ verify_ags_apps_btop_studio_dir }}/live/btop_live.py"
+            in studio_files
+        ), (
+            "verify must assert the live-preview engine inside the unit — the "
+            "app executes it from the linked tree"
+        )
+
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
         settings_files dests EXACTLY — verify must check the SAME rendered
@@ -2226,6 +2292,9 @@ class TestVerifyVars:
             "verify_ags_apps_icme_dir",
             "verify_ags_apps_live_icme_link",
             "verify_ags_apps_icme_files",
+            "verify_ags_apps_btop_studio_dir",
+            "verify_ags_apps_live_btop_studio_link",
+            "verify_ags_apps_btop_studio_files",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2990,10 +3059,8 @@ def _build_provisioned_layout(
         # config/ags-hypr-pano is likewise the live-pano SYMLINK (slice 3), not a
         # spine dir — created in the same block. config/ags-icme is the live-icme
         # SYMLINK (slice 7, -> the unit's icme/), also created there.
-        "config/ags-btop-studio",
-        "config/ags-btop-studio/ui",
-        "config/ags-btop-studio/lib",
-        "config/ags-btop-studio/live",
+        # config/ags-btop-studio is the live-btop-studio SYMLINK (slice 8, -> the
+        # unit's btop-theme-studio/), also created there.
         "config/nvim",
         "config/starship",
         "config/wlogout",
@@ -3148,12 +3215,9 @@ def _build_provisioned_layout(
     # clipboard overlay, the notification overlay, the capture GUI, the wallpaper
     # selector and the icon color mapping editor as live links; those links are
     # built in the unit block below).
-    for rel in (
-        "ags-btop-studio",
-        "ags-btop-studio/ui",
-        "ags-btop-studio/lib",
-    ):
-        (install / "config" / rel).mkdir(parents=True, exist_ok=True)
+    # The btop Theme Studio deploys WHOLE like the other AGS apps (slice 8): its
+    # unit subdir is linked as <install>/config/ags-btop-studio in the unit block
+    # below, so it is NOT a spine dir.
     # The ags-platform unit + shared-ancestor shortcut (spine AD-17/AD-23):
     # installed by the ags_platform role as ONE versioned unit, NOT mirrored
     # per file under config/ags. The fixture mirrors verify_ags_platform_unit_dir
@@ -3180,7 +3244,7 @@ def _build_provisioned_layout(
     # real dir of per-file bar sources. The fixture mirrors
     # verify_ags_apps_unit_dir / _bar_dir / _pin_file / _live_bar_link /
     # _resolution_shortcut so the criterion asserts have something to pass on.
-    apps_unit = install / "ags-apps" / "v0.3.7"
+    apps_unit = install / "ags-apps" / "v0.3.8"
     apps_bar = apps_unit / "bar"
     (apps_bar / "bar" / "widgets").mkdir(parents=True, exist_ok=True)
     for apps_file in (
@@ -3196,7 +3260,7 @@ def _build_provisioned_layout(
         "bar/validate-cli.ts",
     ):
         (apps_bar / apps_file).write_text("")
-    (install / "ags-apps" / "pinned").write_text("v0.3.7\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.8\n")
     (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
     (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
     (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
@@ -3325,23 +3389,34 @@ def _build_provisioned_layout(
     # deploys WHOLE via the ags_apps live-notifications link created in the unit
     # block above, so there is no per-file mirror here and verify_gui_tools_app_files
     # asserts none of it.
-    # btop Theme Studio (gui_tools role): must match
-    # verify_gui_tools_app_files EXACTLY.
-    (install / "config" / "ags-btop-studio" / "app.tsx").write_text("")
-    (install / "config" / "ags-btop-studio" / "style.css").write_text("")
-    (install / "config" / "ags-btop-studio" / "ui" / "StudioWindow.tsx").write_text("")
-    for studio_lib in (
-        "theme-keys",
-        "btop-conf",
-        "key-map",
-        "key-widgets.generated",
-        "schematic",
-        "theme-model",
-        "preview",
-        "targets",
+    # btop Theme Studio deploys WHOLE like the bar (slice 8): the unit's
+    # btop-theme-studio/ subdir is linked as <install>/config/ags-btop-studio —
+    # NOT a real dir of per-file app sources. Mirror of
+    # verify_ags_apps_btop_studio_dir / _live_btop_studio_link /
+    # _btop_studio_files (including the live/btop_live.py preview engine, which
+    # the app runs from this tree).
+    apps_btop_studio = apps_unit / "btop-theme-studio"
+    (apps_btop_studio / "ui").mkdir(parents=True, exist_ok=True)
+    (apps_btop_studio / "lib").mkdir(parents=True, exist_ok=True)
+    (apps_btop_studio / "live").mkdir(parents=True, exist_ok=True)
+    for studio_file in (
+        "app.tsx",
+        "style.css",
+        "ui/StudioWindow.tsx",
+        "lib/theme-keys.ts",
+        "lib/btop-conf.ts",
+        "lib/key-map.ts",
+        "lib/key-widgets.generated.ts",
+        "lib/schematic.ts",
+        "lib/theme-model.ts",
+        "lib/preview.ts",
+        "lib/targets.ts",
+        "live/btop_live.py",
     ):
-        (install / "config" / "ags-btop-studio" / "lib" / f"{studio_lib}.ts").write_text("")
-    (install / "config" / "ags-btop-studio" / "live" / "btop_live.py").write_text("")
+        (apps_btop_studio / studio_file).write_text("")
+    (install / "config" / "ags-btop-studio").symlink_to(
+        apps_btop_studio, target_is_directory=True
+    )
     # NOTE: no palette fragments are placed (Epic 4 — the runtime seeder
     # owns the R2 consumer symlink, created above).
 

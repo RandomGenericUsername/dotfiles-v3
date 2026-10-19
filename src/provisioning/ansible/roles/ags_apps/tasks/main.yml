@@ -75,6 +75,15 @@
 #   which the provisioned `icon-color-mapping-editor` launcher starts from the
 #   now-symlinked ~/.config/ags-icme. The editor is a whole package — nothing
 #   stays in-repo.
+# - The live btop Theme Studio is a symlink too (slice 8):
+#   <install>/config/ags-btop-studio -> <unit>/btop-theme-studio/. Identical
+#   discipline to the live-icme link (backup-then-symlink, empty real dir
+#   removed, non-empty legacy dir moved aside, never deleted, NO seed step).
+#   gui_tools keeps only the on-demand `btop-theme-studio` AGS-instance entry,
+#   which the provisioned `btop-theme-studio` launcher starts from the
+#   now-symlinked ~/.config/ags-btop-studio. The studio is a whole package: its
+#   Python live-preview engine (live/btop_live.py) runs from the unit tree via
+#   the app's `${GLib.get_current_dir()}/live/` path, so nothing stays in-repo.
 # - User-scoped privilege context: NO become (everything lands under the user's
 #   install_dir).
 # - Distro-agnostic: a git clone + symlinks are identical on Arch and
@@ -631,5 +640,83 @@
   ansible.builtin.file:
     src: "{{ ags_apps_icme_dir }}"
     dest: "{{ ags_apps_live_icme_link }}"
+    state: link
+    force: true
+
+# The btop Theme Studio deploys the same way (slice 8): a symlink into the unit's
+# btop-theme-studio/ dir, with the SAME migrate-then-symlink discipline for a
+# pre-existing real dir (empty -> removed, non-empty -> moved aside to a
+# timestamped backup, never deleted). Like the other non-bar apps it owns NO
+# runtime pointer inside its spine dir — its palette is applied through the
+# platform theme adapter, which reads the BAR's
+# <install>/config/ags/colors.css — so there is nothing to seed before the move.
+# The backup is suffixed so a run that displaces MULTIPLE legacy dirs cannot
+# collide on the timestamp. Like the selector and icme the studio is a whole
+# package: nothing stays in-repo (its live/btop_live.py engine runs from this
+# unit subdir through `${GLib.get_current_dir()}`). The `btop-theme-studio` AGS
+# instance entry stays in gui_tools, and the provisioned launcher keeps starting
+# the studio from the symlinked path.
+- name: Check whether the live-btop-studio path already exists
+  ansible.builtin.stat:
+    path: "{{ ags_apps_live_btop_studio_link }}"
+    follow: false
+  register: ags_apps_live_btop_studio_check
+
+- name: List the live-btop-studio path's children when it is a real dir
+  ansible.builtin.find:
+    paths:
+      - "{{ ags_apps_live_btop_studio_link }}"
+    file_type: any
+    hidden: true
+  register: ags_apps_live_btop_studio_children
+  when:
+    - ags_apps_live_btop_studio_check.stat.exists
+    - not ags_apps_live_btop_studio_check.stat.islnk | default(false)
+
+- name: Remove the live-btop-studio path when it is an empty real dir
+  ansible.builtin.file:
+    path: "{{ ags_apps_live_btop_studio_link }}"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_btop_studio_check.stat.exists
+    - not ags_apps_live_btop_studio_check.stat.islnk | default(false)
+    - ags_apps_live_btop_studio_children.matched | default(0) == 0
+
+- name: Determine the legacy-btop-studio-bridge backup path for this run
+  ansible.builtin.set_fact:
+    ags_apps_btop_studio_backup_path: "{{ ags_apps_backup_root }}/{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}-btop-theme-studio"
+  when:
+    - ags_apps_live_btop_studio_check.stat.exists
+    - not ags_apps_live_btop_studio_check.stat.islnk | default(false)
+    - (ags_apps_live_btop_studio_children.matched | default(0)) != 0
+
+- name: Ensure the bridge-backup root exists for the live-btop-studio link
+  ansible.builtin.file:
+    path: "{{ ags_apps_backup_root }}"
+    state: directory
+    mode: "0755"
+  when:
+    - ags_apps_live_btop_studio_check.stat.exists
+    - not ags_apps_live_btop_studio_check.stat.islnk | default(false)
+    - (ags_apps_live_btop_studio_children.matched | default(0)) != 0
+
+- name: Move aside a non-empty legacy btop studio bridge dir blocking the live-btop-studio link
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ ags_apps_live_btop_studio_link }}"
+      - "{{ ags_apps_btop_studio_backup_path }}"
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_btop_studio_check.stat.exists
+    - not ags_apps_live_btop_studio_check.stat.islnk | default(false)
+    - (ags_apps_live_btop_studio_children.matched | default(0)) != 0
+
+- name: Deploy the unit's btop-theme-studio as the live btop Theme Studio
+  ansible.builtin.file:
+    src: "{{ ags_apps_btop_studio_dir }}"
+    dest: "{{ ags_apps_live_btop_studio_link }}"
     state: link
     force: true

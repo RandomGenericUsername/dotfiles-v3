@@ -228,6 +228,25 @@ class TestAgsAppsVars:
             "belongs in the tasks, not the vars"
         )
 
+    def test_live_btop_studio_link_deploys_the_unit_at_config_ags_btop_studio(
+        self,
+    ) -> None:
+        """Slice 8: the btop Theme Studio deploys WHOLE like the bar — a symlink
+        from the spine root into the unit's btop-theme-studio/ subdir. The studio
+        is a whole package, so no in-repo part is named here (its live preview
+        engine ships in the unit tree)."""
+        data = _vars()
+        studio = str(data["ags_apps_btop_studio_dir"])
+        assert studio.endswith("/btop-theme-studio")
+        assert "ags_apps_unit_dir" in studio
+        live = str(data["ags_apps_live_btop_studio_link"])
+        assert "spine_config_dir" in live
+        assert live.endswith("/ags-btop-studio")
+        assert "ags_apps_btop_studio_dir" not in live, (
+            "the link DEST is the spine path; the link SRC (the unit studio dir) "
+            "belongs in the tasks, not the vars"
+        )
+
     def test_resolution_shortcut_is_per_unit(self) -> None:
         """esbuild realpaths the live-bar link, so the shared-ancestor shortcut
         is not an ancestor of the real bar tree — the shortcut MUST live
@@ -707,7 +726,7 @@ class TestAgsAppsTasks:
         ), "ordering must be classify -> backup -> symlink"
 
     def test_icme_backup_path_cannot_collide_with_the_others(self) -> None:
-        """The six links share the bridge-backup root. A run that displaces
+        """The seven links share the bridge-backup root. A run that displaces
         MULTIPLE legacy dirs must not move them onto the same timestamped path, so
         the icme backup carries an app suffix."""
         task = _named("Determine the legacy-icme-bridge backup path for this run")
@@ -719,6 +738,66 @@ class TestAgsAppsTasks:
         assert "icme" in backup, (
             "the icme backup must be distinguishable from the bar/pano/"
             f"notifications/capture/selector timestamp dirs; got {backup!r}"
+        )
+
+    def test_live_btop_studio_is_forced_symlink_into_the_unit(self) -> None:
+        """Slice 8: the studio's live link points at the unit's
+        btop-theme-studio/ subdir (the app root the launcher runs)."""
+        task = _named("Deploy the unit's btop-theme-studio as the live btop Theme Studio")
+        assert _module_key(task) == "ansible.builtin.file"
+        module = _module(task)
+        assert module["state"] == "link"
+        assert module["force"] is True, "force makes a rollback repoint converge"
+        assert module["src"] == "{{ ags_apps_btop_studio_dir }}"
+        assert module["dest"] == "{{ ags_apps_live_btop_studio_link }}"
+
+    def test_btop_studio_legacy_bridge_is_classified_before_displacement(self) -> None:
+        """Slice 8 mirrors the migrate-then-symlink discipline: the role must
+        classify the live-btop-studio path (stat + children) BEFORE touching it,
+        so an empty fresh-spine dir is removed while a non-empty legacy bridge is
+        moved aside, never deleted."""
+        stat = _named("Check whether the live-btop-studio path already exists")
+        assert _module_key(stat) == "ansible.builtin.stat"
+        assert _module(stat).get("follow") is False, (
+            "the stat must see the link itself, not its target"
+        )
+        find = _named("List the live-btop-studio path's children when it is a real dir")
+        assert _module_key(find) == "ansible.builtin.find"
+        remove = _named("Remove the live-btop-studio path when it is an empty real dir")
+        assert _module(remove)["state"] == "absent"
+        move = _named(
+            "Move aside a non-empty legacy btop studio bridge dir blocking the live-btop-studio link"
+        )
+        assert _module_key(move) == "ansible.builtin.command", (
+            "the move-aside is a mutation and must stay a check-gated command"
+        )
+        for task in (remove, move):
+            when = str(task.get("when", ""))
+            assert "islnk" in when and "matched" in when, (
+                f"task {task.get('name')!r} must branch on link-vs-dir and "
+                "empty-vs-nonempty"
+            )
+            assert "not ansible_check_mode" in when
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        assert names.index(
+            "Remove the live-btop-studio path when it is an empty real dir"
+        ) < names.index(
+            "Deploy the unit's btop-theme-studio as the live btop Theme Studio"
+        ), "ordering must be classify -> backup -> symlink"
+
+    def test_btop_studio_backup_path_cannot_collide_with_the_others(self) -> None:
+        """The seven links share the bridge-backup root. A run that displaces
+        MULTIPLE legacy dirs must not move them onto the same timestamped path, so
+        the studio backup carries an app suffix."""
+        task = _named("Determine the legacy-btop-studio-bridge backup path for this run")
+        backup = str(_module(task)["ags_apps_btop_studio_backup_path"])
+        assert "ags_apps_backup_root" in backup, (
+            f"the studio backup must live under the shared backup root; got "
+            f"{backup!r}"
+        )
+        assert "btop-theme-studio" in backup, (
+            "the studio backup must be distinguishable from the bar/pano/"
+            f"notifications/capture/selector/icme timestamp dirs; got {backup!r}"
         )
 
 
@@ -808,6 +887,12 @@ class TestAgsAppsExecution:
         icme = unit / "icme"
         icme.mkdir(parents=True)
         (icme / "app.tsx").write_text("export {}\n")
+        # ... and btop-theme-studio/ (slice 8); the live-btop-studio link needs
+        # it, and the app's live/ engine lives in this tree.
+        studio = unit / "btop-theme-studio"
+        (studio / "live").mkdir(parents=True)
+        (studio / "app.tsx").write_text("export {}\n")
+        (studio / "live" / "btop_live.py").write_text("")
         return platform, bar
 
     def test_places_pin_links_and_shortcut_for_a_present_unit(
@@ -872,6 +957,22 @@ class TestAgsAppsExecution:
             "the live icon color mapping editor must point at the unit's icme/"
         )
 
+        live_studio = install / "config" / "ags-btop-studio"
+        assert live_studio.is_symlink(), (
+            "the live btop Theme Studio must be a symlink"
+        )
+        assert live_studio.resolve() == (unit_dir / "btop-theme-studio").resolve(), (
+            "the live btop Theme Studio must point at the unit's "
+            "btop-theme-studio/"
+        )
+        # The preview engine ships in the unit tree and is reached through the
+        # link exactly as the app reaches it (`<cwd>/live/btop_live.py`).
+        assert (
+            live_studio / "live" / "btop_live.py"
+        ).is_file(), (
+            "the live link must expose the studio's live/btop_live.py engine"
+        )
+
         shortcut = (
             unit_dir / "node_modules" / "ags-platform"
         )
@@ -900,6 +1001,7 @@ class TestAgsAppsExecution:
         assert live_capture.resolve() == (unit_dir / "capture-tool").resolve()
         assert live_selector.resolve() == (unit_dir / "wallpaper-selector").resolve()
         assert live_icme.resolve() == (unit_dir / "icme").resolve()
+        assert live_studio.resolve() == (unit_dir / "btop-theme-studio").resolve()
         assert shortcut.resolve() == platform.resolve()
 
     def test_pano_legacy_bridge_is_moved_aside(self, tmp_path: Path) -> None:
@@ -1068,6 +1170,41 @@ class TestAgsAppsExecution:
         assert "icme" in backups[0].name, (
             "the icme backup must be distinguishable from a bar/pano/"
             "notifications/capture/selector backup"
+        )
+        assert (backups[0] / "app.tsx").is_file(), (
+            "the backup must preserve the legacy bridge verbatim"
+        )
+
+    def test_btop_studio_legacy_bridge_is_moved_aside(self, tmp_path: Path) -> None:
+        """Slice 8 upgrade from the per-file btop-studio bridge: the legacy
+        <install>/config/ags-btop-studio dir is preserved in a timestamped backup
+        (never deleted) and the live-btop-studio link takes its place. No
+        colors.css seed applies (the studio owns no runtime pointer)."""
+        home = tmp_path / "home"
+        install = tmp_path / "install"
+        home.mkdir()
+        install.mkdir()
+        (install / "config").mkdir()
+        self._seed_units(install)
+
+        legacy = install / "config" / "ags-btop-studio"
+        (legacy / "lib").mkdir(parents=True)
+        (legacy / "app.tsx").write_text("export {}\n")
+
+        result = self._run(install, home)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        unit_dir = install / "ags-apps" / str(_vars()["ags_apps_version"])
+        assert legacy.is_symlink(), (
+            "the live-btop-studio link must replace the legacy dir"
+        )
+        assert legacy.resolve() == (unit_dir / "btop-theme-studio").resolve()
+
+        backups = list((install / "ags-apps" / "bridge-backups").iterdir())
+        assert len(backups) == 1, "exactly one timestamped backup must exist"
+        assert "btop-theme-studio" in backups[0].name, (
+            "the studio backup must be distinguishable from a bar/pano/"
+            "notifications/capture/selector/icme backup"
         )
         assert (backups[0] / "app.tsx").is_file(), (
             "the backup must preserve the legacy bridge verbatim"

@@ -1260,6 +1260,52 @@
       installs them; run the ags-apps playbook first
   when: not ansible_check_mode
 
+# (slice 8): the unit's btop-theme-studio/ subdir is linked as the live
+# <install>/config/ags-btop-studio. verify asserts the unit files exist and the
+# live-btop-studio link is a symlink whose target names the pinned tag and
+# resolves to a directory — the host-side coverage the deploy-coverage gate's
+# repo-side shape assertion cannot provide. The studio is a whole package:
+# nothing stays in-repo, and the live-preview engine (live/btop_live.py) is
+# asserted as part of the unit files because the app runs it from this tree.
+- name: Check the ags-apps btop-theme-studio unit files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_ags_apps_btop_studio_files }}"
+  register: verify_ags_apps_btop_studio_checks
+
+- name: Check the live btop Theme Studio is a symlink
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_btop_studio_link }}"
+    follow: false
+  register: verify_ags_apps_live_btop_studio_check
+
+- name: Check the live btop Theme Studio resolves to the unit
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_btop_studio_link }}"
+    follow: true
+  register: verify_ags_apps_live_btop_studio_resolve_check
+
+- name: Assert the ags-apps btop-theme-studio unit + live-btop-studio link are installed
+  ansible.builtin.assert:
+    that:
+      - >-
+        verify_ags_apps_btop_studio_checks.results
+        | map(attribute='stat') | selectattr('isreg') | list | length
+        == verify_ags_apps_btop_studio_files | length
+      - verify_ags_apps_live_btop_studio_check.stat.islnk
+      - verify_ags_apps_live_btop_studio_check.stat.lnk_target is search(verify_ags_apps_version)
+      - verify_ags_apps_live_btop_studio_resolve_check.stat.isdir
+    fail_msg: >-
+      the ags-apps btop-theme-studio unit or its live link is missing under
+      {{ install_dir | trim }} (spine AD-1/AD-17/AD-23). Expected the pinned
+      unit's btop-theme-studio/ at {{ verify_ags_apps_btop_studio_dir }}/ (app.tsx,
+      ui/StudioWindow.tsx, lib/theme-model.ts, live/btop_live.py, ...) and
+      {{ verify_ags_apps_live_btop_studio_link }} as a symlink into it. Without
+      them the SUPER+B keybind and the `btop-theme-studio` launcher open a dead
+      instance (and the live preview engine is unreachable). The ags_apps role
+      installs them; run the ags-apps playbook first
+  when: not ansible_check_mode
+
 - name: Check GUI tool app files
   ansible.builtin.stat:
     path: "{{ item }}"

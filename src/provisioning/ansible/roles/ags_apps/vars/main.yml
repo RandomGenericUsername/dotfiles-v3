@@ -41,7 +41,16 @@
 # per file (it keeps only the on-demand AGS-instance entry; the provisioned
 # `icon-color-mapping-editor` launcher starts the editor from the now-symlinked
 # ~/.config/ags-icme). Like the selector, icme is a whole package — nothing stays
-# in-repo.
+# in-repo. The btop Theme Studio (slice 8) is the eighth app:
+# <install>/config/ags-btop-studio is a symlink into the unit's
+# btop-theme-studio/ subdir, and gui_tools no longer enumerates it per file (it
+# keeps only the on-demand AGS-instance entry; the provisioned
+# `btop-theme-studio` launcher starts the studio from the now-symlinked
+# ~/.config/ags-btop-studio). Like the selector and icme, the studio is a whole
+# package — nothing stays in-repo. Its Python live preview engine
+# (live/btop_live.py) is part of the app tree: the app runs
+# `${GLib.get_current_dir()}/live/btop_live.py`, so it stays reachable through
+# the live link and needs no separate install.
 #
 # WHY A RESOLUTION SHORTCUT INSIDE THE UNIT. AGS (v3.1.0) embeds esbuild,
 # which resolves a bare specifier (`import { x } from "ags-platform"`) from
@@ -80,14 +89,14 @@ ags_apps_repo_url: https://github.com/RandomGenericUsername/ags-apps.git
 
 # ags_apps_version: THE PIN. The git tag to install, and the name of the
 #   version directory under the install root. The tag names a MONOREPO release
-#   (`v0.3.7` carries bar/ + hypr-pano/ + notifications/ + capture-tool/ +
-#   wallpaper-selector/ + icme/, the notifications app owning
-#   org.freedesktop.Notifications): the unit is deployed whole, so one tag moves
-#   every app it ships. Bump this to move the live apps forward, point a live
-#   link at an older sibling tag dir to roll back. Recorded on the host at
+#   (`v0.3.8` carries bar/ + hypr-pano/ + notifications/ + capture-tool/ +
+#   wallpaper-selector/ + icme/ + btop-theme-studio/, the notifications app
+#   owning org.freedesktop.Notifications): the unit is deployed whole, so one tag
+#   moves every app it ships. Bump this to move the live apps forward, point a
+#   live link at an older sibling tag dir to roll back. Recorded on the host at
 #   ags_apps_pin_file so the installed version is observable without reading
 #   this file.
-ags_apps_version: v0.3.7
+ags_apps_version: v0.3.8
 
 # ags_apps_install_root: the monorepo home (<install>/ags-apps/). Trim lock:
 #   consumes the same validated {{ install_dir | trim }} value the sibling
@@ -235,6 +244,31 @@ ags_apps_icme_dir: "{{ ags_apps_unit_dir }}/icme"
 #   the app sources). No per-file copy can drift.
 ags_apps_live_icme_link: "{{ ags_apps_spine_config_dir }}/ags-icme"
 
+# ags_apps_btop_studio_dir: the deployed btop Theme Studio package — the
+#   `btop-theme-studio/` subdir of the unit (slice 8 moved the in-repo
+#   src/gui-tools/btop-theme-studio/ here as a thin ags-platform consumer); the
+#   live-btop-studio link points at this dir. Same monorepo deviation as the bar:
+#   the repo root is not the package, the app dir is the package. Like the
+#   selector and icme the studio is a whole package — no in-repo part survives,
+#   including its Python live preview engine (live/btop_live.py), which the app
+#   executes from this tree.
+ags_apps_btop_studio_dir: "{{ ags_apps_unit_dir }}/btop-theme-studio"
+
+# ags_apps_live_btop_studio_link: the live btop Theme Studio. A symlink named
+#   `ags-btop-studio` in the spine config root pointing at the unit's
+#   btop-theme-studio/ dir, so <install>/config/ags-btop-studio IS the pinned
+#   studio. The config-links role exposes it unchanged at
+#   ~/.config/ags-btop-studio; the provisioned `btop-theme-studio` launcher
+#   (cli_tools) cold-starts it (`ags run -d ~/.config/ags-btop-studio`) and
+#   toggles it warm — THROUGH the symlink, never the unit path directly. The
+#   studio's live-preview engine is resolved as
+#   `${GLib.get_current_dir()}/live/btop_live.py`; `ags run -d` re-roots the app
+#   into the linked dir (realpathed to this unit subdir), so the engine resolves
+#   inside the unit tree — nothing needs to stay in-repo for it. It is an
+#   on-demand instance (not always_on), so provisioning quits it and leaves it
+#   down. No per-file copy can drift.
+ags_apps_live_btop_studio_link: "{{ ags_apps_spine_config_dir }}/ags-btop-studio"
+
 # ags_apps_backup_root: where a displaced legacy bridge dir is preserved.
 #   A timestamped subdir per run (mirror of config_links_backup_root): the
 #   original is never deleted without preserving it verbatim. Shared by the
@@ -242,8 +276,9 @@ ags_apps_live_icme_link: "{{ ags_apps_spine_config_dir }}/ags-icme"
 #   retired per-file clipboard-overlay bridge), the live-notifications link
 #   (the retired per-file notification-overlay bridge), the live-capture link
 #   (the retired per-file capture-tool GUI bridge), the
-#   live-wallpaper-selector link (the retired per-file selector bridge) and the
-#   live-icme link (the retired per-file editor bridge).
+#   live-wallpaper-selector link (the retired per-file selector bridge), the
+#   live-icme link (the retired per-file editor bridge) and the
+#   live-btop-studio link (the retired per-file studio bridge).
 ags_apps_backup_root: "{{ ags_apps_install_root }}/bridge-backups"
 
 # ags_apps_platform_version: the pinned platform tag the per-unit resolution

@@ -177,13 +177,13 @@ def _preseed_bar_unit(install: Path) -> Path:
             f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
             "strict bar gate needs the unit's validate-cli.ts"
         )
-    bar = install / "ags-apps" / "v0.3.7" / "bar"
+    bar = install / "ags-apps" / "v0.3.8" / "bar"
     shutil.copytree(
         src,
         bar,
         ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
     )
-    (install / "ags-apps" / "pinned").write_text("v0.3.7\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.8\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
     # The capture-tool AGS GUI deploys WHOLE the same way (slice 5): the unit's
@@ -191,7 +191,7 @@ def _preseed_bar_unit(install: Path) -> Path:
     # role's capture icons.json is generated THROUGH that link (mirror of the
     # bar's icons.json). A standalone compositor-configs run must build that state
     # by hand, exactly as it does for the bar.
-    capture = install / "ags-apps" / "v0.3.7" / "capture-tool"
+    capture = install / "ags-apps" / "v0.3.8" / "capture-tool"
     capture.mkdir(parents=True, exist_ok=True)
     (capture / "app.tsx").write_text("export {}\n")
     (install / "config" / "ags-capture").symlink_to(

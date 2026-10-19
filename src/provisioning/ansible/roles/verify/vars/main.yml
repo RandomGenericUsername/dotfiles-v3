@@ -506,7 +506,7 @@ verify_ags_platform_unit_files:
 #   platform unit: esbuild realpaths the live-bar link, so the shared-ancestor
 #   shortcut is not an ancestor of the real bar tree and the bar's bare
 #   `ags-platform` imports would not resolve without it.
-verify_ags_apps_version: v0.3.7
+verify_ags_apps_version: v0.3.8
 verify_ags_apps_platform_version: v0.2.0
 verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
 verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
@@ -599,7 +599,7 @@ verify_ags_apps_live_capture_link: "{{ install_dir | trim }}/config/ags-capture"
 #   classic-layout shell, the pure settings domain, the single request->argv
 #   translator (the file that carries the --size/--audio vocabulary), a port and
 #   an adapter. A missing file is a capture panel that cannot bundle. NOTE: the
-#   pinned v0.3.7 unit's capture-tool has NO lib/icon-registry.ts — it consumes
+#   pinned unit's capture-tool has NO lib/icon-registry.ts — it consumes
 #   the platform icon registry through `ags-platform` instead, so no such file is
 #   asserted here.
 verify_ags_apps_capture_tool_files:
@@ -630,7 +630,7 @@ verify_ags_apps_live_wallpaper_selector_link: "{{ install_dir | trim }}/config/a
 #   stylesheet, the selector window, and the pure lib modules the window imports
 #   (the wallpaper model, the scan walk, the thumbnail cache and the apply /
 #   contrast helpers). A missing file is a selector that cannot bundle. NOTE: the
-#   pinned v0.3.7 unit's wallpaper-selector has NO lib/icon-registry.ts,
+#   pinned unit's wallpaper-selector has NO lib/icon-registry.ts,
 #   lib/event-bus*.ts or lib/theme.ts — it consumes the platform icon registry and
 #   theme adapter through `ags-platform` instead, so no such files are asserted.
 verify_ags_apps_wallpaper_selector_files:
@@ -677,6 +677,42 @@ verify_ags_apps_icme_files:
   - "{{ verify_ags_apps_icme_dir }}/lib/icme-saved.ts"
   - "{{ verify_ags_apps_icme_dir }}/lib/generated/contract.ts"
 
+# verify_ags_apps_btop_studio_dir / _live_btop_studio_link / _btop_studio_files:
+#   the btop Theme Studio, deployed WHOLE like the bar/hypr-pano/notifications/
+#   capture-tool/wallpaper-selector/icme (slice 8). The live-btop-studio link
+#   <install>/config/ags-btop-studio is a symlink into the unit's
+#   btop-theme-studio/ dir, so the live studio is always exactly the pinned tag —
+#   no per-file mirror can drift. Mirror of the ags_apps role vars. The
+#   ~/.config/ags-btop-studio symlink (config_links) and the
+#   `btop-theme-studio` launcher/keybind are unchanged: they resolve through this
+#   link. The studio is a whole package — nothing stays in-repo, including the
+#   live-preview engine (live/btop_live.py), which the app runs from this tree.
+verify_ags_apps_btop_studio_dir: "{{ verify_ags_apps_unit_dir }}/btop-theme-studio"
+verify_ags_apps_live_btop_studio_link: "{{ install_dir | trim }}/config/ags-btop-studio"
+
+# verify_ags_apps_btop_studio_files: representative files that MUST be present in
+#   the installed unit's btop-theme-studio/. NOT the whole app (that is the
+#   clone's job) — one file per concern: the composition-root entry, the
+#   stylesheet, the studio window, the pure theme-key/btop-conf/key-map/
+#   schematic/theme-model/preview/targets modules, the generated key→widget
+#   artifact the window imports, and the Python live-preview engine. A missing
+#   file is a studio that cannot bundle (or a live preview that cannot render).
+#   NOTE: the pinned unit's studio consumes the platform theme adapter through
+#   `ags-platform`, so it carries no lib/theme.ts.
+verify_ags_apps_btop_studio_files:
+  - "{{ verify_ags_apps_btop_studio_dir }}/app.tsx"
+  - "{{ verify_ags_apps_btop_studio_dir }}/style.css"
+  - "{{ verify_ags_apps_btop_studio_dir }}/ui/StudioWindow.tsx"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/theme-keys.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/btop-conf.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/key-map.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/key-widgets.generated.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/schematic.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/theme-model.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/preview.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/lib/targets.ts"
+  - "{{ verify_ags_apps_btop_studio_dir }}/live/btop_live.py"
+
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
 #   mirror of gui_tools_btop_studio_app_files dests).
@@ -694,29 +730,14 @@ verify_ags_apps_icme_files:
 #   here anymore (slice 7). It moved into the ags-apps unit and deploys WHOLE via
 #   the live-icme link; its sources (including the event publisher seam) are
 #   asserted as a UNIT below (verify_ags_apps_icme_files).
-verify_gui_tools_app_files:
-  # NOTE: the notification overlay is deliberately NOT mirrored per file here
-  # anymore (slice 4). It used to be placed per file under config/ags-notifications/;
-  # the consumption step installs it as ONE versioned unit via the `ags_apps`
-  # role and deploys the unit's notifications/ subdir as the live
-  # config/ags-notifications symlink. Its sources are asserted as a UNIT below
-  # (verify_ags_apps_notifications_*); keeping a stale per-file mirror here would
-  # assert files the bridge no longer deploys.
-  # The btop Theme Studio's app + lib files (gui_tools per-file placement).
-  # An undeployed member is a bundle that cannot start, exactly like the
-  # sibling AGS tools.
-  - "{{ install_dir | trim }}/config/ags-btop-studio/app.tsx"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/style.css"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/ui/StudioWindow.tsx"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/theme-keys.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/btop-conf.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/key-map.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/key-widgets.generated.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/schematic.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/theme-model.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/preview.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/lib/targets.ts"
-  - "{{ install_dir | trim }}/config/ags-btop-studio/live/btop_live.py"
+#   NOTE: the btop Theme Studio is deliberately NOT mirrored per file here
+#   anymore (slice 8). It moved into the ags-apps unit and deploys WHOLE via the
+#   live-btop-studio link; its sources (including the live/btop_live.py engine)
+#   are asserted as a UNIT below (verify_ags_apps_btop_studio_files).
+#   NO gui_tools per-file app remains: the list is intentionally EMPTY, and the
+#   criterion task passes on an empty list (0 == 0). A future per-file app only
+#   needs to be appended here.
+verify_gui_tools_app_files: []
 
 # verify_consumer_symlinks: the R2 consumer-path symlinks the runtime
 #   seeder owns (criterion 7, Epic 4 current-only). The AGS fragment is
