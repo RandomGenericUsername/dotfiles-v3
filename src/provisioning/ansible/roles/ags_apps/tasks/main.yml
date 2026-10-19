@@ -57,8 +57,8 @@
 #   non-empty legacy dir moved aside, never deleted, NO seed step). gui_tools
 #   keeps only the on-demand `capture` AGS-instance entry, which the provisioned
 #   `capture-ui` launcher starts from the now-symlinked ~/.config/ags-capture. The
-#   Python backend stays in-repo (cli_tools installs it) — only the GUI is in the
-#   unit.
+#   Python backend ships in the unit too (ags-apps v0.4.0), and this role links it
+#   into the user bin dir, so the app is one self-contained unit.
 # - The live wallpaper selector is a symlink too (slice 6):
 #   <install>/config/ags-wallpaper-selector -> <unit>/wallpaper-selector/.
 #   Identical discipline to the live-capture link (backup-then-symlink, empty
@@ -423,8 +423,9 @@
 # so there is nothing to seed before the move. The backup is suffixed so a run
 # that displaces MULTIPLE legacy dirs cannot collide on the timestamp. The GUI's
 # icons.json is generated through this link by compositor_configs, exactly like
-# the bar's; the Python backend is NOT here (it stays in-repo, installed by
-# cli_tools) and the `capture` AGS instance entry stays in gui_tools.
+# the bar's; the Python backend ships in the unit (ags-apps v0.4.0) and this role
+# links it into the user bin dir (below), so nothing stays in-repo. The `capture`
+# AGS instance entry stays in gui_tools.
 - name: Check whether the live-capture path already exists
   ansible.builtin.stat:
     path: "{{ ags_apps_live_capture_link }}"
@@ -489,6 +490,36 @@
     dest: "{{ ags_apps_live_capture_link }}"
     state: link
     force: true
+
+# The capture-tool CLI is now part of the SAME unit (ags-apps v0.4.0). It is not
+# copied: the bin entry is a symlink into the pinned unit, so the controller the
+# GUI shells out to is always exactly the tag that ships the GUI (one version,
+# one source of truth). A pre-existing real file from the retired cli_tools copy
+# is replaced by `force: true` on the first run.
+- name: Ensure the capture-tool CLI bin dir exists
+  ansible.builtin.file:
+    path: "{{ ags_apps_bin_dir | trim }}"
+    state: directory
+    mode: "0755"
+
+- name: Install the unit's capture-tool backend as the CLI entry point
+  ansible.builtin.file:
+    src: "{{ ags_apps_capture_tool_backend }}"
+    dest: "{{ ags_apps_capture_tool_bin_link }}"
+    state: link
+    force: true
+
+# Relocated from the cli_tools role when the backend moved into the unit: the
+# cli_tools playbook runs BEFORE ags-apps, so the assertion belongs here, after
+# the symlink exists. `command -v` is a shell builtin (see cli_tools header) and
+# the check is a read-only probe; under --check the link was not created, so the
+# probe is gated to keep bootstrap --check dry.
+- name: Verify capture-tool is on PATH
+  ansible.builtin.shell: "command -v capture-tool"
+  environment:
+    PATH: "{{ ags_apps_bin_dir | trim }}:{{ ansible_facts.env.PATH }}"
+  changed_when: false
+  when: not ansible_check_mode
 
 # The wallpaper selector deploys the same way (slice 6): a symlink into the
 # unit's wallpaper-selector/ dir, with the SAME migrate-then-symlink discipline

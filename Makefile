@@ -97,10 +97,11 @@ ci-gates-parity:
 # capture-test-deps / capture-hexagonal-gate) were RETIRED with the in-repo GUI
 # (ags-apps-bar-first slice 5): the AGS GUI moved into the `ags-apps` unit and
 # its own gates (typecheck, domain tests, hexagonal structure) live there now.
-# What remains here is the Python backend (src/gui-tools/capture-tool/bin/capture-tool,
-# installed by the cli_tools role) and the provisioning SHAPE, asserted by
-# `deploy-coverage`. Do NOT re-add a per-file capture gate here: it would read a
-# tree this repo no longer owns.
+# The Python backend moved into the same unit at ags-apps v0.4.0 (with its
+# `capture-tool/tests/python/` suite), so this repo owns NO capture-tool source
+# at all; only the provisioning SHAPE is asserted here, by `deploy-coverage`.
+# Do NOT re-add a per-file capture gate: it would read a tree this repo no
+# longer owns.
 
 # ---------------------------------------------------------------------------
 # per-app-drift-symbol-suites -- the per-app contract drift suites, run from the

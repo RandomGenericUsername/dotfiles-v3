@@ -179,9 +179,10 @@ class TestAgsAppsVars:
         )
 
     def test_live_capture_link_deploys_the_unit_at_config_ags_capture(self) -> None:
-        """Slice 5: the capture-tool AGS GUI deploys WHOLE like the bar — a
-        symlink from the spine root into the unit's capture-tool/ subdir. The
-        Python backend is NOT part of the unit and is not named here."""
+        """Slice 5: the capture-tool app deploys WHOLE like the bar — a symlink
+        from the spine root into the unit's capture-tool/ subdir. From ags-apps
+        v0.4.0 the Python backend ships in the SAME unit, so nothing is left
+        in-repo."""
         data = _vars()
         capture = str(data["ags_apps_capture_tool_dir"])
         assert capture.endswith("/capture-tool")
@@ -192,6 +193,20 @@ class TestAgsAppsVars:
         assert "ags_apps_capture_tool_dir" not in live, (
             "the link DEST is the spine path; the link SRC (the unit "
             "capture-tool dir) belongs in the tasks, not the vars"
+        )
+
+    def test_capture_backend_and_bin_link_are_unit_derived(self) -> None:
+        """v0.4.0: the CLI comes from the unit, not a copy. The backend derives
+        from the unit's capture-tool/ dir and the installed entry point derives
+        from the user bin dir (mirror of cli_tools_bin_dir)."""
+        data = _vars()
+        backend = str(data["ags_apps_capture_tool_backend"])
+        assert backend == "{{ ags_apps_capture_tool_dir }}/bin/capture-tool", (
+            f"the backend must come from the unit; got {backend!r}"
+        )
+        bin_link = str(data["ags_apps_capture_tool_bin_link"])
+        assert bin_link == "{{ ags_apps_bin_dir | trim }}/capture-tool", (
+            f"the CLI entry point must live in the user bin dir; got {bin_link!r}"
         )
 
     def test_live_wallpaper_selector_link_deploys_the_unit_at_config_ags_wallpaper_selector(
@@ -602,6 +617,68 @@ class TestAgsAppsTasks:
             f"notifications timestamp dirs; got {backup!r}"
         )
 
+    def test_capture_cli_is_forced_symlink_to_the_unit_backend(self) -> None:
+        """v0.4.0: the CLI entry point is a symlink, not a copy.
+
+        The unit is the single source of truth for the backend; `state: link` +
+        `force: true` mirrors the live-link discipline (a version bump is a
+        repoint, a pre-existing cli_tools copy is replaced, --check is safe).
+        """
+        task = _named("Install the unit's capture-tool backend as the CLI entry point")
+        assert _module_key(task) == "ansible.builtin.file"
+        module = _module(task)
+        assert module["state"] == "link"
+        assert module["force"] is True, "force replaces the retired copy and repoints"
+        assert module["src"] == "{{ ags_apps_capture_tool_backend }}"
+        assert module["dest"] == "{{ ags_apps_capture_tool_bin_link }}"
+
+        # The bin dir is ensured before the link is created (cli_tools creates it
+        # on the bootstrap chain, but the role must stand alone).
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        assert names.index("Ensure the capture-tool CLI bin dir exists") < names.index(
+            "Install the unit's capture-tool backend as the CLI entry point"
+        ), "the bin dir must exist before the symlink is placed"
+
+    def test_capture_cli_path_assertion_lives_after_the_unit_install(self) -> None:
+        """The cli_tools PATH assertion was relocated here: cli-tools runs BEFORE
+        ags-apps, so the binary does not exist yet at that point. The assertion
+        must stay (a link into a nonexistent target would be silent otherwise),
+        use the shell builtin, prepend the bin dir, and remain --check-gated."""
+        task = _named("Verify capture-tool is on PATH")
+        assert _module_key(task) == "ansible.builtin.shell"
+        assert "command -v capture-tool" in str(
+            task.get("ansible.builtin.shell", "")
+        )
+        assert task.get("changed_when") is False
+        env = task.get("environment")
+        assert isinstance(env, dict), "the assertion must prepend the bin dir"
+        assert str(env.get("PATH", "")).startswith("{{ ags_apps_bin_dir | trim }}:")
+        assert task.get("when") == "not ansible_check_mode", (
+            "the link does not exist under --check, so the probe must be gated"
+        )
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        assert names.index(
+            "Install the unit's capture-tool backend as the CLI entry point"
+        ) < names.index("Verify capture-tool is on PATH"), (
+            "the assertion must run after the symlink is installed"
+        )
+
+    def test_bin_dir_mirrors_cli_tools_bin_dir_resolution(self) -> None:
+        """The CLI lands in the SAME dir cli_tools/verify use for uv tools. A
+        divergent derivation would put capture-tool in a dir never on PATH."""
+        data = _vars()
+        expr = str(data["ags_apps_bin_dir"])
+        assert "UV_TOOL_BIN_DIR" in expr
+        assert "XDG_BIN_HOME" in expr
+        assert "/.local/bin" in expr
+        cli_vars = yaml.safe_load(
+            (_ANSIBLE_DIR / "roles" / "cli_tools" / "vars" / "main.yml").read_text()
+        )
+        cli_expr = str(cli_vars["cli_tools_bin_dir"])
+        assert expr.split() == cli_expr.split(), (
+            "ags_apps_bin_dir must be a verbatim mirror of cli_tools_bin_dir"
+        )
+
     def test_no_become_anywhere(self) -> None:
         for task in _load_tasks():
             assert not task.get("become", False), (
@@ -874,10 +951,16 @@ class TestAgsAppsExecution:
         notifications = unit / "notifications"
         notifications.mkdir(parents=True)
         (notifications / "app.tsx").write_text("export {}\n")
-        # ... and capture-tool/ (slice 5); the live-capture link needs it.
+        # ... and capture-tool/ (slice 5); the live-capture link needs it, and
+        # from v0.4.0 the unit also ships the Python backend the ags_apps role
+        # links into the user bin dir. It must be executable: the role's
+        # `command -v` assertion resolves it through the link.
         capture = unit / "capture-tool"
-        capture.mkdir(parents=True)
+        (capture / "bin").mkdir(parents=True)
         (capture / "app.tsx").write_text("export {}\n")
+        backend = capture / "bin" / "capture-tool"
+        backend.write_text("#!/usr/bin/env python3\n")
+        backend.chmod(0o755)
         # ... and wallpaper-selector/ (slice 6); the live-wallpaper-selector link
         # needs it.
         selector = unit / "wallpaper-selector"
@@ -940,6 +1023,14 @@ class TestAgsAppsExecution:
             "the live capture GUI must point at the unit's capture-tool/"
         )
 
+        # v0.4.0: the CLI is the SAME unit's backend, installed as a bin-dir
+        # symlink (not a copy), replacing any pre-existing cli_tools copy.
+        cli = home / ".local" / "bin" / "capture-tool"
+        assert cli.is_symlink(), "the capture-tool CLI must be a symlink"
+        assert cli.resolve() == (unit_dir / "capture-tool" / "bin" / "capture-tool").resolve(), (
+            "the CLI must point at the pinned unit's backend"
+        )
+
         live_selector = install / "config" / "ags-wallpaper-selector"
         assert live_selector.is_symlink(), (
             "the live wallpaper selector must be a symlink"
@@ -999,6 +1090,9 @@ class TestAgsAppsExecution:
         assert live_pano.resolve() == (unit_dir / "hypr-pano").resolve()
         assert live_notifications.resolve() == (unit_dir / "notifications").resolve()
         assert live_capture.resolve() == (unit_dir / "capture-tool").resolve()
+        assert cli.resolve() == (
+            unit_dir / "capture-tool" / "bin" / "capture-tool"
+        ).resolve()
         assert live_selector.resolve() == (unit_dir / "wallpaper-selector").resolve()
         assert live_icme.resolve() == (unit_dir / "icme").resolve()
         assert live_studio.resolve() == (unit_dir / "btop-theme-studio").resolve()

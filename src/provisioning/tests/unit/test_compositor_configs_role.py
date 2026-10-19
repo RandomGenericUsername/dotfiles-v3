@@ -177,13 +177,13 @@ def _preseed_bar_unit(install: Path) -> Path:
             f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
             "strict bar gate needs the unit's validate-cli.ts"
         )
-    bar = install / "ags-apps" / "v0.3.8" / "bar"
+    bar = install / "ags-apps" / "v0.4.0" / "bar"
     shutil.copytree(
         src,
         bar,
         ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
     )
-    (install / "ags-apps" / "pinned").write_text("v0.3.8\n")
+    (install / "ags-apps" / "pinned").write_text("v0.4.0\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
     # The capture-tool AGS GUI deploys WHOLE the same way (slice 5): the unit's
@@ -191,7 +191,7 @@ def _preseed_bar_unit(install: Path) -> Path:
     # role's capture icons.json is generated THROUGH that link (mirror of the
     # bar's icons.json). A standalone compositor-configs run must build that state
     # by hand, exactly as it does for the bar.
-    capture = install / "ags-apps" / "v0.3.8" / "capture-tool"
+    capture = install / "ags-apps" / "v0.4.0" / "capture-tool"
     capture.mkdir(parents=True, exist_ok=True)
     (capture / "app.tsx").write_text("export {}\n")
     (install / "config" / "ags-capture").symlink_to(
@@ -292,9 +292,9 @@ class TestCompositorConfigsTasks:
 
         data = _vars()
         files = list(data["compositor_configs_skeleton_files"])
-        # capture tool files (CaptureWindow.tsx, types.ts, app.tsx, style.css)
-        # are standalone under src/gui-tools/capture-tool/ and deploy via the
-        # gui_tools role — no longer part of the compositor_configs skeletons.
+        # capture tool files are NOT part of the compositor_configs skeletons
+        # either: the app (GUI + Python backend) lives entirely in the pinned
+        # ags-apps unit and deploys via the ags_apps role's live-capture link.
         # (The pre-hexagonal views + controllers were deleted by
         # refactor-capture-tool-hexagonal, task 1.4.)
         # EXACT count, deliberately. 65 on master, 66 once the battery panel's
@@ -1049,7 +1049,8 @@ class TestDeployCoverageGate:
     _SCRIPT = _ANSIBLE_DIR.parents[2] / "scripts" / "deploy-coverage.py"
     _VARS = "src/provisioning/ansible/roles/compositor_configs/vars/main.yml"
     _AGS = "dotfiles/config/ags"
-    _BACKEND = "src/gui-tools/capture-tool/bin/capture-tool"
+    _RETIRED_CAPTURE_DIR = "src/gui-tools/capture-tool"
+    _APPS_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
 
     def _run(self, root: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -1062,14 +1063,20 @@ class TestDeployCoverageGate:
         self,
         root: Path,
         repo_root: Path,
-        roles: tuple[str, ...] = ("ags_platform", "ags_apps", "gui_tools"),
+        roles: tuple[str, ...] = (
+            "ags_platform",
+            "ags_apps",
+            "gui_tools",
+            "cli_tools",
+        ),
     ) -> None:
         """Seed a hermetic temp root for the gate.
 
-        The real compositor manifest, the named unit/app roles, and the
-        capture-tool Python backend — which the gate asserts SURVIVES (slice 5).
-        Without the backend the gate fails on its own subject, so every hermetic
-        positive case must carry it.
+        The real compositor manifest plus the named unit/app roles. The
+        capture-tool app (GUI + Python backend) now lives entirely in the
+        ags-apps unit, so the gate asserts the in-repo app dir is GONE and that
+        ags_apps provisions both links; cli_tools is copied because the gate
+        also rejects a stale backend copy task there.
         """
         vars_dst = root / self._VARS
         vars_dst.parent.mkdir(parents=True, exist_ok=True)
@@ -1079,9 +1086,6 @@ class TestDeployCoverageGate:
                 repo_root / "src/provisioning/ansible/roles" / role,
                 root / "src/provisioning/ansible/roles" / role,
             )
-        backend_dst = root / self._BACKEND
-        backend_dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(repo_root / self._BACKEND, backend_dst)
 
     def test_gate_passes_on_the_real_tree(self) -> None:
         repo_root = _ANSIBLE_DIR.parents[2]
@@ -1268,7 +1272,7 @@ class TestDeployCoverageGate:
         source would template INTO the unit tree through the live-capture link and
         silently diverge the live GUI from the pinned tag. Hermetic: a temp root
         whose gui_tools vars re-add a retired gui_tools_app_files — plus both unit
-        roles and the backend, which the gate asserts."""
+        roles and cli_tools, which the gate asserts."""
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1291,23 +1295,53 @@ class TestDeployCoverageGate:
                 + result.stdout
             )
 
-    def test_gate_fails_when_the_capture_backend_is_deleted(self) -> None:
-        """Slice 5: capture-tool is a SPLIT package. Deleting the whole
-        src/gui-tools/capture-tool/ dir would silently drop the Python backend
-        that cli_tools installs and the GUI shells out to, so the gate must FAIL
-        when the backend is gone even with the GUI correctly retired."""
+    def test_gate_fails_when_the_retired_capture_tool_dir_returns(self) -> None:
+        """v0.4.0: capture-tool is a WHOLE package — the GUI AND the Python
+        backend ship in the ags-apps unit (capture-tool/bin/capture-tool +
+        tests/python/), so the entire in-repo dir must be gone. A surviving
+        backend is a second source of truth the ags_apps symlink would bypass."""
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._seed_root(root, repo_root)
-            (root / self._BACKEND).unlink()
+            stale = root / self._RETIRED_CAPTURE_DIR / "bin"
+            stale.mkdir(parents=True)
+            (stale / "capture-tool").write_text("#!/usr/bin/env python3\n")
             result = self._run(root)
             assert result.returncode != 0, (
-                "the gate must FAIL when the capture-tool Python backend is "
-                f"deleted; recap:\n{result.stdout}"
+                "the gate must FAIL when the retired in-repo capture-tool dir "
+                f"returns; recap:\n{result.stdout}"
             )
-            assert "backend" in result.stdout.lower(), (
-                "the failure must name the missing backend; recap:\n" + result.stdout
+            assert "capture-tool" in result.stdout, (
+                "the failure must name the retired capture-tool dir; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_capture_cli_symlink_is_not_provisioned(self) -> None:
+        """The CLI must be installed from the unit. If ags_apps stops declaring
+        the bin-dir symlink (backend source + entry point), deleting the in-repo
+        app would leave the gate green with no `capture-tool` on PATH — the
+        silent-coverage-loss this gate exists to prevent."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            apps_vars = root / self._APPS_VARS
+            text = apps_vars.read_text()
+            removed = "\n".join(
+                line
+                for line in text.splitlines()
+                if "ags_apps_capture_tool_bin_link" not in line
+            )
+            apps_vars.write_text(removed + "\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the bin-dir CLI symlink is no longer "
+                f"declared; recap:\n{result.stdout}"
+            )
+            assert "bin" in result.stdout.lower(), (
+                "the failure must name the missing CLI link; recap:\n"
+                + result.stdout
             )
 
     def test_gate_fails_when_a_stale_wallpaper_selector_entry_returns(self) -> None:

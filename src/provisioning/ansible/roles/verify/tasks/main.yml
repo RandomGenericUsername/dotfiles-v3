@@ -1129,8 +1129,11 @@
 # <install>/config/ags-capture. verify asserts the unit files exist and the
 # live-capture link is a symlink whose target names the pinned tag and resolves to
 # a directory — the host-side coverage the deploy-coverage gate's repo-side shape
-# assertion cannot provide. The Python backend is asserted separately via
-# verify_bin_scripts (`capture-tool` in the user bin dir, installed by cli_tools).
+# assertion cannot provide. The Python backend now ships in the SAME unit
+# (ags-apps v0.4.0), so the installed CLI entry point is asserted here too: a
+# symlink in the user bin dir whose target names the pinned tag and resolves to
+# the unit's backend. That pairing is what makes the app one self-contained,
+# single-version component.
 - name: Check the ags-apps capture-tool unit files
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -1167,6 +1170,38 @@
       {{ verify_ags_apps_live_capture_link }} as a symlink into it. Without them
       the SUPER+PRINT keybind and the `capture-ui` launcher open a dead instance.
       The ags_apps role installs them; run the ags-apps playbook first
+  when: not ansible_check_mode
+
+# The CLI half of the same unit: <bin dir>/capture-tool must be a symlink into
+# the pinned unit's capture-tool/bin/capture-tool. A regular file means a stale
+# cli_tools copy (two sources of truth); a link into another tag means the
+# controller and the GUI can disagree. stat (follow: false) describes the link
+# itself; the second stat (follow: true) proves the target really resolves.
+- name: Check the capture-tool CLI entry point is a symlink
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_capture_tool_bin_link }}"
+    follow: false
+  register: verify_capture_tool_bin_link_check
+
+- name: Check the capture-tool CLI entry point resolves to the unit backend
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_capture_tool_bin_link }}"
+    follow: true
+  register: verify_capture_tool_backend_check
+
+- name: Assert the capture-tool CLI is the pinned unit's backend symlink
+  ansible.builtin.assert:
+    that:
+      - verify_capture_tool_bin_link_check.stat.exists
+      - verify_capture_tool_bin_link_check.stat.islnk
+      - verify_capture_tool_bin_link_check.stat.lnk_target is search(verify_ags_apps_version)
+      - verify_capture_tool_backend_check.stat.isreg
+    fail_msg: >-
+      the capture-tool CLI at {{ verify_ags_apps_capture_tool_bin_link }} is not
+      a symlink into the pinned unit ({{ verify_ags_apps_version }}). Expected a
+      link to {{ verify_ags_apps_capture_tool_backend }}. A regular file is a
+      stale copy; a link to another tag lets the controller and the GUI disagree.
+      The ags_apps role installs it; run the ags-apps playbook first
   when: not ansible_check_mode
 
 # (slice 6): the unit's wallpaper-selector/ subdir is linked as the live
