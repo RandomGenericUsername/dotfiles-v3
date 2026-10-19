@@ -35,7 +35,13 @@ required):
       `notifications` (slice 4): the retired per-file source is gone from the
       gui_tools role and the repo, and the `ags_apps` role deploys the unit's
       `notifications/` subdir as the live `<install>/config/ags-notifications`
-      link (the gui_tools AGS-instance entry that STARTS the daemon is kept).
+      link (the gui_tools AGS-instance entry that STARTS the daemon is kept);
+  (g) asserts the FOURTH app in the unit, the capture-tool AGS GUI
+      `capture-tool` (slice 5): the retired per-file GUI source is gone from the
+      gui_tools role and the repo, the `ags_apps` role deploys the unit's
+      `capture-tool/` subdir as the live `<install>/config/ags-capture` link (the
+      gui_tools `capture` AGS-instance entry is kept), and the Python BACKEND
+      (`bin/capture-tool`, installed by cli_tools) SURVIVES in-repo.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -156,6 +162,37 @@ RETIRED_HYPR_PANO_DIR = "src/gui-tools/hypr-pano"
 # placement is.
 NOTIFICATIONS_PACKAGE = "notifications"
 RETIRED_NOTIFICATIONS_DIR = "src/gui-tools/notifications"
+
+# The capture-tool AGS GUI (ags-apps-bar-first slice 5): the FOURTH app moved
+# into the ags-apps unit. It deploys WHOLE like the bar/hypr-pano/notifications —
+# the ags_apps role links the unit's capture-tool/ subdir as
+# <install>/config/ags-capture — so the gate asserts the same two things: the
+# retired per-file source is GONE and the live link is provisioned. The retired
+# per-file deploy lived in the gui_tools role (gui_tools_app_files), not the
+# compositor manifest, so this half reads that role. NOTE: the gui_tools
+# AGS-INSTANCE entry (`capture`, on-demand) is deliberately NOT retired — only the
+# per-file placement is.
+#
+# UNLIKE the other apps, capture-tool is a SPLIT package: the AGS GUI moves into
+# the unit, but the Python BACKEND stays in-repo (cli_tools installs it). So the
+# "in-repo source is gone" assertion is per-GUI-PATH, not whole-dir, and the gate
+# ALSO asserts the backend survives — otherwise a future "delete the whole dir"
+# would silently drop the backend the keybind and the GUI both shell out to.
+CAPTURE_TOOL_PACKAGE = "capture-tool"
+RETIRED_CAPTURE_TOOL_GUI = (
+    "src/gui-tools/capture-tool/app.tsx",
+    "src/gui-tools/capture-tool/style.css",
+    "src/gui-tools/capture-tool/types.ts",
+    "src/gui-tools/capture-tool/ui",
+    "src/gui-tools/capture-tool/domain",
+    "src/gui-tools/capture-tool/ports",
+    "src/gui-tools/capture-tool/adapters",
+    "src/gui-tools/capture-tool/lib",
+    "src/gui-tools/capture-tool/tsconfig.capture.json",
+    "src/gui-tools/capture-tool/tests/ts",
+    "src/gui-tools/capture-tool/tests/tsconfig.tests.json",
+)
+CAPTURE_TOOL_BACKEND = "src/gui-tools/capture-tool/bin/capture-tool"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -689,6 +726,121 @@ def assert_notifications_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_per_file_capture_tool_sources(root: Path) -> None:
+    """The capture-tool GUI bridge is retired: no per-file entry may remain.
+
+    The GUI deploys WHOLE via the ags_apps live-capture link, so a per-file entry
+    (a gui_tools_app_files dest under ags-capture/, an ags-capture/ spine dir, or
+    the retired gui_tools_capture_obsolete list) would template INTO the unit tree
+    through the link and silently diverge the live GUI from the pinned tag. The
+    GUI source must be gone too: it lives in the ags-apps unit now. The Python
+    BACKEND must SURVIVE (cli_tools installs it) — a whole-dir delete would
+    silently drop it.
+    """
+    import yaml
+
+    for retired in RETIRED_CAPTURE_TOOL_GUI:
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired in-repo {CAPTURE_TOOL_PACKAGE!r} GUI path still "
+                f"exists at {retired} — the GUI deploys WHOLE from the ags-apps "
+                f"unit; the in-repo copy is a second source of truth"
+            )
+
+    if not (root / CAPTURE_TOOL_BACKEND).is_file():
+        raise ValueError(
+            f"the {CAPTURE_TOOL_PACKAGE!r} Python BACKEND is missing at "
+            f"{CAPTURE_TOOL_BACKEND} — only the AGS GUI moved into the ags-apps "
+            f"unit; the backend stays in-repo and cli_tools installs it"
+        )
+
+    vars_path = root / GUI_TOOLS_ROLE_VARS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the GUI deploys as the external {CAPTURE_TOOL_PACKAGE!r} unit but "
+            f"no gui_tools role declares it: {GUI_TOOLS_ROLE_VARS} is missing"
+        )
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{GUI_TOOLS_ROLE_VARS} did not parse to a mapping")
+
+    for key, value in data.items():
+        if key.endswith("_app_files") and isinstance(value, list):
+            for entry in value:
+                dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                if "/ags-capture/" in dest:
+                    raise ValueError(
+                        f"{key} still deploys into the retired ags-capture/ "
+                        f"spine: {dest} — the GUI deploys WHOLE via the unit"
+                    )
+    if any(
+        "ags-capture" in str(d) for d in data.get("gui_tools_config_dirs", [])
+    ):
+        raise ValueError(
+            "gui_tools_config_dirs still ensures the retired ags-capture/ dir — "
+            "the ags_apps role owns it as the live-capture symlink"
+        )
+    if data.get("gui_tools_capture_obsolete"):
+        raise ValueError(
+            "gui_tools_capture_obsolete still lists per-file paths — the GUI "
+            f"deploys WHOLE via the unit; delete it in {GUI_TOOLS_ROLE_VARS}"
+        )
+
+
+def assert_capture_tool_provisioning(root: Path) -> None:
+    """The external capture-tool live link must be provisioned, not assumed.
+
+    Mirror of assert_notifications_provisioning for the fourth app in the unit:
+    the ags_apps role declares the unit's capture-tool/ subdir and links it as
+    <install>/config/ags-capture. Without this, deleting the in-repo GUI would
+    leave the gate green with the live GUI unprovisioned — exactly the
+    silent-coverage-loss this gate exists to prevent.
+    """
+    import yaml
+
+    vars_path = root / BAR_ROLE_VARS
+    tasks_path = root / BAR_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the GUI deploys as the external {CAPTURE_TOOL_PACKAGE!r} unit but "
+            f"no provisioning role declares it: {BAR_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the capture-tool role has no tasks to deploy it: {BAR_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{BAR_ROLE_VARS} did not parse to a mapping")
+
+    capture_dir = str(data.get("ags_apps_capture_tool_dir", ""))
+    if not capture_dir.endswith("/capture-tool"):
+        raise ValueError(
+            f"ags_apps_capture_tool_dir must be the unit's capture-tool/ subdir "
+            f"(the monorepo deviation — the repo root is not the package); got "
+            f"{capture_dir!r}"
+        )
+    live = str(data.get("ags_apps_live_capture_link", ""))
+    # Shape, not the exact Jinja string: the link routes through the spine
+    # config dir intermediate and names `ags-capture`.
+    if "spine_config_dir" not in live or not live.endswith("/ags-capture"):
+        raise ValueError(
+            f"ags_apps_live_capture_link must deploy the unit's capture-tool as "
+            f"<install>/config/ags-capture; got {live!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if (
+        "ags_apps_capture_tool_dir" not in tasks
+        or "ags_apps_live_capture_link" not in tasks
+    ):
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not deploy the unit's capture-tool/ as the "
+            f"live-capture link"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -740,6 +892,10 @@ def main() -> int:
         # hypr-pano: retired per-file gui_tools source + live-notifications link).
         assert_no_per_file_notifications_sources(root)
         assert_notifications_provisioning(root)
+        # Slice 5: the capture-tool AGS GUI deploys WHOLE too (same shape), but
+        # the Python backend SURVIVES in-repo — both halves are asserted.
+        assert_no_per_file_capture_tool_sources(root)
+        assert_capture_tool_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -775,11 +931,16 @@ def main() -> int:
         f"subdir + live-notifications link provisioned; no per-file gui_tools "
         f"source remains (not a per-file deploy)"
     )
+    print(
+        f"deploy-coverage: external {CAPTURE_TOOL_PACKAGE!r} app — pinned unit "
+        f"subdir + live-capture link provisioned; no per-file gui_tools GUI source "
+        f"remains and the Python backend survives in-repo (not a per-file deploy)"
+    )
 
     print(
-        "deploy-coverage: PASS -- the retired bar + hypr-pano + notifications "
-        "bridges carry no per-file deploy source and the external units are "
-        "provisioned"
+        "deploy-coverage: PASS -- the retired bar + hypr-pano + notifications + "
+        "capture-tool bridges carry no per-file deploy source and the external "
+        "units are provisioned"
     )
     return 0
 

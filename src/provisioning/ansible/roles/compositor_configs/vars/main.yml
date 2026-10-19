@@ -84,7 +84,11 @@ compositor_configs_config_dirs:
   # bar/ subdir as the live <install>/config/ags symlink (spine AD-17). The
   # role ensures the spine config root itself; `template` does NOT create
   # dest parents, so the remaining entries below are still re-ensured here.
-  - "{{ compositor_configs_spine_config_dir }}/ags-capture"
+  # NOTE: there is likewise NO `ags-capture` dir here anymore. The capture-tool
+  # GUI moved into the same unit (slice 5) and the `ags_apps` role deploys the
+  # unit's capture-tool/ subdir as the live <install>/config/ags-capture symlink,
+  # so this role must not claim it as a dir. Its icons.json is still generated
+  # THROUGH that link (compositor_configs_capture_icon_manifest_dest).
   - "{{ compositor_configs_spine_config_dir }}/rofi"
   - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
 # compositor_configs_skeleton_files: the skeleton FILES authored by 2.8 (AC 2),
@@ -161,7 +165,12 @@ compositor_configs_icon_manifest_source: "{{ install_dir | trim }}/icon-mappings
 compositor_configs_icon_manifest_dest: "{{ compositor_configs_spine_config_dir }}/ags/icons.json"
 # The capture AGS instance resolves icons through the same registry contract
 # as the bar, so it needs the same generated manifest beside its own sources.
-# Same decoded content as the bar manifest, second destination only.
+# Same decoded content as the bar manifest, second destination only. Slice 5:
+# <install>/config/ags-capture is now the ags_apps live-capture SYMLINK into the
+# unit's capture-tool/, so this copy lands in <unit>/capture-tool/icons.json —
+# exactly like the bar manifest lands in <unit>/bar/icons.json through the
+# live-bar link. The ags_apps role (ags-apps.yaml) runs first, so the link
+# exists by the time this role generates the manifest.
 compositor_configs_capture_icon_manifest_dest: "{{ compositor_configs_spine_config_dir }}/ags-capture/icons.json"
 # compositor_configs_icon_manifest_schema_version: the schema version stamped
 #   into the generated manifest (spine AD-16/AD-21 — one artifact, one shape,
