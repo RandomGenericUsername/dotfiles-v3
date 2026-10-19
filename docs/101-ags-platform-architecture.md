@@ -654,7 +654,8 @@ Each step independently shippable and gated (`bar-typecheck`, `ags-typecheck`,
     `dotfiles/config/ags/lib/event-bus-core.ts`
   - capture/recording: `dotfiles/config/ags/bar/widgets/recording.tsx`,
     `src/runtime/src/runtime/application/{capture,capture_host,jobs}.py`
-  - notifications app: `src/gui-tools/notifications/`
+  - notifications app: the `ags-apps` unit's `notifications/` subdir (linked as
+    `~/.config/ags-notifications` via the `ags_apps` role)
 
 ## Appendix B — relation to doc 100
 

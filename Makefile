@@ -193,9 +193,9 @@ ags-platform-dev:
 		rm -rf "$(AGS_PLATFORM_FETCH_DIR)/.git"; \
 	fi
 	@# A repo-root shortcut: an in-repo suite (run by
-	@# `per-app-drift-symbol-suites`) is a plain `node` script under
-	@# src/gui-tools/, and Node's node_modules walk from there reaches the repo
-	@# root but not the bar dev tree. Same symlink shape, one walk up.
+	@# `per-app-drift-symbol-suites`) is a plain `node` script under src/, and
+	@# Node's node_modules walk from there reaches the repo root but not the bar
+	@# dev tree. Same symlink shape, one walk up.
 	@mkdir -p node_modules
 	@ln -sfn "$(AGS_PLATFORM_SRC)" node_modules/ags-platform
 	@echo "==> ags-platform-dev: node_modules/ags-platform -> $(AGS_PLATFORM_SRC)"

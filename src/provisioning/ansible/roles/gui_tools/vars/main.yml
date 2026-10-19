@@ -1,18 +1,23 @@
-# GUI tools role vars — standalone desktop GUI applications under
-# src/gui-tools/<tool>/, each with its own AGS instance, autostart slot, and
-# spine config dir (<install>/config/<app>/, symlinked to ~/.config/<app> by
-# the config-links role).
+# GUI tools role vars — AGS instances and launch plumbing for the desktop GUI
+# apps. The app SOURCES live in the pinned external `ags-apps` unit and deploy
+# WHOLE through the ags_apps role's live links (<install>/config/ags-<app> ->
+# <unit>/<app>); this role owns the AGS instance entries, autostart slots, log
+# dir, and the spine config dir (<install>/config/<app>/, symlinked to
+# ~/.config/<app> by the config-links role). There are NO in-repo GUI sources:
+# the old `src/gui-tools/` root is retired and asserted absent.
 #
 # Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
 # the compositor_configs mirror:
 #   (a) vs compositor_configs (skeletons for the bar/compositor apps):
-#       this role places whole APP dirs (one entry per file, same per-file
+#       this role used to place whole APP dirs one file at a time (same per-file
 #       `template` + `force: true` discipline — `copy` with a directory src
 #       + a pre-existing dest dir is a silent no-op, review finding
-#       2026-08-12). Each app gets its own spine dir; the role never touches
-#       the bar's `ags/` tree.
+#       2026-08-12). Every app has since moved into the ags-apps unit, so the
+#       per-file manifest and `gui_tools_config_dirs` are empty; a future
+#       in-repo app would use the same discipline. Each app keeps its own spine
+#       dir; the role never touches the bar's `ags/` tree.
 #   (b) vs cli_tools (backend binaries): cli_tools installs the controller
-#       binaries to the user bin dir; this role places the AGS UI sources.
+#       binaries to the user bin dir; this role starts the AGS UI instances.
 #       The two meet at runtime via $PATH + the instance bus, never on disk.
 #
 # hypr-pano IS RETIRED AS A GUI-TOOLS APP (ags-apps-bar-first slice 3). The
@@ -42,8 +47,9 @@
 # gui_tools_ags_instances below: it is the mechanism the provisioned `capture-ui`
 # launcher (cli_tools) and autostart.lua use to start the GUI from
 # ~/.config/ags-capture (the config-links symlink to the live-capture link). The
-# Python backend is NOT a GUI-tools concern at all: it stays in-repo and is
-# installed by cli_tools. The deploy-coverage gate asserts the absence of a stale
+# Python backend is NOT a GUI-tools concern at all: it ships in the same
+# ags-apps unit (capture-tool/bin/capture-tool) and cli_tools links it into the
+# user bin dir. The deploy-coverage gate asserts the absence of a stale
 # per-file capture entry.
 #
 # wallpaper-selector IS RETIRED AS A GUI-TOOLS APP (slice 6). The selector moved
@@ -117,7 +123,8 @@ gui_tools_config_dirs: []
 # no obsolete-path cleanup list. A stale per-file entry would template INTO the
 # unit tree through the live-capture link and diverge the live GUI from the
 # pinned tag (the deploy-coverage gate asserts its absence). The Python backend
-# is not a GUI-tools concern: it stays in-repo, installed by cli_tools.
+# is not a GUI-tools concern either: it ships in the ags-apps unit and cli_tools
+# links it into the user bin dir.
 
 # gui_tools_icme_app_files is RETIRED (slice 7): the icon color mapping editor
 # moved into the ags-apps unit and deploys WHOLE via the ags_apps role's live-icme

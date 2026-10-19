@@ -255,6 +255,14 @@ RETIRED_ICME_DIR = "src/gui-tools/icon-color-mapping-editor"
 BTOP_STUDIO_PACKAGE = "btop-theme-studio"
 RETIRED_BTOP_STUDIO_DIR = "src/gui-tools/btop-theme-studio"
 
+# The in-repo GUI source ROOT itself is retired. Every app it used to hold now
+# deploys WHOLE from the ags-apps unit, so the parent dir has no remaining
+# purpose. The per-app constants above catch a known app reappearing; this one
+# catches the dir coming back for ANY reason (a leftover, an unknown app, a
+# stray file), so an empty `src/gui-tools/` can never quietly become a home for
+# a second source of truth again.
+RETIRED_GUI_TOOLS_DIR = "src/gui-tools"
+
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
 _MODULE_SUFFIXES = (".ts", ".tsx", ".css")
@@ -1265,6 +1273,24 @@ def assert_btop_studio_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_gui_tools_dir(root: Path) -> None:
+    """The in-repo GUI source root is retired: it must not exist at all.
+
+    The per-app checks above catch a known app name coming back. This one is
+    the catch-all: every app now deploys WHOLE from the ags-apps unit, so
+    `src/gui-tools/` itself has no remaining purpose. Leaving the directory
+    behind — even empty — makes it the obvious place for the next in-repo
+    source, which no gate would deploy but a reader could mistake for live.
+    """
+    if (root / RETIRED_GUI_TOOLS_DIR).exists():
+        raise ValueError(
+            f"the retired in-repo GUI source root {RETIRED_GUI_TOOLS_DIR}/ still "
+            f"exists — every app deploys WHOLE from the ags-apps unit; delete "
+            f"the directory (an empty leftover must not become a new home for "
+            f"in-repo GUI sources)"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -1334,6 +1360,9 @@ def main() -> int:
         # selector/icme). Like them it is a whole package: nothing stays in-repo.
         assert_no_per_file_btop_studio_sources(root)
         assert_btop_studio_provisioning(root)
+        # The parent dir itself is retired: the per-app checks above catch a
+        # known app returning; this catches ANY reappearance under the old root.
+        assert_no_gui_tools_dir(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
