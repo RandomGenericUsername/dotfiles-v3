@@ -528,70 +528,47 @@ class TestGuiToolsVars:
 
 
 class TestBtopStudioRegistration:
-    """btop-theme-studio is provisioned as its OWN AGS instance, launch-on-demand
-    only — never in the bar's app.tsx, never autostarted (capability
-    `btop-theme-studio`, tasks 1.1-1.3)."""
+    """btop-theme-studio stays provisioned as its OWN AGS instance,
+    launch-on-demand only — never autostarted (capability `btop-theme-studio`,
+    tasks 1.1-1.3). Since slice 8 its SOURCES deploy WHOLE from the pinned
+    `ags-apps` unit via the ags_apps role's live-btop-studio link; gui_tools only
+    keeps the instance lifecycle entry."""
 
-    _EXPECTED_SOURCES = [
-        "src/gui-tools/btop-theme-studio/app.tsx",
-        "src/gui-tools/btop-theme-studio/lib/btop-conf.ts",
-        "src/gui-tools/btop-theme-studio/lib/key-map.ts",
-        "src/gui-tools/btop-theme-studio/lib/key-widgets.generated.ts",
-        "src/gui-tools/btop-theme-studio/lib/preview.ts",
-        "src/gui-tools/btop-theme-studio/lib/schematic.ts",
-        "src/gui-tools/btop-theme-studio/lib/targets.ts",
-        "src/gui-tools/btop-theme-studio/lib/theme-keys.ts",
-        "src/gui-tools/btop-theme-studio/lib/theme-model.ts",
-        "src/gui-tools/btop-theme-studio/live/btop_live.py",
-        "src/gui-tools/btop-theme-studio/style.css",
-        "src/gui-tools/btop-theme-studio/ui/StudioWindow.tsx",
-    ]
-
-    def test_btop_studio_app_files_exact_list(self) -> None:
-        files = list(_vars()["gui_tools_btop_studio_app_files"])
-        sources = sorted(str(f["source"]) for f in files)
-        assert sources == self._EXPECTED_SOURCES, (
-            f"gui_tools_btop_studio_app_files sources must be exactly "
-            f"{self._EXPECTED_SOURCES}; got {sources}"
-        )
-        for entry in files:
-            dest = str(entry["dest"])
-            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-btop-studio/"), (
-                f"studio dest must derive from gui_tools_spine_config_dir/ags-btop-studio: {dest}"
-            )
-
-    def test_btop_studio_sources_exist_in_repo(self) -> None:
-        for entry in _vars()["gui_tools_btop_studio_app_files"]:
-            path = _REPO_ROOT / str(entry["source"])
-            assert path.is_file(), f"studio app source missing from repo: {entry['source']}"
-
-    def test_every_btop_studio_dest_parent_is_an_ensured_dir(self) -> None:
+    def test_btop_studio_is_retired_as_a_gui_tools_app(self) -> None:
+        """Slice 8: the btop Theme Studio moved into the ags-apps unit and
+        deploys WHOLE via the ags_apps role's live-btop-studio link
+        (<install>/config/ags-btop-studio -> <unit>/btop-theme-studio). gui_tools
+        must carry NO per-file studio manifest, NO ags-btop-studio spine dir, and
+        NO placement task — a stale entry would template INTO the unit tree
+        through the live-btop-studio link and diverge the live studio from the
+        pinned tag. The studio is a WHOLE package: nothing stays in-repo,
+        including its live/btop_live.py preview engine."""
         data = _vars()
-        ensured = {
-            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
-            for d in data["gui_tools_config_dirs"]
-        }
-        for entry in data["gui_tools_btop_studio_app_files"]:
-            dest = str(entry["dest"])
-            parent = dest.rsplit("/", 1)[0].replace("{{ gui_tools_spine_config_dir }}", "<spine>")
-            assert parent in ensured, (
-                f"dest parent {parent!r} of {entry['name']} is not an ensured dir; "
-                "add it to gui_tools_config_dirs"
-            )
+        assert "gui_tools_btop_studio_app_files" not in data, (
+            "gui_tools_btop_studio_app_files must be retired — the studio deploys "
+            "WHOLE via the ags_apps live-btop-studio link"
+        )
+        # No app-file list may still target the retired ags-btop-studio/ spine.
+        for key, value in data.items():
+            if key.endswith("_app_files") and isinstance(value, list):
+                for entry in value:
+                    dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                    assert "/ags-btop-studio/" not in dest, (
+                        f"{key} still deploys into the retired ags-btop-studio/ "
+                        f"spine: {dest}"
+                    )
+        assert not any(
+            "ags-btop-studio" in str(d) for d in data["gui_tools_config_dirs"]
+        ), "the retired ags-btop-studio/ spine dir must not be ensured as a dir"
+        assert not any(
+            "btop_studio" in str(t.get("loop", "")) for t in _tasks()
+        ), "no gui_tools task may loop a studio manifest"
 
-    def test_btop_studio_placed_via_raw_copy(self) -> None:
-        """JSX style objects contain `{{` sequences, so the studio takes the
-        raw-copy path (like icme), not template placement."""
-        tasks = [
-            task
-            for task in _tasks()
-            if task.keys() & {"ansible.builtin.copy"}
-            and "gui_tools_btop_studio_app_files" in str(task.get("loop", ""))
-        ]
-        assert len(tasks) == 1, "expected exactly one raw-copy task for the studio"
-        assert _module(tasks[0]).get("force") is True
-
-    def test_ags_instances_include_btop_studio(self) -> None:
+    def test_btop_studio_ags_instance_still_launches_from_the_symlink(self) -> None:
+        """The studio still launches: the on-demand `btop-theme-studio` AGS
+        instance entry stays in gui_tools_ags_instances, so the provisioned
+        launcher starts it from ~/.config/ags-btop-studio (the config-links
+        symlink to the live-btop-studio link), never the unit path."""
         instances = [str(i["name"]) for i in _vars()["gui_tools_ags_instances"]]
         assert "btop-theme-studio" in instances, (
             f"gui_tools_ags_instances must include btop-theme-studio; got {instances}"

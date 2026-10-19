@@ -1,29 +1,30 @@
-# GUI tools role — places standalone desktop GUI applications from
-# src/gui-tools/<tool>/ into their own config-in-spine dirs
-# (<install>/config/<app>/). The config-links role symlinks each
-# ~/.config/<app> -> <install>/config/<app>, so each app runs via
-# `ags run -d ~/.config/<app>` as its own AGS instance.
+# GUI tools role — manages the standalone AGS-app lifecycle that still lives in
+# provisioning: the per-instance state dirs, the always-on restart, and the
+# on-demand quit loop. The app SOURCES are no longer placed here: every
+# standalone AGS app (bar, clipboard overlay, notifications, capture GUI,
+# wallpaper selector, icme editor, btop Theme Studio) deploys WHOLE as the
+# pinned external `ags-apps` unit and is linked by the `ags_apps` role.
 #
-# Design (mirror of the compositor_configs role, trimmed to app placement):
+# Design (mirror of the compositor_configs role, trimmed to app lifecycle):
 # - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
 #   from the sibling roles: install_dir is deliberately never defaulted, so
 #   an undefined spine root aborts before any task evaluates.
-# - App placement uses `ansible.builtin.template` (or raw `copy` where the
-#   sources contain Jinja-sensitive sequences) with PER-FILE entries
-#   (gui_tools_btop_studio_app_files), NOT a directory source: review finding
-#   2026-08-12 proved `copy` with a directory `src` + a pre-existing dest dir is
-#   a SILENT NO-OP. Per-file copy is the only safe shape.
+# - NO per-file app placement remains. gui_tools_config_dirs is EMPTY: the last
+#   per-file app (btop Theme Studio, slice 8) moved into the unit, and any
+#   future per-file app must register its dest parents there (copy does NOT
+#   create dest parents for file sources). A stale per-file entry for a
+#   unit-deployed app would template INTO the unit tree through its live link
+#   and diverge the live app from the pinned tag (the deploy-coverage gate
+#   asserts its absence).
 # - The bar, the clipboard overlay, the notification overlay, the capture-tool
-#   GUI, the wallpaper selector and the icon color mapping editor are NOT placed
-#   here: they deploy WHOLE as the pinned external `ags-apps` unit and are linked
-#   by the `ags_apps` role (slices 2-7).
-# - Skeletons are repo-authoritative (`force: true`, idempotent): every
-#   bootstrap converges to the repo (owner decision 2026-08-26, shared with
-#   compositor_configs).
+#   GUI, the wallpaper selector, the icon color mapping editor and the btop
+#   Theme Studio are NOT placed here: they deploy WHOLE as the pinned external
+#   `ags-apps` unit and are linked by the `ags_apps` role (slices 2-8).
+# - The role still OWNS the AGS instance lifecycle: quitting known instances
+#   after a deploy (AGS holds its bundle in memory) and bringing the always-on
+#   ones back up. On-demand tools are left down; their launchers start them.
 # - template module check-mode support is FULL — no `not ansible_check_mode`
 #   gate needed on the placements.
-# - copy does NOT create dest parents for file sources — the app dirs are
-#   re-ensured first so a direct gui-tools.yaml run is self-contained.
 # - User-scoped privilege context: NO become/become_user anywhere.
 # - No absolute repo paths: every source is {{ gui_tools_repo_root }}/...
 
@@ -85,16 +86,17 @@
 # absence). The always-on AGS instance entry in gui_tools_ags_instances STAYS:
 # it starts the daemon from the now-symlinked ~/.config/ags-notifications.
 
-# RAW copy, NOT template: the btop Theme Studio's JSX style objects contain
-# literal `{{` sequences (e.g. `css_classes={["a","b"]}` is fine, but
-# `style={{...}}` is not) that Jinja2 would evaluate and destroy. Per-file copy
-# with force: true keeps the studio code repo-authoritative, exactly like icme.
-- name: Place btop Theme Studio app files (raw copy)
-  ansible.builtin.copy:
-    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
-    dest: "{{ item.dest }}"
-    force: true
-  loop: "{{ gui_tools_btop_studio_app_files }}"
+# The btop Theme Studio's per-file placement is RETIRED (slice 8): the studio
+# moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
+# live-btop-studio link (<install>/config/ags-btop-studio ->
+# <unit>/btop-theme-studio). No placement task remains here — a stale one would
+# copy INTO the unit tree through the live-btop-studio link and diverge the live
+# studio from the pinned tag (the deploy-coverage gate asserts its absence). The
+# on-demand `btop-theme-studio` AGS instance entry in gui_tools_ags_instances
+# STAYS: the provisioned `btop-theme-studio` launcher and the SUPER+B keybind
+# start the studio from the now-symlinked ~/.config/ags-btop-studio. Like the
+# selector and icme the studio is a whole package — nothing stays in-repo
+# (live/btop_live.py runs from the unit tree).
 
 # The capture-tool AGS GUI's per-file placement is RETIRED (slice 5): the GUI
 # moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
