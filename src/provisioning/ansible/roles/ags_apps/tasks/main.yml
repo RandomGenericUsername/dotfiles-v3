@@ -25,13 +25,18 @@
 #   Upgrading from the old per-file bridge displaces a REAL dir: an empty one
 #   (fresh spine, created by the filesystem role) is removed; a non-empty one
 #   (the legacy bridge) is moved aside to a timestamped backup — NEVER deleted.
-#   Ordering is pinned seed -> backup -> symlink (mirror of the config_links
-#   role's gtk handling): the runtime-owned colors.css consumer pointer is
-#   seeded INTO the unit bar BEFORE the move, so a seed failure aborts while
-#   the legacy dir is still intact and the bar never loses its palette between
-#   provision and the next seed. The generated icons.json needs no seed: the
-#   compositor_configs role regenerates it through the new link on the SAME
-#   run (it runs after this role in bootstrap order).
+#   The runtime-owned colors.css consumer pointer is then ENSURED on the unit
+#   bar (unconditional, idempotent): it is a symlink to the runtime state
+#   pointer, inheriting the pre-existing pointer's target when one exists
+#   (version bump) and falling back to
+#   <state>/dotfiles/current/colors.gtk.css on a fresh host. This runs on EVERY
+#   deploy — a version bump repoints the live-bar symlink at a unit dir that
+#   never carried the pointer, so a conditional seed leaves it dangling and
+#   wlogout's @import (and the bar's own CSS) fails. The pre-existing target is
+#   read BEFORE the legacy dir moves so a bump inherits the old palette target.
+#   The generated icons.json needs no seed: the compositor_configs role
+#   regenerates it through the new link on the SAME run (it runs after this role
+#   in bootstrap order).
 # - The live clipboard overlay is a symlink too (slice 3):
 #   <install>/config/ags-hypr-pano -> <unit>/hypr-pano/. It takes the same
 #   backup-then-symlink discipline as the bar (empty real dir removed, non-empty
@@ -137,14 +142,24 @@
     - ags_apps_live_bar_check.stat.exists
     - not ags_apps_live_bar_check.stat.islnk | default(false)
 
-- name: Check whether the legacy bridge carries the runtime colors.css pointer
-  ansible.builtin.stat:
-    path: "{{ ags_apps_live_bar_link }}/colors.css"
-    follow: false
-  register: ags_apps_legacy_colors_check
-  when:
-    - ags_apps_live_bar_check.stat.exists
-    - not ags_apps_live_bar_check.stat.islnk | default(false)
+# Capture the pre-existing pointer target BEFORE the live-bar link is (re)pointed
+# at this unit. On a version bump the live-bar link is ALREADY a symlink into the
+# previous unit, whose bar/colors.css is a symlink to the runtime pointer — that
+# target must be inherited so the new unit's pointer resolves. On a fresh host
+# (no live bar, an empty dir, or a real-dir legacy bridge) there is nothing to
+# inherit and the runtime state pointer is the fallback. readlink is read-only,
+# so `check_mode: false` keeps the probe live under --check (the run stays dry);
+# `failed_when: false` makes every non-symlink/missing case fall back instead of
+# aborting.
+- name: Read the live bar's pre-existing runtime colors.css pointer target
+  ansible.builtin.command:
+    argv:
+      - readlink
+      - "{{ ags_apps_live_bar_link }}/colors.css"
+  register: ags_apps_pre_colors_readlink
+  changed_when: false
+  failed_when: false
+  check_mode: false
 
 - name: Remove the live-bar path when it is an empty real dir
   ansible.builtin.file:
@@ -155,22 +170,6 @@
     - ags_apps_live_bar_check.stat.exists
     - not ags_apps_live_bar_check.stat.islnk | default(false)
     - ags_apps_live_bar_children.matched | default(0) == 0
-
-- name: Seed the runtime colors.css pointer into the unit bar before the move
-  ansible.builtin.command:
-    argv:
-      - cp
-      - -a
-      - "{{ ags_apps_live_bar_link }}/colors.css"
-      - "{{ ags_apps_bar_dir }}/colors.css"
-  changed_when: true
-  when:
-    - not ansible_check_mode
-    - ags_apps_live_bar_check.stat.exists
-    - not ags_apps_live_bar_check.stat.islnk | default(false)
-    - (ags_apps_live_bar_children.matched | default(0)) != 0
-    - ags_apps_legacy_colors_check.stat is defined
-    - ags_apps_legacy_colors_check.stat.exists
 
 - name: Determine the legacy-bridge backup path for this run
   ansible.builtin.set_fact:
@@ -209,6 +208,30 @@
     dest: "{{ ags_apps_live_bar_link }}"
     state: link
     force: true
+
+# UNCONDITIONAL + IDEMPOTENT (the regression fix). Runs on EVERY deploy — a
+# version bump repoints the live-bar symlink at a NEW unit dir that never
+# carried the runtime pointer, so this cannot be gated on the live-bar path
+# being a real dir (that gate silently skipped the seed on every bump, leaving
+# <unit>/bar/colors.css dangling; wlogout's @import then failed and GTK dropped
+# the whole stylesheet — no wallpaper, no icons). The target is the pre-existing
+# pointer's target when the probe found one (version bump: inherit the old
+# unit's target), else the runtime state pointer (fresh host). `file state=link
+# force=true` converges in one run, reports changed only when it actually
+# creates/repoints, and is fully check-mode safe (no `not ansible_check_mode`
+# gate needed).
+- name: Ensure the unit bar carries the runtime colors.css pointer
+  ansible.builtin.file:
+    src: "{{ ags_apps_colors_pointer_source }}"
+    dest: "{{ ags_apps_bar_dir }}/colors.css"
+    state: link
+    force: true
+  vars:
+    ags_apps_colors_pointer_source: >-
+      {{ (ags_apps_pre_colors_readlink.rc | default(1) == 0
+          and (ags_apps_pre_colors_readlink.stdout | trim) | length > 0)
+         | ternary(ags_apps_pre_colors_readlink.stdout | trim,
+                   ags_apps_runtime_colors_pointer) }}
 
 # The clipboard overlay deploys the same way as the bar (ags-apps-bar-first
 # slice 3): a symlink into the unit's hypr-pano/ dir, with the SAME

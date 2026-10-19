@@ -111,6 +111,19 @@ ags_apps_spine_config_dir: "{{ install_dir | trim }}/config"
 #   it and runs the unit's `ags-bar-validate` CLI as the strict install gate.
 ags_apps_live_bar_link: "{{ ags_apps_spine_config_dir }}/ags"
 
+# ags_apps_state_root / ags_apps_runtime_colors_pointer: the runtime-owned
+#   palette consumer pointer the unit bar's colors.css MUST resolve to
+#   (<state>/dotfiles/current/colors.gtk.css — the exact target the working
+#   v0.3.3 pointer uses; the cache artifact is colors.gtk.css, renamed on
+#   link). Derivation mirrors wlogout_config_state_root (one XDG resolution).
+#   The role ENSURES <unit>/bar/colors.css is a symlink to this pointer on
+#   EVERY deploy (fresh host AND version bump). Without it the live-bar
+#   symlink's colors.css dangles, wlogout's @import fails, GTK drops the whole
+#   stylesheet, and the bar logs `CSS Error :1:1 Expected a valid selector` —
+#   the power icon then opens wlogout with no wallpaper and no icons.
+ags_apps_state_root: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/state', true) }}"
+ags_apps_runtime_colors_pointer: "{{ ags_apps_state_root }}/dotfiles/current/colors.gtk.css"
+
 # ags_apps_hypr_pano_dir: the deployed clipboard overlay package — the
 #   `hypr-pano/` subdir of the unit (slice 3 moved the in-repo
 #   src/gui-tools/hypr-pano/ here as a thin ags-platform consumer); the
