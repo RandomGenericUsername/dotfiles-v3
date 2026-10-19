@@ -103,14 +103,12 @@ gui_tools_state_dirs:
 gui_tools_spine_config_dir: "{{ install_dir | trim }}/config"
 
 # gui_tools_config_dirs: the standalone app dirs under the config-in-spine
-#   home. Re-ensured as directories before the copies (copy does NOT create
-#   dest parents for file sources) so a direct gui-tools.yaml run is
-#   self-contained.
-gui_tools_config_dirs:
-  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio"
-  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/ui"
-  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib"
-  - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/live"
+#   home. EMPTY since slice 8 retired the last per-file app (btop Theme Studio):
+#   every AGS app now deploys WHOLE via the ags_apps role's live links, so there
+#   is no copy destination to ensure. The ensure task below stays for the next
+#   per-file app — `copy` does NOT create dest parents for file sources, so a
+#   direct gui-tools.yaml run must ensure them here.
+gui_tools_config_dirs: []
 
 # gui_tools_capture_obsolete and gui_tools_app_files are RETIRED (slice 5).
 # The capture-tool AGS GUI moved into the ags-apps unit and deploys WHOLE via
@@ -147,25 +145,18 @@ gui_tools_config_dirs:
 # the pinned tag (the deploy-coverage gate asserts its absence). The AGS
 # instance entry that STARTS the daemon stays in gui_tools_ags_instances below.
 
-# gui_tools_btop_studio_app_files: the btop Theme Studio's app files, deployed
-#   into their own ags-btop-studio/ spine dir. RAW COPY (ansible.builtin.copy),
-#   NOT `template`: JSX style objects contain literal `{{` sequences that
-#   Jinja2 would evaluate and destroy (same reason as icme). The studio imports
-#   its pure lib/ modules and the generated key→widget artifact; an
-#   unregistered member of either is a bundle that cannot start.
-gui_tools_btop_studio_app_files:
-  - { name: btop-studio-app-tsx, source: src/gui-tools/btop-theme-studio/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/app.tsx" }
-  - { name: btop-studio-style-css, source: src/gui-tools/btop-theme-studio/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/style.css" }
-  - { name: btop-studio-window, source: src/gui-tools/btop-theme-studio/ui/StudioWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/ui/StudioWindow.tsx" }
-  - { name: btop-studio-lib-theme-keys, source: src/gui-tools/btop-theme-studio/lib/theme-keys.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/theme-keys.ts" }
-  - { name: btop-studio-lib-btop-conf, source: src/gui-tools/btop-theme-studio/lib/btop-conf.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/btop-conf.ts" }
-  - { name: btop-studio-lib-key-map, source: src/gui-tools/btop-theme-studio/lib/key-map.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/key-map.ts" }
-  - { name: btop-studio-lib-key-widgets, source: src/gui-tools/btop-theme-studio/lib/key-widgets.generated.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/key-widgets.generated.ts" }
-  - { name: btop-studio-lib-schematic, source: src/gui-tools/btop-theme-studio/lib/schematic.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/schematic.ts" }
-  - { name: btop-studio-lib-theme-model, source: src/gui-tools/btop-theme-studio/lib/theme-model.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/theme-model.ts" }
-  - { name: btop-studio-lib-preview, source: src/gui-tools/btop-theme-studio/lib/preview.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/preview.ts" }
-  - { name: btop-studio-lib-targets, source: src/gui-tools/btop-theme-studio/lib/targets.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib/targets.ts" }
-  - { name: btop-studio-live-engine, source: src/gui-tools/btop-theme-studio/live/btop_live.py, dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/live/btop_live.py" }
+# gui_tools_btop_studio_app_files is RETIRED (slice 8): the btop Theme Studio
+# moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
+# live-btop-studio link (<install>/config/ags-btop-studio ->
+# <unit>/btop-theme-studio). No per-file manifest remains, no ags-btop-studio/
+# spine dir is ensured, and no placement task runs — a stale entry would template
+# INTO the unit tree through the link and diverge the live studio from the pinned
+# tag (the deploy-coverage gate asserts its absence). The studio is a whole
+# package: nothing stays in-repo, including its live/btop_live.py preview engine,
+# which the app runs from the linked unit tree. The on-demand
+# `btop-theme-studio` AGS instance entry that STARTS the studio stays in
+# gui_tools_ags_instances below, and the provisioned launcher still starts it
+# from ~/.config/ags-btop-studio (the config-links symlink to the live link).
 
 # gui_tools_ags_instances: the AGS process instances this role manages
 #   (names as reported by `ags list`). AGS bundles TypeScript at startup and
@@ -178,8 +169,8 @@ gui_tools_btop_studio_app_files:
 #                 KEEP running (the status bar `ags`, the notification overlay
 #                 `notifications`); false for the keybind-launched tools
 #                 (`capture`, `icon-color-mapping-editor`, `hypr-pano`,
-#                 `wallpaper-selector`), which provisioning deliberately
-#                 leaves quit (§ per-instance lifecycle below).
+#                 `wallpaper-selector`, `btop-theme-studio`), which provisioning
+#                 deliberately leaves quit (§ per-instance lifecycle below).
 #     launch    — for always_on entries ONLY: the exact `ags run` command this
 #                 role re-issues when the instance is not on the bus (mirror of
 #                 the autostart.lua line). On-demand entries carry no launch —
@@ -195,8 +186,8 @@ gui_tools_btop_studio_app_files:
 #     is the session's only notification daemon).
 #   - on-demand: quit and left down; the provisioned keybind launchers
 #     (capture-ui, icon-color-mapping-editor, hypr-pano-ui,
-#     wallpaper-selector-ui in cli_tools) start them when the user asks, so
-#     provisioning never opens a window nobody requested.
+#     wallpaper-selector-ui, btop-theme-studio in cli_tools) start them when the
+#     user asks, so provisioning never opens a window nobody requested.
 gui_tools_ags_instances:
   - name: ags
     always_on: true
@@ -220,6 +211,12 @@ gui_tools_ags_instances:
   - name: notifications
     always_on: true
     launch: "ags run -d {{ gui_tools_xdg_config_home }}/ags-notifications --log-file {{ gui_tools_xdg_state_home }}/ags/notifications.log"
+  # The btop Theme Studio's per-file placement is RETIRED (slice 8 — the app now
+  # deploys WHOLE from the ags-apps unit via the ags_apps role's
+  # live-btop-studio link), but this AGS instance entry STAYS: it is the
+  # mechanism that quits the studio after a deploy. The provisioned
+  # `btop-theme-studio` launcher starts it from ~/.config/ags-btop-studio (the
+  # config-links symlink to the live link), never the unit path directly.
   - name: btop-theme-studio
     always_on: false
 
