@@ -258,72 +258,53 @@ class TestGuiToolsVars:
             f"got {instances}"
         )
 
-    def test_icme_app_files_exact_list(self) -> None:
-        """The icon color mapping editor file set, exactly: entry point,
-        stylesheet, dialogs, and every lib module the editor imports — including
-        the Phase 5 event seam (event-contract.ts + event-bus.ts) plus the
-        wallpaper.state consumer core (event-bus-core.ts) behind the live
-        palette refresh. Deployed by the raw-copy task (NOT template: literal
-        {{PLACEHOLDER}} sequences would be destroyed by Jinja2)."""
-        files = list(_vars()["gui_tools_icme_app_files"])
-        assert len(files) == 22, f"expected exactly 22 icme files; found {len(files)}"
-        sources = sorted(str(f["source"]) for f in files)
-        expected = [
-            "src/gui-tools/icon-color-mapping-editor/app.tsx",
-            "src/gui-tools/icon-color-mapping-editor/lib/diff.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/event-contract.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/inputs.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/itr.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/model.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/substitute.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/svg.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/templates.ts",
-            "src/gui-tools/icon-color-mapping-editor/lib/theme.ts",
-            "src/gui-tools/icon-color-mapping-editor/style.css",
-            "src/gui-tools/icon-color-mapping-editor/ui/DiffPane.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/EditorWindow.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/GroupTree.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/InputsPanel.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/Preview.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/ScopeSwitch.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/SelectionPanel.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/TemplatesTab.tsx",
-            "src/gui-tools/icon-color-mapping-editor/ui/TokenPicker.tsx",
-        ]
-        assert sources == expected, (
-            f"gui_tools_icme_app_files sources must be exactly {expected}; got {sources}"
-        )
-        for entry in files:
-            dest = str(entry["dest"])
-            assert dest.startswith("{{ gui_tools_spine_config_dir }}/ags-icme/"), (
-                f"icme dest must derive from gui_tools_spine_config_dir/ags-icme: {dest}"
-            )
-
-    def test_icme_app_sources_exist_in_repo(self) -> None:
-        """Every icme source resolves to a real repo file (typo-proof)."""
-        for entry in _vars()["gui_tools_icme_app_files"]:
-            path = _REPO_ROOT / str(entry["source"])
-            assert path.is_file(), f"icme app source missing from repo: {entry['source']}"
-
-    def test_every_icme_dest_parent_is_an_ensured_dir(self) -> None:
-        """Regression lock: `copy` does NOT create dest parents, so every icme
-        file dest's parent dir must be listed in gui_tools_config_dirs."""
+    def test_icme_is_retired_as_a_gui_tools_app(self) -> None:
+        """ags-apps-bar-first slice 7: the icon color mapping editor moved into
+        the ags-apps unit and deploys WHOLE via the ags_apps role's live-icme
+        link (<install>/config/ags-icme -> <unit>/icme). gui_tools must carry NO
+        per-file icme manifest, NO ags-icme spine dir, and NO placement task — a
+        stale entry would template INTO the unit tree through the live-icme link
+        and diverge the live editor from the pinned tag. The in-repo source is
+        gone (it lives in ags-apps now); like the selector, icme is a WHOLE
+        package, so nothing stays in-repo."""
         data = _vars()
-        ensured = {
-            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
-            for d in data["gui_tools_config_dirs"]
-        }
-        for entry in data["gui_tools_icme_app_files"]:
-            dest = str(entry["dest"])
-            parent = dest.rsplit("/", 1)[0].replace(
-                "{{ gui_tools_spine_config_dir }}", "<spine>"
-            )
-            assert parent in ensured, (
-                f"dest parent {parent!r} of {entry['name']} is not an ensured "
-                f"dir (copy would fail); add it to gui_tools_config_dirs"
-            )
+        assert "gui_tools_icme_app_files" not in data, (
+            "gui_tools_icme_app_files must be retired — the editor deploys WHOLE "
+            "via the ags_apps live-icme link"
+        )
+        # No app-file list may still target the retired ags-icme/ spine.
+        for key, value in data.items():
+            if key.endswith("_app_files") and isinstance(value, list):
+                for entry in value:
+                    dest = str(entry.get("dest", ""))
+                    assert "/ags-icme/" not in dest, (
+                        f"{key} still deploys into the retired ags-icme/ "
+                        f"spine: {dest}"
+                    )
+        assert not any(
+            "ags-icme" in str(d) for d in data["gui_tools_config_dirs"]
+        ), "the retired ags-icme/ spine dir must not be ensured as a dir"
+        assert not any(
+            "icme" in str(t.get("loop", "")) for t in _tasks()
+        ), "no gui_tools task may loop an icme manifest"
+        assert not (
+            _REPO_ROOT / "src" / "gui-tools" / "icon-color-mapping-editor"
+        ).exists(), (
+            "the in-repo icme source must be deleted (it lives in the ags-apps "
+            "unit now)"
+        )
+
+    def test_icme_ags_instance_still_launches_from_the_symlink(self) -> None:
+        """The editor still launches: the on-demand
+        `icon-color-mapping-editor` AGS instance entry stays in
+        gui_tools_ags_instances, so the provisioned launcher starts it from
+        ~/.config/ags-icme (the config-links symlink to the live-icme link),
+        never the unit path."""
+        instances = [str(i["name"]) for i in _vars()["gui_tools_ags_instances"]]
+        assert "icon-color-mapping-editor" in instances, (
+            "the icme AGS instance must stay in gui_tools_ags_instances; "
+            f"got {instances}"
+        )
 
     def test_hypr_pano_is_retired_as_a_gui_tools_app(self) -> None:
         """ags-apps-bar-first slice 3: the clipboard overlay moved into the

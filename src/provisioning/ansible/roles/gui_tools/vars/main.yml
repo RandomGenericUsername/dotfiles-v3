@@ -57,6 +57,17 @@
 # symlink to the live-wallpaper-selector link). The selector is a whole package —
 # unlike capture-tool, nothing stays in-repo. The deploy-coverage gate asserts the
 # absence of a stale per-file selector entry.
+#
+# icme IS RETIRED AS A GUI-TOOLS APP (slice 7). The icon color mapping editor
+# moved into the same ags-apps monorepo unit and deploys WHOLE via the ags_apps
+# role's live-icme link (<install>/config/ags-icme -> <unit>/icme), so this role
+# no longer enumerates it per file and carries no icme app_files manifest. The
+# on-demand `icon-color-mapping-editor` AGS instance entry STAYS in
+# gui_tools_ags_instances below: it is the mechanism the provisioned
+# `icon-color-mapping-editor` launcher (cli_tools) uses to start the editor from
+# ~/.config/ags-icme (the config-links symlink to the live-icme link). icme is a
+# whole package — nothing stays in-repo. The deploy-coverage gate asserts the
+# absence of a stale per-file icme entry.
 
 # gui_tools_repo_root: repo root derived from this playbook's location.
 #   Mirror of compositor_configs_repo_root / cli_tools_repo_root exactly.
@@ -96,9 +107,6 @@ gui_tools_spine_config_dir: "{{ install_dir | trim }}/config"
 #   dest parents for file sources) so a direct gui-tools.yaml run is
 #   self-contained.
 gui_tools_config_dirs:
-  - "{{ gui_tools_spine_config_dir }}/ags-icme"
-  - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
-  - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib"
@@ -113,36 +121,16 @@ gui_tools_config_dirs:
 # pinned tag (the deploy-coverage gate asserts its absence). The Python backend
 # is not a GUI-tools concern: it stays in-repo, installed by cli_tools.
 
-# gui_tools_icme_app_files: the icon color mapping editor's app files,
-#   deployed into their own ags-icme/ spine dir. RAW COPY (ansible.builtin.copy),
-#   NOT `template`: the editor sources contain literal `{{PLACEHOLDER}}`
-#   sequences (SVG placeholder regexes and docs) that Jinja2 would evaluate
-#   and destroy. Repo-authoritative (force: true) like the icme editor — the
-#   editor's CODE converges; the DATA it edits (icon-mappings) is seed-once
-#   in the assets role.
-gui_tools_icme_app_files:
-  - { name: icme-app-tsx, source: src/gui-tools/icon-color-mapping-editor/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/app.tsx" }
-  - { name: icme-style-css, source: src/gui-tools/icon-color-mapping-editor/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/style.css" }
-  - { name: icme-editor-window, source: src/gui-tools/icon-color-mapping-editor/ui/EditorWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/EditorWindow.tsx" }
-  - { name: icme-templates-tab, source: src/gui-tools/icon-color-mapping-editor/ui/TemplatesTab.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/TemplatesTab.tsx" }
-  - { name: icme-preview, source: src/gui-tools/icon-color-mapping-editor/ui/Preview.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/Preview.tsx" }
-  - { name: icme-inputs-panel, source: src/gui-tools/icon-color-mapping-editor/ui/InputsPanel.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/InputsPanel.tsx" }
-  - { name: icme-group-tree, source: src/gui-tools/icon-color-mapping-editor/ui/GroupTree.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/GroupTree.tsx" }
-  - { name: icme-selection-panel, source: src/gui-tools/icon-color-mapping-editor/ui/SelectionPanel.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/SelectionPanel.tsx" }
-  - { name: icme-scope-switch, source: src/gui-tools/icon-color-mapping-editor/ui/ScopeSwitch.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/ScopeSwitch.tsx" }
-  - { name: icme-token-picker, source: src/gui-tools/icon-color-mapping-editor/ui/TokenPicker.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/TokenPicker.tsx" }
-  - { name: icme-diff-pane, source: src/gui-tools/icon-color-mapping-editor/ui/DiffPane.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/ui/DiffPane.tsx" }
-  - { name: icme-lib-itr, source: src/gui-tools/icon-color-mapping-editor/lib/itr.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/itr.ts" }
-  - { name: icme-lib-model, source: src/gui-tools/icon-color-mapping-editor/lib/model.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/model.ts" }
-  - { name: icme-lib-substitute, source: src/gui-tools/icon-color-mapping-editor/lib/substitute.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/substitute.ts" }
-  - { name: icme-lib-svg, source: src/gui-tools/icon-color-mapping-editor/lib/svg.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/svg.ts" }
-  - { name: icme-lib-inputs, source: src/gui-tools/icon-color-mapping-editor/lib/inputs.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/inputs.ts" }
-  - { name: icme-lib-diff, source: src/gui-tools/icon-color-mapping-editor/lib/diff.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/diff.ts" }
-  - { name: icme-lib-templates, source: src/gui-tools/icon-color-mapping-editor/lib/templates.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/templates.ts" }
-  - { name: icme-lib-event-contract, source: src/gui-tools/icon-color-mapping-editor/lib/event-contract.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-contract.ts" }
-  - { name: icme-lib-event-bus-core, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus-core.ts" }
-  - { name: icme-lib-event-bus, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus.ts" }
-  - { name: icme-lib-theme, source: src/gui-tools/icon-color-mapping-editor/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/theme.ts" }
+# gui_tools_icme_app_files is RETIRED (slice 7): the icon color mapping editor
+# moved into the ags-apps unit and deploys WHOLE via the ags_apps role's live-icme
+# link (<install>/config/ags-icme -> <unit>/icme). No per-file manifest remains,
+# no ags-icme/ spine dir is ensured, and no placement task runs — a stale entry
+# would template INTO the unit tree through the link and diverge the live editor
+# from the pinned tag (the deploy-coverage gate asserts its absence). The
+# on-demand `icon-color-mapping-editor` AGS instance entry that STARTS the editor
+# stays in gui_tools_ags_instances below, and the provisioned launcher still sets
+# ICME_REPO_ROOT for the icon templates/mappings inputs (it does not point at the
+# app sources).
 
 # gui_tools_wallpaper_selector_app_files is RETIRED (slice 6): the wallpaper
 # selector moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
