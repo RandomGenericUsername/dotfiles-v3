@@ -201,19 +201,21 @@ graph TD
   - **Fresh host:** provisioning installs the pinned framework unit, creates the shortcut, and runs `ags-bar-validate`; private repos are fetched over HTTPS with the `gh` credential helper (no SSH).
   - **Versioning/rollback:** the framework unit is versioned by directory; rollback repoints the shortcut (mechanism = Open Question).
 
-### AD-24 — Overlay/surface open path: surface before content
+### AD-24 — Overlay/surface open path: surface before content (conditional)
 
-- **Binds:** all surface/overlay apps (any layer-shell window that maps/unmaps on demand)
+- **Binds:** surface/overlay apps (any layer-shell window that maps/unmaps on demand) **whose measured open-path build is significant** — on the order of **tens of milliseconds or more**. A light surface that presents within single-digit milliseconds is **not** bound: it keeps its direct path.
 - **Prevents:** a `map` handler that builds heavy content **synchronously before the surface is presented** — the first frame cannot land until the whole build finishes — and a full rebuild on every reopen even when the content is unchanged. Measured on hypr-pano's 141-item clipboard history: `map → first frame` 447–504 ms, of which the card rebuild was 426–451 ms (`readHistory` only 0.3–0.6 ms).
-- **Rule:** the open path is **four moves, in order:**
+- **Rule — measure first, then adopt where required:** **MEASURE the open-path build before changing anything.** Adopt the platform primitive (`overlayLifecycle` / `contentSignature`) **only where the measured build warrants it**; a light surface keeps its direct path — **do NOT add the indirection for an imperceptible win**. Where it *is* warranted, the open path is **four moves, in order:**
   1. **present** — put the surface on screen (and take focus) first, before any heavy work;
   2. **hydrate** — the cheap synchronous pass (read the source, set visibility, move the highlight) that MUST NOT construct or tear down heavy widgets;
   3. **defer** — schedule the heavy build on an **idle callback**, off the map→first-frame path;
   4. **skip + re-check** — skip the deferred build when the **content signature** is unchanged since the last build, and re-check staleness *inside* the callback (a keystroke or a live push may have changed — or already rebuilt — the content between map and idle, and an unmap cancels it).
 
   The controller is created **once per surface** (per monitor) and outlives a map/unmap cycle; `close()` MUST NOT clear the remembered signature, so an unchanged reopen is the warm path.
-- **Mechanism (mandated):** the platform primitive is the required implementation — `overlayLifecycle(hooks)` (the GLib-bound convenience) or `createOverlayLifecycle(hooks, scheduler)` (the pure, injected core), plus `contentSignature(parts)`, exported from `ags-platform` (`ports/overlay-lifecycle.ts`, `adapters/overlay-lifecycle.ts`). This is AD-2/AD-4 spirit applied to surfaces: **one primitive, injected, no copy-paste** — an app supplies the four effects (`present`, `hydrate`, `build`, `key`); the core owns their order and the skip/defer decision.
+- **Do not force it:** the bar is the counter-example. Its surfaces' measured open-path build is **2–15 ms** — already imperceptible — so the pattern bought nothing and the bar adoption is being **reverted**. Forcing a heavy indirection onto a light surface is churn, not a win: the pattern is a tool for a measured problem, not a blanket mandate.
+- **Mechanism (where adopted):** the platform primitive is the implementation — `overlayLifecycle(hooks)` (the GLib-bound convenience) or `createOverlayLifecycle(hooks, scheduler)` (the pure, injected core), plus `contentSignature(parts)`, exported from `ags-platform` (`ports/overlay-lifecycle.ts`, `adapters/overlay-lifecycle.ts`). This is AD-2/AD-4 spirit applied to surfaces: **one primitive, injected, no copy-paste** — an app supplies the four effects (`present`, `hydrate`, `build`, `key`); the core owns their order and the skip/defer decision.
 - **Evidence:** proven in `ags-apps` hypr-pano (`725ffdf`): same history and instance, `map → first frame` **5.5 ms cold** (the ~440 ms rebuild now runs after the surface is up) and **~1.0 ms warm** with no rebuild. *Honest caveat: this fixes **time-to-surface**, not time-to-content — the heavy build still runs; chunking or virtualizing it is a separate per-app concern.*
+- **AD-10 note:** the bar's surfaces are **torn down on hide** (AD-10: hosts mount the `SurfaceSpec` factory only while visible), so the warm-skip half of the pattern has nothing to skip against there — a further reason the bar is not a fit.
 
 ## Consistency Conventions
 

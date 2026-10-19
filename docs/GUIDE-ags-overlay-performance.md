@@ -1,9 +1,12 @@
 # Guide — AGS overlay/surface open performance
 
-> **Normative.** The open path for an on-demand overlay surface is an invariant:
-> spine **AD-24** (`ARCHITECTURE-SPINE.md`, architecture-ags-platform-2026-10-09).
-> This guide is the how; the AD is the rule. The platform primitive it mandates
-> is `overlayLifecycle` / `contentSignature` in `ags-platform`
+> **Normative — conditional.** The open path below applies to an on-demand
+> overlay surface **whose measured open-path build is significant** (tens of ms
+> or more): spine **AD-24** (`ARCHITECTURE-SPINE.md`,
+> architecture-ags-platform-2026-10-09). This guide is the how; the AD is the
+> rule. **Measure first; adopt only where the measured build warrants it** — a
+> light surface keeps its direct path. The primitive it prescribes *where
+> required* is `overlayLifecycle` / `contentSignature` in `ags-platform`
 > (`ports/overlay-lifecycle.ts`, `adapters/overlay-lifecycle.ts`).
 
 ## 1. The problem this fixes
@@ -27,7 +30,25 @@ instance, instrumented bundle):
 
 The rebuild is not the bug — doing it *on the map path* is.
 
-## 2. The pattern: the four moves
+## 2. Measure first — adopt only where required
+
+The pattern is **not** a blanket rule. Before touching an overlay, **measure** its
+open-path build (`map → first frame`, with the heavy phase split out from the
+cheap one — see §5). Then decide:
+
+- **Significant build (tens of ms or more)** → adopt the platform primitive
+  (§4). hypr-pano (447–504 ms) is the proving case.
+- **Light surface (single-digit ms)** → keep the **direct path**. Adding the
+  present/hydrate/defer/skip indirection buys nothing when the build is already
+  imperceptible, and it costs a per-surface controller, a content signature, and
+  a deferred tick — indirection that then has to be maintained.
+
+**Do not force it.** The bar is the counter-example: its surfaces' measured
+open-path build is **2–15 ms**, so adopting the pattern there was churn and is
+being **reverted**. A light surface that presents immediately should keep
+presenting immediately.
+
+## 3. The pattern: the four moves
 
 **Present first. Hydrate cheap. Defer the build. Skip when unchanged.**
 
@@ -52,11 +73,11 @@ Two things make the warm path work:
   still valid, so the next open of unchanged content is the ~1 ms warm path.
   Only a *changed* signature triggers a rebuild.
 
-## 3. Use the platform primitive — do not copy the pattern
+## 4. Use the platform primitive — do not copy the pattern
 
-The pattern is an injected primitive; re-implementing it per app is exactly the
-copy-paste AD-2/AD-4 forbid. Supply the four effects; the core owns their order
-and the skip/defer decision.
+**Where the pattern applies** (§2), it is an injected primitive; re-implementing
+it per app is exactly the copy-paste AD-2/AD-4 forbid. Supply the four effects;
+the core owns their order and the skip/defer decision.
 
 ```ts
 import { overlayLifecycle, contentSignature } from "ags-platform";
@@ -89,12 +110,14 @@ factory in the `map` handler would discard the remembered signature and lose the
 warm path. See the "why not `openOverlayLifecycle`" note in
 `adapters/overlay-lifecycle.ts`.
 
-## 4. Measurement discipline
+## 5. Measurement discipline
 
 - **Measure before/after on the live compositor.** The numbers are the point;
   a plausible-sounding reorder is not evidence. Instrument a copy of the app's
   window file (or a bundle) and time `map → first frame`, splitting out the
-  heavy phase (e.g. the rebuild) from the cheap one (the read).
+  heavy phase (e.g. the rebuild) from the cheap one (the read). **Decide from
+  that number whether to adopt at all** (§2): a light build means the pattern
+  does not apply.
 - **Put the numbers in the commit.** The hypr-pano commit (`725ffdf`) records
   the before (447–504 ms) and after (5.5 ms cold / ~1 ms warm) inline — that is
   the evidence the AD cites.
@@ -104,7 +127,7 @@ warm path. See the "why not `openOverlayLifecycle`" note in
 - **State the gates you ran** (`make <app>-typecheck`, the drift test,
   `ags bundle …`) with their exit codes, as `725ffdf` does.
 
-## 5. The honest caveat
+## 6. The honest caveat
 
 This fixes **time-to-surface**, not **time-to-content**. The heavy build still
 runs — it just runs after the surface is visible instead of before it. If the
@@ -113,7 +136,7 @@ per-app concern**: chunk the build across idle ticks, virtualize a long list, or
 cache the built widgets. `overlayLifecycle` does not do any of that, and no
 amount of reordering will.
 
-## 6. References
+## 7. References
 
 - Spine AD-24 — `_bmad-output/planning-artifacts/architecture/architecture-ags-platform-2026-10-09/ARCHITECTURE-SPINE.md`.
 - The primitive — `ags-platform` `ports/overlay-lifecycle.ts` (pure core),
@@ -121,4 +144,7 @@ amount of reordering will.
 - The proving ground — `ags-apps` `725ffdf` (`perf(pano): show the overlay
   before rebuilding its cards`), hypr-pano `ui/PanoWindow.tsx`.
 - Related invariants — AD-2 (injected context), AD-4 (frozen platform surface),
-  AD-10 (surfaces are factories, mounted lazily).
+  AD-10 (surfaces are factories, mounted lazily: the bar's surfaces are torn down
+  on hide, so the warm-skip half does not apply there).
+- The counter-example — the **bar** (surfaces build in 2–15 ms): a light surface
+  that should **not** adopt the pattern; its adoption is being reverted.
