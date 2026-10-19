@@ -38,6 +38,14 @@
 #   legacy dir moved aside, never deleted) but NO seed step: hypr-pano owns no
 #   runtime pointer inside its spine dir (its palette comes from the bar's
 #   colors.css through the platform theme adapter).
+# - The live notification overlay is a symlink too (slice 4):
+#   <install>/config/ags-notifications -> <unit>/notifications/. Identical
+#   discipline to the live-pano link (backup-then-symlink, empty real dir
+#   removed, non-empty legacy dir moved aside, never deleted, NO seed step —
+#   the overlay's palette is applied through the platform theme adapter, which
+#   reads the BAR's colors.css). gui_tools keeps only the always-on AGS-instance
+#   launch entry that starts the daemon from the now-symlinked
+#   ~/.config/ags-notifications.
 # - User-scoped privilege context: NO become (everything lands under the user's
 #   install_dir).
 # - Distro-agnostic: a git clone + symlinks are identical on Arch and
@@ -274,5 +282,78 @@
   ansible.builtin.file:
     src: "{{ ags_apps_hypr_pano_dir }}"
     dest: "{{ ags_apps_live_pano_link }}"
+    state: link
+    force: true
+
+# The notification overlay deploys the same way (slice 4): a symlink into the
+# unit's notifications/ dir, with the SAME migrate-then-symlink discipline for a
+# pre-existing real dir (empty -> removed, non-empty -> moved aside to a
+# timestamped backup, never deleted). Like hypr-pano it owns NO runtime pointer
+# inside its spine dir — its palette is applied through the platform theme
+# adapter, which reads the BAR's <install>/config/ags/colors.css — so there is
+# nothing to seed before the move. The backup is suffixed so a run that
+# displaces MULTIPLE legacy dirs cannot collide on the timestamp.
+- name: Check whether the live-notifications path already exists
+  ansible.builtin.stat:
+    path: "{{ ags_apps_live_notifications_link }}"
+    follow: false
+  register: ags_apps_live_notifications_check
+
+- name: List the live-notifications path's children when it is a real dir
+  ansible.builtin.find:
+    paths:
+      - "{{ ags_apps_live_notifications_link }}"
+    file_type: any
+    hidden: true
+  register: ags_apps_live_notifications_children
+  when:
+    - ags_apps_live_notifications_check.stat.exists
+    - not ags_apps_live_notifications_check.stat.islnk | default(false)
+
+- name: Remove the live-notifications path when it is an empty real dir
+  ansible.builtin.file:
+    path: "{{ ags_apps_live_notifications_link }}"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_notifications_check.stat.exists
+    - not ags_apps_live_notifications_check.stat.islnk | default(false)
+    - ags_apps_live_notifications_children.matched | default(0) == 0
+
+- name: Determine the legacy-notifications-bridge backup path for this run
+  ansible.builtin.set_fact:
+    ags_apps_notifications_backup_path: "{{ ags_apps_backup_root }}/{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}-notifications"
+  when:
+    - ags_apps_live_notifications_check.stat.exists
+    - not ags_apps_live_notifications_check.stat.islnk | default(false)
+    - (ags_apps_live_notifications_children.matched | default(0)) != 0
+
+- name: Ensure the bridge-backup root exists for the live-notifications link
+  ansible.builtin.file:
+    path: "{{ ags_apps_backup_root }}"
+    state: directory
+    mode: "0755"
+  when:
+    - ags_apps_live_notifications_check.stat.exists
+    - not ags_apps_live_notifications_check.stat.islnk | default(false)
+    - (ags_apps_live_notifications_children.matched | default(0)) != 0
+
+- name: Move aside a non-empty legacy notifications bridge dir blocking the live-notifications link
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ ags_apps_live_notifications_link }}"
+      - "{{ ags_apps_notifications_backup_path }}"
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_notifications_check.stat.exists
+    - not ags_apps_live_notifications_check.stat.islnk | default(false)
+    - (ags_apps_live_notifications_children.matched | default(0)) != 0
+
+- name: Deploy the unit's notifications as the live notification overlay
+  ansible.builtin.file:
+    src: "{{ ags_apps_notifications_dir }}"
+    dest: "{{ ags_apps_live_notifications_link }}"
     state: link
     force: true
