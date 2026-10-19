@@ -563,6 +563,12 @@ class TestBtopStudioRegistration:
         assert not any(
             "btop_studio" in str(t.get("loop", "")) for t in _tasks()
         ), "no gui_tools task may loop a studio manifest"
+        assert not (
+            _REPO_ROOT / "src" / "gui-tools" / "btop-theme-studio"
+        ).exists(), (
+            "the in-repo studio source must be deleted (it lives in the ags-apps "
+            "unit now, including its live/ preview engine)"
+        )
 
     def test_btop_studio_ags_instance_still_launches_from_the_symlink(self) -> None:
         """The studio still launches: the on-demand `btop-theme-studio` AGS

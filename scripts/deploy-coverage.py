@@ -55,6 +55,15 @@ required):
       live `<install>/config/ags-icme` link (the gui_tools
       `icon-color-mapping-editor` AGS-instance entry is kept). Like the selector
       icme is a whole package — nothing stays in-repo.
+  (j) asserts the SEVENTH app in the unit, the btop Theme Studio
+      `btop-theme-studio` (slice 8): the retired per-file source is gone from the
+      gui_tools role and the repo, and the `ags_apps` role deploys the unit's
+      `btop-theme-studio/` subdir as the live
+      `<install>/config/ags-btop-studio` link (the gui_tools
+      `btop-theme-studio` AGS-instance entry is kept). Like the selector/icme
+      the studio is a whole package — nothing stays in-repo, including its
+      Python live-preview engine (`live/btop_live.py`), which the app runs from
+      the linked unit tree.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -236,6 +245,23 @@ RETIRED_WALLPAPER_SELECTOR_DIR = "src/gui-tools/wallpaper-selector"
 # icon-template/mapping INPUTS, not the app sources).
 ICME_PACKAGE = "icme"
 RETIRED_ICME_DIR = "src/gui-tools/icon-color-mapping-editor"
+
+# The btop Theme Studio (slice 8): the SEVENTH app moved into the ags-apps unit.
+# It deploys WHOLE like the bar/hypr-pano/notifications/capture-tool/
+# wallpaper-selector/icme — the ags_apps role links the unit's
+# btop-theme-studio/ subdir as <install>/config/ags-btop-studio — so the gate
+# asserts the same two things: the retired per-file source is GONE and the live
+# link is provisioned. The retired per-file deploy lived in the gui_tools role
+# (gui_tools_btop_studio_app_files), not the compositor manifest, so this half
+# reads that role. NOTE: the gui_tools AGS-INSTANCE entry
+# (`btop-theme-studio`, on-demand) is deliberately NOT retired — only the
+# per-file placement is. The studio is a WHOLE package: nothing stays in-repo,
+# including its Python live-preview engine (live/btop_live.py). The engine needs
+# no separate install: the app resolves `${GLib.get_current_dir()}/live/
+# btop_live.py`, and `ags run -d` re-roots the process into the linked
+# (realpathed) app dir inside the unit.
+BTOP_STUDIO_PACKAGE = "btop-theme-studio"
+RETIRED_BTOP_STUDIO_DIR = "src/gui-tools/btop-theme-studio"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -1106,6 +1132,116 @@ def assert_icme_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_per_file_btop_studio_sources(root: Path) -> None:
+    """The btop Theme Studio bridge is retired: no per-file entry may remain.
+
+    The studio deploys WHOLE via the ags_apps live-btop-studio link, so a
+    per-file entry (a gui_tools app_files dest under ags-btop-studio/, an
+    ags-btop-studio/ spine dir, or a gui_tools_btop_studio_app_files key) would
+    template INTO the unit tree through the link and silently diverge the live
+    studio from the pinned tag. The in-repo source must be gone too: it lives in
+    the ags-apps unit now. Like the selector/icme the studio is a WHOLE package,
+    so the entire in-repo dir must be absent — including live/btop_live.py,
+    which the app runs from the linked unit tree.
+    """
+    import yaml
+
+    if (root / RETIRED_BTOP_STUDIO_DIR).exists():
+        raise ValueError(
+            f"the retired in-repo {BTOP_STUDIO_PACKAGE!r} source still exists at "
+            f"{RETIRED_BTOP_STUDIO_DIR}/ — the studio deploys WHOLE from the "
+            f"ags-apps unit; the in-repo copy is a second source of truth"
+        )
+
+    vars_path = root / GUI_TOOLS_ROLE_VARS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the studio deploys as the external {BTOP_STUDIO_PACKAGE!r} unit but "
+            f"no gui_tools role declares it: {GUI_TOOLS_ROLE_VARS} is missing"
+        )
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{GUI_TOOLS_ROLE_VARS} did not parse to a mapping")
+
+    if data.get("gui_tools_btop_studio_app_files"):
+        raise ValueError(
+            "the studio deploys WHOLE via the ags_apps live-btop-studio link, but "
+            "gui_tools_btop_studio_app_files still lists per-file sources in "
+            f"{GUI_TOOLS_ROLE_VARS} — delete it; the per-file bridge is retired"
+        )
+    for key, value in data.items():
+        if key.endswith("_app_files") and isinstance(value, list):
+            for entry in value:
+                dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                if "/ags-btop-studio/" in dest:
+                    raise ValueError(
+                        f"{key} still deploys into the retired ags-btop-studio/ "
+                        f"spine: {dest} — the studio deploys WHOLE via the unit"
+                    )
+    if any(
+        "ags-btop-studio" in str(d) for d in data.get("gui_tools_config_dirs", [])
+    ):
+        raise ValueError(
+            "gui_tools_config_dirs still ensures the retired ags-btop-studio/ dir "
+            "— the ags_apps role owns it as the live-btop-studio symlink"
+        )
+
+
+def assert_btop_studio_provisioning(root: Path) -> None:
+    """The external btop Theme Studio live link must be provisioned, not assumed.
+
+    Mirror of assert_icme_provisioning for the eighth app in the unit: the
+    ags_apps role declares the unit's btop-theme-studio/ subdir and links it as
+    <install>/config/ags-btop-studio. Without this, deleting the in-repo source
+    would leave the gate green with the live studio unprovisioned — exactly the
+    silent-coverage-loss this gate exists to prevent.
+    """
+    import yaml
+
+    vars_path = root / BAR_ROLE_VARS
+    tasks_path = root / BAR_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the studio deploys as the external {BTOP_STUDIO_PACKAGE!r} unit but "
+            f"no provisioning role declares it: {BAR_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the btop-theme-studio role has no tasks to deploy it: "
+            f"{BAR_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{BAR_ROLE_VARS} did not parse to a mapping")
+
+    studio_dir = str(data.get("ags_apps_btop_studio_dir", ""))
+    if not studio_dir.endswith("/btop-theme-studio"):
+        raise ValueError(
+            f"ags_apps_btop_studio_dir must be the unit's btop-theme-studio/ "
+            f"subdir (the monorepo deviation — the repo root is not the package); "
+            f"got {studio_dir!r}"
+        )
+    live = str(data.get("ags_apps_live_btop_studio_link", ""))
+    # Shape, not the exact Jinja string: the link routes through the spine
+    # config dir intermediate and names `ags-btop-studio`.
+    if "spine_config_dir" not in live or not live.endswith("/ags-btop-studio"):
+        raise ValueError(
+            f"ags_apps_live_btop_studio_link must deploy the unit's studio as "
+            f"<install>/config/ags-btop-studio; got {live!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if (
+        "ags_apps_btop_studio_dir" not in tasks
+        or "ags_apps_live_btop_studio_link" not in tasks
+    ):
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not deploy the unit's btop-theme-studio/ as "
+            f"the live-btop-studio link"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -1171,6 +1307,10 @@ def main() -> int:
         # stays in-repo.
         assert_no_per_file_icme_sources(root)
         assert_icme_provisioning(root)
+        # Slice 8: the btop Theme Studio deploys WHOLE too (same shape as the
+        # selector/icme). Like them it is a whole package: nothing stays in-repo.
+        assert_no_per_file_btop_studio_sources(root)
+        assert_btop_studio_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -1221,11 +1361,16 @@ def main() -> int:
         f"live-icme link provisioned; no per-file gui_tools source remains (not a "
         f"per-file deploy)"
     )
+    print(
+        f"deploy-coverage: external {BTOP_STUDIO_PACKAGE!r} app — pinned unit "
+        f"subdir + live-btop-studio link provisioned; no per-file gui_tools source "
+        f"remains (not a per-file deploy)"
+    )
 
     print(
         "deploy-coverage: PASS -- the retired bar + hypr-pano + notifications + "
-        "capture-tool + wallpaper-selector + icme bridges carry no per-file deploy "
-        "source and the external units are provisioned"
+        "capture-tool + wallpaper-selector + icme + btop-theme-studio bridges "
+        "carry no per-file deploy source and the external units are provisioned"
     )
     return 0
 

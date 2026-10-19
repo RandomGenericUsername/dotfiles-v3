@@ -1413,3 +1413,56 @@ class TestDeployCoverageGate:
                 "the failure must name the retired icme dir; recap:\n"
                 + result.stdout
             )
+
+    def test_gate_fails_when_a_stale_btop_studio_entry_returns(self) -> None:
+        """Slice 8: a per-file btop Theme Studio entry in the gui_tools manifest
+        must FAIL. The studio deploys WHOLE via the unit symlink, so any
+        ags-btop-studio/ source would template INTO the unit tree through the
+        live-btop-studio link and silently diverge the live studio from the
+        pinned tag. Hermetic: a temp root whose gui_tools vars re-add a retired
+        gui_tools_btop_studio_app_files — plus both unit roles, which the gate
+        asserts."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            gui_vars = root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+            gui_vars.write_text(
+                gui_vars.read_text()
+                + "\ngui_tools_btop_studio_app_files:\n"
+                + "  - { name: stale-studio-app, "
+                + "source: src/gui-tools/btop-theme-studio/app.tsx, "
+                + 'dest: "{{ gui_tools_spine_config_dir }}/ags-btop-studio/app.tsx" }\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a stale per-file studio entry is listed; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "gui_tools_btop_studio_app_files" in result.stdout, (
+                "the failure must name the stale studio entry; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_retired_btop_studio_dir_returns(self) -> None:
+        """Slice 8: the studio is a WHOLE package — the entire in-repo
+        src/gui-tools/btop-theme-studio/ dir must be gone, including its live/
+        preview engine. A surviving copy is a second source of truth that no gate
+        deploys, so the gate must FAIL when it exists even with the per-file
+        manifest correctly retired."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stale = root / "src" / "gui-tools" / "btop-theme-studio"
+            stale.mkdir(parents=True)
+            (stale / "app.tsx").write_text("export {}\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-repo studio dir returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "btop-theme-studio" in result.stdout, (
+                "the failure must name the retired studio dir; recap:\n"
+                + result.stdout
+            )
