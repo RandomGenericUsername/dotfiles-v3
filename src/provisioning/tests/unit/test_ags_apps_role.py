@@ -194,6 +194,24 @@ class TestAgsAppsVars:
             "capture-tool dir) belongs in the tasks, not the vars"
         )
 
+    def test_live_wallpaper_selector_link_deploys_the_unit_at_config_ags_wallpaper_selector(
+        self,
+    ) -> None:
+        """Slice 6: the wallpaper selector deploys WHOLE like the bar — a symlink
+        from the spine root into the unit's wallpaper-selector/ subdir. The
+        selector is a whole package, so no in-repo part is named here."""
+        data = _vars()
+        selector = str(data["ags_apps_wallpaper_selector_dir"])
+        assert selector.endswith("/wallpaper-selector")
+        assert "ags_apps_unit_dir" in selector
+        live = str(data["ags_apps_live_wallpaper_selector_link"])
+        assert "spine_config_dir" in live
+        assert live.endswith("/ags-wallpaper-selector")
+        assert "ags_apps_wallpaper_selector_dir" not in live, (
+            "the link DEST is the spine path; the link SRC (the unit "
+            "wallpaper-selector dir) belongs in the tasks, not the vars"
+        )
+
     def test_resolution_shortcut_is_per_unit(self) -> None:
         """esbuild realpaths the live-bar link, so the shared-ancestor shortcut
         is not an ancestor of the real bar tree — the shortcut MUST live
@@ -555,6 +573,78 @@ class TestAgsAppsTasks:
                 f"ags_apps must not use become (task {task.get('name')!r})"
             )
 
+    def test_live_wallpaper_selector_is_forced_symlink_into_the_unit(
+        self,
+    ) -> None:
+        task = _named(
+            "Deploy the unit's wallpaper-selector as the live wallpaper selector"
+        )
+        assert _module_key(task) == "ansible.builtin.file"
+        module = _module(task)
+        assert module["state"] == "link"
+        assert module["force"] is True, "force makes a rollback repoint converge"
+        assert module["src"] == "{{ ags_apps_wallpaper_selector_dir }}"
+        assert module["dest"] == "{{ ags_apps_live_wallpaper_selector_link }}"
+
+    def test_wallpaper_selector_legacy_bridge_is_classified_before_displacement(
+        self,
+    ) -> None:
+        """Slice 6 mirrors the bar/pano/notifications/capture migrate-then-symlink
+        discipline: the role must classify the live-wallpaper-selector path (stat +
+        children) BEFORE touching it, so an empty fresh-spine dir is removed while
+        a non-empty legacy bridge is moved aside, never deleted."""
+        stat = _named("Check whether the live-wallpaper-selector path already exists")
+        assert _module_key(stat) == "ansible.builtin.stat"
+        assert _module(stat).get("follow") is False, (
+            "the stat must see the link itself, not its target"
+        )
+        find = _named(
+            "List the live-wallpaper-selector path's children when it is a real dir"
+        )
+        assert _module_key(find) == "ansible.builtin.find"
+        remove = _named(
+            "Remove the live-wallpaper-selector path when it is an empty real dir"
+        )
+        assert _module(remove)["state"] == "absent"
+        move = _named(
+            "Move aside a non-empty legacy wallpaper-selector bridge dir blocking the live-wallpaper-selector link"
+        )
+        assert _module_key(move) == "ansible.builtin.command", (
+            "the move-aside is a mutation and must stay a check-gated command"
+        )
+        for task in (remove, move):
+            when = str(task.get("when", ""))
+            assert "islnk" in when and "matched" in when, (
+                f"task {task.get('name')!r} must branch on link-vs-dir and "
+                "empty-vs-nonempty"
+            )
+            assert "not ansible_check_mode" in when
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        assert names.index(
+            "Remove the live-wallpaper-selector path when it is an empty real dir"
+        ) < names.index(
+            "Deploy the unit's wallpaper-selector as the live wallpaper selector"
+        ), "ordering must be classify -> backup -> symlink"
+
+    def test_wallpaper_selector_backup_path_cannot_collide_with_the_others(
+        self,
+    ) -> None:
+        """The five links share the bridge-backup root. A run that displaces
+        MULTIPLE legacy dirs must not move them onto the same timestamped path, so
+        the selector backup carries an app suffix."""
+        task = _named(
+            "Determine the legacy-wallpaper-selector-bridge backup path for this run"
+        )
+        backup = str(_module(task)["ags_apps_wallpaper_selector_backup_path"])
+        assert "ags_apps_backup_root" in backup, (
+            f"the selector backup must live under the shared backup root; got "
+            f"{backup!r}"
+        )
+        assert "wallpaper-selector" in backup, (
+            "the selector backup must be distinguishable from the bar/pano/"
+            f"notifications/capture timestamp dirs; got {backup!r}"
+        )
+
 
 class TestAgsAppsPlaybook:
     _PATH = _PLAYBOOKS_DIR / "ags-apps.yaml"
@@ -633,6 +723,11 @@ class TestAgsAppsExecution:
         capture = unit / "capture-tool"
         capture.mkdir(parents=True)
         (capture / "app.tsx").write_text("export {}\n")
+        # ... and wallpaper-selector/ (slice 6); the live-wallpaper-selector link
+        # needs it.
+        selector = unit / "wallpaper-selector"
+        selector.mkdir(parents=True)
+        (selector / "app.tsx").write_text("export {}\n")
         return platform, bar
 
     def test_places_pin_links_and_shortcut_for_a_present_unit(
@@ -680,6 +775,15 @@ class TestAgsAppsExecution:
             "the live capture GUI must point at the unit's capture-tool/"
         )
 
+        live_selector = install / "config" / "ags-wallpaper-selector"
+        assert live_selector.is_symlink(), (
+            "the live wallpaper selector must be a symlink"
+        )
+        assert live_selector.resolve() == (unit_dir / "wallpaper-selector").resolve(), (
+            "the live wallpaper selector must point at the unit's "
+            "wallpaper-selector/"
+        )
+
         shortcut = (
             unit_dir / "node_modules" / "ags-platform"
         )
@@ -706,6 +810,7 @@ class TestAgsAppsExecution:
         assert live_pano.resolve() == (unit_dir / "hypr-pano").resolve()
         assert live_notifications.resolve() == (unit_dir / "notifications").resolve()
         assert live_capture.resolve() == (unit_dir / "capture-tool").resolve()
+        assert live_selector.resolve() == (unit_dir / "wallpaper-selector").resolve()
         assert shortcut.resolve() == platform.resolve()
 
     def test_pano_legacy_bridge_is_moved_aside(self, tmp_path: Path) -> None:
@@ -804,6 +909,43 @@ class TestAgsAppsExecution:
         assert "capture-tool" in backups[0].name, (
             "the capture backup must be distinguishable from a bar/pano/"
             "notifications backup"
+        )
+        assert (backups[0] / "app.tsx").is_file(), (
+            "the backup must preserve the legacy bridge verbatim"
+        )
+
+    def test_wallpaper_selector_legacy_bridge_is_moved_aside(
+        self, tmp_path: Path
+    ) -> None:
+        """Slice 6 upgrade from the per-file wallpaper-selector bridge: the legacy
+        <install>/config/ags-wallpaper-selector dir is preserved in a timestamped
+        backup (never deleted) and the live-wallpaper-selector link takes its
+        place. No colors.css seed applies (the selector owns no runtime pointer)."""
+        home = tmp_path / "home"
+        install = tmp_path / "install"
+        home.mkdir()
+        install.mkdir()
+        (install / "config").mkdir()
+        self._seed_units(install)
+
+        legacy = install / "config" / "ags-wallpaper-selector"
+        (legacy / "lib").mkdir(parents=True)
+        (legacy / "app.tsx").write_text("export {}\n")
+
+        result = self._run(install, home)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        unit_dir = install / "ags-apps" / str(_vars()["ags_apps_version"])
+        assert legacy.is_symlink(), (
+            "the live-wallpaper-selector link must replace the legacy dir"
+        )
+        assert legacy.resolve() == (unit_dir / "wallpaper-selector").resolve()
+
+        backups = list((install / "ags-apps" / "bridge-backups").iterdir())
+        assert len(backups) == 1, "exactly one timestamped backup must exist"
+        assert "wallpaper-selector" in backups[0].name, (
+            "the selector backup must be distinguishable from a bar/pano/"
+            "notifications/capture backup"
         )
         assert (backups[0] / "app.tsx").is_file(), (
             "the backup must preserve the legacy bridge verbatim"

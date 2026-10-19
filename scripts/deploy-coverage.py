@@ -42,6 +42,13 @@ required):
       `capture-tool/` subdir as the live `<install>/config/ags-capture` link (the
       gui_tools `capture` AGS-instance entry is kept), and the Python BACKEND
       (`bin/capture-tool`, installed by cli_tools) SURVIVES in-repo.
+  (h) asserts the FIFTH app in the unit, the wallpaper selector
+      `wallpaper-selector` (slice 6): the retired per-file source is gone from the
+      gui_tools role and the repo, and the `ags_apps` role deploys the unit's
+      `wallpaper-selector/` subdir as the live
+      `<install>/config/ags-wallpaper-selector` link (the gui_tools
+      `wallpaper-selector` AGS-instance entry is kept). The selector is a whole
+      package — unlike capture-tool, nothing stays in-repo.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -193,6 +200,20 @@ RETIRED_CAPTURE_TOOL_GUI = (
     "src/gui-tools/capture-tool/tests/tsconfig.tests.json",
 )
 CAPTURE_TOOL_BACKEND = "src/gui-tools/capture-tool/bin/capture-tool"
+
+# The wallpaper selector (ags-apps-bar-first slice 6): the FIFTH app moved into
+# the ags-apps unit. It deploys WHOLE like the bar/hypr-pano/notifications/
+# capture-tool — the ags_apps role links the unit's wallpaper-selector/ subdir as
+# <install>/config/ags-wallpaper-selector — so the gate asserts the same two
+# things: the retired per-file source is GONE and the live link is provisioned.
+# The retired per-file deploy lived in the gui_tools role
+# (gui_tools_wallpaper_selector_app_files), not the compositor manifest, so this
+# half reads that role. NOTE: the gui_tools AGS-INSTANCE entry
+# (`wallpaper-selector`, on-demand) is deliberately NOT retired — only the
+# per-file placement is. UNLIKE capture-tool the selector is a WHOLE package:
+# nothing stays in-repo, so the whole in-repo dir must be gone.
+WALLPAPER_SELECTOR_PACKAGE = "wallpaper-selector"
+RETIRED_WALLPAPER_SELECTOR_DIR = "src/gui-tools/wallpaper-selector"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -841,6 +862,124 @@ def assert_capture_tool_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_per_file_wallpaper_selector_sources(root: Path) -> None:
+    """The wallpaper-selector bridge is retired: no per-file entry may remain.
+
+    The selector deploys WHOLE via the ags_apps live-wallpaper-selector link, so a
+    per-file entry (a gui_tools app_files dest under ags-wallpaper-selector/, an
+    ags-wallpaper-selector/ spine dir, or a gui_tools_wallpaper_selector_app_files
+    key) would template INTO the unit tree through the link and silently diverge
+    the live selector from the pinned tag. The in-repo source must be gone too: it
+    lives in the ags-apps unit now. Unlike capture-tool the selector is a WHOLE
+    package, so the entire in-repo dir must be absent.
+    """
+    import yaml
+
+    if (root / RETIRED_WALLPAPER_SELECTOR_DIR).exists():
+        raise ValueError(
+            f"the retired in-repo {WALLPAPER_SELECTOR_PACKAGE!r} source still "
+            f"exists at {RETIRED_WALLPAPER_SELECTOR_DIR}/ — the selector deploys "
+            f"WHOLE from the ags-apps unit; the in-repo copy is a second source of "
+            f"truth"
+        )
+
+    vars_path = root / GUI_TOOLS_ROLE_VARS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the selector deploys as the external {WALLPAPER_SELECTOR_PACKAGE!r} "
+            f"unit but no gui_tools role declares it: {GUI_TOOLS_ROLE_VARS} is "
+            f"missing"
+        )
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{GUI_TOOLS_ROLE_VARS} did not parse to a mapping")
+
+    if data.get("gui_tools_wallpaper_selector_app_files"):
+        raise ValueError(
+            "the selector deploys WHOLE via the ags_apps "
+            "live-wallpaper-selector link, but gui_tools_wallpaper_selector_app_files "
+            f"still lists per-file sources in {GUI_TOOLS_ROLE_VARS} — delete it; the "
+            "per-file bridge is retired"
+        )
+    for key, value in data.items():
+        if key.endswith("_app_files") and isinstance(value, list):
+            for entry in value:
+                dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                if "/ags-wallpaper-selector/" in dest:
+                    raise ValueError(
+                        f"{key} still deploys into the retired "
+                        f"ags-wallpaper-selector/ spine: {dest} — the selector "
+                        f"deploys WHOLE via the unit"
+                    )
+    if any(
+        "ags-wallpaper-selector" in str(d)
+        for d in data.get("gui_tools_config_dirs", [])
+    ):
+        raise ValueError(
+            "gui_tools_config_dirs still ensures the retired "
+            "ags-wallpaper-selector/ dir — the ags_apps role owns it as the "
+            "live-wallpaper-selector symlink"
+        )
+
+
+def assert_wallpaper_selector_provisioning(root: Path) -> None:
+    """The external wallpaper-selector live link must be provisioned, not assumed.
+
+    Mirror of assert_capture_tool_provisioning for the fifth app in the unit: the
+    ags_apps role declares the unit's wallpaper-selector/ subdir and links it as
+    <install>/config/ags-wallpaper-selector. Without this, deleting the in-repo
+    source would leave the gate green with the live selector unprovisioned —
+    exactly the silent-coverage-loss this gate exists to prevent.
+    """
+    import yaml
+
+    vars_path = root / BAR_ROLE_VARS
+    tasks_path = root / BAR_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the selector deploys as the external {WALLPAPER_SELECTOR_PACKAGE!r} "
+            f"unit but no provisioning role declares it: {BAR_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the wallpaper-selector role has no tasks to deploy it: "
+            f"{BAR_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{BAR_ROLE_VARS} did not parse to a mapping")
+
+    selector_dir = str(data.get("ags_apps_wallpaper_selector_dir", ""))
+    if not selector_dir.endswith("/wallpaper-selector"):
+        raise ValueError(
+            f"ags_apps_wallpaper_selector_dir must be the unit's "
+            f"wallpaper-selector/ subdir (the monorepo deviation — the repo root "
+            f"is not the package); got {selector_dir!r}"
+        )
+    live = str(data.get("ags_apps_live_wallpaper_selector_link", ""))
+    # Shape, not the exact Jinja string: the link routes through the spine
+    # config dir intermediate and names `ags-wallpaper-selector`.
+    if "spine_config_dir" not in live or not live.endswith(
+        "/ags-wallpaper-selector"
+    ):
+        raise ValueError(
+            f"ags_apps_live_wallpaper_selector_link must deploy the unit's "
+            f"wallpaper-selector as <install>/config/ags-wallpaper-selector; got "
+            f"{live!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if (
+        "ags_apps_wallpaper_selector_dir" not in tasks
+        or "ags_apps_live_wallpaper_selector_link" not in tasks
+    ):
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not deploy the unit's wallpaper-selector/ as "
+            f"the live-wallpaper-selector link"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -896,6 +1035,11 @@ def main() -> int:
         # the Python backend SURVIVES in-repo — both halves are asserted.
         assert_no_per_file_capture_tool_sources(root)
         assert_capture_tool_provisioning(root)
+        # Slice 6: the wallpaper selector deploys WHOLE too (same shape as
+        # hypr-pano/notifications). Unlike capture-tool it is a whole package:
+        # nothing stays in-repo.
+        assert_no_per_file_wallpaper_selector_sources(root)
+        assert_wallpaper_selector_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -936,11 +1080,16 @@ def main() -> int:
         f"subdir + live-capture link provisioned; no per-file gui_tools GUI source "
         f"remains and the Python backend survives in-repo (not a per-file deploy)"
     )
+    print(
+        f"deploy-coverage: external {WALLPAPER_SELECTOR_PACKAGE!r} app — pinned "
+        f"unit subdir + live-wallpaper-selector link provisioned; no per-file "
+        f"gui_tools source remains (not a per-file deploy)"
+    )
 
     print(
         "deploy-coverage: PASS -- the retired bar + hypr-pano + notifications + "
-        "capture-tool bridges carry no per-file deploy source and the external "
-        "units are provisioned"
+        "capture-tool + wallpaper-selector bridges carry no per-file deploy source "
+        "and the external units are provisioned"
     )
     return 0
 

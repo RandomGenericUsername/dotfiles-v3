@@ -1367,14 +1367,16 @@ class TestVerifyVars:
         )
 
     def test_install_spine_dirs_exclude_the_ags_live_links(self) -> None:
-        """<install>/config/ags and <install>/config/ags-capture are owned by the
-        ags_apps role as SYMLINKS (verify_ags_apps_live_bar_link /
-        verify_ags_apps_live_capture_link), NOT by the filesystem role as dirs.
-        The criterion-1 spine assert counts verify_install_spine_dirs entries via
-        stat.isdir, so a symlinked config/ags made it false on a real bootstrap
-        (the regression this locks); slice 5 retired config/ags-capture for the
-        same reason. Each path must be absent here and asserted as a symlink by
-        the matching ags_apps assertion instead."""
+        """<install>/config/ags, <install>/config/ags-capture and
+        <install>/config/ags-wallpaper-selector are owned by the ags_apps role as
+        SYMLINKS (verify_ags_apps_live_bar_link / verify_ags_apps_live_capture_link
+        / verify_ags_apps_live_wallpaper_selector_link), NOT by the filesystem role
+        as dirs. The criterion-1 spine assert counts verify_install_spine_dirs
+        entries via stat.isdir, so a symlinked config/ags made it false on a real
+        bootstrap (the regression this locks); slice 5 retired config/ags-capture
+        and slice 6 retired config/ags-wallpaper-selector for the same reason. Each
+        path must be absent here and asserted as a symlink by the matching ags_apps
+        assertion instead."""
         data = _vars()
         spine = [str(item) for item in data["verify_install_spine_dirs"]]
         assert "config/ags" not in spine, (
@@ -1385,6 +1387,11 @@ class TestVerifyVars:
             "config/ags-capture must not be in verify_install_spine_dirs — it is "
             "the live-capture symlink (slice 5), and the isdir spine assert would "
             "fail on it"
+        )
+        assert "config/ags-wallpaper-selector" not in spine, (
+            "config/ags-wallpaper-selector must not be in verify_install_spine_dirs "
+            "— it is the live-wallpaper-selector symlink (slice 6), and the isdir "
+            "spine assert would fail on it"
         )
         # Tie the exclusions to the SAME paths the ags_apps assertions check as
         # symlinks, so the two cannot silently desync.
@@ -1398,6 +1405,12 @@ class TestVerifyVars:
             "verify_ags_apps_live_capture_link must remain "
             "<install>/config/ags-capture — the path excluded from "
             f"verify_install_spine_dirs; got {live_capture!r}"
+        )
+        live_selector = str(data["verify_ags_apps_live_wallpaper_selector_link"])
+        assert live_selector == "{{ install_dir | trim }}/config/ags-wallpaper-selector", (
+            "verify_ags_apps_live_wallpaper_selector_link must remain "
+            "<install>/config/ags-wallpaper-selector — the path excluded from "
+            f"verify_install_spine_dirs; got {live_selector!r}"
         )
 
     def test_live_pano_link_mirrors_the_ags_apps_role_and_is_not_a_spine_dir(
@@ -1579,6 +1592,76 @@ class TestVerifyVars:
             "the capture-tool Python backend must not be asserted as a unit file; "
             "it stays in-repo (cli_tools installs it)"
         )
+
+    def test_live_wallpaper_selector_link_mirrors_the_ags_apps_role_and_is_not_a_spine_dir(
+        self,
+    ) -> None:
+        """Slice 6: <install>/config/ags-wallpaper-selector is the ags_apps role's
+        live-wallpaper-selector SYMLINK (-> the unit's wallpaper-selector/), NOT a
+        filesystem/gui_tools dir. It must be absent from verify_install_spine_dirs
+        (the criterion-1 isdir assert counts dirs), absent from
+        verify_gui_tools_app_files (the selector deploys WHOLE), and its vars must
+        mirror the ags_apps role."""
+        data = _vars()
+        apps = _sibling_vars("ags_apps")
+
+        live = str(data["verify_ags_apps_live_wallpaper_selector_link"])
+        assert live == "{{ install_dir | trim }}/config/ags-wallpaper-selector", (
+            f"verify_ags_apps_live_wallpaper_selector_link must be "
+            f"<install>/config/ags-wallpaper-selector; got {live!r}"
+        )
+        # Mirror of the role: the link DEST is the spine config path, the unit
+        # dir is the wallpaper-selector/ subdir of the versioned unit.
+        role_live = str(apps["ags_apps_live_wallpaper_selector_link"])
+        assert (
+            role_live.endswith("/ags-wallpaper-selector")
+            and "spine_config_dir" in role_live
+        ), (
+            "the ags_apps role must deploy the live-wallpaper-selector link at "
+            f"config/ags-wallpaper-selector; got {role_live!r}"
+        )
+        unit_selector = str(data["verify_ags_apps_wallpaper_selector_dir"])
+        assert (
+            unit_selector.endswith("/wallpaper-selector")
+            and "verify_ags_apps_unit_dir" in unit_selector
+        ), (
+            "verify_ags_apps_wallpaper_selector_dir must be <unit>/wallpaper-selector; "
+            f"got {unit_selector!r}"
+        )
+        assert str(apps["ags_apps_wallpaper_selector_dir"]).endswith(
+            "/wallpaper-selector"
+        ), "the ags_apps role must declare the unit's wallpaper-selector/ subdir"
+
+        # Not a spine dir, and not a per-file gui_tools assertion.
+        assert "config/ags-wallpaper-selector" not in [
+            str(item) for item in data["verify_install_spine_dirs"]
+        ], (
+            "config/ags-wallpaper-selector is a symlink, not a "
+            "verify_install_spine_dirs dir"
+        )
+        per_file_selector = [
+            str(f)
+            for f in data["verify_gui_tools_app_files"]
+            if "/config/ags-wallpaper-selector/" in str(f)
+        ]
+        assert per_file_selector == [], (
+            "verify_gui_tools_app_files must not mirror per-file wallpaper-selector "
+            f"sources (the selector deploys WHOLE): {per_file_selector}"
+        )
+        # The unit files are asserted under the unit, and there are some.
+        selector_files = [
+            str(f) for f in data["verify_ags_apps_wallpaper_selector_files"]
+        ]
+        assert selector_files, (
+            "verify_ags_apps_wallpaper_selector_files must not be empty"
+        )
+        for entry in selector_files:
+            assert entry.startswith(
+                "{{ verify_ags_apps_wallpaper_selector_dir }}/"
+            ), (
+                f"a wallpaper-selector unit file must derive from the unit dir; "
+                f"got {entry!r}"
+            )
 
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
@@ -1810,6 +1893,43 @@ class TestVerifyVars:
             f"the capture AGS instance must stay in gui_tools_ags_instances; got {names}"
         )
 
+    def test_wallpaper_selector_is_not_mirrored_per_file(self) -> None:
+        """Slice 6 retired the per-file wallpaper-selector coverage. The selector
+        moved into the ags-apps unit and deploys WHOLE via the
+        live-wallpaper-selector link, so NO ags-wallpaper-selector/ dest may remain
+        in gui_tools_app_files or in verify_gui_tools_app_files — the per-file
+        placement/assertion pair is retired together. The unit's sources are
+        asserted by verify_ags_apps_wallpaper_selector_files instead."""
+        gui_tools = _sibling_vars("gui_tools")
+        for key, value in gui_tools.items():
+            if key.endswith("_app_files") and isinstance(value, list):
+                for entry in value:
+                    dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                    assert "/ags-wallpaper-selector/" not in dest, (
+                        f"{key} still places a per-file wallpaper-selector source: "
+                        f"{dest} — the selector deploys WHOLE via the "
+                        "live-wallpaper-selector link"
+                    )
+        verified = [str(f) for f in _vars()["verify_gui_tools_app_files"]]
+        assert not any("/config/ags-wallpaper-selector/" in f for f in verified), (
+            "verify_gui_tools_app_files must not assert per-file wallpaper-selector "
+            f"sources (the selector deploys WHOLE): {verified}"
+        )
+
+    def test_wallpaper_selector_ags_instance_still_launches_from_the_symlink(
+        self,
+    ) -> None:
+        """The selector still launches: the on-demand `wallpaper-selector` AGS
+        instance entry stays in the gui_tools instance list, started from the
+        symlinked ~/.config/ags-wallpaper-selector (config-links ->
+        live-wallpaper-selector link)."""
+        gui_instances = _sibling_vars("gui_tools")["gui_tools_ags_instances"]
+        names = [str(i["name"]) for i in gui_instances]
+        assert "wallpaper-selector" in names, (
+            "the wallpaper-selector AGS instance must stay in "
+            f"gui_tools_ags_instances; got {names}"
+        )
+
     def test_ags_gate_is_session_aware(self) -> None:
         """The bar and overlay are Hyprland-session apps (autostart.lua); a
         machine provisioned from another session has no Hyprland IPC yet, so
@@ -1912,8 +2032,14 @@ class TestVerifyVars:
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts" in gui
         assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts" in gui
-        assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts" in gui
-        assert "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts" in gui
+        # The wallpaper selector's event seam moved into the ags-apps unit with
+        # the selector (slice 6) and deploys WHOLE via the live-wallpaper-selector
+        # link: NO per-file selector mirror remains here (its sources are asserted
+        # as a unit by verify_ags_apps_wallpaper_selector_files). A stale per-file
+        # mirror would assert files the bridge no longer deploys.
+        assert not any("/config/ags-wallpaper-selector/" in f for f in gui), (
+            "the selector is external (slice 6); verify must not mirror it per file"
+        )
 
     def test_verify_compositor_skeletons_cover_the_reachable_bar_sources(self) -> None:
         """ags-apps-bar-first slice 2 (AD-1/AD-17/AD-23): the bar is now ONE
@@ -1996,6 +2122,9 @@ class TestVerifyVars:
             "verify_ags_apps_capture_tool_dir",
             "verify_ags_apps_live_capture_link",
             "verify_ags_apps_capture_tool_files",
+            "verify_ags_apps_wallpaper_selector_dir",
+            "verify_ags_apps_live_wallpaper_selector_link",
+            "verify_ags_apps_wallpaper_selector_files",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2753,12 +2882,13 @@ def _build_provisioned_layout(
         "config/hypr",
         "config/hyprpaper",
         # config/ags is the ags_apps live-bar SYMLINK (<install>/config/ags ->
-        # the pinned unit's bar/) and config/ags-capture is the live-capture
-        # SYMLINK (-> the unit's capture-tool/), NOT spine dirs; both are created
-        # in the ags-apps unit block below. config/ags-hypr-pano is likewise the
-        # live-pano SYMLINK (slice 3), not a spine dir — created in the same block.
+        # the pinned unit's bar/), config/ags-capture is the live-capture SYMLINK
+        # (-> the unit's capture-tool/) and config/ags-wallpaper-selector is the
+        # live-wallpaper-selector SYMLINK (-> the unit's wallpaper-selector/), NOT
+        # spine dirs; all are created in the ags-apps unit block below.
+        # config/ags-hypr-pano is likewise the live-pano SYMLINK (slice 3), not a
+        # spine dir — created in the same block.
         "config/ags-icme",
-        "config/ags-wallpaper-selector",
         "config/ags-btop-studio",
         "config/ags-btop-studio/ui",
         "config/ags-btop-studio/lib",
@@ -2918,9 +3048,6 @@ def _build_provisioned_layout(
     # links; those links are built in the unit block below).
     for rel in (
         "ags-icme/lib",
-        "ags-wallpaper-selector",
-        "ags-wallpaper-selector/ui",
-        "ags-wallpaper-selector/lib",
         "ags-btop-studio",
         "ags-btop-studio/ui",
         "ags-btop-studio/lib",
@@ -2952,7 +3079,7 @@ def _build_provisioned_layout(
     # real dir of per-file bar sources. The fixture mirrors
     # verify_ags_apps_unit_dir / _bar_dir / _pin_file / _live_bar_link /
     # _resolution_shortcut so the criterion asserts have something to pass on.
-    apps_unit = install / "ags-apps" / "v0.3.5"
+    apps_unit = install / "ags-apps" / "v0.3.6"
     apps_bar = apps_unit / "bar"
     (apps_bar / "bar" / "widgets").mkdir(parents=True, exist_ok=True)
     for apps_file in (
@@ -2968,7 +3095,7 @@ def _build_provisioned_layout(
         "bar/validate-cli.ts",
     ):
         (apps_bar / apps_file).write_text("")
-    (install / "ags-apps" / "pinned").write_text("v0.3.5\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.6\n")
     (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
     (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
     (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
@@ -3052,23 +3179,29 @@ def _build_provisioned_layout(
     # WHOLE via the ags_apps live-pano link created in the unit block above, so
     # there is no per-file mirror here and verify_gui_tools_app_files asserts
     # none of it.
-    # Wallpaper selector (gui_tools role): must match
-    # verify_gui_tools_app_files EXACTLY.
-    (install / "config" / "ags-wallpaper-selector" / "app.tsx").write_text("")
-    (install / "config" / "ags-wallpaper-selector" / "style.css").write_text("")
-    (install / "config" / "ags-wallpaper-selector" / "ui" / "WallpaperSelectorWindow.tsx").write_text(
-        ""
-    )
-    for lib in (
-        "model",
-        "scan",
-        "thumbnails",
-        "apply",
-        "icon-registry",
-        "event-bus-core",
-        "event-bus",
+    # The wallpaper selector deploys WHOLE like the bar (slice 6): the unit's
+    # wallpaper-selector/ subdir is linked as
+    # <install>/config/ags-wallpaper-selector — NOT a real dir of per-file app
+    # sources. Mirror of verify_ags_apps_wallpaper_selector_dir /
+    # _live_wallpaper_selector_link / _wallpaper_selector_files. No generated
+    # icons.json lands here (unlike the bar/capture), and nothing stays in-repo.
+    apps_selector = apps_unit / "wallpaper-selector"
+    (apps_selector / "ui").mkdir(parents=True, exist_ok=True)
+    (apps_selector / "lib").mkdir(parents=True, exist_ok=True)
+    for selector_file in (
+        "app.tsx",
+        "style.css",
+        "ui/WallpaperSelectorWindow.tsx",
+        "lib/model.ts",
+        "lib/scan.ts",
+        "lib/thumbnails.ts",
+        "lib/apply.ts",
+        "lib/contrast.ts",
     ):
-        (install / "config" / "ags-wallpaper-selector" / "lib" / f"{lib}.ts").write_text("")
+        (apps_selector / selector_file).write_text("")
+    (install / "config" / "ags-wallpaper-selector").symlink_to(
+        apps_selector, target_is_directory=True
+    )
     # Notifications overlay is NOT a gui_tools per-file app anymore (slice 4): it
     # deploys WHOLE via the ags_apps live-notifications link created in the unit
     # block above, so there is no per-file mirror here and verify_gui_tools_app_files

@@ -177,13 +177,13 @@ def _preseed_bar_unit(install: Path) -> Path:
             f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
             "strict bar gate needs the unit's validate-cli.ts"
         )
-    bar = install / "ags-apps" / "v0.3.5" / "bar"
+    bar = install / "ags-apps" / "v0.3.6" / "bar"
     shutil.copytree(
         src,
         bar,
         ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
     )
-    (install / "ags-apps" / "pinned").write_text("v0.3.5\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.6\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
     # The capture-tool AGS GUI deploys WHOLE the same way (slice 5): the unit's
@@ -191,7 +191,7 @@ def _preseed_bar_unit(install: Path) -> Path:
     # role's capture icons.json is generated THROUGH that link (mirror of the
     # bar's icons.json). A standalone compositor-configs run must build that state
     # by hand, exactly as it does for the bar.
-    capture = install / "ags-apps" / "v0.3.5" / "capture-tool"
+    capture = install / "ags-apps" / "v0.3.6" / "capture-tool"
     capture.mkdir(parents=True, exist_ok=True)
     (capture / "app.tsx").write_text("export {}\n")
     (install / "config" / "ags-capture").symlink_to(
@@ -1314,4 +1314,57 @@ class TestDeployCoverageGate:
             )
             assert "backend" in result.stdout.lower(), (
                 "the failure must name the missing backend; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_a_stale_wallpaper_selector_entry_returns(self) -> None:
+        """Slice 6: a per-file wallpaper-selector entry in the gui_tools manifest
+        must FAIL. The selector deploys WHOLE via the unit symlink, so any
+        ags-wallpaper-selector/ source would template INTO the unit tree through the
+        live-wallpaper-selector link and silently diverge the live selector from the
+        pinned tag. Hermetic: a temp root whose gui_tools vars re-add a retired
+        gui_tools_wallpaper_selector_app_files — plus both unit roles, which the
+        gate asserts."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            gui_vars = root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+            gui_vars.write_text(
+                gui_vars.read_text()
+                + "\ngui_tools_wallpaper_selector_app_files:\n"
+                + "  - { name: stale-selector-app, "
+                + "source: src/gui-tools/wallpaper-selector/app.tsx, "
+                + 'dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/app.tsx" }\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a stale per-file wallpaper-selector entry "
+                f"is listed; recap:\n{result.stdout}"
+            )
+            assert "wallpaper-selector" in result.stdout, (
+                "the failure must name the stale selector entry; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_retired_wallpaper_selector_dir_returns(self) -> None:
+        """Slice 6: the wallpaper selector is a WHOLE package — the entire in-repo
+        src/gui-tools/wallpaper-selector/ dir must be gone (unlike capture-tool,
+        whose Python backend survives). A surviving copy is a second source of truth
+        that no gate deploys, so the gate must FAIL when it exists even with the
+        per-file manifest correctly retired."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stale = root / "src" / "gui-tools" / "wallpaper-selector"
+            stale.mkdir(parents=True)
+            (stale / "app.tsx").write_text("export {}\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-repo wallpaper-selector "
+                f"dir returns; recap:\n{result.stdout}"
+            )
+            assert "wallpaper-selector" in result.stdout, (
+                "the failure must name the retired selector dir; recap:\n"
+                + result.stdout
             )

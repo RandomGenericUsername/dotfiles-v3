@@ -30,7 +30,12 @@
 # into the unit's capture-tool/ subdir, and gui_tools no longer enumerates it per
 # file. Unlike the others, capture-tool ships a Python BACKEND as well as the AGS
 # GUI; the backend STAYS in-repo (src/gui-tools/capture-tool/bin/capture-tool,
-# installed by cli_tools) — only the GUI moves into the unit.
+# installed by cli_tools) — only the GUI moves into the unit. The wallpaper
+# selector (slice 6) is the sixth app: <install>/config/ags-wallpaper-selector is
+# a symlink into the unit's wallpaper-selector/ subdir, and gui_tools no longer
+# enumerates it per file (it keeps only the AGS-instance launch entry that starts
+# the selector from the now-symlinked ~/.config/ags-wallpaper-selector). Unlike
+# capture-tool the selector is a whole package — nothing stays in-repo.
 #
 # WHY A RESOLUTION SHORTCUT INSIDE THE UNIT. AGS (v3.1.0) embeds esbuild,
 # which resolves a bare specifier (`import { x } from "ags-platform"`) from
@@ -69,13 +74,14 @@ ags_apps_repo_url: https://github.com/RandomGenericUsername/ags-apps.git
 
 # ags_apps_version: THE PIN. The git tag to install, and the name of the
 #   version directory under the install root. The tag names a MONOREPO release
-#   (`v0.3.5` carries bar/ + hypr-pano/ + notifications/ + capture-tool/, the
-#   former owning org.freedesktop.Notifications): the unit is deployed whole, so
-#   one tag moves every app it ships. Bump this to move the live apps forward,
-#   point a live link at an older sibling tag dir to roll back. Recorded on the
-#   host at ags_apps_pin_file so the installed version is observable without
-#   reading this file.
-ags_apps_version: v0.3.5
+#   (`v0.3.6` carries bar/ + hypr-pano/ + notifications/ + capture-tool/ +
+#   wallpaper-selector/, the notifications app owning
+#   org.freedesktop.Notifications): the unit is deployed whole, so one tag moves
+#   every app it ships. Bump this to move the live apps forward, point a live
+#   link at an older sibling tag dir to roll back. Recorded on the host at
+#   ags_apps_pin_file so the installed version is observable without reading
+#   this file.
+ags_apps_version: v0.3.6
 
 # ags_apps_install_root: the monorepo home (<install>/ags-apps/). Trim lock:
 #   consumes the same validated {{ install_dir | trim }} value the sibling
@@ -183,13 +189,34 @@ ags_apps_capture_tool_dir: "{{ ags_apps_unit_dir }}/capture-tool"
 #   drift.
 ags_apps_live_capture_link: "{{ ags_apps_spine_config_dir }}/ags-capture"
 
+# ags_apps_wallpaper_selector_dir: the deployed wallpaper-selector package — the
+#   `wallpaper-selector/` subdir of the unit (slice 6 moved the in-repo
+#   src/gui-tools/wallpaper-selector/ here as a thin ags-platform consumer); the
+#   live-wallpaper-selector link points at this dir. Same monorepo deviation as
+#   the bar: the repo root is not the package, the app dir is the package.
+#   Unlike capture-tool the selector is a whole package — no in-repo part
+#   survives.
+ags_apps_wallpaper_selector_dir: "{{ ags_apps_unit_dir }}/wallpaper-selector"
+
+# ags_apps_live_wallpaper_selector_link: the live wallpaper selector. A symlink
+#   named `ags-wallpaper-selector` in the spine config root pointing at the
+#   unit's wallpaper-selector/ dir, so <install>/config/ags-wallpaper-selector IS
+#   the pinned app. The config-links role exposes it unchanged at
+#   ~/.config/ags-wallpaper-selector; the provisioned `wallpaper-selector-ui`
+#   launcher (cli_tools) cold-starts it (`ags run -d
+#   ~/.config/ags-wallpaper-selector`) and toggles it warm — THROUGH the symlink,
+#   never the unit path directly. It is an on-demand instance (not always_on), so
+#   provisioning quits it and leaves it down. No per-file copy can drift.
+ags_apps_live_wallpaper_selector_link: "{{ ags_apps_spine_config_dir }}/ags-wallpaper-selector"
+
 # ags_apps_backup_root: where a displaced legacy bridge dir is preserved.
 #   A timestamped subdir per run (mirror of config_links_backup_root): the
 #   original is never deleted without preserving it verbatim. Shared by the
 #   live-bar link (the retired per-file bar bridge), the live-pano link (the
 #   retired per-file clipboard-overlay bridge), the live-notifications link
-#   (the retired per-file notification-overlay bridge) and the live-capture link
-#   (the retired per-file capture-tool GUI bridge).
+#   (the retired per-file notification-overlay bridge), the live-capture link
+#   (the retired per-file capture-tool GUI bridge) and the
+#   live-wallpaper-selector link (the retired per-file selector bridge).
 ags_apps_backup_root: "{{ ags_apps_install_root }}/bridge-backups"
 
 # ags_apps_platform_version: the pinned platform tag the per-unit resolution
