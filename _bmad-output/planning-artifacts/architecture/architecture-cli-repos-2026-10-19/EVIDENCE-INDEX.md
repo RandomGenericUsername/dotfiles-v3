@@ -9,7 +9,7 @@ an observed fact says so.
 | AD-1 one-way dependency | `S1` §1.1 (runtime imports none of the six; coupling is `subprocess.run`), `S4` §2.3 dependency matrix, `S4` §1.4 | `rg -n '^(from\|import) (color_scheme_generator\|wallpaper_effects_generator\|icon_templates_renderer\|config_assembler_engine\|oci_runtime)' src/runtime --glob '*.py'` → exit 1 |
 | AD-2 one package per repo / repo root = package root | `S4` §2.1 (no root `pyproject.toml`, no workspace; 8 independent projects + 8 locks), `S2` §2.3 (`_REPO_MARKER_DIRS` assumes `src/cli-tools` + `src/shared`), `S4` §2.5 (Dockerfiles assume repo root) | `find . -name pyproject.toml -not -path './.git/*' \| sort` → 8; `ls pyproject.toml` → exit 2 |
 | AD-3 consume by immutable tag only | `S2` §2.3 (installed tool envs carry absolute `.pth` + `direct_url.json` into the checkout), `S4` §2.4 (locks record `editable = "../../shared/…"`), `S4` §4 (nothing published), `S2` §5.1–5.2 (tag-clone precedent) | `find ~/.local/share/uv/tools/color-scheme-generator -name '*.pth' -exec cat {} \;` → three absolute `src/shared/*` paths |
-| AD-4 `cli-output` owns the invocation contract | `S1` §1.3 (exact argv), §1.5 (exact env), §2.2 (artifact names + hashes), §6.1 (the same literals duplicated in three adapter test files), `S4` §2.3 (runtime and provisioning already depend on `cli-output`) | `sed -n '778,818p' docs/investigation/S1-runtime-cli-addressing.md`; `rg -n 'cli-output' src/runtime/pyproject.toml src/provisioning/pyproject.toml` |
+| AD-4 `contracts` owns the invocation contract; `cli-output` is presentation-only | `S1` §1.3 (exact argv), §1.5 (exact env), §2.2 (artifact names + hashes), §6.1 (the same literals duplicated in three adapter test files); `contracts/README.md:5` (charter: “Single source of truth for the runtime ↔ AGS event seam”); `contracts` has **zero tags** (`git tag -l` → empty) and **no `pyproject.toml`** (`ls pyproject.toml` → exit 2), so the package + first tag are new work; `contracts/AGENTS.md` §2–§3 (never on `main`; ticket/OpenSpec routing) | `sed -n '778,818p' docs/investigation/S1-runtime-cli-addressing.md`; `cd /home/inumaki/Development/contracts && git tag -l \| wc -l && ls pyproject.toml; sed -n '5p' README.md` → `0`, exit 2, charter line |
 | AD-5 image context = own repo root | `S2` §2.3 (Dockerfiles COPY repo-relative paths; external layout rejected), `S4` §2.5 (the only non-doc files naming `src/shared` are the two Dockerfiles + `source_locator.py`), `Dockerfile.base:3-7`, `Dockerfile.imagemagick:9-19` | `sed -n '1,10p' src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/docker/Dockerfile.base` |
 | AD-6 `resolve_build_context` replaces the monorepo marker | `source_locator.py:37-39,50-61,109-144`; `S2` §2.3 executed probe (`marker on external layout: None`, `SourceRootNotFoundError`); `S3` closing paragraph (build context is the only repo-relative runtime dependency) | `uv run --directory src/cli-tools/color-scheme-generator python -c "from pathlib import Path; from oci_runtime.source_locator import _repo_root_from_candidate as f; print(f(Path('/tmp/opencode/s2-ext')))"` → `None` |
 | AD-7 build ownership split; image tag = pin | `S2` §2.2 (`tasks/main.yml:328-340` builds via `<cli> install --source-root`), `S2` §2.1 (`cli_tools_image_builds` = csg, weg; itr absent), `S1` §3.2 (itr has no container mode), `S1` §4.5 + `csg-settings.toml.j2:26` (`image_tag = "latest"` — the stale-image risk the tag rule closes) | `sed -n '328,340p' src/provisioning/ansible/roles/cli_tools/tasks/main.yml`; `grep -n image_tag src/provisioning/ansible/roles/settings/templates/*.j2` |
@@ -27,12 +27,12 @@ an observed fact says so.
 
 | Item | Why it is a consequence |
 | --- | --- |
-| AD-4 contract module does not exist | The package that must host it (`cli-output`) has no invocation module today; S0 creates it. The *drift it prevents* is observed (`S1` §6.1 duplicates), the module is the remedy. |
+| AD-4 contract package does not exist yet | The `contracts` repo has zero tags and no `pyproject.toml`; S0a creates the `cli-invocation-contract` package and tags `v0.1.0`. The *drift it prevents* is observed (`S1` §6.1 duplicates), the package + kit are the remedy — no consumer reads the record until S0b. |
 | AD-5/AD-6 build model is untested end-to-end | `S2` §2.3 proves the *failure* of the current model on an external layout; no image has been built from a single-repo context. Slice S3 is the first executed proof (both images, both context roots). |
 | AD-5 image builds need git + network for pinned deps | Consequence of choosing git tags as the only pin channel (`S4` §4: no registry/index). The build stage installs `git` and CA certificates; a moved/unreachable tag fails the build rather than resolving something newer. |
 | AD-7 image tag equals the pin | `S1` §4.5 observes today’s `image_tag = "latest"`; the tag rule is the remedy. No tag-qualified image has been built yet — proven in S3/S5/S6. |
 | AD-9 release CI | No workflow publishes today (`S4` §4); the ritual is new machinery, proven in S1’s release gate. |
-| AD-11 `--version` assertions | No CLI exposes a version handshake today (`S1` §4.1: `grep -- "--version"` → exit 1); S0 adds `<version> contract <cli-output-version>`. |
+| AD-11 `--version` assertions | No CLI exposes a version handshake today (`S1` §4.1: `grep -- "--version"` → exit 1); S0b adds `<version> contract <contracts-version>`, and `contracts v0.1.0` (S0a) supplies the token. |
 
 ## Measured counts used in this spine
 
@@ -59,6 +59,9 @@ find src/cli-tools src/shared -name 'test_*.py' -path '*/.venv/*' | wc -l       
 - `/home/inumaki/Development/mu/AGENTS.md`, `/home/inumaki/Development/mu/tickets/LIFECYCLE.md`,
   `/home/inumaki/Development/mu/tickets/INDEX.md`, `/home/inumaki/Development/mu/Makefile`,
   `/home/inumaki/Development/mu/skills-lock.json`, `/home/inumaki/Development/mu/scripts/worktree-guard.sh`
+- `/home/inumaki/Development/contracts/README.md`, `contracts/AGENTS.md`, `contracts/Makefile`
+  (charter line, worktree/ticket routing, existing gates) — facts re-verified 2026-10-19:
+  clean `main`, `git tag -l` empty, no `pyproject.toml`, HEAD `2cfd403`
 - Code read directly: `src/shared/oci-runtime/src/oci_runtime/source_locator.py` (1–144),
   `src/cli-tools/color-scheme-generator/src/color_scheme_generator/cli/install_cmd.py` (1–124),
   both Dockerfiles, `src/cli-tools/color-scheme-generator/src/color_scheme_generator/adapters/container_processor.py` (1–80, 120–230),

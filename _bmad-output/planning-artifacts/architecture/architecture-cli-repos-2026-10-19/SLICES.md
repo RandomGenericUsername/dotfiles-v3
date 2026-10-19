@@ -1,32 +1,118 @@
 # Migration Slices — six packages out of `dotfiles-v3`
 
-Sequential, destructive-last. One slice per target (plus one prerequisite slice). No slice starts
-before its predecessor is merged on `master`.
+Sequential, destructive-last. Two prerequisite slices (S0a in `contracts`, S0b in `dotfiles-v3`),
+then one slice per target. No slice starts before its predecessor is merged on `master`.
 
 Conventions used below:
 
 ```bash
-# Consumer-side variables. CLI_REPO_BASE is set once OPEN-1 (hosting) is resolved.
-CLI_REPO_BASE="https://github.com/<owner>"
-DTF=/home/inumaki/Development/dotfiles-v3            # main checkout
-WT=$DTF/.worktrees/<slice-id>                        # this slice's worktree
+# Consumer-side variables. OPEN-1 (hosting) is resolved: public repos under this owner.
+CLI_REPO_BASE="https://github.com/RandomGenericUsername"
+CONTRACTS=/home/inumaki/Development/contracts   # own repo, own worktree, own ticket
+DTF=/home/inumaki/Development/dotfiles-v3       # main checkout
+WT=$DTF/.worktrees/<slice-id>                   # this slice's worktree
 ```
+
+Work in the `contracts` repo happens in **its** worktree (`bash scripts/worktree-guard.sh create
+<id> <slug>`, never on `main`), with its own ticket/OpenSpec change per its `AGENTS.md`.
 
 Every acceptance gate is a command with an expected observable. “Expect exit 0” means the command
 itself proves the claim; a passing gate that only greps prose is not used.
 
+**Tag chain — no slice consumes a tag an earlier slice did not produce:**
+
+| Slice | Produces | Consumes |
+| --- | --- | --- |
+| S0a (`contracts`) | `contracts v0.1.0` → `cli-invocation-contract` 0.1.0 | — |
+| S0b (`dotfiles-v3`) | none (no tag in this repo) | `contracts v0.1.0` |
+| S1 | `cli-output v0.1.0` | `contracts v0.1.0` |
+| S2 | `config-assembler-engine v0.1.0` | `contracts v0.1.0` |
+| S3 | `oci-runtime v0.5.0` | `contracts v0.1.0` |
+| S4 | `itr v0.1.0` | `contracts v0.1.0`, `cli-output v0.1.0`, `cae v0.1.0` |
+| S5 | `weg v0.1.0` | all of the above |
+| S6 | `csg v0.1.0` | all of the above |
+
 ---
 
-## S0 — Prerequisites in `dotfiles-v3` (no extraction)
+## S0a — invocation contract in `contracts` (its own repo, ticket, worktree)
 
-**Scope.** Make the suites provably green and hermetic, add the `--version` handshake, land the
-invocation contract inside the in-tree `cli-output`, and record the baseline. Nothing is deleted,
-nothing is tagged.
+**Scope.** Create the runtime↔CLI invocation contract as versioned data plus a Python conformance
+kit inside the existing `contracts` repo, and cut that repo’s **first** tag. No `dotfiles-v3` file
+changes in this slice, and nothing is extracted.
 
 **Entry criteria.**
 
+- `contracts` on `main`, clean (`bash scripts/worktree-guard.sh check-clean`).
+- Worktree + branch created **in `contracts`**: `bash scripts/worktree-guard.sh create <id>
+  cli-invocation-contract`; ticket opened in `contracts/tickets/` (routing per its `AGENTS.md` §3).
+- The record fields are fixed by `S1` §1.3–1.5, §2.2 (argv, env, artifacts, exit codes, timeout).
+
+**Steps.**
+
+1. Open the OpenSpec change + ticket in `contracts` for “CLI invocation contract package”
+   (its `AGENTS.md` §3: bounded slice → OpenSpec, broad evolution → BMAD).
+2. Add `pyproject.toml` at the repo root (hatchling, `requires-python >=3.12`, version `0.1.0`),
+   `src/cli_invocation_contract/`, `tests/`, committed `uv.lock`. The loader is **stdlib-only**
+   (`json` + dataclasses); `pytest` is the only dev dependency, so the existing event-contract
+   toolchain (`gen/`, `schemas/`, `Makefile`) is untouched.
+3. Add `invocation-contract.json` with one entry per CLI (`csg`, `weg`, `itr`) carrying exactly:
+   argv template, required env keys, required artifact names/suffixes, exit-code semantics,
+   default timeout. Values come from `S1` §1.3–1.5, §2.2 — not re-derived.
+4. Add `src/cli_invocation_contract/__init__.py` exporting `CONTRACT_VERSION` and `load()`, and
+   `src/cli_invocation_contract/testkit.py` exposing the **two** assertions of AD-4:
+   - `assert_consumer_invocation(...)` — the consumer’s recorded invocation matches the record;
+   - `assert_cli_conformance(...)` — the CLI accepts the recorded invocation and writes the
+     required artifacts (runner injected, so it works in-process and against an installed binary).
+5. Tests: record completeness (three CLIs, every field present), loader round-trip, and testkit
+   self-tests against a fake CLI (accept + reject cases). No test may shell out to a real CLI.
+6. Update `contracts/README.md` and `contracts/AGENTS.md` §2 so the charter names **both** seams
+   (AGS event contract + runtime↔CLI invocation contract). Move the two boundary specs
+   `openspec/specs/interface-contract-test` and `openspec/specs/container-adapter-env-contract`
+   into `contracts/openspec/specs/` (AD-15); the dotfiles copies are deleted in S0b.
+7. Green, then release: version `0.1.0` in `pyproject.toml` + `CHANGELOG.md`, annotated tag
+   `v0.1.0`, CI attaches sdist + wheel to the GitHub Release (AD-9). This is the repo’s first tag.
+
+**Acceptance gates.**
+
+```bash
+cd "$CONTRACTS"          # the S0a worktree
+uv sync && uv run pytest -q && uv build
+# expect: exit 0; dist/cli_invocation_contract-0.1.0-*.whl + .tar.gz exist
+
+make contracts-drift && make check-symmetry
+# expect: exit 0 (the AGS event machinery is unchanged by this slice)
+
+uv run python -c "
+from cli_invocation_contract import CONTRACT_VERSION, load
+c = load()
+assert sorted(c) == ['csg', 'itr', 'weg'], sorted(c)
+assert all({'argv', 'env', 'artifacts', 'exit_codes', 'timeout'} <= set(v) for v in c.values())
+print(CONTRACT_VERSION)
+"
+# expect: 0.1.0
+
+git ls-remote --tags origin 'v0.1.0'
+# expect: exactly one line (annotated tag + peeled commit); this is the repo's first tag
+```
+
+**Rollback.** Before any consumer pins it: delete the local tag and revert the branch (nothing
+depends on it yet). After S0b pins it: never delete or move the tag — ship `v0.1.1` and re-pin.
+
+**Deletion step.** None in `dotfiles-v3`.
+
+---
+
+## S0b — prerequisites in `dotfiles-v3` (no extraction, no tag)
+
+**Scope.** Make the six suites provably green and hermetic, add the `--version` handshake against
+the **contracts** package, consume `contracts v0.1.0` from the runtime and the three in-tree CLIs,
+and record the baseline. Nothing is deleted; the invocation contract is no longer authored here.
+
+**Entry criteria.**
+
+- S0a merged and `contracts v0.1.0` published.
 - `master` clean; `make gates-ci` exit 0.
-- Worktree created: `bash scripts/worktree-guard.sh create s0 cli-split-prereqs`.
+- Worktree created: `bash scripts/worktree-guard.sh create s0b cli-split-prereqs`.
 
 **Steps.**
 
@@ -42,13 +128,19 @@ nothing is tagged.
 3. Run the full six suites and record the baseline in the slice’s evidence block. Any failure other
    than the two above is triaged: fixed in this slice, or filed as a `bug` ticket and the affected
    package is **not** a valid extraction target until green (AD-12).
-4. Add `--version` to `csg`, `weg`, `itr`: prints `<package-version> contract <cli-output-version>`
-   (needed by AD-11 to assert both pins by execution).
-5. Add `cli_output.invocation` (per-CLI record: argv template, env keys, required artifacts, exit
-   semantics, timeout) and `cli_output.invocation.testkit` inside `src/shared/cli-output`; bump its
-   version to `0.2.0` in-tree. Rewrite the runtime adapter contract tests to assert against the
-   record instead of their own literals (`S1` §6.1).
-6. Add `make hermetic` to the dotfiles `Makefile` (runs the six suites under a scrubbed env) — a
+4. Add `--version` to `csg`, `weg`, `itr`: prints `<package-version> contract
+   <contract-version>` where the contract version is read from the installed
+   `cli_invocation_contract.CONTRACT_VERSION` (AD-11 asserts both pins by execution). It is **not**
+   read from `cli-output`.
+5. Pin `contracts v0.1.0` in `src/runtime/pyproject.toml` (for the kit) and in the three in-tree
+   CLIs’ `pyproject.toml` (for the version stamp): `cli-invocation-contract = { git =
+   "…/contracts", tag = "v0.1.0" }`, then regenerate the four locks. Rewrite the runtime adapter
+   contract tests to assert through `cli_invocation_contract.testkit` instead of their own literals
+   (`S1` §6.1). The in-tree `cli-output` is untouched — it stays rendering-only (AD-4).
+6. Remove the two boundary specs now owned by `contracts` (`openspec/specs/interface-contract-test`,
+   `openspec/specs/container-adapter-env-contract`; imported in S0a). Historical
+   `openspec/changes/archive/**` stays.
+7. Add `make hermetic` to the dotfiles `Makefile` (runs the six suites under a scrubbed env) — a
    developer target only, not added to `GATES`.
 
 **Acceptance gates.**
@@ -69,23 +161,31 @@ env -u XDG_CONFIG_HOME HOME="$(mktemp -d)" TMPDIR=/tmp \
   make hermetic
 # expect: exit 0; canary tests present in every package
 
-# 3. Version handshake exists and is correct.
+# 3. Version handshake exists and reports the contracts version, not cli-output's.
 for b in itr weg csg; do "$b" --version; done
-# expect: three lines "<pkg-version> contract <cli-output-version>", pkg 0.1.0, contract 0.2.0
+# expect: three lines "0.1.0 contract 0.1.0"
 
-# 4. Contract is consumed by the runtime, not duplicated.
+# 4. One contracts tag, four consumers, no range.
+rg -n 'cli-invocation-contract = .*contracts", tag = "v0\.1\.0"' src --glob 'pyproject.toml'
+# expect: 4 matches (runtime + csg + weg + itr)
+
+# 5. Contract is consumed by the runtime, not duplicated.
 uv run --directory src/runtime pytest tests/unit/test_csg_adapter.py \
   tests/unit/test_weg_adapter.py tests/unit/test_itr_adapter.py -q
 # expect: exit 0; 33 passed (S1 §6.2) or more after migration
+uv run --directory src/runtime python -c \
+  "from cli_invocation_contract import CONTRACT_VERSION; print(CONTRACT_VERSION)"
+# expect: 0.1.0
 
-# 5. Repo gates unchanged.
+# 6. Repo gates unchanged.
 make gates-ci && make deploy-coverage
 # expect: exit 0, five gates, deploy-coverage PASS
 ```
 
-**Rollback.** Revert the slice branch; no external artifact exists.
+**Rollback.** Revert the slice branch. The `contracts v0.1.0` tag stays published (S0a), so a
+selector rollback can drop this slice without orphaning an external artifact.
 
-**Deletion step.** None.
+**Deletion step.** Remove the two spec directories listed in step 6; no code is deleted.
 
 ---
 
@@ -94,8 +194,10 @@ make gates-ci && make deploy-coverage
 Each target slice executes the same loop (AD-13):
 
 1. **Create** the repo from the birth checklist (`ARCHITECTURE-SPINE.md` § Repo Birth Checklist).
-2. **Import** the package tree at its current path as the repo root; harness files from `mu`.
-3. **Repoint** in-repo dependencies from path sources to git tags (AD-3); regenerate locks.
+2. **Import** the package tree at its current path as the repo root, preserving history with
+   `git subtree split -P <path>` (OPEN-8), then add harness files from `mu`.
+3. **Repoint** in-repo dependencies from path sources to git tags (AD-3) and keep the existing
+   `contracts` pin (AD-4); regenerate locks.
 4. **Green + tag**: `make gates` green on a fresh clone → tag `vX.Y.Z` → CI release artifacts.
 5. **Rewire** `dotfiles-v3` consumption to the tag.
 6. **Prove by execution** (install, run, and — for container CLIs — build an image).
@@ -110,17 +212,20 @@ Rollback for every slice: bump the consumer pin back to the previous tag (or non
 ## S1 — `cli-output` → its own repo
 
 **Scope.** Extract `src/shared/cli-output` (8 test files, 461 src lines). Consumers: runtime,
-provisioning, csg, weg, itr (all five today). It also carries the invocation contract from S0.
+provisioning, csg, weg, itr (all five today). It carries **no** contract data — presentation only
+(AD-4); the contract stays pinned at `contracts v0.1.0` and this slice does not touch it.
 
-**Entry criteria.** S0 merged; OPEN-1 (hosting), OPEN-4 (names), OPEN-5 (license) and OPEN-7
-(`cli-output` charter) resolved; repo created with the birth checklist; `master` green.
+**Entry criteria.** S0a and S0b merged; repo created with the birth checklist; `master` green;
+OPEN-1/OPEN-4/OPEN-5 answers applied (spine § Resolved Decisions).
 
 **Steps.**
 
-1. Import tree: `pyproject.toml`, `src/cli_output/`, `tests/`, `uv.lock` as repo root. Add harness.
-2. Re-point `cli_output`’s own `[tool.uv.sources]` to empty (it has no sibling deps).
-3. Bump version to `0.2.0` (carries the invocation contract added in S0) and tag `v0.2.0`.
-4. In `dotfiles-v3`, replace every `cli-output` path source with a git source at `v0.2.0`:
+1. Import tree: `pyproject.toml`, `src/cli_output/`, `tests/`, `uv.lock` as repo root, history via
+   `git subtree split -P src/shared/cli-output`. Add harness.
+2. Re-point `cli_output`’s own `[tool.uv.sources]` to empty (it has no sibling deps and does not
+   depend on `contracts`).
+3. Tag `v0.1.0` (version continuity with the imported in-tree `0.1.0`).
+4. In `dotfiles-v3`, replace every `cli-output` path source with a git source at `v0.1.0`:
    `src/runtime/pyproject.toml`, `src/provisioning/pyproject.toml`, and each still-in-tree CLI’s
    `pyproject.toml`; regenerate all five locks.
 5. Delete `src/shared/cli-output/`.
@@ -138,15 +243,19 @@ cd "$WT"
 # New repo, fresh clone.
 git clone "$CLI_REPO_BASE/cli-output" /tmp/opencode/cli-output && cd /tmp/opencode/cli-output
 make sync && make gates && make hermetic && uv lock --check && uv build
-# expect: exit 0; dist contains cli_output-0.2.0-*.whl + .tar.gz
+# expect: exit 0; dist contains cli_output-0.1.0-*.whl + .tar.gz
 cd "$WT"
 
-git ls-remote --tags "$CLI_REPO_BASE/cli-output" v0.2.0
+git ls-remote --tags "$CLI_REPO_BASE/cli-output" v0.1.0
 # expect: exactly one line, peeled tag + commit
 
 # No path/editable pin survives anywhere.
 rg -n 'cli-output = \{ path|path = "\.\./shared/cli-output"|editable = true' src --glob 'pyproject.toml'
 # expect: exit 1 (no matches)
+
+# The contract pin is untouched: still one contracts tag, four consumers.
+rg -n 'cli-invocation-contract = .*contracts", tag = "v0\.1\.0"' src --glob 'pyproject.toml'
+# expect: 4 matches
 
 # Consumers resolve the published package, not a checkout.
 uv run --directory src/runtime python -c \
@@ -167,7 +276,7 @@ test ! -e src/shared/cli-output && echo "ABSENT"
 ```
 
 **Rollback.** Revert the pin commit and the deletion commit; restore
-`src/shared/cli-output` from the merge base. The repo and tag `v0.2.0` stay published (harmless).
+`src/shared/cli-output` from the merge base. The repo and tag `v0.1.0` stay published (harmless).
 
 **Deletion step.** `git rm -r src/shared/cli-output`; remove its lock entries; update the two
 architecture-test copies.
@@ -206,7 +315,7 @@ for p in src/cli-tools/icon-templates-renderer src/cli-tools/wallpaper-effects-g
          src/cli-tools/color-scheme-generator; do
   uv run --directory "$p" pytest -q -k "config or resolv or strateg" || exit 1
 done
-# expect: exit 0 for all three (was 82/1 fail and 67/1 fail on this host before S0)
+# expect: exit 0 for all three (was 82/1 fail and 67/1 fail on this host before S0b)
 
 make gates-ci && make deploy-coverage
 # expect: exit 0
@@ -290,7 +399,7 @@ for p in color-scheme-generator wallpaper-effects-generator; do
 done
 podman run --rm color-scheme-generator-local:test csg --version
 podman run --rm wallpaper-effects-generator-local:test weg --version
-# expect: both builds exit 0; both print "0.1.0 contract 0.2.0"
+# expect: both builds exit 0; both print "0.1.0 contract 0.1.0"
 
 # Real generation still works in container mode through the runtime and through the CLI.
 cd src/cli-tools/color-scheme-generator
@@ -328,9 +437,10 @@ third-party root (it is a real dependency of csg/weg, so keep it forbidden to ot
 
 1. Import tree as repo root (`pyproject.toml`, `src/icon_templates_renderer/`, `tests/`,
    `Makefile`, `uv.lock`); add harness; add the hermetic fixture if not imported.
-2. Repoint `cli-output` `v0.2.0` and `config-assembler-engine` `v0.1.0` to git tags.
-3. Migrate itr’s tests to the invocation contract kit (`cli_output.invocation.testkit`) in place of
-   the local literal assertions (`S1` §6.1 itr block).
+2. Repoint `cli-output` `v0.1.0` and `config-assembler-engine` `v0.1.0` to git tags; keep the
+   `contracts` pin at `v0.1.0` (AD-4).
+3. Migrate itr’s tests to the invocation contract kit (`cli_invocation_contract.testkit`) in place
+   of the local literal assertions (`S1` §6.1 itr block).
 4. Tag `v0.1.0`.
 5. Provisioning: change the itr manifest entry to `{name: itr, repo: <url>, tag: v0.1.0}` (the
    schema change lands with S4 because it is the first CLI; the other two entries keep their
@@ -351,7 +461,7 @@ cd "$WT"
 UV_TOOL_DIR=/tmp/opencode/uvtools UV_TOOL_BIN_DIR=/tmp/opencode/uvbin \
   uv tool install --force "git+$CLI_REPO_BASE/icon-templates-renderer@v0.1.0"
 /tmp/opencode/uvbin/itr --version
-# expect: "0.1.0 contract 0.2.0"; the contract token must equal the cli-output tag dotfiles pins
+# expect: "0.1.0 contract 0.1.0"; the contract token must equal the contracts tag dotfiles pins
 
 # Real render against the rendered settings (S1 §6.2 harness shape).
 uv run --directory src/provisioning pytest -q \
@@ -413,7 +523,7 @@ rg -n "src/shared|src/cli-tools|\.\./" src/wallpaper_effects_generator/adapters/
 # Build from the repo root only (no monorepo present).
 podman build -t weg-local:test -f src/wallpaper_effects_generator/adapters/docker/Dockerfile.imagemagick .
 podman run --rm weg-local:test weg --version
-# expect: build exit 0; prints "0.1.0 contract 0.2.0"
+# expect: build exit 0; prints "0.1.0 contract 0.1.0"
 cd "$WT"
 
 # Isolated install + real batch run (S1 argv: batch all -- <wallpaper>).
@@ -485,7 +595,7 @@ rg -n "src/shared|src/cli-tools" src/color_scheme_generator/adapters/docker/
 
 podman build -t csg-base-local:test -f src/color_scheme_generator/adapters/docker/Dockerfile.base .
 podman run --rm csg-base-local:test csg --version
-# expect: build exit 0; prints "0.1.0 contract 0.2.0"
+# expect: build exit 0; prints "0.1.0 contract 0.1.0"
 cd "$WT"
 
 # Real generation through the runtime's exact argv (S1 §1.3): eight --format flags, env output dir.
@@ -544,10 +654,16 @@ git ls-files 'src/cli-tools/*' 'src/shared/*'
 # expect: empty
 
 for t in itr weg csg; do command -v "$t" && "$t" --version; done
-# expect: three binaries; each line "<pkg-version> contract 0.2.0" with the tag version
+# expect: three binaries; each line "<pkg-version> contract 0.1.0" with the tag version
 
 uv tool list | grep -E "color-scheme-generator|wallpaper-effects-generator|icon-templates-renderer"
 # expect: three entries with versions matching the pins
+
+# One contract tag end to end: the runtime, all three extracted CLIs, and verify agree.
+rg -n 'cli-invocation-contract = .*contracts", tag = "v[0-9]' src --glob 'pyproject.toml'
+# expect: 4 matches, all the same tag
+git -C "$CONTRACTS" ls-remote --tags origin | grep -c 'refs/tags/v'
+# expect: at least 1 (the tag every consumer pins), never a moved tag
 ```
 
 If any command above contradicts the expected observable, the migration is not done — the gate is

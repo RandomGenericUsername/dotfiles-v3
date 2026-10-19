@@ -4,11 +4,12 @@ type: architecture-spine
 purpose: build-substrate
 altitude: feature
 paradigm: 'hexagonal packages on a pinned-artifact supply chain'
-scope: 'Splitting six packages out of dotfiles-v3 into independent mu-strict repos — cli-output, config-assembler-engine, oci-runtime, icon-templates-renderer (itr), wallpaper-effects-generator (weg), color-scheme-generator (csg) — and consuming them from dotfiles-v3 provisioning and runtime through immutable git tags, never in-tree path dependencies.'
+scope: 'Splitting six packages out of dotfiles-v3 into independent mu-strict repos — cli-output, config-assembler-engine, oci-runtime, icon-templates-renderer (itr), wallpaper-effects-generator (weg), color-scheme-generator (csg) — and consuming them from dotfiles-v3 provisioning and runtime through immutable git tags, never in-tree path dependencies. The runtime↔CLI invocation contract is a cross-repo artifact owned by the existing contracts repo, not by cli-output.'
 status: final
 created: '2026-10-19'
 updated: '2026-10-19'
 binds:
+  - contracts (invocation contract + conformance kit)
   - cli-output
   - config-assembler-engine
   - oci-runtime
@@ -25,6 +26,8 @@ sources:
   - docs/GUIDE-ags-app-repos-refinement.md
   - docs/LESSONS-ags-apps-migration.md
   - AGENTS.md
+  - /home/inumaki/Development/contracts/README.md
+  - /home/inumaki/Development/contracts/AGENTS.md
 companions:
   - SLICES.md
   - EVIDENCE-INDEX.md
@@ -42,9 +45,9 @@ and every dependency edge crosses a repo boundary as a pinned version, never as 
 | Layer | Lives in | Contains |
 | --- | --- | --- |
 | shared libs (leaves) | `cli-output`, `config-assembler-engine`, `oci-runtime` repos | ports, domain, adapters; no sibling-repo dependency |
-| CLIs | `icon-templates-renderer`, `wallpaper-effects-generator`, `color-scheme-generator` repos | console scripts `itr`, `weg`, `csg`; depend on libs by pinned tag |
+| CLIs | `icon-templates-renderer`, `wallpaper-effects-generator`, `color-scheme-generator` repos | console scripts `itr`, `weg`, `csg`; depend on libs and on the pinned contract package |
 | host / consumer | `dotfiles-v3` | runtime (`dotfiles-runtime`), provisioning, desktop config; consumes CLIs as pinned tools + images |
-| contract | `cli-output` (module `cli_output.invocation`) | the runtime↔CLI invocation contract + conformance kit |
+| contract | `contracts` repo (package `cli_invocation_contract`) | the runtime↔CLI invocation contract + conformance kit, alongside its existing AGS event contract |
 
 The split does **not** change runtime internals: the runtime already couples to the CLIs only by
 subprocess, exit status, artifact filenames and hashes (`S1` §0 facts 1–7; §2.1–2.2).
@@ -69,11 +72,12 @@ These are binding inputs, not re-derived here.
 
 - **Binds:** all six repos + dotfiles-v3
 - **Prevents:** CLI→CLI coupling, runtime importing a CLI, and the version skew that turns a split into a rewrite.
-- **Rule:** `cli-output`, `config-assembler-engine`, `oci-runtime` depend on no sibling repo. The three CLIs depend on libs only. `dotfiles-v3` consumes CLIs and libs as pinned artifacts. No CLI imports or invokes another CLI; no runtime module imports a CLI package; no repo declares a uv workspace over another repo.
+- **Rule:** `cli-output`, `config-assembler-engine`, `oci-runtime` depend on no sibling repo. The three CLIs depend on libs and on the pinned `cli_invocation_contract` package (AD-4) only. `dotfiles-v3` consumes CLIs and libs as pinned artifacts. No CLI imports or invokes another CLI; no runtime module imports a CLI package; no repo declares a uv workspace over another repo.
 
 ```mermaid
 graph TD
-  CO["cli-output<br/>rendering + invocation contract"]
+  CO["cli-output<br/>rendering + views"]
+  CTR["contracts<br/>cli-invocation-contract"]
   CAE["config-assembler-engine"]
   OCI["oci-runtime"]
   ITR["icon-templates-renderer<br/>console: itr"]
@@ -81,6 +85,10 @@ graph TD
   CSG["color-scheme-generator<br/>console: csg"]
   DTF["dotfiles-v3<br/>runtime + provisioning"]
 
+  CTR --> ITR
+  CTR --> WEG
+  CTR --> CSG
+  CTR --> DTF
   ITR --> CO
   ITR --> CAE
   WEG --> CO
@@ -121,11 +129,11 @@ graph TD
 - **Prevents:** editable path installs that die when the checkout moves (`S2` §2.3: `.pth` and `direct_url.json` point into the checkout), and lock-free drift.
 - **Rule:** a dependency on a sibling repo is declared as a git source at a tag (`{ git = "https://…/<repo>", tag = "vX.Y.Z" }`) plus a compatibility range in `[project].dependencies`; `uv.lock` is committed and records the resolved commit. No `path =`, no `editable = true`, no submodule, no cross-repo workspace. A published tag is never moved or deleted; a fix is a new tag.
 
-### AD-4 — `cli-output` owns the runtime↔CLI invocation contract
+### AD-4 — `contracts` owns the runtime↔CLI invocation contract; `cli-output` stays presentation-only
 
-- **Binds:** runtime adapters, all three CLIs, contract packaging
-- **Prevents:** each side testing its own literals — argv shape, env key, exit code, artifact filenames and hashes drift silently (`S1` §6.1 shows those literals duplicated per adapter).
-- **Rule:** `cli_output.invocation` publishes, per CLI, a versioned record of: argv template, required env keys, required artifact names/suffixes, exit-code semantics, default timeout. `cli_output.invocation.testkit` exposes two assertions: one that a consumer's recorded invocation matches the record, one that a CLI accepts the recorded invocation and writes the required artifacts. The dotfiles runtime and **all three CLIs** pin the **same** `cli-output` tag — not merely a compatible range — and that equality is asserted at provision time (AD-11). Changing the contract requires a `cli-output` version bump that every consumer re-pins in the same slice. Contract data is not duplicated in either side's tests.
+- **Binds:** runtime adapters, all three CLIs, the `contracts` Python package, provisioning pins
+- **Prevents:** each side testing its own literals — argv shape, env key, exit code, artifact filenames and hashes drift silently (`S1` §6.1 shows those literals duplicated per adapter); and a rendering package acquiring a charter it was not designed for.
+- **Rule:** the `contracts` repo (`/home/inumaki/Development/contracts`) owns the invocation contract as versioned data plus a conformance kit. Per CLI the record carries: argv template, required env keys, required artifact names/suffixes, exit-code semantics, default timeout. The kit exposes exactly two assertions: (1) a consumer's recorded invocation matches the record; (2) the CLI accepts the recorded invocation and writes the required artifacts. `cli-output` remains **presentation-only** (rendering + views) and its charter is unchanged; it neither hosts nor imports the contract. The contract ships from a Python package in `contracts`: distribution `cli-invocation-contract`, import package `cli_invocation_contract`, kit at `cli_invocation_contract.testkit`, data in `invocation-contract.json` (one entry per CLI). That package is **new work in `contracts`** — the repo has no `pyproject.toml` and zero tags today — and is done in its own worktree/ticket under that repo's `AGENTS.md` (`bash scripts/worktree-guard.sh create <id> <slug>`, never on `main`, routing via `tickets/` + `openspec/`). The dotfiles runtime and **all three CLIs** pin the **same `contracts` tag** — not merely a compatible range — and that equality is asserted at provision time (AD-11). Changing the contract requires a new `contracts` tag that every consumer re-pins in the same slice. Contract data is not duplicated in either side's tests.
 
 ### AD-5 — A container image builds from its own repo root
 
@@ -155,7 +163,7 @@ graph TD
 
 - **Binds:** all six repos; every consumer pin bump
 - **Prevents:** a tag whose content cannot be reconstructed, and “latest” pins (`S1` §4.5 shows `image_tag = "latest"` and unversioned `uv tool install` today).
-- **Rule:** a release is: gates green on the ticket branch → version bumped in `pyproject.toml` + `CHANGELOG.md` → annotated tag `vMAJOR.MINOR.PATCH` → CI builds sdist and wheel and attaches them to the GitHub Release → consumer pin bump in its own commit. First tags: `cli-output v0.2.0` (S0 adds the invocation contract under 0.2.0), `config-assembler-engine v0.1.0`, `oci-runtime v0.5.0` (the imported code is 0.4.0; the build-context API ships in the first tag, so versions never move backwards), `csg`/`weg`/`itr` `v0.1.0`. PyPI publication is not part of this design. Rollback is a pin bump to the previous tag, never a retag.
+- **Rule:** a release is: gates green on the ticket branch → version bumped in `pyproject.toml` + `CHANGELOG.md` → annotated tag `vMAJOR.MINOR.PATCH` → CI builds sdist and wheel and attaches them to the GitHub Release → consumer pin bump in its own commit. First tags: `contracts v0.1.0` (first tag in that repo; ships `cli-invocation-contract` 0.1.0 with the invocation contract and kit), `cli-output v0.1.0` (version continuity with the in-tree 0.1.0; it no longer carries the contract), `config-assembler-engine v0.1.0`, `oci-runtime v0.5.0` (the imported code is 0.4.0; the build-context API ships in the first tag, so versions never move backwards), `csg`/`weg`/`itr` `v0.1.0`. PyPI publication is not part of this design. Rollback is a pin bump to the previous tag, never a retag.
 
 ### AD-10 — Provisioning addresses tools by `{name, repo, tag}` and assets by the checkout
 
@@ -167,7 +175,7 @@ graph TD
 
 - **Binds:** `roles/verify`, `scripts/deploy-coverage.py`, provisioning tests
 - **Prevents:** a green `command -v` hiding a wrong-tag install (`S2` §3: `verify` has no pin assertion for the CLIs, unlike the `ags-apps` capture-tool precedent at `S2` §5.4).
-- **Rule:** `verify` carries independent literal pins mirroring the role (manual manifest is authoritative, role and verify mirror it, and a parity test asserts all three agree). It asserts the checkout path contains the tag, the installed package version equals the tag with the leading `v` stripped, the contract version reported by each CLI equals the `cli-output` tag pinned by `dotfiles-v3`, and the expected image exists **at the tag-qualified image tag** for container-mode CLIs. `deploy-coverage` asserts: every entry has `repo` and `tag` (and, once the last CLI slice lands, no `source:` key at all); role vars, manifest and verify pins agree; the retired trees do not exist; no `path =`/`editable = true` pin remains in any `pyproject.toml`. Strict `source:`-absence is staged: per-entry while the manifest is mixed, catch-all after the last CLI slice.
+- **Rule:** `verify` carries independent literal pins mirroring the role (manual manifest is authoritative, role and verify mirror it, and a parity test asserts all three agree). It asserts the checkout path contains the tag, the installed package version equals the tag with the leading `v` stripped, the contract version reported by each CLI equals the `contracts` tag pinned by `dotfiles-v3` (and by the CLI's own repo — one tag, four consumers), and the expected image exists **at the tag-qualified image tag** for container-mode CLIs. `deploy-coverage` asserts: every entry has `repo` and `tag` (and, once the last CLI slice lands, no `source:` key at all); role vars, manifest and verify pins agree; the retired trees do not exist; no `path =`/`editable = true` pin remains in any `pyproject.toml`. Strict `source:`-absence is staged: per-entry while the manifest is mixed, catch-all after the last CLI slice.
 
 ### AD-12 — Repo birth is mu-strict, from the first commit
 
@@ -191,7 +199,7 @@ graph TD
 
 - **Binds:** `openspec/` (dotfiles root) and `src/cli-tools/openspec/`
 - **Prevents:** a spec that describes code in another repo becoming a second, stale source of truth (`S4` §1.6: 590 hits, 147 files).
-- **Rule:** a spec whose subject is one package moves to that package's repo. Cross-package specs that describe the CLI↔runtime boundary (`interface-contract-test`, `container-adapter-env-contract`) move to `cli-output` with the contract. The nested `src/cli-tools/openspec/` (one csg-only change plus a placeholder spec) moves to the csg repo's `openspec/changes/archive/`. `openspec/changes/archive/**` stays in `dotfiles-v3` as immutable history with a pointer note; it is never migrated or rewritten.
+- **Rule:** a spec whose subject is one package moves to that package's repo. Cross-package specs that describe the CLI↔runtime boundary (`interface-contract-test`, `container-adapter-env-contract`) move to `contracts` with the invocation contract (S0a/S0b), because the record they describe lives there. The nested `src/cli-tools/openspec/` (one csg-only change plus a placeholder spec) moves to the csg repo's `openspec/changes/archive/`. `openspec/changes/archive/**` stays in `dotfiles-v3` as immutable history with a pointer note; it is never migrated or rewritten.
 
 ### AD-16 — Backward compatibility is behavioral, not layout-preserving
 
@@ -203,12 +211,12 @@ graph TD
 
 | Concern | Convention |
 | --- | --- |
-| Repo / package / console names | unchanged: `cli-output`, `config-assembler-engine`, `oci-runtime`, `color-scheme-generator` (`csg`), `wallpaper-effects-generator` (`weg`), `icon-templates-renderer` (`itr`) |
+| Repo / package / console names | unchanged for the six: `cli-output`, `config-assembler-engine`, `oci-runtime`, `color-scheme-generator` (`csg`), `wallpaper-effects-generator` (`weg`), `icon-templates-renderer` (`itr`); contract repo `contracts`, package `cli-invocation-contract` / `cli_invocation_contract` (new) |
 | Tag format | annotated `vMAJOR.MINOR.PATCH`, one package per repo, monotonic, never moved |
 | Branch / worktree | `ticket/<id>-<slug>` in `.worktrees/<id>/`, created by `scripts/worktree-guard.sh` |
 | Commits | planning vs implementation separate; one extraction = import commit + pin commit + deletion commit |
 | Env contract | existing prefixes unchanged: `COLORSCHEME__`, `WALLPAPER__`, `ICON_RENDERER__`; the runtime allowlist is the boundary (`env.py:22-87`) |
-| Artifact contract | existing filenames and hashes unchanged (`S1` §2.2); the contract record is the single source |
+| Artifact contract | existing filenames and hashes unchanged (`S1` §2.2); the record in `contracts` (`invocation-contract.json`) is the single source |
 | Settings discovery | unchanged CLI-side order: `--config` → env → cwd traversal → XDG → packaged default (`S3` §0); provisioning keeps the XDG symlink model |
 | Errors / exit codes | unchanged: non-zero exit with stderr preserved; `itr` permission branch stays `PermissionError` until the contract records it (`S1` §2.4) |
 | Docs | each repo README states its public surface + how dotfiles pins it; no doc names a path in another repo |
@@ -240,9 +248,12 @@ lockfile is stale) and `uv tool install git+<url>@<tag>` (tag pin syntax), both 
 ```mermaid
 graph LR
   subgraph leaves["leaf repos"]
-    CO["cli-output v0.2.0"]
+    CO["cli-output v0.1.0"]
     CAE["config-assembler-engine v0.1.0"]
     OCI["oci-runtime v0.5.0"]
+  end
+  subgraph seam["cross-repo seam"]
+    CTR["contracts v0.1.0<br/>cli-invocation-contract"]
   end
   subgraph clis["CLI repos"]
     ITR["itr v0.1.0"]
@@ -250,6 +261,10 @@ graph LR
     CSG["csg v0.1.0"]
   end
   D["dotfiles-v3<br/>runtime + provisioning"]
+  CTR --> ITR
+  CTR --> WEG
+  CTR --> CSG
+  CTR --> D
   CO --> ITR
   CO --> WEG
   CO --> CSG
@@ -297,21 +312,22 @@ graph TD
 
 | Repo | Owns | Public surface | Consumes | Must not |
 | --- | --- | --- | --- | --- |
-| `cli-output` | rendering ports/adapters + invocation contract + conformance kit | `cli_output` package, `cli_output.invocation`, `cli_output.invocation.testkit` | `rich` only | import a sibling package; know a file path in another repo |
+| `contracts` | the runtime↔CLI invocation contract (data + `cli_invocation_contract.testkit`) alongside its existing AGS event contract | `cli_invocation_contract` package, `invocation-contract.json` | none (stdlib only) | render UI; know a CLI’s argv beyond the record |
+| `cli-output` | rendering ports/adapters (presentation only) | `cli_output` package | `rich` only | host the invocation contract (AD-4); import a sibling package; know a file path in another repo |
 | `config-assembler-engine` | resolution strategies, config assembly | `config_assembler_engine` package | `pydantic`, `pyyaml` | know a tool’s XDG subdir or settings filename |
 | `oci-runtime` | container engine abstraction, build/run/exec, build-context locator | `oci_runtime` package incl. `resolve_build_context` | none | ship a Dockerfile; know a CLI’s build flags |
-| `icon-templates-renderer` | `itr render`, template/mappings discovery | console `itr`; settings schema | `cli-output`, `config-assembler-engine` | depend on `oci-runtime`; invoke another CLI |
-| `wallpaper-effects-generator` | `weg batch`, catalog/effects, image build | console `weg`; `image build`/`install`; Dockerfiles | `cli-output`, `config-assembler-engine`, `oci-runtime` | read a dotfiles path; COPY a sibling repo |
-| `color-scheme-generator` | `csg generate`, templates, backend images | console `csg`; `image build`/`install`; Dockerfiles + template defaults | `cli-output`, `config-assembler-engine`, `oci-runtime` | read a dotfiles path; COPY a sibling repo |
-| `dotfiles-v3` (host) | runtime, provisioning, desktop config, pin policy | `dotfiles-runtime`; Ansible roles; `cli-tools.yaml` | six pinned tags | import or vendor a CLI/lib tree; run their tests |
+| `icon-templates-renderer` | `itr render`, template/mappings discovery | console `itr`; settings schema | `cli-output`, `config-assembler-engine`, `contracts` | depend on `oci-runtime`; invoke another CLI |
+| `wallpaper-effects-generator` | `weg batch`, catalog/effects, image build | console `weg`; `image build`/`install`; Dockerfiles | `cli-output`, `config-assembler-engine`, `oci-runtime`, `contracts` | read a dotfiles path; COPY a sibling repo |
+| `color-scheme-generator` | `csg generate`, templates, backend images | console `csg`; `image build`/`install`; Dockerfiles + template defaults | `cli-output`, `config-assembler-engine`, `oci-runtime`, `contracts` | read a dotfiles path; COPY a sibling repo |
+| `dotfiles-v3` (host) | runtime, provisioning, desktop config, pin policy | `dotfiles-runtime`; Ansible roles; `cli-tools.yaml` | six pinned tags + one `contracts` tag | import or vendor a CLI/lib tree; run their tests |
 
 ## Resolved Hard Problems
 
 | # | Problem | Decision | Consequences | Evidence |
 | --- | --- | --- | --- | --- |
 | 1 | Container build topology | AD-5 + AD-6 + AD-7 + AD-10: context is the CLI repo checkout; new `resolve_build_context` marker (`pyproject.toml` + `src/<pkg>`); CLI repo owns Dockerfiles/verb, provisioning owns pin/clone/trigger; `--source-root` kept as alias, `resolve_source_root` deprecated for one minor | Dockerfiles lose all `src/shared`/`src/cli-tools` COPY lines; images are built at provision time from `<install>/cli-tools/<name>/<tag>`; registry publication deferred; old installed tools can run but not build (AD-16) | `S2` §2.3, §7.1 items 5, 12, 13; `S4` §2.5–2.6; `source_locator.py:37-39,109-144`; `Dockerfile.base:3-7`; `Dockerfile.imagemagick:9-19` |
-| 2 | Test hermeticity | AD-8: rule at the test layer (autouse fixture + canary + scrubbed CI env), fixed in-tree **before** the first extraction (slice S0); resolvers untouched | The two known failures disappear without weakening the intended XDG precedence; every extracted suite is green on first run in its new repo; CI cannot inherit a developer’s spine | `S3` §5.1 (observed failures + pass with empty XDG), §1.4, §5.4 |
-| 3 | Contract ownership | AD-4: contract data + conformance kit in `cli-output`; every consumer pins the same tag and executes the kit | `cli-output`’s charter expands (flagged OPEN); the runtime and each CLI drop their duplicated argv/env literal tests; a contract change is a version bump, never a silent edit | `S1` §1.3–1.5, §2.2, §4.1, §6.1; `S4` §2.2 (both runtime and provisioning already depend on `cli-output`) |
+| 2 | Test hermeticity | AD-8: rule at the test layer (autouse fixture + canary + scrubbed CI env), fixed in-tree **before** the first extraction (slice S0b); resolvers untouched | The two known failures disappear without weakening the intended XDG precedence; every extracted suite is green on first run in its new repo; CI cannot inherit a developer’s spine | `S3` §5.1 (observed failures + pass with empty XDG), §1.4, §5.4 |
+| 3 | Contract ownership | AD-4: contract data + conformance kit live in the `contracts` repo (package `cli-invocation-contract`); every consumer pins the same `contracts` tag and executes the kit; `cli-output` stays presentation-only | `cli-output`’s charter is unchanged; `contracts` gains a `pyproject.toml` and its first tag (`v0.1.0`); the runtime and each CLI drop their duplicated argv/env literal tests; a contract change is a new tag, never a silent edit | `S1` §1.3–1.5, §2.2, §4.1, §6.1; `contracts`: `git tag -l` empty, `ls pyproject.toml` exit 2, `README.md:5` |
 | 4 | Pin policy | AD-3 + AD-9 + AD-10 + AD-11: git+tag sources with locks; `{name, repo, tag}` manifest; clone-by-tag instals; verify asserts tags by execution; `deploy-coverage` asserts shape and absence | No path/editable pins remain anywhere; a stale local path is a gate failure with a named file; pin bumps become reviewable one-line commits | `S2` §1.1–1.3, §3, §4, §5.1–5.4; `S4` §2.4; `S4` §7.5 |
 | 5 | Versioning / release | AD-9: tag-per-repo release ritual, GitHub Release artifacts, no PyPI, version continuity at first tag | Nothing is published today, so the first tag in each slice is the first ever artifact; consumers pin tags immediately; PyPI/registry remains an OPEN decision, not a blocker | `S4` §4 (no publish config, no README/CHANGELOG, no classifiers); `S1` §4.5 (`latest` image tag, unversioned installs) |
 | 6 | dotfiles gates after the split | AD-11 + AD-14: keep `GATES` as-is; grow `deploy-coverage` with pin-shape and retired-tree assertions; move the 195 test files to per-repo CI | `make gates-ci` stays five targets; no dotfiles gate points at a moved suite; the catch-all absence guard mirrors the `src/gui-tools` precedent | `S4` §1.1 (zero references in Makefile/scripts/CI), §5.3 (absence-guard precedent), §6 (test counts); measured counts below |
@@ -372,45 +388,56 @@ first release commit (product metadata):
 6. `assets.yaml`/`assets` role carry no `src/cli-tools` source; csg templates resolve from the
    pinned checkout.
 7. The runtime has no `src/cli-tools/...` candidate left in input resolution.
+8. One contract tag: the `contracts` tag pinned by the runtime equals the one pinned by each CLI
+   and by `roles/verify` (`contracts_tag`, mirrored like the CLI pins), and each CLI's `--version`
+   contract token equals it (AD-4, AD-11).
 
 ## Deferred
 
 | Deferred | Why it can wait |
 | --- | --- |
-| Publishing images to a registry with digest pins | local build from the pinned checkout is sufficient and registry availability is unknown (OPEN) |
-| PyPI / private index for the shared libs | git tags + GitHub Release artifacts cover every consumer today |
+| Publishing images to a registry with digest pins | resolved for now: no registry; local build from the pinned checkout is the only path |
+| PyPI / private index for the shared libs | git tags + GitHub Release artifacts cover every consumer today; git-tag-only is the accepted permanent channel |
 | `dotfiles-runtime` extraction | out of scope for the six; runtime stays the host until the contract and CLI split are stable |
-| Splitting the contract into its own repo/package | `cli-output` already has every consumer as a dependency; revisit only if its charter becomes incoherent |
+| Splitting the contract into its own repo/package | resolved the other way: the contract already lives in the charter-matched `contracts` repo, so nothing is split out of `cli-output` |
 | Moving `openspec/changes/archive/**` | immutable history; migrating it would rewrite provenance for no build benefit |
-| Preserving per-package git history (`filter-repo`) | an import commit plus tag satisfies the pin model; history preservation is cosmetic (OPEN) |
+| Preserving per-package git history (`filter-repo`) | resolved: history is preserved with `git subtree split` per package (S0b/S1 note), so no rewrite is needed |
 | `itr` container mode | it has none today and none is planned (`S2` §2.1 `cli_tools_image_builds`) |
 
-## Open Questions
+## Resolved Decisions
 
-These need the human. They do not change the invariants above, but they block **slice entry**
-(repo creation) rather than design:
+**Owner:** inumaki · **Date:** 2026-10-19 · **Status:** nothing blocks slice entry; every
+slice-entry question is answered.
 
-1. **Hosting and visibility.** Which owner/org hosts the six repos, and are they public? A private
-   repo breaks the anonymous HTTPS clone model that `ags_apps` uses (and that the pin channel
-   assumes).
-2. **Container registry.** Is `ghcr.io` (or another registry) available for digest-pinned images, or
-   do we keep build-at-provision from the pinned checkout as the only path?
-3. **PyPI / index.** Should the shared libs ever publish to PyPI or a private index, or is
-   git-tag-only permanent?
-4. **Naming finalization.** Are the six repo names final and identical to the package names
-   (`cli-output`, `config-assembler-engine`, `oci-runtime`, `color-scheme-generator`,
-   `wallpaper-effects-generator`, `icon-templates-renderer`)? Renames after the first tag are
-   expensive.
-5. **Licensing.** Which `LICENSE` do the six repos carry? None exists today (`S4` §4).
-6. **Ownership.** Who merges and tags each repo — single maintainer, or `CODEOWNERS` per repo?
-7. **`cli-output` charter.** Does `cli-output` accept the expanded charter (rendering **and** the
-   invocation contract), or should the contract become a seventh package before `v0.1.0`?
-8. **`dotfiles-runtime` scope.** Does the runtime ever move too? It is out of scope here, but
-   `contracts-check` and the derive fallbacks assume it stays.
-9. **Git history.** Preserve per-package history (`git filter-repo` / subtree) or start each repo
-   with one import commit?
-10. **First-tag versions.** Confirm `oci-runtime`’s first tag is `v0.5.0` (forward-only from 0.4.0),
-    or reset every first tag to `v0.1.0`.
+Numbering: OPEN-1…OPEN-6 are unchanged. The former OPEN-7 (`cli-output` charter) is **removed**
+and recorded separately below; the former OPEN-8…OPEN-10 are renumbered OPEN-7…OPEN-9.
+`SLICES.md` uses these new numbers.
+
+| # | Question | Resolution | Source |
+| --- | --- | --- | --- |
+| OPEN-1 | Hosting and visibility | GitHub owner `RandomGenericUsername`; the repos are **public**, so the anonymous HTTPS clone model keeps working | user-approved 2026-10-19 |
+| OPEN-2 | Container registry | **No registry initially** — images build at provision time from the pinned checkout; digest-pinned registry publication is deferred | user-approved 2026-10-19 |
+| OPEN-3 | PyPI / index | **git-tag-only**, no PyPI and no private index; GitHub Release artifacts are the distribution channel | user-approved 2026-10-19 |
+| OPEN-4 | Naming | The six names are final and identical to the package names: `cli-output`, `config-assembler-engine`, `oci-runtime`, `color-scheme-generator`, `wallpaper-effects-generator`, `icon-templates-renderer` | user-approved 2026-10-19 |
+| OPEN-5 | Licensing | **MIT** `LICENSE` in each new repo; the file exists before the first tag | user-approved 2026-10-19 |
+| OPEN-6 | Ownership | **Single maintainer** (`RandomGenericUsername`); no per-repo `CODEOWNERS` | user-approved 2026-10-19 |
+| OPEN-7 | `dotfiles-runtime` scope | **Out of scope**; the runtime stays in `dotfiles-v3` (contract check + derive fallbacks keep assuming it) | user-approved 2026-10-19 |
+| OPEN-8 | Git history | **Preserve** per-package history with `git subtree split` (not `filter-repo`), then tag the split result | user-approved 2026-10-19 |
+| OPEN-9 | First-tag versions | **Forward-only**: `contracts v0.1.0`, `cli-output v0.1.0`, `config-assembler-engine v0.1.0`, `oci-runtime v0.5.0` (from 0.4.0), `itr`/`weg`/`csg` `v0.1.0` | user-approved 2026-10-19 |
+
+### Contract ownership (the removed OPEN-7) — resolved
+
+Decision recorded verbatim:
+
+> the runtime↔CLI invocation contract lives in the **`contracts` repo**
+> (`/home/inumaki/Development/contracts`), NOT in `cli-output`. `cli-output` stays
+> presentation-only. Rationale: `contracts` is already the chartered cross-repo seam repo
+> ("Single source of truth for the runtime ↔ AGS event seam"), matching the established
+> `contracts → ags-platform → ags-apps` topology; cli-output keeps single-purpose rendering.
+
+- **Owner:** inumaki · **Date:** 2026-10-19 · **Source:** user-approved 2026-10-19.
+- **Consequence:** AD-4 rewritten as above; `contracts` gains the `cli-invocation-contract`
+  package and its first tag in S0a; `cli-output`’s charter is unchanged.
 
 ## Evidence Index
 
