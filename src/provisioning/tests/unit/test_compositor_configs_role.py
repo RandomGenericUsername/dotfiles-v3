@@ -1317,6 +1317,29 @@ class TestDeployCoverageGate:
                 + result.stdout
             )
 
+    def test_gate_fails_when_the_retired_gui_tools_root_returns(self) -> None:
+        """The in-repo GUI source ROOT is retired: every app deploys WHOLE from
+        the ags-apps unit, so `src/gui-tools/` must not exist even as an empty
+        leftover. The per-app checks catch a known app name; this catch-all
+        proves an UNKNOWN leftover cannot make the emptied directory look like a
+        legitimate home for a future in-repo GUI source."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "src" / "gui-tools"
+            stray.mkdir(parents=True)
+            (stray / "README.md").write_text("# stray in-repo GUI source\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-repo GUI source root "
+                f"returns; recap:\n{result.stdout}"
+            )
+            assert "src/gui-tools" in result.stdout, (
+                "the failure must name the retired GUI source root; recap:\n"
+                + result.stdout
+            )
+
     def test_gate_fails_when_the_capture_cli_symlink_is_not_provisioned(self) -> None:
         """The CLI must be installed from the unit. If ags_apps stops declaring
         the bin-dir symlink (backend source + entry point), deleting the in-repo
@@ -1376,10 +1399,9 @@ class TestDeployCoverageGate:
 
     def test_gate_fails_when_the_retired_wallpaper_selector_dir_returns(self) -> None:
         """Slice 6: the wallpaper selector is a WHOLE package — the entire in-repo
-        src/gui-tools/wallpaper-selector/ dir must be gone (unlike capture-tool,
-        whose Python backend survives). A surviving copy is a second source of truth
-        that no gate deploys, so the gate must FAIL when it exists even with the
-        per-file manifest correctly retired."""
+        src/gui-tools/wallpaper-selector/ dir must be gone. A surviving copy is a
+        second source of truth that no gate deploys, so the gate must FAIL when it
+        exists even with the per-file manifest correctly retired."""
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

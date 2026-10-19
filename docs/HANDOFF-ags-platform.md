@@ -192,8 +192,9 @@ never merged to `master`; the completion record was written there in place.
 - **In-repo duplicates removed per slice:** `dtf:03272b60` (bar bridge),
   `f5cf4037` (hypr-pano), `71958a50` (capture GUI), `52654621`
   (wallpaper-selector), `66990194` (icme), `8d733b3f` (btop-theme-studio).
-  `config/` no longer exists; `src/gui-tools/` holds only capture-tool's Python
-  backend (`bin/`), which stays in-repo by design.
+  `config/` no longer exists; `src/gui-tools/` is gone entirely — capture-tool's
+  Python backend now ships in the unit too (`capture-tool/bin/`), installed by
+  `cli_tools`.
 - **Open bookkeeping gap:** the `ags-apps` ticket roll-up was never applied —
   `tickets/INDEX.md:11-16` still shows REQ-001…REQ-006 as `proposed` and
   REQ-007 as `in-progress` while every slice is merged and tagged.

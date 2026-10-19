@@ -29,7 +29,10 @@ Run them:
 `src/provisioning/ansible/roles/compositor_configs/vars/main.yml`
 (`compositor_configs_skeleton_files`) **and** the `verify` role mirror — otherwise
 a fresh provision deploys an unresolvable import. This applies to the **non-bar**
-skeletons (hypr / hyprpaper / rofi) and to the `gui_tools_*_app_files` lists.
+skeletons (hypr / hyprpaper / rofi). Every GUI app now deploys WHOLE from the
+`ags-apps` unit, so this repo has NO in-repo GUI per-app source manifests (the
+old `gui_tools_*_app_files` lists are retired and `src/gui-tools/` is gone):
+extend the unit instead of re-adding a per-file GUI list.
 
 The **bar is exempt**: it deploys **whole** as the pinned external `ags-apps`
 unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live

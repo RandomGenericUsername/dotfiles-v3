@@ -1,8 +1,9 @@
 """Structural tests for the gui_tools role (extract-capture-gui-tool).
 
-Mirrors test_compositor_configs_role.py, trimmed to app placement: the role
-places standalone GUI app sources (src/gui-tools/<tool>/) into their own
-config-in-spine dirs via per-file template copies, repo-authoritative.
+Mirrors test_compositor_configs_role.py, trimmed to the instance/launch
+plumbing that remains: every GUI app now deploys WHOLE from the `ags-apps`
+unit (slices 3-8), so the role carries NO per-file app manifests and the old
+in-repo `src/gui-tools/` source root is retired.
 """
 
 from __future__ import annotations
@@ -587,4 +588,18 @@ class TestBtopStudioRegistration:
         keybinds = (_REPO_ROOT / "dotfiles/config/hypr/keybindings.lua").read_text(encoding="utf-8")
         assert "btop-theme-studio" in keybinds, (
             "the studio must have a provisioned keybind launcher"
+        )
+
+
+class TestRetiredGuiSourceRoot:
+    def test_retired_gui_source_root_is_gone(self) -> None:
+        """Every app moved into the `ags-apps` unit (slices 3-8), so the in-repo
+        GUI source root has no remaining purpose. It must not exist even as an
+        empty leftover: an empty directory is the obvious place for a future
+        in-repo source that no gate deploys. `deploy-coverage` asserts the same
+        absence; this pins the repo state directly."""
+        retired = _REPO_ROOT / "src" / "gui-tools"
+        assert not retired.exists(), (
+            "the retired in-repo GUI source root src/gui-tools/ must be deleted "
+            "— every app deploys WHOLE from the ags-apps unit"
         )
