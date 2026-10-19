@@ -10,13 +10,13 @@
 #   an undefined spine root aborts before any task evaluates.
 # - App placement uses `ansible.builtin.template` (or raw `copy` where the
 #   sources contain Jinja-sensitive sequences) with PER-FILE entries
-#   (gui_tools_icme_app_files / gui_tools_wallpaper_selector_app_files /
-#   gui_tools_btop_studio_app_files), NOT a directory source: review finding
-#   2026-08-12 proved `copy` with a directory `src` + a pre-existing dest dir is
-#   a SILENT NO-OP. Per-file copy is the only safe shape.
-# - The bar, the clipboard overlay, the notification overlay and the capture-tool
-#   GUI are NOT placed here: they deploy WHOLE as the pinned external `ags-apps`
-#   unit and are linked by the `ags_apps` role (slices 2-5).
+#   (gui_tools_icme_app_files / gui_tools_btop_studio_app_files), NOT a directory
+#   source: review finding 2026-08-12 proved `copy` with a directory `src` + a
+#   pre-existing dest dir is a SILENT NO-OP. Per-file copy is the only safe shape.
+# - The bar, the clipboard overlay, the notification overlay, the capture-tool
+#   GUI and the wallpaper selector are NOT placed here: they deploy WHOLE as the
+#   pinned external `ags-apps` unit and are linked by the `ags_apps` role
+#   (slices 2-6).
 # - Skeletons are repo-authoritative (`force: true`, idempotent): every
 #   bootstrap converges to the repo (owner decision 2026-08-26, shared with
 #   compositor_configs).
@@ -71,15 +71,17 @@
 # would template INTO the unit tree through the live-pano link and diverge the
 # live app from the pinned tag (the deploy-coverage gate asserts its absence).
 
-# The wallpaper selector sources carry no Jinja-sensitive sequences (the role
-# test pins that), so they take the same per-file, repo-authoritative template
-# placement as the icme editor.
-- name: Place wallpaper selector app files
-  ansible.builtin.template:
-    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
-    dest: "{{ item.dest }}"
-    force: true
-  loop: "{{ gui_tools_wallpaper_selector_app_files }}"
+# The wallpaper selector's per-file placement is RETIRED (slice 6): the selector
+# moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
+# live-wallpaper-selector link (<install>/config/ags-wallpaper-selector ->
+# <unit>/wallpaper-selector). No placement task remains here — a stale one would
+# template INTO the unit tree through the live-wallpaper-selector link and diverge
+# the live selector from the pinned tag (the deploy-coverage gate asserts its
+# absence). The on-demand `wallpaper-selector` AGS instance entry in
+# gui_tools_ags_instances STAYS: the provisioned `wallpaper-selector-ui` launcher
+# and autostart.lua start the selector from the now-symlinked
+# ~/.config/ags-wallpaper-selector. Unlike capture-tool the selector is a whole
+# package — nothing stays in-repo.
 
 # The notifications overlay's per-file placement is RETIRED (slice 4): the
 # daemon moved into the ags-apps unit and deploys WHOLE via the ags_apps role's

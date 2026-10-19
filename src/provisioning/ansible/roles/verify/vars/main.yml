@@ -506,7 +506,7 @@ verify_ags_platform_unit_files:
 #   platform unit: esbuild realpaths the live-bar link, so the shared-ancestor
 #   shortcut is not an ancestor of the real bar tree and the bar's bare
 #   `ags-platform` imports would not resolve without it.
-verify_ags_apps_version: v0.3.5
+verify_ags_apps_version: v0.3.6
 verify_ags_apps_platform_version: v0.2.0
 verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
 verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
@@ -599,8 +599,8 @@ verify_ags_apps_live_capture_link: "{{ install_dir | trim }}/config/ags-capture"
 #   classic-layout shell, the pure settings domain, the single request->argv
 #   translator (the file that carries the --size/--audio vocabulary), a port and
 #   an adapter. A missing file is a capture panel that cannot bundle. NOTE: the
-#   v0.3.5 unit's capture-tool has NO lib/icon-registry.ts — it consumes the
-#   platform icon registry through `ags-platform` instead, so no such file is
+#   pinned v0.3.6 unit's capture-tool has NO lib/icon-registry.ts — it consumes
+#   the platform icon registry through `ags-platform` instead, so no such file is
 #   asserted here.
 verify_ags_apps_capture_tool_files:
   - "{{ verify_ags_apps_capture_tool_dir }}/app.tsx"
@@ -611,33 +611,59 @@ verify_ags_apps_capture_tool_files:
   - "{{ verify_ags_apps_capture_tool_dir }}/ports/capture-ports.ts"
   - "{{ verify_ags_apps_capture_tool_dir }}/adapters/exec-capture-launcher.ts"
 
+# verify_ags_apps_wallpaper_selector_dir / _live_wallpaper_selector_link /
+#   _wallpaper_selector_files: the wallpaper selector, deployed WHOLE like the
+#   bar/hypr-pano/notifications/capture-tool (slice 6). The
+#   live-wallpaper-selector link <install>/config/ags-wallpaper-selector is a
+#   symlink into the unit's wallpaper-selector/ dir, so the live selector is
+#   always exactly the pinned tag — no per-file mirror can drift. Mirror of the
+#   ags_apps role vars. The ~/.config/ags-wallpaper-selector symlink
+#   (config_links) and the `wallpaper-selector-ui` launcher / autostart.lua are
+#   unchanged: they resolve through this link. The selector is a whole package —
+#   unlike capture-tool nothing stays in-repo.
+verify_ags_apps_wallpaper_selector_dir: "{{ verify_ags_apps_unit_dir }}/wallpaper-selector"
+verify_ags_apps_live_wallpaper_selector_link: "{{ install_dir | trim }}/config/ags-wallpaper-selector"
+
+# verify_ags_apps_wallpaper_selector_files: representative files that MUST be
+#   present in the installed unit's wallpaper-selector/. NOT the whole app (that
+#   is the clone's job) — one file per concern: the composition-root entry, the
+#   stylesheet, the selector window, and the pure lib modules the window imports
+#   (the wallpaper model, the scan walk, the thumbnail cache and the apply /
+#   contrast helpers). A missing file is a selector that cannot bundle. NOTE: the
+#   pinned v0.3.6 unit's wallpaper-selector has NO lib/icon-registry.ts,
+#   lib/event-bus*.ts or lib/theme.ts — it consumes the platform icon registry and
+#   theme adapter through `ags-platform` instead, so no such files are asserted.
+verify_ags_apps_wallpaper_selector_files:
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/app.tsx"
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/style.css"
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/ui/WallpaperSelectorWindow.tsx"
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/lib/model.ts"
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/lib/scan.ts"
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/lib/thumbnails.ts"
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/lib/apply.ts"
+  - "{{ verify_ags_apps_wallpaper_selector_dir }}/lib/contrast.ts"
+
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
-#   mirror of gui_tools_icme_app_files + gui_tools_wallpaper_selector_app_files
-#   + gui_tools_btop_studio_app_files dests). The ICME event seam modules
-#   (event-contract.ts, event-bus.ts) and the wallpaper.state consumer core
-#   (event-bus-core.ts) are gated here so a real install cannot ship an editor
-#   whose event contract or live palette refresh is missing.
+#   mirror of gui_tools_icme_app_files + gui_tools_btop_studio_app_files dests).
+#   The ICME event seam modules (event-contract.ts, event-bus.ts) and the
+#   wallpaper.state consumer core (event-bus-core.ts) are gated here so a real
+#   install cannot ship an editor whose event contract or live palette refresh is
+#   missing.
 #   NOTE: the capture-tool AGS GUI is deliberately NOT mirrored per file here
 #   anymore (slice 5). It moved into the ags-apps unit and deploys WHOLE via
 #   the live-capture link; its sources are asserted as a UNIT below
 #   (verify_ags_apps_capture_tool_files). Keeping a stale per-file mirror here
 #   would assert files the bridge no longer deploys. The bar's old
 #   ags/capture/* paths are likewise absent (the legacy subtree is retired).
+#   NOTE: the wallpaper selector is deliberately NOT mirrored per file here
+#   anymore (slice 6). It moved into the ags-apps unit and deploys WHOLE via the
+#   live-wallpaper-selector link; its sources are asserted as a UNIT below
+#   (verify_ags_apps_wallpaper_selector_files).
 verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/app.tsx"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/style.css"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/ui/WallpaperSelectorWindow.tsx"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/model.ts"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/scan.ts"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/thumbnails.ts"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/apply.ts"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/icon-registry.ts"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts"
-  - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts"
   # NOTE: the notification overlay is deliberately NOT mirrored per file here
   # anymore (slice 4). It used to be placed per file under config/ags-notifications/;
   # the consumption step installs it as ONE versioned unit via the `ags_apps`

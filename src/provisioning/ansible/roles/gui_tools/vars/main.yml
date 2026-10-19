@@ -45,6 +45,18 @@
 # Python backend is NOT a GUI-tools concern at all: it stays in-repo and is
 # installed by cli_tools. The deploy-coverage gate asserts the absence of a stale
 # per-file capture entry.
+#
+# wallpaper-selector IS RETIRED AS A GUI-TOOLS APP (slice 6). The selector moved
+# into the same ags-apps monorepo unit and deploys WHOLE via the ags_apps role's
+# live-wallpaper-selector link (<install>/config/ags-wallpaper-selector ->
+# <unit>/wallpaper-selector), so this role no longer enumerates it per file and
+# carries no selector app_files manifest. The on-demand `wallpaper-selector` AGS
+# instance entry STAYS in gui_tools_ags_instances below: it is the mechanism the
+# provisioned `wallpaper-selector-ui` launcher (cli_tools) and autostart.lua use
+# to start the selector from ~/.config/ags-wallpaper-selector (the config-links
+# symlink to the live-wallpaper-selector link). The selector is a whole package —
+# unlike capture-tool, nothing stays in-repo. The deploy-coverage gate asserts the
+# absence of a stale per-file selector entry.
 
 # gui_tools_repo_root: repo root derived from this playbook's location.
 #   Mirror of compositor_configs_repo_root / cli_tools_repo_root exactly.
@@ -87,9 +99,6 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
-  - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector"
-  - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/ui"
-  - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib"
@@ -135,25 +144,13 @@ gui_tools_icme_app_files:
   - { name: icme-lib-event-bus, source: src/gui-tools/icon-color-mapping-editor/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/event-bus.ts" }
   - { name: icme-lib-theme, source: src/gui-tools/icon-color-mapping-editor/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-icme/lib/theme.ts" }
 
-# gui_tools_wallpaper_selector_app_files: the wallpaper selector's app files,
-#   deployed into their own ags-wallpaper-selector/ spine dir. Rendered via
-#   `template` with force: true (repo-authoritative); the sources contain no
-#   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
-#   test) — the same repo-authoritative template placement as the icme copy
-#   discipline.
-gui_tools_wallpaper_selector_app_files:
-  - { name: wallpaper-selector-app-tsx, source: src/gui-tools/wallpaper-selector/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/app.tsx" }
-  - { name: wallpaper-selector-style-css, source: src/gui-tools/wallpaper-selector/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/style.css" }
-  - { name: wallpaper-selector-window, source: src/gui-tools/wallpaper-selector/ui/WallpaperSelectorWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/ui/WallpaperSelectorWindow.tsx" }
-  - { name: wallpaper-selector-lib-model, source: src/gui-tools/wallpaper-selector/lib/model.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/model.ts" }
-  - { name: wallpaper-selector-lib-scan, source: src/gui-tools/wallpaper-selector/lib/scan.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/scan.ts" }
-  - { name: wallpaper-selector-lib-thumbnails, source: src/gui-tools/wallpaper-selector/lib/thumbnails.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/thumbnails.ts" }
-  - { name: wallpaper-selector-lib-apply, source: src/gui-tools/wallpaper-selector/lib/apply.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/apply.ts" }
-  - { name: wallpaper-selector-lib-contrast, source: src/gui-tools/wallpaper-selector/lib/contrast.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/contrast.ts" }
-  - { name: wallpaper-selector-lib-icon-registry, source: src/gui-tools/wallpaper-selector/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/icon-registry.ts" }
-  - { name: wallpaper-selector-lib-event-bus-core, source: src/gui-tools/wallpaper-selector/lib/event-bus-core.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus-core.ts" }
-  - { name: wallpaper-selector-lib-event-bus, source: src/gui-tools/wallpaper-selector/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus.ts" }
-  - { name: wallpaper-selector-lib-theme, source: src/gui-tools/wallpaper-selector/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/theme.ts" }
+# gui_tools_wallpaper_selector_app_files is RETIRED (slice 6): the wallpaper
+# selector moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
+# live-wallpaper-selector link (<install>/config/ags-wallpaper-selector ->
+# <unit>/wallpaper-selector). No per-file manifest remains — a stale entry would
+# template INTO the unit tree through the link and diverge the live selector from
+# the pinned tag (the deploy-coverage gate asserts its absence). The AGS instance
+# entry that STARTS the selector stays in gui_tools_ags_instances below.
 
 # gui_tools_notifications_app_files is RETIRED (slice 4): the notification
 # daemon moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
