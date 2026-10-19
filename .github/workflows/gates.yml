@@ -19,28 +19,26 @@ name: gates
 # hiding behind a combined command's exit code.
 #
 # WHICH GATES, AND WHY NOT MORE. This file carries one job per runner-capable
-# gate; `make gates-ci` in the Makefile is the authoritative set. ONE gate is
-# excluded from `gates-ci` because it CANNOT run on a stock `ubuntu-latest`
-# runner at all: `capture-typecheck`. It needs `ags` on PATH plus the Astal/GIR
-# libraries it describes, and `ags types` generates ~49 MB of machine-specific
-# .d.ts from THIS host's GTK/Astal install. A hosted runner has no AGS, no Astal
-# and no GTK4, so the target has nothing to check against, and its
-# tolerated-third-party bucket is keyed to the literal /usr/share/ags/js/ path.
-# Listing it here would not make it stricter — it would make every push red on a
-# missing binary, which is how a broken gate trains people to ignore the gate
-# list.
+# gate; `make gates-ci` in the Makefile is the authoritative set. That set is now
+# simply `GATES` with NO exclusions: the one gate that could not run on a stock
+# `ubuntu-latest` runner was `capture-typecheck` (it needed `ags` on PATH plus the
+# Astal/GIR libraries it describes, and `ags types` generates ~49 MB of
+# machine-specific .d.ts from THIS host's GTK/Astal install), and it was RETIRED
+# with the in-repo capture GUI (ags-apps-bar-first slice 5) — the GUI and its
+# gates moved into the `ags-apps` unit. Listing an un-runnable gate here would not
+# make it stricter — it would make every push red on a missing binary, which is how
+# a broken gate trains people to ignore the gate list.
 #
-# `capture-typecheck` has no job here and no self-hosted counterpart: it is a
-# developer-only gate. The bar-dev gates that used to run on a `[self-hosted,
-# linux]` runner were retired with the in-repo bar bridge — the bar's own repo
-# now owns them.
+# The bar-dev gates that used to run on a `[self-hosted, linux]` runner were
+# retired the same way with the in-repo bar bridge — the bar's own repo now owns
+# them.
 #
 # Those differences are DECLARED entries, not absences: `ci-gates-parity`
 # verifies every gate the `gates-ci` filter removes has a reason in
 # `CI_EXCLUDED_GATES` (no stock job) or `CI_SELF_HOSTED_GATES` (excluded from the
 # stock set but still run on a self-hosted runner), and that every declared entry
-# still matches the tree. So an exclusion cannot silently disappear, and a new
-# gate cannot silently join it.
+# still matches the tree. Both tables are empty today, so an exclusion cannot
+# silently disappear, and a new gate cannot silently join one.
 #
 # `make gates` still runs all of them for a developer on a provisioned desktop.
 # Nothing is dropped, only relocated: the honest statement is "this gate does not
@@ -116,38 +114,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Workflow jobs match `make gates-ci`
         run: make ci-gates-parity
-
-  capture-hexagonal:
-    name: capture-hexagonal-gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Capture GUI hexagonal structure + class vocabulary
-        run: python3 scripts/capture-hexagonal-gate.py
-
-  capture-test:
-    name: capture-test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # Pinned, not inherited. The capture domain tests are .ts files run
-      # natively by Node's built-in type-stripping, which is only unflagged from
-      # Node 22.18 — so the runner's preinstalled Node cannot be assumed to be
-      # new enough. 24.x is the current LTS and well past that floor.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      # No `npm install` step here, on purpose: `make capture-test` DECLARES its
-      # own dependencies and installs them on demand via its capture-test-deps
-      # target — typescript at the repo root, @types/node under
-      # src/gui-tools/capture-tool/tests/ — in the same
-      # `npm install --no-save --no-package-lock` shape `capture-typecheck`
-      # already uses for typescript. A gate that installs what it needs cannot
-      # be run at reduced strength by a clean checkout, and CI runs exactly the
-      # same 115 assertions and the same tsc pass a developer does: 115 pass,
-      # 0 fail, 0 skipped.
-      - name: Capture domain unit tests
-        run: make capture-test
 
   # The per-app contract drift + symbol suites, run from the ROOT gate (AD-19).
   # Each app's suite previously ran only via that app's own `make test`, which

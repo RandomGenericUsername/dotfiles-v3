@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity capture-types capture-typecheck capture-test capture-test-deps ags-platform-dev capture-hexagonal-gate dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
+.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -32,36 +32,38 @@ contract-pin-check:
 	python3 scripts/contract-pin-check.py
 
 # Every executable gate, in the order a reviewer should read them: contract
-# first (it is the source of truth), then the capture domain unit tests, then
-# the capture GUI typecheck, then the capture hexagonal structure gate, then the
-# Ansible embedded-template lint, then the provisioning-shape coverage gate, then
-# the per-app contract drift/symbol suites, then the check that keeps the CI
-# workflow's job set equal to this list.
+# first (it is the source of truth), then the Ansible embedded-template lint,
+# then the provisioning-shape coverage gate, then the per-app contract
+# drift/symbol suites, then the check that keeps the CI workflow's job set equal
+# to this list.
 #
-# `gates` is the DEVELOPER gate set and runs ALL of them, including the one that
-# needs the desktop stack. Nothing is dropped for convenience: a gate that is not
-# run here is a gate nobody runs.
-GATES := contracts-check capture-test capture-typecheck \
-         capture-hexagonal-gate ansible-embedded-template-lint \
+# The capture-tool GUI gates (capture-test / capture-typecheck /
+# capture-hexagonal-gate) were RETIRED with the in-repo GUI (ags-apps-bar-first
+# slice 5): the GUI moved into the `ags-apps` unit and its own gates live there.
+# What remains in this repo for capture-tool is the Python backend (installed by
+# cli_tools) and the provisioning SHAPE, which `deploy-coverage` asserts.
+#
+# `gates` is the DEVELOPER gate set and runs ALL of them. Nothing is dropped for
+# convenience: a gate that is not run here is a gate nobody runs.
+GATES := contracts-check ansible-embedded-template-lint \
          deploy-coverage ci-gates-parity per-app-drift-symbol-suites
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
 #
-# ONE gate is excluded -- `capture-typecheck` -- and it is excluded because it
-# CANNOT run there, not because it is inconvenient there (openspec change
-# `enable-ci-gates`, design.md §"Why capture-typecheck cannot run in CI"). It
-# needs `ags` on PATH plus the Astal/GIR libraries, and `ags types` writes
-# ~49 MB of machine-specific .d.ts describing THIS host's GTK/Astal version. A
-# GitHub-hosted runner has no AGS, no Astal and no GTK4, so it has nothing to
-# typecheck against. Its third-party error buckets are keyed to the literal path
-# /usr/share/ags/js/ as well, which only exists on a provisioned desktop. It
-# stays a developer gate. See the comment on the target below.
+# NO EXCLUSIONS TODAY. Every gate in `GATES` is stock-runner capable, so
+# `gates-ci` IS `GATES` — there is no `filter-out`. The historical exclusion was
+# `capture-typecheck`, retired with the in-repo capture GUI (ags-apps-bar-first
+# slice 5): it needed `ags` on PATH plus the Astal/GIR libraries (and wrote ~49 MB
+# of machine-specific .d.ts describing THIS host's GTK/Astal version), which a
+# stock runner cannot provide — exactly why the GUI's gates moved to `ags-apps`
+# WITH the GUI. `ci-gates-parity` reads this rule and treats an absent
+# `filter-out` as "no exclusions" (see `scripts/ci-gates-parity.py`).
 #
 # This target exists so a developer can reproduce a CI run without the desktop
 # stack, and so the split is stated in ONE place that cannot drift from the
 # workflow: `.github/workflows/gates.yml` runs these as one job per gate.
-gates-ci: $(filter-out capture-typecheck,$(GATES))
+gates-ci: $(GATES)
 
 # CI<->gate-list parity: the workflow's job set must equal `gates-ci`.
 #
@@ -91,170 +93,14 @@ gates-ci: $(filter-out capture-typecheck,$(GATES))
 ci-gates-parity:
 	uv run --directory src/provisioning python ../../scripts/ci-gates-parity.py
 
-CAPTURE_DIR := src/gui-tools/capture-tool
-# tsconfig.capture.json is HAND-WRITTEN and committed. `ags types -u` also
-# writes its own tsconfig.json into $(CAPTURE_DIR) and overwrites it on every
-# run, so the committed settings must live under a name that does not collide;
-# the generated one is gitignored and is NOT what the typecheck reads.
-CAPTURE_TSCONFIG := $(CAPTURE_DIR)/tsconfig.capture.json
-
-# Generate the AGS/TypeScript type definitions for the capture GUI.
-#
-# REQUIRES THE DESKTOP STACK: `ags` on PATH plus the Astal/GIR libraries it
-# describes. This target does nothing at all without them.
-#
-# `ags types -u` writes $(CAPTURE_DIR)/@girs/ (168 .d.ts files, ~49 MB),
-# env.d.ts, tsconfig.json, and node_modules/{ags,gnim} symlinks into
-# /usr/share/ags/js. All of it is gitignored and machine-specific — it
-# describes the GTK/Astal version installed here and is rebuilt from scratch
-# on demand rather than committed.
-#
-# TIMING: first run takes ~2-4 minutes and needs network (npx pulls
-# ts-for-gir). Subsequent runs skip: the definitions only change when the
-# system's libraries do, which is rare. Force a rebuild with `rm -rf
-# $(CAPTURE_DIR)/@girs`.
-capture-types:
-	@if [ -d "$(CAPTURE_DIR)/@girs" ]; then \
-		echo "==> capture-types: @girs/ already generated, skipping (rm -rf $(CAPTURE_DIR)/@girs to force)"; \
-	else \
-		echo "==> capture-types: generating GIR types (~2-4 min, needs network, requires the desktop stack)"; \
-		ags types -d "$(CURDIR)/$(CAPTURE_DIR)" -u || exit 1; \
-	fi
-
-# Typecheck the capture GUI: zero errors allowed in our own files.
-#
-# WHY THIS GATE EXISTS: `ags bundle` TRANSPILES WITHOUT TYPE CHECKING.
-# Verified — a file assigning a string to a `number` bundles with exit 0, so a
-# wrong signature otherwise reaches production silently. A missing module IS
-# caught; a wrong type is not (design.md §1.1).
-#
-# REQUIRES THE DESKTOP STACK (`ags` + Astal) and runs `capture-types` first.
-# TIMING: ~30s once @girs/ exists; the first run pays the 2-4 min generation.
-# It needs `tsc`, which this repo does not vendor — installed into an ignored
-# ./node_modules on first run.
-#
-# The AGS runtime and gnim ship 28 errors of their own under
-# /usr/share/ags/js. Those are third-party and tolerated BY LOCATION. Zero
-# tolerance for src/gui-tools/capture-tool/. Errors in neither bucket fail the
-# gate too — "tolerated because it was third-party" must never become a silent
-# pass.
-capture-typecheck: capture-types
-	@if [ ! -x node_modules/.bin/tsc ]; then \
-		echo "==> installing typescript (npm install --no-save, ignored by git)"; \
-		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
-	fi
-	@# Module resolution for `ags/*` and `gnim` is PER-DIRECTORY: the tool needs
-	@# its own gitignored `node_modules` symlinks, which `ags types` creates —
-	@# but `capture-types` skips whenever `@girs/` exists, and the symlinks are
-	@# written by that same run. So an environment that already has `@girs/`
-	@# (a fresh clone seeded from another worktree, or a partially-restored
-	@# tree) never gets them, and the gate dies with
-	@# `Cannot find module 'ags/gtk4'` — MEASURED, and hit independently by two
-	@# agents working in fresh worktrees on 2026-10-07. Same defect `3b283830`
-	@# fixed in the retired bar typecheck; provisioned here too rather than
-	@# relying on a skip decision made for a different reason.
-	@mkdir -p "$(CAPTURE_DIR)/node_modules"
-	@[ -e "$(CAPTURE_DIR)/node_modules/ags" ] || ln -sfn /usr/share/ags/js "$(CAPTURE_DIR)/node_modules/ags"
-	@[ -e "$(CAPTURE_DIR)/node_modules/gnim" ] || ln -sfn /usr/share/ags/js/node_modules/gnim "$(CAPTURE_DIR)/node_modules/gnim"
-	@echo "==> capture-typecheck: tsc --noEmit -p $(CAPTURE_TSCONFIG)"
-	@log=$$(mktemp); \
-	npx tsc --noEmit -p "$(CAPTURE_TSCONFIG)" > "$$log" 2>&1; \
-	ours=$$(grep 'error TS' "$$log" | grep -F "$(CAPTURE_DIR)/" || true); \
-	thirdparty=$$(grep 'error TS' "$$log" | grep -F '/usr/share/ags/js/' || true); \
-	other=$$(grep 'error TS' "$$log" | grep -vF "$(CAPTURE_DIR)/" | grep -vF '/usr/share/ags/js/' || true); \
-	echo "    tolerated third-party errors (/usr/share/ags/js): $$(printf '%s\n' "$$thirdparty" | grep -c . || true)"; \
-	if [ -n "$$other" ]; then \
-		echo "FAIL: errors in neither the capture tool nor the known ags runtime:"; \
-		printf '%s\n' "$$other"; rm -f "$$log"; exit 1; \
-	fi; \
-	if [ -n "$$ours" ]; then \
-		echo "FAIL: type errors in $(CAPTURE_DIR):"; \
-		printf '%s\n' "$$ours"; rm -f "$$log"; exit 1; \
-	fi; \
-	echo "    OK: 0 errors in $(CAPTURE_DIR)"; \
-	rm -f "$$log"
-
-# Unit tests for the capture tool's extracted pure domain (workstream A4).
-#
-# WHY THIS GATE EXISTS: `mergeSettings`, `validateSettings`, `configDefaults`,
-# the `loadUiState` merge, `audioToUi` and `GIF_SIZE_ARG` are the code a file
-# move silently breaks. They encode the config/UI/backend vocabulary mismatches
-# (`mic` vs `microphone`, `75%` vs `75`) whose failure mode is NOT an exception
-# — it is a panel that quietly ignores the user's choice, or a backend argparse
-# that rejects the flag after the fact. Before the A3 extraction this logic had
-# ZERO direct coverage; the only thing exercising it was the Python CLI suite,
-# which reads the same config through a DIFFERENT reader.
-#
-# WHY NODE'S BUILT-IN RUNNER AND NOT VITEST/JEST: the domain layer imports
-# nothing from `ags/*` or `gi://*` — that purity is what makes it testable — so
-# plain `node --test` runs it as-is. No bundler, no browser, no GTK, no network,
-# no package.json, and no dependency to drift. Node strips the types natively
-# (>= 22.18 unflagged for .ts; this repo's node is well past that). The suite is
-# offline-capable by construction rather than by convention.
-#
-# DOES NOT NEED THE DESKTOP STACK — unlike capture-typecheck. TIMING: ~0.1s.
-#
-# The tests import the domain modules with an explicit `.ts` suffix because
-# Node's ESM resolver does no extensionless lookup; the `->` suffix is why
-# tsconfig.tests.json sets allowImportingTsExtensions.
-#
-# resolve-hooks.mjs covers the OTHER direction, added in A6: now that
-# domain/cli-args.ts really imports domain/ui-state.ts (isGif + GIF_SIZE_ARG),
-# the DOMAIN's own extensionless `./ui-state` import has to survive Node too.
-# The hook teaches the test runner the one thing `ags bundle` already does, so
-# the app sources stay idiomatic. See the file for why this is not solved by
-# rewriting app imports to `./x.ts`.
-CAPTURE_TS_TESTS := $(CAPTURE_DIR)/tests/ts
-
-# The dependencies this gate needs, installed on demand, in the same shape
-# `capture-typecheck` already uses for typescript (`npm install --no-save
-# --no-package-lock`, into gitignored node_modules, no package.json committed).
-# A gate that cannot run on a clean checkout is not a gate, so it DECLARES what
-# it needs rather than inheriting whatever the machine happens to have. Both
-# installs are idempotent: the guards skip the network round-trip when the
-# package is already there.
-#
-# @types/node MUST land under $(CAPTURE_DIR)/tests/ and nowhere else. The app
-# config pins `"types": []` (harden-capture-typecheck-config), so a reachable
-# @types/node no longer widens the GJS program — but keeping it out of the
-# typeRoots walk is the second half of that fix, not an optional extra. Moving
-# it to the repo root or to capture-tool/ puts 66 of its files one
-# accidentally-deleted pin away from being ambient in app code. tests/ is below
-# the app config's directory, so the upward walk never descends into it. The
-# path is gitignored explicitly (see .gitignore) because the capture tool's
-# placement is per-file and a committed node_modules is a deployment hazard.
-#
-# A separate npm project (--prefix, no package.json) also means this install
-# cannot PRUNE the root one: `npm install --no-save X` at the repo root removes
-# previously --no-save'd packages, which is how a previous measurement in this
-# repo's history turned into a false green.
-#
-# EVERY path below is anchored to $(CURDIR), the directory of THIS Makefile, not
-# the process CWD. This target must be worktree-safe: run from a
-# `.worktrees/<id>/` checkout, a bare `npm install` (no --prefix) makes npm walk
-# UP for a project root, finds the MAIN checkout's node_modules and installs
-# THERE -- the worktree's own node_modules/.bin/tsc is never created, the guard
-# below never flips, and the gate dies with "tsc is not resolvable" (verified:
-# `npm prefix` from the worktree reports /home/inumaki/Development/dotfiles-v3).
-# --prefix "$(CURDIR)" pins the install to the tree being built, and invoking the
-# CURDIR-anchored binary for the tsc run stops `npx` from walking up into the
-# main repo's typescript too.
-capture-test-deps:
-	@if [ ! -x "$(CURDIR)/node_modules/.bin/tsc" ]; then \
-		echo "==> capture-test: installing typescript (npm install --no-save, ignored by git)"; \
-		npm install --no-save --no-package-lock --prefix "$(CURDIR)" typescript@5.9 >/dev/null || exit 1; \
-	fi
-	@if [ ! -d "$(CURDIR)/$(CAPTURE_DIR)/tests/node_modules/@types/node" ]; then \
-		echo "==> capture-test: installing @types/node under $(CAPTURE_DIR)/tests/ (gitignored)"; \
-		npm install --no-save --no-package-lock --prefix "$(CURDIR)/$(CAPTURE_DIR)/tests" @types/node@24 >/dev/null || exit 1; \
-	fi
-
-capture-test: capture-test-deps
-	@echo "==> capture-test: node --test $(CAPTURE_TS_TESTS)"
-	node --import ./$(CAPTURE_TS_TESTS)/resolve-hooks.mjs --test $(CAPTURE_TS_TESTS)/*.test.ts
-	@echo "==> capture-test: tsc --noEmit -p $(CAPTURE_DIR)/tests/tsconfig.tests.json"
-	"$(CURDIR)/node_modules/.bin/tsc" --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1
-	@echo "    OK: 0 type errors in the domain unit tests"
+# The capture-tool GUI gates (capture-types / capture-typecheck / capture-test /
+# capture-test-deps / capture-hexagonal-gate) were RETIRED with the in-repo GUI
+# (ags-apps-bar-first slice 5): the AGS GUI moved into the `ags-apps` unit and
+# its own gates (typecheck, domain tests, hexagonal structure) live there now.
+# What remains here is the Python backend (src/gui-tools/capture-tool/bin/capture-tool,
+# installed by the cli_tools role) and the provisioning SHAPE, asserted by
+# `deploy-coverage`. Do NOT re-add a per-file capture gate here: it would read a
+# tree this repo no longer owns.
 
 # ---------------------------------------------------------------------------
 # per-app-drift-symbol-suites -- the per-app contract drift suites, run from the
@@ -289,22 +135,6 @@ per-app-drift-symbol-suites: ags-platform-dev
 		node "$$suite" || exit 1; \
 	done
 	@echo "    OK: per-app contract drift + symbol suites green"
-
-# Hexagonal structure + class-vocabulary gate for the capture GUI
-# (scripts/capture-hexagonal-gate.py, design.md §5). "Refactor only, zero
-# behaviour change" is otherwise unenforceable prose, so the layering
-# invariants, the single pure request->argv translator, the absence of the
-# dead pre-hexagonal scaffolding, per-file provisioning registration and the
-# classic layout's CSS class vocabulary are all checked BY EXECUTION.
-#
-# RED UNTIL THE REFACTOR LANDS. The gate counts down to zero across the
-# refactor-capture-tool-hexagonal workstreams and only goes green at A8. A red
-# run in the meantime is the expected state, NOT a regression — read the
-# per-check `ok` lines and the violation count rather than the exit code.
-#
-# Stdlib-only Python; needs no desktop stack (unlike capture-typecheck).
-capture-hexagonal-gate:
-	python3 scripts/capture-hexagonal-gate.py
 
 # ---------------------------------------------------------------------------
 # ags-platform-dev -- the dev-time `node_modules/ags-platform` shortcut.
