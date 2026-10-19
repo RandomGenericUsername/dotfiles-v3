@@ -234,6 +234,26 @@ target.
 - **Git-tag-only distribution needs network at build time.** → The build stage
   installs `git` + CA certificates; an unreachable pin fails closed instead of
   resolving something newer. Accepted because PyPI/registry is a non-goal.
+- **A pin target that is private looks healthy locally and fails only on the
+  provisioned host (the `ags-apps` defect).** Evidence, orchestrator-verified:
+  `gh api repos/RandomGenericUsername/ags-apps --jq .private` → `true`, while
+  `src/provisioning/ansible/roles/ags_apps/tasks/main.yml:12-13` claims "the repo
+  is public, so no `gh` credential helper is needed"; the anonymous probe
+  `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote
+  https://github.com/RandomGenericUsername/ags-apps HEAD` fails with
+  `fatal: could not read Username`. Nothing was wrong with the clone task — the
+  visibility claim was prose, so no gate could contradict it. **This migration
+  must not reproduce it:** every new repo passes birth gate 0.5 before its tag is
+  consumed — `gh repo view … --json visibility --jq .visibility` → `PUBLIC` (or
+  `gh api … --jq .private` → `false`), then an anonymous `ls-remote` of the exact
+  tag being pinned → exit 0 with exactly one line — and the birth ticket records
+  both outputs. The consequence is named up front, not discovered at provision
+  time: a private repo breaks provisioning's anonymous clone, so if the decision
+  ever changes to private, credential handling (a `gh` credential helper, or a
+  token/SSH pin URL) lands **in the same slice** as an explicit alternative —
+  never silently accepted. Residual risk accepted: the gate proves the channel at
+  release time, so a later visibility flip is caught by the consuming slice's
+  clone, not by a background check.
 - **A wrong-tag install can still look healthy to `command -v`.** → `verify`
   asserts the checkout tag, installed version, contract token and image tag by
   execution (D5); `deploy-coverage` asserts manifest/role/verify parity.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the minimum a new repo must contain before it is a valid extraction target: the mu-strict harness, runnable verbs, hermetic tests and per-repo CI, all present from the first commit.
+Defines the minimum a new repo must contain before it is a valid extraction target: the mu-strict harness, runnable verbs, hermetic tests, per-repo CI and a public, anonymously clonable pin channel, all present from the first commit.
 
 ## ADDED Requirements
 
@@ -95,3 +95,27 @@ Each repo SHALL carry `.github/workflows/gates.yml` with one job per `make gates
 
 - **WHEN** a target is added to `GATES` without a workflow job
 - **THEN** `ci-gates-parity` exits non-zero and names the target
+
+### Requirement: The repo is publicly and anonymously clonable before it is pinned
+
+A new repo SHALL be `PUBLIC` before `dotfiles-v3` consumes any of its tags, and the released tag SHALL resolve over anonymous HTTPS with no credential helper and no terminal prompt. Visibility SHALL be read from GitHub and the anonymous clone SHALL be proven by execution for the tag being pinned — including the first tag. Neither SHALL be assumed from the repo's creation defaults.
+
+#### Scenario: visibility is public, not assumed
+
+- **WHEN** `gh repo view <owner>/<name> --json visibility --jq .visibility` is run (equivalent: `gh api repos/<owner>/<name> --jq .private`)
+- **THEN** it prints `PUBLIC` (or `false`), and the birth ticket records that output verbatim
+
+#### Scenario: the tag resolves anonymously
+
+- **WHEN** `cd /tmp/opencode && GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>'` is run right after the tag is pushed (`v0.1.0` for every repo except `oci-runtime`, which is `v0.5.0`)
+- **THEN** it exits 0 and prints exactly one line, `<sha>\trefs/tags/<tag>` — the credential helper is cleared and terminal prompting is disabled, so it proves the same anonymous fetch provisioning performs
+
+#### Scenario: a private repo is rejected rather than assumed public
+
+- **WHEN** the visibility read prints `PRIVATE` (or `true`), or the anonymous `ls-remote` fails with `could not read Username`
+- **THEN** the repo is not a valid pin target and the slice does not merge, because provisioning clones the pin from the provisioned host with no credential helper and the tag would be unresolvable there. The `ags-apps` precedent is the defect this gate exists to prevent: `gh api repos/RandomGenericUsername/ags-apps --jq .private` returns `true` while `src/provisioning/ansible/roles/ags_apps/tasks/main.yml:12-13` claims "the repo is public, so no `gh` credential helper is needed", and the same anonymous probe against `ags-apps` fails with `fatal: could not read Username`. A written claim without the two outputs is not evidence.
+
+#### Scenario: private is an explicit alternative, never a silent default
+
+- **WHEN** the visibility decision ever changes to private
+- **THEN** provisioning gains credential handling (a `gh` credential helper, or a token/SSH pin URL) in the same slice, and the birth ticket names that as the chosen alternative; a private repo SHALL NOT be accepted silently, because anonymity is what lets the tag channel resolve on a host that holds no repository credentials.

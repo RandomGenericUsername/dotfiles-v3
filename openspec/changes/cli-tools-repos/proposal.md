@@ -41,7 +41,10 @@ pinned-unit, destructive-last ritual and its absence guard (S4 §5; AD-13).
   each: `cli-output v0.1.0`, `config-assembler-engine v0.1.0`,
   `oci-runtime v0.5.0`, `itr v0.1.0`, `weg v0.1.0`, `csg v0.1.0`. Each is
   mu-strict from its first commit (AD-12) and releases by immutable annotated
-  tag (AD-9).
+  tag (AD-9). "Public" is proven, not assumed: birth gate 0.5 reads the GitHub
+  visibility and anonymously resolves the released tag (no credential helper, no
+  terminal prompt) for every repo, because provisioning clones the pin without
+  credentials (see `design.md` Risks — the `ags-apps` precedent).
 - **`contracts` owns the runtime↔CLI invocation contract** (user decision
   2026-10-19). It gains `cli-invocation-contract` 0.1.0 — `invocation-contract.json`
   plus `cli_invocation_contract.testkit` — and its first tag `v0.1.0`. The

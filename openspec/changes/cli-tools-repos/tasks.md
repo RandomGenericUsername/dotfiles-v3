@@ -45,9 +45,12 @@ from `SLICES.md`; a green command is the completion criterion, not a diff review
 Historical dirs `_bmad-output/` and `openspec/changes/archive/` are out of scope
 for reference-cleanup greps by rule.
 
-**Birth gates (run in every new repo before its first tag).** These are the
-executable form of the `cli-repo-birth` scenarios. They run inside the new repo
-with `MU=/home/inumaki/Development/mu` and `REPO=<absolute new-repo path>`.
+**Birth gates (run in every new repo before its first tag; 0.5's anonymous probe
+runs immediately after the tag is pushed, because it proves the tag itself).**
+These are the executable form of the `cli-repo-birth` scenarios. They run inside
+the new repo with `MU=/home/inumaki/Development/mu`,
+`REPO=<absolute new-repo path>`, `NAME=<repo name>` and
+`TAG=<the tag being released>` (`v0.1.0` for all but `oci-runtime`, `v0.5.0`).
 
 - [ ] 0.1 The harness is byte-identical to `mu`.
   Gate: `diff -u "$MU/scripts/worktree-guard.sh" scripts/worktree-guard.sh && diff -u "$MU/skills-lock.json" skills-lock.json`
@@ -73,6 +76,42 @@ with `MU=/home/inumaki/Development/mu` and `REPO=<absolute new-repo path>`.
 - [ ] 0.4 The hermetic fixture and canary exist.
   Gate: `rg -l 'XDG_CONFIG_HOME' "$REPO/tests/conftest.py" && uv run --directory "$REPO" pytest -q -k canary`
   Expect: one conftest path and at least one passing canary.
+
+- [ ] 0.5 The pin channel is anonymous — the repo is public, proven by
+  execution, never assumed.
+  Gate: `gh repo view "RandomGenericUsername/$NAME" --json visibility --jq .visibility`
+  Expect: `PUBLIC`. Equivalent form: `gh api "repos/RandomGenericUsername/$NAME" --jq .private`
+  → `false`.
+  Gate (immediately after the first tag is pushed, and again for every later
+  tag): `cd /tmp/opencode && GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote https://github.com/RandomGenericUsername/"$NAME" "refs/tags/$TAG"`
+  Expect: exit 0 and exactly one line, `<sha>\trefs/tags/<tag>`. An anonymous
+  probe with the credential helper cleared and terminal prompting disabled is the
+  proof: provisioning clones exactly like this, so anything that needs a
+  credential fails here first.
+
+  Why this is a gate, not a note. The `ags-apps` precedent got this wrong and the
+  orchestrator verified it: `gh api repos/RandomGenericUsername/ags-apps --jq .private`
+  → `true`, while `src/provisioning/ansible/roles/ags_apps/tasks/main.yml:12-13`
+  claims "the repo is public, so no `gh` credential helper is needed"; the same
+  anonymous probe against `ags-apps` fails with `fatal: could not read Username`.
+  The claim was never executable, so nothing caught it. Do not carry that shape
+  into the six pins: the visibility read and the anonymous `ls-remote` are the
+  gate, and a green `gh repo view` alone is not enough.
+
+- [ ] 0.6 The visibility decision and its consequence are recorded.
+  A **private** repo breaks provisioning's anonymous clone: `ansible.builtin.git`
+  fetches the pin from the provisioned host with no credential helper, so the tag
+  can never be resolved and the slice's install, `verify` and image build fail at
+  the fetch — not at a check that could explain it. If the decision ever changes
+  to private, provisioning MUST gain credential handling (a `gh` credential
+  helper, or a token/SSH pin URL) **in the same slice**, as an explicitly chosen
+  alternative — never silently accepted.
+  Gate: the birth ticket records the two 0.5 outputs verbatim (the visibility
+  token and the single `ls-remote` line) and states which channel is pinned
+  (`anonymous https`, i.e. no credential helper).
+  Expect: both outputs present for the repo's own first tag, plus one line naming
+  the pin channel. A ticket that asserts "public" without the two outputs does
+  not satisfy 0.5/0.6.
 
 ## 1. S0a — invocation contract in `contracts` + first tag `v0.1.0`
 
