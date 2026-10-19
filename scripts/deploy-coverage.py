@@ -49,6 +49,12 @@ required):
       `<install>/config/ags-wallpaper-selector` link (the gui_tools
       `wallpaper-selector` AGS-instance entry is kept). The selector is a whole
       package — unlike capture-tool, nothing stays in-repo.
+  (i) asserts the SIXTH app in the unit, the icon color mapping editor `icme`
+      (slice 7): the retired per-file source is gone from the gui_tools role and
+      the repo, and the `ags_apps` role deploys the unit's `icme/` subdir as the
+      live `<install>/config/ags-icme` link (the gui_tools
+      `icon-color-mapping-editor` AGS-instance entry is kept). Like the selector
+      icme is a whole package — nothing stays in-repo.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -214,6 +220,22 @@ CAPTURE_TOOL_BACKEND = "src/gui-tools/capture-tool/bin/capture-tool"
 # nothing stays in-repo, so the whole in-repo dir must be gone.
 WALLPAPER_SELECTOR_PACKAGE = "wallpaper-selector"
 RETIRED_WALLPAPER_SELECTOR_DIR = "src/gui-tools/wallpaper-selector"
+
+# The icon color mapping editor (ags-apps-bar-first slice 7): the SEVENTH app
+# moved into the ags-apps unit. It deploys WHOLE like the bar/hypr-pano/
+# notifications/capture-tool/wallpaper-selector — the ags_apps role links the
+# unit's icme/ subdir as <install>/config/ags-icme — so the gate asserts the same
+# two things: the retired per-file source is GONE and the live link is
+# provisioned. The retired per-file deploy lived in the gui_tools role
+# (gui_tools_icme_app_files), not the compositor manifest, so this half reads
+# that role. NOTE: the gui_tools AGS-INSTANCE entry
+# (`icon-color-mapping-editor`, on-demand) is deliberately NOT retired — only the
+# per-file placement is. icme is a WHOLE package: nothing stays in-repo, so the
+# whole in-repo dir must be gone. The `icon-color-mapping-editor` launcher's
+# ICME_REPO_ROOT hint is unchanged (it points at this checkout for the
+# icon-template/mapping INPUTS, not the app sources).
+ICME_PACKAGE = "icme"
+RETIRED_ICME_DIR = "src/gui-tools/icon-color-mapping-editor"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -980,6 +1002,110 @@ def assert_wallpaper_selector_provisioning(root: Path) -> None:
         )
 
 
+def assert_no_per_file_icme_sources(root: Path) -> None:
+    """The icme bridge is retired: no per-file entry may remain.
+
+    The editor deploys WHOLE via the ags_apps live-icme link, so a per-file entry
+    (a gui_tools app_files dest under ags-icme/, an ags-icme/ spine dir, or a
+    gui_tools_icme_app_files key) would template INTO the unit tree through the
+    link and silently diverge the live editor from the pinned tag. The in-repo
+    source must be gone too: it lives in the ags-apps unit now. Like the
+    wallpaper selector, icme is a WHOLE package, so the entire in-repo dir must be
+    absent.
+    """
+    import yaml
+
+    if (root / RETIRED_ICME_DIR).exists():
+        raise ValueError(
+            f"the retired in-repo {ICME_PACKAGE!r} source still exists at "
+            f"{RETIRED_ICME_DIR}/ — the editor deploys WHOLE from the ags-apps "
+            f"unit; the in-repo copy is a second source of truth"
+        )
+
+    vars_path = root / GUI_TOOLS_ROLE_VARS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the editor deploys as the external {ICME_PACKAGE!r} unit but no "
+            f"gui_tools role declares it: {GUI_TOOLS_ROLE_VARS} is missing"
+        )
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{GUI_TOOLS_ROLE_VARS} did not parse to a mapping")
+
+    if data.get("gui_tools_icme_app_files"):
+        raise ValueError(
+            "the editor deploys WHOLE via the ags_apps live-icme link, but "
+            "gui_tools_icme_app_files still lists per-file sources in "
+            f"{GUI_TOOLS_ROLE_VARS} — delete it; the per-file bridge is retired"
+        )
+    for key, value in data.items():
+        if key.endswith("_app_files") and isinstance(value, list):
+            for entry in value:
+                dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                if "/ags-icme/" in dest:
+                    raise ValueError(
+                        f"{key} still deploys into the retired ags-icme/ spine: "
+                        f"{dest} — the editor deploys WHOLE via the unit"
+                    )
+    if any(
+        "ags-icme" in str(d) for d in data.get("gui_tools_config_dirs", [])
+    ):
+        raise ValueError(
+            "gui_tools_config_dirs still ensures the retired ags-icme/ dir — "
+            "the ags_apps role owns it as the live-icme symlink"
+        )
+
+
+def assert_icme_provisioning(root: Path) -> None:
+    """The external icme live link must be provisioned, not assumed.
+
+    Mirror of assert_wallpaper_selector_provisioning for the seventh app in the
+    unit: the ags_apps role declares the unit's icme/ subdir and links it as
+    <install>/config/ags-icme. Without this, deleting the in-repo source would
+    leave the gate green with the live editor unprovisioned — exactly the
+    silent-coverage-loss this gate exists to prevent.
+    """
+    import yaml
+
+    vars_path = root / BAR_ROLE_VARS
+    tasks_path = root / BAR_ROLE_TASKS
+    if not vars_path.is_file():
+        raise ValueError(
+            f"the editor deploys as the external {ICME_PACKAGE!r} unit but "
+            f"no provisioning role declares it: {BAR_ROLE_VARS} is missing"
+        )
+    if not tasks_path.is_file():
+        raise ValueError(
+            f"the icme role has no tasks to deploy it: {BAR_ROLE_TASKS} is missing"
+        )
+
+    data = yaml.safe_load(vars_path.read_text())
+    if not isinstance(data, dict):
+        raise ValueError(f"{BAR_ROLE_VARS} did not parse to a mapping")
+
+    icme_dir = str(data.get("ags_apps_icme_dir", ""))
+    if not icme_dir.endswith("/icme"):
+        raise ValueError(
+            f"ags_apps_icme_dir must be the unit's icme/ subdir (the monorepo "
+            f"deviation — the repo root is not the package); got {icme_dir!r}"
+        )
+    live = str(data.get("ags_apps_live_icme_link", ""))
+    # Shape, not the exact Jinja string: the link routes through the spine
+    # config dir intermediate and names `ags-icme`.
+    if "spine_config_dir" not in live or not live.endswith("/ags-icme"):
+        raise ValueError(
+            f"ags_apps_live_icme_link must deploy the unit's icme as "
+            f"<install>/config/ags-icme; got {live!r}"
+        )
+
+    tasks = tasks_path.read_text()
+    if "ags_apps_icme_dir" not in tasks or "ags_apps_live_icme_link" not in tasks:
+        raise ValueError(
+            f"{BAR_ROLE_TASKS} does not deploy the unit's icme/ as the "
+            f"live-icme link"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -1040,6 +1166,11 @@ def main() -> int:
         # nothing stays in-repo.
         assert_no_per_file_wallpaper_selector_sources(root)
         assert_wallpaper_selector_provisioning(root)
+        # Slice 7: the icon color mapping editor deploys WHOLE too (same shape
+        # as the selector). Like the selector it is a whole package: nothing
+        # stays in-repo.
+        assert_no_per_file_icme_sources(root)
+        assert_icme_provisioning(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -1085,11 +1216,16 @@ def main() -> int:
         f"unit subdir + live-wallpaper-selector link provisioned; no per-file "
         f"gui_tools source remains (not a per-file deploy)"
     )
+    print(
+        f"deploy-coverage: external {ICME_PACKAGE!r} app — pinned unit subdir + "
+        f"live-icme link provisioned; no per-file gui_tools source remains (not a "
+        f"per-file deploy)"
+    )
 
     print(
         "deploy-coverage: PASS -- the retired bar + hypr-pano + notifications + "
-        "capture-tool + wallpaper-selector bridges carry no per-file deploy source "
-        "and the external units are provisioned"
+        "capture-tool + wallpaper-selector + icme bridges carry no per-file deploy "
+        "source and the external units are provisioned"
     )
     return 0
 
