@@ -64,8 +64,10 @@ config_links_backup_policy: auto
 #   - gui_tools    → ags-capture, ags-icme, ags-wallpaper-selector,
 #                    ags-btop-studio (slice 5: ags-capture's TARGET is now the
 #                    ags_apps role's live-capture SYMLINK -> the unit's
-#                    capture-tool/, not a gui_tools per-file dir; the ~/.config
-#                    link itself is unchanged)
+#                    capture-tool/, not a gui_tools per-file dir; slice 6/7:
+#                    ags-wallpaper-selector and ags-icme likewise resolve to the
+#                    ags_apps live links -> the unit's wallpaper-selector/ and
+#                    icme/; the ~/.config links themselves are unchanged)
 #   - ags_apps     → ags, ags-hypr-pano, ags-notifications (the live links the
 #                    config-links role exposes at ~/.config/<name>)
 #   - config_copies → nvim, starship, wlogout, zsh

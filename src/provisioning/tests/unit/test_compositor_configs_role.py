@@ -177,13 +177,13 @@ def _preseed_bar_unit(install: Path) -> Path:
             f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
             "strict bar gate needs the unit's validate-cli.ts"
         )
-    bar = install / "ags-apps" / "v0.3.6" / "bar"
+    bar = install / "ags-apps" / "v0.3.7" / "bar"
     shutil.copytree(
         src,
         bar,
         ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
     )
-    (install / "ags-apps" / "pinned").write_text("v0.3.6\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.7\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
     # The capture-tool AGS GUI deploys WHOLE the same way (slice 5): the unit's
@@ -191,7 +191,7 @@ def _preseed_bar_unit(install: Path) -> Path:
     # role's capture icons.json is generated THROUGH that link (mirror of the
     # bar's icons.json). A standalone compositor-configs run must build that state
     # by hand, exactly as it does for the bar.
-    capture = install / "ags-apps" / "v0.3.6" / "capture-tool"
+    capture = install / "ags-apps" / "v0.3.7" / "capture-tool"
     capture.mkdir(parents=True, exist_ok=True)
     (capture / "app.tsx").write_text("export {}\n")
     (install / "config" / "ags-capture").symlink_to(
@@ -207,16 +207,19 @@ class TestCompositorConfigsRoleTree:
         for relative in self._REQUIRED_FILES:
             assert (_ROLES_DIR / relative).is_file(), f"missing {relative}"
 
-    def test_icme_chooser_rule_matches_every_editor_dialog(self) -> None:
-        """The icme-filechooser-replaces-editor rule must match EVERY file
-        chooser the editor can open — Mappings inputs + Templates picker —
+    def test_icme_chooser_rule_still_matches_the_editors_chooser_titles(self) -> None:
+        """The icme-filechooser-replaces-editor rule must keep matching EVERY
+        file chooser the editor can open — Mappings inputs + Templates picker —
         so all of them float centered at editor size instead of tiling.
 
-        The rule matches portal-window TITLES, and those titles are the
-        GUI dialogs' own label strings: renaming a dialog (as happened to
-        'SVG template root (read-only)' and to the new Templates 'Template
-        file') silently drops the rule for that chooser. Lock the rule to
-        the GUI source."""
+        The rule matches portal-window TITLES, and those titles are the GUI
+        dialogs' own label strings. The editor source moved into the ags-apps
+        unit (slice 7), so the source-side cross-check cannot run here; the four
+        titles the editor uses are therefore PINNED in this test, and a rename in
+        the unit must be accompanied by a rule update here. (The cross-repo
+        rename lock is a known gap: nothing in either repo can observe both
+        sides.)
+        """
         import re
 
         rule = (
@@ -234,26 +237,13 @@ class TestCompositorConfigsRoleTree:
         assert m, "icme-filechooser-replaces-editor rule must carry a title regex"
         normalized = m.group(1).replace("\\", "")
 
-        gui = (
-            _ANSIBLE_DIR.parents[2]
-            / "src"
-            / "gui-tools"
-            / "icon-color-mapping-editor"
-            / "ui"
-        )
-        inputs = (gui / "InputsPanel.tsx").read_text()
-        templates = (gui / "TemplatesTab.tsx").read_text()
-        # InputsPanel: chooser titles are the InputRow labels — the '⋯' pick-button
-        # label is not a dialog title. Scope to the rows array literal only.
-        rows_src = inputs[inputs.index("const rows") :]
-        rows_src = rows_src[: rows_src.index("];") + 2]
-        inputs_titles = [
-            t for t in re.findall(r'label: "([^"]+)"', rows_src) if t != "⋯"
+        pinned_titles = [
+            "Icons manifest (edited by tool)",
+            "SVG template root",
+            "Color scheme (read-only)",
+            "Template file",
         ]
-        tpl_titles = re.findall(r'title: "([^"]+)"', templates)
-        all_titles = inputs_titles + tpl_titles
-        assert all_titles, "no editor file-chooser titles found in GUI source"
-        for title in all_titles:
+        for title in pinned_titles:
             assert title in normalized, (
                 f"editor chooser title {title!r} missing from the "
                 "icme-filechooser-replaces-editor window rule"
@@ -409,11 +399,11 @@ class TestCompositorConfigsTasks:
 
     def test_no_ags_config_dirs_remain(self) -> None:
         """Slice 2: the role no longer ensures the live-bar `ags` dir — it is
-        owned by the ags_apps role as a symlink (the filesystem role still
-        creates the empty spine dir; ags_apps converts it). Slice 5 retired the
-        `ags-capture` dir the same way (the ags_apps live-capture link owns it);
-        the remaining sibling app dirs (ags-icme, ags-wallpaper-selector,
-        ags-btop-studio) are untouched."""
+        owned by the ags_apps role as a symlink. Slice 5 retired the
+        `ags-capture` dir the same way (the ags_apps live-capture link owns it).
+        What remains in compositor_configs_config_dirs are the compositor dirs
+        (hypr/hyprpaper/rofi), never an AGS app dir: the sibling AGS apps deploy
+        WHOLE via the ags_apps live links (ags-capture, ags-icme, ...)."""
         import re
 
         data = _vars()
@@ -425,6 +415,10 @@ class TestCompositorConfigsTasks:
             assert not re.search(r"/ags-capture([\"'/]|$)", str(config_dir)), (
                 f"stale ags-capture dir ensure {config_dir!r}: the live capture "
                 "link is owned by ags_apps (slice 5)"
+            )
+            assert not re.search(r"/ags-icme([\"'/]|$)", str(config_dir)), (
+                f"stale ags-icme dir ensure {config_dir!r}: the live icme link "
+                "is owned by ags_apps (slice 7)"
             )
 
     def test_desktop_entries_placed_into_xdg_data_applications(self) -> None:
@@ -1366,5 +1360,56 @@ class TestDeployCoverageGate:
             )
             assert "wallpaper-selector" in result.stdout, (
                 "the failure must name the retired selector dir; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_a_stale_icme_entry_returns(self) -> None:
+        """Slice 7: a per-file icme entry in the gui_tools manifest must FAIL.
+        The editor deploys WHOLE via the unit symlink, so any ags-icme/ source
+        would template INTO the unit tree through the live-icme link and silently
+        diverge the live editor from the pinned tag. Hermetic: a temp root whose
+        gui_tools vars re-add a retired gui_tools_icme_app_files — plus both unit
+        roles, which the gate asserts."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            gui_vars = root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+            gui_vars.write_text(
+                gui_vars.read_text()
+                + "\ngui_tools_icme_app_files:\n"
+                + "  - { name: stale-icme-app, "
+                + "source: src/gui-tools/icon-color-mapping-editor/app.tsx, "
+                + 'dest: "{{ gui_tools_spine_config_dir }}/ags-icme/app.tsx" }\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a stale per-file icme entry is listed; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "gui_tools_icme_app_files" in result.stdout, (
+                "the failure must name the stale icme entry; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_retired_icme_dir_returns(self) -> None:
+        """Slice 7: icme is a WHOLE package — the entire in-repo
+        src/gui-tools/icon-color-mapping-editor/ dir must be gone. A surviving
+        copy is a second source of truth that no gate deploys, so the gate must
+        FAIL when it exists even with the per-file manifest correctly retired."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stale = root / "src" / "gui-tools" / "icon-color-mapping-editor"
+            stale.mkdir(parents=True)
+            (stale / "app.tsx").write_text("export {}\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-repo icme dir returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "icon-color-mapping-editor" in result.stdout, (
+                "the failure must name the retired icme dir; recap:\n"
                 + result.stdout
             )

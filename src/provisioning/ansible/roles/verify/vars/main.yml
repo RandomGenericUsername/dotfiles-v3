@@ -506,7 +506,7 @@ verify_ags_platform_unit_files:
 #   platform unit: esbuild realpaths the live-bar link, so the shared-ancestor
 #   shortcut is not an ancestor of the real bar tree and the bar's bare
 #   `ags-platform` imports would not resolve without it.
-verify_ags_apps_version: v0.3.6
+verify_ags_apps_version: v0.3.7
 verify_ags_apps_platform_version: v0.2.0
 verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
 verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
@@ -599,7 +599,7 @@ verify_ags_apps_live_capture_link: "{{ install_dir | trim }}/config/ags-capture"
 #   classic-layout shell, the pure settings domain, the single request->argv
 #   translator (the file that carries the --size/--audio vocabulary), a port and
 #   an adapter. A missing file is a capture panel that cannot bundle. NOTE: the
-#   pinned v0.3.6 unit's capture-tool has NO lib/icon-registry.ts — it consumes
+#   pinned v0.3.7 unit's capture-tool has NO lib/icon-registry.ts — it consumes
 #   the platform icon registry through `ags-platform` instead, so no such file is
 #   asserted here.
 verify_ags_apps_capture_tool_files:
@@ -630,7 +630,7 @@ verify_ags_apps_live_wallpaper_selector_link: "{{ install_dir | trim }}/config/a
 #   stylesheet, the selector window, and the pure lib modules the window imports
 #   (the wallpaper model, the scan walk, the thumbnail cache and the apply /
 #   contrast helpers). A missing file is a selector that cannot bundle. NOTE: the
-#   pinned v0.3.6 unit's wallpaper-selector has NO lib/icon-registry.ts,
+#   pinned v0.3.7 unit's wallpaper-selector has NO lib/icon-registry.ts,
 #   lib/event-bus*.ts or lib/theme.ts — it consumes the platform icon registry and
 #   theme adapter through `ags-platform` instead, so no such files are asserted.
 verify_ags_apps_wallpaper_selector_files:
@@ -643,13 +643,43 @@ verify_ags_apps_wallpaper_selector_files:
   - "{{ verify_ags_apps_wallpaper_selector_dir }}/lib/apply.ts"
   - "{{ verify_ags_apps_wallpaper_selector_dir }}/lib/contrast.ts"
 
+# verify_ags_apps_icme_dir / _live_icme_link / _icme_files: the icon color
+#   mapping editor, deployed WHOLE like the bar/hypr-pano/notifications/
+#   capture-tool/wallpaper-selector (slice 7). The live-icme link
+#   <install>/config/ags-icme is a symlink into the unit's icme/ dir, so the live
+#   editor is always exactly the pinned tag — no per-file mirror can drift.
+#   Mirror of the ags_apps role vars. The ~/.config/ags-icme symlink
+#   (config_links) and the `icon-color-mapping-editor` launcher are unchanged:
+#   they resolve through this link. icme is a whole package — unlike capture-tool
+#   nothing stays in-repo.
+verify_ags_apps_icme_dir: "{{ verify_ags_apps_unit_dir }}/icme"
+verify_ags_apps_live_icme_link: "{{ install_dir | trim }}/config/ags-icme"
+
+# verify_ags_apps_icme_files: representative files that MUST be present in the
+#   installed unit's icme/. NOT the whole app (that is the clone's job) — one
+#   file per concern: the composition-root entry, the stylesheet, the editor
+#   window and templates tab, the pure model/substitution/SVG/inputs modules, and
+#   the event publisher seam (`icme-saved.ts` + the vendored generated contract it
+#   publishes through). A missing file is an editor that cannot bundle (or an
+#   event seam that silently stops publishing). NOTE: the pinned unit's icme has
+#   no lib/event-contract.ts, lib/event-bus.ts or lib/event-bus-core.ts — it
+#   consumes the platform event client through `ags-platform` and vendors the
+#   generated contract under lib/generated/ instead.
+verify_ags_apps_icme_files:
+  - "{{ verify_ags_apps_icme_dir }}/app.tsx"
+  - "{{ verify_ags_apps_icme_dir }}/style.css"
+  - "{{ verify_ags_apps_icme_dir }}/ui/EditorWindow.tsx"
+  - "{{ verify_ags_apps_icme_dir }}/ui/TemplatesTab.tsx"
+  - "{{ verify_ags_apps_icme_dir }}/lib/model.ts"
+  - "{{ verify_ags_apps_icme_dir }}/lib/inputs.ts"
+  - "{{ verify_ags_apps_icme_dir }}/lib/substitute.ts"
+  - "{{ verify_ags_apps_icme_dir }}/lib/svg.ts"
+  - "{{ verify_ags_apps_icme_dir }}/lib/icme-saved.ts"
+  - "{{ verify_ags_apps_icme_dir }}/lib/generated/contract.ts"
+
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
-#   mirror of gui_tools_icme_app_files + gui_tools_btop_studio_app_files dests).
-#   The ICME event seam modules (event-contract.ts, event-bus.ts) and the
-#   wallpaper.state consumer core (event-bus-core.ts) are gated here so a real
-#   install cannot ship an editor whose event contract or live palette refresh is
-#   missing.
+#   mirror of gui_tools_btop_studio_app_files dests).
 #   NOTE: the capture-tool AGS GUI is deliberately NOT mirrored per file here
 #   anymore (slice 5). It moved into the ags-apps unit and deploys WHOLE via
 #   the live-capture link; its sources are asserted as a UNIT below
@@ -660,10 +690,11 @@ verify_ags_apps_wallpaper_selector_files:
 #   anymore (slice 6). It moved into the ags-apps unit and deploys WHOLE via the
 #   live-wallpaper-selector link; its sources are asserted as a UNIT below
 #   (verify_ags_apps_wallpaper_selector_files).
+#   NOTE: the icon color mapping editor is deliberately NOT mirrored per file
+#   here anymore (slice 7). It moved into the ags-apps unit and deploys WHOLE via
+#   the live-icme link; its sources (including the event publisher seam) are
+#   asserted as a UNIT below (verify_ags_apps_icme_files).
 verify_gui_tools_app_files:
-  - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
-  - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
-  - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"
   # NOTE: the notification overlay is deliberately NOT mirrored per file here
   # anymore (slice 4). It used to be placed per file under config/ags-notifications/;
   # the consumption step installs it as ONE versioned unit via the `ags_apps`

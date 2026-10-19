@@ -18,22 +18,20 @@ _ERRORS = {
 }
 
 
-def _repo_root() -> Path:
-    for parent in Path(__file__).resolve().parents:
-        if (parent / "src" / "gui-tools").is_dir():
-            return parent
-    raise AssertionError("repository root (with src/gui-tools/) not found")
-
-
 def _fixtures() -> list[dict]:
+    """The shared ICME substitution agreement fixture, vendored here.
+
+    The canonical copy lives with the editor in the ags-apps unit
+    (`icme/tests/fixtures/substitution.json`). The editor source moved out of
+    this repo (slice 7), so the fixture is vendored under this test tree instead
+    of being read from `src/gui-tools/icon-color-mapping-editor/`; the two copies
+    must stay byte-identical, which is what keeps the Python renderer and the
+    TypeScript editor agreeing on placeholder substitution.
+    """
     path = (
-        _repo_root()
-        / "src"
-        / "gui-tools"
-        / "icon-color-mapping-editor"
-        / "tests"
+        Path(__file__).resolve().parents[2]
         / "fixtures"
-        / "substitution.json"
+        / "icme-substitution.json"
     )
     return json.loads(path.read_text(encoding="utf-8"))["cases"]
 

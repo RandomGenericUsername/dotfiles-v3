@@ -248,10 +248,10 @@ checkout exists — the provisioned launcher (`icon-color-mapping-editor`,
 `SUPER+I`) `cd`s into the checkout — and the next bootstrap converges the
 manifest into the spine, so "edit repo, bootstrap, deployed" is the whole
 workflow. On machines without a checkout the editor edits the spine copy
-instead. From a checkout you can also run it with `make run` inside
-`src/gui-tools/icon-color-mapping-editor`. The editor previews the
-group-wide effect before writing and never touches templates, the palette,
-or `generated/`.
+instead. From a checkout you can also run it with `make run` inside the
+`icme/` app dir of the `ags-apps` repo (the editor's source lives there now).
+The editor previews the group-wide effect before writing and never touches
+templates, the palette, or `generated/`.
 
 The same operations exist as CLI commands (the GUI shells out to them):
 

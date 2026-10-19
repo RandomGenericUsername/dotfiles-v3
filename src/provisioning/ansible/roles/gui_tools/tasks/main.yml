@@ -10,13 +10,13 @@
 #   an undefined spine root aborts before any task evaluates.
 # - App placement uses `ansible.builtin.template` (or raw `copy` where the
 #   sources contain Jinja-sensitive sequences) with PER-FILE entries
-#   (gui_tools_icme_app_files / gui_tools_btop_studio_app_files), NOT a directory
-#   source: review finding 2026-08-12 proved `copy` with a directory `src` + a
-#   pre-existing dest dir is a SILENT NO-OP. Per-file copy is the only safe shape.
+#   (gui_tools_btop_studio_app_files), NOT a directory source: review finding
+#   2026-08-12 proved `copy` with a directory `src` + a pre-existing dest dir is
+#   a SILENT NO-OP. Per-file copy is the only safe shape.
 # - The bar, the clipboard overlay, the notification overlay, the capture-tool
-#   GUI and the wallpaper selector are NOT placed here: they deploy WHOLE as the
-#   pinned external `ags-apps` unit and are linked by the `ags_apps` role
-#   (slices 2-6).
+#   GUI, the wallpaper selector and the icon color mapping editor are NOT placed
+#   here: they deploy WHOLE as the pinned external `ags-apps` unit and are linked
+#   by the `ags_apps` role (slices 2-7).
 # - Skeletons are repo-authoritative (`force: true`, idempotent): every
 #   bootstrap converges to the repo (owner decision 2026-08-26, shared with
 #   compositor_configs).
@@ -48,22 +48,16 @@
     mode: "0755"
   loop: "{{ gui_tools_state_dirs }}"
 
-- name: Ensure icon color mapping editor app dirs exist
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-  loop: "{{ gui_tools_config_dirs }}"
-  when: "'ags-icme' in item"
-
-# RAW copy, NOT template: the icme sources contain literal `{{PLACEHOLDER}}`
-# sequences (SVG placeholder regexes) that Jinja2 would evaluate and destroy.
-# Per-file copy with force: true keeps the editor code repo-authoritative.
-- name: Place icon color mapping editor app files (raw copy)
-  ansible.builtin.copy:
-    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
-    dest: "{{ item.dest }}"
-    force: true
-  loop: "{{ gui_tools_icme_app_files }}"
+# The icon color mapping editor's per-file placement is RETIRED (slice 7): the
+# editor moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
+# live-icme link (<install>/config/ags-icme -> <unit>/icme). No placement task
+# remains here — a stale one would template INTO the unit tree through the
+# live-icme link and diverge the live editor from the pinned tag (the
+# deploy-coverage gate asserts its absence). The on-demand
+# `icon-color-mapping-editor` AGS instance entry in gui_tools_ags_instances
+# STAYS: the provisioned launcher starts the editor from the now-symlinked
+# ~/.config/ags-icme. Like the selector, icme is a whole package — nothing stays
+# in-repo.
 
 # The clipboard overlay's per-file placement is RETIRED (ags-apps-bar-first
 # slice 3): hypr-pano moved into the ags-apps unit and deploys WHOLE via the

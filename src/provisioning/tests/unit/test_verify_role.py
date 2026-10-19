@@ -1663,6 +1663,68 @@ class TestVerifyVars:
                 f"got {entry!r}"
             )
 
+    def test_live_icme_link_mirrors_the_ags_apps_role_and_is_not_a_per_file_assertion(
+        self,
+    ) -> None:
+        """Slice 7: <install>/config/ags-icme is the ags_apps role's live-icme
+        SYMLINK (-> the unit's icme/), NOT a gui_tools per-file dir. It must be
+        absent from verify_gui_tools_app_files (the editor deploys WHOLE), absent
+        from verify_install_spine_dirs (it is not a filesystem dir), and its vars
+        must mirror the ags_apps role."""
+        data = _vars()
+        apps = _sibling_vars("ags_apps")
+
+        live = str(data["verify_ags_apps_live_icme_link"])
+        assert live == "{{ install_dir | trim }}/config/ags-icme", (
+            f"verify_ags_apps_live_icme_link must be "
+            f"<install>/config/ags-icme; got {live!r}"
+        )
+        # Mirror of the role: the link DEST is the spine config path, the unit
+        # dir is the icme/ subdir of the versioned unit.
+        role_live = str(apps["ags_apps_live_icme_link"])
+        assert (
+            role_live.endswith("/ags-icme")
+            and "spine_config_dir" in role_live
+        ), (
+            "the ags_apps role must deploy the live-icme link at "
+            f"config/ags-icme; got {role_live!r}"
+        )
+        unit_icme = str(data["verify_ags_apps_icme_dir"])
+        assert (
+            unit_icme.endswith("/icme")
+            and "verify_ags_apps_unit_dir" in unit_icme
+        ), (
+            "verify_ags_apps_icme_dir must be <unit>/icme; "
+            f"got {unit_icme!r}"
+        )
+        assert str(apps["ags_apps_icme_dir"]).endswith("/icme"), (
+            "the ags_apps role must declare the unit's icme/ subdir"
+        )
+
+        # Not a spine dir, and not a per-file gui_tools assertion.
+        assert "config/ags-icme" not in [
+            str(item) for item in data["verify_install_spine_dirs"]
+        ], (
+            "config/ags-icme is a symlink, not a "
+            "verify_install_spine_dirs dir"
+        )
+        per_file_icme = [
+            str(f)
+            for f in data["verify_gui_tools_app_files"]
+            if "/config/ags-icme/" in str(f)
+        ]
+        assert per_file_icme == [], (
+            "verify_gui_tools_app_files must not mirror per-file icme "
+            f"sources (the editor deploys WHOLE): {per_file_icme}"
+        )
+        # The unit files are asserted under the unit, and there are some.
+        icme_files = [str(f) for f in data["verify_ags_apps_icme_files"]]
+        assert icme_files, "verify_ags_apps_icme_files must not be empty"
+        for entry in icme_files:
+            assert entry.startswith("{{ verify_ags_apps_icme_dir }}/"), (
+                f"an icme unit file must derive from the unit dir; got {entry!r}"
+            )
+
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
         settings_files dests EXACTLY — verify must check the SAME rendered
@@ -1930,6 +1992,39 @@ class TestVerifyVars:
             f"gui_tools_ags_instances; got {names}"
         )
 
+    def test_icme_is_not_mirrored_per_file(self) -> None:
+        """Slice 7 retired the per-file icme coverage. The editor moved into the
+        ags-apps unit and deploys WHOLE via the live-icme link, so NO ags-icme/
+        dest may remain in gui_tools_app_files or in verify_gui_tools_app_files —
+        the per-file placement/assertion pair is retired together. The unit's
+        sources are asserted by verify_ags_apps_icme_files instead."""
+        gui_tools = _sibling_vars("gui_tools")
+        for key, value in gui_tools.items():
+            if key.endswith("_app_files") and isinstance(value, list):
+                for entry in value:
+                    dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                    assert "/ags-icme/" not in dest, (
+                        f"{key} still places a per-file icme source: {dest} — "
+                        "the editor deploys WHOLE via the live-icme link"
+                    )
+        verified = [str(f) for f in _vars()["verify_gui_tools_app_files"]]
+        assert not any("/config/ags-icme/" in f for f in verified), (
+            "verify_gui_tools_app_files must not assert per-file icme "
+            f"sources (the editor deploys WHOLE): {verified}"
+        )
+
+    def test_icme_ags_instance_still_launches_from_the_symlink(self) -> None:
+        """The editor still launches: the on-demand
+        `icon-color-mapping-editor` AGS instance entry stays in the gui_tools
+        instance list, started from the symlinked ~/.config/ags-icme
+        (config-links -> live-icme link)."""
+        gui_instances = _sibling_vars("gui_tools")["gui_tools_ags_instances"]
+        names = [str(i["name"]) for i in gui_instances]
+        assert "icon-color-mapping-editor" in names, (
+            "the icon-color-mapping-editor AGS instance must stay in "
+            f"gui_tools_ags_instances; got {names}"
+        )
+
     def test_ags_gate_is_session_aware(self) -> None:
         """The bar and overlay are Hyprland-session apps (autostart.lua); a
         machine provisioned from another session has no Hyprland IPC yet, so
@@ -2013,10 +2108,9 @@ class TestVerifyVars:
 
     def test_verify_lists_include_the_phase5_event_modules(self) -> None:
         """Phase 5 event seam: verify gates the AGS bar event-bus modules
-        (compositor_configs) and the ICME event-contract/event-bus modules
-        (gui_tools) so a real install cannot ship a shell whose event seam was
-        never deployed — the per-file provisioning manifests are the
-        deployment contract."""
+        (compositor_configs) and the ICME event-publisher seam (the unit's
+        lib/icme-saved.ts + vendored contract) so a real install cannot ship a
+        shell or editor whose event seam was never deployed."""
         data = _vars()
         # The bar's event seam (event-bus adapter + event-client port) moved into
         # the EXTERNAL ags-platform unit (AD-17): asserted through the platform
@@ -2028,17 +2122,21 @@ class TestVerifyVars:
         assert not any("/platform/" in f for f in skeletons), (
             "the platform is external (AD-17); verify must not mirror it per file"
         )
+        # The ICME editor's event publisher seam is part of the external unit
+        # (slice 7) and deploys WHOLE via the live-icme link: NO per-file icme
+        # mirror remains here (its sources are asserted as a unit by
+        # verify_ags_apps_icme_files). A stale per-file mirror would assert files
+        # the bridge no longer deploys.
         gui = [str(f) for f in data["verify_gui_tools_app_files"]]
-        assert "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts" in gui
-        assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts" in gui
-        assert "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts" in gui
-        # The wallpaper selector's event seam moved into the ags-apps unit with
-        # the selector (slice 6) and deploys WHOLE via the live-wallpaper-selector
-        # link: NO per-file selector mirror remains here (its sources are asserted
-        # as a unit by verify_ags_apps_wallpaper_selector_files). A stale per-file
-        # mirror would assert files the bridge no longer deploys.
-        assert not any("/config/ags-wallpaper-selector/" in f for f in gui), (
-            "the selector is external (slice 6); verify must not mirror it per file"
+        assert not any("/config/ags-icme/" in f for f in gui), (
+            "the editor is external (slice 7); verify must not mirror it per file"
+        )
+        icme = [str(f) for f in data["verify_ags_apps_icme_files"]]
+        assert "{{ verify_ags_apps_icme_dir }}/lib/icme-saved.ts" in icme, (
+            "verify must assert the unit's icme.saved publisher seam"
+        )
+        assert "{{ verify_ags_apps_icme_dir }}/lib/generated/contract.ts" in icme, (
+            "verify must assert the vendored contract the publisher uses"
         )
 
     def test_verify_compositor_skeletons_cover_the_reachable_bar_sources(self) -> None:
@@ -2125,6 +2223,9 @@ class TestVerifyVars:
             "verify_ags_apps_wallpaper_selector_dir",
             "verify_ags_apps_live_wallpaper_selector_link",
             "verify_ags_apps_wallpaper_selector_files",
+            "verify_ags_apps_icme_dir",
+            "verify_ags_apps_live_icme_link",
+            "verify_ags_apps_icme_files",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2887,8 +2988,8 @@ def _build_provisioned_layout(
         # live-wallpaper-selector SYMLINK (-> the unit's wallpaper-selector/), NOT
         # spine dirs; all are created in the ags-apps unit block below.
         # config/ags-hypr-pano is likewise the live-pano SYMLINK (slice 3), not a
-        # spine dir — created in the same block.
-        "config/ags-icme",
+        # spine dir — created in the same block. config/ags-icme is the live-icme
+        # SYMLINK (slice 7, -> the unit's icme/), also created there.
         "config/ags-btop-studio",
         "config/ags-btop-studio/ui",
         "config/ags-btop-studio/lib",
@@ -3044,10 +3145,10 @@ def _build_provisioned_layout(
     # symlink (into the unit's capture-tool/); it is written in the ags-apps unit
     # block below, after that link exists.
     # Sibling AGS apps stay spine dirs (the ags_apps role owns the bar, the
-    # clipboard overlay, the notification overlay and the capture GUI as live
-    # links; those links are built in the unit block below).
+    # clipboard overlay, the notification overlay, the capture GUI, the wallpaper
+    # selector and the icon color mapping editor as live links; those links are
+    # built in the unit block below).
     for rel in (
-        "ags-icme/lib",
         "ags-btop-studio",
         "ags-btop-studio/ui",
         "ags-btop-studio/lib",
@@ -3079,7 +3180,7 @@ def _build_provisioned_layout(
     # real dir of per-file bar sources. The fixture mirrors
     # verify_ags_apps_unit_dir / _bar_dir / _pin_file / _live_bar_link /
     # _resolution_shortcut so the criterion asserts have something to pass on.
-    apps_unit = install / "ags-apps" / "v0.3.6"
+    apps_unit = install / "ags-apps" / "v0.3.7"
     apps_bar = apps_unit / "bar"
     (apps_bar / "bar" / "widgets").mkdir(parents=True, exist_ok=True)
     for apps_file in (
@@ -3095,7 +3196,7 @@ def _build_provisioned_layout(
         "bar/validate-cli.ts",
     ):
         (apps_bar / apps_file).write_text("")
-    (install / "ags-apps" / "pinned").write_text("v0.3.6\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.7\n")
     (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
     (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
     (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
@@ -3169,12 +3270,30 @@ def _build_provisioned_layout(
         apps_capture, target_is_directory=True
     )
     (install / "config" / "ags-capture" / "icons.json").write_text("{}")
-    # Icon color mapping editor (gui_tools role): verify gates its event seam
-    # modules (Phase 5 event-contract + event-bus) and the wallpaper.state
-    # consumer core (event-bus-core) behind the live palette refresh.
-    (install / "config" / "ags-icme" / "lib" / "event-contract.ts").write_text("")
-    (install / "config" / "ags-icme" / "lib" / "event-bus-core.ts").write_text("")
-    (install / "config" / "ags-icme" / "lib" / "event-bus.ts").write_text("")
+    # The icon color mapping editor deploys WHOLE like the bar (slice 7): the
+    # unit's icme/ subdir is linked as <install>/config/ags-icme — NOT a real dir
+    # of per-file app sources. Mirror of verify_ags_apps_icme_dir /
+    # _live_icme_link / _icme_files (including the icme.saved publisher seam and
+    # the vendored generated contract).
+    apps_icme = apps_unit / "icme"
+    (apps_icme / "ui").mkdir(parents=True, exist_ok=True)
+    (apps_icme / "lib" / "generated").mkdir(parents=True, exist_ok=True)
+    for icme_file in (
+        "app.tsx",
+        "style.css",
+        "ui/EditorWindow.tsx",
+        "ui/TemplatesTab.tsx",
+        "lib/model.ts",
+        "lib/inputs.ts",
+        "lib/substitute.ts",
+        "lib/svg.ts",
+        "lib/icme-saved.ts",
+        "lib/generated/contract.ts",
+    ):
+        (apps_icme / icme_file).write_text("")
+    (install / "config" / "ags-icme").symlink_to(
+        apps_icme, target_is_directory=True
+    )
     # hypr-pano is NOT a gui_tools per-file app anymore (slice 3): it deploys
     # WHOLE via the ags_apps live-pano link created in the unit block above, so
     # there is no per-file mirror here and verify_gui_tools_app_files asserts

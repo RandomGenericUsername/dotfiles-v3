@@ -121,21 +121,33 @@ ci-gates-parity:
 # in the bar's repo; hypr-pano's drift suite moved to the ags-apps unit with the
 # app itself — ags-apps-bar-first slice 3 — and is run there; the wallpaper
 # selector's drift suite moved to the ags-apps unit with the selector — slice 6 —
-# and is run there.)
+# and is run there; the ICME editor's drift suite moved with the editor — slice 7
+# — and is run by the ags-apps repo's `icme-drift-test` gate.)
+#
+# EMPTY IS A VALID, GREEN STATE. With the last in-repo app moved into the
+# `ags-apps` unit, this repo owns no drift suite: the list is intentionally
+# empty and the target reports that instead of failing (an empty `for` loop is
+# already a no-op, but the explicit guard makes the green result legible). A new
+# in-repo suite only needs to be added here — the platform-dev shortcut dependency
+# is resolved conditionally from the list, so it is not fetched for an empty set.
 #
 # NO DESKTOP STACK: plain `node` over the apps' pure modules and the committed
 # contract, so the target is in gates-ci and runs on a stock runner. Node 22.18+
 # is required for native .ts type-stripping; CI pins Node 24.
-PER_APP_SUITES := \
-	src/gui-tools/icon-color-mapping-editor/tests/event-contract-drift.mjs
+PER_APP_SUITES :=
 
-per-app-drift-symbol-suites: ags-platform-dev
-	@command -v node >/dev/null || { echo "FAIL: per-app-drift-symbol-suites: node is not on PATH" >&2; exit 1; }
-	@for suite in $(PER_APP_SUITES); do \
+per-app-drift-symbol-suites: $(if $(strip $(PER_APP_SUITES)),ags-platform-dev,)
+	@suites="$(strip $(PER_APP_SUITES))"; \
+	if [ -z "$$suites" ]; then \
+		echo "    OK: per-app contract drift + symbol suites green (no in-repo suites; all moved to ags-apps)"; \
+		exit 0; \
+	fi; \
+	command -v node >/dev/null || { echo "FAIL: per-app-drift-symbol-suites: node is not on PATH" >&2; exit 1; }; \
+	for suite in $$suites; do \
 		echo "==> per-app-drift-symbol-suites: $$suite"; \
 		node "$$suite" || exit 1; \
-	done
-	@echo "    OK: per-app contract drift + symbol suites green"
+	done; \
+	echo "    OK: per-app contract drift + symbol suites green"
 
 # ---------------------------------------------------------------------------
 # ags-platform-dev -- the dev-time `node_modules/ags-platform` shortcut.
@@ -144,8 +156,11 @@ per-app-drift-symbol-suites: ags-platform-dev
 # `ags-platform` (spine AD-17). AGS's embedded esbuild resolves it at bundle/run
 # time through a `node_modules` shortcut; the deployed install creates one at
 # <install>/config/node_modules/ags-platform (provisioning role `ags_platform`).
-# The DEV tree needs the same shortcut so `per-app-drift-symbol-suites`' ICME
-# event-contract drift suite resolves the specifier from a plain `node` script.
+# The DEV tree needs the same shortcut for any plain `node` script over the
+# platform (the per-app drift suites used it while they lived in this repo; those
+# suites moved to the `ags-apps` unit, so the target is now kept for the next
+# in-repo suite — `per-app-drift-symbol-suites` depends on it only when the list
+# is non-empty).
 #
 # IT MUST POINT OUTSIDE node_modules. Node refuses to type-strip `.ts` under a
 # real `node_modules` directory (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING),
@@ -176,7 +191,7 @@ ags-platform-dev:
 		git clone --depth 1 --branch $(AGS_PLATFORM_VERSION) $(AGS_PLATFORM_REPO) "$(AGS_PLATFORM_FETCH_DIR)" || exit 1; \
 		rm -rf "$(AGS_PLATFORM_FETCH_DIR)/.git"; \
 	fi
-	@# A repo-root shortcut: the ICME event-contract drift suite (run by
+	@# A repo-root shortcut: an in-repo suite (run by
 	@# `per-app-drift-symbol-suites`) is a plain `node` script under
 	@# src/gui-tools/, and Node's node_modules walk from there reaches the repo
 	@# root but not the bar dev tree. Same symlink shape, one walk up.

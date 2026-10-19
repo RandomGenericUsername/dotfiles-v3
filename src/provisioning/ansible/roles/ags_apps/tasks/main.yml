@@ -67,6 +67,14 @@
 #   entry, which the provisioned `wallpaper-selector-ui` launcher starts from the
 #   now-symlinked ~/.config/ags-wallpaper-selector. The selector is a whole
 #   package — nothing stays in-repo (unlike capture-tool's Python backend).
+# - The live icon color mapping editor is a symlink too (slice 7):
+#   <install>/config/ags-icme -> <unit>/icme/. Identical discipline to the
+#   live-wallpaper-selector link (backup-then-symlink, empty real dir removed,
+#   non-empty legacy dir moved aside, never deleted, NO seed step). gui_tools
+#   keeps only the on-demand `icon-color-mapping-editor` AGS-instance entry,
+#   which the provisioned `icon-color-mapping-editor` launcher starts from the
+#   now-symlinked ~/.config/ags-icme. The editor is a whole package — nothing
+#   stays in-repo.
 # - User-scoped privilege context: NO become (everything lands under the user's
 #   install_dir).
 # - Distro-agnostic: a git clone + symlinks are identical on Arch and
@@ -546,5 +554,82 @@
   ansible.builtin.file:
     src: "{{ ags_apps_wallpaper_selector_dir }}"
     dest: "{{ ags_apps_live_wallpaper_selector_link }}"
+    state: link
+    force: true
+
+# The icon color mapping editor deploys the same way (slice 7): a symlink into
+# the unit's icme/ dir, with the SAME migrate-then-symlink discipline for a
+# pre-existing real dir (empty -> removed, non-empty -> moved aside to a
+# timestamped backup, never deleted). Like the other non-bar apps it owns NO
+# runtime pointer inside its spine dir — its palette is applied through the
+# platform theme adapter, which reads the BAR's
+# <install>/config/ags/colors.css — so there is nothing to seed before the move.
+# The backup is suffixed so a run that displaces MULTIPLE legacy dirs cannot
+# collide on the timestamp. Like the wallpaper selector icme is a whole package:
+# nothing stays in-repo. The `icon-color-mapping-editor` AGS instance entry stays
+# in gui_tools, and the provisioned launcher keeps starting the editor from the
+# symlinked path.
+- name: Check whether the live-icme path already exists
+  ansible.builtin.stat:
+    path: "{{ ags_apps_live_icme_link }}"
+    follow: false
+  register: ags_apps_live_icme_check
+
+- name: List the live-icme path's children when it is a real dir
+  ansible.builtin.find:
+    paths:
+      - "{{ ags_apps_live_icme_link }}"
+    file_type: any
+    hidden: true
+  register: ags_apps_live_icme_children
+  when:
+    - ags_apps_live_icme_check.stat.exists
+    - not ags_apps_live_icme_check.stat.islnk | default(false)
+
+- name: Remove the live-icme path when it is an empty real dir
+  ansible.builtin.file:
+    path: "{{ ags_apps_live_icme_link }}"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_icme_check.stat.exists
+    - not ags_apps_live_icme_check.stat.islnk | default(false)
+    - ags_apps_live_icme_children.matched | default(0) == 0
+
+- name: Determine the legacy-icme-bridge backup path for this run
+  ansible.builtin.set_fact:
+    ags_apps_icme_backup_path: "{{ ags_apps_backup_root }}/{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}-icme"
+  when:
+    - ags_apps_live_icme_check.stat.exists
+    - not ags_apps_live_icme_check.stat.islnk | default(false)
+    - (ags_apps_live_icme_children.matched | default(0)) != 0
+
+- name: Ensure the bridge-backup root exists for the live-icme link
+  ansible.builtin.file:
+    path: "{{ ags_apps_backup_root }}"
+    state: directory
+    mode: "0755"
+  when:
+    - ags_apps_live_icme_check.stat.exists
+    - not ags_apps_live_icme_check.stat.islnk | default(false)
+    - (ags_apps_live_icme_children.matched | default(0)) != 0
+
+- name: Move aside a non-empty legacy icme bridge dir blocking the live-icme link
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ ags_apps_live_icme_link }}"
+      - "{{ ags_apps_icme_backup_path }}"
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_icme_check.stat.exists
+    - not ags_apps_live_icme_check.stat.islnk | default(false)
+    - (ags_apps_live_icme_children.matched | default(0)) != 0
+
+- name: Deploy the unit's icme as the live icon color mapping editor
+  ansible.builtin.file:
+    src: "{{ ags_apps_icme_dir }}"
+    dest: "{{ ags_apps_live_icme_link }}"
     state: link
     force: true

@@ -1214,6 +1214,52 @@
       playbook first
   when: not ansible_check_mode
 
+# (slice 7): the unit's icme/ subdir is linked as the live
+# <install>/config/ags-icme. verify asserts the unit files exist and the
+# live-icme link is a symlink whose target names the pinned tag and resolves to a
+# directory — the host-side coverage the deploy-coverage gate's repo-side shape
+# assertion cannot provide. icme is a whole package: nothing (no backend) stays
+# in-repo to assert separately. The event publisher seam is asserted as part of
+# the unit files (lib/icme-saved.ts + lib/generated/contract.ts).
+- name: Check the ags-apps icme unit files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_ags_apps_icme_files }}"
+  register: verify_ags_apps_icme_checks
+
+- name: Check the live icon color mapping editor is a symlink
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_icme_link }}"
+    follow: false
+  register: verify_ags_apps_live_icme_check
+
+- name: Check the live icon color mapping editor resolves to the unit
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_icme_link }}"
+    follow: true
+  register: verify_ags_apps_live_icme_resolve_check
+
+- name: Assert the ags-apps icme unit + live-icme link are installed
+  ansible.builtin.assert:
+    that:
+      - >-
+        verify_ags_apps_icme_checks.results
+        | map(attribute='stat') | selectattr('isreg') | list | length
+        == verify_ags_apps_icme_files | length
+      - verify_ags_apps_live_icme_check.stat.islnk
+      - verify_ags_apps_live_icme_check.stat.lnk_target is search(verify_ags_apps_version)
+      - verify_ags_apps_live_icme_resolve_check.stat.isdir
+    fail_msg: >-
+      the ags-apps icme unit or its live link is missing under
+      {{ install_dir | trim }} (spine AD-1/AD-17/AD-23). Expected the pinned
+      unit's icme/ at {{ verify_ags_apps_icme_dir }}/ (app.tsx,
+      ui/EditorWindow.tsx, lib/model.ts, lib/icme-saved.ts, ...) and
+      {{ verify_ags_apps_live_icme_link }} as a symlink into it. Without them the
+      SUPER+I keybind and the `icon-color-mapping-editor` launcher open a dead
+      instance (and no icme.saved event can be published). The ags_apps role
+      installs them; run the ags-apps playbook first
+  when: not ansible_check_mode
+
 - name: Check GUI tool app files
   ansible.builtin.stat:
     path: "{{ item }}"
